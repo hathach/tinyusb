@@ -582,6 +582,7 @@ void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   }
 
   uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
+  TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ, );
   fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
   sndbc_write(rhport, xact_len, in_isr);
 
@@ -602,6 +603,28 @@ void xact_in(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   hxfr_write(rhport, hxfr, in_isr);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void xact_inout(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
+  if (ep->ep_dir) {
+    xact_in(rhport, ep, switch_ep, in_isr);
+  }else {
+    xact_out(rhport, ep, switch_ep, in_isr);
+  }
+}
+
+void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t data_toggle) {
+  (void) rhport;
+  (void) result;
+  ep->xfer_pending = 0;
+  ep->data_toggle = data_toggle;
+  //uint8_t const ep_addr = tu_edpt_addr(ep->ep_num, ep->ep_dir);
+  //hcd_event_xfer_complete(rhport, ep_addr, ep->xferred_len, result, true);
+
+//  max3421_ep_t *next_ep = find_next_pending_ep(ep);
+//  if (next_ep) {
+//    xact_inout(rhport, next_ep, true, true);
+//  }
+}
+
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   (void) rhport;
@@ -611,6 +634,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
 
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
   TU_ASSERT(ep);
+
+  // control transfer can switch direction
+  ep->ep_dir = ep_dir;
 
   ep->buf = buffer;
   ep->total_len = buflen;
@@ -636,12 +662,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
       }
     }
 
-    if ( 0 == ep_dir ) {
-      TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ);
-      xact_out(rhport, ep, true, false);
-    } else {
-      xact_in(rhport, ep, true, false);
-    }
+    xact_inout(rhport, ep, true, false);
   }
 
   return true;
@@ -662,6 +683,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
   (void) rhport;
 
   max3421_ep_t* ep = find_opened_ep(daddr, 0, 0);
+  ep->ep_dir = 0;
   ep->total_len  = 8;
   ep->xferred_len = 0;
 
@@ -715,18 +737,13 @@ static void handle_xfer_done(uint8_t rhport) {
       }else {
         // NAK on non-control, find next pending to switch
         max3421_ep_t *next_ep = find_next_pending_ep(ep);
-        TU_ASSERT(next_ep, );
 
         if (ep == next_ep) {
           // only one pending, retry immediately
           hxfr_write(rhport, _hcd_data.hxfr, true);
-        }else {
+        }else if (next_ep) {
           // switch to next pending TODO could have issue with double buffered if not clear previously out data
-          if ( ep_dir ) {
-            xact_in(rhport, next_ep, true, true);
-          } else {
-            xact_out(rhport, next_ep, true, true);
-          }
+          xact_inout(rhport, next_ep, true, true);
         }
       }
       return;
@@ -744,8 +761,8 @@ static void handle_xfer_done(uint8_t rhport) {
 
     // short packet or all bytes transferred
     if ( ep->xfer_complete ) {
-      // save data toggle
-      ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1 : 0;
+      uint8_t const dt = (hrsl & HRSL_RCVTOGRD) ? 1 : 0; // save data toggle
+      xfer_complete_isr(rhport, ep, xfer_result, dt);
       hcd_event_xfer_complete(_hcd_data.peraddr, TUSB_DIR_IN_MASK | ep_num, ep->xferred_len, xfer_result, true);
     }else {
       // more to transfer
@@ -767,8 +784,8 @@ static void handle_xfer_done(uint8_t rhport) {
     ep->buf += xact_len;
 
     if (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len) {
-      // save data toggle
-      ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1 : 0;
+      uint8_t const dt = (hrsl & HRSL_SNDTOGRD) ? 1 : 0; // save data toggle
+      xfer_complete_isr(rhport, ep, xfer_result, dt);
       hcd_event_xfer_complete(_hcd_data.peraddr, ep_num, ep->xferred_len, xfer_result, true);
     } else {
       xact_out(rhport, ep, false, true);

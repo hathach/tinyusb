@@ -919,6 +919,7 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
   switch (event->event_id)
   {
 //    case HCD_EVENT_DEVICE_REMOVE:
+//      // FIXME device remove from a hub need an HCD API for hcd to free up endpoint
 //      // mark device as removing to prevent further xfer before the event is processed in usbh task
 //      break;
 
