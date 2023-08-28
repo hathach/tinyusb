@@ -195,9 +195,7 @@ typedef struct {
   uint8_t hxfr;
 
   volatile uint16_t frame_count;
-
-  max3421_ep_t ep0_addr0; // control endpoint for addr0
-  max3421_ep_t ep[CFG_TUH_MAX3421_ENDPOINT_TOTAL];
+  max3421_ep_t ep[CFG_TUH_MAX3421_ENDPOINT_TOTAL]; // [0] is reserved for addr0
 
   OSAL_MUTEX_DEF(spi_mutexdef);
 #if OSAL_MUTEX_REQUIRED
@@ -328,7 +326,7 @@ static inline void sndbc_write(uint8_t rhport, uint8_t data, bool in_isr) {
 //--------------------------------------------------------------------+
 
 static max3421_ep_t* find_ep_not_addr0(uint8_t daddr, uint8_t ep_num, uint8_t ep_dir) {
-  for(size_t i=0; i<CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+  for(size_t i=1; i<CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
     // for control endpoint, skip direction check
     if (daddr == ep->daddr && ep_num == ep->ep_num && (ep_dir == ep->ep_dir || ep_num == 0)) {
@@ -344,9 +342,17 @@ TU_ATTR_ALWAYS_INLINE static inline max3421_ep_t * allocate_ep(void) {
   return find_ep_not_addr0(0, 0, 0);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline max3421_ep_t * find_opened_ep(uint8_t daddr, uint8_t ep_num, uint8_t ep_dir) {
+  if (daddr == 0 && ep_num == 0) {
+    return &_hcd_data.ep[0];
+  }else{
+    return find_ep_not_addr0(daddr, ep_num, ep_dir);
+  }
+}
+
 // free all endpoints belong to device address
 static void free_ep(uint8_t daddr) {
-  for (size_t i=0; i<CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+  for (size_t i=1; i<CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
     if (ep->daddr == daddr) {
       tu_memclr(ep, sizeof(max3421_ep_t));
@@ -354,16 +360,8 @@ static void free_ep(uint8_t daddr) {
   }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline max3421_ep_t * find_opened_ep(uint8_t daddr, uint8_t ep_num, uint8_t ep_dir) {
-  if (daddr == 0 && ep_num == 0) {
-    return &_hcd_data.ep0_addr0;
-  }else{
-    return find_ep_not_addr0(daddr, ep_num, ep_dir);
-  }
-}
-
 static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
-  size_t idx = cur_ep - _hcd_data.ep;
+  size_t const idx = cur_ep - _hcd_data.ep;
 
   // starting from next endpoint
   for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
@@ -553,7 +551,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
 
   max3421_ep_t * ep;
   if (daddr == 0 && ep_num == 0) {
-    ep = &_hcd_data.ep0_addr0;
+    ep = &_hcd_data.ep[0];
   }else {
     ep = allocate_ep();
     TU_ASSERT(ep);
@@ -581,12 +579,20 @@ void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
     reg_write(rhport, HCTL_ADDR, hctl, in_isr);
   }
 
-  uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
-  TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ, );
-  fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
-  sndbc_write(rhport, xact_len, in_isr);
+  uint8_t hxfr = ep->ep_num | HXFR_OUT_NIN | (ep->is_iso ? HXFR_ISO : 0);
 
-  uint8_t const hxfr = ep->ep_num | HXFR_OUT_NIN | (ep->is_iso ? HXFR_ISO : 0);
+  if (ep->ep_num == 0 && (ep->buf == NULL || ep->total_len == 0)) {
+    // Control ZLP status use HS
+    hxfr |= HXFR_HS;
+  } else {
+    uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
+    TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
+    if (xact_len) {
+      fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
+    }
+    sndbc_write(rhport, xact_len, in_isr);
+  }
+
   hxfr_write(rhport, hxfr, in_isr);
 }
 
@@ -599,7 +605,12 @@ void xact_in(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
     reg_write(rhport, HCTL_ADDR, hctl, in_isr);
   }
 
-  uint8_t const hxfr = ep->ep_num | (ep->is_iso ? HXFR_ISO : 0);
+  uint8_t hxfr = ep->ep_num | (ep->is_iso ? HXFR_ISO : 0);
+  if (ep->ep_num == 0 && (ep->buf == NULL || ep->total_len == 0)) {
+    // Control ZLP status use HS
+    hxfr |= HXFR_HS;
+  }
+
   hxfr_write(rhport, hxfr, in_isr);
 }
 
@@ -611,24 +622,8 @@ TU_ATTR_ALWAYS_INLINE static inline void xact_inout(uint8_t rhport, max3421_ep_t
   }
 }
 
-void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t data_toggle) {
-  (void) rhport;
-  (void) result;
-  ep->xfer_pending = 0;
-  ep->data_toggle = data_toggle;
-  //uint8_t const ep_addr = tu_edpt_addr(ep->ep_num, ep->ep_dir);
-  //hcd_event_xfer_complete(rhport, ep_addr, ep->xferred_len, result, true);
-
-//  max3421_ep_t *next_ep = find_next_pending_ep(ep);
-//  if (next_ep) {
-//    xact_inout(rhport, next_ep, true, true);
-//  }
-}
-
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
-  (void) rhport;
-
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const ep_dir = tu_edpt_dir(ep_addr);
 
@@ -644,24 +639,12 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   ep->xfer_complete = 0;
   ep->xfer_pending = 1;
 
+  if ( ep_num == 0 ) {
+    ep->data_toggle = 1;
+  }
+
   // carry out transfer if not busy
-//  if ( atomic_flag_test_and_set(&_hcd_data.busy) )
-  {
-    uint8_t hxfr = ep_num;
-
-    if ( ep_num == 0 ) {
-      ep->data_toggle = 1;
-      if ( buffer == NULL || buflen == 0 ) {
-        // ZLP for ACK stage, use HS
-        peraddr_write(rhport, daddr, false);
-
-        hxfr |= HXFR_HS;
-        hxfr |= (ep_dir ? 0 : HXFR_OUT_NIN);
-        hxfr_write(rhport, hxfr, false);
-        return true;
-      }
-    }
-
+  if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
     xact_inout(rhport, ep, true, false);
   }
 
@@ -683,6 +666,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
   (void) rhport;
 
   max3421_ep_t* ep = find_opened_ep(daddr, 0, 0);
+  TU_ASSERT(ep);
+
   ep->ep_dir = 0;
   ep->total_len  = 8;
   ep->xferred_len = 0;
@@ -701,6 +686,26 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) ep_addr;
 
   return false;
+}
+
+//--------------------------------------------------------------------+
+// Interrupt Handler
+//--------------------------------------------------------------------+
+
+static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t data_toggle) {
+  uint8_t const ep_addr = tu_edpt_addr(ep->ep_num, ep->ep_dir);
+  ep->data_toggle = data_toggle;
+  ep->xfer_pending = 0;
+  hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, true);
+
+  // Find next pending endpoint
+  max3421_ep_t *next_ep = find_next_pending_ep(ep);
+  if (next_ep) {
+    xact_inout(rhport, next_ep, true, true);
+  }else {
+    // no more pending
+    atomic_flag_clear(&_hcd_data.busy);
+  }
 }
 
 static void handle_xfer_done(uint8_t rhport) {
@@ -739,7 +744,7 @@ static void handle_xfer_done(uint8_t rhport) {
         max3421_ep_t *next_ep = find_next_pending_ep(ep);
 
         if (ep == next_ep) {
-          // only one pending, retry immediately
+          // this endpoint is only one pending, retry immediately
           hxfr_write(rhport, _hcd_data.hxfr, true);
         }else if (next_ep) {
           // switch to next pending TODO could have issue with double buffered if not clear previously out data
@@ -763,7 +768,6 @@ static void handle_xfer_done(uint8_t rhport) {
     if ( ep->xfer_complete ) {
       uint8_t const dt = (hrsl & HRSL_RCVTOGRD) ? 1 : 0; // save data toggle
       xfer_complete_isr(rhport, ep, xfer_result, dt);
-      hcd_event_xfer_complete(_hcd_data.peraddr, TUSB_DIR_IN_MASK | ep_num, ep->xferred_len, xfer_result, true);
     }else {
       // more to transfer
       hxfr_write(rhport, _hcd_data.hxfr, true);
@@ -786,8 +790,8 @@ static void handle_xfer_done(uint8_t rhport) {
     if (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len) {
       uint8_t const dt = (hrsl & HRSL_SNDTOGRD) ? 1 : 0; // save data toggle
       xfer_complete_isr(rhport, ep, xfer_result, dt);
-      hcd_event_xfer_complete(_hcd_data.peraddr, ep_num, ep->xferred_len, xfer_result, true);
     } else {
+      // more to transfer
       xact_out(rhport, ep, false, true);
     }
   }
