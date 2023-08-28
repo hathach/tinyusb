@@ -269,10 +269,10 @@ void dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
-#if (CFG_TUSB_MCU == OPT_MCU_KINETIS_K64)
+#if (CFG_TUSB_MCU == OPT_MCU_KINETIS_K)
   uint32_t clk_recover_irc_en;
   uint32_t clk_recover_ctrl;
-  
+
   clk_recover_irc_en = KHCI->CLK_RECOVER_IRC_EN;
   clk_recover_ctrl   = KHCI->CLK_RECOVER_CTRL;
 
@@ -284,7 +284,7 @@ void dcd_init(uint8_t rhport)
 #else
   KHCI->USBTRC0 |= USB_USBTRC0_USBRESET_MASK;
   while (KHCI->USBTRC0 & USB_USBTRC0_USBRESET_MASK);
-#endif  
+#endif
 
   tu_memclr(&_dcd, sizeof(_dcd));
   KHCI->USBTRC0 |= TU_BIT(6); /* software must set this bit to 1 */
