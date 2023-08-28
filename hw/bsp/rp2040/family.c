@@ -27,12 +27,13 @@
 
 #include "pico/stdlib.h"
 #include "pico/binary_info.h"
+#include "pico/unique_id.h"
 #include "hardware/gpio.h"
 #include "hardware/sync.h"
 #include "hardware/structs/ioqspi.h"
 #include "hardware/structs/sio.h"
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 #if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
@@ -149,7 +150,7 @@ void board_init(void)
 #endif
 
 #ifdef UART_DEV
-  bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_TX_PIN, GPIO_FUNC_UART));
+  bi_decl(bi_2pins_with_func(UART_TX_PIN, UART_RX_PIN, GPIO_FUNC_UART));
   uart_inst = uart_get_instance(UART_DEV);
   stdio_uart_init_full(uart_inst, CFG_BOARD_UART_BAUDRATE, UART_TX_PIN, UART_RX_PIN);
 #endif
@@ -171,17 +172,15 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
+void board_led_write(bool state) {
   (void) state;
 
 #ifdef LED_PIN
-  gpio_put(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+  gpio_put(LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 #endif
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
 #ifdef BUTTON_BOOTSEL
   return BUTTON_STATE_ACTIVE == get_bootsel_button();
 #else
@@ -189,12 +188,21 @@ uint32_t board_button_read(void)
 #endif
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  pico_unique_board_id_t pico_id;
+  pico_get_unique_board_id(&pico_id);
+
+  size_t len = PICO_UNIQUE_BOARD_ID_SIZE_BYTES;
+  if (len > max_len) len = max_len;
+
+  memcpy(id, pico_id.id, len);
+  return len;
+}
+
+int board_uart_read(uint8_t *buf, int len) {
 #ifdef UART_DEV
   int count = 0;
-  while ( (count < len) && uart_is_readable(uart_inst) )
-  {
+  while ( (count < len) && uart_is_readable(uart_inst) ) {
     buf[count] = uart_getc(uart_inst);
     count++;
   }
@@ -205,11 +213,10 @@ int board_uart_read(uint8_t* buf, int len)
 #endif
 }
 
-int board_uart_write(void const * buf, int len)
-{
+int board_uart_write(void const *buf, int len) {
 #ifdef UART_DEV
-  char const* bufch = (char const*) buf;
-  for(int i=0;i<len;i++) {
+  char const *bufch = (char const *) buf;
+  for ( int i = 0; i < len; i++ ) {
     uart_putc(uart_inst, bufch[i]);
   }
   return len;
@@ -219,8 +226,7 @@ int board_uart_write(void const * buf, int len)
 #endif
 }
 
-int board_getchar(void)
-{
+int board_getchar(void) {
   return getchar_timeout_us(0);
 }
 

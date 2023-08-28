@@ -12,16 +12,16 @@
 #define BSP_MOCO_HZ                 (8000000)
 #define BSP_SUB_CLOCK_HZ            (32768)
 #if   BSP_CFG_HOCO_FREQUENCY == 0
-#define BSP_HOCO_HZ             (24000000)
+  #define BSP_HOCO_HZ             (24000000)
 #elif BSP_CFG_HOCO_FREQUENCY == 2
-                #define BSP_HOCO_HZ             (32000000)
-            #elif BSP_CFG_HOCO_FREQUENCY == 4
-                #define BSP_HOCO_HZ             (48000000)
-            #elif BSP_CFG_HOCO_FREQUENCY == 5
-                #define BSP_HOCO_HZ             (64000000)
-            #else
-                #error "Invalid HOCO frequency chosen (BSP_CFG_HOCO_FREQUENCY) in bsp_clock_cfg.h"
-            #endif
+  #define BSP_HOCO_HZ             (32000000)
+#elif BSP_CFG_HOCO_FREQUENCY == 4
+  #define BSP_HOCO_HZ             (48000000)
+#elif BSP_CFG_HOCO_FREQUENCY == 5
+  #define BSP_HOCO_HZ             (64000000)
+#else
+  #error "Invalid HOCO frequency chosen (BSP_CFG_HOCO_FREQUENCY) in bsp_clock_cfg.h"
+#endif
 #define BSP_CORTEX_VECTOR_TABLE_ENTRIES    (16U)
 #define BSP_VECTOR_TABLE_MAX_ENTRIES       (48U)
 

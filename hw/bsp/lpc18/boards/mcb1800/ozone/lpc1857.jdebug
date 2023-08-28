@@ -10,7 +10,7 @@
 */
 void OnProjectLoad (void) {
   Project.AddSvdFile ("Cortex-M3.svd");
-  Project.AddSvdFile ("./LPC18xx.svd");
+  Project.AddSvdFile ("../../../../../../../cmsis-svd/data/NXP/LPC18xx.svd");
 
   Project.SetDevice ("LPC1857");
   Project.SetHostIF ("USB", "");
@@ -20,7 +20,8 @@ void OnProjectLoad (void) {
   Project.SetTraceSource ("Trace Pins");
   Project.SetTracePortWidth (4);
 
-  File.Open ("../../../../../../examples/device/cdc_msc/cmake-build-mcb1800/cdc_msc.elf");
+  //File.Open ("../../../../../../examples/cmake-build-mcb1800/device/cdc_msc/cdc_msc.elf");
+  File.Open ("../../../../../../examples/cmake-build-mcb1800/host/cdc_msc_hid/cdc_msc_hid.elf");
 }
 /*********************************************************************
 *

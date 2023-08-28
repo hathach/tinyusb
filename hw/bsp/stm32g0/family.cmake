@@ -36,12 +36,14 @@ function(add_board_target BOARD_TARGET)
       ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
+      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart_ex.c
+      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
       ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
       )
     target_include_directories(${BOARD_TARGET} PUBLIC

@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
@@ -47,6 +47,10 @@ int main(void)
 
   // init host stack on configured roothub port
   tuh_init(BOARD_TUH_RHPORT);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
 
   while (1)
   {

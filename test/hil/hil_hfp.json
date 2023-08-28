@@ -1,0 +1,25 @@
+{
+    "boards": [
+        {
+            "name": "stm32l412nucleo",
+            "uid": "41003B000E504E5457323020",
+            "debugger": "jlink",
+            "debugger_sn": "774470029",
+            "cpu": "STM32L412KB"
+        },
+        {
+            "name": "stm32f746disco",
+            "uid": "210041000C51343237303334",
+            "debugger": "jlink",
+            "debugger_sn": "770935966",
+            "cpu": "STM32F746NG"
+        },
+        {
+            "name": "lpcxpresso43s67",
+            "uid": "08F000044528BAAA8D858F58C50700F5",
+            "debugger": "jlink",
+            "debugger_sn": "728973776",
+            "cpu": "LPC43S67_M4"
+        }
+    ]
+}

@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
+#include "bsp/board_api.h"
 #include "stm32f3xx_hal.h"
 
 //--------------------------------------------------------------------+

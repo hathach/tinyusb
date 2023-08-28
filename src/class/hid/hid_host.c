@@ -29,14 +29,16 @@
 #if (CFG_TUH_ENABLED && CFG_TUH_HID)
 
 #include "host/usbh.h"
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 
 #include "hid_host.h"
 
-// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
-#define HIDH_DEBUG   2
-#define TU_LOG_DRV(...)   TU_LOG(HIDH_DEBUG, __VA_ARGS__)
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUH_HID_LOG_LEVEL
+  #define CFG_TUH_HID_LOG_LEVEL   CFG_TUH_LOG_LEVEL
+#endif
 
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUH_HID_LOG_LEVEL, __VA_ARGS__)
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+

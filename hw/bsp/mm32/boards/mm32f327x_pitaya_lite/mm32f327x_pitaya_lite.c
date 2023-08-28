@@ -29,7 +29,7 @@
 #include "mm32_device.h"
 #include "hal_conf.h"
 #include "tusb.h"
-#include "../board.h"
+#include "bsp/board_api.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler

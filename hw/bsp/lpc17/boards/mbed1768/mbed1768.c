@@ -25,7 +25,7 @@
  */
 
 #include "chip.h"
-#include "../board.h"
+#include "bsp/board_api.h"
 
 #define LED_PORT              1
 #define LED_PIN               18

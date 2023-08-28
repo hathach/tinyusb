@@ -88,7 +88,7 @@ linkermap: $(BUILD)/$(PROJECT).elf
 # Flash Targets
 # ---------------------------------------
 
-# Jlink binary
+# --------------- Jlink -----------------
 ifeq ($(OS),Windows_NT)
   JLINKEXE = JLink.exe
 else
@@ -110,10 +110,12 @@ $(BUILD)/$(BOARD).jlink: $(BUILD)/$(PROJECT).hex
 flash-jlink: $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $<
 
+# --------------- stm32 cube programmer -----------------
 # Flash STM32 MCU using stlink with STM32 Cube Programmer CLI
 flash-stlink: $(BUILD)/$(PROJECT).elf
 	STM32_Programmer_CLI --connect port=swd --write $< --go
 
+# --------------- xfel -----------------
 $(BUILD)/$(PROJECT)-sunxi.bin: $(BUILD)/$(PROJECT).bin
 	$(PYTHON) $(TOP)/tools/mksunxi.py $< $@
 
@@ -121,18 +123,23 @@ flash-xfel: $(BUILD)/$(PROJECT)-sunxi.bin
 	xfel spinor write 0 $<
 	xfel reset
 
-# Flash using pyocd
+# --------------- pyocd -----------------
 PYOCD_OPTION ?=
 flash-pyocd: $(BUILD)/$(PROJECT).hex
 	pyocd flash -t $(PYOCD_TARGET) $(PYOCD_OPTION) $<
 	#pyocd reset -t $(PYOCD_TARGET)
 
-# Flash using openocd
+# --------------- openocd -----------------
 OPENOCD_OPTION ?=
 flash-openocd: $(BUILD)/$(PROJECT).elf
 	openocd $(OPENOCD_OPTION) -c "program $< verify reset exit"
 
-# flash with Black Magic Probe
+# --------------- dfu-util -----------------
+DFU_UTIL_OPTION ?= -a 0
+flash-dfu-util: $(BUILD)/$(PROJECT).bin
+	dfu-util -R $(DFU_UTIL_OPTION) -D $<
+
+# --------------- Black Magic -----------------
 # This symlink is created by https://github.com/blacksphere/blackmagic/blob/master/driver/99-blackmagic.rules
 BMP ?= /dev/ttyBmpGdb
 

@@ -238,34 +238,25 @@ enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
 tu_static usbd_class_driver_t const * _app_driver = NULL;
 tu_static uint8_t _app_driver_count = 0;
 
+#define TOTAL_DRIVER_COUNT    (_app_driver_count + BUILTIN_DRIVER_COUNT)
+
 // virtually joins built-in and application drivers together.
 // Application is positioned first to allow overwriting built-in ones.
 static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 {
-  // Application drivers
-  if ( usbd_app_driver_get_cb )
-  {
-    if ( drvid < _app_driver_count ) return &_app_driver[drvid];
-    drvid -= _app_driver_count;
+  usbd_class_driver_t const * driver = NULL;
+
+  if ( drvid < _app_driver_count ) {
+    // Application drivers
+    driver = &_app_driver[drvid];
+  } else if ( drvid < TOTAL_DRIVER_COUNT && BUILTIN_DRIVER_COUNT > 0 ){
+    driver = &_usbd_driver[drvid - _app_driver_count];
   }
 
-  // when there is no built-in drivers BUILTIN_DRIVER_COUNT = 0 will cause -Wtype-limits warning
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtype-limits"
-#endif
-
-  // Built-in drivers
-  if (drvid < BUILTIN_DRIVER_COUNT) return &_usbd_driver[drvid];
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
-
-  return NULL;
+  return driver;
 }
 
-#define TOTAL_DRIVER_COUNT    (_app_driver_count + BUILTIN_DRIVER_COUNT)
+
 
 //--------------------------------------------------------------------+
 // DCD Event
@@ -710,8 +701,18 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
               _usbd_dev.speed = speed; // restore speed
             }
 
-            // switch to new configuration if not zero
-            if ( cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+            // Handle the new configuration and execute the corresponding callback
+            if ( cfg_num )
+            {
+              // switch to new configuration if not zero
+              TU_ASSERT( process_set_config(rhport, cfg_num) );
+
+              if ( tud_mount_cb ) tud_mount_cb();
+            }
+            else
+            {
+              if ( tud_umount_cb ) tud_umount_cb();
+            }
           }
 
           _usbd_dev.cfg_num = cfg_num;
@@ -963,9 +964,6 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     // Failed if there is no supported drivers
     TU_ASSERT(drv_id < TOTAL_DRIVER_COUNT);
   }
-
-  // invoke callback
-  if (tud_mount_cb) tud_mount_cb();
 
   return true;
 }

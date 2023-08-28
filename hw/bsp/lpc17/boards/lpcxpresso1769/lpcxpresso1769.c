@@ -25,7 +25,7 @@
  */
 
 #include "chip.h"
-#include "../board.h"
+#include "bsp/board_api.h"
 
 //--------------------------------------------------------------------+
 // USB Interrupt Handler

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-include_guard()
+include_guard(GLOBAL)
 
 if (NOT BOARD)
 	message("BOARD not specified, defaulting to pico_sdk")
@@ -112,6 +112,7 @@ target_sources(tinyusb_bsp INTERFACE
 target_include_directories(tinyusb_bsp INTERFACE
 	${TOP}/hw
 	)
+target_link_libraries(tinyusb_bsp	INTERFACE pico_unique_id)
 
 # tinyusb_additions will hold our extra settings for examples
 add_library(tinyusb_additions INTERFACE)

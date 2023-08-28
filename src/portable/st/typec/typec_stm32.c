@@ -246,7 +246,7 @@ void tcd_int_handler(uint8_t rhport) {
     v_cc[0] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC1_Pos) & 0x03;
     v_cc[1] = (UCPD1->SR >> UCPD_SR_TYPEC_VSTATE_CC2_Pos) & 0x03;
 
-    TU_LOG3("VState CC1 = %lu, CC2 = %lu\n", v_cc[0], v_cc[1]);
+    TU_LOG3("VState CC1 = %lu, CC2 = %lu\r\n", v_cc[0], v_cc[1]);
 
     uint32_t cr = UCPD1->CR;
 
@@ -255,15 +255,15 @@ void tcd_int_handler(uint8_t rhport) {
     // FIXME somehow CC2 is vstate is not correct, always 1 even not attached.
     // on DPOW1 board, it is connected to PA10 (USBPD_DBCC2), we probably miss something.
     if ((sr & UCPD_SR_TYPECEVT1) && (v_cc[0] == 3)) {
-      TU_LOG3("Attach CC1\n");
+      TU_LOG3("Attach CC1\r\n");
       cr &= ~(UCPD_CR_PHYCCSEL | UCPD_CR_CCENABLE);
       cr |= UCPD_CR_PHYRXEN | UCPD_CR_CCENABLE_0;
     } else if ((sr & UCPD_SR_TYPECEVT2) && (v_cc[1] == 3)) {
-      TU_LOG3("Attach CC2\n");
+      TU_LOG3("Attach CC2\r\n");
       cr &= ~UCPD_CR_CCENABLE;
       cr |= (UCPD_CR_PHYCCSEL | UCPD_CR_PHYRXEN | UCPD_CR_CCENABLE_1);
     } else {
-      TU_LOG3("Detach\n");
+      TU_LOG3("Detach\r\n");
       cr &= ~UCPD_CR_PHYRXEN;
       cr |= UCPD_CR_CCENABLE_0 | UCPD_CR_CCENABLE_1;
     }
@@ -290,7 +290,7 @@ void tcd_int_handler(uint8_t rhport) {
   //------------- RX -------------//
   if (sr & UCPD_SR_RXORDDET) {
     // SOP: Start of Packet.
-    TU_LOG3("SOP\n");
+    TU_LOG3("SOP\r\n");
     // UCPD1->RX_ORDSET & UCPD_RX_ORDSET_RXORDSET_Msk;
 
     // ack
@@ -299,7 +299,7 @@ void tcd_int_handler(uint8_t rhport) {
 
   // Received full message
   if (sr & UCPD_SR_RXMSGEND) {
-    TU_LOG3("RX MSG END\n");
+    TU_LOG3("RX MSG END\r\n");
 
     // stop TX
     dma_stop(rhport, true);
@@ -328,7 +328,7 @@ void tcd_int_handler(uint8_t rhport) {
   }
 
   if (sr & UCPD_SR_RXOVR) {
-    TU_LOG3("RXOVR\n");
+    TU_LOG3("RXOVR\r\n");
     // ack
     UCPD1->ICR = UCPD_ICR_RXOVRCF;
   }
@@ -343,12 +343,12 @@ void tcd_int_handler(uint8_t rhport) {
     uint8_t result;
 
     if ( sr & UCPD_SR_TXMSGSENT ) {
-      TU_LOG3("TX MSG SENT\n");
+      TU_LOG3("TX MSG SENT\r\n");
       result = XFER_RESULT_SUCCESS;
       // ack
       UCPD1->ICR = UCPD_ICR_TXMSGSENTCF;
     }else {
-      TU_LOG3("TX Error\n");
+      TU_LOG3("TX Error\r\n");
       result = XFER_RESULT_FAILED;
       // ack
       UCPD1->ICR = UCPD_SR_TXMSGDISC | UCPD_SR_TXMSGABT | UCPD_SR_TXUND;

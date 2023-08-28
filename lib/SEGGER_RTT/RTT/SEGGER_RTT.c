@@ -183,6 +183,11 @@ Additional information:
 *
 **********************************************************************
 */
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#endif
+
 #if (defined __ICCARM__) || (defined __ICCRX__)
   #define RTT_PRAGMA(P) _Pragma(#P)
 #endif
