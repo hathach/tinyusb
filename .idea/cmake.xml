@@ -39,6 +39,7 @@
       <configuration PROFILE_NAME="b_g474e_dpow1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=b_g474e_dpow1 -DLOG=3 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="b_g474e_dpow1 iar" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=b_g474e_dpow1 -DTOOLCHAIN=iar" />
       <configuration PROFILE_NAME="frdm_kl25z" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=frdm_kl25z -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="teensy_35" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=teensy_35" />
       <configuration PROFILE_NAME="stm32h743eval" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="stm32f072disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f072disco" />
       <configuration PROFILE_NAME="stm32f103_mini_2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f103_mini_2" />
