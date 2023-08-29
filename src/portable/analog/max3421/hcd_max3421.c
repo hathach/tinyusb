@@ -168,6 +168,7 @@ typedef struct {
   struct TU_ATTR_PACKED {
     uint8_t ep_dir        : 1;
     uint8_t is_iso        : 1;
+    uint8_t is_setup      : 1;
     uint8_t data_toggle   : 1;
     uint8_t xfer_pending  : 1;
     uint8_t xfer_complete : 1;
@@ -590,56 +591,55 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
 void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   // Page 12: Programming BULK-OUT Transfers
   // TODO double buffered
-
-  uint8_t hxfr = ep->ep_num | HXFR_OUT_NIN | (ep->is_iso ? HXFR_ISO : 0);
-  if (ep->ep_num == 0 && (ep->buf == NULL || ep->total_len == 0)) {
-    // Control ZLP status use HS
-    hxfr |= HXFR_HS;
-  }
-
   if (switch_ep) {
     peraddr_write(rhport, ep->daddr, in_isr);
 
-    if ( 0 == (hxfr & HXFR_HS) ) {
-      uint8_t const hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
-      reg_write(rhport, HCTL_ADDR, hctl, in_isr);
-    }
+    uint8_t const hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
+    reg_write(rhport, HCTL_ADDR, hctl, in_isr);
   }
 
-  if ( 0 == (hxfr & HXFR_HS) ) {
-    uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
-    TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
-    if (xact_len) {
-      fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
-    }
-    sndbc_write(rhport, xact_len, in_isr);
+  uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
+  TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
+  if (xact_len) {
+    fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
   }
+  sndbc_write(rhport, xact_len, in_isr);
 
+  uint8_t hxfr = ep->ep_num | HXFR_OUT_NIN | (ep->is_iso ? HXFR_ISO : 0);
   hxfr_write(rhport, hxfr, in_isr);
 }
 
 void xact_in(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   // Page 13: Programming BULK-IN Transfers
-
-  uint8_t hxfr = ep->ep_num | (ep->is_iso ? HXFR_ISO : 0);
-  if (ep->ep_num == 0 && (ep->buf == NULL || ep->total_len == 0)) {
-    // Control ZLP status use HS
-    hxfr |= HXFR_HS;
-  }
-
   if (switch_ep) {
     peraddr_write(rhport, ep->daddr, in_isr);
 
-    if ( 0 == (hxfr & HXFR_HS) ) {
-      uint8_t const hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
-      reg_write(rhport, HCTL_ADDR, hctl, in_isr);
-    }
+    uint8_t const hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
+    reg_write(rhport, HCTL_ADDR, hctl, in_isr);
   }
 
+  uint8_t hxfr = ep->ep_num | (ep->is_iso ? HXFR_ISO : 0);
   hxfr_write(rhport, hxfr, in_isr);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void xact_inout(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
+  if (ep->ep_num == 0 ) {
+    // setup
+    if (ep->is_setup) {
+      peraddr_write(rhport, ep->daddr, in_isr);
+      hxfr_write(rhport, HXFR_SETUP, in_isr);
+      return;
+    }
+
+    // status
+    if (ep->buf == NULL || ep->total_len == 0) {
+      uint8_t const hxfr = HXFR_HS | (ep->ep_dir ? 0 : HXFR_OUT_NIN);
+      peraddr_write(rhport, ep->daddr, in_isr);
+      hxfr_write(rhport, hxfr, in_isr);
+      return;
+    }
+  }
+
   if (ep->ep_dir) {
     xact_in(rhport, ep, switch_ep, in_isr);
   }else {
@@ -665,12 +665,15 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   ep->xfer_pending = 1;
 
   if ( ep_num == 0 ) {
+    ep->is_setup = 0;
     ep->data_toggle = 1;
   }
 
   // carry out transfer if not busy
   if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
     xact_inout(rhport, ep, true, false);
+  } else {
+    return true;
   }
 
   return true;
@@ -694,12 +697,16 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
   TU_ASSERT(ep);
 
   ep->ep_dir = 0;
-  ep->total_len  = 8;
+  ep->total_len = 8;
   ep->xferred_len = 0;
+  ep->is_setup = 1;
 
-  peraddr_write(rhport, daddr, false);
   fifo_write(rhport, SUDFIFO_ADDR, setup_packet, 8, false);
-  hxfr_write(rhport, HXFR_SETUP, false);
+
+  // carry out transfer if not busy
+  if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
+    xact_inout(rhport, ep, true, false);
+  }
 
   return true;
 }
