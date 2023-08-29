@@ -184,8 +184,6 @@ typedef struct {
 } max3421_ep_t;
 
 typedef struct {
-  atomic_flag busy; // busy transferring
-
   // cached register
   uint8_t sndbc;
   uint8_t hirq;
@@ -194,7 +192,10 @@ typedef struct {
   uint8_t peraddr;
   uint8_t hxfr;
 
+  atomic_flag busy; // busy transferring
+  volatile uint8_t intr_disable_count;
   volatile uint16_t frame_count;
+
   max3421_ep_t ep[CFG_TUH_MAX3421_ENDPOINT_TOTAL]; // [0] is reserved for addr0
 
   OSAL_MUTEX_DEF(spi_mutexdef);
@@ -220,8 +221,8 @@ void tuh_max3421e_int_api(uint8_t rhport, bool enabled);
 static void max3421_spi_lock(uint8_t rhport, bool in_isr) {
   // disable interrupt and mutex lock (for pre-emptive RTOS) if not in_isr
   if (!in_isr) {
-    tuh_max3421e_int_api(rhport, false);
     (void) osal_mutex_lock(_hcd_data.spi_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+    tuh_max3421e_int_api(rhport, false);
   }
 
   // assert CS
@@ -292,6 +293,12 @@ static uint8_t reg_read(uint8_t rhport, uint8_t reg, bool in_isr) {
 
   _hcd_data.hirq = rx_buf[0];
   return ret ? rx_buf[1] : 0;
+}
+
+static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr) {
+  reg_write(rhport, HIRQ_ADDR, data, in_isr);
+  // HIRQ write 1 is clear
+  _hcd_data.hirq &= ~data;
 }
 
 static inline void hien_write(uint8_t rhport, uint8_t data, bool in_isr) {
@@ -440,13 +447,14 @@ tusb_speed_t handle_connect_irq(uint8_t rhport) {
 bool hcd_init(uint8_t rhport) {
   (void) rhport;
 
-  hcd_int_disable(rhport);
+  tuh_max3421e_int_api(rhport, false);
   tuh_max3421_spi_cs_api(rhport, false);
 
   TU_LOG2_INT(sizeof(max3421_ep_t));
   TU_LOG2_INT(sizeof(max3421_data_t));
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
+  _hcd_data.peraddr = 0xff; // invalid
 
 #if OSAL_MUTEX_REQUIRED
   _hcd_data.spi_mutex = osal_mutex_create(&_hcd_data.spi_mutexdef);
@@ -469,10 +477,12 @@ bool hcd_init(uint8_t rhport) {
   reg_write(rhport, HCTL_ADDR, HCTL_BUSRST | HCTL_FRMRST, false);
 
   // clear all previously pending IRQ
-  reg_write(rhport, HIRQ_ADDR, 0xff, false);
+  hirq_write(rhport, 0xff, false);
 
   // Enable IRQ
   hien_write(rhport, DEFAULT_HIEN, false);
+
+  tuh_max3421e_int_api(rhport, true);
 
   // Enable Interrupt pin
   reg_write(rhport, CPUCTL_ADDR, CPUCTL_IE, false);
@@ -481,13 +491,21 @@ bool hcd_init(uint8_t rhport) {
 }
 
 // Enable USB interrupt
+// Not actually enable GPIO interrupt, just set variable to prevent handler to process
 void hcd_int_enable (uint8_t rhport) {
-  tuh_max3421e_int_api(rhport, true);
+  (void) rhport;
+  // tuh_max3421e_int_api(rhport, true);
+  if (_hcd_data.intr_disable_count) {
+    _hcd_data.intr_disable_count--;
+  }
 }
 
 // Disable USB interrupt
+// Not actually disable GPIO interrupt, just set variable to prevent handler to process
 void hcd_int_disable(uint8_t rhport) {
-  tuh_max3421e_int_api(rhport, false);
+  (void) rhport;
+  //tuh_max3421e_int_api(rhport, false);
+  _hcd_data.intr_disable_count++;
 }
 
 // Get frame number (1ms)
@@ -521,7 +539,7 @@ void hcd_port_reset_end(uint8_t rhport) {
   reg_write(rhport, HCTL_ADDR, 0, false);
 
   // Bus reset will also trigger CONDET IRQ, clear and re-enable it after reset
-  reg_write(rhport, HIRQ_ADDR, HIRQ_CONDET_IRQ, false);
+  hirq_write(rhport, HIRQ_CONDET_IRQ, false);
   hien_write(rhport, DEFAULT_HIEN, false);
 }
 
@@ -572,19 +590,23 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
 void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   // Page 12: Programming BULK-OUT Transfers
   // TODO double buffered
-  if (switch_ep) {
-    peraddr_write(rhport, ep->daddr, in_isr);
-
-    uint8_t const hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
-    reg_write(rhport, HCTL_ADDR, hctl, in_isr);
-  }
 
   uint8_t hxfr = ep->ep_num | HXFR_OUT_NIN | (ep->is_iso ? HXFR_ISO : 0);
-
   if (ep->ep_num == 0 && (ep->buf == NULL || ep->total_len == 0)) {
     // Control ZLP status use HS
     hxfr |= HXFR_HS;
-  } else {
+  }
+
+  if (switch_ep) {
+    peraddr_write(rhport, ep->daddr, in_isr);
+
+    if ( 0 == (hxfr & HXFR_HS) ) {
+      uint8_t const hctl = (ep->data_toggle ? HCTL_SNDTOG1 : HCTL_SNDTOG0);
+      reg_write(rhport, HCTL_ADDR, hctl, in_isr);
+    }
+  }
+
+  if ( 0 == (hxfr & HXFR_HS) ) {
     uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
     TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
     if (xact_len) {
@@ -598,17 +620,20 @@ void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
 
 void xact_in(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   // Page 13: Programming BULK-IN Transfers
-  if (switch_ep) {
-    peraddr_write(rhport, ep->daddr, in_isr);
-
-    uint8_t const hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
-    reg_write(rhport, HCTL_ADDR, hctl, in_isr);
-  }
 
   uint8_t hxfr = ep->ep_num | (ep->is_iso ? HXFR_ISO : 0);
   if (ep->ep_num == 0 && (ep->buf == NULL || ep->total_len == 0)) {
     // Control ZLP status use HS
     hxfr |= HXFR_HS;
+  }
+
+  if (switch_ep) {
+    peraddr_write(rhport, ep->daddr, in_isr);
+
+    if ( 0 == (hxfr & HXFR_HS) ) {
+      uint8_t const hctl = (ep->data_toggle ? HCTL_RCVTOG1 : HCTL_RCVTOG0);
+      reg_write(rhport, HCTL_ADDR, hctl, in_isr);
+    }
   }
 
   hxfr_write(rhport, hxfr, in_isr);
@@ -721,7 +746,7 @@ static void handle_xfer_done(uint8_t rhport) {
 
   xfer_result_t xfer_result;
 
-  //TU_LOG3("HRSL: %02X\r\n", hrsl);
+//  TU_LOG3("HRSL: %02X\r\n", hrsl);
   switch(hresult) {
     case HRSL_SUCCESS:
       xfer_result = XFER_RESULT_SUCCESS;
@@ -821,11 +846,18 @@ void print_hirq(uint8_t hirq) {
 void hcd_int_handler(uint8_t rhport) {
   uint8_t hirq = reg_read(rhport, HIRQ_ADDR, true) & _hcd_data.hien;
   if (!hirq) return;
-
 //  print_hirq(hirq);
 
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
+  }
+
+  // interrupt is disabled, only ack FRAME IRQ and skip the rest
+  if (_hcd_data.intr_disable_count) {
+    if (hirq & HIRQ_FRAME_IRQ) {
+      hirq_write(rhport, HIRQ_FRAME_IRQ, true);
+    }
+    return;
   }
 
   if (hirq & HIRQ_CONDET_IRQ) {
@@ -861,7 +893,7 @@ void hcd_int_handler(uint8_t rhport) {
         }
 
         // ack RCVDVAV IRQ
-        reg_write(rhport, HIRQ_ADDR, HIRQ_RCVDAV_IRQ, true);
+        hirq_write(rhport, HIRQ_RCVDAV_IRQ, true);
         hirq = reg_read(rhport, HIRQ_ADDR, true);
       }
 
@@ -871,7 +903,7 @@ void hcd_int_handler(uint8_t rhport) {
     }
 
     if ( hirq & HIRQ_HXFRDN_IRQ ) {
-      reg_write(rhport, HIRQ_ADDR, HIRQ_HXFRDN_IRQ, true);
+      hirq_write(rhport, HIRQ_HXFRDN_IRQ, true);
       handle_xfer_done(rhport);
     }
 
@@ -881,7 +913,7 @@ void hcd_int_handler(uint8_t rhport) {
   // clear all interrupt except SNDBAV_IRQ (never clear by us). Note RCVDAV_IRQ, HXFRDN_IRQ already clear while processing
   hirq &= ~HIRQ_SNDBAV_IRQ;
   if ( hirq ) {
-    reg_write(rhport, HIRQ_ADDR, hirq, true);
+    hirq_write(rhport, hirq, true);
   }
 }
 

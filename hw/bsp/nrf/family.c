@@ -107,7 +107,12 @@ void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
 //--------------------------------------------------------------------+
 void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
   (void) rhport;
-  nrfx_gpiote_trigger_enable(MAX3241E_INTR_PIN, enabled);
+
+  if (enabled) {
+    nrfx_gpiote_trigger_enable(MAX3241E_INTR_PIN, true);
+  }else {
+    nrfx_gpiote_trigger_disable(MAX3241E_INTR_PIN);
+  }
 }
 
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
@@ -217,6 +222,19 @@ void board_init(void) {
 #endif
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+  // MAX3421 need 3.3v signal
+  if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) != UICR_REGOUT0_VOUT_3V3) {
+    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos;
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
+
+    NRF_UICR->REGOUT0 = (NRF_UICR->REGOUT0 & ~UICR_REGOUT0_VOUT_Msk) | UICR_REGOUT0_VOUT_3V3;
+
+    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren << NVMC_CONFIG_WEN_Pos;
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
+
+    NVIC_SystemReset();
+  }
+
   // manually manage CS
   nrf_gpio_cfg_output(MAX3421E_CS_PIN);
   tuh_max3421_spi_cs_api(0, false);
