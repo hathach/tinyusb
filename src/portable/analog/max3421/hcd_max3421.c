@@ -633,6 +633,7 @@ TU_ATTR_ALWAYS_INLINE static inline void xact_inout(uint8_t rhport, max3421_ep_t
     // setup
     if (ep->is_setup) {
       peraddr_write(rhport, ep->daddr, in_isr);
+      fifo_write(rhport, SUDFIFO_ADDR, ep->buf, 8, in_isr);
       hxfr_write(rhport, HXFR_SETUP, in_isr);
       return;
     }
@@ -703,12 +704,12 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
   TU_ASSERT(ep);
 
   ep->ep_dir = 0;
+  ep->is_setup = 1;
+  ep->buf = (uint8_t*)(uintptr_t) setup_packet;
   ep->total_len = 8;
   ep->xferred_len = 0;
+  ep->xfer_complete = 0;
   ep->xfer_pending = 1;
-  ep->is_setup = 1;
-
-  fifo_write(rhport, SUDFIFO_ADDR, setup_packet, 8, false);
 
   // carry out transfer if not busy
   if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
