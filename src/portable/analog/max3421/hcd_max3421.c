@@ -374,7 +374,8 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
   // starting from next endpoint
   for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
-    if (ep->xfer_pending) {
+    if (ep->xfer_pending && ep->packet_size) {
+//      TU_LOG3("next pending i = %u\n", i);
       return ep;
     }
   }
@@ -382,7 +383,8 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
   // wrap around including current endpoint
   for (size_t i = 0; i <= idx; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
-    if (ep->xfer_pending) {
+    if (ep->xfer_pending && ep->packet_size) {
+//      TU_LOG3("next pending i = %u\n", i);
       return ep;
     }
   }
@@ -463,6 +465,10 @@ bool hcd_init(uint8_t rhport) {
 
   // full duplex, interrupt negative edge
   reg_write(rhport, PINCTL_ADDR, PINCTL_FDUPSPI, false);
+
+  // V1 is 0x01, V2 is 0x12, V3 is 0x13
+  // uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
+  // TU_LOG2_HEX(revision);
 
   // reset
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
@@ -699,6 +705,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
   ep->ep_dir = 0;
   ep->total_len = 8;
   ep->xferred_len = 0;
+  ep->xfer_pending = 1;
   ep->is_setup = 1;
 
   fifo_write(rhport, SUDFIFO_ADDR, setup_packet, 8, false);
@@ -724,9 +731,16 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 // Interrupt Handler
 //--------------------------------------------------------------------+
 
-static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t data_toggle) {
+static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t hrsl) {
   uint8_t const ep_addr = tu_edpt_addr(ep->ep_num, ep->ep_dir);
-  ep->data_toggle = data_toggle;
+
+  // save data toggle
+  if (ep->ep_dir) {
+    ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1 : 0;
+  }else {
+    ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1 : 0;
+  }
+
   ep->xfer_pending = 0;
   hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, true);
 
@@ -763,10 +777,6 @@ static void handle_xfer_done(uint8_t rhport) {
       xfer_result = XFER_RESULT_STALLED;
       break;
 
-    case HRSL_BAD_REQ:
-      // occurred when initialized without any pending transfer. Skip for now
-      return;
-
     case HRSL_NAK:
       if (ep_num == 0) {
         // NAK on control, retry immediately
@@ -781,13 +791,24 @@ static void handle_xfer_done(uint8_t rhport) {
         }else if (next_ep) {
           // switch to next pending TODO could have issue with double buffered if not clear previously out data
           xact_inout(rhport, next_ep, true, true);
+        }else {
+          TU_ASSERT(false,);
         }
       }
+      return;
+
+    case HRSL_BAD_REQ:
+      // occurred when initialized without any pending transfer. Skip for now
       return;
 
     default:
       xfer_result = XFER_RESULT_FAILED;
       break;
+  }
+
+  if (xfer_result != XFER_RESULT_SUCCESS) {
+    xfer_complete_isr(rhport, ep, xfer_result, hrsl);
+    return;
   }
 
   if (ep_dir) {
@@ -798,8 +819,7 @@ static void handle_xfer_done(uint8_t rhport) {
 
     // short packet or all bytes transferred
     if ( ep->xfer_complete ) {
-      uint8_t const dt = (hrsl & HRSL_RCVTOGRD) ? 1 : 0; // save data toggle
-      xfer_complete_isr(rhport, ep, xfer_result, dt);
+      xfer_complete_isr(rhport, ep, xfer_result, hrsl);
     }else {
       // more to transfer
       hxfr_write(rhport, _hcd_data.hxfr, true);
@@ -820,8 +840,7 @@ static void handle_xfer_done(uint8_t rhport) {
     ep->buf += xact_len;
 
     if (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len) {
-      uint8_t const dt = (hrsl & HRSL_SNDTOGRD) ? 1 : 0; // save data toggle
-      xfer_complete_isr(rhport, ep, xfer_result, dt);
+      xfer_complete_isr(rhport, ep, xfer_result, hrsl);
     } else {
       // more to transfer
       xact_out(rhport, ep, false, true);

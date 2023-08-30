@@ -390,7 +390,7 @@
 // External USB controller
 //--------------------------------------------------------------------+
 
-#if defined(CFG_TUH_MAX3421) & CFG_TUH_MAX3421
+#if defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
   #ifndef CFG_TUH_MAX3421_ENDPOINT_TOTAL
     #define CFG_TUH_MAX3421_ENDPOINT_TOTAL  (8 + 4*(CFG_TUH_DEVICE_MAX-1))
   #endif

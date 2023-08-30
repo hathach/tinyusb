@@ -34,6 +34,7 @@
 #pragma GCC diagnostic ignored "-Wcast-align"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wundef"
+#pragma GCC diagnostic ignored "-Wredundant-decls"
 #endif
 
 #include "nrfx.h"
@@ -94,7 +95,7 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 
 //------------- Host using MAX2341E -------------//
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(0);
+static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
 
 void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
   if ( !(pin == MAX3241E_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO) ) return;
@@ -222,7 +223,8 @@ void board_init(void) {
 #endif
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-  // MAX3421 need 3.3v signal
+  // MAX3421 need 3.3v signal (may not be needed)
+  #if defined(UICR_REGOUT0_VOUT_Msk) && 0
   if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) != UICR_REGOUT0_VOUT_3V3) {
     NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos;
     while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
@@ -234,6 +236,7 @@ void board_init(void) {
 
     NVIC_SystemReset();
   }
+  #endif
 
   // manually manage CS
   nrf_gpio_cfg_output(MAX3421E_CS_PIN);

@@ -11,7 +11,7 @@
 #define NRFX_UARTE0_ENABLED  1
 
 #define NRFX_SPIM_ENABLED    1
-#define NRFX_SPIM0_ENABLED   1
+#define NRFX_SPIM1_ENABLED   1 // use SPI1 since nrf5340 share uart with spi
 
 #define NRFX_PRS_ENABLED     0
 #define NRFX_USBREG_ENABLED  1
