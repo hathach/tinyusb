@@ -59,28 +59,9 @@
 #include "ncm.h"
 
 
-#if !defined(tu_static)  ||  ECLIPSE_GUI
+#if !defined(tu_static)  ||  defined(ECLIPSE_GUI)
     // TinyUSB <=0.15.0 does not know "tu_static"
     #define tu_static static
-#endif
-
-#if 0
-    #define DEBUG_OUT(...)  printf(__VA_ARGS__)
-    #define DEBUG_OUT_ENABLED
-#else
-    #define DEBUG_OUT(...)
-#endif
-
-#if 0
-    #define INFO_OUT(...)   printf(__VA_ARGS__)
-#else
-    #define INFO_OUT(...)
-#endif
-
-#if 1
-    #define ERROR_OUT(...)  printf(__VA_ARGS__)
-#else
-    #define ERROR_OUT(...)
 #endif
 
 // calculate alignment of xmit datagrams within an NTB
@@ -103,7 +84,7 @@ typedef struct {
     uint8_t     rhport;                            //!< storage of \a rhport because some callbacks are done without it
 
     // recv handling
-    recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
+    CFG_TUSB_MEM_ALIGN recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
     recv_ntb_t *recv_free_ntb[RECV_NTB_N];         //!< free list of recv NTBs
     recv_ntb_t *recv_ready_ntb[RECV_NTB_N];        //!< NTBs waiting for transmission to glue logic
     recv_ntb_t *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
@@ -111,7 +92,7 @@ typedef struct {
     uint16_t               recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
-    xmit_ntb_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
+    CFG_TUSB_MEM_ALIGN xmit_ntb_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
     xmit_ntb_t *xmit_free_ntb[XMIT_NTB_N];         //!< free list of xmit NTBs
     xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission to TinyUSB
     xmit_ntb_t *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
@@ -159,7 +140,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
 //      ==6 -> SystemView runs fine, iperf also
 //      >6  -> iperf starts to show errors
 //      -> 6 seems to be the best value.  Why?  Don't know, perhaps only on my system?
-//      switch \a INFO_OUT on to see interesting values for this.
+//      switch \a TU_LOG2 on to see interesting values for this.
 //
 //      iperf:    for MSS in 100 200 400 800 1200 1450 1500; do iperf -c 192.168.14.1 -e -i 1 -M $MSS -l 8192 -P 1; sleep 2; done
 //      sysview:  SYSTICKS_PER_SEC=35000, IDLE_US=1000, PRINT_MOD=1000
@@ -192,8 +173,8 @@ tu_static struct ncm_notify_t ncm_notify_speed_change = {
                 .bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE,
                 .wLength  = 8,
         },
-        .downlink = 1000000,
-        .uplink   = 1000000,
+        .downlink = 12000000,
+        .uplink   = 12000000,
 };
 
 
@@ -204,28 +185,28 @@ static void notification_xmit(uint8_t rhport, bool force_next)
  * Notifications are transferred to the host once during connection setup.
  */
 {
-    DEBUG_OUT("notification_xmit(%d, %d) - %d %d\n", force_next, rhport, ncm_interface.notification_xmit_state, ncm_interface.notification_xmit_is_running);
+    TU_LOG3("notification_xmit(%d, %d) - %d %d\n", force_next, rhport, ncm_interface.notification_xmit_state, ncm_interface.notification_xmit_is_running);
 
     if ( !force_next  &&  ncm_interface.notification_xmit_is_running) {
         return;
     }
 
     if (ncm_interface.notification_xmit_state == NOTIFICATION_SPEED) {
-        DEBUG_OUT("  NOTIFICATION_SPEED\n");
+        TU_LOG3("  NOTIFICATION_SPEED\n");
         ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
         usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_notify_speed_change, sizeof(ncm_notify_speed_change));
         ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
         ncm_interface.notification_xmit_is_running = true;
     }
     else if (ncm_interface.notification_xmit_state == NOTIFICATION_CONNECTED) {
-        DEBUG_OUT("  NOTIFICATION_CONNECTED\n");
+        TU_LOG3("  NOTIFICATION_CONNECTED\n");
         ncm_notify_connected.header.wIndex = ncm_interface.itf_num;
         usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_notify_connected, sizeof(ncm_notify_connected));
         ncm_interface.notification_xmit_state = NOTIFICATION_DONE;
         ncm_interface.notification_xmit_is_running = true;
     }
     else {
-        DEBUG_OUT("  NOTIFICATION_FINISHED\n");
+        TU_LOG3("  NOTIFICATION_FINISHED\n");
     }
 }   // notification_xmit
 
@@ -241,7 +222,7 @@ static void xmit_put_ntb_into_free_list(xmit_ntb_t *free_ntb)
  * Put NTB into the transmitter free list.
  */
 {
-    DEBUG_OUT("xmit_put_ntb_into_free_list() - %p\n", ncm_interface.xmit_tinyusb_ntb);
+    TU_LOG3("xmit_put_ntb_into_free_list() - %p\n", ncm_interface.xmit_tinyusb_ntb);
 
     if (free_ntb == NULL) {
         // can happen due to ZLPs
@@ -254,7 +235,7 @@ static void xmit_put_ntb_into_free_list(xmit_ntb_t *free_ntb)
             return;
         }
     }
-    ERROR_OUT("(EE) xmit_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
+    TU_LOG1("(EE) xmit_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
 }   // xmit_put_ntb_into_free_list
 
 
@@ -264,7 +245,7 @@ static xmit_ntb_t *xmit_get_free_ntb(void)
  * Get an NTB from the free list
  */
 {
-    DEBUG_OUT("xmit_get_free_ntb()\n");
+    TU_LOG3("xmit_get_free_ntb()\n");
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_free_ntb[i] != NULL) {
@@ -283,7 +264,7 @@ static void xmit_put_ntb_into_ready_list(xmit_ntb_t *ready_ntb)
  * Put a filled NTB into the ready list
  */
 {
-    INFO_OUT("xmit_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
+    TU_LOG2("xmit_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_ready_ntb[i] == NULL) {
@@ -291,7 +272,7 @@ static void xmit_put_ntb_into_ready_list(xmit_ntb_t *ready_ntb)
             return;
         }
     }
-    ERROR_OUT("(EE) xmit_put_ntb_into_ready_list: ready list full\n");  // this should not happen
+    TU_LOG1("(EE) xmit_put_ntb_into_ready_list: ready list full\n");  // this should not happen
 }   // xmit_put_ntb_into_ready_list
 
 
@@ -308,13 +289,13 @@ static xmit_ntb_t *xmit_get_next_ready_ntb(void)
     memmove(ncm_interface.xmit_ready_ntb + 0, ncm_interface.xmit_ready_ntb + 1, sizeof(ncm_interface.xmit_ready_ntb) - sizeof(ncm_interface.xmit_ready_ntb[0]));
     ncm_interface.xmit_ready_ntb[XMIT_NTB_N - 1] = NULL;
 
-    DEBUG_OUT("recv_get_next_ready_ntb: %p\n", r);
+    TU_LOG3("recv_get_next_ready_ntb: %p\n", r);
     return r;
 }   // xmit_get_next_ready_ntb
 
 
 
-static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
+static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes)
 /**
  * Transmit a ZLP if required
  *
@@ -327,7 +308,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
  *    This must be called from netd_xfer_cb() so that ep_in is ready
  */
 {
-    DEBUG_OUT("xmit_insert_required_zlp(%d,%d)\n", rhport, xferred_bytes);
+    TU_LOG3("xmit_insert_required_zlp(%d,%d)\n", rhport, xferred_bytes);
 
     if (xferred_bytes == 0  ||  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE != 0) {
         return false;
@@ -336,7 +317,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
     TU_ASSERT(ncm_interface.itf_data_alt == 1, false);
     TU_ASSERT( !usbd_edpt_busy(rhport, ncm_interface.ep_in), false);
 
-    INFO_OUT("xmit_insert_required_zlp! (%u)\n", (unsigned)xferred_bytes);
+    TU_LOG2("xmit_insert_required_zlp! (%u)\n", (unsigned)xferred_bytes);
 
     // start transmission of the ZLP
     usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
@@ -351,18 +332,18 @@ static void xmit_start_if_possible(uint8_t rhport)
  * Start transmission if it there is a waiting packet and if can be done from interface side.
  */
 {
-    DEBUG_OUT("xmit_start_if_possible()\n");
+    TU_LOG3("xmit_start_if_possible()\n");
 
     if (ncm_interface.xmit_tinyusb_ntb != NULL) {
-        DEBUG_OUT("  !xmit_start_if_possible 1\n");
+        TU_LOG3("  !xmit_start_if_possible 1\n");
         return;
     }
     if (ncm_interface.itf_data_alt != 1) {
-        ERROR_OUT("(II) !xmit_start_if_possible 2\n");
+        TU_LOG1("(II) !xmit_start_if_possible 2\n");
         return;
     }
     if (usbd_edpt_busy(rhport, ncm_interface.ep_in)) {
-        INFO_OUT("  !xmit_start_if_possible 3\n");
+        TU_LOG2("  !xmit_start_if_possible 3\n");
         return;
     }
 
@@ -379,16 +360,16 @@ static void xmit_start_if_possible(uint8_t rhport)
 #ifdef DEBUG_OUT_ENABLED
     {
         uint16_t len = ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength;
-        DEBUG_OUT(" %d\n", len);
+        TU_LOG3(" %d\n", len);
         for (int i = 0;  i < len;  ++i) {
-            DEBUG_OUT(" %02x", ncm_interface.xmit_tinyusb_ntb->data[i]);
+            TU_LOG3(" %02x", ncm_interface.xmit_tinyusb_ntb->data[i]);
         }
-        DEBUG_OUT("\n");
+        TU_LOG3("\n");
     }
 #endif
 
     if (ncm_interface.xmit_glue_ntb_datagram_ndx != 1) {
-        DEBUG_OUT(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength, ncm_interface.xmit_glue_ntb_datagram_ndx);
+        TU_LOG3(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength, ncm_interface.xmit_glue_ntb_datagram_ndx);
     }
 
     // Kick off an endpoint transfer
@@ -402,7 +383,7 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
  * check if a new datagram fits into the current NTB
  */
 {
-    DEBUG_OUT("xmit_requested_datagram_fits_into_current_ntb(%d) - %p %p\n", datagram_size, ncm_interface.xmit_tinyusb_ntb, ncm_interface.xmit_glue_ntb);
+    TU_LOG3("xmit_requested_datagram_fits_into_current_ntb(%d) - %p %p\n", datagram_size, ncm_interface.xmit_tinyusb_ntb, ncm_interface.xmit_glue_ntb);
 
     if (ncm_interface.xmit_glue_ntb == NULL) {
         return false;
@@ -423,7 +404,7 @@ static bool xmit_setup_next_glue_ntb(void)
  * Setup an NTB for the glue logic
  */
 {
-    DEBUG_OUT("xmit_setup_next_glue_ntb - %p\n", ncm_interface.xmit_glue_ntb);
+    TU_LOG3("xmit_setup_next_glue_ntb - %p\n", ncm_interface.xmit_glue_ntb);
 
     if (ncm_interface.xmit_glue_ntb != NULL) {
         // put NTB into waiting list (the new datagram did not fit in)
@@ -432,7 +413,7 @@ static bool xmit_setup_next_glue_ntb(void)
 
     ncm_interface.xmit_glue_ntb = xmit_get_free_ntb();              // get next buffer (if any)
     if (ncm_interface.xmit_glue_ntb == NULL) {
-        DEBUG_OUT("  xmit_setup_next_glue_ntb - nothing free\n");   // should happen rarely
+        TU_LOG3("  xmit_setup_next_glue_ntb - nothing free\n");   // should happen rarely
         return false;
     }
 
@@ -469,7 +450,7 @@ static recv_ntb_t *recv_get_free_ntb(void)
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
  */
 {
-    DEBUG_OUT("recv_get_free_ntb()\n");
+    TU_LOG3("recv_get_free_ntb()\n");
 
     for (int i = 0;  i < RECV_NTB_N;  ++i) {
         if (ncm_interface.recv_free_ntb[i] != NULL) {
@@ -495,7 +476,7 @@ static recv_ntb_t *recv_get_next_ready_ntb(void)
     memmove(ncm_interface.recv_ready_ntb + 0, ncm_interface.recv_ready_ntb + 1, sizeof(ncm_interface.recv_ready_ntb) - sizeof(ncm_interface.recv_ready_ntb[0]));
     ncm_interface.recv_ready_ntb[RECV_NTB_N - 1] = NULL;
 
-    DEBUG_OUT("recv_get_next_ready_ntb: %p\n", r);
+    TU_LOG3("recv_get_next_ready_ntb: %p\n", r);
     return r;
 }   // recv_get_next_ready_ntb
 
@@ -506,7 +487,7 @@ static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb)
  *
  */
 {
-    DEBUG_OUT("recv_put_ntb_into_free_list(%p)\n", free_ntb);
+    TU_LOG3("recv_put_ntb_into_free_list(%p)\n", free_ntb);
 
     for (int i = 0;  i < RECV_NTB_N;  ++i) {
         if (ncm_interface.recv_free_ntb[i] == NULL) {
@@ -514,7 +495,7 @@ static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb)
             return;
         }
     }
-    ERROR_OUT("(EE) recv_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
+    TU_LOG1("(EE) recv_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
 }   // recv_put_ntb_into_free_list
 
 
@@ -525,7 +506,7 @@ static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
  * put this buffer into the waiting list and free the receive logic.
  */
 {
-    DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
+    TU_LOG3("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
 
     for (int i = 0;  i < RECV_NTB_N;  ++i) {
         if (ncm_interface.recv_ready_ntb[i] == NULL) {
@@ -533,7 +514,7 @@ static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
             return;
         }
     }
-    ERROR_OUT("(EE) recv_put_ntb_into_ready_list: ready list full\n");  // this should not happen
+    TU_LOG1("(EE) recv_put_ntb_into_ready_list: ready list full\n");  // this should not happen
 }   // recv_put_ntb_into_ready_list
 
 
@@ -544,7 +525,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
  * Return value is actually not of interest.
  */
 {
-    DEBUG_OUT("recv_try_to_start_new_reception(%d)\n", rhport);
+    TU_LOG3("recv_try_to_start_new_reception(%d)\n", rhport);
 
     if (ncm_interface.itf_data_alt != 1) {
         return;
@@ -552,7 +533,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
     if (ncm_interface.recv_tinyusb_ntb != NULL) {
         return;
     }
-    if (usbd_edpt_busy(ncm_interface.rhport, ncm_interface.ep_out)) {
+    if (usbd_edpt_busy(rhport, ncm_interface.ep_out)) {
         return;
     }
 
@@ -562,8 +543,8 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
     }
 
     // initiate transfer
-    DEBUG_OUT("  start reception\n");
-    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+    TU_LOG3("  start reception\n");
+    bool r = usbd_edpt_xfer(rhport, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
     if ( !r) {
         recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
         ncm_interface.recv_tinyusb_ntb = NULL;
@@ -572,7 +553,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
 
 
-static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
+static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len)
 /**
  * Validate incoming datagram.
  * \return true if valid
@@ -583,84 +564,86 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
 {
     const nth16_t *nth16 = &(ntb->nth);
 
-    DEBUG_OUT("recv_validate_datagram(%p)\n", ntb);
+    TU_LOG3("recv_validate_datagram(%p)\n", ntb);
 
     //
     // check header
     //
     if (nth16->wHeaderLength != sizeof(nth16_t))
     {
-        ERROR_OUT("(EE) ill nth16 length: %d\n", nth16->wHeaderLength);
+        TU_LOG1("(EE) ill nth16 length: %d\n", nth16->wHeaderLength);
         return false;
     }
     if (nth16->dwSignature != NTH16_SIGNATURE) {
-        ERROR_OUT("(EE) ill signature: 0x%08x\n", (unsigned)nth16->dwSignature);
+        TU_LOG1("(EE) ill signature: 0x%08x\n", (unsigned)nth16->dwSignature);
         return false;
     }
     if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-        ERROR_OUT("(EE) ill min len: %d\n", len);
+        TU_LOG1("(EE) ill min len: %d\n", len);
         return false;
     }
     if (nth16->wBlockLength > len) {
-        ERROR_OUT("(EE) ill block length: %d > %d\n", nth16->wBlockLength, len);
+        TU_LOG1("(EE) ill block length: %d > %d\n", nth16->wBlockLength, len);
         return false;
     }
     if (nth16->wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
-        ERROR_OUT("(EE) ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+        TU_LOG1("(EE) ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
         return false;
     }
     if (nth16->wNdpIndex < sizeof(nth16)  ||  nth16->wNdpIndex > len - (sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t))) {
-        ERROR_OUT("(EE) ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
+        TU_LOG1("(EE) ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
         return false;
     }
 
     //
     // check (first) NDP(16)
     //
-    const ndp16_t *ndp16 = (ndp16_t *)(ntb->data + nth16->wNdpIndex);
+    const ndp16_t *ndp16 = (const ndp16_t *)(ntb->data + nth16->wNdpIndex);
 
     if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-        ERROR_OUT("(EE) ill ndp16 length: %d\n", ndp16->wLength);
+        TU_LOG1("(EE) ill ndp16 length: %d\n", ndp16->wLength);
         return false;
     }
     if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
-        ERROR_OUT("(EE) ill signature: 0x%08x\n", (unsigned)ndp16->dwSignature);
+        TU_LOG1("(EE) ill signature: 0x%08x\n", (unsigned)ndp16->dwSignature);
         return false;
     }
     if (ndp16->wNextNdpIndex != 0) {
-        ERROR_OUT("(EE) cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
+        TU_LOG1("(EE) cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
         return false;
     }
 
-    const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ntb->data + nth16->wNdpIndex + sizeof(ndp16_t));
+    const ndp16_datagram_t *ndp16_datagram = (const ndp16_datagram_t *)(ntb->data + nth16->wNdpIndex + sizeof(ndp16_t));
     int ndx = 0;
-    int max_ndx = (ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t);
+    uint16_t max_ndx = (uint16_t)((ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t));
 
     if (max_ndx > 2) {
         // number of datagrams in NTB > 1
-        INFO_OUT("<< %d (%d)\n", max_ndx - 1, ntb->nth.wBlockLength);
+        TU_LOG2("<< %d (%d)\n", max_ndx - 1, ntb->nth.wBlockLength);
     }
     if (ndp16_datagram[max_ndx-1].wDatagramIndex != 0  ||  ndp16_datagram[max_ndx-1].wDatagramLength != 0) {
-        INFO_OUT("  max_ndx != 0\n");
+        TU_LOG2("  max_ndx != 0\n");
         return false;
     }
     while (ndp16_datagram[ndx].wDatagramIndex != 0  &&  ndp16_datagram[ndx].wDatagramLength != 0) {
-        DEBUG_OUT("  << %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
+        TU_LOG3("  << %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
         if (ndp16_datagram[ndx].wDatagramIndex > len) {
-            ERROR_OUT("(EE) ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
+            TU_LOG1("(EE) ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
             return false;
         }
         if (ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength > len) {
-            ERROR_OUT("(EE) ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
+            TU_LOG1("(EE) ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
             return false;
         }
         ++ndx;
     }
 
-    for (int i = 0;  i < len;  ++i) {
-        DEBUG_OUT(" %02x", ntb->data[i]);
+#if CFG_TUSB_DEBUG >= 3
+    for (uint32_t i = 0;  i < len;  ++i) {
+        TU_LOG3(" %02x", ntb->data[i]);
     }
-    DEBUG_OUT("\n");
+    TU_LOG3("\n");
+#endif
 
     // -> ntb contains a valid packet structure
     //    ok... I did not check for garbage within the datagram indices...
@@ -674,11 +657,11 @@ static void recv_transfer_datagram_to_glue_logic(void)
  * Transfer the next (pending) datagram to the glue logic and return receive buffer if empty.
  */
 {
-    DEBUG_OUT("recv_transfer_datagram_to_glue_logic()\n");
+    TU_LOG3("recv_transfer_datagram_to_glue_logic()\n");
 
     if (ncm_interface.recv_glue_ntb == NULL) {
         ncm_interface.recv_glue_ntb = recv_get_next_ready_ntb();
-        DEBUG_OUT("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_ntb);
+        TU_LOG3("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_ntb);
         ncm_interface.recv_glue_ntb_datagram_ndx = 0;
     }
 
@@ -688,21 +671,21 @@ static void recv_transfer_datagram_to_glue_logic(void)
                                                                     + sizeof(ndp16_t));
 
         if (ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex == 0) {
-            ERROR_OUT("(EE) SOMETHING WENT WRONG 1\n");
+            TU_LOG1("(EE) SOMETHING WENT WRONG 1\n");
         }
         else if (ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength == 0) {
-            ERROR_OUT("(EE) SOMETHING WENT WRONG 2\n");
+            TU_LOG1("(EE) SOMETHING WENT WRONG 2\n");
         }
         else {
             uint16_t datagramIndex  = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex;
             uint16_t datagramLength = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength;
 
-            DEBUG_OUT("  recv[%d] - %d %d\n", ncm_interface.recv_glue_ntb_datagram_ndx, datagramIndex, datagramLength);
+            TU_LOG3("  recv[%d] - %d %d\n", ncm_interface.recv_glue_ntb_datagram_ndx, datagramIndex, datagramLength);
             if (tud_network_recv_cb(ncm_interface.recv_glue_ntb->data + datagramIndex, datagramLength)) {
                 //
                 // send datagram successfully to glue logic
                 //
-                DEBUG_OUT("    OK\n");
+                TU_LOG3("    OK\n");
                 datagramIndex  = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramIndex;
                 datagramLength = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramLength;
 
@@ -734,7 +717,7 @@ bool tud_network_can_xmit(uint16_t size)
  * and transmission operation.
  */
 {
-    DEBUG_OUT("tud_network_can_xmit(%d)\n", size);
+    TU_LOG3("tud_network_can_xmit(%d)\n", size);
 
     TU_ASSERT(size <= CFG_TUD_NCM_OUT_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)), false);
 
@@ -743,7 +726,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    ERROR_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
+    TU_LOG1("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 
@@ -755,10 +738,10 @@ void tud_network_xmit(void *ref, uint16_t arg)
  * If currently no transmission is started, then initiate transmission.
  */
 {
-    DEBUG_OUT("tud_network_xmit(%p, %d)\n", ref, arg);
+    TU_LOG3("tud_network_xmit(%p, %d)\n", ref, arg);
 
     if (ncm_interface.xmit_glue_ntb == NULL) {
-        ERROR_OUT("(EE) tud_network_xmit: no buffer\n");             // must not happen (really)
+        TU_LOG1("(EE) tud_network_xmit: no buffer\n");             // must not happen (really)
         return;
     }
 
@@ -772,10 +755,10 @@ void tud_network_xmit(void *ref, uint16_t arg)
     ntb->ndp_datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramLength = size;
     ncm_interface.xmit_glue_ntb_datagram_ndx += 1;
 
-    ntb->nth.wBlockLength += size + XMIT_ALIGN_OFFSET(size);
+    ntb->nth.wBlockLength += (uint16_t)(size + XMIT_ALIGN_OFFSET(size));
 
     if (ntb->nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
-        ERROR_OUT("(II) tud_network_xmit: buffer overflow\n");       // must not happen (really)
+        TU_LOG1("(II) tud_network_xmit: buffer overflow\n");       // must not happen (really)
         return;
     }
 
@@ -789,7 +772,7 @@ void tud_network_recv_renew(void)
  * Keep the receive logic busy and transfer pending packets to the glue logic.
  */
 {
-    DEBUG_OUT("tud_network_recv_renew()\n");
+    TU_LOG3("tud_network_recv_renew()\n");
 
     recv_transfer_datagram_to_glue_logic();
     recv_try_to_start_new_reception(ncm_interface.rhport);
@@ -802,7 +785,7 @@ void tud_network_recv_renew_r(uint8_t rhport)
  * Same as tud_network_recv_renew() but knows \a rhport
  */
 {
-    DEBUG_OUT("tud_network_recv_renew_r(%d)\n", rhport);
+    TU_LOG3("tud_network_recv_renew_r(%d)\n", rhport);
 
     ncm_interface.rhport = rhport;
     tud_network_recv_renew();
@@ -819,7 +802,7 @@ void netd_init(void)
  * Might be called several times.
  */
 {
-    DEBUG_OUT("netd_init()\n");
+    TU_LOG3("netd_init()\n");
 
     memset( &ncm_interface, 0, sizeof(ncm_interface));
 
@@ -839,7 +822,9 @@ void netd_reset(uint8_t rhport)
  * In this driver this is the same as netd_init()
  */
 {
-    DEBUG_OUT("netd_reset(%d)\n", rhport);
+    (void)rhport;
+
+    TU_LOG3("netd_reset(%d)\n", rhport);
 
     netd_init();
 }   // netd_reset
@@ -862,7 +847,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
  * - USB interface is open
  */
 {
-    DEBUG_OUT("netd_open(%d,%p,%d)\n", rhport, itf_desc, max_len);
+    TU_LOG3("netd_open(%d,%p,%d)\n", rhport, itf_desc, max_len);
 
     TU_ASSERT(ncm_interface.ep_notif == 0, 0);           // assure that the interface is only opened once
 
@@ -915,7 +900,9 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
  * Handle TinyUSB requests to process transfer events.
  */
 {
-    DEBUG_OUT("netd_xfer_cb(%d,%d,%d,%u)\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
+    (void)result;
+
+    TU_LOG3("netd_xfer_cb(%d,%d,%d,%u)\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
 
     if (ep_addr == ncm_interface.ep_out) {
         //
@@ -924,10 +911,10 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if ready transfer datagrams to the glue logic for further processing
         // - if there is a free receive buffer, initiate reception
         //
-        DEBUG_OUT("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
+        TU_LOG3("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
         if ( !recv_validate_datagram( ncm_interface.recv_tinyusb_ntb, xferred_bytes)) {
             // verification failed: ignore NTB and return it to free
-            ERROR_OUT("(EE) VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
+            TU_LOG1("(EE) VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
         }
         else {
             // packet ok -> put it into ready list
@@ -943,7 +930,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - insert ZLPs when necessary
         // - if there is another transmit NTB waiting, try to start transmission
         //
-        DEBUG_OUT("  EP_IN %d %u\n", ncm_interface.itf_data_alt, (unsigned)xferred_bytes);
+        TU_LOG3("  EP_IN %d %u\n", ncm_interface.itf_data_alt, (unsigned)xferred_bytes);
         xmit_put_ntb_into_free_list(ncm_interface.xmit_tinyusb_ntb);
         ncm_interface.xmit_tinyusb_ntb = NULL;
         if ( !xmit_insert_required_zlp(rhport, xferred_bytes)) {
@@ -954,7 +941,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         //
         // next transfer on notification channel
         //
-        DEBUG_OUT("  EP_NOTIF\n");
+        TU_LOG3("  EP_NOTIF\n");
         notification_xmit(rhport, true);
     }
 
@@ -969,7 +956,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
  * At startup transmission of notification packets are done here.
  */
 {
-    DEBUG_OUT("netd_control_xfer_cb(%d, %d, %p)\n", rhport, stage, request);
+    TU_LOG3("netd_control_xfer_cb(%d, %d, %p)\n", rhport, stage, request);
 
     if (stage != CONTROL_STAGE_SETUP) {
         return true;
@@ -981,7 +968,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 case TUSB_REQ_GET_INTERFACE: {
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex, false);
 
-                    DEBUG_OUT("  TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
+                    TU_LOG3("  TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
                     tud_control_xfer(rhport, request, &ncm_interface.itf_data_alt, 1);
                 }
                 break;
@@ -989,8 +976,8 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 case TUSB_REQ_SET_INTERFACE: {
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  request->wValue < 2, false);
 
-                    ncm_interface.itf_data_alt = request->wValue;
-                    DEBUG_OUT("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
+                    ncm_interface.itf_data_alt = (uint8_t)request->wValue;
+                    TU_LOG3("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
 
                     if (ncm_interface.itf_data_alt == 1) {
                         tud_network_recv_renew_r(rhport);
@@ -1009,12 +996,12 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         case TUSB_REQ_TYPE_CLASS:
             TU_VERIFY(ncm_interface.itf_num == request->wIndex, false);
 
-            DEBUG_OUT("  TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
+            TU_LOG3("  TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
 
             if (request->bRequest == NCM_GET_NTB_PARAMETERS) {
                 // transfer NTB parameters to host.
                 // TODO can one assume, that tud_control_xfer() succeeds?
-                DEBUG_OUT("    NCM_GET_NTB_PARAMETERS\n");
+                TU_LOG3("    NCM_GET_NTB_PARAMETERS\n");
                 tud_control_xfer(rhport, request, (void*) (uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
             }
             break;
