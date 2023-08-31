@@ -405,45 +405,46 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   return false;
 }
 
-tusb_speed_t handle_connect_irq(uint8_t rhport) {
+static void handle_connect_irq(uint8_t rhport) {
   uint8_t const hrsl = reg_read(rhport, HRSL_ADDR, true);
   uint8_t const jk = hrsl & (HRSL_JSTATUS | HRSL_KSTATUS);
 
-  tusb_speed_t speed;
   uint8_t new_mode = MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST;
+  TU_LOG2_HEX(jk);
 
   switch(jk) {
-    case 0x00:
-      // SEO is disconnected
-      speed = TUSB_SPEED_INVALID;
-      break;
-
-    case (HRSL_JSTATUS | HRSL_KSTATUS):
-      // SE1 is illegal
-      speed = TUSB_SPEED_INVALID;
+    case 0x00:                          // SEO is disconnected
+    case (HRSL_JSTATUS | HRSL_KSTATUS): // SE1 is illegal
+      mode_write(rhport, new_mode, true);
+      hcd_event_device_remove(rhport, true);
       break;
 
     default: {
-      // Low speed if (LS = 1 and J-state) or (LS = 0 and K-State)
-      uint8_t const mode = reg_read(rhport, MODE_ADDR, true);
-      uint8_t const ls_bit = mode & MODE_LOWSPEED;
-
-      if ( (ls_bit && (jk == HRSL_JSTATUS)) || (!ls_bit && (jk == HRSL_KSTATUS)) ) {
-        speed = TUSB_SPEED_LOW;
-        new_mode |= MODE_LOWSPEED;
-      } else {
-        speed =  TUSB_SPEED_FULL;
+      // Bus Reset also cause CONDET IRQ, skip if we are already connected and doing bus reset
+      if ((_hcd_data.hirq & HIRQ_BUSEVENT_IRQ) && (_hcd_data.mode & MODE_SOFKAENAB)) {
+        break;
       }
 
-      new_mode |= MODE_SOFKAENAB; // enable SOF since there is new device
+      // Low speed if (LS = 1 and J-state) or (LS = 0 and K-State)
+      // However, since we are always in full speed mode, we can just check J-state
+      if (jk == HRSL_KSTATUS) {
+        new_mode |= MODE_LOWSPEED;
+        TU_LOG3("Low speed\n");
+      }else {
+        TU_LOG3("Full speed\n");
+      }
+      new_mode |= MODE_SOFKAENAB;
+      mode_write(rhport, new_mode, true);
+
+      // FIXME multiple MAX3421 rootdevice address is not 1
+      uint8_t const daddr = 1;
+      free_ep(daddr);
+
+      hcd_event_device_attach(rhport, true);
 
       break;
     }
   }
-
-  mode_write(rhport, new_mode, true);
-  TU_LOG2_INT(speed);
-  return speed;
 }
 
 // Initialize controller to host mode
@@ -500,8 +501,9 @@ bool hcd_init(uint8_t rhport) {
 // Enable USB interrupt
 // Not actually enable GPIO interrupt, just set variable to prevent handler to process
 void hcd_int_enable (uint8_t rhport) {
+//  tuh_max3421e_int_api(rhport, true);
+
   (void) rhport;
-  // tuh_max3421e_int_api(rhport, true);
   if (_hcd_data.intr_disable_count) {
     _hcd_data.intr_disable_count--;
   }
@@ -510,8 +512,8 @@ void hcd_int_enable (uint8_t rhport) {
 // Disable USB interrupt
 // Not actually disable GPIO interrupt, just set variable to prevent handler to process
 void hcd_int_disable(uint8_t rhport) {
-  (void) rhport;
   //tuh_max3421e_int_api(rhport, false);
+  (void) rhport;
   _hcd_data.intr_disable_count++;
 }
 
@@ -534,20 +536,12 @@ bool hcd_port_connect_status(uint8_t rhport) {
 // Reset USB bus on the port. Return immediately, bus reset sequence may not be complete.
 // Some port would require hcd_port_reset_end() to be invoked after 10ms to complete the reset sequence.
 void hcd_port_reset(uint8_t rhport) {
-  // Bus reset will also trigger CONDET IRQ, disable it
-  uint8_t const hien = DEFAULT_HIEN & ~HIRQ_CONDET_IRQ;
-  hien_write(rhport, hien, false);
-
   reg_write(rhport, HCTL_ADDR, HCTL_BUSRST, false);
 }
 
 // Complete bus reset sequence, may be required by some controllers
 void hcd_port_reset_end(uint8_t rhport) {
   reg_write(rhport, HCTL_ADDR, 0, false);
-
-  // Bus reset will also trigger CONDET IRQ, clear and re-enable it after reset
-  hirq_write(rhport, HIRQ_CONDET_IRQ, false);
-  hien_write(rhport, DEFAULT_HIEN, false);
 }
 
 // Get port link speed
@@ -660,7 +654,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   uint8_t const ep_dir = tu_edpt_dir(ep_addr);
 
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
-  TU_ASSERT(ep);
+  TU_VERIFY(ep);
 
   // control transfer can switch direction
   ep->ep_dir = ep_dir;
@@ -767,8 +761,6 @@ static void handle_xfer_done(uint8_t rhport) {
   TU_ASSERT(ep, );
 
   xfer_result_t xfer_result;
-
-//  TU_LOG3("HRSL: %02X\r\n", hrsl);
   switch(hresult) {
     case HRSL_SUCCESS:
       xfer_result = XFER_RESULT_SUCCESS;
@@ -803,6 +795,7 @@ static void handle_xfer_done(uint8_t rhport) {
       return;
 
     default:
+      TU_LOG3("HRSL: %02X\r\n", hrsl);
       xfer_result = XFER_RESULT_FAILED;
       break;
   }
@@ -875,30 +868,30 @@ void hcd_int_handler(uint8_t rhport) {
   if (!hirq) return;
 //  print_hirq(hirq);
 
+//  uint8_t hirq = reg_read(rhport, HIRQ_ADDR, true);
+
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
   }
 
+  #if 1
   // interrupt is disabled, only ack FRAME IRQ and skip the rest
   if (_hcd_data.intr_disable_count) {
     if (hirq & HIRQ_FRAME_IRQ) {
       hirq_write(rhport, HIRQ_FRAME_IRQ, true);
     }
+
+    if ((hirq & HIRQ_CONDET_IRQ) && !(_hcd_data.mode & MODE_SOFKAENAB)) {
+      // connection when interrupt is disabled
+      TU_LOG3_INT(_hcd_data.intr_disable_count);
+      return;
+    }
     return;
   }
+  #endif
 
   if (hirq & HIRQ_CONDET_IRQ) {
-    tusb_speed_t speed = handle_connect_irq(rhport);
-
-    if (speed == TUSB_SPEED_INVALID) {
-      hcd_event_device_remove(rhport, true);
-    }else {
-      // FIXME multiple MAX3421 rootdevice address is not 1
-      uint8_t const daddr = 1;
-      free_ep(daddr);
-
-      hcd_event_device_attach(rhport, true);
-    }
+    handle_connect_irq(rhport);
   }
 
   // queue more transfer in handle_xfer_done() can cause hirq to be set again while external IRQ may not catch and/or

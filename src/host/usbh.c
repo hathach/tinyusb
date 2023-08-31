@@ -852,7 +852,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * b
     ep_state->busy    = 0;
     ep_state->claimed = 0;
     TU_LOG1("Failed\r\n");
-    TU_BREAKPOINT();
+//    TU_BREAKPOINT();
     return false;
   }
 }

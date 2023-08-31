@@ -98,7 +98,7 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
 
 void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
-  if ( !(pin == MAX3241E_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO) ) return;
+  if (!(pin == MAX3241E_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
 
   tuh_int_handler(1);
 }
@@ -111,7 +111,7 @@ void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
 
   if (enabled) {
     nrfx_gpiote_trigger_enable(MAX3241E_INTR_PIN, true);
-  }else {
+  } else {
     nrfx_gpiote_trigger_disable(MAX3241E_INTR_PIN);
   }
 }
@@ -121,7 +121,7 @@ void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   nrf_gpio_pin_write(MAX3421E_CS_PIN, active ? 0 : 1);
 }
 
-bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len) {
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
   (void) rhport;
 
   nrfx_spim_xfer_desc_t xfer = {
@@ -157,21 +157,21 @@ void board_init(void) {
   nrf_gpio_cfg_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP);
 
   // 1ms tick timer
-  SysTick_Config(SystemCoreClock/1000);
+  SysTick_Config(SystemCoreClock / 1000);
 
   // UART
   nrfx_uarte_config_t uart_cfg = {
-    .pseltxd   = UART_TX_PIN,
-    .pselrxd   = UART_RX_PIN,
-    .pselcts   = NRF_UARTE_PSEL_DISCONNECTED,
-    .pselrts   = NRF_UARTE_PSEL_DISCONNECTED,
-    .p_context = NULL,
-    .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
-    .interrupt_priority = 7,
-    .hal_cfg = {
-      .hwfc      = NRF_UARTE_HWFC_DISABLED,
-      .parity    = NRF_UARTE_PARITY_EXCLUDED,
-    }
+      .pseltxd   = UART_TX_PIN,
+      .pselrxd   = UART_RX_PIN,
+      .pselcts   = NRF_UARTE_PSEL_DISCONNECTED,
+      .pselrts   = NRF_UARTE_PSEL_DISCONNECTED,
+      .p_context = NULL,
+      .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
+      .interrupt_priority = 7,
+      .hal_cfg = {
+          .hwfc      = NRF_UARTE_HWFC_DISABLED,
+          .parity    = NRF_UARTE_PARITY_EXCLUDED,
+      }
   };
 
   nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
@@ -211,11 +211,11 @@ void board_init(void) {
 
     // USB power may already be ready at this time -> no event generated
     // We need to invoke the handler based on the status initially
-    #ifdef NRF5340_XXAA
+#ifdef NRF5340_XXAA
     usb_reg = NRF_USBREGULATOR->USBREGSTATUS;
-    #else
+#else
     usb_reg = NRF_POWER->USBREGSTATUS;
-    #endif
+#endif
   }
 
   if ( usb_reg & VBUSDETECT_Msk ) tusb_hal_nrf_power_event(USB_EVT_DETECTED);
@@ -308,8 +308,7 @@ uint32_t board_millis(void) {
 
 #ifdef SOFTDEVICE_PRESENT
 // process SOC event from SD
-uint32_t proc_soc(void)
-{
+uint32_t proc_soc(void) {
   uint32_t soc_evt;
   uint32_t err = sd_evt_get(&soc_evt);
 
@@ -326,18 +325,14 @@ uint32_t proc_soc(void)
   return err;
 }
 
-uint32_t proc_ble(void)
-{
+uint32_t proc_ble(void) {
   // do nothing with ble
   return NRF_ERROR_NOT_FOUND;
 }
 
-void SD_EVT_IRQHandler(void)
-{
+void SD_EVT_IRQHandler(void) {
   // process BLE and SOC until there is no more events
-  while( (NRF_ERROR_NOT_FOUND != proc_ble()) || (NRF_ERROR_NOT_FOUND != proc_soc()) )
-  {
-
+  while( (NRF_ERROR_NOT_FOUND != proc_ble()) || (NRF_ERROR_NOT_FOUND != proc_soc()) ) {
   }
 }
 
