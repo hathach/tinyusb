@@ -134,18 +134,6 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNtbOutMaxDatagrams     = 6                                     // 0=no limit
 };
 
-// Some confusing remarks about wNtbOutMaxDatagrams...
-//      ==1 -> SystemView packets/s goes up to 2000 and events are lost during startup
-//      ==0 -> SystemView runs fine, iperf shows in wireshark a lot of error
-//      ==6 -> SystemView runs fine, iperf also
-//      >6  -> iperf starts to show errors
-//      -> 6 seems to be the best value.  Why?  Don't know, perhaps only on my system?
-//      switch \a TU_LOG2 on to see interesting values for this.
-//
-//      iperf:    for MSS in 100 200 400 800 1200 1450 1500; do iperf -c 192.168.14.1 -e -i 1 -M $MSS -l 8192 -P 1; sleep 2; done
-//      sysview:  SYSTICKS_PER_SEC=35000, IDLE_US=1000, PRINT_MOD=1000
-//
-
 //-----------------------------------------------------------------------------
 //
 // everything about notifications
