@@ -215,6 +215,9 @@ void tuh_max3421_spi_cs_api(uint8_t rhport, bool active);
 bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len);
 void tuh_max3421e_int_api(uint8_t rhport, bool enabled);
 
+static void handle_connect_irq(uint8_t rhport, bool in_isr);
+static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr);
+
 //--------------------------------------------------------------------+
 // SPI Helper
 //--------------------------------------------------------------------+
@@ -238,6 +241,14 @@ static void max3421_spi_unlock(uint8_t rhport, bool in_isr) {
   if (!in_isr) {
     tuh_max3421e_int_api(rhport, true);
     (void) osal_mutex_unlock(_hcd_data.spi_mutex);
+
+    // when re-enable interrupt, we may miss INTR edge (usually via GPIO detection interrupt).
+    // It would be ok if we are operating since SOF will re-trigger interrupt.
+    // However, for CONDET_IRQ i.e host not operating therefore we need to manually handle it here.
+    if (_hcd_data.hirq & HIRQ_CONDET_IRQ) {
+      handle_connect_irq(rhport, false);
+      hirq_write(rhport, HIRQ_CONDET_IRQ, false);
+    }
   }
 }
 
@@ -405,48 +416,6 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   return false;
 }
 
-static void handle_connect_irq(uint8_t rhport) {
-  uint8_t const hrsl = reg_read(rhport, HRSL_ADDR, true);
-  uint8_t const jk = hrsl & (HRSL_JSTATUS | HRSL_KSTATUS);
-
-  uint8_t new_mode = MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST;
-  TU_LOG2_HEX(jk);
-
-  switch(jk) {
-    case 0x00:                          // SEO is disconnected
-    case (HRSL_JSTATUS | HRSL_KSTATUS): // SE1 is illegal
-      mode_write(rhport, new_mode, true);
-      hcd_event_device_remove(rhport, true);
-      break;
-
-    default: {
-      // Bus Reset also cause CONDET IRQ, skip if we are already connected and doing bus reset
-      if ((_hcd_data.hirq & HIRQ_BUSEVENT_IRQ) && (_hcd_data.mode & MODE_SOFKAENAB)) {
-        break;
-      }
-
-      // Low speed if (LS = 1 and J-state) or (LS = 0 and K-State)
-      // However, since we are always in full speed mode, we can just check J-state
-      if (jk == HRSL_KSTATUS) {
-        new_mode |= MODE_LOWSPEED;
-        TU_LOG3("Low speed\n");
-      }else {
-        TU_LOG3("Full speed\n");
-      }
-      new_mode |= MODE_SOFKAENAB;
-      mode_write(rhport, new_mode, true);
-
-      // FIXME multiple MAX3421 rootdevice address is not 1
-      uint8_t const daddr = 1;
-      free_ep(daddr);
-
-      hcd_event_device_attach(rhport, true);
-
-      break;
-    }
-  }
-}
-
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport) {
   (void) rhport;
@@ -507,6 +476,14 @@ void hcd_int_enable (uint8_t rhport) {
   if (_hcd_data.intr_disable_count) {
     _hcd_data.intr_disable_count--;
   }
+
+  // when re-enable interrupt, we may miss INTR edge (usually via GPIO detection interrupt).
+  // It would be ok if we are operating since SOF will re-trigger interrupt.
+  // However, for CONDET_IRQ i.e host not operating therefore we need to manually handle it here.
+//  if (_hcd_data.hirq & HIRQ_CONDET_IRQ) {
+//    handle_connect_irq(rhport, false);
+//    hirq_write(rhport, HIRQ_CONDET_IRQ, false);
+//  }
 }
 
 // Disable USB interrupt
@@ -726,6 +703,54 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 // Interrupt Handler
 //--------------------------------------------------------------------+
 
+static void handle_connect_irq(uint8_t rhport, bool in_isr) {
+  uint8_t const hrsl = reg_read(rhport, HRSL_ADDR, in_isr);
+  uint8_t const jk = hrsl & (HRSL_JSTATUS | HRSL_KSTATUS);
+
+  uint8_t new_mode = MODE_DPPULLDN | MODE_DMPULLDN | MODE_HOST;
+  TU_LOG2_HEX(jk);
+
+  switch(jk) {
+    case 0x00:                          // SEO is disconnected
+    case (HRSL_JSTATUS | HRSL_KSTATUS): // SE1 is illegal
+      mode_write(rhport, new_mode, in_isr);
+
+      // port reset anyway, this will help to stable bus signal for next connection
+      reg_write(rhport, HCTL_ADDR, HCTL_BUSRST, in_isr);
+
+      hcd_event_device_remove(rhport, in_isr);
+
+      reg_write(rhport, HCTL_ADDR, 0, in_isr);
+      break;
+
+    default: {
+      // Bus Reset also cause CONDET IRQ, skip if we are already connected and doing bus reset
+      if ((_hcd_data.hirq & HIRQ_BUSEVENT_IRQ) && (_hcd_data.mode & MODE_SOFKAENAB)) {
+        break;
+      }
+
+      // Low speed if (LS = 1 and J-state) or (LS = 0 and K-State)
+      // However, since we are always in full speed mode, we can just check J-state
+      if (jk == HRSL_KSTATUS) {
+        new_mode |= MODE_LOWSPEED;
+        TU_LOG3("Low speed\n");
+      }else {
+        TU_LOG3("Full speed\n");
+      }
+      new_mode |= MODE_SOFKAENAB;
+      mode_write(rhport, new_mode, in_isr);
+
+      // FIXME multiple MAX3421 rootdevice address is not 1
+      uint8_t const daddr = 1;
+      free_ep(daddr);
+
+      hcd_event_device_attach(rhport, in_isr);
+
+      break;
+    }
+  }
+}
+
 static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t hrsl) {
   uint8_t const ep_addr = tu_edpt_addr(ep->ep_num, ep->ep_dir);
 
@@ -758,7 +783,7 @@ static void handle_xfer_done(uint8_t rhport) {
   uint8_t const ep_dir = ((hxfr_type & HXFR_SETUP) || (hxfr_type & HXFR_OUT_NIN)) ? 0 : 1;
 
   max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, ep_dir);
-  TU_ASSERT(ep, );
+  TU_VERIFY(ep, );
 
   xfer_result_t xfer_result;
   switch(hresult) {
@@ -857,7 +882,6 @@ void print_hirq(uint8_t hirq) {
 
   TU_LOG3("\r\n");
 }
-
 #else
   #define print_hirq(hirq)
 #endif
@@ -868,30 +892,20 @@ void hcd_int_handler(uint8_t rhport) {
   if (!hirq) return;
 //  print_hirq(hirq);
 
-//  uint8_t hirq = reg_read(rhport, HIRQ_ADDR, true);
-
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
   }
 
-  #if 1
-  // interrupt is disabled, only ack FRAME IRQ and skip the rest
+  // interrupt is disabled by usbh task: only ack FRAME IRQ and skip the rest
   if (_hcd_data.intr_disable_count) {
     if (hirq & HIRQ_FRAME_IRQ) {
       hirq_write(rhport, HIRQ_FRAME_IRQ, true);
     }
-
-    if ((hirq & HIRQ_CONDET_IRQ) && !(_hcd_data.mode & MODE_SOFKAENAB)) {
-      // connection when interrupt is disabled
-      TU_LOG3_INT(_hcd_data.intr_disable_count);
-      return;
-    }
     return;
   }
-  #endif
 
   if (hirq & HIRQ_CONDET_IRQ) {
-    handle_connect_irq(rhport);
+    handle_connect_irq(rhport, true);
   }
 
   // queue more transfer in handle_xfer_done() can cause hirq to be set again while external IRQ may not catch and/or
