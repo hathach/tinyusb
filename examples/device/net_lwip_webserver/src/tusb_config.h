@@ -84,14 +84,14 @@
 
 // use different configurations to test all net devices (also due to resource limitations)
 #if TU_CHECK_MCU(OPT_MCU_LPC15XX, OPT_MCU_LPC40XX, OPT_MCU_LPC51UXX, OPT_MCU_LPC54)
-    #define USE_ECM               1
+  #define USE_ECM                 1
 #elif TU_CHECK_MCU(OPT_MCU_SAMD21, OPT_MCU_SAML21, OPT_MCU_SAML22)
-    #define USE_ECM               1
+  #define USE_ECM                 1
 #elif TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F1)
-    #define USE_ECM               1
+  #define USE_ECM                 1
 #else
-    #define USE_ECM               0
-    #define INCLUDE_IPERF
+  #define USE_ECM                 0
+  #define INCLUDE_IPERF
 #endif
 
 //--------------------------------------------------------------------
