@@ -60,6 +60,9 @@ void board_init(void)
 
   UART_CLK_EN();
 
+  /* Enable Instruction cache */
+  HAL_ICACHE_Enable();
+
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);

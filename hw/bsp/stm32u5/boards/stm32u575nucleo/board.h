@@ -61,7 +61,7 @@ static inline void board_clock_init(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-  /* Enable Power Clock*/
+  /* Enable Power Clock */
   __HAL_RCC_PWR_CLK_ENABLE();
 
   /** Configure the main internal regulator output voltage
