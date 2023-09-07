@@ -7,6 +7,6 @@ function(update_board TARGET)
     CFG_EXAMPLE_VIDEO_READONLY
     )
   target_link_options(${TARGET} PUBLIC
-    --defsym=BOOTLOADER_SIZE=0x800
+    "LINKER:--defsym=BOOTLOADER_SIZE=0x800"
     )
 endfunction()
