@@ -753,27 +753,31 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
 // USBH API For Class Driver
 //--------------------------------------------------------------------+
 
-uint8_t usbh_get_rhport(uint8_t dev_addr)
-{
-  usbh_device_t* dev = get_device(dev_addr);
+uint8_t usbh_get_rhport(uint8_t dev_addr) {
+  usbh_device_t *dev = get_device(dev_addr);
   return dev ? dev->rhport : _dev0.rhport;
 }
 
-uint8_t* usbh_get_enum_buf(void)
-{
+uint8_t *usbh_get_enum_buf(void) {
   return _usbh_ctrl_buf;
 }
 
-void usbh_int_set(bool enabled)
-{
+void usbh_int_set(bool enabled) {
   // TODO all host controller if multiple are used since they shared the same event queue
-  if (enabled)
-  {
+  if (enabled) {
     hcd_int_enable(_usbh_controller);
-  }else
-  {
+  } else {
     hcd_int_disable(_usbh_controller);
   }
+}
+
+void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {
+  hcd_event_t event = { 0 };
+  event.event_id = USBH_EVENT_FUNC_CALL;
+  event.func_call.func = func;
+  event.func_call.param = param;
+
+  osal_queue_send(_usbh_q, &event, in_isr);
 }
 
 //--------------------------------------------------------------------+

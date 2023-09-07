@@ -194,7 +194,6 @@ typedef struct {
   uint8_t hxfr;
 
   atomic_flag busy; // busy transferring
-  volatile uint8_t intr_disable_count;
   volatile uint16_t frame_count;
 
   max3421_ep_t ep[CFG_TUH_MAX3421_ENDPOINT_TOTAL]; // [0] is reserved for addr0
@@ -241,14 +240,6 @@ static void max3421_spi_unlock(uint8_t rhport, bool in_isr) {
   if (!in_isr) {
     tuh_max3421e_int_api(rhport, true);
     (void) osal_mutex_unlock(_hcd_data.spi_mutex);
-
-    // when re-enable interrupt, we may miss INTR edge (usually via GPIO detection interrupt).
-    // It would be ok if we are operating since SOF will re-trigger interrupt.
-    // However, for CONDET_IRQ i.e host not operating therefore we need to manually handle it here.
-    if (_hcd_data.hirq & HIRQ_CONDET_IRQ) {
-      handle_connect_irq(rhport, false);
-      hirq_write(rhport, HIRQ_CONDET_IRQ, false);
-    }
   }
 }
 
@@ -470,28 +461,13 @@ bool hcd_init(uint8_t rhport) {
 // Enable USB interrupt
 // Not actually enable GPIO interrupt, just set variable to prevent handler to process
 void hcd_int_enable (uint8_t rhport) {
-//  tuh_max3421e_int_api(rhport, true);
-
-  (void) rhport;
-  if (_hcd_data.intr_disable_count) {
-    _hcd_data.intr_disable_count--;
-  }
-
-  // when re-enable interrupt, we may miss INTR edge (usually via GPIO detection interrupt).
-  // It would be ok if we are operating since SOF will re-trigger interrupt.
-  // However, for CONDET_IRQ i.e host not operating therefore we need to manually handle it here.
-//  if (_hcd_data.hirq & HIRQ_CONDET_IRQ) {
-//    handle_connect_irq(rhport, false);
-//    hirq_write(rhport, HIRQ_CONDET_IRQ, false);
-//  }
+  tuh_max3421e_int_api(rhport, true);
 }
 
 // Disable USB interrupt
 // Not actually disable GPIO interrupt, just set variable to prevent handler to process
 void hcd_int_disable(uint8_t rhport) {
-  //tuh_max3421e_int_api(rhport, false);
-  (void) rhport;
-  _hcd_data.intr_disable_count++;
+  tuh_max3421e_int_api(rhport, false);
 }
 
 // Get frame number (1ms)
@@ -894,14 +870,6 @@ void hcd_int_handler(uint8_t rhport) {
 
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
-  }
-
-  // interrupt is disabled by usbh task: only ack FRAME IRQ and skip the rest
-  if (_hcd_data.intr_disable_count) {
-    if (hirq & HIRQ_FRAME_IRQ) {
-      hirq_write(rhport, HIRQ_FRAME_IRQ, true);
-    }
-    return;
   }
 
   if (hirq & HIRQ_CONDET_IRQ) {

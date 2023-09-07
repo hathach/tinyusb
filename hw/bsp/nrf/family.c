@@ -109,10 +109,12 @@ void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
 void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
   (void) rhport;
 
+  // use NVIC_Enable/Disable instead since nrfx_gpiote_trigger_enable/disable clear pending and can miss interrupt
+  // when disabled
   if (enabled) {
-    nrfx_gpiote_trigger_enable(MAX3241E_INTR_PIN, true);
+    NVIC_EnableIRQ(GPIOTE_IRQn);
   } else {
-    nrfx_gpiote_trigger_disable(MAX3241E_INTR_PIN);
+    NVIC_DisableIRQ(GPIOTE_IRQn);
   }
 }
 
@@ -266,6 +268,7 @@ void board_init(void) {
   in_config.pull = NRF_GPIO_PIN_PULLUP;
 
   nrfx_gpiote_in_init(MAX3241E_INTR_PIN, &in_config, max3421e_int_handler);
+  nrfx_gpiote_trigger_enable(MAX3241E_INTR_PIN, true);
 #endif
 
 }
