@@ -28,10 +28,21 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#endif
+
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
 #include "hpl/gclk/hpl_gclk_base.h"
 #include "hpl_mclk_config.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler

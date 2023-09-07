@@ -40,6 +40,8 @@ jobs:
           - 'mcx'
           - 'ra'
           - 'rp2040'
+          - 'samd21'
+          - 'samd51'
           - 'stm32f0'
           - 'stm32f1'
           - 'stm32f4'
