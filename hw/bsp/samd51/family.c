@@ -294,7 +294,7 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
   size_t count = 0;
   while (count < tx_len || count < rx_len) {
     // Wait for the transmit buffer to be empty
-//    while (!SERCOM2->SPI.INTFLAG.bit.DRE);
+    while (!SERCOM2->SPI.INTFLAG.bit.DRE);
 
     // Write data to be transmitted
     uint8_t data = 0x00;
@@ -302,18 +302,23 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
        data = tx_buf[count];
     }
 
-    SERCOM2->SPI.DATA.bit.DATA = data;
+    SERCOM2->SPI.DATA.reg = (uint32_t) data;
 
     // Wait for the receive buffer to be filled
     while (!SERCOM2->SPI.INTFLAG.bit.RXC);
 
     // Read received data
-    if (rx_buf) {
-      rx_buf[count] = SERCOM2->SPI.DATA.bit.DATA;
+    data = (uint8_t) SERCOM2->SPI.DATA.reg;
+    if (count < rx_len) {
+      rx_buf[count] = data;
     }
 
     count++;
   }
+
+  // wait for bus idle and clear flags
+  while (!(SERCOM2->SPI.INTFLAG.reg & (SERCOM_SPI_INTFLAG_TXC | SERCOM_SPI_INTFLAG_DRE)));
+  SERCOM2->SPI.INTFLAG.reg = SERCOM_SPI_INTFLAG_TXC | SERCOM_SPI_INTFLAG_DRE;
 
   return true;
 }
