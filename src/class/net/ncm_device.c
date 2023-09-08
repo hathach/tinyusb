@@ -59,11 +59,6 @@
 #include "ncm.h"
 
 
-#if !defined(tu_static)  ||  defined(ECLIPSE_GUI)
-    // TinyUSB <=0.15.0 does not know "tu_static"
-    #define tu_static static
-#endif
-
 // calculate alignment of xmit datagrams within an NTB
 #define XMIT_ALIGN_OFFSET(x)   ((CFG_TUD_NCM_ALIGNMENT - ((x) & (CFG_TUD_NCM_ALIGNMENT - 1))) & (CFG_TUD_NCM_ALIGNMENT - 1))
 
@@ -84,7 +79,7 @@ typedef struct {
     uint8_t     rhport;                            //!< storage of \a rhport because some callbacks are done without it
 
     // recv handling
-    CFG_TUSB_MEM_ALIGN recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
+    CFG_TUSB_MEM_ALIGN recv_ntb_t  recv_ntb[RECV_NTB_N]; //!< actual recv NTBs
     recv_ntb_t *recv_free_ntb[RECV_NTB_N];         //!< free list of recv NTBs
     recv_ntb_t *recv_ready_ntb[RECV_NTB_N];        //!< NTBs waiting for transmission to glue logic
     recv_ntb_t *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
@@ -92,7 +87,7 @@ typedef struct {
     uint16_t               recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
-    CFG_TUSB_MEM_ALIGN xmit_ntb_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
+    CFG_TUSB_MEM_ALIGN xmit_ntb_t  xmit_ntb[XMIT_NTB_N]; //!< actual xmit NTBs
     xmit_ntb_t *xmit_free_ntb[XMIT_NTB_N];         //!< free list of xmit NTBs
     xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission to TinyUSB
     xmit_ntb_t *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
@@ -327,7 +322,7 @@ static void xmit_start_if_possible(uint8_t rhport)
         return;
     }
     if (ncm_interface.itf_data_alt != 1) {
-        TU_LOG1("(II) !xmit_start_if_possible 2\n");
+        TU_LOG1("(EE) !xmit_start_if_possible 2\n");
         return;
     }
     if (usbd_edpt_busy(rhport, ncm_interface.ep_in)) {
@@ -472,7 +467,7 @@ static recv_ntb_t *recv_get_next_ready_ntb(void)
 
 static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb)
 /**
- *
+ * Put NTB into the receiver free list.
  */
 {
     TU_LOG3("recv_put_ntb_into_free_list(%p)\n", free_ntb);
@@ -490,8 +485,8 @@ static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb)
 
 static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
 /**
- * The \a ncm_interface.recv_tinyusb_ntb is filled,
- * put this buffer into the waiting list and free the receive logic.
+ * \a ready_ntb holds a validated NTB,
+ * put this buffer into the waiting list.
  */
 {
     TU_LOG3("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
@@ -510,7 +505,6 @@ static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
 static void recv_try_to_start_new_reception(uint8_t rhport)
 /**
  * If possible, start a new reception TinyUSB -> driver.
- * Return value is actually not of interest.
  */
 {
     TU_LOG3("recv_try_to_start_new_reception(%d)\n", rhport);
@@ -552,7 +546,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len)
 {
     const nth16_t *nth16 = &(ntb->nth);
 
-    TU_LOG3("recv_validate_datagram(%p)\n", ntb);
+    TU_LOG3("recv_validate_datagram(%p, %d)\n", ntb, (int)len);
 
     //
     // check header
@@ -714,7 +708,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    TU_LOG1("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
+    TU_LOG2("tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 
@@ -746,7 +740,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
     ntb->nth.wBlockLength += (uint16_t)(size + XMIT_ALIGN_OFFSET(size));
 
     if (ntb->nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
-        TU_LOG1("(II) tud_network_xmit: buffer overflow\n");       // must not happen (really)
+        TU_LOG1("(EE) tud_network_xmit: buffer overflow\n");       // must not happen (really)
         return;
     }
 
