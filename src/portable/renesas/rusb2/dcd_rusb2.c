@@ -89,6 +89,24 @@ static dcd_data_t _dcd;
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
+#ifndef FIRST_BULK_PIPE
+#define FIRST_BULK_PIPE       3
+#endif
+
+#ifndef FIRST_INTERRUPT_PIPE
+#define FIRST_INTERRUPT_PIPE  6
+#endif
+
+#ifndef NUMBER_OF_PIPES
+#define NUMBER_OF_PIPES       10
+#endif
+
+#ifdef NO_ISOCRONOUS_PIPE
+  #define FIRST_PIPE            FIRST_BULK_PIPE
+#else
+  #define FIRST_PIPE            1
+#endif
+
 // Transfer conditions specifiable for each pipe:
 // - Pipe 0: Control transfer with 64-byte single buffer
 // - Pipes 1 and 2: Bulk isochronous transfer continuous transfer mode with programmable buffer size up
@@ -97,9 +115,9 @@ static dcd_data_t _dcd;
 //   optional double buffer
 // - Pipes 6 to 9: Interrupt transfer with 64-byte single buffer
 enum {
-  PIPE_1ST_BULK = 3,
-  PIPE_1ST_INTERRUPT = 6,
-  PIPE_COUNT = 10,
+  PIPE_1ST_BULK = FIRST_BULK_PIPE,
+  PIPE_1ST_INTERRUPT = FIRST_INTERRUPT_PIPE,
+  PIPE_COUNT = NUMBER_OF_PIPES,
 };
 
 static unsigned find_pipe(unsigned xfer)
