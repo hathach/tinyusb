@@ -267,9 +267,10 @@ static void pipe_read_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void 
 }
 
 
-static void wait_pipe_fifo_empty(rusb2_reg_t* rusb, uint8_t num) {
+static bool wait_pipe_fifo_empty(rusb2_reg_t* rusb, uint8_t num) {
   TU_ASSERT(num);
   while( (rusb->PIPE_CTR[num-1] & RUSB2_PIPE_CTR_INBUFM_Msk) > 0 ) {}
+  return true;
 }
 
 
