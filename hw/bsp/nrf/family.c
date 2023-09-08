@@ -102,40 +102,6 @@ void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
 
   tuh_int_handler(1);
 }
-
-//--------------------------------------------------------------------+
-// API: SPI transfer with MAX3421E, must be implemented by application
-//--------------------------------------------------------------------+
-void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
-  (void) rhport;
-
-  // use NVIC_Enable/Disable instead since nrfx_gpiote_trigger_enable/disable clear pending and can miss interrupt
-  // when disabled
-  if (enabled) {
-    NVIC_EnableIRQ(GPIOTE_IRQn);
-  } else {
-    NVIC_DisableIRQ(GPIOTE_IRQn);
-  }
-}
-
-void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
-  (void) rhport;
-  nrf_gpio_pin_write(MAX3421E_CS_PIN, active ? 0 : 1);
-}
-
-bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
-  (void) rhport;
-
-  nrfx_spim_xfer_desc_t xfer = {
-      .p_tx_buffer = tx_buf,
-      .tx_length   = tx_len,
-      .p_rx_buffer = rx_buf,
-      .rx_length   = rx_len,
-  };
-
-  return (nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS);
-}
-
 #endif
 
 
@@ -242,7 +208,7 @@ void board_init(void) {
 
   // manually manage CS
   nrf_gpio_cfg_output(MAX3421E_CS_PIN);
-  tuh_max3421_spi_cs_api(0, false);
+  nrf_gpio_pin_write(MAX3421E_CS_PIN, 1);
 
   // USB host using max3421e usb controller via SPI
   nrfx_spim_config_t cfg = {
@@ -344,4 +310,41 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
   (void) pc;
   (void) info;
 }
+#endif
+
+//--------------------------------------------------------------------+
+// API: SPI transfer with MAX3421E, must be implemented by application
+//--------------------------------------------------------------------+
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+
+void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
+  (void) rhport;
+
+  // use NVIC_Enable/Disable instead since nrfx_gpiote_trigger_enable/disable clear pending and can miss interrupt
+  // when disabled and re-enabled.
+  if (enabled) {
+    NVIC_EnableIRQ(GPIOTE_IRQn);
+  } else {
+    NVIC_DisableIRQ(GPIOTE_IRQn);
+  }
+}
+
+void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
+  (void) rhport;
+  nrf_gpio_pin_write(MAX3421E_CS_PIN, active ? 0 : 1);
+}
+
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
+  (void) rhport;
+
+  nrfx_spim_xfer_desc_t xfer = {
+      .p_tx_buffer = tx_buf,
+      .tx_length   = tx_len,
+      .p_rx_buffer = rx_buf,
+      .rx_length   = rx_len,
+  };
+
+  return (nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS);
+}
+
 #endif

@@ -43,30 +43,6 @@
 #pragma GCC diagnostic pop
 #endif
 
-
-//--------------------------------------------------------------------+
-// Forward USB interrupt events to TinyUSB IRQ Handler
-//--------------------------------------------------------------------+
-void USB_0_Handler (void)
-{
-  tud_int_handler(0);
-}
-
-void USB_1_Handler (void)
-{
-  tud_int_handler(0);
-}
-
-void USB_2_Handler (void)
-{
-  tud_int_handler(0);
-}
-
-void USB_3_Handler (void)
-{
-  tud_int_handler(0);
-}
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -77,8 +53,81 @@ void USB_3_Handler (void)
 /* Not referenced GCLKs, initialized last */
 #define _GCLK_INIT_LAST (~_GCLK_INIT_1ST)
 
-void board_init(void)
+//--------------------------------------------------------------------+
+// Forward USB interrupt events to TinyUSB IRQ Handler
+//--------------------------------------------------------------------+
+void USB_0_Handler(void) {
+  tud_int_handler(0);
+}
+
+void USB_1_Handler(void) {
+  tud_int_handler(0);
+}
+
+void USB_2_Handler(void) {
+  tud_int_handler(0);
+}
+
+void USB_3_Handler(void) {
+  tud_int_handler(0);
+}
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+void max3421_init(void)
 {
+  //------------- SPI Init -------------//
+
+  // Enable the APB clock for SERCOM2
+  MCLK->APBBMASK.reg |= MCLK_APBBMASK_SERCOM2;
+
+  // Configure GCLK for SERCOM2, initClockNVIC()
+  GCLK->PCHCTRL[SERCOM2_GCLK_ID_CORE].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+  GCLK->PCHCTRL[SERCOM2_GCLK_ID_SLOW].reg = GCLK_PCHCTRL_GEN_GCLK3_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+
+  // Disable the SPI module
+  SERCOM2->SPI.CTRLA.bit.ENABLE = 0;
+
+  // Reset the SPI module
+  SERCOM2->SPI.CTRLA.bit.SWRST = 1;
+  while (SERCOM2->SPI.SYNCBUSY.bit.SWRST);
+
+  // Set up SPI in master mode, MSB first, SPI mode 0
+  uint8_t const mosi_pad = 0;
+  uint8_t const miso_pad = 2;
+  SERCOM2->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_MODE(3) | SERCOM_SPI_CTRLA_DOPO(mosi_pad) | SERCOM_SPI_CTRLA_DIPO(miso_pad);
+
+  SERCOM2->SPI.CTRLB.reg = SERCOM_SPI_CTRLB_CHSIZE(0) | SERCOM_SPI_CTRLB_RXEN;
+  while( SERCOM2->SPI.SYNCBUSY.bit.CTRLB == 1 );
+
+  // Set the baud rate
+  uint32_t baudrate = 4000000u;
+  SERCOM2->SPI.BAUD.reg = (uint8_t)(SystemCoreClock / (2 * baudrate) - 1); // Replace 1000000 with your desired baud rate
+
+  // Configure PA12 as MOSI (PAD0), PA13 as SCK (PAD1), PA14 as MISO (PAD2)
+  // 2 function C: PIO_SERCOM
+  gpio_set_pin_direction(MAX3421E_SCK_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_pull_mode(MAX3421E_SCK_PIN, GPIO_PULL_OFF);
+  gpio_set_pin_function(MAX3421E_SCK_PIN, 2);
+
+  gpio_set_pin_direction(MAX3421E_MOSI_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_pull_mode(MAX3421E_MOSI_PIN, GPIO_PULL_OFF);
+  gpio_set_pin_function(MAX3421E_MOSI_PIN, 2);
+
+  gpio_set_pin_direction(MAX3421E_MISO_PIN, GPIO_DIRECTION_IN);
+  gpio_set_pin_pull_mode(MAX3421E_MISO_PIN, GPIO_PULL_OFF);
+  gpio_set_pin_function(MAX3421E_MISO_PIN, 2);
+
+  // Enable the SPI module
+  SERCOM2->SPI.CTRLA.bit.ENABLE = 1;
+  while (SERCOM2->SPI.SYNCBUSY.bit.ENABLE);
+}
+#endif
+
+void board_init(void) {
   // Clock init ( follow hpl_init.c )
   hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, 0);
 
@@ -104,7 +153,7 @@ void board_init(void)
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
   gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
 
-#if CFG_TUSB_OS  == OPT_OS_FREERTOS
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   NVIC_SetPriority(USB_1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
@@ -129,45 +178,145 @@ void board_init(void)
 
   gpio_set_pin_function(PIN_PA24, PINMUX_PA24H_USB_DM);
   gpio_set_pin_function(PIN_PA25, PINMUX_PA25H_USB_DP);
+
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+  // CS pin
+  gpio_set_pin_direction(MAX3421E_CS_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(MAX3421E_CS_PIN, 1);
+
+  // SPI
+  max3421_init();
+
+  // INT pin with external interrupt
+  gpio_set_pin_direction(MAX3241E_INTR_PIN, GPIO_DIRECTION_IN);
+  gpio_set_pin_pull_mode(MAX3241E_INTR_PIN, GPIO_PULL_UP);
+
+  // Enable the APB clock for EIC (External Interrupt Controller)
+  MCLK->APBAMASK.reg |= MCLK_APBAMASK_EIC;
+
+  // Configure GCLK for EIC
+  GCLK->PCHCTRL[EIC_GCLK_ID].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+
+  // Configure PA20 as an input
+  PORT->Group[0].DIRCLR.reg = PORT_PA20;
+  PORT->Group[0].PINCFG[20].reg = PORT_PINCFG_INEN | PORT_PINCFG_PULLEN;
+  PORT->Group[0].OUTSET.reg = PORT_PA20;  // Enable pull-up
+
+  // Configure PA20 to use EIC
+  PORT->Group[0].PMUX[10].bit.PMUXE = MUX_PA20A_EIC_EXTINT4;
+  PORT->Group[0].PINCFG[20].bit.PMUXEN = 1;
+
+  // Disable EIC
+  EIC->CTRLA.bit.ENABLE = 0;
+  while (EIC->SYNCBUSY.bit.ENABLE);
+
+  // Configure EXTINT4 (PA20) to trigger on falling edge
+  EIC->CONFIG[0].reg |= EIC_CONFIG_SENSE4_FALL;
+
+  // Enable EXTINT4
+  EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << 4);
+
+  // Enable EIC
+  EIC->CTRLA.bit.ENABLE = 1;
+  while (EIC->SYNCBUSY.bit.ENABLE);
+
+#endif
 }
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
+void board_led_write(bool state) {
   gpio_set_pin_level(LED_PIN, state);
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   // button is active low
   return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t *buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_write(void const *buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 
-void SysTick_Handler (void)
-{
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
+//--------------------------------------------------------------------+
+// API: SPI transfer with MAX3421E, must be implemented by application
+//--------------------------------------------------------------------+
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+
+void EIC_4_Handler(void)
+{
+  // Clear the interrupt flag
+  EIC->INTFLAG.reg = EIC_INTFLAG_EXTINT(1 << 4);
+
+  // Call the TinyUSB interrupt handler
+  tuh_int_handler(1);
+}
+
+void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
+  (void) rhport;
+
+  if (enabled) {
+    NVIC_EnableIRQ(EIC_4_IRQn);
+  } else {
+    NVIC_DisableIRQ(EIC_4_IRQn);
+  }
+}
+
+void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
+  (void) rhport;
+  gpio_set_pin_level(MAX3421E_CS_PIN, active ? 0 : 1);
+}
+
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
+  (void) rhport;
+
+  size_t count = 0;
+  while (count < tx_len || count < rx_len) {
+    // Wait for the transmit buffer to be empty
+//    while (!SERCOM2->SPI.INTFLAG.bit.DRE);
+
+    // Write data to be transmitted
+    uint8_t data = 0x00;
+    if (count < tx_len) {
+       data = tx_buf[count];
+    }
+
+    SERCOM2->SPI.DATA.bit.DATA = data;
+
+    // Wait for the receive buffer to be filled
+    while (!SERCOM2->SPI.INTFLAG.bit.RXC);
+
+    // Read received data
+    if (rx_buf) {
+      rx_buf[count] = SERCOM2->SPI.DATA.bit.DATA;
+    }
+
+    count++;
+  }
+
+  return true;
+}
+#endif
+
 #endif
