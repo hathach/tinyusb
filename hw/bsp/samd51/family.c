@@ -79,7 +79,8 @@ void USB_3_Handler(void) {
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 static void max3421_init(void);
 
-//#define
+#define MAX3421_SERCOM TU_XSTRCAT(SERCOM, MAX3421_SERCOM_ID)
+#define MAX3421_EIC_Handler TU_XSTRCAT3(EIC_, MAX3421_INTR_EIC_ID, _Handler)
 
 #endif
 
@@ -182,41 +183,55 @@ uint32_t board_millis(void) {
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
 static void max3421_init(void) {
-  // CS pin
-  gpio_set_pin_direction(MAX3421_CS_PIN, GPIO_DIRECTION_OUT);
-  gpio_set_pin_level(MAX3421_CS_PIN, 1);
-
   //------------- SPI Init -------------//
+  uint32_t const baudrate = 4000000u;
 
-  // Enable the APB clock for SERCOM2
-  MCLK->APBBMASK.reg |= MCLK_APBBMASK_SERCOM2;
+  struct {
+    volatile uint32_t *mck_apb;
+    uint32_t mask;
+    uint8_t gclk_id_core;
+    uint8_t gclk_id_slow;
+  } const sercom_clock[] = {
+      { &MCLK->APBAMASK.reg, MCLK_APBAMASK_SERCOM0, SERCOM0_GCLK_ID_CORE, SERCOM0_GCLK_ID_SLOW },
+      { &MCLK->APBAMASK.reg, MCLK_APBAMASK_SERCOM1, SERCOM1_GCLK_ID_CORE, SERCOM1_GCLK_ID_SLOW },
+      { &MCLK->APBBMASK.reg, MCLK_APBBMASK_SERCOM2, SERCOM2_GCLK_ID_CORE, SERCOM2_GCLK_ID_SLOW },
+      { &MCLK->APBBMASK.reg, MCLK_APBBMASK_SERCOM3, SERCOM3_GCLK_ID_CORE, SERCOM3_GCLK_ID_SLOW },
+      { &MCLK->APBDMASK.reg, MCLK_APBDMASK_SERCOM4, SERCOM4_GCLK_ID_CORE, SERCOM4_GCLK_ID_SLOW },
+      { &MCLK->APBDMASK.reg, MCLK_APBDMASK_SERCOM5, SERCOM5_GCLK_ID_CORE, SERCOM5_GCLK_ID_SLOW },
+      #ifdef SERCOM6_GCLK_ID_CORE
+      { &MCLK->APBDMASK.reg, MCLK_APBDMASK_SERCOM6, SERCOM6_GCLK_ID_CORE, SERCOM6_GCLK_ID_SLOW },
+      #endif
+      #ifdef SERCOM7_GCLK_ID_CORE
+      { &MCLK->APBDMASK.reg, MCLK_APBDMASK_SERCOM7, SERCOM7_GCLK_ID_CORE, SERCOM7_GCLK_ID_SLOW },
+      #endif
+  };
 
-  // Configure GCLK for SERCOM2, initClockNVIC()
-  GCLK->PCHCTRL[SERCOM2_GCLK_ID_CORE].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
-  GCLK->PCHCTRL[SERCOM2_GCLK_ID_SLOW].reg = GCLK_PCHCTRL_GEN_GCLK3_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+  Sercom* sercom = MAX3421_SERCOM;
+
+  // Enable the APB clock for SERCOM
+  *sercom_clock[MAX3421_SERCOM_ID].mck_apb |= sercom_clock[MAX3421_SERCOM_ID].mask;
+
+  // Configure GCLK for SERCOM
+  GCLK->PCHCTRL[sercom_clock[MAX3421_SERCOM_ID].gclk_id_core].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+  GCLK->PCHCTRL[sercom_clock[MAX3421_SERCOM_ID].gclk_id_slow].reg = GCLK_PCHCTRL_GEN_GCLK3_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
 
   // Disable the SPI module
-  SERCOM2->SPI.CTRLA.bit.ENABLE = 0;
+  sercom->SPI.CTRLA.bit.ENABLE = 0;
 
   // Reset the SPI module
-  SERCOM2->SPI.CTRLA.bit.SWRST = 1;
-  while (SERCOM2->SPI.SYNCBUSY.bit.SWRST);
+  sercom->SPI.CTRLA.bit.SWRST = 1;
+  while (sercom->SPI.SYNCBUSY.bit.SWRST);
 
   // Set up SPI in master mode, MSB first, SPI mode 0
-  uint8_t const mosi_pad = 0;
-  uint8_t const miso_pad = 2;
-  SERCOM2->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_MODE(3) | SERCOM_SPI_CTRLA_DOPO(mosi_pad) | SERCOM_SPI_CTRLA_DIPO(miso_pad);
+  sercom->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_MODE(3) | SERCOM_SPI_CTRLA_DOPO(MAX3421_MOSI_PAD) | SERCOM_SPI_CTRLA_DIPO(MAX3421_MISO_PAD);
 
-  SERCOM2->SPI.CTRLB.reg = SERCOM_SPI_CTRLB_CHSIZE(0) | SERCOM_SPI_CTRLB_RXEN;
-  while (SERCOM2->SPI.SYNCBUSY.bit.CTRLB == 1);
+  sercom->SPI.CTRLB.reg = SERCOM_SPI_CTRLB_CHSIZE(0) | SERCOM_SPI_CTRLB_RXEN;
+  while (sercom->SPI.SYNCBUSY.bit.CTRLB == 1);
 
   // Set the baud rate
-  uint32_t baudrate = 4000000u;
-  SERCOM2->SPI.BAUD.reg = (uint8_t) (SystemCoreClock / (2 * baudrate) -
-                                     1); // Replace 1000000 with your desired baud rate
+  sercom->SPI.BAUD.reg = (uint8_t) (SystemCoreClock / (2 * baudrate) - 1);
 
-  // Configure PA12 as MOSI (PAD0), PA13 as SCK (PAD1), PA14 as MISO (PAD2)
-  // 2 function C: PIO_SERCOM
+  // Configure PA12 as MOSI (PAD0), PA13 as SCK (PAD1), PA14 as MISO (PAD2), function C (sercom)
   gpio_set_pin_direction(MAX3421_SCK_PIN, GPIO_DIRECTION_OUT);
   gpio_set_pin_pull_mode(MAX3421_SCK_PIN, GPIO_PULL_OFF);
   gpio_set_pin_function(MAX3421_SCK_PIN, 2);
@@ -229,15 +244,15 @@ static void max3421_init(void) {
   gpio_set_pin_pull_mode(MAX3421_MISO_PIN, GPIO_PULL_OFF);
   gpio_set_pin_function(MAX3421_MISO_PIN, 2);
 
+  // CS pin
+  gpio_set_pin_direction(MAX3421_CS_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(MAX3421_CS_PIN, 1);
+
   // Enable the SPI module
-  SERCOM2->SPI.CTRLA.bit.ENABLE = 1;
-  while (SERCOM2->SPI.SYNCBUSY.bit.ENABLE);
+  sercom->SPI.CTRLA.bit.ENABLE = 1;
+  while (sercom->SPI.SYNCBUSY.bit.ENABLE);
 
   //------------- External Interrupt -------------//
-
-  // INT pin with external interrupt
-  gpio_set_pin_direction(MAX3421_INTR_PIN, GPIO_DIRECTION_IN);
-  gpio_set_pin_pull_mode(MAX3421_INTR_PIN, GPIO_PULL_UP);
 
   // Enable the APB clock for EIC (External Interrupt Controller)
   MCLK->APBAMASK.reg |= MCLK_APBAMASK_EIC;
@@ -255,19 +270,30 @@ static void max3421_init(void) {
   while (EIC->SYNCBUSY.bit.ENABLE);
 
   // Configure EXTINT4 (PA20) to trigger on falling edge
-  EIC->CONFIG[0].reg |= EIC_CONFIG_SENSE4_FALL;
+  volatile uint32_t * eic_config;
+  uint8_t sense_shift;
+  if ( MAX3421_INTR_EIC_ID < 8 ) {
+    eic_config = &EIC->CONFIG[0].reg;
+    sense_shift = MAX3421_INTR_EIC_ID * 4;
+  } else {
+    eic_config = &EIC->CONFIG[1].reg;
+    sense_shift = (MAX3421_INTR_EIC_ID - 8) * 4;
+  }
 
-  // Enable EXTINT4
-  EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << 4);
+  *eic_config &= ~(7 << sense_shift);
+  *eic_config |= 2 << sense_shift;
+
+  // Enable External Interrupt
+  EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << MAX3421_INTR_EIC_ID);
 
   // Enable EIC
   EIC->CTRLA.bit.ENABLE = 1;
   while (EIC->SYNCBUSY.bit.ENABLE);
 }
 
-void EIC_4_Handler(void) {
+void MAX3421_EIC_Handler(void) {
   // Clear the interrupt flag
-  EIC->INTFLAG.reg = EIC_INTFLAG_EXTINT(1 << 4);
+  EIC->INTFLAG.reg = EIC_INTFLAG_EXTINT(1 << MAX3421_INTR_EIC_ID);
 
   // Call the TinyUSB interrupt handler
   tuh_int_handler(1);
@@ -291,10 +317,12 @@ void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
 bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
   (void) rhport;
 
+  Sercom* sercom = MAX3421_SERCOM;
+
   size_t count = 0;
   while (count < tx_len || count < rx_len) {
     // Wait for the transmit buffer to be empty
-    while (!SERCOM2->SPI.INTFLAG.bit.DRE);
+    while (!sercom->SPI.INTFLAG.bit.DRE);
 
     // Write data to be transmitted
     uint8_t data = 0x00;
@@ -302,13 +330,13 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
       data = tx_buf[count];
     }
 
-    SERCOM2->SPI.DATA.reg = (uint32_t) data;
+    sercom->SPI.DATA.reg = (uint32_t) data;
 
     // Wait for the receive buffer to be filled
-    while (!SERCOM2->SPI.INTFLAG.bit.RXC);
+    while (!sercom->SPI.INTFLAG.bit.RXC);
 
     // Read received data
-    data = (uint8_t) SERCOM2->SPI.DATA.reg;
+    data = (uint8_t) sercom->SPI.DATA.reg;
     if (count < rx_len) {
       rx_buf[count] = data;
     }
@@ -317,8 +345,8 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
   }
 
   // wait for bus idle and clear flags
-  while (!(SERCOM2->SPI.INTFLAG.reg & (SERCOM_SPI_INTFLAG_TXC | SERCOM_SPI_INTFLAG_DRE)));
-  SERCOM2->SPI.INTFLAG.reg = SERCOM_SPI_INTFLAG_TXC | SERCOM_SPI_INTFLAG_DRE;
+  while (!(sercom->SPI.INTFLAG.reg & (SERCOM_SPI_INTFLAG_TXC | SERCOM_SPI_INTFLAG_DRE)));
+  sercom->SPI.INTFLAG.reg = SERCOM_SPI_INTFLAG_TXC | SERCOM_SPI_INTFLAG_DRE;
 
   return true;
 }
