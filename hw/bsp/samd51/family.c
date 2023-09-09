@@ -77,11 +77,10 @@ void USB_3_Handler(void) {
 //--------------------------------------------------------------------+
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-static void max3421_init(void);
-
 #define MAX3421_SERCOM TU_XSTRCAT(SERCOM, MAX3421_SERCOM_ID)
 #define MAX3421_EIC_Handler TU_XSTRCAT3(EIC_, MAX3421_INTR_EIC_ID, _Handler)
 
+static void max3421_init(void);
 #endif
 
 void board_init(void) {
@@ -223,7 +222,8 @@ static void max3421_init(void) {
   while (sercom->SPI.SYNCBUSY.bit.SWRST);
 
   // Set up SPI in master mode, MSB first, SPI mode 0
-  sercom->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_MODE(3) | SERCOM_SPI_CTRLA_DOPO(MAX3421_MOSI_PAD) | SERCOM_SPI_CTRLA_DIPO(MAX3421_MISO_PAD);
+  sercom->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_DOPO(MAX3421_TX_PAD) | SERCOM_SPI_CTRLA_DIPO(MAX3421_RX_PAD) |
+      SERCOM_SPI_CTRLA_MODE(3);
 
   sercom->SPI.CTRLB.reg = SERCOM_SPI_CTRLB_CHSIZE(0) | SERCOM_SPI_CTRLB_RXEN;
   while (sercom->SPI.SYNCBUSY.bit.CTRLB == 1);
@@ -234,15 +234,15 @@ static void max3421_init(void) {
   // Configure PA12 as MOSI (PAD0), PA13 as SCK (PAD1), PA14 as MISO (PAD2), function C (sercom)
   gpio_set_pin_direction(MAX3421_SCK_PIN, GPIO_DIRECTION_OUT);
   gpio_set_pin_pull_mode(MAX3421_SCK_PIN, GPIO_PULL_OFF);
-  gpio_set_pin_function(MAX3421_SCK_PIN, 2);
+  gpio_set_pin_function(MAX3421_SCK_PIN, MAX3421_SERCOM_FUNCTION);
 
   gpio_set_pin_direction(MAX3421_MOSI_PIN, GPIO_DIRECTION_OUT);
   gpio_set_pin_pull_mode(MAX3421_MOSI_PIN, GPIO_PULL_OFF);
-  gpio_set_pin_function(MAX3421_MOSI_PIN, 2);
+  gpio_set_pin_function(MAX3421_MOSI_PIN, MAX3421_SERCOM_FUNCTION);
 
   gpio_set_pin_direction(MAX3421_MISO_PIN, GPIO_DIRECTION_IN);
   gpio_set_pin_pull_mode(MAX3421_MISO_PIN, GPIO_PULL_OFF);
-  gpio_set_pin_function(MAX3421_MISO_PIN, 2);
+  gpio_set_pin_function(MAX3421_MISO_PIN, MAX3421_SERCOM_FUNCTION);
 
   // CS pin
   gpio_set_pin_direction(MAX3421_CS_PIN, GPIO_DIRECTION_OUT);
@@ -269,7 +269,7 @@ static void max3421_init(void) {
   EIC->CTRLA.bit.ENABLE = 0;
   while (EIC->SYNCBUSY.bit.ENABLE);
 
-  // Configure EXTINT4 (PA20) to trigger on falling edge
+  // Configure EIC to trigger on falling edge
   volatile uint32_t * eic_config;
   uint8_t sense_shift;
   if ( MAX3421_INTR_EIC_ID < 8 ) {
@@ -302,10 +302,11 @@ void MAX3421_EIC_Handler(void) {
 void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   (void) rhport;
 
+  const IRQn_Type irq = EIC_0_IRQn + MAX3421_INTR_EIC_ID;
   if (enabled) {
-    NVIC_EnableIRQ(EIC_4_IRQn);
+    NVIC_EnableIRQ(irq);
   } else {
-    NVIC_DisableIRQ(EIC_4_IRQn);
+    NVIC_DisableIRQ(irq);
   }
 }
 
