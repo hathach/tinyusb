@@ -44,12 +44,12 @@
 #define UART_RX_PIN           22
 
 // SPI for USB host shield
-#define MAX3421E_SERCOM   SERCOM2
-#define MAX3421E_SCK_PIN  13
-#define MAX3421E_MOSI_PIN 12
-#define MAX3421E_MISO_PIN 14
-#define MAX3421E_CS_PIN   18 // D10
-#define MAX3241E_INTR_PIN 20 // D9
+#define MAX3421_SERCOM   2  // SERCOM2
+#define MAX3421_SCK_PIN  13
+#define MAX3421_MOSI_PIN 12
+#define MAX3421_MISO_PIN 14
+#define MAX3421_CS_PIN   18 // D10
+#define MAX3421_INTR_PIN 20 // D9
 
 
 #ifdef __cplusplus

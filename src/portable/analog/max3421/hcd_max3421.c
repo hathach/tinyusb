@@ -212,7 +212,7 @@ static max3421_data_t _hcd_data;
 
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active);
 bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len);
-void tuh_max3421e_int_api(uint8_t rhport, bool enabled);
+void tuh_max3421_int_api(uint8_t rhport, bool enabled);
 
 static void handle_connect_irq(uint8_t rhport, bool in_isr);
 static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr);
@@ -225,7 +225,7 @@ static void max3421_spi_lock(uint8_t rhport, bool in_isr) {
   // disable interrupt and mutex lock (for pre-emptive RTOS) if not in_isr
   if (!in_isr) {
     (void) osal_mutex_lock(_hcd_data.spi_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-    tuh_max3421e_int_api(rhport, false);
+    tuh_max3421_int_api(rhport, false);
   }
 
   // assert CS
@@ -238,7 +238,7 @@ static void max3421_spi_unlock(uint8_t rhport, bool in_isr) {
 
   // mutex unlock and re-enable interrupt
   if (!in_isr) {
-    tuh_max3421e_int_api(rhport, true);
+    tuh_max3421_int_api(rhport, true);
     (void) osal_mutex_unlock(_hcd_data.spi_mutex);
   }
 }
@@ -411,7 +411,7 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 bool hcd_init(uint8_t rhport) {
   (void) rhport;
 
-  tuh_max3421e_int_api(rhport, false);
+  tuh_max3421_int_api(rhport, false);
   tuh_max3421_spi_cs_api(rhport, false);
 
   TU_LOG2_INT(sizeof(max3421_ep_t));
@@ -450,7 +450,7 @@ bool hcd_init(uint8_t rhport) {
   // Enable IRQ
   hien_write(rhport, DEFAULT_HIEN, false);
 
-  tuh_max3421e_int_api(rhport, true);
+  tuh_max3421_int_api(rhport, true);
 
   // Enable Interrupt pin
   reg_write(rhport, CPUCTL_ADDR, CPUCTL_IE, false);
@@ -461,13 +461,13 @@ bool hcd_init(uint8_t rhport) {
 // Enable USB interrupt
 // Not actually enable GPIO interrupt, just set variable to prevent handler to process
 void hcd_int_enable (uint8_t rhport) {
-  tuh_max3421e_int_api(rhport, true);
+  tuh_max3421_int_api(rhport, true);
 }
 
 // Disable USB interrupt
 // Not actually disable GPIO interrupt, just set variable to prevent handler to process
 void hcd_int_disable(uint8_t rhport) {
-  tuh_max3421e_int_api(rhport, false);
+  tuh_max3421_int_api(rhport, false);
 }
 
 // Get frame number (1ms)

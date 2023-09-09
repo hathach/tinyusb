@@ -97,8 +97,8 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
 
-void max3421e_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
-  if (!(pin == MAX3241E_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
+void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
+  if (!(pin == MAX3421_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
 
   tuh_int_handler(1);
 }
@@ -207,14 +207,14 @@ void board_init(void) {
   #endif
 
   // manually manage CS
-  nrf_gpio_cfg_output(MAX3421E_CS_PIN);
-  nrf_gpio_pin_write(MAX3421E_CS_PIN, 1);
+  nrf_gpio_cfg_output(MAX3421_CS_PIN);
+  nrf_gpio_pin_write(MAX3421_CS_PIN, 1);
 
   // USB host using max3421e usb controller via SPI
   nrfx_spim_config_t cfg = {
-      .sck_pin        = MAX3421E_SCK_PIN,
-      .mosi_pin       = MAX3421E_MOSI_PIN,
-      .miso_pin       = MAX3421E_MISO_PIN,
+      .sck_pin        = MAX3421_SCK_PIN,
+      .mosi_pin       = MAX3421_MOSI_PIN,
+      .miso_pin       = MAX3421_MISO_PIN,
       .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
       .ss_active_high = false,
       .irq_priority   = 3,
@@ -233,8 +233,8 @@ void board_init(void) {
   nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
   in_config.pull = NRF_GPIO_PIN_PULLUP;
 
-  nrfx_gpiote_in_init(MAX3241E_INTR_PIN, &in_config, max3421e_int_handler);
-  nrfx_gpiote_trigger_enable(MAX3241E_INTR_PIN, true);
+  nrfx_gpiote_in_init(MAX3421_INTR_PIN, &in_config, max3421_int_handler);
+  nrfx_gpiote_trigger_enable(MAX3421_INTR_PIN, true);
 #endif
 
 }
@@ -317,7 +317,7 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
-void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
+void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   (void) rhport;
 
   // use NVIC_Enable/Disable instead since nrfx_gpiote_trigger_enable/disable clear pending and can miss interrupt
@@ -331,7 +331,7 @@ void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
 
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   (void) rhport;
-  nrf_gpio_pin_write(MAX3421E_CS_PIN, active ? 0 : 1);
+  nrf_gpio_pin_write(MAX3421_CS_PIN, active ? 0 : 1);
 }
 
 bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {

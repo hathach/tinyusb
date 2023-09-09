@@ -73,58 +73,14 @@ void USB_3_Handler(void) {
 }
 
 //--------------------------------------------------------------------+
-//
+// Implementation
 //--------------------------------------------------------------------+
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-void max3421_init(void)
-{
-  //------------- SPI Init -------------//
+static void max3421_init(void);
 
-  // Enable the APB clock for SERCOM2
-  MCLK->APBBMASK.reg |= MCLK_APBBMASK_SERCOM2;
+//#define
 
-  // Configure GCLK for SERCOM2, initClockNVIC()
-  GCLK->PCHCTRL[SERCOM2_GCLK_ID_CORE].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
-  GCLK->PCHCTRL[SERCOM2_GCLK_ID_SLOW].reg = GCLK_PCHCTRL_GEN_GCLK3_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
-
-  // Disable the SPI module
-  SERCOM2->SPI.CTRLA.bit.ENABLE = 0;
-
-  // Reset the SPI module
-  SERCOM2->SPI.CTRLA.bit.SWRST = 1;
-  while (SERCOM2->SPI.SYNCBUSY.bit.SWRST);
-
-  // Set up SPI in master mode, MSB first, SPI mode 0
-  uint8_t const mosi_pad = 0;
-  uint8_t const miso_pad = 2;
-  SERCOM2->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_MODE(3) | SERCOM_SPI_CTRLA_DOPO(mosi_pad) | SERCOM_SPI_CTRLA_DIPO(miso_pad);
-
-  SERCOM2->SPI.CTRLB.reg = SERCOM_SPI_CTRLB_CHSIZE(0) | SERCOM_SPI_CTRLB_RXEN;
-  while( SERCOM2->SPI.SYNCBUSY.bit.CTRLB == 1 );
-
-  // Set the baud rate
-  uint32_t baudrate = 4000000u;
-  SERCOM2->SPI.BAUD.reg = (uint8_t)(SystemCoreClock / (2 * baudrate) - 1); // Replace 1000000 with your desired baud rate
-
-  // Configure PA12 as MOSI (PAD0), PA13 as SCK (PAD1), PA14 as MISO (PAD2)
-  // 2 function C: PIO_SERCOM
-  gpio_set_pin_direction(MAX3421E_SCK_PIN, GPIO_DIRECTION_OUT);
-  gpio_set_pin_pull_mode(MAX3421E_SCK_PIN, GPIO_PULL_OFF);
-  gpio_set_pin_function(MAX3421E_SCK_PIN, 2);
-
-  gpio_set_pin_direction(MAX3421E_MOSI_PIN, GPIO_DIRECTION_OUT);
-  gpio_set_pin_pull_mode(MAX3421E_MOSI_PIN, GPIO_PULL_OFF);
-  gpio_set_pin_function(MAX3421E_MOSI_PIN, 2);
-
-  gpio_set_pin_direction(MAX3421E_MISO_PIN, GPIO_DIRECTION_IN);
-  gpio_set_pin_pull_mode(MAX3421E_MISO_PIN, GPIO_PULL_OFF);
-  gpio_set_pin_function(MAX3421E_MISO_PIN, 2);
-
-  // Enable the SPI module
-  SERCOM2->SPI.CTRLA.bit.ENABLE = 1;
-  while (SERCOM2->SPI.SYNCBUSY.bit.ENABLE);
-}
 #endif
 
 void board_init(void) {
@@ -180,46 +136,7 @@ void board_init(void) {
   gpio_set_pin_function(PIN_PA25, PINMUX_PA25H_USB_DP);
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-  // CS pin
-  gpio_set_pin_direction(MAX3421E_CS_PIN, GPIO_DIRECTION_OUT);
-  gpio_set_pin_level(MAX3421E_CS_PIN, 1);
-
-  // SPI
   max3421_init();
-
-  // INT pin with external interrupt
-  gpio_set_pin_direction(MAX3241E_INTR_PIN, GPIO_DIRECTION_IN);
-  gpio_set_pin_pull_mode(MAX3241E_INTR_PIN, GPIO_PULL_UP);
-
-  // Enable the APB clock for EIC (External Interrupt Controller)
-  MCLK->APBAMASK.reg |= MCLK_APBAMASK_EIC;
-
-  // Configure GCLK for EIC
-  GCLK->PCHCTRL[EIC_GCLK_ID].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
-
-  // Configure PA20 as an input
-  PORT->Group[0].DIRCLR.reg = PORT_PA20;
-  PORT->Group[0].PINCFG[20].reg = PORT_PINCFG_INEN | PORT_PINCFG_PULLEN;
-  PORT->Group[0].OUTSET.reg = PORT_PA20;  // Enable pull-up
-
-  // Configure PA20 to use EIC
-  PORT->Group[0].PMUX[10].bit.PMUXE = MUX_PA20A_EIC_EXTINT4;
-  PORT->Group[0].PINCFG[20].bit.PMUXEN = 1;
-
-  // Disable EIC
-  EIC->CTRLA.bit.ENABLE = 0;
-  while (EIC->SYNCBUSY.bit.ENABLE);
-
-  // Configure EXTINT4 (PA20) to trigger on falling edge
-  EIC->CONFIG[0].reg |= EIC_CONFIG_SENSE4_FALL;
-
-  // Enable EXTINT4
-  EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << 4);
-
-  // Enable EIC
-  EIC->CTRLA.bit.ENABLE = 1;
-  while (EIC->SYNCBUSY.bit.ENABLE);
-
 #endif
 }
 
@@ -264,8 +181,91 @@ uint32_t board_millis(void) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
-void EIC_4_Handler(void)
-{
+static void max3421_init(void) {
+  // CS pin
+  gpio_set_pin_direction(MAX3421_CS_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(MAX3421_CS_PIN, 1);
+
+  //------------- SPI Init -------------//
+
+  // Enable the APB clock for SERCOM2
+  MCLK->APBBMASK.reg |= MCLK_APBBMASK_SERCOM2;
+
+  // Configure GCLK for SERCOM2, initClockNVIC()
+  GCLK->PCHCTRL[SERCOM2_GCLK_ID_CORE].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+  GCLK->PCHCTRL[SERCOM2_GCLK_ID_SLOW].reg = GCLK_PCHCTRL_GEN_GCLK3_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+
+  // Disable the SPI module
+  SERCOM2->SPI.CTRLA.bit.ENABLE = 0;
+
+  // Reset the SPI module
+  SERCOM2->SPI.CTRLA.bit.SWRST = 1;
+  while (SERCOM2->SPI.SYNCBUSY.bit.SWRST);
+
+  // Set up SPI in master mode, MSB first, SPI mode 0
+  uint8_t const mosi_pad = 0;
+  uint8_t const miso_pad = 2;
+  SERCOM2->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_MODE(3) | SERCOM_SPI_CTRLA_DOPO(mosi_pad) | SERCOM_SPI_CTRLA_DIPO(miso_pad);
+
+  SERCOM2->SPI.CTRLB.reg = SERCOM_SPI_CTRLB_CHSIZE(0) | SERCOM_SPI_CTRLB_RXEN;
+  while (SERCOM2->SPI.SYNCBUSY.bit.CTRLB == 1);
+
+  // Set the baud rate
+  uint32_t baudrate = 4000000u;
+  SERCOM2->SPI.BAUD.reg = (uint8_t) (SystemCoreClock / (2 * baudrate) -
+                                     1); // Replace 1000000 with your desired baud rate
+
+  // Configure PA12 as MOSI (PAD0), PA13 as SCK (PAD1), PA14 as MISO (PAD2)
+  // 2 function C: PIO_SERCOM
+  gpio_set_pin_direction(MAX3421_SCK_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_pull_mode(MAX3421_SCK_PIN, GPIO_PULL_OFF);
+  gpio_set_pin_function(MAX3421_SCK_PIN, 2);
+
+  gpio_set_pin_direction(MAX3421_MOSI_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_pull_mode(MAX3421_MOSI_PIN, GPIO_PULL_OFF);
+  gpio_set_pin_function(MAX3421_MOSI_PIN, 2);
+
+  gpio_set_pin_direction(MAX3421_MISO_PIN, GPIO_DIRECTION_IN);
+  gpio_set_pin_pull_mode(MAX3421_MISO_PIN, GPIO_PULL_OFF);
+  gpio_set_pin_function(MAX3421_MISO_PIN, 2);
+
+  // Enable the SPI module
+  SERCOM2->SPI.CTRLA.bit.ENABLE = 1;
+  while (SERCOM2->SPI.SYNCBUSY.bit.ENABLE);
+
+  //------------- External Interrupt -------------//
+
+  // INT pin with external interrupt
+  gpio_set_pin_direction(MAX3421_INTR_PIN, GPIO_DIRECTION_IN);
+  gpio_set_pin_pull_mode(MAX3421_INTR_PIN, GPIO_PULL_UP);
+
+  // Enable the APB clock for EIC (External Interrupt Controller)
+  MCLK->APBAMASK.reg |= MCLK_APBAMASK_EIC;
+
+  // Configure GCLK for EIC
+  GCLK->PCHCTRL[EIC_GCLK_ID].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+
+  // Configure PA20 as an input with function A (external interrupt)
+  gpio_set_pin_direction(MAX3421_INTR_PIN, GPIO_DIRECTION_IN);
+  gpio_set_pin_pull_mode(MAX3421_INTR_PIN, GPIO_PULL_UP);
+  gpio_set_pin_function(MAX3421_INTR_PIN, 0);
+
+  // Disable EIC
+  EIC->CTRLA.bit.ENABLE = 0;
+  while (EIC->SYNCBUSY.bit.ENABLE);
+
+  // Configure EXTINT4 (PA20) to trigger on falling edge
+  EIC->CONFIG[0].reg |= EIC_CONFIG_SENSE4_FALL;
+
+  // Enable EXTINT4
+  EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << 4);
+
+  // Enable EIC
+  EIC->CTRLA.bit.ENABLE = 1;
+  while (EIC->SYNCBUSY.bit.ENABLE);
+}
+
+void EIC_4_Handler(void) {
   // Clear the interrupt flag
   EIC->INTFLAG.reg = EIC_INTFLAG_EXTINT(1 << 4);
 
@@ -273,7 +273,7 @@ void EIC_4_Handler(void)
   tuh_int_handler(1);
 }
 
-void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
+void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   (void) rhport;
 
   if (enabled) {
@@ -285,7 +285,7 @@ void tuh_max3421e_int_api(uint8_t rhport, bool enabled) {
 
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   (void) rhport;
-  gpio_set_pin_level(MAX3421E_CS_PIN, active ? 0 : 1);
+  gpio_set_pin_level(MAX3421_CS_PIN, active ? 0 : 1);
 }
 
 bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
@@ -299,7 +299,7 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
     // Write data to be transmitted
     uint8_t data = 0x00;
     if (count < tx_len) {
-       data = tx_buf[count];
+      data = tx_buf[count];
     }
 
     SERCOM2->SPI.DATA.reg = (uint32_t) data;
@@ -322,6 +322,7 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
 
   return true;
 }
+
 #endif
 
 #endif

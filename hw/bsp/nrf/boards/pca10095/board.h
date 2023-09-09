@@ -46,11 +46,11 @@
 #define UART_TX_PIN           33
 
 // SPI for USB host shield
-#define MAX3421E_SCK_PIN  _PINNUM(1, 15)
-#define MAX3421E_MOSI_PIN _PINNUM(1, 13)
-#define MAX3421E_MISO_PIN _PINNUM(1, 14)
-#define MAX3421E_CS_PIN   _PINNUM(1, 12)
-#define MAX3241E_INTR_PIN _PINNUM(1, 11)
+#define MAX3421_SCK_PIN  _PINNUM(1, 15)
+#define MAX3421_MOSI_PIN _PINNUM(1, 13)
+#define MAX3421_MISO_PIN _PINNUM(1, 14)
+#define MAX3421_CS_PIN   _PINNUM(1, 12)
+#define MAX3421_INTR_PIN _PINNUM(1, 11)
 
 #ifdef __cplusplus
  }
