@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x68ed2b88
-DEPS_SUBMODULES += hw/mcu/microchip
+SDK_DIR = hw/mcu/microchip/samd21
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m0plus
@@ -18,24 +18,24 @@ CFLAGS_SKIP += -Wcast-qual
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
-	hw/mcu/microchip/samd21/gcc/gcc/startup_samd21.c \
-	hw/mcu/microchip/samd21/gcc/system_samd21.c \
-	hw/mcu/microchip/samd21/hpl/gclk/hpl_gclk.c \
-	hw/mcu/microchip/samd21/hpl/pm/hpl_pm.c \
-	hw/mcu/microchip/samd21/hpl/sysctrl/hpl_sysctrl.c \
-	hw/mcu/microchip/samd21/hal/src/hal_atomic.c
+	${SDK_DIR}/gcc/gcc/startup_samd21.c \
+	${SDK_DIR}/gcc/system_samd21.c \
+	${SDK_DIR}/hpl/gclk/hpl_gclk.c \
+	${SDK_DIR}/hpl/pm/hpl_pm.c \
+	${SDK_DIR}/hpl/sysctrl/hpl_sysctrl.c \
+	${SDK_DIR}/hal/src/hal_atomic.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/hw/mcu/microchip/samd21/ \
-	$(TOP)/hw/mcu/microchip/samd21/config \
-	$(TOP)/hw/mcu/microchip/samd21/include \
-	$(TOP)/hw/mcu/microchip/samd21/hal/include \
-	$(TOP)/hw/mcu/microchip/samd21/hal/utils/include \
-	$(TOP)/hw/mcu/microchip/samd21/hpl/pm/ \
-	$(TOP)/hw/mcu/microchip/samd21/hpl/port \
-	$(TOP)/hw/mcu/microchip/samd21/hri \
-	$(TOP)/hw/mcu/microchip/samd21/CMSIS/Include
+	$(TOP)/${SDK_DIR}/ \
+	$(TOP)/${SDK_DIR}/config \
+	$(TOP)/${SDK_DIR}/include \
+	$(TOP)/${SDK_DIR}/hal/include \
+	$(TOP)/${SDK_DIR}/hal/utils/include \
+	$(TOP)/${SDK_DIR}/hpl/pm/ \
+	$(TOP)/${SDK_DIR}/hpl/port \
+	$(TOP)/${SDK_DIR}/hri \
+	$(TOP)/${SDK_DIR}/CMSIS/Include
 
 # flash using bossac at least version 1.8
 # can be found in arduino15/packages/arduino/tools/bossac/

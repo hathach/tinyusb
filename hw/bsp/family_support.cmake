@@ -253,6 +253,15 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
     # link tinyusb with freeRTOS kernel
     target_link_libraries(${TARGET}-tinyusb PUBLIC freertos_kernel)
   endif ()
+
+  # use max3421 as host controller
+  if (MAX3421_HOST STREQUAL "1")
+    target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUH_MAX3421=1)
+    target_sources(${TARGET}-tinyusb PUBLIC
+      ${TOP}/src/portable/analog/max3421/hcd_max3421.c
+      )
+  endif ()
+
 endfunction()
 
 
@@ -437,6 +446,11 @@ include(${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
 if (NOT FAMILY_MCUS)
   set(FAMILY_MCUS ${FAMILY})
 endif()
+
+# if use max3421 as host controller, expand FAMILY_MCUS to include max3421
+if (MAX3421_HOST STREQUAL "1")
+  set(FAMILY_MCUS ${FAMILY_MCUS} MAX3421)
+endif ()
 
 # save it in case of re-inclusion
 set(FAMILY_MCUS ${FAMILY_MCUS} CACHE INTERNAL "")

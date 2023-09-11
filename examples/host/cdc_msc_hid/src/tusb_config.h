@@ -38,9 +38,6 @@
   // change to 1 if using pico-pio-usb as host controller for raspberry rp2040
   #define CFG_TUH_RPI_PIO_USB   0
   #define BOARD_TUH_RHPORT      CFG_TUH_RPI_PIO_USB
-//#elif CFG_TUSB_MCU == OPT_MCU_NRF5X
-//  // Use external USB controller (via SPI) MAX3421E (aka usb host shield)
-//  #define CFG_TUH_MAX3421      1
 #endif
 
 // RHPort number used for host can be defined by board.mk, default to port 0
