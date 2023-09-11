@@ -1,5 +1,6 @@
 UF2_FAMILY_ID = 0xADA52840
-DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/nordic/nrfx
+
+NRFX_DIR = hw/mcu/nordic/nrfx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -14,24 +15,27 @@ CFLAGS += \
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual -Wno-error=redundant-decls
 
-LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
+LDFLAGS += -L$(TOP)/${NRFX_DIR}/mdk
 
 SRC_C += \
   src/portable/nordic/nrf5x/dcd_nrf5x.c \
-  hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
-  hw/mcu/nordic/nrfx/drivers/src/nrfx_uarte.c \
-  hw/mcu/nordic/nrfx/mdk/system_$(MCU_VARIANT).c
+	${NRFX_DIR}/helpers/nrfx_flag32_allocator.c \
+	${NRFX_DIR}/drivers/src/nrfx_gpiote.c \
+  ${NRFX_DIR}/drivers/src/nrfx_power.c \
+  ${NRFX_DIR}/drivers/src/nrfx_spim.c \
+  ${NRFX_DIR}/drivers/src/nrfx_uarte.c \
+  ${NRFX_DIR}/mdk/system_$(MCU_VARIANT).c
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
-  $(TOP)/hw/mcu/nordic/nrfx \
-  $(TOP)/hw/mcu/nordic/nrfx/mdk \
-  $(TOP)/hw/mcu/nordic/nrfx/hal \
-  $(TOP)/hw/mcu/nordic/nrfx/drivers/include \
-  $(TOP)/hw/mcu/nordic/nrfx/drivers/src \
+  $(TOP)/${NRFX_DIR} \
+  $(TOP)/${NRFX_DIR}/mdk \
+  $(TOP)/${NRFX_DIR}/hal \
+  $(TOP)/${NRFX_DIR}/drivers/include \
+  $(TOP)/${NRFX_DIR}/drivers/src \
 
-SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_$(MCU_VARIANT).S
+SRC_S += ${NRFX_DIR}/mdk/gcc_startup_$(MCU_VARIANT).S
 
 ASFLAGS += -D__HEAP_SIZE=0
 
