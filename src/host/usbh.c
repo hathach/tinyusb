@@ -552,8 +552,7 @@ static void _control_blocking_complete_cb(tuh_xfer_t* xfer)
 }
 
 // TODO timeout_ms is not supported yet
-bool tuh_control_xfer (tuh_xfer_t* xfer)
-{
+bool tuh_control_xfer (tuh_xfer_t* xfer) {
   // EP0 with setup packet
   TU_VERIFY(xfer->ep_addr == 0 && xfer->setup);
 
@@ -565,8 +564,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
   (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   bool const is_idle = (_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
-  if (is_idle)
-  {
+  if (is_idle) {
     _ctrl_xfer.stage       = CONTROL_STAGE_SETUP;
     _ctrl_xfer.daddr       = daddr;
     _ctrl_xfer.actual_len  = 0;
@@ -585,14 +583,12 @@ bool tuh_control_xfer (tuh_xfer_t* xfer)
   TU_LOG_USBH("[%u:%u] %s: ", rhport, daddr,
               (xfer->setup->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                   tu_str_std_request[xfer->setup->bRequest] : "Class Request");
-  TU_LOG_PTR(CFG_TUH_LOG_LEVEL, xfer->setup);
+  TU_LOG_BUF(CFG_TUH_LOG_LEVEL, xfer->setup, 8);
   TU_LOG_USBH("\r\n");
 
-  if (xfer->complete_cb)
-  {
+  if (xfer->complete_cb) {
     TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t const*) &_ctrl_xfer.request) );
-  }else
-  {
+  }else {
     // blocking if complete callback is not provided
     // change callback to internal blocking, and result as user argument
     volatile xfer_result_t result = XFER_RESULT_INVALID;
@@ -656,30 +652,23 @@ static void _xfer_complete(uint8_t daddr, xfer_result_t result)
   }
 }
 
-static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
+static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) ep_addr;
 
   const uint8_t rhport = usbh_get_rhport(dev_addr);
   tusb_control_request_t const * request = &_ctrl_xfer.request;
 
-  if (XFER_RESULT_SUCCESS != result)
-  {
+  if (XFER_RESULT_SUCCESS != result) {
     TU_LOG1("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
-    #if CFG_TUSB_DEBUG == 1
-    TU_LOG1_PTR(request);
+    TU_LOG1_BUF(request, 8);
     TU_LOG1("\r\n");
-    #endif
 
     // terminate transfer if any stage failed
     _xfer_complete(dev_addr, result);
-  }else
-  {
-    switch(_ctrl_xfer.stage)
-    {
+  }else {
+    switch(_ctrl_xfer.stage) {
       case CONTROL_STAGE_SETUP:
-        if (request->wLength)
-        {
+        if (request->wLength) {
           // DATA stage: initial data toggle is always 1
           _set_control_xfer_stage(CONTROL_STAGE_DATA);
           TU_ASSERT( hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength) );
@@ -688,8 +677,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         TU_ATTR_FALLTHROUGH;
 
       case CONTROL_STAGE_DATA:
-        if (request->wLength)
-        {
+        if (request->wLength) {
           TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, dev_addr);
           TU_LOG_MEM(CFG_TUH_LOG_LEVEL, _ctrl_xfer.buffer, xferred_bytes, 2);
         }
@@ -765,27 +753,31 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
 // USBH API For Class Driver
 //--------------------------------------------------------------------+
 
-uint8_t usbh_get_rhport(uint8_t dev_addr)
-{
-  usbh_device_t* dev = get_device(dev_addr);
+uint8_t usbh_get_rhport(uint8_t dev_addr) {
+  usbh_device_t *dev = get_device(dev_addr);
   return dev ? dev->rhport : _dev0.rhport;
 }
 
-uint8_t* usbh_get_enum_buf(void)
-{
+uint8_t *usbh_get_enum_buf(void) {
   return _usbh_ctrl_buf;
 }
 
-void usbh_int_set(bool enabled)
-{
+void usbh_int_set(bool enabled) {
   // TODO all host controller if multiple are used since they shared the same event queue
-  if (enabled)
-  {
+  if (enabled) {
     hcd_int_enable(_usbh_controller);
-  }else
-  {
+  } else {
     hcd_int_disable(_usbh_controller);
   }
+}
+
+void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {
+  hcd_event_t event = { 0 };
+  event.event_id = USBH_EVENT_FUNC_CALL;
+  event.func_call.func = func;
+  event.func_call.param = param;
+
+  osal_queue_send(_usbh_q, &event, in_isr);
 }
 
 //--------------------------------------------------------------------+
@@ -862,7 +854,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * b
     ep_state->busy    = 0;
     ep_state->claimed = 0;
     TU_LOG1("Failed\r\n");
-    TU_BREAKPOINT();
+//    TU_BREAKPOINT();
     return false;
   }
 }
@@ -929,6 +921,7 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
   switch (event->event_id)
   {
 //    case HCD_EVENT_DEVICE_REMOVE:
+//      // FIXME device remove from a hub need an HCD API for hcd to free up endpoint
 //      // mark device as removing to prevent further xfer before the event is processed in usbh task
 //      break;
 
@@ -1538,9 +1531,7 @@ static bool enum_new_device(hcd_event_t* event)
     xfer.result    = XFER_RESULT_SUCCESS;
     xfer.user_data = ENUM_ADDR0_DEVICE_DESC;
 
-
     process_enumeration(&xfer);
-
   }
 #if CFG_TUH_HUB
   else

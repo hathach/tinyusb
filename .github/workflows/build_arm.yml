@@ -38,7 +38,6 @@ jobs:
         - 'lpc11 lpc13 lpc15 lpc17'
         - 'lpc51 lpc54'
         - 'mm32 msp432e4'
-        - 'nrf'
         - 'samd11 same5x saml2x'
         - 'stm32f2 stm32f3'
         - 'stm32l0 stm32u5 stm32wb'

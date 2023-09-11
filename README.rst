@@ -33,6 +33,7 @@ Supported MCUs
 The stack supports the following MCUs:
 
 - **Allwinner:** F1C100s/F1C200s
+- **Analog:** MAX3421e (aka Arduino usb host shield)
 - **Broadcom:** BCM2837, BCM2711
 - **Dialog:** DA1469x
 - **Espressif:** ESP32-S2, ESP32-S3
@@ -46,12 +47,13 @@ The stack supports the following MCUs:
   - iMX RT Series: RT10xx, RT11xx
   - Kinetis: KL25, K32L2
   - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
+  - MCX: N9x
 
 - **Raspberry Pi:** RP2040
 - **Renesas:**
 
-  - RX Series: 63N, 65N, 72N
-  - RA Series: RA4M1, RA4M3
+  - RX Series: 63n, 65n, 72n
+  - RA Series: 4m1, 4m3, 6m1, 6m5
 
 - **Silabs:** EFM32GG
 - **Sony:** CXD56
@@ -87,6 +89,8 @@ Host Stack
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
+- Communication Device Class: CDC-ACM
+- Vendor serial over USB: FTDI, CP210x
 - Hub with multiple-level support
 
 Similar to the Device Stack, if you have a special requirement, `usbh_app_driver_get_cb()` can be used to write your own class driver without modifying the stack.

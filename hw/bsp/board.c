@@ -44,17 +44,16 @@
 
 // If using SES IDE, use the Syscalls/SEGGER_RTT_Syscalls_SES.c instead
 #if !(defined __SES_ARM) && !(defined __SES_RISCV) && !(defined __CROSSWORKS_ARM)
+
 #include "SEGGER_RTT.h"
 
-TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
-{
+TU_ATTR_USED int sys_write(int fhdl, const void *buf, size_t count) {
   (void) fhdl;
-  SEGGER_RTT_Write(0, (const char*) buf, (int) count);
+  SEGGER_RTT_Write(0, (const char *) buf, (int) count);
   return count;
 }
 
-TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
-{
+TU_ATTR_USED int sys_read(int fhdl, char *buf, size_t count) {
   (void) fhdl;
   int rd = (int) SEGGER_RTT_Read(0, buf, count);
   return (rd > 0) ? rd : -1;
@@ -67,8 +66,7 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 
 #include "board_mcu.h"
 
-TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
-{
+TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count) {
   (void) fhdl;
   uint8_t const* buf8 = (uint8_t const*) buf;
 
@@ -79,8 +77,7 @@ TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
   return (int) count;
 }
 
-TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
-{
+TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count) {
   (void) fhdl;
   (void) buf;
   (void) count;
@@ -90,14 +87,12 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 #else
 
 // Default logging with on-board UART
-TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
-{
+TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count) {
   (void) fhdl;
   return board_uart_write(buf, (int) count);
 }
 
-TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
-{
+TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count) {
   (void) fhdl;
   int rd = board_uart_read((uint8_t*) buf, (int) count);
   return (rd > 0) ? rd : -1;
@@ -105,8 +100,7 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 
 #endif
 
-int board_getchar(void)
-{
+int board_getchar(void) {
   char c;
-  return ( sys_read(0, &c, 1) > 0 ) ? (int) c : (-1);
+  return (sys_read(0, &c, 1) > 0) ? (int) c : (-1);
 }
