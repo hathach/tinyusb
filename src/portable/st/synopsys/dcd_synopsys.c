@@ -203,6 +203,14 @@ static void update_grxfsiz(uint8_t rhport)
   usb_otg->GRXFSIZ = calc_rx_ff_size(max_epsize);
 }
 
+#if CFG_TUSB_USB3340_PHY
+#include "cihal/cusb.h" 
+static bool suspended = false;
+#endif
+
+#include "os/os.h"
+#include <hal/hal_gpio.h>
+
 // Setup the control endpoint 0.
 static void bus_reset(uint8_t rhport)
 {
@@ -293,6 +301,17 @@ static void bus_reset(uint8_t rhport)
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
+
+#if CFG_TUSB_USB3340_PHY
+// In some cases after a USB suspended event, the ULPI Function
+// Control register is not set back to HS mode automatically
+// Forcing a ulpi_write to addr 0x04 with value 0x40 has not effect.
+// Force now we're just calling dcd_init to recover
+  if(suspended){
+    suspended = false;
+    dcd_init(rhport);
+  }
+#endif
 }
 
 // Set turn-around timeout according to link speed
@@ -363,6 +382,10 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
   // Clear and set speed bits
   dev->DCFG &= ~(3 << USB_OTG_DCFG_DSPD_Pos);
   dev->DCFG |= (bitvalue << USB_OTG_DCFG_DSPD_Pos);
+#if CFG_TUSB_USB3340_PHY
+    // Enable delay to default timing, necessary for some ULPI PHYs
+  dev->DCFG |= (1 << 14); // Set XCVRDLY to 1
+#endif
 }
 
 #if defined(USB_HS_PHYC)
@@ -465,6 +488,7 @@ void dcd_init (uint8_t rhport)
   // peripheral in each Reference Manual.
 
   USB_OTG_GlobalTypeDef * usb_otg = GLOBAL_BASE(rhport);
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
   // No HNP/SRP (no OTG support), program timeout later.
   if ( rhport == 1 )
@@ -508,6 +532,11 @@ void dcd_init (uint8_t rhport)
   // Restart PHY clock
   *((volatile uint32_t *)(RHPORT_REGS_BASE + USB_OTG_PCGCCTL_BASE)) = 0;
 
+#if CFG_TUSB_USB3340_PHY
+  if(cusb_ulpi_sanity_check() != 0){
+    cusb_reset(true);
+  }
+#endif
   // Clear all interrupts
   usb_otg->GINTSTS |= usb_otg->GINTSTS;
 
@@ -515,8 +544,6 @@ void dcd_init (uint8_t rhport)
   // TODO: How should mode mismatch be handled? It will cause
   // the core to stop working/require reset.
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OTGINT | USB_OTG_GINTMSK_MMISM;
-
-  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard.
@@ -533,6 +560,8 @@ void dcd_init (uint8_t rhport)
 
   // Enable global interrupt
   usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
+  usb_otg->GINTMSK &= ~USB_OTG_GINTMSK_LPMINTM;
+  usb_otg->GLPMCFG &= ~(USB_OTG_GLPMCFG_LPMEN | USB_OTG_GLPMCFG_LPMACK | USB_OTG_GLPMCFG_ENBESL);
 
   dcd_connect(rhport);
 }
@@ -598,6 +627,7 @@ void dcd_connect(uint8_t rhport)
 void dcd_disconnect(uint8_t rhport)
 {
   (void) rhport;
+
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
   dev->DCTL |= USB_OTG_DCTL_SDIS;
 }
@@ -1154,6 +1184,11 @@ void dcd_int_handler(uint8_t rhport)
 
   if(int_status & USB_OTG_GINTSTS_USBSUSP)
   {
+#if CFG_TUSB_USB3340_PHY
+    if(!suspended){
+      suspended = true;
+    }
+#endif
     usb_otg->GINTSTS = USB_OTG_GINTSTS_USBSUSP;
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
