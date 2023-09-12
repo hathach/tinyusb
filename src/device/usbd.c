@@ -505,6 +505,11 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
         if (tud_umount_cb) tud_umount_cb();
       break;
 
+      case DCD_EVENT_PLUGGED:
+        TU_LOG2("\r\n");
+        _usbd_dev.speed = event.plugged.speed;
+      break;
+
       case DCD_EVENT_SETUP_RECEIVED:
         TU_LOG_BUF(CFG_TUD_LOG_LEVEL, &event.setup_received, 8);
         TU_LOG_USBD("\r\n");

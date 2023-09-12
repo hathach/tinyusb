@@ -97,6 +97,26 @@
 #define CFG_TUD_MIDI              0
 #define CFG_TUD_VENDOR            0
 
+//------------- REPORT ID  -------------//
+#define REPORT_ID_COUNT           2   
+	
+#if REPORT_ID_COUNT > 2
+	#error This value must not be greater than 2 in this demo!
+#endif 
+
+#if REPORT_ID_COUNT == 2
+    #define REPORT_ID_OUT           1
+    #define REPORT_ID_IN            2
+#elif REPORT_ID_COUNT == 1
+  #define REPORT_ID               1
+  #define REPORT_ID_OUT           REPORT_ID
+  #define REPORT_ID_IN            REPORT_ID
+#endif
+
+#ifndef CFG_TUSB_REPORT_ID_COUNT
+    #define CFG_TUSB_REPORT_ID_COUNT  REPORT_ID_COUNT
+#endif
+
 // HID buffer size Should be sufficient to hold ID (if any) + Data
 #define CFG_TUD_HID_EP_BUFSIZE    64
 
