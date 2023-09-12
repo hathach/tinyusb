@@ -403,7 +403,14 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
     HID_COLLECTION_END \
 
 // HID Lighting and Illumination Report Descriptor Template
-// - 1st parameter is report id HID_REPORT_ID(n) (optional)
+// - 1st parameter is report id (required)
+//   Creates 6 report ids for lighting HID usages in the following order:
+//     report_id+0: HID_USAGE_LIGHTING_LAMP_ARRAY_ATTRIBUTES_REPORT
+//     report_id+1: HID_USAGE_LIGHTING_LAMP_ATTRIBUTES_REQUEST_REPORT
+//     report_id+2: HID_USAGE_LIGHTING_LAMP_ATTRIBUTES_RESPONSE_REPORT
+//     report_id+3: HID_USAGE_LIGHTING_LAMP_MULTI_UPDATE_REPORT
+//     report_id+4: HID_USAGE_LIGHTING_LAMP_RANGE_UPDATE_REPORT
+//     report_id+5: HID_USAGE_LIGHTING_LAMP_ARRAY_CONTROL_REPORT
 #define TUD_HID_REPORT_DESC_LIGHTING(report_id) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_LIGHTING_AND_ILLUMINATION ),\
   HID_USAGE      ( HID_USAGE_LIGHTING_LAMP_ARRAY            ),\
