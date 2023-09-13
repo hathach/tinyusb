@@ -398,7 +398,7 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     // Inform application about the issue
     if (tud_hid_report_issue_cb)
     {
-      tud_hid_report_issue_cb(instance, ep_addr, result, xferred_bytes);
+      tud_hid_report_issue_cb(instance, ep_addr, result, (uint16_t) xferred_bytes);
     }
 
     // Allow a new transfer to be received if issue happened on an OUT endpoint
