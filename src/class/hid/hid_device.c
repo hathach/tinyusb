@@ -381,8 +381,6 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
 
 bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
-  (void) result;
-
   uint8_t instance = 0;
   hidd_interface_t * p_hid = _hidd_itf;
 
@@ -394,6 +392,25 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   }
   TU_ASSERT(instance < CFG_TUD_HID);
 
+  // Check if there was a problem
+  if (XFER_RESULT_SUCCESS != result)
+  {
+    // Inform application about the issue
+    if (tud_hid_report_issue_cb)
+    {
+      tud_hid_report_issue_cb(instance, ep_addr, result, xferred_bytes);
+    }
+
+    // Allow a new transfer to be received if issue happened on an OUT endpoint
+    if (ep_addr == p_hid->ep_out)
+    {
+      // Prepare the OUT endpoint to be able to receive a new transfer
+      TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
+    }
+
+    return true;
+  }
+
   // Sent report successfully
   if (ep_addr == p_hid->ep_in)
   {
@@ -402,10 +419,10 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
       tud_hid_report_complete_cb(instance, p_hid->epin_buf, (uint16_t) xferred_bytes);
     }
   }
-  // Received report
+  // Received report successfully
   else if (ep_addr == p_hid->ep_out)
   {
-    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, (uint16_t) xferred_bytes);
+    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, p_hid->epout_buf, (uint16_t) xferred_bytes);
     TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 
