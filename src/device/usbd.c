@@ -397,7 +397,6 @@ bool tud_connect(void)
 
 bool tud_sof_cb_enable(bool en)
 {
-  TU_VERIFY(dcd_sof_enable);
   _usbd_sof.cb_en = en;
   dcd_sof_enable(_usbd_rhport, _usbd_sof.value ? true : false);
   return true;
