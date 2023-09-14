@@ -101,6 +101,12 @@ extern uint8_t tud_network_mac_address[6];
 // callback to client providing optional indication of internal state of network driver
 void tud_network_link_state_cb(bool state);
 
+// indicate to network disconnect, only work in NCM
+bool tud_network_disconnect(void);
+
+// indicate to network connect, only work in NCM
+bool tud_network_connect(void);
+
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
