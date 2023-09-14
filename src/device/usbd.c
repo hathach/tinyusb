@@ -267,6 +267,21 @@ static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
 
 #define TOTAL_DRIVER_COUNT    (_app_driver_count + BUILTIN_DRIVER_COUNT)
 
+typedef struct
+{
+  union
+  {
+    struct
+    {
+      uint8_t count : 7;
+      uint8_t cb_en : 1;
+    }
+    uint8_t value;
+  }
+} usbd_sof_t;
+
+tu_static usbd_sof_t _usbd_sof = { .value = 0 };
+
 //--------------------------------------------------------------------+
 // DCD Event
 //--------------------------------------------------------------------+
@@ -377,6 +392,14 @@ bool tud_connect(void)
 {
   TU_VERIFY(dcd_connect);
   dcd_connect(_usbd_rhport);
+  return true;
+}
+
+bool tud_sof_cb_enable(bool en)
+{
+  TU_VERIFY(dcd_sof_enable);
+  _usbd_sof.cb_en = en;
+  dcd_sof_enable(rhport, _usbd_sof.value ? true : false);
   return true;
 }
 
@@ -597,8 +620,11 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
       break;
 
       case DCD_EVENT_SOF:
-        TU_LOG_USBD("\r\n");
-        if ( tud_sof_cb ) tud_sof_cb(event->sof.frame_count);
+        if ( _usbd_sof.cb_en)
+        {
+          TU_LOG_USBD("\r\n");
+          if ( tud_sof_cb ) tud_sof_cb(event->sof.frame_count);
+        }
       break;
 
       default:
@@ -1389,9 +1415,18 @@ void usbd_sof_enable(uint8_t rhport, bool en)
 {
   rhport = _usbd_rhport;
 
-  // TODO: Check needed if all drivers including the user sof_cb does not need an active SOF ISR any more.
-  // Only if all drivers switched off SOF calls the SOF interrupt may be disabled
-  dcd_sof_enable(rhport, en);
+  // Keep track how many class instances need the SOF interrupt
+  if (en)
+  {
+    _usbd_sof.count++;
+  }
+  else
+  {
+    _usbd_sof.count--;
+  }
+
+  // Only disable SOF interrupts if all drivers switched off SOF calls and if the SOF callback isn't used
+  dcd_sof_enable(rhport, _usbd_sof.value ? true : false);
 }
 
 bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size)
