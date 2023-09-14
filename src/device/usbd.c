@@ -275,9 +275,9 @@ typedef struct
     {
       uint8_t count : 7;
       uint8_t cb_en : 1;
-    }
+    };
     uint8_t value;
-  }
+  };
 } usbd_sof_t;
 
 tu_static usbd_sof_t _usbd_sof = { .value = 0 };
