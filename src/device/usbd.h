@@ -97,7 +97,6 @@ bool tud_disconnect(void);
 bool tud_connect(void);
 
 // Enable or disable the Start Of Frame callback support
-// Return false on unsupported MCUs
 bool tud_sof_cb_enable(bool en);
 
 // Carry out Data and Status stage of control transfer
