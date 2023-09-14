@@ -399,7 +399,7 @@ bool tud_sof_cb_enable(bool en)
 {
   TU_VERIFY(dcd_sof_enable);
   _usbd_sof.cb_en = en;
-  dcd_sof_enable(rhport, _usbd_sof.value ? true : false);
+  dcd_sof_enable(_usbd_rhport, _usbd_sof.value ? true : false);
   return true;
 }
 
@@ -623,7 +623,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
         if ( _usbd_sof.cb_en)
         {
           TU_LOG_USBD("\r\n");
-          if ( tud_sof_cb ) tud_sof_cb(event->sof.frame_count);
+          if ( tud_sof_cb ) tud_sof_cb(event.sof.frame_count);
         }
       break;
 
