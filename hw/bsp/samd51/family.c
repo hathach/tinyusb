@@ -183,7 +183,9 @@ uint32_t board_millis(void) {
 
 static void max3421_init(void) {
   //------------- SPI Init -------------//
-  uint32_t const baudrate = 4000000u;
+
+  // MAX3421E max SPI clock is 26MHz however SAMD can only work reliably at 12 Mhz
+  uint32_t const baudrate = 12000000u;
 
   struct {
     volatile uint32_t *mck_apb;
@@ -229,7 +231,12 @@ static void max3421_init(void) {
   while (sercom->SPI.SYNCBUSY.bit.CTRLB == 1);
 
   // Set the baud rate
-  sercom->SPI.BAUD.reg = (uint8_t) (SystemCoreClock / (2 * baudrate) - 1);
+  uint8_t baud_reg = (uint8_t) (SystemCoreClock / (2 * baudrate));
+  if (baud_reg) {
+    baud_reg--;
+  }
+
+  sercom->SPI.BAUD.reg = baud_reg;
 
   // Configure PA12 as MOSI (PAD0), PA13 as SCK (PAD1), PA14 as MISO (PAD2), function C (sercom)
   gpio_set_pin_direction(MAX3421_SCK_PIN, GPIO_DIRECTION_OUT);

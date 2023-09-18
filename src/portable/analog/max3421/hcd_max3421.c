@@ -263,7 +263,7 @@ static void fifo_read(uint8_t rhport, uint8_t * buffer, uint16_t len, bool in_is
 
   max3421_spi_lock(rhport, in_isr);
 
-  tuh_max3421_spi_xfer_api(rhport, &reg, 1, &hirq, 0);
+  tuh_max3421_spi_xfer_api(rhport, &reg, 1, &hirq, 1);
   _hcd_data.hirq = hirq;
   tuh_max3421_spi_xfer_api(rhport, NULL, 0, buffer, len);
 

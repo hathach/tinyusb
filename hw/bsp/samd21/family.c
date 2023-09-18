@@ -269,7 +269,8 @@ uint32_t board_millis(void) {
 
 static void max3421_init(void) {
   //------------- SPI Init -------------//
-  uint32_t const baudrate = 4000000u;
+  // MAX3421E max SPI clock is 26MHz however SAMD can only work reliably at 12 Mhz
+  uint32_t const baudrate = 12000000u;
 
   // Enable the APB clock for SERCOM
   PM->APBCMASK.reg |= 1u << (PM_APBCMASK_SERCOM0_Pos + MAX3421_SERCOM_ID);
