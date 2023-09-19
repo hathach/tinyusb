@@ -67,7 +67,7 @@ void board_init(void) {
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
 
-      UART_CLK_EN();
+  UART_CLK_EN();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -154,7 +154,7 @@ void board_init(void) {
   HAL_PWREx_EnableVddUSB();
 
   /* USB_OTG_FS clock enable */
-      __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 }
 
 //--------------------------------------------------------------------+
