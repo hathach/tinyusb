@@ -43,8 +43,7 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void OTG_FS_IRQHandler(void)
-{
+void OTG_FS_IRQHandler(void) {
   tud_int_handler(0);
 }
 
@@ -54,8 +53,7 @@ void OTG_FS_IRQHandler(void)
 
 UART_HandleTypeDef UartHandle;
 
-void board_init(void)
-{
+void board_init(void) {
 
   board_clock_init();
 
@@ -69,7 +67,7 @@ void board_init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
 
-  UART_CLK_EN();
+      UART_CLK_EN();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -134,8 +132,8 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-#if OTG_FS_VBUS_SENSE
-  // Configure VBUS Pin
+#if defined(OTG_FS_VBUS_SENSE) && OTG_FS_VBUS_SENSE
+  // Configure VBUS Pin OTG_FS_VBUS_SENSE
   GPIO_InitStruct.Pin = GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -156,57 +154,51 @@ void board_init(void)
   HAL_PWREx_EnableVddUSB();
 
   /* USB_OTG_FS clock enable */
-  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+      __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 }
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
+void board_led_write(bool state) {
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t *buf, int len)
-{
-  (void)buf;
-  (void)len;
+int board_uart_read(uint8_t *buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const *buf, int len)
-{
-  HAL_UART_Transmit(&UartHandle, (uint8_t *)(uintptr_t)buf, len, 0xffff);
+int board_uart_write(void const *buf, int len) {
+  HAL_UART_Transmit(&UartHandle, (uint8_t *) (uintptr_t) buf, len, 0xffff);
   return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
+
+void SysTick_Handler(void) {
   HAL_IncTick();
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
 
-void HardFault_Handler(void)
-{
+void HardFault_Handler(void) {
   asm("bkpt");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
-void _init(void)
-{
+void _init(void) {
 }
