@@ -25,7 +25,18 @@
  * This file is part of the TinyUSB stack.
  */
 
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wundef"
+#endif
+
 #include "stm32u5xx_hal.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "bsp/board_api.h"
 #include "board.h"
 
