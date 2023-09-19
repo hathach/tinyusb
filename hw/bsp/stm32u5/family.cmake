@@ -4,7 +4,7 @@ if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
 endif ()
 
-set(ST_FAMILY g4)
+set(ST_FAMILY u5)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
@@ -15,10 +15,10 @@ set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS STM32G4 CACHE INTERNAL "")
+set(FAMILY_MCUS STM32U5 CACHE INTERNAL "")
 
 
 #------------------------------------
@@ -92,10 +92,10 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32G4 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32U5 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
-    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
-    ${TOP}/src/portable/st/typec/typec_stm32.c
+    ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
+    #${TOP}/src/portable/st/typec/typec_stm32.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
