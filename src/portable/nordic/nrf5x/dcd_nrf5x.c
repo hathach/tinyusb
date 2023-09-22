@@ -40,7 +40,6 @@
 
 #include "nrf.h"
 #include "nrf_clock.h"
-#include "nrf_power.h"
 #include "nrfx_usbd_errata.h"
 
 #ifdef __GNUC__
@@ -55,6 +54,13 @@
 
 #if CFG_TUSB_OS == OPT_OS_MYNEWT
 #include "mcu/mcu.h"
+#endif
+
+#if 1000*MDK_MAJOR_VERSION + MDK_MINOR_VERSION <= 8040
+// Nordic actually has generated a mess here: nrfx==1.9.0 has MDK 8.40.3 while nrfx==2.0.0 has MDK 8.29.0
+// Unfortunately there are API differences between nrfx<2.0.0 and nrfx>=2.0.0.  Hoping that everyone uses
+// nRF Connect SDK keeps the libraries up to date.
+#define OLD_NORDIC_SDK
 #endif
 
 /*------------------------------------------------------------------*/
@@ -109,21 +115,6 @@ static struct
 /*------------------------------------------------------------------*/
 /* Control / Bulk / Interrupt (CBI) Transfer
  *------------------------------------------------------------------*/
-
-// NVIC_GetEnableIRQ is only available in CMSIS v5
-#ifndef NVIC_GetEnableIRQ
-static inline uint32_t NVIC_GetEnableIRQ(IRQn_Type IRQn)
-{
-  if ((int32_t)(IRQn) >= 0)
-  {
-    return((uint32_t)(((NVIC->ISER[(((uint32_t)(int32_t)IRQn) >> 5UL)] & (1UL << (((uint32_t)(int32_t)IRQn) & 0x1FUL))) != 0UL) ? 1UL : 0UL));
-  }
-  else
-  {
-    return(0U);
-  }
-}
-#endif
 
 // check if we are in ISR
 TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
@@ -253,13 +244,27 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
+#ifdef SOFTDEVICE_PRESENT
+  if (sd_nvic_EnableIRQ(USBD_IRQn) != NRF_SUCCESS)
+  {
+    NVIC_EnableIRQ(USBD_IRQn);
+  }
+#else
   NVIC_EnableIRQ(USBD_IRQn);
+#endif
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
+#ifdef SOFTDEVICE_PRESENT
+  if (sd_nvic_DisableIRQ(USBD_IRQn) != NRF_SUCCESS)
+  {
+    NVIC_DisableIRQ(USBD_IRQn);
+  }
+#else
   NVIC_DisableIRQ(USBD_IRQn);
+#endif
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
@@ -916,7 +921,11 @@ static bool hfclk_running(void)
   }
 #endif
 
+#ifdef OLD_NORDIC_SDK
+  return nrf_clock_hf_is_running(NRF_CLOCK_HFCLK_HIGH_ACCURACY);
+#else
   return nrf_clock_hf_is_running(NRF_CLOCK, NRF_CLOCK_HFCLK_HIGH_ACCURACY);
+#endif
 }
 
 static void hfclk_enable(void)
@@ -937,8 +946,13 @@ static void hfclk_enable(void)
   }
 #endif
 
+#ifdef OLD_NORDIC_SDK
+  nrf_clock_event_clear(NRF_CLOCK_EVENT_HFCLKSTARTED);
+  nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTART);
+#else
   nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_HFCLKSTARTED);
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTART);
+#endif
 #endif
 }
 
@@ -957,7 +971,11 @@ static void hfclk_disable(void)
   }
 #endif
 
+#ifdef OLD_NORDIC_SDK
+  nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTOP);
+#else
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
+#endif
 #endif
 }
 
@@ -1100,13 +1118,27 @@ void tusb_hal_nrf_power_event (uint32_t event)
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk;
 
       // Enable interrupt, priorities should be set by application
+#ifdef SOFTDEVICE_PRESENT
+      if (sd_nvic_ClearPendingIRQ(USBD_IRQn) != NRF_SUCCESS)
+      {
+        NVIC_ClearPendingIRQ(USBD_IRQn);
+      }
+#else
       NVIC_ClearPendingIRQ(USBD_IRQn);
+#endif
       // Don't enable USBD interrupt yet, if dcd_init() did not finish yet
       // Interrupt will be enabled by tud_init(), when USB stack is ready
       // to handle interrupts.
       if (tud_inited())
       {
+#ifdef SOFTDEVICE_PRESENT
+        if (sd_nvic_EnableIRQ(USBD_IRQn) != NRF_SUCCESS)
+        {
+          NVIC_EnableIRQ(USBD_IRQn);
+        }
+#else
         NVIC_EnableIRQ(USBD_IRQn);
+#endif
       }
 
       // Wait for HFCLK
@@ -1127,7 +1159,14 @@ void tusb_hal_nrf_power_event (uint32_t event)
         __ISB(); __DSB(); // for sync
 
         // Disable Interrupt
+#ifdef SOFTDEVICE_PRESENT
+        if (sd_nvic_DisableIRQ(USBD_IRQn) != NRF_SUCCESS)
+        {
+          NVIC_DisableIRQ(USBD_IRQn);
+        }
+#else
         NVIC_DisableIRQ(USBD_IRQn);
+#endif
 
         // disable all interrupt
         NRF_USBD->INTENCLR = NRF_USBD->INTEN;
