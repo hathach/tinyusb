@@ -244,7 +244,7 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
-#ifdef SOFTDEVICE_PRESENT
+#if defined(SOFTDEVICE_PRESENT)  &&  defined(OLD_NORDIC_SDK)
   if (sd_nvic_EnableIRQ(USBD_IRQn) != NRF_SUCCESS)
   {
     NVIC_EnableIRQ(USBD_IRQn);
@@ -257,7 +257,7 @@ void dcd_int_enable(uint8_t rhport)
 void dcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
-#ifdef SOFTDEVICE_PRESENT
+#if defined(SOFTDEVICE_PRESENT)  &&  defined(OLD_NORDIC_SDK)
   if (sd_nvic_DisableIRQ(USBD_IRQn) != NRF_SUCCESS)
   {
     NVIC_DisableIRQ(USBD_IRQn);
@@ -1118,7 +1118,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk;
 
       // Enable interrupt, priorities should be set by application
-#ifdef SOFTDEVICE_PRESENT
+#if defined(SOFTDEVICE_PRESENT)  &&  defined(OLD_NORDIC_SDK)
       if (sd_nvic_ClearPendingIRQ(USBD_IRQn) != NRF_SUCCESS)
       {
         NVIC_ClearPendingIRQ(USBD_IRQn);
@@ -1131,7 +1131,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       // to handle interrupts.
       if (tud_inited())
       {
-#ifdef SOFTDEVICE_PRESENT
+#if defined(SOFTDEVICE_PRESENT)  &&  defined(OLD_NORDIC_SDK)
         if (sd_nvic_EnableIRQ(USBD_IRQn) != NRF_SUCCESS)
         {
           NVIC_EnableIRQ(USBD_IRQn);
@@ -1159,7 +1159,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         __ISB(); __DSB(); // for sync
 
         // Disable Interrupt
-#ifdef SOFTDEVICE_PRESENT
+#if defined(SOFTDEVICE_PRESENT)  &&  defined(OLD_NORDIC_SDK)
         if (sd_nvic_DisableIRQ(USBD_IRQn) != NRF_SUCCESS)
         {
           NVIC_DisableIRQ(USBD_IRQn);
