@@ -882,7 +882,7 @@ void hcd_int_handler(uint8_t rhport) {
     if ( hirq & HIRQ_RCVDAV_IRQ ) {
       uint8_t const ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
       max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
-      uint8_t xact_len;
+      uint8_t xact_len = 0;
 
       // RCVDAV_IRQ can trigger 2 times (dual buffered)
       while ( hirq & HIRQ_RCVDAV_IRQ ) {

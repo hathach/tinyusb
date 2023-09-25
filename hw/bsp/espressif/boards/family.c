@@ -45,16 +45,19 @@
 static led_strip_t *strip;
 #endif
 
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
+#include "driver/spi_master.h"
+static void max3421_init(void);
+#endif
 
 static void configure_pins(usb_hal_context_t *usb);
 
-// Initialize on-board peripherals : led, button, uart and USB
-void board_init(void)
-{
+//--------------------------------------------------------------------+
+// Implementation
+//--------------------------------------------------------------------+
 
+// Initialize on-board peripherals : led, button, uart and USB
+void board_init(void) {
 #ifdef NEOPIXEL_PIN
   #ifdef NEOPIXEL_POWER_PIN
   gpio_reset_pin(NEOPIXEL_POWER_PIN);
@@ -79,23 +82,27 @@ void board_init(void)
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
+#if CFG_TUD_ENABLED
   // USB Controller Hal init
   periph_module_reset(PERIPH_USB_MODULE);
   periph_module_enable(PERIPH_USB_MODULE);
 
   usb_hal_context_t hal = {
-    .use_external_phy = false // use built-in PHY
+      .use_external_phy = false // use built-in PHY
   };
   usb_hal_init(&hal);
   configure_pins(&hal);
+#endif
+
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
+  max3421_init();
+#endif
 }
 
-static void configure_pins(usb_hal_context_t *usb)
-{
+static void configure_pins(usb_hal_context_t *usb) {
   /* usb_periph_iopins currently configures USB_OTG as USB Device.
    * Introduce additional parameters in usb_hal_context_t when adding support
-   * for USB Host.
-   */
+   * for USB Host. */
   for (const usb_iopin_dsc_t *iopin = usb_periph_iopins; iopin->pin != -1; ++iopin) {
     if ((usb->use_external_phy) || (iopin->ext_phy_only == 0)) {
       esp_rom_gpio_pad_select_gpio(iopin->pin);
@@ -115,6 +122,7 @@ static void configure_pins(usb_hal_context_t *usb)
       esp_rom_gpio_pad_unhold(iopin->pin);
     }
   }
+
   if (!usb->use_external_phy) {
     gpio_set_drive_capability(USBPHY_DM_NUM, GPIO_DRIVE_CAP_3);
     gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
@@ -122,8 +130,7 @@ static void configure_pins(usb_hal_context_t *usb)
 }
 
 // Turn LED on or off
-void board_led_write(bool state)
-{
+void board_led_write(bool state) {
 #ifdef NEOPIXEL_PIN
   strip->set_pixel(strip, 0, (state ? 0x88 : 0x00), 0x00, 0x00);
   strip->refresh(strip, 100);
@@ -132,21 +139,102 @@ void board_led_write(bool state)
 
 // Get the current state of button
 // a '1' means active (pressed), a '0' means inactive.
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return gpio_get_level(BUTTON_PIN) == BUTTON_STATE_ACTIVE;
 }
 
 // Get characters from UART
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t *buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
 // Send characters to UART
-int board_uart_write(void const * buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_write(void const *buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
+
+//--------------------------------------------------------------------+
+// API: SPI transfer with MAX3421E, must be implemented by application
+//--------------------------------------------------------------------+
+#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+
+static spi_device_handle_t max3421_spi;
+
+static void IRAM_ATTR max3421_isr_handler(void* arg)
+{
+  (void) arg;
+  //uint32_t gpio_num = (uint32_t) arg;
+  //xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+  tuh_int_handler(1);
+}
+
+static void max3421_init(void) {
+  // CS pin
+  gpio_set_direction(MAX3421_CS_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_level(MAX3421_CS_PIN, 1);
+
+  // SPI
+  spi_bus_config_t buscfg={
+      .miso_io_num = MAX3421_MISO_PIN,
+      .mosi_io_num = MAX3421_MOSI_PIN,
+      .sclk_io_num = MAX3421_SCK_PIN,
+      .quadwp_io_num = -1,
+      .quadhd_io_num = -1,
+      .data4_io_num = -1,
+      .data5_io_num = -1,
+      .data6_io_num = -1,
+      .data7_io_num = -1,
+      .max_transfer_sz = 128
+  };
+  ESP_ERROR_CHECK( spi_bus_initialize(MAX3421_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO) );
+
+  spi_device_interface_config_t max3421_cfg = {
+      .command_bits = 8,
+      .mode = 0,
+      .clock_speed_hz = 4000000, // 26000000
+      .spics_io_num = -1, // manual control CS
+      .queue_size = 1
+  };
+  ESP_ERROR_CHECK( spi_bus_add_device(MAX3421_SPI_HOST, &max3421_cfg, &max3421_spi) );
+
+  // Interrupt pin
+//  gpio_set_direction(MAX3421_INTR_PIN, GPIO_MODE_INPUT);
+//  gpio_set_intr_type(MAX3421_INTR_PIN, GPIO_INTR_NEGEDGE);
+//
+//  gpio_install_isr_service(ESP_INTR_FLAG_EDGE);
+//  gpio_isr_handler_add(MAX3421_INTR_PIN, max3421_isr_handler, NULL);
+}
+
+void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
+  (void) rhport;
+  if (enabled) {
+    gpio_intr_enable(MAX3421_INTR_PIN);
+  } else {
+    gpio_intr_disable(MAX3421_INTR_PIN);
+  }
+}
+
+void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
+  (void) rhport;
+  gpio_set_level(MAX3421_CS_PIN, active ? 0 : 1);
+}
+
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
+  (void) rhport;
+
+  spi_transaction_t xact = {
+      .length = tx_len,
+      .rxlength = rx_len,
+      .tx_buffer = tx_buf,
+      .rx_buffer = rx_buf
+  };
+
+  ESP_ERROR_CHECK(spi_device_transmit(max3421_spi, &xact));
+  return true;
+}
+
+#endif

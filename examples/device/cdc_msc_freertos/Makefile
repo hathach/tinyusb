@@ -10,7 +10,7 @@ INC += \
 	src/FreeRTOSConfig \
 	$(TOP)/hw \
 	$(TOP)/$(FREERTOS_SRC)/include \
-	$(TOP)/$(FREERTOS_PORTABLE_SRC)
+	$(TOP)/$(FREERTOS_PORTABLE_SRC) \
 
 # Example source
 EXAMPLE_SOURCE = \
