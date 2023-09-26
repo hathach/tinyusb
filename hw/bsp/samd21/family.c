@@ -261,6 +261,7 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
+#endif
 
 //--------------------------------------------------------------------+
 //
@@ -344,6 +345,11 @@ static void max3421_init(void) {
   EIC->CONFIG[0].reg &= ~(7 << sense_shift);
   EIC->CONFIG[0].reg |= 2 << sense_shift;
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(EIC_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
+
   // Enable External Interrupt
   EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << MAX3421_INTR_EIC_ID);
 
@@ -411,8 +417,5 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
 
   return true;
 }
-
-#endif
-
 
 #endif

@@ -33,6 +33,7 @@
 #include "soc/usb_periph.h"
 
 #include "driver/rmt.h"
+#include "driver/uart.h"
 
 #if ESP_IDF_VERSION_MAJOR > 4
   #include "esp_private/periph_ctrl.h"
@@ -145,9 +146,7 @@ uint32_t board_button_read(void) {
 
 // Get characters from UART
 int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
-  return 0;
+  return uart_read_bytes(UART_NUM_0, buf, len, 0);
 }
 
 // Send characters to UART
@@ -157,6 +156,11 @@ int board_uart_write(void const *buf, int len) {
   return 0;
 }
 
+int board_getchar(void) {
+  char c;
+  return (uart_read_bytes(UART_NUM_0, &c, 1, 0) > 0) ? (int) c : (-1);
+}
+
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
 //--------------------------------------------------------------------+
@@ -164,12 +168,12 @@ int board_uart_write(void const *buf, int len) {
 
 static spi_device_handle_t max3421_spi;
 
-static void IRAM_ATTR max3421_isr_handler(void* arg)
-{
-  (void) arg;
-  //uint32_t gpio_num = (uint32_t) arg;
+static void IRAM_ATTR max3421_isr_handler(void* arg) {
+  (void) arg; // arg is gpio num
   //xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+  gpio_set_level(13, 1);
   tuh_int_handler(1);
+  gpio_set_level(13, 0);
 }
 
 static void max3421_init(void) {
@@ -188,12 +192,11 @@ static void max3421_init(void) {
       .data5_io_num = -1,
       .data6_io_num = -1,
       .data7_io_num = -1,
-      .max_transfer_sz = 128
+      .max_transfer_sz = 1024
   };
   ESP_ERROR_CHECK( spi_bus_initialize(MAX3421_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO) );
 
   spi_device_interface_config_t max3421_cfg = {
-      .command_bits = 8,
       .mode = 0,
       .clock_speed_hz = 4000000, // 26000000
       .spics_io_num = -1, // manual control CS
@@ -201,12 +204,16 @@ static void max3421_init(void) {
   };
   ESP_ERROR_CHECK( spi_bus_add_device(MAX3421_SPI_HOST, &max3421_cfg, &max3421_spi) );
 
+  // debug
+  gpio_set_direction(13, GPIO_MODE_OUTPUT);
+  gpio_set_level(13, 0);
+
   // Interrupt pin
-//  gpio_set_direction(MAX3421_INTR_PIN, GPIO_MODE_INPUT);
-//  gpio_set_intr_type(MAX3421_INTR_PIN, GPIO_INTR_NEGEDGE);
-//
-//  gpio_install_isr_service(ESP_INTR_FLAG_EDGE);
-//  gpio_isr_handler_add(MAX3421_INTR_PIN, max3421_isr_handler, NULL);
+  gpio_set_direction(MAX3421_INTR_PIN, GPIO_MODE_INPUT);
+  gpio_set_intr_type(MAX3421_INTR_PIN, GPIO_INTR_NEGEDGE);
+
+  gpio_install_isr_service(0);
+  gpio_isr_handler_add(MAX3421_INTR_PIN, max3421_isr_handler, NULL);
 }
 
 void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
@@ -227,8 +234,8 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
   (void) rhport;
 
   spi_transaction_t xact = {
-      .length = tx_len,
-      .rxlength = rx_len,
+      .length = tx_len << 3, // length in bits
+      .rxlength = rx_len << 3, // length in bits
       .tx_buffer = tx_buf,
       .rx_buffer = rx_buf
   };

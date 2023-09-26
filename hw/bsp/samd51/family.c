@@ -175,6 +175,7 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
+#endif
 
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
@@ -290,6 +291,11 @@ static void max3421_init(void) {
   *eic_config &= ~(7 << sense_shift);
   *eic_config |= 2 << sense_shift;
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(EIC_0_IRQn + MAX3421_INTR_EIC_ID, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
+
   // Enable External Interrupt
   EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << MAX3421_INTR_EIC_ID);
 
@@ -358,7 +364,5 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
 
   return true;
 }
-
-#endif
 
 #endif

@@ -70,3 +70,4 @@ idf_component_register(SRCS ${srcs}
   )
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC ${compile_definitions})
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=format)

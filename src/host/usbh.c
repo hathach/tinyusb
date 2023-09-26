@@ -659,7 +659,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
   tusb_control_request_t const * request = &_ctrl_xfer.request;
 
   if (XFER_RESULT_SUCCESS != result) {
-    TU_LOG1("[%u:%u] Control %s, xferred_bytes = %u\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
+    TU_LOG1("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
     TU_LOG1_BUF(request, 8);
     TU_LOG1("\r\n");
 
