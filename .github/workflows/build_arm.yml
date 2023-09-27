@@ -36,11 +36,11 @@ jobs:
         - 'broadcom_32bit'
         - 'kinetis_k32l2'
         - 'lpc11 lpc13 lpc15 lpc17'
-        - 'lpc51 lpc54'
+        - 'lpc51'
         - 'mm32 msp432e4'
         - 'samd11 same5x saml2x'
         - 'stm32f2 stm32f3'
-        - 'stm32l0 stm32u5 stm32wb'
+        - 'stm32l0 stm32wb'
         - 'tm4c123 xmc4000'
     steps:
     - name: Setup Python

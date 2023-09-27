@@ -51,8 +51,9 @@ bool hcd_init(uint8_t rhport) {
 }
 
 // Interrupt Handler
-void hcd_int_handler(uint8_t rhport) {
+void hcd_int_handler(uint8_t rhport, bool in_isr) {
   (void) rhport;
+  (void) in_isr;
 }
 
 // Enable USB interrupt

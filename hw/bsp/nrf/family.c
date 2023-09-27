@@ -271,7 +271,7 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
 
 void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
   if (!(pin == MAX3421_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
-  tuh_int_handler(1);
+  tuh_int_handler(1, true);
 }
 
 static void max3421_init(void) {

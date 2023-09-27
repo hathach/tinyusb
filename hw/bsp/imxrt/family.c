@@ -188,7 +188,7 @@ void USB_OTG1_IRQHandler(void)
   #endif
 
   #if PORT_SUPPORT_HOST(0)
-    tuh_int_handler(0);
+    tuh_int_handler(0, true);
   #endif
 }
 
@@ -199,7 +199,7 @@ void USB_OTG2_IRQHandler(void)
   #endif
 
   #if PORT_SUPPORT_HOST(1)
-    tuh_int_handler(1);
+    tuh_int_handler(1, true);
   #endif
 }
 

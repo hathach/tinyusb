@@ -859,8 +859,8 @@ void print_hirq(uint8_t hirq) {
   #define print_hirq(hirq)
 #endif
 
-// Interrupt handler (extended)
-void hcd_int_handler_ext(uint8_t rhport, bool in_isr) {
+// Interrupt handler
+void hcd_int_handler(uint8_t rhport, bool in_isr) {
   uint8_t hirq = reg_read(rhport, HIRQ_ADDR, in_isr) & _hcd_data.hien;
   if (!hirq) return;
 //  print_hirq(hirq);
@@ -914,11 +914,6 @@ void hcd_int_handler_ext(uint8_t rhport, bool in_isr) {
   if ( hirq ) {
     hirq_write(rhport, hirq, in_isr);
   }
-}
-
-// Interrupt Handler
-void hcd_int_handler(uint8_t rhport) {
-  hcd_int_handler_ext(rhport, true);
 }
 
 #endif

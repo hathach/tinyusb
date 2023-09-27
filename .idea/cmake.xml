@@ -56,13 +56,14 @@
       <configuration PROFILE_NAME="portenta_c33" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=portenta_c33 -DLOG=3" />
       <configuration PROFILE_NAME="metro_m4_express" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="metro_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m0_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="stm32u5" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u575eval" />
       <configuration PROFILE_NAME="metro esp32s2" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=adafruit_metro_esp32s2 -DMAX3421_HOST=1 -DLOG=2">
-        <ADDITIONAL_GENERATION_ENVIRONMENT>
-          <envs>
-            <env name="ESPBAUD" value="1500000" />
-          </envs>
-        </ADDITIONAL_GENERATION_ENVIRONMENT>
-      </configuration>
+            <ADDITIONAL_GENERATION_ENVIRONMENT>
+                <envs>
+                    <env name="ESPBAUD" value="1500000" />
+                </envs>
+            </ADDITIONAL_GENERATION_ENVIRONMENT>
+        </configuration>
     </configurations>
   </component>
 </project>

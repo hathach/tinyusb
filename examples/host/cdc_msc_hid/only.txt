@@ -1,3 +1,4 @@
+mcu:KINETIS_KL
 mcu:LPC175X_6X
 mcu:LPC177X_8X
 mcu:LPC18XX
