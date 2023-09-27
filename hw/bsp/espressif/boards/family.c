@@ -167,13 +167,28 @@ int board_getchar(void) {
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
 static spi_device_handle_t max3421_spi;
+SemaphoreHandle_t max3421_intr_sem;
 
 static void IRAM_ATTR max3421_isr_handler(void* arg) {
   (void) arg; // arg is gpio num
-  //xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
   gpio_set_level(13, 1);
-  tuh_int_handler(1);
+
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  xSemaphoreGiveFromISR(max3421_intr_sem, &xHigherPriorityTaskWoken);
+  if (xHigherPriorityTaskWoken) {
+    portYIELD_FROM_ISR();
+  }
+
   gpio_set_level(13, 0);
+}
+
+static void max3421_intr_task(void* param) {
+  (void) param;
+
+  while (1) {
+    xSemaphoreTake(max3421_intr_sem, portMAX_DELAY);
+    tuh_int_handler(BOARD_TUH_RHPORT);
+  }
 }
 
 static void max3421_init(void) {
@@ -209,6 +224,9 @@ static void max3421_init(void) {
   gpio_set_level(13, 0);
 
   // Interrupt pin
+  max3421_intr_sem = xSemaphoreCreateBinary();
+  xTaskCreate(max3421_intr_task, "max3421 intr", 2048, NULL, configMAX_PRIORITIES-1, NULL);
+
   gpio_set_direction(MAX3421_INTR_PIN, GPIO_MODE_INPUT);
   gpio_set_intr_type(MAX3421_INTR_PIN, GPIO_INTR_NEGEDGE);
 
