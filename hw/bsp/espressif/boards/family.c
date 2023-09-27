@@ -186,7 +186,7 @@ static void max3421_intr_task(void* param) {
 
   while (1) {
     xSemaphoreTake(max3421_intr_sem, portMAX_DELAY);
-    hcd_int_handler_ext(BOARD_TUH_RHPORT, false);
+    tuh_int_handler(BOARD_TUH_RHPORT, false);
   }
 }
 
