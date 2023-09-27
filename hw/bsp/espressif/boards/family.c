@@ -224,7 +224,7 @@ static void max3421_init(void) {
 
   // Interrupt pin
   max3421_intr_sem = xSemaphoreCreateBinary();
-  xTaskCreate(max3421_intr_task, "max3421 intr", 2048, NULL, configMAX_PRIORITIES-1, NULL);
+  xTaskCreate(max3421_intr_task, "max3421 intr", 2048, NULL, configMAX_PRIORITIES-2, NULL);
 
   gpio_set_direction(MAX3421_INTR_PIN, GPIO_MODE_INPUT);
   gpio_set_intr_type(MAX3421_INTR_PIN, GPIO_INTR_NEGEDGE);
