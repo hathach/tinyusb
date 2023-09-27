@@ -64,18 +64,18 @@ def ListPath(path, blacklist=[]):
         dir = os.path.dirname(file)
         if dir not in dirs:
             dirs.append(dir)
-    # Print .c groupped by dir
+    # Print .c grouped by dir
     for dir in dirs:
         print('<group name="' + dir.replace('../', '').replace('\\','/') + '">')
         for file in files:
             if os.path.dirname(file) == dir:
                 print('    <path>$TUSB_DIR$/' + file.replace('../','').replace('\\','/')+'</path>')
         print('</group>')
-    
+
 def List():
     ListPath('src', [ 'template.c', 'dcd_synopsys.c', 'dcd_esp32sx.c' ])
     ListPath('lib/SEGGER_RTT')
-    
+
 if __name__ == "__main__":
     if (len(sys.argv) > 1):
         if (sys.argv[1] == 'l'):
