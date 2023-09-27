@@ -296,7 +296,7 @@ void MAX3421_EIC_Handler(void) {
   EIC->INTFLAG.reg = EIC_INTFLAG_EXTINT(1 << MAX3421_INTR_EIC_ID);
 
   // Call the TinyUSB interrupt handler
-  tuh_int_handler(1);
+  tuh_int_handler(1, true);
 }
 
 void tuh_max3421_int_api(uint8_t rhport, bool enabled) {

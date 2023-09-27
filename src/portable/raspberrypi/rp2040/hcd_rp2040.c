@@ -252,9 +252,9 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   }
 }
 
-void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport)
-{
+void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   (void) rhport;
+  (void) in_isr;
   hcd_rp2040_irq();
 }
 

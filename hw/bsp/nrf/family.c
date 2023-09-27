@@ -100,7 +100,7 @@ static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
 void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
   if (!(pin == MAX3421_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
 
-  tuh_int_handler(1);
+  tuh_int_handler(1, true);
 }
 #endif
 
