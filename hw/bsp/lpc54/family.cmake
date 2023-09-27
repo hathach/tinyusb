@@ -126,8 +126,6 @@ function(family_configure_example TARGET RTOS)
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    # external driver
-    ${TOP}/lib/sct_neopixel/sct_neopixel.c
     )
 
   # https://github.com/gsteiert/sct_neopixel/pull/1
