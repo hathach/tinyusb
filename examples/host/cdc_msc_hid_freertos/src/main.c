@@ -40,6 +40,7 @@
   #include "freertos/timers.h"
 
   #define USBH_STACK_SIZE     4096
+  #define CDC_STACK_SZIE      2048
 #else
   #include "FreeRTOS.h"
   #include "semphr.h"
@@ -49,9 +50,9 @@
 
   // Increase stack size when debug log is enabled
   #define USBH_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+  #define CDC_STACK_SZIE     (3*configMINIMAL_STACK_SIZE/2)
 #endif
 
-#define CDC_STACK_SZIE      (3*configMINIMAL_STACK_SIZE/2)
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES

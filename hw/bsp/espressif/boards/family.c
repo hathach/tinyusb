@@ -83,7 +83,6 @@ void board_init(void) {
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
-#if CFG_TUD_ENABLED
   // USB Controller Hal init
   periph_module_reset(PERIPH_USB_MODULE);
   periph_module_enable(PERIPH_USB_MODULE);
@@ -93,7 +92,6 @@ void board_init(void) {
   };
   usb_hal_init(&hal);
   configure_pins(&hal);
-#endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
   max3421_init();
@@ -157,8 +155,9 @@ int board_uart_write(void const *buf, int len) {
 }
 
 int board_getchar(void) {
-  char c;
-  return (uart_read_bytes(UART_NUM_0, &c, 1, 0) > 0) ? (int) c : (-1);
+//  char c;
+//  return (uart_read_bytes(UART_NUM_0, &c, 1, 0) > 0) ? (int) c : (-1);
+  return -1;
 }
 
 //--------------------------------------------------------------------+
@@ -187,7 +186,7 @@ static void max3421_intr_task(void* param) {
 
   while (1) {
     xSemaphoreTake(max3421_intr_sem, portMAX_DELAY);
-    tuh_int_handler(BOARD_TUH_RHPORT);
+    hcd_int_handler_ext(BOARD_TUH_RHPORT, false);
   }
 }
 
@@ -250,6 +249,12 @@ void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
 
 bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
   (void) rhport;
+
+  if (tx_len == 0) {
+    // fifo read, transmit rx_buf as dummy
+    tx_buf = rx_buf;
+    tx_len = rx_len;
+  }
 
   spi_transaction_t xact = {
       .length = tx_len << 3, // length in bits

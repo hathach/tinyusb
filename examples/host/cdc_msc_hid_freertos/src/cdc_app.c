@@ -68,7 +68,7 @@ void cdc_app_task(void* param) {
       }
     }
 
-    taskYIELD();
+    vTaskDelay(1);
   }
 }
 
