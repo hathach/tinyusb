@@ -51,6 +51,7 @@ jobs:
           - 'stm32g4'
           - 'stm32h7'
           - 'stm32l4'
+          - 'stm32u5'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4

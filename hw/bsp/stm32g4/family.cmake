@@ -39,10 +39,10 @@ function(add_board_target BOARD_TARGET)
     ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
-    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart_ex.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
@@ -60,8 +60,7 @@ function(add_board_target BOARD_TARGET)
       "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
       # nanolib
-      --specs=nosys.specs
-      --specs=nano.specs
+      --specs=nosys.specs --specs=nano.specs
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
