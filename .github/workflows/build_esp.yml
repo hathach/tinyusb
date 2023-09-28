@@ -29,12 +29,10 @@ jobs:
       fail-fast: false
       matrix:
         board:
-        # Alphabetical order
         # ESP32-S2
-        - 'espressif_saola_1'
+        - 'espressif_kaluga_1'
         # ESP32-S3
-        #- 'espressif_s3_devkitm'
-        # S3 compile error with "dangerous relocation: call8: call target out of range: memcpy"
+        - 'espressif_s3_devkitm'
 
     steps:
     - name: Setup Python
@@ -48,20 +46,5 @@ jobs:
     - name: Checkout TinyUSB
       uses: actions/checkout@v3
 
-    - name: Checkout hathach/linkermap
-      uses: actions/checkout@v3
-      with:
-         repository: hathach/linkermap
-         path: linkermap
-
     - name: Build
       run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32.py ${{ matrix.board }}
-
-    - name: Linker Map
-      run: |
-        pip install linkermap/
-        # find -quit to only print linkermap of 1 board per example
-        for ex in `ls -d examples/device/*/`
-        do
-          find ${ex} -maxdepth 3 -name *.map -print -quit | xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'
-        done

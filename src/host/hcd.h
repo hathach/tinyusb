@@ -133,9 +133,6 @@ bool hcd_init(uint8_t rhport);
 // Interrupt Handler
 void hcd_int_handler(uint8_t rhport, bool in_isr);
 
-// Interrupt Hanndler (extended version)
-void hcd_int_handler_ext(uint8_t rhport, bool in_isr);
-
 // Enable USB interrupt
 void hcd_int_enable (uint8_t rhport);
 
