@@ -82,9 +82,14 @@ StaticTask_t cdc_taskdef;
 TimerHandle_t blinky_tm;
 
 static void led_blinky_cb(TimerHandle_t xTimer);
-static void usb_host_task(void* param);
+extern void cdc_app_init(void);
+extern void hid_app_init(void);
+extern void msc_app_init(void);
 
+static void usb_host_task(void* param);
 extern void cdc_app_task(void* param);
+
+
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -131,6 +136,10 @@ static void usb_host_task(void *param) {
     board_init_after_tusb();
   }
 
+  cdc_app_init();
+  hid_app_init();
+  msc_app_init();
+
   // RTOS forever loop
   while (1) {
     // put this thread to waiting state until there is new events
@@ -153,7 +162,6 @@ void tuh_umount_cb(uint8_t dev_addr) {
   // application tear-down
   printf("A device with address %d is unmounted \r\n", dev_addr);
 }
-
 
 //--------------------------------------------------------------------+
 // BLINKING TASK

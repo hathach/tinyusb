@@ -31,9 +31,7 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-
-//------------- IMPLEMENTATION -------------//
-
+// helper
 size_t get_console_inputs(uint8_t *buf, size_t bufsize) {
   size_t count = 0;
   while (count < bufsize) {
@@ -45,6 +43,10 @@ size_t get_console_inputs(uint8_t *buf, size_t bufsize) {
   }
 
   return count;
+}
+
+void cdc_app_init(void) {
+  // nothing to do
 }
 
 void cdc_app_task(void* param) {
