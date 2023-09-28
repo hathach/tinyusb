@@ -27,9 +27,43 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+// ESP-IDF need "freertos/" prefix in include path.
+// CFG_TUSB_OS_INC_PATH should be defined accordingly.
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/semphr.h"
+  #include "freertos/queue.h"
+  #include "freertos/task.h"
+  #include "freertos/timers.h"
+
+  #define CDC_STACK_SZIE      2048
+#else
+  #include "FreeRTOS.h"
+  #include "semphr.h"
+  #include "queue.h"
+  #include "task.h"
+  #include "timers.h"
+
+  #define CDC_STACK_SZIE     (3*configMINIMAL_STACK_SIZE/2)
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t  cdc_stack[CDC_STACK_SZIE];
+StaticTask_t cdc_taskdef;
+#endif
+
+static void cdc_app_task(void* param);
+
+void cdc_app_init(void) {
+  #if configSUPPORT_STATIC_ALLOCATION
+  xTaskCreateStatic(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
+  #else
+  xTaskCreate(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, NULL);
+  #endif
+}
 
 // helper
 size_t get_console_inputs(uint8_t *buf, size_t bufsize) {
@@ -45,11 +79,7 @@ size_t get_console_inputs(uint8_t *buf, size_t bufsize) {
   return count;
 }
 
-void cdc_app_init(void) {
-  // nothing to do
-}
-
-void cdc_app_task(void* param) {
+static void cdc_app_task(void* param) {
   (void) param;
 
   uint8_t buf[64 + 1]; // +1 for extra null character
@@ -73,6 +103,10 @@ void cdc_app_task(void* param) {
     vTaskDelay(1);
   }
 }
+
+//--------------------------------------------------------------------+
+// TinyUSB Callbacks
+//--------------------------------------------------------------------+
 
 // Invoked when received new data
 void tuh_cdc_rx_cb(uint8_t idx) {

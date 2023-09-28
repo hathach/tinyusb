@@ -41,6 +41,8 @@
   #include "driver/periph_ctrl.h"
 #endif
 
+#define UART_ID  UART_NUM_0
+
 #ifdef NEOPIXEL_PIN
 #include "led_strip.h"
 static led_strip_t *strip;
@@ -59,6 +61,17 @@ static void configure_pins(usb_hal_context_t *usb);
 
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void) {
+  // uart init
+  uart_config_t uart_config = {
+      .baud_rate = 115200,
+      .data_bits = UART_DATA_8_BITS,
+      .parity = UART_PARITY_DISABLE,
+      .stop_bits = UART_STOP_BITS_1,
+      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+  };
+  uart_driver_install(UART_ID, 1024, 0, 0, NULL, 0);
+  uart_param_config(UART_ID, &uart_config);
+
 #ifdef NEOPIXEL_PIN
   #ifdef NEOPIXEL_POWER_PIN
   gpio_reset_pin(NEOPIXEL_POWER_PIN);
@@ -144,7 +157,7 @@ uint32_t board_button_read(void) {
 
 // Get characters from UART
 int board_uart_read(uint8_t *buf, int len) {
-  return uart_read_bytes(UART_NUM_0, buf, len, 0);
+  return uart_read_bytes(UART_ID, buf, len, 0);
 }
 
 // Send characters to UART
@@ -155,9 +168,8 @@ int board_uart_write(void const *buf, int len) {
 }
 
 int board_getchar(void) {
-//  char c;
-//  return (uart_read_bytes(UART_NUM_0, &c, 1, 0) > 0) ? (int) c : (-1);
-  return -1;
+  char c;
+  return (uart_read_bytes(UART_ID, &c, 1, 0) > 0) ? (int) c : (-1);
 }
 
 //--------------------------------------------------------------------+

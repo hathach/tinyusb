@@ -40,7 +40,6 @@
   #include "freertos/timers.h"
 
   #define USBH_STACK_SIZE     4096
-  #define CDC_STACK_SZIE      2048
 #else
   #include "FreeRTOS.h"
   #include "semphr.h"
@@ -50,7 +49,6 @@
 
   // Increase stack size when debug log is enabled
   #define USBH_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
-  #define CDC_STACK_SZIE     (3*configMINIMAL_STACK_SIZE/2)
 #endif
 
 
@@ -74,22 +72,16 @@ StaticTimer_t blinky_tmdef;
 
 StackType_t  usb_host_stack[USBH_STACK_SIZE];
 StaticTask_t usb_host_taskdef;
-
-StackType_t  cdc_stack[CDC_STACK_SZIE];
-StaticTask_t cdc_taskdef;
 #endif
 
 TimerHandle_t blinky_tm;
 
 static void led_blinky_cb(TimerHandle_t xTimer);
+static void usb_host_task(void* param);
+
 extern void cdc_app_init(void);
 extern void hid_app_init(void);
 extern void msc_app_init(void);
-
-static void usb_host_task(void* param);
-extern void cdc_app_task(void* param);
-
-
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -97,15 +89,13 @@ int main(void) {
 
   printf("TinyUSB Host CDC MSC HID with FreeRTOS Example\r\n");
 
-  // Create soft timer for blinky, task for tinyusb stack and CDC
+  // Create soft timer for blinky, task for tinyusb stack
 #if configSUPPORT_STATIC_ALLOCATION
   blinky_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_MOUNTED), true, NULL, led_blinky_cb, &blinky_tmdef);
   xTaskCreateStatic(usb_host_task, "usbh", USBH_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_host_stack, &usb_host_taskdef);
-  xTaskCreateStatic(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
 #else
   blinky_tm = xTimerCreate(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb);
   xTaskCreate(usb_host_task, "usbd", USBH_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
-  xTaskCreate(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
   xTimerStart(blinky_tm, 0);
