@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += lib/FreeRTOS-Kernel
-
 include ../../make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel

@@ -428,8 +428,8 @@ bool hcd_init(uint8_t rhport) {
   reg_write(rhport, PINCTL_ADDR, PINCTL_FDUPSPI, false);
 
   // V1 is 0x01, V2 is 0x12, V3 is 0x13
-  uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
-  TU_LOG2_HEX(revision);
+//  uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
+//  TU_LOG2_HEX(revision);
 
   // reset
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);

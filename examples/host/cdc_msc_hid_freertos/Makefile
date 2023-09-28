@@ -5,6 +5,7 @@ FREERTOS_PORTABLE_PATH= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)
 
 INC += \
 	src \
+	src/FreeRTOSConfig \
 	$(TOP)/hw \
 	$(TOP)/$(FREERTOS_SRC)/include \
 	$(TOP)/$(FREERTOS_PORTABLE_SRC) \
@@ -19,14 +20,15 @@ EXAMPLE_SOURCE = \
 
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
-# TinyUSB Host Stack source
+# FreeRTOS source, all files in port folder
 SRC_C += \
-	src/class/cdc/cdc_host.c \
-	src/class/hid/hid_host.c \
-	src/class/msc/msc_host.c \
-	src/host/hub.c \
-	src/host/usbh.c \
-	src/portable/ohci/ohci.c \
-	src/portable/nxp/lpc17_40/hcd_lpc17_40.c
+	$(FREERTOS_SRC)/list.c \
+	$(FREERTOS_SRC)/queue.c \
+	$(FREERTOS_SRC)/tasks.c \
+	$(FREERTOS_SRC)/timers.c \
+	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.c))
+
+SRC_S += \
+	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
 
 include ../../rules.mk
