@@ -175,6 +175,7 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
+#endif
 
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
@@ -183,7 +184,9 @@ uint32_t board_millis(void) {
 
 static void max3421_init(void) {
   //------------- SPI Init -------------//
-  uint32_t const baudrate = 4000000u;
+
+  // MAX3421E max SPI clock is 26MHz however SAMD can only work reliably at 12 Mhz
+  uint32_t const baudrate = 12000000u;
 
   struct {
     volatile uint32_t *mck_apb;
@@ -229,7 +232,12 @@ static void max3421_init(void) {
   while (sercom->SPI.SYNCBUSY.bit.CTRLB == 1);
 
   // Set the baud rate
-  sercom->SPI.BAUD.reg = (uint8_t) (SystemCoreClock / (2 * baudrate) - 1);
+  uint8_t baud_reg = (uint8_t) (SystemCoreClock / (2 * baudrate));
+  if (baud_reg) {
+    baud_reg--;
+  }
+
+  sercom->SPI.BAUD.reg = baud_reg;
 
   // Configure PA12 as MOSI (PAD0), PA13 as SCK (PAD1), PA14 as MISO (PAD2), function C (sercom)
   gpio_set_pin_direction(MAX3421_SCK_PIN, GPIO_DIRECTION_OUT);
@@ -282,6 +290,11 @@ static void max3421_init(void) {
 
   *eic_config &= ~(7 << sense_shift);
   *eic_config |= 2 << sense_shift;
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(EIC_0_IRQn + MAX3421_INTR_EIC_ID, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
 
   // Enable External Interrupt
   EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << MAX3421_INTR_EIC_ID);
@@ -351,7 +364,5 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
 
   return true;
 }
-
-#endif
 
 #endif

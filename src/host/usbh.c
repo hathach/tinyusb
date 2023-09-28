@@ -817,6 +817,7 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr)
 }
 
 // Submit an transfer
+// TODO call usbh_edpt_release if failed
 bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
@@ -1713,19 +1714,16 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
   return true;
 }
 
-void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
-{
+void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   usbh_device_t* dev = get_device(dev_addr);
 
-  for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++)
-  {
+  for(itf_num++; itf_num < CFG_TUH_INTERFACE_MAX; itf_num++) {
     // continue with next valid interface
     // IAD binding interface such as CDCs should return itf_num + 1 when complete
     // with usbh_driver_set_config_complete()
     uint8_t const drv_id = dev->itf2drv[itf_num];
     usbh_class_driver_t const * driver = get_driver(drv_id);
-    if (driver)
-    {
+    if (driver) {
       TU_LOG_USBH("%s set config: itf = %u\r\n", driver->name, itf_num);
       driver->set_config(dev_addr, itf_num);
       break;
@@ -1733,23 +1731,19 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
   }
 
   // all interface are configured
-  if (itf_num == CFG_TUH_INTERFACE_MAX)
-  {
+  if (itf_num == CFG_TUH_INTERFACE_MAX) {
     enum_full_complete();
 
-    if (is_hub_addr(dev_addr))
-    {
+    if (is_hub_addr(dev_addr)) {
       TU_LOG(CFG_TUH_LOG_LEVEL, "HUB address = %u is mounted\r\n", dev_addr);
-    }else
-    {
+    }else {
       // Invoke callback if available
       if (tuh_mount_cb) tuh_mount_cb(dev_addr);
     }
   }
 }
 
-static void enum_full_complete(void)
-{
+static void enum_full_complete(void) {
   // mark enumeration as complete
   _dev0.enumerating = 0;
 

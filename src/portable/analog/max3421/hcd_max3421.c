@@ -263,7 +263,7 @@ static void fifo_read(uint8_t rhport, uint8_t * buffer, uint16_t len, bool in_is
 
   max3421_spi_lock(rhport, in_isr);
 
-  tuh_max3421_spi_xfer_api(rhport, &reg, 1, &hirq, 0);
+  tuh_max3421_spi_xfer_api(rhport, &reg, 1, &hirq, 1);
   _hcd_data.hirq = hirq;
   tuh_max3421_spi_xfer_api(rhport, NULL, 0, buffer, len);
 
@@ -428,8 +428,8 @@ bool hcd_init(uint8_t rhport) {
   reg_write(rhport, PINCTL_ADDR, PINCTL_FDUPSPI, false);
 
   // V1 is 0x01, V2 is 0x12, V3 is 0x13
-  // uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
-  // TU_LOG2_HEX(revision);
+//  uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
+//  TU_LOG2_HEX(revision);
 
   // reset
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
@@ -693,9 +693,7 @@ static void handle_connect_irq(uint8_t rhport, bool in_isr) {
 
       // port reset anyway, this will help to stable bus signal for next connection
       reg_write(rhport, HCTL_ADDR, HCTL_BUSRST, in_isr);
-
       hcd_event_device_remove(rhport, in_isr);
-
       reg_write(rhport, HCTL_ADDR, 0, in_isr);
       break;
 
@@ -721,13 +719,12 @@ static void handle_connect_irq(uint8_t rhport, bool in_isr) {
       free_ep(daddr);
 
       hcd_event_device_attach(rhport, in_isr);
-
       break;
     }
   }
 }
 
-static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t hrsl) {
+static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t hrsl, bool in_isr) {
   uint8_t const ep_addr = tu_edpt_addr(ep->ep_num, ep->ep_dir);
 
   // save data toggle
@@ -738,20 +735,20 @@ static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t re
   }
 
   ep->xfer_pending = 0;
-  hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, true);
+  hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, in_isr);
 
   // Find next pending endpoint
   max3421_ep_t *next_ep = find_next_pending_ep(ep);
   if (next_ep) {
-    xact_inout(rhport, next_ep, true, true);
+    xact_inout(rhport, next_ep, true, in_isr);
   }else {
     // no more pending
     atomic_flag_clear(&_hcd_data.busy);
   }
 }
 
-static void handle_xfer_done(uint8_t rhport) {
-  uint8_t const hrsl = reg_read(rhport, HRSL_ADDR, true);
+static void handle_xfer_done(uint8_t rhport, bool in_isr) {
+  uint8_t const hrsl = reg_read(rhport, HRSL_ADDR, in_isr);
   uint8_t const hresult = hrsl & HRSL_RESULT_MASK;
 
   uint8_t const ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
@@ -774,17 +771,17 @@ static void handle_xfer_done(uint8_t rhport) {
     case HRSL_NAK:
       if (ep_num == 0) {
         // NAK on control, retry immediately
-        hxfr_write(rhport, _hcd_data.hxfr, true);
+        hxfr_write(rhport, _hcd_data.hxfr, in_isr);
       }else {
         // NAK on non-control, find next pending to switch
         max3421_ep_t *next_ep = find_next_pending_ep(ep);
 
         if (ep == next_ep) {
           // this endpoint is only one pending, retry immediately
-          hxfr_write(rhport, _hcd_data.hxfr, true);
+          hxfr_write(rhport, _hcd_data.hxfr, in_isr);
         }else if (next_ep) {
           // switch to next pending TODO could have issue with double buffered if not clear previously out data
-          xact_inout(rhport, next_ep, true, true);
+          xact_inout(rhport, next_ep, true, in_isr);
         }else {
           TU_ASSERT(false,);
         }
@@ -802,7 +799,7 @@ static void handle_xfer_done(uint8_t rhport) {
   }
 
   if (xfer_result != XFER_RESULT_SUCCESS) {
-    xfer_complete_isr(rhport, ep, xfer_result, hrsl);
+    xfer_complete_isr(rhport, ep, xfer_result, hrsl, in_isr);
     return;
   }
 
@@ -814,10 +811,10 @@ static void handle_xfer_done(uint8_t rhport) {
 
     // short packet or all bytes transferred
     if ( ep->xfer_complete ) {
-      xfer_complete_isr(rhport, ep, xfer_result, hrsl);
+      xfer_complete_isr(rhport, ep, xfer_result, hrsl, in_isr);
     }else {
       // more to transfer
-      hxfr_write(rhport, _hcd_data.hxfr, true);
+      hxfr_write(rhport, _hcd_data.hxfr, in_isr);
     }
   } else {
     // SETUP or OUT transfer
@@ -835,10 +832,10 @@ static void handle_xfer_done(uint8_t rhport) {
     ep->buf += xact_len;
 
     if (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len) {
-      xfer_complete_isr(rhport, ep, xfer_result, hrsl);
+      xfer_complete_isr(rhport, ep, xfer_result, hrsl, in_isr);
     } else {
       // more to transfer
-      xact_out(rhport, ep, false, true);
+      xact_out(rhport, ep, false, in_isr);
     }
   }
 }
@@ -862,10 +859,9 @@ void print_hirq(uint8_t hirq) {
   #define print_hirq(hirq)
 #endif
 
-// Interrupt Handler
+// Interrupt handler
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
-  (void) in_isr;
-  uint8_t hirq = reg_read(rhport, HIRQ_ADDR, true) & _hcd_data.hien;
+  uint8_t hirq = reg_read(rhport, HIRQ_ADDR, in_isr) & _hcd_data.hien;
   if (!hirq) return;
 //  print_hirq(hirq);
 
@@ -874,7 +870,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   }
 
   if (hirq & HIRQ_CONDET_IRQ) {
-    handle_connect_irq(rhport, true);
+    handle_connect_irq(rhport, in_isr);
   }
 
   // queue more transfer in handle_xfer_done() can cause hirq to be set again while external IRQ may not catch and/or
@@ -883,21 +879,21 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     if ( hirq & HIRQ_RCVDAV_IRQ ) {
       uint8_t const ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
       max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
-      uint8_t xact_len;
+      uint8_t xact_len = 0;
 
       // RCVDAV_IRQ can trigger 2 times (dual buffered)
       while ( hirq & HIRQ_RCVDAV_IRQ ) {
-        uint8_t rcvbc = reg_read(rhport, RCVBC_ADDR, true);
+        uint8_t rcvbc = reg_read(rhport, RCVBC_ADDR, in_isr);
         xact_len = (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len);
         if ( xact_len ) {
-          fifo_read(rhport, ep->buf, xact_len, true);
+          fifo_read(rhport, ep->buf, xact_len, in_isr);
           ep->buf += xact_len;
           ep->xferred_len += xact_len;
         }
 
         // ack RCVDVAV IRQ
-        hirq_write(rhport, HIRQ_RCVDAV_IRQ, true);
-        hirq = reg_read(rhport, HIRQ_ADDR, true);
+        hirq_write(rhport, HIRQ_RCVDAV_IRQ, in_isr);
+        hirq = reg_read(rhport, HIRQ_ADDR, in_isr);
       }
 
       if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
@@ -906,17 +902,17 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     }
 
     if ( hirq & HIRQ_HXFRDN_IRQ ) {
-      hirq_write(rhport, HIRQ_HXFRDN_IRQ, true);
-      handle_xfer_done(rhport);
+      hirq_write(rhport, HIRQ_HXFRDN_IRQ, in_isr);
+      handle_xfer_done(rhport, in_isr);
     }
 
-    hirq = reg_read(rhport, HIRQ_ADDR, true);
+    hirq = reg_read(rhport, HIRQ_ADDR, in_isr);
   }
 
   // clear all interrupt except SNDBAV_IRQ (never clear by us). Note RCVDAV_IRQ, HXFRDN_IRQ already clear while processing
   hirq &= ~HIRQ_SNDBAV_IRQ;
   if ( hirq ) {
-    hirq_write(rhport, hirq, true);
+    hirq_write(rhport, hirq, in_isr);
   }
 }
 

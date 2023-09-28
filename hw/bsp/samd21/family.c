@@ -261,6 +261,7 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
+#endif
 
 //--------------------------------------------------------------------+
 //
@@ -269,7 +270,8 @@ uint32_t board_millis(void) {
 
 static void max3421_init(void) {
   //------------- SPI Init -------------//
-  uint32_t const baudrate = 4000000u;
+  // MAX3421E max SPI clock is 26MHz however SAMD can only work reliably at 12 Mhz
+  uint32_t const baudrate = 12000000u;
 
   // Enable the APB clock for SERCOM
   PM->APBCMASK.reg |= 1u << (PM_APBCMASK_SERCOM0_Pos + MAX3421_SERCOM_ID);
@@ -343,6 +345,11 @@ static void max3421_init(void) {
   EIC->CONFIG[0].reg &= ~(7 << sense_shift);
   EIC->CONFIG[0].reg |= 2 << sense_shift;
 
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(EIC_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
+
   // Enable External Interrupt
   EIC->INTENSET.reg = EIC_INTENSET_EXTINT(1 << MAX3421_INTR_EIC_ID);
 
@@ -410,8 +417,5 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
 
   return true;
 }
-
-#endif
-
 
 #endif

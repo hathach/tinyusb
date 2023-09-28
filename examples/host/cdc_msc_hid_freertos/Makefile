@@ -12,10 +12,11 @@ INC += \
 
 # Example source
 EXAMPLE_SOURCE = \
-	src/freertos_hook.c \
-	src/main.c \
-	src/msc_disk.c \
-	src/usb_descriptors.c
+  src/cdc_app.c \
+  src/freertos_hook.c \
+  src/hid_app.c \
+  src/main.c \
+  src/msc_app.c \
 
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
@@ -29,18 +30,5 @@ SRC_C += \
 
 SRC_S += \
 	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
-
-# include heap manage if configSUPPORT_DYNAMIC_ALLOCATION = 1
-# SRC_C += $(FREERTOS_SRC)/portable/MemMang/heap_1.c
-# CFLAGS += -Wno-error=sign-compare
-
-# Suppress FreeRTOSConfig.h warnings
-CFLAGS_GCC += -Wno-error=redundant-decls
-
-# Suppress FreeRTOS source warnings
-CFLAGS_GCC += -Wno-error=cast-qual
-
-# FreeRTOS (lto + Os) linker issue
-LDFLAGS_GCC += -Wl,--undefined=vTaskSwitchContext
 
 include ../../rules.mk

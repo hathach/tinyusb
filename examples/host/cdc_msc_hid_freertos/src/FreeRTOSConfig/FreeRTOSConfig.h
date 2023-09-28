@@ -44,14 +44,38 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-  #include "sam.h"
+
+// Include MCU header
+#include "bsp/board_mcu.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
+  #error "ESP32-Sx should use IDF's FreeRTOSConfig.h"
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
+// TODO fix later
+// FIXME cause redundant-decls warnings
+#if CFG_TUSB_MCU == OPT_MCU_MM32F327X
+  extern u32 SystemCoreClock;
+#else
+  extern uint32_t SystemCoreClock;
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #endif
 
 /* Cortex M23/M33 port configuration. */
-#define configENABLE_MPU                        0
-#define configENABLE_FPU                        1
-#define configENABLE_TRUSTZONE                  0
-#define configMINIMAL_SECURE_STACK_SIZE         (1024)
+#define configENABLE_MPU								        0
+#define configENABLE_FPU								        1
+#define configENABLE_TRUSTZONE					        0
+#define configMINIMAL_SECURE_STACK_SIZE					( 1024 )
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
@@ -59,7 +83,7 @@
 #define configTICK_RATE_HZ                      ( 1000 )
 #define configMAX_PRIORITIES                    ( 5 )
 #define configMINIMAL_STACK_SIZE                ( 128 )
-#define configTOTAL_HEAP_SIZE                   ( configSUPPORT_DYNAMIC_ALLOCATION*6*1024 )
+#define configTOTAL_HEAP_SIZE                   ( configSUPPORT_DYNAMIC_ALLOCATION*4*1024 )
 #define configMAX_TASK_NAME_LEN                 16
 #define configUSE_16_BIT_TICKS                  0
 #define configIDLE_SHOULD_YIELD                 1
@@ -73,8 +97,8 @@
 #define configENABLE_BACKWARD_COMPATIBILITY     1
 #define configSTACK_ALLOCATION_FROM_SEPARATE_HEAP   0
 
-#define configSUPPORT_STATIC_ALLOCATION         0
-#define configSUPPORT_DYNAMIC_ALLOCATION        1
+#define configSUPPORT_STATIC_ALLOCATION         1
+#define configSUPPORT_DYNAMIC_ALLOCATION        0
 
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                    0
@@ -84,7 +108,6 @@
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS          0
-#define configRECORD_STACK_HIGH_ADDRESS        1
 #define configUSE_TRACE_FACILITY               1 // legacy trace
 #define configUSE_STATS_FORMATTING_FUNCTIONS   0
 
@@ -107,7 +130,7 @@
 #define INCLUDE_vTaskDelayUntil                1
 #define INCLUDE_vTaskDelay                     1
 #define INCLUDE_xTaskGetSchedulerState         0
-#define INCLUDE_xTaskGetCurrentTaskHandle      1
+#define INCLUDE_xTaskGetCurrentTaskHandle      0
 #define INCLUDE_uxTaskGetStackHighWaterMark    0
 #define INCLUDE_xTaskGetIdleTaskHandle         0
 #define INCLUDE_xTimerGetTimerDaemonTaskHandle 0
@@ -133,6 +156,16 @@
   #define configASSERT( x )
 #endif
 
+#ifdef __RX__
+/* Renesas RX series */
+#define vSoftwareInterruptISR					        INT_Excep_ICU_SWINT
+#define vTickISR								              INT_Excep_CMT0_CMI0
+#define configPERIPHERAL_CLOCK_HZ				      (configCPU_CLOCK_HZ/2)
+#define configKERNEL_INTERRUPT_PRIORITY			  1
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY	4
+
+#else
+
 /* FreeRTOS hooks to NVIC vectors */
 #define xPortPendSVHandler    PendSV_Handler
 #define xPortSysTickHandler   SysTick_Handler
@@ -141,9 +174,24 @@
 //--------------------------------------------------------------------+
 // Interrupt nesting behavior configuration.
 //--------------------------------------------------------------------+
+#if defined(__NVIC_PRIO_BITS)
+  // For Cortex-M specific: __NVIC_PRIO_BITS is defined in core_cmx.h
+	#define configPRIO_BITS       __NVIC_PRIO_BITS
 
-// For Cortex-M specific: __NVIC_PRIO_BITS is defined in mcu header
-#define configPRIO_BITS       3
+#elif defined(__ECLIC_INTCTLBITS)
+  // RISC-V Bumblebee core from nuclei
+  #define configPRIO_BITS       __ECLIC_INTCTLBITS
+
+#elif defined(__IASMARM__)
+  // FIXME: IAR Assembler cannot include mcu header directly to get __NVIC_PRIO_BITS.
+  // Therefore we will hard coded it to minimum value of 2 to get pass ci build.
+  // IAR user must update this to correct value of the target MCU
+  #message "configPRIO_BITS is hard coded to 2 to pass IAR build only. User should update it per MCU"
+  #define configPRIO_BITS       2
+
+#else
+  #error "FreeRTOS configPRIO_BITS to be defined"
+#endif
 
 /* The lowest interrupt priority that can be used in a call to a "set priority" function. */
 #define configLIBRARY_LOWEST_INTERRUPT_PRIORITY			  ((1<<configPRIO_BITS) - 1)
@@ -163,3 +211,5 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
 #endif
+
+#endif /* __FREERTOS_CONFIG__H */

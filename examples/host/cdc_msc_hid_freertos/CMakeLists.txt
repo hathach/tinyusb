@@ -19,29 +19,18 @@ add_executable(${PROJECT})
 
 # Example source
 target_sources(${PROJECT} PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/cdc_app.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/freertos_hook.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/hid_app.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_app.c
-  ${TOP}/lib/fatfs/source/ff.c
-  ${TOP}/lib/fatfs/source/ffsystem.c
-  ${TOP}/lib/fatfs/source/ffunicode.c
   )
-
-# Suppress warnings on fatfs
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-  set_source_files_properties(
-    ${TOP}/lib/fatfs/source/ff.c
-    PROPERTIES
-    COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual"
-    )
-endif ()
 
 # Example include
 target_include_directories(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${TOP}/lib/fatfs/source
-  ${TOP}/lib/embedded-cli
   )
 
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
-family_configure_host_example(${PROJECT} noos)
+family_configure_host_example(${PROJECT} freertos)
