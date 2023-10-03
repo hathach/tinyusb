@@ -41,6 +41,8 @@
   #include "driver/periph_ctrl.h"
 #endif
 
+// Note; current code use UART0 can cause device to reset while monitoring
+#define USE_UART  0
 #define UART_ID  UART_NUM_0
 
 #ifdef NEOPIXEL_PIN
@@ -61,6 +63,7 @@ static void configure_pins(usb_hal_context_t *usb);
 
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void) {
+#if USE_UART
   // uart init
   uart_config_t uart_config = {
       .baud_rate = 115200,
@@ -71,6 +74,7 @@ void board_init(void) {
   };
   uart_driver_install(UART_ID, 1024, 0, 0, NULL, 0);
   uart_param_config(UART_ID, &uart_config);
+#endif
 
 #ifdef NEOPIXEL_PIN
   #ifdef NEOPIXEL_POWER_PIN
@@ -157,7 +161,11 @@ uint32_t board_button_read(void) {
 
 // Get characters from UART
 int board_uart_read(uint8_t *buf, int len) {
+#if USE_UART
   return uart_read_bytes(UART_ID, buf, len, 0);
+#else
+  return -1;
+#endif
 }
 
 // Send characters to UART
@@ -168,8 +176,8 @@ int board_uart_write(void const *buf, int len) {
 }
 
 int board_getchar(void) {
-  char c;
-  return (uart_read_bytes(UART_ID, &c, 1, 0) > 0) ? (int) c : (-1);
+  uint8_t c = 0;
+  return board_uart_read(&c, 1) > 0 ? (int) c : (-1);
 }
 
 //--------------------------------------------------------------------+
@@ -224,7 +232,7 @@ static void max3421_init(void) {
 
   spi_device_interface_config_t max3421_cfg = {
       .mode = 0,
-      .clock_speed_hz = 4000000, // 26000000
+      .clock_speed_hz = 26000000,
       .spics_io_num = -1, // manual control CS
       .queue_size = 1
   };

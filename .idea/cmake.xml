@@ -9,7 +9,7 @@
           </envs>
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
-      <configuration PROFILE_NAME="kaluga" ENABLED="true" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_kaluga_1 -DMAX3421_HOST=1 -DLOG=2">
+      <configuration PROFILE_NAME="kaluga" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_kaluga_1 -DMAX3421_HOST=1 -DLOG=2">
         <ADDITIONAL_GENERATION_ENVIRONMENT>
           <envs>
             <env name="ESPBAUD" value="1500000" />
@@ -54,16 +54,16 @@
       <configuration PROFILE_NAME="ra6m5 PORT0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1 -DPORT=0" />
       <configuration PROFILE_NAME="uno_r4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=uno_r4 -DLOG=4 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="portenta_c33" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=portenta_c33 -DLOG=3" />
-      <configuration PROFILE_NAME="metro_m4_express" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="metro_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="metro_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m0_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
-      <configuration PROFILE_NAME="stm32u5" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u575eval" />
+      <configuration PROFILE_NAME="stm32u5" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u575eval" />
       <configuration PROFILE_NAME="metro esp32s2" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=adafruit_metro_esp32s2 -DMAX3421_HOST=1 -DLOG=2">
-            <ADDITIONAL_GENERATION_ENVIRONMENT>
-                <envs>
-                    <env name="ESPBAUD" value="1500000" />
-                </envs>
-            </ADDITIONAL_GENERATION_ENVIRONMENT>
-        </configuration>
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
     </configurations>
   </component>
 </project>
