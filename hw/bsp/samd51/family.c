@@ -81,6 +81,7 @@ void USB_3_Handler(void) {
 #define MAX3421_EIC_Handler TU_XSTRCAT3(EIC_, MAX3421_INTR_EIC_ID, _Handler)
 
 static void max3421_init(void);
+
 #endif
 
 void board_init(void) {
@@ -153,13 +154,13 @@ uint32_t board_button_read(void) {
   return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
 }
 
-int board_uart_read(uint8_t *buf, int len) {
+int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
   return 0;
 }
 
-int board_uart_write(void const *buf, int len) {
+int board_uart_write(void const* buf, int len) {
   (void) buf;
   (void) len;
   return 0;
@@ -175,6 +176,7 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
 
 //--------------------------------------------------------------------+
@@ -189,7 +191,7 @@ static void max3421_init(void) {
   uint32_t const baudrate = 12000000u;
 
   struct {
-    volatile uint32_t *mck_apb;
+    volatile uint32_t* mck_apb;
     uint32_t mask;
     uint8_t gclk_id_core;
     uint8_t gclk_id_slow;
@@ -214,8 +216,10 @@ static void max3421_init(void) {
   *sercom_clock[MAX3421_SERCOM_ID].mck_apb |= sercom_clock[MAX3421_SERCOM_ID].mask;
 
   // Configure GCLK for SERCOM
-  GCLK->PCHCTRL[sercom_clock[MAX3421_SERCOM_ID].gclk_id_core].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
-  GCLK->PCHCTRL[sercom_clock[MAX3421_SERCOM_ID].gclk_id_slow].reg = GCLK_PCHCTRL_GEN_GCLK3_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+  GCLK->PCHCTRL[sercom_clock[MAX3421_SERCOM_ID].gclk_id_core].reg =
+      GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+  GCLK->PCHCTRL[sercom_clock[MAX3421_SERCOM_ID].gclk_id_slow].reg =
+      GCLK_PCHCTRL_GEN_GCLK3_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
 
   // Disable the SPI module
   sercom->SPI.CTRLA.bit.ENABLE = 0;
@@ -226,7 +230,7 @@ static void max3421_init(void) {
 
   // Set up SPI in master mode, MSB first, SPI mode 0
   sercom->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_DOPO(MAX3421_TX_PAD) | SERCOM_SPI_CTRLA_DIPO(MAX3421_RX_PAD) |
-      SERCOM_SPI_CTRLA_MODE(3);
+                          SERCOM_SPI_CTRLA_MODE(3);
 
   sercom->SPI.CTRLB.reg = SERCOM_SPI_CTRLB_CHSIZE(0) | SERCOM_SPI_CTRLB_RXEN;
   while (sercom->SPI.SYNCBUSY.bit.CTRLB == 1);
@@ -278,9 +282,9 @@ static void max3421_init(void) {
   while (EIC->SYNCBUSY.bit.ENABLE);
 
   // Configure EIC to trigger on falling edge
-  volatile uint32_t * eic_config;
+  volatile uint32_t* eic_config;
   uint8_t sense_shift;
-  if ( MAX3421_INTR_EIC_ID < 8 ) {
+  if (MAX3421_INTR_EIC_ID < 8) {
     eic_config = &EIC->CONFIG[0].reg;
     sense_shift = MAX3421_INTR_EIC_ID * 4;
   } else {
@@ -312,6 +316,7 @@ void MAX3421_EIC_Handler(void) {
   tuh_int_handler(1, true);
 }
 
+// API to enable/disable MAX3421 INTR pin interrupt
 void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   (void) rhport;
 
@@ -323,24 +328,26 @@ void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   }
 }
 
+// API to control MAX3421 SPI CS
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   (void) rhport;
   gpio_set_pin_level(MAX3421_CS_PIN, active ? 0 : 1);
 }
 
-bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
+// API to transfer data with MAX3421 SPI
+// Either tx_buf or rx_buf can be NULL, which means transfer is write or read only
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx_buf, size_t xfer_bytes) {
   (void) rhport;
 
   Sercom* sercom = MAX3421_SERCOM;
 
-  size_t count = 0;
-  while (count < tx_len || count < rx_len) {
+  for (size_t count = 0; count < xfer_bytes; count++) {
     // Wait for the transmit buffer to be empty
     while (!sercom->SPI.INTFLAG.bit.DRE);
 
     // Write data to be transmitted
     uint8_t data = 0x00;
-    if (count < tx_len) {
+    if (tx_buf) {
       data = tx_buf[count];
     }
 
@@ -351,11 +358,9 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_l
 
     // Read received data
     data = (uint8_t) sercom->SPI.DATA.reg;
-    if (count < rx_len) {
+    if (rx_buf) {
       rx_buf[count] = data;
     }
-
-    count++;
   }
 
   // wait for bus idle and clear flags
