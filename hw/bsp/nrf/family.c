@@ -95,7 +95,9 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 
 //------------- Host using MAX2341E -------------//
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+
 static void max3421_init(void);
+
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
 #endif
 
@@ -203,15 +205,15 @@ uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == nrf_gpio_pin_read(BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t *buf, int len) {
+int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
   return 0;
 //  return NRFX_SUCCESS == nrfx_uart_rx(&_uart_id, buf, (size_t) len) ? len : 0;
 }
 
-int board_uart_write(void const *buf, int len) {
-  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const *) buf, (size_t) len)) ? len : 0;
+int board_uart_write(void const* buf, int len) {
+  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -323,6 +325,7 @@ static void max3421_init(void) {
   nrfx_gpiote_trigger_enable(MAX3421_INTR_PIN, true);
 }
 
+// API to enable/disable MAX3421 INTR pin interrupt
 void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   (void) rhport;
 
@@ -335,22 +338,25 @@ void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   }
 }
 
+// API to control MAX3421 SPI CS
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   (void) rhport;
   nrf_gpio_pin_write(MAX3421_CS_PIN, active ? 0 : 1);
 }
 
-bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
+// API to transfer data with MAX3421 SPI
+// Either tx_buf or rx_buf can be NULL, which means transfer is write or read only
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx_buf, size_t xfer_bytes) {
   (void) rhport;
 
   nrfx_spim_xfer_desc_t xfer = {
       .p_tx_buffer = tx_buf,
-      .tx_length   = tx_len,
+      .tx_length   = tx_buf ? xfer_bytes : 0,
       .p_rx_buffer = rx_buf,
-      .rx_length   = rx_len,
+      .rx_length   = rx_buf ? xfer_bytes : 0,
   };
 
-  return (nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS);
+  return nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS;
 }
 
 #endif

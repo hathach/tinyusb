@@ -210,16 +210,21 @@ static max3421_data_t _hcd_data;
 // API: SPI transfer with MAX3421E, must be implemented by application
 //--------------------------------------------------------------------+
 
-void tuh_max3421_spi_cs_api(uint8_t rhport, bool active);
-bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const * tx_buf, size_t tx_len, uint8_t * rx_buf, size_t rx_len);
-void tuh_max3421_int_api(uint8_t rhport, bool enabled);
+// API to control MAX3421 SPI CS
+extern void tuh_max3421_spi_cs_api(uint8_t rhport, bool active);
 
-static void handle_connect_irq(uint8_t rhport, bool in_isr);
-static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr);
+// API to transfer data with MAX3421 SPI
+// Either tx_buf or rx_buf can be NULL, which means transfer is write or read only
+extern bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx_buf, size_t xfer_bytes);
+
+// API to enable/disable MAX3421 INTR pin interrupt
+extern void tuh_max3421_int_api(uint8_t rhport, bool enabled);
 
 //--------------------------------------------------------------------+
 // SPI Helper
 //--------------------------------------------------------------------+
+static void handle_connect_irq(uint8_t rhport, bool in_isr);
+static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr);
 
 static void max3421_spi_lock(uint8_t rhport, bool in_isr) {
   // disable interrupt and mutex lock (for pre-emptive RTOS) if not in_isr
@@ -249,9 +254,9 @@ static void fifo_write(uint8_t rhport, uint8_t reg, uint8_t const * buffer, uint
 
   max3421_spi_lock(rhport, in_isr);
 
-  tuh_max3421_spi_xfer_api(rhport, &reg, 1, &hirq, 1);
+  tuh_max3421_spi_xfer_api(rhport, &reg, &hirq, 1);
   _hcd_data.hirq = hirq;
-  tuh_max3421_spi_xfer_api(rhport, buffer, len, NULL, 0);
+  tuh_max3421_spi_xfer_api(rhport, buffer, NULL, len);
 
   max3421_spi_unlock(rhport, in_isr);
 
@@ -263,9 +268,9 @@ static void fifo_read(uint8_t rhport, uint8_t * buffer, uint16_t len, bool in_is
 
   max3421_spi_lock(rhport, in_isr);
 
-  tuh_max3421_spi_xfer_api(rhport, &reg, 1, &hirq, 1);
+  tuh_max3421_spi_xfer_api(rhport, &reg, &hirq, 1);
   _hcd_data.hirq = hirq;
-  tuh_max3421_spi_xfer_api(rhport, NULL, 0, buffer, len);
+  tuh_max3421_spi_xfer_api(rhport, NULL, buffer, len);
 
   max3421_spi_unlock(rhport, in_isr);
 }
@@ -276,7 +281,7 @@ static void reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr) {
 
   max3421_spi_lock(rhport, in_isr);
 
-  tuh_max3421_spi_xfer_api(rhport, tx_buf, 2, rx_buf, 2);
+  tuh_max3421_spi_xfer_api(rhport, tx_buf, rx_buf, 2);
 
   max3421_spi_unlock(rhport, in_isr);
 
@@ -290,7 +295,7 @@ static uint8_t reg_read(uint8_t rhport, uint8_t reg, bool in_isr) {
 
   max3421_spi_lock(rhport, in_isr);
 
-  bool ret = tuh_max3421_spi_xfer_api(rhport, tx_buf, 2, rx_buf, 2);
+  bool ret = tuh_max3421_spi_xfer_api(rhport, tx_buf, rx_buf, 2);
 
   max3421_spi_unlock(rhport, in_isr);
 

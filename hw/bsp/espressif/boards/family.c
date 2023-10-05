@@ -38,22 +38,31 @@
 #if ESP_IDF_VERSION_MAJOR > 4
   #include "esp_private/periph_ctrl.h"
 #else
+
   #include "driver/periph_ctrl.h"
+
 #endif
 
+// Note; current code use UART0 can cause device to reset while monitoring
+#define USE_UART  0
 #define UART_ID  UART_NUM_0
 
 #ifdef NEOPIXEL_PIN
+
 #include "led_strip.h"
-static led_strip_t *strip;
+
+static led_strip_t* strip;
 #endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
+
 #include "driver/spi_master.h"
+
 static void max3421_init(void);
+
 #endif
 
-static void configure_pins(usb_hal_context_t *usb);
+static void configure_pins(usb_hal_context_t* usb);
 
 //--------------------------------------------------------------------+
 // Implementation
@@ -61,6 +70,7 @@ static void configure_pins(usb_hal_context_t *usb);
 
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void) {
+#if USE_UART
   // uart init
   uart_config_t uart_config = {
       .baud_rate = 115200,
@@ -71,6 +81,7 @@ void board_init(void) {
   };
   uart_driver_install(UART_ID, 1024, 0, 0, NULL, 0);
   uart_param_config(UART_ID, &uart_config);
+#endif
 
 #ifdef NEOPIXEL_PIN
   #ifdef NEOPIXEL_POWER_PIN
@@ -111,11 +122,11 @@ void board_init(void) {
 #endif
 }
 
-static void configure_pins(usb_hal_context_t *usb) {
+static void configure_pins(usb_hal_context_t* usb) {
   /* usb_periph_iopins currently configures USB_OTG as USB Device.
    * Introduce additional parameters in usb_hal_context_t when adding support
    * for USB Host. */
-  for (const usb_iopin_dsc_t *iopin = usb_periph_iopins; iopin->pin != -1; ++iopin) {
+  for (const usb_iopin_dsc_t* iopin = usb_periph_iopins; iopin->pin != -1; ++iopin) {
     if ((usb->use_external_phy) || (iopin->ext_phy_only == 0)) {
       esp_rom_gpio_pad_select_gpio(iopin->pin);
       if (iopin->is_output) {
@@ -156,20 +167,24 @@ uint32_t board_button_read(void) {
 }
 
 // Get characters from UART
-int board_uart_read(uint8_t *buf, int len) {
+int board_uart_read(uint8_t* buf, int len) {
+#if USE_UART
   return uart_read_bytes(UART_ID, buf, len, 0);
+#else
+  return -1;
+#endif
 }
 
 // Send characters to UART
-int board_uart_write(void const *buf, int len) {
+int board_uart_write(void const* buf, int len) {
   (void) buf;
   (void) len;
   return 0;
 }
 
 int board_getchar(void) {
-  char c;
-  return (uart_read_bytes(UART_ID, &c, 1, 0) > 0) ? (int) c : (-1);
+  uint8_t c = 0;
+  return board_uart_read(&c, 1) > 0 ? (int) c : (-1);
 }
 
 //--------------------------------------------------------------------+
@@ -208,7 +223,7 @@ static void max3421_init(void) {
   gpio_set_level(MAX3421_CS_PIN, 1);
 
   // SPI
-  spi_bus_config_t buscfg={
+  spi_bus_config_t buscfg = {
       .miso_io_num = MAX3421_MISO_PIN,
       .mosi_io_num = MAX3421_MOSI_PIN,
       .sclk_io_num = MAX3421_SCK_PIN,
@@ -220,15 +235,15 @@ static void max3421_init(void) {
       .data7_io_num = -1,
       .max_transfer_sz = 1024
   };
-  ESP_ERROR_CHECK( spi_bus_initialize(MAX3421_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO) );
+  ESP_ERROR_CHECK(spi_bus_initialize(MAX3421_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO));
 
   spi_device_interface_config_t max3421_cfg = {
       .mode = 0,
-      .clock_speed_hz = 4000000, // 26000000
+      .clock_speed_hz = 26000000,
       .spics_io_num = -1, // manual control CS
       .queue_size = 1
   };
-  ESP_ERROR_CHECK( spi_bus_add_device(MAX3421_SPI_HOST, &max3421_cfg, &max3421_spi) );
+  ESP_ERROR_CHECK(spi_bus_add_device(MAX3421_SPI_HOST, &max3421_cfg, &max3421_spi));
 
   // debug
   gpio_set_direction(13, GPIO_MODE_OUTPUT);
@@ -236,7 +251,7 @@ static void max3421_init(void) {
 
   // Interrupt pin
   max3421_intr_sem = xSemaphoreCreateBinary();
-  xTaskCreate(max3421_intr_task, "max3421 intr", 2048, NULL, configMAX_PRIORITIES-2, NULL);
+  xTaskCreate(max3421_intr_task, "max3421 intr", 2048, NULL, configMAX_PRIORITIES - 2, NULL);
 
   gpio_set_direction(MAX3421_INTR_PIN, GPIO_MODE_INPUT);
   gpio_set_intr_type(MAX3421_INTR_PIN, GPIO_INTR_NEGEDGE);
@@ -259,18 +274,20 @@ void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   gpio_set_level(MAX3421_CS_PIN, active ? 0 : 1);
 }
 
-bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx_buf, size_t xfer_bytes) {
   (void) rhport;
 
-  if (tx_len == 0) {
+  if (tx_buf == NULL) {
     // fifo read, transmit rx_buf as dummy
     tx_buf = rx_buf;
-    tx_len = rx_len;
   }
 
+  // length in bits
+  size_t const len_bits = xfer_bytes << 3;
+
   spi_transaction_t xact = {
-      .length = tx_len << 3, // length in bits
-      .rxlength = rx_len << 3, // length in bits
+      .length = len_bits,
+      .rxlength = rx_buf ? len_bits : 0,
       .tx_buffer = tx_buf,
       .rx_buffer = rx_buf
   };
