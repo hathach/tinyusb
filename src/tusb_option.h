@@ -169,6 +169,7 @@
 
 // WCH
 #define OPT_MCU_CH32V307         2200 ///< WCH CH32V307
+#define OPT_MCU_CH32F20X         2210 ///< WCH CH32F20x
 
 
 // NXP LPC MCX

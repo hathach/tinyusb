@@ -56,6 +56,7 @@ hw/mcu/st/stm32u5xx_hal_driver            https://github.com/STMicroelectronics/
 hw/mcu/st/stm32wbxx_hal_driver            https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git  2c5f06638be516c1b772f768456ba637f077bac8
 hw/mcu/ti                                 https://github.com/hathach/ti_driver.git                        143ed6cc20a7615d042b03b21e070197d473e6e5
 hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                         17761f5cf9dbbf2dcf665b7c04934188add20082
+hw/mcu/wch/ch32f20x                       https://github.com/openwch/ch32f20x.git                         77c4095087e5ed2c548ec9058e655d0b8757663b
 lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                     20285262657d1b482d132d20d755c8c330d55c1f
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                 def7d2df2b0506d3d249334974f51e427c17a41c
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                          159e31b689577dbf69cf0683bbaffbd71fa5ee10
