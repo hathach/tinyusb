@@ -40,6 +40,7 @@ if (NOT FAMILY STREQUAL rp2040)
   # enable LTO if supported skip rp2040
   include(CheckIPOSupported)
   check_ipo_supported(RESULT IPO_SUPPORTED)
+  cmake_print_variables(IPO_SUPPORTED)
   if (IPO_SUPPORTED)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
   endif()

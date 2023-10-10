@@ -26,9 +26,6 @@ ifeq '$(findstring ;,$(PATH))' ';'
 CMDEXE := 1
 
 # makefile shell commands should use syntax for DOS CMD, not unix sh
-# Unfortunately, SHELL may point to sh or bash, which can't accept DOS syntax.
-# We can't just use sh, because while sh and/or bash shell may be available,
-# many Windows environments won't have utilities like realpath used below, so...
 # Force DOS command shell on Windows.
 SHELL := cmd.exe
 endif

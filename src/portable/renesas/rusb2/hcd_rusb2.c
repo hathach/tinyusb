@@ -771,8 +771,9 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-void hcd_int_handler(uint8_t rhport)
-{
+void hcd_int_handler(uint8_t rhport, bool in_isr) {
+  (void) in_isr;
+
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   unsigned is0 = rusb->INTSTS0;
   unsigned is1 = rusb->INTSTS1;

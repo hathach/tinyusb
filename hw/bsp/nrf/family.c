@@ -95,13 +95,10 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 
 //------------- Host using MAX2341E -------------//
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+
+static void max3421_init(void);
+
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
-
-void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
-  if (!(pin == MAX3421_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
-
-  tuh_int_handler(1);
-}
 #endif
 
 
@@ -191,50 +188,7 @@ void board_init(void) {
 #endif
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-  // MAX3421 need 3.3v signal (may not be needed)
-  #if defined(UICR_REGOUT0_VOUT_Msk) && 0
-  if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) != UICR_REGOUT0_VOUT_3V3) {
-    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos;
-    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
-
-    NRF_UICR->REGOUT0 = (NRF_UICR->REGOUT0 & ~UICR_REGOUT0_VOUT_Msk) | UICR_REGOUT0_VOUT_3V3;
-
-    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren << NVMC_CONFIG_WEN_Pos;
-    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
-
-    NVIC_SystemReset();
-  }
-  #endif
-
-  // manually manage CS
-  nrf_gpio_cfg_output(MAX3421_CS_PIN);
-  nrf_gpio_pin_write(MAX3421_CS_PIN, 1);
-
-  // USB host using max3421e usb controller via SPI
-  nrfx_spim_config_t cfg = {
-      .sck_pin        = MAX3421_SCK_PIN,
-      .mosi_pin       = MAX3421_MOSI_PIN,
-      .miso_pin       = MAX3421_MISO_PIN,
-      .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
-      .ss_active_high = false,
-      .irq_priority   = 3,
-      .orc            = 0xFF,
-      // default setting 4 Mhz, Mode 0, MSB first
-      .frequency      = NRF_SPIM_FREQ_4M,
-      .mode           = NRF_SPIM_MODE_0,
-      .bit_order      = NRF_SPIM_BIT_ORDER_MSB_FIRST,
-  };
-
-  // no handler --> blocking
-  nrfx_spim_init(&_spi, &cfg, NULL, NULL);
-
-  // max3421e interrupt pin
-  nrfx_gpiote_init(1);
-  nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
-  in_config.pull = NRF_GPIO_PIN_PULLUP;
-
-  nrfx_gpiote_in_init(MAX3421_INTR_PIN, &in_config, max3421_int_handler);
-  nrfx_gpiote_trigger_enable(MAX3421_INTR_PIN, true);
+  max3421_init();
 #endif
 
 }
@@ -251,15 +205,15 @@ uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == nrf_gpio_pin_read(BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t *buf, int len) {
+int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
   return 0;
 //  return NRFX_SUCCESS == nrfx_uart_rx(&_uart_id, buf, (size_t) len) ? len : 0;
 }
 
-int board_uart_write(void const *buf, int len) {
-  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const *) buf, (size_t) len)) ? len : 0;
+int board_uart_write(void const* buf, int len) {
+  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -317,6 +271,61 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
+void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
+  if (!(pin == MAX3421_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
+  tuh_int_handler(1, true);
+}
+
+static void max3421_init(void) {
+  // MAX3421 need 3.3v signal (may not be needed)
+//  #if defined(UICR_REGOUT0_VOUT_Msk)
+//  if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) != UICR_REGOUT0_VOUT_3V3) {
+//    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos;
+//    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
+//
+//    NRF_UICR->REGOUT0 = (NRF_UICR->REGOUT0 & ~UICR_REGOUT0_VOUT_Msk) | UICR_REGOUT0_VOUT_3V3;
+//
+//    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren << NVMC_CONFIG_WEN_Pos;
+//    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
+//
+//    NVIC_SystemReset();
+//  }
+//  #endif
+
+  // manually manage CS
+  nrf_gpio_cfg_output(MAX3421_CS_PIN);
+  nrf_gpio_pin_write(MAX3421_CS_PIN, 1);
+
+  // USB host using max3421e usb controller via SPI
+  nrfx_spim_config_t cfg = {
+      .sck_pin        = MAX3421_SCK_PIN,
+      .mosi_pin       = MAX3421_MOSI_PIN,
+      .miso_pin       = MAX3421_MISO_PIN,
+      .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
+      .ss_active_high = false,
+      .irq_priority   = 3,
+      .orc            = 0xFF,
+      // default setting 4 Mhz, Mode 0, MSB first
+      .frequency      = NRF_SPIM_FREQ_4M,
+      .mode           = NRF_SPIM_MODE_0,
+      .bit_order      = NRF_SPIM_BIT_ORDER_MSB_FIRST,
+  };
+
+  // no handler --> blocking
+  nrfx_spim_init(&_spi, &cfg, NULL, NULL);
+
+  // max3421e interrupt pin
+  nrfx_gpiote_init(1);
+  nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
+  in_config.pull = NRF_GPIO_PIN_PULLUP;
+
+  NVIC_SetPriority(GPIOTE_IRQn, 2);
+
+  nrfx_gpiote_in_init(MAX3421_INTR_PIN, &in_config, max3421_int_handler);
+  nrfx_gpiote_trigger_enable(MAX3421_INTR_PIN, true);
+}
+
+// API to enable/disable MAX3421 INTR pin interrupt
 void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   (void) rhport;
 
@@ -329,22 +338,25 @@ void tuh_max3421_int_api(uint8_t rhport, bool enabled) {
   }
 }
 
+// API to control MAX3421 SPI CS
 void tuh_max3421_spi_cs_api(uint8_t rhport, bool active) {
   (void) rhport;
   nrf_gpio_pin_write(MAX3421_CS_PIN, active ? 0 : 1);
 }
 
-bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const *tx_buf, size_t tx_len, uint8_t *rx_buf, size_t rx_len) {
+// API to transfer data with MAX3421 SPI
+// Either tx_buf or rx_buf can be NULL, which means transfer is write or read only
+bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx_buf, size_t xfer_bytes) {
   (void) rhport;
 
   nrfx_spim_xfer_desc_t xfer = {
       .p_tx_buffer = tx_buf,
-      .tx_length   = tx_len,
+      .tx_length   = tx_buf ? xfer_bytes : 0,
       .p_rx_buffer = rx_buf,
-      .rx_length   = rx_len,
+      .rx_length   = rx_buf ? xfer_bytes : 0,
   };
 
-  return (nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS);
+  return nrfx_spim_xfer(&_spi, &xfer, 0) == NRFX_SUCCESS;
 }
 
 #endif
