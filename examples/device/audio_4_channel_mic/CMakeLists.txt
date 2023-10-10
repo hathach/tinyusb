@@ -23,9 +23,16 @@ target_sources(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
   )
 
+# CMSIS sources
+target_sources(${PROJECT} PUBLIC
+  ${TOP}/lib/CMSIS_5/CMSIS/DSP/Source/CommonTables/arm_common_tables.c
+  ${TOP}/lib/CMSIS_5/CMSIS/DSP/Source/FastMathFunctions/arm_sin_q15.c
+  )
+
 # Example include
 target_include_directories(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${TOP}/lib/CMSIS_5/CMSIS/DSP/Include
   )
 
 # Configure compilation flags and libraries for the example without RTOS.
