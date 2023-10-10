@@ -166,9 +166,8 @@ deps_optional = {
                             'ch32v307'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
-                    'imxrt kinetis_k32l2 kinetis_kl lpc11 lpc13 lpc15 lpc17 lpc18 lpc40'
-                    'lpc43 lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x rp2040'
-                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4'
+                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'
+                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 '
                     'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',

@@ -23,17 +23,15 @@ target_sources(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
   )
 
-# CMSIS sources
-target_sources(${PROJECT} PUBLIC
-  ${TOP}/lib/CMSIS_5/CMSIS/DSP/Source/CommonTables/arm_common_tables.c
-  ${TOP}/lib/CMSIS_5/CMSIS/DSP/Source/FastMathFunctions/arm_sin_q15.c
-  )
-
 # Example include
 target_include_directories(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${TOP}/lib/CMSIS_5/CMSIS/DSP/Include
   )
+
+# Add libm for GCC
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+  target_link_libraries(${PROJECT} PUBLIC m)
+endif()
 
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
