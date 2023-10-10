@@ -631,9 +631,9 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
 // Decoding according to 2.3.1.5 Audio Streams
 
 // Helper function
-static inline void * audiod_interleaved_copy_bytes_fast_decode(uint16_t const nBytesToCopy, void * dst, const void * dst_end, void * src, uint8_t const n_ff_used)
+static inline void * audiod_interleaved_copy_bytes_fast_decode(uint16_t const nBytesPerSample, void * dst, const void * dst_end, void * src, uint8_t const n_ff_used)
 {
-  // Due to one FIFO contains 2 channels, data always aligned to (nBytesToCopy * 2)
+  // Due to one FIFO contains 2 channels, data always aligned to (nBytesPerSample * 2)
   uint16_t * dst16 = dst;
   uint16_t * src16 = src;
   const uint16_t * dst_end16 = dst_end;
@@ -641,7 +641,7 @@ static inline void * audiod_interleaved_copy_bytes_fast_decode(uint16_t const nB
   uint32_t * src32 = src;
   const uint32_t * dst_end32 = dst_end;
 
-  if (nBytesToCopy == 1)
+  if (nBytesPerSample == 1)
   {
     while(dst16 < dst_end16)
     {
@@ -650,7 +650,7 @@ static inline void * audiod_interleaved_copy_bytes_fast_decode(uint16_t const nB
     }
     return src16;
   }
-  else if (nBytesToCopy == 2)
+  else if (nBytesPerSample == 2)
   {
     while(dst32 < dst_end32)
     {
@@ -659,7 +659,7 @@ static inline void * audiod_interleaved_copy_bytes_fast_decode(uint16_t const nB
     }
     return src32;
   }
-  else if (nBytesToCopy == 3)
+  else if (nBytesPerSample == 3)
   {
     while(dst16 < dst_end16)
     {
@@ -670,7 +670,7 @@ static inline void * audiod_interleaved_copy_bytes_fast_decode(uint16_t const nB
     }
     return src16;
   }
-  else // nBytesToCopy == 4
+  else // nBytesPerSample == 4
   {
     while(dst32 < dst_end32)
     {
@@ -926,9 +926,9 @@ range [-1, +1)
  * */
 
 // Helper function
-static inline void * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nBytesToCopy, void * src, const void * src_end, void * dst, uint8_t const n_ff_used)
+static inline void * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nBytesPerSample, void * src, const void * src_end, void * dst, uint8_t const n_ff_used)
 {
-  // Due to one FIFO contains 2 channels, data always aligned to (nBytesToCopy * 2)
+  // Due to one FIFO contains 2 channels, data always aligned to (nBytesPerSample * 2)
   uint16_t * dst16 = dst;
   uint16_t * src16 = src;
   const uint16_t * src_end16 = src_end;
@@ -936,7 +936,7 @@ static inline void * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nB
   uint32_t * src32 = src;
   const uint32_t * src_end32 = src_end;
 
-  if (nBytesToCopy == 1)
+  if (nBytesPerSample == 1)
   {
     while(src16 < src_end16)
     {
@@ -945,7 +945,7 @@ static inline void * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nB
     }
     return dst16;
   }
-  else if (nBytesToCopy == 2)
+  else if (nBytesPerSample == 2)
   {
     while(src32 < src_end32)
     {
@@ -954,7 +954,7 @@ static inline void * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nB
     }
     return dst32;
   }
-  else if (nBytesToCopy == 3)
+  else if (nBytesPerSample == 3)
   {
     while(src16 < src_end16)
     {
@@ -965,7 +965,7 @@ static inline void * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nB
     }
     return dst16;
   }
-  else // nBytesToCopy == 4
+  else // nBytesPerSample == 4
   {
     while(src32 < src_end32)
     {
