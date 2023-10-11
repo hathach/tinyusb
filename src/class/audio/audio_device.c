@@ -631,73 +631,55 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
 // Decoding according to 2.3.1.5 Audio Streams
 
 // Helper function
-static inline uint8_t * audiod_interleaved_copy_bytes_fast_decode(uint16_t const nBytesToCopy, void * dst, uint8_t * dst_end, uint8_t * src, uint8_t const n_ff_used)
+static inline void * audiod_interleaved_copy_bytes_fast_decode(uint16_t const nBytesPerSample, void * dst, const void * dst_end, void * src, uint8_t const n_ff_used)
 {
+  // Due to one FIFO contains 2 channels, data always aligned to (nBytesPerSample * 2)
+  uint16_t * dst16 = dst;
+  uint16_t * src16 = src;
+  const uint16_t * dst_end16 = dst_end;
+  uint32_t * dst32 = dst;
+  uint32_t * src32 = src;
+  const uint32_t * dst_end32 = dst_end;
 
-  // This function is an optimized version of
-  //  while((uint8_t *)dst < dst_end)
-  //  {
-  //    memcpy(dst, src, nBytesToCopy);
-  //    dst = (uint8_t *)dst + nBytesToCopy;
-  //    src += nBytesToCopy * n_ff_used;
-  //  }
-
-  // Optimize for fast half word copies
-  typedef struct{
-    uint16_t val;
-  } __attribute((__packed__)) unaligned_uint16_t;
-
-  // Optimize for fast word copies
-  typedef struct{
-    uint32_t val;
-  } __attribute((__packed__)) unaligned_uint32_t;
-
-  switch (nBytesToCopy)
+  if (nBytesPerSample == 1)
   {
-    case 1:
-      while((uint8_t *)dst < dst_end)
-      {
-        *(uint8_t *)dst++ = *src;
-        src += n_ff_used;
-      }
-      break;
-
-    case 2:
-      while((uint8_t *)dst < dst_end)
-      {
-        *(unaligned_uint16_t*)dst = *(unaligned_uint16_t*)src;
-        dst += 2;
-        src += 2 * n_ff_used;
-      }
-      break;
-
-    case 3:
-      while((uint8_t *)dst < dst_end)
-      {
-        //        memcpy(dst, src, 3);
-        //        dst = (uint8_t *)dst + 3;
-        //        src += 3 * n_ff_used;
-
-        // TODO: Is there a faster way to copy 3 bytes?
-        *(uint8_t *)dst++ = *src++;
-        *(uint8_t *)dst++ = *src++;
-        *(uint8_t *)dst++ = *src++;
-
-        src += 3 * (n_ff_used - 1);
-      }
-      break;
-
-    case 4:
-      while((uint8_t *)dst < dst_end)
-      {
-        *(unaligned_uint32_t*)dst = *(unaligned_uint32_t*)src;
-        dst += 4;
-        src += 4 * n_ff_used;
-      }
-      break;
+    while(dst16 < dst_end16)
+    {
+      *dst16++ = *src16++;
+      src16 += n_ff_used - 1;
+    }
+    return src16;
   }
-
-  return src;
+  else if (nBytesPerSample == 2)
+  {
+    while(dst32 < dst_end32)
+    {
+      *dst32++ = *src32++;
+      src32 += n_ff_used - 1;
+    }
+    return src32;
+  }
+  else if (nBytesPerSample == 3)
+  {
+    while(dst16 < dst_end16)
+    {
+      *dst16++ = *src16++;
+      *dst16++ = *src16++;
+      *dst16++ = *src16++;
+      src16 += 3 * (n_ff_used - 1);
+    }
+    return src16;
+  }
+  else // nBytesPerSample == 4
+  {
+    while(dst32 < dst_end32)
+    {
+      *dst32++ = *src32++;
+      *dst32++ = *src32++;
+      src32 += 2 * (n_ff_used - 1);
+    }
+    return src32;
+  }
 }
 
 static bool audiod_decode_type_I_pcm(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received)
@@ -944,64 +926,55 @@ range [-1, +1)
  * */
 
 // Helper function
-static inline uint8_t * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nBytesToCopy, uint8_t * src, uint8_t * src_end, uint8_t * dst, uint8_t const n_ff_used)
+static inline void * audiod_interleaved_copy_bytes_fast_encode(uint16_t const nBytesPerSample, void * src, const void * src_end, void * dst, uint8_t const n_ff_used)
 {
-  // Optimize for fast half word copies
-  typedef struct{
-    uint16_t val;
-  } __attribute((__packed__)) unaligned_uint16_t;
+  // Due to one FIFO contains 2 channels, data always aligned to (nBytesPerSample * 2)
+  uint16_t * dst16 = dst;
+  uint16_t * src16 = src;
+  const uint16_t * src_end16 = src_end;
+  uint32_t * dst32 = dst;
+  uint32_t * src32 = src;
+  const uint32_t * src_end32 = src_end;
 
-  // Optimize for fast word copies
-  typedef struct{
-    uint32_t val;
-  } __attribute((__packed__)) unaligned_uint32_t;
-
-  switch (nBytesToCopy)
+  if (nBytesPerSample == 1)
   {
-    case 1:
-      while(src < src_end)
-      {
-        *dst = *src++;
-        dst += n_ff_used;
-      }
-      break;
-
-    case 2:
-      while(src < src_end)
-      {
-        *(unaligned_uint16_t*)dst = *(unaligned_uint16_t*)src;
-        src += 2;
-        dst += 2 * n_ff_used;
-      }
-      break;
-
-    case 3:
-      while(src < src_end)
-      {
-        //        memcpy(dst, src, 3);
-        //        src = (uint8_t *)src + 3;
-        //        dst += 3 * n_ff_used;
-
-        // TODO: Is there a faster way to copy 3 bytes?
-        *dst++ = *src++;
-        *dst++ = *src++;
-        *dst++ = *src++;
-
-        dst += 3 * (n_ff_used - 1);
-      }
-      break;
-
-    case 4:
-      while(src < src_end)
-      {
-        *(unaligned_uint32_t*)dst = *(unaligned_uint32_t*)src;
-        src += 4;
-        dst += 4 * n_ff_used;
-      }
-      break;
+    while(src16 < src_end16)
+    {
+      *dst16++ = *src16++;
+      dst16 += n_ff_used - 1;
+    }
+    return dst16;
   }
-
-  return dst;
+  else if (nBytesPerSample == 2)
+  {
+    while(src32 < src_end32)
+    {
+      *dst32++ = *src32++;
+      dst32 += n_ff_used - 1;
+    }
+    return dst32;
+  }
+  else if (nBytesPerSample == 3)
+  {
+    while(src16 < src_end16)
+    {
+      *dst16++ = *src16++;
+      *dst16++ = *src16++;
+      *dst16++ = *src16++;
+      dst16 += 3 * (n_ff_used - 1);
+    }
+    return dst16;
+  }
+  else // nBytesPerSample == 4
+  {
+    while(src32 < src_end32)
+    {
+      *dst32++ = *src32++;
+      *dst32++ = *src32++;
+      dst32 += 2 * (n_ff_used - 1);
+    }
+    return dst32;
+  }
 }
 
 static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audio)

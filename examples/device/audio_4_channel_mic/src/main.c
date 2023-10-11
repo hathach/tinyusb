@@ -34,17 +34,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "tusb_config.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
-
-#ifndef AUDIO_SAMPLE_RATE
-#define AUDIO_SAMPLE_RATE   48000
-#endif
+#define AUDIO_SAMPLE_RATE   CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE
 
 /* Blink pattern
  * - 250 ms  : device not mounted
@@ -70,7 +69,7 @@ uint8_t clkValid;
 audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX+1]; 			// Volume range state
 audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range state
 
-// Audio test data
+// Audio test data, each buffer contains 2 channels, buffer[0] for CH0-1, buffer[1] for CH1-2
 uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ/2];   // Ensure half word aligned
 
 void led_blinking_task(void);
@@ -96,6 +95,27 @@ int main(void)
   sampleFreqRng.subrange[0].bMin = AUDIO_SAMPLE_RATE;
   sampleFreqRng.subrange[0].bMax = AUDIO_SAMPLE_RATE;
   sampleFreqRng.subrange[0].bRes = 0;
+
+  // Generate dummy data
+  uint16_t * p_buff = i2s_dummy_buffer[0];
+  uint16_t dataVal = 1;
+  for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
+  {
+    // CH0 saw wave
+    *p_buff++ = dataVal;
+    // CH1 inverted saw wave
+    *p_buff++ = 60 + AUDIO_SAMPLE_RATE/1000 - dataVal;
+    dataVal++;
+  }
+  p_buff = i2s_dummy_buffer[1];
+  for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
+  {
+    // CH3 square wave
+    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 120:170;
+    // CH4 sinus wave
+    float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
+    *p_buff++ = (uint16_t)(sinf(t) * 25) + 200;
+  }
 
   while (1)
   {
@@ -400,7 +420,17 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   (void) ep_in;
   (void) cur_alt_setting;
 
-  for (uint8_t cnt=0; cnt < CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO; cnt++)
+
+  // In read world application data flow is driven by I2S clock,
+  // both tud_audio_tx_done_pre_load_cb() & tud_audio_tx_done_post_load_cb() are hardly used.
+  // For example in your I2S receive callback:
+  // void I2S_Rx_Callback(int channel, const void* data, uint16_t samples)
+  // {
+  //    tud_audio_write_support_ff(channel, data, samples * N_BYTES_PER_SAMPLE * N_CHANNEL_PER_FIFO);
+  // }
+
+  // Write I2S buffer into FIFO
+  for (uint8_t cnt=0; cnt < 2; cnt++)
   {
     tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
   }
@@ -416,22 +446,6 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
   (void) ep_in;
   (void) cur_alt_setting;
 
-  uint16_t dataVal;
-
-  // Generate dummy data
-  for (uint16_t cnt = 0; cnt < CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO; cnt++)
-  {
-    uint16_t * p_buff = i2s_dummy_buffer[cnt];              // 2 bytes per sample
-    dataVal = 1;
-    for (uint16_t cnt2 = 0; cnt2 < AUDIO_SAMPLE_RATE/1000; cnt2++)
-    {
-      for (uint8_t cnt3 = 0; cnt3 < CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX; cnt3++)
-      {
-        *p_buff++ = dataVal;
-      }
-      dataVal++;
-    }
-  }
   return true;
 }
 
