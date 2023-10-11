@@ -39,6 +39,13 @@
 #ifndef CFG_TUD_BTH_DATA_EPSIZE
 #define CFG_TUD_BTH_DATA_EPSIZE      64
 #endif
+#ifndef CFG_TUD_BTH_HISTORICAL_COMPAT
+#define CFG_TUD_BTH_HISTORICAL_COMPAT 0
+#endif
+#ifndef CFG_TUD_BTH_ISO_ALT_COUNT
+// See Bluetooth Core v5.3, Vol. 4, Part B, Section 2.1
+#error You must tell the driver the number of ISO endpoints to use
+#endif
 
 typedef struct TU_ATTR_PACKED
 {
