@@ -2614,25 +2614,39 @@ static uint16_t audiod_tx_packet_size(const uint16_t* norminal_size, uint16_t da
   // Flow control need a FIFO size of at least 4*Navg
   if(norminal_size[1] && norminal_size[1] <= fifo_depth * 4)
   {
+    // Use blackout to prioritize normal size packet
+    static int ctrl_blackout = 0;
     uint16_t packet_size;
     uint16_t slot_size = norminal_size[2] - norminal_size[1];
-    if (data_count < fifo_depth / 2 - slot_size)
+    if (data_count < norminal_size[0])
     {
-      if (data_count < norminal_size[0])
-      {
         // If you get here frequently, then your I2S clock deviation is too big !
         packet_size = 0;
-      } else
-      {
-        packet_size = norminal_size[0];
-      }
-    }
-    else if (data_count > fifo_depth / 2 + slot_size)
+    } else
+    if (data_count < fifo_depth / 2 - slot_size && !ctrl_blackout)
+    {
+      packet_size = norminal_size[0];
+      ctrl_blackout = 10;
+    } else
+    if (data_count > fifo_depth / 2 + slot_size && !ctrl_blackout)
     {
       packet_size = norminal_size[2];
+      if(norminal_size[0] == norminal_size[1])
+      {
+        // nav = INT(nav) + 1
+        ctrl_blackout = 2;
+      } else
+      {
+        // nav = INT(nav)
+        ctrl_blackout = 10;
+      }
     } else
     {
       packet_size = norminal_size[1];
+      if (ctrl_blackout)
+      {
+        ctrl_blackout--;
+      }
     }
     // Normally this cap is not necessary
     return tu_min16(packet_size, max_depth);
