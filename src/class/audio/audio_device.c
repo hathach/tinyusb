@@ -217,7 +217,7 @@ uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
 // Software encoding/decoding support FIFOs
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
   #if CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ > 0
-    CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_1[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ];
+    CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_1[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ];
     tu_fifo_t tx_supp_ff_1[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO];
     #if CFG_FIFO_MUTEX
     osal_mutex_def_t tx_supp_ff_mutex_wr_1[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO]; // No need for read mutex as only USB driver reads from FIFO
@@ -225,7 +225,7 @@ uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
   #endif
 
   #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ > 0
-    CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_2[CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ];
+    CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_2[CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ];
     tu_fifo_t tx_supp_ff_2[CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO];
     #if CFG_FIFO_MUTEX
     osal_mutex_def_t tx_supp_ff_mutex_wr_2[CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO]; // No need for read mutex as only USB driver reads from FIFO
@@ -233,7 +233,7 @@ uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
   #endif
 
   #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ > 0
-    CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ];
+    CFG_TUSB_MEM_ALIGN uint8_t tx_supp_ff_buf_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ];
     tu_fifo_t tx_supp_ff_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO];
     #if CFG_FIFO_MUTEX
     osal_mutex_def_t tx_supp_ff_mutex_wr_3[CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO]; // No need for read mutex as only USB driver reads from FIFO
@@ -243,7 +243,7 @@ uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
   #if CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ > 0
-    CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_1[CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ];
+    CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_1[CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ];
     tu_fifo_t rx_supp_ff_1[CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO];
     #if CFG_FIFO_MUTEX
     osal_mutex_def_t rx_supp_ff_mutex_rd_1[CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO]; // No need for write mutex as only USB driver writes into FIFO
@@ -251,7 +251,7 @@ uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
   #endif
 
   #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ > 0
-    CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_2[CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ];
+    CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_2[CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ];
     tu_fifo_t rx_supp_ff_2[CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO];
     #if CFG_FIFO_MUTEX
     osal_mutex_def_t rx_supp_ff_mutex_rd_2[CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO]; // No need for write mutex as only USB driver writes into FIFO
@@ -259,7 +259,7 @@ uint8_t alt_setting_3[CFG_TUD_AUDIO_FUNC_3_N_AS_INT];
   #endif
 
   #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ > 0
-    CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ];
+    CFG_TUSB_MEM_ALIGN uint8_t rx_supp_ff_buf_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ];
     tu_fifo_t rx_supp_ff_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO];
     #if CFG_FIFO_MUTEX
     osal_mutex_def_t rx_supp_ff_mutex_rd_3[CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO]; // No need for write mutex as only USB driver writes into FIFO
@@ -2519,7 +2519,7 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
       }
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
       if (as_itf == audio->ep_out_as_intf_num)
       {
         audio->n_channels_rx = ((audio_desc_cs_as_interface_t const * )p_desc)->bNrChannels;
@@ -2552,7 +2552,7 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
       }
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
       if (as_itf == audio->ep_out_as_intf_num)
       {
         audio->n_bytes_per_sampe_rx = ((audio_desc_type_I_format_t const * )p_desc)->bSubslotSize;
@@ -2580,12 +2580,12 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t* audio)
 
   const uint8_t interval = (tud_speed_get() == TUSB_SPEED_FULL) ? audio->interval_tx : 1 << (audio->interval_tx - 1);
 
-  const uint32_t sample_normimal = audio->sample_rate_tx * interval / ((tud_speed_get() == TUSB_SPEED_FULL) ? 1000 : 8000);
-  const uint32_t sample_reminder = audio->sample_rate_tx * interval % ((tud_speed_get() == TUSB_SPEED_FULL) ? 1000 : 8000);
+  const uint16_t sample_normimal = (uint16_t)(audio->sample_rate_tx * interval / ((tud_speed_get() == TUSB_SPEED_FULL) ? 1000 : 8000));
+  const uint16_t sample_reminder = (uint16_t)(audio->sample_rate_tx * interval % ((tud_speed_get() == TUSB_SPEED_FULL) ? 1000 : 8000));
 
-  const uint16_t packet_sz_tx_min = (sample_normimal - 1) * audio->n_channels_tx * audio->n_bytes_per_sampe_tx;
-  const uint16_t packet_sz_tx_norm = sample_normimal * audio->n_channels_tx * audio->n_bytes_per_sampe_tx;
-  const uint16_t packet_sz_tx_max = (sample_normimal + 1) * audio->n_channels_tx * audio->n_bytes_per_sampe_tx;
+  const uint16_t packet_sz_tx_min = (uint16_t)((sample_normimal - 1) * audio->n_channels_tx * audio->n_bytes_per_sampe_tx);
+  const uint16_t packet_sz_tx_norm = (uint16_t)(sample_normimal * audio->n_channels_tx * audio->n_bytes_per_sampe_tx);
+  const uint16_t packet_sz_tx_max = (uint16_t)((sample_normimal + 1) * audio->n_channels_tx * audio->n_bytes_per_sampe_tx);
 
   // Endpoint size must larger than packet size
   TU_ASSERT(packet_sz_tx_max <= audio->ep_in_sz);
