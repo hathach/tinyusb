@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += lib/FreeRTOS-Kernel
-
 include ../../make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
@@ -10,7 +8,7 @@ INC += \
 	src/FreeRTOSConfig \
 	$(TOP)/hw \
 	$(TOP)/$(FREERTOS_SRC)/include \
-	$(TOP)/$(FREERTOS_PORTABLE_SRC)
+	$(TOP)/$(FREERTOS_PORTABLE_SRC) \
 
 # Example source
 EXAMPLE_SOURCE = \

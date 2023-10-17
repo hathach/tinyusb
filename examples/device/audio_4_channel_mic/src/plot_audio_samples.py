@@ -10,7 +10,7 @@ if __name__ == '__main__':
     # print(sd.query_devices())
 
     fs = 48000  		# Sample rate
-    duration = 100e-3   # Duration of recording
+    duration = 20e-3   # Duration of recording
 
     if platform.system() == 'Windows':
         # WDM-KS is needed since there are more than one MicNode device APIs (at least in Windows)
@@ -25,9 +25,14 @@ if __name__ == '__main__':
     sd.wait()  # Wait until recording is finished
     print('Done!')
 
+
     time = np.arange(0, duration, 1 / fs)  # time vector
+    # strip starting zero
+    myrecording = myrecording[100:]
+    time = time[100:]
     plt.plot(time, myrecording)
     plt.xlabel('Time [s]')
     plt.ylabel('Amplitude')
     plt.title('MicNode 4 Channel')
+    plt.legend(['CH-1', 'CH-2', 'CH-3','CH-4'])
     plt.show()

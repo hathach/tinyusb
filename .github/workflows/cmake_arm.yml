@@ -36,10 +36,13 @@ jobs:
           - 'imxrt'
           - 'kinetis_kl'
           - 'lpc18 lpc40 lpc43'
-          - 'lpc55'
+          - 'lpc54 lpc55'
           - 'mcx'
+          - 'nrf'
           - 'ra'
           - 'rp2040'
+          - 'samd21'
+          - 'samd51'
           - 'stm32f0'
           - 'stm32f1'
           - 'stm32f4'
@@ -48,6 +51,7 @@ jobs:
           - 'stm32g4'
           - 'stm32h7'
           - 'stm32l4'
+          - 'stm32u5'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4

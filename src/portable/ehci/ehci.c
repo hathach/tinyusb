@@ -656,8 +656,8 @@ void process_period_xfer_isr(uint8_t rhport, uint32_t interval_ms)
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
-void hcd_int_handler(uint8_t rhport)
-{
+void hcd_int_handler(uint8_t rhport, bool in_isr) {
+  (void) in_isr;
   ehci_registers_t* regs = ehci_data.regs;
   uint32_t const int_status = regs->status;
 

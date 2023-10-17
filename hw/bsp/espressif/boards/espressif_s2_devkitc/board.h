@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2020, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,57 +24,22 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup Group_Common Common Files
- *  \defgroup Group_TimeoutTimer timeout timer
- *  @{ */
-
-#ifndef _TUSB_TIMEOUT_H_
-#define _TUSB_TIMEOUT_H_
-
-#include <stdbool.h>
-#include <stdint.h>
+#ifndef BOARD_H_
+#define BOARD_H_
 
 #ifdef __cplusplus
-extern "C" {
+ extern "C" {
 #endif
 
-typedef struct {
-  uint32_t start;
-  uint32_t interval;
-}tu_timeout_t;
+// Note: On the production version (v1.2) WS2812 is connected to GPIO 18,
+// however earlier revision v1.1 WS2812 is connected to GPIO 17
+#define NEOPIXEL_PIN          18
 
-#if 0
-
-extern uint32_t tusb_hal_millis(void);
-
-static inline void tu_timeout_set(tu_timeout_t* tt, uint32_t msec)
-{
-  tt->interval = msec;
-  tt->start    = tusb_hal_millis();
-}
-
-static inline bool tu_timeout_expired(tu_timeout_t* tt)
-{
-  return ( tusb_hal_millis() - tt->start ) >= tt->interval;
-}
-
-// For used with periodic event to prevent drift
-static inline void tu_timeout_reset(tu_timeout_t* tt)
-{
-  tt->start += tt->interval;
-}
-
-static inline void tu_timeout_restart(tu_timeout_t* tt)
-{
-  tt->start = tusb_hal_millis();
-}
-
-#endif
+#define BUTTON_PIN            0
+#define BUTTON_STATE_ACTIVE   0
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_TIMEOUT_H_ */
-
-/** @} */
+#endif /* BOARD_H_ */

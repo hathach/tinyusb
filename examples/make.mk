@@ -26,9 +26,6 @@ ifeq '$(findstring ;,$(PATH))' ';'
 CMDEXE := 1
 
 # makefile shell commands should use syntax for DOS CMD, not unix sh
-# Unfortunately, SHELL may point to sh or bash, which can't accept DOS syntax.
-# We can't just use sh, because while sh and/or bash shell may be available,
-# many Windows environments won't have utilities like realpath used below, so...
 # Force DOS command shell on Windows.
 SHELL := cmd.exe
 endif
@@ -73,7 +70,6 @@ ifeq ($(FAMILY),)
 else
   # Include Family and Board specific defs
   include $(TOP)/$(FAMILY_PATH)/family.mk
-
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
@@ -84,9 +80,6 @@ CROSS_COMPILE ?= arm-none-eabi-
 
 ifeq ($(TOOLCHAIN),iar)
 CC := iccarm
-endif
-
-ifeq ($(CC),iccarm)
 USE_IAR = 1
 endif
 
@@ -105,12 +98,11 @@ endif
 #-------------- Source files and compiler flags --------------
 # tinyusb makefile
 include $(TOP)/src/tinyusb.mk
+SRC_C += $(TINYUSB_SRC_C)
 
 # Include all source C in family & board folder
 SRC_C += hw/bsp/board.c
 SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
-
-SRC_C += $(TINYUSB_SRC_C)
 
 INC += \
   $(TOP)/$(FAMILY_PATH) \
@@ -118,6 +110,12 @@ INC += \
 
 BOARD_UPPER = $(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,$(subst x,X,$(subst y,Y,$(subst z,Z,$(subst -,_,$(BOARD))))))))))))))))))))))))))))
 CFLAGS += -DBOARD_$(BOARD_UPPER)
+
+# use max3421 as host controller
+ifeq (${MAX3421_HOST},1)
+  SRC_C += src/portable/analog/max3421/hcd_max3421.c
+  CFLAGS += -DCFG_TUH_MAX3421=1
+endif
 
 # Log level is mapped to TUSB DEBUG option
 ifneq ($(LOG),)

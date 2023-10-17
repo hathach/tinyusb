@@ -26,50 +26,46 @@ set(FAMILY_MCUS STM32G4 CACHE INTERNAL "")
 #------------------------------------
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
-  if (NOT TARGET ${BOARD_TARGET})
-    # Startup & Linker script
-    set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
-    set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
-    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+  if (TARGET ${BOARD_TARGET})
+    return()
+  endif ()
 
-    add_library(${BOARD_TARGET} STATIC
-      ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
-      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart_ex.c
-      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
-      )
-    target_include_directories(${BOARD_TARGET} PUBLIC
-      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-      ${CMSIS_5}/CMSIS/Core/Include
-      ${ST_CMSIS}/Include
-      ${ST_HAL_DRIVER}/Inc
-      )
-    target_compile_options(${BOARD_TARGET} PUBLIC
-      )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      )
+  # Startup & Linker script
+  set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+  set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+  set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
-    update_board(${BOARD_TARGET})
+  add_library(${BOARD_TARGET} STATIC
+    ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart_ex.c
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    )
+  target_include_directories(${BOARD_TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    ${CMSIS_5}/CMSIS/Core/Include
+    ${ST_CMSIS}/Include
+    ${ST_HAL_DRIVER}/Inc
+    )
+  update_board(${BOARD_TARGET})
 
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--script=${LD_FILE_GNU}"
-        -nostartfiles
-        # nanolib
-        --specs=nosys.specs
-        --specs=nano.specs
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--config=${LD_FILE_IAR}"
-        )
-    endif ()
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      -nostartfiles
+      # nanolib
+      --specs=nosys.specs --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
   endif ()
 endfunction()
 
