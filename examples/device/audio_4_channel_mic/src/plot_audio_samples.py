@@ -10,11 +10,11 @@ if __name__ == '__main__':
     # print(sd.query_devices())
 
     fs = 48000  		# Sample rate
-    duration = 20e-3   # Duration of recording
+    duration = 1   # Duration of recording
 
     if platform.system() == 'Windows':
         # WDM-KS is needed since there are more than one MicNode device APIs (at least in Windows)
-        device = 'Microphone (MicNode_4_Ch), Windows WDM-KS'
+        device = 'Microphone (MicNode_4_Ch), Windows WASAPI'
     elif platform.system() == 'Darwin':
         device = 'MicNode_4_Ch'
     else:
@@ -28,8 +28,7 @@ if __name__ == '__main__':
 
     time = np.arange(0, duration, 1 / fs)  # time vector
     # strip starting zero
-    myrecording = myrecording[100:]
-    time = time[100:]
+
     plt.plot(time, myrecording)
     plt.xlabel('Time [s]')
     plt.ylabel('Amplitude')

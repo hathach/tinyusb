@@ -181,6 +181,11 @@
 #endif
 #endif
 
+// (For TYPE-I format only) Flow control is necessary to allow IN ep send correct amount of data, unless it's a virtual device where data is perfectly synchronized to USB clock.
+#ifndef CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+#define CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL  1
+#endif
+
 // Enable/disable feedback EP (required for asynchronous RX applications)
 #ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP                    0                             // Feedback - 0 or 1
@@ -390,6 +395,10 @@ tu_fifo_t* tud_audio_n_get_tx_support_ff          (uint8_t func_id, uint8_t ff_i
 
 #if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
 uint16_t    tud_audio_int_ctr_n_write             (uint8_t func_id, uint8_t const* buffer, uint16_t len);
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+bool tud_audio_n_set_tx_flow_control       (uint8_t func_id, uint32_t sample_rate);
 #endif
 
 //--------------------------------------------------------------------+
@@ -667,6 +676,13 @@ static inline tu_fifo_t* tud_audio_get_tx_support_ff(uint8_t ff_idx)
 static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t len)
 {
   return tud_audio_int_ctr_n_write(0, buffer, len);
+}
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+static inline bool tud_audio_set_tx_flow_control(uint32_t sample_rate)
+{
+  return tud_audio_n_set_tx_flow_control(0, sample_rate);
 }
 #endif
 

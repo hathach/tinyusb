@@ -364,14 +364,21 @@ typedef struct
 #endif
 #endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+  uint32_t sample_rate_tx;
+  uint16_t packet_sz_tx[3];
+  uint8_t bclock_id_tx;
+  uint8_t interval_tx;
+#endif
+
   // Encoding parameters - parameters are set when alternate AS interface is set by host
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && (CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL)
   audio_format_type_t format_type_tx;
   uint8_t n_channels_tx;
+  uint8_t n_bytes_per_sampe_tx;
 
 #if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
   audio_data_format_type_I_t format_type_I_tx;
-  uint8_t n_bytes_per_sampe_tx;
   uint8_t n_channels_per_ff_tx;
   uint8_t n_ff_used_tx;
 #endif
@@ -444,13 +451,17 @@ static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *func_id);
 static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *func_id);
 static uint8_t audiod_get_audio_fct_idx(audiod_function_t * audio);
 
-#if CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_ENABLE_DECODING
+#if (CFG_TUD_AUDIO_ENABLE_EP_IN && (CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL || CFG_TUD_AUDIO_ENABLE_ENCODING)) || (CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING)
 static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const * p_desc, uint8_t const * p_desc_end, uint8_t const as_itf);
 
 static inline uint8_t tu_desc_subtype(void const* desc)
 {
   return ((uint8_t const*) desc)[2];
 }
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+static bool audiod_tx_calc_packet_size(const uint16_t* norminal_size, uint16_t data_size, uint16_t fifo_size, uint16_t* packet_size);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -821,6 +832,57 @@ uint16_t tud_audio_int_ctr_n_write(uint8_t func_id, uint8_t const* buffer, uint1
 
 #endif
 
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+
+bool tud_audio_n_set_tx_flow_control(uint8_t func_id, uint32_t sample_rate)
+{
+  TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
+  audiod_function_t* audio = &_audiod_fct[func_id];
+
+  TU_VERIFY(audio->format_type_tx == AUDIO_FORMAT_TYPE_I);
+  TU_VERIFY(audio->n_channels_tx);
+  TU_VERIFY(audio->n_bytes_per_sampe_tx);
+  TU_VERIFY(audio->interval_tx);
+
+  if (sample_rate == 0)
+  {
+    audio->packet_sz_tx[0] = 0;
+    audio->packet_sz_tx[1] = 0;
+    audio->packet_sz_tx[2] = 0;
+    return false;
+  }
+
+  const uint8_t interval = (tud_speed_get() == TUSB_SPEED_FULL) ? audio->interval_tx : 1 << (audio->interval_tx - 1);
+
+  const uint32_t sample_normimal = sample_rate * interval / ((tud_speed_get() == TUSB_SPEED_FULL) ? 1000 : 8000);
+  const uint32_t sample_reminder = sample_rate * interval % ((tud_speed_get() == TUSB_SPEED_FULL) ? 1000 : 8000);
+
+  const uint16_t packet_sz_tx_min = (sample_normimal - 1) * audio->n_channels_tx * audio->n_bytes_per_sampe_tx;
+  const uint16_t packet_sz_tx_norm = sample_normimal * audio->n_channels_tx * audio->n_bytes_per_sampe_tx;
+  const uint16_t packet_sz_tx_max = (sample_normimal + 1) * audio->n_channels_tx * audio->n_bytes_per_sampe_tx;
+
+  TU_ASSERT(packet_sz_tx_max <= audio->ep_in_sz);
+
+  // Frmt20.pdf 2.3.1.1 USB Packets
+  if (sample_reminder)
+  {
+    // All virtual frame packets must either contain INT(nav) audio slots (small VFP) or INT(nav)+1 (large VFP) audio slots
+    audio->packet_sz_tx[0] = packet_sz_tx_norm;
+    audio->packet_sz_tx[1] = packet_sz_tx_norm;
+    audio->packet_sz_tx[2] = packet_sz_tx_max;
+  } else
+  {
+    // In the case where nav = INT(nav), ni may vary between INT(nav)-1 (small VFP), INT(nav)
+    // (medium VFP) and INT(nav)+1 (large VFP).
+    audio->packet_sz_tx[0] = packet_sz_tx_min;
+    audio->packet_sz_tx[1] = packet_sz_tx_norm;
+    audio->packet_sz_tx[2] = packet_sz_tx_max;
+  }
+
+  return true;
+}
+
+#endif
 
 // This function is called once a transmit of an audio packet was successfully completed. Here, we encode samples and place it in IN EP's buffer for next transmission.
 // If you prefer your own (more efficient) implementation suiting your purpose set CFG_TUD_AUDIO_ENABLE_ENCODING = 0 and use tud_audio_n_write.
@@ -886,9 +948,16 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_function_t * audio)
 
 #else
   // No support FIFOs, if no linear buffer required schedule transmit, else put data into linear buffer and schedule
-
+#if CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+  uint16_t tgt_packet_sz;
+  // packet_sz_tx is based on total packet size, here we want size for each support buffer.
+  if (audiod_tx_calc_packet_size(audio->packet_sz_tx, tu_fifo_count(&audio->ep_in_ff), audio->ep_in_ff.depth, &tgt_packet_sz))
+    n_bytes_tx = tgt_packet_sz;
+  else
+    n_bytes_tx = tu_min16(tu_fifo_count(&audio->ep_in_ff), audio->ep_in_sz);
+#else
   n_bytes_tx = tu_min16(tu_fifo_count(&audio->ep_in_ff), audio->ep_in_sz);      // Limit up to max packet size, more can not be done for ISO
-
+#endif
 #if USE_LINEAR_BUFFER_TX
   tu_fifo_read_n(&audio->ep_in_ff, audio->lin_buf_in, n_bytes_tx);
   TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx));
@@ -987,7 +1056,6 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
 
   // Determine amount of samples
   uint8_t const n_ff_used               = audio->n_ff_used_tx;
-  uint16_t const nBytesToCopy           = audio->n_channels_per_ff_tx * audio->n_bytes_per_sampe_tx;
   uint16_t const capPerFF               = audio->ep_in_sz / n_ff_used;                                        // Sample capacity per FIFO in bytes
   uint16_t nBytesPerFFToSend            = tu_fifo_count(&audio->tx_supp_ff[0]);
   uint8_t cnt_ff;
@@ -1001,14 +1069,24 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
     }
   }
 
-  // Check if there is enough
+#if CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+  uint16_t tgt_packet_sz;
+  // packet_sz_tx is based on total packet size, here we want size for each support buffer.
+  if (audiod_tx_calc_packet_size(audio->packet_sz_tx, nBytesPerFFToSend * n_ff_used, audio->tx_supp_ff[0].depth * n_ff_used, &tgt_packet_sz))
+    nBytesPerFFToSend = tgt_packet_sz / n_ff_used;
+#endif
+
+  // Check if there is enough data
   if (nBytesPerFFToSend == 0)    return 0;
 
   // Limit to maximum sample number - THIS IS A POSSIBLE ERROR SOURCE IF TOO MANY SAMPLE WOULD NEED TO BE SENT BUT CAN NOT!
   nBytesPerFFToSend = tu_min16(nBytesPerFFToSend, capPerFF);
 
+#if !CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   // Round to full number of samples (flooring)
-  nBytesPerFFToSend = (nBytesPerFFToSend / nBytesToCopy) * nBytesToCopy;
+  uint16_t const nSlotSize = audio->n_channels_per_ff_tx * audio->n_bytes_per_sampe_tx;
+  nBytesPerFFToSend = (nBytesPerFFToSend / nSlotSize) * nSlotSize;
+#endif
 
   // Encode
   uint8_t * dst;
@@ -1489,6 +1567,9 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
                 ep_in = desc_ep->bEndpointAddress;
                 ep_in_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_in_size);
+    #if CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+                _audiod_fct[i].interval_tx = desc_ep->bInterval;
+    #endif
   #endif
               } else
               {
@@ -1607,6 +1688,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
     audio->ep_in = 0;                           // Necessary?
 
+  #if CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+    audio->packet_sz_tx[0] = 0;
+    audio->packet_sz_tx[1] = 0;
+    audio->packet_sz_tx[2] = 0;
+  #endif
   }
 #endif // CFG_TUD_AUDIO_ENABLE_EP_IN
 
@@ -1657,7 +1743,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     // Find correct interface
     if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf && ((tusb_desc_interface_t const * )p_desc)->bAlternateSetting == alt)
     {
-#if CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_ENABLE_DECODING
+#if CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_ENABLE_DECODING || CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
       uint8_t const * p_desc_parse_for_params = p_desc;
 #endif
       // From this point forward follow the EP descriptors associated to the current alternate setting interface - Open EPs if necessary
@@ -1686,12 +1772,13 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             audio->ep_in_sz = tu_edpt_packet_size(desc_ep);
 
             // If software encoding is enabled, parse for the corresponding parameters - doing this here means only AS interfaces with EPs get scanned for parameters
-  #if CFG_TUD_AUDIO_ENABLE_ENCODING
+  #if CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
             audiod_parse_for_AS_params(audio, p_desc_parse_for_params, p_desc_end, itf);
 
             // Reconfigure size of support FIFOs - this is necessary to avoid samples to get split in case of a wrap
-    #if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
-            const uint16_t active_fifo_depth = (uint16_t) ((audio->tx_supp_ff_sz_max / audio->n_bytes_per_sampe_tx) * audio->n_bytes_per_sampe_tx);
+    #if CFG_TUD_AUDIO_ENABLE_ENCODING && CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
+            const uint16_t active_fifo_depth = (uint16_t) ((audio->tx_supp_ff_sz_max / (audio->n_channels_per_ff_tx * audio->n_bytes_per_sampe_tx))
+               * (audio->n_channels_per_ff_tx * audio->n_bytes_per_sampe_tx));
             for (uint8_t cnt = 0; cnt < audio->n_tx_supp_ff; cnt++)
             {
               tu_fifo_config(&audio->tx_supp_ff[cnt], audio->tx_supp_ff[cnt].buffer, active_fifo_depth, 1, true);
@@ -2404,7 +2491,7 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *func_id)
   return false;
 }
 
-#if CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_ENABLE_DECODING
+#if (CFG_TUD_AUDIO_ENABLE_EP_IN && (CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL || CFG_TUD_AUDIO_ENABLE_ENCODING)) || (CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING)
 // p_desc points to the AS interface of alternate setting zero
 // itf is the interface number of the corresponding interface - we check if the interface belongs to EP in or EP out to see if it is a TX or RX parameter
 // Currently, only AS interfaces with an EP (in or out) are supposed to be parsed for!
@@ -2455,7 +2542,7 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
     }
 
     // Look for a Type I Format Type Descriptor(2.3.1.6 - Audio Formats)
-#if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING || CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
+#if CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING || CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL || CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AS_INTERFACE_FORMAT_TYPE && ((audio_desc_type_I_format_t const * )p_desc)->bFormatType == AUDIO_FORMAT_TYPE_I)
     {
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -2488,6 +2575,31 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
 
     p_desc = tu_desc_next(p_desc);
   }
+}
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+static bool audiod_tx_calc_packet_size(const uint16_t* norminal_size, uint16_t data_size, uint16_t fifo_size, uint16_t* packet_size)
+{
+  TU_VERIFY(norminal_size[1]);
+
+  // This flow control method need a FIFO size of 4*Navg
+  TU_VERIFY(norminal_size[1] <= fifo_size * 4);
+
+  if (data_size < norminal_size[0])
+    *packet_size = 0;
+  else
+  {
+    uint16_t slot_size = norminal_size[2] - norminal_size[1];
+    if (data_size < fifo_size / 2 - slot_size)
+      *packet_size = norminal_size[0];
+    else if (data_size > fifo_size / 2 + slot_size)
+      *packet_size = norminal_size[2];
+    else
+      *packet_size = norminal_size[1];
+  }
+
+  return true;
 }
 #endif
 
