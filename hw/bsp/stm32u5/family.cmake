@@ -37,6 +37,7 @@ function(add_board_target BOARD_TARGET)
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
+      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_icache.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
