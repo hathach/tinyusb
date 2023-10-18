@@ -2645,11 +2645,11 @@ static uint16_t audiod_tx_packet_size(const uint16_t* norminal_size, uint16_t da
       packet_size = norminal_size[2];
       if(norminal_size[0] == norminal_size[1])
       {
-        // nav = INT(nav) + 1
-        ctrl_blackout = 2;
+        // nav > INT(nav), eg. 44.1k, 88.2k
+        ctrl_blackout = 0;
       } else
       {
-        // nav = INT(nav)
+        // nav = INT(nav), eg. 48k, 96k
         ctrl_blackout = 10;
       }
     } else
