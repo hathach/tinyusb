@@ -181,6 +181,10 @@ deps_all = {**deps_mandatory, **deps_optional}
 TOP = Path(__file__).parent.parent.resolve()
 
 
+def run_cmd(cmd):
+    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+
 def get_a_dep(d):
     if d not in deps_all.keys():
         print('{} is not found in dependency list')
@@ -189,25 +193,24 @@ def get_a_dep(d):
     commit = deps_all[d][1]
     families = deps_all[d][2]
 
-    print('cloning {} with {}'.format(d, url))
+    print(f'cloning {d} with {url}')
 
     p = Path(TOP / d)
-    git_cmd = "git -C {}".format(p)
+    git_cmd = f"git -C {p}"
 
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
-        subprocess.run("{} init".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        run_cmd(f"git -C {p} init")
+        run_cmd(f"git -C {p} remote add origin {url}")
 
     # Check if commit is already fetched
-    result = subprocess.run("{} rev-parse HEAD".format(git_cmd, commit), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = run_cmd(f"git -C {p} rev-parse HEAD")
     head = result.stdout.decode("utf-8").splitlines()[0]
-
+    run_cmd(f"git -C {p} reset --hard")
     if commit != head:
-        subprocess.run("{} reset --hard".format(git_cmd, commit), shell=True)
-        subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True)
-        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        run_cmd(f"git -C {p} fetch --depth 1 origin {commit}")
+        run_cmd(f"git -C {p} checkout FETCH_HEAD")
 
     return 0
 

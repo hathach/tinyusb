@@ -37,6 +37,9 @@
 #pragma GCC diagnostic pop
 #endif
 
+static void Error_Handler(void) {
+}
+
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -47,6 +50,10 @@ void OTG_FS_IRQHandler(void) {
   tud_int_handler(0);
 }
 
+void OTG_HS_IRQHandler(void) {
+  tud_int_handler(0);
+}
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -54,8 +61,9 @@ void OTG_FS_IRQHandler(void) {
 UART_HandleTypeDef UartHandle;
 
 void board_init(void) {
-
-  board_clock_init();
+  // Init clock, implemented in board.h
+  SystemClock_Config();
+  SystemPower_Config();
 
   // Enable All GPIOs clocks
   __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -75,9 +83,6 @@ void board_init(void) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;
@@ -135,7 +140,13 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = GPIO_AF10_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-#if defined(OTG_FS_VBUS_SENSE) && OTG_FS_VBUS_SENSE
+#ifdef USB_OTG_FS
+  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  #endif
+
+  #if defined(OTG_FS_VBUS_SENSE) && OTG_FS_VBUS_SENSE
   // Configure VBUS Pin OTG_FS_VBUS_SENSE
   GPIO_InitStruct.Pin = GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -144,20 +155,44 @@ void board_init(void) {
 
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
+  #else
   // Disable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
   // B-peripheral session valid override enable
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-#endif // vbus sense
+  #endif // vbus sense
 
   /* Enable USB power on Pwrctrl CR2 register */
   HAL_PWREx_EnableVddUSB();
 
-  /* USB_OTG_FS clock enable */
+  /* USB clock enable */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+#else
+  // STM59x/Ax/Fx/Gx only have 1 USB HS port
+
+  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  #endif
+
+
+  // Disable VBUS sense (B device)
+  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+  // B-peripheral session valid override enable
+  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+
+  /* Enable USB power on Pwrctrl CR2 register */
+  HAL_PWREx_EnableVddUSB();
+
+  /* USB clock enable */
+  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+#endif // USB_OTG_FS
+
+
 }
 
 //--------------------------------------------------------------------+
