@@ -65,6 +65,7 @@
       </configuration>
       <configuration PROFILE_NAME="stm32u575eval" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u575eval" />
       <configuration PROFILE_NAME="stm32u575nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u575nucleo -DLOG=3" />
+      <configuration PROFILE_NAME="stm32u5a5nucleo" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u5a5nucleo -DLOG=3 -DLOGGER=RTT" />
     </configurations>
   </component>
 </project>
