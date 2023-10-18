@@ -52,6 +52,7 @@ typedef struct
 
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t set_report_buf[CFG_TUD_HID_EP_BUFSIZE];
 
   // TODO save hid descriptor since host can specifically request this after enumeration
   // Note: HID descriptor may be not available from application after enumeration
@@ -307,15 +308,15 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
       case  HID_REQ_CONTROL_SET_REPORT:
         if ( stage == CONTROL_STAGE_SETUP )
         {
-          TU_VERIFY(request->wLength <= sizeof(p_hid->epout_buf));
-          tud_control_xfer(rhport, request, p_hid->epout_buf, request->wLength);
+          TU_VERIFY(request->wLength <= sizeof(p_hid->set_report_buf));
+          tud_control_xfer(rhport, request, p_hid->set_report_buf, request->wLength);
         }
         else if ( stage == CONTROL_STAGE_ACK )
         {
           uint8_t const report_type = tu_u16_high(request->wValue);
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
-          uint8_t const* report_buf = p_hid->epout_buf;
+          uint8_t const* report_buf = p_hid->set_report_buf;
           uint16_t report_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
 
           // If host request a specific Report ID, extract report ID in buffer before invoking callback
