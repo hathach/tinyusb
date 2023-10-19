@@ -69,8 +69,13 @@ uint8_t clkValid;
 audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX+1]; 			// Volume range state
 audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range state
 
+#if CFG_TUD_AUDIO_ENABLE_ENCODING
 // Audio test data, each buffer contains 2 channels, buffer[0] for CH0-1, buffer[1] for CH1-2
 uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ/2];   // Ensure half word aligned
+#else
+// Audio test data, 4 channels muxed together, buffer[0] for CH0, buffer[1] for CH1, buffer[2] for CH2, buffer[3] for CH3
+uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_EP_SZ_IN];   // Ensure half word aligned
+#endif
 
 void led_blinking_task(void);
 void audio_task(void);
@@ -97,6 +102,7 @@ int main(void)
   sampleFreqRng.subrange[0].bRes = 0;
 
   // Generate dummy data
+#if CFG_TUD_AUDIO_ENABLE_ENCODING
   uint16_t * p_buff = i2s_dummy_buffer[0];
   uint16_t dataVal = 1;
   for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
@@ -116,6 +122,23 @@ int main(void)
     float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
     *p_buff++ = (uint16_t)(sinf(t) * 25) + 200;
   }
+#else
+  uint16_t * p_buff = i2s_dummy_buffer;
+  uint16_t dataVal = 1;
+  for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
+  {
+    // CH0 saw wave
+    *p_buff++ = dataVal;
+    // CH1 inverted saw wave
+    *p_buff++ = 60 + AUDIO_SAMPLE_RATE/1000 - dataVal;
+    dataVal++;
+    // CH3 square wave
+    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 120:170;
+    // CH4 sinus wave
+    float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
+    *p_buff++ = (uint16_t)(sinf(t) * 25) + 200;
+  }
+#endif
 
   while (1)
   {
@@ -384,7 +407,8 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
         {
           case AUDIO_CS_REQ_CUR:
             TU_LOG2("    Get Sample Freq.\r\n");
-            return tud_control_xfer(rhport, p_request, &sampFreq, sizeof(sampFreq));
+            // Buffered control transfer is needed for IN flow control to work
+            return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &sampFreq, sizeof(sampFreq));
 
           case AUDIO_CS_REQ_RANGE:
             TU_LOG2("    Get Sample Freq. range\r\n");
@@ -429,12 +453,15 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   //    tud_audio_write_support_ff(channel, data, samples * N_BYTES_PER_SAMPLE * N_CHANNEL_PER_FIFO);
   // }
 
+#if CFG_TUD_AUDIO_ENABLE_ENCODING
   // Write I2S buffer into FIFO
   for (uint8_t cnt=0; cnt < 2; cnt++)
   {
     tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
   }
-
+#else
+  tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
+#endif
   return true;
 }
 
