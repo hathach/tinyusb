@@ -534,6 +534,9 @@ void dcd_init (uint8_t rhport)
   int_mask = dwc2->gotgint;
   dwc2->gotgint |= int_mask;
 
+  // Configure TX FIFO to set the TX FIFO empty interrupt when half-empty
+  dwc2->gahbcfg &= ~GAHBCFG_TXFELVL;
+
   // Required as part of core initialization.
   // TODO: How should mode mismatch be handled? It will cause
   // the core to stop working/require reset.
@@ -645,7 +648,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   xfer->max_size = tu_edpt_packet_size(desc_edpt);
   xfer->interval = desc_edpt->bInterval;
 
-  uint16_t const fifo_size = tu_div_ceil(xfer->max_size, 4);
+  uint16_t fifo_size = tu_div_ceil(xfer->max_size, 4);
 
   if(dir == TUSB_DIR_OUT)
   {
@@ -690,6 +693,11 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     //
     // In FIFO is allocated by following rules:
     // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
+
+    // The fifo-empty interrupt fires when the interrupt is half empty. In order
+    // to be able to write a packet at that point, the fifo must be twice the
+    // max_size.
+    fifo_size = fifo_size * 2;
 
     // Check if free space is available
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= _dwc2_controller[rhport].ep_fifo_size/4);
@@ -1316,7 +1324,7 @@ void dcd_int_handler(uint8_t rhport)
     do
     {
       handle_rxflvl_irq(rhport);
-    } while(dwc2->gotgint & GINTSTS_RXFLVL);
+    } while(dwc2->gintsts & GINTSTS_RXFLVL);
 
     // Manage RX FIFO size
     if (_out_ep_closed)
