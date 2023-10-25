@@ -126,12 +126,12 @@ extern "C" {
 #define CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING          1
 #define CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX      2         // One I2S stream contains two channels, each stream is saved within one support FIFO - this value is currently fixed, the driver does not support a changing value
 #define CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO        (CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX / CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX)
-#define CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ       4 * (CFG_TUD_AUDIO_EP_SZ_IN / CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO) // Minimum 4*EP size is needed for flow control
+#define CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ       (TUD_OPT_HIGH_SPEED ? 32 : 4) * (CFG_TUD_AUDIO_EP_SZ_IN / CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO) // Example write FIFO every 1ms, so it should be 8 times larger for HS device
 
 #else
 
 #define CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX             CFG_TUD_AUDIO_EP_SZ_IN
-#define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ          4 * CFG_TUD_AUDIO_EP_SZ_IN    // Minimum 4*EP size is needed for flow control
+#define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ          (TUD_OPT_HIGH_SPEED ? 32 : 4) * CFG_TUD_AUDIO_EP_SZ_IN // Example write FIFO every 1ms, so it should be 8 times larger for HS device
 
 #endif
 

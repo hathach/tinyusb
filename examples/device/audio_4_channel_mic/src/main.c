@@ -71,10 +71,10 @@ audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range stat
 
 #if CFG_TUD_AUDIO_ENABLE_ENCODING
 // Audio test data, each buffer contains 2 channels, buffer[0] for CH0-1, buffer[1] for CH1-2
-uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ/2];   // Ensure half word aligned
+uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX*CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE/1000/CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO];
 #else
 // Audio test data, 4 channels muxed together, buffer[0] for CH0, buffer[1] for CH1, buffer[2] for CH2, buffer[3] for CH3
-uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_EP_SZ_IN];   // Ensure half word aligned
+uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX*CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE/1000];
 #endif
 
 void led_blinking_task(void);
@@ -185,8 +185,21 @@ void tud_resume_cb(void)
 
 void audio_task(void)
 {
-  // Yet to be filled - e.g. put meas data into TX FIFOs etc.
-  // asm("nop");
+  // Yet to be filled - e.g. read audio from I2S buffer.
+  // Here we simulate a I2S receive callback every 1ms.
+  static uint32_t start_ms = 0;
+  uint32_t curr_ms = board_millis();
+  if ( start_ms == curr_ms ) return; // not enough time
+  start_ms = curr_ms;
+#if CFG_TUD_AUDIO_ENABLE_ENCODING
+  // Write I2S buffer into FIFO
+  for (uint8_t cnt=0; cnt < 2; cnt++)
+  {
+    tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
+  }
+#else
+  tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -453,15 +466,6 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   //    tud_audio_write_support_ff(channel, data, samples * N_BYTES_PER_SAMPLE * N_CHANNEL_PER_FIFO);
   // }
 
-#if CFG_TUD_AUDIO_ENABLE_ENCODING
-  // Write I2S buffer into FIFO
-  for (uint8_t cnt=0; cnt < 2; cnt++)
-  {
-    tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
-  }
-#else
-  tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
-#endif
   return true;
 }
 
