@@ -16,7 +16,7 @@
           </envs>
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
-      <configuration PROFILE_NAME="esp32s3" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_s3_devkitm">
+      <configuration PROFILE_NAME="espressif_s3_devkitm" ENABLED="true" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_s3_devkitm -DMAX3421_HOST=1 -DLOG=2">
         <ADDITIONAL_GENERATION_ENVIRONMENT>
           <envs>
             <env name="ESPBAUD" value="1500000" />

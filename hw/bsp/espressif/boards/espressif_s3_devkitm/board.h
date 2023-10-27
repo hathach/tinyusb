@@ -38,9 +38,9 @@
 
 // SPI for USB host shield
 #define MAX3421_SPI_HOST  SPI2_HOST
-#define MAX3421_SCK_PIN  36
-#define MAX3421_MOSI_PIN 35
-#define MAX3421_MISO_PIN 37
+#define MAX3421_SCK_PIN  39
+#define MAX3421_MOSI_PIN 42
+#define MAX3421_MISO_PIN 21
 #define MAX3421_CS_PIN   15
 #define MAX3421_INTR_PIN 14
 
