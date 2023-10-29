@@ -109,7 +109,7 @@ static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tu
 #if CFG_TUH_CDC_CP210X
 #include "serial/cp210x.h"
 
-static uint16_t const cp210x_pids[] = { TU_CP210X_PID_LIST };
+static uint16_t const cp210x_pids[] = { CFG_TUH_CDC_CP210X_PID_LIST };
 enum {
   CP210X_PID_COUNT = sizeof(cp210x_pids) / sizeof(cp210x_pids[0])
 };
