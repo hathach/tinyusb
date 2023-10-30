@@ -605,9 +605,13 @@ void dcd_disconnect(uint8_t rhport)
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
   (void) rhport;
-  (void) en;
-
-  // TODO implement later
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
+  if (en) {
+    USB1_OTG_HS->GINTSTS = USB_OTG_GINTSTS_SOF;
+    USB1_OTG_HS->GINTMSK |= USB_OTG_GINTMSK_SOFM;
+  } else {
+    USB1_OTG_HS->GINTMSK &= ~USB_OTG_GINTMSK_SOFM;
+  }
 }
 
 /*------------------------------------------------------------------*/
@@ -1184,10 +1188,9 @@ void dcd_int_handler(uint8_t rhport)
   {
     usb_otg->GINTSTS = USB_OTG_GINTSTS_SOF;
 
-    // Disable SOF interrupt since currently only used for remote wakeup detection
-    usb_otg->GINTMSK &= ~USB_OTG_GINTMSK_SOFM;
+    uint32_t frame_count = (dev->DSTS & USB_OTG_DSTS_FNSOF_Msk) >> USB_OTG_DSTS_FNSOF_Pos;
 
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+    dcd_event_sof(rhport, frame_count, true);
   }
 
   // RxFIFO non-empty interrupt handling.
