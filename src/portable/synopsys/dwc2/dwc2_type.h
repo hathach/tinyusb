@@ -43,6 +43,7 @@ typedef struct
 #define DWC2_CORE_REV_3_00a   0x4f54300a
 #define DWC2_CORE_REV_3_10a   0x4f54310a
 #define DWC2_CORE_REV_4_00a   0x4f54400a
+#define DWC2_CORE_REV_4_11a   0x4f54411a
 #define DWC2_CORE_REV_4_20a   0x4f54420a
 #define DWC2_FS_IOT_REV_1_00a 0x5531100a
 #define DWC2_HS_IOT_REV_1_00a 0x5532100a

@@ -99,6 +99,18 @@ static void SystemClock_Config(void) {
   RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
 
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
+
+  // USB Clock
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USBPHY;
+  PeriphClkInit.UsbPhyClockSelection = RCC_USBPHYCLKSOURCE_HSE;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+    Error_Handler();
+  }
+
+  /** Set the OTG PHY reference clock selection
+  */
+  HAL_SYSCFG_SetOTGPHYReferenceClockSelection(SYSCFG_OTG_HS_PHY_CLK_SELECT_1);
 }
 
 static void SystemPower_Config(void) {

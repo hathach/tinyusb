@@ -177,7 +177,6 @@ void board_init(void) {
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   #endif
 
-
   // Disable VBUS sense (B device)
   USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
@@ -185,11 +184,17 @@ void board_init(void) {
   USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
   USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 
+  /* USB clock enable */
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+  __HAL_RCC_USBPHYC_CLK_ENABLE();
+
   /* Enable USB power on Pwrctrl CR2 register */
   HAL_PWREx_EnableVddUSB();
+  HAL_PWREx_EnableUSBHSTranceiverSupply();
 
-  /* USB clock enable */
-  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+  /*Configuring the SYSCFG registers OTG_HS PHY*/
+  HAL_SYSCFG_EnableOTGPHY(SYSCFG_OTG_HS_PHY_ENABLE);
 #endif // USB_OTG_FS
 
 
