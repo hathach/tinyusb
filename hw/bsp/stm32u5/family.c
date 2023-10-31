@@ -37,10 +37,11 @@
 #pragma GCC diagnostic pop
 #endif
 
-static void Error_Handler(void) {
+#include "bsp/board_api.h"
+
+TU_ATTR_UNUSED static void Error_Handler(void) {
 }
 
-#include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+
@@ -152,12 +153,6 @@ void board_init(void) {
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* Enable USB power on Pwrctrl CR2 register */
-  HAL_PWREx_EnableVddUSB();
-
-  /* USB clock enable */
-  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
   #else
@@ -168,6 +163,12 @@ void board_init(void) {
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
   #endif // vbus sense
+
+  /* Enable USB power on Pwrctrl CR2 register */
+  HAL_PWREx_EnableVddUSB();
+
+  /* USB clock enable */
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
 #else
   // STM59x/Ax/Fx/Gx only have 1 USB HS port

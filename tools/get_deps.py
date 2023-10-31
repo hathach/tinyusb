@@ -153,7 +153,7 @@ deps_optional = {
                                        '675c32a75df37f39d50d61f51cb0dcf53f07e1cb',
                                        'stm32l5'],
     'hw/mcu/st/stm32u5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git',
-                                       '2e1d4cdb386e33391cb261dfff4fefa92e4aa35a',
+                                       '4d93097a67928e9377e655ddd14622adc31b9770',
                                        'stm32u5'],
     'hw/mcu/st/stm32wbxx_hal_driver': ['https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git',
                                        '2c5f06638be516c1b772f768456ba637f077bac8',
