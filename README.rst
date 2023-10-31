@@ -34,6 +34,7 @@ The stack supports the following MCUs:
 
 - **Allwinner:** F1C100s/F1C200s
 - **Analog:** MAX3421e (aka Arduino usb host shield)
+- **Bridgetek:** FT90x
 - **Broadcom:** BCM2837, BCM2711
 - **Dialog:** DA1469x
 - **Espressif:** ESP32-S2, ESP32-S3
@@ -57,7 +58,7 @@ The stack supports the following MCUs:
 
 - **Silabs:** EFM32GG
 - **Sony:** CXD56
-- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G0, G4, L0, L1, L4, L4+, WB
+- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G0, G4, L0, L1, L4, L4+ U5, WB
 - **TI:** MSP430, MSP432E4, TM4C123
 - **ValentyUSB:** eptri
 - **WCH:** CH32V307
