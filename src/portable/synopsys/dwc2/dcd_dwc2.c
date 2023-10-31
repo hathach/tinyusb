@@ -447,6 +447,14 @@ void dcd_init(uint8_t rhport) {
   // (non zero-length packet), send STALL back and discard.
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
+  // flush all TX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
+  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
+
+  // flush RX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_RXFFLSH;
+  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+
   // Clear all interrupts
   uint32_t int_mask = dwc2->gintsts;
   dwc2->gintsts |= int_mask;
