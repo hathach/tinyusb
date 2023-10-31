@@ -8,11 +8,14 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
 
+PORT ?= 0
+
 # --------------
 # Compiler Flags
 # --------------
 CFLAGS += \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32F4
+  -DCFG_TUSB_MCU=OPT_MCU_STM32F4 \
+  -DBOARD_TUD_RHPORT=$(PORT)
 
 # GCC Flags
 CFLAGS_GCC += \
