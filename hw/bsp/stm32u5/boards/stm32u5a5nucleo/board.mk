@@ -1,5 +1,6 @@
 CFLAGS += \
   -DSTM32U5A5xx \
+  -DHSE_VALUE=16000000UL \
 
 # All source paths should be relative to the top level.
 LD_FILE = ${BOARD_PATH}/STM32U5A5ZJTXQ_FLASH.ld

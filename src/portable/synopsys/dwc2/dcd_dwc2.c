@@ -1074,7 +1074,6 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (int_status & GINTSTS_ENUMDNE) {
     // ENUMDNE is the end of reset where speed of the link is detected
-
     dwc2->gintsts = GINTSTS_ENUMDNE;
 
     tusb_speed_t speed;
@@ -1093,6 +1092,8 @@ void dcd_int_handler(uint8_t rhport) {
         speed = TUSB_SPEED_FULL;
         break;
     }
+
+    // TODO must update GUSBCFG_TRDT according to link speed
 
     dcd_event_bus_reset(rhport, speed, true);
   }

@@ -38,8 +38,8 @@ extern "C"
 #define LED_STATE_ON 1
 
 // BUTTON
-#define BUTTON_PORT GPIOA
-#define BUTTON_PIN GPIO_PIN_0
+#define BUTTON_PORT GPIOC
+#define BUTTON_PIN GPIO_PIN_13
 #define BUTTON_STATE_ACTIVE 1
 
 // UART Enable for STLink VCOM
@@ -101,6 +101,8 @@ static void SystemClock_Config(void) {
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
 
   // USB Clock
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USBPHY;
   PeriphClkInit.UsbPhyClockSelection = RCC_USBPHYCLKSOURCE_HSE;

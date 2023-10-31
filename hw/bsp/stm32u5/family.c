@@ -124,7 +124,7 @@ void board_init(void) {
 
   HAL_UART_Init(&UartHandle);
 
-  /* Configure USB FS GPIOs */
+  /* Configure USB GPIOs */
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -153,6 +153,12 @@ void board_init(void) {
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /* Enable USB power on Pwrctrl CR2 register */
+  HAL_PWREx_EnableVddUSB();
+
+  /* USB clock enable */
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
   #else
@@ -164,11 +170,6 @@ void board_init(void) {
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
   #endif // vbus sense
 
-  /* Enable USB power on Pwrctrl CR2 register */
-  HAL_PWREx_EnableVddUSB();
-
-  /* USB clock enable */
-  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 #else
   // STM59x/Ax/Fx/Gx only have 1 USB HS port
 
@@ -177,15 +178,7 @@ void board_init(void) {
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   #endif
 
-  // Disable VBUS sense (B device)
-  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-
   /* USB clock enable */
-  __HAL_RCC_SYSCFG_CLK_ENABLE();
   __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
   __HAL_RCC_USBPHYC_CLK_ENABLE();
 
@@ -195,6 +188,13 @@ void board_init(void) {
 
   /*Configuring the SYSCFG registers OTG_HS PHY*/
   HAL_SYSCFG_EnableOTGPHY(SYSCFG_OTG_HS_PHY_ENABLE);
+
+  // Disable VBUS sense (B device)
+  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+  // B-peripheral session valid override enable
+  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALEXTOEN;
+  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
 #endif // USB_OTG_FS
 
 

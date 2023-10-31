@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _DWC2_STM32_H_
-#define _DWC2_STM32_H_
+#ifndef DWC2_STM32_H_
+#define DWC2_STM32_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,35 +124,36 @@ static const dwc2_controller_t _dwc2_controller[] = {
 // SystemCoreClock is already included by family header
 // extern uint32_t SystemCoreClock;
 
-TU_ATTR_ALWAYS_INLINE
-static inline void dwc2_dcd_int_enable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_enable(uint8_t rhport) {
   NVIC_EnableIRQ((IRQn_Type) _dwc2_controller[rhport].irqnum);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void dwc2_dcd_int_disable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_disable(uint8_t rhport) {
   NVIC_DisableIRQ((IRQn_Type) _dwc2_controller[rhport].irqnum);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void dwc2_remote_wakeup_delay(void) {
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   // try to delay for 1 ms
   uint32_t count = SystemCoreClock / 1000;
   while (count--) __NOP();
 }
 
 // MCU specific PHY init, called BEFORE core reset
+// - dwc2 3.30a (H5) use USB_HS_PHYC
+// - dwc2 4.11a (U5) use femtoPHY
 static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   if (hs_phy_type == HS_PHY_TYPE_NONE) {
     // Enable on-chip FS PHY
     dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
   } else {
+#if CFG_TUSB_MCU != OPT_MCU_STM32U5
     // Disable FS PHY, TODO on U5A5 (dwc2 4.11a) 16th bit is 'Host CDP behavior enable'
     dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
+#endif
 
     // Enable on-chip HS PHY
     if (hs_phy_type == HS_PHY_TYPE_UTMI || hs_phy_type == HS_PHY_TYPE_UTMI_ULPI) {
-#ifdef USB_HS_PHYC
+      #ifdef USB_HS_PHYC
       // Enable UTMI HS PHY
       dwc2->stm32_gccfg |= STM32_GCCFG_PHYHSEN;
 
@@ -184,7 +185,9 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 
       // Enable PLL internal PHY
       USB_HS_PHYC->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
-#endif
+      #else
+
+      #endif
     }
   }
 }
@@ -232,4 +235,4 @@ static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 }
 #endif
 
-#endif /* _DWC2_STM32_H_ */
+#endif
