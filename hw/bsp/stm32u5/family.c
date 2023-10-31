@@ -38,12 +38,20 @@
 #endif
 
 #include "bsp/board_api.h"
+
+TU_ATTR_UNUSED static void Error_Handler(void) {
+}
+
 #include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void OTG_FS_IRQHandler(void) {
+  tud_int_handler(0);
+}
+
+void OTG_HS_IRQHandler(void) {
   tud_int_handler(0);
 }
 
@@ -54,8 +62,9 @@ void OTG_FS_IRQHandler(void) {
 UART_HandleTypeDef UartHandle;
 
 void board_init(void) {
-
-  board_clock_init();
+  // Init clock, implemented in board.h
+  SystemClock_Config();
+  SystemPower_Config();
 
   // Enable All GPIOs clocks
   __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -75,9 +84,6 @@ void board_init(void) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;
@@ -101,7 +107,7 @@ void board_init(void) {
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
@@ -116,10 +122,9 @@ void board_init(void) {
   UartHandle.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
   UartHandle.Init.ClockPrescaler = UART_PRESCALER_DIV1;
   UartHandle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-
   HAL_UART_Init(&UartHandle);
 
-  /* Configure USB FS GPIOs */
+  /* Configure USB GPIOs */
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -135,7 +140,13 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = GPIO_AF10_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-#if defined(OTG_FS_VBUS_SENSE) && OTG_FS_VBUS_SENSE
+#ifdef USB_OTG_FS
+  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  #endif
+
+  #if defined(OTG_FS_VBUS_SENSE) && OTG_FS_VBUS_SENSE
   // Configure VBUS Pin OTG_FS_VBUS_SENSE
   GPIO_InitStruct.Pin = GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -144,20 +155,47 @@ void board_init(void) {
 
   // Enable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
+  #else
   // Disable VBUS sense (B device) via pin PA9
   USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
 
   // B-peripheral session valid override enable
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
-#endif // vbus sense
+  #endif // vbus sense
 
   /* Enable USB power on Pwrctrl CR2 register */
   HAL_PWREx_EnableVddUSB();
 
-  /* USB_OTG_FS clock enable */
+  /* USB clock enable */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+#else
+  // STM59x/Ax/Fx/Gx only have 1 USB HS port
+
+  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  #endif
+
+  /* USB clock enable */
+  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+  __HAL_RCC_USBPHYC_CLK_ENABLE();
+
+  /* Enable USB power on Pwrctrl CR2 register */
+  HAL_PWREx_EnableVddUSB();
+  HAL_PWREx_EnableUSBHSTranceiverSupply();
+
+  /*Configuring the SYSCFG registers OTG_HS PHY*/
+  HAL_SYSCFG_EnableOTGPHY(SYSCFG_OTG_HS_PHY_ENABLE);
+
+  // Disable VBUS sense (B device)
+  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+  // B-peripheral session valid override enable
+  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALEXTOEN;
+  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
+#endif // USB_OTG_FS
 }
 
 //--------------------------------------------------------------------+

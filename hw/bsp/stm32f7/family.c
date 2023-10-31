@@ -199,7 +199,7 @@ void board_init(void) {
   __HAL_RCC_OTGPHYC_CLK_ENABLE();
 
   #else
-  // MUC with external ULPI PHY
+  // MCU with external ULPI PHY
 
   /* ULPI CLK */
   GPIO_InitStruct.Pin = GPIO_PIN_5;
