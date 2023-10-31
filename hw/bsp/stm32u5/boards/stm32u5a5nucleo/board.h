@@ -43,12 +43,12 @@ extern "C"
 #define BUTTON_STATE_ACTIVE 1
 
 // UART Enable for STLink VCOM
-#define UART_DEV LPUART1
-#define UART_CLK_EN __HAL_RCC_LPUART1_CLK_ENABLE
-#define UART_GPIO_PORT GPIOG
-#define UART_GPIO_AF GPIO_AF8_LPUART1
-#define UART_TX_PIN GPIO_PIN_7
-#define UART_RX_PIN GPIO_PIN_8
+#define UART_DEV USART1
+#define UART_CLK_EN __HAL_RCC_USART1_CLK_ENABLE
+#define UART_GPIO_PORT GPIOA
+#define UART_GPIO_AF GPIO_AF7_USART1
+#define UART_TX_PIN GPIO_PIN_9
+#define UART_RX_PIN GPIO_PIN_10
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -103,16 +103,24 @@ static void SystemClock_Config(void) {
   // USB Clock
   __HAL_RCC_SYSCFG_CLK_ENABLE();
 
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USBPHY;
-  PeriphClkInit.UsbPhyClockSelection = RCC_USBPHYCLKSOURCE_HSE;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+  RCC_PeriphCLKInitTypeDef usb_clk_init = { 0};
+  usb_clk_init.PeriphClockSelection = RCC_PERIPHCLK_USBPHY;
+  usb_clk_init.UsbPhyClockSelection = RCC_USBPHYCLKSOURCE_HSE;
+  if (HAL_RCCEx_PeriphCLKConfig(&usb_clk_init) != HAL_OK) {
     Error_Handler();
   }
 
   /** Set the OTG PHY reference clock selection
   */
   HAL_SYSCFG_SetOTGPHYReferenceClockSelection(SYSCFG_OTG_HS_PHY_CLK_SELECT_1);
+
+  // USART clock
+  RCC_PeriphCLKInitTypeDef uart_clk_init = { 0};
+  uart_clk_init.PeriphClockSelection = RCC_PERIPHCLK_USART1;
+  uart_clk_init.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
+  if (HAL_RCCEx_PeriphCLKConfig(&uart_clk_init) != HAL_OK) {
+    Error_Handler();
+  }
 }
 
 static void SystemPower_Config(void) {

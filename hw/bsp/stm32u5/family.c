@@ -106,7 +106,7 @@ void board_init(void) {
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
@@ -121,7 +121,6 @@ void board_init(void) {
   UartHandle.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
   UartHandle.Init.ClockPrescaler = UART_PRESCALER_DIV1;
   UartHandle.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-
   HAL_UART_Init(&UartHandle);
 
   /* Configure USB GPIOs */
@@ -196,8 +195,6 @@ void board_init(void) {
   USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALEXTOEN;
   USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
 #endif // USB_OTG_FS
-
-
 }
 
 //--------------------------------------------------------------------+
