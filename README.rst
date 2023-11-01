@@ -1,14 +1,15 @@
+|Build Status| |Documentation Status| |Fuzzing Status| |License|
+
+TinyUSB
+=======
+
 .. figure:: docs/assets/logo.svg
    :alt: TinyUSB
-
-|Build Status| |Documentation Status| |Fuzzing Status| |License|
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for
 embedded system, designed to be memory-safe with no dynamic allocation
 and thread-safe with all interrupt events are deferred then handled in
-the non-ISR task function.
-
-Please take a look at the online `documentation <https://docs.tinyusb.org/>`__.
+the non-ISR task function. Check out the online `documentation <https://docs.tinyusb.org/>`__ for more details.
 
 .. figure:: docs/assets/stack.svg
    :width: 500px
@@ -16,16 +17,24 @@ Please take a look at the online `documentation <https://docs.tinyusb.org/>`__.
 
 ::
 
-	.
-	├── docs            # Documentation
-	├── examples        # Sample with Makefile build support
-	├── hw
-	│   ├── bsp         # Supported boards source files
-	│   └── mcu         # Low level mcu core & peripheral drivers
-	├── lib             # Sources from 3rd party such as freeRTOS, fatfs ...
-	├── src             # All sources files for TinyUSB stack itself.
-	├── test            # Unit tests for the stack
-	└── tools           # Files used internally
+    .
+    ├── docs            # Documentation
+    ├── examples        # Sample with Makefile build support
+    ├── hw
+    │   ├── bsp         # Supported boards source files
+    │   └── mcu         # Low level mcu core & peripheral drivers
+    ├── lib             # Sources from 3rd party such as freeRTOS, fatfs ...
+    ├── src             # All sources files for TinyUSB stack itself.
+    ├── test            # Unit tests for the stack
+    └── tools           # Files used internally
+
+Sponsors
+========
+
+TinyUSB is funded by
+
+.. figure:: docs/assets/adafruit_logo.svg
+   :alt: Adafruit
 
 Supported MCUs
 ==============
