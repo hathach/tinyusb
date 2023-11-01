@@ -1,14 +1,15 @@
+|Build Status| |Documentation Status| |Fuzzing Status| |License|
+
+TinyUSB
+=======
+
 .. figure:: docs/assets/logo.svg
    :alt: TinyUSB
-
-|Build Status| |Documentation Status| |Fuzzing Status| |License|
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for
 embedded system, designed to be memory-safe with no dynamic allocation
 and thread-safe with all interrupt events are deferred then handled in
-the non-ISR task function.
-
-Please take a look at the online `documentation <https://docs.tinyusb.org/>`__.
+the non-ISR task function. Check out the online `documentation <https://docs.tinyusb.org/>`__ for more details.
 
 .. figure:: docs/assets/stack.svg
    :width: 500px
@@ -16,53 +17,25 @@ Please take a look at the online `documentation <https://docs.tinyusb.org/>`__.
 
 ::
 
-	.
-	├── docs            # Documentation
-	├── examples        # Sample with Makefile build support
-	├── hw
-	│   ├── bsp         # Supported boards source files
-	│   └── mcu         # Low level mcu core & peripheral drivers
-	├── lib             # Sources from 3rd party such as freeRTOS, fatfs ...
-	├── src             # All sources files for TinyUSB stack itself.
-	├── test            # Unit tests for the stack
-	└── tools           # Files used internally
+    .
+    ├── docs            # Documentation
+    ├── examples        # Sample with Makefile build support
+    ├── hw
+    │   ├── bsp         # Supported boards source files
+    │   └── mcu         # Low level mcu core & peripheral drivers
+    ├── lib             # Sources from 3rd party such as freeRTOS, fatfs ...
+    ├── src             # All sources files for TinyUSB stack itself.
+    ├── test            # Unit tests for the stack
+    └── tools           # Files used internally
 
-Supported MCUs
-==============
+Sponsors
+========
 
-The stack supports the following MCUs:
+TinyUSB is funded by
 
-- **Allwinner:** F1C100s/F1C200s
-- **Analog:** MAX3421e (aka Arduino usb host shield)
-- **Broadcom:** BCM2837, BCM2711
-- **Dialog:** DA1469x
-- **Espressif:** ESP32-S2, ESP32-S3
-- **GigaDevice:** GD32VF103
-- **Infineon:** XMC4500
-- **MicroChip:** SAMD11, SAMD21, SAMD51, SAME5x, SAMG55, SAML21, SAML22, SAME7x
-- **NordicSemi:** nRF52833, nRF52840, nRF5340
-- **Nuvoton:** NUC120, NUC121/NUC125, NUC126, NUC505
-- **NXP:**
-
-  - iMX RT Series: RT10xx, RT11xx
-  - Kinetis: KL25, K32L2
-  - LPC Series: 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55
-  - MCX: N9x
-
-- **Raspberry Pi:** RP2040
-- **Renesas:**
-
-  - RX Series: 63n, 65n, 72n
-  - RA Series: 4m1, 4m3, 6m1, 6m5
-
-- **Silabs:** EFM32GG
-- **Sony:** CXD56
-- **ST:** STM32 series: F0, F1, F2, F3, F4, F7, H7, G0, G4, L0, L1, L4, L4+, WB
-- **TI:** MSP430, MSP432E4, TM4C123
-- **ValentyUSB:** eptri
-- **WCH:** CH32V307
-
-Here is the list of `Supported Devices`_ that can be used with provided examples.
+.. figure:: docs/assets/adafruit_logo.svg
+   :alt: Adafruit
+   :target: https://www.adafruit.com
 
 Device Stack
 ============
@@ -111,6 +84,67 @@ TinyUSB is completely thread-safe by pushing all Interrupt Service Request (ISR)
 - **FreeRTOS**
 - `RT-Thread <https://github.com/RT-Thread/rt-thread>`_: `repo <https://github.com/RT-Thread-packages/tinyusb>`_
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its `own repo <https://github.com/hathach/mynewt-tinyusb-example>`_
+
+Supported CPUs
+==============
+
+Following CPUs are supported, check out `Supported Devices`_ for comprehensive list of driver, features for each CPU.
+
++--------------+------------------------------------------------------------+
+| Manufacturer | Family                                                     |
++==============+============================================================+
+| Allwinner    | F1C100s/F1C200s                                            |
++--------------+------------------------------------------------------------+
+| Analog       | MAX3421E (usb host shield)                                 |
++--------------+------------------------------------------------------------+
+| Brigetek     | FT90x                                                      |
++--------------+------------------------------------------------------------+
+| Broadcom     | BCM2711, BCM2837                                           |
++--------------+------------------------------------------------------------+
+| Dialog       | DA1469x                                                    |
++--------------+------------------------------------------------------------+
+| Espressif    | ESP32 S2, S3                                               |
++--------------+------------------------------------------------------------+
+| GigaDevice   | GD32VF103                                                  |
++--------------+------------------------------------------------------------+
+| Infineon     | XMC4500                                                    |
++--------------+-----+------------------------------------------------------+
+| MicroChip    | SAM | D11, D21, D51, E5x, G55, L2x, E7x, S7x, V7x          |
+|              +-----+------------------------------------------------------+
+|              | PIC | 24, 32mm, 32mk, 32mx, 32mz, dsPIC33                  |
++--------------+-----+------------------------------------------------------+
+| Mind Montion | mm32                                                       |
++--------------+------------------------------------------------------------+
+| NordicSemi   | nRF52833, nRF52840, nRF5340                                |
++--------------+------------------------------------------------------------+
+| Nuvoton      | NUC 120, 121, 125, 126, 505                                |
++--------------+---------+--------------------------------------------------+
+| NXP          | iMXRT   | RT10xx, RT11xx                                   |
+|              +---------+--------------------------------------------------+
+|              | Kinetis | KL, K32L2                                        |
+|              +---------+--------------------------------------------------+
+|              | LPC     | 11u, 13, 15, 17, 18, 40, 43, 51u, 54, 55         |
+|              +---------+--------------------------------------------------+
+|              | MCX     | N9                                               |
++--------------+---------+--------------------------------------------------+
+| Raspberry Pi | RP2040                                                     |
++--------------+-----+------------------------------------------------------+
+| Renesas      | RX  | 63N, 65N, 72N                                        |
++--------------+-----+------------------------------------------------------+
+|              | RA  | 4M1, 4M3, 6M1, 6M5                                   |
++--------------+-----+------------------------------------------------------+
+| Silabs       | EFM32GG12                                                  |
++--------------+------------------------------------------------------------+
+| Sony         | CXD56                                                      |
++--------------+------------------------------------------------------------+
+| ST STM32     | F0, F1, F2, F3, F4, F7, H7, G0, G4, L0, L1, L4, L4+ U5, WB |
++--------------+------------------------------------------------------------+
+| TI           | MSP430, MSP432E4, TM4C123                                  |
++--------------+------------------------------------------------------------+
+| ValentyUSB   | eptri                                                      |
++--------------+------------------------------------------------------------+
+| WCH          | CH32V307                                                   |
++--------------+------------------------------------------------------------+
 
 Docs
 ====
