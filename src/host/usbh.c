@@ -780,6 +780,7 @@ void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {
   event.func_call.param = param;
 
   osal_queue_send(_usbh_q, &event, in_isr);
+  CFG_TUH_EVENT_HOOK(event, in_isr);
 }
 
 //--------------------------------------------------------------------+
@@ -936,6 +937,7 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr) 
   }
 
   osal_queue_send(_usbh_q, event, in_isr);
+  CFG_TUH_EVENT_HOOK(event, in_isr);
 }
 
 //--------------------------------------------------------------------+

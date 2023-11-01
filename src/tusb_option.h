@@ -485,6 +485,18 @@
 #define tuc_int_handler(_p)
 #endif
 
+//--------------------------------------------------------------------+
+// Optional event hook functions for platform integration (defaults)
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUD_EVENT_HOOK
+#define CFG_TUD_EVENT_HOOK(EVENT, IN_ISR)
+#endif
+
+#ifndef CFG_TUH_EVENT_HOOK
+#define CFG_TUH_EVENT_HOOK(EVENT, IN_ISR)
+#endif
+
 //------------------------------------------------------------------
 // Configuration Validation
 //------------------------------------------------------------------

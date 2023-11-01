@@ -1079,6 +1079,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
+  bool send = false;
   switch (event->event_id)
   {
     case DCD_EVENT_UNPLUGGED:
@@ -1086,7 +1087,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       _usbd_dev.addressed  = 0;
       _usbd_dev.cfg_num    = 0;
       _usbd_dev.suspended  = 0;
-      osal_queue_send(_usbd_q, event, in_isr);
+      send = true;
     break;
 
     case DCD_EVENT_SUSPEND:
@@ -1097,7 +1098,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       if ( _usbd_dev.connected )
       {
         _usbd_dev.suspended = 1;
-        osal_queue_send(_usbd_q, event, in_isr);
+        send = true;
       }
     break;
 
@@ -1106,7 +1107,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       if ( _usbd_dev.connected )
       {
         _usbd_dev.suspended = 0;
-        osal_queue_send(_usbd_q, event, in_isr);
+        send = true;
       }
     break;
 
@@ -1129,14 +1130,20 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
         dcd_event_t const event_resume = { .rhport = event->rhport, .event_id = DCD_EVENT_RESUME };
         osal_queue_send(_usbd_q, &event_resume, in_isr);
+        CFG_TUD_EVENT_HOOK(&event_resume, in_isr);
       }
 
       // skip osal queue for SOF in usbd task
     break;
 
     default:
-      osal_queue_send(_usbd_q, event, in_isr);
+      send = true;
     break;
+  }
+
+  if (send) {
+      osal_queue_send(_usbd_q, event, in_isr);
+      CFG_TUD_EVENT_HOOK(event, in_isr);
   }
 }
 
