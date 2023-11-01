@@ -35,6 +35,7 @@ TinyUSB is funded by
 
 .. figure:: docs/assets/adafruit_logo.svg
    :alt: Adafruit
+   :target: https://www.adafruit.com
 
 Supported MCUs
 ==============
