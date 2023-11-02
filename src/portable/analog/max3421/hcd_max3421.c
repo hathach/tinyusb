@@ -417,7 +417,6 @@ bool hcd_init(uint8_t rhport) {
   (void) rhport;
 
   tuh_max3421_int_api(rhport, false);
-  tuh_max3421_spi_cs_api(rhport, false);
 
   TU_LOG2_INT(sizeof(max3421_ep_t));
   TU_LOG2_INT(sizeof(max3421_data_t));
