@@ -97,6 +97,9 @@ static inline uint32_t board_millis(void) {
   return (((uint64_t)rt_tick_get()) * 1000 / RT_TICK_PER_SECOND);
 }
 
+#elif CFG_TUSB_OS == OPT_OS_CUSTOM
+// Implement your own board_millis() in any of .c file
+
 #else
   #error "board_millis() is not implemented for this OS"
 #endif
