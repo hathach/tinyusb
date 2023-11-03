@@ -337,11 +337,6 @@ static void ncm_report(void)
   }
 }
 
-TU_ATTR_WEAK void tud_network_link_state_cb(bool state)
-{
-  (void)state;
-}
-
 // Handle class control request
 // return false to stall control endpoint (e.g unsupported request)
 bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
@@ -381,8 +376,6 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 ncm_report();
               }
             }
-
-            tud_network_link_state_cb(ncm_interface.itf_data_alt);
           }
 
           tud_control_status(rhport, request);
