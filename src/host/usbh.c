@@ -554,8 +554,12 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
 
   // Check if device is still connected (enumerating for dev0)
   uint8_t const daddr = xfer->daddr;
-  if ( daddr == 0 && !_dev0.enumerating) return false;
-  if ( daddr != 0 && get_device(daddr)->connected == 0) return false;
+  if ( daddr == 0 ) {
+    if (!_dev0.enumerating) return false;
+  } else {
+    usbh_device_t const* dev = get_device(daddr);
+    if (dev && dev->connected == 0) return false;
+  }
 
   // pre-check to help reducing mutex lock
   TU_VERIFY(_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
