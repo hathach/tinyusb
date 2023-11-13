@@ -56,7 +56,13 @@ typedef struct dhcp_config
 	dhcp_entry_t *entries;
 } dhcp_config_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 err_t dhserv_init(const dhcp_config_t *config);
 void dhserv_free(void);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DHSERVER_H */
