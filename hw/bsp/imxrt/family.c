@@ -25,7 +25,6 @@
  */
 
 #include "bsp/board_api.h"
-#include "board.h"
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
@@ -44,6 +43,9 @@
 #endif
 
 #include "clock_config.h"
+#include "pin_mux.h"
+
+#include "board.h"
 
 #if defined(BOARD_TUD_RHPORT) && CFG_TUD_ENABLED
   #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
@@ -58,8 +60,7 @@
 #endif
 
 // needed by fsl_flexspi_nor_boot
-TU_ATTR_USED
-const uint8_t dcd_data[] = { 0x00 };
+TU_ATTR_USED const uint8_t dcd_data[] = { 0x00 };
 
 //--------------------------------------------------------------------+
 //
@@ -87,22 +88,19 @@ void board_init(void)
   if (SCB_CCR_DC_Msk != (SCB_CCR_DC_Msk & SCB->CCR)) SCB_EnableDCache();
 #endif
 
-  // Init clock
+  BOARD_InitPins();
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
 
 #ifdef TRACE_ETM
   // RT1011 ETM pins
-  IOMUXC_SetPinMux(IOMUXC_GPIO_11_ARM_TRACE3, 0U);
-  IOMUXC_SetPinMux(IOMUXC_GPIO_12_ARM_TRACE2, 0U);
-  IOMUXC_SetPinMux(IOMUXC_GPIO_13_ARM_TRACE1, 0U);
-  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_00_ARM_TRACE0, 0U);
-  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_02_ARM_TRACE_CLK, 0U);
-  CLOCK_EnableClock(kCLOCK_Trace);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_11_ARM_TRACE3, 0U);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_12_ARM_TRACE2, 0U);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_13_ARM_TRACE1, 0U);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_00_ARM_TRACE0, 0U);
+//  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_02_ARM_TRACE_CLK, 0U);
+//  CLOCK_EnableClock(kCLOCK_Trace);
 #endif
-
-  // Enable IOCON clock
-  CLOCK_EnableClock(kCLOCK_Iomuxc);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -117,24 +115,24 @@ void board_init(void)
 #endif
 
   // LED
-  IOMUXC_SetPinMux( LED_PINMUX, 0U);
-  IOMUXC_SetPinConfig( LED_PINMUX, 0x10B0U);
+//  IOMUXC_SetPinMux( LED_PINMUX, 0U);
+//  IOMUXC_SetPinConfig( LED_PINMUX, 0x10B0U);
 
   gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0, kGPIO_NoIntmode };
   GPIO_PinInit(LED_PORT, LED_PIN, &led_config);
   board_led_write(true);
 
   // Button
-  IOMUXC_SetPinMux( BUTTON_PINMUX, 0U);
-  IOMUXC_SetPinConfig(BUTTON_PINMUX, 0x01B0A0U);
-  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0, kGPIO_IntRisingEdge, };
+//  IOMUXC_SetPinMux( BUTTON_PINMUX, 0U);
+//  IOMUXC_SetPinConfig(BUTTON_PINMUX, 0x01B0A0U);
+  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0, kGPIO_NoIntmode};
   GPIO_PinInit(BUTTON_PORT, BUTTON_PIN, &button_config);
 
   // UART
-  IOMUXC_SetPinMux( UART_TX_PINMUX, 0U);
-  IOMUXC_SetPinMux( UART_RX_PINMUX, 0U);
-  IOMUXC_SetPinConfig( UART_TX_PINMUX, 0x10B0u);
-  IOMUXC_SetPinConfig( UART_RX_PINMUX, 0x10B0u);
+//  IOMUXC_SetPinMux( UART_TX_PINMUX, 0U);
+//  IOMUXC_SetPinMux( UART_RX_PINMUX, 0U);
+//  IOMUXC_SetPinConfig( UART_TX_PINMUX, 0x10B0u);
+//  IOMUXC_SetPinConfig( UART_RX_PINMUX, 0x10B0u);
 
   lpuart_config_t uart_config;
   LPUART_GetDefaultConfig(&uart_config);
@@ -142,15 +140,12 @@ void board_init(void)
   uart_config.enableTx = true;
   uart_config.enableRx = true;
 
-  uint32_t freq;
-  if (CLOCK_GetMux(kCLOCK_UartMux) == 0) /* PLL3 div6 80M */
-  {
-    freq = (CLOCK_GetPllFreq(kCLOCK_PllUsb1) / 6U) / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
-  }
-  else
-  {
-    freq = CLOCK_GetOscFreq() / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
-  }
+  uint32_t freq = board_uart_get_clock();
+//  if (CLOCK_GetMux(kCLOCK_UartMux) == 0) /* PLL3 div6 80M */ {
+//    freq = (CLOCK_GetPllFreq(kCLOCK_PllUsb1) / 6U) / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
+//  } else {
+//    freq = CLOCK_GetOscFreq() / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
+//  }
 
   if ( kStatus_Success != LPUART_Init(UART_PORT, &uart_config, freq) ) {
     // failed to init uart, probably baudrate is not supported
@@ -181,25 +176,23 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
-void USB_OTG1_IRQHandler(void)
-{
+void USB_OTG1_IRQHandler(void) {
   #if PORT_SUPPORT_DEVICE(0)
-    tud_int_handler(0);
+  tud_int_handler(0);
   #endif
 
   #if PORT_SUPPORT_HOST(0)
-    tuh_int_handler(0, true);
+  tuh_int_handler(0, true);
   #endif
 }
 
-void USB_OTG2_IRQHandler(void)
-{
+void USB_OTG2_IRQHandler(void) {
   #if PORT_SUPPORT_DEVICE(1)
-    tud_int_handler(1);
+  tud_int_handler(1);
   #endif
 
   #if PORT_SUPPORT_HOST(1)
-    tuh_int_handler(1, true);
+  tuh_int_handler(1, true);
   #endif
 }
 
@@ -207,35 +200,29 @@ void USB_OTG2_IRQHandler(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  GPIO_PinWrite(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  GPIO_PinWrite(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
-  // active low
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == GPIO_PinRead(BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
+int board_uart_read(uint8_t* buf, int len) {
   int count = 0;
 
-  while( count < len )
-  {
+  while (count < len) {
     uint8_t const rx_count = LPUART_GetRxFifoCount(UART_PORT);
-    if (!rx_count)
-    {
+    if (!rx_count) {
       // clear all error flag if any
       uint32_t status_flags = LPUART_GetStatusFlags(UART_PORT);
-      status_flags  &= (kLPUART_RxOverrunFlag | kLPUART_ParityErrorFlag | kLPUART_FramingErrorFlag | kLPUART_NoiseErrorFlag);
+      status_flags &= (kLPUART_RxOverrunFlag | kLPUART_ParityErrorFlag | kLPUART_FramingErrorFlag |
+                       kLPUART_NoiseErrorFlag);
       LPUART_ClearStatusFlags(UART_PORT, status_flags);
       break;
     }
 
-    for(int i=0; i<rx_count; i++)
-    {
+    for (int i = 0; i < rx_count; i++) {
       buf[count] = LPUART_ReadByte(UART_PORT);
       count++;
     }

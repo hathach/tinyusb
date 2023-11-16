@@ -6,6 +6,8 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 
 CPU_CORE ?= cortex-m7
 
+MCU_VARIANT_WITH_CORE = ${MCU_VARIANT}${MCU_CORE}
+
 CFLAGS += \
   -D__ARMVFP__=0 \
   -D__ARMFPV5__=0 \
@@ -27,7 +29,7 @@ CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough -Wno-error
 MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 # All source paths should be relative to the top level.
-LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx_flexspi_nor.ld
+LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx${MCU_CORE}_flexspi_nor.ld
 
 # TODO for net_lwip_webserver example, but may not needed !!
 LDFLAGS += \
@@ -37,13 +39,23 @@ SRC_C += \
 	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
 	src/portable/chipidea/ci_hs/hcd_ci_hs.c \
 	src/portable/ehci/ehci.c \
-	$(MCU_DIR)/system_$(MCU_VARIANT).c \
+	${BOARD_PATH}/board/clock_config.c \
+	${BOARD_PATH}/board/pin_mux.c \
+	$(MCU_DIR)/system_$(MCU_VARIANT_WITH_CORE).c \
 	$(MCU_DIR)/xip/fsl_flexspi_nor_boot.c \
-	$(MCU_DIR)/project_template/clock_config.c \
 	$(MCU_DIR)/drivers/fsl_clock.c \
 	$(SDK_DIR)/drivers/common/fsl_common.c \
+	$(SDK_DIR)/drivers/common/fsl_common_arm.c \
 	$(SDK_DIR)/drivers/igpio/fsl_gpio.c \
 	$(SDK_DIR)/drivers/lpuart/fsl_lpuart.c
+
+# Optional drivers: only available for some mcus: rt1160, rt1170
+ifneq (,$(wildcard ${TOP}/${MCU_DIR}/drivers/fsl_dcdc.c))
+SRC_C += \
+  ${MCU_DIR}/drivers/fsl_dcdc.c \
+  ${MCU_DIR}/drivers/fsl_pmu.c \
+  ${MCU_DIR}/drivers/fsl_anatop_ai.c
+endif
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
@@ -55,7 +67,7 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/igpio \
 	$(TOP)/$(SDK_DIR)/drivers/lpuart
 
-SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT).S
+SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT_WITH_CORE).S
 
 # UF2 generation, iMXRT need to strip to text only before conversion
 APPLICATION_ADDR = 0x6000C000
