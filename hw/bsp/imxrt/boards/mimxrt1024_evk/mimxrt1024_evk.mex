@@ -26,6 +26,10 @@
          </generated_project_files>
          <pins_profile>
             <processor_version>13.0.2</processor_version>
+            <pin_labels>
+               <pin_label pin_num="52" pin_signal="WAKEUP" label="USER_BUTTON" identifier="USER_BUTTON"/>
+               <pin_label pin_num="82" pin_signal="GPIO_AD_B1_08" label="UART_TX/USER_LED/J17[4]" identifier="USER_LED"/>
+            </pin_labels>
             <power_domains>
                <power_domain name="NVCC_GPIO" value="3.3"/>
             </power_domains>
@@ -39,13 +43,39 @@
                   <enableClock>true</enableClock>
                </options>
                <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="GPIO5" description="Peripheral GPIO5 is not initialized" problem_level="1" source="Pins:BOARD_InitPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
                   <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitPins">
                      <feature name="enabled" evaluation="equal" configuration="core0">
                         <data>true</data>
                      </feature>
                   </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.iomuxc" description="Pins initialization requires the IOMUXC Driver in the project." problem_level="2" source="Pins:BOARD_InitPins">
+                     <feature name="enabled" evaluation="equal" configuration="core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.igpio" description="Pins initialization requires the IGPIO Driver in the project." problem_level="2" source="Pins:BOARD_InitPins">
+                     <feature name="enabled" evaluation="equal" configuration="core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
                </dependencies>
-               <pins/>
+               <pins>
+                  <pin peripheral="GPIO5" signal="gpio_io, 00" pin_num="52" pin_signal="WAKEUP">
+                     <pin_features>
+                        <pin_feature name="direction" value="INPUT"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="GPIO1" signal="gpio_io, 24" pin_num="82" pin_signal="GPIO_AD_B1_08">
+                     <pin_features>
+                        <pin_feature name="direction" value="OUTPUT"/>
+                     </pin_features>
+                  </pin>
+               </pins>
             </function>
             <function name="BOARD_InitDEBUG_UARTPins">
                <description>Configures pin routing and optionally pin electrical features.</description>
@@ -423,11 +453,8 @@
             </clock_configuration>
          </clock_configurations>
       </clocks>
-      <dcdx name="DCDx" version="3.0" enabled="true" update_project_code="true">
-         <generated_project_files>
-            <file path="board/dcd.c" update_enabled="true"/>
-            <file path="board/dcd.h" update_enabled="true"/>
-         </generated_project_files>
+      <dcdx name="DCDx" version="3.0" enabled="false" update_project_code="true">
+         <generated_project_files/>
          <dcdx_profile>
             <processor_version>13.0.2</processor_version>
             <output_format>c_array</output_format>
@@ -440,11 +467,8 @@
             </dcdx_configuration>
          </dcdx_configurations>
       </dcdx>
-      <periphs name="Peripherals" version="12.0" enabled="true" update_project_code="true">
-         <generated_project_files>
-            <file path="board/peripherals.c" update_enabled="true"/>
-            <file path="board/peripherals.h" update_enabled="true"/>
-         </generated_project_files>
+      <periphs name="Peripherals" version="12.0" enabled="false" update_project_code="true">
+         <generated_project_files/>
          <peripherals_profile>
             <processor_version>13.0.2</processor_version>
          </peripherals_profile>
