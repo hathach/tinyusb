@@ -14,12 +14,13 @@ processor_version: 13.0.2
 board: MIMXRT1170-EVKB
 external_user_signals: {}
 pin_labels:
-- {pin_num: M13, pin_signal: GPIO_AD_04, label: 'SIM1_PD/J44[C8]/USER_LED_CTL1/J9[8]/J25[7]', identifier: SIM1_PD;LED}
+- {pin_num: M13, pin_signal: GPIO_AD_04, label: 'SIM1_PD/J44[C8]/USER_LED_CTL1/J9[8]/J25[7]', identifier: SIM1_PD;LED;USER_LED}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
 
 #include "fsl_common.h"
 #include "fsl_iomuxc.h"
+#include "fsl_gpio.h"
 #include "pin_mux.h"
 
 /* FUNCTION ************************************************************************************************************
@@ -41,8 +42,8 @@ BOARD_InitPins:
     open_drain: Disable, drive_strength: High, slew_rate: Slow}
   - {pin_num: L13, peripheral: LPUART1, signal: TXD, pin_signal: GPIO_AD_24, software_input_on: Disable, pull_up_down_config: Pull_Down, pull_keeper_select: Keeper,
     open_drain: Disable, drive_strength: High, slew_rate: Slow}
-  - {pin_num: M13, peripheral: GPIO9, signal: 'gpio_io, 03', pin_signal: GPIO_AD_04, identifier: LED, pull_up_down_config: Pull_Down}
-  - {pin_num: T8, peripheral: GPIO13, signal: 'gpio_io, 00', pin_signal: WAKEUP, pull_up_down_config: Pull_Up}
+  - {pin_num: M13, peripheral: GPIO9, signal: 'gpio_io, 03', pin_signal: GPIO_AD_04, identifier: USER_LED, direction: OUTPUT, pull_up_down_config: Pull_Down, pull_keeper_select: Keeper}
+  - {pin_num: T8, peripheral: GPIO13, signal: 'gpio_io, 00', pin_signal: WAKEUP, direction: INPUT, pull_up_down_config: Pull_Up}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
 
@@ -54,6 +55,24 @@ BOARD_InitPins:
  * END ****************************************************************************************************************/
 void BOARD_InitPins(void) {
   CLOCK_EnableClock(kCLOCK_Iomuxc);           /* LPCG on: LPCG is ON. */
+
+  /* GPIO configuration of USER_LED on GPIO_AD_04 (pin M13) */
+  gpio_pin_config_t USER_LED_config = {
+      .direction = kGPIO_DigitalOutput,
+      .outputLogic = 0U,
+      .interruptMode = kGPIO_NoIntmode
+  };
+  /* Initialize GPIO functionality on GPIO_AD_04 (pin M13) */
+  GPIO_PinInit(GPIO9, 3U, &USER_LED_config);
+
+  /* GPIO configuration of USER_BUTTON on WAKEUP_DIG (pin T8) */
+  gpio_pin_config_t USER_BUTTON_config = {
+      .direction = kGPIO_DigitalInput,
+      .outputLogic = 0U,
+      .interruptMode = kGPIO_NoIntmode
+  };
+  /* Initialize GPIO functionality on WAKEUP_DIG (pin T8) */
+  GPIO_PinInit(GPIO13, 0U, &USER_BUTTON_config);
 
   IOMUXC_SetPinMux(
       IOMUXC_GPIO_AD_04_GPIO9_IO03,           /* GPIO_AD_04 is configured as GPIO9_IO03 */
@@ -69,9 +88,9 @@ void BOARD_InitPins(void) {
       0U);                                    /* Software Input On Field: Input Path is determined by functionality */
   IOMUXC_SetPinConfig(
       IOMUXC_GPIO_AD_04_GPIO9_IO03,           /* GPIO_AD_04 PAD functional properties : */
-      0x06U);                                 /* Slew Rate Field: Slow Slew Rate
+      0x02U);                                 /* Slew Rate Field: Slow Slew Rate
                                                  Drive Strength Field: high drive strength
-                                                 Pull / Keep Select Field: Pull Enable
+                                                 Pull / Keep Select Field: Pull Disable, Highz
                                                  Pull Up / Down Config. Field: Weak pull down
                                                  Open Drain Field: Disabled
                                                  Domain write protection: Both cores are allowed

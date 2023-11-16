@@ -91,7 +91,7 @@ void board_init(void)
   SystemCoreClockUpdate();
 
 #ifdef TRACE_ETM
-  CLOCK_EnableClock(kCLOCK_Trace);
+  //CLOCK_EnableClock(kCLOCK_Trace);
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -114,13 +114,6 @@ void board_init(void)
   uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
   uart_config.enableTx = true;
   uart_config.enableRx = true;
-
-//  uint32_t freq = board_uart_get_clock();
-//  if (CLOCK_GetMux(kCLOCK_UartMux) == 0) /* PLL3 div6 80M */ {
-//    freq = (CLOCK_GetPllFreq(kCLOCK_PllUsb1) / 6U) / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
-//  } else {
-//    freq = CLOCK_GetOscFreq() / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
-//  }
 
   if ( kStatus_Success != LPUART_Init(UART_PORT, &uart_config, UART_CLK_ROOT) ) {
     // failed to init uart, probably baudrate is not supported

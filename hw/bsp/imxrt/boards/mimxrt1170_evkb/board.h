@@ -31,25 +31,18 @@
 // required since iMX RT10xx SDK include this file for board size
 #define BOARD_FLASH_SIZE (0x1000000U)
 
-// LED
-#define LED_PINMUX            IOMUXC_GPIO_AD_04_GPIO9_IO03
-#define LED_PORT              GPIO9
-#define LED_PIN               3
+// LED: IOMUXC_GPIO_AD_04_GPIO9_IO03
+#define LED_PORT              BOARD_INITPINS_USER_LED_PERIPHERAL
+#define LED_PIN               BOARD_INITPINS_USER_LED_CHANNEL
 #define LED_STATE_ON          0
 
-// SW8 button
-#define BUTTON_PINMUX         IOMUXC_WAKEUP_DIG_GPIO13_IO00
-#define BUTTON_PORT           GPIO13
-#define BUTTON_PIN            0
+// SW8 button: IOMUXC_WAKEUP_DIG_GPIO13_IO00
+#define BUTTON_PORT           BOARD_INITPINS_USER_BUTTON_PERIPHERAL
+#define BUTTON_PIN            BOARD_INITPINS_USER_BUTTON_CHANNEL
 #define BUTTON_STATE_ACTIVE   0
 
-// UART
+// UART: IOMUXC_GPIO_AD_B0_13_LPUART1_RX, IOMUXC_GPIO_AD_B0_12_LPUART1_TX
 #define UART_PORT             LPUART1
-#define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_13_LPUART1_RX
-#define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_12_LPUART1_TX
-
-static inline uint32_t board_uart_get_clock(void) {
-  return CLOCK_GetRootClockFreq(kCLOCK_Root_Lpuart1);
-}
+#define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_LPUART10_CLK_ROOT
 
 #endif /* BOARD_H_ */

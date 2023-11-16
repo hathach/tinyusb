@@ -37,14 +37,14 @@ void BOARD_InitBootPins(void);
 
 /* GPIO_AD_04 (coord M13), SIM1_PD/J44[C8]/USER_LED_CTL1/J9[8]/J25[7] */
 /* Routed pin properties */
-#define BOARD_INITPINS_LED_PERIPHERAL                                      GPIO9   /*!< Peripheral name */
-#define BOARD_INITPINS_LED_SIGNAL                                        gpio_io   /*!< Signal name */
-#define BOARD_INITPINS_LED_CHANNEL                                            3U   /*!< Signal channel */
+#define BOARD_INITPINS_USER_LED_PERIPHERAL                                 GPIO9   /*!< Peripheral name */
+#define BOARD_INITPINS_USER_LED_SIGNAL                                   gpio_io   /*!< Signal name */
+#define BOARD_INITPINS_USER_LED_CHANNEL                                       3U   /*!< Signal channel */
 
 /* Symbols to be used with GPIO driver */
-#define BOARD_INITPINS_LED_GPIO                                            GPIO9   /*!< GPIO peripheral base pointer */
-#define BOARD_INITPINS_LED_GPIO_PIN                                           3U   /*!< GPIO pin number */
-#define BOARD_INITPINS_LED_GPIO_PIN_MASK                              (1U << 3U)   /*!< GPIO pin mask */
+#define BOARD_INITPINS_USER_LED_GPIO                                       GPIO9   /*!< GPIO peripheral base pointer */
+#define BOARD_INITPINS_USER_LED_GPIO_PIN                                      3U   /*!< GPIO pin number */
+#define BOARD_INITPINS_USER_LED_GPIO_PIN_MASK                         (1U << 3U)   /*!< GPIO pin mask */
 
 /* WAKEUP (coord T8), USER_BUTTON */
 /* Routed pin properties */

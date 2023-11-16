@@ -27,7 +27,7 @@
          <pins_profile>
             <processor_version>13.0.2</processor_version>
             <pin_labels>
-               <pin_label pin_num="M13" pin_signal="GPIO_AD_04" label="SIM1_PD/J44[C8]/USER_LED_CTL1/J9[8]/J25[7]" identifier="SIM1_PD;LED"/>
+               <pin_label pin_num="M13" pin_signal="GPIO_AD_04" label="SIM1_PD/J44[C8]/USER_LED_CTL1/J9[8]/J25[7]" identifier="SIM1_PD;LED;USER_LED"/>
             </pin_labels>
             <external_user_signals>
                <properties/>
@@ -58,6 +58,11 @@
                         <data>true</data>
                      </feature>
                   </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.igpio" description="Pins initialization requires the IGPIO Driver in the project." problem_level="2" source="Pins:BOARD_InitPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm7">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
                </dependencies>
                <pins>
                   <pin peripheral="LPUART1" signal="RXD" pin_num="M15" pin_signal="GPIO_AD_25">
@@ -82,12 +87,15 @@
                   </pin>
                   <pin peripheral="GPIO9" signal="gpio_io, 03" pin_num="M13" pin_signal="GPIO_AD_04">
                      <pin_features>
-                        <pin_feature name="identifier" value="LED"/>
+                        <pin_feature name="identifier" value="USER_LED"/>
+                        <pin_feature name="direction" value="OUTPUT"/>
                         <pin_feature name="pull_up_down_config" value="Pull_Down"/>
+                        <pin_feature name="pull_keeper_select" value="Keeper"/>
                      </pin_features>
                   </pin>
                   <pin peripheral="GPIO13" signal="gpio_io, 00" pin_num="T8" pin_signal="WAKEUP">
                      <pin_features>
+                        <pin_feature name="direction" value="INPUT"/>
                         <pin_feature name="pull_up_down_config" value="Pull_Up"/>
                      </pin_features>
                   </pin>
@@ -364,7 +372,7 @@
             </clock_configuration>
          </clock_configurations>
       </clocks>
-      <dcdx name="DCDx" version="3.0" enabled="true" update_project_code="true">
+      <dcdx name="DCDx" version="3.0" enabled="false" update_project_code="true">
          <generated_project_files>
             <file path="board/dcd.c" update_enabled="true"/>
             <file path="board/dcd.h" update_enabled="true"/>
