@@ -25,6 +25,9 @@
  */
 
 #include "bsp/board_api.h"
+#include "board/clock_config.h"
+#include "board/pin_mux.h"
+#include "board.h"
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
@@ -41,11 +44,6 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
-
-#include "clock_config.h"
-#include "pin_mux.h"
-
-#include "board.h"
 
 #if defined(BOARD_TUD_RHPORT) && CFG_TUD_ENABLED
   #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
@@ -114,40 +112,23 @@ void board_init(void)
 #endif
 #endif
 
-  // LED
-//  IOMUXC_SetPinMux( LED_PINMUX, 0U);
-//  IOMUXC_SetPinConfig( LED_PINMUX, 0x10B0U);
-
-  gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0, kGPIO_NoIntmode };
-  GPIO_PinInit(LED_PORT, LED_PIN, &led_config);
   board_led_write(true);
 
-  // Button
-//  IOMUXC_SetPinMux( BUTTON_PINMUX, 0U);
-//  IOMUXC_SetPinConfig(BUTTON_PINMUX, 0x01B0A0U);
-  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0, kGPIO_NoIntmode};
-  GPIO_PinInit(BUTTON_PORT, BUTTON_PIN, &button_config);
-
   // UART
-//  IOMUXC_SetPinMux( UART_TX_PINMUX, 0U);
-//  IOMUXC_SetPinMux( UART_RX_PINMUX, 0U);
-//  IOMUXC_SetPinConfig( UART_TX_PINMUX, 0x10B0u);
-//  IOMUXC_SetPinConfig( UART_RX_PINMUX, 0x10B0u);
-
   lpuart_config_t uart_config;
   LPUART_GetDefaultConfig(&uart_config);
   uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
   uart_config.enableTx = true;
   uart_config.enableRx = true;
 
-  uint32_t freq = board_uart_get_clock();
+//  uint32_t freq = board_uart_get_clock();
 //  if (CLOCK_GetMux(kCLOCK_UartMux) == 0) /* PLL3 div6 80M */ {
 //    freq = (CLOCK_GetPllFreq(kCLOCK_PllUsb1) / 6U) / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
 //  } else {
 //    freq = CLOCK_GetOscFreq() / (CLOCK_GetDiv(kCLOCK_UartDiv) + 1U);
 //  }
 
-  if ( kStatus_Success != LPUART_Init(UART_PORT, &uart_config, freq) ) {
+  if ( kStatus_Success != LPUART_Init(UART_PORT, &uart_config, UART_CLK_ROOT) ) {
     // failed to init uart, probably baudrate is not supported
     // TU_BREAKPOINT();
   }

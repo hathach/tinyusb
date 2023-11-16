@@ -24,18 +24,7 @@ board: MIMXRT1010-EVK
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
 
 #include "clock_config.h"
-
-// Suppress warning caused by mcu driver
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
-
 #include "fsl_iomuxc.h"
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
 
 /*******************************************************************************
  * Definitions
