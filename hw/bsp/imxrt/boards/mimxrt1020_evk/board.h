@@ -33,18 +33,19 @@
 
 // LED
 #define LED_PINMUX            IOMUXC_GPIO_AD_B0_05_GPIO1_IO05
-#define LED_PORT              GPIO1
-#define LED_PIN               5
+#define LED_PORT              BOARD_INITPINS_USER_LED_PERIPHERAL
+#define LED_PIN               BOARD_INITPINS_USER_LED_CHANNEL
 #define LED_STATE_ON          0
 
 // SW8 button
 #define BUTTON_PINMUX         IOMUXC_SNVS_WAKEUP_GPIO5_IO00
-#define BUTTON_PORT           GPIO5
-#define BUTTON_PIN            0
+#define BUTTON_PORT           BOARD_INITPINS_USER_BUTTON_GPIO
+#define BUTTON_PIN            BOARD_INITPINS_USER_BUTTON_GPIO_PIN
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_PORT             LPUART1
+#define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 #define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_07_LPUART1_RX
 #define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_06_LPUART1_TX
 
