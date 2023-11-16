@@ -35,8 +35,8 @@
 
 // LED
 #define LED_PINMUX          IOMUXC_GPIO_03_GPIOMUX_IO03
-#define LED_PORT            GPIO1
-#define LED_PIN             3
+#define LED_PORT            BOARD_INITPINS_LED_PERIPHERAL
+#define LED_PIN             BOARD_INITPINS_LED_CHANNEL
 #define LED_STATE_ON        1
 
 // D2 as button
@@ -47,6 +47,7 @@
 
 // UART
 #define UART_PORT             LPUART1
+#define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 #define UART_RX_PINMUX        IOMUXC_GPIO_09_LPUART1_RXD
 #define UART_TX_PINMUX        IOMUXC_GPIO_10_LPUART1_TXD
 

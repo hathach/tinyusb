@@ -91,13 +91,7 @@ void board_init(void)
   SystemCoreClockUpdate();
 
 #ifdef TRACE_ETM
-  // RT1011 ETM pins
-//  IOMUXC_SetPinMux(IOMUXC_GPIO_11_ARM_TRACE3, 0U);
-//  IOMUXC_SetPinMux(IOMUXC_GPIO_12_ARM_TRACE2, 0U);
-//  IOMUXC_SetPinMux(IOMUXC_GPIO_13_ARM_TRACE1, 0U);
-//  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_00_ARM_TRACE0, 0U);
-//  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_02_ARM_TRACE_CLK, 0U);
-//  CLOCK_EnableClock(kCLOCK_Trace);
+  CLOCK_EnableClock(kCLOCK_Trace);
 #endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
