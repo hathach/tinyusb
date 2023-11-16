@@ -31,13 +31,13 @@
 // required since iMX RT10xx SDK include this file for board size
 #define BOARD_FLASH_SIZE (0x800000U)
 
-// LED
+// LED: IOMUXC_GPIO_AD_B0_09_GPIO1_IO09
 #define LED_PINMUX            IOMUXC_GPIO_AD_B0_09_GPIO1_IO09
 #define LED_PORT              GPIO1
 #define LED_PIN               9
 #define LED_STATE_ON          0
 
-// SW8 button
+// SW8 button: IOMUXC_SNVS_WAKEUP_GPIO5_IO00
 #define BUTTON_PINMUX         IOMUXC_SNVS_WAKEUP_GPIO5_IO00
 #define BUTTON_PORT           GPIO5
 #define BUTTON_PIN            0
