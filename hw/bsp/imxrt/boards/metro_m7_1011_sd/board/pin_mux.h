@@ -37,21 +37,7 @@ extern "C" {
  */
 void BOARD_InitBootPins(void);
 
-#define BOARD_INITPINS_IOMUXC_GPR_GPR26_GPIO_SEL_MASK 0x28U /*!< Select GPIO1 or GPIO2: affected bits mask */
-
-/* GPIO_SD_05 (number 70), USER_BUTTON */
-/* Routed pin properties */
-#define BOARD_INITPINS_USER_BUTTON_PERIPHERAL                              GPIO2   /*!< Peripheral name */
-#define BOARD_INITPINS_USER_BUTTON_SIGNAL                                gpio_io   /*!< Signal name */
-#define BOARD_INITPINS_USER_BUTTON_CHANNEL                                    5U   /*!< Signal channel */
-
-/* Symbols to be used with GPIO driver */
-#define BOARD_INITPINS_USER_BUTTON_GPIO                                    GPIO2   /*!< GPIO peripheral base pointer */
-#define BOARD_INITPINS_USER_BUTTON_GPIO_PIN                                   5U   /*!< GPIO pin number */
-#define BOARD_INITPINS_USER_BUTTON_GPIO_PIN_MASK                      (1U << 5U)   /*!< GPIO pin mask */
-#define BOARD_INITPINS_USER_BUTTON_PORT                                    GPIO2   /*!< PORT peripheral base pointer */
-#define BOARD_INITPINS_USER_BUTTON_PIN                                        5U   /*!< PORT pin number */
-#define BOARD_INITPINS_USER_BUTTON_PIN_MASK                           (1U << 5U)   /*!< PORT pin mask */
+#define BOARD_INITPINS_IOMUXC_GPR_GPR26_GPIO_SEL_MASK 0x08U /*!< Select GPIO1 or GPIO2: affected bits mask */
 
 /* GPIO_09 (number 3), LPUART1_RXD/J56[2] */
 /* Routed pin properties */
@@ -65,15 +51,15 @@ void BOARD_InitBootPins(void);
 
 /* GPIO_03 (number 10), SAI1_RXD0/U10[16] */
 /* Routed pin properties */
-#define BOARD_INITPINS_LED_PERIPHERAL                                      GPIO1   /*!< Peripheral name */
-#define BOARD_INITPINS_LED_SIGNAL                                     gpiomux_io   /*!< Signal name */
-#define BOARD_INITPINS_LED_CHANNEL                                            3U   /*!< Signal channel */
+#define BOARD_INITPINS_USER_LED_PERIPHERAL                                 GPIO1   /*!< Peripheral name */
+#define BOARD_INITPINS_USER_LED_SIGNAL                                gpiomux_io   /*!< Signal name */
+#define BOARD_INITPINS_USER_LED_CHANNEL                                       3U   /*!< Signal channel */
 
 /* GPIO_13 (number 79), USB_OTG1_ID/J9[4]/Q9[2] */
 /* Routed pin properties */
-#define BOARD_INITPINS_USB_OTG1_ID_PERIPHERAL                                ARM   /*!< Peripheral name */
-#define BOARD_INITPINS_USB_OTG1_ID_SIGNAL                                  TRACE   /*!< Signal name */
-#define BOARD_INITPINS_USB_OTG1_ID_CHANNEL                                    1U   /*!< Signal channel */
+#define BOARD_INITPINS_TRACE1_PERIPHERAL                                     ARM   /*!< Peripheral name */
+#define BOARD_INITPINS_TRACE1_SIGNAL                                       TRACE   /*!< Signal name */
+#define BOARD_INITPINS_TRACE1_CHANNEL                                         1U   /*!< Signal channel */
 
 /* GPIO_12 (number 80), USB_OTG1_OC/U7[A2] */
 /* Routed pin properties */
@@ -97,6 +83,12 @@ void BOARD_InitBootPins(void);
 #define BOARD_INITPINS_USB_OTG1_PWR_PERIPHERAL                               ARM   /*!< Peripheral name */
 #define BOARD_INITPINS_USB_OTG1_PWR_SIGNAL                                 TRACE   /*!< Signal name */
 #define BOARD_INITPINS_USB_OTG1_PWR_CHANNEL                                   0U   /*!< Signal channel */
+
+/* GPIO_08 (number 4), SAI1_MCLK/U10[11] */
+/* Routed pin properties */
+#define BOARD_INITPINS_USER_BUTTON_PERIPHERAL                              GPIO1   /*!< Peripheral name */
+#define BOARD_INITPINS_USER_BUTTON_SIGNAL                             gpiomux_io   /*!< Signal name */
+#define BOARD_INITPINS_USER_BUTTON_CHANNEL                                    8U   /*!< Signal channel */
 
 /*!
  * @brief Configures pin routing and optionally pin electrical features.

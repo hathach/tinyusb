@@ -139,4 +139,5 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
+  #family_flash_pyocd(${TARGET})
 endfunction()

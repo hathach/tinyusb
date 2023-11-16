@@ -15,7 +15,10 @@ board: MIMXRT1010-EVK
 external_user_signals: {}
 pin_labels:
 - {pin_num: '1', pin_signal: GPIO_11, label: GPIO_11, identifier: GPIO_11}
-- {pin_num: '10', pin_signal: GPIO_03, label: 'SAI1_RXD0/U10[16]', identifier: LED}
+- {pin_num: '70', pin_signal: GPIO_SD_05}
+- {pin_num: '10', pin_signal: GPIO_03, label: 'SAI1_RXD0/U10[16]', identifier: LED;USER_LED}
+- {pin_num: '4', pin_signal: GPIO_08, label: 'SAI1_MCLK/U10[11]', identifier: USER_BUTTON}
+- {pin_num: '79', pin_signal: GPIO_13, label: 'USB_OTG1_ID/J9[4]/Q9[2]', identifier: TRACE1}
 power_domains: {NVCC_GPIO: '3.3'}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
@@ -40,15 +43,15 @@ void BOARD_InitBootPins(void) {
 BOARD_InitPins:
 - options: {callFromInitBoot: 'true', coreID: core0, enableClock: 'true'}
 - pin_list:
-  - {pin_num: '70', peripheral: GPIO2, signal: 'gpio_io, 05', pin_signal: GPIO_SD_05, direction: INPUT, pull_keeper_select: Pull, pull_up_down_config: Pull_Up_100K_Ohm}
   - {pin_num: '3', peripheral: LPUART1, signal: RXD, pin_signal: GPIO_09}
   - {pin_num: '2', peripheral: LPUART1, signal: TXD, pin_signal: GPIO_10}
-  - {pin_num: '10', peripheral: GPIO1, signal: 'gpiomux_io, 03', pin_signal: GPIO_03, direction: OUTPUT}
+  - {pin_num: '10', peripheral: GPIO1, signal: 'gpiomux_io, 03', pin_signal: GPIO_03, identifier: USER_LED, direction: OUTPUT}
   - {pin_num: '79', peripheral: ARM, signal: 'TRACE, 1', pin_signal: GPIO_13, speed: MHZ_200}
   - {pin_num: '80', peripheral: ARM, signal: 'TRACE, 2', pin_signal: GPIO_12, speed: MHZ_200}
   - {pin_num: '58', peripheral: ARM, signal: arm_trace_clk, pin_signal: GPIO_AD_02, speed: MHZ_200}
   - {pin_num: '1', peripheral: ARM, signal: 'TRACE, 3', pin_signal: GPIO_11, speed: MHZ_200}
   - {pin_num: '60', peripheral: ARM, signal: 'TRACE, 0', pin_signal: GPIO_AD_00, speed: MHZ_200}
+  - {pin_num: '4', peripheral: GPIO1, signal: 'gpiomux_io, 08', pin_signal: GPIO_08, direction: INPUT, pull_keeper_select: Pull, pull_up_down_config: Pull_Up_100K_Ohm}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
 
@@ -61,25 +64,26 @@ BOARD_InitPins:
 void BOARD_InitPins(void) {
   CLOCK_EnableClock(kCLOCK_Iomuxc);
 
-  /* GPIO configuration of LED on GPIO_03 (pin 10) */
-  gpio_pin_config_t LED_config = {
+  /* GPIO configuration of USER_LED on GPIO_03 (pin 10) */
+  gpio_pin_config_t USER_LED_config = {
       .direction = kGPIO_DigitalOutput,
       .outputLogic = 0U,
       .interruptMode = kGPIO_NoIntmode
   };
   /* Initialize GPIO functionality on GPIO_03 (pin 10) */
-  GPIO_PinInit(GPIO1, 3U, &LED_config);
+  GPIO_PinInit(GPIO1, 3U, &USER_LED_config);
 
-  /* GPIO configuration of USER_BUTTON on GPIO_SD_05 (pin 70) */
+  /* GPIO configuration of USER_BUTTON on GPIO_08 (pin 4) */
   gpio_pin_config_t USER_BUTTON_config = {
       .direction = kGPIO_DigitalInput,
       .outputLogic = 0U,
       .interruptMode = kGPIO_NoIntmode
   };
-  /* Initialize GPIO functionality on GPIO_SD_05 (pin 70) */
-  GPIO_PinInit(GPIO2, 5U, &USER_BUTTON_config);
+  /* Initialize GPIO functionality on GPIO_08 (pin 4) */
+  GPIO_PinInit(GPIO1, 8U, &USER_BUTTON_config);
 
   IOMUXC_SetPinMux(IOMUXC_GPIO_03_GPIOMUX_IO03, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_08_GPIOMUX_IO08, 0U);
   IOMUXC_SetPinMux(IOMUXC_GPIO_09_LPUART1_RXD, 0U);
   IOMUXC_SetPinMux(IOMUXC_GPIO_10_LPUART1_TXD, 0U);
   IOMUXC_SetPinMux(IOMUXC_GPIO_11_ARM_TRACE3, 0U);
@@ -87,17 +91,16 @@ void BOARD_InitPins(void) {
   IOMUXC_SetPinMux(IOMUXC_GPIO_13_ARM_TRACE1, 0U);
   IOMUXC_SetPinMux(IOMUXC_GPIO_AD_00_ARM_TRACE0, 0U);
   IOMUXC_SetPinMux(IOMUXC_GPIO_AD_02_ARM_TRACE_CLK, 0U);
-  IOMUXC_SetPinMux(IOMUXC_GPIO_SD_05_GPIO2_IO05, 0U);
   IOMUXC_GPR->GPR26 = ((IOMUXC_GPR->GPR26 &
     (~(BOARD_INITPINS_IOMUXC_GPR_GPR26_GPIO_SEL_MASK)))
       | IOMUXC_GPR_GPR26_GPIO_SEL(0x00U)
     );
+  IOMUXC_SetPinConfig(IOMUXC_GPIO_08_GPIOMUX_IO08, 0xB0A0U);
   IOMUXC_SetPinConfig(IOMUXC_GPIO_11_ARM_TRACE3, 0x10E0U);
   IOMUXC_SetPinConfig(IOMUXC_GPIO_12_ARM_TRACE2, 0x10E0U);
   IOMUXC_SetPinConfig(IOMUXC_GPIO_13_ARM_TRACE1, 0x10E0U);
   IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_00_ARM_TRACE0, 0x10E0U);
   IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_02_ARM_TRACE_CLK, 0x10E0U);
-  IOMUXC_SetPinConfig(IOMUXC_GPIO_SD_05_GPIO2_IO05, 0xB0A0U);
 }
 
 /***********************************************************************************************************************

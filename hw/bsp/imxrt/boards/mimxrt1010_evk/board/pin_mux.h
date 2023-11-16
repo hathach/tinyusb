@@ -55,9 +55,9 @@ void BOARD_InitBootPins(void);
 
 /* GPIO_11 (number 1), GPIO_11 */
 /* Routed pin properties */
-#define BOARD_INITPINS_LED_PERIPHERAL                                      GPIO1   /*!< Peripheral name */
-#define BOARD_INITPINS_LED_SIGNAL                                     gpiomux_io   /*!< Signal name */
-#define BOARD_INITPINS_LED_CHANNEL                                           11U   /*!< Signal channel */
+#define BOARD_INITPINS_USER_LED_PERIPHERAL                                 GPIO1   /*!< Peripheral name */
+#define BOARD_INITPINS_USER_LED_SIGNAL                                gpiomux_io   /*!< Signal name */
+#define BOARD_INITPINS_USER_LED_CHANNEL                                      11U   /*!< Signal channel */
 
 /* GPIO_09 (number 3), LPUART1_RXD/J56[2] */
 /* Routed pin properties */

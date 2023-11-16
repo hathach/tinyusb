@@ -14,7 +14,7 @@ processor_version: 13.0.2
 board: MIMXRT1010-EVK
 external_user_signals: {}
 pin_labels:
-- {pin_num: '1', pin_signal: GPIO_11, label: GPIO_11, identifier: LED}
+- {pin_num: '1', pin_signal: GPIO_11, label: GPIO_11, identifier: LED;USERLED;USER_LED}
 power_domains: {NVCC_GPIO: '3.3'}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
@@ -40,7 +40,7 @@ BOARD_InitPins:
 - options: {callFromInitBoot: 'true', coreID: core0, enableClock: 'true'}
 - pin_list:
   - {pin_num: '70', peripheral: GPIO2, signal: 'gpio_io, 05', pin_signal: GPIO_SD_05, direction: INPUT, pull_keeper_select: Pull, pull_up_down_config: Pull_Up_47K_Ohm}
-  - {pin_num: '1', peripheral: GPIO1, signal: 'gpiomux_io, 11', pin_signal: GPIO_11, direction: OUTPUT}
+  - {pin_num: '1', peripheral: GPIO1, signal: 'gpiomux_io, 11', pin_signal: GPIO_11, identifier: USER_LED, direction: OUTPUT}
   - {pin_num: '3', peripheral: LPUART1, signal: RXD, pin_signal: GPIO_09}
   - {pin_num: '2', peripheral: LPUART1, signal: TXD, pin_signal: GPIO_10}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
@@ -55,14 +55,14 @@ BOARD_InitPins:
 void BOARD_InitPins(void) {
   CLOCK_EnableClock(kCLOCK_Iomuxc);
 
-  /* GPIO configuration of LED on GPIO_11 (pin 1) */
-  gpio_pin_config_t LED_config = {
+  /* GPIO configuration of USER_LED on GPIO_11 (pin 1) */
+  gpio_pin_config_t USER_LED_config = {
       .direction = kGPIO_DigitalOutput,
       .outputLogic = 0U,
       .interruptMode = kGPIO_NoIntmode
   };
   /* Initialize GPIO functionality on GPIO_11 (pin 1) */
-  GPIO_PinInit(GPIO1, 11U, &LED_config);
+  GPIO_PinInit(GPIO1, 11U, &USER_LED_config);
 
   /* GPIO configuration of USER_BUTTON on GPIO_SD_05 (pin 70) */
   gpio_pin_config_t USER_BUTTON_config = {
