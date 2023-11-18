@@ -26,6 +26,10 @@
          </generated_project_files>
          <pins_profile>
             <processor_version>13.0.2</processor_version>
+            <pin_labels>
+               <pin_label pin_num="52" pin_signal="WAKEUP" label="USER_BUTTON" identifier="USER_BUTTON"/>
+               <pin_label pin_num="106" pin_signal="GPIO_AD_B0_05" label="JTAG_nTRST/J16[3]/USER_LED/J17[5]" identifier="USER_LED"/>
+            </pin_labels>
             <external_user_signals>
                <properties/>
             </external_user_signals>
@@ -42,13 +46,40 @@
                   <enableClock>true</enableClock>
                </options>
                <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="GPIO5" description="Peripheral GPIO5 is not initialized" problem_level="1" source="Pins:BOARD_InitPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
                   <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitPins">
                      <feature name="enabled" evaluation="equal" configuration="core0">
                         <data>true</data>
                      </feature>
                   </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.iomuxc" description="Pins initialization requires the IOMUXC Driver in the project." problem_level="2" source="Pins:BOARD_InitPins">
+                     <feature name="enabled" evaluation="equal" configuration="core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.igpio" description="Pins initialization requires the IGPIO Driver in the project." problem_level="2" source="Pins:BOARD_InitPins">
+                     <feature name="enabled" evaluation="equal" configuration="core0">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
                </dependencies>
-               <pins/>
+               <pins>
+                  <pin peripheral="GPIO5" signal="gpio_io, 00" pin_num="52" pin_signal="WAKEUP">
+                     <pin_features>
+                        <pin_feature name="direction" value="INPUT"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="GPIO1" signal="gpio_io, 05" pin_num="106" pin_signal="GPIO_AD_B0_05">
+                     <pin_features>
+                        <pin_feature name="direction" value="OUTPUT"/>
+                        <pin_feature name="pull_keeper_select" value="Keeper"/>
+                     </pin_features>
+                  </pin>
+               </pins>
             </function>
             <function name="BOARD_InitDEBUG_UARTPins">
                <description>Configures pin routing and optionally pin electrical features.</description>

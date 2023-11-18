@@ -7,7 +7,7 @@ from multiprocessing import Pool
 # path, url, commit, family (Alphabet sorted by path)
 deps_mandatory = {
     'lib/FreeRTOS-Kernel': ['https://github.com/FreeRTOS/FreeRTOS-Kernel.git',
-                            '5f19e34f878af97810a7662a75eac59bd74d628b',
+                            '4ff01a7a4a51f53b44496aefee1e3c0071b7b173',
                             'all'],
     'lib/lwip': ['https://github.com/lwip-tcpip/lwip.git',
                  '159e31b689577dbf69cf0683bbaffbd71fa5ee10',
