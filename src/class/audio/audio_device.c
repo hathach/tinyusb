@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Reinhard Panhuber, Jerzy Kasenberg
+ * Copyright (c) 2023 HiFiPhile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -324,7 +325,7 @@ typedef struct
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
   struct {
-    CFG_TUSB_MEM_ALIGN uint32_t value;  // Feedback value for asynchronous mode (in 16.16 format).
+    uint32_t value;  // Feedback value for asynchronous mode (in 16.16 format).
     uint32_t min_value;   // min value according to UAC2 FMT-2.0 section 2.3.1.1.
     uint32_t max_value;   // max value according to UAC2 FMT-2.0 section 2.3.1.1.
 
@@ -341,9 +342,10 @@ typedef struct
       }fixed;
 
       struct {
-        uint32_t fifo_lvl_thr; // In 16.16 format
-        uint32_t fifo_lvl_avg; // In 16.16 format
-        uint32_t rate_const;   // pre-computed feedback/fifo_depth rate
+        uint32_t nom_value;     // In 16.16 format
+        uint32_t fifo_lvl_avg;  // In 16.16 format
+        uint16_t fifo_lvl_thr;
+        uint16_t rate_const[2]; // pre-computed feedback/fifo_depth rate
       }fifo_count;
     }compute;
 
@@ -1099,7 +1101,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
 static inline bool audiod_fb_send(uint8_t rhport, audiod_function_t *audio)
 {
   // Format the feedback value
-  uint32_t value;
+  CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint32_t value;
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION
   if ( TUSB_SPEED_FULL == tud_speed_get() )
   {
@@ -1763,7 +1765,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
     // Find correct interface
     if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf && ((tusb_desc_interface_t const * )p_desc)->bAlternateSetting == alt)
     {
-#if CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_ENABLE_DECODING || CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && (CFG_TUD_AUDIO_ENABLE_ENCODING || CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL) || (CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING)
       uint8_t const * p_desc_parse_for_params = p_desc;
 #endif
       // From this point forward follow the EP descriptors associated to the current alternate setting interface - Open EPs if necessary
@@ -1895,15 +1897,19 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             /* Start with max value to allow quick FIFO filling */
             tud_audio_n_fb_set(func_id, audio->feedback.max_value);
             /* Initialize the threshhold level to half filled */
-            uint32_t fifo_lvl_thr;
+            uint16_t fifo_lvl_thr;
 #if CFG_TUD_AUDIO_ENABLE_DECODING
             fifo_lvl_thr = tu_fifo_depth(&audio->rx_supp_ff[0]) / 2;
 #else
             fifo_lvl_thr = tu_fifo_depth(&audio->ep_out_ff) / 2;
 #endif
-            audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_lvl_thr << 16;
-            audio->feedback.compute.fifo_count.fifo_lvl_avg = fifo_lvl_thr << 16;
-            audio->feedback.compute.fifo_count.rate_const = (audio->feedback.max_value - audio->feedback.max_value) / fifo_lvl_thr;
+            audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_lvl_thr;
+            audio->feedback.compute.fifo_count.fifo_lvl_avg = ((uint32_t)fifo_lvl_thr) << 16;
+            uint64_t fb64 = ((uint64_t) fb_param.sample_freq) << 16;
+            uint32_t nominal = (uint32_t)(fb64 / frame_div);
+            audio->feedback.compute.fifo_count.nom_value = nominal;
+            audio->feedback.compute.fifo_count.rate_const[0] = (audio->feedback.max_value - nominal) / fifo_lvl_thr;
+            audio->feedback.compute.fifo_count.rate_const[1] = (nominal - audio->feedback.min_value) / fifo_lvl_thr;
           }
           break;
 
@@ -2277,15 +2283,19 @@ static void audiod_fb_fifo_count_update(audiod_function_t* audio, uint16_t lvl_n
   }
   audio->feedback.compute.fifo_count.fifo_lvl_avg = lvl;
 
-  uint32_t const ff_lvl = audio->feedback.compute.fifo_count.fifo_lvl_avg >> 16;
-  uint32_t const ff_thr = audio->feedback.compute.fifo_count.fifo_lvl_thr >> 16;
-  uint32_t const rate   = audio->feedback.compute.fifo_count.rate_const;
-
-  uint8_t  const alpha = (speed == TUSB_SPEED_FULL) ? 6 : 9;
+  uint32_t const ff_lvl = lvl >> 16;
+  uint16_t const ff_thr = audio->feedback.compute.fifo_count.fifo_lvl_thr;
+  uint16_t const *rate   = audio->feedback.compute.fifo_count.rate_const;
 
   uint32_t feedback = audio->feedback.value;
 
-  feedback -= ((ff_lvl - ff_thr) * rate) >> alpha;
+  if(ff_lvl < ff_thr)
+  {
+    feedback = audio->feedback.compute.fifo_count.nom_value + (ff_thr - ff_lvl) * rate[0];
+  } else
+  {
+    feedback = audio->feedback.compute.fifo_count.nom_value - (ff_lvl - ff_thr) * rate[1];
+  }
 
   if ( feedback > audio->feedback.max_value ) feedback = audio->feedback.max_value;
   if ( feedback < audio->feedback.min_value ) feedback = audio->feedback.min_value;

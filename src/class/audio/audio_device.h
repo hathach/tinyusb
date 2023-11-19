@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2020 Ha Thach (tinyusb.org)
  * Copyright (c) 2020 Reinhard Panhuber
+ * Copyright (c) 2023 HiFiPhile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -516,11 +517,6 @@ typedef struct {
       uint32_t mclk_freq; // Main clock frequency in Hz i.e. master clock to which sample clock is based on
     }frequency;
 
-#if 0 // implement later
-    struct {
-      uint32_t threshold_bytes; // minimum number of bytes received to be considered as filled/ready
-    }fifo_count;
-#endif
   };
 }audio_feedback_params_t;
 
