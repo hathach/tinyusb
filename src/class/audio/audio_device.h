@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2020 Ha Thach (tinyusb.org)
  * Copyright (c) 2020 Reinhard Panhuber
+ * Copyright (c) 2023 HiFiPhile
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -487,7 +488,6 @@ TU_ATTR_WEAK void tud_audio_fb_done_cb(uint8_t func_id);
 // feedback = n_cycles / n_frames * f_s / f_m in 16.16 format, where n_cycles are the number of main clock cycles within fb_n_frames
 
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
-static inline bool tud_audio_fb_set(uint32_t feedback);
 
 // Update feedback value with passed cycles since last time this update function is called.
 // Typically called within tud_audio_sof_isr(). Required tud_audio_feedback_params_cb() is implemented
@@ -500,9 +500,7 @@ enum {
   AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED,
   AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT,
   AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2,
-
-  // impelemnt later
-  // AUDIO_FEEDBACK_METHOD_FIFO_COUNT
+  AUDIO_FEEDBACK_METHOD_FIFO_COUNT
 };
 
 typedef struct {
@@ -514,11 +512,6 @@ typedef struct {
       uint32_t mclk_freq; // Main clock frequency in Hz i.e. master clock to which sample clock is based on
     }frequency;
 
-#if 0 // implement later
-    struct {
-      uint32_t threshold_bytes; // minimum number of bytes received to be considered as filled/ready
-    }fifo_count;
-#endif
   };
 }audio_feedback_params_t;
 
