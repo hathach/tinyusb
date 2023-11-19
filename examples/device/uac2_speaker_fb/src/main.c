@@ -347,7 +347,9 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
 
 void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedback_params_t* feedback_param)
 {
-  // Set feedback methode to fifo counting
+  (void)func_id;
+  (void)alt_itf;
+  // Set feedback method to fifo counting
   feedback_param->method = AUDIO_FEEDBACK_METHOD_FIFO_COUNT;
   feedback_param->sample_freq = current_sample_rate;
 }

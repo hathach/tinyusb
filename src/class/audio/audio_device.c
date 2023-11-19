@@ -1896,7 +1896,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           {
             /* Start with max value to allow quick FIFO filling */
             tud_audio_n_fb_set(func_id, audio->feedback.max_value);
-            /* Initialize the threshhold level to half filled */
+            /* Initialize the threshold level to half filled */
             uint16_t fifo_lvl_thr;
 #if CFG_TUD_AUDIO_ENABLE_DECODING
             fifo_lvl_thr = tu_fifo_depth(&audio->rx_supp_ff[0]) / 2;
@@ -1905,8 +1905,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #endif
             audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_lvl_thr;
             audio->feedback.compute.fifo_count.fifo_lvl_avg = ((uint32_t)fifo_lvl_thr) << 16;
-            uint64_t fb64 = ((uint64_t) fb_param.sample_freq) << 16;
-            uint32_t nominal = (uint32_t)(fb64 / frame_div);
+            /* Avoid 64bit division */
+            uint32_t nominal = ((fb_param.sample_freq / 100) << 16) / (frame_div / 100);
             audio->feedback.compute.fifo_count.nom_value = nominal;
             audio->feedback.compute.fifo_count.rate_const[0] = (audio->feedback.max_value - nominal) / fifo_lvl_thr;
             audio->feedback.compute.fifo_count.rate_const[1] = (nominal - audio->feedback.min_value) / fifo_lvl_thr;

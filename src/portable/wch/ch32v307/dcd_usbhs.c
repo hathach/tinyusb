@@ -135,6 +135,14 @@ void dcd_remote_wakeup(uint8_t rhport)
   (void) rhport;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request) {
     (void)rhport;
 
