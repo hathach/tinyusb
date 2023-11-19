@@ -154,6 +154,7 @@ def render_md():
     # Write the Markdown table to a file
     with open('dwc2_info.md', 'w') as md_file:
         md_file.write(df.to_markdown())
+        md_file.write('\n')
 
 
 if __name__ == '__main__':
