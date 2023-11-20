@@ -12,6 +12,8 @@ dwc2_reg_value = {
     'STM32F407 Highspeed': [0x1100, 0x4F54281A, 0, 0x229ED590, 0x3F403E8, 0x17F00030],
     'STM32F411 Fullspeed': [0x1200, 0x4F54281A, 0, 0x229DCD20, 0x20001E8, 0xFF08030],
     'STM32F412 Fullspeed': [0x2000, 0x4F54320A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
+    'STM32F429 Fullspeed': [0x1200, 0x4F54281A, 0, 0x229DCD20, 0x20001E8, 0xFF08030],
+    'STM32F429 Highspeed': [0x1100, 0x4F54281A, 0, 0x229ED590, 0x3F403E8, 0x17F00030],
     'STM32F723 Fullspeed': [0x3000, 0x4F54330A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
     'STM32F723 HighSpeed': [0x3100, 0x4F54330A, 0, 0x229FE1D0, 0x3EED2E8, 0x23F00030],
     'STM32F767 Fullspeed': [0x2000, 0x4F54320A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
@@ -152,6 +154,7 @@ def render_md():
     # Write the Markdown table to a file
     with open('dwc2_info.md', 'w') as md_file:
         md_file.write(df.to_markdown())
+        md_file.write('\n')
 
 
 if __name__ == '__main__':
