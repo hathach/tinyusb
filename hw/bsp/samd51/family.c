@@ -76,12 +76,18 @@ void USB_3_Handler(void) {
 // Implementation
 //--------------------------------------------------------------------+
 
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
+
+// API to read MAX3421's register. Implemented by TinyUSB
+extern uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
+
+// API to write MAX3421's register. Implemented by TinyUSB
+extern bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
+
 #define MAX3421_SERCOM TU_XSTRCAT(SERCOM, MAX3421_SERCOM_ID)
 #define MAX3421_EIC_Handler TU_XSTRCAT3(EIC_, MAX3421_INTR_EIC_ID, _Handler)
 
 static void max3421_init(void);
-
 #endif
 
 void board_init(void) {
@@ -136,8 +142,20 @@ void board_init(void) {
   gpio_set_pin_function(PIN_PA24, PINMUX_PA24H_USB_DM);
   gpio_set_pin_function(PIN_PA25, PINMUX_PA25H_USB_DP);
 
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
   max3421_init();
+#endif
+}
+
+void board_init_after_tusb(void) {
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
+  // FeatherWing MAX3421E use MAX3421E's GPIO0 for VBUS enable
+  enum {
+    IOPINS1_ADDR  = 20u << 3, // 0xA0
+  };
+
+  uint8_t rhport = 1;
+  tuh_max3421_reg_write(rhport, IOPINS1_ADDR, 0x01, false);
 #endif
 }
 
@@ -182,7 +200,7 @@ uint32_t board_millis(void) {
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
 //--------------------------------------------------------------------+
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
 
 static void max3421_init(void) {
   //------------- SPI Init -------------//
@@ -262,7 +280,7 @@ static void max3421_init(void) {
 
   // Enable the SPI module
   sercom->SPI.CTRLA.bit.ENABLE = 1;
-  while (sercom->SPI.SYNCBUSY.bit.ENABLE);
+  while (sercom->SPI.SYNCBUSY.bit.ENABLE) {}
 
   //------------- External Interrupt -------------//
 

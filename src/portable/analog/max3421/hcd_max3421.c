@@ -54,6 +54,12 @@ enum {
   CPUCTL_ADDR   = 16u << 3, // 0x80
   PINCTL_ADDR   = 17u << 3, // 0x88
   REVISION_ADDR = 18u << 3, // 0x90
+  // 19 is not used
+  IOPINS1_ADDR  = 20u << 3, // 0xA0
+  IOPINS2_ADDR  = 21u << 3, // 0xA8
+  GPINIRQ_ADDR  = 22u << 3, // 0xB0
+  GPINIEN_ADDR  = 23u << 3, // 0xB8
+  GPINPOL_ADDR  = 24u << 3, // 0xC0
   HIRQ_ADDR     = 25u << 3, // 0xC8
   HIEN_ADDR     = 26u << 3, // 0xD0
   MODE_ADDR     = 27u << 3, // 0xD8
@@ -207,7 +213,9 @@ typedef struct {
 static max3421_data_t _hcd_data;
 
 //--------------------------------------------------------------------+
-// API: SPI transfer with MAX3421E, must be implemented by application
+// API: SPI transfer with MAX3421E
+// - spi_cs_api(), spi_xfer_api(), int_api(): must be implemented by application
+// - reg_read(), reg_write(): is implemented by this driver, can be used by application
 //--------------------------------------------------------------------+
 
 // API to control MAX3421 SPI CS
@@ -220,11 +228,18 @@ extern bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint
 // API to enable/disable MAX3421 INTR pin interrupt
 extern void tuh_max3421_int_api(uint8_t rhport, bool enabled);
 
+// API to read MAX3421's register. Implemented by TinyUSB
+uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
+
+// API to write MAX3421's register. Implemented by TinyUSB
+bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
+
 //--------------------------------------------------------------------+
-// SPI Helper
+// SPI Commands and Helper
 //--------------------------------------------------------------------+
-static void handle_connect_irq(uint8_t rhport, bool in_isr);
-static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr);
+
+#define reg_read  tuh_max3421_reg_read
+#define reg_write tuh_max3421_reg_write
 
 static void max3421_spi_lock(uint8_t rhport, bool in_isr) {
   // disable interrupt and mutex lock (for pre-emptive RTOS) if not in_isr
@@ -246,6 +261,32 @@ static void max3421_spi_unlock(uint8_t rhport, bool in_isr) {
     tuh_max3421_int_api(rhport, true);
     (void) osal_mutex_unlock(_hcd_data.spi_mutex);
   }
+}
+
+uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr) {
+  uint8_t tx_buf[2] = {reg, 0};
+  uint8_t rx_buf[2] = {0, 0};
+
+  max3421_spi_lock(rhport, in_isr);
+  bool ret = tuh_max3421_spi_xfer_api(rhport, tx_buf, rx_buf, 2);
+  max3421_spi_unlock(rhport, in_isr);
+
+  _hcd_data.hirq = rx_buf[0];
+  return ret ? rx_buf[1] : 0;
+}
+
+bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr) {
+  uint8_t tx_buf[2] = {reg | CMDBYTE_WRITE, data};
+  uint8_t rx_buf[2] = {0, 0};
+
+  max3421_spi_lock(rhport, in_isr);
+  bool ret = tuh_max3421_spi_xfer_api(rhport, tx_buf, rx_buf, 2);
+  max3421_spi_unlock(rhport, in_isr);
+
+  // HIRQ register since we are in full-duplex mode
+  _hcd_data.hirq = rx_buf[0];
+
+  return ret;
 }
 
 static void fifo_write(uint8_t rhport, uint8_t reg, uint8_t const * buffer, uint16_t len, bool in_isr) {
@@ -275,34 +316,7 @@ static void fifo_read(uint8_t rhport, uint8_t * buffer, uint16_t len, bool in_is
   max3421_spi_unlock(rhport, in_isr);
 }
 
-static void reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr) {
-  uint8_t tx_buf[2] = {reg | CMDBYTE_WRITE, data};
-  uint8_t rx_buf[2] = {0, 0};
-
-  max3421_spi_lock(rhport, in_isr);
-
-  tuh_max3421_spi_xfer_api(rhport, tx_buf, rx_buf, 2);
-
-  max3421_spi_unlock(rhport, in_isr);
-
-  // HIRQ register since we are in full-duplex mode
-  _hcd_data.hirq = rx_buf[0];
-}
-
-static uint8_t reg_read(uint8_t rhport, uint8_t reg, bool in_isr) {
-  uint8_t tx_buf[2] = {reg, 0};
-  uint8_t rx_buf[2] = {0, 0};
-
-  max3421_spi_lock(rhport, in_isr);
-
-  bool ret = tuh_max3421_spi_xfer_api(rhport, tx_buf, rx_buf, 2);
-
-  max3421_spi_unlock(rhport, in_isr);
-
-  _hcd_data.hirq = rx_buf[0];
-  return ret ? rx_buf[1] : 0;
-}
-
+//------------- register write helper -------------//
 static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr) {
   reg_write(rhport, HIRQ_ADDR, data, in_isr);
   // HIRQ write 1 is clear
