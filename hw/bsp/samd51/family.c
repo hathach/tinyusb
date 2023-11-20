@@ -78,12 +78,6 @@ void USB_3_Handler(void) {
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
 
-// API to read MAX3421's register. Implemented by TinyUSB
-extern uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
-
-// API to write MAX3421's register. Implemented by TinyUSB
-extern bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
-
 #define MAX3421_SERCOM TU_XSTRCAT(SERCOM, MAX3421_SERCOM_ID)
 #define MAX3421_EIC_Handler TU_XSTRCAT3(EIC_, MAX3421_INTR_EIC_ID, _Handler)
 
@@ -148,15 +142,6 @@ void board_init(void) {
 }
 
 void board_init_after_tusb(void) {
-#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-  // FeatherWing MAX3421E use MAX3421E's GPIO0 for VBUS enable
-  enum {
-    IOPINS1_ADDR  = 20u << 3, // 0xA0
-  };
-
-  uint8_t rhport = 1;
-  tuh_max3421_reg_write(rhport, IOPINS1_ADDR, 0x01, false);
-#endif
 }
 
 //--------------------------------------------------------------------+

@@ -40,7 +40,9 @@
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
       <configuration PROFILE_NAME="metro_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m0_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="feather_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m0_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="metro_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="feather_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="feather_nrf52840_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_nrf52840_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="pca10056" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10056 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="pca10095" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10095 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
