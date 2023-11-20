@@ -95,9 +95,7 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 
 //------------- Host using MAX2341E -------------//
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-
 static void max3421_init(void);
-
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
 #endif
 
