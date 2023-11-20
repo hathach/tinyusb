@@ -609,7 +609,7 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
     tusb_desc_cs_video_fmt_t const *fmt = _find_desc_format(tu_desc_next(vs), end, fmtnum);
     tusb_desc_cs_video_frm_t const *frm = _find_desc_frame(tu_desc_next(fmt), end, frmnum);
 
-    uint_fast32_t interval, interval_ms;
+    uint_fast32_t interval, interval_ms = 0;
     switch (request) {
       case VIDEO_REQUEST_GET_MAX: {
         uint_fast32_t min_interval, max_interval;

@@ -4,6 +4,9 @@
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
 CROSS_COMPILE ?= riscv-none-embed-
 
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
+#CROSS_COMPILE ?= riscv-none-elf-
+
 # Submodules
 CH32V307_SDK = hw/mcu/wch/ch32v307
 
@@ -12,6 +15,8 @@ CH32V307_SDK_SRC = $(CH32V307_SDK)/EVT/EXAM/SRC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
+
+# 	-march=rv32imac_zicsr
 
 CFLAGS += \
 	-flto \

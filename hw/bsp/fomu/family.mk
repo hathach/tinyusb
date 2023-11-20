@@ -1,6 +1,10 @@
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
 CROSS_COMPILE = riscv-none-embed-
 
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
+# CROSS_COMPILE = riscv-none-elf-
+#  -march=rv32i_zicsr
+
 CPU_CORE ?= rv32i-ilp32
 
 CFLAGS += \

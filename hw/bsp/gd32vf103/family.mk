@@ -7,6 +7,9 @@
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
 CROSS_COMPILE ?= riscv-none-embed-
 
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
+# CROSS_COMPILE ?= riscv-none-elf-
+
 # Submodules
 NUCLEI_SDK = hw/mcu/gd/nuclei-sdk
 
@@ -18,6 +21,8 @@ STARTUP_ASM = $(GD32VF103_SDK_SOC)/Common/Source/GCC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
+
+# -march=rv32imac_zicsr
 
 CFLAGS += \
 	-mcmodel=medlow \
