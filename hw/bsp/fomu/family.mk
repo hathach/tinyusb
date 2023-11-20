@@ -3,12 +3,14 @@ CROSS_COMPILE = riscv-none-embed-
 
 CFLAGS += \
   -flto \
-  -march=rv32i \
+  -march=rv32i_zicsr \
   -mabi=ilp32 \
   -nostdlib \
   -DCFG_TUSB_MCU=OPT_MCU_VALENTYUSB_EPTRI
 
 LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
+CROSS_COMPILE = riscv-none-elf-
 
 # All source paths should be relative to the top level.
 LD_FILE = $(FAMILY_PATH)/fomu.ld

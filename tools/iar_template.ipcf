@@ -165,6 +165,7 @@
             <path>$TUSB_DIR$/src/portable/valentyusb/eptri/dcd_eptri.c</path>
         </group>
         <group name="src/portable/wch">
+            <path>$TUSB_DIR$/src/portable/wch/dcd_ch32_usbfs.c</path>
             <path>$TUSB_DIR$/src/portable/wch/dcd_ch32_usbhs.c</path>
         </group>
         <group name="src/typec">
