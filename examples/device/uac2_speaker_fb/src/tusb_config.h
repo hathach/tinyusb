@@ -32,6 +32,7 @@ extern "C" {
 #endif
 
 #include "usb_descriptors.h"
+
 //--------------------------------------------------------------------+
 // Board Specific Configuration
 //--------------------------------------------------------------------+
@@ -59,6 +60,8 @@ extern "C" {
 #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
+// It's recommanded to disable debug unless for control requests debugging,
+// as the extra time needed will impact data stream !
 #ifndef CFG_TUSB_DEBUG
 #define CFG_TUSB_DEBUG        0
 #endif
@@ -88,16 +91,29 @@ extern "C" {
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
+// Expose audio class debug information via HID interface
+#ifndef CFG_AUDIO_DEBUG
+#define CFG_AUDIO_DEBUG           1
+#endif
+
 #ifndef CFG_TUD_ENDPOINT0_SIZE
 #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
+#define CFG_TUD_HID_EP_BUFSIZE    64
+
 //------------- CLASS -------------//
+#define CFG_TUD_AUDIO             1
+
+#if CFG_AUDIO_DEBUG
+#define CFG_TUD_HID               1
+#else
+#define CFG_TUD_HID               0
+#endif
+
 #define CFG_TUD_CDC               0
 #define CFG_TUD_MSC               0
-#define CFG_TUD_HID               0
 #define CFG_TUD_MIDI              0
-#define CFG_TUD_AUDIO             1
 #define CFG_TUD_VENDOR            0
 
 //--------------------------------------------------------------------
@@ -126,13 +142,13 @@ extern "C" {
 #define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ     (TUD_OPT_HIGH_SPEED ? 32 : 4) * CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX // Example read FIFO every 1ms, so it should be 8 times larger for HS device
 
 // Enable feedback EP
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP                            1
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP                             1
 
 // Number of Standard AS Interface Descriptors (4.9.1) defined per audio function - this is required to be able to remember the current alternate settings of these interfaces - We restrict us here to have a constant number for all audio functions (which means this has to be the maximum number of AS interfaces an audio function has and a second audio function with less AS interfaces just wastes a few bytes)
-#define CFG_TUD_AUDIO_FUNC_1_N_AS_INT 	                            1
+#define CFG_TUD_AUDIO_FUNC_1_N_AS_INT 	                             1
 
 // Size of control request buffer
-#define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ	                        64
+#define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ	                         64
 
 #ifdef __cplusplus
 }

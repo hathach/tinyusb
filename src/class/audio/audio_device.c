@@ -2269,7 +2269,6 @@ static bool audiod_set_fb_params_freq(audiod_function_t* audio, uint32_t sample_
 
 static void audiod_fb_fifo_count_update(audiod_function_t* audio, uint16_t lvl_new)
 {
-  tusb_speed_t speed = tud_speed_get();
   /* Low-pass (averaging) filter */
   uint32_t lvl = audio->feedback.compute.fifo_count.fifo_lvl_avg;
   lvl = (uint32_t)(((uint64_t)lvl * 63  + ((uint32_t)lvl_new << 16)) >> 6);

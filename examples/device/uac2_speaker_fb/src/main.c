@@ -29,6 +29,7 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
+#include "common_types.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
@@ -88,6 +89,11 @@ uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ/2];
 void led_blinking_task(void);
 void audio_task(void);
 
+#if CFG_AUDIO_DEBUG
+void audio_debug_task(void);
+uint8_t current_alt_settings;
+#endif
+
 /*------------- MAIN -------------*/
 int main(void)
 {
@@ -107,6 +113,9 @@ int main(void)
     tud_task(); // TinyUSB device task
     audio_task();
     led_blinking_task();
+#if CFG_AUDIO_DEBUG
+    audio_debug_task();
+#endif
   }
 }
 
@@ -140,6 +149,10 @@ void tud_resume_cb(void)
 {
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
+
+//--------------------------------------------------------------------+
+// Application Callback API Implementations
+//--------------------------------------------------------------------+
 
 // Helper for clock get requests
 static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t const *request)
@@ -283,10 +296,6 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio_control_req
   }
 }
 
-//--------------------------------------------------------------------+
-// Application Callback API Implementations
-//--------------------------------------------------------------------+
-
 // Invoked when audio class specific get request received for an entity
 bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request)
 {
@@ -342,6 +351,10 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
   if (ITF_NUM_AUDIO_STREAMING == itf && alt != 0)
       blink_interval_ms = BLINK_STREAMING;
 
+#if CFG_AUDIO_DEBUG
+  current_alt_settings = alt;
+#endif
+
   return true;
 }
 
@@ -353,14 +366,15 @@ void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedba
   feedback_param->method = AUDIO_FEEDBACK_METHOD_FIFO_COUNT;
   feedback_param->sample_freq = current_sample_rate;
 }
+
 //--------------------------------------------------------------------+
 // AUDIO Task
 //--------------------------------------------------------------------+
 
 void audio_task(void)
 {
-  // Yet to be filled - e.g. write audio to I2S buffer.
-  // Here we simulate a I2S transmit callback every 1ms.
+  // Replace audio_task() with your I2S transmit callback.
+  // Here we simulate a callback called every 1ms.
   static uint32_t start_ms = 0;
   uint32_t curr_ms = board_millis();
   if ( start_ms == curr_ms ) return; // not enough time
@@ -399,3 +413,65 @@ void led_blinking_task(void)
   board_led_write(led_state);
   led_state = 1 - led_state;
 }
+
+#if CFG_AUDIO_DEBUG
+//--------------------------------------------------------------------+
+// HID interface for audio debug
+//--------------------------------------------------------------------+
+
+// Every 1ms, we will sent 1 debug information report
+void audio_debug_task(void)
+{
+  static uint32_t start_ms = 0;
+  uint32_t curr_ms = board_millis();
+  if ( start_ms == curr_ms ) return; // not enough time
+  start_ms = curr_ms;
+
+  uint16_t fifo_count = tud_audio_available();
+  static uint32_t fifo_count_avg;
+
+  // Same averaging method used in UAC2 class
+  fifo_count_avg = (uint32_t)(((uint64_t)fifo_count_avg * 63  + ((uint32_t)fifo_count << 16)) >> 6);
+
+  audio_debug_info_t debug_info;
+  debug_info.sample_rate    = current_sample_rate;
+  debug_info.alt_settings   = current_alt_settings;
+  debug_info.fifo_size      = CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ;
+  debug_info.fifo_count     = fifo_count;
+  debug_info.fifo_count_avg = fifo_count_avg >> 16;
+  for (int i = 0; i < CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1; i++)
+  {
+    debug_info.mute[i] = mute[i];
+    debug_info.volume[i] = volume[i];
+  }
+
+  tud_hid_report(0, &debug_info, sizeof(debug_info));
+}
+
+// Invoked when received GET_REPORT control request
+// Unused here
+uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
+{
+  // TODO not Implemented
+  (void) itf;
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) reqlen;
+
+  return 0;
+}
+
+// Invoked when received SET_REPORT control request or
+// Unused here
+void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
+{
+  // This example doesn't use multiple report and report ID
+  (void) itf;
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) bufsize;
+}
+
+#endif

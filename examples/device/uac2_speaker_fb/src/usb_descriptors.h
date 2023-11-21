@@ -32,13 +32,6 @@
 #define UAC2_ENTITY_FEATURE_UNIT        0x02
 #define UAC2_ENTITY_OUTPUT_TERMINAL     0x03
 
-enum
-{
-  ITF_NUM_AUDIO_CONTROL = 0,
-  ITF_NUM_AUDIO_STREAMING,
-  ITF_NUM_TOTAL
-};
-
 #define TUD_AUDIO_SPEAKER_STEREO_FB_DESC_LEN (TUD_AUDIO_DESC_IAD_LEN\
   + TUD_AUDIO_DESC_STD_AC_LEN\
   + TUD_AUDIO_DESC_CS_AC_LEN\
@@ -84,6 +77,6 @@ enum
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
   TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_MILLISEC, /*_lockdelay*/ 0x0001),\
   /* Standard AS Isochronous Feedback Endpoint Descriptor(4.10.2.1) */\
-  TUD_AUDIO_DESC_STD_AS_ISO_FB_EP(/*_ep*/ _epfb, /*_interval*/ 4)\
+  TUD_AUDIO_DESC_STD_AS_ISO_FB_EP(/*_ep*/ _epfb, /*_interval*/ TUD_OPT_HIGH_SPEED ? 4 : 1)\
 
 #endif
