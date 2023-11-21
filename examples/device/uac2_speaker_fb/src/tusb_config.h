@@ -60,7 +60,7 @@ extern "C" {
 #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
-// It's recommanded to disable debug unless for control requests debugging,
+// It's recommended to disable debug unless for control requests debugging,
 // as the extra time needed will impact data stream !
 #ifndef CFG_TUSB_DEBUG
 #define CFG_TUSB_DEBUG        0

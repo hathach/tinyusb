@@ -111,11 +111,11 @@ int main(void)
   while (1)
   {
     tud_task(); // TinyUSB device task
-    audio_task();
     led_blinking_task();
 #if CFG_AUDIO_DEBUG
     audio_debug_task();
 #endif
+    audio_task();
   }
 }
 
