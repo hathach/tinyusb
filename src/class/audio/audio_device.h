@@ -492,7 +492,6 @@ TU_ATTR_WEAK void tud_audio_fb_done_cb(uint8_t func_id);
 // feedback = n_cycles / n_frames * f_s / f_m in 16.16 format, where n_cycles are the number of main clock cycles within fb_n_frames
 
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
-static inline bool tud_audio_fb_set(uint32_t feedback);
 
 // Update feedback value with passed cycles since last time this update function is called.
 // Typically called within tud_audio_sof_isr(). Required tud_audio_feedback_params_cb() is implemented

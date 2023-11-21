@@ -1098,7 +1098,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
 // This function is called once a transmit of a feedback packet was successfully completed. Here, we get the next feedback value to be sent
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-static inline bool audiod_fb_send(uint8_t rhport, audiod_function_t *audio)
+static inline bool audiod_fb_send(audiod_function_t *audio)
 {
   // Format the feedback value
   CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint32_t value;
@@ -1121,7 +1121,7 @@ static inline bool audiod_fb_send(uint8_t rhport, audiod_function_t *audio)
   value = audio->feedback.value;
 #endif
 
-  return usbd_edpt_xfer(rhport, audio->ep_fb, (uint8_t *) &value, 4);
+  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) &value, 4);
 }
 #endif
 
@@ -1894,8 +1894,6 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
           case AUDIO_FEEDBACK_METHOD_FIFO_COUNT:
           {
-            /* Start with max value to allow quick FIFO filling */
-            tud_audio_n_fb_set(func_id, audio->feedback.max_value);
             /* Initialize the threshold level to half filled */
             uint16_t fifo_lvl_thr;
 #if CFG_TUD_AUDIO_ENABLE_DECODING
@@ -2223,7 +2221,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       if (!usbd_edpt_busy(rhport, audio->ep_fb))
       {
         // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-        return audiod_fb_send(rhport, audio);
+        return audiod_fb_send(audio);
       }
     }
 #endif
@@ -2272,15 +2270,9 @@ static bool audiod_set_fb_params_freq(audiod_function_t* audio, uint32_t sample_
 static void audiod_fb_fifo_count_update(audiod_function_t* audio, uint16_t lvl_new)
 {
   tusb_speed_t speed = tud_speed_get();
-  /* Low-pass (averaging) filter with a response time of about 100ms*/
+  /* Low-pass (averaging) filter */
   uint32_t lvl = audio->feedback.compute.fifo_count.fifo_lvl_avg;
-  if (speed == TUSB_SPEED_FULL)
-  {
-    lvl = (uint32_t)(((uint64_t)lvl * 63  + ((uint32_t)lvl_new << 16)) >> 6);
-  } else
-  {
-	  lvl = (uint32_t)(((uint64_t)lvl * 511 + ((uint32_t)lvl_new << 16)) >> 9);
-  }
+  lvl = (uint32_t)(((uint64_t)lvl * 63  + ((uint32_t)lvl_new << 16)) >> 6);
   audio->feedback.compute.fifo_count.fifo_lvl_avg = lvl;
 
   uint32_t const ff_lvl = lvl >> 16;
@@ -2300,6 +2292,12 @@ static void audiod_fb_fifo_count_update(audiod_function_t* audio, uint16_t lvl_n
   if ( feedback > audio->feedback.max_value ) feedback = audio->feedback.max_value;
   if ( feedback < audio->feedback.min_value ) feedback = audio->feedback.min_value;
   audio->feedback.value = feedback;
+
+  // Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
+  if (!usbd_edpt_busy(audio->rhport, audio->ep_fb))
+  {
+    audiod_fb_send(audio);
+  }
 }
 
 uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
@@ -2348,7 +2346,7 @@ bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
   // Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
   if (!usbd_edpt_busy(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_fb))
   {
-    return audiod_fb_send(_audiod_fct[func_id].rhport, &_audiod_fct[func_id]);
+    return audiod_fb_send(&_audiod_fct[func_id]);
   }
 
   return true;
