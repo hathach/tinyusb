@@ -29,7 +29,7 @@
 #define BOARD_H_
 
 
-// required since iMX RT10xx SDK include this file for board size
+// required since iMXRT MCUX-SDK include this file for board size
 #define BOARD_FLASH_SIZE (2 * 1024 * 1024)
 
 // LED D13: IOMUXC_GPIO_B0_03_GPIO2_IO03
