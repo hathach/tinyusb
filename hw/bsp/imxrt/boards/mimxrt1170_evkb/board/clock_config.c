@@ -11,11 +11,11 @@
 
 /* TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!GlobalInfo
-product: Clocks v11.0
+product: Clocks v12.0
 processor: MIMXRT1176xxxxx
 package_id: MIMXRT1176DVMAA
 mcu_data: ksdk2_0
-processor_version: 13.0.2
+processor_version: 14.0.1
 board: MIMXRT1170-EVKB
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
 
@@ -275,6 +275,7 @@ void BOARD_BootClockRUN(void)
 {
     clock_root_config_t rootCfg = {0};
 
+#if !defined(SKIP_DCDC_CONFIGURATION) || (!SKIP_DCDC_CONFIGURATION)
     /* Set DCDC to DCM mode to improve the efficiency for light loading in run mode and transient performance with a big loading step. */
     DCDC_BootIntoDCM(DCDC);
 
@@ -288,7 +289,8 @@ void BOARD_BootClockRUN(void)
         /* Set 1.125V for production samples to align with data sheet requirement */
         DCDC_SetVDD1P0BuckModeTargetVoltage(DCDC, kDCDC_1P0BuckTarget1P125V);
     }
-#endif
+#endif /* SKIP_DCDC_ADJUSTMENT */
+#endif /* SKIP_DCDC_CONFIGURATION */
 
 #if !defined(SKIP_FBB_ENABLE) || (!SKIP_FBB_ENABLE)
     /* Check if FBB need to be enabled in OverDrive(OD) mode */
@@ -333,7 +335,7 @@ void BOARD_BootClockRUN(void)
 
     /* Init OSC RC 400M */
     CLOCK_OSC_EnableOscRc400M();
-    CLOCK_OSC_GateOscRc400M(true);
+    CLOCK_OSC_GateOscRc400M(false);
 
     /* Init OSC RC 48M */
     CLOCK_OSC_EnableOsc48M(true);
