@@ -64,7 +64,30 @@ TU_ATTR_USED const uint8_t dcd_data[] = { 0x00 };
 //
 //--------------------------------------------------------------------+
 
-static void init_usb_phy(USBPHY_Type* usb_phy) {
+// unify naming convention
+#if !defined(USBPHY1) && defined(USBPHY)
+  #define USBPHY1 USBPHY
+#endif
+
+static void init_usb_phy(uint8_t usb_id) {
+  USBPHY_Type* usb_phy;
+
+  if (usb_id == 0) {
+    usb_phy = USBPHY1;
+    CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_Usbphy480M, BOARD_XTAL0_CLK_HZ);
+    CLOCK_EnableUsbhs0Clock(kCLOCK_Usb480M, BOARD_XTAL0_CLK_HZ);
+  }
+  #ifdef USBPHY2
+  else if (usb_id == 1) {
+    usb_phy = USBPHY2;
+    CLOCK_EnableUsbhs1PhyPllClock(kCLOCK_Usbphy480M, BOARD_XTAL0_CLK_HZ);
+    CLOCK_EnableUsbhs1Clock(kCLOCK_Usb480M, BOARD_XTAL0_CLK_HZ);
+  }
+  #endif
+  else {
+    return;
+  }
+
   // Enable PHY support for Low speed device + LS via FS Hub
   usb_phy->CTRL |= USBPHY_CTRL_SET_ENUTMILEVEL2_MASK | USBPHY_CTRL_SET_ENUTMILEVEL3_MASK;
 
@@ -122,22 +145,9 @@ void board_init(void)
 
   //------------- USB -------------//
   // Note: RT105x RT106x and later have dual USB controllers.
-
-  // Clock
-  CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
-  CLOCK_EnableUsbhs0Clock(kCLOCK_Usb480M, 480000000U);
-
-#ifdef USBPHY1
-  init_usb_phy(USBPHY1);
-#else
-  init_usb_phy(USBPHY);
-#endif
-
+  init_usb_phy(0); // USB0
 #ifdef USBPHY2
-  // USB1
-  CLOCK_EnableUsbhs1PhyPllClock(kCLOCK_Usbphy480M, 480000000U);
-  CLOCK_EnableUsbhs1Clock(kCLOCK_Usb480M, 480000000U);
-  init_usb_phy(USBPHY2);
+  init_usb_phy(1); // USB1
 #endif
 }
 

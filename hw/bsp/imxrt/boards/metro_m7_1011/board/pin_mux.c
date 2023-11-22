@@ -6,11 +6,11 @@
 /*
  * TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!GlobalInfo
-product: Pins v13.1
+product: Pins v14.0
 processor: MIMXRT1011xxxxx
 package_id: MIMXRT1011DAE5A
 mcu_data: ksdk2_0
-processor_version: 13.0.2
+processor_version: 14.0.0
 board: MIMXRT1010-EVK
 external_user_signals: {}
 pin_labels:

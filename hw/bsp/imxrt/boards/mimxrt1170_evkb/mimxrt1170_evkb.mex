@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding= "UTF-8" ?>
-<configuration name="MIMXRT1176xxxxx" xsi:schemaLocation="http://mcuxpresso.nxp.com/XSD/mex_configuration_13 http://mcuxpresso.nxp.com/XSD/mex_configuration_13.xsd" uuid="060646c1-2247-47a8-b52d-03c1968b4426" version="13" xmlns="http://mcuxpresso.nxp.com/XSD/mex_configuration_13" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<configuration name="MIMXRT1176xxxxx" xsi:schemaLocation="http://mcuxpresso.nxp.com/XSD/mex_configuration_14 http://mcuxpresso.nxp.com/XSD/mex_configuration_14.xsd" uuid="060646c1-2247-47a8-b52d-03c1968b4426" version="14" xmlns="http://mcuxpresso.nxp.com/XSD/mex_configuration_14" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
    <common>
       <processor>MIMXRT1176xxxxx</processor>
       <package>MIMXRT1176DVMAA</package>
@@ -19,17 +19,18 @@
       <generate_registers_defines>false</generate_registers_defines>
    </preferences>
    <tools>
-      <pins name="Pins" version="13.1" enabled="true" update_project_code="true">
+      <pins name="Pins" version="14.0" enabled="true" update_project_code="true">
          <generated_project_files>
             <file path="board/pin_mux.c" update_enabled="true"/>
             <file path="board/pin_mux.h" update_enabled="true"/>
          </generated_project_files>
          <pins_profile>
-            <processor_version>13.0.2</processor_version>
+            <processor_version>14.0.1</processor_version>
             <pin_labels>
                <pin_label pin_num="M13" pin_signal="GPIO_AD_04" label="SIM1_PD/J44[C8]/USER_LED_CTL1/J9[8]/J25[7]" identifier="SIM1_PD;LED;USER_LED"/>
             </pin_labels>
             <external_user_signals>
+               <routingDetailsColumns/>
                <properties/>
             </external_user_signals>
             <power_domains/>
@@ -103,13 +104,13 @@
             </function>
          </functions_list>
       </pins>
-      <clocks name="Clocks" version="11.0" enabled="true" update_project_code="true">
+      <clocks name="Clocks" version="12.0" enabled="true" update_project_code="true">
          <generated_project_files>
             <file path="board/clock_config.c" update_enabled="true"/>
             <file path="board/clock_config.h" update_enabled="true"/>
          </generated_project_files>
          <clocks_profile>
-            <processor_version>13.0.2</processor_version>
+            <processor_version>14.0.1</processor_version>
          </clocks_profile>
          <clock_configurations>
             <clock_configuration name="BOARD_BootClockRUN" id_prefix="" prefix_user_defined="false">
@@ -373,10 +374,7 @@
          </clock_configurations>
       </clocks>
       <dcdx name="DCDx" version="3.0" enabled="false" update_project_code="true">
-         <generated_project_files>
-            <file path="board/dcd.c" update_enabled="true"/>
-            <file path="board/dcd.h" update_enabled="true"/>
-         </generated_project_files>
+         <generated_project_files/>
          <dcdx_profile>
             <processor_version>13.0.2</processor_version>
             <output_format>c_array</output_format>
