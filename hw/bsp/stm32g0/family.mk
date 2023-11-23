@@ -21,6 +21,8 @@ CFLAGS_GCC += \
 # suppress warning caused by vendor mcu driver
 CFLAGS_GCC += -Wno-error=cast-align
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # -----------------
 # Sources & Include
 # -----------------

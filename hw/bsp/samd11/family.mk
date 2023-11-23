@@ -18,6 +18,8 @@ CFLAGS += -Wno-error=redundant-decls
 # SAM driver is flooded with -Wcast-qual which slow down complication significantly
 CFLAGS_SKIP += -Wcast-qual
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
 	hw/mcu/microchip/samd11/gcc/gcc/startup_samd11.c \

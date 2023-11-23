@@ -34,6 +34,7 @@ def build_family(example, family, make_option):
         # sum all element of same index (column sum)
         return list(map(sum, list(zip(*result))))
 
+
 if __name__ == '__main__':
     # IAR CC
     if make_iar_option not in sys.argv:
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     # If examples are not specified in arguments, build all
     all_examples = []
     for d in os.scandir("examples"):
-        if d.is_dir() and 'cmake' not in d.name:
+        if d.is_dir() and 'cmake' not in d.name and 'build_system' not in d.name:
             for entry in os.scandir(d.path):
                 if entry.is_dir() and 'cmake' not in entry.name:
                     all_examples.append(d.name + '/' + entry.name)

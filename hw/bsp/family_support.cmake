@@ -201,6 +201,9 @@ function(family_configure_common TARGET RTOS)
   # Generate linker map file
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
+    endif ()
   endif()
 
   # ETM Trace option
@@ -289,12 +292,10 @@ function(family_configure_device_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
 endfunction()
 
-
 # Configure host example with RTOS
 function(family_configure_host_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
 endfunction()
-
 
 # Configure host + device example with RTOS
 function(family_configure_dual_usb_example TARGET RTOS)
