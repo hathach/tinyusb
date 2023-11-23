@@ -139,6 +139,14 @@ static void bus_reset(uint8_t rhport) {
     dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
   }
 
+  // flush all TX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
+  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
+
+  // flush RX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_RXFFLSH;
+  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+
   // 2. Set up interrupt mask
   dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
   dwc2->doepmsk = DOEPMSK_STUPM | DOEPMSK_XFRCM;
