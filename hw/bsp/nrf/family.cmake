@@ -84,9 +84,7 @@ function(add_board_target BOARD_TARGET)
         # linker file
         "LINKER:--script=${LD_FILE_GNU}"
         -L${NRFX_DIR}/mdk
-        # nanolib
-        --specs=nosys.specs
-        --specs=nano.specs
+        --specs=nosys.specs --specs=nano.specs
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC

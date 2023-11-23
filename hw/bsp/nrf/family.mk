@@ -12,6 +12,9 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_NRF5X \
   -DCONFIG_GPIO_AS_PINRESET
 
+#CFLAGS += -nostdlib
+#CFLAGS += -D__START=main
+
 # suppress warning caused by vendor mcu driver
 CFLAGS += \
   -Wno-error=undef \
