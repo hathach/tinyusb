@@ -36,6 +36,7 @@ dwc2_reg_value = {
 #     },
 dwc2_info = {key: {field: value for field, value in zip(dwc2_reg_list, values)} for key, values in dwc2_reg_value.items()}
 
+
 class GHWCFG2(ctypes.LittleEndianStructure):
     _fields_ = [
         ("op_mode", ctypes.c_uint32, 3),
@@ -130,13 +131,20 @@ def render_md():
     # Create an empty list to hold the dictionaries
     dwc2_info_list = []
 
-    #Iterate over the dwc2_info dictionary and extract fields
+    # Iterate over the dwc2_info dictionary and extract fields
     for device, reg_values in dwc2_info.items():
         entry_dict = {"Device": device}
         for r_name, r_value in reg_values.items():
             entry_dict[r_name] = f"0x{r_value:08X}"
-            # Print bit-field values
-            if r_name.upper() in globals():
+
+            if r_name == 'gsnpsid':
+                # Get dwc2 specs version
+                major = ((r_value >> 8) >> 4) & 0x0F
+                minor = (r_value >> 4) & 0xFF
+                patch = chr((r_value & 0x0F) + ord('a') - 0xA)
+                entry_dict[f' - specs version'] = f"{major:X}.{minor:02X}{patch}"
+            elif r_name.upper() in globals():
+                # Get bit-field values which exist as ctypes structures
                 class_name = globals()[r_name.upper()]
                 ghwcfg = class_name.from_buffer_copy(r_value.to_bytes(4, byteorder='little'))
                 for field_name, field_type, _ in class_name._fields_:
