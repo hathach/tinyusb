@@ -13,7 +13,7 @@ set(MCU_VARIANT_WITH_CORE ${MCU_VARIANT}${MCU_CORE})
 
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS MIMXRT1XXX CACHE INTERNAL "")
 
