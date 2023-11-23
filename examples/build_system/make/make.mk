@@ -8,9 +8,9 @@
 # $(lastword $(MAKEFILE_LIST)) returns the name of this makefile relative to where make was invoked.
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
-# strip off /tools/top.mk to get for example ../../..
+# strip off /examples/build_system/make to get for example ../../..
 # and Set TOP to an absolute path
-TOP = $(abspath $(subst make.mk,..,$(THIS_MAKEFILE)))
+TOP = $(abspath $(subst make.mk,../../..,$(THIS_MAKEFILE)))
 
 # Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
 CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
