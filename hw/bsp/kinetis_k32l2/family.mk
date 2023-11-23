@@ -9,6 +9,8 @@ CPU_CORE ?= cortex-m0plus
 CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_KINETIS_K32L
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 SRC_C += \
 	src/portable/nxp/khci/dcd_khci.c \
 	src/portable/nxp/khci/hcd_khci.c \

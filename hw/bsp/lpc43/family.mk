@@ -18,6 +18,8 @@ CFLAGS += \
   -Wno-error=cast-qual \
   -Wno-error=incompatible-pointer-types \
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 SRC_C += \
 	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
 	src/portable/chipidea/ci_hs/hcd_ci_hs.c \

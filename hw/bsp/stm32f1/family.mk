@@ -18,6 +18,8 @@ CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles \
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # ------------------------
 # All source paths should be relative to the top level.
 # ------------------------
