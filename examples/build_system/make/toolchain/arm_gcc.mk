@@ -10,6 +10,7 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
 
 CC_VERSION := $(shell $(CC) -dumpversion)
+CC_VERSION_MAJOR = $(firstword $(subst ., ,$(CC_VERSION)))
 
 # ---------------------------------------
 # Compiler Flags
@@ -73,6 +74,6 @@ LDFLAGS += -Wl,--print-memory-usage
 endif
 
 # from version 12
-ifeq (12,$(firstword $(sort 12 $(CC_VERSION))))
+ifeq ($(shell expr $(CC_VERSION_MAJOR) \>= 12),1)
 LDFLAGS += -Wl,--no-warn-rwx-segment
 endif
