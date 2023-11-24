@@ -242,21 +242,16 @@ tu_static uint8_t _app_driver_count = 0;
 
 // virtually joins built-in and application drivers together.
 // Application is positioned first to allow overwriting built-in ones.
-static inline usbd_class_driver_t const * get_driver(uint8_t drvid)
-{
+TU_ATTR_ALWAYS_INLINE static inline usbd_class_driver_t const * get_driver(uint8_t drvid) {
   usbd_class_driver_t const * driver = NULL;
-
   if ( drvid < _app_driver_count ) {
     // Application drivers
     driver = &_app_driver[drvid];
   } else if ( drvid < TOTAL_DRIVER_COUNT && BUILTIN_DRIVER_COUNT > 0 ){
     driver = &_usbd_driver[drvid - _app_driver_count];
   }
-
   return driver;
 }
-
-
 
 //--------------------------------------------------------------------+
 // DCD Event
@@ -278,6 +273,11 @@ tu_static osal_queue_t _usbd_q;
   #define _usbd_mutex   NULL
 #endif
 
+TU_ATTR_ALWAYS_INLINE static inline bool queue_event(dcd_event_t const * event, bool in_isr) {
+  bool ret = osal_queue_send(_usbd_q, event, in_isr);
+  if (tud_event_hook_cb) tud_event_hook_cb(event->rhport, event->event_id, in_isr);
+  return ret;
+}
 
 //--------------------------------------------------------------------+
 // Prototypes
@@ -374,8 +374,7 @@ bool tud_connect(void)
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
-bool tud_inited(void)
-{
+bool tud_inited(void) {
   return _usbd_rhport != RHPORT_INVALID;
 }
 
@@ -1077,66 +1076,64 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // DCD Event Handler
 //--------------------------------------------------------------------+
-TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
-{
-  switch (event->event_id)
-  {
+TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) {
+  bool send = false;
+  switch (event->event_id) {
     case DCD_EVENT_UNPLUGGED:
-      _usbd_dev.connected  = 0;
-      _usbd_dev.addressed  = 0;
-      _usbd_dev.cfg_num    = 0;
-      _usbd_dev.suspended  = 0;
-      osal_queue_send(_usbd_q, event, in_isr);
-    break;
+      _usbd_dev.connected = 0;
+      _usbd_dev.addressed = 0;
+      _usbd_dev.cfg_num = 0;
+      _usbd_dev.suspended = 0;
+      send = true;
+      break;
 
     case DCD_EVENT_SUSPEND:
       // NOTE: When plugging/unplugging device, the D+/D- state are unstable and
       // can accidentally meet the SUSPEND condition ( Bus Idle for 3ms ).
       // In addition, some MCUs such as SAMD or boards that haven no VBUS detection cannot distinguish
       // suspended vs disconnected. We will skip handling SUSPEND/RESUME event if not currently connected
-      if ( _usbd_dev.connected )
-      {
+      if (_usbd_dev.connected) {
         _usbd_dev.suspended = 1;
-        osal_queue_send(_usbd_q, event, in_isr);
+        send = true;
       }
-    break;
+      break;
 
     case DCD_EVENT_RESUME:
       // skip event if not connected (especially required for SAMD)
-      if ( _usbd_dev.connected )
-      {
+      if (_usbd_dev.connected) {
         _usbd_dev.suspended = 0;
-        osal_queue_send(_usbd_q, event, in_isr);
+        send = true;
       }
-    break;
+      break;
 
     case DCD_EVENT_SOF:
+      // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
+      // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
+      if (_usbd_dev.suspended) {
+        _usbd_dev.suspended = 0;
+
+        dcd_event_t const event_resume = {.rhport = event->rhport, .event_id = DCD_EVENT_RESUME};
+        queue_event(&event_resume, in_isr);
+      }
+
       // SOF driver handler in ISR context
-      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++)
-      {
-        usbd_class_driver_t const * driver = get_driver(i);
-        if (driver && driver->sof)
-        {
+      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+        usbd_class_driver_t const* driver = get_driver(i);
+        if (driver && driver->sof) {
           driver->sof(event->rhport, event->sof.frame_count);
         }
       }
 
-      // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
-      // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
-      if ( _usbd_dev.suspended )
-      {
-        _usbd_dev.suspended = 0;
-
-        dcd_event_t const event_resume = { .rhport = event->rhport, .event_id = DCD_EVENT_RESUME };
-        osal_queue_send(_usbd_q, &event_resume, in_isr);
-      }
-
       // skip osal queue for SOF in usbd task
-    break;
+      break;
 
     default:
-      osal_queue_send(_usbd_q, event, in_isr);
-    break;
+      send = true;
+      break;
+  }
+
+  if (send) {
+    queue_event(event, in_isr);
   }
 }
 
@@ -1180,18 +1177,15 @@ bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count
 }
 
 // Helper to defer an isr function
-void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
-{
-  dcd_event_t event =
-  {
+void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr) {
+  dcd_event_t event = {
       .rhport   = 0,
       .event_id = USBD_EVENT_FUNC_CALL,
   };
-
   event.func_call.func  = func;
   event.func_call.param = param;
 
-  dcd_event_handler(&event, in_isr);
+  queue_event(&event, in_isr);
 }
 
 //--------------------------------------------------------------------+
