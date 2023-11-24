@@ -5,8 +5,7 @@ Getting Started
 Add TinyUSB to your project
 ---------------------------
 
-It is relatively simple to incorporate tinyusb to your (existing) project
-
+It is relatively simple to incorporate tinyusb to your project
 
 * Copy or ``git submodule`` this repo into your project in a subfolder. Let's say it is *your_project/tinyusb*
 * Add all the .c in the ``tinyusb/src`` folder to your project
@@ -46,6 +45,26 @@ For your convenience, TinyUSB contains a handful of examples for both host and d
 
 Some ports will also require a port-specific SDK (e.g. RP2040) or binary (e.g. Sony Spresense) to build examples. They are out of scope for tinyusb, you should download/install it first according to its manufacturer guide.
 
+Dependencies
+^^^^^^^^^^^^
+
+The hardware code is located in ``hw/bsp`` folder, and is organized by family/boards. e.g raspberry_pi_pico is located in ``hw/bsp/rp2040/boards/raspberry_pi_pico`` where FAMILY=rp2040 and BOARD=raspberry_pi_pico. Before building, we firstly need to download dependencies such as: MCU low-level peripheral driver and external libraries e.g FreeRTOS (required by some examples). We can do that by either ways:
+
+1. Run ``tools/get_deps.py {FAMILY}`` script to download all dependencies for a family as follow. Note: For TinyUSB developer to download all dependencies, use FAMILY=all.
+
+.. code-block::
+
+   $ python tools/get_deps.py rp2040
+
+2. Or run the ``get-deps`` target in one of the example folder as follow.
+
+.. code-block::
+
+   $ cd examples/device/cdc_msc
+   $ make BOARD=raspberry_pi_pico get-deps
+
+You only need to do this once per family. Check out `complete list of dependencies and their designated path here <dependencies.rst>`_
+
 Build
 ^^^^^
 
@@ -55,19 +74,12 @@ To build example, first change directory to an example folder.
 
    $ cd examples/device/cdc_msc
 
-Before building, we firstly need to download dependencies such as: MCU low-level peripheral driver and external libraries e.g FreeRTOS (required by some examples). Run the ``get-deps`` target in one of the example folder as follow. You only need to do this once per mcu. Check out `complete list of dependencies and their designated path here <dependencies.rst>`_
-
-.. code-block::
-
-   $ make BOARD=raspberry_pi_pico get-deps
-
-Then compile with ``make BOARD=[board_name] all``\ , for example
+Then compile with ``make BOARD={board_name} all`` , for example
 
 .. code-block::
 
    $ make BOARD=raspberry_pi_pico all
 
-Note: ``BOARD`` can be found as directory name in ``hw/bsp``\ , either in its family/boards or directly under bsp (no family).
 Note: some examples especially those that uses Vendor class (e.g webUSB) may requires udev permission on Linux (and/or macOS) to access usb device. It depends on your OS distro, typically copy ``99-tinyusb.rules`` and reload your udev is good to go
 
 .. code-block::
@@ -75,8 +87,8 @@ Note: some examples especially those that uses Vendor class (e.g webUSB) may req
    $ cp examples/device/99-tinyusb.rules /etc/udev/rules.d/
    $ sudo udevadm control --reload-rules && sudo udevadm trigger
 
-Port Selection
-~~~~~~~~~~~~~~
+RootHub Port Selection
+~~~~~~~~~~~~~~~~~~~~~~
 
 If a board has several ports, one port is chosen by default in the individual board.mk file. Use option ``PORT=x`` To choose another port. For example to select the HS port of a STM32F746Disco board, use:
 

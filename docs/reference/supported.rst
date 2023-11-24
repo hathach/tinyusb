@@ -300,7 +300,6 @@ LPC 18-43
 -  `Embedded Artists LPC4357 Developer Kit <http://www.embeddedartists.com/products/kits/lpc4357_kit.php>`__
 -  `Keil MCB1800 Evaluation Board <http://www.keil.com/mcb1800>`__
 -  `LPCXpresso18S37 Development Board <https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc4000-cortex-m4/lpcxpresso18s37-development-board:OM13076>`__
--  `NGX LPC4330-Xplorer <https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027>`__
 
 LPC 51
 ^^^^^^
