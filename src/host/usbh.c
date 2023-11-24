@@ -247,9 +247,7 @@ CFG_TUH_MEM_SECTION struct
 
 //------------- Helper Function -------------//
 
-TU_ATTR_ALWAYS_INLINE
-static inline usbh_device_t* get_device(uint8_t dev_addr)
-{
+TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) {
   TU_VERIFY(dev_addr > 0 && dev_addr <= TOTAL_DEVICES, NULL);
   return &_usbh_devices[dev_addr-1];
 }
@@ -267,6 +265,12 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec) {
   while ( ( hcd_frame_number(_usbh_controller) - start ) < msec ) {}
 }
 #endif
+
+TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, bool in_isr) {
+  bool ret = osal_queue_send(_usbh_q, event, in_isr);
+  if (tuh_event_hook_cb) tuh_event_hook_cb(event->rhport, event->event_id, in_isr);
+  return ret;
+}
 
 //--------------------------------------------------------------------+
 // Device API
@@ -433,7 +437,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
           TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
 
           bool is_empty = osal_queue_empty(_usbh_q);
-          osal_queue_send(_usbh_q, &event, in_isr);
+          queue_event(&event, in_isr);
 
           if (is_empty) {
             // Exit if this is the only event in the queue, otherwise we may loop forever
@@ -779,8 +783,7 @@ void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {
   event.func_call.func = func;
   event.func_call.param = param;
 
-  osal_queue_send(_usbh_q, &event, in_isr);
-  CFG_TUH_EVENT_HOOK(event, in_isr);
+  queue_event(&event, in_isr);
 }
 
 //--------------------------------------------------------------------+
@@ -936,8 +939,7 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr) 
     default: break;
   }
 
-  osal_queue_send(_usbh_q, event, in_isr);
-  CFG_TUH_EVENT_HOOK(event, in_isr);
+  queue_event(event, in_isr);
 }
 
 //--------------------------------------------------------------------+
