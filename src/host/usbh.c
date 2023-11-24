@@ -113,7 +113,7 @@ typedef struct {
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-#if CFG_TUSB_DEBUG >= 2
+#if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL
   #define DRIVER_NAME(_name)    .name = _name,
 #else
   #define DRIVER_NAME(_name)
@@ -1233,7 +1233,7 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
       TU_LOG_USBH("Device unplugged address = %u\r\n", daddr);
 
       if (is_hub_addr(daddr)) {
-        TU_LOG(CFG_TUH_LOG_LEVEL, "  is a HUB device %u\r\n", daddr);
+        TU_LOG_USBH("  is a HUB device %u\r\n", daddr);
 
         // Submit removed event If the device itself is a hub (un-rolled recursive)
         // TODO a better to unroll recursrive is using array of removing_hubs and mark it here
@@ -1708,7 +1708,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
 
       if ( drv_id == TOTAL_DRIVER_COUNT - 1 )
       {
-        TU_LOG(CFG_TUH_LOG_LEVEL, "[%u:%u] Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
+        TU_LOG_USBH("[%u:%u] Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
                dev->rhport, dev_addr, desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass, desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
       }
     }
@@ -1741,7 +1741,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
     enum_full_complete();
 
     if (is_hub_addr(dev_addr)) {
-      TU_LOG(CFG_TUH_LOG_LEVEL, "HUB address = %u is mounted\r\n", dev_addr);
+      TU_LOG_USBH("HUB address = %u is mounted\r\n", dev_addr);
     }else {
       // Invoke callback if available
       if (tuh_mount_cb) tuh_mount_cb(dev_addr);

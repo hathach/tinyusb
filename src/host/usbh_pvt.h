@@ -51,7 +51,7 @@ enum {
 //--------------------------------------------------------------------+
 
 typedef struct {
-  #if CFG_TUSB_DEBUG >= 2
+  #if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL
   char const* name;
   #endif
 
