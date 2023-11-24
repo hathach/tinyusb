@@ -129,6 +129,8 @@ Supported MCUs
 | ValentyUSB   | eptri                 | ✔      | ✖    | ✖         | eptri             |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | WCH          | CH32V307              | ✔      |      | ✔         | ch32v307          |              |
+|              +-----------------------+--------+------+-----------+-------------------+--------------+
+|              | CH32F20x              | ✔      |      | ✔         | ch32f205          |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 
 
@@ -435,4 +437,5 @@ Tomu
 WCH
 ---
 
-- `CH32V307V-R1-1v0 <https://lcsc.com/product-detail/Development-Boards-Kits_WCH-Jiangsu-Qin-Heng-CH32V307V-EVT-R1_C2943980.html>`
+-  `CH32V307V-R1-1v0 <https://lcsc.com/product-detail/Development-Boards-Kits_WCH-Jiangsu-Qin-Heng-CH32V307V-EVT-R1_C2943980.html>`__
+-  `CH32F205R-R0-1v0 <https://github.com/openwch/ch32f20x/blob/main/EVT/PUB/CH32F20x%20Evaluation%20Board%20Reference-EN.pdf>`__
