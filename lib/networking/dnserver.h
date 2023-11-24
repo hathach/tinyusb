@@ -41,7 +41,13 @@
 
 typedef bool (*dns_query_proc_t)(const char *name, ip4_addr_t *addr);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 err_t dnserv_init(const ip_addr_t *bind, uint16_t port, dns_query_proc_t query_proc);
 void  dnserv_free(void);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

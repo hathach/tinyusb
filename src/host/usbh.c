@@ -55,16 +55,12 @@ typedef struct
   uint8_t rhport;
   uint8_t hub_addr;
   uint8_t hub_port;
-  uint8_t speed;
 
-  // enumeration is in progress, done when all interfaces are configured
-  volatile uint8_t enumerating;
-
-//  struct TU_ATTR_PACKED {
-//    uint8_t          speed       : 4; // packed speed to save footprint
-//    volatile uint8_t enumerating : 1;
-//    uint8_t TU_RESERVED : 3;
-//  };
+  struct TU_ATTR_PACKED {
+             uint8_t speed       : 4; // packed speed to save footprint
+    volatile uint8_t enumerating : 1; // enumeration is in progress, false if not connected or all interfaces are configured
+    uint8_t TU_RESERVED : 3;
+  };
 } usbh_dev0_t;
 
 typedef struct {
@@ -431,8 +427,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     switch (event.event_id)
     {
       case HCD_EVENT_DEVICE_ATTACH:
-        // due to the shared _usbh_ctrl_buf, we must complete enumerating
-        // one device before enumerating another one.
+        // due to the shared _usbh_ctrl_buf, we must complete enumerating one device before enumerating another one.
+        // TODO better to have an separated queue for newly attached devices
         if ( _dev0.enumerating ) {
           TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
 
@@ -556,11 +552,17 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
   // EP0 with setup packet
   TU_VERIFY(xfer->ep_addr == 0 && xfer->setup);
 
+  // Check if device is still connected (enumerating for dev0)
+  uint8_t const daddr = xfer->daddr;
+  if ( daddr == 0 ) {
+    if (!_dev0.enumerating) return false;
+  } else {
+    usbh_device_t const* dev = get_device(daddr);
+    if (dev && dev->connected == 0) return false;
+  }
+
   // pre-check to help reducing mutex lock
   TU_VERIFY(_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
-
-  uint8_t const daddr = xfer->daddr;
-
   (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   bool const is_idle = (_ctrl_xfer.stage == CONTROL_STAGE_IDLE);
@@ -917,19 +919,23 @@ void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info)
   }
 }
 
-TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
-{
-  switch (event->event_id)
-  {
-//    case HCD_EVENT_DEVICE_REMOVE:
-//      // FIXME device remove from a hub need an HCD API for hcd to free up endpoint
-//      // mark device as removing to prevent further xfer before the event is processed in usbh task
-//      break;
+TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr) {
+  switch (event->event_id) {
+    case HCD_EVENT_DEVICE_REMOVE:
+      // FIXME device remove from a hub need an HCD API for hcd to free up endpoint
+      // mark device as removing to prevent further xfer before the event is processed in usbh task
 
-    default:
-      osal_queue_send(_usbh_q, event, in_isr);
-    break;
+      // Check if dev0 is removed
+      if ((event->rhport == _dev0.rhport) && (event->connection.hub_addr == _dev0.hub_addr) &&
+          (event->connection.hub_port == _dev0.hub_port)) {
+        _dev0.enumerating = 0;
+      }
+      break;
+
+    default: break;
   }
+
+  osal_queue_send(_usbh_q, event, in_isr);
 }
 
 //--------------------------------------------------------------------+
@@ -1294,8 +1300,7 @@ static bool _parse_configuration_descriptor (uint8_t dev_addr, tusb_desc_configu
 static void enum_full_complete(void);
 
 // process device enumeration
-static void process_enumeration(tuh_xfer_t* xfer)
-{
+static void process_enumeration(tuh_xfer_t* xfer) {
   // Retry a few times with transfers in enumeration since device can be unstable when starting up
   enum {
     ATTEMPT_COUNT_MAX = 3,
@@ -1303,19 +1308,20 @@ static void process_enumeration(tuh_xfer_t* xfer)
   };
   static uint8_t failed_count = 0;
 
-  if (XFER_RESULT_SUCCESS != xfer->result)
-  {
+  if (XFER_RESULT_SUCCESS != xfer->result) {
     // retry if not reaching max attempt
-    if ( failed_count < ATTEMPT_COUNT_MAX )
-    {
+    bool retry = _dev0.enumerating && (failed_count < ATTEMPT_COUNT_MAX);
+    if ( retry ) {
       failed_count++;
       osal_task_delay(ATTEMPT_DELAY_MS); // delay a bit
       TU_LOG1("Enumeration attempt %u\r\n", failed_count);
-      TU_ASSERT(tuh_control_xfer(xfer), );
-    }else
-    {
+      retry = tuh_control_xfer(xfer);
+    }
+
+    if (!retry) {
       enum_full_complete();
     }
+
     return;
   }
   failed_count = 0;

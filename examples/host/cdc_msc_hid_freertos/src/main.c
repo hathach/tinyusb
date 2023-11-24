@@ -83,6 +83,12 @@ extern void cdc_app_init(void);
 extern void hid_app_init(void);
 extern void msc_app_init(void);
 
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
+// API to read/rite MAX3421's register. Implemented by TinyUSB
+extern uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
+extern bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
+#endif
+
 /*------------- MAIN -------------*/
 int main(void) {
   board_init();
@@ -125,6 +131,12 @@ static void usb_host_task(void *param) {
   if (board_init_after_tusb) {
     board_init_after_tusb();
   }
+
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
+  // FeatherWing MAX3421E use MAX3421E's GPIO0 for VBUS enable
+  enum { IOPINS1_ADDR  = 20u << 3, /* 0xA0 */ };
+  tuh_max3421_reg_write(BOARD_TUH_RHPORT, IOPINS1_ADDR, 0x01, false);
+#endif
 
   cdc_app_init();
   hid_app_init();

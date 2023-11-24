@@ -11,7 +11,7 @@ set(FSP_RA ${TOP}/hw/mcu/renesas/fsp/ra/fsp)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 #set(FREERTOS_PORT A_CUSTOM_PORT CACHE INTERNAL "")
 
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS RAXXX ${MCU_VARIANT} CACHE INTERNAL "")
 

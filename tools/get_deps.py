@@ -7,7 +7,7 @@ from multiprocessing import Pool
 # path, url, commit, family (Alphabet sorted by path)
 deps_mandatory = {
     'lib/FreeRTOS-Kernel': ['https://github.com/FreeRTOS/FreeRTOS-Kernel.git',
-                            '5f19e34f878af97810a7662a75eac59bd74d628b',
+                            '4ff01a7a4a51f53b44496aefee1e3c0071b7b173',
                             'all'],
     'lib/lwip': ['https://github.com/lwip-tcpip/lwip.git',
                  '159e31b689577dbf69cf0683bbaffbd71fa5ee10',
@@ -108,7 +108,7 @@ deps_optional = {
                                   'd922865fc0326a102c26211c44b8e42f52c1e53d',
                                   'stm32l5'],
     'hw/mcu/st/cmsis_device_u5': ['https://github.com/STMicroelectronics/cmsis_device_u5.git',
-                                  'bc00f3c9d8a4e25220f84c26d414902cc6bdf566',
+                                  '06d7edade7167b0eafdd550bf77cfc4fa98eae2e',
                                   'stm32u5'],
     'hw/mcu/st/cmsis_device_wb': ['https://github.com/STMicroelectronics/cmsis_device_wb.git',
                                   '9c5d1920dd9fabbe2548e10561d63db829bb744f',
@@ -153,7 +153,7 @@ deps_optional = {
                                        '675c32a75df37f39d50d61f51cb0dcf53f07e1cb',
                                        'stm32l5'],
     'hw/mcu/st/stm32u5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git',
-                                       '2e1d4cdb386e33391cb261dfff4fefa92e4aa35a',
+                                       '4d93097a67928e9377e655ddd14622adc31b9770',
                                        'stm32u5'],
     'hw/mcu/st/stm32wbxx_hal_driver': ['https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git',
                                        '2c5f06638be516c1b772f768456ba637f077bac8',
@@ -184,6 +184,10 @@ deps_all = {**deps_mandatory, **deps_optional}
 TOP = Path(__file__).parent.parent.resolve()
 
 
+def run_cmd(cmd):
+    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+
 def get_a_dep(d):
     if d not in deps_all.keys():
         print('{} is not found in dependency list')
@@ -192,25 +196,24 @@ def get_a_dep(d):
     commit = deps_all[d][1]
     families = deps_all[d][2]
 
-    print('cloning {} with {}'.format(d, url))
+    print(f'cloning {d} with {url}')
 
     p = Path(TOP / d)
-    git_cmd = "git -C {}".format(p)
+    git_cmd = f"git -C {p}"
 
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
-        subprocess.run("{} init".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        run_cmd(f"git -C {p} init")
+        run_cmd(f"git -C {p} remote add origin {url}")
 
     # Check if commit is already fetched
-    result = subprocess.run("{} rev-parse HEAD".format(git_cmd, commit), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = run_cmd(f"git -C {p} rev-parse HEAD")
     head = result.stdout.decode("utf-8").splitlines()[0]
-
+    run_cmd(f"git -C {p} reset --hard")
     if commit != head:
-        subprocess.run("{} reset --hard".format(git_cmd, commit), shell=True)
-        subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True)
-        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        run_cmd(f"git -C {p} fetch --depth 1 origin {commit}")
+        run_cmd(f"git -C {p} checkout FETCH_HEAD")
 
     return 0
 

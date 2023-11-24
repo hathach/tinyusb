@@ -59,7 +59,7 @@
 #define configTICK_RATE_HZ                      ( 1000 )
 #define configMAX_PRIORITIES                    ( 5 )
 #define configMINIMAL_STACK_SIZE                ( 128 )
-#define configTOTAL_HEAP_SIZE                   ( configSUPPORT_DYNAMIC_ALLOCATION*4*1024 )
+#define configTOTAL_HEAP_SIZE                   ( configSUPPORT_DYNAMIC_ALLOCATION*8*1024 )
 #define configMAX_TASK_NAME_LEN                 16
 #define configUSE_16_BIT_TICKS                  0
 #define configIDLE_SHOULD_YIELD                 1
@@ -73,8 +73,8 @@
 #define configENABLE_BACKWARD_COMPATIBILITY     1
 #define configSTACK_ALLOCATION_FROM_SEPARATE_HEAP   0
 
-#define configSUPPORT_STATIC_ALLOCATION         0
-#define configSUPPORT_DYNAMIC_ALLOCATION        1
+#define configSUPPORT_STATIC_ALLOCATION         1
+#define configSUPPORT_DYNAMIC_ALLOCATION        0
 
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                    0

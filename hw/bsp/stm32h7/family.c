@@ -29,19 +29,23 @@
 
 #include "stm32h7xx_hal.h"
 #include "bsp/board_api.h"
+
+TU_ATTR_UNUSED static void Error_Handler(void) {
+}
+
 #include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
-// Despite being call USB2_OTG
+// Despite being call USB2_OTG_FS on some MCUs
 // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
 void OTG_FS_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-// Despite being call USB2_OTG
+// Despite being call USB1_OTG_HS on some MCUs
 // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
 void OTG_HS_IRQHandler(void) {
   tud_int_handler(1);
@@ -79,7 +83,8 @@ void trace_etm_init(void) {
 #endif
 
 void board_init(void) {
-  board_stm32h7_clock_init();
+  // Implemented in board.h
+  SystemClock_Config();
 
   // Enable All GPIOs clocks
   __HAL_RCC_GPIOA_CLK_ENABLE();

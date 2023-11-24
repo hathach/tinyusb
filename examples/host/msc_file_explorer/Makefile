@@ -1,4 +1,4 @@
-include ../../make.mk
+include ../../build_system/make/make.mk
 
 FATFS_PATH = lib/fatfs/source
 
@@ -24,4 +24,4 @@ SRC_C += \
 # suppress warning caused by fatfs
 CFLAGS += -Wno-error=cast-qual
 
-include ../../rules.mk
+include ../../build_system/make/rules.mk

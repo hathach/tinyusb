@@ -19,7 +19,7 @@ else ()
   set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
 endif ()
 
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 
@@ -84,9 +84,7 @@ function(add_board_target BOARD_TARGET)
         # linker file
         "LINKER:--script=${LD_FILE_GNU}"
         -L${NRFX_DIR}/mdk
-        # nanolib
-        --specs=nosys.specs
-        --specs=nano.specs
+        --specs=nosys.specs --specs=nano.specs
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC

@@ -201,6 +201,9 @@ function(family_configure_common TARGET RTOS)
   # Generate linker map file
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
+    endif ()
   endif()
 
   # ETM Trace option
@@ -217,7 +220,7 @@ function(family_configure_common TARGET RTOS)
       if (NOT TARGET segger_rtt)
         add_library(segger_rtt STATIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
         target_include_directories(segger_rtt PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
-        target_compile_definitions(segger_rtt PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
+        #target_compile_definitions(segger_rtt PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
       endif()
       target_link_libraries(${TARGET} PUBLIC segger_rtt)
     endif ()
@@ -289,12 +292,10 @@ function(family_configure_device_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
 endfunction()
 
-
 # Configure host example with RTOS
 function(family_configure_host_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
 endfunction()
-
 
 # Configure host + device example with RTOS
 function(family_configure_dual_usb_example TARGET RTOS)

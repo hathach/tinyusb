@@ -16,7 +16,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32U5 CACHE INTERNAL "")
 
@@ -37,6 +37,7 @@ function(add_board_target BOARD_TARGET)
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
+      ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_icache.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
       ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
