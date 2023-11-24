@@ -164,6 +164,9 @@ deps_optional = {
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
                             '17761f5cf9dbbf2dcf665b7c04934188add20082',
                             'ch32v307'],
+    'hw/mcu/wch/ch32f20x': ['https://github.com/openwch/ch32f20x.git',
+                            '77c4095087e5ed2c548ec9058e655d0b8757663b',
+                            'ch32f20x'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'

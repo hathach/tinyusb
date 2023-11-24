@@ -18,7 +18,7 @@ CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 # caused by freeRTOS port !!
 CFLAGS += -Wno-error=maybe-uninitialized
 
-MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/nxp/lpc17_40/dcd_lpc17_40.c \

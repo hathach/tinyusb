@@ -5,8 +5,8 @@ DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CPU_CORE ?= cortex-m7
-
 MCU_VARIANT_WITH_CORE = ${MCU_VARIANT}${MCU_CORE}
+MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 CFLAGS += \
   -D__ARMVFP__=0 \
@@ -26,7 +26,7 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough -Wno-error=redundant-decls
 
-MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx${MCU_CORE}_flexspi_nor.ld

@@ -29,7 +29,7 @@ list(APPEND TOOLCHAIN_COMMON_FLAGS
   -fno-strict-aliasing
   )
 
-set(TOOLCHAIN_EXE_LINKER_FLAGS
+list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
   -Wl,--print-memory-usage
   -Wl,--gc-sections
   -Wl,--cref

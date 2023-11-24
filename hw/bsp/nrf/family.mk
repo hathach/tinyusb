@@ -12,10 +12,20 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_NRF5X \
   -DCONFIG_GPIO_AS_PINRESET
 
-# suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=undef -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual -Wno-error=redundant-decls
+#CFLAGS += -nostdlib
+#CFLAGS += -D__START=main
 
-LDFLAGS += -L$(TOP)/${NRFX_DIR}/mdk
+# suppress warning caused by vendor mcu driver
+CFLAGS += \
+  -Wno-error=undef \
+  -Wno-error=unused-parameter \
+  -Wno-error=cast-align \
+  -Wno-error=cast-qual \
+  -Wno-error=redundant-decls
+
+LDFLAGS += \
+  -specs=nosys.specs -specs=nano.specs \
+  -L$(TOP)/${NRFX_DIR}/mdk
 
 SRC_C += \
   src/portable/nordic/nrf5x/dcd_nrf5x.c \

@@ -9,6 +9,9 @@ GDB = $(CROSS_COMPILE)gdb
 OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
 
+CC_VERSION := $(shell $(CC) -dumpversion)
+CC_VERSION_MAJOR = $(firstword $(subst ., ,$(CC_VERSION)))
+
 # ---------------------------------------
 # Compiler Flags
 # ---------------------------------------
@@ -65,7 +68,12 @@ LDFLAGS += \
   -Wl,-cref \
   -Wl,-gc-sections \
 
-# Some toolchain such as renesas rx does not support --print-memory-usage flags
+# renesas rx does not support --print-memory-usage flags
 ifneq ($(FAMILY),rx)
 LDFLAGS += -Wl,--print-memory-usage
+endif
+
+# from version 12
+ifeq ($(shell expr $(CC_VERSION_MAJOR) \>= 12),1)
+LDFLAGS += -Wl,--no-warn-rwx-segment
 endif
