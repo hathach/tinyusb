@@ -37,4 +37,3 @@
 #include "ch32f20x_misc.h"
 
 #endif /* __CH32F20x_CONF_H */
-
