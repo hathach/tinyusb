@@ -26,11 +26,11 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_CH32V307)
+#if CFG_TUD_ENABLED && ((CFG_TUSB_MCU == OPT_MCU_CH32V307) || (CFG_TUSB_MCU == OPT_MCU_CH32F20X))
 #include "device/dcd.h"
 
 #include "ch32_usbhs_reg.h"
-#include "core_riscv.h"
+
 
 // Max number of bi-directional endpoints including EP0
 #define EP_MAX 16
@@ -73,7 +73,7 @@ void dcd_init(uint8_t rhport) {
 #if TUD_OPT_HIGH_SPEED
     USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_HIGH_SPEED;
 #else
-    #error OPT_MODE_FULL_SPEED not currently supported on CH32V307
+    #error OPT_MODE_FULL_SPEED not currently supported on CH32
     USBHSD->CONTROL = USBHS_DMA_EN | USBHS_INT_BUSY_EN | USBHS_FULL_SPEED;
 #endif
 
