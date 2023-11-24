@@ -67,6 +67,8 @@ typedef struct
 CFG_TUH_MEM_SECTION
 tu_static hidh_interface_t _hidh_itf[CFG_TUH_HID];
 
+tu_static uint8_t _hidh_default_protocol = HID_PROTOCOL_BOOT;
+
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
@@ -210,9 +212,6 @@ static void set_protocol_complete(tuh_xfer_t* xfer)
     tuh_hid_set_protocol_complete_cb(daddr, idx, p_hid->protocol_mode);
   }
 }
-
-CFG_TUH_MEM_SECTION
-tu_static uint8_t _hidh_default_protocol = HID_PROTOCOL_BOOT;
 
 void tuh_hid_set_default_protocol(uint8_t protocol) {
   _hidh_default_protocol = protocol;
