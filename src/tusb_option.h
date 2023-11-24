@@ -342,6 +342,15 @@
   #define CFG_TUD_INTERFACE_MAX   16
 #endif
 
+//------------- Device Class Driver -------------//
+#ifndef CFG_TUD_BTH
+  #define CFG_TUD_BTH             0
+#endif
+
+#if CFG_TUD_BTH && !defined(CFG_TUD_BTH_ISO_ALT_COUNT)
+#error CFG_TUD_BTH_ISO_ALT_COUNT must be defined to tell Bluetooth driver the number of ISO endpoints to use
+#endif
+
 #ifndef CFG_TUD_CDC
   #define CFG_TUD_CDC             0
 #endif
@@ -380,10 +389,6 @@
 
 #ifndef CFG_TUD_DFU
   #define CFG_TUD_DFU             0
-#endif
-
-#ifndef CFG_TUD_BTH
-  #define CFG_TUD_BTH             0
 #endif
 
 #ifndef CFG_TUD_ECM_RNDIS
