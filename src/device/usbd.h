@@ -771,10 +771,6 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 #define TUD_BT_PROTOCOL_PRIMARY_CONTROLLER  0x01
 #define TUD_BT_PROTOCOL_AMP_CONTROLLER      0x02
 
-#ifndef CFG_TUD_BTH_ISO_ALT_COUNT
-#define CFG_TUD_BTH_ISO_ALT_COUNT 0
-#endif
-
 // Length of template descriptor: 38 bytes + number of ISO alternatives * 23
 #define TUD_BTH_DESC_LEN (8 + 9 + 7 + 7 + 7 + (CFG_TUD_BTH_ISO_ALT_COUNT) * (9 + 7 + 7))
 
