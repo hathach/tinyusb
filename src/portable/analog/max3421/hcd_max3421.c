@@ -382,7 +382,7 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
   for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
     if (ep->xfer_pending && ep->packet_size) {
-//      TU_LOG3("next pending i = %u\n", i);
+//      TU_LOG3("next pending i = %u\r\n", i);
       return ep;
     }
   }
@@ -391,7 +391,7 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
   for (size_t i = 0; i <= idx; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
     if (ep->xfer_pending && ep->packet_size) {
-//      TU_LOG3("next pending i = %u\n", i);
+//      TU_LOG3("next pending i = %u\r\n", i);
       return ep;
     }
   }
@@ -712,9 +712,9 @@ static void handle_connect_irq(uint8_t rhport, bool in_isr) {
       // However, since we are always in full speed mode, we can just check J-state
       if (jk == HRSL_KSTATUS) {
         new_mode |= MODE_LOWSPEED;
-        TU_LOG3("Low speed\n");
+        TU_LOG3("Low speed\r\n");
       }else {
-        TU_LOG3("Full speed\n");
+        TU_LOG3("Full speed\r\n");
       }
       new_mode |= MODE_SOFKAENAB;
       mode_write(rhport, new_mode, in_isr);
