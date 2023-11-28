@@ -252,13 +252,20 @@ if __name__ == '__main__':
                     test_list.remove(skip)
 
         for test in test_list:
-            mk_elf = f'examples/device/{test}/_build/{board["name"]}/{test}.elf'
-            cmake_elf = f'cmake-build/cmake-build-{board["name"]}/device/{test}/{test}.elf'
-            if os.path.isfile(cmake_elf):
-                elf = cmake_elf
-            elif os.path.isfile(mk_elf):
-                elf = mk_elf
-            else:
+            # cmake, make, download from artifacts
+            elf_list = [
+                f'cmake-build/cmake-build-{board["name"]}/device/{test}/{test}.elf',
+                f'examples/device/{test}/_build/{board["name"]}/{test}.elf',
+                f'{test}.elf'
+            ]
+
+            elf = None
+            for e in elf_list:
+                if os.path.isfile(e):
+                    elf = e
+                    break
+
+            if elf is None:
                 print(f'Cannot find firmware file for {test}')
                 sys.exit(-1)
 
