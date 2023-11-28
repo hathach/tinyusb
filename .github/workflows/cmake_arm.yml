@@ -121,6 +121,11 @@ jobs:
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
+      - name: Checkout test/hil
+        uses: actions/checkout@v3
+        with:
+          sparse-checkout: test/hil
+
       - name: Download rp2040 Artifacts
         uses: actions/download-artifact@v3
         with:
