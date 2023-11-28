@@ -38,6 +38,7 @@ def get_serial_dev(id, product, ifnum):
     return f'/dev/serial/by-id/usb-TinyUSB_{product}_{id}-if{ifnum:02d}'
 
 
+# Currently not used, left as reference
 def get_disk_dev(id, lun):
     # get usb disk by id
     return f'/dev/disk/by-id/usb-TinyUSB_Mass_Storage_{id}-0:{lun}'
@@ -59,9 +60,21 @@ def flash_jlink(sn, dev, firmware):
     assert ret.returncode == 0, 'Flash failed\n' + stdout
 
 
+def flash_openocd(sn, args, firmware):
+
+    ret = subprocess.run(f'openocd {args} -c "program {firmware} reset exit"',
+                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdout = ret.stdout.decode()
+    assert ret.returncode == 0, 'Flash failed\n' + stdout
+
+
+# -------------------------------------------------------------
+# Tests
+# -------------------------------------------------------------
 def test_board_test(id):
     # Dummy test
     pass
+
 
 def test_cdc_dual_ports(id):
     port1 = get_serial_dev(id, "TinyUSB_Device", 0)
@@ -99,12 +112,22 @@ def test_cdc_dual_ports(id):
 
 def test_cdc_msc(id):
     port = get_serial_dev(id, "TinyUSB_Device", 0)
-    file = f'/media/blkUSB_{id[-8:]}.02/README.TXT'
+    file_list = [f'/media/blkUSB_{id[-8:]}.02/README.TXT', f'/media/{os.getenv("USER")}/TinyUSB MSC/README.TXT']
     # Wait device enum
     timeout = 10
     while timeout:
-        if os.path.exists(port) and os.path.isfile(file):
+        f_found = False
+        if os.path.exists(port):
+            for file in file_list:
+                if os.path.isfile(file):
+                    f_found = True
+                    f = open(file, 'rb')
+                    data = f.read()
+                    break
+
+        if f_found:
             break
+
         time.sleep(1)
         timeout = timeout - 1
 
@@ -112,7 +135,6 @@ def test_cdc_msc(id):
 
     # Echo test
     ser1 = serial.Serial(port)
-
     ser1.timeout = 1
 
     str = b"test_str"
@@ -121,15 +143,13 @@ def test_cdc_msc(id):
     assert ser1.read(100) == str, 'CDC wrong data'
 
     # Block test
-    f = open(file, 'rb')
-    data = f.read()
-
     readme = \
     b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
 If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
     assert data == readme, 'MSC wrong data'
+
 
 def test_dfu(id):
     # Wait device enum
@@ -211,11 +231,13 @@ if __name__ == '__main__':
 
     # all possible tests, board_test is last to disable board's usb
     all_tests = [
-        'cdc_dual_ports', 'cdc_msc', 'dfu', 'dfu_runtime', 'hid_boot_interface', 'board_test'
+        'cdc_dual_ports', 'cdc_msc', 'dfu', 'dfu_runtime', 'hid_boot_interface',
+        'board_test'
     ]
 
     for board in config['boards']:
         print(f'Testing board:{board["name"]}')
+        debugger = board['debugger'].lower()
 
         # default to all tests
         if 'tests' in board:
@@ -240,8 +262,10 @@ if __name__ == '__main__':
                 print(f'Cannot find firmware file for {test}')
                 sys.exit(-1)
 
-            if board['debugger'].lower() == 'jlink':
+            if debugger == 'jlink':
                 flash_jlink(board['debugger_sn'], board['cpu'], elf)
+            elif debugger == 'openocd':
+                flash_openocd(board['debugger_sn'], board['debugger_args'], elf)
             else:
                 # ToDo
                 pass

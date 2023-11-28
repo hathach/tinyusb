@@ -395,6 +395,22 @@ function(family_flash_stlink TARGET)
 endfunction()
 
 
+# Add flash openocd target
+function(family_flash_openocd TARGET CLI_OPTIONS)
+  if (NOT DEFINED OPENOCD)
+    set(OPENOCD openocd)
+  endif ()
+
+  separate_arguments(CLI_OPTIONS_LIST UNIX_COMMAND ${CLI_OPTIONS})
+
+  # note skip verify since it has issue with rp2040
+  add_custom_target(${TARGET}-openocd
+    DEPENDS ${TARGET}
+    COMMAND ${OPENOCD} ${CLI_OPTIONS_LIST} -c "program $<TARGET_FILE:${TARGET}> reset exit"
+    VERBATIM
+    )
+endfunction()
+
 # Add flash pycod target
 function(family_flash_pyocd TARGET)
   if (NOT DEFINED PYOC)
