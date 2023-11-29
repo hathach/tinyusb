@@ -12,7 +12,7 @@ LD_FILE_GCC = $(BOARD_PATH)/stm32h750xx_flash_CM7.ld
 
 # IAR
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_stm32h750xx.s
-LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/stm32h750xx_flash_CM7.icf
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/stm32h750xx_flash.icf
 
 # For flash-jlink target
 JLINK_DEVICE = stm32h750xb_m7
