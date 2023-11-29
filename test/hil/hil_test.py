@@ -65,13 +65,14 @@ def open_serial_dev(port):
         if os.path.exists(port):
             try:
                 # slight delay since kernel may occupy the port briefly
-                time.sleep(0.2)
+                time.sleep(0.5)
+                timeout = timeout - 0.5
                 ser = serial.Serial(port, timeout=1)
                 break
             except serial.SerialException:
                 pass
-        time.sleep(0.8)
-        timeout = timeout - 1
+        time.sleep(0.5)
+        timeout = timeout - 0.5
     assert timeout, 'Device not available or Cannot open port'
     return ser
 
