@@ -321,6 +321,7 @@ bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
 
 uint8_t tuh_get_port(uint8_t dev_addr) {
   usbh_device_t *dev = get_device(dev_addr);
+  TU_VERIFY(dev);
   // rhport:hub_addr:hub_port
   if (is_hub_addr(dev_addr)) {
     return dev->hub_addr;
