@@ -31,13 +31,21 @@ import time
 import serial
 import subprocess
 import json
+import glob
 
 ENUM_TIMEOUT = 10
 
 
+# get usb serial by id
 def get_serial_dev(id, vendor_str, product_str, ifnum):
-    # get usb serial by id
-    return f'/dev/serial/by-id/usb-{vendor_str}_{product_str}_{id}-if{ifnum:02d}'
+    if vendor_str and product_str:
+        # known vendor and product
+        return f'/dev/serial/by-id/usb-{vendor_str}_{product_str}_{id}-if{ifnum:02d}'
+    else:
+        # just use id: mostly for cp210x/ftdi debugger
+        pattern = f'/dev/serial/by-id/usb-*_{id}-if{ifnum:02d}*'
+        port_list = glob.glob(pattern)
+        return port_list[0]
 
 
 # Currently not used, left as reference
@@ -92,23 +100,35 @@ def read_disk_file(id, fname):
 # -------------------------------------------------------------
 # Flash with debugger
 # -------------------------------------------------------------
-def flash_jlink(sn, dev, firmware):
+def flash_jlink(board, firmware):
     script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
-    f = open('flash.jlink', 'w')
-    f.writelines(f'{s}\n' for s in script)
-    f.close()
-    ret = subprocess.run(f'JLinkExe -USB {sn} -device {dev} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink',
-                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    stdout = ret.stdout.decode()
+    with open('flash.jlink', 'w') as f:
+        f.writelines(f'{s}\n' for s in script)
+    ret = subprocess.run(
+        f'JLinkExe -USB {board["debugger_sn"]} -device {board["cpu"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink',
+        shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     os.remove('flash.jlink')
-    assert ret.returncode == 0, 'Flash failed\n' + stdout
+    return ret
 
 
-def flash_openocd(sn, args, firmware):
-    ret = subprocess.run(f'openocd {args} -c "program {firmware} reset exit"',
-                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    stdout = ret.stdout.decode()
-    assert ret.returncode == 0, 'Flash failed\n' + stdout
+def flash_openocd(board, firmware):
+    ret = subprocess.run(
+        f'openocd -c "adapter serial {board["debugger_sn"]}" {board["debugger_args"]} -c "program {firmware} reset exit"',
+        shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return ret
+
+
+def flash_esptool(board, firmware):
+    port = get_serial_dev(board["debugger_sn"], None, None, 0)
+    dir = os.path.dirname(firmware)
+    with open(f'{dir}/config.env') as f:
+        IDF_TARGET = json.load(f)['IDF_TARGET']
+    with open(f'{dir}/flash_args') as f:
+        flash_args = f.read().strip().replace('\n', ' ')
+    command = (f'esptool.py --chip {IDF_TARGET} -p {port} {board["debugger_args"]} '
+               f'--before=default_reset --after=hard_reset write_flash {flash_args}')
+    ret = subprocess.run(command, shell=True, cwd=dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return ret
 
 
 # -------------------------------------------------------------
@@ -160,12 +180,16 @@ issue at github.com/hathach/tinyusb"
     assert data == readme, 'MSC wrong data'
 
 
+def test_cdc_msc_freertos(id):
+    test_cdc_msc(id)
+
+
 def test_dfu(id):
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout:
         ret = subprocess.run(f'dfu-util -l',
-                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stdout = ret.stdout.decode()
         if f'serial="{id}"' in stdout and 'Found DFU: [cafe:4000]' in stdout:
             break
@@ -190,10 +214,10 @@ def test_dfu(id):
     assert ret.returncode == 0, 'Upload failed'
 
     with open('dfu0') as f:
-        assert 'Hello world from TinyUSB DFU! - Partition 0' in f.read(),  'Wrong uploaded data'
+        assert 'Hello world from TinyUSB DFU! - Partition 0' in f.read(), 'Wrong uploaded data'
 
     with open('dfu1') as f:
-        assert 'Hello world from TinyUSB DFU! - Partition 1' in f.read(),  'Wrong uploaded data'
+        assert 'Hello world from TinyUSB DFU! - Partition 1' in f.read(), 'Wrong uploaded data'
 
     os.remove('dfu0')
     os.remove('dfu1')
@@ -204,7 +228,7 @@ def test_dfu_runtime(id):
     timeout = ENUM_TIMEOUT
     while timeout:
         ret = subprocess.run(f'dfu-util -l',
-                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stdout = ret.stdout.decode()
         if f'serial="{id}"' in stdout and 'Found Runtime: [cafe:4000]' in stdout:
             break
@@ -229,6 +253,14 @@ def test_hid_boot_interface(id):
     assert timeout, 'Device not available'
 
 
+def test_hid_composite_freertos(id):
+    # TODO implement later
+    pass
+
+
+# -------------------------------------------------------------
+# Main
+# -------------------------------------------------------------
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('Usage:')
@@ -238,10 +270,9 @@ if __name__ == '__main__':
     with open(f'{os.path.dirname(__file__)}/{sys.argv[1]}') as f:
         config = json.load(f)
 
-    # all possible tests, board_test is last to disable board's usb
+    # all possible tests
     all_tests = [
         'cdc_dual_ports', 'cdc_msc', 'dfu', 'dfu_runtime', 'hid_boot_interface',
-        'board_test'
     ]
 
     for board in config['boards']:
@@ -253,6 +284,9 @@ if __name__ == '__main__':
             test_list = board['tests']
         else:
             test_list = all_tests
+
+        # board_test is added last to disable board's usb
+        test_list.append('board_test')
 
         # remove skip_tests
         if 'tests_skip' in board:
@@ -278,13 +312,13 @@ if __name__ == '__main__':
                 print(f'Cannot find firmware file for {test}')
                 sys.exit(-1)
 
-            if debugger == 'jlink':
-                flash_jlink(board['debugger_sn'], board['cpu'], elf)
-            elif debugger == 'openocd':
-                flash_openocd(board['debugger_sn'], board['debugger_args'], elf)
-            else:
-                # ToDo
-                pass
             print(f'  {test} ...', end='')
+
+            # flash firmware
+            ret = locals()[f'flash_{debugger}'](board, elf)
+            assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
+
+            # run test
             locals()[f'test_{test}'](board['uid'])
+
             print('OK')
