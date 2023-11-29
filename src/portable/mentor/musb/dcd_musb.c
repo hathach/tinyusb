@@ -158,9 +158,9 @@ static inline unsigned free_block_size(free_block_t const *blk)
 #if 0
 static inline void print_block_list(free_block_t const *blk, unsigned num)
 {
-  TU_LOG1("*************\n");
+  TU_LOG1("*************\r\n");
   for (unsigned i = 0; i < num; ++i) {
-    TU_LOG1(" Blk%u %u %u\n", i, blk->beg, blk->end);
+    TU_LOG1(" Blk%u %u %u\r\n", i, blk->beg, blk->end);
     ++blk;
   }
 }
