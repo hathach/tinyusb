@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="ra4m1" type="com.jetbrains.cidr.embedded.customgdbserver.type" factoryName="com.jetbrains.cidr.embedded.customgdbserver.factory" folderName="renesas" PROGRAM_PARAMS="-device &quot;R7FA4M1AB&quot; -if swd -speed 50000 -port 25321 -nogui -singlerun -jlinkscriptfile $PROJECT_DIR$/hw/bsp/ra/debug.jlinkscript" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="tinyusb_examples" TARGET_NAME="cdc_msc" CONFIG_NAME="metro m7 1011 sd" version="1" RUN_TARGET_PROJECT_NAME="tinyusb_examples" RUN_TARGET_NAME="cdc_msc">
+    <custom-gdb-server version="1" gdb-connect="tcp::25321" executable="/usr/bin/JLinkGDBServer" warmup-ms="0" download-type="ALWAYS" reset-cmd="monitor reset" reset-type="AFTER_DOWNLOAD">
+      <debugger kind="GDB" isBundled="true" />
+    </custom-gdb-server>
+    <method v="2">
+      <option name="CLION.COMPOUND.BUILD" enabled="true" />
+    </method>
+  </configuration>
+</component>

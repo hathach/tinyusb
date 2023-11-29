@@ -64,6 +64,7 @@ function(add_tinyusb TARGET)
       -Wnull-dereference
       -Wuninitialized
       -Wunused
+      -Wunused-function
       -Wreturn-type
       -Wredundant-decls
       )

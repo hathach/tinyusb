@@ -50,7 +50,7 @@
  * regarding downloading.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "iodefine.h"
 #include "interrupt_handlers.h"
 
@@ -177,7 +177,7 @@ void INT_Excep_SCI5_RXI5(void)
 void INT_Excep_USB0_USBI0(void)
 {
 #if CFG_TUH_ENABLED
-  tuh_int_handler(0);
+  tuh_int_handler(0, true);
 #endif
 #if CFG_TUD_ENABLED
   tud_int_handler(0);

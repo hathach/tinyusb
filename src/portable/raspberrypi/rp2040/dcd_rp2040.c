@@ -189,7 +189,7 @@ static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_by
 static void __tusb_irq_path_func(hw_handle_buff_status)(void)
 {
     uint32_t remaining_buffers = usb_hw->buf_status;
-    pico_trace("buf_status = 0x%08lx\n", remaining_buffers);
+    pico_trace("buf_status = 0x%08lx\r\n", remaining_buffers);
     uint bit = 1u;
     for (uint8_t i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++)
     {
@@ -331,7 +331,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
   // SE0 for 2.5 us or more (will last at least 10ms)
   if ( status & USB_INTS_BUS_RESET_BITS )
   {
-    pico_trace("BUS RESET\n");
+    pico_trace("BUS RESET\r\n");
 
     handled |= USB_INTS_BUS_RESET_BITS;
 
@@ -565,7 +565,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
     (void) rhport;
 
-    pico_trace("dcd_edpt_close %02x\n", ep_addr);
+    pico_trace("dcd_edpt_close %02x\r\n", ep_addr);
     hw_endpoint_close(ep_addr);
 }
 

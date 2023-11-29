@@ -66,15 +66,15 @@
 #define configUSE_MUTEXES                       1
 #define configUSE_RECURSIVE_MUTEXES             1
 #define configUSE_COUNTING_SEMAPHORES           1
-#define configQUEUE_REGISTRY_SIZE               2
+#define configQUEUE_REGISTRY_SIZE               4
 #define configUSE_QUEUE_SETS                    0
 #define configUSE_TIME_SLICING                  0
 #define configUSE_NEWLIB_REENTRANT              0
 #define configENABLE_BACKWARD_COMPATIBILITY     1
 #define configSTACK_ALLOCATION_FROM_SEPARATE_HEAP   0
 
-#define configSUPPORT_STATIC_ALLOCATION         0
-#define configSUPPORT_DYNAMIC_ALLOCATION        1
+#define configSUPPORT_STATIC_ALLOCATION         1
+#define configSUPPORT_DYNAMIC_ALLOCATION        0
 
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                    0

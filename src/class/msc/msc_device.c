@@ -34,13 +34,16 @@
 
 #include "msc_device.h"
 
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUD_MSC_LOG_LEVEL
+  #define CFG_TUD_MSC_LOG_LEVEL   CFG_TUD_LOG_LEVEL
+#endif
+
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_MSC_LOG_LEVEL, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-// Can be selectively disabled to reduce logging when troubleshooting other driver
-#define MSC_DEBUG   2
-
 enum
 {
   MSC_STAGE_CMD  = 0,
@@ -71,8 +74,8 @@ typedef struct
   uint8_t add_sense_qualifier;
 }mscd_interface_t;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mscd_interface_t _mscd_itf;
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mscd_interface_t _mscd_itf;
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t _mscd_buf[CFG_TUD_MSC_EP_BUFSIZE];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -164,7 +167,7 @@ uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
   {
     if ( block_count )
     {
-      TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di) or case 3 (Hn < Do) \r\n");
+      TU_LOG_DRV("  SCSI case 2 (Hn < Di) or case 3 (Hn < Do) \r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
     }else
     {
@@ -174,22 +177,22 @@ uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
   {
     if ( SCSI_CMD_READ_10 == cbw->command[0] && !is_data_in(cbw->dir) )
     {
-      TU_LOG(MSC_DEBUG, "  SCSI case 10 (Ho <> Di)\r\n");
+      TU_LOG_DRV("  SCSI case 10 (Ho <> Di)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
     }
     else if ( SCSI_CMD_WRITE_10 == cbw->command[0] && is_data_in(cbw->dir) )
     {
-      TU_LOG(MSC_DEBUG, "  SCSI case 8 (Hi <> Do)\r\n");
+      TU_LOG_DRV("  SCSI case 8 (Hi <> Do)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
     }
     else if ( 0 == block_count )
     {
-      TU_LOG(MSC_DEBUG, "  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
+      TU_LOG_DRV("  SCSI case 4 Hi > Dn (READ10) or case 9 Ho > Dn (WRITE10) \r\n");
       status =  MSC_CSW_STATUS_FAILED;
     }
     else if ( cbw->total_bytes / block_count == 0 )
     {
-      TU_LOG(MSC_DEBUG, " Computed block size = 0. SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRIT10)\r\n");
+      TU_LOG_DRV(" Computed block size = 0. SCSI case 7 Hi < Di (READ10) or case 13 Ho < Do (WRIT10)\r\n");
       status = MSC_CSW_STATUS_PHASE_ERROR;
     }
   }
@@ -352,7 +355,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   switch ( request->bRequest )
   {
     case MSC_REQ_RESET:
-      TU_LOG(MSC_DEBUG, "  MSC BOT Reset\r\n");
+      TU_LOG_DRV("  MSC BOT Reset\r\n");
       TU_VERIFY(request->wValue == 0 && request->wLength == 0);
 
       // driver state reset
@@ -363,7 +366,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
     case MSC_REQ_GET_MAX_LUN:
     {
-      TU_LOG(MSC_DEBUG, "  MSC Get Max Lun\r\n");
+      TU_LOG_DRV("  MSC Get Max Lun\r\n");
       TU_VERIFY(request->wValue == 0 && request->wLength == 1);
 
       uint8_t maxlun = 1;
@@ -400,7 +403,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
       if ( !(xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE) )
       {
-        TU_LOG(MSC_DEBUG, "  SCSI CBW is not valid\r\n");
+        TU_LOG_DRV("  SCSI CBW is not valid\r\n");
 
         // BOT 6.6.1 If CBW is not valid stall both endpoints until reset recovery
         p_msc->stage = MSC_STAGE_NEED_RESET;
@@ -412,7 +415,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         return false;
       }
 
-      TU_LOG(MSC_DEBUG, "  SCSI Command [Lun%u]: %s\r\n", p_cbw->lun, tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
+      TU_LOG_DRV("  SCSI Command [Lun%u]: %s\r\n", p_cbw->lun, tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
       //TU_LOG_MEM(MSC_DEBUG, p_cbw, xferred_bytes, 2);
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
@@ -457,7 +460,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         {
           if (p_cbw->total_bytes > sizeof(_mscd_buf))
           {
-            TU_LOG(MSC_DEBUG, "  SCSI reject non READ10/WRITE10 with large data\r\n");
+            TU_LOG_DRV("  SCSI reject non READ10/WRITE10 with large data\r\n");
             fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
           }else
           {
@@ -479,7 +482,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           if ( resplen < 0 )
           {
             // unsupported command
-            TU_LOG(MSC_DEBUG, "  SCSI unsupported or failed command\r\n");
+            TU_LOG_DRV("  SCSI unsupported or failed command\r\n");
             fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
           }
           else if (resplen == 0)
@@ -514,7 +517,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     break;
 
     case MSC_STAGE_DATA:
-      TU_LOG(MSC_DEBUG, "  SCSI Data [Lun%u]\r\n", p_cbw->lun);
+      TU_LOG_DRV("  SCSI Data [Lun%u]\r\n", p_cbw->lun);
       //TU_LOG_MEM(MSC_DEBUG, _mscd_buf, xferred_bytes, 2);
 
       if (SCSI_CMD_READ_10 == p_cbw->command[0])
@@ -546,7 +549,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           if ( cb_result < 0 )
           {
             // unsupported command
-            TU_LOG(MSC_DEBUG, "  SCSI unsupported command\r\n");
+            TU_LOG_DRV("  SCSI unsupported command\r\n");
             fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
           }else
           {
@@ -575,7 +578,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // Wait for the Status phase to complete
       if( (ep_addr == p_msc->ep_in) && (xferred_bytes == sizeof(msc_csw_t)) )
       {
-        TU_LOG(MSC_DEBUG, "  SCSI Status [Lun%u] = %u\r\n", p_cbw->lun, p_csw->status);
+        TU_LOG_DRV("  SCSI Status [Lun%u] = %u\r\n", p_cbw->lun, p_csw->status);
         // TU_LOG_MEM(MSC_DEBUG, p_csw, xferred_bytes, 2);
 
         // Invoke complete callback if defined
@@ -845,7 +848,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   if ( nbytes < 0 )
   {
     // negative means error -> endpoint is stalled & status in CSW set to failed
-    TU_LOG(MSC_DEBUG, "  tud_msc_read10_cb() return -1\r\n");
+    TU_LOG_DRV("  tud_msc_read10_cb() return -1\r\n");
 
     // set sense
     set_sense_medium_not_present(p_cbw->lun);
@@ -907,7 +910,7 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
   if ( nbytes < 0 )
   {
     // negative means error -> failed this scsi op
-    TU_LOG(MSC_DEBUG, "  tud_msc_write10_cb() return -1\r\n");
+    TU_LOG_DRV("  tud_msc_write10_cb() return -1\r\n");
 
     // update actual byte before failed
     p_msc->xferred_len += xferred_bytes;

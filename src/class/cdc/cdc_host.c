@@ -29,13 +29,16 @@
 #if (CFG_TUH_ENABLED && CFG_TUH_CDC)
 
 #include "host/usbh.h"
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 
 #include "cdc_host.h"
 
-// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
-#define CDCH_DEBUG   2
-#define TU_LOG_DRV(...)   TU_LOG(CDCH_DEBUG, __VA_ARGS__)
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUH_CDC_LOG_LEVEL
+  #define CFG_TUH_CDC_LOG_LEVEL   CFG_TUH_LOG_LEVEL
+#endif
+
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUH_CDC_LOG_LEVEL, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // Host CDC Interface
@@ -973,7 +976,7 @@ static uint32_t ftdi_232bm_baud_to_divisor(uint32_t baud)
 static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   uint16_t const divisor = (uint16_t) ftdi_232bm_baud_to_divisor(baudrate);
-  TU_LOG_DRV("CDC FTDI Set BaudRate = %lu, divisor = 0x%04x\n", baudrate, divisor);
+  TU_LOG_DRV("CDC FTDI Set BaudRate = %lu, divisor = 0x%04x\r\n", baudrate, divisor);
 
   p_cdc->user_control_cb = complete_cb;
   _ftdi_requested_baud = baudrate;
@@ -1108,7 +1111,7 @@ static bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfe
 }
 
 static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_DRV("CDC CP210x Set BaudRate = %lu\n", baudrate);
+  TU_LOG_DRV("CDC CP210x Set BaudRate = %lu\r\n", baudrate);
   uint32_t baud_le = tu_htole32(baudrate);
   p_cdc->user_control_cb = complete_cb;
   return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4,

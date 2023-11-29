@@ -25,7 +25,7 @@
  */
 
 #include "chip.h"
-#include "../board.h"
+#include "bsp/board_api.h"
 
 #define LED_PORT              1
 #define LED_PIN               18
@@ -151,7 +151,7 @@ void USB_IRQHandler(void)
   #endif
 
   #if CFG_TUH_ENABLED
-    tuh_int_handler(0);
+    tuh_int_handler(0, true);
   #endif
 }
 

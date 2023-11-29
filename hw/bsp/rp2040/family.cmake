@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-include_guard()
+include_guard(GLOBAL)
 
 if (NOT BOARD)
 	message("BOARD not specified, defaulting to pico_sdk")
@@ -12,6 +12,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
 # include basic family CMake functionality
 set(FAMILY_MCUS RP2040)
 set(JLINK_DEVICE rp2040_m0_0)
+set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"")
 
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
@@ -112,6 +113,7 @@ target_sources(tinyusb_bsp INTERFACE
 target_include_directories(tinyusb_bsp INTERFACE
 	${TOP}/hw
 	)
+target_link_libraries(tinyusb_bsp	INTERFACE pico_unique_id)
 
 # tinyusb_additions will hold our extra settings for examples
 add_library(tinyusb_additions INTERFACE)
@@ -157,6 +159,7 @@ function(family_configure_target TARGET RTOS)
 	pico_enable_stdio_uart(${TARGET} 1)
 	target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
 
+	family_flash_openocd(${TARGET} ${OPENOCD_OPTION})
 	family_flash_jlink(${TARGET})
 endfunction()
 
@@ -183,6 +186,15 @@ function(family_add_pico_pio_usb TARGET)
 	target_link_libraries(${TARGET} PUBLIC tinyusb_pico_pio_usb)
 endfunction()
 
+# since Pico-PIO_USB compiler support may lag, and change from version to version, add a function that pico-sdk/pico-examples
+# can check (if present) in case the user has updated their TinyUSB
+function(is_compiler_supported_by_pico_pio_usb OUTVAR)
+	if ((NOT CMAKE_C_COMPILER_ID STREQUAL "GNU"))
+		SET(${OUTVAR} 0 PARENT_SCOPE)
+	else()
+		set(${OUTVAR} 1 PARENT_SCOPE)
+	endif()
+endfunction()
 
 function(family_configure_host_example TARGET RTOS)
 	family_configure_target(${TARGET} ${RTOS})
@@ -191,8 +203,9 @@ function(family_configure_host_example TARGET RTOS)
 
 	# For rp2040 enable pico-pio-usb
 	if (TARGET tinyusb_pico_pio_usb)
-		# code does not compile with non GCC, or GCC 11.3+
-		if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.3)
+		# Pico-PIO-USB does not compile with all pico-sdk supported compilers, so check before enabling it
+		is_compiler_supported_by_pico_pio_usb(PICO_PIO_USB_COMPILER_SUPPORTED)
+		if (PICO_PIO_USB_COMPILER_SUPPORTED)
 			family_add_pico_pio_usb(${PROJECT})
 		endif()
 	endif()

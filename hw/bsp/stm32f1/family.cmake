@@ -16,7 +16,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m3 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32F1 CACHE INTERNAL "")
 

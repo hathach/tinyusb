@@ -161,7 +161,7 @@ static int prepare_packets(int pipenum)
   buffer_descriptor_t *bd = _hcd.bdt[dir_tx];
   TU_ASSERT(0 == bd[odd].own, -1);
 
-  // TU_LOG1("  %p dir %d odd %d data %d\n", &bd[odd], dir_tx, odd, pipe->data);
+  // TU_LOG1("  %p dir %d odd %d data %d\r\n", &bd[odd], dir_tx, odd, pipe->data);
 
   ep->pipenum = pipenum;
 
@@ -251,7 +251,7 @@ static bool resume_transfer(int pipenum)
     flags |= USB_ENDPT_EPHSHK_MASK | USB_ENDPT_EPCTLDIS_MASK | USB_ENDPT_RETRYDIS_MASK;
     break;
   }
-  // TU_LOG1("  resume pipenum %d flags %x\n", pipenum, flags);
+  // TU_LOG1("  resume pipenum %d flags %x\r\n", pipenum, flags);
 
   KHCI->ENDPOINT[0].ENDPT = flags;
   KHCI->ADDR  = (KHCI->ADDR & USB_ADDR_LSEN_MASK) | pipe->dev_addr;
@@ -302,7 +302,7 @@ static void process_tokdne(uint8_t rhport)
 
   int pipenum = ep->pipenum;
   int next_pipenum;
-  // TU_LOG1("TOKDNE %x PID %x pipe %d\n", s, pid, pipenum);
+  // TU_LOG1("TOKDNE %x PID %x pipe %d\r\n", s, pid, pipenum);
 
   xfer_result_t result;
   switch (pid) {
@@ -447,6 +447,10 @@ void hcd_port_reset(uint8_t rhport)
   _hcd.need_reset = false;
 }
 
+void hcd_port_reset_end(uint8_t rhport) {
+  (void) rhport;
+}
+
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
   (void)rhport;
@@ -479,7 +483,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
   (void)rhport;
-  // TU_LOG1("SETUP %u\n", dev_addr);
+  // TU_LOG1("SETUP %u\r\n", dev_addr);
   TU_ASSERT(0 == (_hcd.in_progress & TU_BIT(0)));
 
   int pipenum = find_pipe(dev_addr, 0);
@@ -510,7 +514,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 {
   (void)rhport;
   uint8_t const ep_addr = ep_desc->bEndpointAddress;
-  // TU_LOG1("O %u %x\n", dev_addr, ep_addr);
+  // TU_LOG1("O %u %x\r\n", dev_addr, ep_addr);
   /* Find a free pipe */
   pipe_state_t *p = &_hcd.pipe[0];
   pipe_state_t *end = &_hcd.pipe[CFG_TUH_ENDPOINT_MAX * 2];
@@ -543,7 +547,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
   (void)rhport;
-  // TU_LOG1("X %u %x %x %d\n", dev_addr, ep_addr, (uintptr_t)buffer, buflen);
+  // TU_LOG1("X %u %x %x %d\r\n", dev_addr, ep_addr, (uintptr_t)buffer, buflen);
 
   int pipenum = find_pipe(dev_addr, ep_addr);
   TU_ASSERT(0 <= pipenum);
@@ -562,8 +566,16 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
-bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
-{
+bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+  // TODO not implemented yet
+  return false;
+}
+
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
   if (!tu_edpt_number(ep_addr)) return true;
   int num = find_pipe(dev_addr, ep_addr);
   if (num < 0) return false;
@@ -575,12 +587,13 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 /*--------------------------------------------------------------------+
  * ISR
  *--------------------------------------------------------------------+*/
-void hcd_int_handler(uint8_t rhport)
+void hcd_int_handler(uint8_t rhport, bool in_isr)
 {
+  (void) in_isr;
   uint32_t is  = KHCI->ISTAT;
   uint32_t msk = KHCI->INTEN;
 
-  // TU_LOG1("S %lx\n", is);
+  // TU_LOG1("S %lx\r\n", is);
 
   /* clear disabled interrupts */
   KHCI->ISTAT = (is & ~msk & ~USB_ISTAT_TOKDNE_MASK) | USB_ISTAT_SOFTOK_MASK;
@@ -589,7 +602,7 @@ void hcd_int_handler(uint8_t rhport)
   if (is & USB_ISTAT_ERROR_MASK) {
     unsigned err = KHCI->ERRSTAT;
     if (err) {
-      TU_LOG1(" ERR %x\n", err);
+      TU_LOG1(" ERR %x\r\n", err);
       KHCI->ERRSTAT = err;
     } else {
       KHCI->INTEN &= ~USB_ISTAT_ERROR_MASK;

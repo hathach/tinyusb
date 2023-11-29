@@ -34,10 +34,16 @@
 
 //------------- Unaligned Memory Access -------------//
 
-// ARMv7+ (M3-M7, M23-M33) can access unaligned memory
-#if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
-  #define TUP_ARCH_STRICT_ALIGN   0
+#ifdef __ARM_ARCH
+  // ARM Architecture set __ARM_FEATURE_UNALIGNED to 1 for mcu supports unaligned access
+  #if defined(__ARM_FEATURE_UNALIGNED) && __ARM_FEATURE_UNALIGNED == 1
+    #define TUP_ARCH_STRICT_ALIGN   0
+  #else
+    #define TUP_ARCH_STRICT_ALIGN   1
+  #endif
 #else
+  // TODO default to strict align for others
+  // Should investigate other architecture such as risv, xtensa, mips for optimal setting
   #define TUP_ARCH_STRICT_ALIGN   1
 #endif
 
@@ -52,6 +58,7 @@
 // NXP
 //--------------------------------------------------------------------+
 #if   TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
+  #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX    5
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
@@ -60,14 +67,17 @@
   #define TUP_OHCI_RHPORTS        2
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC51UXX)
+   #define TUP_USBIP_IP3511
    #define TUP_DCD_ENDPOINT_MAX   5
 
-#elif TU_CHECK_MCU(OPT_MCU_LPC54XXX)
+#elif TU_CHECK_MCU(OPT_MCU_LPC54)
   // TODO USB0 has 5, USB1 has 6
+  #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX    6
 
-#elif TU_CHECK_MCU(OPT_MCU_LPC55XX)
+#elif TU_CHECK_MCU(OPT_MCU_LPC55)
   // TODO USB0 has 5, USB1 has 6
+  #define TUP_USBIP_IP3511
   #define TUP_DCD_ENDPOINT_MAX    6
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
@@ -207,9 +217,7 @@
 
   // TypeC controller
   #define TUP_USBIP_TYPEC_STM32
-
   #define TUP_DCD_ENDPOINT_MAX    8
-
   #define TUP_TYPEC_RHPORTS_NUM 1
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32G0)
@@ -251,13 +259,20 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32U5)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
-  #define TUP_DCD_ENDPOINT_MAX    6
+
+  // U59x/5Ax/5Fx/5Gx are highspeed with built-in HS PHY
+  #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || defined(STM32U5A9xx) || \
+      defined(STM32U5F7xx) || defined(STM32U5F9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx)
+    #define TUP_DCD_ENDPOINT_MAX  9
+    #define TUP_RHPORT_HIGHSPEED  1
+  #else
+    #define TUP_DCD_ENDPOINT_MAX  6
+  #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32L5)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_DCD_ENDPOINT_MAX    8
-
 
 //--------------------------------------------------------------------+
 // Sony
@@ -327,6 +342,7 @@
 // Renesas
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N, OPT_MCU_RAXXX)
+  #define TUP_USBIP_RUSB2
   #define TUP_DCD_ENDPOINT_MAX    10
 
 //--------------------------------------------------------------------+
@@ -372,7 +388,23 @@
 #elif TU_CHECK_MCU(OPT_MCU_CH32V307)
   #define TUP_DCD_ENDPOINT_MAX    16
   #define TUP_RHPORT_HIGHSPEED    1
+
+#elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
+  #define TUP_DCD_ENDPOINT_MAX    16
+  #define TUP_RHPORT_HIGHSPEED    1
 #endif
+
+
+//--------------------------------------------------------------------+
+// External USB controller
+//--------------------------------------------------------------------+
+
+#if defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+  #ifndef CFG_TUH_MAX3421_ENDPOINT_TOTAL
+    #define CFG_TUH_MAX3421_ENDPOINT_TOTAL  (8 + 4*(CFG_TUH_DEVICE_MAX-1))
+  #endif
+#endif
+
 
 //--------------------------------------------------------------------+
 // Default Values

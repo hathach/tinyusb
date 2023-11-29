@@ -32,7 +32,7 @@ jobs:
           # Alphabetical order
           # Note: bundle multiple families into a matrix since there is only one self-hosted instance can
           # run IAR build. Too many matrix can hurt due to setup/teardown overhead.
-          - 'stm32f0 stm32f1 stm32f7 stm32g0 stm32g4 stm32h7 stm32l4'
+          - 'lpc43 stm32f0 stm32f1 stm32f4 stm32f7 stm32g0 stm32g4 stm32h7 stm32l4'
     steps:
       - name: Clean workspace
         run: |
@@ -49,82 +49,6 @@ jobs:
       - name: Build
         run: python3 tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=iar -DCMAKE_BUILD_TYPE=MinSizeRel
 
-      # Upload binaries for hardware test with self-hosted
-      - name: Prepare stm32l412nucleo Artifacts
-        if: contains(matrix.family, 'stm32l4')
-        working-directory: ${{github.workspace}}/cmake-build/cmake-build-stm32l412nucleo
+      - name: Test on actual hardware (hardware in the loop)
         run: |
-          find device/ -name "*.elf" -exec mv {} ../../ \;
-
-      - name: Upload Artifacts for stm32l412nucleo
-        if: contains(matrix.family, 'stm32l4') && github.repository_owner == 'hathach'
-        uses: actions/upload-artifact@v3
-        with:
-          name: stm32l4
-          path: |
-            *.elf
-
-  # ---------------------------------------
-  # Hardware in the loop (HIL)
-  # Current self-hosted instance is running on an EPYC 7232 server hosted by HiFiPhile user
-  # - STM32L412 Nucleo with on-board jlink as ttyACM0
-  # ---------------------------------------
-  hw-stm32l412nucleo-test:
-    needs: cmake
-    runs-on: [self-hosted, Linux, X64, hifiphile]
-
-    steps:
-      - name: Clean workspace
-        run: |
-          echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"
-          mkdir -p "${{ github.workspace }}"
-
-      - name: Download stm32l4 Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: stm32l4
-
-      - name: Create flash.sh
-        run: |
-          echo > flash.sh 'echo halt > flash.jlink'
-          echo >> flash.sh 'echo r >> flash.jlink'
-          echo >> flash.sh 'echo loadfile $1 >> flash.jlink'
-          echo >> flash.sh 'echo r >> flash.jlink'
-          echo >> flash.sh 'echo go >> flash.jlink'
-          echo >> flash.sh 'echo exit >> flash.jlink'
-          echo >> flash.sh 'cmdout=$(JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink)'
-          echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
-          chmod +x flash.sh
-
-      - name: Test cdc_dual_ports
-        run: |
-          ./flash.sh cdc_dual_ports.elf
-          while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 10 ]; do :; done
-          test -e /dev/ttyACM1 && echo "ttyACM1 exists"
-          test -e /dev/ttyACM2 && echo "ttyACM2 exists"
-
-        # Debian does not auto mount usb drive. skip this test for now
-      - name: Test cdc_msc
-        if: false
-        run: |
-          ./flash.sh cdc_msc.elf
-          readme='/media/pi/TinyUSB MSC/README.TXT'
-          while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 10 ]; do :; done
-          test -e /dev/ttyACM1 && echo "ttyACM1 exists"
-          test -f "$readme" && echo "$readme exists"
-          cat "$readme"
-
-      - name: Test dfu
-        run: |
-          ./flash.sh dfu.elf
-          while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 10 ]; do :; done
-          dfu-util -d cafe -a 0 -U dfu0
-          dfu-util -d cafe -a 1 -U dfu1
-          grep "TinyUSB DFU! - Partition 0" dfu0
-          grep "TinyUSB DFU! - Partition 1" dfu1
-
-      - name: Test dfu_runtime
-        run: |
-          ./flash.sh dfu_runtime.elf
-          while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 10 ]; do :; done
+          python3 test/hil/hil_test.py hil_hfp.json

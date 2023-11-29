@@ -28,7 +28,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 //------------- prototypes -------------//
@@ -41,6 +41,10 @@ int main(void)
 
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
 
   while (1)
   {

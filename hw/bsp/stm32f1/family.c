@@ -25,24 +25,21 @@
  */
 
 #include "stm32f1xx_hal.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB_HP_IRQHandler(void)
-{
+void USB_HP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USB_LP_IRQHandler(void)
-{
+void USB_LP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USBWakeUp_IRQHandler(void)
-{
+void USBWakeUp_IRQHandler(void) {
   tud_int_handler(0);
 }
 
@@ -50,8 +47,7 @@ void USBWakeUp_IRQHandler(void)
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-void board_init(void)
-{
+void board_init(void) {
   board_stm32f1_clock_init();
 
   // Enable All GPIOs clocks
@@ -60,7 +56,7 @@ void board_init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
@@ -72,7 +68,7 @@ void board_init(void)
 #endif
 
   // LED
-  GPIO_InitTypeDef  GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct;
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = LED_STATE_ON ? GPIO_PULLDOWN : GPIO_PULLUP;
@@ -102,56 +98,59 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  GPIO_PinState pin_state = (GPIO_PinState) (state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  GPIO_PinState pin_state = (GPIO_PinState)(state ? LED_STATE_ON : (1 - LED_STATE_ON));
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, pin_state);
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+  volatile uint32_t * stm32_uuid = (volatile uint32_t *) UID_BASE;
+  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
+  uint8_t const len = 12;
+
+  id32[0] = stm32_uuid[0];
+  id32[1] = stm32_uuid[1];
+  id32[2] = stm32_uuid[2];
+
+  return len;
+}
+
+int board_uart_read(uint8_t *buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_write(void const *buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
   HAL_IncTick();
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
 
-void HardFault_Handler (void)
-{
+void HardFault_Handler(void) {
   __asm("BKPT #0\n");
 }
 
 #ifdef  USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
 void assert_failed(const char *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
@@ -163,7 +162,5 @@ void assert_failed(const char *file, uint32_t line)
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
-void _init(void)
-{
-
+void _init(void) {
 }

@@ -30,7 +30,7 @@
 
 #include "hcd.h"
 #include "usbh.h"
-#include "usbh_classdriver.h"
+#include "usbh_pvt.h"
 #include "hub.h"
 
 // Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
@@ -45,8 +45,8 @@ typedef struct
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t port_count;
-  uint8_t status_change; // data from status change interrupt endpoint
 
+  CFG_TUH_MEM_ALIGN uint8_t status_change;
   CFG_TUH_MEM_ALIGN hub_port_status_response_t port_status;
   CFG_TUH_MEM_ALIGN hub_status_response_t hub_status;
 } hub_interface_t;
@@ -330,7 +330,7 @@ static void connection_port_reset_complete (tuh_xfer_t* xfer);
 bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;
-  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  TU_VERIFY(result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 

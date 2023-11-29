@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
@@ -105,6 +105,10 @@ int main(void)
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
 
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
   TU_LOG1("Headset running\r\n");
 
   while (1)
@@ -143,7 +147,7 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 // Helper for clock get requests
