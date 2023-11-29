@@ -1,7 +1,7 @@
 set(MCU_VARIANT stm32h750xx)
 set(JLINK_DEVICE stm32h750xb_m7)
 
-set(LD_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/linker/${MCU_VARIANT}_flash_CM7.ld)
+set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/${MCU_VARIANT}_flash_CM7.ld)
 set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash_CM7.icf)
 
 function(update_board TARGET)

@@ -8,7 +8,7 @@ PORT ?= 0
 
 # GCC
 SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32h750xx.s
-LD_FILE_GCC = $(ST_CMSIS)/Source/Templates/gcc/linker/stm32h750xx_flash_CM7.ld
+LD_FILE_GCC = $(BOARD_PATH)/stm32h750xx_flash_CM7.ld
 
 # IAR
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_stm32h750xx.s
