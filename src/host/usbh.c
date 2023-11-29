@@ -197,6 +197,12 @@ static inline usbh_class_driver_t const *get_driver(uint8_t drv_id) {
   return driver;
 }
 
+TU_ATTR_ALWAYS_INLINE
+static inline bool is_hub_addr(uint8_t daddr)
+{
+  return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX);
+}
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -312,6 +318,18 @@ bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
   }
   return true;
 }
+
+uint8_t tuh_get_port(uint8_t dev_addr) {
+  usbh_device_t *dev = get_device(dev_addr);
+  // rhport:hub_addr:hub_port
+  if (is_hub_addr(dev_addr)) {
+    return dev->hub_addr;
+  } else if (dev->hub_port != 0) {
+    return dev->hub_port;
+  }
+  return dev->rhport;
+}
+
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -1181,12 +1199,6 @@ uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_i
 //--------------------------------------------------------------------+
 // Detaching
 //--------------------------------------------------------------------+
-
-TU_ATTR_ALWAYS_INLINE
-static inline bool is_hub_addr(uint8_t daddr)
-{
-  return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX);
-}
 
 //static void mark_removing_device_isr(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
 //  for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {

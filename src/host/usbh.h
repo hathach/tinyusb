@@ -171,6 +171,9 @@ bool tuh_ready(uint8_t daddr) {
   return tuh_mounted(daddr) && !tuh_suspended(daddr);
 }
 
+// Retrieve the port the device is connected to
+uint8_t tuh_get_port(uint8_t daddr);
+
 //--------------------------------------------------------------------+
 // Transfer API
 //--------------------------------------------------------------------+
