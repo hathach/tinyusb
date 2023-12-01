@@ -31,10 +31,6 @@ ifdef LD_FILE_GCC
 LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE_GCC)
 endif
 
-ifneq ($(SKIP_NANOLIB), 1)
-LDFLAGS += --specs=nosys.specs --specs=nano.specs
-endif
-
 ASFLAGS += $(CFLAGS)
 
 LIBS_GCC ?= -lgcc -lm -lnosys

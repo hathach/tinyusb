@@ -35,6 +35,8 @@ CFLAGS_GCC += \
 # mcu driver cause following warnings
 CFLAGS_GCC += -Wno-error=cast-align
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # -----------------
 # Sources & Include
 # -----------------

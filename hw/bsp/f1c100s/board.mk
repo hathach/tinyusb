@@ -1,5 +1,5 @@
+MCU_DIR = hw/mcu/allwinner/f1c100s
 DEPS_SUBMODULES += hw/mcu/allwinner
-
 DEFINES += -D__ARM32_ARCH__=5 -D__ARM926EJS__
 
 CFLAGS += \
@@ -18,8 +18,8 @@ CFLAGS += \
   $(DEFINES)
 
 LD_FILE = hw/mcu/allwinner/f1c100s/f1c100s.ld
-LDFLAGS += -nostdlib -lgcc
-MCU_DIR = hw/mcu/allwinner/f1c100s
+# TODO may skip nanolib
+LDFLAGS += -nostdlib -lgcc -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/sunxi/dcd_sunxi_musb.c \

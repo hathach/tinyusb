@@ -30,6 +30,7 @@ def filter_with_input(mylist):
 # Build all examples if not specified
 all_examples = [entry.replace('examples/', '') for entry in glob.glob("examples/*/*_freertos")]
 filter_with_input(all_examples)
+all_examples.append('device/board_test')
 all_examples.sort()
 
 # Build all boards if not specified

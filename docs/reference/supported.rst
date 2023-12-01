@@ -41,7 +41,7 @@ Supported MCUs
 |              |     | dsPIC33         | ✔      |      |           | pic               | ci_fs variant|
 |              |     +-----------------+--------+------+-----------+-------------------+--------------+
 |              |     | 32mz            | ✔      |      |           | pic32mz           | musb variant |
-+--------------+-----------------------+--------+------+-----------+-------------------+--------------+
++--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
 | Mind Montion | mm32                  | ✔      |      | ✖         | mm32f327x_otg     | ci_fs variant|
 +--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
 | NordicSemi   | nRF52833, nRF52840    | ✔      | ✖    | ✖         | nrf5x             |              |
@@ -129,6 +129,8 @@ Supported MCUs
 | ValentyUSB   | eptri                 | ✔      | ✖    | ✖         | eptri             |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | WCH          | CH32V307              | ✔      |      | ✔         | ch32v307          |              |
+|              +-----------------------+--------+------+-----------+-------------------+--------------+
+|              | CH32F20x              | ✔      |      | ✔         | ch32f205          |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 
 
@@ -298,7 +300,6 @@ LPC 18-43
 -  `Embedded Artists LPC4357 Developer Kit <http://www.embeddedartists.com/products/kits/lpc4357_kit.php>`__
 -  `Keil MCB1800 Evaluation Board <http://www.keil.com/mcb1800>`__
 -  `LPCXpresso18S37 Development Board <https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc4000-cortex-m4/lpcxpresso18s37-development-board:OM13076>`__
--  `NGX LPC4330-Xplorer <https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027>`__
 
 LPC 51
 ^^^^^^
@@ -435,4 +436,5 @@ Tomu
 WCH
 ---
 
-- `CH32V307V-R1-1v0 <https://lcsc.com/product-detail/Development-Boards-Kits_WCH-Jiangsu-Qin-Heng-CH32V307V-EVT-R1_C2943980.html>`
+-  `CH32V307V-R1-1v0 <https://lcsc.com/product-detail/Development-Boards-Kits_WCH-Jiangsu-Qin-Heng-CH32V307V-EVT-R1_C2943980.html>`__
+-  `CH32F205R-R0-1v0 <https://github.com/openwch/ch32f20x/blob/main/EVT/PUB/CH32F20x%20Evaluation%20Board%20Reference-EN.pdf>`__

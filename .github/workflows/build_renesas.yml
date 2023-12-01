@@ -71,7 +71,7 @@ jobs:
       run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
-      run: python3 tools/build_family.py ${{ matrix.family }}
+      run: python3 tools/build_make.py ${{ matrix.family }}
 
     - name: Linker Map
       run: |

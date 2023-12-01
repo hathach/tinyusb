@@ -51,4 +51,4 @@ jobs:
       run: python3 tools/get_deps.py stm32f4
 
     - name: Build
-      run: python3 tools/build_family.py stm32f4 stm32f411disco
+      run: python3 tools/build_make.py stm32f4 stm32f411disco

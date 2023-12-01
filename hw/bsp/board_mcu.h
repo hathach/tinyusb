@@ -161,6 +161,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_TM4C123
   #include "TM4C123.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_CH32F20X
+  #include "ch32f20x.h"
+
 #elif TU_CHECK_MCU(OPT_MCU_BCM2711, OPT_MCU_BCM2835, OPT_MCU_BCM2837)
   // no header needed
 

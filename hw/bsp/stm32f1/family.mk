@@ -18,6 +18,8 @@ CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles \
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # ------------------------
 # All source paths should be relative to the top level.
 # ------------------------
@@ -40,6 +42,5 @@ INC += \
 SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
-# flash target ROM bootloader
-flash-dfu-util: $(BUILD)/$(PROJECT).bin
-	dfu-util -R -a 0 --dfuse-address 0x08000000 -D $<
+# flash target ROM bootloader: flash-dfu-util
+DFU_UTIL_OPTION = -a 0 --dfuse-address 0x08000000

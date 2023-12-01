@@ -31,6 +31,8 @@
  extern "C" {
 #endif
 
+#define _PINNUM(port, pin)    ((port)*32 + (pin))
+
 // LED
 #define LED_PIN               23
 #define LED_STATE_ON          1
@@ -42,6 +44,21 @@
 // UART
 #define UART_TX_PIN           (32 + 17)
 #define UART_RX_PIN           (32 + 16)
+
+// SPI for USB host shield
+#define MAX3421_SERCOM_ID       1  // SERCOM2
+#define MAX3421_SERCOM_FUNCTION 2  // function C
+
+#define MAX3421_SCK_PIN         _PINNUM(0, 17)
+#define MAX3421_MOSI_PIN        _PINNUM(1, 23)
+#define MAX3421_MISO_PIN        _PINNUM(1, 22)
+#define MAX3421_TX_PAD          2 // MOSI = PAD_3, SCK = PAD_1
+#define MAX3421_RX_PAD          2 // MISO = PAD_2
+
+#define MAX3421_CS_PIN          21 // D11
+
+#define MAX3421_INTR_PIN        20 // D10
+#define MAX3421_INTR_EIC_ID     4  // EIC4
 
 #ifdef __cplusplus
  }

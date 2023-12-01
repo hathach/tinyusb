@@ -23,6 +23,8 @@ CFLAGS_GCC += \
 # suppress warning caused by vendor mcu driver
 CFLAGS_GCC += -Wno-error=unused-parameter -Wno-error=cast-align
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # ------------------------
 # All source paths should be relative to the top level.
 # ------------------------

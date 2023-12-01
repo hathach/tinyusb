@@ -2,19 +2,15 @@
 # Common make definition for all examples
 # ---------------------------------------
 
-# Supported toolchain: gcc, iar
-TOOLCHAIN ?= gcc
-
 #-------------- TOP and CURRENT_PATH ------------
 
-# Set TOP to be the path to get from the current directory (where make was
-# invoked) to the top of the tree. $(lastword $(MAKEFILE_LIST)) returns
-# the name of this makefile relative to where make was invoked.
+# Set TOP to be the path to get from the current directory (where make was invoked) to the top of the tree.
+# $(lastword $(MAKEFILE_LIST)) returns the name of this makefile relative to where make was invoked.
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
-# strip off /tools/top.mk to get for example ../../..
+# strip off /examples/build_system/make to get for example ../../..
 # and Set TOP to an absolute path
-TOP = $(abspath $(subst make.mk,..,$(THIS_MAKEFILE)))
+TOP = $(abspath $(subst make.mk,../../..,$(THIS_MAKEFILE)))
 
 # Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
 CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
@@ -37,7 +33,6 @@ check_defined = \
 __check_defined = \
     $(if $(value $1),, \
     $(error Undefined make flag: $1$(if $2, ($2))))
-
 
 # Build directory
 BUILD := _build/$(BOARD)
@@ -73,7 +68,10 @@ else
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-#-------------- Cross Compiler  ------------
+#-------------- Toolchain  ------------
+
+# Supported toolchain: gcc, iar
+TOOLCHAIN ?= gcc
 
 # Can be set by board, default to ARM GCC
 CROSS_COMPILE ?= arm-none-eabi-
@@ -139,8 +137,8 @@ endif
 
 # CPU specific flags
 ifdef CPU_CORE
-include $(TOP)/tools/make/cpu/$(CPU_CORE).mk
+  include ${TOP}/examples/build_system/make/cpu/$(CPU_CORE).mk
 endif
 
 # toolchain specific
-include $(TOP)/tools/make/toolchain/arm_$(TOOLCHAIN).mk
+include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN).mk

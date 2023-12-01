@@ -1,4 +1,4 @@
-include ../../make.mk
+include ../../build_system/make/make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
 FREERTOS_PORTABLE_PATH= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)
@@ -31,4 +31,4 @@ SRC_C += \
 SRC_S += \
 	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
 
-include ../../rules.mk
+include ../../build_system/make/rules.mk

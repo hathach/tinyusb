@@ -1,4 +1,5 @@
 DEPS_SUBMODULES += hw/mcu/ti
+MCU_DIR=hw/mcu/ti/tm4c123xx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
@@ -12,7 +13,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 
-MCU_DIR=hw/mcu/ti/tm4c123xx/
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE = $(BOARD_PATH)/tm4c123.ld

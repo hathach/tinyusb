@@ -9,6 +9,8 @@ CFLAGS += \
   -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_NUC120
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/nutiny_sdk_nuc120/nuc120_flash.ld
 

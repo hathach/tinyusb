@@ -37,7 +37,7 @@ vpath %.c . $(TOP)
 vpath %.s . $(TOP)
 vpath %.S . $(TOP)
 
-include $(TOP)/tools/make/toolchain/arm_$(TOOLCHAIN)_rules.mk
+include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN)_rules.mk
 
 
 OBJ_DIRS = $(sort $(dir $(OBJ)))

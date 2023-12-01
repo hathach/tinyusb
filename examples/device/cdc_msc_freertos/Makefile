@@ -1,4 +1,4 @@
-include ../../make.mk
+include ../../build_system/make/make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
 FREERTOS_PORTABLE_PATH= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)
@@ -43,4 +43,4 @@ CFLAGS_GCC += -Wno-error=cast-qual
 # FreeRTOS (lto + Os) linker issue
 LDFLAGS_GCC += -Wl,--undefined=vTaskSwitchContext
 
-include ../../rules.mk
+include ../../build_system/make/rules.mk

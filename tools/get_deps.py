@@ -54,7 +54,7 @@ deps_optional = {
                             '950819b7de9b32f92c3edf396bc5ffb8d66e7009',
                             'kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
-                                         'd00a10a8c425d0d40f81b87169102944b01f3bb3',
+                                         '0f747aaa0c16f750bdfa2ba37ec25d6c8e1bc117',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'd52e5a6a59b7c638da860c2bb309b6e78e752ff8',
@@ -164,6 +164,9 @@ deps_optional = {
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
                             '17761f5cf9dbbf2dcf665b7c04934188add20082',
                             'ch32v307'],
+    'hw/mcu/wch/ch32f20x': ['https://github.com/openwch/ch32f20x.git',
+                            '77c4095087e5ed2c548ec9058e655d0b8757663b',
+                            'ch32f20x'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'

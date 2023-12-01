@@ -35,6 +35,8 @@ CFLAGS_GCC += \
 # suppress warning caused by vendor mcu driver
 CFLAGS_GCC += -Wno-error=maybe-uninitialized -Wno-error=cast-align -Wno-error=unused-parameter
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # -----------------
 # Sources & Include
 # -----------------

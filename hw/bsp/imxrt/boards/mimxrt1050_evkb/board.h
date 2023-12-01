@@ -24,11 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+#ifndef BOARD_MIMXRT1050_EVKB_H_
+#define BOARD_MIMXRT1050_EVKB_H_
 
-#ifndef BOARD_H_
-#define BOARD_H_
-
-// required since iMX RT10xx SDK include this file for board size
+// required since iMXRT MCUX-SDK include this file for board size
 #define BOARD_FLASH_SIZE (0x4000000U)
 
 // LED: IOMUXC_GPIO_AD_B0_09_GPIO1_IO09
@@ -45,4 +44,4 @@
 #define UART_PORT             LPUART1
 #define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 
-#endif /* BOARD_H_ */
+#endif

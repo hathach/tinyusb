@@ -1,0 +1,11 @@
+{
+    "boards": [
+        {
+            "name": "raspberry_pi_pico",
+            "uid": "E6614C311B764A37",
+            "debugger": "openocd",
+            "debugger_sn": "E6614103E72C1D2F",
+            "debugger_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+        }
+    ]
+}

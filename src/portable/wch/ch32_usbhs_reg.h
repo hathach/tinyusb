@@ -1,7 +1,11 @@
 #ifndef _USB_CH32_USBHS_REG_H
 #define _USB_CH32_USBHS_REG_H
 
+#if (CFG_TUSB_MCU == OPT_MCU_CH32V307)
 #include <ch32v30x.h>
+#elif (CFG_TUSB_MCU == OPT_MCU_CH32F20X)
+#include <ch32f20x.h>
+#endif
 
 /******************* GLOBAL ******************/
 

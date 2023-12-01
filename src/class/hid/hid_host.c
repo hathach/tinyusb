@@ -67,6 +67,8 @@ typedef struct
 CFG_TUH_MEM_SECTION
 tu_static hidh_interface_t _hidh_itf[CFG_TUH_HID];
 
+tu_static uint8_t _hidh_default_protocol = HID_PROTOCOL_BOOT;
+
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
@@ -209,6 +211,10 @@ static void set_protocol_complete(tuh_xfer_t* xfer)
   {
     tuh_hid_set_protocol_complete_cb(daddr, idx, p_hid->protocol_mode);
   }
+}
+
+void tuh_hid_set_default_protocol(uint8_t protocol) {
+  _hidh_default_protocol = protocol;
 }
 
 static bool _hidh_set_protocol(uint8_t daddr, uint8_t itf_num, uint8_t protocol, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
@@ -521,7 +527,7 @@ bool hidh_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *desc_
   p_hid->report_desc_len  = tu_unaligned_read16(&desc_hid->wReportLength);
 
   // Per HID Specs: default is Report protocol, though we will force Boot protocol when set_config
-  p_hid->protocol_mode = HID_PROTOCOL_BOOT;
+  p_hid->protocol_mode = _hidh_default_protocol;
   if ( HID_SUBCLASS_BOOT == desc_itf->bInterfaceSubClass )
   {
     p_hid->itf_protocol = desc_itf->bInterfaceProtocol;
@@ -591,7 +597,7 @@ static void process_set_config(tuh_xfer_t* xfer)
     break;
 
     case CONFIG_SET_PROTOCOL:
-      _hidh_set_protocol(daddr, p_hid->itf_num, HID_PROTOCOL_BOOT, process_set_config, CONFIG_GET_REPORT_DESC);
+      _hidh_set_protocol(daddr, p_hid->itf_num, _hidh_default_protocol, process_set_config, CONFIG_GET_REPORT_DESC);
     break;
 
     case CONFIG_GET_REPORT_DESC:

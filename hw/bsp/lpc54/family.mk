@@ -3,6 +3,7 @@ DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
+MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 CFLAGS += \
   -flto \
@@ -22,7 +23,7 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \

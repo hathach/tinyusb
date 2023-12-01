@@ -1,4 +1,4 @@
-include ../../make.mk
+include ../../build_system/make/make.mk
 
 INC += \
 	src \
@@ -15,4 +15,4 @@ SRC_C += \
 	src/host/hub.c \
 	src/host/usbh.c
 
-include ../../rules.mk
+include ../../build_system/make/rules.mk

@@ -43,6 +43,21 @@
 #define UART_RX_PIN           4
 #define UART_TX_PIN           5
 
+// SPI for USB host shield
+#define MAX3421_SERCOM_ID       4       // SERCOM4
+#define MAX3421_SERCOM_FUNCTION 3       // function D (Sercom Alt)
+
+#define MAX3421_SCK_PIN         (32+11)
+#define MAX3421_MOSI_PIN        (32+10)
+#define MAX3421_MISO_PIN        12
+#define MAX3421_TX_PAD          1 // MOSI = PAD_2, SCK = PAD_3
+#define MAX3421_RX_PAD          0 // MISO = PAD_2
+
+#define MAX3421_CS_PIN          16      // D11
+
+#define MAX3421_INTR_PIN        18      // D10
+#define MAX3421_INTR_EIC_ID     2       // EIC2
+
 #ifdef __cplusplus
  }
 #endif

@@ -16,7 +16,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32H7 CACHE INTERNAL "")
 
@@ -66,9 +66,7 @@ function(add_board_target BOARD_TARGET)
       target_link_options(${BOARD_TARGET} PUBLIC
         "LINKER:--script=${LD_FILE_GNU}"
         -nostartfiles
-        # nanolib
-        --specs=nosys.specs
-        --specs=nano.specs
+        --specs=nosys.specs --specs=nano.specs
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC

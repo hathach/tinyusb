@@ -28,6 +28,7 @@
 #include "board.h"
 
 #include "esp_rom_gpio.h"
+#include "esp_mac.h"
 #include "hal/gpio_ll.h"
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
@@ -148,6 +149,12 @@ static void configure_pins(usb_hal_context_t* usb) {
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  // use factory default MAC as serial ID
+  esp_efuse_mac_get_default(id);
+  return 6;
+}
 
 void board_led_write(bool state) {
 #ifdef NEOPIXEL_PIN

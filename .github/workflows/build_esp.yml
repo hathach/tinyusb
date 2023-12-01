@@ -32,7 +32,7 @@ jobs:
         # ESP32-S2
         - 'espressif_kaluga_1'
         # ESP32-S3
-        - 'espressif_s3_devkitm'
+        - 'espressif_s3_devkitc'
 
     steps:
     - name: Setup Python

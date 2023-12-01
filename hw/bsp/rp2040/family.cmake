@@ -12,6 +12,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
 # include basic family CMake functionality
 set(FAMILY_MCUS RP2040)
 set(JLINK_DEVICE rp2040_m0_0)
+set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"")
 
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
@@ -158,6 +159,7 @@ function(family_configure_target TARGET RTOS)
 	pico_enable_stdio_uart(${TARGET} 1)
 	target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
 
+	family_flash_openocd(${TARGET} ${OPENOCD_OPTION})
 	family_flash_jlink(${TARGET})
 endfunction()
 
