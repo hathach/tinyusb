@@ -119,7 +119,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] =
     .open             = hidd_open,
     .control_xfer_cb  = hidd_control_xfer_cb,
     .xfer_cb          = hidd_xfer_cb,
-    .sof              = NULL
+    .sof              = hidd_sof_isr
   },
   #endif
 
@@ -587,6 +587,16 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
       break;
 
       case DCD_EVENT_SOF:
+        TU_LOG_USBD("\r\n");
+        for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++)
+        {
+          usbd_class_driver_t const * driver = get_driver(i);
+          if (driver && driver->sof)
+          {
+            driver->sof(event.rhport, event.sof.frame_count);
+          }
+        }
+        break;
       default:
         TU_BREAKPOINT();
       break;
