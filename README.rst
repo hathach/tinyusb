@@ -1,7 +1,16 @@
 |Build Status| |Documentation Status| |Fuzzing Status| |License|
 
-TinyUSB
-=======
+Sponsors
+========
+
+TinyUSB is funded by: Adafruit. Purchasing products from them helps to support this project.
+
+.. figure:: docs/assets/adafruit_logo.svg
+   :alt: Adafruit Logo
+   :target: https://www.adafruit.com
+
+TinyUSB Project
+===============
 
 .. figure:: docs/assets/logo.svg
    :alt: TinyUSB
@@ -19,23 +28,28 @@ the non-ISR task function. Check out the online `documentation <https://docs.tin
 
     .
     ├── docs            # Documentation
-    ├── examples        # Sample with Makefile build support
+    ├── examples        # Examples with make and cmake build system
     ├── hw
     │   ├── bsp         # Supported boards source files
     │   └── mcu         # Low level mcu core & peripheral drivers
     ├── lib             # Sources from 3rd party such as freeRTOS, fatfs ...
     ├── src             # All sources files for TinyUSB stack itself.
-    ├── test            # Unit tests for the stack
+    ├── test            # Tests: unit test, fuzzing, hardware test
     └── tools           # Files used internally
 
-Sponsors
-========
 
-TinyUSB is funded by
+Getting started
+===============
 
-.. figure:: docs/assets/adafruit_logo.svg
-   :alt: Adafruit
-   :target: https://www.adafruit.com
+See the `online documentation <https://docs.tinyusb.org>`_ for information about using TinyUSB and how it is implemented.
+
+We use `GitHub Discussions <https://github.com/hathach/tinyusb/discussions>`_ as our forum. It is a great place to ask questions and advice from the community or to discuss your TinyUSB-based projects.
+
+For bugs and feature requests, please `raise an issue <https://github.com/hathach/tinyusb/issues>`_ and follow the templates there.
+
+Check out `Getting Started`_ guide for adding TinyUSB to your project or building the examples. If you are new to TinyUSB, we recommend starting with the `cdc_msc` example.
+
+See `Porting`_ guide for adding support for new MCUs and boards.
 
 Device Stack
 ============
@@ -143,8 +157,17 @@ Following CPUs are supported, check out `Supported Devices`_ for comprehensive l
 +--------------+------------------------------------------------------------+
 | ValentyUSB   | eptri                                                      |
 +--------------+------------------------------------------------------------+
-| WCH          | CH32V307                                                   |
+| WCH          | CH32F20x, CH32V307,                                        |
 +--------------+------------------------------------------------------------+
+
+License
+=======
+
+All TinyUSB sources in the ``src`` folder are licensed under MIT
+license, the `Full license is here <LICENSE>`__. However, each file can be
+individually licensed especially those in ``lib`` and ``hw/mcu`` folder.
+Please make sure you understand all the license term for files you use
+in your project.
 
 Docs
 ====
@@ -167,16 +190,6 @@ Docs
   - `Code of Conduct`_
   - `Structure`_
   - `Porting`_
-
-License
-=======
-
-All TinyUSB sources in the ``src`` folder are licensed under MIT
-license, the `Full license is here <LICENSE>`__. However, each file can be
-individually licensed especially those in ``lib`` and ``hw/mcu`` folder.
-Please make sure you understand all the license term for files you use
-in your project.
-
 
 .. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/cmake_arm.yml/badge.svg
    :target: https://github.com/hathach/tinyusb/actions

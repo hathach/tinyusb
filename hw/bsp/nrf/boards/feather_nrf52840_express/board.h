@@ -49,8 +49,8 @@
 #define MAX3421_SCK_PIN  14
 #define MAX3421_MOSI_PIN 13
 #define MAX3421_MISO_PIN 15
-#define MAX3421_CS_PIN   27 // D10
-#define MAX3421_INTR_PIN 26 // D9
+#define MAX3421_CS_PIN   6  // D11
+#define MAX3421_INTR_PIN 27 // D10
 
 #ifdef __cplusplus
  }

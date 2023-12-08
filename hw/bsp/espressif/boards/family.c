@@ -28,6 +28,7 @@
 #include "board.h"
 
 #include "esp_rom_gpio.h"
+#include "esp_mac.h"
 #include "hal/gpio_ll.h"
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
@@ -38,9 +39,7 @@
 #if ESP_IDF_VERSION_MAJOR > 4
   #include "esp_private/periph_ctrl.h"
 #else
-
   #include "driver/periph_ctrl.h"
-
 #endif
 
 // Note; current code use UART0 can cause device to reset while monitoring
@@ -48,18 +47,13 @@
 #define UART_ID  UART_NUM_0
 
 #ifdef NEOPIXEL_PIN
-
 #include "led_strip.h"
-
 static led_strip_t* strip;
 #endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-
 #include "driver/spi_master.h"
-
 static void max3421_init(void);
-
 #endif
 
 static void configure_pins(usb_hal_context_t* usb);
@@ -152,7 +146,16 @@ static void configure_pins(usb_hal_context_t* usb) {
   }
 }
 
-// Turn LED on or off
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  // use factory default MAC as serial ID
+  esp_efuse_mac_get_default(id);
+  return 6;
+}
+
 void board_led_write(bool state) {
 #ifdef NEOPIXEL_PIN
   strip->set_pixel(strip, 0, (state ? 0x88 : 0x00), 0x00, 0x00);

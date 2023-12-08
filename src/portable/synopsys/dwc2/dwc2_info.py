@@ -12,6 +12,8 @@ dwc2_reg_value = {
     'STM32F407 Highspeed': [0x1100, 0x4F54281A, 0, 0x229ED590, 0x3F403E8, 0x17F00030],
     'STM32F411 Fullspeed': [0x1200, 0x4F54281A, 0, 0x229DCD20, 0x20001E8, 0xFF08030],
     'STM32F412 Fullspeed': [0x2000, 0x4F54320A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
+    'STM32F429 Fullspeed': [0x1200, 0x4F54281A, 0, 0x229DCD20, 0x20001E8, 0xFF08030],
+    'STM32F429 Highspeed': [0x1100, 0x4F54281A, 0, 0x229ED590, 0x3F403E8, 0x17F00030],
     'STM32F723 Fullspeed': [0x3000, 0x4F54330A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
     'STM32F723 HighSpeed': [0x3100, 0x4F54330A, 0, 0x229FE1D0, 0x3EED2E8, 0x23F00030],
     'STM32F767 Fullspeed': [0x2000, 0x4F54320A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
@@ -33,6 +35,7 @@ dwc2_reg_value = {
 #         'ghwcfg4': 0x1FF00020
 #     },
 dwc2_info = {key: {field: value for field, value in zip(dwc2_reg_list, values)} for key, values in dwc2_reg_value.items()}
+
 
 class GHWCFG2(ctypes.LittleEndianStructure):
     _fields_ = [
@@ -128,13 +131,20 @@ def render_md():
     # Create an empty list to hold the dictionaries
     dwc2_info_list = []
 
-    #Iterate over the dwc2_info dictionary and extract fields
+    # Iterate over the dwc2_info dictionary and extract fields
     for device, reg_values in dwc2_info.items():
         entry_dict = {"Device": device}
         for r_name, r_value in reg_values.items():
             entry_dict[r_name] = f"0x{r_value:08X}"
-            # Print bit-field values
-            if r_name.upper() in globals():
+
+            if r_name == 'gsnpsid':
+                # Get dwc2 specs version
+                major = ((r_value >> 8) >> 4) & 0x0F
+                minor = (r_value >> 4) & 0xFF
+                patch = chr((r_value & 0x0F) + ord('a') - 0xA)
+                entry_dict[f' - specs version'] = f"{major:X}.{minor:02X}{patch}"
+            elif r_name.upper() in globals():
+                # Get bit-field values which exist as ctypes structures
                 class_name = globals()[r_name.upper()]
                 ghwcfg = class_name.from_buffer_copy(r_value.to_bytes(4, byteorder='little'))
                 for field_name, field_type, _ in class_name._fields_:
@@ -152,6 +162,7 @@ def render_md():
     # Write the Markdown table to a file
     with open('dwc2_info.md', 'w') as md_file:
         md_file.write(df.to_markdown())
+        md_file.write('\n')
 
 
 if __name__ == '__main__':

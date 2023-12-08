@@ -44,13 +44,12 @@
 
 // If using SES IDE, use the Syscalls/SEGGER_RTT_Syscalls_SES.c instead
 #if !(defined __SES_ARM) && !(defined __SES_RISCV) && !(defined __CROSSWORKS_ARM)
-
 #include "SEGGER_RTT.h"
 
-TU_ATTR_USED int sys_write(int fhdl, const void *buf, size_t count) {
+TU_ATTR_USED int sys_write(int fhdl, const char *buf, size_t count) {
   (void) fhdl;
   SEGGER_RTT_Write(0, (const char *) buf, (int) count);
-  return count;
+  return (int) count;
 }
 
 TU_ATTR_USED int sys_read(int fhdl, char *buf, size_t count) {
@@ -63,10 +62,9 @@ TU_ATTR_USED int sys_read(int fhdl, char *buf, size_t count) {
 
 #elif defined(LOGGER_SWO)
 // Logging with SWO for ARM Cortex
-
 #include "board_mcu.h"
 
-TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count) {
+TU_ATTR_USED int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
   uint8_t const* buf8 = (uint8_t const*) buf;
 
@@ -87,7 +85,7 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count) {
 #else
 
 // Default logging with on-board UART
-TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count) {
+TU_ATTR_USED int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
   return board_uart_write(buf, (int) count);
 }
@@ -99,6 +97,16 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count) {
 }
 
 #endif
+
+//TU_ATTR_USED int _close(int fhdl) {
+//  (void) fhdl;
+//  return 0;
+//}
+
+//TU_ATTR_USED int _fstat(int file, struct stat *st) {
+//  memset(st, 0, sizeof(*st));
+//  st->st_mode = S_IFCHR;
+//}
 
 int board_getchar(void) {
   char c;

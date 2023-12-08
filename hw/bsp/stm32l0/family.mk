@@ -24,6 +24,8 @@ CFLAGS += \
 	-Wno-error=cast-align \
 	-Wno-error=maybe-uninitialized
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
   $(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
