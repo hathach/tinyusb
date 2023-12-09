@@ -1565,7 +1565,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
       {
         uint8_t const *p_desc = _audiod_fct[i].p_desc;
         uint8_t const *p_desc_end = p_desc + _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
-        while (p_desc < p_desc_end)
+        while (p_desc_end - p_desc > 0)
         {
           if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
           {
