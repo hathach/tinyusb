@@ -90,7 +90,7 @@ static bool acm_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfe
 #if CFG_TUH_CDC_FTDI
 #include "serial/ftdi_sio.h"
 
-static uint16_t const ftdi_pids[] = { TU_FTDI_PID_LIST };
+static uint16_t const ftdi_pids[] = { CFG_TUH_CDC_FTDI_PID_LIST };
 enum {
   FTDI_PID_COUNT = sizeof(ftdi_pids) / sizeof(ftdi_pids[0])
 };
