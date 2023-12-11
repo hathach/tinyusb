@@ -304,9 +304,11 @@ def main(config_file, board):
                     test_list.remove(skip)
 
         for test in test_list:
-            # cmake, make
             fw_list = [
+                # cmake: esp32 use .bin file
                 f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.elf',
+                f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.bin',
+                # make
                 f'examples/device/{test}/_build/{item["name"]}/{test}.elf'
             ]
 
