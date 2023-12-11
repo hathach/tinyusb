@@ -28,6 +28,7 @@
 import os
 import sys
 import time
+import click
 import serial
 import subprocess
 import json
@@ -262,13 +263,15 @@ def test_hid_composite_freertos(id):
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
-if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print('Usage:')
-        print('python hitl_test.py config.json')
-        sys.exit(-1)
-
-    with open(f'{os.path.dirname(__file__)}/{sys.argv[1]}') as f:
+@click.command()
+@click.argument('config_file')
+@click.option('-b', '--board', multiple=True, default=None, help='Boards to test, all if not specified')
+def main(config_file, board):
+    """
+    Hardware test on specified boards
+    """
+    config_file = os.path.join(os.path.dirname(__file__), config_file)
+    with open(config_file) as f:
         config = json.load(f)
 
     # all possible tests
@@ -276,13 +279,18 @@ if __name__ == '__main__':
         'cdc_dual_ports', 'cdc_msc', 'dfu', 'dfu_runtime', 'hid_boot_interface',
     ]
 
-    for board in config['boards']:
-        print(f'Testing board:{board["name"]}')
-        debugger = board['debugger'].lower()
+    if len(board) == 0:
+        config_boards = config['boards']
+    else:
+        config_boards = [e for e in config['boards'] if e['name'] in board]
+
+    for item in config_boards:
+        print(f'Testing board:{item["name"]}')
+        debugger = item['debugger'].lower()
 
         # default to all tests
-        if 'tests' in board:
-            test_list = board['tests']
+        if 'tests' in item:
+            test_list = item['tests']
         else:
             test_list = all_tests
 
@@ -290,36 +298,43 @@ if __name__ == '__main__':
         test_list.append('board_test')
 
         # remove skip_tests
-        if 'tests_skip' in board:
-            for skip in board['tests_skip']:
+        if 'tests_skip' in item:
+            for skip in item['tests_skip']:
                 if skip in test_list:
                     test_list.remove(skip)
 
         for test in test_list:
-            # cmake, make, download from artifacts
-            elf_list = [
-                f'cmake-build/cmake-build-{board["name"]}/device/{test}/{test}.elf',
-                f'examples/device/{test}/_build/{board["name"]}/{test}.elf',
-                f'{test}.elf'
+            fw_list = [
+                # cmake build
+                f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.elf',
+                # make build
+                f'examples/device/{test}/_build/{item["name"]}/{test}.elf',
+                # artifacts: esp32 use bin file
+                f'device/{test}/{test}.elf'
+                f'device/{test}/{test}.bin'
             ]
 
-            elf = None
-            for e in elf_list:
-                if os.path.isfile(e):
-                    elf = e
+            fw = None
+            for f in fw_list:
+                if os.path.isfile(f):
+                    fw = f
                     break
 
-            if elf is None:
-                print(f'Cannot find firmware file for {test}')
+            if fw is None:
+                print(f'Cannot find binary file for {test}')
                 sys.exit(-1)
 
             print(f'  {test} ...', end='')
 
             # flash firmware
-            ret = locals()[f'flash_{debugger}'](board, elf)
+            ret = globals()[f'flash_{debugger}'](item, fw)
             assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
 
             # run test
-            locals()[f'test_{test}'](board['uid'])
+            globals()[f'test_{test}'](item['uid'])
 
             print('OK')
+
+
+if __name__ == '__main__':
+    main()

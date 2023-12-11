@@ -90,20 +90,24 @@ jobs:
       if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v3
       with:
-        name: rp2040
+        name: raspberry_pi_pico
         path: |
           cmake-build/cmake-build-raspberry_pi_pico/*/*/*.elf
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # Current self-hosted instance is running on an RPI4.
-  # For attached hardware checkout hil_pi4.json
+  # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
   # ---------------------------------------
-  hw-rp2040-test:
+  hil-test:
     # run only with hathach's commit due to limited resource on RPI4
     if: github.repository_owner == 'hathach'
     needs: build-arm
     runs-on: [self-hosted, rp2040, hardware-in-the-loop]
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - 'raspberry_pi_pico'
 
     steps:
       - name: Clean workspace
@@ -117,11 +121,11 @@ jobs:
         with:
           sparse-checkout: test/hil
 
-      - name: Download rp2040 Artifacts
+      - name: Download Artifacts
         uses: actions/download-artifact@v3
         with:
-          name: rp2040
+          name: ${{ matrix.board }}
 
-      - name: Test on actual hardware (hardware in the loop)
+      - name: Test on actual hardware
         run: |
-          python3 test/hil/hil_test.py hil_pi4.json
+          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
