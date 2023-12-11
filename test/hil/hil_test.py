@@ -43,7 +43,7 @@ def get_serial_dev(id, vendor_str, product_str, ifnum):
         # known vendor and product
         return f'/dev/serial/by-id/usb-{vendor_str}_{product_str}_{id}-if{ifnum:02d}'
     else:
-        # just use id: mostly for cp210x/ftdi debugger
+        # just use id: mostly for cp210x/ftdi flasher
         pattern = f'/dev/serial/by-id/usb-*_{id}-if{ifnum:02d}*'
         port_list = glob.glob(pattern)
         return port_list[0]
@@ -100,14 +100,14 @@ def read_disk_file(id, fname):
 
 
 # -------------------------------------------------------------
-# Flash with debugger
+# Flashing firmware
 # -------------------------------------------------------------
 def flash_jlink(board, firmware):
     script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
     with open('flash.jlink', 'w') as f:
         f.writelines(f'{s}\n' for s in script)
     ret = subprocess.run(
-        f'JLinkExe -USB {board["debugger_sn"]} -device {board["cpu"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink',
+        f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink',
         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     os.remove('flash.jlink')
     return ret
@@ -115,19 +115,19 @@ def flash_jlink(board, firmware):
 
 def flash_openocd(board, firmware):
     ret = subprocess.run(
-        f'openocd -c "adapter serial {board["debugger_sn"]}" {board["debugger_args"]} -c "program {firmware} reset exit"',
+        f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware} reset exit"',
         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
 
 
 def flash_esptool(board, firmware):
-    port = get_serial_dev(board["debugger_sn"], None, None, 0)
+    port = get_serial_dev(board["flasher_sn"], None, None, 0)
     dir = os.path.dirname(firmware)
     with open(f'{dir}/config.env') as f:
         IDF_TARGET = json.load(f)['IDF_TARGET']
     with open(f'{dir}/flash_args') as f:
         flash_args = f.read().strip().replace('\n', ' ')
-    command = (f'esptool.py --chip {IDF_TARGET} -p {port} {board["debugger_args"]} '
+    command = (f'esptool.py --chip {IDF_TARGET} -p {port} {board["flasher_args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
     ret = subprocess.run(command, shell=True, cwd=dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
@@ -286,7 +286,7 @@ def main(config_file, board):
 
     for item in config_boards:
         print(f'Testing board:{item["name"]}')
-        debugger = item['debugger'].lower()
+        flasher = item['flasher'].lower()
 
         # default to all tests
         if 'tests' in item:
@@ -325,7 +325,7 @@ def main(config_file, board):
             print(f'  {test} ...', end='')
 
             # flash firmware
-            ret = globals()[f'flash_{debugger}'](item, fw)
+            ret = globals()[f'flash_{flasher}'](item, fw)
             assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
 
             # run test

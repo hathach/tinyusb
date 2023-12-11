@@ -3,9 +3,9 @@
         {
             "name": "raspberry_pi_pico",
             "uid": "E6614C311B764A37",
-            "debugger": "openocd",
-            "debugger_sn": "E6614103E72C1D2F",
-            "debugger_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+            "flasher": "openocd",
+            "flasher_sn": "E6614103E72C1D2F",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
         },
         {
             "name": "espressif_s3_devkitc",
@@ -13,9 +13,9 @@
             "tests": [
                 "cdc_msc_freertos", "hid_composite_freertos"
             ],
-            "debugger": "esptool",
-            "debugger_sn": "461cb8d7decdeb119be9b506e93fd3f1",
-            "debugger_args": "-b 1500000"
+            "flasher": "esptool",
+            "flasher_sn": "461cb8d7decdeb119be9b506e93fd3f1",
+            "flasher_args": "-b 1500000"
         }
     ]
 }
