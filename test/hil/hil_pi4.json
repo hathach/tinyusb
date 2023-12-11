@@ -15,7 +15,7 @@
             ],
             "flasher": "esptool",
             "flasher_sn": "461cb8d7decdeb119be9b506e93fd3f1",
-            "flasher_args": "-b 1500000"
+            "flasher_args": "-b 921600"
         }
     ]
 }

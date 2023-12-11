@@ -166,6 +166,12 @@ void board_init(void)
 #if CFG_TUH_ENABLED
   // set portfunc to host !!!
 #endif
+
+#if !CFG_TUD_ENABLED && !CFG_TUH_ENABLED
+  // board test exxample, reset usb controller
+  reset_block(RESETS_RESET_USBCTRL_BITS);
+  unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+#endif
 }
 
 //--------------------------------------------------------------------+
