@@ -125,6 +125,13 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ${{ matrix.board }}
+          path: cmake-build/cmake-build-${{ matrix.board }}
+
+      - name: Display structure of downloaded files
+        run: ls -R
+        working-directory: cmake-build/cmake-build-${{ matrix.board }}
+
+      - run: tree
 
       - name: Test on actual hardware
         run: |
