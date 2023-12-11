@@ -78,7 +78,6 @@ jobs:
       matrix:
         board:
           - 'espressif_s3_devkitc'
-
     steps:
       - name: Clean workspace
         run: |
@@ -95,6 +94,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ${{ matrix.board }}
+          path: cmake-build/cmake-build-${{ matrix.board }}
 
       - name: Test on actual hardware
         run: |

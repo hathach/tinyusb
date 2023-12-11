@@ -304,14 +304,10 @@ def main(config_file, board):
                     test_list.remove(skip)
 
         for test in test_list:
+            # cmake, make
             fw_list = [
-                # cmake build
                 f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.elf',
-                # make build
-                f'examples/device/{test}/_build/{item["name"]}/{test}.elf',
-                # artifacts: esp32 use bin file
-                f'device/{test}/{test}.elf'
-                f'device/{test}/{test}.bin'
+                f'examples/device/{test}/_build/{item["name"]}/{test}.elf'
             ]
 
             fw = None

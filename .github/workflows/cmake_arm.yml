@@ -108,7 +108,6 @@ jobs:
       matrix:
         board:
           - 'raspberry_pi_pico'
-
     steps:
       - name: Clean workspace
         run: |
@@ -126,12 +125,6 @@ jobs:
         with:
           name: ${{ matrix.board }}
           path: cmake-build/cmake-build-${{ matrix.board }}
-
-      - name: Display structure of downloaded files
-        run: ls -R
-        working-directory: cmake-build/cmake-build-${{ matrix.board }}
-
-      - run: tree
 
       - name: Test on actual hardware
         run: |
