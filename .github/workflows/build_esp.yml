@@ -48,3 +48,16 @@ jobs:
 
     - name: Build
       run: docker run --rm -v $PWD:/project -w /project espressif/idf:latest python3 tools/build_esp32.py ${{ matrix.board }}
+
+    - name: test dir
+      run: tree
+
+    - name: Upload Artifacts for Hardware Testing
+      if: matrix.board == 'espressif_s3_devkitc' && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.board }}
+        path: |
+          cmake-build/cmake-build-${{ matrix.board }}/device/*/*.elf
+          cmake-build/cmake-build-${{ matrix.board }}/device/*/config.env
+          cmake-build/cmake-build-${{ matrix.board }}/device/*/flash_args

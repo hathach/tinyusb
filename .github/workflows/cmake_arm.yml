@@ -87,21 +87,21 @@ jobs:
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
     # Upload binaries for hardware test with self-hosted
-    - name: Prepare rp2040 Artifacts
-      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
-      working-directory: ${{github.workspace}}/cmake-build/cmake-build-raspberry_pi_pico
-      run: |
-        find device/ -name "*.elf" -exec mv {} ../../ \;
-        # find host/ -name "*.elf" -exec mv {} ../../ \;
-        # find dual/ -name "*.elf" -exec mv {} ../../ \;
+#    - name: Prepare rp2040 Artifacts
+#      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
+#      working-directory: ${{github.workspace}}/cmake-build/cmake-build-raspberry_pi_pico
+#      run: |
+#        find device/ -name "*.elf" -exec mv {} ../../ \;
+#        # find host/ -name "*.elf" -exec mv {} ../../ \;
+#        # find dual/ -name "*.elf" -exec mv {} ../../ \;
 
-    - name: Upload Artifacts for rp2040
+    - name: Upload Artifacts for Hardware Testing
       if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v3
       with:
         name: rp2040
         path: |
-          *.elf
+          cmake-build/cmake-build-raspberry_pi_pico/device/*/*.elf
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
