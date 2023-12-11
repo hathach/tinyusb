@@ -115,7 +115,7 @@ def flash_jlink(board, firmware):
 
 def flash_openocd(board, firmware):
     ret = subprocess.run(
-        f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware} reset exit"',
+        f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware}" -c "reset init" -c "resume" -c "exit"',
         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
 
