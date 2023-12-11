@@ -30,7 +30,7 @@ jobs:
       matrix:
         board:
         # ESP32-S2
-        - 'espressif_kaluga_1'
+#        - 'espressif_kaluga_1'
         # ESP32-S3
         - 'espressif_s3_devkitc'
 
@@ -58,6 +58,8 @@ jobs:
       with:
         name: ${{ matrix.board }}
         path: |
-          cmake-build/cmake-build-${{ matrix.board }}/device/*/*.elf
-          cmake-build/cmake-build-${{ matrix.board }}/device/*/config.env
-          cmake-build/cmake-build-${{ matrix.board }}/device/*/flash_args
+          cmake-build/cmake-build-${{ matrix.board }}/*/*/bootloader/bootloader.bin
+          cmake-build/cmake-build-${{ matrix.board }}/*/*/*.bin
+          cmake-build/cmake-build-${{ matrix.board }}/*/*/partition_table/partition-table.bin
+          cmake-build/cmake-build-${{ matrix.board }}/*/*/config.env
+          cmake-build/cmake-build-${{ matrix.board }}/*/*/flash_args

@@ -33,25 +33,25 @@ jobs:
       matrix:
         family:
           # Alphabetical order
-          - 'imxrt'
-          - 'kinetis_kl'
-          - 'lpc18 lpc40 lpc43'
-          - 'lpc54 lpc55'
-          - 'mcx'
-          - 'nrf'
-          - 'ra'
+#          - 'imxrt'
+#          - 'kinetis_kl'
+#          - 'lpc18 lpc40 lpc43'
+#          - 'lpc54 lpc55'
+#          - 'mcx'
+#          - 'nrf'
+#          - 'ra'
           - 'rp2040'
-          - 'samd21'
-          - 'samd51'
-          - 'stm32f0'
-          - 'stm32f1'
-          - 'stm32f4'
-          - 'stm32f7'
-          - 'stm32g0'
-          - 'stm32g4'
-          - 'stm32h7'
-          - 'stm32l4'
-          - 'stm32u5'
+#          - 'samd21'
+#          - 'samd51'
+#          - 'stm32f0'
+#          - 'stm32f1'
+#          - 'stm32f4'
+#          - 'stm32f7'
+#          - 'stm32g0'
+#          - 'stm32g4'
+#          - 'stm32h7'
+#          - 'stm32l4'
+#          - 'stm32u5'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -86,22 +86,13 @@ jobs:
         # for rp2040, there is no harm if defined for other families
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
-    # Upload binaries for hardware test with self-hosted
-#    - name: Prepare rp2040 Artifacts
-#      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
-#      working-directory: ${{github.workspace}}/cmake-build/cmake-build-raspberry_pi_pico
-#      run: |
-#        find device/ -name "*.elf" -exec mv {} ../../ \;
-#        # find host/ -name "*.elf" -exec mv {} ../../ \;
-#        # find dual/ -name "*.elf" -exec mv {} ../../ \;
-
     - name: Upload Artifacts for Hardware Testing
       if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v3
       with:
         name: rp2040
         path: |
-          cmake-build/cmake-build-raspberry_pi_pico/device/*/*.elf
+          cmake-build/cmake-build-raspberry_pi_pico/*/*/*.elf
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
