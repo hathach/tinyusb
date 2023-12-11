@@ -30,6 +30,7 @@
 #include "pico/unique_id.h"
 #include "hardware/gpio.h"
 #include "hardware/sync.h"
+#include "hardware/resets.h"
 #include "hardware/structs/ioqspi.h"
 #include "hardware/structs/sio.h"
 
