@@ -447,6 +447,12 @@
   #define CFG_TUH_CDC_CP210X 0
 #endif
 
+#ifndef CFG_TUH_CDC_CP210X_PID_LIST
+  // List of product IDs that can use the CP210X CDC driver
+  #define CFG_TUH_CDC_CP210X_PID_LIST \
+    0xEA60, 0xEA70
+#endif
+
 #ifndef CFG_TUH_HID
   #define CFG_TUH_HID    0
 #endif
