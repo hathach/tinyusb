@@ -442,6 +442,12 @@
   #define CFG_TUH_CDC_FTDI 0
 #endif
 
+#ifndef CFG_TUH_CDC_FTDI_PID_LIST
+  // List of product IDs that can use the FTDI CDC driver
+  #define CFG_TUH_CDC_FTDI_PID_LIST \
+    0x6001, 0x6006, 0x6010, 0x6011, 0x6014, 0x6015, 0x8372, 0xFBFA, 0xCD18
+#endif
+
 #ifndef CFG_TUH_CDC_CP210X
   // CP210X is not part of CDC class, only to re-use CDC driver API
   #define CFG_TUH_CDC_CP210X 0
