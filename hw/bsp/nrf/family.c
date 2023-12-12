@@ -203,6 +203,18 @@ uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == nrf_gpio_pin_read(BUTTON_PIN);
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+
+#ifdef NRF5340_XXAA
+  uintptr_t device_id = (uintptr_t) NRF_FICR->INFO.DEVICEID;
+#else
+  uintptr_t device_id = (uintptr_t) NRF_FICR->DEVICEID;
+#endif
+  memcpy(id, (void*) device_id, 8);
+  return 8;
+}
+
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
