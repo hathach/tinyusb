@@ -98,7 +98,6 @@ deps_optional = {
     'hw/mcu/st/cmsis_device_h5': ['https://github.com/STMicroelectronics/cmsis_device_h5.git',
                                   '62b2cb0fbfe10c5791ee469bbde7b397c2fea8f5',
                                   'stm32h5'],
-								  
     'hw/mcu/st/cmsis_device_l0': ['https://github.com/STMicroelectronics/cmsis_device_l0.git',
                                   '06748ca1f93827befdb8b794402320d94d02004f',
                                   'stm32l0'],

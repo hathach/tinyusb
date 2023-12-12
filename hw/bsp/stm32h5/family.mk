@@ -11,9 +11,9 @@ CPU_CORE ?= cortex-m33
 # Compiler Flags
 # --------------
 CFLAGS += \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32H5 
+  -DCFG_TUSB_MCU=OPT_MCU_STM32H5
   
-# workaround to fix a build issue due to a wrong define check in hal, this define must be removed as soon as the repo is fixed   
+# workaround to fix a build issue due to a wrong define check in hal, this define must be removed as soon as the repo is fixed
 CFLAGS += \
   -D__ARMCC_VERSION=0
 

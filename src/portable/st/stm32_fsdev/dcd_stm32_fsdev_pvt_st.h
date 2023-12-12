@@ -137,8 +137,8 @@
   #define USB_EPADDR_FIELD USB_CHEP_ADDR
   #define USB_CNTR_LPMODE USB_CNTR_SUSPRDY
   #define USB_CNTR_FSUSP USB_CNTR_SUSPEN
-  
-        
+
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   #include "stm32wbxx.h"
   #define PMA_LENGTH (1024u)

@@ -357,11 +357,9 @@ void dcd_int_enable (uint8_t rhport)
   #else
     NVIC_EnableIRQ(USB_UCPD1_2_IRQn);
   #endif
-    
-    
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H5
     NVIC_EnableIRQ(USB_DRD_FS_IRQn);
-    
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_EnableIRQ(USB_HP_IRQn);
@@ -419,10 +417,9 @@ void dcd_int_disable(uint8_t rhport)
   #else
     NVIC_DisableIRQ(USB_UCPD1_2_IRQn);
   #endif
-    
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H5
     NVIC_DisableIRQ(USB_DRD_FS_IRQn);
-    
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_DisableIRQ(USB_HP_IRQn);
