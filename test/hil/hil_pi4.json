@@ -16,6 +16,13 @@
             "flasher": "esptool",
             "flasher_sn": "461cb8d7decdeb119be9b506e93fd3f1",
             "flasher_args": "-b 1500000"
+        },
+        {
+            "name": "feather_nrf52840_express",
+            "uid": "1F0479CD0F764471",
+            "flasher": "jlink",
+            "flasher_sn": "000682804350",
+            "flasher_args": "-device nrf52840_xxaa"
         }
     ]
 }

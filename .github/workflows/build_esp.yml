@@ -95,3 +95,11 @@ jobs:
       - name: Test on actual hardware
         run: |
           python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
+
+      - name: Reset USB bus
+        run: |
+          for port in $(lspci | grep USB | cut -d' ' -f1); do
+              echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
+              sleep 1;
+              echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
+          done
