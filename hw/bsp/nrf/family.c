@@ -207,11 +207,15 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   (void) max_len;
 
 #ifdef NRF5340_XXAA
-  uintptr_t device_id = (uintptr_t) NRF_FICR->INFO.DEVICEID;
+  uintptr_t did_addr = (uintptr_t) NRF_FICR->INFO.DEVICEID;
 #else
-  uintptr_t device_id = (uintptr_t) NRF_FICR->DEVICEID;
+  uintptr_t did_addr = (uintptr_t) NRF_FICR->DEVICEID;
 #endif
-  memcpy(id, (void*) device_id, 8);
+
+  const uint8_t* device_id = (const uint8_t*) did_addr;
+  for(uint8_t i=0; i<8; i++) {
+    id[i] = device_id[i];
+  }
   return 8;
 }
 
