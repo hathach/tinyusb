@@ -34,8 +34,11 @@ import subprocess
 import json
 import glob
 
-# for RPI double reset: install sudo apt install python3-gpiozero or sudo pip install gpiozero
-from gpiozero import LED
+# for RPI double reset
+try:
+    import gpiozero
+except ImportError:
+    pass
 
 
 ENUM_TIMEOUT = 10
@@ -141,7 +144,7 @@ def flash_esptool(board, firmware):
 
 def doublereset_with_rpi_gpio(board):
     # Off = 0 = Reset
-    led = LED(board["flasher_reset_pin"])
+    led = gpiozero.LED(board["flasher_reset_pin"])
 
     led.off()
     time.sleep(0.1)
