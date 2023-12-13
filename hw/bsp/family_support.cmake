@@ -72,7 +72,7 @@ set(WARNING_FLAGS_GNU
   -Wredundant-decls
   )
 
-set(WARNINGS_FLAGS_IAR "")
+set(WARNING_FLAGS_IAR "")
 
 
 # Filter example based on only.txt and skip.txt
@@ -191,10 +191,12 @@ function(family_configure_common TARGET RTOS)
   )
 
   # run size after build
-  add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
-    )
-
+  find_program(SIZE_EXE ${CMAKE_SIZE})
+  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
+      )
+  endif ()
   # Add warnings flags
   target_compile_options(${TARGET} PUBLIC ${WARNING_FLAGS_${CMAKE_C_COMPILER_ID}})
 
@@ -205,6 +207,10 @@ function(family_configure_common TARGET RTOS)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
   endif()
+  if (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
+  endif()
+
 
   # ETM Trace option
   if (TRACE_ETM STREQUAL "1")
@@ -367,7 +373,7 @@ function(family_flash_jlink TARGET)
   endif ()
 
   file(GENERATE
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${TARGET}.jlink
     CONTENT "halt
 loadfile $<TARGET_FILE:${TARGET}>
 r
@@ -377,7 +383,7 @@ exit"
 
   add_custom_target(${TARGET}-jlink
     DEPENDS ${TARGET}
-    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${TARGET}.jlink
     )
 endfunction()
 
