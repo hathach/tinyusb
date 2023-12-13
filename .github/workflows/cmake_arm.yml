@@ -102,6 +102,13 @@ jobs:
         path: |
           cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
 
+    - name: Upload Artifacts for Hardware Testing (samd51)
+      if: matrix.family == 'samd51' && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v3
+      with:
+        name: itsybitsy_m4
+        path: |
+          cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -116,8 +123,9 @@ jobs:
       fail-fast: false
       matrix:
         board:
-          - 'raspberry_pi_pico'
           - 'feather_nrf52840_express'
+          - 'itsybitsy_m4'
+          - 'raspberry_pi_pico'
     steps:
       - name: Clean workspace
         run: |
