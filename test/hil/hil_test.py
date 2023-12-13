@@ -162,11 +162,13 @@ def flash_bossac(board, firmware):
     timeout = ENUM_TIMEOUT
     while timeout:
         if os.path.exists(port):
-            time.sleep(0.5)
             break
         else:
             time.sleep(0.5)
             timeout = timeout - 0.5
+    assert timeout, 'bossac bootloader is not available'
+    # sleep a bit more for bootloader to be ready
+    time.sleep(0.5)
     ret = subprocess.run(f'bossac --port {port} {board["flasher_args"]} -U -i -R -e -w {firmware}', shell=True, stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT)
     return ret
