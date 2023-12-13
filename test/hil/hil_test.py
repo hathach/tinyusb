@@ -34,6 +34,13 @@ import subprocess
 import json
 import glob
 
+# for RPI double reset
+try:
+    import gpiozero
+except ImportError:
+    pass
+
+
 ENUM_TIMEOUT = 10
 
 
@@ -41,6 +48,8 @@ ENUM_TIMEOUT = 10
 def get_serial_dev(id, vendor_str, product_str, ifnum):
     if vendor_str and product_str:
         # known vendor and product
+        vendor_str = vendor_str.replace(' ', '_')
+        product_str = product_str.replace(' ', '_')
         return f'/dev/serial/by-id/usb-{vendor_str}_{product_str}_{id}-if{ifnum:02d}'
     else:
         # just use id: mostly for cp210x/ftdi flasher
@@ -115,7 +124,7 @@ def flash_jlink(board, firmware):
 
 def flash_openocd(board, firmware):
     ret = subprocess.run(
-        f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware}" -c "reset init" -c "resume" -c "exit"',
+        f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware} reset exit"',
         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
 
@@ -132,6 +141,37 @@ def flash_esptool(board, firmware):
     ret = subprocess.run(command, shell=True, cwd=dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
 
+
+def doublereset_with_rpi_gpio(board):
+    # Off = 0 = Reset
+    led = gpiozero.LED(board["flasher_reset_pin"])
+
+    led.off()
+    time.sleep(0.1)
+    led.on()
+    time.sleep(0.1)
+    led.off()
+    time.sleep(0.1)
+    led.on()
+
+def flash_bossac(board, firmware):
+    # double reset to enter bootloader
+    doublereset_with_rpi_gpio(board)
+
+    port = get_serial_dev(board["uid"], board["flashser_vendor"], board["flasher_product"], 0)
+    timeout = ENUM_TIMEOUT
+    while timeout:
+        if os.path.exists(port):
+            break
+        else:
+            time.sleep(0.5)
+            timeout = timeout - 0.5
+    assert timeout, 'bossac bootloader is not available'
+    # sleep a bit more for bootloader to be ready
+    time.sleep(0.5)
+    ret = subprocess.run(f'bossac --port {port} {board["flasher_args"]} -U -i -R -e -w {firmware}', shell=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT)
+    return ret
 
 # -------------------------------------------------------------
 # Tests
@@ -305,7 +345,7 @@ def main(config_file, board):
 
         for test in test_list:
             fw_list = [
-                # cmake: esp32 use .bin file
+                # cmake: esp32 & samd51 use .bin file
                 f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.elf',
                 f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.bin',
                 # make

@@ -102,6 +102,13 @@ jobs:
         path: |
           cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
 
+    - name: Upload Artifacts for Hardware Testing (samd51)
+      if: matrix.family == 'samd51' && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v3
+      with:
+        name: itsybitsy_m4
+        path: |
+          cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -116,8 +123,9 @@ jobs:
       fail-fast: false
       matrix:
         board:
-          - 'raspberry_pi_pico'
           - 'feather_nrf52840_express'
+          - 'itsybitsy_m4'
+          - 'raspberry_pi_pico'
     steps:
       - name: Clean workspace
         run: |
@@ -136,14 +144,15 @@ jobs:
           name: ${{ matrix.board }}
           path: cmake-build/cmake-build-${{ matrix.board }}
 
-      - name: Test on actual hardware
-        run: |
-          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
-
       - name: Reset USB bus
         run: |
           for port in $(lspci | grep USB | cut -d' ' -f1); do
               echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
-              sleep 1;
+              sleep 0.5;
               echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
+              sleep 3;
           done
+
+      - name: Test on actual hardware
+        run: |
+          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
