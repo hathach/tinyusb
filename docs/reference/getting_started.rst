@@ -178,7 +178,10 @@ Some board use uf2 bootloader for drag & drop in to mass storage device, uf2 can
    $ make BOARD=feather_nrf52840_express all uf2
 
 IAR Support
-^^^^^^^^^^^
+-----------
+
+Use project connection
+^^^^^^^^^^^^^^^^^^^^^^
 
 IAR Project Connection files are provided to import TinyUSB stack into your project.
 
@@ -191,19 +194,19 @@ IAR Project Connection files are provided to import TinyUSB stack into your proj
 
     - `STM32L0xx_HAL_Driver` is only needed to run examples, TinyUSB stack itself doesn't rely on MCU's SDKs.
 
-* Open `Tools -> Configure Custom Argument Variables` (Switch to `Global` tab if you want to do it for all your projects)
+* Open ``Tools -> Configure Custom Argument Variables`` (Switch to `Global` tab if you want to do it for all your projects)
    Click `New Group ...`, name it to `TUSB`, Click `Add Variable ...`, name it to `TUSB_DIR`, change it's value to the path of your TinyUSB stack,
    for example `C:\\tinyusb`
 
 Import stack only
 ~~~~~~~~~~~~~~~~~
 
-1. Open `Project -> Add project Connection ...`, click `OK`, choose `tinyusb\\tools\\iar_template.ipcf`.
+1. Open ``Project -> Add project Connection ...``, click `OK`, choose `tinyusb\\tools\\iar_template.ipcf`.
 
 Run examples
 ~~~~~~~~~~~~
 
-1. (Python3 is needed) Run `iar_gen.py` to generate .ipcf files of examples:
+1. (Python3 is needed) Run ``iar_gen.py`` to generate .ipcf files of examples:
 
    .. code-block::
 
@@ -212,3 +215,15 @@ Run examples
 
 2. Open `Project -> Add project Connection ...`, click `OK`, choose `tinyusb\\examples\\(.ipcf of example)`.
    For example `C:\\tinyusb\\examples\\device\\cdc_msc\\iar_cdc_msc.ipcf`
+
+Native CMake support (9.50.1+)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+With 9.50.1 release, IAR added experimental native CMake support (strangely not mentioned in public release note). Now it's possible to import CMakeLists.txt then build and debug as a normal project.
+
+Following these steps:
+
+1. Add IAR compiler binary path to system ``PATH`` environment variable, such as ``C:\Program Files\IAR Systems\Embedded Workbench 9.2\arm\bin``.
+2. Create new project in IAR, in Tool chain dropdown menu, choose CMake for Arm then Import ``CMakeLists.txt`` from chosen example directory.
+3. Set up board option in ``Option - CMake/CMSIS-TOOLBOX - CMake``, for example :code:`-DBOARD=stm32f439nucleo -DTOOLCHAIN=iar`, **Uncheck 'Override tools in env'**.
+4. (For debug only) Choose correct CPU model in ``Option - General Options - Target``, to profit register and memory view.
