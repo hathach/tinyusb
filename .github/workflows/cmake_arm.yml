@@ -133,6 +133,15 @@ jobs:
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
+        # USB bus on rpi4 is not stable, reset it before testing
+      - name: Reset USB bus
+        run: |
+          for port in $(lspci | grep USB | cut -d' ' -f1); do
+              echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
+              sleep 0.1;
+              echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
+          done
+
       - name: Checkout test/hil
         uses: actions/checkout@v3
         with:
@@ -143,15 +152,6 @@ jobs:
         with:
           name: ${{ matrix.board }}
           path: cmake-build/cmake-build-${{ matrix.board }}
-
-      - name: Reset USB bus
-        run: |
-          for port in $(lspci | grep USB | cut -d' ' -f1); do
-              echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
-              sleep 0.5;
-              echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
-              sleep 3;
-          done
 
       - name: Test on actual hardware
         run: |
