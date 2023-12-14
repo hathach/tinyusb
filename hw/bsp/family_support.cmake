@@ -373,7 +373,7 @@ function(family_flash_jlink TARGET)
   endif ()
 
   file(GENERATE
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${TARGET}.jlink
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_$<CONFIG>.jlink
     CONTENT "halt
 loadfile $<TARGET_FILE:${TARGET}>
 r
