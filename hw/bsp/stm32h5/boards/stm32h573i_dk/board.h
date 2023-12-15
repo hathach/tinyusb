@@ -51,15 +51,10 @@ extern "C" {
 #define UART_TX_PIN           GPIO_PIN_9
 #define UART_RX_PIN           GPIO_PIN_10
 
-
-
-
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-// Clock configure for STM32stm32h573i-dk
-static inline void board_clock_init(void)
-{
+static inline void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
@@ -103,7 +98,6 @@ static inline void board_clock_init(void)
   RCC_CRSInitStruct.HSI48CalibrationValue = 32;
   HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
 
-
   /* Select HSI48 as USB clock source */
   RCC_PeriphCLKInitTypeDef usb_clk = {0 };
   usb_clk.PeriphClockSelection = RCC_PERIPHCLK_USB;
@@ -112,10 +106,6 @@ static inline void board_clock_init(void)
 
   /* Peripheral clock enable */
   __HAL_RCC_USB_CLK_ENABLE();
-
-  SystemCoreClockUpdate();
-
-
 }
 
 #ifdef __cplusplus

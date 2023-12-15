@@ -44,7 +44,7 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-  #include "stm32g0xx.h"
+  #include "stm32h5xx.h"
 #endif
 
 /* Cortex M23/M33 port configuration. */
@@ -143,7 +143,7 @@
 //--------------------------------------------------------------------+
 
 // For Cortex-M specific: __NVIC_PRIO_BITS is defined in mcu header
-#define configPRIO_BITS       2
+#define configPRIO_BITS       4
 
 /* The lowest interrupt priority that can be used in a call to a "set priority" function. */
 #define configLIBRARY_LOWEST_INTERRUPT_PRIORITY       ((1<<configPRIO_BITS) - 1)
