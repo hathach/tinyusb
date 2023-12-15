@@ -210,16 +210,16 @@ def get_a_dep(d):
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
-        run_cmd(f"git -C {p} init")
-        run_cmd(f"git -C {p} remote add origin {url}")
+        run_cmd(f"{git_cmd} init")
+        run_cmd(f"{git_cmd} remote add origin {url}")
 
     # Check if commit is already fetched
-    result = run_cmd(f"git -C {p} rev-parse HEAD")
+    result = run_cmd(f"{git_cmd} rev-parse HEAD")
     head = result.stdout.decode("utf-8").splitlines()[0]
-    run_cmd(f"git -C {p} reset --hard")
+    run_cmd(f"{git_cmd} reset --hard")
     if commit != head:
-        run_cmd(f"git -C {p} fetch --depth 1 origin {commit}")
-        run_cmd(f"git -C {p} checkout FETCH_HEAD")
+        run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
+        run_cmd(f"{git_cmd} checkout FETCH_HEAD")
 
     return 0
 

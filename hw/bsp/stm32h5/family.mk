@@ -1,33 +1,30 @@
 ST_FAMILY = h5
-DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
-
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m33
 
+MCU_VARIANT_UPPER = $(subst stm32h,STM32H,$(MCU_VARIANT))
+
 # --------------
 # Compiler Flags
 # --------------
 CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H5
-  
-# workaround to fix a build issue due to a wrong define check in hal, this define must be removed as soon as the repo is fixed
-CFLAGS += \
-  -D__ARMCC_VERSION=0
 
 # GCC Flags
 CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles \
-  -Wno-unused-parameter \
-  -Wno-cast-align
 
 # suppress warning caused by vendor mcu driver
-CFLAGS_GCC += -Wno-error=cast-align
+CFLAGS_GCC += \
+  -Wno-error=cast-align \
+  -Wno-error=undef \
+  -Wno-error=unused-parameter \
 
-#LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # -----------------
 # Sources & Include
@@ -52,6 +49,14 @@ INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
+
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+
+# Linker
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
+LD_FILE_GCC = $(ST_CMSIS)/Source/Templates/gcc/linker/$(MCU_VARIANT_UPPER)_FLASH.ld
 
 # flash target using on-board stlink
 flash: flash-stlink

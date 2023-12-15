@@ -1,8 +1,8 @@
-set(MCU_VARIANT stm32h573xx)
-set(JLINK_DEVICE stm32h573ii)
+set(MCU_VARIANT stm32h563xx)
+set(JLINK_DEVICE stm32h563zi)
 
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
-    STM32H573xx
+    STM32H563xx
     )
 endfunction()

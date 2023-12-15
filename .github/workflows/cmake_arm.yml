@@ -49,6 +49,7 @@ jobs:
           - 'stm32f7'
           - 'stm32g0'
           - 'stm32g4'
+          - 'stm32h5'
           - 'stm32h7'
           - 'stm32l4'
           - 'stm32u5'
