@@ -81,6 +81,15 @@ jobs:
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
+        # USB bus on rpi4 is not stable, reset it before testing
+      - name: Reset USB bus
+        run: |
+          for port in $(lspci | grep USB | cut -d' ' -f1); do
+              echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
+              sleep 0.1;
+              echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
+          done
+
       - name: Checkout test/hil
         uses: actions/checkout@v3
         with:
@@ -95,11 +104,3 @@ jobs:
       - name: Test on actual hardware
         run: |
           python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
-
-      - name: Reset USB bus
-        run: |
-          for port in $(lspci | grep USB | cut -d' ' -f1); do
-              echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
-              sleep 1;
-              echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
-          done

@@ -300,6 +300,16 @@
   #define CFG_TUSB_DEBUG 0
 #endif
 
+// Level where CFG_TUSB_DEBUG must be at least for USBH is logged
+#ifndef CFG_TUH_LOG_LEVEL
+  #define CFG_TUH_LOG_LEVEL   2
+#endif
+
+// Level where CFG_TUSB_DEBUG must be at least for USBD is logged
+#ifndef CFG_TUD_LOG_LEVEL
+  #define CFG_TUD_LOG_LEVEL   2
+#endif
+
 // Memory section for placing buffer used for usb transferring. If MEM_SECTION is different for
 // host and device use: CFG_TUD_MEM_SECTION, CFG_TUH_MEM_SECTION instead
 #ifndef CFG_TUSB_MEM_SECTION

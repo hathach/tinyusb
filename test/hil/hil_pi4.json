@@ -23,6 +23,15 @@
             "flasher": "jlink",
             "flasher_sn": "000682804350",
             "flasher_args": "-device nrf52840_xxaa"
+        },
+        {
+            "name": "itsybitsy_m4",
+            "uid": "D784B28C5338533335202020FF044726",
+            "flasher": "bossac",
+            "flashser_vendor": "Adafruit Industries",
+            "flasher_product": "ItsyBitsy M4 Express",
+            "flasher_reset_pin": "2",
+            "flasher_args": "--offset 0x4000"
         }
     ]
 }
