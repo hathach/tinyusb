@@ -197,7 +197,12 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 
       // Control the tuning interface of the High Speed PHY
       // Use magic value (USB_HS_PHYC_TUNE_VALUE) from ST driver for F7
-      USB_HS_PHYC->USB_HS_PHYC_TUNE |= 0x00000F13U;
+      //
+      // Note that we're assigning USB_HS_PHYC_TUNE to the magic value!
+      // Previously we were performing a bitwise-or with the magic value
+      // (which is what the ST driver does), but that's incorrect.
+      // See issue #2374.
+      USB_HS_PHYC->USB_HS_PHYC_TUNE = 0x00000F13U;
 
       // Enable PLL internal PHY
       USB_HS_PHYC->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
