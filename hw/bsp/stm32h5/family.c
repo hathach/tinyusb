@@ -39,6 +39,10 @@
 #endif
 
 #include "bsp/board_api.h"
+
+TU_ATTR_UNUSED static void Error_Handler(void) {
+}
+
 #include "board.h"
 
 //--------------------------------------------------------------------+
