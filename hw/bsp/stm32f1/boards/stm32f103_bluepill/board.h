@@ -42,12 +42,12 @@
 #define BUTTON_STATE_ACTIVE   1
 
 // UART
-//#define UART_DEV              USART1
-//#define UART_CLK_EN           __HAL_RCC_USART1_CLK_ENABLE
-//#define UART_GPIO_PORT        GPIOA
+#define UART_DEV              USART1
+#define UART_CLK_EN           __HAL_RCC_USART1_CLK_ENABLE
+#define UART_GPIO_PORT        GPIOA
 //#define UART_GPIO_AF          GPIO_AF1_USART1
-//#define UART_TX_PIN           GPIO_PIN_9
-//#define UART_RX_PIN           GPIO_PIN_10
+#define UART_TX_PIN           GPIO_PIN_9
+#define UART_RX_PIN           GPIO_PIN_10
 
 //--------------------------------------------------------------------+
 // RCC Clock
