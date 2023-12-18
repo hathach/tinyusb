@@ -95,6 +95,9 @@ deps_optional = {
     'hw/mcu/st/cmsis_device_h7': ['https://github.com/STMicroelectronics/cmsis_device_h7.git',
                                   '60dc2c913203dc8629dc233d4384dcc41c91e77f',
                                   'stm32h7'],
+    'hw/mcu/st/cmsis_device_h5': ['https://github.com/STMicroelectronics/cmsis_device_h5.git',
+                                  '62b2cb0fbfe10c5791ee469bbde7b397c2fea8f5',
+                                  'stm32h5'],
     'hw/mcu/st/cmsis_device_l0': ['https://github.com/STMicroelectronics/cmsis_device_l0.git',
                                   '06748ca1f93827befdb8b794402320d94d02004f',
                                   'stm32l0'],
@@ -140,6 +143,9 @@ deps_optional = {
     'hw/mcu/st/stm32h7xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git',
                                        'd8461b980b59b1625207d8c4f2ce0a9c2a7a3b04',
                                        'stm32h7'],
+    'hw/mcu/st/stm32h5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h5xx_hal_driver.git',
+                                       '2cf77de584196d619cec1b4586c3b9e2820a254e',
+                                       'stm32h5'],
     'hw/mcu/st/stm32l0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32l0xx_hal_driver.git',
                                        'fbdacaf6f8c82a4e1eb9bd74ba650b491e97e17b',
                                        'stm32l0'],
@@ -170,7 +176,7 @@ deps_optional = {
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'
-                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 '
+                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5'
                     'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
@@ -204,16 +210,16 @@ def get_a_dep(d):
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
-        run_cmd(f"git -C {p} init")
-        run_cmd(f"git -C {p} remote add origin {url}")
+        run_cmd(f"{git_cmd} init")
+        run_cmd(f"{git_cmd} remote add origin {url}")
 
     # Check if commit is already fetched
-    result = run_cmd(f"git -C {p} rev-parse HEAD")
+    result = run_cmd(f"{git_cmd} rev-parse HEAD")
     head = result.stdout.decode("utf-8").splitlines()[0]
-    run_cmd(f"git -C {p} reset --hard")
+    run_cmd(f"{git_cmd} reset --hard")
     if commit != head:
-        run_cmd(f"git -C {p} fetch --depth 1 origin {commit}")
-        run_cmd(f"git -C {p} checkout FETCH_HEAD")
+        run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
+        run_cmd(f"{git_cmd} checkout FETCH_HEAD")
 
     return 0
 
