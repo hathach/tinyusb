@@ -242,7 +242,7 @@ void dcd_init (uint8_t rhport)
   }
   USB->CNTR = 0; // Enable USB
 
-#ifndef STM32G0 // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
+#if !defined(STM32G0) && !defined(STM32H5)  // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 #endif
   USB->ISTR = 0; // Clear pending interrupts
@@ -358,6 +358,9 @@ void dcd_int_enable (uint8_t rhport)
     NVIC_EnableIRQ(USB_UCPD1_2_IRQn);
   #endif
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
+    NVIC_EnableIRQ(USB_DRD_FS_IRQn);
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_EnableIRQ(USB_HP_IRQn);
   NVIC_EnableIRQ(USB_LP_IRQn);
@@ -414,6 +417,9 @@ void dcd_int_disable(uint8_t rhport)
   #else
     NVIC_DisableIRQ(USB_UCPD1_2_IRQn);
   #endif
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
+    NVIC_DisableIRQ(USB_DRD_FS_IRQn);
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_DisableIRQ(USB_HP_IRQn);

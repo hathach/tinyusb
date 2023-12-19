@@ -13,7 +13,7 @@ if (TOOLCHAIN STREQUAL "gcc")
 elseif (TOOLCHAIN STREQUAL "iar")
   set(TOOLCHAIN_COMMON_FLAGS
     --cpu cortex-m4
-    --fpu VFPv4
+    --fpu VFPv4_sp
     )
 
   if (NOT DEFINED FREERTOS_PORT)

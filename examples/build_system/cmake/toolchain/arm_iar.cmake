@@ -26,6 +26,7 @@ list(APPEND TOOLCHAIN_COMMON_FLAGS
   )
 
 list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
+  --diag_suppress=Li065
   )
 
 include(${CMAKE_CURRENT_LIST_DIR}/set_flags.cmake)

@@ -10,7 +10,7 @@ set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS SAMD51 CACHE INTERNAL "")
-
+set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -c \"transport select swd\" -c \"set CHIPNAME samd51\" -f target/atsame5x.cfg")
 
 #------------------------------------
 # BOARD_TARGET
@@ -100,5 +100,7 @@ function(family_configure_example TARGET RTOS)
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
+  family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
+  #family_flash_openocd(${TARGET} ${OPENOCD_OPTION})
 endfunction()

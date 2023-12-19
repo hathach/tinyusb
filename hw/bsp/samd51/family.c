@@ -157,6 +157,20 @@ uint32_t board_button_read(void) {
   return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+
+  uint32_t did_addr[4] = {0x008061FC, 0x00806010, 0x00806014, 0x00806018};
+
+  for (int i = 0; i < 4; i++) {
+    uint32_t did = *((uint32_t const*) did_addr[i]);
+    did = TU_BSWAP32(did); // swap endian to match samd51 uf2 bootloader
+    memcpy(id + i * 4, &did, 4);
+  }
+
+  return 16;
+}
+
 int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;

@@ -28,10 +28,18 @@
 import os
 import sys
 import time
+import click
 import serial
 import subprocess
 import json
 import glob
+
+# for RPI double reset
+try:
+    import gpiozero
+except ImportError:
+    pass
+
 
 ENUM_TIMEOUT = 10
 
@@ -40,9 +48,11 @@ ENUM_TIMEOUT = 10
 def get_serial_dev(id, vendor_str, product_str, ifnum):
     if vendor_str and product_str:
         # known vendor and product
+        vendor_str = vendor_str.replace(' ', '_')
+        product_str = product_str.replace(' ', '_')
         return f'/dev/serial/by-id/usb-{vendor_str}_{product_str}_{id}-if{ifnum:02d}'
     else:
-        # just use id: mostly for cp210x/ftdi debugger
+        # just use id: mostly for cp210x/ftdi flasher
         pattern = f'/dev/serial/by-id/usb-*_{id}-if{ifnum:02d}*'
         port_list = glob.glob(pattern)
         return port_list[0]
@@ -99,14 +109,14 @@ def read_disk_file(id, fname):
 
 
 # -------------------------------------------------------------
-# Flash with debugger
+# Flashing firmware
 # -------------------------------------------------------------
 def flash_jlink(board, firmware):
     script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
     with open('flash.jlink', 'w') as f:
         f.writelines(f'{s}\n' for s in script)
     ret = subprocess.run(
-        f'JLinkExe -USB {board["debugger_sn"]} -device {board["cpu"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink',
+        f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink',
         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     os.remove('flash.jlink')
     return ret
@@ -114,23 +124,54 @@ def flash_jlink(board, firmware):
 
 def flash_openocd(board, firmware):
     ret = subprocess.run(
-        f'openocd -c "adapter serial {board["debugger_sn"]}" {board["debugger_args"]} -c "program {firmware} reset exit"',
+        f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware} reset exit"',
         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
 
 
 def flash_esptool(board, firmware):
-    port = get_serial_dev(board["debugger_sn"], None, None, 0)
+    port = get_serial_dev(board["flasher_sn"], None, None, 0)
     dir = os.path.dirname(firmware)
     with open(f'{dir}/config.env') as f:
         IDF_TARGET = json.load(f)['IDF_TARGET']
     with open(f'{dir}/flash_args') as f:
         flash_args = f.read().strip().replace('\n', ' ')
-    command = (f'esptool.py --chip {IDF_TARGET} -p {port} {board["debugger_args"]} '
+    command = (f'esptool.py --chip {IDF_TARGET} -p {port} {board["flasher_args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
     ret = subprocess.run(command, shell=True, cwd=dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
 
+
+def doublereset_with_rpi_gpio(board):
+    # Off = 0 = Reset
+    led = gpiozero.LED(board["flasher_reset_pin"])
+
+    led.off()
+    time.sleep(0.1)
+    led.on()
+    time.sleep(0.1)
+    led.off()
+    time.sleep(0.1)
+    led.on()
+
+def flash_bossac(board, firmware):
+    # double reset to enter bootloader
+    doublereset_with_rpi_gpio(board)
+
+    port = get_serial_dev(board["uid"], board["flashser_vendor"], board["flasher_product"], 0)
+    timeout = ENUM_TIMEOUT
+    while timeout:
+        if os.path.exists(port):
+            break
+        else:
+            time.sleep(0.5)
+            timeout = timeout - 0.5
+    assert timeout, 'bossac bootloader is not available'
+    # sleep a bit more for bootloader to be ready
+    time.sleep(0.5)
+    ret = subprocess.run(f'bossac --port {port} {board["flasher_args"]} -U -i -R -e -w {firmware}', shell=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT)
+    return ret
 
 # -------------------------------------------------------------
 # Tests
@@ -262,13 +303,15 @@ def test_hid_composite_freertos(id):
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
-if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print('Usage:')
-        print('python hitl_test.py config.json')
-        sys.exit(-1)
-
-    with open(f'{os.path.dirname(__file__)}/{sys.argv[1]}') as f:
+@click.command()
+@click.argument('config_file')
+@click.option('-b', '--board', multiple=True, default=None, help='Boards to test, all if not specified')
+def main(config_file, board):
+    """
+    Hardware test on specified boards
+    """
+    config_file = os.path.join(os.path.dirname(__file__), config_file)
+    with open(config_file) as f:
         config = json.load(f)
 
     # all possible tests
@@ -276,13 +319,18 @@ if __name__ == '__main__':
         'cdc_dual_ports', 'cdc_msc', 'dfu', 'dfu_runtime', 'hid_boot_interface',
     ]
 
-    for board in config['boards']:
-        print(f'Testing board:{board["name"]}')
-        debugger = board['debugger'].lower()
+    if len(board) == 0:
+        config_boards = config['boards']
+    else:
+        config_boards = [e for e in config['boards'] if e['name'] in board]
+
+    for item in config_boards:
+        print(f'Testing board:{item["name"]}')
+        flasher = item['flasher'].lower()
 
         # default to all tests
-        if 'tests' in board:
-            test_list = board['tests']
+        if 'tests' in item:
+            test_list = item['tests']
         else:
             test_list = all_tests
 
@@ -290,36 +338,41 @@ if __name__ == '__main__':
         test_list.append('board_test')
 
         # remove skip_tests
-        if 'tests_skip' in board:
-            for skip in board['tests_skip']:
+        if 'tests_skip' in item:
+            for skip in item['tests_skip']:
                 if skip in test_list:
                     test_list.remove(skip)
 
         for test in test_list:
-            # cmake, make, download from artifacts
-            elf_list = [
-                f'cmake-build/cmake-build-{board["name"]}/device/{test}/{test}.elf',
-                f'examples/device/{test}/_build/{board["name"]}/{test}.elf',
-                f'{test}.elf'
+            fw_list = [
+                # cmake: esp32 & samd51 use .bin file
+                f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.elf',
+                f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.bin',
+                # make
+                f'examples/device/{test}/_build/{item["name"]}/{test}.elf'
             ]
 
-            elf = None
-            for e in elf_list:
-                if os.path.isfile(e):
-                    elf = e
+            fw = None
+            for f in fw_list:
+                if os.path.isfile(f):
+                    fw = f
                     break
 
-            if elf is None:
-                print(f'Cannot find firmware file for {test}')
+            if fw is None:
+                print(f'Cannot find binary file for {test}')
                 sys.exit(-1)
 
             print(f'  {test} ...', end='')
 
             # flash firmware
-            ret = locals()[f'flash_{debugger}'](board, elf)
+            ret = globals()[f'flash_{flasher}'](item, fw)
             assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
 
             # run test
-            locals()[f'test_{test}'](board['uid'])
+            globals()[f'test_{test}'](item['uid'])
 
             print('OK')
+
+
+if __name__ == '__main__':
+    main()

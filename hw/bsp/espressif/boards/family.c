@@ -158,7 +158,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 
 void board_led_write(bool state) {
 #ifdef NEOPIXEL_PIN
-  strip->set_pixel(strip, 0, (state ? 0x88 : 0x00), 0x00, 0x00);
+  strip->set_pixel(strip, 0, state ? 0x08 : 0x00, 0x00, 0x00);
   strip->refresh(strip, 100);
 #endif
 }
