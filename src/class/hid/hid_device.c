@@ -255,12 +255,12 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
       if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_HID)
       {
         TU_VERIFY(p_hid->hid_descriptor);
-        TU_VERIFY(tud_control_xfer(rhport, request, (void*)(uintptr_t) p_hid->hid_descriptor, p_hid->hid_descriptor->bLength));
+        TU_VERIFY(tud_control_xfer_in(rhport, request, p_hid->hid_descriptor, p_hid->hid_descriptor->bLength));
       }
       else if (request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
       {
         uint8_t const * desc_report = tud_hid_descriptor_report_cb(hid_itf);
-        tud_control_xfer(rhport, request, (void*)(uintptr_t) desc_report, p_hid->report_desc_len);
+        tud_control_xfer_in(rhport, request, desc_report, p_hid->report_desc_len);
       }
       else
       {

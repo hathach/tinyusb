@@ -1051,7 +1051,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_VERIFY(desc_str);
 
       // first byte of descriptor is its size
-      return tud_control_xfer(rhport, p_request, (void*) (uintptr_t) desc_str, tu_desc_len(desc_str));
+      return tud_control_xfer_in(rhport, p_request, desc_str, tu_desc_len(desc_str));
     }
     // break; // unreachable
 
@@ -1065,7 +1065,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       TU_VERIFY(desc_qualifier);
 
       // first byte of descriptor is its size
-      return tud_control_xfer(rhport, p_request, (void*) (uintptr_t) desc_qualifier, tu_desc_len(desc_qualifier));
+      return tud_control_xfer_in(rhport, p_request, desc_qualifier, tu_desc_len(desc_qualifier));
     }
     // break; // unreachable
 

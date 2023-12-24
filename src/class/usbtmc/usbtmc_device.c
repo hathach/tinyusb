@@ -813,7 +813,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     {
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
       TU_VERIFY(request->wLength == sizeof(*(usbtmc_state.capabilities)));
-      TU_VERIFY(tud_control_xfer(rhport, request, (void*)(uintptr_t) usbtmc_state.capabilities, sizeof(*usbtmc_state.capabilities)));
+      TU_VERIFY(tud_control_xfer_in(rhport, request, usbtmc_state.capabilities, sizeof(*usbtmc_state.capabilities)));
       return true;
     }
   // USBTMC Optional Requests

@@ -811,7 +811,7 @@ static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage,
           if (stage == CONTROL_STAGE_SETUP)
           {
             TU_VERIFY(1 == request->wLength, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, (uint8_t*)(uintptr_t) &_cap_get_set, sizeof(_cap_get_set)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer_in(rhport, request, &_cap_get_set, sizeof(_cap_get_set)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 
@@ -831,7 +831,7 @@ static int handle_video_ctl_cs_req(uint8_t rhport, uint8_t stage,
         case VIDEO_REQUEST_GET_INFO:
           if (stage == CONTROL_STAGE_SETUP)
           {
-            TU_VERIFY(tud_control_xfer(rhport, request, (uint8_t*)(uintptr_t) &_cap_get, sizeof(_cap_get)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer_in(rhport, request, &_cap_get, sizeof(_cap_get)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 
@@ -924,7 +924,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         case VIDEO_REQUEST_GET_INFO:
           if (stage == CONTROL_STAGE_SETUP)
           {
-            TU_VERIFY(tud_control_xfer(rhport, request, (uint8_t*)(uintptr_t) &_cap_get, sizeof(_cap_get)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer_in(rhport, request, &_cap_get, sizeof(_cap_get)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 
@@ -984,7 +984,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
           if (stage == CONTROL_STAGE_SETUP)
           {
             TU_VERIFY(1 == request->wLength, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, (uint8_t*)(uintptr_t)&_cap_get_set, sizeof(_cap_get_set)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer_in(rhport, request, &_cap_get_set, sizeof(_cap_get_set)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 
@@ -1041,7 +1041,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
           if (stage == CONTROL_STAGE_SETUP)
           {
             TU_VERIFY(1 == request->wLength, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, (uint8_t*)(uintptr_t) &_cap_get_set, sizeof(_cap_get_set)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer_in(rhport, request, &_cap_get_set, sizeof(_cap_get_set)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 
