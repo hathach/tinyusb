@@ -76,7 +76,7 @@ static inline void tu_print_buf(uint8_t const* buf, uint32_t bufsize) {
 #define TU_LOG1_MEM           tu_print_mem
 #define TU_LOG1_BUF(_x, _n)   tu_print_buf((uint8_t const*)(_x), _n)
 #define TU_LOG1_INT(_x)       tu_printf(#_x " = %ld\r\n", (unsigned long) (_x) )
-#define TU_LOG1_HEX(_x)       tu_printf(#_x " = %lX\r\n", (unsigned long) (_x) )
+#define TU_LOG1_HEX(_x)       tu_printf(#_x " = 0x%lX\r\n", (unsigned long) (_x) )
 
 // Log Level 2: Warn
 #if CFG_TUSB_DEBUG >= 2
