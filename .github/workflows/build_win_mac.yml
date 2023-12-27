@@ -45,7 +45,7 @@ jobs:
         release: '10.3-2021.10'
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Get Dependencies
       run: python3 tools/get_deps.py stm32f4

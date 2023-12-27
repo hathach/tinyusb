@@ -8,6 +8,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'tools/get_deps.py'
       - '.github/workflows/cmake_arm.yml'
   pull_request:
     branches: [ master ]
@@ -16,6 +17,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'tools/get_deps.py'
       - '.github/workflows/cmake_arm.yml'
 
 concurrency:
@@ -49,6 +51,7 @@ jobs:
           - 'stm32f7'
           - 'stm32g0'
           - 'stm32g4'
+          - 'stm32h5'
           - 'stm32h7'
           - 'stm32l4'
           - 'stm32u5'
@@ -67,11 +70,11 @@ jobs:
       run: sudo apt install -y ninja-build
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Checkout pico-sdk for rp2040
       if: matrix.family == 'rp2040'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: raspberrypi/pico-sdk
         ref: develop
@@ -143,7 +146,7 @@ jobs:
           done
 
       - name: Checkout test/hil
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           sparse-checkout: test/hil
 
