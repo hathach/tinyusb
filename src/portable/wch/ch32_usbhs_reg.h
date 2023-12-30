@@ -99,12 +99,16 @@
 #define USBHS_ISO_ACT_FLAG    (1 << 6)
 
 // INT_ST
-#define USBHS_INT_ST_OFFSET  0x0B
-#define USBHS_DEV_UIS_IS_NAK (1 << 7)
-#define USBHS_DEV_UIS_TOG_OK (1 << 6)
-#define MASK_UIS_TOKEN       (3 << 4)
-#define MASK_UIS_ENDP        (0x0F)
-#define MASK_UIS_H_RES       (0x0F)
+#define USBHS_INT_ST_OFFSET   0x0B
+#define USBHS_DEV_UIS_IS_NAK  (1 << 7)
+#define USBHS_DEV_UIS_TOG_OK  (1 << 6)
+#define MASK_UIS_TOKEN        (3 << 4)
+#define USBHS_TOKEN_PID_OUT   (0 << 4)
+#define USBHS_TOKEN_PID_SOF   (1 << 4)
+#define USBHS_TOKEN_PID_IN    (2 << 4)
+#define USBHS_TOKEN_PID_SETUP (3 << 4)
+#define MASK_UIS_ENDP         (0x0F)
+#define MASK_UIS_H_RES        (0x0F)
 
 #define USBHS_TOGGLE_OK (0x40)
 #define USBHS_HOST_RES  (0x0f)
@@ -367,10 +371,5 @@
 #define USBHS_UH_T_TOG_AUTO (1 << 5)
 #define USBHS_UH_T_DATA_NO  (1 << 6)
 
-// 00: OUT, 01:SOF, 10:IN, 11:SETUP
-#define PID_OUT   0
-#define PID_SOF   1
-#define PID_IN    2
-#define PID_SETUP 3
 
 #endif
