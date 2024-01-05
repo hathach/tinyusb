@@ -56,73 +56,78 @@
 //--------------------------------------------------------------------+
 
 // Check if terminal is connected to this port
-bool     tud_cdc_n_connected       (uint8_t itf);
+bool     tud_cdc_n_connected        (uint8_t itf);
 
 // Get current line state. Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
-uint8_t  tud_cdc_n_get_line_state  (uint8_t itf);
+uint8_t  tud_cdc_n_get_line_state   (uint8_t itf);
+
+// Set serial state.
+// Bit 0: DCD, Bit 1: DSR, Bit 2: Break, Bit 3: Ring, Bit 4: Framing error, Bit 5: Parity error, Bit 6: Overrun.
+bool     tud_cdc_n_notif_line_state (uint8_t itf, uint8_t state);
 
 // Get current line encoding: bit rate, stop bits parity etc ..
-void     tud_cdc_n_get_line_coding (uint8_t itf, cdc_line_coding_t* coding);
+void     tud_cdc_n_get_line_coding  (uint8_t itf, cdc_line_coding_t* coding);
 
 // Set special character that will trigger tud_cdc_rx_wanted_cb() callback on receiving
-void     tud_cdc_n_set_wanted_char (uint8_t itf, char wanted);
+void     tud_cdc_n_set_wanted_char  (uint8_t itf, char wanted);
 
 // Get the number of bytes available for reading
-uint32_t tud_cdc_n_available       (uint8_t itf);
+uint32_t tud_cdc_n_available        (uint8_t itf);
 
 // Read received bytes
-uint32_t tud_cdc_n_read            (uint8_t itf, void* buffer, uint32_t bufsize);
+uint32_t tud_cdc_n_read             (uint8_t itf, void* buffer, uint32_t bufsize);
 
 // Read a byte, return -1 if there is none
 static inline
-int32_t  tud_cdc_n_read_char       (uint8_t itf);
+int32_t  tud_cdc_n_read_char        (uint8_t itf);
 
 // Clear the received FIFO
-void     tud_cdc_n_read_flush      (uint8_t itf);
+void     tud_cdc_n_read_flush       (uint8_t itf);
 
 // Get a byte from FIFO without removing it
-bool     tud_cdc_n_peek            (uint8_t itf, uint8_t* ui8);
+bool     tud_cdc_n_peek             (uint8_t itf, uint8_t* ui8);
 
 // Write bytes to TX FIFO, data may remain in the FIFO for a while
-uint32_t tud_cdc_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
+uint32_t tud_cdc_n_write            (uint8_t itf, void const* buffer, uint32_t bufsize);
 
 // Write a byte
 static inline
-uint32_t tud_cdc_n_write_char      (uint8_t itf, char ch);
+uint32_t tud_cdc_n_write_char       (uint8_t itf, char ch);
 
 // Write a null-terminated string
 static inline
-uint32_t tud_cdc_n_write_str       (uint8_t itf, char const* str);
+uint32_t tud_cdc_n_write_str        (uint8_t itf, char const* str);
 
 // Force sending data if possible, return number of forced bytes
-uint32_t tud_cdc_n_write_flush     (uint8_t itf);
+uint32_t tud_cdc_n_write_flush      (uint8_t itf);
 
 // Return the number of bytes (characters) available for writing to TX FIFO buffer in a single n_write operation.
-uint32_t tud_cdc_n_write_available (uint8_t itf);
+uint32_t tud_cdc_n_write_available  (uint8_t itf);
 
 // Clear the transmit FIFO
-bool tud_cdc_n_write_clear (uint8_t itf);
+bool tud_cdc_n_write_clear          (uint8_t itf);
 
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
-static inline bool     tud_cdc_connected       (void);
-static inline uint8_t  tud_cdc_get_line_state  (void);
-static inline void     tud_cdc_get_line_coding (cdc_line_coding_t* coding);
-static inline void     tud_cdc_set_wanted_char (char wanted);
+static inline bool     tud_cdc_connected        (void);
+static inline uint8_t  tud_cdc_get_line_state   (void);
+static inline bool     tud_cdc_notif_line_state (uint8_t state);
+static inline void     tud_cdc_get_line_coding  (cdc_line_coding_t* coding);
+static inline void     tud_cdc_set_wanted_char  (char wanted);
 
-static inline uint32_t tud_cdc_available       (void);
-static inline int32_t  tud_cdc_read_char       (void);
-static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize);
-static inline void     tud_cdc_read_flush      (void);
-static inline bool     tud_cdc_peek            (uint8_t* ui8);
+static inline uint32_t tud_cdc_available        (void);
+static inline int32_t  tud_cdc_read_char        (void);
+static inline uint32_t tud_cdc_read             (void* buffer, uint32_t bufsize);
+static inline void     tud_cdc_read_flush       (void);
+static inline bool     tud_cdc_peek             (uint8_t* ui8);
 
-static inline uint32_t tud_cdc_write_char      (char ch);
-static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize);
-static inline uint32_t tud_cdc_write_str       (char const* str);
-static inline uint32_t tud_cdc_write_flush     (void);
-static inline uint32_t tud_cdc_write_available (void);
-static inline bool     tud_cdc_write_clear     (void);
+static inline uint32_t tud_cdc_write_char       (char ch);
+static inline uint32_t tud_cdc_write            (void const* buffer, uint32_t bufsize);
+static inline uint32_t tud_cdc_write_str        (char const* str);
+static inline uint32_t tud_cdc_write_flush      (void);
+static inline uint32_t tud_cdc_write_available  (void);
+static inline bool     tud_cdc_write_clear      (void);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -173,6 +178,11 @@ static inline bool tud_cdc_connected (void)
 static inline uint8_t tud_cdc_get_line_state (void)
 {
   return tud_cdc_n_get_line_state(0);
+}
+
+static inline bool tud_cdc_notif_line_state (uint8_t state)
+{
+  return tud_cdc_n_notif_line_state(0, state);
 }
 
 static inline void tud_cdc_get_line_coding (cdc_line_coding_t* coding)
