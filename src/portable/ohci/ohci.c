@@ -157,6 +157,7 @@ static ohci_ed_t * const p_ed_head[] =
 
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed);
 static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr);
+static gtd_extra_data_t *gtd_get_extra_data(ohci_gtd_t const * const gtd);
 
 //--------------------------------------------------------------------+
 // USBH-HCD API
@@ -345,7 +346,7 @@ static void gtd_init(ohci_gtd_t *p_td, uint8_t *data_ptr, uint16_t total_bytes) 
   tu_memclr(p_td, sizeof(ohci_gtd_t));
 
   p_td->used = 1;
-  p_td->expected_bytes = total_bytes;
+  gtd_get_extra_data(p_td)->expected_bytes = total_bytes;
 
   p_td->buffer_rounding = 1; // less than queued length is not a error
   p_td->delay_interrupt = OHCI_INT_ON_COMPLETE_NO;
@@ -610,6 +611,16 @@ static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
   }
 }
 
+static gtd_extra_data_t *gtd_get_extra_data(ohci_gtd_t const * const gtd) {
+  if ( gtd_is_control(gtd) )
+  {
+    return &ohci_data.control[((intptr_t)gtd - (intptr_t)&ohci_data.control->gtd) / sizeof(ohci_data.control[0])].gtd_data;
+  }else
+  {
+    return &ohci_data.gtd_data[gtd - ohci_data.gtd_pool];
+  }
+}
+
 static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer)
 {
   // 5.2.9 OHCI sample code
@@ -641,8 +652,7 @@ static void done_queue_isr(uint8_t hostid)
     if ( (qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES) || (event != XFER_RESULT_SUCCESS) )
     {
       ohci_ed_t * const ed  = gtd_get_ed(qtd);
-
-      uint32_t const xferred_bytes = qtd->expected_bytes - gtd_xfer_byte_left((uint32_t) qtd->buffer_end, (uint32_t) qtd->current_buffer_pointer);
+      uint32_t const xferred_bytes = gtd_get_extra_data(qtd)->expected_bytes - gtd_xfer_byte_left((uint32_t) qtd->buffer_end, (uint32_t) qtd->current_buffer_pointer);
 
       // NOTE Assuming the current list is BULK and there is no other EDs in the list has queued TDs.
       // When there is a error resulting this ED is halted, and this EP still has other queued TD
