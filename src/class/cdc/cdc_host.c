@@ -774,32 +774,23 @@ static void acm_process_config(tuh_xfer_t* xfer)
   switch(state)
   {
     case CONFIG_ACM_SET_CONTROL_LINE_STATE:
-      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
       if (p_cdc->acm_capability.support_line_request)
       {
         TU_ASSERT(acm_set_control_line_state(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, acm_process_config,
                                              CONFIG_ACM_SET_LINE_CODING), );
         break;
       }
-          #endif
-      TU_ATTR_FALLTHROUGH;
-
     case CONFIG_ACM_SET_LINE_CODING:
-        #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       if (p_cdc->acm_capability.support_line_request)
       {
         cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
         TU_ASSERT(acm_set_line_coding(p_cdc, &line_coding, acm_process_config, CONFIG_ACM_COMPLETE), );
         break;
       }
-        #endif
-      TU_ATTR_FALLTHROUGH;
-
     case CONFIG_ACM_COMPLETE:
       // itf_num+1 to account for data interface as well
       set_config_complete(p_cdc, idx, itf_num+1);
       break;
-
     default: break;
   }
 }
@@ -998,42 +989,25 @@ static void ftdi_process_config(tuh_xfer_t* xfer) {
     case CONFIG_FTDI_RESET:
       TU_ASSERT(ftdi_sio_reset(p_cdc, ftdi_process_config, CONFIG_FTDI_MODEM_CTRL),);
       break;
-
     case CONFIG_FTDI_MODEM_CTRL:
-      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
       TU_ASSERT(
         ftdi_sio_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, ftdi_process_config, CONFIG_FTDI_SET_BAUDRATE),);
       break;
-      #else
-      TU_ATTR_FALLTHROUGH;
-      #endif
-
     case CONFIG_FTDI_SET_BAUDRATE: {
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
       TU_ASSERT(ftdi_sio_set_baudrate(p_cdc, line_coding.bit_rate, ftdi_process_config, CONFIG_FTDI_SET_DATA),);
       break;
-      #else
-      TU_ATTR_FALLTHROUGH;
-      #endif
     }
-
     case CONFIG_FTDI_SET_DATA: {
       #if 0 // TODO set data format
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
       TU_ASSERT(ftdi_sio_set_data(p_cdc, process_ftdi_config, CONFIG_FTDI_COMPLETE),);
       break;
       #endif
-      #endif
-
-      TU_ATTR_FALLTHROUGH;
     }
-
     case CONFIG_FTDI_COMPLETE:
       set_config_complete(p_cdc, idx, itf_num);
       break;
-
     default:
       break;
   }
@@ -1137,39 +1111,24 @@ static void cp210x_process_config(tuh_xfer_t* xfer) {
     case CONFIG_CP210X_IFC_ENABLE:
       TU_ASSERT(cp210x_ifc_enable(p_cdc, 1, cp210x_process_config, CONFIG_CP210X_SET_BAUDRATE),);
       break;
-
     case CONFIG_CP210X_SET_BAUDRATE: {
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
       TU_ASSERT(cp210x_set_baudrate(p_cdc, line_coding.bit_rate, cp210x_process_config, CONFIG_CP210X_SET_LINE_CTL),);
       break;
-      #else
-      TU_ATTR_FALLTHROUGH;
-      #endif
     }
-
     case CONFIG_CP210X_SET_LINE_CTL: {
-      #if defined(CFG_TUH_CDC_LINE_CODING_ON_ENUM) && 0 // skip for now
+      #if 0 // skip for now
       cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
       break;
-      #else
-      TU_ATTR_FALLTHROUGH;
       #endif
     }
-
     case CONFIG_CP210X_SET_DTR_RTS:
-      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
       TU_ASSERT(
         cp210x_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, cp210x_process_config, CONFIG_CP210X_COMPLETE),);
       break;
-      #else
-      TU_ATTR_FALLTHROUGH;
-      #endif
-
     case CONFIG_CP210X_COMPLETE:
       set_config_complete(p_cdc, idx, itf_num);
       break;
-
     default: break;
   }
 }
