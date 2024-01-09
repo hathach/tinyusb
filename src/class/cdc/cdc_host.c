@@ -400,7 +400,7 @@ static void cdch_internal_control_complete(tuh_xfer_t* xfer)
 
           case FTDI_SIO_SET_BAUD_RATE:
             // convert from divisor to baudrate is not supported
-          p_cdc->line_coding.bit_rate = p_cdc->baudrate_requested;
+            p_cdc->line_coding.bit_rate = p_cdc->baudrate_requested;
             break;
 
           default: break;
