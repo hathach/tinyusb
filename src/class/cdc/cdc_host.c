@@ -69,7 +69,9 @@ typedef struct {
     uint8_t rx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
     CFG_TUH_MEM_ALIGN uint8_t rx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
   } stream;
-
+#if CFG_TUH_CDC_FTDI
+  uint32_t  baudrate_requested;
+#endif
 } cdch_interface_t;
 
 CFG_TUH_MEM_SECTION
@@ -94,9 +96,6 @@ static uint16_t const ftdi_pids[] = { CFG_TUH_CDC_FTDI_PID_LIST };
 enum {
   FTDI_PID_COUNT = sizeof(ftdi_pids) / sizeof(ftdi_pids[0])
 };
-
-// Store last request baudrate since divisor to baudrate is not easy
-static uint32_t _ftdi_requested_baud;
 
 static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
 static void ftdi_process_config(tuh_xfer_t* xfer);
@@ -401,7 +400,7 @@ static void cdch_internal_control_complete(tuh_xfer_t* xfer)
 
           case FTDI_SIO_SET_BAUD_RATE:
             // convert from divisor to baudrate is not supported
-            p_cdc->line_coding.bit_rate = _ftdi_requested_baud;
+          p_cdc->line_coding.bit_rate = p_cdc->baudrate_requested;
             break;
 
           default: break;
@@ -979,7 +978,7 @@ static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tu
   TU_LOG_DRV("CDC FTDI Set BaudRate = %lu, divisor = 0x%04x\r\n", baudrate, divisor);
 
   p_cdc->user_control_cb = complete_cb;
-  _ftdi_requested_baud = baudrate;
+  p_cdc->baudrate_requested = baudrate;
   TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_SET_BAUD_RATE, divisor,
                                  complete_cb ? cdch_internal_control_complete : NULL, user_data));
 
