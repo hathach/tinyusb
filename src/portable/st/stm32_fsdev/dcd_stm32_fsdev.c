@@ -673,13 +673,13 @@ void dcd_int_handler(uint8_t rhport) {
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
   if(int_status & USB_ISTR_SOF) {
-    USB->ISTR = ~USB_ISTR_SOF;
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_SOF;
     dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
   }
 
   if(int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
-    USB->ISTR = ~USB_ISTR_RESET;
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_RESET;
     dcd_handle_bus_reset();
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
@@ -697,7 +697,7 @@ void dcd_int_handler(uint8_t rhport) {
     USB->CNTR &= ~USB_CNTR_LPMODE;
     USB->CNTR &= ~USB_CNTR_FSUSP;
 
-    USB->ISTR = ~USB_ISTR_WKUP;
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_WKUP;
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
@@ -711,7 +711,7 @@ void dcd_int_handler(uint8_t rhport) {
     USB->CNTR |= USB_CNTR_LPMODE;
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
-    USB->ISTR = ~USB_ISTR_SUSP;
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_SUSP;
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
@@ -724,7 +724,7 @@ void dcd_int_handler(uint8_t rhport) {
     {
       remoteWakeCountdown--;
     }
-    USB->ISTR = ~USB_ISTR_ESOF;
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_ESOF;
   }
 }
 

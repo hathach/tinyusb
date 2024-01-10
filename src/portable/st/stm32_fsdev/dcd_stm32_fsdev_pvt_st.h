@@ -173,8 +173,11 @@
 // For type-safety create a new macro for the volatile address of PMAADDR
 // The compiler should warn us if we cast it to a non-volatile type?
 #ifdef PMA_32BIT_ACCESS
+typedef uint32_t fsdev_bus_t;
 static __IO uint32_t * const pma32 = (__IO uint32_t*)USB_PMAADDR;
+
 #else
+typedef uint16_t fsdev_bus_t;
 // Volatile is also needed to prevent the optimizer from changing access to 32-bit (as 32-bit access is forbidden)
 static __IO uint16_t * const pma = (__IO uint16_t*)USB_PMAADDR;
 
