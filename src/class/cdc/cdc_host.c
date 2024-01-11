@@ -641,7 +641,7 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
     return acm_open(daddr, itf_desc, max_len);
   }
   #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CP210X
-  else if ( 0xff == itf_desc->bInterfaceClass )
+  else if ( TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass )
   {
     uint16_t vid, pid;
     TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid));
