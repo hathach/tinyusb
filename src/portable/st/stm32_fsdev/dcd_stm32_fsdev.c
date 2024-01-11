@@ -128,8 +128,8 @@
 #  define DCD_STM32_BTABLE_BASE 0U
 #endif
 
-#ifndef DCD_STM32_BTABLE_LENGTH
-#  define DCD_STM32_BTABLE_LENGTH (PMA_LENGTH - DCD_STM32_BTABLE_BASE)
+#ifndef DCD_STM32_BTABLE_SIZE
+#  define DCD_STM32_BTABLE_SIZE (FSDEV_PMA_SIZE - DCD_STM32_BTABLE_BASE)
 #endif
 
 /***************************************************
@@ -137,7 +137,7 @@
  */
 
 TU_VERIFY_STATIC((MAX_EP_COUNT) <= STFSDEV_EP_COUNT, "Only 8 endpoints supported on the hardware");
-TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LENGTH), "BTABLE does not fit in PMA RAM");
+TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_SIZE)) <= (FSDEV_PMA_SIZE), "BTABLE does not fit in PMA RAM");
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
 
 //--------------------------------------------------------------------+
@@ -559,7 +559,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
       // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
       pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
       pcd_set_ep_tx_status(USB,0u,USB_EP_TX_NAK);
-#ifdef PMA_32BIT_ACCESS
+#ifdef FSDEV_BUS_32BIT
       dcd_event_setup_received(0, (uint8_t*)(USB_PMAADDR + pcd_get_ep_rx_address(USB, EPindex)), true);
 #else
       // The setup_received function uses memcpy, so this must first copy the setup data into
@@ -786,7 +786,7 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length)
   }
 
   // Ensure allocated buffer is aligned
-#ifdef PMA_32BIT_ACCESS
+#ifdef FSDEV_BUS_32BIT
   length = (length + 3) & ~0x03;
 #else
   length = (length + 1) & ~0x01;
@@ -798,7 +798,7 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length)
   ep_buf_ptr = (uint16_t)(ep_buf_ptr + length); // increment buffer pointer
 
   // Verify no overflow
-  TU_ASSERT(ep_buf_ptr <= PMA_LENGTH, 0xFFFF);
+  TU_ASSERT(ep_buf_ptr <= FSDEV_PMA_SIZE, 0xFFFF);
 
   epXferCtl->pma_ptr = addr;
   epXferCtl->pma_alloc_size = length;
@@ -1227,7 +1227,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
 }
 
-#ifdef PMA_32BIT_ACCESS
+#ifdef FSDEV_BUS_32BIT
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes)
 {
   const uint8_t* srcVal = src;
@@ -1283,7 +1283,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
   __IO uint16_t *pdwVal;
 
   srcVal = src;
-  pdwVal = &pma[PMA_STRIDE*(dst>>1)];
+  pdwVal = &pma[FSDEV_PMA_STRIDE * (dst >> 1)];
 
   while (n--)
   {
@@ -1291,7 +1291,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
     srcVal++;
     temp2 = temp1 | ((uint16_t)(((uint16_t)(*srcVal)) << 8U)) ;
     *pdwVal = temp2;
-    pdwVal += PMA_STRIDE;
+    pdwVal += FSDEV_PMA_STRIDE;
     srcVal++;
   }
 
@@ -1323,7 +1323,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part
   // To ensure PMA is always access aligned (dst aligned to 16 or 32 bit)
-#ifdef PMA_32BIT_ACCESS
+#ifdef FSDEV_BUS_32BIT
   if((cnt_lin & 0x03) && cnt_wrap)
   {
     // Copy first linear part
@@ -1386,7 +1386,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
   return true;
 }
 
-#ifdef PMA_32BIT_ACCESS
+#ifdef FSDEV_BUS_32BIT
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes)
 {
   uint8_t* dstVal = dst;
@@ -1434,13 +1434,13 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t 
   __IO const uint16_t *pdwVal;
   uint32_t temp;
 
-  pdwVal = &pma[PMA_STRIDE*(src>>1)];
+  pdwVal = &pma[FSDEV_PMA_STRIDE * (src >> 1)];
   uint8_t *dstVal = (uint8_t*)dst;
 
   while (n--)
   {
     temp = *pdwVal;
-    pdwVal += PMA_STRIDE;
+    pdwVal += FSDEV_PMA_STRIDE;
     *dstVal++ = ((temp >> 0) & 0xFF);
     *dstVal++ = ((temp >> 8) & 0xFF);
   }
@@ -1448,7 +1448,7 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t 
   if (wNBytes & 0x01)
   {
     temp = *pdwVal;
-    pdwVal += PMA_STRIDE;
+    pdwVal += FSDEV_PMA_STRIDE;
     *dstVal++ = ((temp >> 0) & 0xFF);
   }
   return true;
@@ -1475,7 +1475,7 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
   // We want to read from PMA and write it into the FIFO, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part
   // To ensure PMA is always access aligned (src aligned to 16 or 32 bit)
-#ifdef PMA_32BIT_ACCESS
+#ifdef FSDEV_BUS_32BIT
   if((cnt_lin & 0x03) && cnt_wrap)
   {
     // Copy first linear part
