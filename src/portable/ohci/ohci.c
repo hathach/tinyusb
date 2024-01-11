@@ -612,12 +612,11 @@ static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
 }
 
 static gtd_extra_data_t *gtd_get_extra_data(ohci_gtd_t const * const gtd) {
-  if ( gtd_is_control(gtd) )
-  {
-    return &ohci_data.control[((intptr_t)gtd - (intptr_t)&ohci_data.control->gtd) / sizeof(ohci_data.control[0])].gtd_data;
-  }else
-  {
-    return &ohci_data.gtd_data[gtd - ohci_data.gtd_pool];
+  if ( gtd_is_control(gtd) ) {
+    uint8_t idx = ((uintptr_t)gtd - (uintptr_t)&ohci_data.control->gtd) / sizeof(ohci_data.control[0]);
+    return &ohci_data.gtd_extra_control[idx];
+  }else {
+    return &ohci_data.gtd_extra[gtd - ohci_data.gtd_pool];
   }
 }
 
@@ -661,7 +660,7 @@ static void done_queue_isr(uint8_t hostid)
       // --> HC will not process Control list (due to service ratio when Bulk list not empty)
       // To walk-around this, the halted ED will have TailP = HeadP (empty list condition), when clearing halt
       // the TailP must be set back to NULL for processing remaining TDs
-      if ((event != XFER_RESULT_SUCCESS))
+      if (event != XFER_RESULT_SUCCESS)
       {
         ed->td_tail &= 0x0Ful;
         ed->td_tail |= tu_align16(ed->td_head.address); // mark halted EP as empty queue

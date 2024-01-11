@@ -154,15 +154,12 @@ typedef struct TU_ATTR_ALIGNED(32)
 
 TU_VERIFY_STATIC( sizeof(ochi_itd_t) == 32, "size is not correct" );
 
-typedef struct
-{
-  uint16_t expected_bytes : 13; // can be up to 8192 bytes long so use 13 bits
-  uint16_t                : 3; // can be used
+typedef struct {
+  uint16_t expected_bytes; // up to 8192 bytes so max is 13 bits
 } gtd_extra_data_t;
 
 // structure with member alignment required from large to small
-typedef struct TU_ATTR_ALIGNED(256)
-{
+typedef struct TU_ATTR_ALIGNED(256) {
   ohci_hcca_t hcca;
 
   ohci_ed_t bulk_head_ed; // static bulk head (dummy)
@@ -172,16 +169,17 @@ typedef struct TU_ATTR_ALIGNED(256)
   struct {
     ohci_ed_t ed;
     ohci_gtd_t gtd;
-    gtd_extra_data_t gtd_data;
-  }control[CFG_TUH_DEVICE_MAX+CFG_TUH_HUB+1];
+  } control[CFG_TUH_DEVICE_MAX + CFG_TUH_HUB + 1];
 
   //  ochi_itd_t itd[OHCI_MAX_ITD]; // itd requires alignment of 32
   ohci_ed_t ed_pool[ED_MAX];
   ohci_gtd_t gtd_pool[GTD_MAX];
-  gtd_extra_data_t gtd_data[GTD_MAX]; // extra data needed by TDs that can't fit in the TD struct
+
+  // extra data needed by TDs that can't fit in the TD struct
+  gtd_extra_data_t gtd_extra_control[CFG_TUH_DEVICE_MAX + CFG_TUH_HUB + 1];
+  gtd_extra_data_t gtd_extra[GTD_MAX];
 
   volatile uint16_t frame_number_hi;
-
 } ohci_data_t;
 
 //--------------------------------------------------------------------+
