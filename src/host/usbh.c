@@ -286,6 +286,7 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t *vid, uint16_t *pid) {
   *vid = *pid = 0;
 
   usbh_device_t const *dev = get_device(dev_addr);
+  TU_LOG_USBH("[%u] vid = 0x%X pid = 0x%X\r\n", dev_addr, dev->vid, dev->pid);
   TU_VERIFY(dev && dev->addressed && dev->vid != 0);
 
   *vid = dev->vid;
@@ -686,6 +687,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
         if (request->wLength) {
           TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, dev_addr);
           TU_LOG_MEM(CFG_TUH_LOG_LEVEL, _ctrl_xfer.buffer, xferred_bytes, 2);
+          TU_LOG_USBH("\r\n");
         }
 
         _ctrl_xfer.actual_len = (uint16_t) xferred_bytes;
