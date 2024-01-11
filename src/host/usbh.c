@@ -456,7 +456,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
         #if CFG_TUH_HUB
         // TODO remove
-        if ( event.connection.hub_addr != 0) {
+        if ( event.connection.hub_addr != 0 && event.connection.hub_port != 0) {
           // done with hub, waiting for next data on status pipe
           (void) hub_edpt_status_xfer( event.connection.hub_addr );
         }
