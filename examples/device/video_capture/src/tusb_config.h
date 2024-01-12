@@ -101,7 +101,7 @@
 #define CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE  256
 
 // use bulk endpoint for streaming interface
-#define CFG_TUD_VIDEO_STREAMING_BULK 0
+#define CFG_TUD_VIDEO_STREAMING_BULK 1
 
 #ifdef __cplusplus
  }

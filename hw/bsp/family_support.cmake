@@ -211,7 +211,6 @@ function(family_configure_common TARGET RTOS)
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
   endif()
 
-
   # ETM Trace option
   if (TRACE_ETM STREQUAL "1")
     target_compile_definitions(${TARGET} PUBLIC TRACE_ETM)
