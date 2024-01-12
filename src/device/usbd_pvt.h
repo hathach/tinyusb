@@ -112,6 +112,9 @@ bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr) {
 // Enable SOF interrupt
 void usbd_sof_enable(uint8_t rhport, bool en);
 
+// Set device in test mode in response to TUSB_REQ_FEATURE_TEST_MODE
+bool usbd_set_test_mode(uint16_t test_mode);
+
 /*------------------------------------------------------------------*/
 /* Helper
  *------------------------------------------------------------------*/

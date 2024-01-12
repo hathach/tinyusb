@@ -719,13 +719,34 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
         case TUSB_REQ_SET_FEATURE:
           // Only support remote wakeup for device feature
-          TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
+          if(p_request->wValue == TUSB_REQ_FEATURE_REMOTE_WAKEUP)
+          {
+            TU_LOG(USBD_DBG, "    Enable Remote Wakeup\r\n");
 
-          TU_LOG_USBD("    Enable Remote Wakeup\r\n");
+            // Host may enable remote wake up before suspending especially HID device
+            _usbd_dev.remote_wakeup_en = true;
+            tud_control_status(rhport, p_request);
+          }
+          else if((p_request->wValue == TUSB_REQ_FEATURE_TEST_MODE) && (p_request->wLength == 0))
+          {
+            /* Inspect for Test Selector (high byte of wIndex, lower byte must be zero) */
+            switch(p_request->wIndex)
+            {
+              case TUSB_USB_WINDEX_TEST_J:
+              case TUSB_USB_WINDEX_TEST_K:
+              case TUSB_USB_WINDEX_TEST_SE0_NAK:
+              case TUSB_USB_WINDEX_TEST_PACKET:
+              {
+                tud_control_status(rhport, p_request);
+                if(tud_test_mode_req_status_xfer_cb)
+                {
+                  usbd_control_set_complete_callback(tud_test_mode_req_status_xfer_cb);
+                }
+              }
+              break;
+            }
 
-          // Host may enable remote wake up before suspending especially HID device
-          _usbd_dev.remote_wakeup_en = true;
-          tud_control_status(rhport, p_request);
+          }
         break;
 
         case TUSB_REQ_CLEAR_FEATURE:
@@ -1401,6 +1422,14 @@ bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep
   _usbd_dev.ep_status[epnum][dir].busy = 0;
   _usbd_dev.ep_status[epnum][dir].claimed = 0;
   return dcd_edpt_iso_activate(rhport, desc_ep);
+}
+
+// Set device in test mode in response to TUSB_REQ_FEATURE_TEST_MODE
+bool usbd_set_test_mode(uint16_t test_mode)
+{
+  TU_VERIFY(dcd_set_test_mode);
+  dcd_set_test_mode(test_mode);
+  return true;
 }
 
 #endif

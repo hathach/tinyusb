@@ -146,6 +146,8 @@ void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
 // Enable/Disable Start-of-frame interrupt. Default is disabled
 void dcd_sof_enable(uint8_t rhport, bool en);
 
+// Transition device to test mode
+void dcd_set_test_mode(uint16_t test_mode) TU_ATTR_WEAK;
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
