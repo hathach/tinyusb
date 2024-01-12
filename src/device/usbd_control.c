@@ -32,24 +32,32 @@
 #include "tusb.h"
 #include "device/usbd_pvt.h"
 
+//--------------------------------------------------------------------+
+// Callback weak stubs (called if application does not provide)
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request) {
+  (void)rhport;
+  (void)request;
+}
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
+
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
 extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);
 #endif
 
-enum
-{
+enum {
   EDPT_CTRL_OUT = 0x00,
   EDPT_CTRL_IN  = 0x80
 };
 
-typedef struct
-{
+typedef struct {
   tusb_control_request_t request;
-
   uint8_t* buffer;
   uint16_t data_len;
   uint16_t total_xferred;
-
   usbd_control_xfer_cb_t complete_cb;
 } usbd_control_xfer_t;
 
@@ -134,23 +142,12 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
 //--------------------------------------------------------------------+
 // USBD API
 //--------------------------------------------------------------------+
-
-TU_ATTR_WEAK void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void)rhport;
-  (void)request;
-
-  // this is the default implementation that is called when no "real" implementation
-  // of the function exists
-}
-
 void usbd_control_reset(void);
 void usbd_control_set_request(tusb_control_request_t const *request);
 void usbd_control_set_complete_callback( usbd_control_xfer_cb_t fp );
 bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
-void usbd_control_reset(void)
-{
+void usbd_control_reset(void) {
   tu_varclr(&_ctrl_xfer);
 }
 
