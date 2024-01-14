@@ -32,6 +32,9 @@
 #include "device/usbd_pvt.h"
 
 #include "cdc_device.h"
+#if 0 // TODO activate and test
+#include "cdc_debug.h"
+#endif
 
 // Level where CFG_TUSB_DEBUG must be at least for this driver is logged
 #ifndef CFG_TUD_CDC_LOG_LEVEL
@@ -360,7 +363,11 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case CDC_REQUEST_SET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP)
       {
-        TU_LOG_DRV("  Set Line Coding\r\n");
+        #if 0 // TODO activate and test
+          TU_LOG_LINE_CODING("  Set ", p_cdc->line_coding);
+        #else
+          TU_LOG_DRV("  Set Line Coding\r\n");
+        #endif
         tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
       }
       else if ( stage == CONTROL_STAGE_ACK)
@@ -372,7 +379,11 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case CDC_REQUEST_GET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP)
       {
-        TU_LOG_DRV("  Get Line Coding\r\n");
+        #if 0 // TODO activate and test
+          TU_LOG_LINE_CODING("  Get ", p_cdc->line_coding);
+        #else
+          TU_LOG_DRV("  Get Line Coding\r\n");
+        #endif
         tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
       }
     break;

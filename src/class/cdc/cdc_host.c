@@ -32,6 +32,7 @@
 #include "host/usbh_pvt.h"
 
 #include "cdc_host.h"
+#include "cdc_debug.h"
 
 // Level where CFG_TUSB_DEBUG must be at least for this driver is logged
 #ifndef CFG_TUH_CDC_LOG_LEVEL
@@ -284,6 +285,7 @@ bool tuh_cdc_get_local_line_coding(uint8_t idx, cdc_line_coding_t* line_coding)
   TU_VERIFY(p_cdc);
 
   *line_coding = p_cdc->line_coding;
+  TU_LOG_LINE_CODING("CDCh Get ", p_cdc->line_coding);
 
   return true;
 }
@@ -467,7 +469,7 @@ bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete
   cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
 
   if ( complete_cb ) {
-    return driver->set_baudrate(p_cdc, baudrate, complete_cb, user_data);
+    TU_VERIFY(driver->set_baudrate(p_cdc, baudrate, complete_cb, user_data));
   }else {
     // blocking
     xfer_result_t result = XFER_RESULT_INVALID;
@@ -481,8 +483,10 @@ bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete
     TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
 
     p_cdc->line_coding.bit_rate = baudrate;
-    return true;
   }
+  TU_LOG_LINE_CODING("CDCh Set Baudrate, ", p_cdc->line_coding);
+
+  return true;
 }
 
 bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
@@ -493,7 +497,7 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, 
   TU_VERIFY(p_cdc->acm_capability.support_line_request);
 
   if ( complete_cb ) {
-    return acm_set_line_coding(p_cdc, line_coding, complete_cb, user_data);
+    TU_VERIFY(acm_set_line_coding(p_cdc, line_coding, complete_cb, user_data));
   }else {
     // blocking
     xfer_result_t result = XFER_RESULT_INVALID;
@@ -507,8 +511,10 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, 
     TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
 
     p_cdc->line_coding = *line_coding;
-    return true;
   }
+  TU_LOG_LINE_CODING("CDCh Set ", p_cdc->line_coding);
+
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -1031,6 +1037,11 @@ static void ftdi_process_config(tuh_xfer_t* xfer) {
 
     case CONFIG_FTDI_COMPLETE:
       set_config_complete(p_cdc, idx, itf_num);
+      #if 0 // TODO set data format
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+        TU_LOG_LINE_CODING("CDCh FTDI Init ", p_cdc->line_coding);
+      #endif
+      #endif
       break;
 
     default:
@@ -1167,6 +1178,9 @@ static void cp210x_process_config(tuh_xfer_t* xfer) {
 
     case CONFIG_CP210X_COMPLETE:
       set_config_complete(p_cdc, idx, itf_num);
+      #if defined(CFG_TUH_CDC_LINE_CODING_ON_ENUM) && 0 // skip for now
+        TU_LOG_LINE_CODING("CDCh CP210x Init ", p_cdc->line_coding);
+      #endif
       break;
 
     default: break;
