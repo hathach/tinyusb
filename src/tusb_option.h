@@ -453,10 +453,12 @@
   #define CFG_TUH_CDC_FTDI 0
 #endif
 
-#ifndef CFG_TUH_CDC_FTDI_PID_LIST
-  // List of product IDs that can use the FTDI CDC driver
-  #define CFG_TUH_CDC_FTDI_PID_LIST \
-    0x6001, 0x6006, 0x6010, 0x6011, 0x6014, 0x6015, 0x8372, 0xFBFA, 0xCD18
+#ifndef CFG_TUH_CDC_FTDI_VID_PID_LIST
+  // List of product IDs that can use the FTDI CDC driver. 0x0403 is FTDI's VID
+  #define CFG_TUH_CDC_FTDI_VID_PID_LIST \
+    {0x0403, 0x6001}, {0x0403, 0x6006}, {0x0403, 0x6010}, {0x0403, 0x6011}, \
+    {0x0403, 0x6014}, {0x0403, 0x6015}, {0x0403, 0x8372}, {0x0403, 0xFBFA}, \
+    {0x0403, 0xCD18}
 #endif
 
 #ifndef CFG_TUH_CDC_CP210X
@@ -464,10 +466,10 @@
   #define CFG_TUH_CDC_CP210X 0
 #endif
 
-#ifndef CFG_TUH_CDC_CP210X_PID_LIST
-  // List of product IDs that can use the CP210X CDC driver
-  #define CFG_TUH_CDC_CP210X_PID_LIST \
-    0xEA60, 0xEA70
+#ifndef CFG_TUH_CDC_CP210X_VID_PID_LIST
+  // List of product IDs that can use the CP210X CDC driver. 0x10C4 is Silicon Labs' VID
+  #define CFG_TUH_CDC_CP210X_VID_PID_LIST \
+    {0x10C4, 0xEA60}, {0x10C4, 0xEA70}
 #endif
 
 #ifndef CFG_TUH_HID
