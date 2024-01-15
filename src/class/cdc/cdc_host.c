@@ -267,6 +267,7 @@ bool tuh_cdc_get_dtr(uint8_t idx)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
+  TU_LOG_CONTROL_LINE_STATE("CDCh Local ", p_cdc->line_state);
 
   return (p_cdc->line_state & CDC_CONTROL_LINE_STATE_DTR) ? true : false;
 }
@@ -275,6 +276,7 @@ bool tuh_cdc_get_rts(uint8_t idx)
 {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
+  TU_LOG_CONTROL_LINE_STATE("CDCh Local ", p_cdc->line_state);
 
   return (p_cdc->line_state & CDC_CONTROL_LINE_STATE_RTS) ? true : false;
 }
@@ -445,7 +447,7 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
   cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
 
   if ( complete_cb ) {
-    return driver->set_control_line_state(p_cdc, line_state, complete_cb, user_data);
+    TU_VERIFY(driver->set_control_line_state(p_cdc, line_state, complete_cb, user_data));
   }else {
     // blocking
     xfer_result_t result = XFER_RESULT_INVALID;
@@ -459,8 +461,10 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
     TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
 
     p_cdc->line_state = (uint8_t) line_state;
-    return true;
   }
+  TU_LOG_CONTROL_LINE_STATE("CDCh Set ", p_cdc->line_state);
+
+  return true;
 }
 
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
@@ -484,7 +488,7 @@ bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete
 
     p_cdc->line_coding.bit_rate = baudrate;
   }
-  TU_LOG_LINE_CODING("CDCh Set Baudrate, ", p_cdc->line_coding);
+  TU_LOG_BAUDRATE("CDCh Set ", p_cdc->line_coding.bit_rate);
 
   return true;
 }
@@ -801,6 +805,12 @@ static void acm_process_config(tuh_xfer_t* xfer)
       TU_ATTR_FALLTHROUGH;
 
     case CONFIG_ACM_COMPLETE:
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+        TU_LOG_LINE_CODING("CDCh ACM Init ", p_cdc->line_coding);
+      #endif
+      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+        TU_LOG_CONTROL_LINE_STATE("CDCh ACM Init", p_cdc->line_state);
+      #endif
       // itf_num+1 to account for data interface as well
       set_config_complete(p_cdc, idx, itf_num+1);
       break;

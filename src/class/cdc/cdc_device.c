@@ -363,7 +363,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case CDC_REQUEST_SET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP)
       {
-        #if 0 // TODO activate and test
+        #if 0 // TODO activate, test and remove else
           TU_LOG_LINE_CODING("  Set ", p_cdc->line_coding);
         #else
           TU_LOG_DRV("  Set Line Coding\r\n");
@@ -379,7 +379,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case CDC_REQUEST_GET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP)
       {
-        #if 0 // TODO activate and test
+        #if 0 // TODO activate, test and remove else
           TU_LOG_LINE_CODING("  Get ", p_cdc->line_coding);
         #else
           TU_LOG_DRV("  Get Line Coding\r\n");
@@ -408,7 +408,11 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         // Disable fifo overwriting if DTR bit is set
         tu_fifo_set_overwritable(&p_cdc->tx_ff, !dtr);
 
-        TU_LOG_DRV("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
+        #if 0 // TODO activate, test and remove else
+          TU_LOG_CONTROL_LINE_STATE("  Set ", p_cdc->line_state);
+        #else
+          TU_LOG_DRV("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
+        #endif
 
         // Invoke callback
         if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);

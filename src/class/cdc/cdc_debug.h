@@ -35,18 +35,28 @@
 #endif
 
 // logging of line coding
-#define TU_LOG_LINE_CODING(PRE_TEXT,LINE_CODING)                          \
-  TU_LOG_DRV(PRE_TEXT "Line Coding %luBd %u%c%s\r\n",                     \
-  LINE_CODING.bit_rate,                                                   \
-  LINE_CODING.data_bits,                                                  \
-  LINE_CODING.parity == CDC_LINE_CODING_PARITY_NONE ? 'N' :               \
-    LINE_CODING.parity == CDC_LINE_CODING_PARITY_ODD ? 'O' :              \
-      LINE_CODING.parity == CDC_LINE_CODING_PARITY_EVEN ? 'E' :           \
-        LINE_CODING.parity == CDC_LINE_CODING_PARITY_MARK ? 'M' :         \
-          LINE_CODING.parity == CDC_LINE_CODING_PARITY_SPACE ? 'S' : '?', \
-  LINE_CODING.stop_bits == CDC_LINE_CODING_STOP_BITS_1 ? "1" :            \
-    LINE_CODING.stop_bits == CDC_LINE_CODING_STOP_BITS_1_5 ? "1.5" :      \
-      LINE_CODING.stop_bits == CDC_LINE_CODING_STOP_BITS_2 ? "2" : "?")
+#define TU_LOG_LINE_CODING(PRE_TEXT,LINE_CODING)                            \
+  TU_LOG_DRV(PRE_TEXT "Line Coding %luBd %u%c%s\r\n",                       \
+    LINE_CODING.bit_rate,                                                   \
+    LINE_CODING.data_bits,                                                  \
+    LINE_CODING.parity == CDC_LINE_CODING_PARITY_NONE ? 'N' :               \
+      LINE_CODING.parity == CDC_LINE_CODING_PARITY_ODD ? 'O' :              \
+        LINE_CODING.parity == CDC_LINE_CODING_PARITY_EVEN ? 'E' :           \
+          LINE_CODING.parity == CDC_LINE_CODING_PARITY_MARK ? 'M' :         \
+            LINE_CODING.parity == CDC_LINE_CODING_PARITY_SPACE ? 'S' : '?', \
+    LINE_CODING.stop_bits == CDC_LINE_CODING_STOP_BITS_1 ? "1" :            \
+      LINE_CODING.stop_bits == CDC_LINE_CODING_STOP_BITS_1_5 ? "1.5" :      \
+        LINE_CODING.stop_bits == CDC_LINE_CODING_STOP_BITS_2 ? "2" : "?")
+
+// logging of baudrate
+#define TU_LOG_BAUDRATE(PRE_TEXT,BAUDRATE) \
+  TU_LOG_DRV(PRE_TEXT "Baudrate %luBd\r\n", BAUDRATE)
+
+ // logging of control line state
+#define TU_LOG_CONTROL_LINE_STATE(PRE_TEXT,LINE_STATE)            \
+  TU_LOG_DRV(PRE_TEXT "Control Line State RTS%c DTR%c\r\n", \
+    LINE_STATE & CDC_CONTROL_LINE_STATE_RTS ? '+' : '-',           \
+    LINE_STATE & CDC_CONTROL_LINE_STATE_DTR ? '+' : '-' )
 
 #ifdef __cplusplus
  }
