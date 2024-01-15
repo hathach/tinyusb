@@ -1351,4 +1351,34 @@ void dcd_int_handler(uint8_t rhport)
   //  }
 }
 
+#if defined(TUP_USBIP_DWC2_TEST_MODE_SUPPORT)
+
+bool dcd_test_mode_supported(test_mode_t test_selector) {
+  // Check if test mode selector is unsupported
+  if (TEST_FORCE_ENABLE < test_selector || TEST_J > test_selector) {
+    return false;
+  }
+
+  return true;
+}
+
+void dcd_enter_test_mode(uint8_t rhport, test_mode_t test_selector) {
+  // Disable test mode if not supported
+  if (!dcd_test_mode_supported(test_selector)) {
+    test_selector = 0;
+  }
+
+  // Delay the entering a bit so there is enough time to acknowledge request
+  uint32_t count = SystemCoreClock / 20000;
+  while (count--) __NOP();
+
+  // Get port address...
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Enable the test mode
+  dwc2->dctl = (dwc2->dctl & ~DCTL_TCTL_Msk) | (test_selector << DCTL_TCTL_Pos);
+}
+
+#endif /* TUP_USBIP_DWC2_TEST_MODE_SUPPORT */
+
 #endif
