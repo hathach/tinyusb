@@ -115,7 +115,7 @@ static unsigned interval_ms = 1000 / FRAME_RATE;
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
 #include "images.h"
 
-# if !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPG)
+# if !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
 static struct {
   uint32_t       size;
   uint8_t const *buffer;
@@ -187,7 +187,7 @@ void video_task(void)
     already_sent = 1;
     start_ms = board_millis();
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPG)
+# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
     tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                            FRAME_WIDTH * FRAME_HEIGHT * 16/8);
 # else
@@ -205,7 +205,7 @@ void video_task(void)
   start_ms += interval_ms;
 
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPG)
+# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
   tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                          FRAME_WIDTH * FRAME_HEIGHT * 16/8);
 # else
