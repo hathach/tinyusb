@@ -58,7 +58,6 @@ typedef enum
 
   DCD_EVENT_SETUP_RECEIVED,
   DCD_EVENT_XFER_COMPLETE,
-  DCD_EVENT_TEST_MODE,
 
   // Not an DCD event, just a convenient way to defer ISR function
   USBD_EVENT_FUNC_CALL,
@@ -71,7 +70,7 @@ typedef struct TU_ATTR_ALIGNED(4)
   uint8_t rhport;
   uint8_t event_id;
 
-  union
+   union
   {
     // BUS RESET
     struct {
@@ -98,11 +97,6 @@ typedef struct TU_ATTR_ALIGNED(4)
       void (*func) (void*);
       void* param;
     }func_call;
-
-    // TEST MODE
-    struct {
-      uint8_t selector;
-    }test_mode;
   };
 } dcd_event_t;
 
@@ -164,8 +158,8 @@ void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
 // Enable/Disable Start-of-frame interrupt. Default is disabled
 void dcd_sof_enable(uint8_t rhport, bool en);
 
-// Check if the test mode is supported
-bool dcd_test_mode_supported(test_mode_t test_selector) TU_ATTR_WEAK;
+// Check if the test mode is supported, returns true is test mode selector is supported
+bool dcd_check_test_mode_support(test_mode_t test_selector) TU_ATTR_WEAK;
 
 // Put device into a test mode (needs power cycle to quit)
 void dcd_enter_test_mode(uint8_t rhport, test_mode_t test_selector) TU_ATTR_WEAK;
@@ -258,13 +252,6 @@ static inline void dcd_event_sof(uint8_t rhport, uint32_t frame_count, bool in_i
 {
   dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SOF };
   event.sof.frame_count = frame_count;
-  dcd_event_handler(&event, in_isr);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void dcd_event_enter_test_mode(uint8_t rhport, uint8_t test_selector, bool in_isr)
-{
-  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_TEST_MODE };
-  event.test_mode.selector = test_selector;
   dcd_event_handler(&event, in_isr);
 }
 

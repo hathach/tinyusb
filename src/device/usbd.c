@@ -285,6 +285,7 @@ tu_static osal_queue_t _usbd_q;
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
+static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
 // from usbd_control.c
 void usbd_control_reset(void);
@@ -587,11 +588,6 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
         if ( event.func_call.func ) event.func_call.func(event.func_call.param);
       break;
 
-      case DCD_EVENT_TEST_MODE:
-        TU_LOG_USBD(": Enter Test Mode with selector index = %d)\r\n", event.test_mode.selector);
-        if (dcd_enter_test_mode) dcd_enter_test_mode(event.rhport, event.test_mode.selector);
-      break;
-
       case DCD_EVENT_SOF:
       default:
         TU_BREAKPOINT();
@@ -740,35 +736,29 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
               // Host may enable remote wake up before suspending especially HID device
               _usbd_dev.remote_wakeup_en = true;
               tud_control_status(rhport, p_request);
-
             break;
 
             // Support for TEST_MODE
             case TUSB_REQ_FEATURE_TEST_MODE:
-              // Only handle the test mode is supported and valid
-              if (!dcd_enter_test_mode || !dcd_test_mode_supported || 0 != tu_u16_low(p_request->wIndex))
-              {
-                return false;
-              }
+              // Only handle the test mode if supported and valid
+              TU_VERIFY(dcd_enter_test_mode && dcd_check_test_mode_support && 0 == tu_u16_low(p_request->wIndex));
 
               uint8_t selector = tu_u16_high(p_request->wIndex);
 
               // Stall request if the selected test mode isn't supported
-              if (!dcd_test_mode_supported(selector))
+              if (!dcd_check_test_mode_support(selector))
               {
                 TU_LOG_USBD("    Unsupported Test Mode (test selector index: %d)\r\n", selector);
 
                 return false;
               }
 
-              TU_LOG_USBD("    Schedule Test Mode (test selector index: %d)\r\n", selector);
-
               // Acknowledge request
               tud_control_status(rhport, p_request);
 
-              // Schedule the execution of the test mode so that the request can be answered
-              dcd_event_enter_test_mode(rhport, selector, false);
+              TU_LOG_USBD("    Enter Test Mode (test selector index: %d)\r\n", selector);
 
+              usbd_control_set_complete_callback(process_test_mode_cb);
             break;
 
             // Stall unsupported feature selector
@@ -1113,6 +1103,18 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
     default: return false;
   }
+}
+
+bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+{
+  // At this point it should already be ensured that dcd_enter_test_mode() is defined
+
+  // Only enter the test mode after the request for it has completed
+  TU_VERIFY(CONTROL_STAGE_ACK == stage);
+
+  dcd_enter_test_mode(rhport, tu_u16_high(request->wIndex));
+
+  return true;
 }
 
 //--------------------------------------------------------------------+
