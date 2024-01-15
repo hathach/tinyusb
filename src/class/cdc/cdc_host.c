@@ -1358,7 +1358,7 @@ static int32_t ch341_set_baudrate (cdch_interface_t* p_cdc, uint32_t baud_rate, 
    * inverted.
    */
   if ( p_cdc->ch34x.version > 0x27 ) {
-    val = (val | BIT(7));
+    val = (val | TU_BIT(7));
   }
 
   return ch341_write_reg ( p_cdc, CH341_REG_DIVISOR << 8 | CH341_REG_PRESCALER, val, complete_cb, user_data );

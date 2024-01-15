@@ -29,7 +29,7 @@
 
 #include <stdint.h>
 
-#define BIT(nr) ( (uint32_t)1 << (nr) )
+//#define BIT(nr) ( (uint32_t)1 << (nr) )
 
 #define CH34X_BUFFER_SIZE 2
 
@@ -93,19 +93,16 @@
 #define CH341_LCR_CS6          0x01
 #define CH341_LCR_CS5          0x00
 
-#define CH341_QUIRK_LIMITED_PRESCALER BIT(0)
-#define CH341_QUIRK_SIMULATE_BREAK  BIT(1)
+#define CH341_QUIRK_LIMITED_PRESCALER TU_BIT(0)
+#define CH341_QUIRK_SIMULATE_BREAK  TU_BIT(1)
 
 #define CH341_CLKRATE   48000000
 #define CH341_CLK_DIV(ps, fact) (1 << (12 - 3 * (ps) - (fact)))
 #define CH341_MIN_RATE(ps)  (CH341_CLKRATE / (CH341_CLK_DIV((ps), 1) * 512))
 
 /* Supported range is 46 to 3000000 bps. */
-#define CH341_MIN_BPS DIV_ROUND_UP(CH341_CLKRATE, CH341_CLK_DIV(0, 0) * 256)
+#define CH341_MIN_BPS TU_DIV_CEIL(CH341_CLKRATE, CH341_CLK_DIV(0, 0) * 256)
 #define CH341_MAX_BPS (CH341_CLKRATE / (CH341_CLK_DIV(3, 0) * 2))
-
-#define DIV_ROUND_UP __KERNEL_DIV_ROUND_UP
-#define __KERNEL_DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
 
 // error codes
 #define EINVAL    22  /* Invalid argument */
