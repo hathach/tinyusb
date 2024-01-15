@@ -1207,7 +1207,7 @@ static bool ch34x_set_request ( cdch_interface_t* p_cdc, uint8_t direction, uint
       .bmRequestType_bit = {
           .recipient = TUSB_REQ_RCPT_DEVICE,
           .type      = TUSB_REQ_TYPE_VENDOR,
-          .direction = direction
+          .direction = direction & 0x01u
       },
       .bRequest = request,
       .wValue   = tu_htole16 ( value ),
@@ -1265,6 +1265,11 @@ static int32_t ch341_read_reg_request ( cdch_interface_t* p_cdc, uint16_t reg, u
  */
 // calculate baudrate devisors
 // Parts of this functions have been taken over from Linux driver /drivers/usb/serial/ch341.c
+
+static inline uint32_t clamp_val(uint32_t val, uint32_t minval, uint32_t maxval) {
+  return tu_min32(tu_max32(val, minval), maxval);
+}
+
 static int32_t ch341_get_divisor ( cdch_interface_t* p_cdc, uint32_t speed ) {
   uint32_t fact, div, clk_div;
   bool force_fact0 = false;
@@ -1280,9 +1285,6 @@ static int32_t ch341_get_divisor ( cdch_interface_t* p_cdc, uint32_t speed ) {
    * Clamp to supported range, this makes the (ps < 0) and (div < 2)
    * sanity checks below redundant.
    */
-  inline uint32_t max       ( uint32_t val,                  uint32_t maxval ) { return val > maxval ? val : maxval; }
-  inline uint32_t min       ( uint32_t val, uint32_t minval                  ) { return val < minval ? val : minval; }
-  inline uint32_t clamp_val ( uint32_t val, uint32_t minval, uint32_t maxval ) { return min ( max ( val, minval ), maxval ); }
   speed = clamp_val(speed, CH341_MIN_BPS, CH341_MAX_BPS);
 
   /*
@@ -1297,7 +1299,7 @@ static int32_t ch341_get_divisor ( cdch_interface_t* p_cdc, uint32_t speed ) {
   if (ps < 0) return -EINVAL;
 
   /* Determine corresponding divisor, rounding down. */
-  clk_div = CH341_CLK_DIV(ps, fact);
+  clk_div = CH341_CLK_DIV((uint32_t) ps, fact);
   div = CH341_CLKRATE / (clk_div * speed);
 
   /* Some devices require a lower base clock if ps < 3. */
@@ -1333,19 +1335,20 @@ static int32_t ch341_get_divisor ( cdch_interface_t* p_cdc, uint32_t speed ) {
     fact = 0;
   }
 
-  return (0x100 - div) << 8 | fact << 2 | ps;
+  return (int32_t) ((0x100 - div) << 8 | fact << 2 | (uint32_t) ps);
 }
 
 // set baudrate (low level)
 // do not confuse with ch34x_set_baudrate
 // Parts of this functions have been taken over from Linux driver /drivers/usb/serial/ch341.c
-static int32_t ch341_set_baudrate ( cdch_interface_t* p_cdc, uint32_t baud_rate, tuh_xfer_cb_t complete_cb, uintptr_t user_data ) {
-  int val;
-
+static int32_t ch341_set_baudrate (cdch_interface_t* p_cdc, uint32_t baud_rate, tuh_xfer_cb_t complete_cb, uintptr_t user_data ) {
   if (!baud_rate) return -EINVAL;
 
-  val = ch341_get_divisor(p_cdc, baud_rate);
-  if (val < 0) return -EINVAL;
+  int ret;
+  ret = ch341_get_divisor(p_cdc, baud_rate);
+  if (ret < 0) return -EINVAL;
+
+  uint16_t val = (uint16_t) ret;
 
   /*
    * CH341A buffers data until a full endpoint-size packet (32 bytes)
@@ -1355,7 +1358,7 @@ static int32_t ch341_set_baudrate ( cdch_interface_t* p_cdc, uint32_t baud_rate,
    * inverted.
    */
   if ( p_cdc->ch34x.version > 0x27 ) {
-    val |= BIT(7);
+    val = (val | BIT(7));
   }
 
   return ch341_write_reg ( p_cdc, CH341_REG_DIVISOR << 8 | CH341_REG_PRESCALER, val, complete_cb, user_data );
@@ -1449,8 +1452,13 @@ static bool ch34x_set_baudrate ( cdch_interface_t* p_cdc, uint32_t baudrate, tuh
   return ch341_set_baudrate ( p_cdc, baud_le, complete_cb ? ch34x_control_complete : NULL, user_data );
 }
 
-static bool ch34x_set_modem_ctrl ( cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data ) {
+static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_LOG_DRV("CDC CH34x Set Control Line State\r\n");
+  (void) p_cdc;
+  (void) line_state;
+  (void) complete_cb;
+  (void) user_data;
+
   // todo later
   return false;
 }
