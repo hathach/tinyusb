@@ -1098,7 +1098,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
   }
 }
 
-bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   // At this point it should already be ensured that dcd_enter_test_mode() is defined
 
