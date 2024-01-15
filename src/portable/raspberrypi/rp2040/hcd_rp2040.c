@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB
+#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB && !CFG_TUH_MAX3421
 
 #include "pico.h"
 #include "rp2040_usb.h"
@@ -252,9 +252,9 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   }
 }
 
-void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport)
-{
+void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   (void) rhport;
+  (void) in_isr;
   hcd_rp2040_irq();
 }
 

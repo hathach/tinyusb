@@ -1,0 +1,37 @@
+{
+    "boards": [
+        {
+            "name": "raspberry_pi_pico",
+            "uid": "E6614C311B764A37",
+            "flasher": "openocd",
+            "flasher_sn": "E6614103E72C1D2F",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+        },
+        {
+            "name": "espressif_s3_devkitc",
+            "uid": "7CDFA1E073CC",
+            "tests": [
+                "cdc_msc_freertos", "hid_composite_freertos"
+            ],
+            "flasher": "esptool",
+            "flasher_sn": "461cb8d7decdeb119be9b506e93fd3f1",
+            "flasher_args": "-b 1500000"
+        },
+        {
+            "name": "feather_nrf52840_express",
+            "uid": "1F0479CD0F764471",
+            "flasher": "jlink",
+            "flasher_sn": "000682804350",
+            "flasher_args": "-device nrf52840_xxaa"
+        },
+        {
+            "name": "itsybitsy_m4",
+            "uid": "D784B28C5338533335202020FF044726",
+            "flasher": "bossac",
+            "flashser_vendor": "Adafruit Industries",
+            "flasher_product": "ItsyBitsy M4 Express",
+            "flasher_reset_pin": "2",
+            "flasher_args": "--offset 0x4000"
+        }
+    ]
+}

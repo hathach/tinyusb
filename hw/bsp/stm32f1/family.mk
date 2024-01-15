@@ -18,6 +18,11 @@ CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles \
 
+# mcu driver cause following warnings
+CFLAGS_GCC += -Wno-error=cast-align
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # ------------------------
 # All source paths should be relative to the top level.
 # ------------------------
@@ -28,7 +33,8 @@ SRC_C += \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
-  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
@@ -40,6 +46,5 @@ INC += \
 SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
-# flash target ROM bootloader
-flash-dfu-util: $(BUILD)/$(PROJECT).bin
-	dfu-util -R -a 0 --dfuse-address 0x08000000 -D $<
+# flash target ROM bootloader: flash-dfu-util
+DFU_UTIL_OPTION = -a 0 --dfuse-address 0x08000000

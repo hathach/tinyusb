@@ -447,6 +447,10 @@ void hcd_port_reset(uint8_t rhport)
   _hcd.need_reset = false;
 }
 
+void hcd_port_reset_end(uint8_t rhport) {
+  (void) rhport;
+}
+
 tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
   (void)rhport;
@@ -583,8 +587,9 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 /*--------------------------------------------------------------------+
  * ISR
  *--------------------------------------------------------------------+*/
-void hcd_int_handler(uint8_t rhport)
+void hcd_int_handler(uint8_t rhport, bool in_isr)
 {
+  (void) in_isr;
   uint32_t is  = KHCI->ISTAT;
   uint32_t msk = KHCI->INTEN;
 

@@ -266,6 +266,14 @@ static void pipe_read_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void 
   tu_fifo_advance_write_pointer(f, count);
 }
 
+
+static bool wait_pipe_fifo_empty(rusb2_reg_t* rusb, uint8_t num) {
+  TU_ASSERT(num);
+  while( (rusb->PIPE_CTR[num-1] & RUSB2_PIPE_CTR_INBUFM_Msk) > 0 ) {}
+  return true;
+}
+
+
 //--------------------------------------------------------------------+
 // Pipe Transfer
 //--------------------------------------------------------------------+
@@ -339,6 +347,7 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   const unsigned rem  = pipe->remaining;
 
   if (!rem) {
+    wait_pipe_fifo_empty(rusb, num);
     pipe->buf = NULL;
     return true;
   }

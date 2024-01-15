@@ -4,6 +4,7 @@ DEPS_SUBMODULES += lib/CMSIS_5 lib/sct_neopixel $(SDK_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m33
+MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 # Default to Highspeed PORT1
 PORT ?= 1
@@ -27,7 +28,7 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal
 
-MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_CORE)_flash.ld

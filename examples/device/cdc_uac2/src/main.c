@@ -60,7 +60,7 @@ int main(void)
     led_blinking_task();
 
 #if (CFG_TUSB_MCU == OPT_MCU_RP2040)
-    // printf("Hello, world!\n");
+    // printf("Hello, world!\r\n");
 #endif
   }
 

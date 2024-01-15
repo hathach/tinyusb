@@ -213,7 +213,7 @@ void USB0_IRQHandler(void)
   #endif
 
   #if PORT_SUPPORT_HOST(0)
-    tuh_int_handler(0);
+    tuh_int_handler(0, true);
   #endif
 }
 
@@ -224,7 +224,7 @@ void USB1_IRQHandler(void)
   #endif
 
   #if PORT_SUPPORT_HOST(1)
-    tuh_int_handler(1);
+    tuh_int_handler(1, true);
   #endif
 }
 
