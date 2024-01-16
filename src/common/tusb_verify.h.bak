@@ -30,6 +30,8 @@
 #include <stdint.h>
 #include "tusb_option.h"
 #include "tusb_compiler.h"
+#include "stm32wlxx_hal.h"
+
 
 /*------------------------------------------------------------------*/
 /* This file use an advanced macro technique to mimic the default parameter
@@ -75,8 +77,8 @@
   #define _MESS_FAILED() do {} while (0)
 #endif
 
-// Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7, M33. M55
-#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__)
+// Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7, M33
+#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__)
   #define TU_BREAKPOINT() do                                                                                \
   {                                                                                                         \
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
@@ -94,7 +96,9 @@
 #endif
 
 // Helper to implement optional parameter for TU_VERIFY Macro family
-#define _GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
+#define _GET_3RD_ARG(arg1, arg2, arg3, ...)               arg3
+#define _GET_4TH_ARG(arg1, arg2, arg3, arg4, ...)         arg4
+#define _GET_5TH_ARG(arg1, arg2, arg3, arg4, arg5, ...)   arg5
 
 /*------------------------------------------------------------------*/
 /* TU_VERIFY
@@ -119,7 +123,7 @@
  *------------------------------------------------------------------*/
 #define TU_ASSERT_DEFINE(_cond, _ret)                                 \
   do {                                                                \
-    if ( !(_cond) ) { _MESS_FAILED(); TU_BREAKPOINT(); return _ret; } \
+    if ( !(_cond) ) { _MESS_FAILED(); HAL_Delay ( 1000 ); TU_BREAKPOINT(); return _ret; } \
   } while(0)
 
 #define TU_ASSERT_1ARGS(_cond)         TU_ASSERT_DEFINE(_cond, false)

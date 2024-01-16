@@ -37,7 +37,7 @@ jobs:
           # Alphabetical order
           - 'imxrt'
           - 'kinetis_kl'
-          - 'lpc18 lpc40 lpc43'
+          - 'lpc17 lpc18 lpc40 lpc43'
           - 'lpc54 lpc55'
           - 'mcx'
           - 'nrf'
