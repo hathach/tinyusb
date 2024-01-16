@@ -2,7 +2,6 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
- * Copyright (c) 2023 IngHK Heiko Kuester
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +22,9 @@
  * THE SOFTWARE.
  *
  * This file is part of the TinyUSB stack.
+ *
+ * Contribution
+ * - Heiko Kuester: CH34x support
  */
 
 #include "tusb_option.h"
@@ -95,9 +97,9 @@ static bool acm_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfe
 #if CFG_TUH_CDC_FTDI
 #include "serial/ftdi_sio.h"
 
-static uint16_t const ftdi_pids[] = { CFG_TUH_CDC_FTDI_PID_LIST };
+static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST };
 enum {
-  FTDI_PID_COUNT = sizeof(ftdi_pids) / sizeof(ftdi_pids[0])
+  FTDI_PID_COUNT = TU_ARRAY_SIZE(ftdi_vid_pid_list)
 };
 
 static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
@@ -112,9 +114,9 @@ static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tu
 #if CFG_TUH_CDC_CP210X
 #include "serial/cp210x.h"
 
-static uint16_t const cp210x_pids[] = { CFG_TUH_CDC_CP210X_PID_LIST };
+static uint16_t const cp210x_vid_pid_list[][2] = {CFG_TUH_CDC_CP210X_VID_PID_LIST };
 enum {
-  CP210X_PID_COUNT = sizeof(cp210x_pids) / sizeof(cp210x_pids[0])
+  CP210X_PID_COUNT = TU_ARRAY_SIZE(cp210x_vid_pid_list)
 };
 
 static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
@@ -129,9 +131,9 @@ static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_
 #if CFG_TUH_CDC_CH34X
 #include "serial/ch34x.h"
 
-static uint16_t const ch34x_vids_pids[][2] = { CFG_TUH_CDC_CH34X_VID_PID_LIST };
+static uint16_t const ch34x_vid_pid_list[][2] = { CFG_TUH_CDC_CH34X_VID_PID_LIST };
 enum {
-  CH34X_VID_PID_COUNT = sizeof ( ch34x_vids_pids ) / sizeof ( ch34x_vids_pids[0] )
+  CH34X_VID_PID_COUNT = TU_ARRAY_SIZE(ch34x_vid_pid_list)
 };
 
 static bool ch34x_open ( uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len );
@@ -692,28 +694,24 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
     TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid));
 
     #if CFG_TUH_CDC_FTDI
-    if (TU_FTDI_VID == vid) {
-      for (size_t i = 0; i < FTDI_PID_COUNT; i++) {
-        if (ftdi_pids[i] == pid) {
-          return ftdi_open(daddr, itf_desc, max_len);
-        }
+    for (size_t i = 0; i < FTDI_PID_COUNT; i++) {
+      if (ftdi_vid_pid_list[i][0] == vid && ftdi_vid_pid_list[i][1] == pid) {
+        return ftdi_open(daddr, itf_desc, max_len);
       }
     }
     #endif
 
     #if CFG_TUH_CDC_CP210X
-    if (TU_CP210X_VID == vid) {
-      for (size_t i = 0; i < CP210X_PID_COUNT; i++) {
-        if (cp210x_pids[i] == pid) {
-          return cp210x_open(daddr, itf_desc, max_len);
-        }
+    for (size_t i = 0; i < CP210X_PID_COUNT; i++) {
+      if (cp210x_vid_pid_list[i][0] == vid && cp210x_vid_pid_list[i][1] == pid) {
+        return cp210x_open(daddr, itf_desc, max_len);
       }
     }
     #endif
 
     #if CFG_TUH_CDC_CH34X
     for (size_t i = 0; i < CH34X_VID_PID_COUNT; i++) {
-      if ( ch34x_vids_pids[i][0] == vid && ch34x_vids_pids[i][1] == pid ) {
+      if ( ch34x_vid_pid_list[i][0] == vid && ch34x_vid_pid_list[i][1] == pid ) {
         return ch34x_open(daddr, itf_desc, max_len);
       }
     }
