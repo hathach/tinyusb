@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2023 Heiko Kuester (tinyusb.org)
+ * Copyright (c) 2023 Heiko Kuester
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #define CH34X_BUFFER_SIZE 2
 
 // The following defines have been taken over from Linux driver /drivers/usb/serial/ch341.c
+// Note: updated driver can also be found in https://github.com/WCHSoftGroup/ch341ser_linux/tree/main/driver
 
 #define DEFAULT_BAUD_RATE 9600
 
@@ -53,8 +54,7 @@
 /* second interrupt byte */
 #define CH341_MULT_STAT 0x04 /* multiple status since last interrupt event */
 
-/* status returned in third interrupt answer byte, inverted in data
-   from irq */
+/* status returned in third interrupt answer byte, inverted in data from irq */
 #define CH341_BIT_CTS 0x01
 #define CH341_BIT_DSR 0x02
 #define CH341_BIT_RI  0x04
