@@ -480,13 +480,13 @@
 #ifndef CFG_TUH_CDC_CH34X_VID_PID_LIST
   // List of product IDs that can use the CH34X CDC driver
   #define CFG_TUH_CDC_CH34X_VID_PID_LIST \
-    { 0x1a86, 0x7523 }, /* ch340 chip */ \
-    { 0x1a86, 0x7522 }, /* ch340k chip */ \
     { 0x1a86, 0x5523 }, /* ch341 chip */ \
+    { 0x1a86, 0x7522 }, /* ch340k chip */ \
+    { 0x1a86, 0x7523 }, /* ch340 chip */ \
     { 0x1a86, 0xe523 }, /* ch330 chip */ \
     { 0x4348, 0x5523 }, /* ch340 custom chip */ \
-    { 0x2184, 0x0057 }, /* overtaken from Linux driver /drivers/usb/serial/ch341.c */ \
-    { 0x9986, 0x7523 }  /* overtaken from Linux driver /drivers/usb/serial/ch341.c */
+    { 0x2184, 0x0057 }, /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */ \
+    { 0x9986, 0x7523 }  /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */
 #endif
 
 #ifndef CFG_TUH_HID
