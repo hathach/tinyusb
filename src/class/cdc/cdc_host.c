@@ -104,9 +104,9 @@ static bool acm_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfe
 #if CFG_TUH_CDC_FTDI
 #include "serial/ftdi_sio.h"
 
-static uint16_t const ftdi_pids[] = { CFG_TUH_CDC_FTDI_PID_LIST };
+static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST };
 enum {
-  FTDI_PID_COUNT = TU_ARRAY_SIZE(ftdi_pids)
+  FTDI_PID_COUNT = TU_ARRAY_SIZE(ftdi_vid_pid_list)
 };
 
 // Store last request baudrate since divisor to baudrate is not easy
@@ -122,9 +122,9 @@ static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tu
 #if CFG_TUH_CDC_CP210X
 #include "serial/cp210x.h"
 
-static uint16_t const cp210x_pids[] = { CFG_TUH_CDC_CP210X_PID_LIST };
+static uint16_t const cp210x_vid_pid_list[][2] = {CFG_TUH_CDC_CP210X_VID_PID_LIST };
 enum {
-  CP210X_PID_COUNT = TU_ARRAY_SIZE(cp210x_pids)
+  CP210X_PID_COUNT = TU_ARRAY_SIZE(cp210x_vid_pid_list)
 };
 
 static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
@@ -645,21 +645,17 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
     TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid));
 
     #if CFG_TUH_CDC_FTDI
-    if (TU_FTDI_VID == vid) {
-      for (size_t i = 0; i < FTDI_PID_COUNT; i++) {
-        if (ftdi_pids[i] == pid) {
-          return ftdi_open(daddr, itf_desc, max_len);
-        }
+    for (size_t i = 0; i < FTDI_PID_COUNT; i++) {
+      if (ftdi_vid_pid_list[i][0] == vid && ftdi_vid_pid_list[i][1] == pid) {
+        return ftdi_open(daddr, itf_desc, max_len);
       }
     }
     #endif
 
     #if CFG_TUH_CDC_CP210X
-    if (TU_CP210X_VID == vid) {
-      for (size_t i = 0; i < CP210X_PID_COUNT; i++) {
-        if (cp210x_pids[i] == pid) {
-          return cp210x_open(daddr, itf_desc, max_len);
-        }
+    for (size_t i = 0; i < CP210X_PID_COUNT; i++) {
+      if (cp210x_vid_pid_list[i][0] == vid && cp210x_vid_pid_list[i][1] == pid) {
+        return cp210x_open(daddr, itf_desc, max_len);
       }
     }
     #endif
