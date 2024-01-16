@@ -104,10 +104,7 @@ static bool acm_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfe
 #if CFG_TUH_CDC_FTDI
 #include "serial/ftdi_sio.h"
 
-static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST };
-enum {
-  FTDI_PID_COUNT = TU_ARRAY_SIZE(ftdi_vid_pid_list)
-};
+static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST};
 
 // Store last request baudrate since divisor to baudrate is not easy
 static uint32_t _ftdi_requested_baud;
@@ -122,10 +119,7 @@ static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tu
 #if CFG_TUH_CDC_CP210X
 #include "serial/cp210x.h"
 
-static uint16_t const cp210x_vid_pid_list[][2] = {CFG_TUH_CDC_CP210X_VID_PID_LIST };
-enum {
-  CP210X_PID_COUNT = TU_ARRAY_SIZE(cp210x_vid_pid_list)
-};
+static uint16_t const cp210x_vid_pid_list[][2] = {CFG_TUH_CDC_CP210X_VID_PID_LIST};
 
 static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
 static void cp210x_process_config(tuh_xfer_t* xfer);
@@ -137,10 +131,7 @@ static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_
 #if CFG_TUH_CDC_CH34X
 #include "serial/ch34x.h"
 
-static uint16_t const ch34x_vids_pids[][2] = { CFG_TUH_CDC_CH34X_VID_PID_LIST };
-enum {
-  CH34X_VID_PID_COUNT = TU_ARRAY_SIZE(ch34x_vids_pids)
-};
+static uint16_t const ch34x_vid_pid_list[][2] = {CFG_TUH_CDC_CH34X_VID_PID_LIST};
 
 static bool ch34x_open ( uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len );
 static void ch34x_process_config ( tuh_xfer_t* xfer );
@@ -164,9 +155,14 @@ enum {
 #if CFG_TUH_CDC_CH34X
   SERIAL_DRIVER_CH34X,
 #endif
+
+  SERIAL_DRIVER_COUNT
 };
 
 typedef struct {
+  uint16_t const (*vid_pid_list)[2];
+  uint16_t const vid_pid_count;
+  bool (*const open)(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
   void (*const process_set_config)(tuh_xfer_t* xfer);
   bool (*const set_control_line_state)(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
   bool (*const set_baudrate)(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -174,36 +170,50 @@ typedef struct {
 
 // Note driver list must be in the same order as SERIAL_DRIVER enum
 static const cdch_serial_driver_t serial_drivers[] = {
-  { .process_set_config     = acm_process_config,
-    .set_control_line_state = acm_set_control_line_state,
-    .set_baudrate           = acm_set_baudrate
+  {
+      .vid_pid_list           = NULL,
+      .vid_pid_count          = 0,
+      .open                   = acm_open,
+      .process_set_config     = acm_process_config,
+      .set_control_line_state = acm_set_control_line_state,
+      .set_baudrate           = acm_set_baudrate
   },
 
   #if CFG_TUH_CDC_FTDI
-  { .process_set_config     = ftdi_process_config,
-    .set_control_line_state = ftdi_sio_set_modem_ctrl,
-    .set_baudrate           = ftdi_sio_set_baudrate
+  {
+      .vid_pid_list           = ftdi_vid_pid_list,
+      .vid_pid_count          = TU_ARRAY_SIZE(ftdi_vid_pid_list),
+      .open                   = ftdi_open,
+      .process_set_config     = ftdi_process_config,
+      .set_control_line_state = ftdi_sio_set_modem_ctrl,
+      .set_baudrate           = ftdi_sio_set_baudrate
   },
   #endif
 
   #if CFG_TUH_CDC_CP210X
-  { .process_set_config     = cp210x_process_config,
-    .set_control_line_state = cp210x_set_modem_ctrl,
-    .set_baudrate           = cp210x_set_baudrate
+  {
+      .vid_pid_list           = cp210x_vid_pid_list,
+      .vid_pid_count          = TU_ARRAY_SIZE(cp210x_vid_pid_list),
+      .open                   = cp210x_open,
+      .process_set_config     = cp210x_process_config,
+      .set_control_line_state = cp210x_set_modem_ctrl,
+      .set_baudrate           = cp210x_set_baudrate
   },
   #endif
 
   #if CFG_TUH_CDC_CH34X
-  { .process_set_config     = ch34x_process_config,
-    .set_control_line_state = ch34x_set_modem_ctrl,
-    .set_baudrate           = ch34x_set_baudrate
+  {
+      .vid_pid_list           = ch34x_vid_pid_list,
+      .vid_pid_count          = TU_ARRAY_SIZE(ch34x_vid_pid_list),
+      .open                   = ch34x_open,
+      .process_set_config     = ch34x_process_config,
+      .set_control_line_state = ch34x_set_modem_ctrl,
+      .set_baudrate           = ch34x_set_baudrate
   },
-#endif
+  #endif
 };
 
-enum {
-  SERIAL_DRIVER_COUNT = TU_ARRAY_SIZE(serial_drivers)
-};
+TU_VERIFY_STATIC(TU_ARRAY_SIZE(serial_drivers) == SERIAL_DRIVER_COUNT, "Serial driver count mismatch");
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -639,36 +649,20 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
       CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass) {
     return acm_open(daddr, itf_desc, max_len);
   }
-  #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CP210X || CFG_TUH_CDC_CH34X
-  else if (TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass) {
+  else if (SERIAL_DRIVER_COUNT > 1 &&
+           TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass) {
     uint16_t vid, pid;
     TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid));
 
-    #if CFG_TUH_CDC_FTDI
-    for (size_t i = 0; i < FTDI_PID_COUNT; i++) {
-      if (ftdi_vid_pid_list[i][0] == vid && ftdi_vid_pid_list[i][1] == pid) {
-        return ftdi_open(daddr, itf_desc, max_len);
+    for (size_t dr = 1; dr < SERIAL_DRIVER_COUNT; dr++) {
+      cdch_serial_driver_t const* driver = &serial_drivers[dr];
+      for (size_t i = 0; i < driver->vid_pid_count; i++) {
+        if (driver->vid_pid_list[i][0] == vid && driver->vid_pid_list[i][1] == pid) {
+          return driver->open(daddr, itf_desc, max_len);
+        }
       }
     }
-    #endif
-
-    #if CFG_TUH_CDC_CP210X
-    for (size_t i = 0; i < CP210X_PID_COUNT; i++) {
-      if (cp210x_vid_pid_list[i][0] == vid && cp210x_vid_pid_list[i][1] == pid) {
-        return cp210x_open(daddr, itf_desc, max_len);
-      }
-    }
-    #endif
-
-    #if CFG_TUH_CDC_CH34X
-    for (size_t i = 0; i < CH34X_VID_PID_COUNT; i++) {
-      if ( ch34x_vids_pids[i][0] == vid && ch34x_vids_pids[i][1] == pid ) {
-        return ch34x_open(daddr, itf_desc, max_len);
-      }
-    }
-    #endif
   }
-  #endif
 
   return false;
 }
@@ -683,9 +677,7 @@ static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t i
   usbh_driver_set_config_complete(p_cdc->daddr, itf_num);
 }
 
-
-bool cdch_set_config(uint8_t daddr, uint8_t itf_num)
-{
+bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   tusb_control_request_t request;
   request.wIndex = tu_htole16((uint16_t) itf_num);
 
