@@ -37,7 +37,7 @@
 // Class Driver Configuration
 //--------------------------------------------------------------------+
 
-// Set Line Control state on enumeration/mounted: DTR ( bit 0), RTS (bit 1)
+// Set Line Control state on enumeration/mounted, refer enums CDC_CONTROL_LINE_STATE_RTS, CDC_CONTROL_LINE_STATE_DTR
 #ifndef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
 #define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM    0
 #endif
@@ -142,7 +142,7 @@ bool tuh_cdc_read_clear (uint8_t idx);
 //   - The function will return true if transfer is successful, false otherwise.
 //--------------------------------------------------------------------+
 
-// Request to Set Control Line State: DTR (bit 0), RTS (bit 1)
+// Request to Set Control Line State, refer enums CDC_CONTROL_LINE_STATE_RTS, CDC_CONTROL_LINE_STATE_DTR
 bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Request to set baudrate
