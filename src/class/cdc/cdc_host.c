@@ -1291,25 +1291,22 @@ static void ch34x_control_complete(tuh_xfer_t* xfer) {
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
     switch (xfer->setup->bRequest) {
-      case CH34X_REQ_WRITE_REG: { // register write request
+      case CH34X_REQ_WRITE_REG:
+        // register write request
         switch (value) {
-          case (0x1312): { // baudrate write
+          case (0x1312):
+            // baudrate write
             p_cdc->line_coding.bit_rate = p_cdc->baudrate_requested;
-            #if CH34X_LOGS
-            TU_LOG_BAUDRATE("CDCh CH34x Control Complete ", p_cdc->line_coding.bit_rate);
-            #endif
             break;
-          }
 
-          default: {
+          default:
             TU_ASSERT(false,); // unexpected register write
             break;
-          }
         }
         break;
-      }
 
-      case CH34X_REQ_MODEM_CTRL: { // set modem controls RTS/DTR request
+      case CH34X_REQ_MODEM_CTRL:
+        // set modem controls RTS/DTR request
         if (~value & CH34X_BIT_RTS) {
           p_cdc->line_state |= CDC_CONTROL_LINE_STATE_RTS;
         } else {
@@ -1322,16 +1319,11 @@ static void ch34x_control_complete(tuh_xfer_t* xfer) {
           p_cdc->line_state &= (uint8_t ) ~CDC_CONTROL_LINE_STATE_DTR;
         }
 
-        #if CH34X_LOGS
-        TU_LOG_CONTROL_LINE_STATE("CDCh CH34x Control Complete ", p_cdc->line_state);
-        #endif
         break;
-      }
 
-      default: {
+      default:
         TU_ASSERT(false,); // unexpected request
         break;
-      }
     }
 
     xfer->complete_cb = p_cdc->user_control_cb;
@@ -1393,33 +1385,31 @@ static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t con
   return false;
 }
 
-static bool
-ch34x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb,
-                   uintptr_t user_data) {
+static bool ch34x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
+                               tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->baudrate_requested = baudrate;
   p_cdc->user_control_cb = complete_cb;
   uint8_t factor, divisor;
-  TU_ASSERT (ch34x_get_factor_divisor(baudrate, &factor, &divisor), false);
+  TU_ASSERT (ch34x_get_factor_divisor(baudrate, &factor, &divisor));
   uint16_t const value = (uint16_t ) (factor << 8 | 0x80 | divisor);
-  TU_ASSERT (
-      ch34x_write_reg(p_cdc, /* reg */ 0x1312, /* value */ value,
-                      complete_cb ? ch34x_control_complete : NULL, user_data), false);
+  TU_ASSERT (ch34x_write_reg(p_cdc, 0x1312, value,
+                             complete_cb ? ch34x_control_complete : NULL, user_data));
 
   return true;
 }
 
-static bool
-ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb,
-                     uintptr_t user_data) {
+static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state,
+                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
   uint16_t control = 0;
-  if (line_state & CDC_CONTROL_LINE_STATE_RTS)
+  if (line_state & CDC_CONTROL_LINE_STATE_RTS) {
     control |= CH34X_BIT_RTS;
-  if (line_state & CDC_CONTROL_LINE_STATE_DTR)
+  }
+  if (line_state & CDC_CONTROL_LINE_STATE_DTR) {
     control |= CH34X_BIT_DTR;
-  TU_ASSERT (
-      ch34x_control_out(p_cdc, /* request */ CH34X_REQ_MODEM_CTRL, /* value */ (uint8_t) ~control,
-          /* index */ 0, complete_cb ? ch34x_control_complete : NULL, user_data), false);
+  }
+  TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_MODEM_CTRL, (uint8_t) ~control, 0,
+                               complete_cb ? ch34x_control_complete : NULL, user_data));
   return true;
 }
 
@@ -1437,9 +1427,9 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       #if CH34X_LOGS
       TU_LOG_DRV ( "[%u] CDCh CH34x Process Config started\r\n", p_cdc->daddr );
       #endif
-      TU_ASSERT (ch34x_control_in(p_cdc, /* request */ CH34X_REQ_READ_VERSION, /* value */ 0,
-          /* index */ 0, buffer, 2, ch34x_process_config, CONFIG_CH34X_SERIAL_INIT),);
+      TU_ASSERT (ch34x_control_in(p_cdc, CH34X_REQ_READ_VERSION, 0, 0, buffer, 2, ch34x_process_config, CONFIG_CH34X_SERIAL_INIT),);
       break;
+
     case CONFIG_CH34X_SERIAL_INIT: { // handle version read data, request to init CH34x with line_coding and baudrate
       uint8_t version = xfer->buffer[0];
       #if CH34X_LOGS
@@ -1468,46 +1458,51 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
           lcr |= CH34X_LCR_CS8;
           break;
       }
+
       if (line_coding.parity != CDC_LINE_CODING_PARITY_NONE) {
         lcr |= CH34X_LCR_ENABLE_PAR;
         if (line_coding.parity == CDC_LINE_CODING_PARITY_EVEN ||
-            line_coding.parity == CDC_LINE_CODING_PARITY_SPACE)
+            line_coding.parity == CDC_LINE_CODING_PARITY_SPACE) {
           lcr |= CH34X_LCR_PAR_EVEN;
+        }
         if (line_coding.parity == CDC_LINE_CODING_PARITY_MARK ||
-            line_coding.parity == CDC_LINE_CODING_PARITY_SPACE)
+            line_coding.parity == CDC_LINE_CODING_PARITY_SPACE) {
           lcr |= CH34X_LCR_MARK_SPACE;
+        }
       }
       TU_ASSERT (line_coding.stop_bits == CDC_LINE_CODING_STOP_BITS_1 || line_coding.stop_bits ==
                                                                          CDC_LINE_CODING_STOP_BITS_2,); // not supported 1.5 stop bits
-      if (line_coding.stop_bits == CDC_LINE_CODING_STOP_BITS_2)
+      if (line_coding.stop_bits == CDC_LINE_CODING_STOP_BITS_2) {
         lcr |= CH34X_LCR_STOP_BITS_2;
-      TU_ASSERT (ch34x_control_out(p_cdc, /* request */ CH34X_REQ_SERIAL_INIT, /* value */
-                                   (uint16_t) (lcr << 8 | 0x9c),
-          /* index */ (uint16_t) (factor << 8 | 0x80 | divisor), ch34x_process_config,
-                                   CONFIG_CH34X_SPECIAL_REG_WRITE),);
+      }
+      TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_SERIAL_INIT, (uint16_t) (lcr << 8 | 0x9c), (uint16_t) (factor << 8 | 0x80 | divisor),
+                                   ch34x_process_config, CONFIG_CH34X_SPECIAL_REG_WRITE),);
       break;
     }
-    case CONFIG_CH34X_SPECIAL_REG_WRITE: // do special reg write, purpose unknown, overtaken from WCH driver
-      TU_ASSERT (ch34x_write_reg(p_cdc, /* reg */ 0x0f2c, /* value */ 0x0007, ch34x_process_config,
-                                 CONFIG_CH34X_FLOW_CONTROL),);
+
+    case CONFIG_CH34X_SPECIAL_REG_WRITE:
+      // do special reg write, purpose unknown, overtaken from WCH driver
+      TU_ASSERT (ch34x_write_reg(p_cdc, 0x0f2c, 0x0007, ch34x_process_config, CONFIG_CH34X_FLOW_CONTROL),);
       break;
-    case CONFIG_CH34X_FLOW_CONTROL: // no hardware flow control
-      TU_ASSERT (ch34x_write_reg(p_cdc, /* reg */ 0x2727, /* value */ 0x0000, ch34x_process_config,
-                                 CONFIG_CH34X_MODEM_CONTROL),);
+
+    case CONFIG_CH34X_FLOW_CONTROL:
+      // no hardware flow control
+      TU_ASSERT (ch34x_write_reg(p_cdc, 0x2727, 0x0000, ch34x_process_config, CONFIG_CH34X_MODEM_CONTROL),);
       break;
-    case CONFIG_CH34X_MODEM_CONTROL: // !always! set modem controls RTS/DTR (CH34x has no reset state after CH34X_REQ_SERIAL_INIT)
-      TU_ASSERT (ch34x_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, ch34x_process_config,
-                                      CONFIG_CH34X_COMPLETE),);
+
+    case CONFIG_CH34X_MODEM_CONTROL:
+      // !always! set modem controls RTS/DTR (CH34x has no reset state after CH34X_REQ_SERIAL_INIT)
+      TU_ASSERT (ch34x_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, ch34x_process_config, CONFIG_CH34X_COMPLETE),);
       break;
+
     case CONFIG_CH34X_COMPLETE:
       p_cdc->line_coding = line_coding; // CONFIG_CH34X_SERIAL_INIT not handled by ch34x_control_complete
       #if CH34X_LOGS
       TU_LOG_DRV("CDCh CH34x Process Config Complete\r\n");
-      TU_LOG_LINE_CODING("  ", p_cdc->line_coding);
-      TU_LOG_CONTROL_LINE_STATE("  ", p_cdc->line_state);
       #endif
       set_config_complete(p_cdc, idx, itf_num);
       break;
+
     default:
       TU_ASSERT (false,);
       break;
