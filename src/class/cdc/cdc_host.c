@@ -670,6 +670,7 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
 }
 
 static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t itf_num) {
+  TU_LOG_DRV("CDCh Set Configure complete\r\n");
   if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(idx);
 
   // Prepare for incoming data
@@ -1176,8 +1177,6 @@ static void cp210x_process_config(tuh_xfer_t* xfer) {
 
 #if CFG_TUH_CDC_CH34X
 
-#define CH34X_LOGS false
-
 enum {
   CONFIG_CH34X_READ_VERSION = 0,
   CONFIG_CH34X_SERIAL_INIT,
@@ -1247,14 +1246,13 @@ static bool ch34x_set_request(cdch_interface_t* p_cdc, uint8_t direction, uint8_
   return tuh_control_xfer(&xfer);
 }
 
-static bool ch34x_control_out(cdch_interface_t* p_cdc, uint8_t request, uint16_t value, uint16_t index,
-                              tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  return ch34x_set_request(p_cdc, TUSB_DIR_OUT, request, value, index, /* buffer */ NULL, /* length */ 0, complete_cb, user_data);
+static inline bool ch34x_control_out(cdch_interface_t* p_cdc, uint8_t request, uint16_t value, uint16_t index,
+                                     tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  return ch34x_set_request(p_cdc, TUSB_DIR_OUT, request, value, index, NULL, 0, complete_cb, user_data);
 }
 
-static bool ch34x_control_in(cdch_interface_t* p_cdc, uint8_t request, uint16_t value, uint16_t index,
-                 uint8_t* buffer, uint16_t buffersize, tuh_xfer_cb_t complete_cb,
-                 uintptr_t user_data) {
+static inline bool ch34x_control_in(cdch_interface_t* p_cdc, uint8_t request, uint16_t value, uint16_t index,
+                                    uint8_t* buffer, uint16_t buffersize, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return ch34x_set_request(p_cdc, TUSB_DIR_IN, request, value, index, buffer, buffersize,
                            complete_cb, user_data);
 }
@@ -1425,27 +1423,24 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t* p_cdc = get_itf(idx);
   cdc_line_coding_t const line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
-  uint8_t buffer[2];
+  uint8_t buffer[2]; // TODO remove
   TU_ASSERT (p_cdc,);
 
   switch (state) {
     case CONFIG_CH34X_READ_VERSION: // request version read
-      #if CH34X_LOGS
-        TU_LOG_DRV ( "[%u] CDCh CH34x Process Config started\r\n", p_cdc->daddr );
-      #endif
+      TU_LOG_DRV("[%u] CDCh CH34x attempt to read version\r\n", p_cdc->daddr);
       TU_ASSERT (ch34x_control_in(p_cdc, CH34X_REQ_READ_VERSION, 0, 0, buffer, 2, ch34x_process_config, CONFIG_CH34X_SERIAL_INIT),);
       break;
 
     case CONFIG_CH34X_SERIAL_INIT: { // handle version read data, request to init CH34x with line_coding and baudrate
       uint8_t version = xfer->buffer[0];
-      #if CH34X_LOGS
-        TU_LOG_DRV("[%u] CDCh CH34x Chip version=%02x\r\n", p_cdc->daddr, version);
-      #endif
+      TU_LOG_DRV("[%u] CDCh CH34x Chip version = %02x\r\n", p_cdc->daddr, version);
       // only versions >= 0x30 are tested, below 0x30 seems having other programming, see WCH vendor, linux kernel and FreeBSD drivers
       TU_ASSERT (version >= 0x30,);
       uint8_t factor, divisor;
       TU_ASSERT (ch34x_get_factor_divisor(line_coding.bit_rate, &factor, &divisor),);
       uint8_t lcr = CH34X_LCR_ENABLE_RX | CH34X_LCR_ENABLE_TX;
+
       switch (line_coding.data_bits) {
         case 5:
           lcr |= CH34X_LCR_CS5;
@@ -1503,9 +1498,6 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
 
     case CONFIG_CH34X_COMPLETE:
       p_cdc->line_coding = line_coding; // CONFIG_CH34X_SERIAL_INIT not handled by ch34x_control_complete
-      #if CH34X_LOGS
-        TU_LOG_DRV("CDCh CH34x Process Config Complete\r\n");
-      #endif
       set_config_complete(p_cdc, idx, itf_num);
       break;
 

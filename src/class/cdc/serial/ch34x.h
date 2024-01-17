@@ -27,6 +27,10 @@
 #ifndef _CH34X_H_
 #define _CH34X_H_
 
+// There is no official documentation for the CH34x chips. Reference can be found
+// - https://github.com/WCHSoftGroup/ch341ser_linux
+// - https://github.com/torvalds/linux/blob/master/drivers/usb/serial/ch341.c
+
 // set line_coding @ enumeration
 #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
 #define CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X CFG_TUH_CDC_LINE_CODING_ON_ENUM
@@ -40,6 +44,15 @@
 #define CH34X_REQ_READ_REG     0x95 // dec 149
 #define CH34X_REQ_SERIAL_INIT  0xA1 // dec 161
 #define CH34X_REQ_MODEM_CTRL   0xA4 // dev 164
+
+#define CH34X_REG_BREAK        0x05
+#define CH34X_REG_PRESCALER    0x12
+#define CH34X_REG_DIVISOR      0x13
+#define CH34X_REG_LCR          0x18
+#define CH34X_REG_LCR2         0x25
+#define CH34X_REG_MCR_MSR      0x06
+#define CH34X_REG_MCR_MSR2     0x07
+#define CH34X_NBREAK_BITS      0x01
 
 // modem control bits
 #define CH34X_BIT_RTS ( 1 << 6 )
