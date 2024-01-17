@@ -27,9 +27,13 @@
 #ifndef _CH34X_H_
 #define _CH34X_H_
 
+// For simplicity, only the name CH34X is used here,
+// but specifically only CH340 and CH341 are supported.
+
 // There is no official documentation for the CH34x chips. Reference can be found
 // - https://github.com/WCHSoftGroup/ch341ser_linux
 // - https://github.com/torvalds/linux/blob/master/drivers/usb/serial/ch341.c
+// - https://github.com/freebsd/freebsd-src/blob/main/sys/dev/usb/serial/uchcom.c
 
 // set line_coding @ enumeration
 #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
@@ -45,6 +49,7 @@
 #define CH34X_REQ_SERIAL_INIT  0xA1 // dec 161
 #define CH34X_REQ_MODEM_CTRL   0xA4 // dev 164
 
+// registers
 #define CH34X_REG_BREAK        0x05
 #define CH34X_REG_PRESCALER    0x12
 #define CH34X_REG_DIVISOR      0x13
@@ -64,10 +69,12 @@
 #define CH34X_LCR_MARK_SPACE   0x20
 #define CH34X_LCR_PAR_EVEN     0x10
 #define CH34X_LCR_ENABLE_PAR   0x08
+#define CH34X_LCR_PAR_MASK     0x38 // all parity bits
 #define CH34X_LCR_STOP_BITS_2  0x04
 #define CH34X_LCR_CS8          0x03
 #define CH34X_LCR_CS7          0x02
 #define CH34X_LCR_CS6          0x01
 #define CH34X_LCR_CS5          0x00
+#define CH34X_LCR_CS_MASK      0x03 // all CSx bits
 
 #endif /* _CH34X_H_ */
