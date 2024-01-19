@@ -63,7 +63,8 @@
 #define CH341_REG_0x2C         0x2C // undocumented register
 #define CH341_REG_0x27         0x27 // hardware flow control (cts/rts)
 
-#define CH34X_REG16_DIVISOR_PRESCALER TU_U16(CH34X_REG_DIVISOR, CH34X_REG_PRESCALER)
+#define CH34X_REG16_DIVISOR_PRESCALER  TU_U16(CH34X_REG_DIVISOR, CH34X_REG_PRESCALER)
+#define CH32X_REG16_LCR2_LCR           TU_U16(CH34X_REG_LCR2, CH34X_REG_LCR)
 
 // modem control bits
 #define CH34X_BIT_RTS ( 1 << 6 )

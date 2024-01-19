@@ -1327,48 +1327,88 @@ static void ch34x_control_complete(tuh_xfer_t* xfer) {
   process_internal_control_complete(p_cdc, xfer);
 }
 
-//static bool ch34x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
-//                                tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-//  uint8_t const lcr = ch34x_get_lcr(stop_bits, parity, data_bits);
-//  p_cdc->requested_line_coding.stop_bits = stop_bits;
-//  p_cdc->requested_line_coding.parity = parity;
-//  p_cdc->requested_line_coding.data_bits = data_bits;
-//
-//  TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, CH32X_REG16_LCR2_LCR, lcr,
-//                                complete_cb ? ch34x_control_complete : NULL, user_data));
-//  return false;
-//}
+static bool ch34x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
+                                tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->requested_line_coding.stop_bits = stop_bits;
+  p_cdc->requested_line_coding.parity = parity;
+  p_cdc->requested_line_coding.data_bits = data_bits;
 
-static bool ch34x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
-                               tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint16_t const div_ps = ch34x_get_divisor_prescaler(baudrate);
-  TU_VERIFY(div_ps != 0);
-
-  p_cdc->requested_line_coding.bit_rate = baudrate;
-  p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT(ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps,
-                            complete_cb ? ch34x_control_complete : NULL, user_data));
-
+  uint8_t const lcr = ch34x_get_lcr(stop_bits, parity, data_bits);
+  TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, CH32X_REG16_LCR2_LCR, lcr,
+                               complete_cb ? ch34x_control_complete : NULL, user_data));
   return true;
 }
 
-//static void ch34x_set_line_coding_stage1(tuh_xfer_t* xfer) {
-//
-//}
+static bool ch34x_write_reg_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
+                                     tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  uint16_t const div_ps = ch34x_get_divisor_prescaler(baudrate);
+  TU_VERIFY(div_ps != 0);
+  TU_ASSERT(ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps,
+                            complete_cb, user_data));
+  return true;
+}
 
+static bool ch34x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
+                               tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->requested_line_coding.bit_rate = baudrate;
+  p_cdc->user_control_cb = complete_cb;
+  TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, baudrate,
+                                     complete_cb ? ch34x_control_complete : NULL, user_data));
+  return true;
+}
+
+static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
+  uint8_t const itf_num = 0;
+  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
+  cdch_interface_t* p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc, );
+
+  if (xfer->result == XFER_RESULT_SUCCESS) {
+    // stage 1 success, continue to stage 2
+    p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
+    TU_ASSERT(ch34x_set_data_format(p_cdc, p_cdc->requested_line_coding.stop_bits, p_cdc->requested_line_coding.parity,
+                                    p_cdc->requested_line_coding.data_bits, ch34x_control_complete, xfer->user_data), );
+  } else {
+    // stage 1 failed, notify user
+    xfer->complete_cb = p_cdc->user_control_cb;
+    if (xfer->complete_cb) {
+      xfer->complete_cb(xfer);
+    }
+  }
+}
+
+// 2 stages: set baudrate (stage1) + set data format (stage2)
 static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-//  p_cdc->baudrate_requested = line_coding->bit_rate;
-//  p_cdc->user_control_cb = complete_cb;
-//  uint8_t factor, divisor, lcr;
-//  TU_ASSERT (ch34x_get_factor_divisor(line_coding->bit_rate, &factor, &divisor));
-//  TU_ASSERT (ch34x_get_lcr(line_coding, &lcr));
-//  TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_SERIAL_INIT, (uint16_t) (lcr << 8 | 0x9c), (uint16_t) (factor << 8 | 0x80 | divisor),
-//                               complete_cb ? ch34x_control_complete : NULL, user_data));
-  (void) p_cdc;
-  (void) line_coding;
-  (void) complete_cb;
-  (void) user_data;
+  p_cdc->requested_line_coding = *line_coding;
+  p_cdc->user_control_cb = complete_cb;
+
+  if (complete_cb) {
+    // stage 1 set baudrate
+    TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, line_coding->bit_rate,
+                                       ch34x_set_line_coding_stage1_complete, user_data));
+  } else {
+    // sync call
+    xfer_result_t result;
+
+    // stage 1 set baudrate
+    TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, line_coding->bit_rate, NULL, (uintptr_t) &result));
+    TU_VERIFY(result == XFER_RESULT_SUCCESS);
+    p_cdc->line_coding.bit_rate = line_coding->bit_rate;
+
+    // stage 2 set data format
+    TU_ASSERT(ch34x_set_data_format(p_cdc, line_coding->stop_bits, line_coding->parity, line_coding->data_bits,
+                                    NULL, (uintptr_t) &result));
+    TU_VERIFY(result == XFER_RESULT_SUCCESS);
+    p_cdc->line_coding.stop_bits = line_coding->stop_bits;
+    p_cdc->line_coding.parity = line_coding->parity;
+    p_cdc->line_coding.data_bits = line_coding->data_bits;
+
+    // update transfer result, user_data is expected to point to xfer_result_t
+    if (user_data) {
+      user_data = result;
+    }
+  }
 
   return true;
 }
