@@ -1510,9 +1510,10 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t* p_cdc = get_itf(idx);
   uintptr_t const state = xfer->user_data;
-  cdc_line_coding_t const line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
   uint8_t buffer[2]; // TODO remove
   TU_ASSERT (p_cdc,);
+
+  // TODO check xfer->result
 
   switch (state) {
     case CONFIG_CH34X_READ_VERSION:
@@ -1527,20 +1528,28 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       // only versions >= 0x30 are tested, below 0x30 seems having other programming, see drivers from WCH vendor, Linux kernel and FreeBSD
       TU_ASSERT (version >= 0x30,);
 
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+      cdc_line_coding_t const line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+      uint8_t const lcr = ch34x_get_lcr(line_coding.stop_bits, line_coding.parity, line_coding.data_bits);
+      uint16_t const first_arg = tu_u16(lcr, 0x9c);
       uint16_t const div_ps = ch34x_get_divisor_prescaler(line_coding.bit_rate);
       TU_ASSERT(div_ps != 0, );
-
-      uint8_t const lcr = ch34x_get_lcr(line_coding.stop_bits, line_coding.parity, line_coding.data_bits);
+      #else
+      uint16_t const first_arg = 0;
+      uint16_t const div_ps = 0;
+      #endif
 
       // Init CH34x with line coding
-      TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_SERIAL_INIT, tu_u16(lcr, 0x9c), div_ps,
+      TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_SERIAL_INIT, first_arg, div_ps,
                                    ch34x_process_config, CONFIG_CH34X_SPECIAL_REG_WRITE),);
       break;
     }
 
     case CONFIG_CH34X_SPECIAL_REG_WRITE:
       // do special reg write, purpose unknown, overtaken from WCH driver
-      p_cdc->line_coding = line_coding;
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+      p_cdc->line_coding = ((cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM);
+      #endif
       TU_ASSERT (ch34x_write_reg(p_cdc, 0x0f2c, 0x0007, ch34x_process_config, CONFIG_CH34X_FLOW_CONTROL),);
       break;
 

@@ -27,20 +27,10 @@
 #ifndef _CH34X_H_
 #define _CH34X_H_
 
-// For simplicity, only the name CH34X is used here,
-// but specifically only CH340 and CH341 are supported.
-
-// There is no official documentation for the CH34x chips. Reference can be found
+// There is no official documentation for the CH34x (CH340, CH341) chips. Reference can be found
 // - https://github.com/WCHSoftGroup/ch341ser_linux
 // - https://github.com/torvalds/linux/blob/master/drivers/usb/serial/ch341.c
 // - https://github.com/freebsd/freebsd-src/blob/main/sys/dev/usb/serial/uchcom.c
-
-// set line_coding @ enumeration
-#ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-#define CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X CFG_TUH_CDC_LINE_CODING_ON_ENUM
-#else // this default is necessary to work properly
-#define CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X { 9600, CDC_LINE_CONDING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
-#endif
 
 // USB requests
 #define CH34X_REQ_READ_VERSION 0x5F // dec  95

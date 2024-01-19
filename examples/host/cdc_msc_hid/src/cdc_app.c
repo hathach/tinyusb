@@ -85,13 +85,17 @@ void tuh_cdc_mount_cb(uint8_t idx) {
          itf_info.desc.bInterfaceNumber);
 
 #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-  // CFG_TUH_CDC_LINE_CODING_ON_ENUM must be defined for line coding is set by tinyusb in enumeration
-  // otherwise you need to call tuh_cdc_set_line_coding() first
+  // If CFG_TUH_CDC_LINE_CODING_ON_ENUM is defined, line coding will be set by tinyusb stack
+  // while eneumerating new cdc device
   cdc_line_coding_t line_coding = {0};
   if (tuh_cdc_get_local_line_coding(idx, &line_coding)) {
     printf("  Baudrate: %lu, Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
     printf("  Parity  : %u, Data Width: %u\r\n", line_coding.parity, line_coding.data_bits);
   }
+#else
+  // Set Line Coding upon mounted
+  cdc_line_coding_t new_line_coding = { 115200, CDC_LINE_CODING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 };
+  tuh_cdc_set_line_coding(idx, &new_line_coding, NULL, 0);
 #endif
 }
 
