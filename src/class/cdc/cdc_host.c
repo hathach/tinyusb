@@ -1223,46 +1223,12 @@ static void cp210x_process_config(tuh_xfer_t* xfer) {
 
 #if CFG_TUH_CDC_CH34X
 
-enum {
-  CONFIG_CH34X_READ_VERSION = 0,
-  CONFIG_CH34X_SERIAL_INIT,
-  CONFIG_CH34X_SPECIAL_REG_WRITE,
-  CONFIG_CH34X_FLOW_CONTROL,
-  CONFIG_CH34X_MODEM_CONTROL,
-  CONFIG_CH34X_COMPLETE
-};
-
 static uint8_t ch34x_get_lcr(uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
 static uint16_t ch34x_get_divisor_prescaler(uint32_t baval);
 
-static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len) {
-  // CH34x Interface includes 1 vendor interface + 2 bulk + 1 interrupt endpoints
-  TU_VERIFY (itf_desc->bNumEndpoints == 3);
-  TU_VERIFY (sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t) <= max_len);
-
-  cdch_interface_t* p_cdc = make_new_itf(daddr, itf_desc);
-  TU_VERIFY (p_cdc);
-
-  TU_LOG_DRV ("CH34x opened\r\n");
-  p_cdc->serial_drid = SERIAL_DRIVER_CH34X;
-
-  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
-
-  // data endpoints expected to be in pairs
-  TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep));
-  desc_ep += 2;
-
-  // Interrupt endpoint: not used for now
-  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep) &&
-            TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer);
-  TU_ASSERT(tuh_edpt_open(daddr, desc_ep));
-  p_cdc->ep_notif = desc_ep->bEndpointAddress;
-
-  return true;
-}
-
+//------------- control requestt -------------//
 static bool ch34x_set_request(cdch_interface_t* p_cdc, uint8_t direction, uint8_t request, uint16_t value,
-                  uint16_t index, uint8_t* buffer, uint16_t length, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+                              uint16_t index, uint8_t* buffer, uint16_t length, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   tusb_control_request_t const request_setup = {
       .bmRequestType_bit = {
           .recipient = TUSB_REQ_RCPT_DEVICE,
@@ -1318,6 +1284,17 @@ static bool ch34x_write_reg(cdch_interface_t* p_cdc, uint16_t reg, uint16_t reg_
 //  return ch34x_control_in ( p_cdc, CH34X_REQ_READ_REG, reg, 0, buffer, buffersize, complete_cb, user_data );
 //}
 
+static bool ch34x_write_reg_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
+                                     tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  uint16_t const div_ps = ch34x_get_divisor_prescaler(baudrate);
+  TU_VERIFY(div_ps != 0);
+  TU_ASSERT(ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps,
+                            complete_cb, user_data));
+  return true;
+}
+
+//------------- Driver API -------------//
+
 // internal control complete to update state such as line state, encoding
 static void ch34x_control_complete(tuh_xfer_t* xfer) {
   // CH34x only has 1 interface and use wIndex as payload and not for bInterfaceNumber
@@ -1336,15 +1313,6 @@ static bool ch34x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, ui
   uint8_t const lcr = ch34x_get_lcr(stop_bits, parity, data_bits);
   TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, CH32X_REG16_LCR2_LCR, lcr,
                                complete_cb ? ch34x_control_complete : NULL, user_data));
-  return true;
-}
-
-static bool ch34x_write_reg_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
-                                     tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint16_t const div_ps = ch34x_get_divisor_prescaler(baudrate);
-  TU_VERIFY(div_ps != 0);
-  TU_ASSERT(ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps,
-                            complete_cb, user_data));
   return true;
 }
 
@@ -1429,6 +1397,42 @@ static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state,
   p_cdc->user_control_cb = complete_cb;
   TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_MODEM_CTRL, control, 0,
                                complete_cb ? ch34x_control_complete : NULL, user_data));
+  return true;
+}
+
+//------------- Enumeration -------------//
+enum {
+  CONFIG_CH34X_READ_VERSION = 0,
+  CONFIG_CH34X_SERIAL_INIT,
+  CONFIG_CH34X_SPECIAL_REG_WRITE,
+  CONFIG_CH34X_FLOW_CONTROL,
+  CONFIG_CH34X_MODEM_CONTROL,
+  CONFIG_CH34X_COMPLETE
+};
+
+static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len) {
+  // CH34x Interface includes 1 vendor interface + 2 bulk + 1 interrupt endpoints
+  TU_VERIFY (itf_desc->bNumEndpoints == 3);
+  TU_VERIFY (sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t) <= max_len);
+
+  cdch_interface_t* p_cdc = make_new_itf(daddr, itf_desc);
+  TU_VERIFY (p_cdc);
+
+  TU_LOG_DRV ("CH34x opened\r\n");
+  p_cdc->serial_drid = SERIAL_DRIVER_CH34X;
+
+  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
+
+  // data endpoints expected to be in pairs
+  TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep));
+  desc_ep += 2;
+
+  // Interrupt endpoint: not used for now
+  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep) &&
+            TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer);
+  TU_ASSERT(tuh_edpt_open(daddr, desc_ep));
+  p_cdc->ep_notif = desc_ep->bEndpointAddress;
+
   return true;
 }
 
