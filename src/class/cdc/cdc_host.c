@@ -401,7 +401,9 @@ bool tuh_cdc_read_clear (uint8_t idx) {
 // Control Endpoint API
 //--------------------------------------------------------------------+
 
-static void process_internal_control_complete(cdch_interface_t* p_cdc, tuh_xfer_t* xfer) {
+static void process_internal_control_complete(tuh_xfer_t* xfer, uint8_t itf_num) {
+  uint8_t idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
+  cdch_interface_t* p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc, );
   uint16_t const value = tu_le16toh(xfer->setup->wValue);
 
@@ -515,10 +517,7 @@ static void process_internal_control_complete(cdch_interface_t* p_cdc, tuh_xfer_
 // internal control complete to update state such as line state, encoding
 static void cdch_internal_control_complete(tuh_xfer_t* xfer) {
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-  uint8_t idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t* p_cdc = get_itf(idx);
-
-  process_internal_control_complete(p_cdc, xfer);
+  process_internal_control_complete(xfer, itf_num);
 }
 
 bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
@@ -1294,7 +1293,8 @@ static void cp210x_process_config(tuh_xfer_t* xfer) {
 static uint8_t ch34x_get_lcr(uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
 static uint16_t ch34x_get_divisor_prescaler(uint32_t baval);
 
-//------------- control requestt -------------//
+//------------- control request -------------//
+
 static bool ch34x_set_request(cdch_interface_t* p_cdc, uint8_t direction, uint8_t request, uint16_t value,
                               uint16_t index, uint8_t* buffer, uint16_t length, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   tusb_control_request_t const request_setup = {
@@ -1366,10 +1366,7 @@ static bool ch34x_write_reg_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
 // internal control complete to update state such as line state, encoding
 static void ch34x_control_complete(tuh_xfer_t* xfer) {
   // CH34x only has 1 interface and use wIndex as payload and not for bInterfaceNumber
-  uint8_t const itf_num = 0;
-  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t* p_cdc = get_itf(idx);
-  process_internal_control_complete(p_cdc, xfer);
+  process_internal_control_complete(xfer, 0);
 }
 
 static bool ch34x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
@@ -1379,6 +1376,7 @@ static bool ch34x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, ui
   p_cdc->requested_line_coding.data_bits = data_bits;
 
   uint8_t const lcr = ch34x_get_lcr(stop_bits, parity, data_bits);
+  TU_VERIFY(lcr != 0);
   TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, CH32X_REG16_LCR2_LCR, lcr,
                                complete_cb ? ch34x_control_complete : NULL, user_data));
   return true;
@@ -1527,35 +1525,26 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       TU_LOG_DRV("[%u] CDCh CH34x Chip Version = %02x\r\n", p_cdc->daddr, version);
       // only versions >= 0x30 are tested, below 0x30 seems having other programming, see drivers from WCH vendor, Linux kernel and FreeBSD
       TU_ASSERT (version >= 0x30,);
-
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      cdc_line_coding_t const line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      uint8_t const lcr = ch34x_get_lcr(line_coding.stop_bits, line_coding.parity, line_coding.data_bits);
-      uint16_t const first_arg = tu_u16(lcr, 0x9c);
+      // init CH34x with line coding
+      cdc_line_coding_t const line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
       uint16_t const div_ps = ch34x_get_divisor_prescaler(line_coding.bit_rate);
       TU_ASSERT(div_ps != 0, );
-      #else
-      uint16_t const first_arg = 0;
-      uint16_t const div_ps = 0;
-      #endif
-
-      // Init CH34x with line coding
-      TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_SERIAL_INIT, first_arg, div_ps,
+      uint8_t const lcr = ch34x_get_lcr(line_coding.stop_bits, line_coding.parity, line_coding.data_bits);
+      TU_ASSERT(lcr != 0, );
+      TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_SERIAL_INIT, tu_u16(lcr, 0x9c), div_ps,
                                    ch34x_process_config, CONFIG_CH34X_SPECIAL_REG_WRITE),);
       break;
     }
 
     case CONFIG_CH34X_SPECIAL_REG_WRITE:
-      // do special reg write, purpose unknown, overtaken from WCH driver
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      p_cdc->line_coding = ((cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM);
-      #endif
-      TU_ASSERT (ch34x_write_reg(p_cdc, 0x0f2c, 0x0007, ch34x_process_config, CONFIG_CH34X_FLOW_CONTROL),);
+      // overtake line coding and do special reg write, purpose unknown, overtaken from WCH driver
+      p_cdc->line_coding = ((cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X);
+      TU_ASSERT (ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x0F, CH341_REG_0x2C), 0x0007, ch34x_process_config, CONFIG_CH34X_FLOW_CONTROL),);
       break;
 
     case CONFIG_CH34X_FLOW_CONTROL:
       // no hardware flow control
-      TU_ASSERT (ch34x_write_reg(p_cdc, 0x2727, 0x0000, ch34x_process_config, CONFIG_CH34X_MODEM_CONTROL),);
+      TU_ASSERT (ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x27, CH341_REG_0x27), 0x0000, ch34x_process_config, CONFIG_CH34X_MODEM_CONTROL),);
       break;
 
     case CONFIG_CH34X_MODEM_CONTROL:
@@ -1581,6 +1570,7 @@ static uint16_t ch34x_get_divisor_prescaler(uint32_t baval) {
   uint8_t b;
   uint32_t c;
 
+  TU_VERIFY(baval != 0, 0);
   switch (baval) {
     case 921600:
       a = 0xf3;
@@ -1606,7 +1596,7 @@ static uint16_t ch34x_get_divisor_prescaler(uint32_t baval) {
         b = 0;
         c = 11719;
       }
-      a = (unsigned char) (c / baval);
+      a = (uint8_t) (c / baval);
       if (a == 0 || a == 0xFF) {
         return 0;
       }
@@ -1620,29 +1610,33 @@ static uint16_t ch34x_get_divisor_prescaler(uint32_t baval) {
   // reg divisor = a, reg prescaler = b
   // According to linux code we need to set bit 7 of UCHCOM_REG_BPS_PRE,
   // otherwise the chip will buffer data.
-  return (uint16_t) (a << 8 | 0x80 | b);
+  return (uint16_t) ((uint16_t)a << 8 | 0x80 | b);
 }
 
 // calculate lcr value from data coding
 static uint8_t ch34x_get_lcr(uint8_t stop_bits, uint8_t parity, uint8_t data_bits) {
   uint8_t lcr = CH34X_LCR_ENABLE_RX | CH34X_LCR_ENABLE_TX;
-  TU_VERIFY(data_bits >= 5, 0);
+  TU_VERIFY(data_bits >= 5 && data_bits <= 8, 0);
   lcr |= (uint8_t) (data_bits - 5);
 
-  if (parity) {
-    lcr |= CH34X_LCR_ENABLE_PAR;
-  }
   switch(parity) {
+    case CDC_LINE_CODING_PARITY_NONE:
+      break;
+
+    case CDC_LINE_CODING_PARITY_ODD:
+    lcr |= CH34X_LCR_ENABLE_PAR;
+      break;
+
     case CDC_LINE_CODING_PARITY_EVEN:
-      lcr |= CH34X_LCR_PAR_EVEN;
+      lcr |= CH34X_LCR_ENABLE_PAR | CH34X_LCR_PAR_EVEN;
       break;
 
     case CDC_LINE_CODING_PARITY_MARK:
-      lcr |= CH34X_LCR_MARK_SPACE;
+      lcr |= CH34X_LCR_ENABLE_PAR | CH34X_LCR_MARK_SPACE;
       break;
 
     case CDC_LINE_CODING_PARITY_SPACE:
-      lcr |= CH34X_LCR_MARK_SPACE | CH34X_LCR_PAR_EVEN;
+      lcr |= CH34X_LCR_ENABLE_PAR | CH34X_LCR_MARK_SPACE | CH34X_LCR_PAR_EVEN;
       break;
 
     default: break;

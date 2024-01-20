@@ -32,6 +32,13 @@
 // - https://github.com/torvalds/linux/blob/master/drivers/usb/serial/ch341.c
 // - https://github.com/freebsd/freebsd-src/blob/main/sys/dev/usb/serial/uchcom.c
 
+// set line_coding @ enumeration
+#ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+#define CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X CFG_TUH_CDC_LINE_CODING_ON_ENUM
+#else // this default is necessary to work properly
+#define CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X { 9600, CDC_LINE_CONDING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
+#endif
+
 // USB requests
 #define CH34X_REQ_READ_VERSION 0x5F // dec  95
 #define CH34X_REQ_WRITE_REG    0x9A // dec 154
