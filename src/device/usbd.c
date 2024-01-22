@@ -1232,6 +1232,11 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   // TU_VERIFY(tud_ready());
 
   TU_LOG_USBD("  Queue EP %02X with %u bytes ...\r\n", ep_addr, total_bytes);
+#if CFG_TUD_LOG_LEVEL >= 3
+  if(tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
+    TU_LOG_MEM(CFG_TUD_LOG_LEVEL, buffer, total_bytes, 2);
+  }
+#endif
 
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT(_usbd_dev.ep_status[epnum][dir].busy == 0);
