@@ -62,10 +62,12 @@ BOARD_InitPins:
  * END ****************************************************************************************************************/
 void BOARD_InitPins(void)
 {
+  /* Enables the clock for PORT0: Enables clock */
+    CLOCK_EnableClock(kCLOCK_Port0);
+
     /* Enables the clock for PORT1: Enables clock */
     CLOCK_EnableClock(kCLOCK_Port1);
-    /* Enables the clock for PORT3: Enables clock */
-    CLOCK_EnableClock(kCLOCK_Port3);
+
 
     const port_pin_config_t port1_8_pinA1_config = {/* Internal pull-up/down resistor is disabled */
                                                     kPORT_PullDisable,
@@ -113,7 +115,7 @@ void BOARD_InitPins(void)
     /* PORT1_9 (pin B1) is configured as FC4_P1 */
     PORT_SetPinConfig(PORT1, 9U, &port1_9_pinB1_config);
 
-    const port_pin_config_t port3_4_pinF14_config = {/* Internal pull-up/down resistor is disabled */
+    const port_pin_config_t port0_10_pinB12_config = {/* Internal pull-up/down resistor is disabled */
                                                      kPORT_PullDisable,
                                                      /* Low internal pull resistor value is selected. */
                                                      kPORT_LowPullResistor,
@@ -133,8 +135,8 @@ void BOARD_InitPins(void)
                                                      kPORT_InputNormal,
                                                      /* Pin Control Register fields [15:0] are not locked */
                                                      kPORT_UnlockRegister};
-    /* PORT3_4 (pin F14) is configured as PIO3_4 */
-    PORT_SetPinConfig(PORT3, 4U, &port3_4_pinF14_config);
+    /* PORT0_10 (pin B12) is configured as PIO0_10 */
+    PORT_SetPinConfig(PORT0, 10U, &port0_10_pinB12_config);
 }
 /***********************************************************************************************************************
  * EOF
