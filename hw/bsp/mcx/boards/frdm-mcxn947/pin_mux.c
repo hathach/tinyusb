@@ -48,7 +48,7 @@ BOARD_InitPins:
     invert_input: normal}
   - {pin_num: B1, peripheral: LPFlexcomm4, signal: LPFLEXCOMM_P1, pin_signal: PIO1_9/TRACE_DATA1/FC4_P1/FC5_P5/CT_INP9/SCT0_OUT3/FLEXIO0_D17/PLU_OUT1/ENET0_TXD3/I3C1_SCL/TSI0_CH18/ADC1_A9,
     slew_rate: fast, open_drain: disable, drive_strength: low, pull_select: down, pull_enable: disable, passive_filter: disable, input_buffer: enable, invert_input: normal}
-  - {pin_num: F14, peripheral: GPIO3, signal: 'GPIO, 4', pin_signal: PIO3_4/FC7_P2/CT_INP18/PWM0_X2/FLEXIO0_D12/SIM1_CLK, slew_rate: fast, open_drain: disable, drive_strength: low,
+  - {pin_num: B12, peripheral: GPIO0, signal: 'GPIO, 10', pin_signal: PIO0_12/ADC0_B10/FC0_P6/CT0O_MAT0/FLEXIO0_D2, slew_rate: fast, open_drain: disable, drive_strength: low,
     pull_select: down, pull_enable: disable, input_buffer: enable, invert_input: normal}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
