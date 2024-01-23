@@ -127,7 +127,7 @@ void BOARD_InitPins(void)
                                                      kPORT_OpenDrainDisable,
                                                      /* Low drive strength is configured */
                                                      kPORT_LowDriveStrength,
-                                                     /* Pin is configured as PIO3_4 */
+                                                     /* Pin is configured as PIO0_10 */
                                                      kPORT_MuxAlt0,
                                                      /* Digital input enabled */
                                                      kPORT_InputBufferEnable,
