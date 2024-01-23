@@ -364,8 +364,14 @@ def main(config_file, board):
 
             print(f'  {test} ...', end='')
 
-            # flash firmware
-            ret = globals()[f'flash_{flasher}'](item, fw)
+            # flash firmware. It may fail randomly, retry a few times
+            for i in range(3):
+                ret = globals()[f'flash_{flasher}'](item, fw)
+                if ret.returncode == 0:
+                    break
+                else:
+                    time.sleep(1)
+
             assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
 
             # run test
