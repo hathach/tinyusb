@@ -370,6 +370,7 @@ def main(config_file, board):
                 if ret.returncode == 0:
                     break
                 else:
+                    print(f'Flashing failed, retry {i+1}')
                     time.sleep(1)
 
             assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
