@@ -131,8 +131,7 @@ static struct {
 static uint8_t frame_buffer[FRAME_WIDTH * FRAME_HEIGHT * 16 / 8];
 
 static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
-  /* EBU color bars
-   * See also https://stackoverflow.com/questions/6939422 */
+  /* EBU color bars: https://stackoverflow.com/questions/6939422 */
   static uint8_t const bar_color[8][4] = {
       /*  Y,   U,   Y,   V */
       { 235, 128, 235, 128}, /* 100% White */
@@ -184,12 +183,12 @@ void video_task(void) {
     already_sent = 1;
     start_ms = board_millis();
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+    #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
     tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                            FRAME_WIDTH * FRAME_HEIGHT * 16/8);
-# else
+    #else
     tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
-# endif
+    #endif
 #else
     fill_color_bar(frame_buffer, frame_num);
     tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
@@ -202,12 +201,12 @@ void video_task(void) {
   start_ms += interval_ms;
 
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+  #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
   tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                          FRAME_WIDTH * FRAME_HEIGHT * 16/8);
-# else
+  #else
   tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
-# endif
+  #endif
 #else
   fill_color_bar(frame_buffer, frame_num);
   tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
