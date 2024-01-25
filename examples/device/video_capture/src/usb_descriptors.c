@@ -43,8 +43,7 @@
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
-{
+tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = USB_BCD,
@@ -70,111 +69,70 @@ tusb_desc_device_t const desc_device =
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
-uint8_t const * tud_descriptor_device_cb(void)
-{
-  return (uint8_t const *) &desc_device;
+uint8_t const* tud_descriptor_device_cb(void) {
+  return (uint8_t const*) &desc_device;
 }
 
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
-#if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-# if 1 == CFG_TUD_VIDEO_STREAMING_BULK
-#  define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VIDEO_CAPTURE_DESC_MJPEG_BULK_LEN)
-# else
-#  define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VIDEO_CAPTURE_DESC_MJPEG_LEN)
-# endif
-#else
-# if 1 == CFG_TUD_VIDEO_STREAMING_BULK
-#  define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VIDEO_CAPTURE_DESC_UNCOMPR_BULK_LEN)
-# else
-#  define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VIDEO_CAPTURE_DESC_UNCOMPR_LEN)
-# endif
-#endif
-
+// Select appropriate endpoint number
 #if TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In, 5 Bulk etc ...
-#if 1 == CFG_TUD_VIDEO_STREAMING_BULK
-  #define EPNUM_VIDEO_IN    0x82
-#else
-  #define EPNUM_VIDEO_IN    0x83
-#endif
-
+  #define EPNUM_VIDEO_IN    (CFG_TUD_VIDEO_STREAMING_BULK ? 0x82 : 0x83)
 #elif TU_CHECK_MCU(OPT_MCU_NRF5X)
   // nRF5x ISO can only be endpoint 8
-  #define EPNUM_VIDEO_IN    0x88
-
+  #define EPNUM_VIDEO_IN    (CFG_TUD_VIDEO_STREAMING_BULK ? 0x81 : 0x88)
 #else
   #define EPNUM_VIDEO_IN    0x81
-
 #endif
 
-uint8_t const desc_fs_configuration[] =
-{
-  // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
-
-  // IAD for Video Control
+// For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
+// To further reduce the size, we use MJPEG format instead of YUY2.
+// Select interface descriptor and length accordingly.
 #if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-# if 1 == CFG_TUD_VIDEO_STREAMING_BULK
-  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG_BULK(4, EPNUM_VIDEO_IN,
-                                          FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                                          64)
-# else
-  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(4, EPNUM_VIDEO_IN,
-                                     FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                                     CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
-# endif
+  #if CFG_TUD_VIDEO_STREAMING_BULK
+    #define ITF_VIDEO_DESC(epsize)  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG_BULK(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, epsize)
+    #define ITF_VIDEO_LEN           TUD_VIDEO_CAPTURE_DESC_MJPEG_BULK_LEN
+  #else
+    #define ITF_VIDEO_DESC(epsize)  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, epsize)
+    #define ITF_VIDEO_LEN           TUD_VIDEO_CAPTURE_DESC_MJPEG_LEN
+  #endif
 #else
-# if 1 == CFG_TUD_VIDEO_STREAMING_BULK
-  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR_BULK(4, EPNUM_VIDEO_IN,
-                                            FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                                            64)
-# else
-  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR(4, EPNUM_VIDEO_IN,
-                                       FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                                       CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
-# endif
+  #if CFG_TUD_VIDEO_STREAMING_BULK
+    #define ITF_VIDEO_DESC(epsize)  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR_BULK(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, epsize)
+    #define ITF_VIDEO_LEN           TUD_VIDEO_CAPTURE_DESC_UNCOMPR_BULK_LEN
+  #else
+    #define ITF_VIDEO_DESC(epsize)  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, epsize)
+    #define ITF_VIDEO_LEN           TUD_VIDEO_CAPTURE_DESC_UNCOMPR_LEN
+  #endif
 #endif
+
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + ITF_VIDEO_LEN)
+
+// full speed descriptor
+uint8_t const desc_fs_configuration[] = {
+    // Config number, interface count, string index, total length, attribute, power in mA
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
+
+    // IAD for Video Control
+    ITF_VIDEO_DESC(CFG_TUD_VIDEO_STREAMING_BULK ? 64 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
 };
 
 #if TUD_OPT_HIGH_SPEED
 // Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
-
-uint8_t const desc_hs_configuration[] =
-{
+uint8_t const desc_hs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
 
   // IAD for Video Control
-#if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-# if 1 == CFG_TUD_VIDEO_STREAMING_BULK
-  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG_BULK(4, EPNUM_VIDEO_IN,
-                                          FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                                          512)
-# else
-  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(4, EPNUM_VIDEO_IN,
-                                     FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                                     CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
-# endif
-#else
-# if 1 == CFG_TUD_VIDEO_STREAMING_BULK
-  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR_BULK(4, EPNUM_VIDEO_IN,
-                                            FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                                            512)
-# else
-  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR(4, EPNUM_VIDEO_IN,
-                                       FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE,
-                                       CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
-# endif
-#endif
+  ITF_VIDEO_DESC(CFG_TUD_VIDEO_STREAMING_BULK ? 512 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
 };
 
 // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
-tusb_desc_device_qualifier_t const desc_device_qualifier =
-{
+tusb_desc_device_qualifier_t const desc_device_qualifier = {
   .bLength            = sizeof(tusb_desc_device_t),
   .bDescriptorType    = TUSB_DESC_DEVICE,
   .bcdUSB             = USB_BCD,
@@ -192,29 +150,24 @@ tusb_desc_device_qualifier_t const desc_device_qualifier =
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
 // device_qualifier descriptor describes information about a high-speed capable device that would
 // change if the device were operating at the other speed. If not highspeed capable stall this request.
-uint8_t const* tud_descriptor_device_qualifier_cb(void)
-{
+uint8_t const* tud_descriptor_device_qualifier_cb(void) {
   return (uint8_t const*) &desc_device_qualifier;
 }
 
 // Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 // Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
-uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
-{
+uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
   (void) index; // for multiple configurations
-
   // if link speed is high return fullspeed config, and vice versa
   return (tud_speed_get() == TUSB_SPEED_HIGH) ?  desc_fs_configuration : desc_hs_configuration;
 }
-
 #endif // highspeed
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
-{
+uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
   (void) index; // for multiple configurations
 
 #if TUD_OPT_HIGH_SPEED
@@ -238,24 +191,23 @@ enum {
 };
 
 // array of pointer to string descriptors
-char const *string_desc_arr[] =
-{
-  (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-  "TinyUSB",                     // 1: Manufacturer
-  "TinyUSB Device",              // 2: Product
-  NULL,                          // 3: Serials will use unique ID if possible
-  "TinyUSB UVC",                 // 4: UVC Interface
+char const* string_desc_arr[] = {
+    (const char[]) {0x09, 0x04}, // 0: is supported language is English (0x0409)
+    "TinyUSB",                     // 1: Manufacturer
+    "TinyUSB Device",              // 2: Product
+    NULL,                          // 3: Serials will use unique ID if possible
+    "TinyUSB UVC",                 // 4: UVC Interface
 };
 
 static uint16_t _desc_str[32 + 1];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
   (void) langid;
   size_t chr_count;
 
-  switch ( index ) {
+  switch (index) {
     case STRID_LANGID:
       memcpy(&_desc_str[1], string_desc_arr[0], 2);
       chr_count = 1;
@@ -269,17 +221,17 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
       // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
       // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
-      if ( !(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) ) return NULL;
+      if (index >= sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) return NULL;
 
-      const char *str = string_desc_arr[index];
+      const char* str = string_desc_arr[index];
 
       // Cap at max char
       chr_count = strlen(str);
       size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1; // -1 for string type
-      if ( chr_count > max_count ) chr_count = max_count;
+      if (chr_count > max_count) chr_count = max_count;
 
       // Convert ASCII string into UTF-16
-      for ( size_t i = 0; i < chr_count; i++ ) {
+      for (size_t i = 0; i < chr_count; i++) {
         _desc_str[1 + i] = str[i];
       }
       break;

@@ -40,7 +40,7 @@
  * - 1000 ms : device mounted
  * - 2500 ms : device is suspended
  */
-enum  {
+enum {
   BLINK_NOT_MOUNTED = 250,
   BLINK_MOUNTED = 1000,
   BLINK_SUSPENDED = 2500,
@@ -52,8 +52,7 @@ void led_blinking_task(void);
 void video_task(void);
 
 /*------------- MAIN -------------*/
-int main(void)
-{
+int main(void) {
   board_init();
 
   // init device stack on configured roothub port
@@ -63,8 +62,7 @@ int main(void)
     board_init_after_tusb();
   }
 
-  while (1)
-  {
+  while (1) {
     tud_task(); // tinyusb device task
     led_blinking_task();
 
@@ -77,32 +75,27 @@ int main(void)
 //--------------------------------------------------------------------+
 
 // Invoked when device is mounted
-void tud_mount_cb(void)
-{
+void tud_mount_cb(void) {
   blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Invoked when device is unmounted
-void tud_umount_cb(void)
-{
+void tud_umount_cb(void) {
   blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
 // Invoked when usb bus is suspended
 // remote_wakeup_en : if host allow us  to perform remote wakeup
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
-void tud_suspend_cb(bool remote_wakeup_en)
-{
+void tud_suspend_cb(bool remote_wakeup_en) {
   (void) remote_wakeup_en;
   blink_interval_ms = BLINK_SUSPENDED;
 }
 
 // Invoked when usb bus is resumed
-void tud_resume_cb(void)
-{
+void tud_resume_cb(void) {
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
-
 
 //--------------------------------------------------------------------+
 // USB Video
@@ -111,11 +104,12 @@ static unsigned frame_num = 0;
 static unsigned tx_busy = 0;
 static unsigned interval_ms = 1000 / FRAME_RATE;
 
-/* YUY2 frame buffer */
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
+// For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
+// To further reduce the size, we use MJPEG format instead of YUY2.
 #include "images.h"
 
-# if !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+#if !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
 static struct {
   uint32_t       size;
   uint8_t const *buffer;
@@ -129,29 +123,30 @@ static struct {
   {color_bar_6_jpg_len, color_bar_6_jpg},
   {color_bar_7_jpg_len, color_bar_7_jpg},
 };
-# endif
+#endif
 
 #else
+
+// YUY2 frame buffer
 static uint8_t frame_buffer[FRAME_WIDTH * FRAME_HEIGHT * 16 / 8];
-static void fill_color_bar(uint8_t *buffer, unsigned start_position)
-{
-  /* EBU color bars
-   * See also https://stackoverflow.com/questions/6939422 */
+
+static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
+  /* EBU color bars: https://stackoverflow.com/questions/6939422 */
   static uint8_t const bar_color[8][4] = {
-    /*  Y,   U,   Y,   V */
-    { 235, 128, 235, 128}, /* 100% White */
-    { 219,  16, 219, 138}, /* Yellow */
-    { 188, 154, 188,  16}, /* Cyan */
-    { 173,  42, 173,  26}, /* Green */
-    {  78, 214,  78, 230}, /* Magenta */
-    {  63, 102,  63, 240}, /* Red */
-    {  32, 240,  32, 118}, /* Blue */
-    {  16, 128,  16, 128}, /* Black */
+      /*  Y,   U,   Y,   V */
+      { 235, 128, 235, 128}, /* 100% White */
+      { 219,  16, 219, 138}, /* Yellow */
+      { 188, 154, 188,  16}, /* Cyan */
+      { 173,  42, 173,  26}, /* Green */
+      {  78, 214,  78, 230}, /* Magenta */
+      {  63, 102,  63, 240}, /* Red */
+      {  32, 240,  32, 118}, /* Blue */
+      {  16, 128,  16, 128}, /* Black */
   };
-  uint8_t *p;
+  uint8_t* p;
 
   /* Generate the 1st line */
-  uint8_t *end = &buffer[FRAME_WIDTH * 2];
+  uint8_t* end = &buffer[FRAME_WIDTH * 2];
   unsigned idx = (FRAME_WIDTH / 2 - 1) - (start_position % (FRAME_WIDTH / 2));
   p = &buffer[idx * 4];
   for (unsigned i = 0; i < 8; ++i) {
@@ -163,6 +158,7 @@ static void fill_color_bar(uint8_t *buffer, unsigned start_position)
       }
     }
   }
+
   /* Duplicate the 1st line to the others */
   p = &buffer[FRAME_WIDTH * 2];
   for (unsigned i = 1; i < FRAME_HEIGHT; ++i) {
@@ -170,16 +166,16 @@ static void fill_color_bar(uint8_t *buffer, unsigned start_position)
     p += FRAME_WIDTH * 2;
   }
 }
+
 #endif
 
-void video_task(void)
-{
+void video_task(void) {
   static unsigned start_ms = 0;
   static unsigned already_sent = 0;
 
   if (!tud_video_n_streaming(0, 0)) {
-    already_sent  = 0;
-    frame_num     = 0;
+    already_sent = 0;
+    frame_num = 0;
     return;
   }
 
@@ -187,15 +183,15 @@ void video_task(void)
     already_sent = 1;
     start_ms = board_millis();
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+    #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
     tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                            FRAME_WIDTH * FRAME_HEIGHT * 16/8);
-# else
+    #else
     tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
-# endif
+    #endif
 #else
     fill_color_bar(frame_buffer, frame_num);
-    tud_video_n_frame_xfer(0, 0, (void*)frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16/8);
+    tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
 #endif
   }
 
@@ -205,30 +201,30 @@ void video_task(void)
   start_ms += interval_ms;
 
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
-# if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+  #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
   tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                          FRAME_WIDTH * FRAME_HEIGHT * 16/8);
-# else
+  #else
   tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
-# endif
+  #endif
 #else
   fill_color_bar(frame_buffer, frame_num);
-  tud_video_n_frame_xfer(0, 0, (void*)frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16/8);
+  tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
 #endif
 }
 
-void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
-{
-  (void)ctl_idx; (void)stm_idx;
+void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+  (void) ctl_idx;
+  (void) stm_idx;
   tx_busy = 0;
   /* flip buffer */
   ++frame_num;
 }
 
 int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
-			video_probe_and_commit_control_t const *parameters)
-{
-  (void)ctl_idx; (void)stm_idx;
+                        video_probe_and_commit_control_t const* parameters) {
+  (void) ctl_idx;
+  (void) stm_idx;
   /* convert unit to ms from 100 ns */
   interval_ms = parameters->dwFrameInterval / 10000;
   return VIDEO_ERROR_NONE;
@@ -237,13 +233,12 @@ int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
+void led_blinking_task(void) {
   static uint32_t start_ms = 0;
   static bool led_state = false;
 
   // Blink every interval ms
-  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
+  if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);
