@@ -405,7 +405,7 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bDescriptorSubType;
   uint8_t bFormatIndex;
   uint8_t bNumFrameDescriptors;
-  uint8_t bmFlags;
+  uint8_t bmFlags; // Bit 0: fixed size samples (1 = yes)
   uint8_t bDefaultFrameIndex;
   uint8_t bAspectRatioX;
   uint8_t bAspectRatioY;
@@ -415,7 +415,15 @@ typedef struct TU_ATTR_PACKED {
 
 // MJPEG payload specs: 3.1.2 frame descriptor (same as uncompressed)
 typedef tusb_desc_video_frame_uncompressed_t tusb_desc_video_frame_mjpeg_t;
+typedef tusb_desc_video_frame_uncompressed_1int_t tusb_desc_video_frame_mjpeg_1int_t;
+typedef tusb_desc_video_frame_uncompressed_2int_t tusb_desc_video_frame_mjpeg_2int_t;
+typedef tusb_desc_video_frame_uncompressed_3int_t tusb_desc_video_frame_mjpeg_3int_t;
+typedef tusb_desc_video_frame_uncompressed_4int_t tusb_desc_video_frame_mjpeg_4int_t;
 
+// continuous = 3 intervals: min, max, step
+typedef tusb_desc_video_frame_mjpeg_3int_t tusb_desc_video_frame_mjpeg_continuous_t;
+
+//------------- DV -------------//
 // DV payload specs: 3.1.1
 typedef struct TU_ATTR_PACKED {
   uint8_t  bLength;

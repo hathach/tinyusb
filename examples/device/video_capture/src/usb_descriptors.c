@@ -109,6 +109,10 @@ uint8_t const* tud_descriptor_device_cb(void) {
   #define EPNUM_VIDEO_IN    0x81
 #endif
 
+#if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
+  #define USE_MJPEG
+#endif
+
 // For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
 // To further reduce the size, we use MJPEG format instead of YUY2.
 // Select interface descriptor and length accordingly.
@@ -197,8 +201,15 @@ typedef struct TU_ATTR_PACKED {
 typedef struct TU_ATTR_PACKED {
   tusb_desc_interface_t itf;
   tusb_desc_video_streaming_input_header_1byte_t header;
+
+#ifdef USE_MJPEG
+  tusb_desc_video_format_mjpeg_t format;
+  tusb_desc_video_frame_mjpeg_continuous_t frame;
+#else
   tusb_desc_video_format_uncompressed_t format;
   tusb_desc_video_frame_uncompressed_continuous_t frame;
+#endif
+
   tusb_desc_video_streaming_color_matching_t color;
   tusb_desc_endpoint_t ep;
 } uvc_streaming_desc_t;
@@ -316,14 +327,22 @@ const uvc_cfg_desc_t config_desc = {
             .bmaControls = { 0 }
         },
         .format = {
+#ifdef USE_MJPEG
+            .bLength = sizeof(tusb_desc_video_format_mjpeg_t),
+            .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+            .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_MJPEG,
+            .bFormatIndex = 1, // 1-based index
+            .bNumFrameDescriptors = 1,
+            .bmFlags = 0,
+#else
             .bLength = sizeof(tusb_desc_video_format_uncompressed_t),
             .bDescriptorType = TUSB_DESC_CS_INTERFACE,
             .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED,
-
             .bFormatIndex = 1, // 1-based index
             .bNumFrameDescriptors = 1,
             .guidFormat = { TUD_VIDEO_GUID_YUY2 },
             .bBitsPerPixel = 16,
+#endif
             .bDefaultFrameIndex = 1,
             .bAspectRatioX = 0,
             .bAspectRatioY = 0,
@@ -331,9 +350,15 @@ const uvc_cfg_desc_t config_desc = {
             .bCopyProtect = 0
         },
         .frame = {
+#ifdef USE_MJPEG
+            .bLength = sizeof(tusb_desc_video_frame_mjpeg_continuous_t),
+            .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+            .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_MJPEG,
+#else
             .bLength = sizeof(tusb_desc_video_frame_uncompressed_continuous_t),
             .bDescriptorType = TUSB_DESC_CS_INTERFACE,
             .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED,
+#endif
 
             .bFrameIndex = 1, // 1-based index
             .bmCapabilities = 0,
