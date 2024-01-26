@@ -434,8 +434,9 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   uint_fast32_t interval_ms = interval / 10000;
   TU_ASSERT(interval_ms);
   uint_fast32_t payload_size = (frame_size + interval_ms - 1) / interval_ms + 2;
-  if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size)
+  if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size) {
     payload_size = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
+  }
   param->dwMaxPayloadTransferSize = payload_size;
   return true;
 }
@@ -577,8 +578,9 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
       } else {
         payload_size = (frame_size + interval_ms - 1) / interval_ms + 2;
       }
-      if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size)
+      if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size) {
         payload_size = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
+      }
       param->dwMaxPayloadTransferSize = payload_size;
     }
     return true;

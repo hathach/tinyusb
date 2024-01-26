@@ -8,6 +8,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'test/hil/**'
       - '.github/workflows/build_esp.yml'
   pull_request:
     branches: [ master ]
@@ -16,6 +17,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'test/hil/**'
       - '.github/workflows/build_esp.yml'
 
 concurrency:
@@ -35,7 +37,7 @@ jobs:
         - 'espressif_s3_devkitc'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 

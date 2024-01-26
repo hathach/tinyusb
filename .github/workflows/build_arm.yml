@@ -37,7 +37,7 @@ jobs:
         # Alphabetical order
         - 'broadcom_32bit'
         - 'kinetis_k32l2'
-        - 'lpc11 lpc13 lpc15 lpc17'
+        - 'lpc11 lpc13 lpc15'
         - 'lpc51'
         - 'mm32 msp432e4'
         - 'samd11 same5x saml2x'
@@ -46,7 +46,7 @@ jobs:
         - 'tm4c123 xmc4000'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
