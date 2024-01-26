@@ -110,8 +110,12 @@ uint8_t const* tud_descriptor_device_cb(void) {
 #endif
 
 #if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-  #define USE_MJPEG
+  #define USE_MJPEG 1
+#else
+  #define USE_MJPEG 0
 #endif
+
+#define USE_ISO_STREAMING (!CFG_TUD_VIDEO_STREAMING_BULK)
 
 // For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
 // To further reduce the size, we use MJPEG format instead of YUY2.
@@ -202,7 +206,7 @@ typedef struct TU_ATTR_PACKED {
   tusb_desc_interface_t itf;
   tusb_desc_video_streaming_input_header_1byte_t header;
 
-#ifdef USE_MJPEG
+#if USE_MJPEG
   tusb_desc_video_format_mjpeg_t format;
   tusb_desc_video_frame_mjpeg_continuous_t frame;
 #else
@@ -211,6 +215,12 @@ typedef struct TU_ATTR_PACKED {
 #endif
 
   tusb_desc_video_streaming_color_matching_t color;
+
+#if USE_ISO_STREAMING
+  // For ISO streaming, USB spec requires to alternate interface
+  tusb_desc_interface_t itf_alt;
+#endif
+
   tusb_desc_endpoint_t ep;
 } uvc_streaming_desc_t;
 
@@ -230,7 +240,7 @@ const uvc_cfg_desc_t config_desc = {
         .bNumInterfaces = ITF_NUM_TOTAL,
         .bConfigurationValue = 1,
         .iConfiguration = 0,
-        .bmAttributes = TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP,
+        .bmAttributes =  TU_BIT(7),
         .bMaxPower = 100 / 2
     },
     .iad = {
@@ -304,7 +314,7 @@ const uvc_cfg_desc_t config_desc = {
 
             .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING,
             .bAlternateSetting = 0,
-            .bNumEndpoints = 1,
+            .bNumEndpoints = CFG_TUD_VIDEO_STREAMING_BULK, // bulk 1, iso 0
             .bInterfaceClass = TUSB_CLASS_VIDEO,
             .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
             .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
@@ -316,7 +326,8 @@ const uvc_cfg_desc_t config_desc = {
             .bDescriptorSubType = VIDEO_CS_ITF_VS_INPUT_HEADER,
 
             .bNumFormats = 1,
-            .wTotalLength = sizeof(uvc_streaming_desc_t) - sizeof(tusb_desc_interface_t) - sizeof(tusb_desc_endpoint_t), // CS VS descriptors only
+            .wTotalLength = sizeof(uvc_streaming_desc_t) - sizeof(tusb_desc_interface_t)
+                - sizeof(tusb_desc_endpoint_t) - (USE_ISO_STREAMING ? sizeof(tusb_desc_interface_t) : 0) , // CS VS descriptors only
             .bEndpointAddress = EPNUM_VIDEO_IN,
             .bmInfo = 0,
             .bTerminalLink = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
@@ -327,7 +338,7 @@ const uvc_cfg_desc_t config_desc = {
             .bmaControls = { 0 }
         },
         .format = {
-#ifdef USE_MJPEG
+#if USE_MJPEG
             .bLength = sizeof(tusb_desc_video_format_mjpeg_t),
             .bDescriptorType = TUSB_DESC_CS_INTERFACE,
             .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_MJPEG,
@@ -350,7 +361,7 @@ const uvc_cfg_desc_t config_desc = {
             .bCopyProtect = 0
         },
         .frame = {
-#ifdef USE_MJPEG
+#if USE_MJPEG
             .bLength = sizeof(tusb_desc_video_frame_mjpeg_continuous_t),
             .bDescriptorType = TUSB_DESC_CS_INTERFACE,
             .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_MJPEG,
@@ -384,12 +395,31 @@ const uvc_cfg_desc_t config_desc = {
             .bTransferCharacteristics = VIDEO_COLOR_XFER_CH_BT709,
             .bMatrixCoefficients = VIDEO_COLOR_COEF_SMPTE170M
         },
+
+#if USE_ISO_STREAMING
+        .itf_alt = {
+            .bLength = sizeof(tusb_desc_interface_t),
+            .bDescriptorType = TUSB_DESC_INTERFACE,
+
+            .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING,
+            .bAlternateSetting = 1,
+            .bNumEndpoints = 1,
+            .bInterfaceClass = TUSB_CLASS_VIDEO,
+            .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
+            .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
+            .iInterface = STRID_UVC_STREAMING
+        },
+#endif
+
         .ep = {
             .bLength = sizeof(tusb_desc_endpoint_t),
             .bDescriptorType = TUSB_DESC_ENDPOINT,
 
             .bEndpointAddress = EPNUM_VIDEO_IN,
-            .bmAttributes = { .xfer = TUSB_XFER_BULK },
+            .bmAttributes = {
+                .xfer = CFG_TUD_VIDEO_STREAMING_BULK ? TUSB_XFER_BULK : TUSB_XFER_ISOCHRONOUS,
+                .sync = CFG_TUD_VIDEO_STREAMING_BULK ? 0 : 1 // asynchronous
+            },
             .wMaxPacketSize = CFG_TUD_VIDEO_STREAMING_BULK ? 64 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE,
             .bInterval = 1
         }
