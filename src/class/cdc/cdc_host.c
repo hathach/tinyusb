@@ -153,7 +153,7 @@ static uint16_t const pl2303_vid_pid_quirks_list[][3] = {CFG_TUH_CDC_PL2303_VID_
 static const struct pl2303_type_data pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
 
 CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
-static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
+static tusb_desc_device_t pl2303_desc[CFG_TUH_CDC][CFG_TUH_ENUMERATION_BUFSIZE];
 
 static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len, uint16_t quirks);
 static void pl2303_process_config(tuh_xfer_t* xfer);
@@ -1460,6 +1460,7 @@ static bool ch34x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
 }
 
 static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
+  // CH34x only has 1 interface and use wIndex as payload and not for bInterfaceNumber
   uint8_t const itf_num = 0;
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t* p_cdc = get_itf(idx);
@@ -1692,7 +1693,7 @@ static uint8_t ch34x_get_lcr(uint8_t stop_bits, uint8_t parity, uint8_t data_bit
       break;
 
     case CDC_LINE_CODING_PARITY_ODD:
-    lcr |= CH34X_LCR_ENABLE_PAR;
+      lcr |= CH34X_LCR_ENABLE_PAR;
       break;
 
     case CDC_LINE_CODING_PARITY_EVEN:
@@ -1727,7 +1728,8 @@ static uint8_t ch34x_get_lcr(uint8_t stop_bits, uint8_t parity, uint8_t data_bit
 
 #if CFG_TUH_CDC_PL2303
 
-static int8_t pl2303_detect_type ( tusb_desc_device_t const* desc, bool pl2303_supports_hx_status );
+static int8_t pl2303_detect_type ( cdch_interface_t* p_cdc, tusb_desc_device_t const* desc, uint8_t step, 
+                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data );
 static bool pl2303_encode_baud_rate(cdch_interface_t* p_cdc, uint32_t baud, uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE]);
 
 //------------- control request -------------//
@@ -1764,7 +1766,7 @@ static bool pl2303_set_request(cdch_interface_t* p_cdc, uint8_t request, uint8_t
   return tuh_control_xfer(&xfer);
 }
 
-static bool pl2303_vendor_read(cdch_interface_t* p_cdc, uint16_t value, uint8_t buf[1], tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+static bool pl2303_vendor_read(cdch_interface_t* p_cdc, uint16_t value, uint8_t* buf, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   uint8_t request = p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN] ? PL2303_VENDOR_READ_NREQUEST : PL2303_VENDOR_READ_REQUEST;
   return pl2303_set_request(p_cdc, request, PL2303_VENDOR_READ_REQUEST_TYPE, value, 0, buf, 1, complete_cb, user_data);
@@ -1787,10 +1789,10 @@ static bool pl2303_supports_hx_status ( cdch_interface_t* p_cdc, tuh_xfer_cb_t c
 //  return pl2303_set_request(p_cdc, PL2303_SET_CONTROL_REQUEST, PL2303_SET_CONTROL_REQUEST_TYPE, value, 0, NULL, 1, complete_cb, user_data);
 //}
 
-static bool pl2303_get_line_request(cdch_interface_t* p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE], tuh_xfer_cb_t complete_cb, uintptr_t user_data)
-{
-  return pl2303_set_request(p_cdc, PL2303_GET_LINE_REQUEST, PL2303_GET_LINE_REQUEST_TYPE, 0, 0, buf, PL2303_LINE_CODING_BUFSIZE, complete_cb, user_data);
-}
+//static bool pl2303_get_line_request(cdch_interface_t* p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE], tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+//{
+//  return pl2303_set_request(p_cdc, PL2303_GET_LINE_REQUEST, PL2303_GET_LINE_REQUEST_TYPE, 0, 0, buf, PL2303_LINE_CODING_BUFSIZE, complete_cb, user_data);
+//}
 
 static bool pl2303_set_line_request(cdch_interface_t* p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE], tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
@@ -1802,6 +1804,15 @@ static bool pl2303_set_line_request(cdch_interface_t* p_cdc, uint8_t buf[PL2303_
 //  uint16_t state = enable ? PL2303_BREAK_ON : PL2303_BREAK_OFF;
 //  return pl2303_set_request(p_cdc, PL2303_BREAK_REQUEST, PL2303_BREAK_REQUEST_TYPE, state, 0, NULL, 0, complete_cb, user_data);
 //}
+
+int pl2303_clear_halt(cdch_interface_t* p_cdc, uint8_t endp, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  /* we don't care if it wasn't halted first. in fact some devices
+   * (like some ibmcam model 1 units) seem to expect hosts to make
+   * this request for iso endpoints, which can't halt!
+   */
+  return pl2303_set_request(p_cdc, TUSB_REQ_CLEAR_FEATURE, PL2303_CLEAR_HALT_REQUEST_TYPE, TUSB_REQ_FEATURE_EDPT_HALT, endp, NULL, 0, complete_cb, user_data);
+}
 
 //------------- Driver API -------------//
 
@@ -1828,10 +1839,8 @@ static bool pl2303_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t co
    * NOTE: No additional locking needed for line_settings as it is
    *       only used in set_termios, which is serialised against itself.
    */
-  if ( memcmp ( line_coding, &p_cdc->line_coding, PL2303_LINE_CODING_BUFSIZE ) == 0 ) {
-    // do a dummy pl2303_get_line_request(), only to keep process sequence
-    return pl2303_get_line_request(p_cdc, buf, complete_cb, user_data);
-  }
+  // TODO really necessary to check? what to do in this case when no transfer will happen?
+  TU_ASSERT ( memcmp ( line_coding, &p_cdc->line_coding, PL2303_LINE_CODING_BUFSIZE ) != 0);
 
   p_cdc->requested_line_coding = *line_coding;
 
@@ -1886,8 +1895,8 @@ static bool pl2303_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state,
 //------------- Enumeration -------------//
 
 enum {
-  CONFIG_PL2303_SUPPORT_HX_STATUS = 0,
-  CONFIG_PL2303_DETECT_TYPE_QUIRKS,
+  CONFIG_PL2303_GET_DESC = 0,
+  CONFIG_PL2303_DETECT_TYPE,
   CONFIG_PL2303_READ1,
   CONFIG_PL2303_WRITE1,
   CONFIG_PL2303_READ2,
@@ -1899,8 +1908,11 @@ enum {
   CONFIG_PL2303_WRITE3,
   CONFIG_PL2303_WRITE4,
   CONFIG_PL2303_WRITE5,
-  CONFIG_PL2303_GET_LINE_CODING,
+  CONFIG_PL2303_RESET_ENDP1,
+  CONFIG_PL2303_RESET_ENDP2,
   CONFIG_PL2303_SET_LINE_CODING,
+  CONFIG_PL2303_FLOW_CTRL_READ,
+  CONFIG_PL2303_FLOW_CTRL_WRITE,
   CONFIG_PL2303_COMPLETE
 };
 
@@ -1937,108 +1949,191 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t* p_cdc = get_itf(idx);
   uintptr_t const state = xfer->user_data;
-  uint8_t buf[PL2303_LINE_CODING_BUFSIZE];
+  uint8_t buf;
+  int8_t type;
   TU_ASSERT (p_cdc,);
 
   TU_ASSERT (xfer->result == XFER_RESULT_SUCCESS ||
-             state == CONFIG_PL2303_DETECT_TYPE_QUIRKS, ); // state CONFIG_PL2303_DETECT_TYPE_QUIRKS may have no success
+             state == CONFIG_PL2303_READ1, ); // state CONFIG_PL2303_READ1 may have no success due to pl2303_supports_hx_status()
 
   switch (state) {
 
-    case CONFIG_PL2303_SUPPORT_HX_STATUS:
-      // start pl2303_supports_hx_status() request in preparation for analyzation in next step
-      TU_ASSERT ( pl2303_supports_hx_status ( p_cdc, pl2303_process_config, CONFIG_PL2303_DETECT_TYPE_QUIRKS ),);
+    // from here sequence overtaken from Linux Kernel function pl2303_startup()
+    case CONFIG_PL2303_GET_DESC:
+      TU_ASSERT(tuh_descriptor_get_device(xfer->daddr, pl2303_desc[idx], sizeof(tusb_desc_device_t),
+                                          pl2303_process_config, CONFIG_PL2303_DETECT_TYPE), );
       break;
 
-    case CONFIG_PL2303_DETECT_TYPE_QUIRKS:
-      // analyze result of pl2303_supports_hx_status() and get full device descriptor
-      p_cdc->pl2303.supports_hx_status = ( xfer->result == XFER_RESULT_SUCCESS );
-      TU_ASSERT(tuh_descriptor_get_device(xfer->daddr, _usbh_ctrl_buf, sizeof(tusb_desc_device_t), pl2303_process_config, CONFIG_PL2303_READ1), );
-      break;
+    case CONFIG_PL2303_DETECT_TYPE:
+      // get type and quirks (step 1)
+      type = pl2303_detect_type ( p_cdc, pl2303_desc[idx], 1, pl2303_process_config, CONFIG_PL2303_READ1 ); // step 1
+      TU_ASSERT(type!=PL2303_DETECT_TYPE_FAILED,);
+      if ( type == PL2303_SUPPORTS_HX_STATUS_TRIGGERED ) {
+        break;
+      } // else: no transfer triggered and continue with CONFIG_PL2303_READ1
 
     case CONFIG_PL2303_READ1:
-      // analyze full device descriptor to get type and quirks, do special read
-      tusb_desc_device_t const * desc_device = (tusb_desc_device_t const*) _usbh_ctrl_buf;
-      int8_t type_index = pl2303_detect_type(desc_device, p_cdc->pl2303.supports_hx_status);
-      TU_ASSERT(type_index>=0,);
-      p_cdc->pl2303.serial_private.type = &pl2303_type_data[type_index];
+      // get supports_hx_status, type and quirks (step 2), do special read
+      p_cdc->pl2303.supports_hx_status = ( // will not be true, if coming directly from previous case
+        xfer->setup->bRequest == PL2303_VENDOR_READ_REQUEST &&
+        xfer->setup->bmRequestType == PL2303_VENDOR_READ_REQUEST_TYPE &&
+        xfer->setup->wValue == PL2303_READ_TYPE_HX_STATUS &&
+        xfer->result == XFER_RESULT_SUCCESS );
+      type = pl2303_detect_type ( p_cdc, pl2303_desc[idx], 2, NULL, 0 ); // step 2 now with supports_hx_status
+      TU_ASSERT(type!=PL2303_DETECT_TYPE_FAILED,);
+      p_cdc->pl2303.serial_private.type = &pl2303_type_data[type];
       p_cdc->pl2303.serial_private.quirks |= p_cdc->pl2303.serial_private.type->quirks;
       #if CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL && 0 // can be activated if necessary
+        TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "PL2303 bDeviceClass = 0x%02x bMaxPacketSize0 = %u bcdUSB = 0x%04x bcdDevice = 0x%04x\r\n",
+               pl2303_desc[idx]->bDeviceClass, pl2303_desc[idx]->bMaxPacketSize0, pl2303_desc[idx]->bcdUSB, pl2303_desc[idx]->bcdDevice );
         uint16_t vid, pid;
         TU_ASSERT(tuh_vid_pid_get(p_cdc->daddr, &vid, &pid),);
-        TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "PL2303 vid = 0x%04x pid = 0x%04x supports_hx_status = %u type = %s quirks = %u\r\n",
+        TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "       vid = 0x%04x pid = 0x%04x supports_hx_status = %u type = %s quirks = %u\r\n",
                vid, pid, p_cdc->pl2303.supports_hx_status, p_cdc->pl2303.serial_private.type->name, p_cdc->pl2303.serial_private.quirks);
       #endif
-      TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, buf, pl2303_process_config, CONFIG_PL2303_WRITE1), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_WRITE1), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_WRITE1:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 0, pl2303_process_config, CONFIG_PL2303_READ2), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 0, pl2303_process_config, CONFIG_PL2303_READ2), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_READ2:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, buf, pl2303_process_config, CONFIG_PL2303_READ3), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_READ3), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_READ3:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, buf, pl2303_process_config, CONFIG_PL2303_READ4), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, pl2303_process_config, CONFIG_PL2303_READ4), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_READ4:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, buf, pl2303_process_config, CONFIG_PL2303_WRITE2), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_WRITE2), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_WRITE2:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 1, pl2303_process_config, CONFIG_PL2303_READ5), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 1, pl2303_process_config, CONFIG_PL2303_READ5), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_READ5:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, buf, pl2303_process_config, CONFIG_PL2303_READ6), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_READ6), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_READ6:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, buf, pl2303_process_config, CONFIG_PL2303_WRITE3), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, pl2303_process_config, CONFIG_PL2303_WRITE3), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_WRITE3:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_write(p_cdc, 0, 1, pl2303_process_config, CONFIG_PL2303_WRITE4), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 0, 1, pl2303_process_config, CONFIG_PL2303_WRITE4), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_WRITE4:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_vendor_write(p_cdc, 1, 0, pl2303_process_config, CONFIG_PL2303_WRITE5), );
-      break;
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 1, 0, pl2303_process_config, CONFIG_PL2303_WRITE5), );
+        break;
+      } // else: continue with next step
 
     case CONFIG_PL2303_WRITE5:
-      // function unknown, overtaken from Linux Kernel driver
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
+          TU_ASSERT(pl2303_vendor_write(p_cdc, 2, 0x24, pl2303_process_config, CONFIG_PL2303_RESET_ENDP1), );
+        } else {
+          TU_ASSERT(pl2303_vendor_write(p_cdc, 2, 0x44, pl2303_process_config, CONFIG_PL2303_RESET_ENDP1), );
+        }
+        break;
+      } // else: continue with next step
+
+    // from here sequence overtaken from Linux Kernel function pl2303_open()
+    case CONFIG_PL2303_RESET_ENDP1:
+      // step 1
       if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
-        TU_ASSERT(pl2303_vendor_write(p_cdc, 2, 0x24, pl2303_process_config, CONFIG_PL2303_GET_LINE_CODING), );
+        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_OUT_EP, pl2303_process_config, CONFIG_PL2303_RESET_ENDP2),);
       } else {
-        TU_ASSERT(pl2303_vendor_write(p_cdc, 2, 0x44, pl2303_process_config, CONFIG_PL2303_GET_LINE_CODING), );
+        /* reset upstream data pipes */
+        if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+          TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_RESET_REG,
+                                        PL2303_HXN_RESET_UPSTREAM_PIPE | PL2303_HXN_RESET_DOWNSTREAM_PIPE,
+                                        pl2303_process_config, CONFIG_PL2303_SET_LINE_CODING),); // skip CONFIG_PL2303_RESET_ENDP2, no 2nd step
+        } else {
+          pl2303_vendor_write(p_cdc, 8, 0, pl2303_process_config, CONFIG_PL2303_RESET_ENDP2);
+        }
       }
       break;
 
-    case CONFIG_PL2303_GET_LINE_CODING:
-      // function unknown, overtaken from Linux Kernel driver
-      TU_ASSERT(pl2303_get_line_request(p_cdc, buf, pl2303_process_config, CONFIG_PL2303_SET_LINE_CODING), );
+    case CONFIG_PL2303_RESET_ENDP2:
+      // step 2
+      if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
+        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_IN_EP, pl2303_process_config, CONFIG_PL2303_SET_LINE_CODING),);
+      } else {
+        /* reset upstream data pipes */
+        if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+          // here nothing to do, only structure of previous step overtaken for better reading and comparison
+        } else {
+          TU_ASSERT(pl2303_vendor_write(p_cdc, 9, 0, pl2303_process_config, CONFIG_PL2303_SET_LINE_CODING),);
+        }
+      }
       break;
 
+      // from here sequence overtaken from Linux Kernel function pl2303_set_termios()
+      // unnecessary pl2303_get_line_request() is skipped due to a stall
     case CONFIG_PL2303_SET_LINE_CODING:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
         cdc_line_coding_t const line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-        TU_ASSERT ( pl2303_set_line_coding(p_cdc, &line_coding, pl2303_process_config, CONFIG_PL2303_COMPLETE ), );
+        TU_ASSERT ( pl2303_set_line_coding(p_cdc, &line_coding, pl2303_process_config, CONFIG_PL2303_FLOW_CTRL_READ ),);
         break;
       #else
         TU_ATTR_FALLTHROUGH;
       #endif
+
+    case CONFIG_PL2303_FLOW_CTRL_READ:
+      // read flow control register for modify & write back in next step
+      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT(pl2303_vendor_read(p_cdc, PL2303_HXN_FLOWCTRL_REG, &buf, pl2303_process_config, CONFIG_PL2303_FLOW_CTRL_WRITE), );
+      } else {
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0, &buf, pl2303_process_config, CONFIG_PL2303_FLOW_CTRL_WRITE), );
+      }
+      break;
+
+    case CONFIG_PL2303_FLOW_CTRL_WRITE:
+      // no flow control
+      buf = xfer->buffer[0];
+      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+        buf &= ~PL2303_HXN_FLOWCTRL_MASK;
+        buf |= PL2303_HXN_FLOWCTRL_NONE;
+        TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_FLOWCTRL_REG, buf, pl2303_process_config, CONFIG_PL2303_COMPLETE), );
+      } else {
+        buf &= ~PL2303_FLOWCTRL_MASK;
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 0, buf, pl2303_process_config, CONFIG_PL2303_COMPLETE), );
+      }
+      break;
 
     case CONFIG_PL2303_COMPLETE:
       set_config_complete(p_cdc, idx, itf_num);
@@ -2052,7 +2147,8 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
 
 //------------- PL2303 helper  -------------//
 
-static int8_t pl2303_detect_type ( tusb_desc_device_t const* desc, bool pl2303_supports_hx_status )
+static int8_t pl2303_detect_type ( cdch_interface_t* p_cdc, tusb_desc_device_t const* desc, uint8_t step, 
+                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data )
 {
   /*
    * Legacy PL2303H, variants 0 and 1 (difference unknown).
@@ -2088,8 +2184,15 @@ static int8_t pl2303_detect_type ( tusb_desc_device_t const* desc, bool pl2303_s
         case 0x105:
           return TYPE_HXN;
         case 0x300: /* GT / TA */
-          if (pl2303_supports_hx_status) {
-            return TYPE_TA;
+          if ( step == 1 ) {
+            // step 1 trigger pl2303_supports_hx_status() request
+            TU_ASSERT ( pl2303_supports_hx_status ( p_cdc, complete_cb, user_data ), PL2303_DETECT_TYPE_FAILED);
+            return PL2303_SUPPORTS_HX_STATUS_TRIGGERED;
+          } else {
+            // step 2 use supports_hx_status
+            if (p_cdc->pl2303.supports_hx_status) {
+              return TYPE_TA;
+            }
           }
           TU_ATTR_FALLTHROUGH;
         case 0x305:
@@ -2097,8 +2200,15 @@ static int8_t pl2303_detect_type ( tusb_desc_device_t const* desc, bool pl2303_s
         case 0x405:
           return TYPE_HXN;
         case 0x500: /* GE / TB */
-          if (pl2303_supports_hx_status) {
-            return TYPE_TB;
+          if ( step == 1 ) {
+            // step 1 trigger pl2303_supports_hx_status() request
+            TU_ASSERT ( pl2303_supports_hx_status ( p_cdc, complete_cb, user_data ), PL2303_DETECT_TYPE_FAILED);
+            return PL2303_SUPPORTS_HX_STATUS_TRIGGERED;
+          } else {
+            // step 2 use supports_hx_status
+            if (p_cdc->pl2303.supports_hx_status) {
+              return TYPE_TB;
+            }
           }
           TU_ATTR_FALLTHROUGH;
         case 0x505:
@@ -2111,8 +2221,7 @@ static int8_t pl2303_detect_type ( tusb_desc_device_t const* desc, bool pl2303_s
       break;
   }
 
-  TU_LOG_DRV ( "unknown PL2303 device type\r\n");
-  return -1;
+  return PL2303_DETECT_TYPE_FAILED;
 }
 
 /*
