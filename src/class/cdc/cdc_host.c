@@ -558,11 +558,14 @@ static void process_internal_control_complete(tuh_xfer_t* xfer, uint8_t itf_num)
       #endif
 
       #if CFG_TUH_CDC_PL2303
-        case SERIAL_DRIVER_PL2303:
-          if ( xfer->setup->bRequest == PL2303_SET_LINE_REQUEST && xfer->setup->bmRequestType == PL2303_SET_LINE_REQUEST_TYPE ) {
-            p_cdc->line_coding = p_cdc->requested_line_coding;
-          }
-          break;
+      case SERIAL_DRIVER_PL2303:
+        if ( xfer->setup->bRequest == PL2303_SET_LINE_REQUEST && xfer->setup->bmRequestType == PL2303_SET_LINE_REQUEST_TYPE ) {
+          p_cdc->line_coding = p_cdc->requested_line_coding;
+            }
+        if ( xfer->setup->bRequest == PL2303_SET_CONTROL_REQUEST && xfer->setup->bmRequestType == PL2303_SET_CONTROL_REQUEST_TYPE ) {
+          p_cdc->line_state = value;
+        }
+        break;
       #endif
 
       default: break;
@@ -1784,10 +1787,10 @@ static bool pl2303_supports_hx_status ( cdch_interface_t* p_cdc, tuh_xfer_cb_t c
   return pl2303_set_request(p_cdc, PL2303_VENDOR_READ_REQUEST, PL2303_VENDOR_READ_REQUEST_TYPE, PL2303_READ_TYPE_HX_STATUS, 0, &buf, 1, complete_cb, user_data);
 }
 
-//static bool pl2303_set_control_lines(cdch_interface_t* p_cdc, uint8_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
-//{
-//  return pl2303_set_request(p_cdc, PL2303_SET_CONTROL_REQUEST, PL2303_SET_CONTROL_REQUEST_TYPE, value, 0, NULL, 1, complete_cb, user_data);
-//}
+static bool pl2303_set_control_lines(cdch_interface_t* p_cdc, uint8_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  return pl2303_set_request(p_cdc, PL2303_SET_CONTROL_REQUEST, PL2303_SET_CONTROL_REQUEST_TYPE, value, 0, NULL, 0, complete_cb, user_data);
+}
 
 //static bool pl2303_get_line_request(cdch_interface_t* p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE], tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 //{
@@ -1883,13 +1886,11 @@ static bool pl2303_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
 }
 
 static bool pl2303_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state,
-    tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  (void)p_cdc;
-  (void)line_state;
-  (void)complete_cb;
-  (void)user_data;
-  // TODO
-  return false;
+                                  tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->user_control_cb = complete_cb;
+  // PL2303 has the same bit coding
+  TU_ASSERT (pl2303_set_control_lines(p_cdc, line_state, complete_cb ? pl2303_control_complete : NULL, user_data));
+  return true;
 }
 
 //------------- Enumeration -------------//
@@ -1910,7 +1911,8 @@ enum {
   CONFIG_PL2303_WRITE5,
   CONFIG_PL2303_RESET_ENDP1,
   CONFIG_PL2303_RESET_ENDP2,
-  CONFIG_PL2303_SET_LINE_CODING,
+  CONFIG_PL2303_LINE_CODING,
+  CONFIG_PL2303_MODEM_CONTROL,
   CONFIG_PL2303_FLOW_CTRL_READ,
   CONFIG_PL2303_FLOW_CTRL_WRITE,
   CONFIG_PL2303_COMPLETE
@@ -2081,7 +2083,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
           TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_RESET_REG,
                                         PL2303_HXN_RESET_UPSTREAM_PIPE | PL2303_HXN_RESET_DOWNSTREAM_PIPE,
-                                        pl2303_process_config, CONFIG_PL2303_SET_LINE_CODING),); // skip CONFIG_PL2303_RESET_ENDP2, no 2nd step
+                                        pl2303_process_config, CONFIG_PL2303_LINE_CODING),); // skip CONFIG_PL2303_RESET_ENDP2, no 2nd step
         } else {
           pl2303_vendor_write(p_cdc, 8, 0, pl2303_process_config, CONFIG_PL2303_RESET_ENDP2);
         }
@@ -2091,23 +2093,31 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
     case CONFIG_PL2303_RESET_ENDP2:
       // step 2
       if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
-        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_IN_EP, pl2303_process_config, CONFIG_PL2303_SET_LINE_CODING),);
+        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_IN_EP, pl2303_process_config, CONFIG_PL2303_LINE_CODING),);
       } else {
         /* reset upstream data pipes */
         if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
           // here nothing to do, only structure of previous step overtaken for better reading and comparison
         } else {
-          TU_ASSERT(pl2303_vendor_write(p_cdc, 9, 0, pl2303_process_config, CONFIG_PL2303_SET_LINE_CODING),);
+          TU_ASSERT(pl2303_vendor_write(p_cdc, 9, 0, pl2303_process_config, CONFIG_PL2303_LINE_CODING),);
         }
       }
       break;
 
-      // from here sequence overtaken from Linux Kernel function pl2303_set_termios()
-      // unnecessary pl2303_get_line_request() is skipped due to a stall
-    case CONFIG_PL2303_SET_LINE_CODING:
+    // from here sequence overtaken from Linux Kernel function pl2303_set_termios()
+    // unnecessary pl2303_get_line_request() is skipped due to a stall
+    case CONFIG_PL2303_LINE_CODING:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
         cdc_line_coding_t const line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-        TU_ASSERT ( pl2303_set_line_coding(p_cdc, &line_coding, pl2303_process_config, CONFIG_PL2303_FLOW_CTRL_READ ),);
+        TU_ASSERT ( pl2303_set_line_coding(p_cdc, &line_coding, pl2303_process_config, CONFIG_PL2303_MODEM_CONTROL ),);
+        break;
+      #else
+        TU_ATTR_FALLTHROUGH;
+      #endif
+
+    case CONFIG_PL2303_MODEM_CONTROL:
+      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+        TU_ASSERT (pl2303_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, pl2303_process_config, CONFIG_PL2303_FLOW_CTRL_READ),);
         break;
       #else
         TU_ATTR_FALLTHROUGH;
