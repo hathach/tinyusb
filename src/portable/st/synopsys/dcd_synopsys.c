@@ -180,6 +180,9 @@ static uint16_t ep0_pending[2];                   // Index determines direction 
 static uint16_t _allocated_fifo_words_tx;         // TX FIFO size in words (IN EPs)
 static bool _out_ep_closed;                       // Flag to check if RX FIFO size needs an update (reduce its size)
 
+// Save the speed to be used after PHY resumes
+static uint8_t dcd_speed = DCD_HIGH_SPEED;
+
 // Calculate the RX FIFO size according to recommendations from reference manual
 static inline uint16_t calc_rx_ff_size(uint16_t ep_size)
 {
@@ -302,16 +305,7 @@ static void bus_reset(uint8_t rhport)
 
   usb_otg->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 
-#if CFG_TUSB_USB3340_PHY
-// In some cases after a USB suspended event, the ULPI Function
-// Control register is not set back to HS mode automatically
-// Forcing a ulpi_write to addr 0x04 with value 0x40 has not effect.
-// Force now we're just calling dcd_init to recover
-  if(suspended){
-    suspended = false;
-    dcd_init(rhport);
-  }
-#endif
+  //stop calling dcd_init here, if phy is suspended, this was causing mounting issues
 }
 
 // Set turn-around timeout according to link speed
@@ -364,6 +358,11 @@ static tusb_speed_t get_speed(uint8_t rhport)
   return (enum_spd == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL;
 }
 
+static tusb_speed_t get_ram_speed(void)
+{
+  return ((dcd_speed == DCD_HIGH_SPEED) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL);
+}
+
 static void set_speed(uint8_t rhport, tusb_speed_t speed)
 {
   uint32_t bitvalue;
@@ -376,6 +375,11 @@ static void set_speed(uint8_t rhport, tusb_speed_t speed)
   {
     bitvalue = DCD_FULL_SPEED;
   }
+
+  //save the speed here, the phy is taking a long time to resume,
+  //so if we try to read the registers before phy resumes, the speed
+  //value will be incorrect
+  dcd_speed = bitvalue;
 
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE(rhport);
 
