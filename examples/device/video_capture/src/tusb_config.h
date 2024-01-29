@@ -57,6 +57,11 @@
 #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
+// Espressif IDF requires "freertos/" prefix in include path
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+#define CFG_TUSB_OS_INC_PATH  freertos/
+#endif
+
 #ifndef CFG_TUSB_DEBUG
 #define CFG_TUSB_DEBUG        0
 #endif
@@ -102,6 +107,9 @@
 
 // use bulk endpoint for streaming interface
 #define CFG_TUD_VIDEO_STREAMING_BULK 1
+
+//#define CFG_EXAMPLE_VIDEO_READONLY
+//#define CFG_EXAMPLE_VIDEO_DISABLE_MJPEG
 
 #ifdef __cplusplus
  }

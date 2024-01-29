@@ -364,7 +364,22 @@ const uvc_cfg_desc_t desc_fs_configuration = {
 };
 
 #if TUD_OPT_HIGH_SPEED
-uvc_cfg_desc_t desc_hs_configuration = desc_fs_configuration;
+uvc_cfg_desc_t desc_hs_configuration;
+
+static uint8_t * get_hs_configuration_desc(void) {
+  static bool init = false;
+
+  if (!init) {
+    desc_hs_configuration = desc_fs_configuration;
+    // change endpoint bulk size to 512 if bulk streaming
+    if (CFG_TUD_VIDEO_STREAMING_BULK) {
+      desc_hs_configuration.video_streaming.ep.wMaxPacketSize = 512;
+    }
+  }
+  init = true;
+
+  return (uint8_t *) &desc_hs_configuration;
+}
 
 // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
 tusb_desc_device_qualifier_t const desc_device_qualifier = {
@@ -395,7 +410,11 @@ uint8_t const* tud_descriptor_device_qualifier_cb(void) {
 uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
   (void) index; // for multiple configurations
   // if link speed is high return fullspeed config, and vice versa
-  return (uint8_t const*) ((tud_speed_get() == TUSB_SPEED_HIGH) ?  &desc_fs_configuration : &desc_hs_configuration);
+  if (tud_speed_get() == TUSB_SPEED_HIGH) {
+    return (uint8_t const*) &desc_fs_configuration;
+  } else {
+    return get_hs_configuration_desc();
+  }
 }
 #endif // highspeed
 
@@ -408,11 +427,7 @@ uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
 #if TUD_OPT_HIGH_SPEED
   // Although we are highspeed, host may be fullspeed.
   if (tud_speed_get() == TUSB_SPEED_HIGH) {
-    // change endpoint bulk size to 512 if bulk streaming
-    if (CFG_TUD_VIDEO_STREAMING_BULK) {
-      desc_hs_configuration.video_streaming.ep.wMaxPacketSize = 512;
-    }
-    return (uint8_t const*) &desc_hs_configuration;
+    return get_hs_configuration_desc();
   } else
 #endif
   {

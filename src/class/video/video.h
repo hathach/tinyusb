@@ -398,7 +398,7 @@ typedef tusb_desc_video_frame_uncompressed_3int_t tusb_desc_video_frame_uncompre
 TU_VERIFY_STATIC(sizeof(tusb_desc_video_frame_uncompressed_continuous_t) == 38, "size is not correct");
 
 //------------- MJPEG -------------//
-// MJPEG payload specs: 3.1.1 formatt descriptor
+// MJPEG payload specs: 3.1.1 format descriptor
 typedef struct TU_ATTR_PACKED {
   uint8_t bLength;
   uint8_t bDescriptorType;
