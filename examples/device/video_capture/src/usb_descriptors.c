@@ -97,6 +97,19 @@ uint8_t const* tud_descriptor_device_cb(void) {
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
+/* Time stamp base clock. It is a deprecated parameter. */
+#define UVC_CLOCK_FREQUENCY    27000000
+
+/* video capture path */
+#define UVC_ENTITY_CAP_INPUT_TERMINAL  0x01
+#define UVC_ENTITY_CAP_OUTPUT_TERMINAL 0x02
+
+enum {
+  ITF_NUM_VIDEO_CONTROL,
+  ITF_NUM_VIDEO_STREAMING,
+  ITF_NUM_TOTAL
+};
+
 // Select appropriate endpoint number
 #if TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -116,81 +129,6 @@ uint8_t const* tud_descriptor_device_cb(void) {
 #endif
 
 #define USE_ISO_STREAMING (!CFG_TUD_VIDEO_STREAMING_BULK)
-
-// For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
-// To further reduce the size, we use MJPEG format instead of YUY2.
-// Select interface descriptor and length accordingly.
-#if defined(CFG_EXAMPLE_VIDEO_READONLY) && !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-  #if CFG_TUD_VIDEO_STREAMING_BULK
-    #define ITF_VIDEO_DESC(epsize)  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG_BULK(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, epsize)
-    #define ITF_VIDEO_LEN           TUD_VIDEO_CAPTURE_DESC_MJPEG_BULK_LEN
-  #else
-    #define ITF_VIDEO_DESC(epsize)  TUD_VIDEO_CAPTURE_DESCRIPTOR_MJPEG(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, epsize)
-    #define ITF_VIDEO_LEN           TUD_VIDEO_CAPTURE_DESC_MJPEG_LEN
-  #endif
-#else
-  #if CFG_TUD_VIDEO_STREAMING_BULK
-    #define ITF_VIDEO_DESC(epsize)  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR_BULK(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, epsize)
-    #define ITF_VIDEO_LEN           TUD_VIDEO_CAPTURE_DESC_UNCOMPR_BULK_LEN
-  #else
-    #define ITF_VIDEO_DESC(epsize)  TUD_VIDEO_CAPTURE_DESCRIPTOR_UNCOMPR(4, EPNUM_VIDEO_IN, FRAME_WIDTH, FRAME_HEIGHT, FRAME_RATE, epsize)
-    #define ITF_VIDEO_LEN           TUD_VIDEO_CAPTURE_DESC_UNCOMPR_LEN
-  #endif
-#endif
-
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + ITF_VIDEO_LEN)
-
-// full speed descriptor
-uint8_t const desc_fs_configuration[] = {
-    // Config number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
-
-    // IAD for Video Control
-    ITF_VIDEO_DESC(CFG_TUD_VIDEO_STREAMING_BULK ? 64 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
-};
-
-#if TUD_OPT_HIGH_SPEED
-// Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
-uint8_t const desc_hs_configuration[] = {
-  // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 500),
-
-  // IAD for Video Control
-  ITF_VIDEO_DESC(CFG_TUD_VIDEO_STREAMING_BULK ? 512 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE)
-};
-
-// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
-tusb_desc_device_qualifier_t const desc_device_qualifier = {
-  .bLength            = sizeof(tusb_desc_device_t),
-  .bDescriptorType    = TUSB_DESC_DEVICE,
-  .bcdUSB             = USB_BCD,
-
-  .bDeviceClass       = TUSB_CLASS_MISC,
-  .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-  .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-
-  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
-  .bNumConfigurations = 0x01,
-  .bReserved          = 0x00
-};
-
-// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
-// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
-// device_qualifier descriptor describes information about a high-speed capable device that would
-// change if the device were operating at the other speed. If not highspeed capable stall this request.
-uint8_t const* tud_descriptor_device_qualifier_cb(void) {
-  return (uint8_t const*) &desc_device_qualifier;
-}
-
-// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
-// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
-uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
-  (void) index; // for multiple configurations
-  // if link speed is high return fullspeed config, and vice versa
-  return (tud_speed_get() == TUSB_SPEED_HIGH) ?  desc_fs_configuration : desc_hs_configuration;
-}
-#endif // highspeed
 
 typedef struct TU_ATTR_PACKED {
   tusb_desc_interface_t itf;
@@ -231,7 +169,7 @@ typedef struct TU_ATTR_PACKED {
   uvc_streaming_desc_t video_streaming;
 } uvc_cfg_desc_t;
 
-const uvc_cfg_desc_t config_desc = {
+const uvc_cfg_desc_t desc_fs_configuration = {
     .config = {
         .bLength = sizeof(tusb_desc_configuration_t),
         .bDescriptorType = TUSB_DESC_CONFIGURATION,
@@ -370,7 +308,6 @@ const uvc_cfg_desc_t config_desc = {
             .bDescriptorType = TUSB_DESC_CS_INTERFACE,
             .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED,
 #endif
-
             .bFrameIndex = 1, // 1-based index
             .bmCapabilities = 0,
             .wWidth = FRAME_WIDTH,
@@ -426,6 +363,42 @@ const uvc_cfg_desc_t config_desc = {
     }
 };
 
+#if TUD_OPT_HIGH_SPEED
+uvc_cfg_desc_t desc_hs_configuration = desc_fs_configuration;
+
+// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
+tusb_desc_device_qualifier_t const desc_device_qualifier = {
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = USB_BCD,
+
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+    .bNumConfigurations = 0x01,
+    .bReserved          = 0x00
+};
+
+// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
+// device_qualifier descriptor describes information about a high-speed capable device that would
+// change if the device were operating at the other speed. If not highspeed capable stall this request.
+uint8_t const* tud_descriptor_device_qualifier_cb(void) {
+  return (uint8_t const*) &desc_device_qualifier;
+}
+
+// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
+uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  (void) index; // for multiple configurations
+  // if link speed is high return fullspeed config, and vice versa
+  return (uint8_t const*) ((tud_speed_get() == TUSB_SPEED_HIGH) ?  &desc_fs_configuration : &desc_hs_configuration);
+}
+#endif // highspeed
+
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
@@ -434,11 +407,17 @@ uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
 
 #if TUD_OPT_HIGH_SPEED
   // Although we are highspeed, host may be fullspeed.
-  return (tud_speed_get() == TUSB_SPEED_HIGH) ?  desc_hs_configuration : desc_fs_configuration;
-#else
-//  return desc_fs_configuration;
-  return (uint8_t const*) &config_desc;
+  if (tud_speed_get() == TUSB_SPEED_HIGH) {
+    // change endpoint bulk size to 512 if bulk streaming
+    if (CFG_TUD_VIDEO_STREAMING_BULK) {
+      desc_hs_configuration.video_streaming.ep.wMaxPacketSize = 512;
+    }
+    return (uint8_t const*) &desc_hs_configuration;
+  } else
 #endif
+  {
+    return (uint8_t const*) &desc_fs_configuration;
+  }
 }
 
 //--------------------------------------------------------------------+
