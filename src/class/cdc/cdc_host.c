@@ -77,6 +77,8 @@ typedef struct {
     uint8_t rx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
     CFG_TUH_MEM_ALIGN uint8_t rx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
   } stream;
+
+  bool configured;
 } cdch_interface_t;
 
 CFG_TUH_MEM_SECTION
@@ -257,6 +259,7 @@ static cdch_interface_t* make_new_itf(uint8_t daddr, tusb_desc_interface_t const
       p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
       p_cdc->bInterfaceProtocol = itf_desc->bInterfaceProtocol;
       p_cdc->line_state         = 0;
+      p_cdc->configured         = false;
       return p_cdc;
     }
   }
@@ -305,7 +308,8 @@ bool tuh_cdc_itf_get_info(uint8_t idx, tuh_itf_info_t* info) {
 
 bool tuh_cdc_mounted(uint8_t idx) {
   cdch_interface_t* p_cdc = get_itf(idx);
-  return p_cdc != NULL;
+  TU_VERIFY(p_cdc);
+  return p_cdc->configured;
 }
 
 bool tuh_cdc_get_dtr(uint8_t idx) {
@@ -747,6 +751,7 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
 
 static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t itf_num) {
   TU_LOG_DRV("CDCh Set Configure complete\r\n");
+  p_cdc->configured = true;
   if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(idx);
 
   // Prepare for incoming data
