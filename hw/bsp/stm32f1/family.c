@@ -57,9 +57,6 @@ void board_init(void) {
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
-  // Enable UART Clock
-  UART_CLK_EN();
-
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -86,7 +83,10 @@ void board_init(void) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
+#ifdef UART_DEV
   // UART
+  UART_CLK_EN();
+
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -105,6 +105,7 @@ void board_init(void) {
       .Init.OverSampling = UART_OVERSAMPLING_16
   };
   HAL_UART_Init(&UartHandle);
+#endif
 
   // USB Pins
   // Configure USB DM and DP pins.
