@@ -193,6 +193,7 @@ void video_send_frame(void) {
 
   if (!already_sent) {
     already_sent = 1;
+    tx_busy = 1;
     start_ms = board_millis();
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
     #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
@@ -211,6 +212,7 @@ void video_send_frame(void) {
   if (cur - start_ms < interval_ms) return; // not enough time
   if (tx_busy) return;
   start_ms += interval_ms;
+  tx_busy = 1;
 
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
   #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
