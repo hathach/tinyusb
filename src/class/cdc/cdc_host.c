@@ -53,12 +53,13 @@ typedef struct {
   uint8_t bInterfaceSubClass;
   uint8_t bInterfaceProtocol;
 
-  uint8_t serial_drid; // Serial Driver ID
-  cdc_acm_capability_t acm_capability;
   uint8_t ep_notif;
+  uint8_t serial_drid; // Serial Driver ID
+  bool mounted;        // Enumeration is complete
+  cdc_acm_capability_t acm_capability;
 
-  uint8_t line_state;                               // DTR (bit0), RTS (bit1)
   TU_ATTR_ALIGNED(4) cdc_line_coding_t line_coding; // Baudrate, stop bits, parity, data width
+  uint8_t line_state;                               // DTR (bit0), RTS (bit1)
 
   #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CP210X || CFG_TUH_CDC_CH34X
   cdc_line_coding_t requested_line_coding;
@@ -77,8 +78,6 @@ typedef struct {
     uint8_t rx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
     CFG_TUH_MEM_ALIGN uint8_t rx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
   } stream;
-
-  bool configured;
 } cdch_interface_t;
 
 CFG_TUH_MEM_SECTION
@@ -259,7 +258,6 @@ static cdch_interface_t* make_new_itf(uint8_t daddr, tusb_desc_interface_t const
       p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
       p_cdc->bInterfaceProtocol = itf_desc->bInterfaceProtocol;
       p_cdc->line_state         = 0;
-      p_cdc->configured         = false;
       return p_cdc;
     }
   }
@@ -309,7 +307,7 @@ bool tuh_cdc_itf_get_info(uint8_t idx, tuh_itf_info_t* info) {
 bool tuh_cdc_mounted(uint8_t idx) {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
-  return p_cdc->configured;
+  return p_cdc->mounted;
 }
 
 bool tuh_cdc_get_dtr(uint8_t idx) {
@@ -648,9 +646,9 @@ void cdch_close(uint8_t daddr) {
       // Invoke application callback
       if (tuh_cdc_umount_cb) tuh_cdc_umount_cb(idx);
 
-      //tu_memclr(p_cdc, sizeof(cdch_interface_t));
       p_cdc->daddr = 0;
       p_cdc->bInterfaceNumber = 0;
+      p_cdc->mounted = false;
       tu_edpt_stream_close(&p_cdc->stream.tx);
       tu_edpt_stream_close(&p_cdc->stream.rx);
     }
@@ -751,7 +749,7 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
 
 static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t itf_num) {
   TU_LOG_DRV("CDCh Set Configure complete\r\n");
-  p_cdc->configured = true;
+  p_cdc->mounted = true;
   if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(idx);
 
   // Prepare for incoming data
