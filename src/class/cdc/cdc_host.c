@@ -150,13 +150,13 @@ static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, t
 #if CFG_TUH_CDC_PL2303
 #include "serial/pl2303.h"
 
-static uint16_t const pl2303_vid_pid_quirks_list[][3] = {CFG_TUH_CDC_PL2303_VID_PID_QUIRKS_LIST};
+static uint16_t const pl2303_vid_pid_list[][2] = {CFG_TUH_CDC_PL2303_VID_PID_LIST};
 static const struct pl2303_type_data pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
 
 CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
 static tusb_desc_device_t pl2303_desc[CFG_TUH_CDC][CFG_TUH_ENUMERATION_BUFSIZE];
 
-static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len, uint16_t quirks);
+static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len);
 static void pl2303_process_config(tuh_xfer_t* xfer);
 
 static bool pl2303_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -190,10 +190,8 @@ enum {
 
 typedef struct {
   uint16_t const (*vid_pid_list)[2];
-  uint16_t const (*vid_pid_quirks_list)[3];
   uint16_t const vid_pid_count;
   bool (*const open)(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
-  bool (*const open_with_quirks)(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len, uint16_t quirks);
   void (*const process_set_config)(tuh_xfer_t* xfer);
   bool (*const set_control_line_state)(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
   bool (*const set_baudrate)(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -205,10 +203,8 @@ typedef struct {
 static const cdch_serial_driver_t serial_drivers[] = {
   {
       .vid_pid_list           = NULL,
-      .vid_pid_quirks_list    = NULL,
       .vid_pid_count          = 0,
       .open                   = acm_open,
-      .open_with_quirks       = NULL,
       .process_set_config     = acm_process_config,
       .set_control_line_state = acm_set_control_line_state,
       .set_baudrate           = acm_set_baudrate,
@@ -219,10 +215,8 @@ static const cdch_serial_driver_t serial_drivers[] = {
   #if CFG_TUH_CDC_FTDI
   {
       .vid_pid_list           = ftdi_vid_pid_list,
-      .vid_pid_quirks_list    = NULL,
       .vid_pid_count          = TU_ARRAY_SIZE(ftdi_vid_pid_list),
       .open                   = ftdi_open,
-      .open_with_quirks       = NULL,
       .process_set_config     = ftdi_process_config,
       .set_control_line_state = ftdi_sio_set_modem_ctrl,
       .set_baudrate           = ftdi_sio_set_baudrate,
@@ -234,10 +228,8 @@ static const cdch_serial_driver_t serial_drivers[] = {
   #if CFG_TUH_CDC_CP210X
   {
       .vid_pid_list           = cp210x_vid_pid_list,
-      .vid_pid_quirks_list    = NULL,
       .vid_pid_count          = TU_ARRAY_SIZE(cp210x_vid_pid_list),
       .open                   = cp210x_open,
-      .open_with_quirks       = NULL,
       .process_set_config     = cp210x_process_config,
       .set_control_line_state = cp210x_set_modem_ctrl,
       .set_baudrate           = cp210x_set_baudrate,
@@ -249,10 +241,8 @@ static const cdch_serial_driver_t serial_drivers[] = {
   #if CFG_TUH_CDC_CH34X
   {
       .vid_pid_list           = ch34x_vid_pid_list,
-      .vid_pid_quirks_list    = NULL,
       .vid_pid_count          = TU_ARRAY_SIZE(ch34x_vid_pid_list),
       .open                   = ch34x_open,
-      .open_with_quirks       = NULL,
       .process_set_config     = ch34x_process_config,
       .set_control_line_state = ch34x_set_modem_ctrl,
       .set_baudrate           = ch34x_set_baudrate,
@@ -263,11 +253,9 @@ static const cdch_serial_driver_t serial_drivers[] = {
 
   #if CFG_TUH_CDC_PL2303
   {
-      .vid_pid_list           = NULL,
-      .vid_pid_quirks_list    = pl2303_vid_pid_quirks_list,
-      .vid_pid_count          = TU_ARRAY_SIZE(pl2303_vid_pid_quirks_list),
-      .open                   = NULL,
-      .open_with_quirks       = pl2303_open,
+      .vid_pid_list           = pl2303_vid_pid_list,
+      .vid_pid_count          = TU_ARRAY_SIZE(pl2303_vid_pid_list),
+      .open                   = pl2303_open,
       .process_set_config     = pl2303_process_config,
       .set_control_line_state = pl2303_set_modem_ctrl,
       .set_baudrate           = pl2303_set_baudrate,
@@ -806,10 +794,6 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
         if (driver->vid_pid_list != NULL && driver->open != NULL &&
             driver->vid_pid_list[i][0] == vid && driver->vid_pid_list[i][1] == pid) {
           return driver->open(daddr, itf_desc, max_len);
-        }
-        if (driver->vid_pid_quirks_list != NULL && driver->open_with_quirks != NULL &&
-            driver->vid_pid_quirks_list[i][0] == vid && driver->vid_pid_quirks_list[i][1] == pid) {
-          return driver->open_with_quirks(daddr, itf_desc, max_len, driver->vid_pid_quirks_list[i][2]);
         }
       }
     }
@@ -1921,7 +1905,7 @@ enum {
   CONFIG_PL2303_COMPLETE
 };
 
-static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len, uint16_t quirks) {
+static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len) {
   // PL2303 Interface includes 1 vendor interface + 1 interrupt endpoints + 2 bulk
   TU_VERIFY (itf_desc->bNumEndpoints == 3);
   TU_VERIFY (sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t) <= max_len);
@@ -1931,7 +1915,8 @@ static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, ui
 
   TU_LOG_DRV ("PL2303 opened\r\n");
   p_cdc->serial_drid = SERIAL_DRIVER_PL2303;
-  p_cdc->pl2303.serial_private.quirks = quirks;
+  p_cdc->pl2303.serial_private.quirks = 0;
+  p_cdc->pl2303.supports_hx_status = false;
 
   tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
 
