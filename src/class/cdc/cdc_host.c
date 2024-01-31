@@ -1768,13 +1768,13 @@ static bool pl2303_vendor_write(cdch_interface_t* p_cdc, uint16_t value, uint16_
   return pl2303_set_request(p_cdc, request, PL2303_VENDOR_WRITE_REQUEST_TYPE, value, index, NULL, 0, complete_cb, user_data);
 }
 
-static bool pl2303_supports_hx_status ( cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data )
+static inline bool pl2303_supports_hx_status ( cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data )
 {
   uint8_t buf;
   return pl2303_set_request(p_cdc, PL2303_VENDOR_READ_REQUEST, PL2303_VENDOR_READ_REQUEST_TYPE, PL2303_READ_TYPE_HX_STATUS, 0, &buf, 1, complete_cb, user_data);
 }
 
-static bool pl2303_set_control_lines(cdch_interface_t* p_cdc, uint8_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+static inline bool pl2303_set_control_lines(cdch_interface_t* p_cdc, uint8_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   return pl2303_set_request(p_cdc, PL2303_SET_CONTROL_REQUEST, PL2303_SET_CONTROL_REQUEST_TYPE, value, 0, NULL, 0, complete_cb, user_data);
 }
@@ -1784,7 +1784,7 @@ static bool pl2303_set_control_lines(cdch_interface_t* p_cdc, uint8_t value, tuh
 //  return pl2303_set_request(p_cdc, PL2303_GET_LINE_REQUEST, PL2303_GET_LINE_REQUEST_TYPE, 0, 0, buf, PL2303_LINE_CODING_BUFSIZE, complete_cb, user_data);
 //}
 
-static bool pl2303_set_line_request(cdch_interface_t* p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE], tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+static inline bool pl2303_set_line_request(cdch_interface_t* p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE], tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   return pl2303_set_request(p_cdc, PL2303_SET_LINE_REQUEST, PL2303_SET_LINE_REQUEST_TYPE, 0, 0, buf, PL2303_LINE_CODING_BUFSIZE, complete_cb, user_data);
 }
@@ -1795,7 +1795,7 @@ static bool pl2303_set_line_request(cdch_interface_t* p_cdc, uint8_t buf[PL2303_
 //  return pl2303_set_request(p_cdc, PL2303_BREAK_REQUEST, PL2303_BREAK_REQUEST_TYPE, state, 0, NULL, 0, complete_cb, user_data);
 //}
 
-int pl2303_clear_halt(cdch_interface_t* p_cdc, uint8_t endp, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+static inline int pl2303_clear_halt(cdch_interface_t* p_cdc, uint8_t endp, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
   /* we don't care if it wasn't halted first. in fact some devices
    * (like some ibmcam model 1 units) seem to expect hosts to make
@@ -1813,6 +1813,8 @@ static void pl2303_control_complete(tuh_xfer_t* xfer) {
   process_internal_control_complete(xfer, itf_num);
 }
 
+// set line coding
+// the caller has to precheck, that the new line coding different than the current, else false returned
 static bool pl2303_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding,
                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
@@ -1830,7 +1832,7 @@ static bool pl2303_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t co
    *       only used in set_termios, which is serialised against itself.
    */
   // TODO really necessary to check? what to do in this case when no transfer will happen?
-  TU_ASSERT ( memcmp ( line_coding, &p_cdc->line_coding, PL2303_LINE_CODING_BUFSIZE ) != 0);
+  TU_VERIFY ( memcmp ( line_coding, &p_cdc->line_coding, PL2303_LINE_CODING_BUFSIZE ) != 0 );
 
   p_cdc->requested_line_coding = *line_coding;
 
@@ -1839,7 +1841,7 @@ static bool pl2303_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t co
   buf[6] = line_coding->data_bits;
 
   /* For reference buf[0]:buf[3] baud rate value */
-  pl2303_encode_baud_rate(p_cdc, line_coding->bit_rate, &buf[0]);
+  TU_VERIFY ( pl2303_encode_baud_rate(p_cdc, line_coding->bit_rate, &buf[0]) );
 
   /* For reference buf[4]=0 is 1 stop bits */
   /* For reference buf[4]=1 is 1.5 stop bits */
@@ -1853,7 +1855,9 @@ static bool pl2303_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t co
   /* For reference buf[5]=4 is space parity */
   buf[5] = line_coding->parity; // TinyUSB has the same coding
 
-  return pl2303_set_line_request(p_cdc, buf, complete_cb ? pl2303_control_complete : NULL, user_data);
+  TU_ASSERT ( pl2303_set_line_request(p_cdc, buf, complete_cb ? pl2303_control_complete : NULL, user_data) );
+
+  return true;
 }
 
 static bool pl2303_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
@@ -1876,7 +1880,8 @@ static bool pl2303_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
   // PL2303 has the same bit coding
-  TU_ASSERT (pl2303_set_control_lines(p_cdc, line_state, complete_cb ? pl2303_control_complete : NULL, user_data));
+  TU_ASSERT ( pl2303_set_control_lines(p_cdc, line_state, complete_cb ? pl2303_control_complete : NULL, user_data) );
+
   return true;
 }
 
@@ -2345,7 +2350,7 @@ static bool pl2303_encode_baud_rate(cdch_interface_t* p_cdc, uint32_t baud, uint
 {
   uint32_t baud_sup;
 
-  TU_ASSERT(baud && baud < p_cdc->pl2303.serial_private.type->max_baud_rate);
+  TU_VERIFY(baud && baud <= p_cdc->pl2303.serial_private.type->max_baud_rate);
   /*
    * Use direct method for supported baud rates, otherwise use divisors.
    * Newer chip types do not support divisor encoding.
