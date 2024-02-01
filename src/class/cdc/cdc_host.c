@@ -1408,7 +1408,6 @@ static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
     // stage 1 success, continue to stage 2
-    p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
     TU_ASSERT(ch34x_set_data_format(p_cdc, p_cdc->requested_line_coding.stop_bits, p_cdc->requested_line_coding.parity,
                                     p_cdc->requested_line_coding.data_bits, p_cdc->requested_complete_cb, xfer->user_data), );
   } else {
