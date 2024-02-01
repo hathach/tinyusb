@@ -469,7 +469,28 @@
 #ifndef CFG_TUH_CDC_CP210X_VID_PID_LIST
   // List of product IDs that can use the CP210X CDC driver. 0x10C4 is Silicon Labs' VID
   #define CFG_TUH_CDC_CP210X_VID_PID_LIST \
-    {0x10C4, 0xEA60}, {0x10C4, 0xEA70}
+  { 0x0FCF, 0x1003 }, /* Dynastream ANT development board */ \
+  { 0x10A6, 0xAA26 }, /* Knock-off DCU-11 cable */ \
+  { 0x10AB, 0x10C5 }, /* Siemens MC60 Cable */ \
+  { 0x10B5, 0xAC70 }, /* Nokia CA-42 USB */ \
+  { 0x10C4, 0x803B }, /* Pololu USB-serial converter */ \
+  { 0x10C4, 0x8066 }, /* Argussoft In-System Programmer */ \
+  { 0x10C4, 0x807A }, /* Crumb128 board */ \
+  { 0x10C4, 0x80CA }, /* Degree Controls Inc */ \
+  { 0x10C4, 0x80F6 }, /* Suunto sports instrument */ \
+  { 0x10C4, 0x813D }, /* Burnside Telecom Deskmobile */ \
+  { 0x10C4, 0x814A }, /* West Mountain Radio RIGblaster P&P */ \
+  { 0x10C4, 0x814B }, /* West Mountain Radio RIGtalk */ \
+  { 0x10C4, 0x815E }, /* Helicomm IP-Link 1220-DVM */ \
+  { 0x10C4, 0x81C8 }, /* Lipowsky Industrie Elektronik GmbH, Baby-JTAG */ \
+  { 0x10C4, 0x81E2 }, /* Lipowsky Industrie Elektronik GmbH, Baby-LIN */ \
+  { 0x10C4, 0x8218 }, /* Lipowsky Industrie Elektronik GmbH, HARP-1 */ \
+  { 0x10C4, 0xEA60 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA61 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA70 }, /* Silicon Labs Dual Port factory default */ \
+  { 0x10C5, 0xEA61 }, /* Silicon Labs MobiData GPRS USB Modem */ \
+  { 0x13AD, 0x9999 }, /* Baltech card reader */ \
+  { 0x16D6, 0x0001 }  /* Jablotron serial interface */
 #endif
 
 #ifndef CFG_TUH_CDC_CH34X
