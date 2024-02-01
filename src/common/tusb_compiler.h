@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -128,7 +128,9 @@
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
   #define TU_ATTR_PACKED                __attribute__ ((packed))
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
-  #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
+  #ifndef TU_ATTR_ALWAYS_INLINE // allow to override for debug
+    #define TU_ATTR_ALWAYS_INLINE       __attribute__ ((always_inline))
+  #endif
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
@@ -138,10 +140,14 @@
   #define TU_ATTR_BIT_FIELD_ORDER_BEGIN
   #define TU_ATTR_BIT_FIELD_ORDER_END
 
-  #if __has_attribute(__fallthrough__)
-    #define TU_ATTR_FALLTHROUGH         __attribute__((fallthrough))
-  #else
+  #if __GNUC__ < 5
     #define TU_ATTR_FALLTHROUGH         do {} while (0)  /* fallthrough */
+  #else
+    #if __has_attribute(__fallthrough__)
+      #define TU_ATTR_FALLTHROUGH         __attribute__((fallthrough))
+    #else
+      #define TU_ATTR_FALLTHROUGH         do {} while (0)  /* fallthrough */
+    #endif
   #endif
 
   // Endian conversion use well-known host to network (big endian) naming
@@ -151,8 +157,17 @@
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
   #endif
 
-  #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
-  #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
+  // Unfortunately XC16 doesn't provide builtins for 32bit endian conversion
+  #if defined(__XC16)
+    #define TU_BSWAP16(u16) (__builtin_swap(u16))
+    #define TU_BSWAP32(u32) ((((u32) & 0xff000000) >> 24) |  \
+                            (((u32) & 0x00ff0000) >> 8)  |  \
+                            (((u32) & 0x0000ff00) << 8)  |  \
+                            (((u32) & 0x000000ff) << 24))
+  #else
+    #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
+    #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
+  #endif
 
 	#ifndef __ARMCC_VERSION
   // List of obsolete callback function that is renamed and should not be defined.
@@ -192,11 +207,13 @@
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
   #define TU_ATTR_PACKED                __attribute__ ((packed))
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
-  #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
+  #ifndef TU_ATTR_ALWAYS_INLINE // allow to override for debug
+    #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
+  #endif
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
-  #define TU_ATTR_FALLTHROUGH           __attribute__((fallthrough))
+  #define TU_ATTR_FALLTHROUGH           do {} while (0)  /* fallthrough */
 
   #define TU_ATTR_PACKED_BEGIN
   #define TU_ATTR_PACKED_END
@@ -239,7 +256,7 @@
   #define TU_BSWAP16(u16) ((unsigned short)_builtin_revw((unsigned long)u16))
   #define TU_BSWAP32(u32) (_builtin_revl(u32))
 
-#else 
+#else
   #error "Compiler attribute porting is required"
 #endif
 

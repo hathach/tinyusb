@@ -86,7 +86,7 @@ unless (project_found)
           end
         end
 
-        # Genarate gitkeep in test support path
+        # Generate gitkeep in test support path
         FileUtils.touch(File.join(test_support_path, '.gitkeep'))
 
         # If documentation requested, create a place to dump them and do so

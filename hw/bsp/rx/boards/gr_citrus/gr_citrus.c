@@ -33,9 +33,9 @@
  * - Short EMLE pad and 3.3V(GR-CITRUS pin name) with a wire.
  *
  * The pads are [the back side of GR-CITRUS](https://www.slideshare.net/MinaoYamamoto/grcitrusrx631/2).
- * 
+ *
  * Connect the pins between GR-CITRUS and JLink as follows.
- * 
+ *
  * | Function  | GR-CITRUS pin | JLink pin No.| note     |
  * |:---------:|:-------------:|:------------:|:--------:|
  * | VTref     |   3.3V        |   1          |          |
@@ -52,7 +52,7 @@
  * regarding downloading.
  */
 
-#include "../board.h"
+#include "bsp/board_api.h"
 #include "iodefine.h"
 #include "interrupt_handlers.h"
 
@@ -91,7 +91,7 @@ void INT_Excep_SCI0_TXI0(void)
 {
   uint8_t *buf = sci0_buf[0].buf;
   uint32_t cnt = sci0_buf[0].cnt;
-  
+
   if (!buf || !cnt) {
     SCI0.SCR.BYTE &= ~(SCI_SCR_TEIE | SCI_SCR_TE | SCI_SCR_TIE);
     return;
@@ -201,6 +201,11 @@ void board_init(void)
   IEN(SCI0, RXI0) = 1;
   IEN(SCI0, TXI0) = 1;
   IEN(SCI0, TEI0) = 1;
+
+  /* Enable USB0 */
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
+  MSTP(USB0) = 0;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
 }
 
 //--------------------------------------------------------------------+

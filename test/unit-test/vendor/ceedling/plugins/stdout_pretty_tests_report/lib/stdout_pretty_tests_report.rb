@@ -2,20 +2,20 @@ require 'ceedling/plugin'
 require 'ceedling/defaults'
 
 class StdoutPrettyTestsReport < Plugin
-  
+
   def setup
     @result_list = []
     @plugin_root = File.expand_path(File.join(File.dirname(__FILE__), '..'))
     template = @ceedling[:file_wrapper].read(File.join(@plugin_root, 'assets/template.erb'))
     @ceedling[:plugin_reportinator].register_test_results_template( template )
   end
-  
+
   def post_test_fixture_execute(arg_hash)
     return if not (arg_hash[:context] == TEST_SYM)
-  
+
     @result_list << arg_hash[:result_file]
   end
-  
+
   def post_build
     return if not (@ceedling[:task_invoker].test_invoked?)
 

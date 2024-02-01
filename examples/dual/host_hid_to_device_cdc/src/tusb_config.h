@@ -84,10 +84,6 @@
 #define CFG_TUH_RPI_PIO_USB   1
 #endif
 
-
-// CFG_TUSB_DEBUG is defined by compiler in DEBUG build
-// #define CFG_TUSB_DEBUG           0
-
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
  * into those specific section.
@@ -95,12 +91,12 @@
  * - CFG_TUSB_MEM SECTION : __attribute__ (( section(".usb_ram") ))
  * - CFG_TUSB_MEM_ALIGN   : __attribute__ ((aligned(4)))
  */
-#ifndef CFG_TUSB_MEM_SECTION
-#define CFG_TUSB_MEM_SECTION
+#ifndef CFG_TUD_MEM_SECTION
+#define CFG_TUD_MEM_SECTION
 #endif
 
-#ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN        __attribute__ ((aligned(4)))
+#ifndef CFG_TUD_MEM_ALIGN
+#define CFG_TUD_MEM_ALIGN        __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
@@ -128,11 +124,19 @@
 // Size of buffer to hold descriptors and other data used for enumeration
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 
+#ifndef CFG_TUH_MEM_SECTION
+#define CFG_TUH_MEM_SECTION
+#endif
+
+#ifndef CFG_TUH_MEM_ALIGN
+#define CFG_TUH_MEM_ALIGN           __attribute__ ((aligned(4)))
+#endif
+
 #define CFG_TUH_HUB                 1
 // max device support (excluding hub device)
 #define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
 
-#define CFG_TUH_HID                  4
+#define CFG_TUH_HID                 (3*CFG_TUH_DEVICE_MAX)
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
 #define CFG_TUH_HID_EPOUT_BUFSIZE   64
 

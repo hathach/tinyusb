@@ -89,4 +89,3 @@ class CommandHooks < Plugin
     end
   end
 end
-

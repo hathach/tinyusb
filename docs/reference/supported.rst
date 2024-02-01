@@ -8,6 +8,12 @@ Supported MCUs
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | Manufacturer | Family                | Device | Host | Highspeed | Driver            | Note         |
 +==============+=======================+========+======+===========+===================+==============+
+| Allwinner    | F1C100s/F1C200s       | ✔      |      | ✔         | sunxi             | musb variant |
++--------------+-----------------------+--------+------+-----------+-------------------+--------------+
+| Analog       | MAX3421E              |        | ✔    | ✖         | max3421           | via SPI      |
++--------------+-----------------------+--------+------+-----------+-------------------+--------------+
+| Brigetek     | FT90x                 | ✔      |      | ✔         | ft9xx             |              |
++--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | Broadcom     | BCM2711, BCM2837      | ✔      |      | ✔         | dwc2              |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | Dialog       | DA1469x               | ✔      | ✖    | ✖         | da146xx           |              |
@@ -17,36 +23,46 @@ Supported MCUs
 | GigaDevice   | GD32VF103             | ✔      |      | ✖         | dwc2              |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | Infineon     | XMC4500               | ✔      |      | ✖         | dwc2              |              |
-+--------------+-----------------------+--------+------+-----------+-------------------+--------------+
-| MicroChip    | SAM D11, D21          | ✔      |      | ✖         | samd              |              |
-|              +-----------------------+--------+------+-----------+-------------------+--------------+
-|              | SAM D51, E5x          | ✔      |      | ✖         | samd              |              |
-|              +-----------------------+--------+------+-----------+-------------------+--------------+
-|              | SAM G55               | ✔      |      | ✖         | samg              |              |
-|              +-----------------------+--------+------+-----------+-------------------+--------------+
-|              | SAM L21, L22          | ✔      |      | ✖         | samd              |              |
-|              +-----------------------+--------+------+-----------+-------------------+--------------+
-|              | SAM E70,S70,V70,V71   | ✔      |      | ✔         | samx7x            |              |
-+--------------+-----------------------+--------+------+-----------+-------------------+--------------+
++--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
+| MicroChip    | SAM | D11, D21        | ✔      |      | ✖         | samd              |              |
+|              |     +-----------------+--------+------+-----------+-------------------+--------------+
+|              |     | D51, E5x        | ✔      |      | ✖         | samd              |              |
+|              |     +-----------------+--------+------+-----------+-------------------+--------------+
+|              |     | G55             | ✔      |      | ✖         | samg              |              |
+|              |     +-----------------+--------+------+-----------+-------------------+--------------+
+|              |     | L21, L22        | ✔      |      | ✖         | samd              |              |
+|              |     +-----------------+--------+------+-----------+-------------------+--------------+
+|              |     | E70,S70,V70,V71 | ✔      |      | ✔         | samx7x            |              |
+|              +-----+-----------------+--------+------+-----------+-------------------+--------------+
+|              | PIC | 24              | ✔      |      |           | pic               | ci_fs variant|
+|              |     +-----------------+--------+------+-----------+-------------------+--------------+
+|              |     | 32 mm, mk, mx   | ✔      |      |           | pic               | ci_fs variant|
+|              |     +-----------------+--------+------+-----------+-------------------+--------------+
+|              |     | dsPIC33         | ✔      |      |           | pic               | ci_fs variant|
+|              |     +-----------------+--------+------+-----------+-------------------+--------------+
+|              |     | 32mz            | ✔      |      |           | pic32mz           | musb variant |
++--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
+| Mind Montion | mm32                  | ✔      |      | ✖         | mm32f327x_otg     | ci_fs variant|
++--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
 | NordicSemi   | nRF52833, nRF52840    | ✔      | ✖    | ✖         | nrf5x             |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
 |              | nRF5340               | ✔      | ✖    | ✖         | nrf5x             |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
-| Nuvoton      | NUC120                | ✔      | ✖    | ✖         |                   |              |
+| Nuvoton      | NUC120                | ✔      | ✖    | ✖         | nuc120            |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
-|              | NUC121/NUC125         | ✔      | ✖    | ✖         |                   |              |
+|              | NUC121/NUC125         | ✔      | ✖    | ✖         | nuc121            |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
-|              | NUC126                | ✔      | ✖    | ✖         |                   |              |
+|              | NUC126                | ✔      | ✖    | ✖         | nuc121            |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
-|              | NUC505                | ✔      |      | ✔         |                   |              |
+|              | NUC505                | ✔      |      | ✔         | nuc505            |              |
 +--------------+---------+-------------+--------+------+-----------+-------------------+--------------+
 | NXP          | iMXRT   | RT10xx      | ✔      | ✔    | ✔         | ci_hs             |              |
 |              |         +-------------+--------+------+-----------+-------------------+--------------+
 |              |         | RT11xx      | ✔      | ✔    | ✔         | ci_hs             |              |
 |              +---------+-------------+--------+------+-----------+-------------------+--------------+
-|              | Kinetis | KL25        | ✔      | ⚠    | ✖         |                   |              |
+|              | Kinetis | KL          | ✔      | ⚠    | ✖         | ci_fs, khci       |              |
 |              |         +-------------+--------+------+-----------+-------------------+--------------+
-|              |         | K32L2       | ✔      |      | ✖         |                   |              |
+|              |         | K32L2       | ✔      |      | ✖         | khci              | ci_fs variant|
 |              +---------+-------------+--------+------+-----------+-------------------+--------------+
 |              | LPC     | 11u, 13, 15 | ✔      | ✖    | ✖         | lpc_ip3511        |              |
 |              |         +-------------+--------+------+-----------+-------------------+--------------+
@@ -59,11 +75,17 @@ Supported MCUs
 |              |         | 54          | ✔      |      | ✔         | lpc_ip3511        |              |
 |              |         +-------------+--------+------+-----------+-------------------+--------------+
 |              |         | 55          | ✔      |      | ✔         | lpc_ip3511        |              |
+|              +---------+-------------+--------+------+-----------+-------------------+--------------+
+|              | MCX     | N9          | ✔      |      | ✔         | ci_fs, ci_hs      |              |
 +--------------+---------+-------------+--------+------+-----------+-------------------+--------------+
 | Raspberry Pi | RP2040                | ✔      | ✔    | ✖         | rp2040, pio_usb   |              |
-+--------------+-----------------------+--------+------+-----------+-------------------+--------------+
-| Renesas      | RX 63N, 65N, 72N      | ✔      | ✔    | ✖         | usba              |              |
-+--------------+-----------------------+--------+------+-----------+-------------------+--------------+
++--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
+| Renesas      | RX  | 63N, 65N, 72N   | ✔      | ✔    | ✖         | rusb2             |              |
+|              +-----+-----------------+--------+------+-----------+-------------------+--------------+
+|              | RA  | 4M1, 4M3, 6M1   | ✔      | ✔    | ✖         | rusb2             |              |
+|              |     +-----------------+--------+------+-----------+-------------------+--------------+
+|              |     | 6M5             | ✔      | ✔    | ✔         | rusb2             |              |
++--------------+-----+-----------------+--------+------+-----------+-------------------+--------------+
 | Silabs       | EFM32GG12             | ✔      |      | ✖         | dwc2              |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | Sony         | CXD56                 | ✔      | ✖    | ✔         | cxd56             |              |
@@ -94,7 +116,7 @@ Supported MCUs
 |              +----+------------------+--------+------+-----------+-------------------+--------------+
 |              | L4+                   | ✔      |      |           | dwc2              |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
-|              | U5                    | ⚠      |      |           | dwc2              |              |
+|              | U5                    | ✔      |      | ✔         | dwc2              |              |
 |              +-----------------------+--------+------+-----------+-------------------+--------------+
 |              | WBx5                  | ✔      |      |           | stm32_fsdev       |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
@@ -107,6 +129,8 @@ Supported MCUs
 | ValentyUSB   | eptri                 | ✔      | ✖    | ✖         | eptri             |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | WCH          | CH32V307              | ✔      |      | ✔         | ch32v307          |              |
+|              +-----------------------+--------+------+-----------+-------------------+--------------+
+|              | CH32F20x              | ✔      |      | ✔         | ch32f205          |              |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 
 
@@ -173,7 +197,7 @@ SAMD11 & SAMD21
 -  `Adafruit Feather M0 Express <https://www.adafruit.com/product/3403>`__
 -  `Adafruit ItsyBitsy M0 Express <https://www.adafruit.com/product/3727>`__
 -  `Adafruit Metro M0 Express <https://www.adafruit.com/product/3505>`__
--  `Great Scott Gadgets LUNA <https://greatscottgadgets.com/luna/>`__
+-  `Great Scott Gadgets Cynthion <https://greatscottgadgets.com/cynthion/>`__
 -  `Microchip SAMD11 Xplained Pro <https://www.microchip.com/developmenttools/ProductDetails/atsamd11-xpro>`__
 -  `Microchip SAMD21 Xplained Pro <https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMD21-XPRO>`__
 -  `Seeeduino Xiao <https://www.seeedstudio.com/Seeeduino-XIAO-Arduino-Microcontroller-SAMD21-Cortex-M0+-p-4426.html>`__
@@ -251,6 +275,7 @@ Kinetis
 ^^^^^^^
 
 -  `Freedom FRDM-KL25Z <https://www.nxp.com/design/development-boards/freedom-development-boards/mcu-boards/freedom-development-platform-for-kinetis-kl14-kl15-kl24-kl25-mcus:FRDM-KL25Z>`__
+-  `Freedom FRDM-K32L2A4S  <https://www.nxp.com/design/development-boards/freedom-development-boards/mcu-boards/nxp-freedom-platform-for-k32-l2a-mcus:FRDM-K32L2A4S>`__
 -  `Freedom FRDM-K32L2B3 <https://www.nxp.com/design/development-boards/freedom-development-boards/mcu-boards/nxp-freedom-development-platform-for-k32-l2b-mcus:FRDM-K32L2B3>`__
 -  `KUIIC <https://github.com/nxf58843/kuiic>`__
 
@@ -275,7 +300,6 @@ LPC 18-43
 -  `Embedded Artists LPC4357 Developer Kit <http://www.embeddedartists.com/products/kits/lpc4357_kit.php>`__
 -  `Keil MCB1800 Evaluation Board <http://www.keil.com/mcb1800>`__
 -  `LPCXpresso18S37 Development Board <https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc4000-cortex-m4/lpcxpresso18s37-development-board:OM13076>`__
--  `NGX LPC4330-Xplorer <https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027>`__
 
 LPC 51
 ^^^^^^
@@ -295,8 +319,17 @@ LPC55
 -  `LPCXpresso 55s69 EVK <https://www.nxp.com/design/development-boards/lpcxpresso-boards/lpcxpresso55s69-development-board:LPC55S69-EVK>`__
 -  `MCU-Link <https://www.nxp.com/design/development-boards/lpcxpresso-boards/mcu-link-debug-probe:MCU-LINK>`__
 
-Renesas RX
-----------
+Renesas
+-------
+
+RA
+^^
+
+-  `Evaluation Kit for RA4M1 <https://www.renesas.com/us/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m1-evaluation-kit-ra4m1-mcu-group>`__
+-  `Evaluation Kit for RA4M3 <https://www.renesas.com/us/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra4m3-evaluation-kit-ra4m3-mcu-group>`__
+
+RX
+^^
 
 -  `GR-CITRUS <https://www.renesas.com/us/en/products/gadget-renesas/boards/gr-citrus>`__
 -  `Renesas RX65N Target Board <https://www.renesas.com/us/en/products/microcontrollers-microprocessors/rx-32-bit-performance-efficiency-mcus/rtk5rx65n0c00000br-target-board-rx65n>`__
@@ -403,4 +436,5 @@ Tomu
 WCH
 ---
 
-- `CH32V307V-R1-1v0 <https://lcsc.com/product-detail/Development-Boards-Kits_WCH-Jiangsu-Qin-Heng-CH32V307V-EVT-R1_C2943980.html>`
+-  `CH32V307V-R1-1v0 <https://lcsc.com/product-detail/Development-Boards-Kits_WCH-Jiangsu-Qin-Heng-CH32V307V-EVT-R1_C2943980.html>`__
+-  `CH32F205R-R0-1v0 <https://github.com/openwch/ch32f20x/blob/main/EVT/PUB/CH32F20x%20Evaluation%20Board%20Reference-EN.pdf>`__

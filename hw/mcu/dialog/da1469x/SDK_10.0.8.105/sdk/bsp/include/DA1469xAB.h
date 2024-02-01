@@ -954,11 +954,11 @@ typedef struct {                                /*!< (@ 0x50030A00) LRA Structur
   __IOM uint32_t  LRA_FLT_COEF3_REG;            /*!< (@ 0x00000034) LRA Filter Coefficient Register                            */
   __IOM uint32_t  LRA_BRD_LS_REG;               /*!< (@ 0x00000038) LRA Bridge Register                                        */
   __IOM uint32_t  LRA_BRD_HS_REG;               /*!< (@ 0x0000003C) LRA Bridge Register                                        */
-  __IOM uint32_t  LRA_BRD_STAT_REG;             /*!< (@ 0x00000040) LRA Bridge Staus Register                                  */
+  __IOM uint32_t  LRA_BRD_STAT_REG;             /*!< (@ 0x00000040) LRA Bridge Status Register                                  */
   __IOM uint32_t  LRA_ADC_CTRL1_REG;            /*!< (@ 0x00000044) General Purpose ADC Control Register                       */
   __IM  uint32_t  RESERVED[2];
   __IOM uint32_t  LRA_ADC_RESULT_REG;           /*!< (@ 0x00000050) General Purpose ADC Result Register                        */
-  __IOM uint32_t  LRA_LDO_REG;                  /*!< (@ 0x00000054) LRA LDO Regsiter                                           */
+  __IOM uint32_t  LRA_LDO_REG;                  /*!< (@ 0x00000054) LRA LDO Register                                           */
   __IOM uint32_t  LRA_DFT_REG;                  /*!< (@ 0x00000058) LRA test Register                                          */
 } LRA_Type;                                     /*!< Size = 92 (0x5c)                                                          */
 
@@ -1043,7 +1043,7 @@ typedef struct {                                /*!< (@ 0x50000200) PDC Structur
   __IOM uint32_t  PDC_CTRL15_REG;               /*!< (@ 0x0000003C) PDC control register                                       */
   __IM  uint32_t  RESERVED[16];
   __IOM uint32_t  PDC_ACKNOWLEDGE_REG;          /*!< (@ 0x00000080) Clear a pending PDC bit                                    */
-  __IOM uint32_t  PDC_PENDING_REG;              /*!< (@ 0x00000084) Shows any pending wakup event                              */
+  __IOM uint32_t  PDC_PENDING_REG;              /*!< (@ 0x00000084) Shows any pending wakeup event                              */
   __IOM uint32_t  PDC_PENDING_SNC_REG;          /*!< (@ 0x00000088) Shows any pending IRQ to SNC                               */
   __IOM uint32_t  PDC_PENDING_CM33_REG;         /*!< (@ 0x0000008C) Shows any pending IRQ to CM33                              */
   __IOM uint32_t  PDC_PENDING_CMAC_REG;         /*!< (@ 0x00000090) Shows any pending IRQ to CM33                              */
@@ -1752,8 +1752,8 @@ typedef struct {                                /*!< (@ 0x50000100) WAKEUP Struc
   __IOM uint32_t  WKUP_SELECT_P1_REG;           /*!< (@ 0x00000018) select which inputs from P1 port can trigger
                                                                     wkup counter                                               */
   __IM  uint32_t  RESERVED2[3];
-  __IOM uint32_t  WKUP_POL_P0_REG;              /*!< (@ 0x00000028) select the sesitivity polarity for each P0 input           */
-  __IOM uint32_t  WKUP_POL_P1_REG;              /*!< (@ 0x0000002C) select the sesitivity polarity for each P1 input           */
+  __IOM uint32_t  WKUP_POL_P0_REG;              /*!< (@ 0x00000028) select the sensitivity polarity for each P0 input           */
+  __IOM uint32_t  WKUP_POL_P1_REG;              /*!< (@ 0x0000002C) select the sensitivity polarity for each P1 input           */
   __IM  uint32_t  RESERVED3[3];
   __IOM uint32_t  WKUP_STATUS_P0_REG;           /*!< (@ 0x0000003C) Event status register for P0                               */
   __IOM uint32_t  WKUP_STATUS_P1_REG;           /*!< (@ 0x00000040) Event status register for P1                               */

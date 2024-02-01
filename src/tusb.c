@@ -36,7 +36,7 @@
 #endif
 
 #if CFG_TUH_ENABLED
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 #endif
 
 //--------------------------------------------------------------------+
@@ -419,7 +419,7 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t* s, void* buffer, uint32_t bufsize
 #if CFG_TUSB_DEBUG
 #include <ctype.h>
 
-#if CFG_TUSB_DEBUG >= 2
+#if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL || CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
 
 char const* const tu_str_speed[] = { "Full", "Low", "High" };
 char const* const tu_str_std_request[] =
@@ -437,6 +437,10 @@ char const* const tu_str_std_request[] =
   "Get Interface"     ,
   "Set Interface"     ,
   "Synch Frame"
+};
+
+char const* const tu_str_xfer_result[] = {
+    "OK", "FAILED", "STALLED", "TIMEOUT"
 };
 
 #endif

@@ -11,7 +11,7 @@ class TaskInvoker
     @release_regexs = [/^#{RELEASE_ROOT_NAME}(:|$)/]
     @first_run = true
   end
-  
+
   def add_test_task_regex(regex)
     @test_regexs << regex
   end
@@ -19,26 +19,26 @@ class TaskInvoker
   def add_release_task_regex(regex)
     @release_regexs << regex
   end
-  
+
   def test_invoked?
     invoked = false
-    
+
     @test_regexs.each do |regex|
       invoked = true if (@rake_utils.task_invoked?(regex))
       break if invoked
     end
-    
+
     return invoked
   end
-  
+
   def release_invoked?
     invoked = false
-    
+
     @release_regexs.each do |regex|
       invoked = true if (@rake_utils.task_invoked?(regex))
       break if invoked
     end
-    
+
     return invoked
   end
 
@@ -60,7 +60,7 @@ class TaskInvoker
       @rake_wrapper[mock].invoke
     }
   end
-  
+
   def invoke_test_runner(runner)
     @dependinator.enhance_runner_dependencies( runner )
     reset_rake_task_for_changed_defines( runner )
@@ -112,11 +112,11 @@ class TaskInvoker
       @rake_wrapper[file].invoke
     end
   end
-  
+
   def invoke_release_objects(objects)
     par_map(PROJECT_COMPILE_THREADS, objects) do |object|
       @rake_wrapper[object].invoke
     end
   end
-  
+
 end

@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB
+#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB && !CFG_TUH_MAX3421
 
 #include "pico.h"
 #include "rp2040_usb.h"
@@ -219,7 +219,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   if ( status & USB_INTS_BUFF_STATUS_BITS )
   {
     handled |= USB_INTS_BUFF_STATUS_BITS;
-    TU_LOG(2, "Buffer complete\n");
+    TU_LOG(2, "Buffer complete\r\n");
     hw_handle_buff_status();
   }
 
@@ -227,7 +227,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   {
     handled |= USB_INTS_TRANS_COMPLETE_BITS;
     usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
-    TU_LOG(2, "Transfer complete\n");
+    TU_LOG(2, "Transfer complete\r\n");
     hw_trans_complete();
   }
 
@@ -252,9 +252,9 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   }
 }
 
-void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport)
-{
+void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   (void) rhport;
+  (void) in_isr;
   hcd_rp2040_irq();
 }
 
@@ -446,7 +446,7 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
       return TUSB_SPEED_FULL;
     default:
       panic("Invalid speed\n");
-      return TUSB_SPEED_INVALID;
+      // return TUSB_SPEED_INVALID;
   }
 }
 
@@ -562,6 +562,11 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | SIE_CTRL_BASE |
                      (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
                      (need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
+    // START_TRANS bit on SIE_CTRL seems to exhibit the same behavior as the AVAILABLE bit
+    // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".
+    // We write everything except the START_TRANS bit first, then wait some cycles.
+    usb_hw->sie_ctrl = flags & ~USB_SIE_CTRL_START_TRANS_BITS;
+    busy_wait_at_least_cycles(12);
     usb_hw->sie_ctrl = flags;
   }else
   {
@@ -569,6 +574,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
 
   return true;
+}
+
+bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+  // TODO not implemented yet
+  return false;
 }
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
@@ -602,18 +615,23 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   uint32_t const flags = SIE_CTRL_BASE | USB_SIE_CTRL_SEND_SETUP_BITS | USB_SIE_CTRL_START_TRANS_BITS |
                          (need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
 
+  // START_TRANS bit on SIE_CTRL seems to exhibit the same behavior as the AVAILABLE bit
+  // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".
+  // We write everything except the START_TRANS bit first, then wait some cycles.
+  usb_hw->sie_ctrl = flags & ~USB_SIE_CTRL_START_TRANS_BITS;
+  busy_wait_at_least_cycles(12);
   usb_hw->sie_ctrl = flags;
 
   return true;
 }
 
-bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
-{
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
   (void) dev_addr;
   (void) ep_addr;
 
   panic("hcd_clear_stall");
-  return true;
+  // return true;
 }
 
 #endif

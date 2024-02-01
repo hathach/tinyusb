@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021 Rafael Silva (@perigoso)
@@ -25,7 +25,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board.h"
+#include "../board_api.h"
 
 #include "em_device.h"
 
@@ -712,7 +712,7 @@ uint32_t board_millis(void)
   * @retval None
   */
 void assert_failed(char *file, uint32_t line)
-{ 
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */

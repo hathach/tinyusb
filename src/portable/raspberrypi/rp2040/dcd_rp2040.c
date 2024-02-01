@@ -29,6 +29,7 @@
 #if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB
 
 #include "pico.h"
+#include "hardware/sync.h"
 #include "rp2040_usb.h"
 
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
@@ -188,7 +189,7 @@ static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_by
 static void __tusb_irq_path_func(hw_handle_buff_status)(void)
 {
     uint32_t remaining_buffers = usb_hw->buf_status;
-    pico_trace("buf_status = 0x%08x\n", remaining_buffers);
+    pico_trace("buf_status = 0x%08lx\r\n", remaining_buffers);
     uint bit = 1u;
     for (uint8_t i = 0; remaining_buffers && i < USB_MAX_ENDPOINTS * 2; i++)
     {
@@ -198,7 +199,7 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
             usb_hw_clear->buf_status = bit;
 
             // IN transfer for even i, OUT transfer for odd i
-            struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, !(i & 1u));
+            struct hw_endpoint *ep = hw_endpoint_get_by_num(i >> 1u, (i & 1u) ? TUSB_DIR_OUT : TUSB_DIR_IN);
 
             // Continue xfer
             bool done = hw_endpoint_xfer_continue(ep);
@@ -297,7 +298,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
   if ( status & USB_INTS_SETUP_REQ_BITS )
   {
     handled |= USB_INTS_SETUP_REQ_BITS;
-    uint8_t const * setup = (uint8_t const*) &usb_dpram->setup_packet;
+    uint8_t const * setup = remove_volatile_cast(uint8_t const*, &usb_dpram->setup_packet);
 
     // reset pid to both 1 (data and ack)
     reset_ep0_pid();
@@ -330,7 +331,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
   // SE0 for 2.5 us or more (will last at least 10ms)
   if ( status & USB_INTS_BUS_RESET_BITS )
   {
-    pico_trace("BUS RESET\n");
+    pico_trace("BUS RESET\r\n");
 
     handled |= USB_INTS_BUS_RESET_BITS;
 
@@ -383,6 +384,11 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
+
+// older SDK
+#ifndef PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY
+#define PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY 0xff
+#endif
 
 void dcd_init (uint8_t rhport)
 {
@@ -559,7 +565,7 @@ void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
 {
     (void) rhport;
 
-    pico_trace("dcd_edpt_close %02x\n", ep_addr);
+    pico_trace("dcd_edpt_close %02x\r\n", ep_addr);
     hw_endpoint_close(ep_addr);
 }
 

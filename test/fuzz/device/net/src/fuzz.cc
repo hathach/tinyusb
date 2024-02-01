@@ -81,7 +81,7 @@ void net_task(FuzzedDataProvider *provider) {
 
   assert(provider != NULL);
   switch (provider->ConsumeEnum<NetApiFuncs>()) {
-  
+
   case kNetworkRecvRenew:
     tud_network_recv_renew();
     break;

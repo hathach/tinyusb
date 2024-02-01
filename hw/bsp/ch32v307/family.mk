@@ -28,29 +28,31 @@ CFLAGS += \
 	-Xlinker --gc-sections \
 	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 SRC_C += \
-	src/portable/wch/ch32v307/dcd_usbhs.c \
+	src/portable/wch/dcd_ch32_usbhs.c \
 	$(CH32V307_SDK_SRC)/Core/core_riscv.c \
 	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_gpio.c \
 	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_misc.c \
 	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_rcc.c \
-	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_usart.c 
-	
+	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_usart.c
+
 SRC_S += \
-	$(CH32V307_SDK_SRC)/Startup/startup_ch32v30x_D8C.S 
+	$(CH32V307_SDK_SRC)/Startup/startup_ch32v30x_D8C.S
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(CH32V307_SDK_SRC)/Peripheral/inc
 
 # For freeRTOS port source
-FREERTOS_PORT = RISC-V
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 
 # wch-link is not supported yet in official openOCD yet. We need to either use
 # 1. download openocd as part of mounriver studio http://www.mounriver.com/download or
 # 2. compiled from modified source https://github.com/kprasadvnsi/riscv-openocd-wch
 #
-# Note: For Linux, somehow openocd in mounriver studio does not seem to have wch-link enable, 
+# Note: For Linux, somehow openocd in mounriver studio does not seem to have wch-link enable,
 # therefore we need to compile it from source as follows:
 # 	git clone https://github.com/kprasadvnsi/riscv-openocd-wch
 # 	cd riscv-openocd-wch

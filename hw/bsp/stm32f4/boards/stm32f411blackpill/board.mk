@@ -1,12 +1,12 @@
 CFLAGS += -DSTM32F411xE
 
 # GCC
-GCC_SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f411xe.s
-GCC_LD_FILE = $(BOARD_PATH)/STM32F411CEUx_FLASH.ld
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f411xe.s
+LD_FILE_GCC = $(BOARD_PATH)/STM32F411CEUx_FLASH.ld
 
 # IAR
-IAR_SRC_S += $(ST_CMSIS)/Source/Templates/iar/startup_stm32f411xe.s
-IAR_LD_FILE = $(ST_CMSIS)/Source/Templates/iar/linker/stm32f411xe_flash.icf
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_stm32f411xe.s
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/stm32f411xe_flash.icf
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f411ce

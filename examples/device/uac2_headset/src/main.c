@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Jerzy Kasenberg
@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
@@ -105,6 +105,10 @@ int main(void)
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
 
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
   TU_LOG1("Headset running\r\n");
 
   while (1)
@@ -113,8 +117,6 @@ int main(void)
     audio_task();
     led_blinking_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -145,7 +147,7 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 // Helper for clock get requests
@@ -176,7 +178,7 @@ static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t 
         rangef.subrange[i].bRes = 0;
         TU_LOG1("Range %d (%d, %d, %d)\r\n", i, (int)rangef.subrange[i].bMin, (int)rangef.subrange[i].bMax, (int)rangef.subrange[i].bRes);
       }
-      
+
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &rangef, sizeof(rangef));
     }
   }

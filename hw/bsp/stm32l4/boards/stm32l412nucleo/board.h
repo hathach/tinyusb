@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -94,7 +94,7 @@ static inline void board_clock_init(void)
   RCC_OscInitStruct.PLL.PLLN = 10;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
-  
+
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
   /** Initializes the CPU, AHB and APB buses clocks
@@ -122,7 +122,7 @@ static inline void board_clock_init(void)
   RCC_CRSInitStruct.HSI48CalibrationValue = 32;
 
   HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
-  
+
   /* Select HSI48 output as USB clock source */
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB;
   PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;

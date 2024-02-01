@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -25,7 +25,7 @@
 
 #include <ctype.h>
 #include "tusb.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 #include "ff.h"
 #include "diskio.h"
@@ -66,7 +66,10 @@ bool msc_app_init(void)
   for(size_t i=0; i<CFG_TUH_DEVICE_MAX; i++) _disk_busy[i] = false;
 
   // disable stdout buffered for echoing typing command
+  #ifndef __ICCARM__ // TODO IAR doesn't support stream control ?
   setbuf(stdout, NULL);
+  #endif
+
   cli_init();
 
   return true;
@@ -413,7 +416,7 @@ void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
       {
         for(UINT c = 0; c < count; c++)
         {
-          const char ch = buf[c];
+          const uint8_t ch = buf[c];
           if (isprint(ch) || iscntrl(ch))
           {
             putchar(ch);

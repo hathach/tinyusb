@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -44,6 +44,13 @@
 // UART
 #define UART_RX_PIN     24
 #define UART_TX_PIN     25
+
+// SPI for USB host shield
+#define MAX3421_SCK_PIN  14
+#define MAX3421_MOSI_PIN 13
+#define MAX3421_MISO_PIN 15
+#define MAX3421_CS_PIN   27 // D10
+#define MAX3421_INTR_PIN 26 // D9
 
 #ifdef __cplusplus
  }

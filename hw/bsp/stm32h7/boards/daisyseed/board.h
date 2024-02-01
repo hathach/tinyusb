@@ -55,11 +55,11 @@
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void board_stm32h7_clock_init(void)
+static inline void SystemClock_Config(void)
 {
-  RCC_ClkInitTypeDef RCC_ClkInitStruct;
-  RCC_OscInitTypeDef RCC_OscInitStruct;
-  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct;
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+  RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = { 0 };
 
   /*!< Supply configuration update enable */
   /* For STM32H750XB, use "HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);" */

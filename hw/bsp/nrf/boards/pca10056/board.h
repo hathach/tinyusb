@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -31,17 +31,26 @@
  extern "C" {
 #endif
 
+#define _PINNUM(port, pin)    ((port)*32 + (pin))
+
 // LED
 #define LED_PIN               13
 #define LED_STATE_ON          0
 
 // Button
-#define BUTTON_PIN            11
+#define BUTTON_PIN            25 // button 4
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_RX_PIN           8
 #define UART_TX_PIN           6
+
+// SPI for USB host shield
+#define MAX3421_SCK_PIN  _PINNUM(1, 15)
+#define MAX3421_MOSI_PIN _PINNUM(1, 13)
+#define MAX3421_MISO_PIN _PINNUM(1, 14)
+#define MAX3421_CS_PIN   _PINNUM(1, 12)
+#define MAX3421_INTR_PIN _PINNUM(1, 11)
 
 #ifdef __cplusplus
  }

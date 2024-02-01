@@ -69,7 +69,7 @@ SECTIONS
  		*(EXCLUDE_FILE(*crtend?.o *crtend.o) .dtors)
  		*(SORT(.dtors.*))
  		*(.dtors)
-        
+
 		*(.rodata*)
 
 		KEEP(*(.eh_frame*))

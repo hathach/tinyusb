@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -25,7 +25,7 @@
  */
 
 #include "sam.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 #include "hal/include/hal_gpio.h"

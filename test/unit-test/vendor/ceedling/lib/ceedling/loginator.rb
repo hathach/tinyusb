@@ -11,7 +11,7 @@ class Loginator
     config_files.concat( @project_config_manager.options_files )
     config_files.compact!
     config_files.map! { |file| file.ext('') }
-    
+
     log_name = config_files.join( '_' )
 
     @project_log_filepath = File.join( @configurator.project_log_path, log_name.ext('.log') )
@@ -20,12 +20,12 @@ class Loginator
 
   def log(string, heading=nil)
     return if (not @configurator.project_logging)
-  
+
     output  = "\n[#{@system_wrapper.time_now}]"
     output += " :: #{heading}" if (not heading.nil?)
     output += "\n#{string.strip}\n"
 
     @file_wrapper.write(@project_log_filepath, output, 'a')
   end
-  
+
 end

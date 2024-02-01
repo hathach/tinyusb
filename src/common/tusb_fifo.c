@@ -539,7 +539,7 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
     // Advance index
     f->wr_idx = advance_index(f->depth, wr_idx, n);
 
-    TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\n", f->wr_idx);
+    TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\r\n", f->wr_idx);
   }
 
   _ff_unlock(f->mutex_wr);

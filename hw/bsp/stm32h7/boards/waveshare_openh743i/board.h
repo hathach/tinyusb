@@ -104,7 +104,7 @@
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void board_stm32h7_clock_init(void)
+static inline void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
@@ -192,6 +192,14 @@ static inline void board_stm32h7_post_init(void)
   // Init timer
   TIM_HandleTypeDef tim2Handle;
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  GPIO_InitTypeDef  GPIO_InitStruct;
+
+  // ULPI_RST
+  GPIO_InitStruct.Pin   = ULPI_RST_PIN;
+  GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = 0;
+  HAL_GPIO_Init(ULPI_RST_PORT, &GPIO_InitStruct);
 
   __HAL_RCC_TIM2_CLK_ENABLE();
 

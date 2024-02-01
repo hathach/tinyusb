@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021, Ha Thach (tinyusb.org)
@@ -31,6 +31,7 @@
  extern "C" {
 #endif
 
+// LED
 #ifdef PICO_DEFAULT_LED_PIN
 #define LED_PIN               PICO_DEFAULT_LED_PIN
 #define LED_STATE_ON          (!(PICO_DEFAULT_LED_PIN_INVERTED))
@@ -40,6 +41,7 @@
 #define BUTTON_BOOTSEL
 #define BUTTON_STATE_ACTIVE   0
 
+// UART
 #if defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN) && \
     defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART)
 #define UART_DEV              PICO_DEFAULT_UART
@@ -47,17 +49,41 @@
 #define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN
 #endif
 
-// PIO_USB_DP_PIN_DEFAULT is 0, which conflict with UART, change to other pin
-#ifndef PIO_USB_DP_PIN
-#define PIO_USB_DP_PIN        20
+//--------------------------------------------------------------------+
+// PIO_USB
+// default to pin on Adafruit Feather rp2040 USB Host or Tester if defined
+//--------------------------------------------------------------------+
+
+// #define USE_ADAFRUIT_FEATHER_RP2040_USBHOST
+#ifdef USE_ADAFRUIT_FEATHER_RP2040_USBHOST
+#define PICO_DEFAULT_PIO_USB_DP_PIN       16
+#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   18
+#endif
+
+#ifndef PICO_DEFAULT_PIO_USB_DP_PIN
+#define PICO_DEFAULT_PIO_USB_DP_PIN       20
 #endif
 
 // VBUS enable pin and its active state
-#define PIO_USB_VBUSEN_PIN    22
-
-#ifndef PIO_USB_VBUSEN_STATE
-#define PIO_USB_VBUSEN_STATE  1
+#ifndef PICO_DEFAULT_PIO_USB_VBUSEN_PIN
+#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   22
 #endif
+
+// VBUS enable state
+#ifndef PICO_DEFAULT_PIO_USB_VBUSEN_STATE
+#define PICO_DEFAULT_PIO_USB_VBUSEN_STATE 1
+#endif
+
+//--------------------------------------------------------------------
+// USB Host MAX3421E
+//--------------------------------------------------------------------
+
+#define MAX3421_SPI      PICO_DEFAULT_SPI_INSTANCE
+#define MAX3421_SCK_PIN  PICO_DEFAULT_SPI_SCK_PIN
+#define MAX3421_MOSI_PIN PICO_DEFAULT_SPI_TX_PIN
+#define MAX3421_MISO_PIN PICO_DEFAULT_SPI_RX_PIN
+#define MAX3421_CS_PIN   10
+#define MAX3421_INTR_PIN 9
 
 #ifdef __cplusplus
  }

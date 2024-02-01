@@ -14,6 +14,8 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=redundant-decls
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/nuc126_flash.ld
 
@@ -37,7 +39,7 @@ INC += \
   $(TOP)/hw/mcu/nuvoton/nuc126/CMSIS/Include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM0
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # For flash-jlink target
 JLINK_DEVICE = NUC126VG4AE

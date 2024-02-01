@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -29,10 +29,24 @@
 #if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
 #include <stdatomic.h>
+
+// Suppress warning caused by nrfx driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #include "nrf.h"
 #include "nrf_clock.h"
 #include "nrf_power.h"
 #include "nrfx_usbd_errata.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "device/dcd.h"
 
 // TODO remove later
@@ -187,11 +201,16 @@ static void xact_out_dma(uint8_t epnum)
     }
     else
     {
-      // Trigger DMA move data from Endpoint -> SRAM
-      NRF_USBD->ISOOUT.PTR = (uint32_t) xfer->buffer;
-      NRF_USBD->ISOOUT.MAXCNT = xact_len;
+      if (xfer->started)
+      {
+        // Trigger DMA move data from Endpoint -> SRAM
+        NRF_USBD->ISOOUT.PTR = (uint32_t) xfer->buffer;
+        NRF_USBD->ISOOUT.MAXCNT = xact_len;
 
-      start_dma(&NRF_USBD->TASKS_STARTISOOUT);
+        start_dma(&NRF_USBD->TASKS_STARTISOOUT);
+      } else {
+        atomic_flag_clear(&_dcd.dma_running);
+      }
     }
   }
   else
@@ -321,6 +340,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       NRF_USBD->INTENSET = TU_BIT(USBD_INTEN_ENDEPIN0_Pos + epnum);
       NRF_USBD->EPINEN  |= TU_BIT(epnum);
     }
+    // clear stall and reset DataToggle
+    NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+    NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
   }
   else
   {
@@ -355,10 +377,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       NRF_USBD->EPINEN  |= USBD_EPINEN_ISOIN_Msk;
     }
   }
-
-  // clear stall and reset DataToggle
-  NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
-  NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
 
   __ISB(); __DSB();
 

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeSharedSettings">
+    <configurations>
+      <configuration PROFILE_NAME="pico" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=2" />
+      <configuration PROFILE_NAME="feather_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_feather_rp2040 -DLOG=2 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="metro_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_metro_rp2040 -DLOG=2 -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="feather esp32s2" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=adafruit_feather_esp32s2 -DMAX3421_HOST=1 -DLOG=2">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
+      <configuration PROFILE_NAME="metro esp32s2" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=adafruit_metro_esp32s2 -DMAX3421_HOST=1 -DLOG=2">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
+      <configuration PROFILE_NAME="kaluga" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_kaluga_1 -DMAX3421_HOST=1 -DLOG=2">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
+      <configuration PROFILE_NAME="feather esp32s3" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=adafruit_feather_esp32s3 -DMAX3421_HOST=1 -DLOG=2">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
+      <configuration PROFILE_NAME="espressif_s3_devkitc" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_s3_devkitc -DMAX3421_HOST=1 -DLOG=2">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
+      <configuration PROFILE_NAME="feather_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m0_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="metro_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m0_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="feather_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="metro_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="feather_nrf52840_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_nrf52840_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="pca10056" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10056 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="pca10095" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10095 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="metro m7 1011 sd" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011_sd -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="metro m7 1011" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011 -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="rt1010 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1010_evk -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="rt1060 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1060_evk -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="rt1170 evkb" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1170_evkb -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="mcb1800" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mcb1800 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="ea4088 quickstart" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ea4088_quickstart -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="ea4357" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ea4357 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="lpc54628" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=lpcxpresso54628 -DLOG=4 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="lpc55s69" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=lpcxpresso55s69 -DLOG=4 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="mcxn947" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mcxn947brk -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="frdm_kl25z" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=frdm_kl25z -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="stm32f072disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f072disco" />
+      <configuration PROFILE_NAME="stm32f103_mini_2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f103_mini_2" />
+      <configuration PROFILE_NAME="stm32f411disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f411disco -DLOG=2 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="stm32f769disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f769disco -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="stm32h563nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h563nucleo -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="stm32h743eval" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="stm32h743nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743nucleo -DLOG=3" />
+      <configuration PROFILE_NAME="stm32l476disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32l476disco" />
+      <configuration PROFILE_NAME="stm32g0b1nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32g0b1nucleo" />
+      <configuration PROFILE_NAME="stm32g474nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32g474nucleo" />
+      <configuration PROFILE_NAME="b_g474e_dpow1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=b_g474e_dpow1 -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="b_g474e_dpow1 iar" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=b_g474e_dpow1 -DTOOLCHAIN=iar" />
+      <configuration PROFILE_NAME="stm32u575nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u575nucleo -DLOG=3" />
+      <configuration PROFILE_NAME="stm32u5a5nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u5a5nucleo -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra2a1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra2a1_ek -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra4m1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra4m1_ek -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra6m1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m1_ek -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra6m5" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="ra6m5 PORT0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1 -DPORT=0" />
+      <configuration PROFILE_NAME="uno_r4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=uno_r4 -DLOG=4 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="portenta_c33" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=portenta_c33 -DLOG=3" />
+      <configuration PROFILE_NAME="lpcxpresso1769" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=lpcxpresso1769 -DLOG=3 -DLOGGER=RTT" />
+    </configurations>
+  </component>
+</project>

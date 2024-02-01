@@ -28,7 +28,7 @@
 #include "debug_uart.h"
 #include "ch32v30x.h"
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+

@@ -1,10 +1,10 @@
 # Set the default behavior, in case people don't have core.autocrlf set.
 * text=auto
 
-*.c text 
-*.cpp text 
+*.c text
+*.cpp text
 *.h text
-*.icf text 
+*.icf text
 *.js text
 *.json text
 *.ld text

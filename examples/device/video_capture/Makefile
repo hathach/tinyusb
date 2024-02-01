@@ -1,5 +1,4 @@
-include ../../../tools/top.mk
-include ../../make.mk
+include ../../build_system/make/make.mk
 
 ifeq ($(DISABLE_MJPEG),1)
 CFLAGS += -DCFG_EXAMPLE_VIDEO_DISABLE_MJPEG
@@ -16,4 +15,4 @@ INC += \
 EXAMPLE_SOURCE += $(wildcard src/*.c)
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
-include ../../rules.mk
+include ../../build_system/make/rules.mk

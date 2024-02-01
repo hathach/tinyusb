@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -145,7 +145,7 @@ enum {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static ohci_data_t ohci_data;
+CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(256) static ohci_data_t ohci_data;
 
 static ohci_ed_t * const p_ed_head[] =
 {
@@ -157,6 +157,7 @@ static ohci_ed_t * const p_ed_head[] =
 
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed);
 static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr);
+static gtd_extra_data_t *gtd_get_extra_data(ohci_gtd_t const * const gtd);
 
 //--------------------------------------------------------------------+
 // USBH-HCD API
@@ -341,19 +342,24 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t ep_size, uint8_t
   p_ed->is_interrupt_xfer = (xfer_type == TUSB_XFER_INTERRUPT ? 1 : 0);
 }
 
-static void gtd_init(ohci_gtd_t* p_td, uint8_t* data_ptr, uint16_t total_bytes)
-{
+static void gtd_init(ohci_gtd_t *p_td, uint8_t *data_ptr, uint16_t total_bytes) {
   tu_memclr(p_td, sizeof(ohci_gtd_t));
 
-  p_td->used                   = 1;
-  p_td->expected_bytes         = total_bytes;
+  p_td->used = 1;
+  gtd_get_extra_data(p_td)->expected_bytes = total_bytes;
 
-  p_td->buffer_rounding        = 1; // less than queued length is not a error
-  p_td->delay_interrupt        = OHCI_INT_ON_COMPLETE_NO;
-  p_td->condition_code         = OHCI_CCODE_NOT_ACCESSED;
+  p_td->buffer_rounding = 1; // less than queued length is not a error
+  p_td->delay_interrupt = OHCI_INT_ON_COMPLETE_NO;
+  p_td->condition_code = OHCI_CCODE_NOT_ACCESSED;
 
-  p_td->current_buffer_pointer = _phys_addr(data_ptr);
-  p_td->buffer_end             = total_bytes ? (_phys_addr(data_ptr + total_bytes - 1)) : (uint8_t *)p_td->current_buffer_pointer;
+  uint8_t *cbp = (uint8_t *) _phys_addr(data_ptr);
+
+  p_td->current_buffer_pointer = cbp;
+  if ( total_bytes ) {
+    p_td->buffer_end = _phys_addr(data_ptr + total_bytes - 1);
+  } else {
+    p_td->buffer_end = cbp;
+  }
 }
 
 static ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
@@ -487,7 +493,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   ohci_ed_t* ed   = &ohci_data.control[dev_addr].ed;
   ohci_gtd_t *qtd = &ohci_data.control[dev_addr].gtd;
 
-  gtd_init(qtd, (uint8_t*) setup_packet, 8);
+  gtd_init(qtd, (uint8_t*)(uintptr_t) setup_packet, 8);
   qtd->index           = dev_addr;
   qtd->pid             = PID_SETUP;
   qtd->data_toggle     = GTD_DT_DATA0;
@@ -543,8 +549,16 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   return true;
 }
 
-bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
-{
+bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+  // TODO not implemented yet
+  return false;
+}
+
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
   ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);
 
   p_ed->is_stalled = 0;
@@ -597,6 +611,15 @@ static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
   }
 }
 
+static gtd_extra_data_t *gtd_get_extra_data(ohci_gtd_t const * const gtd) {
+  if ( gtd_is_control(gtd) ) {
+    uint8_t idx = ((uintptr_t)gtd - (uintptr_t)&ohci_data.control->gtd) / sizeof(ohci_data.control[0]);
+    return &ohci_data.gtd_extra_control[idx];
+  }else {
+    return &ohci_data.gtd_extra[gtd - ohci_data.gtd_pool];
+  }
+}
+
 static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer)
 {
   // 5.2.9 OHCI sample code
@@ -628,8 +651,7 @@ static void done_queue_isr(uint8_t hostid)
     if ( (qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES) || (event != XFER_RESULT_SUCCESS) )
     {
       ohci_ed_t * const ed  = gtd_get_ed(qtd);
-
-      uint32_t const xferred_bytes = qtd->expected_bytes - gtd_xfer_byte_left((uint32_t) qtd->buffer_end, (uint32_t) qtd->current_buffer_pointer);
+      uint32_t const xferred_bytes = gtd_get_extra_data(qtd)->expected_bytes - gtd_xfer_byte_left((uint32_t) qtd->buffer_end, (uint32_t) qtd->current_buffer_pointer);
 
       // NOTE Assuming the current list is BULK and there is no other EDs in the list has queued TDs.
       // When there is a error resulting this ED is halted, and this EP still has other queued TD
@@ -638,7 +660,7 @@ static void done_queue_isr(uint8_t hostid)
       // --> HC will not process Control list (due to service ratio when Bulk list not empty)
       // To walk-around this, the halted ED will have TailP = HeadP (empty list condition), when clearing halt
       // the TailP must be set back to NULL for processing remaining TDs
-      if ((event != XFER_RESULT_SUCCESS))
+      if (event != XFER_RESULT_SUCCESS)
       {
         ed->td_tail &= 0x0Ful;
         ed->td_tail |= tu_align16(ed->td_head.address); // mark halted EP as empty queue
@@ -654,8 +676,9 @@ static void done_queue_isr(uint8_t hostid)
   }
 }
 
-void hcd_int_handler(uint8_t hostid)
-{
+void hcd_int_handler(uint8_t hostid, bool in_isr) {
+  (void) in_isr;
+
   uint32_t const int_en     = OHCI_REG->interrupt_enable;
   uint32_t const int_status = OHCI_REG->interrupt_status & int_en;
 
@@ -715,4 +738,3 @@ void hcd_int_handler(uint8_t hostid)
 
 
 #endif
-

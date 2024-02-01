@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Koji Kitayama
@@ -26,12 +26,14 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && ( \
-      ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX ) || ( CFG_TUSB_MCU == OPT_MCU_K32L2BXX ) \
-    )
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_CHIPIDEA_FS)
 
-#include "fsl_device_registers.h"
-#define KHCI        USB0
+#ifdef TUP_USBIP_CHIPIDEA_FS_KINETIS
+  #include "fsl_device_registers.h"
+  #define KHCI        USB0
+#else
+  #error "MCU is not supported"
+#endif
 
 #include "device/dcd.h"
 
@@ -112,7 +114,7 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // BDT(Buffer Descriptor Table) must be 256-byte aligned
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(512) static dcd_data_t _dcd;
+CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(512) static dcd_data_t _dcd;
 
 TU_VERIFY_STATIC( sizeof(_dcd.bdt) == 512, "size is not correct" );
 
@@ -296,7 +298,7 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  _dcd.addr = dev_addr & 0x7F; 
+  _dcd.addr = dev_addr & 0x7F;
   /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
@@ -528,7 +530,7 @@ void dcd_int_handler(uint8_t rhport)
   if (is & USB_ISTAT_SLEEP_MASK) {
     // TU_LOG2("Suspend: "); TU_LOG2_HEX(is);
 
-    // Note Host usually has extra delay after bus reset (without SOF), which could falsely 
+    // Note Host usually has extra delay after bus reset (without SOF), which could falsely
     // detected as Sleep event. Though usbd has debouncing logic so we are good
     KHCI->ISTAT = USB_ISTAT_SLEEP_MASK;
     process_bus_sleep(rhport);

@@ -18,8 +18,8 @@ module DIY #:nodoc:#
       raise "Nil context hash" unless context_hash
       raise "Need a hash" unless context_hash.kind_of?(Hash)
       [ "[]", "keys" ].each do |mname|
-        unless extra_inputs.respond_to?(mname) 
-          raise "Extra inputs must respond to hash-like [] operator and methods #keys and #each" 
+        unless extra_inputs.respond_to?(mname)
+          raise "Extra inputs must respond to hash-like [] operator and methods #keys and #each"
         end
       end
 
@@ -37,7 +37,7 @@ module DIY #:nodoc:#
       @cache = {}
       @cache['this_context'] = self
     end
-   
+
 
     # Convenience: create a new DIY::Context by loading from a String (or open file handle.)
     def self.from_yaml(io_or_string, extra_inputs={})
@@ -51,7 +51,7 @@ module DIY #:nodoc:#
       self.from_yaml(File.read(fname), extra_inputs)
     end
 
-    # Return a reference to the object named.  If necessary, the object will 
+    # Return a reference to the object named.  If necessary, the object will
     # be instantiated on first use.  If the object is non-singleton, a new
     # object will be produced each time.
     def get_object(obj_name)
@@ -77,7 +77,7 @@ module DIY #:nodoc:#
     end
     alias :[] :get_object
 
-    # Inject a named object into the Context.  This must be done before the Context has instantiated the 
+    # Inject a named object into the Context.  This must be done before the Context has instantiated the
     # object in question.
     def set_object(obj_name,obj)
       key = obj_name.to_s
@@ -108,9 +108,9 @@ module DIY #:nodoc:#
       @defs.keys.member?(key) or extra_inputs_has(key)
     end
 
-    # Every top level object in the Context is instantiated.  This is especially useful for 
+    # Every top level object in the Context is instantiated.  This is especially useful for
     # systems that have "floating observers"... objects that are never directly accessed, who
-    # would thus never be instantiated by coincedence.  This does not build any subcontexts 
+    # would thus never be instantiated by coincedence.  This does not build any subcontexts
     # that may exist.
     def build_everything
       @defs.keys.each { |k| self[k] }
@@ -131,7 +131,7 @@ module DIY #:nodoc:#
         # we modify the info hash below so it's important to have a new
         # instance to play with
         info = info.dup if info
-        
+
         # see if we are building a factory
         if info and info.has_key?('builds')
           unless info.has_key?('auto_require')
@@ -150,21 +150,21 @@ module DIY #:nodoc:#
 
         name = name.to_s
         case name
-        when /^\+/ 
+        when /^\+/
           # subcontext
           @sub_context_defs[name.gsub(/^\+/,'')] = info
-          
+
         when /^using_namespace/
           # namespace: use a module(s) prefix for the classname of contained object defs
           # NOTE: namespacing is NOT scope... it's just a convenient way to setup class names for a group of objects.
           get_defs_from info, parse_namespace(name)
         when /^method\s/
           key_name = name.gsub(/^method\s/, "")
-          @defs[key_name] = MethodDef.new(:name => key_name, 
-                                      :object => info['object'], 
+          @defs[key_name] = MethodDef.new(:name => key_name,
+                                      :object => info['object'],
                                       :method => info['method'],
                                       :attach => info['attach'])
-        else 
+        else
           # Normal object def
           info ||= {}
           if extra_inputs_has(name)
@@ -173,14 +173,14 @@ module DIY #:nodoc:#
           unless info.has_key?('auto_require')
             info['auto_require'] = self.class.auto_require
           end
-          if namespace 
+          if namespace
             if info['class']
               info['class'] = namespace.build_classname(info['class'])
             else
               info['class'] = namespace.build_classname(name)
             end
           end
-            
+
           @defs[name] = ObjectDef.new(:name => name, :info => info)
 
         end
@@ -191,10 +191,10 @@ module DIY #:nodoc:#
       method_definition = @defs[key]
       object = get_object(method_definition.object)
       method = object.method(method_definition.method)
-      
+
       unless method_definition.attach.nil?
         instance_var_name = "@__diy_#{method_definition.object}"
-        
+
         method_definition.attach.each do |object_key|
           get_object(object_key).instance_eval do
             instance_variable_set(instance_var_name, object)
@@ -202,14 +202,14 @@ module DIY #:nodoc:#
               #{instance_var_name}.#{method_definition.method}(*args)
             end|
           end
-        end      
+        end
       end
-      
+
       return method
     rescue Exception => oops
       build_and_raise_construction_error(key, oops)
     end
-    
+
     def construct_object(key)
       # Find the object definition
       obj_def = @defs[key]
@@ -242,13 +242,13 @@ module DIY #:nodoc:#
     rescue Exception => oops
       build_and_raise_construction_error(key, oops)
     end
-    
+
     def build_and_raise_construction_error(key, oops)
       cerr = ConstructionError.new(key,oops)
       cerr.set_backtrace(oops.backtrace)
       raise cerr
     end
-      
+
     def get_class_for_name_with_module_delimeters(class_name)
       class_name.split(/::/).inject(Object) do |mod,const_name| mod.const_get(const_name) end
     end
@@ -264,7 +264,7 @@ module DIY #:nodoc:#
       Namespace.new(str)
     end
   end
-  
+
   class Namespace #:nodoc:#
     def initialize(str)
       # 'using_namespace Animal Reptile'
@@ -292,15 +292,15 @@ module DIY #:nodoc:#
       @name = obj_name
     end
   end
-  
+
   class MethodDef #:nodoc:
     attr_accessor :name, :object, :method, :attach
-    
+
     def initialize(opts)
       @name, @object, @method, @attach = opts[:name], opts[:object], opts[:method], opts[:attach]
     end
   end
-  
+
   class ObjectDef #:nodoc:
     attr_accessor :name, :class_name, :library, :components
     def initialize(opts)
@@ -330,7 +330,7 @@ module DIY #:nodoc:#
 
       # Use Class Directly
       @use_class_directly = info.delete 'use_class_directly'
-      
+
       # Auto-compose
       compose = info.delete 'compose'
       if compose
@@ -380,7 +380,7 @@ module DIY #:nodoc:#
       object_name = object_name
       cause = cause
       m = "Failed to construct '#{object_name}'"
-      if cause 
+      if cause
         m << "\n  ...caused by:\n  >>> #{cause}"
       end
       super m
@@ -388,11 +388,11 @@ module DIY #:nodoc:#
   end
 
   class NamespaceError < RuntimeError #:nodoc:#
-  end 
+  end
 
   module Infl #:nodoc:#
     # Ganked this from Inflector:
-    def self.camelize(lower_case_and_underscored_word) 
+    def self.camelize(lower_case_and_underscored_word)
       lower_case_and_underscored_word.to_s.gsub(/\/(.?)/) { "::" + $1.upcase }.gsub(/(^|_)(.)/) { $2.upcase }
     end
     # Ganked this from Inflector:

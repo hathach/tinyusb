@@ -16,7 +16,7 @@ def extract_packets(pcap_file):
 
 def build_corpus_zip(zip_file_output, packets):
     """Builds a zip file with a file per packet
-    
+
     The structure of this zip corpus is a simple content addressable storage
     i.e. seed_file_name == sha256_digest(packet).
     """
@@ -25,7 +25,7 @@ def build_corpus_zip(zip_file_output, packets):
             hash = hashlib.sha256(packet).hexdigest()
             if hash not in out.namelist():
                 out.writestr(hash, packet)
-    
+
 
 def main(pcap_file, output_zip_file):
     packets = extract_packets(pcap_file)
@@ -35,12 +35,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog = "pcapng_to_corpus.py",
         description="""Converts a wireshark capture to a zip of binary packet
-                    files suitable for an oss-fuzz corpus. In the case the 
-                    zip corpus already exists, this script will modify 
+                    files suitable for an oss-fuzz corpus. In the case the
+                    zip corpus already exists, this script will modify
                     the zip file in place adding seed entries.""")
     parser.add_argument('pcapng_capture_file')
     parser.add_argument('oss_fuzz_corpus_zip')
     args = parser.parse_args()
     main(args.pcapng_capture_file, args.oss_fuzz_corpus_zip)
-    
-    
