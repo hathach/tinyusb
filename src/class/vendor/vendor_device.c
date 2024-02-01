@@ -43,14 +43,26 @@ typedef struct
   uint8_t ep_out;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
+#if CFG_TUD_VENDOR_USE_RX_FIFO
   tu_fifo_t rx_ff;
+#endif
+#if CFG_TUD_VENDOR_USE_TX_FIFO
   tu_fifo_t tx_ff;
+#endif
 
+#if CFG_TUD_VENDOR_USE_RX_FIFO
   uint8_t rx_ff_buf[CFG_TUD_VENDOR_RX_BUFSIZE];
+#endif
+#if CFG_TUD_VENDOR_USE_TX_FIFO
   uint8_t tx_ff_buf[CFG_TUD_VENDOR_TX_BUFSIZE];
+#endif
 
+#if CFG_TUD_VENDOR_USE_RX_FIFO
   OSAL_MUTEX_DEF(rx_ff_mutex);
+#endif
+#if CFG_TUD_VENDOR_USE_TX_FIFO
   OSAL_MUTEX_DEF(tx_ff_mutex);
+#endif
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_VENDOR_EPSIZE];
@@ -59,7 +71,7 @@ typedef struct
 
 CFG_TUD_MEM_SECTION tu_static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 
-#define ITF_MEM_RESET_SIZE   offsetof(vendord_interface_t, rx_ff)
+#define ITF_MEM_RESET_SIZE   offsetof(vendord_interface_t, ep_out) + sizeof(((vendord_interface_t *)0)->ep_out)
 
 
 bool tud_vendor_n_mounted (uint8_t itf)
@@ -67,6 +79,7 @@ bool tud_vendor_n_mounted (uint8_t itf)
   return _vendord_itf[itf].ep_in && _vendord_itf[itf].ep_out;
 }
 
+#if CFG_TUD_VENDOR_USE_RX_FIFO
 uint32_t tud_vendor_n_available (uint8_t itf)
 {
   return tu_fifo_count(&_vendord_itf[itf].rx_ff);
@@ -76,10 +89,12 @@ bool tud_vendor_n_peek(uint8_t itf, uint8_t* u8)
 {
   return tu_fifo_peek(&_vendord_itf[itf].rx_ff, u8);
 }
+#endif
 
 //--------------------------------------------------------------------+
 // Read API
 //--------------------------------------------------------------------+
+#if CFG_TUD_VENDOR_USE_RX_FIFO
 static void _prep_out_transaction (vendord_interface_t* p_itf)
 {
   uint8_t const rhport = 0;
@@ -114,12 +129,14 @@ void tud_vendor_n_read_flush (uint8_t itf)
   tu_fifo_clear(&p_itf->rx_ff);
   _prep_out_transaction(p_itf);
 }
+#endif
 
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
 uint32_t tud_vendor_n_write (uint8_t itf, void const* buffer, uint32_t bufsize)
 {
+#if CFG_TUD_VENDOR_USE_TX_FIFO
   vendord_interface_t* p_itf = &_vendord_itf[itf];
   uint16_t ret = tu_fifo_write_n(&p_itf->tx_ff, buffer, (uint16_t) bufsize);
 
@@ -128,8 +145,23 @@ uint32_t tud_vendor_n_write (uint8_t itf, void const* buffer, uint32_t bufsize)
     tud_vendor_n_write_flush(itf);
   }
   return ret;
+#else
+  uint8_t const rhport = 0;
+  vendord_interface_t* p_itf = &_vendord_itf[itf];
+
+  // claim endpoint
+  TU_VERIFY(usbd_edpt_claim(rhport, p_itf->ep_in));
+
+  // prepare data
+  TU_VERIFY(0 == tu_memcpy_s(p_itf->epin_buf, CFG_TUD_VENDOR_EPSIZE, buffer, (uint16_t) bufsize));
+
+  TU_ASSERT(usbd_edpt_xfer(rhport, p_itf->ep_in, p_itf->epin_buf,  (uint16_t) bufsize));
+
+  return bufsize;
+#endif
 }
 
+#if CFG_TUD_VENDOR_USE_TX_FIFO
 uint32_t tud_vendor_n_write_flush (uint8_t itf)
 {
   vendord_interface_t* p_itf = &_vendord_itf[itf];
@@ -165,6 +197,7 @@ uint32_t tud_vendor_n_write_available (uint8_t itf)
 {
   return tu_fifo_remaining(&_vendord_itf[itf].tx_ff);
 }
+#endif
 
 //--------------------------------------------------------------------+
 // USBD Driver API
@@ -175,14 +208,18 @@ void vendord_init(void)
 
   for(uint8_t i=0; i<CFG_TUD_VENDOR; i++)
   {
+#if CFG_TUD_VENDOR_USE_RX_FIFO || CFG_TUD_VENDOR_USE_TX_FIFO
     vendord_interface_t* p_itf = &_vendord_itf[i];
-
+#endif
     // config fifo
+#if CFG_TUD_VENDOR_USE_RX_FIFO
     tu_fifo_config(&p_itf->rx_ff, p_itf->rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE, 1, false);
-    tu_fifo_config(&p_itf->tx_ff, p_itf->tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, 1, false);
-
     tu_fifo_config_mutex(&p_itf->rx_ff, NULL, osal_mutex_create(&p_itf->rx_ff_mutex));
+#endif
+#if CFG_TUD_VENDOR_USE_TX_FIFO
+    tu_fifo_config(&p_itf->tx_ff, p_itf->tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, 1, false);
     tu_fifo_config_mutex(&p_itf->tx_ff, osal_mutex_create(&p_itf->tx_ff_mutex), NULL);
+#endif
   }
 }
 
@@ -195,8 +232,12 @@ void vendord_reset(uint8_t rhport)
     vendord_interface_t* p_itf = &_vendord_itf[i];
 
     tu_memclr(p_itf, ITF_MEM_RESET_SIZE);
+#if CFG_TUD_VENDOR_USE_RX_FIFO
     tu_fifo_clear(&p_itf->rx_ff);
+#endif
+#if CFG_TUD_VENDOR_USE_TX_FIFO
     tu_fifo_clear(&p_itf->tx_ff);
+#endif
   }
 }
 
@@ -234,12 +275,19 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
     p_desc += desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
     // Prepare for incoming data
-    if ( p_vendor->ep_out )
+#if CFG_TUD_VENDOR_USE_RX_FIFO
+    _prep_out_transaction(p_vendor);
+#else
+    if ( !usbd_edpt_xfer(rhport, p_vendor->ep_out, p_vendor->epout_buf, CFG_TUD_VENDOR_EPSIZE) )
     {
-      _prep_out_transaction(p_vendor);
+      TU_LOG_FAILED();
+      TU_BREAKPOINT();
     }
+#endif
 
-    if ( p_vendor->ep_in ) tud_vendor_n_write_flush((uint8_t)(p_vendor - _vendord_itf));
+#if CFG_TUD_VENDOR_USE_TX_FIFO
+    tud_vendor_n_write_flush((uint8_t)(p_vendor - _vendord_itf));
+#endif
   }
 
   return (uint16_t) ((uintptr_t) p_desc - (uintptr_t) desc_itf);
@@ -262,19 +310,26 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
   if ( ep_addr == p_itf->ep_out )
   {
+#if CFG_TUD_VENDOR_USE_RX_FIFO
     // Receive new data
     tu_fifo_write_n(&p_itf->rx_ff, p_itf->epout_buf, (uint16_t) xferred_bytes);
+#endif
 
     // Invoked callback if any
-    if (tud_vendor_rx_cb) tud_vendor_rx_cb(itf);
-
+    if (tud_vendor_rx_cb) tud_vendor_rx_cb(itf, p_itf->epout_buf, (uint16_t) xferred_bytes);
+#if CFG_TUD_VENDOR_USE_RX_FIFO
     _prep_out_transaction(p_itf);
+#else
+    TU_ASSERT(usbd_edpt_xfer(rhport, p_itf->ep_out, p_itf->epout_buf, CFG_TUD_VENDOR_EPSIZE));
+#endif
   }
   else if ( ep_addr == p_itf->ep_in )
   {
     if (tud_vendor_tx_cb) tud_vendor_tx_cb(itf, (uint16_t) xferred_bytes);
+#if CFG_TUD_VENDOR_USE_TX_FIFO
     // Send complete, try to send more if possible
     tud_vendor_n_write_flush(itf);
+#endif
   }
 
   return true;
