@@ -1413,7 +1413,7 @@ static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
                                     p_cdc->requested_line_coding.data_bits, p_cdc->requested_complete_cb, xfer->user_data), );
   } else {
     // stage 1 failed, notify user
-    xfer->complete_cb = p_cdc->user_control_cb;
+    xfer->complete_cb = p_cdc->requested_complete_cb;
     if (xfer->complete_cb) {
       xfer->complete_cb(xfer);
     }
