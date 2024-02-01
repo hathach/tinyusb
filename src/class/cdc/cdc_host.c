@@ -1427,8 +1427,8 @@ static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t con
   if (complete_cb) {
     // stage 1 set baudrate
     p_cdc->requested_complete_cb = complete_cb;
-    TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, line_coding->bit_rate,
-                                       ch34x_set_line_coding_stage1_complete, user_data));
+    TU_ASSERT(ch34x_set_baudrate(p_cdc, line_coding->bit_rate,
+                                 ch34x_set_line_coding_stage1_complete, user_data));
   } else {
     // sync call
     xfer_result_t result;
