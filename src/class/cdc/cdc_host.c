@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  *
  * Contribution
- * - Heiko Kuester: CH34x support
- * - Heiko Kuester: PL2303 support
+ * - Heiko Küster: CH34x support
+ * - Heiko Küster: PL2303 support
  */
 
 #include "tusb_option.h"
@@ -36,6 +36,19 @@
 #include "host/usbh_pvt.h"
 
 #include "cdc_host.h"
+
+#if CFG_TUH_CDC_FTDI
+  #include "serial/ftdi_sio.h"
+#endif
+#if CFG_TUH_CDC_CP210X
+  #include "serial/cp210x.h"
+#endif
+#if CFG_TUH_CDC_CH34X
+  #include "serial/ch34x.h"
+#endif
+#if CFG_TUH_CDC_PL2303
+  #include "serial/pl2303.h"
+#endif
 
 // Level where CFG_TUSB_DEBUG must be at least for this driver is logged
 #ifndef CFG_TUH_CDC_LOG_LEVEL
@@ -103,8 +116,6 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_st
 
 //------------- FTDI prototypes -------------//
 #if CFG_TUH_CDC_FTDI
-#include "serial/ftdi_sio.h"
-
 static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST};
 
 static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
@@ -118,8 +129,6 @@ static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state
 
 //------------- CP210X prototypes -------------//
 #if CFG_TUH_CDC_CP210X
-#include "serial/cp210x.h"
-
 static uint16_t const cp210x_vid_pid_list[][2] = {CFG_TUH_CDC_CP210X_VID_PID_LIST};
 
 static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
@@ -133,8 +142,6 @@ static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, 
 
 //------------- CH34x prototypes -------------//
 #if CFG_TUH_CDC_CH34X
-#include "serial/ch34x.h"
-
 static uint16_t const ch34x_vid_pid_list[][2] = {CFG_TUH_CDC_CH34X_VID_PID_LIST};
 
 static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len);
@@ -148,8 +155,6 @@ static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, t
 
 //------------- PL2303 prototypes -------------//
 #if CFG_TUH_CDC_PL2303
-#include "serial/pl2303.h"
-
 static uint16_t const pl2303_vid_pid_list[][2] = {CFG_TUH_CDC_PL2303_VID_PID_LIST};
 static const struct pl2303_type_data pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
 
