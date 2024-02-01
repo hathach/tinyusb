@@ -1405,7 +1405,7 @@ static inline bool ch34x_control_in(cdch_interface_t* p_cdc, uint8_t request, ui
                            complete_cb, user_data);
 }
 
-static bool ch34x_write_reg(cdch_interface_t* p_cdc, uint16_t reg, uint16_t reg_value, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static inline bool ch34x_write_reg(cdch_interface_t* p_cdc, uint16_t reg, uint16_t reg_value, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, reg, reg_value, complete_cb, user_data);
 }
 
@@ -1418,7 +1418,7 @@ static bool ch34x_write_reg(cdch_interface_t* p_cdc, uint16_t reg, uint16_t reg_
 static bool ch34x_write_reg_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
                                      tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   uint16_t const div_ps = ch34x_get_divisor_prescaler(baudrate);
-  TU_VERIFY(div_ps != 0);
+  TU_VERIFY(div_ps);
   TU_ASSERT(ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps,
                             complete_cb, user_data));
   return true;
@@ -1439,7 +1439,7 @@ static bool ch34x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, ui
   p_cdc->requested_line_coding.data_bits = data_bits;
 
   uint8_t const lcr = ch34x_get_lcr(stop_bits, parity, data_bits);
-  TU_VERIFY(lcr != 0);
+  TU_VERIFY(lcr);
   TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, CH32X_REG16_LCR2_LCR, lcr,
                                complete_cb ? ch34x_control_complete : NULL, user_data));
   return true;
@@ -1504,7 +1504,7 @@ static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t con
 
     // update transfer result, user_data is expected to point to xfer_result_t
     if (user_data) {
-      user_data = result;
+      *((xfer_result_t*) user_data) = result;
     }
   }
 
@@ -1574,8 +1574,7 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
   uintptr_t const state = xfer->user_data;
   uint8_t buffer[2]; // TODO remove
   TU_ASSERT (p_cdc,);
-
-  // TODO check xfer->result
+  TU_ASSERT (xfer->result == XFER_RESULT_SUCCESS,);
 
   switch (state) {
     case CONFIG_CH34X_READ_VERSION:
@@ -1592,9 +1591,9 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       // init CH34x with line coding
       cdc_line_coding_t const line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
       uint16_t const div_ps = ch34x_get_divisor_prescaler(line_coding.bit_rate);
-      TU_ASSERT(div_ps != 0, );
+      TU_ASSERT(div_ps, );
       uint8_t const lcr = ch34x_get_lcr(line_coding.stop_bits, line_coding.parity, line_coding.data_bits);
-      TU_ASSERT(lcr != 0, );
+      TU_ASSERT(lcr, );
       TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_SERIAL_INIT, tu_u16(lcr, 0x9c), div_ps,
                                    ch34x_process_config, CONFIG_CH34X_SPECIAL_REG_WRITE),);
       break;
@@ -1634,7 +1633,7 @@ static uint16_t ch34x_get_divisor_prescaler(uint32_t baval) {
   uint8_t b;
   uint32_t c;
 
-  TU_VERIFY(baval != 0, 0);
+  TU_VERIFY(baval != 0 && baval <= 2000000, 0);
   switch (baval) {
     case 921600:
       a = 0xf3;
