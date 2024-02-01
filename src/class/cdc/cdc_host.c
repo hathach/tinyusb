@@ -67,6 +67,9 @@ typedef struct {
   #endif
 
   tuh_xfer_cb_t user_control_cb;
+  #if  CFG_TUH_CDC_CH34X
+  tuh_xfer_cb_t requested_complete_cb;
+  #endif
 
   struct {
     tu_edpt_stream_t tx;
@@ -1380,6 +1383,8 @@ static bool ch34x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, ui
 
   uint8_t const lcr = ch34x_get_lcr(stop_bits, parity, data_bits);
   TU_VERIFY(lcr);
+
+  p_cdc->user_control_cb = complete_cb;
   TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, CH32X_REG16_LCR2_LCR, lcr,
                                complete_cb ? ch34x_control_complete : NULL, user_data));
   return true;
@@ -1405,7 +1410,7 @@ static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
     // stage 1 success, continue to stage 2
     p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
     TU_ASSERT(ch34x_set_data_format(p_cdc, p_cdc->requested_line_coding.stop_bits, p_cdc->requested_line_coding.parity,
-                                    p_cdc->requested_line_coding.data_bits, ch34x_control_complete, xfer->user_data), );
+                                    p_cdc->requested_line_coding.data_bits, p_cdc->requested_complete_cb, xfer->user_data), );
   } else {
     // stage 1 failed, notify user
     xfer->complete_cb = p_cdc->user_control_cb;
@@ -1419,10 +1424,10 @@ static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
 static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->requested_line_coding = *line_coding;
-  p_cdc->user_control_cb = complete_cb;
 
   if (complete_cb) {
     // stage 1 set baudrate
+    p_cdc->requested_complete_cb = complete_cb;
     TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, line_coding->bit_rate,
                                        ch34x_set_line_coding_stage1_complete, user_data));
   } else {
