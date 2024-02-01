@@ -1139,31 +1139,7 @@ static void ftdi_process_config(tuh_xfer_t* xfer) {
 
 #if CFG_TUH_CDC_CP210X
 
-enum {
-  CONFIG_CP210X_IFC_ENABLE = 0,
-  CONFIG_CP210X_SET_BAUDRATE,
-  CONFIG_CP210X_SET_LINE_CTL,
-  CONFIG_CP210X_SET_DTR_RTS,
-  CONFIG_CP210X_COMPLETE
-};
-
-static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
-  // CP210x Interface includes 1 vendor interface + 2 bulk endpoints
-  TU_VERIFY(itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0 && itf_desc->bNumEndpoints == 2);
-  TU_VERIFY(sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t) <= max_len);
-
-  cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
-  TU_VERIFY(p_cdc);
-
-  TU_LOG_DRV("CP210x opened\r\n");
-  p_cdc->serial_drid = SERIAL_DRIVER_CP210X;
-
-  // endpoint pair
-  tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
-
-  // data endpoints expected to be in pairs
-  return open_ep_stream_pair(p_cdc, desc_ep);
-}
+//------------- control request -------------//
 
 static bool cp210x_set_request(cdch_interface_t* p_cdc, uint8_t command, uint16_t value, uint8_t* buffer, uint16_t length, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   tusb_control_request_t const request = {
@@ -1202,14 +1178,7 @@ static bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfe
   return cp210x_set_request(p_cdc, CP210X_IFC_ENABLE, enabled, NULL, 0, complete_cb, user_data);
 }
 
-static bool cp210x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  // TODO implement later
-  (void) p_cdc;
-  (void) line_coding;
-  (void) complete_cb;
-  (void) user_data;
-  return false;
-}
+//------------- Driver API -------------//
 
 static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_LOG_DRV("CDC CP210x Set BaudRate = %lu\r\n", baudrate);
@@ -1231,11 +1200,48 @@ static bool cp210x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, u
   return false;
 }
 
+static bool cp210x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  // TODO implement later
+  (void) p_cdc;
+  (void) line_coding;
+  (void) complete_cb;
+  (void) user_data;
+  return false;
+}
+
 static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_LOG_DRV("CDC CP210x Set Control Line State\r\n");
   p_cdc->user_control_cb = complete_cb;
   return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | line_state, NULL, 0,
                             complete_cb ? cdch_internal_control_complete : NULL, user_data);
+}
+
+//------------- Enumeration -------------//
+
+enum {
+  CONFIG_CP210X_IFC_ENABLE = 0,
+  CONFIG_CP210X_SET_BAUDRATE,
+  CONFIG_CP210X_SET_LINE_CTL,
+  CONFIG_CP210X_SET_DTR_RTS,
+  CONFIG_CP210X_COMPLETE
+};
+
+static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+  // CP210x Interface includes 1 vendor interface + 2 bulk endpoints
+  TU_VERIFY(itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0 && itf_desc->bNumEndpoints == 2);
+  TU_VERIFY(sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t) <= max_len);
+
+  cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
+  TU_VERIFY(p_cdc);
+
+  TU_LOG_DRV("CP210x opened\r\n");
+  p_cdc->serial_drid = SERIAL_DRIVER_CP210X;
+
+  // endpoint pair
+  tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
+
+  // data endpoints expected to be in pairs
+  return open_ep_stream_pair(p_cdc, desc_ep);
 }
 
 static void cp210x_process_config(tuh_xfer_t* xfer) {
