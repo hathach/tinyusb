@@ -2279,8 +2279,11 @@ static uint32_t pl2303_get_supported_baud_rate(uint32_t baud)
  */
 static uint32_t pl2303_encode_baud_rate_direct(uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE], uint32_t baud)
 {
-  uint32_t* buf32 = (uint32_t*)buf;
-  *buf32 = tu_htole32(baud);
+  uint32_t baud_le = tu_htole32(baud);
+  buf[0] = (uint8_t) ( baud_le        & 0xff);
+  buf[1] = (uint8_t) ((baud_le >>  8) & 0xff);
+  buf[2] = (uint8_t) ((baud_le >> 16) & 0xff);
+  buf[3] = (uint8_t) ((baud_le >> 24) & 0xff);
 
   return baud;
 }
