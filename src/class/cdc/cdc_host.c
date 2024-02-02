@@ -156,7 +156,7 @@ static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, t
 //------------- PL2303 prototypes -------------//
 #if CFG_TUH_CDC_PL2303
 static uint16_t const pl2303_vid_pid_list[][2] = {CFG_TUH_CDC_PL2303_VID_PID_LIST};
-static const struct pl2303_type_data pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
+static struct pl2303_type_data const pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
 
 CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
 static tusb_desc_device_t pl2303_desc[CFG_TUH_CDC][CFG_TUH_ENUMERATION_BUFSIZE];
@@ -558,7 +558,7 @@ static void process_internal_control_complete(tuh_xfer_t* xfer, uint8_t itf_num)
           p_cdc->line_coding = p_cdc->requested_line_coding;
             }
         if ( xfer->setup->bRequest == PL2303_SET_CONTROL_REQUEST && xfer->setup->bmRequestType == PL2303_SET_CONTROL_REQUEST_TYPE ) {
-          p_cdc->line_state = value;
+          p_cdc->line_state = (uint8_t) value;
         }
         break;
       #endif
@@ -1722,7 +1722,7 @@ static uint8_t ch34x_get_lcr(uint8_t stop_bits, uint8_t parity, uint8_t data_bit
 
 #if CFG_TUH_CDC_PL2303
 
-static int8_t pl2303_detect_type ( cdch_interface_t* p_cdc, tusb_desc_device_t const* desc, uint8_t step, 
+static int8_t pl2303_detect_type ( cdch_interface_t* p_cdc, tusb_desc_device_t const* desc, uint8_t step,
                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data );
 static bool pl2303_encode_baud_rate(cdch_interface_t* p_cdc, uint32_t baud, uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE]);
 
@@ -1884,7 +1884,7 @@ static bool pl2303_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
   // PL2303 has the same bit coding
-  TU_ASSERT ( pl2303_set_control_lines(p_cdc, line_state, complete_cb ? pl2303_control_complete : NULL, user_data) );
+  TU_ASSERT ( pl2303_set_control_lines(p_cdc, (uint8_t) line_state, complete_cb ? pl2303_control_complete : NULL, user_data) );
 
   return true;
 }
@@ -1970,6 +1970,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
       if ( type == PL2303_SUPPORTS_HX_STATUS_TRIGGERED ) {
         break;
       } // else: no transfer triggered and continue with CONFIG_PL2303_READ1
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_READ1:
       // get supports_hx_status, type and quirks (step 2), do special read
@@ -1995,6 +1996,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_WRITE1), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_WRITE1:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2002,6 +2004,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 0, pl2303_process_config, CONFIG_PL2303_READ2), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_READ2:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2009,6 +2012,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_READ3), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_READ3:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2016,6 +2020,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, pl2303_process_config, CONFIG_PL2303_READ4), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_READ4:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2023,6 +2028,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_WRITE2), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_WRITE2:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2030,6 +2036,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 1, pl2303_process_config, CONFIG_PL2303_READ5), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_READ5:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2037,6 +2044,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_READ6), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_READ6:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2044,6 +2052,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, pl2303_process_config, CONFIG_PL2303_WRITE3), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_WRITE3:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2051,6 +2060,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_write(p_cdc, 0, 1, pl2303_process_config, CONFIG_PL2303_WRITE4), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_WRITE4:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2058,6 +2068,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         TU_ASSERT(pl2303_vendor_write(p_cdc, 1, 0, pl2303_process_config, CONFIG_PL2303_WRITE5), );
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_WRITE5:
       // purpose unknown, overtaken from Linux Kernel driver
@@ -2069,6 +2080,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         }
         break;
       } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
 
     // from here sequence overtaken from Linux Kernel function pl2303_open()
     case CONFIG_PL2303_RESET_ENDP1:
@@ -2133,11 +2145,11 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
       // no flow control
       buf = xfer->buffer[0];
       if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
-        buf &= ~PL2303_HXN_FLOWCTRL_MASK;
+        buf &= (uint8_t) ~PL2303_HXN_FLOWCTRL_MASK;
         buf |= PL2303_HXN_FLOWCTRL_NONE;
         TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_FLOWCTRL_REG, buf, pl2303_process_config, CONFIG_PL2303_COMPLETE), );
       } else {
-        buf &= ~PL2303_FLOWCTRL_MASK;
+        buf &= (uint8_t) ~PL2303_FLOWCTRL_MASK;
         TU_ASSERT(pl2303_vendor_write(p_cdc, 0, buf, pl2303_process_config, CONFIG_PL2303_COMPLETE), );
       }
       break;
@@ -2154,7 +2166,7 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
 
 //------------- PL2303 helper  -------------//
 
-static int8_t pl2303_detect_type ( cdch_interface_t* p_cdc, tusb_desc_device_t const* desc, uint8_t step, 
+static int8_t pl2303_detect_type ( cdch_interface_t* p_cdc, tusb_desc_device_t const* desc, uint8_t step,
                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data )
 {
   /*
@@ -2302,8 +2314,8 @@ static uint32_t pl2303_encode_baud_rate_divisor(uint8_t buf[PL2303_LINE_CODING_B
 
   buf[3] = 0x80;
   buf[2] = 0;
-  buf[1] = exponent << 1 | mantissa >> 8;
-  buf[0] = mantissa & 0xff;
+  buf[1] = (uint8_t) ((exponent << 1 |  mantissa >> 8) & 0xff);
+  buf[0] = (uint8_t) (mantissa & 0xff);
 
   /* Calculate and return the exact baud rate. */
   baud = (baseline / mantissa) >> (exponent << 1);
@@ -2340,9 +2352,9 @@ static uint32_t pl2303_encode_baud_rate_divisor_alt(uint8_t buf[PL2303_LINE_CODI
   }
 
   buf[3] = 0x80;
-  buf[2] = exponent & 0x01;
-  buf[1] = (exponent & ~0x01) << 4 | mantissa >> 8;
-  buf[0] = mantissa & 0xff;
+  buf[2] = (uint8_t) (exponent & 0x01);
+  buf[1] = (uint8_t) (((exponent &  (uint32_t) ~0x01) << 4 | mantissa >> 8 ) & 0xff);
+  buf[0] = (uint8_t) (mantissa & 0xff);
 
   /* Calculate and return the exact baud rate. */
   baud = (baseline / mantissa) >> exponent;

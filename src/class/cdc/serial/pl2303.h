@@ -109,7 +109,7 @@ enum pl2303_type {
 struct pl2303_type_data {
   uint8_t const *name;
   uint32_t const max_baud_rate;
-  uint32_t const quirks;
+  uint8_t const quirks;
   uint16_t const no_autoxonxoff:1;
   uint16_t const no_divisors:1;
   uint16_t const alt_divisors:1;
@@ -117,31 +117,31 @@ struct pl2303_type_data {
 
 #define PL2303_TYPE_DATA \
   [TYPE_H] = { \
-    .name = (uint8_t*)"H", \
+    .name = (uint8_t const*)"H", \
     .max_baud_rate = 1228800, \
     .quirks = PL2303_QUIRK_LEGACY, \
     .no_autoxonxoff = true, \
   }, \
   [TYPE_HX] = { \
-    .name = (uint8_t*)"HX", \
+    .name = (uint8_t const*)"HX", \
     .max_baud_rate = 6000000, \
   }, \
   [TYPE_TA] = { \
-    .name = (uint8_t*)"TA", \
+    .name = (uint8_t const*)"TA", \
     .max_baud_rate = 6000000, \
     .alt_divisors = true, \
   }, \
   [TYPE_TB] = { \
-    .name = (uint8_t*)"TB", \
+    .name = (uint8_t const*)"TB", \
     .max_baud_rate = 12000000, \
     .alt_divisors = true, \
   }, \
   [TYPE_HXD] = { \
-    .name = (uint8_t*)"HXD", \
+    .name = (uint8_t const*)"HXD", \
     .max_baud_rate = 12000000, \
   }, \
   [TYPE_HXN] = { \
-    .name = (uint8_t*)"G (HXN)", \
+    .name = (uint8_t const*)"G (HXN)", \
     .max_baud_rate = 12000000, \
     .no_divisors = true, \
   }
@@ -149,7 +149,7 @@ struct pl2303_type_data {
 /* private data types */
 struct pl2303_serial_private {
   const struct pl2303_type_data* type;
-  uint16_t quirks;
+  uint8_t quirks;
 };
 
 typedef struct TU_ATTR_PACKED {
