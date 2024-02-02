@@ -1,0 +1,15 @@
+dependencies:
+  espressif/led_strip:
+    component_hash: null
+    source:
+      path: /home/hathach/code/idf-extra-components/led_strip
+      type: local
+    version: 2.5.2
+  idf:
+    component_hash: null
+    source:
+      type: idf
+    version: 5.1.1
+manifest_hash: 47d47762be26168b388cb0e6cbfee6b22c68d630ebf4b27a49c47c4c54191590
+target: esp32s3
+version: 1.0.0
