@@ -961,7 +961,7 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_st
 }
 
 static bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_DRV("CDC ACM Set Line Conding\r\n");
+  TU_LOG_DRV("CDC ACM Set Line Coding\r\n");
 
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -2236,7 +2236,11 @@ static int8_t pl2303_detect_type ( cdch_interface_t* p_cdc, tusb_desc_device_t c
         case 0x700: /* GR */
         case 0x705:
           return TYPE_HXN;
+        default:
+          break;
       }
+      break;
+    default:
       break;
   }
 
