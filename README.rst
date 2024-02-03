@@ -77,7 +77,7 @@ Host Stack
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
 - Communication Device Class: CDC-ACM
-- Vendor serial over USB: FTDI, CP210x
+- Vendor serial over USB: FTDI, CP210x, CH34x
 - Hub with multiple-level support
 
 Similar to the Device Stack, if you have a special requirement, `usbh_app_driver_get_cb()` can be used to write your own class driver without modifying the stack.

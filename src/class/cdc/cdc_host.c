@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  *
  * Contribution
- * - Heiko Kuester: CH34x support
- * - Heiko Kuester: CP210x expansion
+ * - Heiko Küster: CH34x support
+ * - Heiko Küster: CP210x expansion
  */
 
 #include "tusb_option.h"
@@ -905,7 +905,7 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_st
 }
 
 static bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_DRV("CDC ACM Set Line Conding\r\n");
+  TU_LOG_DRV("CDC ACM Set Line Coding\r\n");
 
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -1178,7 +1178,7 @@ static bool cp210x_set_request(cdch_interface_t* p_cdc, uint8_t command, uint16_
   return tuh_control_xfer(&xfer);
 }
 
-static bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static inline bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return cp210x_set_request(p_cdc, CP210X_IFC_ENABLE, enabled, NULL, 0, complete_cb, user_data);
 }
 
@@ -1204,9 +1204,9 @@ static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_
 static bool cp210x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(data_bits >= 5 && data_bits <= 9, 0);
-  uint16_t lcr = ((uint16_t) data_bits) << 8 | // data bit quantity is stored in bits 8-11
-                 ((uint16_t) parity   ) << 4 | // parity is stored in bits 4-7, same coding
-                  (uint16_t) stop_bits;        // parity is stored in bits 0-3, same coding
+  uint16_t lcr = ((uint16_t) data_bits & 0xf) << (uint8_t) 8 | // data bit quantity is stored in bits 8-11
+                 ((uint16_t) parity    & 0xf) << (uint8_t) 4 | // parity is stored in bits 4-7, same coding
+                 ((uint16_t) stop_bits & 0xf);                 // parity is stored in bits 0-3, same coding
   p_cdc->user_control_cb = complete_cb;
   TU_ASSERT(cp210x_set_request(p_cdc, CP210X_SET_LINE_CTL, lcr, NULL, 0,
                                complete_cb ? cdch_internal_control_complete : NULL, user_data));
@@ -1711,7 +1711,6 @@ static uint8_t ch34x_get_lcr(uint8_t stop_bits, uint8_t parity, uint8_t data_bit
 
   return lcr;
 }
-
 
 #endif // CFG_TUH_CDC_CH34X
 
