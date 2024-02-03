@@ -1204,9 +1204,9 @@ static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_
 static bool cp210x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(data_bits >= 5 && data_bits <= 9, 0);
-  uint16_t lcr = ((uint16_t) data_bits & 0xf) << (uint8_t) 8 | // data bit quantity is stored in bits 8-11
-                 ((uint16_t) parity    & 0xf) << (uint8_t) 4 | // parity is stored in bits 4-7, same coding
-                 ((uint16_t) stop_bits & 0xf);                 // parity is stored in bits 0-3, same coding
+  uint16_t lcr = (uint16_t) (((uint32_t) data_bits & 0xf) << 8 | // data bit quantity is stored in bits 8-11
+                             ((uint32_t) parity    & 0xf) << 4 | // parity is stored in bits 4-7, same coding
+                             ((uint32_t) stop_bits & 0xf));      // parity is stored in bits 0-3, same coding
   p_cdc->user_control_cb = complete_cb;
   TU_ASSERT(cp210x_set_request(p_cdc, CP210X_SET_LINE_CTL, lcr, NULL, 0,
                                complete_cb ? cdch_internal_control_complete : NULL, user_data));
