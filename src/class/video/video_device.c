@@ -50,17 +50,17 @@
 
 typedef struct {
   tusb_desc_interface_t            std;
-  tusb_desc_cs_video_ctl_itf_hdr_t ctl;
+  tusb_desc_video_control_header_t ctl;
 } tusb_desc_vc_itf_t;
 
 typedef struct {
   tusb_desc_interface_t            std;
-  tusb_desc_cs_video_stm_itf_hdr_t stm;
+  tusb_desc_video_streaming_inout_header_t stm;
 } tusb_desc_vs_itf_t;
 
 typedef union {
-  tusb_desc_cs_video_ctl_itf_hdr_t ctl;
-  tusb_desc_cs_video_stm_itf_hdr_t stm;
+  tusb_desc_video_control_header_t ctl;
+  tusb_desc_video_streaming_inout_header_t stm;
 } tusb_desc_video_itf_hdr_t;
 
 typedef struct TU_ATTR_PACKED {
@@ -78,9 +78,9 @@ typedef union {
     uint8_t bFormatIndex;
     uint8_t bNumFrameDescriptors;
   };
-  tusb_desc_cs_video_fmt_uncompressed_t uncompressed;
-  tusb_desc_cs_video_fmt_mjpeg_t        mjpeg;
-  tusb_desc_cs_video_fmt_frame_based_t  frame_based;
+  tusb_desc_video_format_uncompressed_t uncompressed;
+  tusb_desc_video_format_mjpeg_t        mjpeg;
+  tusb_desc_video_format_framebased_t  frame_based;
 } tusb_desc_cs_video_fmt_t;
 
 typedef union {
@@ -93,9 +93,9 @@ typedef union {
     uint16_t wWidth;
     uint16_t wHeight;
   };
-  tusb_desc_cs_video_frm_uncompressed_t uncompressed;
-  tusb_desc_cs_video_frm_mjpeg_t        mjpeg;
-  tusb_desc_cs_video_frm_frame_based_t  frame_based;
+  tusb_desc_video_frame_uncompressed_t uncompressed;
+  tusb_desc_video_frame_mjpeg_t        mjpeg;
+  tusb_desc_video_frame_framebased_t  frame_based;
 } tusb_desc_cs_video_frm_t;
 
 /* video streaming interface */
@@ -434,8 +434,9 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   uint_fast32_t interval_ms = interval / 10000;
   TU_ASSERT(interval_ms);
   uint_fast32_t payload_size = (frame_size + interval_ms - 1) / interval_ms + 2;
-  if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size)
+  if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size) {
     payload_size = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
+  }
   param->dwMaxPayloadTransferSize = payload_size;
   return true;
 }
@@ -577,8 +578,9 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
       } else {
         payload_size = (frame_size + interval_ms - 1) / interval_ms + 2;
       }
-      if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size)
+      if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < payload_size) {
         payload_size = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
+      }
       param->dwMaxPayloadTransferSize = payload_size;
     }
     return true;

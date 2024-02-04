@@ -1,7 +1,5 @@
 UF2_FAMILY_ID = 0x4c71240a
 ST_FAMILY = g4
-DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
-
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
@@ -21,6 +19,8 @@ CFLAGS_GCC += \
 
 # suppress warning caused by vendor mcu driver
 CFLAGS_GCC += -Wno-error=cast-align
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # -----------------
 # Sources & Include

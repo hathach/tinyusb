@@ -847,8 +847,10 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 /*-------------------------------------------------------------------
  * ISR
  *-------------------------------------------------------------------*/
-void hcd_int_handler(uint8_t rhport)
+void hcd_int_handler(uint8_t rhport, bool in_isr)
 {
+  (void) in_isr;
+
   uint_fast8_t is, txis, rxis;
 
   is   = USB0->IS;   /* read and clear interrupt status */

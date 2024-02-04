@@ -33,8 +33,25 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-
 #include "tusb.h"
+
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+  // ESP-IDF need "freertos/" prefix in include path.
+  // CFG_TUSB_OS_INC_PATH should be defined accordingly.
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/semphr.h"
+  #include "freertos/queue.h"
+  #include "freertos/task.h"
+  #include "freertos/timers.h"
+#else
+  #include "FreeRTOS.h"
+  #include "semphr.h"
+  #include "queue.h"
+  #include "task.h"
+  #include "timers.h"
+#endif
+#endif
 
 // Define the default baudrate
 #ifndef CFG_BOARD_UART_BAUDRATE
@@ -96,6 +113,9 @@ static inline uint32_t board_millis(void) {
 static inline uint32_t board_millis(void) {
   return (((uint64_t)rt_tick_get()) * 1000 / RT_TICK_PER_SECOND);
 }
+
+#elif CFG_TUSB_OS == OPT_OS_CUSTOM
+// Implement your own board_millis() in any of .c file
 
 #else
   #error "board_millis() is not implemented for this OS"

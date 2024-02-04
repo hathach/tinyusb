@@ -172,6 +172,7 @@ static struct elf_file *load_elf(const char *filename)
   ef = (struct elf_file *)malloc(sizeof(*ef));
   if (!ef)
     {
+      fclose(fp);
       return NULL;
     }
 
@@ -182,6 +183,7 @@ static struct elf_file *load_elf(const char *filename)
   buf = (char *)malloc(fsize);
   if (!buf)
     {
+      fclose(fp);
       return NULL;
     }
 
