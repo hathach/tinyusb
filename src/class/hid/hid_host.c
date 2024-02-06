@@ -50,6 +50,7 @@ typedef struct
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t ep_out;
+  bool mounted;           // Enumeration is complete
 
   uint8_t itf_protocol;   // None, Keyboard, Mouse
   uint8_t protocol_mode;  // Boot (0) or Report protocol (1)
@@ -139,7 +140,8 @@ uint8_t tuh_hid_itf_get_total_count(void)
 bool tuh_hid_mounted(uint8_t daddr, uint8_t idx)
 {
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
-  return p_hid != NULL;
+  TU_VERIFY(p_hid);
+  return p_hid->mounted;
 }
 
 bool tuh_hid_itf_get_info(uint8_t daddr, uint8_t idx, tuh_itf_info_t* info)
@@ -463,6 +465,7 @@ void hidh_close(uint8_t daddr)
       TU_LOG_DRV("  HIDh close addr = %u index = %u\r\n", daddr, i);
       if(tuh_hid_umount_cb) tuh_hid_umount_cb(daddr, i);
       p_hid->daddr = 0;
+      p_hid->mounted = false;
     }
   }
 }
@@ -632,6 +635,7 @@ static void config_driver_mount_complete(uint8_t daddr, uint8_t idx, uint8_t con
 {
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
   TU_VERIFY(p_hid, );
+  p_hid->mounted = true;
 
   // enumeration is complete
   if (tuh_hid_mount_cb) tuh_hid_mount_cb(daddr, idx, desc_report, desc_len);
