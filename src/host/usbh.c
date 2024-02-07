@@ -36,7 +36,6 @@
 //--------------------------------------------------------------------+
 // USBH Configuration
 //--------------------------------------------------------------------+
-
 #ifndef CFG_TUH_TASK_QUEUE_SZ
   #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
@@ -46,11 +45,18 @@
 #endif
 
 //--------------------------------------------------------------------+
+// Callback weak stubs (called if application does not provide)
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
+  (void) rhport;
+  (void) eventid;
+  (void) in_isr;
+}
+
+//--------------------------------------------------------------------+
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+
-
-typedef struct
-{
+typedef struct {
   // port
   uint8_t rhport;
   uint8_t hub_addr;
@@ -112,60 +118,58 @@ typedef struct {
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
 #if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL
   #define DRIVER_NAME(_name)    .name = _name,
 #else
   #define DRIVER_NAME(_name)
 #endif
 
-static usbh_class_driver_t const usbh_class_drivers[] =
-{
-  #if CFG_TUH_CDC
+static usbh_class_driver_t const usbh_class_drivers[] = {
+    #if CFG_TUH_CDC
     {
-      DRIVER_NAME("CDC")
-      .init       = cdch_init,
-      .open       = cdch_open,
-      .set_config = cdch_set_config,
-      .xfer_cb    = cdch_xfer_cb,
-      .close      = cdch_close
+        DRIVER_NAME("CDC")
+        .init       = cdch_init,
+        .open       = cdch_open,
+        .set_config = cdch_set_config,
+        .xfer_cb    = cdch_xfer_cb,
+        .close      = cdch_close
     },
-  #endif
+    #endif
 
-  #if CFG_TUH_MSC
+    #if CFG_TUH_MSC
     {
-      DRIVER_NAME("MSC")
-      .init       = msch_init,
-      .open       = msch_open,
-      .set_config = msch_set_config,
-      .xfer_cb    = msch_xfer_cb,
-      .close      = msch_close
+        DRIVER_NAME("MSC")
+        .init       = msch_init,
+        .open       = msch_open,
+        .set_config = msch_set_config,
+        .xfer_cb    = msch_xfer_cb,
+        .close      = msch_close
     },
-  #endif
+    #endif
 
-  #if CFG_TUH_HID
+    #if CFG_TUH_HID
     {
-      DRIVER_NAME("HID")
-      .init       = hidh_init,
-      .open       = hidh_open,
-      .set_config = hidh_set_config,
-      .xfer_cb    = hidh_xfer_cb,
-      .close      = hidh_close
+        DRIVER_NAME("HID")
+        .init       = hidh_init,
+        .open       = hidh_open,
+        .set_config = hidh_set_config,
+        .xfer_cb    = hidh_xfer_cb,
+        .close      = hidh_close
     },
-  #endif
+    #endif
 
-  #if CFG_TUH_HUB
+    #if CFG_TUH_HUB
     {
-      DRIVER_NAME("HUB")
-      .init       = hub_init,
-      .open       = hub_open,
-      .set_config = hub_set_config,
-      .xfer_cb    = hub_xfer_cb,
-      .close      = hub_close
+        DRIVER_NAME("HUB")
+        .init       = hub_init,
+        .open       = hub_open,
+        .set_config = hub_set_config,
+        .xfer_cb    = hub_xfer_cb,
+        .close      = hub_close
     },
-  #endif
+    #endif
 
-  #if CFG_TUH_VENDOR
+    #if CFG_TUH_VENDOR
     {
       DRIVER_NAME("VENDOR")
       .init       = cush_init,
@@ -173,7 +177,7 @@ static usbh_class_driver_t const usbh_class_drivers[] =
       .xfer_cb    = cush_isr,
       .close      = cush_close
     }
-  #endif
+    #endif
 };
 
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
@@ -233,8 +237,7 @@ static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 // Control transfers: since most controllers do not support multiple control transfers
 // on multiple devices concurrently and control transfers are not used much except for
 // enumeration, we will only execute control transfers one at a time.
-CFG_TUH_MEM_SECTION struct
-{
+CFG_TUH_MEM_SECTION struct {
   CFG_TUH_MEM_ALIGN tusb_control_request_t request;
   uint8_t* buffer;
   tuh_xfer_cb_t complete_cb;
@@ -268,7 +271,7 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec) {
 
 TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, bool in_isr) {
   bool ret = osal_queue_send(_usbh_q, event, in_isr);
-  if (tuh_event_hook_cb) tuh_event_hook_cb(event->rhport, event->event_id, in_isr);
+  tuh_event_hook_cb(event->rhport, event->event_id, in_isr);
   return ret;
 }
 
@@ -367,17 +370,14 @@ bool tuh_init(uint8_t controller_id) {
   tu_memclr(_usbh_devices, sizeof(_usbh_devices));
   tu_memclr(&_ctrl_xfer, sizeof(_ctrl_xfer));
 
-  for(uint8_t i=0; i<TOTAL_DEVICES; i++)
-  {
+  for(uint8_t i=0; i<TOTAL_DEVICES; i++) {
     clear_device(&_usbh_devices[i]);
   }
 
   // Class drivers
-  for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
-  {
-    usbh_class_driver_t const * driver = get_driver(drv_id);
-    if ( driver )
-    {
+  for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+    usbh_class_driver_t const* driver = get_driver(drv_id);
+    if (driver) {
       TU_LOG_USBH("%s init\r\n", driver->name);
       driver->init();
     }
@@ -456,7 +456,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
         #if CFG_TUH_HUB
         // TODO remove
-        if ( event.connection.hub_addr != 0) {
+        if ( event.connection.hub_addr != 0 && event.connection.hub_port != 0) {
           // done with hub, waiting for next data on status pipe
           (void) hub_edpt_status_xfer( event.connection.hub_addr );
         }
@@ -545,8 +545,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 // Control transfer
 //--------------------------------------------------------------------+
 
-static void _control_blocking_complete_cb(tuh_xfer_t* xfer)
-{
+static void _control_blocking_complete_cb(tuh_xfer_t* xfer) {
   // update result
   *((xfer_result_t*) xfer->user_data) = xfer->result;
 }
@@ -625,21 +624,18 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage)
-{
+TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage) {
   (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   _ctrl_xfer.stage = stage;
   (void) osal_mutex_unlock(_usbh_mutex);
 }
 
-static void _xfer_complete(uint8_t daddr, xfer_result_t result)
-{
+static void _xfer_complete(uint8_t daddr, xfer_result_t result) {
   TU_LOG_USBH("\r\n");
 
   // duplicate xfer since user can execute control transfer within callback
   tusb_control_request_t const request = _ctrl_xfer.request;
-  tuh_xfer_t xfer_temp =
-  {
+  tuh_xfer_t xfer_temp = {
     .daddr       = daddr,
     .ep_addr     = 0,
     .result      = result,
@@ -652,8 +648,7 @@ static void _xfer_complete(uint8_t daddr, xfer_result_t result)
 
   _set_control_xfer_stage(CONTROL_STAGE_IDLE);
 
-  if (xfer_temp.complete_cb)
-  {
+  if (xfer_temp.complete_cb) {
     xfer_temp.complete_cb(&xfer_temp);
   }
 }
@@ -710,17 +705,16 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 //
 //--------------------------------------------------------------------+
 
-bool tuh_edpt_xfer(tuh_xfer_t* xfer)
-{
-  uint8_t const daddr   = xfer->daddr;
+bool tuh_edpt_xfer(tuh_xfer_t* xfer) {
+  uint8_t const daddr = xfer->daddr;
   uint8_t const ep_addr = xfer->ep_addr;
 
   TU_VERIFY(daddr && ep_addr);
 
   TU_VERIFY(usbh_edpt_claim(daddr, ep_addr));
 
-  if ( !usbh_edpt_xfer_with_callback(daddr, ep_addr, xfer->buffer, (uint16_t) xfer->buflen, xfer->complete_cb, xfer->user_data) )
-  {
+  if (!usbh_edpt_xfer_with_callback(daddr, ep_addr, xfer->buffer, (uint16_t) xfer->buflen,
+                                    xfer->complete_cb, xfer->user_data)) {
     usbh_edpt_release(daddr, ep_addr);
     return false;
   }

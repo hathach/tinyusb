@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB
+#if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB && !CFG_TUH_MAX3421
 
 #include "pico.h"
 #include "rp2040_usb.h"
