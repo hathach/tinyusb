@@ -102,7 +102,7 @@
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 
 #define CFG_TUH_HUB                 1 // number of supported hubs
-#define CFG_TUH_CDC                 1 // CDC ACM
+#define CFG_TUH_CDC                 1 // number of supported CDC devices. also activates CDC ACM
 #define CFG_TUH_CDC_FTDI            1 // FTDI Serial.  FTDI is not part of CDC class, only to re-use CDC driver API
 #define CFG_TUH_CDC_CP210X          1 // CP210x Serial. CP210X is not part of CDC class, only to re-use CDC driver API
 #define CFG_TUH_CDC_CH34X           1 // CH340 or CH341 Serial. CH34X is not part of CDC class, only to re-use CDC driver API

@@ -793,6 +793,8 @@ static bool acm_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint1
 
   cdch_interface_t* p_cdc = make_new_itf(daddr, itf_desc);
   TU_VERIFY(p_cdc);
+
+  TU_LOG_DRV("ACM CDC opened\r\n");
   p_cdc->serial_drid = SERIAL_DRIVER_ACM;
 
   //------------- Control Interface -------------//
@@ -838,6 +840,7 @@ static void acm_process_config(tuh_xfer_t* xfer) {
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc,);
+  TU_ASSERT (xfer->result == XFER_RESULT_SUCCESS,);
 
   switch (state) {
     case CONFIG_ACM_SET_CONTROL_LINE_STATE:
@@ -865,13 +868,13 @@ static void acm_process_config(tuh_xfer_t* xfer) {
       break;
 
     default:
+      TU_ASSERT (false,);
       break;
   }
 }
 
 static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->acm_capability.support_line_request);
-  TU_LOG_DRV("CDC ACM Set Control Line State\r\n");
 
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -901,7 +904,8 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_st
 }
 
 static bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_DRV("CDC ACM Set Line Conding\r\n");
+  TU_VERIFY(p_cdc->acm_capability.support_line_request);
+  TU_VERIFY((line_coding->data_bits >= 5 && line_coding->data_bits <= 8) || line_coding->data_bits == 16, 0);
 
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -935,8 +939,6 @@ static bool acm_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const
 
 static bool acm_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_LOG_DRV("CDC ACM Set Data Format\r\n");
-
   cdc_line_coding_t line_coding;
   line_coding.bit_rate = p_cdc->line_coding.bit_rate;
   line_coding.stop_bits = stop_bits;
@@ -947,7 +949,6 @@ static bool acm_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint
 }
 
 static bool acm_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(p_cdc->acm_capability.support_line_request);
   cdc_line_coding_t line_coding = p_cdc->line_coding;
   line_coding.bit_rate = baudrate;
   return acm_set_line_coding(p_cdc, &line_coding, complete_cb, user_data);
