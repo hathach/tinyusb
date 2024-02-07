@@ -8,6 +8,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'test/hil/**'
       - 'tools/get_deps.py'
       - '.github/workflows/cmake_arm.yml'
   pull_request:
@@ -17,6 +18,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'test/hil/**'
       - 'tools/get_deps.py'
       - '.github/workflows/cmake_arm.yml'
 
@@ -57,7 +59,7 @@ jobs:
           - 'stm32u5'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
