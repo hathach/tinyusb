@@ -291,9 +291,6 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t *vid, uint16_t *pid) {
   *vid = dev->vid;
   *pid = dev->pid;
 
-  TU_LOG_HEX_USBH(*vid);
-  TU_LOG_HEX_USBH(*pid);
-
   return true;
 }
 
@@ -863,7 +860,7 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t * b
     // HCD error, mark endpoint as ready to allow next transfer
     ep_state->busy    = 0;
     ep_state->claimed = 0;
-    TU_LOG_USBH("Failed\r\n");
+    TU_LOG1("Failed\r\n");
 //    TU_BREAKPOINT();
     return false;
   }
@@ -1321,7 +1318,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     if ( retry ) {
       failed_count++;
       osal_task_delay(ATTEMPT_DELAY_MS); // delay a bit
-      TU_LOG_USBH("Enumeration attempt %u\r\n", failed_count);
+      TU_LOG1("Enumeration attempt %u\r\n", failed_count);
       retry = tuh_control_xfer(xfer);
     }
 
