@@ -1358,13 +1358,18 @@ static inline bool ch34x_write_reg(cdch_interface_t* p_cdc, uint16_t reg, uint16
 //  return ch34x_control_in ( p_cdc, CH34X_REQ_READ_REG, reg, 0, buffer, buffersize, complete_cb, user_data );
 //}
 
+static bool ch34x_write_reg_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
+                                        tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  uint8_t const lcr = ch34x_get_lcr(stop_bits, parity, data_bits);
+  TU_VERIFY(lcr);
+  return ch34x_write_reg(p_cdc, CH32X_REG16_LCR2_LCR, lcr, complete_cb, user_data);
+}
+
 static bool ch34x_write_reg_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
                                      tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   uint16_t const div_ps = ch34x_get_divisor_prescaler(baudrate);
   TU_VERIFY(div_ps);
-  TU_ASSERT(ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps,
-                            complete_cb, user_data));
-  return true;
+  return ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps, complete_cb, user_data);
 }
 
 //------------- Driver API -------------//
@@ -1380,13 +1385,9 @@ static bool ch34x_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, ui
   p_cdc->requested_line_coding.stop_bits = stop_bits;
   p_cdc->requested_line_coding.parity = parity;
   p_cdc->requested_line_coding.data_bits = data_bits;
-
-  uint8_t const lcr = ch34x_get_lcr(stop_bits, parity, data_bits);
-  TU_VERIFY(lcr);
-
   p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, CH32X_REG16_LCR2_LCR, lcr,
-                               complete_cb ? ch34x_control_complete : NULL, user_data));
+  TU_ASSERT(ch34x_write_reg_data_format(p_cdc, stop_bits, parity, data_bits,
+            complete_cb ? ch34x_control_complete : NULL, user_data));
   return true;
 }
 
@@ -1408,13 +1409,13 @@ static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
     // stage 1 success, continue to stage 2
-    TU_ASSERT(ch34x_set_data_format(p_cdc, p_cdc->requested_line_coding.stop_bits, p_cdc->requested_line_coding.parity,
-                                    p_cdc->requested_line_coding.data_bits, p_cdc->requested_complete_cb, xfer->user_data), );
+    ch34x_set_data_format(p_cdc, p_cdc->requested_line_coding.stop_bits,
+                          p_cdc->requested_line_coding.parity, p_cdc->requested_line_coding.data_bits,
+                          p_cdc->requested_complete_cb, xfer->user_data);
   } else {
     // stage 1 failed, notify user
-    xfer->complete_cb = p_cdc->requested_complete_cb;
-    if (xfer->complete_cb) {
-      xfer->complete_cb(xfer);
+    if (p_cdc->requested_complete_cb) {
+      p_cdc->requested_complete_cb(xfer);
     }
   }
 }
@@ -1422,13 +1423,11 @@ static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
 // 2 stages: set baudrate (stage1) + set data format (stage2)
 static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->requested_line_coding = *line_coding;
-
   if (complete_cb) {
     // stage 1 set baudrate
+    p_cdc->requested_line_coding = *line_coding;
     p_cdc->requested_complete_cb = complete_cb;
-    TU_ASSERT(ch34x_set_baudrate(p_cdc, line_coding->bit_rate,
-                                 ch34x_set_line_coding_stage1_complete, user_data));
+    TU_VERIFY(ch34x_set_baudrate(p_cdc, line_coding->bit_rate, ch34x_set_line_coding_stage1_complete, user_data));
   } else {
     // sync call
     xfer_result_t result;
@@ -1439,8 +1438,8 @@ static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t con
     p_cdc->line_coding.bit_rate = line_coding->bit_rate;
 
     // stage 2 set data format
-    TU_ASSERT(ch34x_set_data_format(p_cdc, line_coding->stop_bits, line_coding->parity, line_coding->data_bits,
-                                    NULL, (uintptr_t) &result));
+    TU_ASSERT(ch34x_write_reg_data_format(p_cdc, line_coding->stop_bits, line_coding->parity, line_coding->data_bits,
+                                          NULL, (uintptr_t) &result));
     TU_VERIFY(result == XFER_RESULT_SUCCESS);
     p_cdc->line_coding.stop_bits = line_coding->stop_bits;
     p_cdc->line_coding.parity = line_coding->parity;
