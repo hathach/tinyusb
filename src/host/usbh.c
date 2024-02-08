@@ -320,7 +320,7 @@ bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
   return true;
 }
 
-void tuh_devtree_get_info(uint8_t dev_addr, tuh_devtree_info_t* devtree_info) {`
+void tuh_devtree_get_info(uint8_t dev_addr, tuh_devtree_info_t* devtree_info) {
   TU_VERIFY(devtree_info);
   hcd_devtree_info_t dt;
   hcd_devtree_get_info(dev_addr, &dt)
