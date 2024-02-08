@@ -589,7 +589,6 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
               (xfer->setup->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                   tu_str_std_request[xfer->setup->bRequest] : "Class Request");
   TU_LOG_BUF_USBH(xfer->setup, 8);
-  TU_LOG_USBH("\r\n");
 
   if (xfer->complete_cb) {
     TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t const*) &_ctrl_xfer.request) );
@@ -662,7 +661,6 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
   if (XFER_RESULT_SUCCESS != result) {
     TU_LOG_USBH("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
     TU_LOG_BUF_USBH(request, 8);
-    TU_LOG_USBH("\r\n");
 
     // terminate transfer if any stage failed
     _xfer_complete(dev_addr, result);

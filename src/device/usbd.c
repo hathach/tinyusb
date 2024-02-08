@@ -500,7 +500,6 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
 
       case DCD_EVENT_SETUP_RECEIVED:
         TU_LOG_BUF(CFG_TUD_LOG_LEVEL, &event.setup_received, 8);
-        TU_LOG_USBD("\r\n");
 
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set

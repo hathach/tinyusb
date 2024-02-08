@@ -60,6 +60,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent);
 
 static inline void tu_print_buf(uint8_t const* buf, uint32_t bufsize) {
   for(uint32_t i=0; i<bufsize; i++) tu_printf("%02X ", buf[i]);
+  tu_printf("\r\n");
 }
 
 // Log with Level
