@@ -316,6 +316,16 @@ bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
   return true;
 }
 
+void tuh_devtree_get_info(uint8_t dev_addr, tuh_devtree_info_t* devtree_info) {`
+  TU_VERIFY(devtree_info);
+  hcd_devtree_info_t dt;
+  hcd_devtree_get_info(dev_addr, &dt)
+  devtree_info->rhport   = dt->rhport;
+  devtree_info->hub_addr = dt->hub_addr;
+  devtree_info->hub_port = dt->hub_port;
+  devtree_info->speed    = dt->speed;
+}
+
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
 //--------------------------------------------------------------------+
