@@ -100,6 +100,9 @@ typedef struct {
 
 CFG_TUH_MEM_SECTION
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
+#if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_PL2303
+  static tusb_desc_device_t desc[CFG_TUH_CDC][CFG_TUH_ENUMERATION_BUFSIZE];
+#endif
 
 //--------------------------------------------------------------------+
 // Serial Driver
@@ -157,9 +160,6 @@ static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, t
 #if CFG_TUH_CDC_PL2303
 static uint16_t const pl2303_vid_pid_list[][2] = {CFG_TUH_CDC_PL2303_VID_PID_LIST};
 static struct pl2303_type_data const pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
-
-CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
-static tusb_desc_device_t pl2303_desc[CFG_TUH_CDC][CFG_TUH_ENUMERATION_BUFSIZE];
 
 static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len);
 static void pl2303_process_config(tuh_xfer_t* xfer);
@@ -554,11 +554,13 @@ static void process_internal_control_complete(tuh_xfer_t* xfer, uint8_t itf_num)
 
       #if CFG_TUH_CDC_PL2303
       case SERIAL_DRIVER_PL2303:
-        if ( xfer->setup->bRequest == PL2303_SET_LINE_REQUEST && xfer->setup->bmRequestType == PL2303_SET_LINE_REQUEST_TYPE ) {
+        if ( xfer->setup->bRequest == PL2303_SET_LINE_REQUEST &&
+             xfer->setup->bmRequestType == PL2303_SET_LINE_REQUEST_TYPE ) {
           p_cdc->line_coding = p_cdc->requested_line_coding;
-            }
-        if ( xfer->setup->bRequest == PL2303_SET_CONTROL_REQUEST && xfer->setup->bmRequestType == PL2303_SET_CONTROL_REQUEST_TYPE ) {
-          p_cdc->line_state = (uint8_t) value;
+        }
+        if ( xfer->setup->bRequest == PL2303_SET_CONTROL_REQUEST &&
+             xfer->setup->bmRequestType == PL2303_SET_CONTROL_REQUEST_TYPE ) {
+          p_cdc->line_state = (uint8_t) value; // PL2303 has the same bit coding
         }
         break;
       #endif
@@ -1821,7 +1823,6 @@ static void pl2303_control_complete(tuh_xfer_t* xfer) {
 // the caller has to precheck, that the new line coding different than the current, else false returned
 static bool pl2303_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t const* line_coding,
                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
   uint8_t buf[PL2303_LINE_CODING_BUFSIZE];
   /*
    * Some PL2303 are known to lose bytes if you change serial settings
@@ -1859,6 +1860,7 @@ static bool pl2303_set_line_coding(cdch_interface_t* p_cdc, cdc_line_coding_t co
   /* For reference buf[5]=4 is space parity */
   buf[5] = line_coding->parity; // TinyUSB has the same coding
 
+  p_cdc->user_control_cb = complete_cb;
   TU_ASSERT ( pl2303_set_line_request(p_cdc, buf, complete_cb ? pl2303_control_complete : NULL, user_data) );
 
   return true;
@@ -1870,14 +1872,18 @@ static bool pl2303_set_data_format(cdch_interface_t* p_cdc, uint8_t stop_bits, u
   line_coding.data_bits = data_bits;
   line_coding.parity = parity;
   line_coding.stop_bits = stop_bits;
-  return pl2303_set_line_coding(p_cdc, &line_coding, complete_cb, user_data);
+  TU_ASSERT(pl2303_set_line_coding(p_cdc, &line_coding, complete_cb, user_data));
+
+  return true;
 }
 
 static bool pl2303_set_baudrate(cdch_interface_t* p_cdc, uint32_t baudrate,
     tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   cdc_line_coding_t line_coding = p_cdc->line_coding;
   line_coding.bit_rate = baudrate;
-  return pl2303_set_line_coding(p_cdc, &line_coding, complete_cb, user_data);
+  TU_ASSERT(pl2303_set_line_coding(p_cdc, &line_coding, complete_cb, user_data));
+
+  return true;
 }
 
 static bool pl2303_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state,
@@ -1959,13 +1965,15 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
 
     // from here sequence overtaken from Linux Kernel function pl2303_startup()
     case CONFIG_PL2303_GET_DESC:
-      TU_ASSERT(tuh_descriptor_get_device(xfer->daddr, pl2303_desc[idx], sizeof(tusb_desc_device_t),
+      // get device descriptor
+      TU_LOG_DRV ( "CDCh PL2303 Process Config started\r\n" );
+      TU_ASSERT(tuh_descriptor_get_device(xfer->daddr, desc[idx], sizeof(tusb_desc_device_t),
                                           pl2303_process_config, CONFIG_PL2303_DETECT_TYPE), );
       break;
 
     case CONFIG_PL2303_DETECT_TYPE:
       // get type and quirks (step 1)
-      type = pl2303_detect_type ( p_cdc, pl2303_desc[idx], 1, pl2303_process_config, CONFIG_PL2303_READ1 ); // step 1
+      type = pl2303_detect_type ( p_cdc, desc[idx], 1, pl2303_process_config, CONFIG_PL2303_READ1 ); // step 1
       TU_ASSERT(type!=PL2303_DETECT_TYPE_FAILED,);
       if ( type == PL2303_SUPPORTS_HX_STATUS_TRIGGERED ) {
         break;
@@ -1979,13 +1987,13 @@ static void pl2303_process_config(tuh_xfer_t* xfer) {
         xfer->setup->bmRequestType == PL2303_VENDOR_READ_REQUEST_TYPE &&
         xfer->setup->wValue == PL2303_READ_TYPE_HX_STATUS &&
         xfer->result == XFER_RESULT_SUCCESS );
-      type = pl2303_detect_type ( p_cdc, pl2303_desc[idx], 2, NULL, 0 ); // step 2 now with supports_hx_status
+      type = pl2303_detect_type ( p_cdc, desc[idx], 2, NULL, 0 ); // step 2 now with supports_hx_status
       TU_ASSERT(type!=PL2303_DETECT_TYPE_FAILED,);
       p_cdc->pl2303.serial_private.type = &pl2303_type_data[type];
       p_cdc->pl2303.serial_private.quirks |= p_cdc->pl2303.serial_private.type->quirks;
       #if CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL && 0 // can be activated if necessary
         TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "PL2303 bDeviceClass = 0x%02x bMaxPacketSize0 = %u bcdUSB = 0x%04x bcdDevice = 0x%04x\r\n",
-               pl2303_desc[idx]->bDeviceClass, pl2303_desc[idx]->bMaxPacketSize0, pl2303_desc[idx]->bcdUSB, pl2303_desc[idx]->bcdDevice );
+               desc[idx]->bDeviceClass, desc[idx]->bMaxPacketSize0, desc[idx]->bcdUSB, desc[idx]->bcdDevice );
         uint16_t vid, pid;
         TU_ASSERT(tuh_vid_pid_get(p_cdc->daddr, &vid, &pid),);
         TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "       vid = 0x%04x pid = 0x%04x supports_hx_status = %u type = %s quirks = %u\r\n",
