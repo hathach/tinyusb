@@ -4,7 +4,7 @@ SDK_DIR = hw/mcu/nxp/mcux-sdk
 DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5		#not found
 
 include $(TOP)/$(BOARD_PATH)/board.mk
-CPU_CORE ?= cortex-m33
+CPU_CORE ?= cortex-m33-nodsp-nofp
 
 CFLAGS += \
   -flto \
