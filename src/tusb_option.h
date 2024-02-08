@@ -126,6 +126,7 @@
 #define OPT_MCU_KINETIS_K32L     1201 ///< NXP K32L series
 #define OPT_MCU_KINETIS_K32      1201 ///< Alias to K32L
 #define OPT_MCU_KINETIS_K        1202 ///< NXP K series
+#define OPT_MCU_KINETIS_K28F     1203 ///< NXP K28F series
 
 #define OPT_MCU_MKL25ZXX         1200 ///< Alias to KL (obsolete)
 #define OPT_MCU_K32L2BXX         1201 ///< Alias to K32 (obsolete)
