@@ -248,6 +248,10 @@ CFG_TUH_MEM_SECTION struct {
   volatile uint16_t actual_len;
 }_ctrl_xfer;
 
+//------------- Forward declarations -------------//
+
+void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info);
+
 //------------- Helper Function -------------//
 
 TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) {
