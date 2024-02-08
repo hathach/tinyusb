@@ -80,11 +80,11 @@ void board_init(void)
   board_led_write(1);
 
   // Button
-#ifdef BUTTON_GPIO
-  CLOCK_EnableClock(BUTTON_CLK);
-  gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
-  GPIO_PinInit(BUTTON_GPIO, BUTTON_PIN, &button_config);
-#endif
+//#ifdef BUTTON_GPIO
+//  CLOCK_EnableClock(BUTTON_CLK);
+//  gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
+//  GPIO_PinInit(BUTTON_GPIO, BUTTON_PIN, &button_config);
+//#endif
 
 #ifdef UART_DEV
 
