@@ -35,6 +35,8 @@
   #include "ci_fs_kinetis.h"
 #elif defined(TUP_USBIP_CHIPIDEA_FS_MCX)
   #include "ci_fs_mcx.h"
+#elif defined(TUP_USBIP_CHIPIDEA_FS_MCXA)
+  #include "ci_fs_mcxa.h"
 #else
   #error "MCU is not supported"
 #endif
