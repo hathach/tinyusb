@@ -32,7 +32,6 @@
 
 #include "pin_mux.h"
 #include "clock_config.h"
-#include "fsl_common.h"
 
 
 #ifdef BOARD_TUD_RHPORT
@@ -80,11 +79,11 @@ void board_init(void)
   board_led_write(1);
 
   // Button
-//#ifdef BUTTON_GPIO
-//  CLOCK_EnableClock(BUTTON_CLK);
-//  gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
-//  GPIO_PinInit(BUTTON_GPIO, BUTTON_PIN, &button_config);
-//#endif
+#ifdef BUTTON_GPIO
+  CLOCK_EnableClock(BUTTON_CLK);
+  gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
+  GPIO_PinInit(BUTTON_GPIO, BUTTON_PIN, &button_config);
+#endif
 
 #ifdef UART_DEV
 
@@ -107,7 +106,8 @@ void board_init(void)
 
 #if PORT_SUPPORT_DEVICE(0)
   // Port0 is Full Speed
-
+  //CLOCK_EnableClock(kCLOCK_Usb0Ram);
+  //CLOCK_EnableClock(kCLOCK_Usb0Fs);
   RESET_PeripheralReset(kUSB0_RST_SHIFT_RSTn);
   CLOCK_EnableUsbfsClock();
 #endif
