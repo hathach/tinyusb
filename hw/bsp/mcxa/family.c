@@ -95,7 +95,7 @@ void board_init(void)
   LPUART_GetDefaultConfig(&uart_config);
   uart_config.baudRate_Bps = 115200;
   uart_config.enableTx     = true;
-  uart_config.enableRx     = true; 
+  uart_config.enableRx     = false; 
   LPUART_Init(UART_DEV, &uart_config, 12000000u);
 
 
@@ -161,3 +161,4 @@ uint32_t board_millis(void)
   return system_ticks;
 }
 #endif
+  
