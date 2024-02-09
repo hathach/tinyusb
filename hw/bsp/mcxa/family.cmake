@@ -11,7 +11,7 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_PROCESSOR cortex-m33-nodsp-nofp CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS MCXA CACHE INTERNAL "")
@@ -31,7 +31,7 @@ function(add_board_target BOARD_TARGET)
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_gpio.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_common_arm.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpuart.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
+      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_spc.c 
       # mcu
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
