@@ -105,9 +105,6 @@ void board_init(void)
   /* PORT0 PIN22 configured as USB0_VBUS */
 
 #if PORT_SUPPORT_DEVICE(0)
-  // Port0 is Full Speed
-  //CLOCK_EnableClock(kCLOCK_Usb0Ram);
-  //CLOCK_EnableClock(kCLOCK_Usb0Fs);
   RESET_PeripheralReset(kUSB0_RST_SHIFT_RSTn);
   CLOCK_EnableUsbfsClock();
 #endif

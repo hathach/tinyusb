@@ -37,11 +37,11 @@
 #define LED_PIN               12 // red
 #define LED_STATE_ON          0
 
-// WAKE button (Dummy, use unused pin
-// #define BUTTON_GPIO           GPIO1
-// #define BUTTON_CLK            kCLOCK_GateGPIO1
-// #define BUTTON_PIN            7 //sw3
-// #define BUTTON_STATE_ACTIVE   0
+// ISP button (Dummy, use unused pin
+ #define BUTTON_GPIO           GPIO3
+ #define BUTTON_CLK            kCLOCK_GateGPIO3
+ #define BUTTON_PIN            29 //sw2
+ #define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_DEV              LPUART0
