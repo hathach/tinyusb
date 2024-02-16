@@ -106,6 +106,7 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPa
     hard_assert(hw_buffer_ptr < usb_dpram->epx_data + sizeof(usb_dpram->epx_data));
     pico_info("  Allocated %d bytes (0x%p)\r\n", size, ep->hw_data_buf);
   }
+  ep->configured = true;
 }
 
 static void hw_endpoint_enable(hw_endpoint_t *ep, uint8_t transfer_type) {
