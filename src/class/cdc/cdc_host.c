@@ -80,6 +80,9 @@ typedef struct {
   uint8_t requested_line_state;
 
   tuh_xfer_cb_t user_control_cb;
+  #if CFG_TUH_CDC_CH34X
+  tuh_xfer_cb_t requested_complete_cb;
+  #endif
 
   struct {
     tu_edpt_stream_t tx;
@@ -1376,12 +1379,33 @@ static inline bool ch34x_write_reg(cdch_interface_t* p_cdc, uint16_t reg, uint16
 //  return ch34x_control_in ( p_cdc, CH34X_REQ_READ_REG, reg, 0, buffer, buffersize, complete_cb, user_data );
 //}
 
-static bool ch34x_write_reg_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool ch34x_write_reg_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  uint8_t const lcr = ch34x_get_lcr(p_cdc);
+  TU_VERIFY(lcr);
+
+  return ch34x_write_reg(p_cdc, CH32X_REG16_LCR2_LCR, lcr, complete_cb, user_data);
+}
+
+static bool ch34x_write_reg_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   uint16_t const div_ps = ch34x_get_divisor_prescaler(p_cdc);
   TU_VERIFY(div_ps);
-  TU_ASSERT(ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps,
-                            complete_cb, user_data));
-  return true;
+
+  return ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps, complete_cb, user_data);
+}
+
+static bool ch34x_modem_ctrl_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  uint8_t control = 0;
+  if (p_cdc->requested_line_state & CDC_CONTROL_LINE_STATE_RTS) {
+    control |= CH34X_BIT_RTS;
+  }
+  if (p_cdc->requested_line_state & CDC_CONTROL_LINE_STATE_DTR) {
+    control |= CH34X_BIT_DTR;
+  }
+
+  // CH34x signals are inverted
+  control = ~control;
+
+  return ch34x_control_out(p_cdc, CH34X_REQ_MODEM_CTRL, control, 0, complete_cb, user_data);
 }
 
 //------------- Driver API -------------//
@@ -1431,34 +1455,34 @@ static void ch34x_internal_control_complete(tuh_xfer_t * xfer) {
   }
 }
 
-static bool ch34x_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint8_t const lcr = ch34x_get_lcr(p_cdc);
-  TU_VERIFY(lcr);
-  TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, CH32X_REG16_LCR2_LCR, lcr,
-                               complete_cb ? ch34x_internal_control_complete : NULL, user_data));
+static bool ch34x_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->user_control_cb = complete_cb;
+  TU_ASSERT(ch34x_write_reg_data_format(p_cdc, complete_cb ? ch34x_internal_control_complete : NULL, user_data));
+
   return true;
 }
 
-static bool ch34x_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool ch34x_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
   TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, complete_cb ? ch34x_internal_control_complete : NULL, user_data));
+
   return true;
 }
 
-static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
-  // CH34x only has 1 interface and use wIndex as payload and not for bInterfaceNumber
+static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t * xfer) {
+  // CH34x only has 1 interface and wIndex used as payload and not for bInterfaceNumber
   uint8_t const itf_num = 0;
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc, );
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
-    // stage 1 success, continue to stage 2
-    p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
-    TU_ASSERT(ch34x_set_data_format(p_cdc, ch34x_internal_control_complete, xfer->user_data), );
+    // stage 1 success, continue with stage 2
+    p_cdc->user_control_cb = p_cdc->requested_complete_cb;
+    ch34x_write_reg_data_format(p_cdc, ch34x_internal_control_complete, xfer->user_data);
   } else {
     // stage 1 failed, notify user
-    xfer->complete_cb = p_cdc->user_control_cb;
+    xfer->complete_cb = p_cdc->requested_complete_cb;
     if (xfer->complete_cb) {
       xfer->complete_cb(xfer);
     }
@@ -1466,49 +1490,46 @@ static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t* xfer) {
 }
 
 // 2 stages: set baudrate (stage1) + set data format (stage2)
-static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
-
+static bool ch34x_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   if (complete_cb) {
     // stage 1 set baudrate
-    TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, ch34x_set_line_coding_stage1_complete, user_data));
+    p_cdc->requested_complete_cb = complete_cb;
+    p_cdc->user_control_cb = ch34x_set_line_coding_stage1_complete;
+    return ch34x_write_reg_baudrate(p_cdc, ch34x_internal_control_complete, user_data);
   } else {
-    // sync call
-    xfer_result_t result;
-
+    // blocking sequence
     // stage 1 set baudrate
-    TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, NULL, (uintptr_t) &result));
-    TU_VERIFY(result == XFER_RESULT_SUCCESS);
-    p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
+    xfer_result_t result = XFER_RESULT_INVALID; // use local result, because user_data ptr may be NULL
+    bool ret = ch34x_write_reg_baudrate(p_cdc, NULL, (uintptr_t) &result);
 
-    // stage 2 set data format
-    TU_ASSERT(ch34x_set_data_format(p_cdc, NULL, (uintptr_t) &result));
-    TU_VERIFY(result == XFER_RESULT_SUCCESS);
-
-    // update transfer result, user_data is expected to point to xfer_result_t
+    // store/check results
     if (user_data) {
       *((xfer_result_t*) user_data) = result;
     }
-  }
+    TU_ASSERT(ret);
+    TU_VERIFY(result == XFER_RESULT_SUCCESS);
 
-  return true;
+    // overtake baudrate
+    p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
+
+    // stage 2 set data format
+    result = XFER_RESULT_INVALID;
+    ret = ch34x_write_reg_data_format(p_cdc, NULL, (uintptr_t) &result);
+
+    // store/check results
+    if (user_data) {
+      *((xfer_result_t*) user_data) = result;
+    }
+    TU_ASSERT(ret);
+    return (result == XFER_RESULT_SUCCESS);
+    // the overtaking of remaining requested_line_coding will be done in tuh_cdc_set_line_coding()
+  }
 }
 
-static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint8_t control = 0;
-  if (p_cdc->requested_line_state & CDC_CONTROL_LINE_STATE_RTS) {
-    control |= CH34X_BIT_RTS;
-  }
-  if (p_cdc->requested_line_state & CDC_CONTROL_LINE_STATE_DTR) {
-    control |= CH34X_BIT_DTR;
-  }
-
-  // CH34x signals are inverted
-  control = ~control;
-
+static bool ch34x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT (ch34x_control_out(p_cdc, CH34X_REQ_MODEM_CTRL, control, 0,
-                               complete_cb ? ch34x_internal_control_complete : NULL, user_data));
+  TU_ASSERT(ch34x_modem_ctrl_request(p_cdc, complete_cb ? ch34x_internal_control_complete : NULL, user_data));
+
   return true;
 }
 
@@ -1549,25 +1570,27 @@ static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uin
 }
 
 static void ch34x_process_config(tuh_xfer_t* xfer) {
-  // CH34x only has 1 interface and use wIndex as payload and not for bInterfaceNumber
+  // CH34x only has 1 interface and wIndex used as payload and not for bInterfaceNumber
+  uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = 0;
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_ASSERT_COMPLETE(p_cdc && xfer->result == XFER_RESULT_SUCCESS);
-  uintptr_t const state = xfer->user_data;
   uint8_t buffer[2]; // TODO remove
 
   switch (state) {
     case CONFIG_CH34X_READ_VERSION:
+      p_cdc->user_control_cb = ch34x_process_config; // set once for whole process config
       TU_ASSERT_COMPLETE(ch34x_control_in(p_cdc, CH34X_REQ_READ_VERSION, 0, 0, buffer, 2,
-                                          ch34x_process_config, CONFIG_CH34X_SERIAL_INIT));
+                         ch34x_process_config, CONFIG_CH34X_SERIAL_INIT));
       break;
 
     case CONFIG_CH34X_SERIAL_INIT: {
       // handle version read data, set CH34x line coding (incl. baudrate)
       uint8_t const version = xfer->buffer[0];
       TU_LOG_P_CDC("Chip Version = %02x", version);
-      // only versions >= 0x30 are tested, below 0x30 seems having other programming, see drivers from WCH vendor, Linux kernel and FreeBSD
+      // only versions >= 0x30 are tested, below 0x30 seems having other programming
+      // see drivers from WCH vendor, Linux kernel and FreeBSD
       TU_ASSERT_COMPLETE(version >= 0x30);
       // init CH34x with line coding
       p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
@@ -1584,19 +1607,19 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       // overtake line coding and do special reg write, purpose unknown, overtaken from WCH driver
       p_cdc->line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
       TU_ASSERT_COMPLETE(ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x0F, CH341_REG_0x2C), 0x0007,
-                                         ch34x_process_config, CONFIG_CH34X_FLOW_CONTROL));
+                         ch34x_process_config, CONFIG_CH34X_FLOW_CONTROL));
       break;
 
     case CONFIG_CH34X_FLOW_CONTROL:
       // no hardware flow control
       TU_ASSERT_COMPLETE(ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x27, CH341_REG_0x27), 0x0000,
-                                         ch34x_process_config, CONFIG_CH34X_MODEM_CONTROL));
+                         ch34x_process_config, CONFIG_CH34X_MODEM_CONTROL));
       break;
 
     case CONFIG_CH34X_MODEM_CONTROL:
       // !always! set modem controls RTS/DTR (CH34x has no reset state after CH34X_REQ_SERIAL_INIT)
       p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-      TU_ASSERT_COMPLETE(ch34x_set_modem_ctrl(p_cdc, ch34x_process_config, CONFIG_CH34X_COMPLETE));
+      TU_ASSERT_COMPLETE(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete, CONFIG_CH34X_COMPLETE));
       break;
 
     case CONFIG_CH34X_COMPLETE:
@@ -1668,7 +1691,7 @@ static uint8_t ch34x_get_lcr(cdch_interface_t * p_cdc) {
   uint8_t const data_bits = p_cdc->requested_line_coding.data_bits;
 
   uint8_t lcr = CH34X_LCR_ENABLE_RX | CH34X_LCR_ENABLE_TX;
-  TU_VERIFY(data_bits >= 5 && data_bits <= 8, 0);
+  TU_VERIFY(data_bits >= 5 && data_bits <= 8);
   lcr |= (uint8_t) (data_bits - 5);
 
   switch(parity) {
@@ -1695,7 +1718,7 @@ static uint8_t ch34x_get_lcr(cdch_interface_t * p_cdc) {
   }
 
   // 1.5 stop bits not supported
-  TU_VERIFY(stop_bits != CDC_LINE_CODING_STOP_BITS_1_5, 0);
+  TU_VERIFY(stop_bits != CDC_LINE_CODING_STOP_BITS_1_5);
   if (stop_bits == CDC_LINE_CODING_STOP_BITS_2) {
     lcr |= CH34X_LCR_STOP_BITS_2;
   }
