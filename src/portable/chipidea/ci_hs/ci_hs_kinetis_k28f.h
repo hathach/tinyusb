@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _CI_HS_MCX_H_
-#define _CI_HS_MCX_H_
+#ifndef _CI_HS_KINETIS_K28F_H_
+#define _CI_HS_KINETIS_K28F_H_
 
 #include "fsl_device_registers.h"
 
@@ -43,6 +43,5 @@ TU_ATTR_ALWAYS_INLINE static inline ci_hs_regs_t* CI_HS_REG(uint8_t port) {
 
 #define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
 #define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
-
 
 #endif
