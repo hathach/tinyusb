@@ -886,7 +886,7 @@ static void acm_process_config(tuh_xfer_t* xfer) {
 
   switch (state) {
     case CONFIG_ACM_SET_CONTROL_LINE_STATE:
-      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
         if (p_cdc->acm_capability.support_line_request) {
           p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
           TU_ASSERT_COMPLETE(acm_set_control_line_state(p_cdc, acm_process_config, CONFIG_ACM_SET_LINE_CODING), 1);
@@ -1060,7 +1060,7 @@ static void ftdi_process_config(tuh_xfer_t* xfer) {
       break;
 
     case CONFIG_FTDI_MODEM_CTRL:
-      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
         p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
         TU_ASSERT_COMPLETE(ftdi_sio_set_modem_ctrl(p_cdc, ftdi_process_config, CONFIG_FTDI_SET_BAUDRATE));
         break;
@@ -1291,7 +1291,7 @@ static void cp210x_process_config(tuh_xfer_t* xfer) {
     }
 
     case CONFIG_CP210X_SET_DTR_RTS:
-      #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
         p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
         TU_ASSERT_COMPLETE(cp210x_set_modem_ctrl(p_cdc, cp210x_process_config, CONFIG_CP210X_COMPLETE));
         break;
@@ -1617,10 +1617,13 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       break;
 
     case CONFIG_CH34X_MODEM_CONTROL:
-      // !always! set modem controls RTS/DTR (CH34x has no reset state after CH34X_REQ_SERIAL_INIT)
-      p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-      TU_ASSERT_COMPLETE(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete, CONFIG_CH34X_COMPLETE));
-      break;
+      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+        p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+        TU_ASSERT_COMPLETE(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete, CONFIG_CH34X_COMPLETE));
+        break;
+      #else
+        TU_ATTR_FALLTHROUGH;
+      #endif
 
     case CONFIG_CH34X_COMPLETE:
       set_config_complete(idx, 0, true);
