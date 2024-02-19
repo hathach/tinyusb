@@ -731,6 +731,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
               tud_control_status(rhport, p_request);
             break;
 
+            #if !defined(TUSB_NO_TEST_MODE_SUPPORT)
             // Support for TEST_MODE
             case TUSB_REQ_FEATURE_TEST_MODE:
               // Only handle the test mode if supported and valid
@@ -753,6 +754,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
               usbd_control_set_complete_callback(process_test_mode_cb);
             break;
+            #endif /* !TUSB_NO_TEST_MODE_SUPPORT */
 
             // Stall unsupported feature selector
             default: return false;
@@ -1098,6 +1100,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
   }
 }
 
+#if !defined(TUSB_NO_TEST_MODE_SUPPORT)
 static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   // At this point it should already be ensured that dcd_enter_test_mode() is defined
@@ -1109,6 +1112,7 @@ static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_req
 
   return true;
 }
+#endif /* !TUSB_NO_TEST_MODE_SUPPORT */
 
 //--------------------------------------------------------------------+
 // DCD Event Handler
