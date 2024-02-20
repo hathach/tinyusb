@@ -67,6 +67,7 @@ typedef struct {
   // 1 byte padding
 
   uint8_t line_state;                               // DTR (bit0), RTS (bit1)
+  uint8_t requested_line_state;
 
   tuh_xfer_cb_t user_control_cb;
 
@@ -96,7 +97,7 @@ static void acm_process_config(tuh_xfer_t* xfer);
 static bool acm_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool acm_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool acm_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool acm_set_control_line_state(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 //------------- FTDI prototypes -------------//
 #if CFG_TUH_CDC_FTDI
@@ -110,7 +111,7 @@ static void ftdi_process_config(tuh_xfer_t* xfer);
 static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool ftdi_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool ftdi_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
 
 //------------- CP210X prototypes -------------//
@@ -125,7 +126,7 @@ static void cp210x_process_config(tuh_xfer_t* xfer);
 static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool cp210x_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool cp210x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
 
 //------------- CH34x prototypes -------------//
@@ -140,7 +141,7 @@ static void ch34x_process_config(tuh_xfer_t* xfer);
 static bool ch34x_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool ch34x_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
 
 //------------- Common -------------//
@@ -167,7 +168,7 @@ typedef struct {
   uint16_t const vid_pid_count;
   bool (*const open)(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
   void (*const process_set_config)(tuh_xfer_t* xfer);
-  bool (*const set_control_line_state)(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+  bool (*const set_control_line_state)(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
   bool (*const set_baudrate)(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
   bool (*const set_data_format)(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
   bool (*const set_line_coding)(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -426,12 +427,14 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
   TU_LOG_P_CDC("set control line state line_state = %u", line_state);
   cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
 
+  p_cdc->requested_line_state = (uint8_t) line_state;
+
   if (complete_cb) {
-    return driver->set_control_line_state(p_cdc, line_state, complete_cb, user_data);
+    return driver->set_control_line_state(p_cdc, complete_cb, user_data);
   } else {
     // blocking
     xfer_result_t result = XFER_RESULT_INVALID;
-    bool ret = driver->set_control_line_state(p_cdc, line_state, complete_cb, (uintptr_t) &result);
+    bool ret = driver->set_control_line_state(p_cdc, complete_cb, (uintptr_t) &result);
 
     if (user_data) {
       // user_data is not NULL, return result via user_data
@@ -717,7 +720,7 @@ static void acm_internal_control_complete(tuh_xfer_t * xfer) {
   if (success) {
     switch (xfer->setup->bRequest) {
       case CDC_REQUEST_SET_CONTROL_LINE_STATE:
-        p_cdc->line_state = (uint8_t) tu_le16toh(xfer->setup->wValue);
+        p_cdc->line_state = p_cdc->requested_line_state;
         break;
 
       case CDC_REQUEST_SET_LINE_CODING:
@@ -734,7 +737,7 @@ static void acm_internal_control_complete(tuh_xfer_t * xfer) {
   }
 }
 
-static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool acm_set_control_line_state(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->acm_capability.support_line_request);
 
   tusb_control_request_t const request = {
@@ -744,7 +747,7 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, uint16_t line_st
       .direction = TUSB_DIR_OUT
     },
     .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-    .wValue   = tu_htole16(line_state),
+    .wValue   = tu_htole16(p_cdc->requested_line_state),
     .wIndex   = tu_htole16((uint16_t) p_cdc->bInterfaceNumber),
     .wLength  = 0
   };
@@ -872,10 +875,11 @@ static void acm_process_config(tuh_xfer_t* xfer) {
   switch (state) {
     case CONFIG_ACM_SET_CONTROL_LINE_STATE:
       #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      if (p_cdc->acm_capability.support_line_request) {
-        TU_ASSERT(acm_set_control_line_state(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, acm_process_config, CONFIG_ACM_SET_LINE_CODING),);
-        break;
-      }
+        if (p_cdc->acm_capability.support_line_request) {
+          p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+          TU_ASSERT(acm_set_control_line_state(p_cdc, acm_process_config, CONFIG_ACM_SET_LINE_CODING),);
+          break;
+        }
       #endif
       TU_ATTR_FALLTHROUGH;
 
@@ -952,7 +956,7 @@ static void ftdi_internal_control_complete(tuh_xfer_t * xfer) {
   if (success) {
     switch (xfer->setup->bRequest) {
       case FTDI_SIO_MODEM_CTRL:
-        p_cdc->line_state = (uint8_t) tu_le16toh(xfer->setup->wValue);
+        p_cdc->line_state = p_cdc->requested_line_state;
         break;
 
       case FTDI_SIO_SET_BAUD_RATE:
@@ -995,9 +999,9 @@ static bool ftdi_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete
   return false;
 }
 
-static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_MODEM_CTRL, 0x0300 | line_state,
+  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_MODEM_CTRL, 0x0300 | p_cdc->requested_line_state,
                                  complete_cb ? ftdi_internal_control_complete : NULL, user_data));
   return true;
 }
@@ -1044,10 +1048,11 @@ static void ftdi_process_config(tuh_xfer_t* xfer) {
 
     case CONFIG_FTDI_MODEM_CTRL:
       #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      TU_ASSERT(ftdi_sio_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, ftdi_process_config, CONFIG_FTDI_SET_BAUDRATE),);
-      break;
+        p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+        TU_ASSERT(ftdi_sio_set_modem_ctrl(p_cdc, ftdi_process_config, CONFIG_FTDI_SET_BAUDRATE),);
+        break;
       #else
-      TU_ATTR_FALLTHROUGH;
+        TU_ATTR_FALLTHROUGH;
       #endif
 
     case CONFIG_FTDI_SET_BAUDRATE: {
@@ -1167,7 +1172,7 @@ static void cp210x_internal_control_complete(tuh_xfer_t * xfer) {
   if (success) {
     switch(xfer->setup->bRequest) {
       case CP210X_SET_MHS:
-        p_cdc->line_state = (uint8_t) tu_le16toh(xfer->setup->wValue);
+        p_cdc->line_state = p_cdc->requested_line_state;
         break;
 
       case CP210X_SET_BAUDRATE:
@@ -1207,9 +1212,9 @@ static bool cp210x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t comple
   return false;
 }
 
-static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
-  return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | line_state, NULL, 0,
+  return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | p_cdc->requested_line_state, NULL, 0,
                             complete_cb ? cp210x_internal_control_complete : NULL, user_data);
 }
 
@@ -1273,10 +1278,11 @@ static void cp210x_process_config(tuh_xfer_t* xfer) {
 
     case CONFIG_CP210X_SET_DTR_RTS:
       #if CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      TU_ASSERT(cp210x_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, cp210x_process_config, CONFIG_CP210X_COMPLETE),);
-      break;
+        p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+        TU_ASSERT(cp210x_set_modem_ctrl(p_cdc, cp210x_process_config, CONFIG_CP210X_COMPLETE),);
+        break;
       #else
-      TU_ATTR_FALLTHROUGH;
+        TU_ATTR_FALLTHROUGH;
       #endif
 
     case CONFIG_CP210X_COMPLETE:
@@ -1399,19 +1405,7 @@ static void ch34x_internal_control_complete(tuh_xfer_t * xfer) {
         break;
 
       case CH34X_REQ_MODEM_CTRL:
-        // set modem controls RTS/DTR request. Note: signals are inverted
-        uint16_t const modem_signal = ~tu_le16toh(xfer->setup->wValue);
-        if (modem_signal & CH34X_BIT_RTS) {
-          p_cdc->line_state |= CDC_CONTROL_LINE_STATE_RTS;
-        } else {
-          p_cdc->line_state &= (uint8_t) ~CDC_CONTROL_LINE_STATE_RTS;
-        }
-
-        if (modem_signal & CH34X_BIT_DTR) {
-          p_cdc->line_state |= CDC_CONTROL_LINE_STATE_DTR;
-        } else {
-          p_cdc->line_state &= (uint8_t) ~CDC_CONTROL_LINE_STATE_DTR;
-        }
+        p_cdc->line_state = p_cdc->requested_line_state;
         break;
 
       default: break;
@@ -1487,13 +1481,12 @@ static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complet
   return true;
 }
 
-static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, uint16_t line_state,
-                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   uint8_t control = 0;
-  if (line_state & CDC_CONTROL_LINE_STATE_RTS) {
+  if (p_cdc->requested_line_state & CDC_CONTROL_LINE_STATE_RTS) {
     control |= CH34X_BIT_RTS;
   }
-  if (line_state & CDC_CONTROL_LINE_STATE_DTR) {
+  if (p_cdc->requested_line_state & CDC_CONTROL_LINE_STATE_DTR) {
     control |= CH34X_BIT_DTR;
   }
 
@@ -1587,7 +1580,8 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
 
     case CONFIG_CH34X_MODEM_CONTROL:
       // !always! set modem controls RTS/DTR (CH34x has no reset state after CH34X_REQ_SERIAL_INIT)
-      TU_ASSERT (ch34x_set_modem_ctrl(p_cdc, CFG_TUH_CDC_LINE_CONTROL_ON_ENUM, ch34x_process_config, CONFIG_CH34X_COMPLETE),);
+      p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      TU_ASSERT (ch34x_set_modem_ctrl(p_cdc, ch34x_process_config, CONFIG_CH34X_COMPLETE),);
       break;
 
     case CONFIG_CH34X_COMPLETE:
