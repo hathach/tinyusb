@@ -1,9 +1,14 @@
 set(MCU_VARIANT MCXA153)
 set(MCU_CORE MCXA153)
 
+set(FAMILY_MCUS MCXA15 CACHE INTERNAL "")
+set(CMAKE_SYSTEM_PROCESSOR cortex-m33-nodsp-nofp CACHE INTERNAL "System Processor")
+
 set(JLINK_DEVICE MCXA153_M33)
 set(PYOCD_TARGET MCXA153)
 set(NXPLINK_DEVICE MCXA153:MCXA153)
+
+set(PORT 0)
 
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC

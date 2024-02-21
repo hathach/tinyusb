@@ -175,7 +175,7 @@
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
-#define OPT_MCU_MCXA             2301  ///< NXP MCX A Series
+#define OPT_MCU_MCXA15           2301  ///< NXP MCX A15 Series
 
 // Check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
