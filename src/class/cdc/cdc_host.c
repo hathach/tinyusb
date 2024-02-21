@@ -433,6 +433,77 @@ bool tuh_cdc_read_clear (uint8_t idx) {
 // Control Endpoint API
 //--------------------------------------------------------------------+
 
+// set line coding using sequence with 2 stages: set baudrate (stage1) + set data format (stage2)
+static bool set_line_coding_sequence(
+    cdch_interface_t * p_cdc,
+    // control request function to set baudrate
+    bool (*set_baudrate_request)(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data),
+    // control request function to set data format
+    bool (*set_data_format_request)(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data),
+    // function to be called after stage 1 completed
+    void (*set_line_coding_stage1_complete)(tuh_xfer_t * xfer),
+    // control complete function to be called after request
+    void (*internal_control_complete)(tuh_xfer_t * xfer),
+    tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  if (complete_cb) {
+    // non-blocking
+    // stage 1 set baudrate
+    p_cdc->requested_complete_cb = complete_cb; // store complete_cb to be used in set_line_coding_stage1_complete()
+    p_cdc->user_control_cb = set_line_coding_stage1_complete;
+    return set_baudrate_request(p_cdc, internal_control_complete, user_data);
+  } else {
+    // blocking sequence
+    // stage 1 set baudrate
+    xfer_result_t result = XFER_RESULT_INVALID; // use local result, because user_data ptr may be NULL
+    bool ret = set_baudrate_request(p_cdc, NULL, (uintptr_t) &result);
+
+    if (user_data) {
+      *((xfer_result_t *) user_data) = result;
+    }
+
+    TU_ASSERT(ret);
+    TU_VERIFY(result == XFER_RESULT_SUCCESS);
+
+    // overtake baudrate after successful request
+    p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
+
+    // stage 2 set data format
+    result = XFER_RESULT_INVALID;
+    ret = set_data_format_request(p_cdc, NULL, (uintptr_t) &result);
+
+    if (user_data) {
+      *((xfer_result_t *) user_data) = result;
+    }
+
+    TU_ASSERT(ret);
+    return (result == XFER_RESULT_SUCCESS);
+    // the overtaking of remaining requested_line_coding will be done in tuh_cdc_set_line_coding()
+  }
+}
+
+static void set_line_coding_stage1_complete(
+    tuh_xfer_t * xfer, uint8_t const itf_num,
+    // control request function to set data format
+    bool (*set_data_format_request)(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data),
+    // control complete function to be called after request
+    void (*internal_control_complete)(tuh_xfer_t * xfer)) {
+  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc,);
+
+  if (xfer->result == XFER_RESULT_SUCCESS) {
+    // stage 1 success, continue with stage 2
+    p_cdc->user_control_cb = p_cdc->requested_complete_cb;
+    set_data_format_request(p_cdc, internal_control_complete, xfer->user_data);
+  } else {
+    // stage 1 failed, notify user
+    xfer->complete_cb = p_cdc->requested_complete_cb;
+    if (xfer->complete_cb) {
+      xfer->complete_cb(xfer);
+    }
+  }
+}
+
 // call of (non-)blocking set-functions (to set line state, baudrate, ...)
 static bool set_function_call (
     cdch_interface_t * p_cdc,
@@ -1470,60 +1541,20 @@ static bool ch34x_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_
 }
 
 static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t * xfer) {
-  // CH34x only has 1 interface and wIndex used as payload and not for bInterfaceNumber
-  uint8_t const itf_num = 0;
-  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t* p_cdc = get_itf(idx);
-  TU_ASSERT(p_cdc, );
-
-  if (xfer->result == XFER_RESULT_SUCCESS) {
-    // stage 1 success, continue with stage 2
-    p_cdc->user_control_cb = p_cdc->requested_complete_cb;
-    ch34x_write_reg_data_format(p_cdc, ch34x_internal_control_complete, xfer->user_data);
-  } else {
-    // stage 1 failed, notify user
-    xfer->complete_cb = p_cdc->requested_complete_cb;
-    if (xfer->complete_cb) {
-      xfer->complete_cb(xfer);
-    }
-  }
+  uint8_t const itf_num = 0; // CH34x has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
+  set_line_coding_stage1_complete(xfer, itf_num,
+                                  ch34x_write_reg_data_format,      // control request function to set data format
+                                  ch34x_internal_control_complete); // control complete function to be called after request
 }
 
 // 2 stages: set baudrate (stage1) + set data format (stage2)
 static bool ch34x_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  if (complete_cb) {
-    // stage 1 set baudrate
-    p_cdc->requested_complete_cb = complete_cb;
-    p_cdc->user_control_cb = ch34x_set_line_coding_stage1_complete;
-    return ch34x_write_reg_baudrate(p_cdc, ch34x_internal_control_complete, user_data);
-  } else {
-    // blocking sequence
-    // stage 1 set baudrate
-    xfer_result_t result = XFER_RESULT_INVALID; // use local result, because user_data ptr may be NULL
-    bool ret = ch34x_write_reg_baudrate(p_cdc, NULL, (uintptr_t) &result);
-
-    // store/check results
-    if (user_data) {
-      *((xfer_result_t*) user_data) = result;
-    }
-    TU_ASSERT(ret);
-    TU_VERIFY(result == XFER_RESULT_SUCCESS);
-
-    // overtake baudrate
-    p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
-
-    // stage 2 set data format
-    result = XFER_RESULT_INVALID;
-    ret = ch34x_write_reg_data_format(p_cdc, NULL, (uintptr_t) &result);
-
-    // store/check results
-    if (user_data) {
-      *((xfer_result_t*) user_data) = result;
-    }
-    TU_ASSERT(ret);
-    return (result == XFER_RESULT_SUCCESS);
-    // the overtaking of remaining requested_line_coding will be done in tuh_cdc_set_line_coding()
-  }
+  return set_line_coding_sequence(p_cdc,
+                                  ch34x_write_reg_baudrate,              // control request function to set baudrate
+                                  ch34x_write_reg_data_format,           // control request function to set data format
+                                  ch34x_set_line_coding_stage1_complete, // function to be called after stage 1 completed
+                                  ch34x_internal_control_complete,       // control complete function to be called after request
+                                  complete_cb, user_data);
 }
 
 static bool ch34x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
