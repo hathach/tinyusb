@@ -421,115 +421,101 @@ bool tuh_cdc_read_clear (uint8_t idx) {
 // Control Endpoint API
 //--------------------------------------------------------------------+
 
-bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  cdch_interface_t* p_cdc = get_itf(idx);
-  TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
-  TU_LOG_P_CDC("set control line state line_state = %u", line_state);
-  cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
-
-  p_cdc->requested_line_state = (uint8_t) line_state;
-
+// call of (non-)blocking set-functions (to set line state, baudrate, ...)
+static bool set_function_call (
+    cdch_interface_t * p_cdc,
+    bool (*set_function)(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data),
+    tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   if (complete_cb) {
-    return driver->set_control_line_state(p_cdc, complete_cb, user_data);
+    // non-blocking with call back
+    return set_function(p_cdc, complete_cb, user_data);
   } else {
     // blocking
-    xfer_result_t result = XFER_RESULT_INVALID;
-    bool ret = driver->set_control_line_state(p_cdc, complete_cb, (uintptr_t) &result);
+    xfer_result_t result = XFER_RESULT_INVALID; // use local result, because user_data ptr may be NULL
+    bool ret = set_function(p_cdc, NULL, (uintptr_t) &result);
 
     if (user_data) {
-      // user_data is not NULL, return result via user_data
-      *((xfer_result_t*) user_data) = result;
+      *((xfer_result_t *) user_data) = result;
     }
 
-    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
-    p_cdc->line_state = (uint8_t) line_state;
-    return true;
+    return (ret && result == XFER_RESULT_SUCCESS);
   }
 }
 
+bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
+  TU_LOG_P_CDC("set control line state line_state = %u", line_state);
+  cdch_serial_driver_t const * driver = &serial_drivers[p_cdc->serial_drid];
+
+  p_cdc->requested_line_state = (uint8_t) line_state;
+
+  bool ret = set_function_call(p_cdc, driver->set_control_line_state, complete_cb, user_data);
+
+  if (ret && !complete_cb) {
+    p_cdc->line_state = (uint8_t) line_state;
+  }
+
+  return ret;
+}
+
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
   TU_LOG_P_CDC("set baudrate = %lu", baudrate);
-  cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
+  cdch_serial_driver_t const * driver = &serial_drivers[p_cdc->serial_drid];
 
   p_cdc->requested_line_coding.bit_rate = baudrate;
 
-  if (complete_cb) {
-    return driver->set_baudrate(p_cdc, complete_cb, user_data);
-  } else {
-    // blocking
-    xfer_result_t result = XFER_RESULT_INVALID;
-    bool ret = driver->set_baudrate(p_cdc, complete_cb, (uintptr_t) &result);
+  bool ret = set_function_call(p_cdc, driver->set_baudrate, complete_cb, user_data);
 
-    if (user_data) {
-      // user_data is not NULL, return result via user_data
-      *((xfer_result_t*) user_data) = result;
-    }
-
-    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
+  if (ret && !complete_cb) {
     p_cdc->line_coding.bit_rate = baudrate;
-    return true;
   }
+
+  return ret;
 }
 
 bool tuh_cdc_set_data_format(uint8_t idx, uint8_t stop_bits, uint8_t parity, uint8_t data_bits,
                              tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
   TU_LOG_P_CDC("set data format data_bits = %u parity = %u stop_bits = %u (indexes!)",
                data_bits, parity, stop_bits);
-  cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
+  cdch_serial_driver_t const * driver = &serial_drivers[p_cdc->serial_drid];
 
   p_cdc->requested_line_coding.stop_bits = stop_bits;
   p_cdc->requested_line_coding.parity    = parity;
   p_cdc->requested_line_coding.data_bits = data_bits;
 
-  if (complete_cb) {
-    return driver->set_data_format(p_cdc, complete_cb, user_data);
-  } else {
-    // blocking
-    xfer_result_t result = XFER_RESULT_INVALID;
-    bool ret = driver->set_data_format(p_cdc, complete_cb, (uintptr_t) &result);
+  bool ret = set_function_call(p_cdc, driver->set_data_format, complete_cb, user_data);
 
-    if (user_data) {
-      // user_data is not NULL, return result via user_data
-      *((xfer_result_t*) user_data) = result;
-    }
-
-    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
+  if (ret && !complete_cb) {
     p_cdc->line_coding.stop_bits = stop_bits;
     p_cdc->line_coding.parity    = parity;
     p_cdc->line_coding.data_bits = data_bits;
-    return true;
   }
+
+  return ret;
 }
 
-bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const * line_coding,
+                             tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
   TU_LOG_P_CDC("set line coding baudrate = %lu data_bits = %u parity = %u stop_bits = %u (indexes!)",
                line_coding->bit_rate, line_coding->data_bits, line_coding->parity, line_coding->stop_bits);
-  cdch_serial_driver_t const* driver = &serial_drivers[p_cdc->serial_drid];
+  cdch_serial_driver_t const * driver = &serial_drivers[p_cdc->serial_drid];
 
   p_cdc->requested_line_coding = *line_coding;
 
-  if ( complete_cb ) {
-    return driver->set_line_coding(p_cdc, complete_cb, user_data);
-  } else {
-    // blocking
-    xfer_result_t result = XFER_RESULT_INVALID;
-    bool ret = driver->set_line_coding(p_cdc, complete_cb, (uintptr_t) &result);
+  bool ret = set_function_call(p_cdc, driver->set_line_coding, complete_cb, user_data);
 
-    if (user_data) {
-      // user_data is not NULL, return result via user_data
-      *((xfer_result_t*) user_data) = result;
-    }
-
-    TU_VERIFY(ret && result == XFER_RESULT_SUCCESS);
+  if (ret && !complete_cb) {
     p_cdc->line_coding = *line_coding;
-    return true;
   }
+
+  return ret;
 }
 
 //--------------------------------------------------------------------+
