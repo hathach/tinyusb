@@ -83,7 +83,7 @@ typedef struct {
   uint8_t requested_line_state;
 
   tuh_xfer_cb_t user_control_cb;
-  #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CH34X
+  #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CP210X || CFG_TUH_CDC_CH34X
   tuh_xfer_cb_t requested_complete_cb;
   #endif
 
@@ -1533,7 +1533,8 @@ static uint8_t ftdi_get_idx(tuh_xfer_t * xfer) {
 
 //------------- Control Request -------------//
 
-static bool cp210x_set_request(cdch_interface_t* p_cdc, uint8_t command, uint16_t value, uint8_t* buffer, uint16_t length, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool cp210x_set_request(cdch_interface_t * p_cdc, uint8_t command, uint16_t value,
+                               uint8_t * buffer, uint16_t length, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
       .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -1542,12 +1543,12 @@ static bool cp210x_set_request(cdch_interface_t* p_cdc, uint8_t command, uint16_
     },
     .bRequest = command,
     .wValue   = tu_htole16(value),
-    .wIndex   = p_cdc->bInterfaceNumber,
+    .wIndex   = tu_htole16(p_cdc->bInterfaceNumber),
     .wLength  = tu_htole16(length)
   };
 
   // use usbh enum buf since application variable does not live long enough
-  uint8_t* enum_buf = NULL;
+  uint8_t * enum_buf = NULL;
 
   if (buffer && length > 0) {
     enum_buf = usbh_get_enum_buf();
@@ -1566,8 +1567,42 @@ static bool cp210x_set_request(cdch_interface_t* p_cdc, uint8_t command, uint16_
   return tuh_control_xfer(&xfer);
 }
 
-static bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static inline bool cp210x_ifc_enable(cdch_interface_t * p_cdc, uint16_t enabled,
+                                     tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return cp210x_set_request(p_cdc, CP210X_IFC_ENABLE, enabled, NULL, 0, complete_cb, user_data);
+}
+
+static bool cp210x_set_baudrate_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  // Check baudrate is supported. It's only a specific list. reference: datasheets and AN205 "CP210x Baud Rate Support"
+  uint32_t const supported_baudrates_list[] = CP210X_SUPPORTED_BAUDRATES_LIST;
+  uint8_t i;
+  for ( i=0; supported_baudrates_list[i]; i++ ){
+    if (p_cdc->requested_line_coding.bit_rate == supported_baudrates_list[i]) {
+      break;
+    }
+  }
+  TU_VERIFY(supported_baudrates_list[i]);
+  uint32_t baud_le = tu_htole32(p_cdc->requested_line_coding.bit_rate);
+
+  return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4, complete_cb, user_data);
+}
+
+static bool cp210x_set_line_ctl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 9, 0);
+  uint16_t lcr = (uint16_t) (
+    ((uint32_t) p_cdc->requested_line_coding.data_bits & 0xf) << 8 | // data bit quantity is stored in bits 8-11
+    ((uint32_t) p_cdc->requested_line_coding.parity    & 0xf) << 4 | // parity is stored in bits 4-7, same coding
+    ((uint32_t) p_cdc->requested_line_coding.stop_bits & 0xf));     // parity is stored in bits 0-3, same coding
+
+  return cp210x_set_request(p_cdc, CP210X_SET_LINE_CTL, lcr, NULL, 0, complete_cb, user_data);
+}
+
+static inline bool cp210x_set_mhs(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  // CP210x has the same bit coding
+  return cp210x_set_request(p_cdc, CP210X_SET_MHS,
+                            (uint16_t) ((uint32_t) CP210X_CONTROL_WRITE_DTR |
+                                        (uint32_t) CP210X_CONTROL_WRITE_RTS | p_cdc->requested_line_state),
+                            NULL, 0, complete_cb, user_data);
 }
 
 //------------- Driver API -------------//
@@ -1576,8 +1611,8 @@ static bool cp210x_ifc_enable(cdch_interface_t* p_cdc, uint16_t enabled, tuh_xfe
 static void cp210x_internal_control_complete(tuh_xfer_t * xfer) {
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t* p_cdc = get_itf(idx);
-  TU_ASSERT(p_cdc, );
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc,);
   bool const success = (xfer->result == XFER_RESULT_SUCCESS);
   TU_LOG_P_CDC("control complete success = %u", success);
 
@@ -1585,6 +1620,12 @@ static void cp210x_internal_control_complete(tuh_xfer_t * xfer) {
     switch(xfer->setup->bRequest) {
       case CP210X_SET_MHS:
         p_cdc->line_state = p_cdc->requested_line_state;
+        break;
+
+      case CP210X_SET_LINE_CTL:
+        p_cdc->line_coding.stop_bits = p_cdc->requested_line_coding.stop_bits;
+        p_cdc->line_coding.parity    = p_cdc->requested_line_coding.parity;
+        p_cdc->line_coding.data_bits = p_cdc->requested_line_coding.data_bits;
         break;
 
       case CP210X_SET_BAUDRATE:
@@ -1601,46 +1642,55 @@ static void cp210x_internal_control_complete(tuh_xfer_t * xfer) {
   }
 }
 
-static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint32_t baud_le = tu_htole32(p_cdc->requested_line_coding.bit_rate);
+static bool cp210x_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
-  return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4,
-                            complete_cb ? cp210x_internal_control_complete : NULL, user_data);
+  TU_ASSERT(cp210x_set_baudrate_request(p_cdc, complete_cb ? cp210x_internal_control_complete : NULL, user_data));
+
+  return true;
 }
 
-static bool cp210x_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  (void) p_cdc;
-  (void) complete_cb;
-  (void) user_data;
-  // TODO not implemented yet
-  return false;
-}
-
-static bool cp210x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  // TODO implement later
-  (void) p_cdc;
-  (void) complete_cb;
-  (void) user_data;
-  return false;
-}
-
-static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool cp210x_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
-  return cp210x_set_request(p_cdc, CP210X_SET_MHS, 0x0300 | p_cdc->requested_line_state, NULL, 0,
-                            complete_cb ? cp210x_internal_control_complete : NULL, user_data);
+  TU_ASSERT(cp210x_set_line_ctl(p_cdc, complete_cb ? cp210x_internal_control_complete : NULL, user_data));
+
+  return true;
+}
+
+static void cp210x_set_line_coding_stage1_complete(tuh_xfer_t * xfer) {
+  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+  set_line_coding_stage1_complete(xfer, itf_num,
+                                  cp210x_set_line_ctl,               // control request function to set data format
+                                  cp210x_internal_control_complete); // control complete function to be called after request
+}
+
+// 2 stages: set baudrate (stage1) + set data format (stage2)
+static bool cp210x_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  return set_line_coding_sequence(p_cdc,
+                                  cp210x_set_baudrate_request,            // control request function to set baudrate
+                                  cp210x_set_line_ctl,                    // control request function to set data format
+                                  cp210x_set_line_coding_stage1_complete, // function to be called after stage 1 completed
+                                  cp210x_internal_control_complete,       // control complete function to be called after request
+                                  complete_cb, user_data);
+}
+
+static bool cp210x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->user_control_cb = complete_cb;
+  TU_ASSERT(cp210x_set_mhs(p_cdc, complete_cb ? cp210x_internal_control_complete : NULL, user_data));
+
+  return true;
 }
 
 //------------- Enumeration -------------//
 
 enum {
   CONFIG_CP210X_IFC_ENABLE = 0,
-  CONFIG_CP210X_SET_BAUDRATE,
+  CONFIG_CP210X_SET_BAUDRATE_REQUEST,
   CONFIG_CP210X_SET_LINE_CTL,
   CONFIG_CP210X_SET_DTR_RTS,
   CONFIG_CP210X_COMPLETE
 };
 
-static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len) {
   // CP210x Interface includes 1 vendor interface + 2 bulk endpoints
   TU_VERIFY(itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0 && itf_desc->bNumEndpoints == 2);
   TU_VERIFY(sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t) <= max_len);
@@ -1657,7 +1707,7 @@ static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, ui
   return open_ep_stream_pair(p_cdc, desc_ep);
 }
 
-static void cp210x_process_config(tuh_xfer_t* xfer) {
+static void cp210x_process_config(tuh_xfer_t * xfer) {
   uintptr_t const state   = xfer->user_data;
   uint8_t const   itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const   idx     = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
@@ -1666,32 +1716,35 @@ static void cp210x_process_config(tuh_xfer_t* xfer) {
 
   switch (state) {
     case CONFIG_CP210X_IFC_ENABLE:
-      TU_ASSERT_COMPLETE(cp210x_ifc_enable(p_cdc, 1, cp210x_process_config, CONFIG_CP210X_SET_BAUDRATE));
+      p_cdc->user_control_cb = cp210x_process_config; // set once for whole process config
+      TU_ASSERT_COMPLETE(cp210x_ifc_enable(p_cdc, CP210X_UART_ENABLE, cp210x_process_config,
+                                           CONFIG_CP210X_SET_BAUDRATE_REQUEST));
       break;
 
-    case CONFIG_CP210X_SET_BAUDRATE: {
+    case CONFIG_CP210X_SET_BAUDRATE_REQUEST:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-        p_cdc->requested_line_coding.bit_rate = ((cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM).bit_rate;
-        TU_ASSERT_COMPLETE(cp210x_set_baudrate(p_cdc, cp210x_process_config, CONFIG_CP210X_SET_LINE_CTL));
+        p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+        TU_ASSERT_COMPLETE(cp210x_set_baudrate_request(p_cdc, cp210x_internal_control_complete,
+                                                       CONFIG_CP210X_SET_LINE_CTL));
         break;
       #else
         TU_ATTR_FALLTHROUGH;
       #endif
-    }
 
-    case CONFIG_CP210X_SET_LINE_CTL: {
-      #if defined(CFG_TUH_CDC_LINE_CODING_ON_ENUM) && 0 // skip for now
-      cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      break;
+    case CONFIG_CP210X_SET_LINE_CTL:
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+        TU_ASSERT_COMPLETE(cp210x_set_line_ctl(p_cdc, cp210x_internal_control_complete,
+                                               CONFIG_CP210X_SET_DTR_RTS));
+        break;
       #else
-      TU_ATTR_FALLTHROUGH;
+        TU_ATTR_FALLTHROUGH;
       #endif
-    }
 
     case CONFIG_CP210X_SET_DTR_RTS:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
         p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-        TU_ASSERT_COMPLETE(cp210x_set_modem_ctrl(p_cdc, cp210x_process_config, CONFIG_CP210X_COMPLETE));
+        TU_ASSERT_COMPLETE(cp210x_set_mhs(p_cdc, cp210x_internal_control_complete,
+                                          CONFIG_CP210X_COMPLETE));
         break;
       #else
         TU_ATTR_FALLTHROUGH;

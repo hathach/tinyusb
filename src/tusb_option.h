@@ -482,7 +482,9 @@
 #ifndef CFG_TUH_CDC_CP210X_VID_PID_LIST
   // List of product IDs that can use the CP210X CDC driver. 0x10C4 is Silicon Labs' VID
   #define CFG_TUH_CDC_CP210X_VID_PID_LIST \
-    {0x10C4, 0xEA60}, {0x10C4, 0xEA70}
+  { 0x10C4, 0xEA60 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA61 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA70 }  /* Silicon Labs Dual Port factory default */
 #endif
 
 #ifndef CFG_TUH_CDC_CH34X
