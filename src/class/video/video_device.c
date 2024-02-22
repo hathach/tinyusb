@@ -559,6 +559,7 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
           uint_fast8_t num_intervals = frm->uncompressed.bFrameIntervalType;
           if (num_intervals) {
             interval = 0;
+            interval_ms = 0;
           } else {
             interval = frm->uncompressed.dwFrameInterval[2];
             interval_ms = interval / 10000;
