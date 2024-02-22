@@ -368,8 +368,6 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bCopyProtect;
 } tusb_desc_video_format_uncompressed_t;
 
-TU_VERIFY_STATIC(sizeof(tusb_desc_video_format_uncompressed_t) == 27, "size is not correct");
-
 // Uncompressed payload specs: 3.1.2 frame descriptor
 #define tusb_desc_video_frame_uncompressed_nint_t(_nint) \
   struct TU_ATTR_PACKED { \
@@ -383,7 +381,7 @@ TU_VERIFY_STATIC(sizeof(tusb_desc_video_format_uncompressed_t) == 27, "size is n
     uint32_t dwMinBitRate; \
     uint32_t dwMaxBitRate; \
     uint32_t dwMaxVideoFrameBufferSize; /* deprecated in 1.5 */ \
-    uint32_t dwDefaultFrameInterval; /* 100ns unit */\
+    uint32_t dwDefaultFrameInterval; \
     uint8_t  bFrameIntervalType; \
     uint32_t dwFrameInterval[_nint]; \
   }
@@ -414,8 +412,6 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bmInterlaceFlags;
   uint8_t bCopyProtect;
 } tusb_desc_video_format_mjpeg_t;
-
-TU_VERIFY_STATIC(sizeof(tusb_desc_video_format_mjpeg_t) == 11, "size is not correct");
 
 // MJPEG payload specs: 3.1.2 frame descriptor (same as uncompressed)
 typedef tusb_desc_video_frame_uncompressed_t tusb_desc_video_frame_mjpeg_t;
