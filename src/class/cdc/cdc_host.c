@@ -50,6 +50,7 @@
                                                           DADDR, ITF_NUM, NAME, ##__VA_ARGS__)
 #define TU_LOG_P_CDC(TXT,...)                  TU_LOG_CDC(TXT, p_cdc->daddr, p_cdc->bInterfaceNumber, \
                                                           serial_drivers[p_cdc->serial_drid].name, ##__VA_ARGS__)
+#define TU_LOG_RESULT(TXT,RESULT)              TU_LOG_P_CDC(TXT " " #RESULT " = %s", RESULT ? "true" : "FALSE" )
 
 #define TU_ASSERT_COMPLETE_DEFINE(_cond, _itf_offset)                                                \
   do {                                                                                               \
@@ -587,6 +588,7 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
   if (ret && !complete_cb) {
     p_cdc->line_state = (uint8_t) line_state;
   }
+  TU_LOG_RESULT("set control line state", ret);
 
   return ret;
 }
@@ -604,6 +606,7 @@ bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete
   if (ret && !complete_cb) {
     p_cdc->line_coding.bit_rate = baudrate;
   }
+  TU_LOG_RESULT("set baudrate", ret);
 
   return ret;
 }
@@ -627,6 +630,7 @@ bool tuh_cdc_set_data_format(uint8_t idx, uint8_t stop_bits, uint8_t parity, uin
     p_cdc->line_coding.parity    = parity;
     p_cdc->line_coding.data_bits = data_bits;
   }
+  TU_LOG_RESULT("set data format", ret);
 
   return ret;
 }
@@ -646,6 +650,7 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const * line_coding,
   if (ret && !complete_cb) {
     p_cdc->line_coding = *line_coding;
   }
+  TU_LOG_RESULT("set line coding", ret);
 
   return ret;
 }
@@ -785,6 +790,7 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const * itf_
   if (driver_detected) {
     TU_LOG_CDC("open", daddr, itf_desc->bInterfaceNumber, driver_detected->name);
     bool ret = driver_detected->open(daddr, itf_desc, max_len);
+    TU_LOG_CDC("opened ret = %s", daddr, itf_desc->bInterfaceNumber, driver_detected->name, ret ? "true" : "FALSE" );
     return ret;
   }
 
@@ -794,7 +800,7 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const * itf_
 static void set_config_complete(uint8_t idx, uint8_t itf_offset, bool success) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc,);
-  TU_LOG_P_CDC("set config complete success = %u", success);
+  TU_LOG_RESULT("set config complete", success);
 
   if (success) {
     p_cdc->mounted = true;
@@ -846,7 +852,7 @@ static void acm_internal_control_complete(tuh_xfer_t * xfer) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc,);
   bool const success = (xfer->result == XFER_RESULT_SUCCESS);
-  TU_LOG_P_CDC("control complete success = %u", success);
+  TU_LOG_RESULT("  control complete", success);
 
   if (success) {
     switch (xfer->setup->bRequest) {
@@ -1131,7 +1137,7 @@ static void ftdi_internal_control_complete(tuh_xfer_t * xfer) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc,);
   bool const success = (xfer->result == XFER_RESULT_SUCCESS);
-  TU_LOG_P_CDC("control complete success = %u", success);
+  TU_LOG_RESULT("  control complete", success);
 
   if (success) {
     switch (xfer->setup->bRequest) {
@@ -1407,7 +1413,7 @@ static bool ftdi_determine_type(cdch_interface_t * p_cdc, uint8_t const idx)
       break;
   }
 
-  TU_LOG_P_CDC("%s detected", ftdi_chip_name[p_cdc->ftdi.chip_type]);
+  TU_LOG_P_CDC("  %s detected", ftdi_chip_name[p_cdc->ftdi.chip_type]);
 
   return (p_cdc->ftdi.chip_type != UNKNOWN);
 }
@@ -1554,7 +1560,7 @@ static inline uint32_t ftdi_get_divisor(cdch_interface_t * p_cdc)
       break;
   }
 
-  TU_LOG_P_CDC("Baudrate divisor 0x%lu", div_value);
+  TU_LOG_P_CDC("  Baudrate divisor 0x%lu", div_value);
 
   return div_value;
 }
@@ -1663,7 +1669,7 @@ static void cp210x_internal_control_complete(tuh_xfer_t * xfer) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc,);
   bool const success = (xfer->result == XFER_RESULT_SUCCESS);
-  TU_LOG_P_CDC("control complete success = %u", success);
+  TU_LOG_RESULT("  control complete", success);
 
   if (success) {
     switch(xfer->setup->bRequest) {
@@ -1920,7 +1926,7 @@ static void ch34x_internal_control_complete(tuh_xfer_t * xfer) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc,);
   bool const success = (xfer->result == XFER_RESULT_SUCCESS);
-  TU_LOG_P_CDC("control complete success = %u", success);
+  TU_LOG_RESULT("  control complete", success);
 
   if (success) {
     switch (xfer->setup->bRequest) {
@@ -2051,7 +2057,7 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
     case CONFIG_CH34X_SERIAL_INIT: {
       // handle version read data, set CH34x line coding (incl. baudrate)
       uint8_t const version = xfer->buffer[0];
-      TU_LOG_P_CDC("Chip Version = %02x", version);
+      TU_LOG_P_CDC("  Chip Version = %02x", version);
       // only versions >= 0x30 are tested, below 0x30 seems having other programming
       // see drivers from WCH vendor, Linux kernel and FreeBSD
       TU_ASSERT_COMPLETE(version >= 0x30);
@@ -2337,7 +2343,7 @@ static void pl2303_internal_control_complete(tuh_xfer_t * xfer) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc,);
   bool const success = (xfer->result == XFER_RESULT_SUCCESS);
-  TU_LOG_P_CDC("control complete success = %u", success);
+  TU_LOG_RESULT("  control complete", success);
 
   if (success) {
     if (xfer->setup->bRequest == PL2303_SET_LINE_REQUEST &&
@@ -2743,7 +2749,7 @@ static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t const idx, ui
     default: break;
   }
 
-  TU_LOG_P_CDC("unknown device type bcdUSB = 0x%04x", desc_dev[idx]->bcdUSB);
+  TU_LOG_P_CDC("  unknown device type bcdUSB = 0x%04x", desc_dev[idx]->bcdUSB);
 
   return PL2303_DETECT_TYPE_FAILED;
 }
@@ -2893,7 +2899,7 @@ static bool pl2303_encode_baud_rate(cdch_interface_t * p_cdc, uint8_t buf[PL2303
   } else {
     baud = pl2303_encode_baud_rate_divisor(buf, baud);
   }
-  TU_LOG_P_CDC("real baudrate = %lu", baud);
+  TU_LOG_P_CDC("  real baudrate = %lu", baud);
 
   return true;
 }
