@@ -773,6 +773,11 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, tuh_xfer_cb_t co
 }
 
 static bool acm_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  TU_VERIFY(p_cdc->acm_capability.support_line_request);
+  TU_VERIFY(p_cdc->requested_line_coding.data_bits && p_cdc->requested_line_coding.bit_rate);
+  TU_VERIFY((p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8) ||
+             p_cdc->requested_line_coding.data_bits == 16);
+
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
       .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -813,7 +818,6 @@ static bool acm_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb,
   p_cdc->requested_line_coding.stop_bits = p_cdc->line_coding.stop_bits;
   p_cdc->requested_line_coding.parity    = p_cdc->line_coding.parity;
   p_cdc->requested_line_coding.data_bits = p_cdc->line_coding.data_bits;
-  TU_VERIFY(p_cdc->acm_capability.support_line_request);
 
   return acm_set_line_coding(p_cdc, complete_cb, user_data);
 }
