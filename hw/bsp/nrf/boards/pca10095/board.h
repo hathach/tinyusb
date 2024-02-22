@@ -42,8 +42,8 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_RX_PIN           32
-#define UART_TX_PIN           33
+#define UART_RX_PIN           22
+#define UART_TX_PIN           20
 
 // SPI for USB host shield
 #define MAX3421_SCK_PIN  _PINNUM(1, 15)

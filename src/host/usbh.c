@@ -343,12 +343,12 @@ bool tuh_init(uint8_t controller_id) {
   if ( tuh_inited() ) return true;
 
   TU_LOG_USBH("USBH init on controller %u\r\n", controller_id);
-  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(usbh_device_t));
-  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(hcd_event_t));
-  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(_ctrl_xfer));
-  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(tuh_xfer_t));
-  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(tu_fifo_t));
-  TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(tu_edpt_stream_t));
+  TU_LOG_INT_USBH(sizeof(usbh_device_t));
+  TU_LOG_INT_USBH(sizeof(hcd_event_t));
+  TU_LOG_INT_USBH(sizeof(_ctrl_xfer));
+  TU_LOG_INT_USBH(sizeof(tuh_xfer_t));
+  TU_LOG_INT_USBH(sizeof(tu_fifo_t));
+  TU_LOG_INT_USBH(sizeof(tu_edpt_stream_t));
 
   // Event queue
   _usbh_q = osal_queue_create( &_usbh_qdef );
@@ -588,8 +588,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
   TU_LOG_USBH("[%u:%u] %s: ", rhport, daddr,
               (xfer->setup->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                   tu_str_std_request[xfer->setup->bRequest] : "Class Request");
-  TU_LOG_BUF(CFG_TUH_LOG_LEVEL, xfer->setup, 8);
-  TU_LOG_USBH("\r\n");
+  TU_LOG_BUF_USBH(xfer->setup, 8);
 
   if (xfer->complete_cb) {
     TU_ASSERT( hcd_setup_send(rhport, daddr, (uint8_t const*) &_ctrl_xfer.request) );
@@ -660,9 +659,8 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
   tusb_control_request_t const * request = &_ctrl_xfer.request;
 
   if (XFER_RESULT_SUCCESS != result) {
-    TU_LOG1("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
-    TU_LOG1_BUF(request, 8);
-    TU_LOG1("\r\n");
+    TU_LOG_USBH("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
+    TU_LOG_BUF_USBH(request, 8);
 
     // terminate transfer if any stage failed
     _xfer_complete(dev_addr, result);
@@ -680,7 +678,7 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
       case CONTROL_STAGE_DATA:
         if (request->wLength) {
           TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, dev_addr);
-          TU_LOG_MEM(CFG_TUH_LOG_LEVEL, _ctrl_xfer.buffer, xferred_bytes, 2);
+          TU_LOG_MEM_USBH(_ctrl_xfer.buffer, xferred_bytes, 2);
         }
 
         _ctrl_xfer.actual_len = (uint16_t) xferred_bytes;
