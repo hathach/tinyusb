@@ -504,6 +504,24 @@
     { 0x9986, 0x7523 }  /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */
 #endif
 
+#ifndef CFG_TUH_CDC_PL2303
+  // PL2303 is not part of CDC class, only to re-use CDC driver API
+  #define CFG_TUH_CDC_PL2303 0
+#endif
+
+#ifndef CFG_TUH_CDC_PL2303_VID_PID_QUIRKS_LIST
+  // List of product IDs that can use the PL2303 CDC driver
+  #define CFG_TUH_CDC_PL2303_VID_PID_LIST \
+  { 0x067b, 0x2303 }, /* initial 2303 */ \
+  { 0x067b, 0x2304 }, /* TB */ \
+  { 0x067b, 0x23a3 }, /* GC */ \
+  { 0x067b, 0x23b3 }, /* GB */ \
+  { 0x067b, 0x23c3 }, /* GT */ \
+  { 0x067b, 0x23d3 }, /* GL */ \
+  { 0x067b, 0x23e3 }, /* GE */ \
+  { 0x067b, 0x23f3 }  /* GS */
+#endif
+
 #ifndef CFG_TUH_HID
   #define CFG_TUH_HID    0
 #endif

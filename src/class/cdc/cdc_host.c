@@ -38,6 +38,7 @@
 #include "serial/ftdi_sio.h"
 #include "serial/cp210x.h"
 #include "serial/ch34x.h"
+#include "serial/pl2303.h"
 
 // Level where CFG_TUSB_DEBUG must be at least for this driver is logged
 #ifndef CFG_TUH_CDC_LOG_LEVEL
@@ -91,6 +92,10 @@ typedef struct {
     ftdi_private_t ftdi;
   #endif
 
+  #if CFG_TUH_CDC_PL2303
+    pl2303_private_t pl2303;
+  #endif
+
   struct {
     tu_edpt_stream_t tx;
     tu_edpt_stream_t rx;
@@ -105,7 +110,7 @@ typedef struct {
 
 CFG_TUH_MEM_SECTION
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
-#if CFG_TUH_CDC_FTDI
+#if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_PL2303
   static tusb_desc_device_t desc_dev[CFG_TUH_CDC][CFG_TUH_ENUMERATION_BUFSIZE];
 #endif
 
@@ -164,6 +169,22 @@ static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complet
 static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
 
+//------------- PL2303 prototypes -------------//
+#if CFG_TUH_CDC_PL2303
+static uint16_t const pl2303_vid_pid_list[][2] = {CFG_TUH_CDC_PL2303_VID_PID_LIST};
+static const struct pl2303_type_data pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
+
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
+
+static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+static void pl2303_process_config(tuh_xfer_t * xfer);
+
+static bool pl2303_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool pl2303_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool pl2303_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool pl2303_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+#endif
+
 //------------- Common -------------//
 enum {
   SERIAL_DRIVER_ACM = 0,
@@ -178,6 +199,10 @@ enum {
 
 #if CFG_TUH_CDC_CH34X
   SERIAL_DRIVER_CH34X,
+#endif
+
+#if CFG_TUH_CDC_PL2303
+  SERIAL_DRIVER_PL2303,
 #endif
 
   SERIAL_DRIVER_COUNT
@@ -259,6 +284,22 @@ static const cdch_serial_driver_t serial_drivers[] = {
       .name                   = (uint8_t const *) "CH34x"
     #endif
   },
+  #endif
+
+  #if CFG_TUH_CDC_PL2303
+  {
+      .vid_pid_list           = pl2303_vid_pid_list,
+      .vid_pid_count          = TU_ARRAY_SIZE(pl2303_vid_pid_list),
+      .open                   = pl2303_open,
+      .process_set_config     = pl2303_process_config,
+      .set_control_line_state = pl2303_set_modem_ctrl,
+      .set_baudrate           = pl2303_set_baudrate,
+      .set_data_format        = pl2303_set_data_format,
+      .set_line_coding        = pl2303_set_line_coding,
+    #if CFG_TUSB_DEBUG && CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL
+      .name                   = (uint8_t const *) "PL2303"
+    #endif
+  }
   #endif
 };
 
@@ -1863,7 +1904,7 @@ static bool ch34x_modem_ctrl_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t com
 
 // internal control complete to update state such as line state, encoding
 static void ch34x_internal_control_complete(tuh_xfer_t * xfer) {
-  // CH34x only has 1 interface and wIndex used as payload and not for bInterfaceNumber
+  // CH34x has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
   uint8_t const itf_num = 0;
   uint8_t idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t* p_cdc = get_itf(idx);
@@ -1921,7 +1962,8 @@ static bool ch34x_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_
 }
 
 static void ch34x_set_line_coding_stage1_complete(tuh_xfer_t * xfer) {
-  uint8_t const itf_num = 0; // CH34x has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
+  // CH34x has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
+  uint8_t const itf_num = 0;
   set_line_coding_stage1_complete(xfer, itf_num,
                                   ch34x_write_reg_data_format,      // control request function to set data format
                                   ch34x_internal_control_complete); // control complete function to be called after request
@@ -1981,7 +2023,7 @@ static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uin
 }
 
 static void ch34x_process_config(tuh_xfer_t* xfer) {
-  // CH34x only has 1 interface and wIndex used as payload and not for bInterfaceNumber
+  // CH34x has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = 0;
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
@@ -2141,5 +2183,709 @@ static uint8_t ch34x_get_lcr(cdch_interface_t * p_cdc) {
 }
 
 #endif // CFG_TUH_CDC_CH34X
+
+//--------------------------------------------------------------------+
+// PL2303
+//--------------------------------------------------------------------+
+#if CFG_TUH_CDC_PL2303
+
+static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t const idx, uint8_t step,
+                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool pl2303_encode_baud_rate(cdch_interface_t * p_cdc, uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE]);
+
+//------------- Control Request -------------//
+
+static bool pl2303_set_request(cdch_interface_t * p_cdc, uint8_t request, uint8_t requesttype,
+                               uint16_t value, uint16_t index, uint8_t * buffer, uint16_t length,
+                               tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  tusb_control_request_t const request_setup = {
+    .bmRequestType = requesttype,
+    .bRequest      = request,
+    .wValue        = tu_htole16 (value),
+    .wIndex        = tu_htole16 (index),
+    .wLength       = tu_htole16 (length)
+  };
+
+  // use usbh enum buf since application variable does not live long enough
+  uint8_t * enum_buf = NULL;
+
+  if (buffer && length > 0) {
+    enum_buf = usbh_get_enum_buf();
+    if (request_setup.bmRequestType_bit.direction == TUSB_DIR_OUT) {
+      tu_memcpy_s(enum_buf, CFG_TUH_ENUMERATION_BUFSIZE, buffer, length);
+    }
+  }
+
+  tuh_xfer_t xfer = {
+    .daddr       = p_cdc->daddr,
+    .ep_addr     = 0,
+    .setup       = &request_setup,
+    .buffer      = enum_buf,
+    .complete_cb = complete_cb,
+    .user_data   = user_data
+  };
+
+  return tuh_control_xfer(&xfer);
+}
+
+static bool pl2303_vendor_read(cdch_interface_t * p_cdc, uint16_t value, uint8_t * buf,
+                               tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  uint8_t request = p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN] ?
+                    PL2303_VENDOR_READ_NREQUEST : PL2303_VENDOR_READ_REQUEST;
+
+  return pl2303_set_request(p_cdc, request, PL2303_VENDOR_READ_REQUEST_TYPE, value, 0, buf, 1, complete_cb, user_data);
+}
+
+static bool pl2303_vendor_write(cdch_interface_t * p_cdc, uint16_t value, uint16_t index,
+                                tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  uint8_t request = p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN] ?
+                    PL2303_VENDOR_WRITE_NREQUEST : PL2303_VENDOR_WRITE_REQUEST;
+
+  return pl2303_set_request(p_cdc, request, PL2303_VENDOR_WRITE_REQUEST_TYPE, value, index, NULL, 0, complete_cb, user_data);
+}
+
+static inline bool pl2303_supports_hx_status(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  uint8_t buf;
+
+  return pl2303_set_request(p_cdc, PL2303_VENDOR_READ_REQUEST, PL2303_VENDOR_READ_REQUEST_TYPE, PL2303_READ_TYPE_HX_STATUS, 0,
+                            &buf, 1, complete_cb, user_data);
+}
+
+static inline bool pl2303_set_control_lines(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  return pl2303_set_request(p_cdc, PL2303_SET_CONTROL_REQUEST, PL2303_SET_CONTROL_REQUEST_TYPE,
+                            p_cdc->requested_line_state, 0, NULL, 0, complete_cb, user_data);
+}
+
+//static bool pl2303_get_line_request(cdch_interface_t * p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE])
+//{
+//  return pl2303_set_request(p_cdc, PL2303_GET_LINE_REQUEST, PL2303_GET_LINE_REQUEST_TYPE, 0, 0, buf, PL2303_LINE_CODING_BUFSIZE);
+//}
+
+static bool pl2303_set_line_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  // the caller has to precheck, that the new line coding different than the current, else false returned
+  uint8_t buf[PL2303_LINE_CODING_BUFSIZE];
+  /*
+   * Some PL2303 are known to lose bytes if you change serial settings
+   * even to the same values as before. Thus we actually need to filter
+   * in this specific case.
+   */
+  // TODO really necessary to check? what to do in this case when no transfer will happen?
+  // callback is not called...
+  TU_VERIFY(memcmp(&p_cdc->requested_line_coding, &p_cdc->line_coding, sizeof(cdc_line_coding_t) ) != 0);
+
+  /* For reference buf[6] data bits value */
+  TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8, 0);
+  buf[6] = p_cdc->requested_line_coding.data_bits;
+
+  /* For reference buf[0]:buf[3] baud rate value */
+  TU_VERIFY(pl2303_encode_baud_rate(p_cdc, &buf[0]));
+
+  /* For reference buf[4]=0 is 1 stop bits */
+  /* For reference buf[4]=1 is 1.5 stop bits */
+  /* For reference buf[4]=2 is 2 stop bits */
+  buf[4] = p_cdc->requested_line_coding.stop_bits; // PL2303 has the same coding
+
+  /* For reference buf[5]=0 is none parity */
+  /* For reference buf[5]=1 is odd parity */
+  /* For reference buf[5]=2 is even parity */
+  /* For reference buf[5]=3 is mark parity */
+  /* For reference buf[5]=4 is space parity */
+  buf[5] = p_cdc->requested_line_coding.parity; // PL2303 has the same coding
+
+  return pl2303_set_request(p_cdc, PL2303_SET_LINE_REQUEST, PL2303_SET_LINE_REQUEST_TYPE, 0, 0,
+                            buf, PL2303_LINE_CODING_BUFSIZE, complete_cb, user_data);
+}
+
+//static bool pl2303_set_break(cdch_interface_t * p_cdc, bool enable)
+//{
+//  uint16_t state = enable ? PL2303_BREAK_ON : PL2303_BREAK_OFF;
+//  return pl2303_set_request(p_cdc, PL2303_BREAK_REQUEST, PL2303_BREAK_REQUEST_TYPE, state, 0, NULL, 0);
+//}
+
+static inline int pl2303_clear_halt(cdch_interface_t * p_cdc, uint8_t endp, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+  /* we don't care if it wasn't halted first. in fact some devices
+   * (like some ibmcam model 1 units) seem to expect hosts to make
+   * this request for iso endpoints, which can't halt!
+   */
+  return pl2303_set_request(p_cdc, TUSB_REQ_CLEAR_FEATURE, PL2303_CLEAR_HALT_REQUEST_TYPE, TUSB_REQ_FEATURE_EDPT_HALT, endp,
+                            NULL, 0, complete_cb, user_data);
+}
+
+//------------- Driver API -------------//
+
+// internal control complete to update state such as line state, encoding
+static void pl2303_internal_control_complete(tuh_xfer_t * xfer) {
+  // PL2303 has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
+  uint8_t const itf_num = 0;
+  uint8_t idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc,);
+  bool const success = (xfer->result == XFER_RESULT_SUCCESS);
+  TU_LOG_P_CDC("control complete success = %u", success);
+
+  if (success) {
+    if (xfer->setup->bRequest == PL2303_SET_LINE_REQUEST &&
+         xfer->setup->bmRequestType == PL2303_SET_LINE_REQUEST_TYPE) {
+      p_cdc->line_coding = p_cdc->requested_line_coding;
+    }
+    if (xfer->setup->bRequest == PL2303_SET_CONTROL_REQUEST &&
+         xfer->setup->bmRequestType == PL2303_SET_CONTROL_REQUEST_TYPE) {
+      p_cdc->line_state = p_cdc->requested_line_state;
+    }
+  }
+
+  xfer->complete_cb = p_cdc->user_control_cb;
+  if (xfer->complete_cb) {
+    xfer->complete_cb(xfer);
+  }
+}
+
+static bool pl2303_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->user_control_cb = complete_cb;
+  TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? pl2303_internal_control_complete : NULL, user_data));
+
+  return true;
+}
+
+static bool pl2303_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->requested_line_coding.bit_rate = p_cdc->line_coding.bit_rate;
+  p_cdc->user_control_cb = complete_cb;
+  TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? pl2303_internal_control_complete : NULL, user_data));
+
+  return true;
+}
+
+static bool pl2303_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->requested_line_coding.stop_bits = p_cdc->line_coding.stop_bits;
+  p_cdc->requested_line_coding.parity    = p_cdc->line_coding.parity;
+  p_cdc->requested_line_coding.data_bits = p_cdc->line_coding.data_bits;
+  p_cdc->user_control_cb = complete_cb;
+  TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? pl2303_internal_control_complete : NULL, user_data));
+
+  return true;
+}
+
+static bool pl2303_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  // PL2303 has the same bit coding
+  p_cdc->user_control_cb = complete_cb;
+  TU_ASSERT(pl2303_set_control_lines(p_cdc, complete_cb ? pl2303_internal_control_complete : NULL, user_data));
+
+  return true;
+}
+
+//------------- Enumeration -------------//
+
+enum {
+  CONFIG_PL2303_GET_DESC = 0,
+  CONFIG_PL2303_DETECT_TYPE,
+  CONFIG_PL2303_READ1,
+  CONFIG_PL2303_WRITE1,
+  CONFIG_PL2303_READ2,
+  CONFIG_PL2303_READ3,
+  CONFIG_PL2303_READ4,
+  CONFIG_PL2303_WRITE2,
+  CONFIG_PL2303_READ5,
+  CONFIG_PL2303_READ6,
+  CONFIG_PL2303_WRITE3,
+  CONFIG_PL2303_WRITE4,
+  CONFIG_PL2303_WRITE5,
+  CONFIG_PL2303_RESET_ENDP1,
+  CONFIG_PL2303_RESET_ENDP2,
+  CONFIG_PL2303_LINE_CODING,
+  CONFIG_PL2303_MODEM_CONTROL,
+  CONFIG_PL2303_FLOW_CTRL_READ,
+  CONFIG_PL2303_FLOW_CTRL_WRITE,
+  CONFIG_PL2303_COMPLETE
+};
+
+static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len) {
+  // PL2303 Interface includes 1 vendor interface + 1 interrupt endpoints + 2 bulk
+  TU_VERIFY(itf_desc->bNumEndpoints == 3);
+  TU_VERIFY(sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t) <= max_len);
+
+  cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
+  TU_VERIFY(p_cdc);
+
+  p_cdc->serial_drid = SERIAL_DRIVER_PL2303;
+  p_cdc->pl2303.serial_private.quirks = 0;
+  p_cdc->pl2303.supports_hx_status = false;
+
+  tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const * ) tu_desc_next(itf_desc);
+
+  // Interrupt endpoint: not used for now
+  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep) &&
+            TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer);
+  TU_ASSERT(tuh_edpt_open(daddr, desc_ep));
+  p_cdc->ep_notif = desc_ep->bEndpointAddress;
+  desc_ep += 1;
+
+  // data endpoints expected to be in pairs
+  TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep));
+
+  return true;
+}
+
+static void pl2303_process_config(tuh_xfer_t * xfer) {
+  // PL2303 has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
+  uint8_t const itf_num = 0;
+  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
+  cdch_interface_t * p_cdc = get_itf(idx);
+  // state CONFIG_PL2303_READ1 may have no success due to expected stall by pl2303_supports_hx_status()
+  TU_ASSERT_COMPLETE(p_cdc && (xfer->result == XFER_RESULT_SUCCESS || xfer->user_data == CONFIG_PL2303_READ1));
+  uint8_t buf;
+  int8_t type;
+
+  switch (xfer->user_data) {
+
+    // from here sequence overtaken from Linux Kernel function pl2303_startup()
+    case CONFIG_PL2303_GET_DESC:
+      p_cdc->user_control_cb = pl2303_process_config; // set once for whole process config
+      // get device descriptor
+      TU_ASSERT_COMPLETE(tuh_descriptor_get_device(xfer->daddr, desc_dev[idx], sizeof(tusb_desc_device_t),
+                                                   pl2303_process_config, CONFIG_PL2303_DETECT_TYPE));
+      break;
+
+    case CONFIG_PL2303_DETECT_TYPE:
+      // get type and quirks (step 1)
+      type = pl2303_detect_type (p_cdc, idx, 1, pl2303_process_config, CONFIG_PL2303_READ1); // step 1
+      TU_ASSERT_COMPLETE(type!=PL2303_DETECT_TYPE_FAILED);
+      if (type == PL2303_SUPPORTS_HX_STATUS_TRIGGERED) {
+        break;
+      } // else: no transfer triggered and continue with CONFIG_PL2303_READ1
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_READ1:
+      // get supports_hx_status, type and quirks (step 2), do special read
+      p_cdc->pl2303.supports_hx_status = ( // will not be true, if coming directly from previous case
+                                           xfer->user_data == CONFIG_PL2303_READ1 && xfer->result == XFER_RESULT_SUCCESS );
+      type = pl2303_detect_type (p_cdc, idx, 2, NULL, 0); // step 2 now with supports_hx_status
+      TU_ASSERT_COMPLETE(type!=PL2303_DETECT_TYPE_FAILED);
+      p_cdc->pl2303.serial_private.type = &pl2303_type_data[type];
+      p_cdc->pl2303.serial_private.quirks |= p_cdc->pl2303.serial_private.type->quirks;
+      #if CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL && 0 // can be activated if necessary
+        TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "PL2303 bDeviceClass = 0x%02x bMaxPacketSize0 = %u bcdUSB = 0x%04x bcdDevice = 0x%04x",
+               desc_dev[idx]->bDeviceClass, desc_dev[idx]->bMaxPacketSize0, desc_dev[idx]->bcdUSB, desc_dev[idx]->bcdDevice );
+        uint16_t vid, pid;
+        TU_ASSERT_COMPLETE(tuh_vid_pid_get(p_cdc->daddr, &vid, &pid));
+        TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "       vid = 0x%04x pid = 0x%04x supports_hx_status = %u type = %s quirks = %u",
+               vid, pid, p_cdc->pl2303.supports_hx_status,
+               p_cdc->pl2303.serial_private.type->name, p_cdc->pl2303.serial_private.quirks);
+      #endif
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_WRITE1));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_WRITE1:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 0x0404, 0, pl2303_process_config, CONFIG_PL2303_READ2));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_READ2:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_READ3));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_READ3:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0x8383, &buf, pl2303_process_config, CONFIG_PL2303_READ4));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_READ4:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_WRITE2));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_WRITE2:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 0x0404, 1, pl2303_process_config, CONFIG_PL2303_READ5));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_READ5:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0x8484, &buf, pl2303_process_config, CONFIG_PL2303_READ6));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_READ6:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0x8383, &buf, pl2303_process_config, CONFIG_PL2303_WRITE3));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_WRITE3:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 0, 1, pl2303_process_config, CONFIG_PL2303_WRITE4));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_WRITE4:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 1, 0, pl2303_process_config, CONFIG_PL2303_WRITE5));
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_PL2303_WRITE5:
+      // purpose unknown, overtaken from Linux Kernel driver
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+        if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
+          TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 2, 0x24, pl2303_process_config, CONFIG_PL2303_RESET_ENDP1));
+        } else {
+          TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 2, 0x44, pl2303_process_config, CONFIG_PL2303_RESET_ENDP1));
+        }
+        break;
+      } // else: continue with next step
+      TU_ATTR_FALLTHROUGH;
+
+    // from here sequence overtaken from Linux Kernel function pl2303_open()
+    case CONFIG_PL2303_RESET_ENDP1:
+      // step 1
+      if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
+        TU_ASSERT_COMPLETE(pl2303_clear_halt(p_cdc, PL2303_OUT_EP, pl2303_process_config, CONFIG_PL2303_RESET_ENDP2));
+      } else {
+        /* reset upstream data pipes */
+        if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+          TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, PL2303_HXN_RESET_REG, // skip CONFIG_PL2303_RESET_ENDP2, no 2nd step
+                                        PL2303_HXN_RESET_UPSTREAM_PIPE | PL2303_HXN_RESET_DOWNSTREAM_PIPE,
+                                        pl2303_process_config, CONFIG_PL2303_LINE_CODING));
+        } else {
+          pl2303_vendor_write(p_cdc, 8, 0, pl2303_process_config, CONFIG_PL2303_RESET_ENDP2);
+        }
+      }
+      break;
+
+    case CONFIG_PL2303_RESET_ENDP2:
+      // step 2
+      if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
+        TU_ASSERT_COMPLETE(pl2303_clear_halt(p_cdc, PL2303_IN_EP, pl2303_process_config, CONFIG_PL2303_LINE_CODING));
+      } else {
+        /* reset upstream data pipes */
+        if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+          // here nothing to do, only structure of previous step overtaken for better reading and comparison
+        } else {
+          TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 9, 0, pl2303_process_config, CONFIG_PL2303_LINE_CODING));
+        }
+      }
+      break;
+
+    // from here sequence overtaken from Linux Kernel function pl2303_set_termios()
+    // unnecessary pl2303_get_line_request() is skipped due to a stall
+    case CONFIG_PL2303_LINE_CODING:
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+        p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+        TU_ASSERT_COMPLETE( pl2303_set_line_request(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_MODEM_CONTROL));
+        break;
+      #else
+        TU_ATTR_FALLTHROUGH;
+      #endif
+
+    case CONFIG_PL2303_MODEM_CONTROL:
+      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+        p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+        TU_ASSERT_COMPLETE(pl2303_set_control_lines(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_FLOW_CTRL_READ));
+        break;
+      #else
+        TU_ATTR_FALLTHROUGH;
+      #endif
+
+    case CONFIG_PL2303_FLOW_CTRL_READ:
+      // read flow control register for modify & write back in next step
+      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, PL2303_HXN_FLOWCTRL_REG, &buf, pl2303_process_config,
+                                              CONFIG_PL2303_FLOW_CTRL_WRITE));
+      } else {
+        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0, &buf, pl2303_process_config, CONFIG_PL2303_FLOW_CTRL_WRITE));
+      }
+      break;
+
+    case CONFIG_PL2303_FLOW_CTRL_WRITE:
+      // no flow control
+      buf = xfer->buffer[0];
+      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+        buf &= (uint8_t) ~PL2303_HXN_FLOWCTRL_MASK;
+        buf |= PL2303_HXN_FLOWCTRL_NONE;
+        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, PL2303_HXN_FLOWCTRL_REG, buf, pl2303_process_config,
+                                               CONFIG_PL2303_COMPLETE));
+      } else {
+        buf &= (uint8_t) ~PL2303_FLOWCTRL_MASK;
+        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 0, buf, pl2303_process_config, CONFIG_PL2303_COMPLETE));
+      }
+      break;
+
+    case CONFIG_PL2303_COMPLETE:
+      set_config_complete(idx, 0, true);
+      break;
+
+    default:
+      set_config_complete(idx, 0, false);
+      break;
+  }
+}
+
+//------------- Helper -------------//
+
+static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t const idx, uint8_t step,
+                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data )
+{
+  /*
+   * Legacy PL2303H, variants 0 and 1 (difference unknown).
+   */
+  if (desc_dev[idx]->bDeviceClass == 0x02) {
+    return TYPE_H;    /* variant 0 */
+  }
+
+  if (desc_dev[idx]->bMaxPacketSize0 != 0x40) {
+    if (desc_dev[idx]->bDeviceClass == 0x00 || desc_dev[idx]->bDeviceClass == 0xff) {
+      return TYPE_H;  /* variant 1 */
+    }
+    return TYPE_H;    /* variant 0 */
+  }
+
+  switch (desc_dev[idx]->bcdUSB) {
+    case 0x101:
+      /* USB 1.0.1? Let's assume they meant 1.1... */
+      TU_ATTR_FALLTHROUGH;
+    case 0x110:
+      switch (desc_dev[idx]->bcdDevice) {
+        case 0x300:
+          return TYPE_HX;
+        case 0x400:
+          return TYPE_HXD;
+        default:
+          return TYPE_HX;
+      }
+      break;
+    case 0x200:
+      switch (desc_dev[idx]->bcdDevice) {
+        case 0x100: /* GC */
+        case 0x105:
+          return TYPE_HXN;
+        case 0x300: /* GT / TA */
+          if (step == 1) {
+            // step 1 trigger pl2303_supports_hx_status() request
+            TU_ASSERT(pl2303_supports_hx_status (p_cdc, complete_cb, user_data), PL2303_DETECT_TYPE_FAILED);
+            return PL2303_SUPPORTS_HX_STATUS_TRIGGERED;
+          } else {
+            // step 2 use supports_hx_status
+            if (p_cdc->pl2303.supports_hx_status) {
+              return TYPE_TA;
+            }
+          }
+          TU_ATTR_FALLTHROUGH;
+        case 0x305:
+        case 0x400: /* GL */
+        case 0x405:
+          return TYPE_HXN;
+        case 0x500: /* GE / TB */
+          if (step == 1) {
+            // step 1 trigger pl2303_supports_hx_status() request
+            TU_ASSERT(pl2303_supports_hx_status (p_cdc, complete_cb, user_data), PL2303_DETECT_TYPE_FAILED);
+            return PL2303_SUPPORTS_HX_STATUS_TRIGGERED;
+          } else {
+            // step 2 use supports_hx_status
+            if (p_cdc->pl2303.supports_hx_status) {
+              return TYPE_TB;
+            }
+          }
+          TU_ATTR_FALLTHROUGH;
+        case 0x505:
+        case 0x600: /* GS */
+        case 0x605:
+        case 0x700: /* GR */
+        case 0x705:
+          return TYPE_HXN;
+        default:
+          break;
+      }
+      break;
+    default: break;
+  }
+
+  TU_LOG_P_CDC("unknown device type bcdUSB = 0x%04x", desc_dev[idx]->bcdUSB);
+
+  return PL2303_DETECT_TYPE_FAILED;
+}
+
+/*
+ * Returns the nearest supported baud rate that can be set directly without
+ * using divisors.
+ */
+static uint32_t pl2303_get_supported_baud_rate(uint32_t baud)
+{
+  static const uint32_t baud_sup[] = {
+    75, 150, 300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600,
+    14400, 19200, 28800, 38400, 57600, 115200, 230400, 460800,
+    614400, 921600, 1228800, 2457600, 3000000, 6000000
+  };
+
+  uint8_t i;
+  for (i = 0; i < TU_ARRAY_SIZE(baud_sup); ++i) {
+    if (baud_sup[i] > baud) {
+      break;
+    }
+  }
+
+  if (i == TU_ARRAY_SIZE(baud_sup)) {
+    baud = baud_sup[i - 1];
+  } else if (i > 0 && (baud_sup[i] - baud) > (baud - baud_sup[i - 1])) {
+    baud = baud_sup[i - 1];
+  } else {
+    baud = baud_sup[i];
+  }
+
+  return baud;
+}
+
+/*
+ * NOTE: If unsupported baud rates are set directly, the PL2303 seems to
+ *       use 9600 baud.
+ */
+static uint32_t pl2303_encode_baud_rate_direct(uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE], uint32_t baud)
+{
+  uint32_t baud_le = tu_htole32(baud);
+  buf[0] = (uint8_t) ( baud_le        & 0xff);
+  buf[1] = (uint8_t) ((baud_le >>  8) & 0xff);
+  buf[2] = (uint8_t) ((baud_le >> 16) & 0xff);
+  buf[3] = (uint8_t) ((baud_le >> 24) & 0xff);
+
+  return baud;
+}
+
+static uint32_t pl2303_encode_baud_rate_divisor(uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE], uint32_t baud)
+{
+  uint32_t baseline, mantissa, exponent;
+
+  /*
+   * Apparently the formula is:
+   *   baudrate = 12M * 32 / (mantissa * 4^exponent)
+   * where
+   *   mantissa = buf[8:0]
+   *   exponent = buf[11:9]
+   */
+  baseline = 12000000 * 32;
+  mantissa = baseline / baud;
+  if (mantissa == 0)
+    mantissa = 1; /* Avoid dividing by zero if baud > 32 * 12M. */
+  exponent = 0;
+  while (mantissa >= 512) {
+    if (exponent < 7) {
+      mantissa >>= 2; /* divide by 4 */
+      exponent++;
+    } else {
+      /* Exponent is maxed. Trim mantissa and leave. */
+      mantissa = 511;
+      break;
+    }
+  }
+
+  buf[3] = 0x80;
+  buf[2] = 0;
+  buf[1] = (uint8_t) ((exponent << 1 |  mantissa >> 8) & 0xff);
+  buf[0] = (uint8_t) (mantissa & 0xff);
+
+  /* Calculate and return the exact baud rate. */
+  baud = (baseline / mantissa) >> (exponent << 1);
+
+  return baud;
+}
+
+static uint32_t pl2303_encode_baud_rate_divisor_alt(uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE], uint32_t baud)
+{
+  uint32_t baseline, mantissa, exponent;
+
+  /*
+   * Apparently, for the TA version the formula is:
+   *   baudrate = 12M * 32 / (mantissa * 2^exponent)
+   * where
+   *   mantissa = buf[10:0]
+   *   exponent = buf[15:13 16]
+   */
+  baseline = 12000000 * 32;
+  mantissa = baseline / baud;
+  if (mantissa == 0) {
+    mantissa = 1;   /* Avoid dividing by zero if baud > 32 * 12M. */
+  }
+  exponent = 0;
+  while (mantissa >= 2048) {
+    if (exponent < 15) {
+      mantissa >>= 1; /* divide by 2 */
+      exponent++;
+    } else {
+      /* Exponent is maxed. Trim mantissa and leave. */
+      mantissa = 2047;
+      break;
+    }
+  }
+
+  buf[3] = 0x80;
+  buf[2] = (uint8_t) (exponent & 0x01);
+  buf[1] = (uint8_t) (((exponent &  (uint32_t) ~0x01) << 4 | mantissa >> 8 ) & 0xff);
+  buf[0] = (uint8_t) (mantissa & 0xff);
+
+  /* Calculate and return the exact baud rate. */
+  baud = (baseline / mantissa) >> exponent;
+
+  return baud;
+}
+
+static bool pl2303_encode_baud_rate(cdch_interface_t * p_cdc, uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE])
+{
+  uint32_t baud = p_cdc->requested_line_coding.bit_rate;
+  uint32_t baud_sup;
+
+  TU_VERIFY(baud && baud <= p_cdc->pl2303.serial_private.type->max_baud_rate);
+  /*
+   * Use direct method for supported baud rates, otherwise use divisors.
+   * Newer chip types do not support divisor encoding.
+   */
+  if (p_cdc->pl2303.serial_private.type->no_divisors) {
+    baud_sup = baud;
+  } else {
+    baud_sup = pl2303_get_supported_baud_rate(baud);
+  }
+
+  if (baud == baud_sup) {
+    baud = pl2303_encode_baud_rate_direct(buf, baud);
+  } else if (p_cdc->pl2303.serial_private.type->alt_divisors) {
+    baud = pl2303_encode_baud_rate_divisor_alt(buf, baud);
+  } else {
+    baud = pl2303_encode_baud_rate_divisor(buf, baud);
+  }
+  TU_LOG_P_CDC("real baudrate = %lu", baud);
+
+  return true;
+}
+
+#endif // CFG_TUH_CDC_PL2303
 
 #endif
