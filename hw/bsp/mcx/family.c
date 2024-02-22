@@ -52,6 +52,8 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
+
+#if CFG_TUSB_MCU == OPT_MCU_MCXN9
 void USB0_FS_IRQHandler(void)
 {
   tud_int_handler(0);
@@ -61,6 +63,14 @@ void USB1_HS_IRQHandler(void)
 {
   tud_int_handler(1);
 }
+
+#elif CFG_TUSB_MCU == OPT_MCU_MCXA15
+void USB0_IRQHandler(void)
+{
+  tud_int_handler(0);
+}
+#endif
+
 
 void board_init(void)
 {
@@ -123,16 +133,28 @@ void board_init(void)
   // USB VBUS
   /* PORT0 PIN22 configured as USB0_VBUS */
 
-#if PORT_SUPPORT_DEVICE(0)
+
+  /* MCXA15 USB configurations */
+#if PORT_SUPPORT_DEVICE(0) && (CFG_TUSB_MCU == OPT_MCU_MCXA15)
+
+  RESET_PeripheralReset(kUSB0_RST_SHIFT_RSTn);
+  CLOCK_EnableUsbfsClock();
+
+#endif
+
+
+  /* MCXN9 USB configurations */
+#if PORT_SUPPORT_DEVICE(0) && (CFG_TUSB_MCU == OPT_MCU_MCXN9)
   // Port0 is Full Speed
 
   CLOCK_AttachClk(kCLK_48M_to_USB0);
   CLOCK_EnableClock(kCLOCK_Usb0Ram);
   CLOCK_EnableClock(kCLOCK_Usb0Fs);
   CLOCK_EnableUsbfsClock();
+  
 #endif
 
-#if PORT_SUPPORT_DEVICE(1)
+#if PORT_SUPPORT_DEVICE(1) && (CFG_TUSB_MCU == OPT_MCU_MCXN9)
   // Port1 is High Speed
 
   // Power

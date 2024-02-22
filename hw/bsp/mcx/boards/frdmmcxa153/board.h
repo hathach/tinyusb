@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2020, Ha Thach (tinyusb.org)
+ * Copyright (c) 2021, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,29 +31,36 @@
  extern "C" {
 #endif
 
-#define _PINNUM(port, pin)    ((port)*32 + (pin))
-
 // LED
-#define LED_PIN               28
+#define LED_GPIO              GPIO3
+#define LED_CLK               kCLOCK_GateGPIO3
+#define LED_PIN               12 // red
 #define LED_STATE_ON          0
 
-// Button
-#define BUTTON_PIN            23
-#define BUTTON_STATE_ACTIVE   0
+// ISP button (Dummy, use unused pin
+ #define BUTTON_GPIO           GPIO3
+ #define BUTTON_CLK            kCLOCK_GateGPIO3
+ #define BUTTON_PIN            29 //sw2
+ #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_RX_PIN           32
-#define UART_TX_PIN           33
+#define UART_DEV              LPUART0
 
-// SPI for USB host shield
-#define MAX3421_SCK_PIN  _PINNUM(1, 15)
-#define MAX3421_MOSI_PIN _PINNUM(1, 13)
-#define MAX3421_MISO_PIN _PINNUM(1, 14)
-#define MAX3421_CS_PIN   _PINNUM(1, 12)
-#define MAX3421_INTR_PIN _PINNUM(1, 11)
+static inline void board_uart_init_clock(void) {
+
+  /* attach 12 MHz clock to LPUART0 (debug console) */
+    CLOCK_SetClockDiv(kCLOCK_DivLPUART0, 1u);
+    CLOCK_AttachClk(kFRO12M_to_LPUART0);
+
+    RESET_PeripheralReset(kLPUART0_RST_SHIFT_RSTn);
+}
+
+
+// XTAL
+#define XTAL0_CLK_HZ          (24 * 1000 * 1000U)
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* BOARD_H_ */
+#endif

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2020, Ha Thach (tinyusb.org)
+ * Copyright (c) 2021, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,29 +31,36 @@
  extern "C" {
 #endif
 
-#define _PINNUM(port, pin)    ((port)*32 + (pin))
-
 // LED
-#define LED_PIN               28
+#define LED_GPIO              GPIO0
+#define LED_CLK               kCLOCK_Gpio0
+#define LED_PIN               10 // red
 #define LED_STATE_ON          0
 
-// Button
+// WAKE button (Dummy, use unused pin
+#define BUTTON_GPIO           GPIO0
+#define BUTTON_CLK            kCLOCK_Gpio0
 #define BUTTON_PIN            23
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_RX_PIN           32
-#define UART_TX_PIN           33
+#define UART_DEV              LPUART4
 
-// SPI for USB host shield
-#define MAX3421_SCK_PIN  _PINNUM(1, 15)
-#define MAX3421_MOSI_PIN _PINNUM(1, 13)
-#define MAX3421_MISO_PIN _PINNUM(1, 14)
-#define MAX3421_CS_PIN   _PINNUM(1, 12)
-#define MAX3421_INTR_PIN _PINNUM(1, 11)
+static inline void board_uart_init_clock(void) {
+  /* attach FRO 12M to FLEXCOMM4 */
+  CLOCK_SetClkDiv(kCLOCK_DivFlexcom4Clk, 1u);
+  CLOCK_AttachClk(kFRO12M_to_FLEXCOMM4);
+  RESET_ClearPeripheralReset(kFC4_RST_SHIFT_RSTn);
+}
+
+//#define UART_RX_PINMUX        0, 24, IOCON_PIO_DIG_FUNC1_EN
+//#define UART_TX_PINMUX        0, 25, IOCON_PIO_DIG_FUNC1_EN
+
+// XTAL
+#define XTAL0_CLK_HZ          (24 * 1000 * 1000U)
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* BOARD_H_ */
+#endif
