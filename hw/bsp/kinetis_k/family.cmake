@@ -40,6 +40,7 @@ function(add_board_target BOARD_TARGET)
       ${SDK_DIR}/drivers/gpio
       ${SDK_DIR}/drivers/port
       ${SDK_DIR}/drivers/smc
+      ${SDK_DIR}/drivers/sysmpu
       ${SDK_DIR}/drivers/uart
       )
 

@@ -732,15 +732,27 @@
       </dcdx>
       <periphs name="Peripherals" version="13.0" enabled="true" update_project_code="true">
          <dependencies>
-            <dependency resourceType="Tool" resourceId="Clocks" description="The Clocks tool is required by the Peripherals tool, but it is disabled." problem_level="2" source="Peripherals">
+            <dependency resourceType="SWComponent" resourceId="middleware.usb.common_header" description="USB Common Header is not found in the toolchain/IDE project. The project will not compile!" problem_level="2" source="Peripherals">
                <feature name="enabled" evaluation="equal">
-                  <data>true</data>
+                  <data type="Boolean">true</data>
+               </feature>
+            </dependency>
+            <dependency resourceType="SWComponent" resourceId="middleware.usb.common_header" description="An unsupported version of the USB Common Header in the toolchain/IDE project. Required: ${required_value}, actual: ${actual_value}. The project might not compile correctly." problem_level="1" source="Peripherals">
+               <feature name="version" evaluation="compatible">
+                  <data type="Version">2.8.0</data>
                </feature>
             </dependency>
          </dependencies>
          <generated_project_files>
             <file path="board/peripherals.c" update_enabled="true"/>
             <file path="board/peripherals.h" update_enabled="true"/>
+            <file path="source/generated/usb_device_composite.c" update_enabled="true"/>
+            <file path="source/generated/usb_device_composite.h" update_enabled="true"/>
+            <file path="source/generated/usb_device_config.h" update_enabled="true"/>
+            <file path="source/generated/usb_device_descriptor.c" update_enabled="true"/>
+            <file path="source/generated/usb_device_descriptor.h" update_enabled="true"/>
+            <file path="source/usb_device_interface_0_cic_vcom.c" update_enabled="true"/>
+            <file path="source/usb_device_interface_0_cic_vcom.h" update_enabled="true"/>
          </generated_project_files>
          <peripherals_profile>
             <processor_version>14.0.0</processor_version>
@@ -751,6 +763,31 @@
                <options/>
                <dependencies>
                   <dependency resourceType="SWComponent" resourceId="platform.drivers.sysmpu" description="The sysmpu driver is missing in the project  (required for the System MPU initialization)." problem_level="2" source="Peripherals:BOARD_InitPeripherals">
+                     <feature name="enabled" evaluation="equal">
+                        <data type="Boolean">true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="middleware.usb.device_controller_khci" description="&quot;USB Device KHCI Controller Driver(FS)&quot; component is missing in the project." problem_level="2" source="Peripherals:BOARD_InitPeripherals">
+                     <feature name="enabled" evaluation="equal">
+                        <data type="Boolean">true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="&quot;Common&quot; driver is missing in the project." problem_level="2" source="Peripherals:BOARD_InitPeripherals">
+                     <feature name="enabled" evaluation="equal">
+                        <data type="Boolean">true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="ClockOutput" resourceId="USB48MCLK" description="USB Function Clock (USB48MCLK) is inactive and USB module will not work." problem_level="2" source="Peripherals:BOARD_InitPeripherals">
+                     <feature name="frequency" evaluation="greaterThan">
+                        <data type="Frequency" unit="Hz">0</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="middleware.usb.device.cdc.external" description="&quot;USB device CDC&quot; driver is missing in the project." problem_level="2" source="Peripherals:BOARD_InitPeripherals">
+                     <feature name="enabled" evaluation="equal">
+                        <data type="Boolean">true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="middleware.usb.device.cdc.external" description="&quot;USB device CDC&quot; driver is missing in the project." problem_level="2" source="Peripherals:BOARD_InitPeripherals">
                      <feature name="enabled" evaluation="equal">
                         <data type="Boolean">true</data>
                      </feature>
@@ -789,7 +826,7 @@
                         <setting name="mpuInit" value="disabled"/>
                      </config_set>
                   </instance>
-                  <instance name="USB0" uuid="cc0eb411-8fed-4548-b79c-9a8340cc02fd" type="usb" type_id="usb_cbf31fb9a3cef21890d93e737c3d2690" mode="device" peripheral="USB0" enabled="false" comment="" custom_name_enabled="false" editing_lock="false">
+                  <instance name="USB0" uuid="cc0eb411-8fed-4548-b79c-9a8340cc02fd" type="usb" type_id="usb_cbf31fb9a3cef21890d93e737c3d2690" mode="device" peripheral="USB0" enabled="true" comment="" custom_name_enabled="false" editing_lock="false">
                      <config_set name="deviceSetting" quick_selection="QS_DEVICE_CDC_VCOM">
                         <setting name="vendor_id" value="0x1FC9"/>
                         <setting name="product_id" value="0x0094"/>

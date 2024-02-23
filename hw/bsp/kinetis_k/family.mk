@@ -29,6 +29,7 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/gpio \
 	$(TOP)/$(SDK_DIR)/drivers/port \
 	$(TOP)/$(SDK_DIR)/drivers/smc \
+	$(TOP)/$(SDK_DIR)/drivers/sysmpu \
 	$(TOP)/$(SDK_DIR)/drivers/uart \
 
 SRC_S += ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S

@@ -30,6 +30,7 @@
 #include "fsl_port.h"
 #include "fsl_clock.h"
 #include "fsl_uart.h"
+#include "fsl_sysmpu.h"
 
 #include "board/clock_config.h"
 #include "board/pin_mux.h"
@@ -50,6 +51,7 @@ void board_init(void) {
   BOARD_InitBootPins();
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
+  SYSMPU_Enable(SYSMPU, 0);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -84,7 +86,7 @@ void board_init(void) {
 #endif
 
   // USB
-  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcPll0, CLOCK_GetFreq(kCLOCK_PllFllSelClk));
+  // USB clock is configured in BOARD_BootClockRUN()
 }
 
 //--------------------------------------------------------------------+
