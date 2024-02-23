@@ -20,30 +20,26 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
- * This file is part of the TinyUSB stack.
  */
 
-#ifndef _CI_FS_KINETIS_H
-#define _CI_FS_KINETIS_H
+#ifndef BOARD_H
+#define BOARD_H
 
-#include "fsl_device_registers.h"
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
+//--------------------------------------------------------------------+
+// LED
+#define LED_PORT              BOARD_LED_RED_GPIO
+#define LED_PIN               BOARD_LED_RED_GPIO_PIN
+#define LED_STATE_ON          0
 
-//static const ci_fs_controller_t _ci_controller[] = {
-//    {.reg_base = USB0_BASE, .irqnum = USB0_IRQn}
-//};
+// Button
+#define BUTTON_PORT           BOARD_SW2_GPIO
+#define BUTTON_PIN            BOARD_SW2_GPIO_PIN
+#define BUTTON_STATE_ACTIVE   0
 
-#define CI_FS_REG(_port)        ((ci_fs_regs_t*) USB0_BASE)
-#define CI_REG                  CI_FS_REG(0)
-
-void dcd_int_enable(uint8_t rhport) {
-  (void) rhport;
-  NVIC_EnableIRQ(USB0_IRQn);
-}
-
-void dcd_int_disable(uint8_t rhport) {
-  (void) rhport;
-  NVIC_DisableIRQ(USB0_IRQn);
-}
+// UART
+#define UART_DEV              UART0
+#define UART_CLOCK            CLOCK_GetFreq(UART0_CLK_SRC)
 
 #endif

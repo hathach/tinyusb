@@ -38,7 +38,7 @@ jobs:
         family:
           # Alphabetical order
           - 'imxrt'
-          - 'kinetis_kl'
+          - 'kinetis_k kinetis_kl'
           - 'lpc17 lpc18 lpc40 lpc43'
           - 'lpc54 lpc55'
           - 'mcx'

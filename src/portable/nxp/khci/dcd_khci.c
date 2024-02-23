@@ -269,8 +269,20 @@ void dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
+  // save crystal-less setting (recovery clock)
+  #ifdef USB_CLK_RECOVER_IRC_EN_IRC_EN
+  uint32_t clk_recover_irc_en = KHCI->CLK_RECOVER_IRC_EN;
+  uint32_t clk_recover_ctrl = KHCI->CLK_RECOVER_CTRL;
+  #endif
+
   KHCI->USBTRC0 |= USB_USBTRC0_USBRESET_MASK;
   while (KHCI->USBTRC0 & USB_USBTRC0_USBRESET_MASK);
+
+  // restore crystal-less setting
+  #ifdef USB_CLK_RECOVER_IRC_EN_IRC_EN
+  KHCI->CLK_RECOVER_IRC_EN = clk_recover_irc_en;
+  KHCI->CLK_RECOVER_CTRL  |= clk_recover_ctrl;
+  #endif
 
   tu_memclr(&_dcd, sizeof(_dcd));
   KHCI->USBTRC0 |= TU_BIT(6); /* software must set this bit to 1 */
