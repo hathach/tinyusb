@@ -23,7 +23,7 @@
  * THE SOFTWARE.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
@@ -59,41 +59,28 @@ void board_init(void) {
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-
   // LED
   gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0 };
   GPIO_PinInit(LED_PORT, LED_PIN, &led_config);
   board_led_write(false);
 
 #if defined(BUTTON_PORT) && defined(BUTTON_PIN)
-  // Button
-  CLOCK_EnableClock(BUTTON_PIN_CLOCK);
-  port_pin_config_t button_port = {
-      .pullSelect = kPORT_PullUp,
-      .mux = BUTTON_PIN_FUNCTION,
-  };
-  PORT_SetPinConfig(BUTTON_PIN_PORT, BUTTON_PIN, &button_port);
   gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0 };
   GPIO_PinInit(BUTTON_PORT, BUTTON_PIN, &button_config);
 #endif
 
-#if 0
-  // UART
-  CLOCK_EnableClock(UART_PIN_CLOCK);
-  PORT_SetPinMux(UART_PIN_PORT, UART_PIN_RX, UART_PIN_FUNCTION);
-  PORT_SetPinMux(UART_PIN_PORT, UART_PIN_TX, UART_PIN_FUNCTION);
-  SIM->SOPT5 = ((SIM->SOPT5 &
-    (~(SIM_SOPT5_UART0TXSRC_MASK | SIM_SOPT5_UART0RXSRC_MASK)))
-      | SIM_SOPT5_UART0TXSRC(SOPT5_UART0TXSRC_UART_TX)
-      | SIM_SOPT5_UART0RXSRC(SOPT5_UART0RXSRC_UART_RX)
-    );
-
-  lpuart_config_t uart_config;
-  LPUART_GetDefaultConfig(&uart_config);
-  uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
-  uart_config.enableTx = true;
-  uart_config.enableRx = true;
-  LPUART_Init(UART_PORT, &uart_config, CLOCK_GetFreq(kCLOCK_McgIrc48MClk));
+#ifdef UART_DEV
+  const uart_config_t uart_config = {
+      .baudRate_Bps = 115200UL,
+      .parityMode = kUART_ParityDisabled,
+      .stopBitCount = kUART_OneStopBit,
+      .txFifoWatermark = 0U,
+      .rxFifoWatermark = 1U,
+      .idleType = kUART_IdleTypeStartBit,
+      .enableTx = true,
+      .enableRx = true
+  };
+  UART_Init(UART_DEV, &uart_config, UART_CLOCK);
 #endif
 
   // USB
@@ -119,13 +106,26 @@ uint32_t board_button_read(void) {
 int board_uart_read(uint8_t *buf, int len) {
   (void) buf;
   (void) len;
+#ifdef UART_DEV
+  // Read blocking will block until there is data
+//  UART_ReadBlocking(UART_DEV, buf, len);
+//  return len;
   return 0;
+#else
+  return 0;
+#endif
 }
 
 int board_uart_write(void const *buf, int len) {
   (void) buf;
   (void) len;
+
+#ifdef UART_DEV
+  UART_WriteBlocking(UART_DEV, (uint8_t const*) buf, len);
+  return len;
+#else
   return 0;
+#endif
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
