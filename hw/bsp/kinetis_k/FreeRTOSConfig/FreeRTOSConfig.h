@@ -73,8 +73,8 @@
 #define configENABLE_BACKWARD_COMPATIBILITY     1
 #define configSTACK_ALLOCATION_FROM_SEPARATE_HEAP   0
 
-#define configSUPPORT_STATIC_ALLOCATION         0
-#define configSUPPORT_DYNAMIC_ALLOCATION        1
+#define configSUPPORT_STATIC_ALLOCATION         1
+#define configSUPPORT_DYNAMIC_ALLOCATION        0
 
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                    0
@@ -143,7 +143,7 @@
 //--------------------------------------------------------------------+
 
 // For Cortex-M specific: __NVIC_PRIO_BITS is defined in mcu header
-#define configPRIO_BITS       2
+#define configPRIO_BITS       4
 
 /* The lowest interrupt priority that can be used in a call to a "set priority" function. */
 #define configLIBRARY_LOWEST_INTERRUPT_PRIORITY			  ((1<<configPRIO_BITS) - 1)
