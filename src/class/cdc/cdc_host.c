@@ -2486,13 +2486,14 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
       p_cdc->pl2303.serial_private.type = &pl2303_type_data[type];
       p_cdc->pl2303.serial_private.quirks |= p_cdc->pl2303.serial_private.type->quirks;
       #if CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL && 0 // can be activated if necessary
-        TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "PL2303 bDeviceClass = 0x%02x bMaxPacketSize0 = %u bcdUSB = 0x%04x bcdDevice = 0x%04x",
-               desc_dev[idx]->bDeviceClass, desc_dev[idx]->bMaxPacketSize0, desc_dev[idx]->bcdUSB, desc_dev[idx]->bcdDevice );
+        TU_LOG_P_CDC("  bDeviceClass = 0x%02x bMaxPacketSize0 = %u bcdUSB = 0x%04x bcdDevice = 0x%04x",
+                     desc_dev[idx]->bDeviceClass, desc_dev[idx]->bMaxPacketSize0,
+                     desc_dev[idx]->bcdUSB, desc_dev[idx]->bcdDevice );
         uint16_t vid, pid;
         TU_ASSERT_COMPLETE(tuh_vid_pid_get(p_cdc->daddr, &vid, &pid));
-        TU_LOG(CFG_TUH_CDC_LOG_LEVEL, "       vid = 0x%04x pid = 0x%04x supports_hx_status = %u type = %s quirks = %u",
-               vid, pid, p_cdc->pl2303.supports_hx_status,
-               p_cdc->pl2303.serial_private.type->name, p_cdc->pl2303.serial_private.quirks);
+        TU_LOG_P_CDC("  vid = 0x%04x pid = 0x%04x supports_hx_status = %u type = %s quirks = %u",
+                     vid, pid, p_cdc->pl2303.supports_hx_status,
+                     p_cdc->pl2303.serial_private.type->name, p_cdc->pl2303.serial_private.quirks);
       #endif
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
