@@ -35,6 +35,9 @@
 #include "host/usbh_pvt.h"
 
 #include "cdc_host.h"
+#include "serial/ftdi_sio.h"
+#include "serial/cp210x.h"
+#include "serial/ch34x.h"
 
 // Level where CFG_TUSB_DEBUG must be at least for this driver is logged
 #ifndef CFG_TUH_CDC_LOG_LEVEL
@@ -80,8 +83,12 @@ typedef struct {
   uint8_t requested_line_state;
 
   tuh_xfer_cb_t user_control_cb;
-  #if CFG_TUH_CDC_CH34X
+  #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CH34X
   tuh_xfer_cb_t requested_complete_cb;
+  #endif
+
+  #if CFG_TUH_CDC_FTDI
+    ftdi_private_t ftdi;
   #endif
 
   struct {
@@ -98,6 +105,9 @@ typedef struct {
 
 CFG_TUH_MEM_SECTION
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
+#if CFG_TUH_CDC_FTDI
+  static tusb_desc_device_t desc_dev[CFG_TUH_CDC][CFG_TUH_ENUMERATION_BUFSIZE];
+#endif
 
 //--------------------------------------------------------------------+
 // Serial Driver
@@ -114,23 +124,22 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, tuh_xfer_cb_t co
 
 //------------- FTDI prototypes -------------//
 #if CFG_TUH_CDC_FTDI
-#include "serial/ftdi_sio.h"
-
 static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST};
+#if CFG_TUSB_DEBUG && CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL
+static uint8_t const * ftdi_chip_name[] = { FTDI_CHIP_NAMES };
+#endif
 
 static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
 static void ftdi_process_config(tuh_xfer_t* xfer);
 
-static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ftdi_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool ftdi_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool ftdi_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ftdi_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
 
 //------------- CP210X prototypes -------------//
 #if CFG_TUH_CDC_CP210X
-#include "serial/cp210x.h"
-
 static uint16_t const cp210x_vid_pid_list[][2] = {CFG_TUH_CDC_CP210X_VID_PID_LIST};
 
 static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
@@ -144,8 +153,6 @@ static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complet
 
 //------------- CH34x prototypes -------------//
 #if CFG_TUH_CDC_CH34X
-#include "serial/ch34x.h"
-
 static uint16_t const ch34x_vid_pid_list[][2] = {CFG_TUH_CDC_CH34X_VID_PID_LIST};
 
 static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len);
@@ -212,8 +219,8 @@ static const cdch_serial_driver_t serial_drivers[] = {
       .vid_pid_count          = TU_ARRAY_SIZE(ftdi_vid_pid_list),
       .open                   = ftdi_open,
       .process_set_config     = ftdi_process_config,
-      .set_control_line_state = ftdi_sio_set_modem_ctrl,
-      .set_baudrate           = ftdi_sio_set_baudrate,
+      .set_control_line_state = ftdi_set_modem_ctrl,
+      .set_baudrate           = ftdi_set_baudrate,
       .set_data_format        = ftdi_set_data_format,
       .set_line_coding        = ftdi_set_line_coding,
     #if CFG_TUSB_DEBUG && CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL
@@ -992,28 +999,27 @@ static void acm_process_config(tuh_xfer_t* xfer) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_CDC_FTDI
 
-static uint32_t ftdi_232bm_baud_to_divisor(cdch_interface_t* p_cdc);
+static bool ftdi_determine_type(cdch_interface_t * p_cdc, uint8_t const idx);
+static uint32_t ftdi_get_divisor(cdch_interface_t * p_cdc);
+static uint8_t ftdi_get_idx(tuh_xfer_t * xfer);
 
 //------------- Control Request -------------//
 
 // set request without data
-static bool ftdi_sio_set_request(cdch_interface_t* p_cdc, uint8_t command, uint16_t value, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  tusb_control_request_t const request = {
-    .bmRequestType_bit = {
-      .recipient = TUSB_REQ_RCPT_DEVICE,
-      .type      = TUSB_REQ_TYPE_VENDOR,
-      .direction = TUSB_DIR_OUT
-    },
-    .bRequest = command,
-    .wValue   = tu_htole16(value),
-    .wIndex   = 0,
-    .wLength  = 0
+static bool ftdi_set_request(cdch_interface_t * p_cdc, uint8_t request, uint8_t requesttype,
+                             uint16_t value, uint16_t index, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  tusb_control_request_t const request_setup = {
+    .bmRequestType = requesttype,
+    .bRequest      = request,
+    .wValue        = tu_htole16(value),
+    .wIndex        = tu_htole16(index),
+    .wLength       = 0
   };
 
   tuh_xfer_t xfer = {
     .daddr       = p_cdc->daddr,
     .ep_addr     = 0,
-    .setup       = &request,
+    .setup       = &request_setup,
     .buffer      = NULL,
     .complete_cb = complete_cb,
     .user_data   = user_data
@@ -1022,16 +1028,57 @@ static bool ftdi_sio_set_request(cdch_interface_t* p_cdc, uint8_t command, uint1
   return tuh_control_xfer(&xfer);
 }
 
-static bool ftdi_sio_reset(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  return ftdi_sio_set_request(p_cdc, FTDI_SIO_RESET, FTDI_SIO_RESET_SIO, complete_cb, user_data);
+#ifdef CFG_TUH_CDC_FTDI_LATENCY
+static int8_t ftdi_write_latency_timer(cdch_interface_t * p_cdc, uint16_t latency,
+                                       tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  if (p_cdc->ftdi.chip_type == SIO /* || p_cdc->ftdi.chip_type == FT232A */ )
+    return FTDI_NOT_POSSIBLE;
+  return ftdi_set_request(p_cdc, FTDI_SIO_SET_LATENCY_TIMER_REQUEST, FTDI_SIO_SET_LATENCY_TIMER_REQUEST_TYPE,
+                          latency, p_cdc->ftdi.channel, complete_cb, user_data) ? FTDI_REQUESTED : FTDI_FAIL;
+}
+#endif
+
+static inline bool ftdi_sio_reset(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  return ftdi_set_request(p_cdc, FTDI_SIO_RESET_REQUEST, FTDI_SIO_RESET_REQUEST_TYPE, FTDI_SIO_RESET_SIO,
+                          p_cdc->ftdi.channel, complete_cb, user_data);
+}
+
+static bool ftdi_change_speed(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  uint32_t index_value = ftdi_get_divisor(p_cdc);
+  TU_VERIFY(index_value);
+  uint16_t value = (uint16_t) index_value;
+  uint16_t index = (uint16_t) (index_value >> 16);
+  if (p_cdc->ftdi.channel) {
+    index = (uint16_t)((index << 8) | p_cdc->ftdi.channel);
+  }
+
+  return ftdi_set_request(p_cdc, FTDI_SIO_SET_BAUDRATE_REQUEST, FTDI_SIO_SET_BAUDRATE_REQUEST_TYPE,
+                          value, index, complete_cb, user_data);
+}
+
+static bool ftdi_set_data_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 7 && p_cdc->requested_line_coding.data_bits <= 8, 0);
+  uint16_t value = (uint16_t) (
+    ((uint32_t) p_cdc->requested_line_coding.data_bits & 0xf)       |  // data bit quantity is stored in bits 0-3
+    ((uint32_t) p_cdc->requested_line_coding.parity    & 0x7) <<  8 |  // parity is stored in bits 8-10, same coding
+    ((uint32_t) p_cdc->requested_line_coding.stop_bits & 0x3) << 11 ); // stop bits quantity is stored in bits 11-12, same coding
+                                                                       // not each FTDI supports 1.5 stop bits
+
+  return ftdi_set_request(p_cdc, FTDI_SIO_SET_DATA_REQUEST, FTDI_SIO_SET_DATA_REQUEST_TYPE,
+                          value, p_cdc->ftdi.channel, complete_cb, user_data);
+}
+
+static inline bool ftdi_update_mctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  // FTDI has the same bit coding
+  return ftdi_set_request(p_cdc, FTDI_SIO_SET_MODEM_CTRL_REQUEST, FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE,
+                          p_cdc->requested_line_state, p_cdc->ftdi.channel, complete_cb, user_data);
 }
 
 //------------- Driver API -------------//
 
 // internal control complete to update state such as line state, line_coding
 static void ftdi_internal_control_complete(tuh_xfer_t * xfer) {
-  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-  uint8_t idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
+  uint8_t const idx = ftdi_get_idx(xfer);
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc,);
   bool const success = (xfer->result == XFER_RESULT_SUCCESS);
@@ -1039,11 +1086,17 @@ static void ftdi_internal_control_complete(tuh_xfer_t * xfer) {
 
   if (success) {
     switch (xfer->setup->bRequest) {
-      case FTDI_SIO_MODEM_CTRL:
+      case FTDI_SIO_SET_MODEM_CTRL_REQUEST:
         p_cdc->line_state = p_cdc->requested_line_state;
         break;
 
-      case FTDI_SIO_SET_BAUD_RATE:
+      case FTDI_SIO_SET_DATA_REQUEST:
+        p_cdc->line_coding.stop_bits = p_cdc->requested_line_coding.stop_bits;
+        p_cdc->line_coding.parity    = p_cdc->requested_line_coding.parity;
+        p_cdc->line_coding.data_bits = p_cdc->requested_line_coding.data_bits;
+        break;
+
+      case FTDI_SIO_SET_BAUDRATE_REQUEST:
         p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
         break;
 
@@ -1057,52 +1110,62 @@ static void ftdi_internal_control_complete(tuh_xfer_t * xfer) {
   }
 }
 
-static bool ftdi_sio_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint16_t const divisor = (uint16_t) ftdi_232bm_baud_to_divisor(p_cdc);
-
+static bool ftdi_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_SET_BAUD_RATE, divisor,
-                                 complete_cb ? ftdi_internal_control_complete : NULL, user_data));
+  TU_ASSERT(ftdi_set_data_request(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
 
   return true;
 }
 
-static bool ftdi_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  (void) p_cdc;
-  (void) complete_cb;
-  (void) user_data;
-  // TODO not implemented yet
-  return false;
-}
-
-static bool ftdi_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  (void) p_cdc;
-  (void) complete_cb;
-  (void) user_data;
-  // TODO not implemented yet
-  return false;
-}
-
-static bool ftdi_sio_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool ftdi_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_control_cb = complete_cb;
-  TU_ASSERT(ftdi_sio_set_request(p_cdc, FTDI_SIO_MODEM_CTRL, 0x0300 | p_cdc->requested_line_state,
-                                 complete_cb ? ftdi_internal_control_complete : NULL, user_data));
+  TU_ASSERT(ftdi_change_speed(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
+
+  return true;
+}
+
+static void ftdi_set_line_coding_stage1_complete(tuh_xfer_t * xfer) {
+  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+  set_line_coding_stage1_complete(xfer, itf_num,
+                                  ftdi_set_data_request,           // control request function to set data format
+                                  ftdi_internal_control_complete); // control complete function to be called after request
+}
+
+// 2 stages: set baudrate (stage1) + set data format (stage2)
+static bool ftdi_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  return set_line_coding_sequence(p_cdc,
+                                  ftdi_change_speed,                    // control request function to set baudrate
+                                  ftdi_set_data_request,                // control request function to set data format
+                                  ftdi_set_line_coding_stage1_complete, // function to be called after stage 1 completed
+                                  ftdi_internal_control_complete,       // control complete function to be called after request
+                                  complete_cb, user_data);
+}
+
+static bool ftdi_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  p_cdc->user_control_cb = complete_cb;
+  TU_ASSERT(ftdi_update_mctrl(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
+
   return true;
 }
 
 //------------- Enumeration -------------//
 
 enum {
-  CONFIG_FTDI_RESET = 0,
-  CONFIG_FTDI_MODEM_CTRL,
-  CONFIG_FTDI_SET_BAUDRATE,
+  CONFIG_FTDI_GET_DESC = 0,
+  CONFIG_FTDI_DETERMINE_TYPE,
+  CONFIG_FTDI_WRITE_LATENCY,
+  CONFIG_FTDI_SIO_RESET,
   CONFIG_FTDI_SET_DATA,
+  CONFIG_FTDI_SET_BAUDRATE,
+  CONFIG_FTDI_FLOW_CONTROL,
+  CONFIG_FTDI_MODEM_CTRL,
   CONFIG_FTDI_COMPLETE
 };
 
-static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
+static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t * itf_desc, uint16_t max_len) {
   // FTDI Interface includes 1 vendor interface + 2 bulk endpoints
-  TU_VERIFY(itf_desc->bInterfaceSubClass == 0xff && itf_desc->bInterfaceProtocol == 0xff && itf_desc->bNumEndpoints == 2);
+  TU_VERIFY(itf_desc->bInterfaceSubClass == 0xff && itf_desc->bInterfaceProtocol == 0xff &&
+            itf_desc->bNumEndpoints == 2);
   TU_VERIFY(sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t) <= max_len);
 
   cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
@@ -1113,53 +1176,96 @@ static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint
   // endpoint pair
   tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
+  /*
+   * NOTE: Some customers have programmed FT232R/FT245R devices
+   * with an endpoint size of 0 - not good.
+   */
+  TU_ASSERT(desc_ep->wMaxPacketSize != 0);
+
   // data endpoints expected to be in pairs
   return open_ep_stream_pair(p_cdc, desc_ep);
 }
 
-static void ftdi_process_config(tuh_xfer_t* xfer) {
+static void ftdi_process_config(tuh_xfer_t * xfer) {
   uintptr_t const state = xfer->user_data;
-  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
+  uint8_t const idx = ftdi_get_idx(xfer);
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT_COMPLETE(p_cdc && xfer->result == XFER_RESULT_SUCCESS);
+  uint8_t const itf_num = p_cdc->bInterfaceNumber;
 
   switch(state) {
-    // Note may need to read FTDI eeprom
-    case CONFIG_FTDI_RESET:
-      TU_ASSERT_COMPLETE(ftdi_sio_reset(p_cdc, ftdi_process_config, CONFIG_FTDI_MODEM_CTRL));
+
+    // from here sequence overtaken from Linux Kernel function ftdi_port_probe()
+    case CONFIG_FTDI_GET_DESC:
+      // get device descriptor
+      p_cdc->user_control_cb = ftdi_process_config; // set once for whole process config
+      if (itf_num == 0) { // only necessary for 1st interface. other interface overtake type from interface 0
+        TU_ASSERT_COMPLETE(tuh_descriptor_get_device(xfer->daddr, desc_dev[idx], sizeof(tusb_desc_device_t),
+                                                     ftdi_process_config, CONFIG_FTDI_DETERMINE_TYPE));
+        break;
+      }
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_FTDI_DETERMINE_TYPE:
+      // determine type
+      if (itf_num == 0) {
+        TU_ASSERT_COMPLETE(ftdi_determine_type(p_cdc, idx));
+      } else {
+        // other interfaces have same type as interface 0
+        uint8_t const idx_itf0 = tuh_cdc_itf_get_index(xfer->daddr, 0);
+        cdch_interface_t const * p_cdc_itf0 = get_itf(idx_itf0);
+        p_cdc->ftdi.chip_type = p_cdc_itf0->ftdi.chip_type;
+      }
+      TU_ATTR_FALLTHROUGH;
+
+    case CONFIG_FTDI_WRITE_LATENCY:
+      #ifdef CFG_TUH_CDC_FTDI_LATENCY
+        int8_t result = ftdi_write_latency_timer(p_cdc, CFG_TUH_CDC_FTDI_LATENCY, ftdi_process_config,
+                                                 CONFIG_FTDI_SIO_RESET);
+        TU_ASSERT_COMPLETE(result != FTDI_FAIL);
+        if(result == FTDI_REQUESTED) {
+          break;
+        } // else FTDI_NOT_POSSIBLE => continue directly with next state
+      #endif
+      TU_ATTR_FALLTHROUGH;
+
+    // from here sequence overtaken from Linux Kernel function ftdi_open()
+    case CONFIG_FTDI_SIO_RESET:
+      TU_ASSERT_COMPLETE(ftdi_sio_reset(p_cdc, ftdi_process_config, CONFIG_FTDI_SET_DATA));
+      break;
+
+    // from here sequence overtaken from Linux Kernel function ftdi_set_termios()
+    case CONFIG_FTDI_SET_DATA:
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+        p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+        TU_ASSERT_COMPLETE(ftdi_set_data_request(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_SET_BAUDRATE));
+        break;
+      #else
+        TU_ATTR_FALLTHROUGH;
+      #endif
+
+    case CONFIG_FTDI_SET_BAUDRATE:
+      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+        TU_ASSERT_COMPLETE(ftdi_change_speed(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_FLOW_CONTROL));
+        break;
+      #else
+        TU_ATTR_FALLTHROUGH;
+      #endif
+
+    case CONFIG_FTDI_FLOW_CONTROL:
+      // disable flow control
+      TU_ASSERT_COMPLETE(ftdi_set_request(p_cdc, FTDI_SIO_SET_FLOW_CTRL_REQUEST, FTDI_SIO_SET_FLOW_CTRL_REQUEST_TYPE,
+                                          0, FTDI_SIO_DISABLE_FLOW_CTRL, ftdi_process_config, CONFIG_FTDI_MODEM_CTRL));
       break;
 
     case CONFIG_FTDI_MODEM_CTRL:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
         p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-        TU_ASSERT_COMPLETE(ftdi_sio_set_modem_ctrl(p_cdc, ftdi_process_config, CONFIG_FTDI_SET_BAUDRATE));
+        TU_ASSERT_COMPLETE(ftdi_update_mctrl(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_COMPLETE));
         break;
       #else
         TU_ATTR_FALLTHROUGH;
       #endif
-
-    case CONFIG_FTDI_SET_BAUDRATE: {
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-        p_cdc->requested_line_coding.bit_rate = ((cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM).bit_rate;
-        TU_ASSERT_COMPLETE(ftdi_sio_set_baudrate(p_cdc, ftdi_process_config, CONFIG_FTDI_SET_DATA));
-        break;
-      #else
-        TU_ATTR_FALLTHROUGH;
-      #endif
-    }
-
-    case CONFIG_FTDI_SET_DATA: {
-      #if 0 // TODO set data format
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      cdc_line_coding_t line_coding = CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      TU_ASSERT_COMPLETE(ftdi_sio_set_data(p_cdc, process_ftdi_config, CONFIG_FTDI_COMPLETE));
-      break;
-      #endif
-      #endif
-
-      TU_ATTR_FALLTHROUGH;
-    }
 
     case CONFIG_FTDI_COMPLETE:
       set_config_complete(idx, 0, true);
@@ -1173,28 +1279,249 @@ static void ftdi_process_config(tuh_xfer_t* xfer) {
 
 //------------- Helper -------------//
 
+static bool ftdi_determine_type(cdch_interface_t * p_cdc, uint8_t const idx)
+{
+  uint16_t const version = desc_dev[idx]->bcdDevice;
+  uint8_t const itf_num = p_cdc->bInterfaceNumber;
+
+  p_cdc->ftdi.chip_type = UNKNOWN;
+
+  /* Assume Hi-Speed type */
+  p_cdc->ftdi.channel = CHANNEL_A + itf_num;
+
+  switch (version) {
+    case 0x200:
+      // FT232A not supported to keep it simple (no extra _read_latency_timer())
+      // not testable
+      // p_cdc->ftdi.chip_type = FT232A;
+      // p_cdc->ftdi.baud_base = 48000000 / 2;
+      // p_cdc->ftdi.channel = 0;
+      // /*
+      //  * FT232B devices have a bug where bcdDevice gets set to 0x200
+      //  * when iSerialNumber is 0. Assume it is an FT232B in case the
+      //  * latency timer is readable.
+      //  */
+      // if (desc->iSerialNumber == 0 &&
+      //     _read_latency_timer(port) >= 0) {
+      //   p_cdc->ftdi.chip_type = FT232B;
+      // }
+      break;
+    case 0x400:
+      p_cdc->ftdi.chip_type = FT232B;
+      p_cdc->ftdi.channel = 0;
+      break;
+    case 0x500:
+      p_cdc->ftdi.chip_type = FT2232C;
+      break;
+    case 0x600:
+      p_cdc->ftdi.chip_type = FT232R;
+      p_cdc->ftdi.channel = 0;
+      break;
+    case 0x700:
+      p_cdc->ftdi.chip_type = FT2232H;
+      break;
+    case 0x800:
+      p_cdc->ftdi.chip_type = FT4232H;
+      break;
+    case 0x900:
+      p_cdc->ftdi.chip_type = FT232H;
+      break;
+    case 0x1000:
+      p_cdc->ftdi.chip_type = FTX;
+      break;
+    case 0x2800:
+      p_cdc->ftdi.chip_type = FT2233HP;
+      break;
+    case 0x2900:
+      p_cdc->ftdi.chip_type = FT4233HP;
+      break;
+    case 0x3000:
+      p_cdc->ftdi.chip_type = FT2232HP;
+      break;
+    case 0x3100:
+      p_cdc->ftdi.chip_type = FT4232HP;
+      break;
+    case 0x3200:
+      p_cdc->ftdi.chip_type = FT233HP;
+      break;
+    case 0x3300:
+      p_cdc->ftdi.chip_type = FT232HP;
+      break;
+    case 0x3600:
+      p_cdc->ftdi.chip_type = FT4232HA;
+      break;
+    default:
+      if (version < 0x200) {
+        p_cdc->ftdi.chip_type = SIO;
+        p_cdc->ftdi.channel = 0;
+      }
+      break;
+  }
+
+  TU_LOG_P_CDC("%s detected", ftdi_chip_name[p_cdc->ftdi.chip_type]);
+
+  return (p_cdc->ftdi.chip_type != UNKNOWN);
+}
+
+// FT232A not supported
+//static uint32_t ftdi_232am_baud_base_to_divisor(uint32_t baud, uint32_t base)
+//{
+//  uint32_t divisor;
+//  /* divisor shifted 3 bits to the left */
+//  uint32_t divisor3 = DIV_ROUND_CLOSEST(base, 2 * baud);
+//  if ((divisor3 & 0x7) == 7)
+//    divisor3++; /* round x.7/8 up to x+1 */
+//  divisor = divisor3 >> 3;
+//  divisor3 &= 0x7;
+//  if (divisor3 == 1)
+//    divisor |= 0xc000;  /* +0.125 */
+//  else if (divisor3 >= 4)
+//    divisor |= 0x4000;  /* +0.5 */
+//  else if (divisor3 != 0)
+//    divisor |= 0x8000;  /* +0.25 */
+//  else if (divisor == 1)
+//    divisor = 0;    /* special case for maximum baud rate */
+//  return divisor;
+//}
+
+// FT232A not supported
+//static inline uint32_t ftdi_232am_baud_to_divisor(uint32_t baud)
+//{
+//   return ftdi_232am_baud_base_to_divisor(baud, (uint32_t) 48000000);
+//}
+
 static uint32_t ftdi_232bm_baud_base_to_divisor(uint32_t baud, uint32_t base) {
-  const uint8_t divfrac[8] = { 0, 3, 2, 4, 1, 5, 6, 7 };
+  uint8_t divfrac[8] = { 0, 3, 2, 4, 1, 5, 6, 7 };
   uint32_t divisor;
-
   /* divisor shifted 3 bits to the left */
-  uint32_t divisor3 = base / (2 * baud);
-  divisor = (divisor3 >> 3);
-  divisor |= (uint32_t) divfrac[divisor3 & 0x7] << 14;
-
+  uint32_t divisor3 = DIV_ROUND_CLOSEST(base, 2 * baud);
+  divisor = divisor3 >> 3;
+  divisor |= (uint32_t)divfrac[divisor3 & 0x7] << 14;
   /* Deal with special cases for highest baud rates. */
-  if (divisor == 1) { /* 1.0 */
+  if (divisor == 1)   /* 1.0 */
     divisor = 0;
-  }
-  else if (divisor == 0x4001) { /* 1.5 */
+  else if (divisor == 0x4001) /* 1.5 */
     divisor = 1;
-  }
-
   return divisor;
 }
 
-static uint32_t ftdi_232bm_baud_to_divisor(cdch_interface_t* p_cdc) {
-  return ftdi_232bm_baud_base_to_divisor(p_cdc->requested_line_coding.bit_rate, 48000000u);
+static inline uint32_t ftdi_232bm_baud_to_divisor(uint32_t baud)
+{
+   return ftdi_232bm_baud_base_to_divisor(baud, 48000000);
+}
+
+static uint32_t ftdi_2232h_baud_base_to_divisor(uint32_t baud, uint32_t base)
+{
+  static const unsigned char divfrac[8] = { 0, 3, 2, 4, 1, 5, 6, 7 };
+  uint32_t divisor;
+  uint32_t divisor3;
+
+  /* hi-speed baud rate is 10-bit sampling instead of 16-bit */
+  divisor3 = DIV_ROUND_CLOSEST(8 * base, 10 * baud);
+
+  divisor = divisor3 >> 3;
+  divisor |= (uint32_t)divfrac[divisor3 & 0x7] << 14;
+  /* Deal with special cases for highest baud rates. */
+  if (divisor == 1)   /* 1.0 */
+    divisor = 0;
+  else if (divisor == 0x4001) /* 1.5 */
+    divisor = 1;
+  /*
+   * Set this bit to turn off a divide by 2.5 on baud rate generator
+   * This enables baud rates up to 12Mbaud but cannot reach below 1200
+   * baud with this bit set
+   */
+  divisor |= 0x00020000;
+  return divisor;
+}
+
+static inline uint32_t ftdi_2232h_baud_to_divisor(uint32_t baud)
+{
+   return ftdi_2232h_baud_base_to_divisor(baud, (uint32_t) 120000000);
+}
+
+static inline uint32_t ftdi_get_divisor(cdch_interface_t * p_cdc)
+{
+  uint32_t baud = p_cdc->requested_line_coding.bit_rate;
+  uint32_t div_value = 0;
+  TU_VERIFY(baud);
+
+  switch (p_cdc->ftdi.chip_type) {
+    case UNKNOWN:
+      return 0;
+    case SIO:
+      switch (baud) {
+        case 300: div_value = ftdi_sio_b300; break;
+        case 600: div_value = ftdi_sio_b600; break;
+        case 1200: div_value = ftdi_sio_b1200; break;
+        case 2400: div_value = ftdi_sio_b2400; break;
+        case 4800: div_value = ftdi_sio_b4800; break;
+        case 9600: div_value = ftdi_sio_b9600; break;
+        case 19200: div_value = ftdi_sio_b19200; break;
+        case 38400: div_value = ftdi_sio_b38400; break;
+        case 57600: div_value = ftdi_sio_b57600;  break;
+        case 115200: div_value = ftdi_sio_b115200; break;
+        default:
+          // Baudrate not supported
+          return 0;
+          break;
+      }
+      break;
+      // FT232A not supported
+      // case FT232A:
+      //   if (baud <= 3000000) {
+      //     div_value = ftdi_232am_baud_to_divisor(baud);
+      //   } else {
+      //     // Baud rate too high!
+      //     baud = 9600;
+      //     div_value = ftdi_232am_baud_to_divisor(9600);
+      //     div_okay = false;
+      //   }
+      //   break;
+    case FT232B:
+    case FT2232C:
+    case FT232R:
+    case FTX:
+      TU_VERIFY(baud <= 3000000); // else Baud rate too high!
+      div_value = ftdi_232bm_baud_to_divisor(baud);
+      break;
+    case FT232H:
+    case FT2232H:
+    case FT4232H:
+    case FT4232HA:
+    case FT232HP:
+    case FT233HP:
+    case FT2232HP:
+    case FT2233HP:
+    case FT4232HP:
+    case FT4233HP:
+    default:
+      TU_VERIFY(baud <= 12000000); // else Baud rate too high!
+      if (baud >= 1200) {
+        div_value = ftdi_2232h_baud_to_divisor(baud);
+      } else {
+        div_value = ftdi_232bm_baud_to_divisor(baud);
+      }
+      break;
+  }
+
+  TU_LOG_P_CDC("Baudrate divisor 0x%lu", div_value);
+
+  return div_value;
+}
+
+static uint8_t ftdi_get_idx(tuh_xfer_t * xfer) {
+  uint8_t const channel = (uint8_t) tu_le16toh(xfer->setup->wIndex); // channel index, or 0 for legacy types
+  for (uint8_t i = 0; i < CFG_TUH_CDC; i++) {
+    const cdch_interface_t * p_cdc = &cdch_data[i];
+    if (p_cdc->daddr == xfer->daddr &&
+        (!p_cdc->ftdi.channel ||           // 0 for legacy types (only interface 0)
+        channel == p_cdc->ftdi.channel)) { // or  multi-channel types (interfaces 0..n)
+      return i;
+    }
+  }
+
+  return TUSB_INDEX_INVALID_8;
 }
 
 #endif

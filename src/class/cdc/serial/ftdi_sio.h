@@ -25,222 +25,207 @@
 #ifndef TUSB_FTDI_SIO_H
 #define TUSB_FTDI_SIO_H
 
-// VID for matching FTDI devices
-#define TU_FTDI_VID 0x0403
+#include <stdint.h>
 
 // Commands
-#define FTDI_SIO_RESET             	0    /* Reset the port */
-#define FTDI_SIO_MODEM_CTRL        	1    /* Set the modem control register */
-#define FTDI_SIO_SET_FLOW_CTRL     	2    /* Set flow control register */
-#define FTDI_SIO_SET_BAUD_RATE     	3    /* Set baud rate */
-#define FTDI_SIO_SET_DATA          	4    /* Set the data characteristics of the port */
-#define FTDI_SIO_GET_MODEM_STATUS  	5    /* Retrieve current value of modem status register */
-#define FTDI_SIO_SET_EVENT_CHAR    	6    /* Set the event character */
-#define FTDI_SIO_SET_ERROR_CHAR    	7    /* Set the error character */
-#define FTDI_SIO_SET_LATENCY_TIMER 	9    /* Set the latency timer */
-#define FTDI_SIO_GET_LATENCY_TIMER 	0x0a /* Get the latency timer */
-#define FTDI_SIO_SET_BITMODE       	0x0b /* Set bitbang mode */
-#define FTDI_SIO_READ_PINS         	0x0c /* Read immediate value of pins */
-#define FTDI_SIO_READ_EEPROM       	0x90 /* Read EEPROM */
+#define FTDI_SIO_RESET              0 // Reset the port
+#define FTDI_SIO_MODEM_CTRL         1 // Set the modem control register
+#define FTDI_SIO_SET_FLOW_CTRL      2 // Set flow control register
+#define FTDI_SIO_SET_BAUD_RATE      3 // Set baud rate
+#define FTDI_SIO_SET_DATA           4 // Set the data characteristics of the port
+#define FTDI_SIO_GET_MODEM_STATUS   5 // Retrieve current value of modem status register
+#define FTDI_SIO_SET_EVENT_CHAR     6 // Set the event character
+#define FTDI_SIO_SET_ERROR_CHAR     7 // Set the error character
+#define FTDI_SIO_SET_LATENCY_TIMER  9 // Set the latency timer
+#define FTDI_SIO_GET_LATENCY_TIMER 10 // Get the latency timer
+#define FTDI_SIO_SET_BITMODE       11 // Set bitbang mode
+#define FTDI_SIO_READ_PINS         12 // Read immediate value of pins
+#define FTDI_SIO_READ_EEPROM     0x90 // Read EEPROM
 
-/* FTDI_SIO_RESET */
+// Channel indices for FT2232, FT2232H and FT4232H devices
+#define CHANNEL_A   1
+#define CHANNEL_B   2
+#define CHANNEL_C   3
+#define CHANNEL_D   4
+
+// Port Identifier Table
+#define PIT_DEFAULT   0 // SIOA
+#define PIT_SIOA      1 // SIOA
+// The device this driver is tested with one has only one port
+#define PIT_SIOB      2 // SIOB
+#define PIT_PARALLEL  3 // Parallel
+
+// FTDI_SIO_RESET
+#define FTDI_SIO_RESET_REQUEST FTDI_SIO_RESET
+#define FTDI_SIO_RESET_REQUEST_TYPE 0x40
 #define FTDI_SIO_RESET_SIO 0
 #define FTDI_SIO_RESET_PURGE_RX 1
 #define FTDI_SIO_RESET_PURGE_TX 2
 
-/*
- * BmRequestType:  0100 0000B
- * bRequest:       FTDI_SIO_RESET
- * wValue:         Control Value
- *                   0 = Reset SIO
- *                   1 = Purge RX buffer
- *                   2 = Purge TX buffer
- * wIndex:         Port
- * wLength:        0
- * Data:           None
- *
- * The Reset SIO command has this effect:
- *
- *    Sets flow control set to 'none'
- *    Event char = $0D
- *    Event trigger = disabled
- *    Purge RX buffer
- *    Purge TX buffer
- *    Clear DTR
- *    Clear RTS
- *    baud and data format not reset
- *
- * The Purge RX and TX buffer commands affect nothing except the buffers
- *
-   */
+// FTDI_SIO_SET_BAUDRATE
+#define FTDI_SIO_SET_BAUDRATE_REQUEST_TYPE 0x40
+#define FTDI_SIO_SET_BAUDRATE_REQUEST 3
 
-/* FTDI_SIO_MODEM_CTRL */
-/*
- * BmRequestType:   0100 0000B
- * bRequest:        FTDI_SIO_MODEM_CTRL
- * wValue:          ControlValue (see below)
- * wIndex:          Port
- * wLength:         0
- * Data:            None
- *
- * NOTE: If the device is in RTS/CTS flow control, the RTS set by this
- * command will be IGNORED without an error being returned
- * Also - you can not set DTR and RTS with one control message
- */
+enum ftdi_sio_baudrate {
+  ftdi_sio_b300 = 0,
+  ftdi_sio_b600 = 1,
+  ftdi_sio_b1200 = 2,
+  ftdi_sio_b2400 = 3,
+  ftdi_sio_b4800 = 4,
+  ftdi_sio_b9600 = 5,
+  ftdi_sio_b19200 = 6,
+  ftdi_sio_b38400 = 7,
+  ftdi_sio_b57600 = 8,
+  ftdi_sio_b115200 = 9
+};
+
+// FTDI_SIO_SET_DATA
+#define FTDI_SIO_SET_DATA_REQUEST FTDI_SIO_SET_DATA
+#define FTDI_SIO_SET_DATA_REQUEST_TYPE  0x40
+#define FTDI_SIO_SET_DATA_PARITY_NONE (0x0 << 8)
+#define FTDI_SIO_SET_DATA_PARITY_ODD  (0x1 << 8)
+#define FTDI_SIO_SET_DATA_PARITY_EVEN (0x2 << 8)
+#define FTDI_SIO_SET_DATA_PARITY_MARK (0x3 << 8)
+#define FTDI_SIO_SET_DATA_PARITY_SPACE  (0x4 << 8)
+#define FTDI_SIO_SET_DATA_STOP_BITS_1 (0x0 << 11)
+#define FTDI_SIO_SET_DATA_STOP_BITS_15  (0x1 << 11)
+#define FTDI_SIO_SET_DATA_STOP_BITS_2 (0x2 << 11)
+#define FTDI_SIO_SET_BREAK    (0x1 << 14)
+
+// FTDI_SIO_MODEM_CTRL
+#define FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE 0x40
+#define FTDI_SIO_SET_MODEM_CTRL_REQUEST FTDI_SIO_MODEM_CTRL
 
 #define FTDI_SIO_SET_DTR_MASK 0x1
-#define FTDI_SIO_SET_DTR_HIGH ((FTDI_SIO_SET_DTR_MASK << 8) | 1)
-#define FTDI_SIO_SET_DTR_LOW  ((FTDI_SIO_SET_DTR_MASK << 8) | 0)
+#define FTDI_SIO_SET_DTR_HIGH ((FTDI_SIO_SET_DTR_MASK  << 8) | 1)
+#define FTDI_SIO_SET_DTR_LOW  ((FTDI_SIO_SET_DTR_MASK  << 8) | 0)
 #define FTDI_SIO_SET_RTS_MASK 0x2
 #define FTDI_SIO_SET_RTS_HIGH ((FTDI_SIO_SET_RTS_MASK << 8) | 2)
 #define FTDI_SIO_SET_RTS_LOW  ((FTDI_SIO_SET_RTS_MASK << 8) | 0)
 
-/*
- * ControlValue
- * B0    DTR state
- *          0 = reset
- *          1 = set
- * B1    RTS state
- *          0 = reset
- *          1 = set
- * B2..7 Reserved
- * B8    DTR state enable
- *          0 = ignore
- *          1 = use DTR state
- * B9    RTS state enable
- *          0 = ignore
- *          1 = use RTS state
- * B10..15 Reserved
- */
-
-/* FTDI_SIO_SET_FLOW_CTRL */
+// FTDI_SIO_SET_FLOW_CTRL
+#define FTDI_SIO_SET_FLOW_CTRL_REQUEST_TYPE 0x40
+#define FTDI_SIO_SET_FLOW_CTRL_REQUEST FTDI_SIO_SET_FLOW_CTRL
 #define FTDI_SIO_DISABLE_FLOW_CTRL 0x0
 #define FTDI_SIO_RTS_CTS_HS (0x1 << 8)
 #define FTDI_SIO_DTR_DSR_HS (0x2 << 8)
 #define FTDI_SIO_XON_XOFF_HS (0x4 << 8)
 
-/*
- *   BmRequestType:  0100 0000b
- *   bRequest:       FTDI_SIO_SET_FLOW_CTRL
- *   wValue:         Xoff/Xon
- *   wIndex:         Protocol/Port - hIndex is protocol / lIndex is port
- *   wLength:        0
- *   Data:           None
- *
- * hIndex protocol is:
- *   B0 Output handshaking using RTS/CTS
- *       0 = disabled
- *       1 = enabled
- *   B1 Output handshaking using DTR/DSR
- *       0 = disabled
- *       1 = enabled
- *   B2 Xon/Xoff handshaking
- *       0 = disabled
- *       1 = enabled
- *
- * A value of zero in the hIndex field disables handshaking
- *
- * If Xon/Xoff handshaking is specified, the hValue field should contain the
- * XOFF character and the lValue field contains the XON character.
- */
+// FTDI_SIO_GET_LATENCY_TIMER
+#define  FTDI_SIO_GET_LATENCY_TIMER_REQUEST FTDI_SIO_GET_LATENCY_TIMER
+#define  FTDI_SIO_GET_LATENCY_TIMER_REQUEST_TYPE 0xC0
 
-/* FTDI_SIO_SET_BAUD_RATE */
-/*
- * BmRequestType:  0100 0000B
- * bRequest:       FTDI_SIO_SET_BAUDRATE
- * wValue:         BaudDivisor value - see below
- * wIndex:         Port
- * wLength:        0
- * Data:           None
- * The BaudDivisor values are calculated as follows (too complicated):
- */
+// FTDI_SIO_SET_LATENCY_TIMER
+#define  FTDI_SIO_SET_LATENCY_TIMER_REQUEST FTDI_SIO_SET_LATENCY_TIMER
+#define  FTDI_SIO_SET_LATENCY_TIMER_REQUEST_TYPE 0x40
 
-/* FTDI_SIO_SET_DATA */
-#define FTDI_SIO_SET_DATA_PARITY_NONE	(0x0 << 8)
-#define FTDI_SIO_SET_DATA_PARITY_ODD	(0x1 << 8)
-#define FTDI_SIO_SET_DATA_PARITY_EVEN	(0x2 << 8)
-#define FTDI_SIO_SET_DATA_PARITY_MARK	(0x3 << 8)
-#define FTDI_SIO_SET_DATA_PARITY_SPACE	(0x4 << 8)
-#define FTDI_SIO_SET_DATA_STOP_BITS_1	(0x0 << 11)
-#define FTDI_SIO_SET_DATA_STOP_BITS_15	(0x1 << 11)
-#define FTDI_SIO_SET_DATA_STOP_BITS_2	(0x2 << 11)
-#define FTDI_SIO_SET_BREAK		(0x1 << 14)
+// FTDI_SIO_SET_EVENT_CHAR
+#define  FTDI_SIO_SET_EVENT_CHAR_REQUEST FTDI_SIO_SET_EVENT_CHAR
+#define  FTDI_SIO_SET_EVENT_CHAR_REQUEST_TYPE 0x40
 
-/*
- * BmRequestType:  0100 0000B
- * bRequest:       FTDI_SIO_SET_DATA
- * wValue:         Data characteristics (see below)
- * wIndex:         Port
- * wLength:        0
- * Data:           No
- *
- * Data characteristics
- *
- *   B0..7   Number of data bits
- *   B8..10  Parity
- *           0 = None
- *           1 = Odd
- *           2 = Even
- *           3 = Mark
- *           4 = Space
- *   B11..13 Stop Bits
- *           0 = 1
- *           1 = 1.5
- *           2 = 2
- *   B14
- *           1 = TX ON (break)
- *           0 = TX OFF (normal state)
- *   B15 Reserved
- *
- */
+// FTDI_SIO_GET_MODEM_STATUS
+#define FTDI_SIO_GET_MODEM_STATUS_REQUEST_TYPE 0xc0
+#define FTDI_SIO_GET_MODEM_STATUS_REQUEST FTDI_SIO_GET_MODEM_STATUS
+#define FTDI_SIO_CTS_MASK 0x10
+#define FTDI_SIO_DSR_MASK 0x20
+#define FTDI_SIO_RI_MASK  0x40
+#define FTDI_SIO_RLSD_MASK 0x80
 
-/*
-* DATA FORMAT
-*
-* IN Endpoint
-*
-* The device reserves the first two bytes of data on this endpoint to contain
-* the current values of the modem and line status registers. In the absence of
-* data, the device generates a message consisting of these two status bytes
-  * every 40 ms
-  *
-  * Byte 0: Modem Status
-*
-* Offset	Description
-* B0	Reserved - must be 1
-* B1	Reserved - must be 0
-* B2	Reserved - must be 0
-* B3	Reserved - must be 0
-* B4	Clear to Send (CTS)
-* B5	Data Set Ready (DSR)
-* B6	Ring Indicator (RI)
-* B7	Receive Line Signal Detect (RLSD)
-*
-* Byte 1: Line Status
-*
-* Offset	Description
-* B0	Data Ready (DR)
-* B1	Overrun Error (OE)
-* B2	Parity Error (PE)
-* B3	Framing Error (FE)
-* B4	Break Interrupt (BI)
-* B5	Transmitter Holding Register (THRE)
-* B6	Transmitter Empty (TEMT)
-* B7	Error in RCVR FIFO
-*
-*/
-#define FTDI_RS0_CTS	(1 << 4)
-#define FTDI_RS0_DSR	(1 << 5)
-#define FTDI_RS0_RI	(1 << 6)
-#define FTDI_RS0_RLSD	(1 << 7)
+// FTDI_SIO_SET_BITMODE
+#define FTDI_SIO_SET_BITMODE_REQUEST_TYPE 0x40
+#define FTDI_SIO_SET_BITMODE_REQUEST FTDI_SIO_SET_BITMODE
 
-#define FTDI_RS_DR	1
-#define FTDI_RS_OE	(1<<1)
-#define FTDI_RS_PE	(1<<2)
-#define FTDI_RS_FE	(1<<3)
-#define FTDI_RS_BI	(1<<4)
-#define FTDI_RS_THRE	(1<<5)
-#define FTDI_RS_TEMT	(1<<6)
-#define FTDI_RS_FIFO	(1<<7)
+// Possible bitmodes for FTDI_SIO_SET_BITMODE_REQUEST
+#define FTDI_SIO_BITMODE_RESET    0x00
+#define FTDI_SIO_BITMODE_CBUS   0x20
+
+// FTDI_SIO_READ_PINS
+#define FTDI_SIO_READ_PINS_REQUEST_TYPE 0xc0
+#define FTDI_SIO_READ_PINS_REQUEST FTDI_SIO_READ_PINS
+
+// FTDI_SIO_READ_EEPROM
+#define FTDI_SIO_READ_EEPROM_REQUEST_TYPE 0xc0
+#define FTDI_SIO_READ_EEPROM_REQUEST FTDI_SIO_READ_EEPROM
+
+#define FTDI_FTX_CBUS_MUX_GPIO    0x8
+#define FTDI_FT232R_CBUS_MUX_GPIO 0xa
+
+#define FTDI_RS0_CTS  (1 << 4)
+#define FTDI_RS0_DSR  (1 << 5)
+#define FTDI_RS0_RI (1 << 6)
+#define FTDI_RS0_RLSD (1 << 7)
+
+#define FTDI_RS_DR  1
+#define FTDI_RS_OE  (1<<1)
+#define FTDI_RS_PE  (1<<2)
+#define FTDI_RS_FE  (1<<3)
+#define FTDI_RS_BI  (1<<4)
+#define FTDI_RS_THRE  (1<<5)
+#define FTDI_RS_TEMT  (1<<6)
+#define FTDI_RS_FIFO  (1<<7)
+
+// chip types and names
+enum ftdi_chip_type {
+  SIO = 0,
+//  FT232A,
+  FT232B,
+  FT2232C,
+  FT232R,
+  FT232H,
+  FT2232H,
+  FT4232H,
+  FT4232HA,
+  FT232HP,
+  FT233HP,
+  FT2232HP,
+  FT2233HP,
+  FT4232HP,
+  FT4233HP,
+  FTX,
+  UNKNOWN
+};
+
+#define FTDI_CHIP_NAMES \
+  [SIO]       = (uint8_t const*) "SIO", /* the serial part of FT8U100AX */ \
+/*  [FT232A]    = (uint8_t const*) "FT232A", */ \
+  [FT232B]    = (uint8_t const*) "FT232B", \
+  [FT2232C]   = (uint8_t const*) "FT2232C/D", \
+  [FT232R]    = (uint8_t const*) "FT232R", \
+  [FT232H]    = (uint8_t const*) "FT232H", \
+  [FT2232H]   = (uint8_t const*) "FT2232H", \
+  [FT4232H]   = (uint8_t const*) "FT4232H", \
+  [FT4232HA]  = (uint8_t const*) "FT4232HA", \
+  [FT232HP]   = (uint8_t const*) "FT232HP", \
+  [FT233HP]   = (uint8_t const*) "FT233HP", \
+  [FT2232HP]  = (uint8_t const*) "FT2232HP", \
+  [FT2233HP]  = (uint8_t const*) "FT2233HP", \
+  [FT4232HP]  = (uint8_t const*) "FT4232HP", \
+  [FT4233HP]  = (uint8_t const*) "FT4233HP", \
+  [FTX]       = (uint8_t const*) "FT-X", \
+  [UNKNOWN]   = (uint8_t const*) "UNKNOWN"
+
+// private interface data
+typedef struct ftdi_private {
+  enum ftdi_chip_type chip_type;
+  uint8_t channel; // channel index, or 0 for legacy types
+} ftdi_private_t;
+
+#define FTDI_OK true
+#define FTDI_FAIL false
+#define FTDI_NOT_POSSIBLE -1
+#define FTDI_REQUESTED -2
+
+// division and round function overtaken from math.h
+#define DIV_ROUND_CLOSEST(x, divisor)(      \
+{             \
+  typeof(x) __x = x;        \
+  typeof(divisor) __d = divisor;      \
+  (((typeof(x))-1) > 0 ||       \
+   ((typeof(divisor))-1) > 0 ||     \
+   (((__x) > 0) == ((__d) > 0))) ?    \
+    (((__x) + ((__d) / 2)) / (__d)) : \
+    (((__x) - ((__d) / 2)) / (__d));  \
+}             \
+)
 
 #endif //TUSB_FTDI_SIO_H

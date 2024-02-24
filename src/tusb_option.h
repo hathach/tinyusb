@@ -456,9 +456,22 @@
 #ifndef CFG_TUH_CDC_FTDI_VID_PID_LIST
   // List of product IDs that can use the FTDI CDC driver. 0x0403 is FTDI's VID
   #define CFG_TUH_CDC_FTDI_VID_PID_LIST \
-    {0x0403, 0x6001}, {0x0403, 0x6006}, {0x0403, 0x6010}, {0x0403, 0x6011}, \
-    {0x0403, 0x6014}, {0x0403, 0x6015}, {0x0403, 0x8372}, {0x0403, 0xFBFA}, \
-    {0x0403, 0xCD18}
+    {0x0403, 0x6001}, /* Similar device to SIO above */ \
+    {0x0403, 0x6006}, /* FTDI's alternate PID for above */ \
+    {0x0403, 0x6010}, /* Dual channel device */ \
+    {0x0403, 0x6011}, /* Quad channel hi-speed device */ \
+    {0x0403, 0x6014}, /* Single channel hi-speed device */ \
+    {0x0403, 0x6015}, /* FT-X series (FT201X, FT230X, FT231X, etc) */ \
+    {0x0403, 0x6040}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6041}, /* Quad channel hi-speed device with PD */ \
+    {0x0403, 0x6042}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6043}, /* Quad channel hi-speed device with PD */ \
+    {0x0403, 0x6044}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6045}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6048}, /* Quad channel automotive grade hi-speed device */ \
+    {0x0403, 0x8372}, /* Product Id SIO application of 8U100AX */ \
+    {0x0403, 0xFBFA}, /* Product ID for FT232RL */ \
+    {0x0403, 0xCD18}, /* ??? */
 #endif
 
 #ifndef CFG_TUH_CDC_CP210X
