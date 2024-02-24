@@ -269,8 +269,8 @@ void dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
-  // save crystal-less setting (recovery clock)
-  #ifdef USB_CLK_RECOVER_IRC_EN_IRC_EN
+  // save crystal-less setting (if available)
+  #if defined(FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED) && FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED == 1
   uint32_t clk_recover_irc_en = KHCI->CLK_RECOVER_IRC_EN;
   uint32_t clk_recover_ctrl = KHCI->CLK_RECOVER_CTRL;
   #endif
@@ -278,8 +278,8 @@ void dcd_init(uint8_t rhport)
   KHCI->USBTRC0 |= USB_USBTRC0_USBRESET_MASK;
   while (KHCI->USBTRC0 & USB_USBTRC0_USBRESET_MASK);
 
-  // restore crystal-less setting
-  #ifdef USB_CLK_RECOVER_IRC_EN_IRC_EN
+  // restore crystal-less setting (if available)
+  #if defined(FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED) && FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED == 1
   KHCI->CLK_RECOVER_IRC_EN = clk_recover_irc_en;
   KHCI->CLK_RECOVER_CTRL  |= clk_recover_ctrl;
   #endif
