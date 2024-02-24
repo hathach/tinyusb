@@ -20,30 +20,29 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
- * This file is part of the TinyUSB stack.
  */
 
-#ifndef _CI_FS_KINETIS_H
-#define _CI_FS_KINETIS_H
+#ifndef BOARD_H
+#define BOARD_H
 
-#include "fsl_device_registers.h"
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
+//--------------------------------------------------------------------+
+// LED
+#define LED_PORT              GPIOC
+#define LED_PIN               5
+#define LED_STATE_ON          1
 
-//static const ci_fs_controller_t _ci_controller[] = {
-//    {.reg_base = USB0_BASE, .irqnum = USB0_IRQn}
-//};
+// Button
 
-#define CI_FS_REG(_port)        ((ci_fs_regs_t*) USB0_BASE)
-#define CI_REG                  CI_FS_REG(0)
-
-void dcd_int_enable(uint8_t rhport) {
-  (void) rhport;
-  NVIC_EnableIRQ(USB0_IRQn);
-}
-
-void dcd_int_disable(uint8_t rhport) {
-  (void) rhport;
-  NVIC_DisableIRQ(USB0_IRQn);
-}
+// UART
+//#define UART_PORT             UART0
+//#define UART_PIN_CLOCK        kCLOCK_PortA
+//#define UART_PIN_PORT         PORTA
+//#define UART_PIN_RX           1u
+//#define UART_PIN_TX           2u
+//#define UART_PIN_FUNCTION     kPORT_MuxAlt2
+//#define SOPT5_UART0RXSRC_UART_RX      0x00u   /*!< UART0 receive data source select: UART0_RX pin */
+//#define SOPT5_UART0TXSRC_UART_TX      0x00u   /*!< UART0 transmit data source select: UART0_TX pin */
 
 #endif
