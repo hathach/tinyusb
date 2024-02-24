@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  *
  * Contribution
- * - Heiko Kuester: CH34x support
+ * - Heiko Kuester: add support of CH34x & PL2303, improve support of FTDI & CP210x
  */
 
 #include "tusb_option.h"
@@ -818,12 +818,12 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
   TU_LOG_P_CDC("set config");
 
-  // fake transfer to kick-off process
+  // fake transfer to kick-off process_set_config()
   tuh_xfer_t xfer;
   xfer.daddr  = daddr;
   xfer.result = XFER_RESULT_SUCCESS;
   xfer.setup  = &request;
-  xfer.user_data = 0; // initial state
+  xfer.user_data = 0; // initial state 0
 
   serial_drivers[p_cdc->serial_drid].process_set_config(&xfer);
   return true;
