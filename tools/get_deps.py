@@ -50,9 +50,9 @@ deps_optional = {
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
                            '84e0bd3e43910aaf71eefd62075cf57495418312',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
-    'hw/mcu/nxp/mcux-sdk': ['https://github.com/wavenumber-eng/mcux-sdk.git',
-                            'main',
-                            'kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcxn mcxa imxrt'],
+    'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
+                            '144f1eb7ea8c06512e12f12b27383601c0272410',
+                            'kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
                                          '0f747aaa0c16f750bdfa2ba37ec25d6c8e1bc117',
                                          'rp2040'],
@@ -175,7 +175,7 @@ deps_optional = {
                             'ch32f20x'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
-                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcxn mcxa mm32 msp432e4 nrf ra saml2x'
+                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'
                     'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5'
                     'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
