@@ -85,7 +85,7 @@ typedef struct {
 
   tuh_xfer_cb_t user_control_cb;
   #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CP210X || CFG_TUH_CDC_CH34X
-  tuh_xfer_cb_t requested_complete_cb;
+    tuh_xfer_cb_t requested_complete_cb;
   #endif
 
   #if CFG_TUH_CDC_FTDI
@@ -119,54 +119,54 @@ static cdch_interface_t cdch_data[CFG_TUH_CDC];
 //--------------------------------------------------------------------+
 
 //------------- ACM prototypes -------------//
-static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
-static void acm_process_config(tuh_xfer_t* xfer);
+static bool acm_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+static void acm_process_config(tuh_xfer_t * xfer);
 
-static bool acm_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool acm_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool acm_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool acm_set_control_line_state(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool acm_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool acm_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool acm_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool acm_set_control_line_state(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 //------------- FTDI prototypes -------------//
 #if CFG_TUH_CDC_FTDI
 static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST};
 #if CFG_TUSB_DEBUG && CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL
-static uint8_t const * ftdi_chip_name[] = { FTDI_CHIP_NAMES };
+  static uint8_t const * ftdi_chip_name[] = { FTDI_CHIP_NAMES };
 #endif
 
-static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
-static void ftdi_process_config(tuh_xfer_t* xfer);
+static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t * itf_desc, uint16_t max_len);
+static void ftdi_process_config(tuh_xfer_t * xfer);
 
-static bool ftdi_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ftdi_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ftdi_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ftdi_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ftdi_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ftdi_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ftdi_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ftdi_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
 
 //------------- CP210X prototypes -------------//
 #if CFG_TUH_CDC_CP210X
 static uint16_t const cp210x_vid_pid_list[][2] = {CFG_TUH_CDC_CP210X_VID_PID_LIST};
 
-static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
-static void cp210x_process_config(tuh_xfer_t* xfer);
+static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+static void cp210x_process_config(tuh_xfer_t * xfer);
 
-static bool cp210x_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool cp210x_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool cp210x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool cp210x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool cp210x_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool cp210x_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool cp210x_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool cp210x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
 
 //------------- CH34x prototypes -------------//
 #if CFG_TUH_CDC_CH34X
 static uint16_t const ch34x_vid_pid_list[][2] = {CFG_TUH_CDC_CH34X_VID_PID_LIST};
 
-static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len);
-static void ch34x_process_config(tuh_xfer_t* xfer);
+static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+static void ch34x_process_config(tuh_xfer_t * xfer);
 
-static bool ch34x_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ch34x_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ch34x_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool ch34x_set_modem_ctrl(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ch34x_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ch34x_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ch34x_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static bool ch34x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
 
 //------------- PL2303 prototypes -------------//
@@ -211,14 +211,14 @@ enum {
 typedef struct {
   uint16_t const (*vid_pid_list)[2];
   uint16_t const vid_pid_count;
-  bool (*const open)(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
-  void (*const process_set_config)(tuh_xfer_t* xfer);
-  bool (*const set_control_line_state)(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-  bool (*const set_baudrate)(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-  bool (*const set_data_format)(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-  bool (*const set_line_coding)(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+  bool (*const open)(uint8_t daddr, const tusb_desc_interface_t * itf_desc, uint16_t max_len);
+  void (*const process_set_config)(tuh_xfer_t * xfer);
+  bool (*const set_control_line_state)(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+  bool (*const set_baudrate)(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+  bool (*const set_data_format)(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+  bool (*const set_line_coding)(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
   #if CFG_TUSB_DEBUG && CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL
-  uint8_t const * name;
+    uint8_t const * name;
   #endif
 } cdch_serial_driver_t;
 
@@ -309,17 +309,17 @@ TU_VERIFY_STATIC(TU_ARRAY_SIZE(serial_drivers) == SERIAL_DRIVER_COUNT, "Serial d
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-static inline cdch_interface_t* get_itf(uint8_t idx) {
+static inline cdch_interface_t * get_itf(uint8_t idx) {
   TU_ASSERT(idx < CFG_TUH_CDC, NULL);
-  cdch_interface_t* p_cdc = &cdch_data[idx];
+  cdch_interface_t * p_cdc = &cdch_data[idx];
 
   return (p_cdc->daddr != 0) ? p_cdc : NULL;
 }
 
 static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
   for(uint8_t i=0; i<CFG_TUH_CDC; i++) {
-    cdch_interface_t* p_cdc = &cdch_data[i];
-    if ( (p_cdc->daddr == daddr) &&
+    cdch_interface_t * p_cdc = &cdch_data[i];
+    if ((p_cdc->daddr == daddr) &&
          (ep_addr == p_cdc->ep_notif || ep_addr == p_cdc->stream.rx.ep_addr || ep_addr == p_cdc->stream.tx.ep_addr)) {
       return i;
     }
@@ -328,10 +328,10 @@ static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
   return TUSB_INDEX_INVALID_8;
 }
 
-static cdch_interface_t* make_new_itf(uint8_t daddr, tusb_desc_interface_t const *itf_desc) {
+static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t const * itf_desc) {
   for(uint8_t i=0; i<CFG_TUH_CDC; i++) {
     if (cdch_data[i].daddr == 0) {
-      cdch_interface_t* p_cdc = &cdch_data[i];
+      cdch_interface_t * p_cdc = &cdch_data[i];
       p_cdc->daddr              = daddr;
       p_cdc->bInterfaceNumber   = itf_desc->bInterfaceNumber;
       p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
@@ -345,7 +345,7 @@ static cdch_interface_t* make_new_itf(uint8_t daddr, tusb_desc_interface_t const
   return NULL;
 }
 
-static bool open_ep_stream_pair(cdch_interface_t* p_cdc , tusb_desc_endpoint_t const *desc_ep);
+static bool open_ep_stream_pair(cdch_interface_t * p_cdc , tusb_desc_endpoint_t const *desc_ep);
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -353,21 +353,21 @@ static bool open_ep_stream_pair(cdch_interface_t* p_cdc , tusb_desc_endpoint_t c
 
 uint8_t tuh_cdc_itf_get_index(uint8_t daddr, uint8_t itf_num) {
   for (uint8_t i = 0; i < CFG_TUH_CDC; i++) {
-    const cdch_interface_t* p_cdc = &cdch_data[i];
+    const cdch_interface_t * p_cdc = &cdch_data[i];
     if (p_cdc->daddr == daddr && p_cdc->bInterfaceNumber == itf_num) return i;
   }
 
   return TUSB_INDEX_INVALID_8;
 }
 
-bool tuh_cdc_itf_get_info(uint8_t idx, tuh_itf_info_t* info) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+bool tuh_cdc_itf_get_info(uint8_t idx, tuh_itf_info_t * info) {
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && info);
 
   info->daddr = p_cdc->daddr;
 
   // re-construct descriptor
-  tusb_desc_interface_t* desc = &info->desc;
+  tusb_desc_interface_t * desc = &info->desc;
   desc->bLength            = sizeof(tusb_desc_interface_t);
   desc->bDescriptorType    = TUSB_DESC_INTERFACE;
 
@@ -383,27 +383,27 @@ bool tuh_cdc_itf_get_info(uint8_t idx, tuh_itf_info_t* info) {
 }
 
 bool tuh_cdc_mounted(uint8_t idx) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
   return p_cdc->mounted;
 }
 
 bool tuh_cdc_get_dtr(uint8_t idx) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return (p_cdc->line_state & CDC_CONTROL_LINE_STATE_DTR) ? true : false;
 }
 
 bool tuh_cdc_get_rts(uint8_t idx) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return (p_cdc->line_state & CDC_CONTROL_LINE_STATE_RTS) ? true : false;
 }
 
-bool tuh_cdc_get_local_line_coding(uint8_t idx, cdc_line_coding_t* line_coding) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+bool tuh_cdc_get_local_line_coding(uint8_t idx, cdc_line_coding_t * line_coding) {
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   *line_coding = p_cdc->line_coding;
@@ -415,29 +415,29 @@ bool tuh_cdc_get_local_line_coding(uint8_t idx, cdc_line_coding_t* line_coding) 
 // Write
 //--------------------------------------------------------------------+
 
-uint32_t tuh_cdc_write(uint8_t idx, void const* buffer, uint32_t bufsize) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+uint32_t tuh_cdc_write(uint8_t idx, void const * buffer, uint32_t bufsize) {
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return tu_edpt_stream_write(&p_cdc->stream.tx, buffer, bufsize);
 }
 
 uint32_t tuh_cdc_write_flush(uint8_t idx) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return tu_edpt_stream_write_xfer(&p_cdc->stream.tx);
 }
 
 bool tuh_cdc_write_clear(uint8_t idx) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return tu_edpt_stream_clear(&p_cdc->stream.tx);
 }
 
 uint32_t tuh_cdc_write_available(uint8_t idx) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return tu_edpt_stream_write_available(&p_cdc->stream.tx);
@@ -447,33 +447,34 @@ uint32_t tuh_cdc_write_available(uint8_t idx) {
 // Read
 //--------------------------------------------------------------------+
 
-uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+uint32_t tuh_cdc_read (uint8_t idx, void * buffer, uint32_t bufsize) {
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return tu_edpt_stream_read(&p_cdc->stream.rx, buffer, bufsize);
 }
 
 uint32_t tuh_cdc_read_available(uint8_t idx) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return tu_edpt_stream_read_available(&p_cdc->stream.rx);
 }
 
-bool tuh_cdc_peek(uint8_t idx, uint8_t* ch) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+bool tuh_cdc_peek(uint8_t idx, uint8_t * ch) {
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   return tu_edpt_stream_peek(&p_cdc->stream.rx, ch);
 }
 
 bool tuh_cdc_read_clear (uint8_t idx) {
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
   bool ret = tu_edpt_stream_clear(&p_cdc->stream.rx);
   tu_edpt_stream_read_xfer(&p_cdc->stream.rx);
+
   return ret;
 }
 
@@ -657,7 +658,7 @@ void cdch_init(void) {
   tu_memclr(cdch_data, sizeof(cdch_data));
 
   for (size_t i = 0; i < CFG_TUH_CDC; i++) {
-    cdch_interface_t* p_cdc = &cdch_data[i];
+    cdch_interface_t * p_cdc = &cdch_data[i];
 
     tu_edpt_stream_init(&p_cdc->stream.tx, true, true, false,
                         p_cdc->stream.tx_ff_buf, CFG_TUH_CDC_TX_BUFSIZE,
@@ -671,7 +672,7 @@ void cdch_init(void) {
 
 void cdch_close(uint8_t daddr) {
   for (uint8_t idx = 0; idx < CFG_TUH_CDC; idx++) {
-    cdch_interface_t* p_cdc = &cdch_data[idx];
+    cdch_interface_t * p_cdc = &cdch_data[idx];
     if (p_cdc->daddr == daddr) {
       TU_LOG_P_CDC("close");
 
@@ -695,35 +696,37 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc);
 
-  if ( ep_addr == p_cdc->stream.tx.ep_addr ) {
+  if (ep_addr == p_cdc->stream.tx.ep_addr) {
     // invoke tx complete callback to possibly refill tx fifo
     if (tuh_cdc_tx_complete_cb) tuh_cdc_tx_complete_cb(idx);
 
-    if ( 0 == tu_edpt_stream_write_xfer(&p_cdc->stream.tx) ) {
+    if (0 == tu_edpt_stream_write_xfer(&p_cdc->stream.tx)) {
       // If there is no data left, a ZLP should be sent if:
       // - xferred_bytes is multiple of EP Packet size and not zero
       tu_edpt_stream_write_zlp_if_needed(&p_cdc->stream.tx, xferred_bytes);
     }
-  } else if ( ep_addr == p_cdc->stream.rx.ep_addr ) {
+  } else if (ep_addr == p_cdc->stream.rx.ep_addr) {
     #if CFG_TUH_CDC_FTDI
     if (p_cdc->serial_drid == SERIAL_DRIVER_FTDI) {
       // FTDI reserve 2 bytes for status
       // uint8_t status[2] = {p_cdc->stream.rx.ep_buf[0], p_cdc->stream.rx.ep_buf[1]};
       tu_edpt_stream_read_xfer_complete_offset(&p_cdc->stream.rx, xferred_bytes, 2);
-    }else
+    } else
     #endif
     {
       tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
     }
 
     // invoke receive callback
-    if (tuh_cdc_rx_cb) tuh_cdc_rx_cb(idx);
+    if (tuh_cdc_rx_cb) {
+      tuh_cdc_rx_cb(idx);
+    }
 
     // prepare for next transfer if needed
     tu_edpt_stream_read_xfer(&p_cdc->stream.rx);
-  }else if ( ep_addr == p_cdc->ep_notif ) {
+  } else if (ep_addr == p_cdc->ep_notif) {
     // TODO handle notification endpoint
-  }else {
+  } else {
     TU_ASSERT(false);
   }
 
@@ -734,7 +737,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 // Enumeration
 //--------------------------------------------------------------------+
 
-static bool open_ep_stream_pair(cdch_interface_t* p_cdc, tusb_desc_endpoint_t const* desc_ep) {
+static bool open_ep_stream_pair(cdch_interface_t * p_cdc, tusb_desc_endpoint_t const * desc_ep) {
   for (size_t i = 0; i < 2; i++) {
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
               TUSB_XFER_BULK == desc_ep->bmAttributes.xfer);
@@ -746,13 +749,13 @@ static bool open_ep_stream_pair(cdch_interface_t* p_cdc, tusb_desc_endpoint_t co
       tu_edpt_stream_open(&p_cdc->stream.tx, p_cdc->daddr, desc_ep);
     }
 
-    desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
+    desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep);
   }
 
   return true;
 }
 
-bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len) {
   (void) rhport;
   cdch_serial_driver_t const * driver_detected = NULL;
 
@@ -826,6 +829,7 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   xfer.user_data = 0; // initial state 0
 
   serial_drivers[p_cdc->serial_drid].process_set_config(&xfer);
+
   return true;
 }
 
@@ -864,7 +868,7 @@ static void acm_internal_control_complete(tuh_xfer_t * xfer) {
   }
 }
 
-static bool acm_set_control_line_state(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool acm_set_control_line_state(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->acm_capability.support_line_request);
 
   tusb_control_request_t const request = {
@@ -886,15 +890,16 @@ static bool acm_set_control_line_state(cdch_interface_t* p_cdc, tuh_xfer_cb_t co
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = NULL,
-    .complete_cb = complete_cb ? acm_internal_control_complete : NULL, // complete_cb is NULL for sync call
+    .complete_cb = complete_cb ? acm_internal_control_complete : NULL,
     .user_data   = user_data
   };
 
   TU_ASSERT(tuh_control_xfer(&xfer));
+
   return true;
 }
 
-static bool acm_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool acm_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->acm_capability.support_line_request);
   TU_VERIFY(p_cdc->requested_line_coding.data_bits && p_cdc->requested_line_coding.bit_rate);
   TU_VERIFY((p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8) ||
@@ -913,30 +918,32 @@ static bool acm_set_line_coding(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_
   };
 
   // use usbh enum buf to hold line coding since user line_coding variable does not live long enough
-  uint8_t* enum_buf = usbh_get_enum_buf();
+  uint8_t * enum_buf = usbh_get_enum_buf();
   memcpy(enum_buf, &p_cdc->requested_line_coding, sizeof(cdc_line_coding_t));
 
   p_cdc->user_control_cb = complete_cb;
+
   tuh_xfer_t xfer = {
     .daddr       = p_cdc->daddr,
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = enum_buf,
-    .complete_cb = complete_cb ? acm_internal_control_complete : NULL, // complete_cb is NULL for sync call
+    .complete_cb = complete_cb ? acm_internal_control_complete : NULL,
     .user_data   = user_data
   };
 
   TU_ASSERT(tuh_control_xfer(&xfer));
+
   return true;
 }
 
-static bool acm_set_data_format(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool acm_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->requested_line_coding.bit_rate = p_cdc->line_coding.bit_rate;
 
   return acm_set_line_coding(p_cdc, complete_cb, user_data);
 }
 
-static bool acm_set_baudrate(cdch_interface_t* p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool acm_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->requested_line_coding.stop_bits = p_cdc->line_coding.stop_bits;
   p_cdc->requested_line_coding.parity    = p_cdc->line_coding.parity;
   p_cdc->requested_line_coding.data_bits = p_cdc->line_coding.data_bits;
@@ -952,21 +959,22 @@ enum {
   CONFIG_ACM_COMPLETE,
 };
 
-static bool acm_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len) {
-  uint8_t const* p_desc_end = ((uint8_t const*) itf_desc) + max_len;
+static bool acm_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len) {
+  uint8_t const * p_desc_end = ((uint8_t const *) itf_desc) + max_len;
 
-  cdch_interface_t* p_cdc = make_new_itf(daddr, itf_desc);
+  cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
   TU_VERIFY(p_cdc);
+
   p_cdc->serial_drid = SERIAL_DRIVER_ACM;
 
   //------------- Control Interface -------------//
-  uint8_t const* p_desc = tu_desc_next(itf_desc);
+  uint8_t const * p_desc = tu_desc_next(itf_desc);
 
   // Communication Functional Descriptors
   while ((p_desc < p_desc_end) && (TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc))) {
     if (CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc)) {
       // save ACM bmCapabilities
-      p_cdc->acm_capability = ((cdc_desc_func_acm_t const*) p_desc)->bmCapabilities;
+      p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
     }
 
     p_desc = tu_desc_next(p_desc);
@@ -975,7 +983,7 @@ static bool acm_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint1
   // Open notification endpoint of control interface if any
   if (itf_desc->bNumEndpoints == 1) {
     TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc));
-    tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) p_desc;
+    tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
     TU_ASSERT(tuh_edpt_open(daddr, desc_ep));
     p_cdc->ep_notif = desc_ep->bEndpointAddress;
@@ -985,22 +993,22 @@ static bool acm_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint1
 
   //------------- Data Interface (if any) -------------//
   if ((TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) &&
-      (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const*) p_desc)->bInterfaceClass)) {
+      (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass)) {
     // next to endpoint descriptor
     p_desc = tu_desc_next(p_desc);
 
     // data endpoints expected to be in pairs
-    TU_ASSERT(open_ep_stream_pair(p_cdc, (tusb_desc_endpoint_t const*) p_desc));
+    TU_ASSERT(open_ep_stream_pair(p_cdc, (tusb_desc_endpoint_t const *) p_desc));
   }
 
   return true;
 }
 
-static void acm_process_config(tuh_xfer_t* xfer) {
+static void acm_process_config(tuh_xfer_t * xfer) {
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT_COMPLETE(p_cdc && xfer->result == XFER_RESULT_SUCCESS, 1);
 
   switch (state) {
@@ -1814,8 +1822,9 @@ static uint16_t ch34x_get_divisor_prescaler(cdch_interface_t * p_cdc);
 
 //------------- Control Request -------------//
 
-static bool ch34x_set_request(cdch_interface_t* p_cdc, uint8_t direction, uint8_t request, uint16_t value,
-                              uint16_t index, uint8_t* buffer, uint16_t length, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool ch34x_set_request(cdch_interface_t * p_cdc, uint8_t direction, uint8_t request,
+                              uint16_t value, uint16_t index, uint8_t * buffer, uint16_t length,
+                              tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   tusb_control_request_t const request_setup = {
       .bmRequestType_bit = {
           .recipient = TUSB_REQ_RCPT_DEVICE,
@@ -1829,7 +1838,7 @@ static bool ch34x_set_request(cdch_interface_t* p_cdc, uint8_t direction, uint8_
   };
 
   // use usbh enum buf since application variable does not live long enough
-  uint8_t* enum_buf = NULL;
+  uint8_t * enum_buf = NULL;
 
   if (buffer && length > 0) {
     enum_buf = usbh_get_enum_buf();
@@ -1850,22 +1859,23 @@ static bool ch34x_set_request(cdch_interface_t* p_cdc, uint8_t direction, uint8_
   return tuh_control_xfer(&xfer);
 }
 
-static inline bool ch34x_control_out(cdch_interface_t* p_cdc, uint8_t request, uint16_t value, uint16_t index,
+static inline bool ch34x_control_out(cdch_interface_t * p_cdc, uint8_t request, uint16_t value, uint16_t index,
                                      tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return ch34x_set_request(p_cdc, TUSB_DIR_OUT, request, value, index, NULL, 0, complete_cb, user_data);
 }
 
-static inline bool ch34x_control_in(cdch_interface_t* p_cdc, uint8_t request, uint16_t value, uint16_t index,
-                                    uint8_t* buffer, uint16_t buffersize, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static inline bool ch34x_control_in(cdch_interface_t * p_cdc, uint8_t request, uint16_t value, uint16_t index,
+                                    uint8_t * buffer, uint16_t buffersize, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return ch34x_set_request(p_cdc, TUSB_DIR_IN, request, value, index, buffer, buffersize,
                            complete_cb, user_data);
 }
 
-static inline bool ch34x_write_reg(cdch_interface_t* p_cdc, uint16_t reg, uint16_t reg_value, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static inline bool ch34x_write_reg(cdch_interface_t * p_cdc, uint16_t reg, uint16_t reg_value,
+                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return ch34x_control_out(p_cdc, CH34X_REQ_WRITE_REG, reg, reg_value, complete_cb, user_data);
 }
 
-//static bool ch34x_read_reg_request ( cdch_interface_t* p_cdc, uint16_t reg,
+//static bool ch34x_read_reg_request ( cdch_interface_t * p_cdc, uint16_t reg,
 //                                     uint8_t *buffer, uint16_t buffersize, tuh_xfer_cb_t complete_cb, uintptr_t user_data )
 //{
 //  return ch34x_control_in ( p_cdc, CH34X_REQ_READ_REG, reg, 0, buffer, buffersize, complete_cb, user_data );
@@ -1907,8 +1917,8 @@ static void ch34x_internal_control_complete(tuh_xfer_t * xfer) {
   // CH34x has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
   uint8_t const itf_num = 0;
   uint8_t idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t* p_cdc = get_itf(idx);
-  TU_ASSERT(p_cdc, );
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc,);
   bool const success = (xfer->result == XFER_RESULT_SUCCESS);
   TU_LOG_P_CDC("control complete success = %u", success);
 
@@ -1997,17 +2007,17 @@ enum {
   CONFIG_CH34X_COMPLETE
 };
 
-static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uint16_t max_len) {
+static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len) {
   // CH34x Interface includes 1 vendor interface + 2 bulk + 1 interrupt endpoints
-  TU_VERIFY (itf_desc->bNumEndpoints == 3);
-  TU_VERIFY (sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t) <= max_len);
+  TU_VERIFY(itf_desc->bNumEndpoints == 3);
+  TU_VERIFY(sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t) <= max_len);
 
-  cdch_interface_t* p_cdc = make_new_itf(daddr, itf_desc);
-  TU_VERIFY (p_cdc);
+  cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
+  TU_VERIFY(p_cdc);
 
   p_cdc->serial_drid = SERIAL_DRIVER_CH34X;
 
-  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
+  tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
   // data endpoints expected to be in pairs
   TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep));
@@ -2023,11 +2033,11 @@ static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const* itf_desc, uin
 }
 
 static void ch34x_process_config(tuh_xfer_t* xfer) {
-  // CH34x has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
   uintptr_t const state = xfer->user_data;
+  // CH34x has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
   uint8_t const itf_num = 0;
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t* p_cdc = get_itf(idx);
+  cdch_interface_t * p_cdc = get_itf(idx);
   TU_ASSERT_COMPLETE(p_cdc && xfer->result == XFER_RESULT_SUCCESS);
   uint8_t buffer[2]; // TODO remove
 
@@ -2035,7 +2045,7 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
     case CONFIG_CH34X_READ_VERSION:
       p_cdc->user_control_cb = ch34x_process_config; // set once for whole process config
       TU_ASSERT_COMPLETE(ch34x_control_in(p_cdc, CH34X_REQ_READ_VERSION, 0, 0, buffer, 2,
-                         ch34x_process_config, CONFIG_CH34X_SERIAL_INIT));
+                                          ch34x_process_config, CONFIG_CH34X_SERIAL_INIT));
       break;
 
     case CONFIG_CH34X_SERIAL_INIT: {
@@ -2060,19 +2070,20 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       // overtake line coding and do special reg write, purpose unknown, overtaken from WCH driver
       p_cdc->line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
       TU_ASSERT_COMPLETE(ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x0F, CH341_REG_0x2C), 0x0007,
-                         ch34x_process_config, CONFIG_CH34X_FLOW_CONTROL));
+                                         ch34x_process_config, CONFIG_CH34X_FLOW_CONTROL));
       break;
 
     case CONFIG_CH34X_FLOW_CONTROL:
       // no hardware flow control
       TU_ASSERT_COMPLETE(ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x27, CH341_REG_0x27), 0x0000,
-                         ch34x_process_config, CONFIG_CH34X_MODEM_CONTROL));
+                                         ch34x_process_config, CONFIG_CH34X_MODEM_CONTROL));
       break;
 
     case CONFIG_CH34X_MODEM_CONTROL:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
         p_cdc->requested_line_state = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-        TU_ASSERT_COMPLETE(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete, CONFIG_CH34X_COMPLETE));
+        TU_ASSERT_COMPLETE(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete,
+                                                    CONFIG_CH34X_COMPLETE));
         break;
       #else
         TU_ATTR_FALLTHROUGH;
@@ -2431,6 +2442,7 @@ static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, u
 }
 
 static void pl2303_process_config(tuh_xfer_t * xfer) {
+  uintptr_t const state = xfer->user_data;
   // PL2303 has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
   uint8_t const itf_num = 0;
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
@@ -2440,7 +2452,7 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
   uint8_t buf;
   int8_t type;
 
-  switch (xfer->user_data) {
+  switch (state) {
 
     // from here sequence overtaken from Linux Kernel function pl2303_startup()
     case CONFIG_PL2303_GET_DESC:
