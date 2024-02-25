@@ -111,8 +111,10 @@ typedef struct {
 
 CFG_TUH_MEM_SECTION
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
+
 #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_PL2303
-  static tusb_desc_device_t desc_dev[CFG_TUH_CDC][CFG_TUH_ENUMERATION_BUFSIZE];
+  CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
+  static tusb_desc_device_t desc_dev[CFG_TUH_ENUMERATION_BUFSIZE];
 #endif
 
 //--------------------------------------------------------------------+
@@ -1054,7 +1056,7 @@ static void acm_process_config(tuh_xfer_t * xfer) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_CDC_FTDI
 
-static bool ftdi_determine_type(cdch_interface_t * p_cdc, uint8_t const idx);
+static bool ftdi_determine_type(cdch_interface_t * p_cdc);
 static uint32_t ftdi_get_divisor(cdch_interface_t * p_cdc);
 static uint8_t ftdi_get_idx(tuh_xfer_t * xfer);
 
@@ -1255,7 +1257,7 @@ static void ftdi_process_config(tuh_xfer_t * xfer) {
       // get device descriptor
       p_cdc->user_control_cb = ftdi_process_config; // set once for whole process config
       if (itf_num == 0) { // only necessary for 1st interface. other interface overtake type from interface 0
-        TU_ASSERT_COMPLETE(tuh_descriptor_get_device(xfer->daddr, desc_dev[idx], sizeof(tusb_desc_device_t),
+        TU_ASSERT_COMPLETE(tuh_descriptor_get_device(xfer->daddr, &desc_dev, sizeof(tusb_desc_device_t),
                                                      ftdi_process_config, CONFIG_FTDI_DETERMINE_TYPE));
         break;
       }
@@ -1264,7 +1266,7 @@ static void ftdi_process_config(tuh_xfer_t * xfer) {
     case CONFIG_FTDI_DETERMINE_TYPE:
       // determine type
       if (itf_num == 0) {
-        TU_ASSERT_COMPLETE(ftdi_determine_type(p_cdc, idx));
+        TU_ASSERT_COMPLETE(ftdi_determine_type(p_cdc));
       } else {
         // other interfaces have same type as interface 0
         uint8_t const idx_itf0 = tuh_cdc_itf_get_index(xfer->daddr, 0);
@@ -1334,9 +1336,9 @@ static void ftdi_process_config(tuh_xfer_t * xfer) {
 
 //------------- Helper -------------//
 
-static bool ftdi_determine_type(cdch_interface_t * p_cdc, uint8_t const idx)
+static bool ftdi_determine_type(cdch_interface_t * p_cdc)
 {
-  uint16_t const version = desc_dev[idx]->bcdDevice;
+  uint16_t const version = desc_dev->bcdDevice;
   uint8_t const itf_num = p_cdc->bInterfaceNumber;
 
   p_cdc->ftdi.chip_type = UNKNOWN;
@@ -1414,7 +1416,7 @@ static bool ftdi_determine_type(cdch_interface_t * p_cdc, uint8_t const idx)
   }
 
   TU_LOG_P_CDC("  %s detected (bcdDevice = 0x%04x)",
-               ftdi_chip_name[p_cdc->ftdi.chip_type], desc_dev[idx]->bcdDevice);
+               ftdi_chip_name[p_cdc->ftdi.chip_type], desc_dev->bcdDevice);
 
   return (p_cdc->ftdi.chip_type != UNKNOWN);
 }
@@ -2207,7 +2209,7 @@ static uint8_t ch34x_get_lcr(cdch_interface_t * p_cdc) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_CDC_PL2303
 
-static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t const idx, uint8_t step,
+static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t step,
                                  tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool pl2303_encode_baud_rate(cdch_interface_t * p_cdc, uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE]);
 
@@ -2465,13 +2467,13 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
     case CONFIG_PL2303_GET_DESC:
       p_cdc->user_control_cb = pl2303_process_config; // set once for whole process config
       // get device descriptor
-      TU_ASSERT_COMPLETE(tuh_descriptor_get_device(xfer->daddr, desc_dev[idx], sizeof(tusb_desc_device_t),
+      TU_ASSERT_COMPLETE(tuh_descriptor_get_device(xfer->daddr, &desc_dev, sizeof(tusb_desc_device_t),
                                                    pl2303_process_config, CONFIG_PL2303_DETECT_TYPE));
       break;
 
     case CONFIG_PL2303_DETECT_TYPE:
       // get type and quirks (step 1)
-      type = pl2303_detect_type (p_cdc, idx, 1, pl2303_process_config, CONFIG_PL2303_READ1); // step 1
+      type = pl2303_detect_type (p_cdc, 1, pl2303_process_config, CONFIG_PL2303_READ1); // step 1
       TU_ASSERT_COMPLETE(type!=PL2303_DETECT_TYPE_FAILED);
       if (type == PL2303_SUPPORTS_HX_STATUS_TRIGGERED) {
         break;
@@ -2482,14 +2484,14 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
       // get supports_hx_status, type and quirks (step 2), do special read
       p_cdc->pl2303.supports_hx_status = ( // will not be true, if coming directly from previous case
                                            xfer->user_data == CONFIG_PL2303_READ1 && xfer->result == XFER_RESULT_SUCCESS );
-      type = pl2303_detect_type (p_cdc, idx, 2, NULL, 0); // step 2 now with supports_hx_status
+      type = pl2303_detect_type (p_cdc, 2, NULL, 0); // step 2 now with supports_hx_status
       TU_ASSERT_COMPLETE(type!=PL2303_DETECT_TYPE_FAILED);
       p_cdc->pl2303.serial_private.type = &pl2303_type_data[type];
       p_cdc->pl2303.serial_private.quirks |= p_cdc->pl2303.serial_private.type->quirks;
       #if CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL && 0 // can be activated if necessary
         TU_LOG_P_CDC("  bDeviceClass = 0x%02x bMaxPacketSize0 = %u bcdUSB = 0x%04x bcdDevice = 0x%04x",
-                     desc_dev[idx]->bDeviceClass, desc_dev[idx]->bMaxPacketSize0,
-                     desc_dev[idx]->bcdUSB, desc_dev[idx]->bcdDevice );
+                     desc_dev->bDeviceClass, desc_dev->bMaxPacketSize0,
+                     desc_dev->bcdUSB, desc_dev->bcdDevice );
         uint16_t vid, pid;
         TU_ASSERT_COMPLETE(tuh_vid_pid_get(p_cdc->daddr, &vid, &pid));
         TU_LOG_P_CDC("  vid = 0x%04x pid = 0x%04x supports_hx_status = %u type = %s quirks = %u",
@@ -2674,29 +2676,29 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
 
 //------------- Helper -------------//
 
-static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t const idx, uint8_t step,
+static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t step,
                                  tuh_xfer_cb_t complete_cb, uintptr_t user_data )
 {
   /*
    * Legacy PL2303H, variants 0 and 1 (difference unknown).
    */
-  if (desc_dev[idx]->bDeviceClass == 0x02) {
+  if (desc_dev->bDeviceClass == 0x02) {
     return TYPE_H;    /* variant 0 */
   }
 
-  if (desc_dev[idx]->bMaxPacketSize0 != 0x40) {
-    if (desc_dev[idx]->bDeviceClass == 0x00 || desc_dev[idx]->bDeviceClass == 0xff) {
+  if (desc_dev->bMaxPacketSize0 != 0x40) {
+    if (desc_dev->bDeviceClass == 0x00 || desc_dev->bDeviceClass == 0xff) {
       return TYPE_H;  /* variant 1 */
     }
     return TYPE_H;    /* variant 0 */
   }
 
-  switch (desc_dev[idx]->bcdUSB) {
+  switch (desc_dev->bcdUSB) {
     case 0x101:
       /* USB 1.0.1? Let's assume they meant 1.1... */
       TU_ATTR_FALLTHROUGH;
     case 0x110:
-      switch (desc_dev[idx]->bcdDevice) {
+      switch (desc_dev->bcdDevice) {
         case 0x300:
           return TYPE_HX;
         case 0x400:
@@ -2706,7 +2708,7 @@ static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t const idx, ui
       }
       break;
     case 0x200:
-      switch (desc_dev[idx]->bcdDevice) {
+      switch (desc_dev->bcdDevice) {
         case 0x100: /* GC */
         case 0x105:
           return TYPE_HXN;
@@ -2751,7 +2753,7 @@ static int8_t pl2303_detect_type(cdch_interface_t * p_cdc, uint8_t const idx, ui
     default: break;
   }
 
-  TU_LOG_P_CDC("  unknown device type bcdUSB = 0x%04x", desc_dev[idx]->bcdUSB);
+  TU_LOG_P_CDC("  unknown device type bcdUSB = 0x%04x", desc_dev->bcdUSB);
 
   return PL2303_DETECT_TYPE_FAILED;
 }
