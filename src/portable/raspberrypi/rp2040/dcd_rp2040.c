@@ -48,7 +48,10 @@
  *------------------------------------------------------------------*/
 
 // Init these in dcd_init
-static uint8_t *next_buffer_ptr;
+static uint64_t dpram_state; // 64bit resprents 64 blocks
+
+#define DPRAM_BLOCK_SIZE (64)
+#define DPRAM_BLOCKS (64)
 
 // USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
 static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2];
@@ -68,56 +71,67 @@ static struct hw_endpoint *hw_endpoint_get_by_addr(uint8_t ep_addr)
   return hw_endpoint_get_by_num(num, dir);
 }
 
-static void _hw_endpoint_alloc(struct hw_endpoint *ep, uint8_t transfer_type)
+static uint _hw_endpoint_data_size(struct hw_endpoint *ep)
 {
-  // size must be multiple of 64
+    // size must be multiple of 64
   uint size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
 
   // double buffered Bulk endpoint
-  if ( transfer_type == TUSB_XFER_BULK )
+  if (ep->transfer_type == TUSB_XFER_BULK)
   {
     size *= 2u;
   }
 
-  ep->hw_data_buf = next_buffer_ptr;
-  next_buffer_ptr += size;
+  return size;
+}
 
-  assert(((uintptr_t )next_buffer_ptr & 0b111111u) == 0);
+static void _hw_endpoint_alloc(struct hw_endpoint *ep)
+{
+  uint size = _hw_endpoint_data_size(ep);
+
+  uint start_block = 0;
+  uint block_count = size / DPRAM_BLOCK_SIZE;
+  uint64_t block_mask = (1ull << block_count) - 1;
+  for (uint start = 0; start < DPRAM_BLOCKS - block_count; start++)
+  {
+    if (!(dpram_state & block_mask))
+    {
+      start_block = start;
+      dpram_state |= block_mask;
+      break;
+    }
+    block_mask <<= 1;
+  }
+  hard_assert(start_block > 0);
+
+  ep->hw_data_buf = &usb_dpram->epx_data[0] + DPRAM_BLOCK_SIZE * (start_block - hw_data_offset(&usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE);
   uint dpram_offset = hw_data_offset(ep->hw_data_buf);
-  hard_assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
 
   pico_info("  Allocated %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
   // Fill in endpoint control register with buffer offset
-  uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
+  uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
 
   *ep->endpoint_control = reg;
 }
 
 static void _hw_endpoint_close(struct hw_endpoint *ep)
 {
-    // Clear hardware registers and then zero the struct
-    // Clears endpoint enable
-    *ep->endpoint_control = 0;
-    // Clears buffer available, etc
-    *ep->buffer_control = 0;
-    // Clear any endpoint state
-    memset(ep, 0, sizeof(struct hw_endpoint));
+  uint size = _hw_endpoint_data_size(ep);
+  uint block_count = size / DPRAM_BLOCK_SIZE;
+  uint start_block = (uint)(ep->hw_data_buf - &usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE + hw_data_offset(&usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE;
+  uint64_t block_mask = ((1ull << block_count) - 1) << start_block;
 
-    // Reclaim buffer space if all endpoints are closed
-    bool reclaim_buffers = true;
-    for ( uint8_t i = 1; i < USB_MAX_ENDPOINTS; i++ )
-    {
-        if (hw_endpoint_get_by_num(i, TUSB_DIR_OUT)->hw_data_buf != NULL || hw_endpoint_get_by_num(i, TUSB_DIR_IN)->hw_data_buf != NULL)
-        {
-            reclaim_buffers = false;
-            break;
-        }
-    }
-    if (reclaim_buffers)
-    {
-        next_buffer_ptr = &usb_dpram->epx_data[0];
-    }
+  // Clear hardware registers and then zero the struct
+  // Clears endpoint enable
+  *ep->endpoint_control = 0;
+  // Clears buffer available, etc
+  *ep->buffer_control = 0;
+  // Clear any endpoint state
+  memset(ep, 0, sizeof(struct hw_endpoint));
+
+  // Reclaim buffer space
+  dpram_state &= ~block_mask;
 }
 
 static void hw_endpoint_close(uint8_t ep_addr)
@@ -126,6 +140,9 @@ static void hw_endpoint_close(uint8_t ep_addr)
     _hw_endpoint_close(ep);
 }
 
+#pragma GCC push_options
+// prevent inlining of this function (__noinline is ignored on -O3)
+#pragma GCC optimize("-Os")
 static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type)
 {
   struct hw_endpoint *ep = hw_endpoint_get_by_addr(ep_addr);
@@ -176,9 +193,10 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
     }
 
     // alloc a buffer and fill in endpoint control register
-    _hw_endpoint_alloc(ep, transfer_type);
+    _hw_endpoint_alloc(ep);
   }
 }
+#pragma GCC pop_options
 
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
 {
@@ -240,7 +258,7 @@ static void __tusb_irq_path_func(reset_non_control_endpoints)(void)
   tu_memclr(hw_endpoints[1], sizeof(hw_endpoints) - 2*sizeof(hw_endpoint_t));
 
   // reclaim buffer space
-  next_buffer_ptr = &usb_dpram->epx_data[0];
+  dpram_state = (1ull<< (hw_data_offset(&usb_dpram->epx_data[0]) / DPRAM_BLOCK_SIZE)) - 1;
 }
 
 static void __tusb_irq_path_func(dcd_rp2040_irq)(void)
