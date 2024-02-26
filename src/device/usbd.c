@@ -605,7 +605,7 @@ static bool invoke_class_control(uint8_t rhport, usbd_class_driver_t const * dri
 }
 
 // This handles the actual request and its response.
-// return false will cause its caller to stall control endpoint
+// Returns false if unable to complete the request, causing caller to stall control endpoints.
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   usbd_control_set_complete_callback(NULL);
@@ -827,12 +827,20 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           {
             if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
             {
+              // "It is neither required nor recommended that the Halt feature be implemented for
+              // the Default Control Pipe" (USB 2.0 9.4.5). Also see USB 2.0 8.5.3.4.
+              TU_VERIFY(ep_num != 0);
+
+              // When receiving a CLEAR_FEATURE(EP_HALT) on an endpoint that uses DTOG (i.e., bulk or
+              // interrupt endpoint), DTOG must be reset to DATA0, regardless of if the EP is stalled or not.
+              // dcd_edpt_clear_stall is the API call that resets DTOG to DATA0, but EP must first
+              // be in stall condition.
+              
+              usbd_edpt_stall(rhport, ep_addr); // This is a NO-OP if the EP is already stalled
+
               if ( TUSB_REQ_CLEAR_FEATURE ==  p_request->bRequest )
               {
                 usbd_edpt_clear_stall(rhport, ep_addr);
-              }else
-              {
-                usbd_edpt_stall(rhport, ep_addr);
               }
             }
 
