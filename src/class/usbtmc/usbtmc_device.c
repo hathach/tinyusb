@@ -240,6 +240,18 @@ bool tud_usbtmc_transmit_dev_msg_data(
   return true;
 }
 
+bool tud_usbtmc_transmit_notification_data(const void * data, size_t len)
+{
+#ifndef NDEBUG
+  TU_ASSERT(len >= 1);
+  TU_ASSERT(usbtmc_state.ep_int_in != 0);
+#endif
+  if (usbd_edpt_busy(usbtmc_state.rhport, usbtmc_state.ep_int_in)) return false;
+
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, (void *)data, len));
+  return true;
+}
+
 void usbtmcd_init_cb(void)
 {
   usbtmc_state.capabilities = tud_usbtmc_get_capabilities_cb();
@@ -578,7 +590,9 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     }
   }
   else if (ep_addr == usbtmc_state.ep_int_in) {
-    // Good?
+    if (tud_usbtmc_notification_complete_cb) {
+      TU_VERIFY(tud_usbtmc_notification_complete_cb());
+    }
     return true;
   }
   return false;
