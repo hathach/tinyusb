@@ -36,7 +36,7 @@
 #endif
 
 #if CFG_TUH_ENABLED
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 #endif
 
 //--------------------------------------------------------------------+
@@ -419,7 +419,7 @@ uint32_t tu_edpt_stream_read(tu_edpt_stream_t* s, void* buffer, uint32_t bufsize
 #if CFG_TUSB_DEBUG
 #include <ctype.h>
 
-#if CFG_TUSB_DEBUG >= 2
+#if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL || CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
 
 char const* const tu_str_speed[] = { "Full", "Low", "High" };
 char const* const tu_str_std_request[] =
@@ -477,7 +477,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
   uint8_t const *buf8 = (uint8_t const *) buf;
 
   char format[] = "%00X";
-  format[2] += 2*size;
+  format[2] += (uint8_t) (2*size); // 1 byte = 2 hex digits
 
   const uint8_t item_per_line  = 16 / size;
 

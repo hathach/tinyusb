@@ -26,39 +26,31 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
-#include "bsp/board.h"
-
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTOTYPES
-//--------------------------------------------------------------------+
+#include "bsp/board_api.h"
 
 /* Blink pattern
  * - 250 ms  : button is not pressed
  * - 1000 ms : button is pressed (and hold)
  */
-enum  {
+enum {
   BLINK_PRESSED = 250,
   BLINK_UNPRESSED = 1000
 };
 
 #define HELLO_STR   "Hello from TinyUSB\r\n"
 
-int main(void)
-{
+int main(void) {
   board_init();
   board_led_write(true);
 
   uint32_t start_ms = 0;
   bool led_state = false;
 
-  while (1)
-  {
+  while (1) {
     uint32_t interval_ms = board_button_read() ? BLINK_PRESSED : BLINK_UNPRESSED;
 
     // Blink and print every interval ms
-    if ( !(board_millis() - start_ms < interval_ms) )
-    {
+    if (!(board_millis() - start_ms < interval_ms)) {
       board_uart_write(HELLO_STR, strlen(HELLO_STR));
 
       start_ms = board_millis();
@@ -69,16 +61,14 @@ int main(void)
 
     // echo
     uint8_t ch;
-    if ( board_uart_read(&ch, 1) > 0 )
-    {
+    if (board_uart_read(&ch, 1) > 0) {
       board_uart_write(&ch, 1);
     }
   }
 }
 
 #if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
-void app_main(void)
-{
+void app_main(void) {
   main();
 }
 #endif

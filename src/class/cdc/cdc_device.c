@@ -33,6 +33,13 @@
 
 #include "cdc_device.h"
 
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUD_CDC_LOG_LEVEL
+  #define CFG_TUD_CDC_LOG_LEVEL   CFG_TUD_LOG_LEVEL
+#endif
+
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_CDC_LOG_LEVEL, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -76,7 +83,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION tu_static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
+CFG_TUD_MEM_SECTION tu_static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
 static bool _prep_out_transaction (cdcd_interface_t* p_cdc)
 {
@@ -143,7 +150,7 @@ uint32_t tud_cdc_n_available(uint8_t itf)
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, (uint16_t) bufsize);
+  uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, (uint16_t) TU_MIN(bufsize, UINT16_MAX));
   _prep_out_transaction(p_cdc);
   return num_read;
 }
@@ -166,7 +173,7 @@ void tud_cdc_n_read_flush (uint8_t itf)
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) bufsize);
+  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) TU_MIN(bufsize, UINT16_MAX));
 
   // flush if queue more than packet size
   // may need to suppress -Wunreachable-code since most of the time CFG_TUD_CDC_TX_BUFSIZE < BULK_PACKET_SIZE
@@ -353,7 +360,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case CDC_REQUEST_SET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP)
       {
-        TU_LOG2("  Set Line Coding\r\n");
+        TU_LOG_DRV("  Set Line Coding\r\n");
         tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
       }
       else if ( stage == CONTROL_STAGE_ACK)
@@ -365,7 +372,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     case CDC_REQUEST_GET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP)
       {
-        TU_LOG2("  Get Line Coding\r\n");
+        TU_LOG_DRV("  Get Line Coding\r\n");
         tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
       }
     break;
@@ -390,7 +397,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         // Disable fifo overwriting if DTR bit is set
         tu_fifo_set_overwritable(&p_cdc->tx_ff, !dtr);
 
-        TU_LOG2("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
+        TU_LOG_DRV("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 
         // Invoke callback
         if ( tud_cdc_line_state_cb ) tud_cdc_line_state_cb(itf, dtr, rts);
@@ -403,7 +410,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       }
       else if (stage == CONTROL_STAGE_ACK)
       {
-        TU_LOG2("  Send Break\r\n");
+        TU_LOG_DRV("  Send Break\r\n");
         if ( tud_cdc_send_break_cb ) tud_cdc_send_break_cb(itf, request->wValue);
       }
     break;

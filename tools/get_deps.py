@@ -7,7 +7,7 @@ from multiprocessing import Pool
 # path, url, commit, family (Alphabet sorted by path)
 deps_mandatory = {
     'lib/FreeRTOS-Kernel': ['https://github.com/FreeRTOS/FreeRTOS-Kernel.git',
-                            '5f19e34f878af97810a7662a75eac59bd74d628b',
+                            'cc0e0707c0c748713485b870bb980852b210877f',
                             'all'],
     'lib/lwip': ['https://github.com/lwip-tcpip/lwip.git',
                  '159e31b689577dbf69cf0683bbaffbd71fa5ee10',
@@ -48,16 +48,16 @@ deps_optional = {
                        '2204191ec76283371419fbcec207da02e1bc22fa',
                        'nuc'],
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
-                           '43c45c85405a5dd114fff0ea95cca62837740c13',
+                           '84e0bd3e43910aaf71eefd62075cf57495418312',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
                             '950819b7de9b32f92c3edf396bc5ffb8d66e7009',
-                            'kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
+                            'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
-                                         '58879cfa0eca5725d8db6443ec17f8896a321042',
+                                         '0f747aaa0c16f750bdfa2ba37ec25d6c8e1bc117',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
-                           '8dc14709f2a6518b43f71efad70d900b7718d9f1',
+                           'd52e5a6a59b7c638da860c2bb309b6e78e752ff8',
                            'ra'],
     'hw/mcu/renesas/rx': ['https://github.com/kkitayam/rx_device.git',
                           '706b4e0cf485605c32351e2f90f5698267996023',
@@ -95,6 +95,9 @@ deps_optional = {
     'hw/mcu/st/cmsis_device_h7': ['https://github.com/STMicroelectronics/cmsis_device_h7.git',
                                   '60dc2c913203dc8629dc233d4384dcc41c91e77f',
                                   'stm32h7'],
+    'hw/mcu/st/cmsis_device_h5': ['https://github.com/STMicroelectronics/cmsis_device_h5.git',
+                                  '62b2cb0fbfe10c5791ee469bbde7b397c2fea8f5',
+                                  'stm32h5'],
     'hw/mcu/st/cmsis_device_l0': ['https://github.com/STMicroelectronics/cmsis_device_l0.git',
                                   '06748ca1f93827befdb8b794402320d94d02004f',
                                   'stm32l0'],
@@ -108,7 +111,7 @@ deps_optional = {
                                   'd922865fc0326a102c26211c44b8e42f52c1e53d',
                                   'stm32l5'],
     'hw/mcu/st/cmsis_device_u5': ['https://github.com/STMicroelectronics/cmsis_device_u5.git',
-                                  'bc00f3c9d8a4e25220f84c26d414902cc6bdf566',
+                                  '06d7edade7167b0eafdd550bf77cfc4fa98eae2e',
                                   'stm32u5'],
     'hw/mcu/st/cmsis_device_wb': ['https://github.com/STMicroelectronics/cmsis_device_wb.git',
                                   '9c5d1920dd9fabbe2548e10561d63db829bb744f',
@@ -140,6 +143,9 @@ deps_optional = {
     'hw/mcu/st/stm32h7xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git',
                                        'd8461b980b59b1625207d8c4f2ce0a9c2a7a3b04',
                                        'stm32h7'],
+    'hw/mcu/st/stm32h5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h5xx_hal_driver.git',
+                                       '2cf77de584196d619cec1b4586c3b9e2820a254e',
+                                       'stm32h5'],
     'hw/mcu/st/stm32l0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32l0xx_hal_driver.git',
                                        'fbdacaf6f8c82a4e1eb9bd74ba650b491e97e17b',
                                        'stm32l0'],
@@ -153,7 +159,7 @@ deps_optional = {
                                        '675c32a75df37f39d50d61f51cb0dcf53f07e1cb',
                                        'stm32l5'],
     'hw/mcu/st/stm32u5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git',
-                                       '2e1d4cdb386e33391cb261dfff4fefa92e4aa35a',
+                                       '4d93097a67928e9377e655ddd14622adc31b9770',
                                        'stm32u5'],
     'hw/mcu/st/stm32wbxx_hal_driver': ['https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git',
                                        '2c5f06638be516c1b772f768456ba637f077bac8',
@@ -164,10 +170,13 @@ deps_optional = {
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
                             '17761f5cf9dbbf2dcf665b7c04934188add20082',
                             'ch32v307'],
+    'hw/mcu/wch/ch32f20x': ['https://github.com/openwch/ch32f20x.git',
+                            '77c4095087e5ed2c548ec9058e655d0b8757663b',
+                            'ch32f20x'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'
-                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 '
+                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5'
                     'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
@@ -181,6 +190,10 @@ deps_all = {**deps_mandatory, **deps_optional}
 TOP = Path(__file__).parent.parent.resolve()
 
 
+def run_cmd(cmd):
+    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+
 def get_a_dep(d):
     if d not in deps_all.keys():
         print('{} is not found in dependency list')
@@ -189,25 +202,24 @@ def get_a_dep(d):
     commit = deps_all[d][1]
     families = deps_all[d][2]
 
-    print('cloning {} with {}'.format(d, url))
+    print(f'cloning {d} with {url}')
 
     p = Path(TOP / d)
-    git_cmd = "git -C {}".format(p)
+    git_cmd = f"git -C {p}"
 
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
-        subprocess.run("{} init".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        subprocess.run("{} remote add origin {}".format(git_cmd, url), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        run_cmd(f"{git_cmd} init")
+        run_cmd(f"{git_cmd} remote add origin {url}")
 
     # Check if commit is already fetched
-    result = subprocess.run("{} rev-parse HEAD".format(git_cmd, commit), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = run_cmd(f"{git_cmd} rev-parse HEAD")
     head = result.stdout.decode("utf-8").splitlines()[0]
-
+    run_cmd(f"{git_cmd} reset --hard")
     if commit != head:
-        subprocess.run("{} reset --hard".format(git_cmd, commit), shell=True)
-        subprocess.run("{} fetch --depth 1 origin {}".format(git_cmd, commit), shell=True)
-        subprocess.run("{} checkout FETCH_HEAD".format(git_cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
+        run_cmd(f"{git_cmd} checkout FETCH_HEAD")
 
     return 0
 

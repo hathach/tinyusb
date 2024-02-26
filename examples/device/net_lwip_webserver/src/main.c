@@ -43,7 +43,7 @@ The smartphone may be artificially picky about which Ethernet MAC address to rec
 try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00 (clearing bit 1).
 */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 #include "dhserver.h"
@@ -231,6 +231,10 @@ int main(void)
 
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
 
   /* initialize lwip, dhcp-server, dns-server, and http */
   init_lwip();

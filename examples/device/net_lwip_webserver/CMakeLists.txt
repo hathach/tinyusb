@@ -2,14 +2,14 @@ cmake_minimum_required(VERSION 3.17)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../../hw/bsp/family_support.cmake)
 
-set(LWIP ${TOP}/lib/lwip)
-if (NOT EXISTS ${LWIP}/src)
-  MESSAGE(WARNING "lib/lwip submodule not found, please run 'python tools/get_deps.py lib/lwip' to fetch it")
-  return()
-endif()
-
 # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
 family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
+
+set(LWIP ${TOP}/lib/lwip)
+if (NOT EXISTS ${LWIP}/src)
+  family_example_missing_dependency(${PROJECT} "lib/lwip")
+  return()
+endif()
 
 project(${PROJECT} C CXX ASM)
 

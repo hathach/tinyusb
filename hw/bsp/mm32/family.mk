@@ -13,6 +13,8 @@ CFLAGS += \
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized -Wno-error=cast-qual
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 SRC_C += \
 	src/portable/mindmotion/mm32/dcd_mm32f327x_otg.c \
 	$(SDK_DIR)/mm32f327x/MM32F327x/Source/system_mm32f327x.c \

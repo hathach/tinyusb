@@ -1,4 +1,4 @@
-include_guard()
+include_guard(GLOBAL)
 
 include(CMakePrintHelpers)
 
@@ -36,12 +36,15 @@ if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
   message(FATAL_ERROR "Family '${FAMILY}' is not known/supported")
 endif()
 
-# enable LTO if supported
-include(CheckIPOSupported)
-check_ipo_supported(RESULT IPO_SUPPORTED)
-if (IPO_SUPPORTED)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif ()
+if (NOT FAMILY STREQUAL rp2040)
+  # enable LTO if supported skip rp2040
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT IPO_SUPPORTED)
+  cmake_print_variables(IPO_SUPPORTED)
+  if (IPO_SUPPORTED)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+endif()
 
 set(WARNING_FLAGS_GNU
   -Wall
@@ -69,7 +72,7 @@ set(WARNING_FLAGS_GNU
   -Wredundant-decls
   )
 
-set(WARNINGS_FLAGS_IAR "")
+set(WARNING_FLAGS_IAR "")
 
 
 # Filter example based on only.txt and skip.txt
@@ -181,17 +184,31 @@ endfunction()
 function(family_configure_common TARGET RTOS)
   family_add_rtos(${TARGET} ${RTOS})
 
-  # run size after build
-  add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
-    )
+  string(TOUPPER ${BOARD} BOARD_UPPER)
+  string(REPLACE "-" "_" BOARD_UPPER ${BOARD_UPPER})
+  target_compile_definitions(${TARGET} PUBLIC
+    BOARD_${BOARD_UPPER}
+  )
 
+  # run size after build
+  find_program(SIZE_EXE ${CMAKE_SIZE})
+  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
+      )
+  endif ()
   # Add warnings flags
   target_compile_options(${TARGET} PUBLIC ${WARNING_FLAGS_${CMAKE_C_COMPILER_ID}})
 
   # Generate linker map file
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
+    endif ()
+  endif()
+  if (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
   endif()
 
   # ETM Trace option
@@ -208,6 +225,7 @@ function(family_configure_common TARGET RTOS)
       if (NOT TARGET segger_rtt)
         add_library(segger_rtt STATIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
         target_include_directories(segger_rtt PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
+        #target_compile_definitions(segger_rtt PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
       endif()
       target_link_libraries(${TARGET} PUBLIC segger_rtt)
     endif ()
@@ -227,6 +245,10 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
 
   if (DEFINED LOG)
     target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_DEBUG=${LOG})
+    if (LOG STREQUAL "4")
+      # no inline for debug level 4
+      target_compile_definitions(${TARGET}-tinyusb_config INTERFACE TU_ATTR_ALWAYS_INLINE=)
+    endif ()
   endif()
 
   if (RTOS STREQUAL "freertos")
@@ -240,6 +262,15 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
     # link tinyusb with freeRTOS kernel
     target_link_libraries(${TARGET}-tinyusb PUBLIC freertos_kernel)
   endif ()
+
+  # use max3421 as host controller
+  if (MAX3421_HOST STREQUAL "1")
+    target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUH_MAX3421=1)
+    target_sources(${TARGET}-tinyusb PUBLIC
+      ${TOP}/src/portable/analog/max3421/hcd_max3421.c
+      )
+  endif ()
+
 endfunction()
 
 
@@ -266,16 +297,18 @@ function(family_configure_device_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
 endfunction()
 
-
 # Configure host example with RTOS
 function(family_configure_host_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
 endfunction()
 
-
 # Configure host + device example with RTOS
 function(family_configure_dual_usb_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
+endfunction()
+
+function(family_example_missing_dependency TARGET DEPENDENCY)
+  message(WARNING "${DEPENDENCY} submodule needed by ${TARGET} not found, please run 'python tools/get_deps.py ${DEPENDENCY}' to fetch it")
 endfunction()
 
 #----------------------------------
@@ -289,7 +322,8 @@ function(family_add_default_example_warnings TARGET)
     -Wfatal-errors
     -Wdouble-promotion
     -Wfloat-equal
-    -Wshadow
+    # FIXME commented out because of https://github.com/raspberrypi/pico-sdk/issues/1468
+    #-Wshadow
     -Wwrite-strings
     -Wsign-compare
     -Wmissing-format-attribute
@@ -338,7 +372,7 @@ function(family_flash_jlink TARGET)
   endif ()
 
   file(GENERATE
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    OUTPUT $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     CONTENT "halt
 loadfile $<TARGET_FILE:${TARGET}>
 r
@@ -348,7 +382,7 @@ exit"
 
   add_custom_target(${TARGET}-jlink
     DEPENDS ${TARGET}
-    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.jlink
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     )
 endfunction()
 
@@ -366,6 +400,22 @@ function(family_flash_stlink TARGET)
 endfunction()
 
 
+# Add flash openocd target
+function(family_flash_openocd TARGET CLI_OPTIONS)
+  if (NOT DEFINED OPENOCD)
+    set(OPENOCD openocd)
+  endif ()
+
+  separate_arguments(CLI_OPTIONS_LIST UNIX_COMMAND ${CLI_OPTIONS})
+
+  # note skip verify since it has issue with rp2040
+  add_custom_target(${TARGET}-openocd
+    DEPENDS ${TARGET}
+    COMMAND ${OPENOCD} ${CLI_OPTIONS_LIST} -c "program $<TARGET_FILE:${TARGET}> reset exit"
+    VERBATIM
+    )
+endfunction()
+
 # Add flash pycod target
 function(family_flash_pyocd TARGET)
   if (NOT DEFINED PYOC)
@@ -378,6 +428,18 @@ function(family_flash_pyocd TARGET)
     )
 endfunction()
 
+
+# Add flash teensy_cli target
+function(family_flash_teensy TARGET)
+  if (NOT DEFINED TEENSY_CLI)
+    set(TEENSY_CLI teensy_loader_cli)
+  endif ()
+
+  add_custom_target(${TARGET}-teensy
+    DEPENDS ${TARGET}
+    COMMAND ${TEENSY_CLI} --mcu=${TEENSY_MCU} -w -s $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
+    )
+endfunction()
 
 # Add flash using NXP's LinkServer (redserver)
 # https://www.nxp.com/design/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKERSERVER
@@ -397,6 +459,18 @@ function(family_flash_nxplink TARGET)
 endfunction()
 
 
+function(family_flash_dfu_util TARGET OPTION)
+  if (NOT DEFINED DFU_UTIL)
+    set(DFU_UTIL dfu-util)
+  endif ()
+
+  add_custom_target(${TARGET}-dfu-util
+    DEPENDS ${TARGET}
+    COMMAND ${DFU_UTIL} -R -d ${DFU_UTIL_VID_PID} -a 0 -D $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
+    VERBATIM
+    )
+endfunction()
+
 #----------------------------------
 # Family specific
 #----------------------------------
@@ -407,6 +481,11 @@ include(${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
 if (NOT FAMILY_MCUS)
   set(FAMILY_MCUS ${FAMILY})
 endif()
+
+# if use max3421 as host controller, expand FAMILY_MCUS to include max3421
+if (MAX3421_HOST STREQUAL "1")
+  set(FAMILY_MCUS ${FAMILY_MCUS} MAX3421)
+endif ()
 
 # save it in case of re-inclusion
 set(FAMILY_MCUS ${FAMILY_MCUS} CACHE INTERNAL "")

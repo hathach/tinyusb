@@ -2,8 +2,8 @@
 [codespell]
 # In the event of a false positive, add the problematic word, in all lowercase, to 'ignore-words.txt' (one word per line).
 # Or copy & paste the whole problematic line to 'exclude-file.txt'
-ignore-words = .codespell/ignore-words.txt
-exclude-file = .codespell/exclude-file.txt
+ignore-words = tools/codespell/ignore-words.txt
+exclude-file = tools/codespell/exclude-file.txt
 check-filenames =
 check-hidden =
 count =
