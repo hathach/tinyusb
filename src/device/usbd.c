@@ -502,7 +502,6 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
     {
       case DCD_EVENT_BUS_RESET:
         TU_LOG_USBD(": %s Speed\r\n", tu_str_speed[event.bus_reset.speed]);
-        _usbd_dev.speed = event.bus_reset.speed;
       TU_ATTR_FALLTHROUGH;
 
       case DCD_EVENT_UNPLUGGED:
@@ -527,6 +526,16 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr)
 
         // Completely clear the current USB state
         usbd_reset(event.rhport);
+
+        // Recover the intended bus speed
+        if (DCD_EVENT_BUS_RESET == event.event_id)
+        {
+          _usbd_dev.speed = event.bus_reset.speed;
+        }
+        else if (DCD_EVENT_UNPLUGGED == event.event_id)
+        {
+          _usbd_dev.speed = DCD_EVENT_INVALID;
+        }
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
@@ -1096,6 +1105,16 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
+  volatile static uint8_t last_event_id = DCD_EVENT_INVALID;
+
+  // Skip the useless repeating bus states
+  if (last_event_id == event->event_id && DCD_EVENT_UNPLUGGED <= event->event_id && DCD_EVENT_RESUME >= event->event_id)
+  {
+    return;
+  }
+
+  last_event_id = event->event_id;
+
   switch (event->event_id)
   {
     case DCD_EVENT_SUSPEND:
