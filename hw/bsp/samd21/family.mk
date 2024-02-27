@@ -20,6 +20,7 @@ LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
+	src/portable/microchip/samd/hcd_samd.c \
 	${SDK_DIR}/gcc/gcc/startup_samd21.c \
 	${SDK_DIR}/gcc/system_samd21.c \
 	${SDK_DIR}/hpl/gclk/hpl_gclk.c \
