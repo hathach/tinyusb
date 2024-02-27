@@ -211,7 +211,6 @@ function(family_configure_common TARGET RTOS)
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
   endif()
 
-
   # ETM Trace option
   if (TRACE_ETM STREQUAL "1")
     target_compile_definitions(${TARGET} PUBLIC TRACE_ETM)
@@ -429,6 +428,18 @@ function(family_flash_pyocd TARGET)
     )
 endfunction()
 
+
+# Add flash teensy_cli target
+function(family_flash_teensy TARGET)
+  if (NOT DEFINED TEENSY_CLI)
+    set(TEENSY_CLI teensy_loader_cli)
+  endif ()
+
+  add_custom_target(${TARGET}-teensy
+    DEPENDS ${TARGET}
+    COMMAND ${TEENSY_CLI} --mcu=${TEENSY_MCU} -w -s $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
+    )
+endfunction()
 
 # Add flash using NXP's LinkServer (redserver)
 # https://www.nxp.com/design/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKERSERVER

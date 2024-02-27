@@ -1130,8 +1130,8 @@ void dcd_int_handler(uint8_t rhport) {
     dwc2->gotgint = otg_int;
   }
 
-  if (int_status & GINTSTS_SOF) {
-    dwc2->gotgint = GINTSTS_SOF;
+  if(int_status & GINTSTS_SOF) {
+    dwc2->gintsts = GINTSTS_SOF;
 
     if (_sof_en) {
       uint32_t frame = (dwc2->dsts & (DSTS_FNSOF)) >> 8;

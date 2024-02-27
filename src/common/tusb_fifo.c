@@ -224,6 +224,7 @@ static void _ff_push_n(tu_fifo_t* f, void const * app_buf, uint16_t n, uint16_t 
         if (wrap_bytes > 0) _ff_push_const_addr(ff_buf, app_buf, wrap_bytes);
       }
       break;
+    default: break;
   }
 }
 

@@ -171,6 +171,8 @@ enum {
 //--------------------------------------------------------------------+
 
 typedef struct {
+  uint8_t daddr;
+
   struct TU_ATTR_PACKED {
     uint8_t ep_dir        : 1;
     uint8_t is_iso        : 1;
@@ -179,16 +181,18 @@ typedef struct {
     uint8_t xfer_pending  : 1;
     uint8_t xfer_complete : 1;
   };
+
   struct TU_ATTR_PACKED {
-    uint8_t daddr : 4;
     uint8_t ep_num : 4;
+    uint16_t packet_size : 12;
   };
 
-  uint16_t packet_size;
   uint16_t total_len;
   uint16_t xferred_len;
   uint8_t* buf;
 } max3421_ep_t;
+
+TU_VERIFY_STATIC(sizeof(max3421_ep_t) == 12, "size is not correct");
 
 typedef struct {
   // cached register
@@ -320,7 +324,7 @@ static void fifo_read(uint8_t rhport, uint8_t * buffer, uint16_t len, bool in_is
 static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr) {
   reg_write(rhport, HIRQ_ADDR, data, in_isr);
   // HIRQ write 1 is clear
-  _hcd_data.hirq &= ~data;
+  _hcd_data.hirq &= (uint8_t) ~data;
 }
 
 static inline void hien_write(uint8_t rhport, uint8_t data, bool in_isr) {
@@ -390,7 +394,7 @@ static void free_ep(uint8_t daddr) {
 }
 
 static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
-  size_t const idx = cur_ep - _hcd_data.ep;
+  size_t const idx = (size_t) (cur_ep - _hcd_data.ep);
 
   // starting from next endpoint
   for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
@@ -537,8 +541,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
   (void) rhport;
   (void) daddr;
 
-  uint8_t ep_num = tu_edpt_number(ep_desc->bEndpointAddress);
-  uint8_t ep_dir = tu_edpt_dir(ep_desc->bEndpointAddress);
+  uint8_t const ep_num = tu_edpt_number(ep_desc->bEndpointAddress);
+  tusb_dir_t const ep_dir = tu_edpt_dir(ep_desc->bEndpointAddress);
 
   max3421_ep_t * ep;
   if (daddr == 0 && ep_num == 0) {
@@ -547,15 +551,15 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
     ep = allocate_ep();
     TU_ASSERT(ep);
     ep->daddr = daddr;
-    ep->ep_num = ep_num;
-    ep->ep_dir = ep_dir;
+    ep->ep_num = (uint8_t) (ep_num & 0x0f);
+    ep->ep_dir = (ep_dir == TUSB_DIR_IN) ? 1 : 0;
   }
 
   if ( TUSB_XFER_ISOCHRONOUS == ep_desc->bmAttributes.xfer ) {
     ep->is_iso = 1;
   }
 
-  ep->packet_size = tu_edpt_packet_size(ep_desc);
+  ep->packet_size = (uint16_t) (tu_edpt_packet_size(ep_desc) & 0x7ff);
 
   return true;
 }
@@ -577,7 +581,7 @@ void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   }
   sndbc_write(rhport, xact_len, in_isr);
 
-  uint8_t hxfr = ep->ep_num | HXFR_OUT_NIN | (ep->is_iso ? HXFR_ISO : 0);
+  uint8_t const hxfr = (uint8_t ) (ep->ep_num | HXFR_OUT_NIN | (ep->is_iso ? HXFR_ISO : 0));
   hxfr_write(rhport, hxfr, in_isr);
 }
 
@@ -590,7 +594,7 @@ void xact_in(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
     reg_write(rhport, HCTL_ADDR, hctl, in_isr);
   }
 
-  uint8_t hxfr = ep->ep_num | (ep->is_iso ? HXFR_ISO : 0);
+  uint8_t const hxfr = (uint8_t) (ep->ep_num | (ep->is_iso ? HXFR_ISO : 0));
   hxfr_write(rhport, hxfr, in_isr);
 }
 
@@ -623,13 +627,13 @@ TU_ATTR_ALWAYS_INLINE static inline void xact_inout(uint8_t rhport, max3421_ep_t
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   uint8_t const ep_num = tu_edpt_number(ep_addr);
-  uint8_t const ep_dir = tu_edpt_dir(ep_addr);
+  uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
 
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
   TU_VERIFY(ep);
 
   // control transfer can switch direction
-  ep->ep_dir = ep_dir;
+  ep->ep_dir = ep_dir ? 1u : 0u;
 
   ep->buf = buffer;
   ep->total_len = buflen;
@@ -748,9 +752,9 @@ static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t re
 
   // save data toggle
   if (ep->ep_dir) {
-    ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1 : 0;
+    ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1u : 0u;
   }else {
-    ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1 : 0;
+    ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1u : 0u;
   }
 
   ep->xfer_pending = 0;
@@ -929,7 +933,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   }
 
   // clear all interrupt except SNDBAV_IRQ (never clear by us). Note RCVDAV_IRQ, HXFRDN_IRQ already clear while processing
-  hirq &= ~HIRQ_SNDBAV_IRQ;
+  hirq &= (uint8_t) ~HIRQ_SNDBAV_IRQ;
   if ( hirq ) {
     hirq_write(rhport, hirq, in_isr);
   }

@@ -49,10 +49,8 @@ typedef struct
   uint8_t rx_ff_buf[CFG_TUD_VENDOR_RX_BUFSIZE];
   uint8_t tx_ff_buf[CFG_TUD_VENDOR_TX_BUFSIZE];
 
-#if CFG_FIFO_MUTEX
-  osal_mutex_def_t rx_ff_mutex;
-  osal_mutex_def_t tx_ff_mutex;
-#endif
+  OSAL_MUTEX_DEF(rx_ff_mutex);
+  OSAL_MUTEX_DEF(tx_ff_mutex);
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_VENDOR_EPSIZE];
@@ -183,10 +181,8 @@ void vendord_init(void)
     tu_fifo_config(&p_itf->rx_ff, p_itf->rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE, 1, false);
     tu_fifo_config(&p_itf->tx_ff, p_itf->tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, 1, false);
 
-#if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&p_itf->rx_ff, NULL, osal_mutex_create(&p_itf->rx_ff_mutex));
     tu_fifo_config_mutex(&p_itf->tx_ff, osal_mutex_create(&p_itf->tx_ff_mutex), NULL);
-#endif
   }
 }
 

@@ -53,10 +53,10 @@
 #define MAX3421_TX_PAD          1 // MOSI = PAD_2, SCK = PAD_3
 #define MAX3421_RX_PAD          0 // MISO = PAD_2
 
-#define MAX3421_CS_PIN          16      // D11
+#define MAX3421_CS_PIN          18     // D10
 
-#define MAX3421_INTR_PIN        18      // D10
-#define MAX3421_INTR_EIC_ID     2       // EIC2
+#define MAX3421_INTR_PIN        7      // D10
+#define MAX3421_INTR_EIC_ID     7      // EIC7
 
 #ifdef __cplusplus
  }

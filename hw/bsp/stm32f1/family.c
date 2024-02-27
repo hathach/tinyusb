@@ -46,6 +46,7 @@ void USBWakeUp_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
+UART_HandleTypeDef UartHandle;
 
 void board_init(void) {
   board_stm32f1_clock_init();
@@ -81,6 +82,30 @@ void board_init(void) {
   GPIO_InitStruct.Pull = BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN : GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
+
+#ifdef UART_DEV
+  // UART
+  UART_CLK_EN();
+
+  GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  //GPIO_InitStruct.Alternate = UART_GPIO_AF;
+  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
+
+  UartHandle = (UART_HandleTypeDef) {
+      .Instance        = UART_DEV,
+      .Init.BaudRate   = CFG_BOARD_UART_BAUDRATE,
+      .Init.WordLength = UART_WORDLENGTH_8B,
+      .Init.StopBits   = UART_STOPBITS_1,
+      .Init.Parity     = UART_PARITY_NONE,
+      .Init.HwFlowCtl  = UART_HWCONTROL_NONE,
+      .Init.Mode       = UART_MODE_TX_RX,
+      .Init.OverSampling = UART_OVERSAMPLING_16
+  };
+  HAL_UART_Init(&UartHandle);
+#endif
 
   // USB Pins
   // Configure USB DM and DP pins.
@@ -127,9 +152,8 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
-  (void) buf;
-  (void) len;
-  return 0;
+  HAL_UART_Transmit(&UartHandle, (uint8_t *) (uintptr_t) buf, len, 0xffff);
+  return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
