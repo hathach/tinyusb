@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 Jean Gressmann <jean@0x42.de>
+ * Copyright (c) 2020, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,15 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
+ * This file is part of the TinyUSB stack.
  */
 
-#pragma once
+#ifndef BOARD_H_
+#define BOARD_H_
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 // LED
-#define LED_PIN               10 // PA10
+#define LED_PIN               /*PA*/17 /*(D13)*/
 #define LED_STATE_ON          1
+
+// Button
+#define BUTTON_PIN            /*PA*/14 /*(D2)*/
+#define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_SERCOM           0
-#define UART_RX_PIN           7
-#define UART_TX_PIN           6
+#define UART_RX_PIN           /*PA*/11 /*(D0)*/
+#define UART_TX_PIN           /*PA*/10 /*(D1)*/
+
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* BOARD_H_ */
