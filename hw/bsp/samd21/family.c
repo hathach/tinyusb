@@ -60,7 +60,13 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB_Handler(void) {
+#if CFG_TUD_ENABLED
   tud_int_handler(0);
+#endif
+
+#if CFG_TUH_ENABLED && !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
+  tuh_int_handler(0);
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -140,8 +146,14 @@ void board_init(void) {
   gpio_set_pin_function(PIN_PA19, PINMUX_PA19F_TCC0_WO3);
   _gclk_enable_channel(TCC0_GCLK_ID, GCLK_CLKCTRL_GEN_GCLK0_Val);
 
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-  max3421_init();
+#if CFG_TUH_ENABLED
+  #if defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+    max3421_init();
+  #else
+    // VBUS Power
+    gpio_set_pin_direction(PIN_PA28, GPIO_DIRECTION_OUT);
+    gpio_set_pin_level(PIN_PA28, true);
+  #endif
 #endif
 }
 

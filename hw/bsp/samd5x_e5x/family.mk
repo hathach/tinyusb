@@ -18,6 +18,7 @@ LDFLAGS_GCC += \
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
+	src/portable/microchip/samd/hcd_samd.c \
 	${SDK_DIR}/gcc/gcc/startup_${SAM_FAMILY}.c \
 	${SDK_DIR}/gcc/system_${SAM_FAMILY}.c \
 	${SDK_DIR}/hpl/gclk/hpl_gclk.c \
