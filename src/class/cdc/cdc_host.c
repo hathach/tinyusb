@@ -1140,22 +1140,19 @@ static void ftdi_internal_control_complete(tuh_xfer_t * xfer) {
   TU_LOG_RESULT("  control complete", success);
 
   if (success) {
-    switch (xfer->setup->bRequest) {
-      case FTDI_SIO_SET_MODEM_CTRL_REQUEST:
-        p_cdc->line_state = p_cdc->requested_line_state;
-        break;
-
-      case FTDI_SIO_SET_DATA_REQUEST:
-        p_cdc->line_coding.stop_bits = p_cdc->requested_line_coding.stop_bits;
-        p_cdc->line_coding.parity    = p_cdc->requested_line_coding.parity;
-        p_cdc->line_coding.data_bits = p_cdc->requested_line_coding.data_bits;
-        break;
-
-      case FTDI_SIO_SET_BAUDRATE_REQUEST:
-        p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
-        break;
-
-      default: break;
+    if (xfer->setup->bRequest      == FTDI_SIO_SET_MODEM_CTRL_REQUEST &&
+        xfer->setup->bmRequestType == FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE ) {
+      p_cdc->line_state = p_cdc->requested_line_state;
+    }
+    if (xfer->setup->bRequest      == FTDI_SIO_SET_DATA_REQUEST &&
+        xfer->setup->bmRequestType == FTDI_SIO_SET_DATA_REQUEST_TYPE ) {
+      p_cdc->line_coding.stop_bits = p_cdc->requested_line_coding.stop_bits;
+      p_cdc->line_coding.parity    = p_cdc->requested_line_coding.parity;
+      p_cdc->line_coding.data_bits = p_cdc->requested_line_coding.data_bits;
+    }
+    if (xfer->setup->bRequest      == FTDI_SIO_SET_BAUDRATE_REQUEST &&
+        xfer->setup->bmRequestType == FTDI_SIO_SET_BAUDRATE_REQUEST_TYPE ) {
+      p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
     }
   }
 
@@ -1180,7 +1177,10 @@ static bool ftdi_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_c
 }
 
 static void ftdi_set_line_coding_stage1_complete(tuh_xfer_t * xfer) {
-  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+  uint8_t const idx = ftdi_get_idx(xfer);
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_ASSERT(p_cdc,);
+  uint8_t const itf_num = p_cdc->bInterfaceNumber;
   set_line_coding_stage1_complete(xfer, itf_num,
                                   ftdi_set_data_request,           // control request function to set data format
                                   ftdi_internal_control_complete); // control complete function to be called after request
@@ -1413,7 +1413,8 @@ static bool ftdi_determine_type(cdch_interface_t * p_cdc, uint8_t const idx)
       break;
   }
 
-  TU_LOG_P_CDC("  %s detected", ftdi_chip_name[p_cdc->ftdi.chip_type]);
+  TU_LOG_P_CDC("  %s detected (bcdDevice = 0x%04x)",
+               ftdi_chip_name[p_cdc->ftdi.chip_type], desc_dev[idx]->bcdDevice);
 
   return (p_cdc->ftdi.chip_type != UNKNOWN);
 }
