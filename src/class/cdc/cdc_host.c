@@ -909,7 +909,6 @@ static bool acm_set_control_line_state(cdch_interface_t * p_cdc, tuh_xfer_cb_t c
 
 static bool acm_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->acm_capability.support_line_request);
-  TU_VERIFY(p_cdc->requested_line_coding.data_bits && p_cdc->requested_line_coding.bit_rate);
   TU_VERIFY((p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8) ||
              p_cdc->requested_line_coding.data_bits == 16);
 
