@@ -2292,9 +2292,10 @@ static bool pl2303_set_line_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t comp
    * even to the same values as before. Thus we actually need to filter
    * in this specific case.
    */
-  // TODO really necessary to check? what to do in this case when no transfer will happen?
-  // callback is not called...
-  TU_VERIFY(memcmp(&p_cdc->requested_line_coding, &p_cdc->line_coding, sizeof(cdc_line_coding_t) ) != 0);
+  TU_VERIFY(p_cdc->requested_line_coding.data_bits != p_cdc->line_coding.data_bits ||
+            p_cdc->requested_line_coding.stop_bits != p_cdc->line_coding.stop_bits ||
+            p_cdc->requested_line_coding.parity    != p_cdc->line_coding.parity    ||
+            p_cdc->requested_line_coding.bit_rate  != p_cdc->line_coding.bit_rate );
 
   /* For reference buf[6] data bits value */
   TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8, 0);
