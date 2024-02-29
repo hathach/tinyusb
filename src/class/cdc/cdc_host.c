@@ -113,7 +113,6 @@ CFG_TUH_MEM_SECTION
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
 
 #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_PL2303
-  CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
   static tusb_desc_device_t desc_dev[CFG_TUH_ENUMERATION_BUFSIZE];
 #endif
 
