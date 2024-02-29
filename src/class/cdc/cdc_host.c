@@ -932,8 +932,8 @@ static bool acm_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete
     },
     .bRequest = CDC_REQUEST_SET_LINE_CODING,
     .wValue   = 0,
-    .wIndex   = tu_htole16(p_cdc->bInterfaceNumber),
-    .wLength  = tu_htole16(sizeof(cdc_line_coding_t))
+    .wIndex   = tu_htole16((uint16_t) p_cdc->bInterfaceNumber),
+    .wLength  = tu_htole16((uint16_t) sizeof(cdc_line_coding_t))
   };
 
   // use usbh enum buf to hold line coding since user line_coding variable does not live long enough
@@ -1612,7 +1612,7 @@ static bool cp210x_set_request(cdch_interface_t * p_cdc, uint8_t command, uint16
     },
     .bRequest = command,
     .wValue   = tu_htole16(value),
-    .wIndex   = tu_htole16(p_cdc->bInterfaceNumber),
+    .wIndex   = tu_htole16((uint16_t) p_cdc->bInterfaceNumber),
     .wLength  = tu_htole16(length)
   };
 
@@ -1852,9 +1852,9 @@ static bool ch34x_set_request(cdch_interface_t * p_cdc, uint8_t direction, uint8
           .direction = direction & 0x01u
       },
       .bRequest = request,
-      .wValue   = tu_htole16 (value),
-      .wIndex   = tu_htole16 (index),
-      .wLength  = tu_htole16 (length)
+      .wValue   = tu_htole16(value),
+      .wIndex   = tu_htole16(index),
+      .wLength  = tu_htole16(length)
   };
 
   // use usbh enum buf since application variable does not live long enough
@@ -2232,9 +2232,9 @@ static bool pl2303_set_request(cdch_interface_t * p_cdc, uint8_t request, uint8_
   tusb_control_request_t const request_setup = {
     .bmRequestType = requesttype,
     .bRequest      = request,
-    .wValue        = tu_htole16 (value),
-    .wIndex        = tu_htole16 (index),
-    .wLength       = tu_htole16 (length)
+    .wValue        = tu_htole16(value),
+    .wIndex        = tu_htole16(index),
+    .wLength       = tu_htole16(length)
   };
 
   // use usbh enum buf since application variable does not live long enough
