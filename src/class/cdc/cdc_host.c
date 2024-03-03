@@ -63,6 +63,26 @@
 
 #define TU_ASSERT_COMPLETE(...) _GET_3RD_ARG(__VA_ARGS__, TU_ASSERT_COMPLETE_2ARGS, TU_ASSERT_COMPLETE_1ARGS, _dummy)(__VA_ARGS__)
 
+// handle line control defines
+#if defined(CFG_TUH_CDC_LINE_CONTROL_ON_ENUM) && \
+    (defined(CFG_TUH_CDC_DTR_CONTROL_ON_ENUM) || defined(CFG_TUH_CDC_RTS_CONTROL_ON_ENUM))
+  TU_VERIFY_STATIC(false, "Contradictory line control defines");
+#endif
+
+#ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+  #define LINE_CONTROL_ON_ENUM CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+#elif defined(CFG_TUH_CDC_DTR_CONTROL_ON_ENUM) || defined(CFG_TUH_CDC_RTS_CONTROL_ON_ENUM)
+  #ifndef CFG_TUH_CDC_DTR_CONTROL_ON_ENUM
+    #define CFG_TUH_CDC_DTR_CONTROL_ON_ENUM 0
+  #endif
+  #ifndef CFG_TUH_CDC_RTS_CONTROL_ON_ENUM
+    #define CFG_TUH_CDC_RTS_CONTROL_ON_ENUM 0
+  #endif
+  #define LINE_CONTROL_ON_ENUM ( ( CFG_TUH_CDC_DTR_CONTROL_ON_ENUM ? CDC_CONTROL_LINE_STATE_DTR : 0 ) | \
+                                 ( CFG_TUH_CDC_RTS_CONTROL_ON_ENUM ? CDC_CONTROL_LINE_STATE_RTS : 0 ) )
+#endif
+
+
 //--------------------------------------------------------------------+
 // Host CDC Interface
 //--------------------------------------------------------------------+
@@ -1057,9 +1077,9 @@ static void acm_process_config(tuh_xfer_t * xfer) {
 
   switch (state) {
     case CONFIG_ACM_SET_CONTROL_LINE_STATE:
-      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
+      #ifdef LINE_CONTROL_ON_ENUM
         if (p_cdc->acm_capability.support_line_request) {
-          p_cdc->requested_line_state.all = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+          p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
           TU_ASSERT_COMPLETE(acm_set_control_line_state(p_cdc, acm_process_config, CONFIG_ACM_SET_LINE_CODING), 1);
           break;
         }
@@ -1352,8 +1372,8 @@ static void ftdi_process_config(tuh_xfer_t * xfer) {
       break;
 
     case CONFIG_FTDI_MODEM_CTRL:
-      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-        p_cdc->requested_line_state.all = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      #ifdef LINE_CONTROL_ON_ENUM
+        p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
         TU_ASSERT_COMPLETE(ftdi_update_mctrl(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_COMPLETE));
         break;
       #else
@@ -1835,8 +1855,8 @@ static void cp210x_process_config(tuh_xfer_t * xfer) {
       #endif
 
     case CONFIG_CP210X_SET_DTR_RTS:
-      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-        p_cdc->requested_line_state.all = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      #ifdef LINE_CONTROL_ON_ENUM
+        p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
         TU_ASSERT_COMPLETE(cp210x_set_mhs(p_cdc, cp210x_internal_control_complete,
                                           CONFIG_CP210X_COMPLETE));
         break;
@@ -2117,8 +2137,8 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       break;
 
     case CONFIG_CH34X_MODEM_CONTROL:
-      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-        p_cdc->requested_line_state.all = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      #ifdef LINE_CONTROL_ON_ENUM
+        p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
         TU_ASSERT_COMPLETE(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete,
                                                     CONFIG_CH34X_COMPLETE));
         break;
@@ -2662,8 +2682,8 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
       #endif
 
     case CONFIG_PL2303_MODEM_CONTROL:
-      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-        p_cdc->requested_line_state.all = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      #ifdef LINE_CONTROL_ON_ENUM
+        p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
         TU_ASSERT_COMPLETE(pl2303_set_control_lines(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_FLOW_CTRL_READ));
         break;
       #else
