@@ -56,6 +56,7 @@ typedef struct
   uint8_t ep_out;
 
   // Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
+  // TODO use cdc_line_control_state_t instead of uint8_t
   uint8_t line_state;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
@@ -124,6 +125,7 @@ bool tud_cdc_n_connected(uint8_t itf)
 }
 
 uint8_t tud_cdc_n_get_line_state (uint8_t itf)
+// TODO use cdc_line_control_state_t instead of uint8_t
 {
   return _cdcd_itf[itf].line_state;
 }

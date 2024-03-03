@@ -414,15 +414,17 @@ typedef struct TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
-typedef struct TU_ATTR_PACKED
+typedef union TU_ATTR_PACKED
 {
-  uint16_t dtr : 1;
-  uint16_t rts : 1;
-  uint16_t : 6;
-  uint16_t : 8;
+  struct {
+  uint8_t dtr : 1;
+  uint8_t rts : 1;
+  uint8_t     : 6;
+  };
+  uint8_t all;
 } cdc_line_control_state_t;
 
-TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
+TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 1, "size is not correct");
 
 TU_ATTR_PACKED_END  // End of all packed definitions
 TU_ATTR_BIT_FIELD_ORDER_END
