@@ -82,7 +82,6 @@
                                  ( CFG_TUH_CDC_RTS_CONTROL_ON_ENUM ? CDC_CONTROL_LINE_STATE_RTS : 0 ) )
 #endif
 
-
 //--------------------------------------------------------------------+
 // Host CDC Interface
 //--------------------------------------------------------------------+
@@ -1172,19 +1171,21 @@ static bool ftdi_change_speed(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_c
 static bool ftdi_set_data_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 7 && p_cdc->requested_line_coding.data_bits <= 8, 0);
   uint16_t value = (uint16_t) (
-    ((uint32_t) p_cdc->requested_line_coding.data_bits & 0xf)       |  // data bit quantity is stored in bits 0-3
-    ((uint32_t) p_cdc->requested_line_coding.parity    & 0x7) <<  8 |  // parity is stored in bits 8-10, same coding
-    ((uint32_t) p_cdc->requested_line_coding.stop_bits & 0x3) << 11 ); // stop bits quantity is stored in bits 11-12, same coding
-                                                                       // not each FTDI supports 1.5 stop bits
+    ((uint32_t) p_cdc->requested_line_coding.data_bits & 0xfu)       |  // data bit quantity is stored in bits 0-3
+    ((uint32_t) p_cdc->requested_line_coding.parity    & 0x7u) <<  8 |  // parity is stored in bits 8-10, same coding
+    ((uint32_t) p_cdc->requested_line_coding.stop_bits & 0x3u) << 11 ); // stop bits quantity is stored in bits 11-12, same coding
+                                                                        // not each FTDI supports 1.5 stop bits
 
   return ftdi_set_request(p_cdc, FTDI_SIO_SET_DATA_REQUEST, FTDI_SIO_SET_DATA_REQUEST_TYPE,
                           value, p_cdc->ftdi.channel, complete_cb, user_data);
 }
 
 static inline bool ftdi_update_mctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  // FTDI has the same bit coding
+  uint16_t value = (uint16_t) ((p_cdc->requested_line_state.dtr ? (uint32_t) FTDI_SIO_SET_DTR_HIGH : (uint32_t) FTDI_SIO_SET_DTR_LOW) |
+                               (p_cdc->requested_line_state.rts ? (uint32_t) FTDI_SIO_SET_RTS_HIGH : (uint32_t) FTDI_SIO_SET_RTS_LOW));
+
   return ftdi_set_request(p_cdc, FTDI_SIO_SET_MODEM_CTRL_REQUEST, FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE,
-                          p_cdc->requested_line_state.all, p_cdc->ftdi.channel, complete_cb, user_data);
+                          value, p_cdc->ftdi.channel, complete_cb, user_data);
 }
 
 //------------- Driver API -------------//
@@ -1704,9 +1705,9 @@ static bool cp210x_set_baudrate_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t 
 static bool cp210x_set_line_ctl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 9, 0);
   uint16_t lcr = (uint16_t) (
-    ((uint32_t) p_cdc->requested_line_coding.data_bits & 0xf) << 8 | // data bit quantity is stored in bits 8-11
-    ((uint32_t) p_cdc->requested_line_coding.parity    & 0xf) << 4 | // parity is stored in bits 4-7, same coding
-    ((uint32_t) p_cdc->requested_line_coding.stop_bits & 0xf));     // parity is stored in bits 0-3, same coding
+    ((uint32_t) p_cdc->requested_line_coding.data_bits & 0xfu) << 8 | // data bit quantity is stored in bits 8-11
+    ((uint32_t) p_cdc->requested_line_coding.parity    & 0xfu) << 4 | // parity is stored in bits 4-7, same coding
+    ((uint32_t) p_cdc->requested_line_coding.stop_bits & 0xfu));      // parity is stored in bits 0-3, same coding
 
   return cp210x_set_request(p_cdc, CP210X_SET_LINE_CTL, lcr, NULL, 0, complete_cb, user_data);
 }
