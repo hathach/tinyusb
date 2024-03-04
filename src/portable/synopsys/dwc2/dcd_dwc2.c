@@ -1078,6 +1078,8 @@ void dcd_int_handler(uint8_t rhport) {
     // USBRST is start of reset.
     dwc2->gintsts = GINTSTS_USBRST;
     bus_reset(rhport);
+
+    dcd_event_bus_reset(rhport, TUSB_SPEED_INVALID, true);
   }
 
   if (int_status & GINTSTS_ENUMDNE) {
