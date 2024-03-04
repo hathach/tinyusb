@@ -621,7 +621,7 @@ TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage) 
   (void) osal_mutex_unlock(_usbh_mutex);
 }
 
-static void _xfer_complete(uint8_t daddr, xfer_result_t result) {
+static void _control_xfer_complete(uint8_t daddr, xfer_result_t result) {
   TU_LOG_USBH("\r\n");
 
   // duplicate xfer since user can execute control transfer within callback
@@ -644,32 +644,32 @@ static void _xfer_complete(uint8_t daddr, xfer_result_t result) {
   }
 }
 
-static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) ep_addr;
 
-  const uint8_t rhport = usbh_get_rhport(dev_addr);
+  const uint8_t rhport = usbh_get_rhport(daddr);
   tusb_control_request_t const * request = &_ctrl_xfer.request;
 
   if (XFER_RESULT_SUCCESS != result) {
-    TU_LOG_USBH("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, dev_addr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
+    TU_LOG_USBH("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, daddr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
     TU_LOG_BUF_USBH(request, 8);
 
     // terminate transfer if any stage failed
-    _xfer_complete(dev_addr, result);
+    _control_xfer_complete(daddr, result);
   }else {
     switch(_ctrl_xfer.stage) {
       case CONTROL_STAGE_SETUP:
         if (request->wLength) {
           // DATA stage: initial data toggle is always 1
           _set_control_xfer_stage(CONTROL_STAGE_DATA);
-          TU_ASSERT( hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength) );
+          TU_ASSERT( hcd_edpt_xfer(rhport, daddr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength) );
           return true;
         }
         TU_ATTR_FALLTHROUGH;
 
       case CONTROL_STAGE_DATA:
         if (request->wLength) {
-          TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, dev_addr);
+          TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, daddr);
           TU_LOG_MEM_USBH(_ctrl_xfer.buffer, xferred_bytes, 2);
         }
 
@@ -677,12 +677,23 @@ static bool usbh_control_xfer_cb (uint8_t dev_addr, uint8_t ep_addr, xfer_result
 
         // ACK stage: toggle is always 1
         _set_control_xfer_stage(CONTROL_STAGE_ACK);
-        TU_ASSERT( hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0) );
-      break;
+        TU_ASSERT( hcd_edpt_xfer(rhport, daddr, tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction), NULL, 0) );
+        break;
 
-      case CONTROL_STAGE_ACK:
-        _xfer_complete(dev_addr, result);
-      break;
+      case CONTROL_STAGE_ACK: {
+        // Abort all pending transfers if SET_CONFIGURATION request
+        // NOTE: should we force closing all non-control endpoints in the future?
+        if (request->bRequest == TUSB_REQ_SET_CONFIGURATION && request->bmRequestType == 0x00) {
+          for(uint8_t epnum=1; epnum<CFG_TUH_ENDPOINT_MAX; epnum++) {
+            for(uint8_t dir=0; dir<2; dir++) {
+              tuh_edpt_abort_xfer(daddr, tu_edpt_addr(epnum, dir));
+            }
+          }
+        }
+
+        _control_xfer_complete(daddr, result);
+        break;
+      }
 
       default: return false;
     }
@@ -732,7 +743,7 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     TU_VERIFY(hcd_edpt_abort_xfer(dev->rhport, daddr, ep_addr));
     // mark as ready and release endpoint if transfer is aborted
     dev->ep_status[epnum][dir].busy = false;
-    usbh_edpt_release(daddr, ep_addr);
+    tu_edpt_release(&dev->ep_status[epnum][dir], _usbh_mutex);
   }
 
   return true;
@@ -1414,9 +1425,6 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     }
 
     case ENUM_SET_CONFIG:
-      // Parse configuration & set up drivers
-      // Driver open aren't allowed to make any usb transfer yet
-      TU_ASSERT(_parse_configuration_descriptor(daddr, (tusb_desc_configuration_t*) _usbh_ctrl_buf),);
       TU_ASSERT(tuh_configuration_set(daddr, CONFIG_NUM, process_enumeration, ENUM_CONFIG_DRIVER),);
       break;
 
@@ -1426,6 +1434,10 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       TU_ASSERT(dev,);
 
       dev->configured = 1;
+
+      // Parse configuration & set up drivers
+      // driver_open() must not make any usb transfer
+      TU_ASSERT(_parse_configuration_descriptor(daddr, (tusb_desc_configuration_t*) _usbh_ctrl_buf),);
 
       // Start the Set Configuration process for interfaces (itf = TUSB_INDEX_INVALID_8)
       // Since driver can perform control transfer within its set_config, this is done asynchronously.
