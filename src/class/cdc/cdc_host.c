@@ -50,8 +50,9 @@
                                                           DADDR, ITF_NUM, NAME, ##__VA_ARGS__)
 #define TU_LOG_P_CDC(TXT,...)                  TU_LOG_CDC(TXT, p_cdc->daddr, p_cdc->bInterfaceNumber, \
                                                           serial_drivers[p_cdc->serial_drid].name, ##__VA_ARGS__)
-#define TU_LOG_P_CDC_BOOL(TXT,VAL)             TU_LOG_P_CDC(TXT " " #VAL " = %s", VAL ? "true" : "false" )
+#define TU_LOG_P_CDC_BOOL(TXT,VAL)             TU_LOG_P_CDC(TXT " " #VAL " = %d", VAL)
 
+// assert and set config complete
 #define TU_ASSERT_COMPLETE_DEFINE(_cond, _itf_offset)                                                \
   do {                                                                                               \
     if (!(_cond)) { _MESS_FAILED(); TU_BREAKPOINT(); set_config_complete(idx, _itf_offset, false); } \
@@ -586,22 +587,46 @@ static bool set_function_call (
   }
 }
 
-bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+bool tuh_cdc_set_control_line_state_u(uint8_t idx, cdc_line_control_state_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  // uses cdc_line_control_state_t union for line_state
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
-  TU_LOG_P_CDC("set control line state line_state = %u", line_state);
+  TU_LOG_P_CDC("set control line state dtr = %u rts = %u", line_state.dtr, line_state.rts );
   cdch_serial_driver_t const * driver = &serial_drivers[p_cdc->serial_drid];
 
-  p_cdc->requested_line_state.all = (uint8_t) line_state;
+  p_cdc->requested_line_state = line_state;
 
   bool ret = set_function_call(p_cdc, driver->set_control_line_state, complete_cb, user_data);
 
   if (ret && !complete_cb) {
-    p_cdc->line_state.all = (uint8_t) line_state;
+    p_cdc->line_state = line_state;
   }
 //  TU_LOG_P_CDC_BOOL("set control line state", ret);
 
   return ret;
+}
+
+bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  // uses uint16_t for line_state => DTR (bit 0), RTS (bit 1)
+
+  return tuh_cdc_set_control_line_state_u(idx, (cdc_line_control_state_t) { .all = (uint8_t) line_state },
+                                          complete_cb, user_data);
+}
+
+bool tuh_cdc_set_dtr(uint8_t idx, bool dtr_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
+  cdc_line_control_state_t const line_state = { .dtr = dtr_state, .rts = p_cdc->line_state.rts };
+
+  return tuh_cdc_set_control_line_state_u(idx, line_state, complete_cb, user_data);
+}
+
+bool tuh_cdc_set_rts(uint8_t idx, bool rts_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  cdch_interface_t * p_cdc = get_itf(idx);
+  TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
+  cdc_line_control_state_t const line_state = { .rts = rts_state, .dtr = p_cdc->line_state.dtr };
+
+  return tuh_cdc_set_control_line_state_u(idx, line_state, complete_cb, user_data);
 }
 
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {

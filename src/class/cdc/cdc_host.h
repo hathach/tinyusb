@@ -132,8 +132,14 @@ bool tuh_cdc_read_clear (uint8_t idx);
 //   - The function will return true if transfer is successful, false otherwise.
 //--------------------------------------------------------------------+
 
-// Request to Set Control Line State: DTR (bit 0), RTS (bit 1)
-bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+// Request to Set Control Line State
+bool tuh_cdc_set_control_line_state_u(uint8_t idx, cdc_line_control_state_t line_state, // uses cdc_line_control_state_t union for line_state
+                                      tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state,                   // uses uint16_t for line_state (legacy function)
+                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data);    // DTR (bit 0), RTS (bit 1)
+
+bool tuh_cdc_set_dtr(uint8_t idx, bool dtr_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data); // Request to Set DTR
+bool tuh_cdc_set_rts(uint8_t idx, bool rts_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data); // Request to Set RTS
 
 // Request to set baudrate
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
