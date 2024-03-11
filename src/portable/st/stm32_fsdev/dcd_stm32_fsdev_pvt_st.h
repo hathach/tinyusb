@@ -296,6 +296,19 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USB
 {
 #ifdef FSDEV_BUS_32BIT
   (void) USBx;
+  volatile uint32_t count = 10;
+  /*
+  WA: few cycles for RX PMA descriptor to update
+  This workaround is ported from stm32h5xx_hal_pcd.h : PCD_GET_EP_RX_CNT H5
+  This code fixes an issue when the code is compiled in GCC with a fast optimization(O2/O3) and device with an high frequency.
+  The function doesn't return the correct value.
+  Issue observed on Windows 10 and stm32h573i_dk and tud_task() scheduled by IT, the device is not migrated the USB device is not visible .
+  */
+  while (count > 0U)
+  {
+    asm("NOP");
+    count--;
+  }
   return (pma32[2*bEpIdx + 1] & 0x03FF0000) >> 16;
 #else
   __I uint16_t *regPtr = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
