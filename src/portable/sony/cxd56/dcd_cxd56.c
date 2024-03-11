@@ -39,6 +39,25 @@
 #define CXD56_SETUP_QUEUE_DEPTH (4)
 #define CXD56_MAX_DATA_OUT_SIZE (64)
 
+/* Allocate/free I/O requests.
+ * Should not be called from interrupt processing!
+ */
+
+#define EP_ALLOCREQ(ep)            (ep)->ops->allocreq(ep)
+#define EP_FREEREQ(ep,req)         (ep)->ops->freereq(ep,req)
+
+/* Allocate/free an I/O buffer.
+ * Should not be called from interrupt processing!
+ */
+
+#ifdef CONFIG_USBDEV_DMA
+#  define EP_ALLOCBUFFER(ep,nb)    (ep)->ops->allocbuffer(ep,nb)
+#  define EP_FREEBUFFER(ep,buf)    (ep)->ops->freebuffer(ep,buf)
+#else
+#  define EP_ALLOCBUFFER(ep,nb)    kmm_malloc(nb)
+#  define EP_FREEBUFFER(ep,buf)    kmm_free(buf)
+#endif
+
 OSAL_QUEUE_DEF(usbd_int_set, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, struct usb_ctrlreq_s);
 
 struct usbdcd_driver_s
