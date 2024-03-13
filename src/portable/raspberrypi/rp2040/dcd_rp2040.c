@@ -60,7 +60,7 @@ TU_ATTR_ALWAYS_INLINE static inline struct hw_endpoint* hw_endpoint_get_by_num(u
   return &hw_endpoints[num][dir];
 }
 
-static struct hw_endpoint* hw_endpoint_get_by_addr(uint8_t ep_addr) {
+TU_ATTR_ALWAYS_INLINE static inline struct hw_endpoint* hw_endpoint_get_by_addr(uint8_t ep_addr) {
   uint8_t num = tu_edpt_number(ep_addr);
   tusb_dir_t dir = tu_edpt_dir(ep_addr);
   return hw_endpoint_get_by_num(num, dir);
@@ -192,47 +192,31 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void) {
   }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void reset_ep0_pid(void)
-{
-    // Abort any transactions from a prior control transfer, because
-    // receiving SETUP doesn't reset buffer control state. This works around
-    // a possible USB hardware erratum.
+TU_ATTR_ALWAYS_INLINE static inline void reset_ep0(void) {
+  // If we have finished this transfer on EP0 set pid back to 1 for next
+  // setup transfer. Also clear a stall in case
+  for (uint8_t dir = 0; dir < 2; dir++) {
+    struct hw_endpoint* ep = hw_endpoint_get_by_num(0, dir);
+    if (ep->active) {
+      // Abort any pending transfer from a prior control transfer per USB specs
+      // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
+      // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
+      uint32_t const abort_mask = (dir ? USB_EP_ABORT_EP0_IN_BITS : USB_EP_ABORT_EP0_OUT_BITS);
+      if (rp2040_chip_version() >= 2) {
+        usb_hw_set->abort = abort_mask;
+        while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
+      }
 
-    // With this workaround a race window still exists, but smaller.
-    // ABORT flag is unusable prior to hardware B2 (RP2040-E2), so a larger
-    // race window exists for B1 and earlier.
-    if (rp2040_chip_version() >= 2) {
-        usb_hw_set->abort = 0x3;
-        while ((usb_hw->abort_done & 0x3) != 0x3)
-            ;
+      _hw_endpoint_buffer_control_set_value32(ep, USB_BUF_CTRL_DATA1_PID | USB_BUF_CTRL_SEL);
+      hw_endpoint_reset_transfer(ep);
+
+      if (rp2040_chip_version() >= 2) {
+        usb_hw_clear->abort_done = abort_mask;
+        usb_hw_clear->abort = abort_mask;
+      }
     }
-    // If we have finished this transfer on EP0 set pid back to 1 for next
-    // setup transfer. Also clear a stall in case
-    uint8_t addrs[] = {0x0, 0x80};
-    for (uint i = 0 ; i < TU_ARRAY_SIZE(addrs); i++)
-    {
-        struct hw_endpoint *ep = hw_endpoint_get_by_addr(addrs[i]);
-        ep->next_pid = 1u;
-        // Reset the buffer control now to minimize race conditions
-        _hw_endpoint_buffer_control_set_value32(ep, USB_BUF_CTRL_DATA1_PID | USB_BUF_CTRL_SEL);
-        // Explicit delay, because the one in
-        // _hw_endpoint_buffer_control_set_value32 is only to set AVAILABLE
-        __asm volatile (
-            "b 1f\n"
-            "1: b 1f\n"
-            "1: b 1f\n"
-            "1: b 1f\n"
-            "1: b 1f\n"
-            "1: b 1f\n"
-            "1:\n"
-            : : : "memory");
-        // Make sure local ep state matches peripheral
-        hw_endpoint_reset_transfer(ep);
-    }
-    if (rp2040_chip_version() >= 2) {
-        usb_hw_clear->abort = 0x3;
-        usb_hw_clear->abort_done = 0x3;
-    }
+    ep->next_pid = 1u;
+  }
 }
 
 static void __tusb_irq_path_func(reset_non_control_endpoints)(void) {
@@ -300,7 +284,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     uint8_t const* setup = remove_volatile_cast(uint8_t const*, &usb_dpram->setup_packet);
 
     // reset pid to both 1 (data and ack)
-    reset_ep0_pid();
+    reset_ep0();
 
     // Pass setup packet to tiny usb
     dcd_event_setup_received(0, setup, true);
@@ -387,6 +371,8 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
 
 void dcd_init(uint8_t rhport) {
   assert(rhport == 0);
+
+  TU_LOG(2, "Chip Version B%u\r\n", rp2040_chip_version());
 
   // Reset hardware to default state
   rp2040_usb_init();

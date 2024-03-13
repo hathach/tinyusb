@@ -35,13 +35,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPE
 //--------------------------------------------------------------------+
-
-// Direction strings for debug
-const char* ep_dir_string[] = {
-    "out",
-    "in",
-};
-
 static void _hw_endpoint_xfer_sync(struct hw_endpoint* ep);
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
@@ -105,22 +98,14 @@ void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoi
     value |= or_mask;
     if (or_mask & USB_BUF_CTRL_AVAIL) {
       if (*ep->buffer_control & USB_BUF_CTRL_AVAIL) {
-        panic("ep %d %s was already available", tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+        panic("ep %02X was already available", ep->ep_addr);
       }
       *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
-      // 12 cycle delay.. (should be good for 48*12Mhz = 576Mhz)
+      // 4.1.2.5.1 Con-current access: 12 cycles (should be good for 48*12Mhz = 576Mhz) after write to buffer control
       // Don't need delay in host mode as host is in charge
-#if !CFG_TUH_ENABLED
-      __asm volatile (
-          "b 1f\n"
-          "1: b 1f\n"
-          "1: b 1f\n"
-          "1: b 1f\n"
-          "1: b 1f\n"
-          "1: b 1f\n"
-          "1:\n"
-          : : : "memory");
-#endif
+      if ( !is_host_mode()) {
+        busy_wait_at_least_cycles(12);
+      }
     }
   }
 
@@ -204,9 +189,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint* ep, uint8_t* buffer, uint16_t to
 
   if (ep->active) {
     // TODO: Is this acceptable for interrupt packets?
-    TU_LOG(1, "WARN: starting new transfer on already active ep %d %s\r\n", tu_edpt_number(ep->ep_addr),
-           ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
-
+    TU_LOG(1, "WARN: starting new transfer on already active ep %02X\r\n", ep->ep_addr);
     hw_endpoint_reset_transfer(ep);
   }
 
@@ -314,8 +297,7 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint* ep) {
 
   // Part way through a transfer
   if (!ep->active) {
-    panic("Can't continue xfer on inactive ep %d %s", tu_edpt_number(ep->ep_addr),
-          ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+    panic("Can't continue xfer on inactive ep %02X", ep->ep_addr);
   }
 
   // Update EP struct from hardware state
@@ -324,8 +306,7 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint* ep) {
   // Now we have synced our state with the hardware. Is there more data to transfer?
   // If we are done then notify tinyusb
   if (ep->remaining_len == 0) {
-    pico_trace("Completed transfer of %d bytes on ep %d %s\r\n",
-               ep->xferred_len, tu_edpt_number(ep->ep_addr), ep_dir_string[tu_edpt_dir(ep->ep_addr)]);
+    pico_trace("Completed transfer of %d bytes on ep %02X\r\n", ep->xferred_len, ep->ep_addr);
     // Notify caller we are done so it can notify the tinyusb stack
     hw_endpoint_lock_update(ep, -1);
     return true;
