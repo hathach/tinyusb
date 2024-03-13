@@ -68,9 +68,9 @@ typedef struct {
     uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
-
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
+  volatile uint8_t setup_count;
 
   uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
@@ -378,6 +378,7 @@ bool tud_init(uint8_t rhport) {
 
   TU_LOG_USBD("USBD init on controller %u\r\n", rhport);
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(usbd_device_t));
+  TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(dcd_event_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_fifo_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_edpt_stream_t));
 
@@ -482,7 +483,12 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case DCD_EVENT_SETUP_RECEIVED:
+        _usbd_dev.setup_count--;
         TU_LOG_BUF(CFG_TUD_LOG_LEVEL, &event.setup_received, 8);
+        if (_usbd_dev.setup_count) {
+          TU_LOG_USBD("  Skipped since there is other SETUP in queue\r\n");
+          break;
+        }
 
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
@@ -1061,6 +1067,11 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       }
 
       // skip osal queue for SOF in usbd task
+      break;
+
+    case DCD_EVENT_SETUP_RECEIVED:
+      _usbd_dev.setup_count++;
+      send = true;
       break;
 
     default:
