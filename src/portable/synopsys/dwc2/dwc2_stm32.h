@@ -142,6 +142,13 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 // - dwc2 3.30a (H5) use USB_HS_PHYC
 // - dwc2 4.11a (U5) use femtoPHY
 static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+
+    // On some boards Vbus may not connected to USB controller
+    // Setting this bit makes Vbus to be considered internally to be always at Vbus valid level
+#ifdef CFG_DWC2_VBUS_IS_NOT_CONNECTED
+    dwc2->stm32_gccfg |= STM32_GCCFG_VBDEN;
+#endif
+
   if (hs_phy_type == HS_PHY_TYPE_NONE) {
     // Enable on-chip FS PHY
     dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
