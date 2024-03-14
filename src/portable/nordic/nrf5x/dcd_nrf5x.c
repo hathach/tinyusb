@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2023 Matej Fitos
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +49,7 @@
 #endif
 
 #include "device/dcd.h"
+#include "dcd_nrf5x_cb.h"
 
 // TODO remove later
 #include "device/usbd.h"
@@ -105,6 +107,91 @@ static struct
   // nRF can only carry one DMA at a time, this is used to guard the access to EasyDMA
   atomic_bool dma_running;
 }_dcd;
+
+//--------------------------------------------------------------------+
+// HFCLK helper
+//--------------------------------------------------------------------+
+#ifdef SOFTDEVICE_PRESENT
+
+// For enable/disable hfclk with SoftDevice
+#include "nrf_mbr.h"
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+
+#ifndef SD_MAGIC_NUMBER
+  #define SD_MAGIC_NUMBER   0x51B1E5DB
+#endif
+
+static inline bool is_sd_existed(void)
+{
+  return *((uint32_t*)(SOFTDEVICE_INFO_STRUCT_ADDRESS+4)) == SD_MAGIC_NUMBER;
+}
+
+// check if SD is existed and enabled
+static inline bool is_sd_enabled(void)
+{
+  if ( !is_sd_existed() ) return false;
+
+  uint8_t sd_en = false;
+  (void) sd_softdevice_is_enabled(&sd_en);
+  return sd_en;
+}
+#endif
+
+static bool hfclk_running(void)
+{
+#ifdef SOFTDEVICE_PRESENT
+  if ( is_sd_enabled() )
+  {
+    uint32_t is_running = 0;
+    (void) sd_clock_hfclk_is_running(&is_running);
+    return (is_running ? true : false);
+  }
+#endif
+
+  return nrf_clock_hf_is_running(NRF_CLOCK, NRF_CLOCK_HFCLK_HIGH_ACCURACY);
+}
+
+static void hfclk_enable(void)
+{
+#if CFG_TUSB_OS == OPT_OS_MYNEWT
+  usb_clock_request();
+  return;
+#else
+
+  // already running, nothing to do
+  if ( hfclk_running() ) return;
+
+#ifdef SOFTDEVICE_PRESENT
+  if ( is_sd_enabled() )
+  {
+    (void)sd_clock_hfclk_request();
+    return;
+  }
+#endif
+
+  dcd_enable_hfclk();
+#endif
+}
+
+static void hfclk_disable(void)
+{
+#if CFG_TUSB_OS == OPT_OS_MYNEWT
+  usb_clock_release();
+  return;
+#else
+
+#ifdef SOFTDEVICE_PRESENT
+  if ( is_sd_enabled() )
+  {
+    (void)sd_clock_hfclk_release();
+    return;
+  }
+#endif
+
+  dcd_disable_hfclk();
+#endif
+}
 
 /*------------------------------------------------------------------*/
 /* Control / Bulk / Interrupt (CBI) Transfer
@@ -247,6 +334,18 @@ static void xact_in_dma(uint8_t epnum)
 void dcd_init (uint8_t rhport)
 {
   TU_LOG1("dcd init\r\n");
+
+#ifdef SOFTDEVICE_PRESENT
+  if(!is_sd_enabled()){
+#endif
+    if(NRF_POWER->USBREGSTATUS & POWER_USBREGSTATUS_VBUSDETECT_Msk){
+      //Bootloader already initialized USB
+      dcd_enable_hfclk(); //Just reserving HFCLK
+    }
+#ifdef SOFTDEVICE_PRESENT
+  }
+#endif
+  
   (void) rhport;
 }
 
@@ -876,92 +975,8 @@ void dcd_int_handler(uint8_t rhport)
 }
 
 //--------------------------------------------------------------------+
-// HFCLK helper
-//--------------------------------------------------------------------+
-#ifdef SOFTDEVICE_PRESENT
-
-// For enable/disable hfclk with SoftDevice
-#include "nrf_mbr.h"
-#include "nrf_sdm.h"
-#include "nrf_soc.h"
-
-#ifndef SD_MAGIC_NUMBER
-  #define SD_MAGIC_NUMBER   0x51B1E5DB
-#endif
-
-static inline bool is_sd_existed(void)
-{
-  return *((uint32_t*)(SOFTDEVICE_INFO_STRUCT_ADDRESS+4)) == SD_MAGIC_NUMBER;
-}
-
-// check if SD is existed and enabled
-static inline bool is_sd_enabled(void)
-{
-  if ( !is_sd_existed() ) return false;
-
-  uint8_t sd_en = false;
-  (void) sd_softdevice_is_enabled(&sd_en);
-  return sd_en;
-}
-#endif
-
-static bool hfclk_running(void)
-{
-#ifdef SOFTDEVICE_PRESENT
-  if ( is_sd_enabled() )
-  {
-    uint32_t is_running = 0;
-    (void) sd_clock_hfclk_is_running(&is_running);
-    return (is_running ? true : false);
-  }
-#endif
-
-  return nrf_clock_hf_is_running(NRF_CLOCK, NRF_CLOCK_HFCLK_HIGH_ACCURACY);
-}
-
-static void hfclk_enable(void)
-{
-#if CFG_TUSB_OS == OPT_OS_MYNEWT
-  usb_clock_request();
-  return;
-#else
-
-  // already running, nothing to do
-  if ( hfclk_running() ) return;
-
-#ifdef SOFTDEVICE_PRESENT
-  if ( is_sd_enabled() )
-  {
-    (void)sd_clock_hfclk_request();
-    return;
-  }
-#endif
-
-  nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_HFCLKSTARTED);
-  nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTART);
-#endif
-}
-
-static void hfclk_disable(void)
-{
-#if CFG_TUSB_OS == OPT_OS_MYNEWT
-  usb_clock_release();
-  return;
-#else
-
-#ifdef SOFTDEVICE_PRESENT
-  if ( is_sd_enabled() )
-  {
-    (void)sd_clock_hfclk_release();
-    return;
-  }
-#endif
-
-  nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
-#endif
-}
-
 // Power & Clock Peripheral on nRF5x to manage USB
+//--------------------------------------------------------------------+
 //
 // USB Bus power is managed by Power module, there are 3 VBUS power events:
 // Detected, Ready, Removed. Upon these power events, This function will

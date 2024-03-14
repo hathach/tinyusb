@@ -93,6 +93,11 @@ Notable contributors
 -  Add new DCD and HCD port for Mentor musb with MSP432E4
 -  Add new class driver for USB Video Class (UVC 1.5)
 
+`Matej Fitos <https://github.com/Matt-prog>`__
+-----------------------------------------------
+
+-  Improved HFCLK management for nRF5x
+
 `Nathan Conrad <https://github.com/pigrew>`__
 ---------------------------------------------
 
