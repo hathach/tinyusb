@@ -248,7 +248,7 @@ bool tud_usbtmc_transmit_notification_data(const void * data, size_t len)
 #endif
   if (usbd_edpt_busy(usbtmc_state.rhport, usbtmc_state.ep_int_in)) return false;
 
-  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, (void *)data, len));
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, (void *)(uintptr_t) data, len));
   return true;
 }
 
