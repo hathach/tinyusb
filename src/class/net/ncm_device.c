@@ -111,6 +111,8 @@ typedef struct
   uint8_t ep_in;
   uint8_t ep_out;
 
+  uint16_t packet_size;
+
   const ndp16_t *ndp;
   uint8_t num_datagrams, current_datagram_index;
 
@@ -130,6 +132,7 @@ typedef struct
   uint16_t nth_sequence;          // Sequence number counter for transmitted NTBs
 
   bool transferring;
+  bool send_zlp;
 
 } ncm_interface_t;
 
@@ -159,6 +162,27 @@ CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint8_t receive_ntb[CFG_TUD_NCM
 tu_static ncm_interface_t ncm_interface;
 
 /*
+ * Retrieves the packet size of in endpoint from bulk ep descriptor pair
+ */
+static uint16_t get_epin_packet_size(uint8_t const* p_desc)
+{
+  tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+
+  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer);
+  if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
+    return tu_edpt_packet_size(desc_ep);
+  }
+
+  desc_ep = (tusb_desc_endpoint_t const *)tu_desc_next((uint8_t const*)desc_ep);
+
+  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer);
+  if(tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
+    return tu_edpt_packet_size(desc_ep);
+  }
+  return 0;
+}
+
+/*
  * Set up the NTB state in ncm_interface to be ready to add datagrams.
  */
 static void ncm_prepare_for_tx(void) {
@@ -176,9 +200,17 @@ static void ncm_start_tx(void) {
   if (ncm_interface.transferring) {
     return;
   }
+  if(ncm_interface.send_zlp) {
+    usbd_edpt_xfer(0, ncm_interface.ep_in, NULL, 0);
+    ncm_interface.transferring = true;
+    ncm_interface.send_zlp = false;
+    return;
+  }
 
   transmit_ntb_t *ntb = &transmit_ntb[ncm_interface.current_ntb];
-  size_t ntb_length = ncm_interface.next_datagram_offset;
+  // use actual payload length (non padded), reduces likelyhood of aligning with packet length, requiring fewer ZLP
+  ndp16_datagram_t * last_dg_info = &ntb->ndp.datagram[ncm_interface.datagram_count-1];
+  size_t ntb_length = last_dg_info->wDatagramIndex + last_dg_info->wDatagramLength;
 
   // Fill in NTB header
   ntb->nth.dwSignature = NTH16_SIGNATURE;
@@ -197,6 +229,7 @@ static void ncm_start_tx(void) {
   // Kick off an endpoint transfer
   usbd_edpt_xfer(0, ncm_interface.ep_in, ntb->data, ntb_length);
   ncm_interface.transferring = true;
+  ncm_interface.send_zlp = ((ntb_length % ncm_interface.packet_size) == 0);
 
   // Swap to the other NTB and clear it out
   ncm_interface.current_ntb = 1 - ncm_interface.current_ntb;
@@ -315,6 +348,9 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
 
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in) );
+  // get configured packet size, needed for ZLP sending, host may choose less than maximum supported CFG_TUD_NET_ENDPOINT_SIZE
+  ncm_interface.packet_size = get_epin_packet_size(p_desc);
+  TU_ASSERT(ncm_interface.packet_size != 0);
 
   drv_len += 2*sizeof(tusb_desc_endpoint_t);
 
@@ -460,7 +496,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
 
     // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
-    if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
+    if ((ncm_interface.send_zlp || ncm_interface.datagram_count) && ncm_interface.itf_data_alt == 1) {
       ncm_start_tx();
     }
   }
