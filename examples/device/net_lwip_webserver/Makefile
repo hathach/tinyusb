@@ -63,6 +63,7 @@ SRC_C += \
   lib/lwip/src/netif/slipif.c \
   lib/lwip/src/apps/http/httpd.c \
   lib/lwip/src/apps/http/fs.c \
+  lib/lwip/src/apps/lwiperf/lwiperf.c \
   lib/networking/dhserver.c \
   lib/networking/dnserver.c \
   lib/networking/rndis_reports.c

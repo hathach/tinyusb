@@ -74,6 +74,7 @@ target_sources(${PROJECT} PUBLIC
   ${LWIP}/src/netif/slipif.c
   ${LWIP}/src/apps/http/httpd.c
   ${LWIP}/src/apps/http/fs.c
+  ${LWIP}/src/apps/lwiperf/lwiperf.c
   )
 
 # due to warnings from other net source, we need to prevent error from some of the warnings options
