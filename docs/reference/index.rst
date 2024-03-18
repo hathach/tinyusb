@@ -32,6 +32,7 @@ Host Stack
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
+- Communications Device Class (CDC): Abstract Control Model (ACM), FTDI, CP210x, CH34x
 - Hub currently only supports 1 level of hub (due to my laziness)
 
 OS Abstraction layer
