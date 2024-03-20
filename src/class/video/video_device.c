@@ -114,6 +114,8 @@ typedef struct TU_ATTR_PACKED {
   uint32_t max_payload_transfer_size;
   uint8_t  error_code;/* error code */
   uint8_t  state;    /* 0:probing 1:committed 2:streaming */
+
+  video_probe_and_commit_control_t probe_commit_payload; /* Probe and Commit control */
   /*------------- From this point, data is not cleared by bus reset -------------*/
   CFG_TUSB_MEM_ALIGN uint8_t ep_buf[CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE]; /* EP transfer buffer for streaming */
 } videod_streaming_interface_t;
@@ -734,12 +736,11 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   return true;
 }
 
-static bool _init_vs_configuration(videod_streaming_interface_t *stm)
-{
+static bool _init_vs_configuration(videod_streaming_interface_t *stm) {
   /* initialize streaming settings */
   stm->state = VS_STATE_PROBING;
   stm->max_payload_transfer_size = 0;
-  video_probe_and_commit_control_t *param = (video_probe_and_commit_control_t *)&stm->ep_buf;
+  video_probe_and_commit_control_t *param = &stm->probe_commit_payload;
   tu_memclr(param, sizeof(*param));
   return _update_streaming_parameters(stm, param);
 }
@@ -816,11 +817,8 @@ static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm)
   if (hdr_len + remaining < pkt_len) {
     pkt_len = hdr_len + remaining;
   }
+  TU_ASSERT(pkt_len >= hdr_len);
   uint_fast16_t data_len = pkt_len - hdr_len;
-  TU_LOG2("    prepare remain = %u, hdr_len = %u, pkt_len = %u, offset = %lu, data_len = %u\r\n", remaining, hdr_len, pkt_len, stm->offset, data_len);
-  if ( data_len > sizeof(stm->ep_buf) ) {
-    TU_BREAKPOINT();
-  }
   memcpy(&stm->ep_buf[hdr_len], stm->buffer + stm->offset, data_len);
   stm->offset += data_len;
   remaining -= data_len;
@@ -1025,17 +1023,15 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
     case VIDEO_VS_CTL_PROBE:
       if (self->state != VS_STATE_PROBING) {
         self->state = VS_STATE_PROBING;
-        _init_vs_configuration(self);
       }
 
       switch (request->bRequest) {
         case VIDEO_REQUEST_SET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
-            TU_VERIFY(sizeof(video_probe_and_commit_control_t) >= request->wLength, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)),
+            TU_VERIFY(tud_control_xfer(rhport, request, &self->probe_commit_payload, sizeof(video_probe_and_commit_control_t)),
                       VIDEO_ERROR_UNKNOWN);
           } else if (stage == CONTROL_STAGE_DATA) {
-            TU_VERIFY(_update_streaming_parameters(self, (video_probe_and_commit_control_t*)self->ep_buf),
+            TU_VERIFY(_update_streaming_parameters(self, &self->probe_commit_payload),
                       VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
           }
           return VIDEO_ERROR_NONE;
@@ -1043,7 +1039,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         case VIDEO_REQUEST_GET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
             TU_VERIFY(request->wLength, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer(rhport, request, &self->probe_commit_payload, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 
@@ -1053,8 +1049,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         case VIDEO_REQUEST_GET_DEF:
           if (stage == CONTROL_STAGE_SETUP) {
             TU_VERIFY(request->wLength, VIDEO_ERROR_UNKNOWN);
-            video_probe_and_commit_control_t tmp;
-            tmp = *(video_probe_and_commit_control_t*)&self->ep_buf;
+            video_probe_and_commit_control_t tmp = self->probe_commit_payload;
             TU_VERIFY(_negotiate_streaming_parameters(self, request->bRequest, &tmp), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             TU_VERIFY(tud_control_xfer(rhport, request, &tmp, sizeof(tmp)), VIDEO_ERROR_UNKNOWN);
           }
@@ -1083,10 +1078,9 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
       switch (request->bRequest) {
         case VIDEO_REQUEST_SET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
-            TU_VERIFY(sizeof(video_probe_and_commit_control_t) >= request->wLength, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer(rhport, request, &self->probe_commit_payload, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           } else if (stage == CONTROL_STAGE_DATA) {
-            video_probe_and_commit_control_t *param = (video_probe_and_commit_control_t*)self->ep_buf;
+            video_probe_and_commit_control_t *param = &self->probe_commit_payload;
             TU_VERIFY(_update_streaming_parameters(self, param), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             /* Set the negotiated value */
             self->max_payload_transfer_size = param->dwMaxPayloadTransferSize;
@@ -1110,7 +1104,7 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
         case VIDEO_REQUEST_GET_CUR:
           if (stage == CONTROL_STAGE_SETUP) {
             TU_VERIFY(request->wLength, VIDEO_ERROR_UNKNOWN);
-            TU_VERIFY(tud_control_xfer(rhport, request, self->ep_buf, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
+            TU_VERIFY(tud_control_xfer(rhport, request, &self->probe_commit_payload, sizeof(video_probe_and_commit_control_t)), VIDEO_ERROR_UNKNOWN);
           }
           return VIDEO_ERROR_NONE;
 
@@ -1224,8 +1218,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void videod_init(void)
-{
+void videod_init(void) {
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO; ++i) {
     videod_interface_t* ctl = &_videod_itf[i];
     tu_memclr(ctl, sizeof(*ctl));
@@ -1236,8 +1229,7 @@ void videod_init(void)
   }
 }
 
-void videod_reset(uint8_t rhport)
-{
+void videod_reset(uint8_t rhport) {
   (void) rhport;
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO; ++i) {
     videod_interface_t* ctl = &_videod_itf[i];
@@ -1249,8 +1241,7 @@ void videod_reset(uint8_t rhport)
   }
 }
 
-uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
-{
+uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len) {
   TU_VERIFY((TUSB_CLASS_VIDEO       == itf_desc->bInterfaceClass) &&
             (VIDEO_SUBCLASS_CONTROL == itf_desc->bInterfaceSubClass) &&
             (VIDEO_ITF_PROTOCOL_15  == itf_desc->bInterfaceProtocol), 0);
@@ -1309,8 +1300,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
-{
+bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request) {
   int err;
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
   uint_fast8_t itfnum = tu_u16_low(request->wIndex);
@@ -1348,8 +1338,7 @@ bool videod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
   return false;
 }
 
-bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
+bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void)result; (void)xferred_bytes;
 
   /* find streaming handle */
