@@ -112,8 +112,7 @@ uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t b
 // Endpoint Helper for both Host and Device stack
 //--------------------------------------------------------------------+
 
-bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
-{
+bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   (void) mutex;
 
   // pre-check to help reducing mutex lock
@@ -122,8 +121,7 @@ bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
 
   // can only claim the endpoint if it is not busy and not claimed yet.
   bool const available = (ep_state->busy == 0) && (ep_state->claimed == 0);
-  if (available)
-  {
+  if (available) {
     ep_state->claimed = 1;
   }
 
@@ -132,16 +130,14 @@ bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
   return available;
 }
 
-bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex)
-{
+bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   (void) mutex;
 
   (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   // can only release the endpoint if it is claimed and not busy
   bool const ret = (ep_state->claimed == 1) && (ep_state->busy == 0);
-  if (ret)
-  {
+  if (ret) {
     ep_state->claimed = 0;
   }
 

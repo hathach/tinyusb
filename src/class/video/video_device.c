@@ -207,6 +207,24 @@ static void const* _find_desc(void const *beg, void const *end, uint_fast8_t des
   return cur;
 }
 
+/** Find the first descriptor of two given types
+ *
+ * @param[in] beg        The head of descriptor byte array.
+ * @param[in] end        The tail of descriptor byte array.
+ * @param[in] desc_type_0 The first target descriptor type.
+ * @param[in] desc_type_1 The second target descriptor type.
+ *
+ * @return The pointer for interface descriptor.
+ * @retval end   did not found interface descriptor */
+static void const* _find_desc_2_type(void const *beg, void const *end, uint_fast8_t desc_type_0, uint_fast8_t desc_type_1)
+{
+  void const *cur = beg;
+  while ((cur < end) && (desc_type_0 != tu_desc_type(cur)) && (desc_type_1 != tu_desc_type(cur))) {
+    cur = tu_desc_next(cur);
+  }
+  return cur;
+}
+
 /** Find the first descriptor specified by the arguments
  *
  * @param[in] beg        The head of descriptor byte array.
@@ -233,6 +251,10 @@ static void const* _find_desc_3(void const *beg, void const *end,
 }
 
 /** Return the next interface descriptor which has another interface number.
+ *  If there are multiple VC interfaces, there will be an IAD descriptor before
+ *  the next interface descriptor. Check both the IAD descriptor and the interface
+ *  descriptor.
+ *  3.1 Descriptor Layout Overview
  *
  * @param[in] beg     The head of descriptor byte array.
  * @param[in] end     The tail of descriptor byte array.
@@ -245,7 +267,7 @@ static void const* _next_desc_itf(void const *beg, void const *end)
   uint_fast8_t itfnum = ((tusb_desc_interface_t const*)cur)->bInterfaceNumber;
   while ((cur < end) &&
          (itfnum == ((tusb_desc_interface_t const*)cur)->bInterfaceNumber)) {
-    cur = _find_desc(tu_desc_next(cur), end, TUSB_DESC_INTERFACE);
+    cur = _find_desc_2_type(tu_desc_next(cur), end, TUSB_DESC_INTERFACE, TUSB_DESC_INTERFACE_ASSOCIATION);
   }
   return cur;
 }
@@ -1216,7 +1238,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
        * host may not issue set_interface so open the streaming interface here. */
       uint8_t const *sbeg = (uint8_t const*)itf_desc + stm->desc.beg;
       uint8_t const *send = (uint8_t const*)itf_desc + stm->desc.end;
-      if (end == _find_desc_itf(sbeg, send, _desc_itfnum(sbeg), 1)) {
+      if (send == _find_desc_itf(sbeg, send, _desc_itfnum(sbeg), 1)) {
         TU_VERIFY(_open_vs_itf(rhport, stm, 0), 0);
       }
     }
