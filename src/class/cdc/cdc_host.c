@@ -637,6 +637,10 @@ void cdch_init(void) {
   }
 }
 
+bool cdch_deinit(void) {
+  return true;
+}
+
 void cdch_close(uint8_t daddr) {
   for (uint8_t idx = 0; idx < CFG_TUH_CDC; idx++) {
     cdch_interface_t* p_cdc = &cdch_data[idx];

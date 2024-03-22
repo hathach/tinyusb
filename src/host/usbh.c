@@ -45,8 +45,13 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Callback weak stubs (called if application does not provide)
+// Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
+TU_ATTR_WEAK bool hcd_deinit(uint8_t rhport) {
+  (void) rhport;
+  return false;
+}
+
 TU_ATTR_WEAK void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
   (void) rhport;
   (void) eventid;
@@ -119,16 +124,17 @@ typedef struct {
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= CFG_TUH_LOG_LEVEL
-  #define DRIVER_NAME(_name)    .name = _name,
+  #define DRIVER_NAME(_name)  _name
 #else
-  #define DRIVER_NAME(_name)
+  #define DRIVER_NAME(_name)  NULL
 #endif
 
 static usbh_class_driver_t const usbh_class_drivers[] = {
     #if CFG_TUH_CDC
     {
-        DRIVER_NAME("CDC")
+        .name       = DRIVER_NAME("CDC"),
         .init       = cdch_init,
+        .deinit     = cdch_deinit,
         .open       = cdch_open,
         .set_config = cdch_set_config,
         .xfer_cb    = cdch_xfer_cb,
@@ -138,8 +144,9 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
 
     #if CFG_TUH_MSC
     {
-        DRIVER_NAME("MSC")
+        .name       = DRIVER_NAME("MSC"),
         .init       = msch_init,
+        .deinit     = msch_deinit,
         .open       = msch_open,
         .set_config = msch_set_config,
         .xfer_cb    = msch_xfer_cb,
@@ -149,8 +156,9 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
 
     #if CFG_TUH_HID
     {
-        DRIVER_NAME("HID")
+        .name       = DRIVER_NAME("HID"),
         .init       = hidh_init,
+        .deinit     = hidh_deinit,
         .open       = hidh_open,
         .set_config = hidh_set_config,
         .xfer_cb    = hidh_xfer_cb,
@@ -160,8 +168,9 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
 
     #if CFG_TUH_HUB
     {
-        DRIVER_NAME("HUB")
+        .name       = DRIVER_NAME("HUB"),
         .init       = hub_init,
+        .deinit     = hub_deinit,
         .open       = hub_open,
         .set_config = hub_set_config,
         .xfer_cb    = hub_xfer_cb,
@@ -171,9 +180,11 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
 
     #if CFG_TUH_VENDOR
     {
-      DRIVER_NAME("VENDOR")
+      .name       = DRIVER_NAME("VENDOR"),
       .init       = cush_init,
-      .open       = cush_open_subtask,
+      .deinit     = cush_deinit,
+      .open       = cush_open,
+      .set_config = cush_set_config,
       .xfer_cb    = cush_isr,
       .close      = cush_close
     }
@@ -338,11 +349,11 @@ bool tuh_inited(void) {
   return _usbh_controller != TUSB_INDEX_INVALID_8;
 }
 
-bool tuh_init(uint8_t controller_id) {
+bool tuh_init(uint8_t rhport) {
   // skip if already initialized
   if ( tuh_inited() ) return true;
 
-  TU_LOG_USBH("USBH init on controller %u\r\n", controller_id);
+  TU_LOG_USBH("USBH init on controller %u\r\n", rhport);
   TU_LOG_INT_USBH(sizeof(usbh_device_t));
   TU_LOG_INT_USBH(sizeof(hcd_event_t));
   TU_LOG_INT_USBH(sizeof(_ctrl_xfer));
@@ -383,10 +394,26 @@ bool tuh_init(uint8_t controller_id) {
     }
   }
 
-  _usbh_controller = controller_id;;
+  _usbh_controller = rhport;;
 
-  TU_ASSERT(hcd_init(controller_id));
-  hcd_int_enable(controller_id);
+  TU_ASSERT(hcd_init(rhport));
+  hcd_int_enable(rhport);
+
+  return true;
+}
+
+bool tuh_deinit(uint8_t rhport) {
+  if (!tuh_rhport_is_active(rhport)) return true;
+
+  hcd_int_disable(rhport);
+  hcd_deinit(rhport);
+
+  _usbh_controller = TUSB_INDEX_INVALID_8;
+
+  // no other controller is active, deinit the stack
+  if (!tuh_inited()) {
+
+  }
 
   return true;
 }

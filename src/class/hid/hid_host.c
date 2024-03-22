@@ -376,6 +376,10 @@ void hidh_init(void) {
   tu_memclr(_hidh_itf, sizeof(_hidh_itf));
 }
 
+bool hidh_deinit(void) {
+  return true;
+}
+
 bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) result;
 
