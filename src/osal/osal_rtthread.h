@@ -25,8 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_OSAL_RTTHREAD_H_
-#define _TUSB_OSAL_RTTHREAD_H_
+#ifndef TUSB_OSAL_RTTHREAD_H_
+#define TUSB_OSAL_RTTHREAD_H_
 
 // RT-Thread Headers
 #include "rtthread.h"
@@ -133,4 +133,4 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_empty(osal_queue_t qhdl) {
 }
 #endif
 
-#endif /* _TUSB_OSAL_RTTHREAD_H_ */
+#endif

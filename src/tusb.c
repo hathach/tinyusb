@@ -237,8 +237,8 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
 bool tu_edpt_stream_deinit(tu_edpt_stream_t* s) {
   (void) s;
   #if OSAL_MUTEX_REQUIRED
-  if (s->ff->mutex_wr) osal_mutex_delete(s->ff->mutex_wr);
-  if (s->ff->mutex_rd) osal_mutex_delete(s->ff->mutex_rd);
+  if (s->ff.mutex_wr) osal_mutex_delete(s->ff.mutex_wr);
+  if (s->ff.mutex_rd) osal_mutex_delete(s->ff.mutex_rd);
   #endif
   return true;
 }
