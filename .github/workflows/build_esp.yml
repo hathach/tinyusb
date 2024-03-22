@@ -52,7 +52,7 @@ jobs:
 
     - name: Upload Artifacts for Hardware Testing
       if: matrix.board == 'espressif_s3_devkitc' && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.board }}
         path: |

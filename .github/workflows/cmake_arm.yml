@@ -93,7 +93,7 @@ jobs:
 
     - name: Upload Artifacts for Hardware Testing (rp2040)
       if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: raspberry_pi_pico
         path: |
@@ -101,7 +101,7 @@ jobs:
 
     - name: Upload Artifacts for Hardware Testing (nRF)
       if: matrix.family == 'nrf' && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: feather_nrf52840_express
         path: |
@@ -109,7 +109,7 @@ jobs:
 
     - name: Upload Artifacts for Hardware Testing (samd51)
       if: matrix.family == 'samd51' && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: itsybitsy_m4
         path: |
