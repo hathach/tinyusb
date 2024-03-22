@@ -351,51 +351,55 @@ bool tuh_inited(void) {
 
 bool tuh_init(uint8_t rhport) {
   // skip if already initialized
-  if ( tuh_inited() ) return true;
+  if (tuh_rhport_is_active(rhport)) return true;
 
   TU_LOG_USBH("USBH init on controller %u\r\n", rhport);
-  TU_LOG_INT_USBH(sizeof(usbh_device_t));
-  TU_LOG_INT_USBH(sizeof(hcd_event_t));
-  TU_LOG_INT_USBH(sizeof(_ctrl_xfer));
-  TU_LOG_INT_USBH(sizeof(tuh_xfer_t));
-  TU_LOG_INT_USBH(sizeof(tu_fifo_t));
-  TU_LOG_INT_USBH(sizeof(tu_edpt_stream_t));
 
-  // Event queue
-  _usbh_q = osal_queue_create( &_usbh_qdef );
-  TU_ASSERT(_usbh_q != NULL);
+  // Init host stack if not already
+  if (!tuh_inited()) {
+    TU_LOG_INT_USBH(sizeof(usbh_device_t));
+    TU_LOG_INT_USBH(sizeof(hcd_event_t));
+    TU_LOG_INT_USBH(sizeof(_ctrl_xfer));
+    TU_LOG_INT_USBH(sizeof(tuh_xfer_t));
+    TU_LOG_INT_USBH(sizeof(tu_fifo_t));
+    TU_LOG_INT_USBH(sizeof(tu_edpt_stream_t));
+
+    // Event queue
+    _usbh_q = osal_queue_create(&_usbh_qdef);
+    TU_ASSERT(_usbh_q != NULL);
 
 #if OSAL_MUTEX_REQUIRED
-  // Init mutex
-  _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
-  TU_ASSERT(_usbh_mutex);
+    // Init mutex
+    _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
+    TU_ASSERT(_usbh_mutex);
 #endif
 
-  // Get application driver if available
-  if ( usbh_app_driver_get_cb ) {
-    _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
-  }
+    // Get application driver if available
+    if (usbh_app_driver_get_cb) {
+      _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
+    }
 
-  // Device
-  tu_memclr(&_dev0, sizeof(_dev0));
-  tu_memclr(_usbh_devices, sizeof(_usbh_devices));
-  tu_memclr(&_ctrl_xfer, sizeof(_ctrl_xfer));
+    // Device
+    tu_memclr(&_dev0, sizeof(_dev0));
+    tu_memclr(_usbh_devices, sizeof(_usbh_devices));
+    tu_memclr(&_ctrl_xfer, sizeof(_ctrl_xfer));
 
-  for(uint8_t i=0; i<TOTAL_DEVICES; i++) {
-    clear_device(&_usbh_devices[i]);
-  }
+    for (uint8_t i = 0; i < TOTAL_DEVICES; i++) {
+      clear_device(&_usbh_devices[i]);
+    }
 
-  // Class drivers
-  for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
-    usbh_class_driver_t const* driver = get_driver(drv_id);
-    if (driver) {
-      TU_LOG_USBH("%s init\r\n", driver->name);
-      driver->init();
+    // Class drivers
+    for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+      usbh_class_driver_t const* driver = get_driver(drv_id);
+      if (driver) {
+        TU_LOG_USBH("%s init\r\n", driver->name);
+        driver->init();
+      }
     }
   }
 
+  // Init host controller
   _usbh_controller = rhport;;
-
   TU_ASSERT(hcd_init(rhport));
   hcd_int_enable(rhport);
 
@@ -405,14 +409,31 @@ bool tuh_init(uint8_t rhport) {
 bool tuh_deinit(uint8_t rhport) {
   if (!tuh_rhport_is_active(rhport)) return true;
 
+  // deinit host controller
   hcd_int_disable(rhport);
   hcd_deinit(rhport);
 
   _usbh_controller = TUSB_INDEX_INVALID_8;
 
-  // no other controller is active, deinit the stack
+  // deinit host stack if no controller is active
   if (!tuh_inited()) {
+    // Class drivers
+    for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+      usbh_class_driver_t const* driver = get_driver(drv_id);
+      if (driver) {
+        TU_LOG_USBH("%s deinit\r\n", driver->name);
+        driver->deinit();
+      }
+    }
 
+    osal_queue_delete(_usbh_q);
+    _usbh_q = NULL;
+
+    #if OSAL_MUTEX_REQUIRED
+    // TODO make sure there is no task waiting on this mutex
+    osal_mutex_delete(_usbh_mutex);
+    _usbh_mutex = NULL;
+    #endif
   }
 
   return true;

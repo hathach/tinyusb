@@ -51,7 +51,7 @@ enum {
 
 typedef struct {
   char const* name;
-  void (* const init       )(void);
+  bool (* const init       )(void);
   bool (* const deinit     )(void);
   bool (* const open       )(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
   bool (* const set_config )(uint8_t dev_addr, uint8_t itf_num);

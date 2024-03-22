@@ -182,8 +182,9 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-void hub_init(void) {
+bool hub_init(void) {
   tu_memclr(hub_data, sizeof(hub_data));
+  return true;
 }
 
 bool hub_deinit(void) {
