@@ -220,7 +220,7 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 
 bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
                          void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize) {
-  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutex);
+  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
   (void) new_mutex;
   (void) is_tx;
 
@@ -231,6 +231,15 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
   s->ep_buf = ep_buf;
   s->ep_bufsize = ep_bufsize;
 
+  return true;
+}
+
+bool tu_edpt_stream_deinit(tu_edpt_stream_t* s) {
+  (void) s;
+  #if OSAL_MUTEX_REQUIRED
+  if (s->ff->mutex_wr) osal_mutex_delete(s->ff->mutex_wr);
+  if (s->ff->mutex_rd) osal_mutex_delete(s->ff->mutex_rd);
+  #endif
   return true;
 }
 
