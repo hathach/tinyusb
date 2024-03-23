@@ -18,6 +18,9 @@ CFLAGS_GCC += \
   -flto \
   -nostdlib -nostartfiles \
 
+# mcu driver cause following warnings
+CFLAGS_GCC += -Wno-error=cast-align
+
 LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # ------------------------
@@ -30,7 +33,8 @@ SRC_C += \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
-  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c
 
 INC += \
   $(TOP)/$(BOARD_PATH) \

@@ -33,7 +33,7 @@
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
 
-#include "driver/rmt.h"
+#include "driver/gpio.h"
 #include "driver/uart.h"
 
 #if ESP_IDF_VERSION_MAJOR > 4
@@ -48,7 +48,7 @@
 
 #ifdef NEOPIXEL_PIN
 #include "led_strip.h"
-static led_strip_t* strip;
+static led_strip_handle_t led_strip;
 #endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
@@ -85,15 +85,23 @@ void board_init(void) {
   #endif
 
   // WS2812 Neopixel driver with RMT peripheral
-  rmt_config_t config = RMT_DEFAULT_CONFIG_TX(NEOPIXEL_PIN, RMT_CHANNEL_0);
-  config.clk_div = 2; // set counter clock to 40MHz
+  led_strip_rmt_config_t rmt_config = {
+      .clk_src = RMT_CLK_SRC_DEFAULT, // different clock source can lead to different power consumption
+      .resolution_hz = 10 * 1000 * 1000,  // RMT counter clock frequency, default = 10 Mhz
+      .flags.with_dma = false,        // DMA feature is available on ESP target like ESP32-S3
+  };
 
-  rmt_config(&config);
-  rmt_driver_install(config.channel, 0, 0);
+  led_strip_config_t strip_config = {
+      .strip_gpio_num = NEOPIXEL_PIN,           // The GPIO that connected to the LED strip's data line
+      .max_leds = 1,                            // The number of LEDs in the strip,
+      .led_pixel_format = LED_PIXEL_FORMAT_GRB, // Pixel format of your LED strip
+      .led_model = LED_MODEL_WS2812,            // LED strip model
+      .flags.invert_out = false,                // whether to invert the output signal
+  };
 
-  led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(1, (led_strip_dev_t) config.channel);
-  strip = led_strip_new_rmt_ws2812(&strip_config);
-  strip->clear(strip, 100); // off led
+  ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+
+  led_strip_clear(led_strip); // off
 #endif
 
   // Button
@@ -158,8 +166,8 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 
 void board_led_write(bool state) {
 #ifdef NEOPIXEL_PIN
-  strip->set_pixel(strip, 0, state ? 0x08 : 0x00, 0x00, 0x00);
-  strip->refresh(strip, 100);
+  led_strip_set_pixel(led_strip, 0, state ? 0x08 : 0x00, 0x00, 0x00);
+  led_strip_refresh(led_strip);
 #endif
 }
 

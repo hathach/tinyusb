@@ -203,7 +203,7 @@ uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw)
 //--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEBUG >= 2
+#if CFG_TUSB_DEBUG >= CFG_TUD_MSC_LOG_LEVEL
 
 TU_ATTR_UNUSED tu_static tu_lookup_entry_t const _msc_scsi_cmd_lookup[] =
 {

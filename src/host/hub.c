@@ -435,9 +435,12 @@ static void hub_port_get_status_complete (tuh_xfer_t* xfer)
     // Other changes are: L1 state
     // TODO clear change
 
-    // prepare for next hub status
-    // TODO continue with status_change, or maybe we can do it again with status
-    hub_edpt_status_xfer(daddr);
+    else
+    {
+      // prepare for next hub status
+      // TODO continue with status_change, or maybe we can do it again with status
+      hub_edpt_status_xfer(daddr);
+    }
   }
 }
 

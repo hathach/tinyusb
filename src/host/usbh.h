@@ -94,7 +94,7 @@ TU_ATTR_WEAK void tuh_mount_cb (uint8_t daddr);
 TU_ATTR_WEAK void tuh_umount_cb(uint8_t daddr);
 
 // Invoked when there is a new usb event, which need to be processed by tuh_task()/tuh_task_ext()
-TU_ATTR_WEAK void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
+void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 
 //--------------------------------------------------------------------+
 // APPLICATION API

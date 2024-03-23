@@ -477,7 +477,7 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent)
   uint8_t const *buf8 = (uint8_t const *) buf;
 
   char format[] = "%00X";
-  format[2] += 2*size;
+  format[2] += (uint8_t) (2*size); // 1 byte = 2 hex digits
 
   const uint8_t item_per_line  = 16 / size;
 

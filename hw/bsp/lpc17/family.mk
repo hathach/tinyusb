@@ -34,4 +34,5 @@ SRC_C += \
 	$(MCU_DIR)/src/uart_17xx_40xx.c \
 
 INC += \
-	$(TOP)/$(MCU_DIR)/inc
+	$(TOP)/$(BOARD_PATH) \
+	$(TOP)/$(MCU_DIR)/inc \
