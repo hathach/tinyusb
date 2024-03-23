@@ -2239,7 +2239,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       if (tud_audio_fb_done_cb) tud_audio_fb_done_cb(func_id);
 
       // Schedule a transmit with the new value if EP is not busy
-      if (!usbd_edpt_busy(rhport, audio->ep_fb))
+      if (usbd_edpt_claim(rhport, audio->ep_fb))
       {
         // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
         return audiod_fb_send(audio);
@@ -2314,7 +2314,7 @@ static void audiod_fb_fifo_count_update(audiod_function_t* audio, uint16_t lvl_n
   audio->feedback.value = feedback;
 
   // Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
-  if (!usbd_edpt_busy(audio->rhport, audio->ep_fb))
+  if (usbd_edpt_claim(audio->rhport, audio->ep_fb))
   {
     audiod_fb_send(audio);
   }
@@ -2364,7 +2364,7 @@ bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback)
   _audiod_fct[func_id].feedback.value = feedback;
 
   // Schedule a transmit with the new value if EP is not busy - this triggers repetitive scheduling of the feedback value
-  if (!usbd_edpt_busy(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_fb))
+  if (usbd_edpt_claim(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_fb))
   {
     return audiod_fb_send(&_audiod_fct[func_id]);
   }
