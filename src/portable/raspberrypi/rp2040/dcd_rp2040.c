@@ -90,10 +90,12 @@ static void _hw_endpoint_alloc(struct hw_endpoint* ep, uint8_t transfer_type) {
   *ep->endpoint_control = reg;
 }
 
-static void _hw_endpoint_close(struct hw_endpoint* ep) {
+static void _hw_endpoint_close(struct hw_endpoint *ep) {
   // Clear hardware registers and then zero the struct
   // Clears endpoint enable
-  *ep->endpoint_control = 0;
+  if (ep->endpoint_control) {
+    *ep->endpoint_control = 0;
+  }
   // Clears buffer available, etc
   *ep->buffer_control = 0;
   // Clear any endpoint state
@@ -160,6 +162,7 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
     // alloc a buffer and fill in endpoint control register
     _hw_endpoint_alloc(ep, transfer_type);
   }
+  ep->configured = true;
 }
 
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
