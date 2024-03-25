@@ -558,7 +558,8 @@ static uint8_t * get_hs_configuration_desc(void) {
     desc_hs_configuration = desc_fs_configuration;
     // change endpoint bulk size to 512 if bulk streaming
     if (CFG_TUD_VIDEO_STREAMING_BULK) {
-      desc_hs_configuration.video_streaming.ep.wMaxPacketSize = 512;
+      desc_hs_configuration.uvc[0].video_streaming.ep.wMaxPacketSize = 512;
+      desc_hs_configuration.uvc[1].video_streaming.ep.wMaxPacketSize = 512;
     }
   }
   init = true;
