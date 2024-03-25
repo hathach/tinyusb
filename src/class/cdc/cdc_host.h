@@ -37,16 +37,6 @@
 // Class Driver Configuration
 //--------------------------------------------------------------------+
 
-// Set Line Control state on enumeration/mounted: DTR ( bit 0), RTS (bit 1)
-#ifndef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-#define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM    0
-#endif
-
-// Set Line Coding on enumeration/mounted, value for cdc_line_coding_t
-//#ifndef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-//#define CFG_TUH_CDC_LINE_CODING_ON_ENUM   { 115200, CDC_LINE_CODING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
-//#endif
-
 // RX FIFO size
 #ifndef CFG_TUH_CDC_RX_BUFSIZE
 #define CFG_TUH_CDC_RX_BUFSIZE USBH_EPSIZE_BULK_MAX
