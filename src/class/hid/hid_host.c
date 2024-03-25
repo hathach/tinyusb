@@ -372,8 +372,14 @@ bool tuh_hid_send_report(uint8_t daddr, uint8_t idx, uint8_t report_id, const vo
 //--------------------------------------------------------------------+
 // USBH API
 //--------------------------------------------------------------------+
-void hidh_init(void) {
+bool hidh_init(void) {
+  TU_LOG_DRV("sizeof(hidh_interface_t) = %u\r\n", sizeof(hidh_interface_t));
   tu_memclr(_hidh_itf, sizeof(_hidh_itf));
+  return true;
+}
+
+bool hidh_deinit(void) {
+  return true;
 }
 
 bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {

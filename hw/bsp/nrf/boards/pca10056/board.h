@@ -46,11 +46,12 @@
 #define UART_TX_PIN           6
 
 // SPI for USB host shield
-#define MAX3421_SCK_PIN  _PINNUM(1, 15)
-#define MAX3421_MOSI_PIN _PINNUM(1, 13)
-#define MAX3421_MISO_PIN _PINNUM(1, 14)
-#define MAX3421_CS_PIN   _PINNUM(1, 12)
-#define MAX3421_INTR_PIN _PINNUM(1, 11)
+// Pin is correct but not working probably due to signal incompatible (1.8V 3v3) with MAC3421E !?
+//#define MAX3421_SCK_PIN  _PINNUM(1, 15)
+//#define MAX3421_MOSI_PIN _PINNUM(1, 13)
+//#define MAX3421_MISO_PIN _PINNUM(1, 14)
+//#define MAX3421_CS_PIN   _PINNUM(1, 12)
+//#define MAX3421_INTR_PIN _PINNUM(1, 11)
 
 #ifdef __cplusplus
  }

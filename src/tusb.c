@@ -44,15 +44,15 @@
 //--------------------------------------------------------------------+
 
 bool tusb_init(void) {
-#if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
+  #if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
   // init device stack CFG_TUSB_RHPORTx_MODE must be defined
   TU_ASSERT ( tud_init(TUD_OPT_RHPORT) );
-#endif
+  #endif
 
-#if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
+  #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
   // init host stack CFG_TUSB_RHPORTx_MODE must be defined
   TU_ASSERT( tuh_init(TUH_OPT_RHPORT) );
-#endif
+  #endif
 
   return true;
 }
@@ -60,13 +60,13 @@ bool tusb_init(void) {
 bool tusb_inited(void) {
   bool ret = false;
 
-#if CFG_TUD_ENABLED
+  #if CFG_TUD_ENABLED
   ret = ret || tud_inited();
-#endif
+  #endif
 
-#if CFG_TUH_ENABLED
+  #if CFG_TUH_ENABLED
   ret = ret || tuh_inited();
-#endif
+  #endif
 
   return ret;
 }
@@ -168,18 +168,17 @@ bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed) {
   return true;
 }
 
-void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* desc_itf, uint16_t desc_len, uint8_t driver_id) {
+void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* desc_itf, uint16_t desc_len,
+                         uint8_t driver_id) {
   uint8_t const* p_desc = (uint8_t const*) desc_itf;
   uint8_t const* desc_end = p_desc + desc_len;
 
   while (p_desc < desc_end) {
     if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
-
       TU_LOG(2, "  Bind EP %02x to driver id %u\r\n", ep_addr, driver_id);
       ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
     }
-
     p_desc = tu_desc_next(p_desc);
   }
 }
@@ -195,8 +194,9 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 
     while (len < max_len) {
       // return on IAD regardless of itf count
-      if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) return len;
-
+      if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
+        return len;
+      }
       if ((tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) &&
           ((tusb_desc_interface_t const*) p_desc)->bAlternateSetting == 0) {
         break;
@@ -216,7 +216,7 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 
 bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
                          void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize) {
-  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutex);
+  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
   (void) new_mutex;
   (void) is_tx;
 
@@ -230,7 +230,17 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool stream_claim(tu_edpt_stream_t* s) {
+bool tu_edpt_stream_deinit(tu_edpt_stream_t* s) {
+  (void) s;
+  #if OSAL_MUTEX_REQUIRED
+  if (s->ff.mutex_wr) osal_mutex_delete(s->ff.mutex_wr);
+  if (s->ff.mutex_rd) osal_mutex_delete(s->ff.mutex_rd);
+  #endif
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_claim(tu_edpt_stream_t* s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
     return usbh_edpt_claim(s->daddr, s->ep_addr);
@@ -240,11 +250,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_claim(tu_edpt_stream_t* s) {
     return usbd_edpt_claim(s->rhport, s->ep_addr);
     #endif
   }
-
   return false;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool stream_xfer(tu_edpt_stream_t* s, uint16_t count) {
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_xfer(tu_edpt_stream_t* s, uint16_t count) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
     return usbh_edpt_xfer(s->daddr, s->ep_addr, count ? s->ep_buf : NULL, count);
@@ -254,11 +264,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_xfer(tu_edpt_stream_t* s, uint16
     return usbd_edpt_xfer(s->rhport, s->ep_addr, count ? s->ep_buf : NULL, count);
     #endif
   }
-
   return false;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool stream_release(tu_edpt_stream_t* s) {
+TU_ATTR_ALWAYS_INLINE static inline
+bool stream_release(tu_edpt_stream_t* s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
     return usbh_edpt_release(s->daddr, s->ep_addr);
@@ -268,20 +278,17 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_release(tu_edpt_stream_t* s) {
     return usbd_edpt_release(s->rhport, s->ep_addr);
     #endif
   }
-
   return false;
 }
 
 //--------------------------------------------------------------------+
 // Stream Write
 //--------------------------------------------------------------------+
-
 bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferred_bytes) {
   // ZLP condition: no pending data, last transferred bytes is multiple of packet size
   TU_VERIFY(!tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (s->ep_packetsize - 1))));
   TU_VERIFY(stream_claim(s));
   TU_ASSERT(stream_xfer(s, 0));
-
   return true;
 }
 
@@ -308,7 +315,6 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s) {
 
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const* buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize); // TODO support ZLP
-
   uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
 
   // flush if fifo has more than packet size or
@@ -323,7 +329,6 @@ uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const* buffer, uint32_t 
 //--------------------------------------------------------------------+
 // Stream Read
 //--------------------------------------------------------------------+
-
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s) {
   uint16_t available = tu_fifo_remaining(&s->ff);
 
@@ -343,6 +348,7 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s) {
     // multiple of packet size limit by ep bufsize
     uint16_t count = (uint16_t) (available & ~(s->ep_packetsize - 1));
     count = tu_min16(count, s->ep_bufsize);
+
     TU_ASSERT(stream_xfer(s, count), 0);
     return count;
   } else {
@@ -390,13 +396,11 @@ char const* const tu_str_xfer_result[] = {
 
 static void dump_str_line(uint8_t const* buf, uint16_t count) {
   tu_printf("  |");
-
   // each line is 16 bytes
   for (uint16_t i = 0; i < count; i++) {
     const char ch = buf[i];
     tu_printf("%c", isprint(ch) ? ch : '.');
   }
-
   tu_printf("|\r\n");
 }
 
@@ -407,17 +411,14 @@ static void dump_str_line(uint8_t const* buf, uint16_t count) {
  */
 void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
   uint8_t const size = 1; // fixed 1 byte for now
-
   if (!buf || !count) {
     tu_printf("NULL\r\n");
     return;
   }
 
   uint8_t const* buf8 = (uint8_t const*) buf;
-
   char format[] = "%00X";
   format[2] += (uint8_t) (2 * size); // 1 byte = 2 hex digits
-
   const uint8_t item_per_line = 16 / size;
 
   for (unsigned int i = 0; i < count; i++) {
@@ -425,12 +426,8 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
     if (i % item_per_line == 0) {
       // Print Ascii
-      if (i != 0) {
-        dump_str_line(buf8 - 16, 16);
-      }
-
+      if (i != 0) dump_str_line(buf8 - 16, 16);
       for (uint8_t s = 0; s < indent; s++) tu_printf(" ");
-
       // print offset or absolute address
       tu_printf("%04X: ", 16 * i / item_per_line);
     }
@@ -445,7 +442,6 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
   // fill up last row to 16 for printing ascii
   const uint32_t remain = count % 16;
   uint8_t nback = (uint8_t) (remain ? remain : 16);
-
   if (remain) {
     for (uint32_t i = 0; i < 16 - remain; i++) {
       tu_printf(" ");

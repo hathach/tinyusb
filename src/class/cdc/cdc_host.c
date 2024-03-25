@@ -621,12 +621,11 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, 
 // CLASS-USBH API
 //--------------------------------------------------------------------+
 
-void cdch_init(void) {
+bool cdch_init(void) {
+  TU_LOG_DRV("sizeof(cdch_interface_t) = %u\r\n", sizeof(cdch_interface_t));
   tu_memclr(cdch_data, sizeof(cdch_data));
-
   for (size_t i = 0; i < CFG_TUH_CDC; i++) {
     cdch_interface_t* p_cdc = &cdch_data[i];
-
     tu_edpt_stream_init(&p_cdc->stream.tx, true, true, false,
                         p_cdc->stream.tx_ff_buf, CFG_TUH_CDC_TX_BUFSIZE,
                         p_cdc->stream.tx_ep_buf, CFG_TUH_CDC_TX_EPSIZE);
@@ -635,6 +634,17 @@ void cdch_init(void) {
                         p_cdc->stream.rx_ff_buf, CFG_TUH_CDC_RX_BUFSIZE,
                         p_cdc->stream.rx_ep_buf, CFG_TUH_CDC_RX_EPSIZE);
   }
+
+  return true;
+}
+
+bool cdch_deinit(void) {
+  for (size_t i = 0; i < CFG_TUH_CDC; i++) {
+    cdch_interface_t* p_cdc = &cdch_data[i];
+    tu_edpt_stream_deinit(&p_cdc->stream.tx);
+    tu_edpt_stream_deinit(&p_cdc->stream.rx);
+  }
+  return true;
 }
 
 void cdch_close(uint8_t daddr) {
