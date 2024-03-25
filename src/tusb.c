@@ -99,7 +99,6 @@ uint8_t const* tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t by
   return NULL;
 }
 
-
 //--------------------------------------------------------------------+
 // Endpoint Helper for both Host and Device stack
 //--------------------------------------------------------------------+
@@ -118,13 +117,11 @@ bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   }
 
   (void) osal_mutex_unlock(mutex);
-
   return available;
 }
 
 bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   (void) mutex;
-
   (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   // can only release the endpoint if it is claimed and not busy
@@ -134,7 +131,6 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   }
 
   (void) osal_mutex_unlock(mutex);
-
   return ret;
 }
 

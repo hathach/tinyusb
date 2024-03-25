@@ -462,9 +462,7 @@ void dcd_init(uint8_t rhport) {
   dwc2->gotgint |= int_mask;
 
   // Required as part of core initialization.
-  // TODO: How should mode mismatch be handled? It will cause
-  // the core to stop working/require reset.
-  dwc2->gintmsk = GINTMSK_OTGINT | GINTMSK_MMISM | GINTMSK_RXFLVLM |
+  dwc2->gintmsk = GINTMSK_OTGINT | GINTMSK_RXFLVLM |
                   GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
   // Enable global interrupt
