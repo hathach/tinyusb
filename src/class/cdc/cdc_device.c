@@ -128,6 +128,36 @@ uint8_t tud_cdc_n_get_line_state (uint8_t itf)
   return _cdcd_itf[itf].line_state;
 }
 
+bool tud_cdc_n_notif_line_state (uint8_t itf, uint8_t state)
+{
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+
+  TU_VERIFY(tud_ready());
+
+  uint8_t const rhport = 0;
+
+  // claim endpoint
+  TU_VERIFY(usbd_edpt_claim(rhport, p_cdc->ep_notif));
+
+  // prepare packet
+  uint8_t packet[10];
+  packet[0] = 0xA1;                   // bmRequestType
+  packet[1] = CDC_NOTIF_SERIAL_STATE; // bNotification
+  packet[2] = 0x00;                   // wValue
+  packet[3] = 0x00;
+  packet[4] = p_cdc->itf_num;         // wIndex
+  packet[5] = 0x00;
+  packet[6] = 0x02;                   // wLength
+  packet[7] = 0x00;
+  packet[8] = state & 0x7F;           // Data (UART State bitmap)
+  packet[9] = 0x00;
+
+  // transfer
+  TU_ASSERT( usbd_edpt_xfer(rhport, p_cdc->ep_notif, packet, sizeof(packet)), 0 );
+
+  return true;
+}
+
 void tud_cdc_n_get_line_coding (uint8_t itf, cdc_line_coding_t* coding)
 {
   (*coding) = _cdcd_itf[itf].line_coding;
@@ -432,7 +462,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   for (itf = 0; itf < CFG_TUD_CDC; itf++)
   {
     p_cdc = &_cdcd_itf[itf];
-    if ( ( ep_addr == p_cdc->ep_out ) || ( ep_addr == p_cdc->ep_in ) ) break;
+    if ( ( ep_addr == p_cdc->ep_out ) || ( ep_addr == p_cdc->ep_in ) || ( ep_addr == p_cdc->ep_notif ) ) break;
   }
   TU_ASSERT(itf < CFG_TUD_CDC);
 
