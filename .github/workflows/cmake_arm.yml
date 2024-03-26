@@ -144,7 +144,7 @@ jobs:
           lsusb
           lsusb -t
           # reset VIA Labs 2.0 hub
-          usbreset 001/002
+          sudo usbreset 001/002
 
           # legacy code
           #for port in $(lspci | grep USB | cut -d' ' -f1); do
