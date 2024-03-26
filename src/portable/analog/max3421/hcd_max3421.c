@@ -321,35 +321,35 @@ static void fifo_read(uint8_t rhport, uint8_t * buffer, uint16_t len, bool in_is
 }
 
 //------------- register write helper -------------//
-static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void hirq_write(uint8_t rhport, uint8_t data, bool in_isr) {
   reg_write(rhport, HIRQ_ADDR, data, in_isr);
   // HIRQ write 1 is clear
   _hcd_data.hirq &= (uint8_t) ~data;
 }
 
-static inline void hien_write(uint8_t rhport, uint8_t data, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void hien_write(uint8_t rhport, uint8_t data, bool in_isr) {
   _hcd_data.hien = data;
   reg_write(rhport, HIEN_ADDR, data, in_isr);
 }
 
-static inline void mode_write(uint8_t rhport, uint8_t data, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void mode_write(uint8_t rhport, uint8_t data, bool in_isr) {
   _hcd_data.mode = data;
   reg_write(rhport, MODE_ADDR, data, in_isr);
 }
 
-static inline void peraddr_write(uint8_t rhport, uint8_t data, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void peraddr_write(uint8_t rhport, uint8_t data, bool in_isr) {
   if ( _hcd_data.peraddr == data ) return; // no need to change address
 
   _hcd_data.peraddr = data;
   reg_write(rhport, PERADDR_ADDR, data, in_isr);
 }
 
-static inline void hxfr_write(uint8_t rhport, uint8_t data, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void hxfr_write(uint8_t rhport, uint8_t data, bool in_isr) {
   _hcd_data.hxfr = data;
   reg_write(rhport, HXFR_ADDR, data, in_isr);
 }
 
-static inline void sndbc_write(uint8_t rhport, uint8_t data, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void sndbc_write(uint8_t rhport, uint8_t data, bool in_isr) {
   _hcd_data.sndbc = data;
   reg_write(rhport, SNDBC_ADDR, data, in_isr);
 }
@@ -449,7 +449,7 @@ bool hcd_init(uint8_t rhport) {
   // full duplex, interrupt negative edge
   reg_write(rhport, PINCTL_ADDR, PINCTL_FDUPSPI, false);
 
-  // V1 is 0x01, V2 is 0x12, V3 is 0x13
+  // v1 is 0x01, v2 is 0x12, v3 is 0x13
   uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
   TU_ASSERT(revision == 0x01 || revision == 0x12 || revision == 0x13, false);
   TU_LOG2_HEX(revision);
@@ -477,6 +477,24 @@ bool hcd_init(uint8_t rhport) {
 
   // Enable Interrupt pin
   reg_write(rhport, CPUCTL_ADDR, CPUCTL_IE, false);
+
+  return true;
+}
+
+bool hcd_deinit(uint8_t rhport) {
+  (void) rhport;
+
+  // disable interrupt
+  tuh_max3421_int_api(rhport, false);
+
+  // reset max3421
+  reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
+  reg_write(rhport, USBCTL_ADDR, 0, false);
+
+  #if OSAL_MUTEX_REQUIRED
+  osal_mutex_delete(_hcd_data.spi_mutex);
+  _hcd_data.spi_mutex = NULL;
+  #endif
 
   return true;
 }
@@ -598,7 +616,8 @@ void xact_in(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   hxfr_write(rhport, hxfr, in_isr);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void xact_inout(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline
+void xact_inout(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   if (ep->ep_num == 0 ) {
     // setup
     if (ep->is_setup) {
