@@ -1,0 +1,13 @@
+mcu:MSP430x5xx
+mcu:NUC121
+mcu:SAMD11
+mcu:GD32VF103
+mcu:CH32V307
+family:espressif
+board:curiosity_nano
+board:kuiic
+board:frdm_k32l2b
+board:lpcxpresso11u68
+board:stm32f303disco
+board:stm32l412nucleo
+board:ek_tm4c123gxl
