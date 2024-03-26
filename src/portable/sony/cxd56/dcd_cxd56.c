@@ -102,6 +102,7 @@ static int _dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_
   usbdev = dev;
   usbdcd_driver.ep[0] = dev->ep0;
 
+  #ifdef EP_ALLOCREQ
   usbdcd_driver.req[0] = EP_ALLOCREQ(usbdcd_driver.ep[0]);
   if (usbdcd_driver.req[0] != NULL)
   {
@@ -113,6 +114,9 @@ static int _dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_
       usbdcd_driver.req[0] = NULL;
     }
   }
+  #else
+  usbdcd_driver.req[0] = usbdev_allocreq(usbdcd_driver.ep[0],64);
+  #endif
 
   usbdcd_driver.req[0]->callback = usbdcd_ep0incomplete;
 
@@ -295,12 +299,18 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
   }
 
   usbdcd_driver.req[epnum] = NULL;
+
+  #ifdef EP_ALLOCREQ
   usbdcd_driver.req[epnum] = EP_ALLOCREQ(usbdcd_driver.ep[epnum]);
   if (usbdcd_driver.req[epnum] != NULL)
   {
     usbdcd_driver.req[epnum]->len = ep_mps;
   }
   else
+  #else
+  usbdcd_driver.req[epnum] = usbdev_allocreq(usbdcd_driver.ep[epnum], ep_mps);
+  if(usbdcd_driver.req[epnum] == NULL)
+  #endif
   {
     return false;
   }
