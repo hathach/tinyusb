@@ -96,8 +96,8 @@
   #define  USE_LINEAR_BUFFER     1
 #endif
 
-// Temporarily put the check here for stm32_fsdev
-#ifdef TUP_USBIP_FSDEV
+// Temporarily put the check here
+#if defined(TUP_USBIP_FSDEV) || defined(TUP_USBIP_DWC2)
   #define  USE_ISO_EP_ALLOCATION   1
 #else
   #define  USE_ISO_EP_ALLOCATION   0
