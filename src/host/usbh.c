@@ -415,6 +415,15 @@ bool tuh_deinit(uint8_t rhport) {
 
   _usbh_controller = TUSB_INDEX_INVALID_8;
 
+  // "unplug" all devices on this rhport
+  for (uint8_t idx = 0; idx < CFG_TUH_DEVICE_MAX + CFG_TUH_HUB; idx++) {
+    usbh_device_t *dev = &_usbh_devices[idx];
+    if (!dev->connected || dev->rhport != rhport) {
+      continue;
+    }
+    process_removing_device(rhport, dev->hub_addr, dev->hub_port);
+  }
+
   // deinit host stack if no controller is active
   if (!tuh_inited()) {
     // Class drivers
