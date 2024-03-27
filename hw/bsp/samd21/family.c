@@ -172,8 +172,21 @@ uint32_t board_button_read(void) {
 static void uart_init(void)
 {
 #if UART_SERCOM == 0
-  gpio_set_pin_function(PIN_PA06, PINMUX_PA06D_SERCOM0_PAD2);
-  gpio_set_pin_function(PIN_PA07, PINMUX_PA07D_SERCOM0_PAD3);
+  #if UART_TX_PIN == 6
+    gpio_set_pin_function(PIN_PA06, PINMUX_PA06D_SERCOM0_PAD2);
+  #elif UART_TX_PIN == 10
+    gpio_set_pin_function(PIN_PA10, PINMUX_PA10C_SERCOM0_PAD2);
+  #else
+    #error "UART_TX_PIN not supported"
+  #endif
+
+  #if UART_RX_PIN == 7
+    gpio_set_pin_function(PIN_PA07, PINMUX_PA07D_SERCOM0_PAD3);
+  #elif UART_RX_PIN == 11
+    gpio_set_pin_function(PIN_PA11, PINMUX_PA11C_SERCOM0_PAD3);
+  #else
+    #error "UART_RX_PIN not supported"
+#endif
 
   // setup clock (48MHz)
   _pm_enable_bus_clock(PM_BUS_APBC, SERCOM0);
@@ -194,6 +207,7 @@ static void uart_init(void)
     SERCOM_USART_CTRLB_TXEN | /* tx enabled */
     SERCOM_USART_CTRLB_RXEN;  /* rx enabled */
 
+  /* 115200 */
   SERCOM0->USART.BAUD.reg = SERCOM_USART_BAUD_FRAC_FP(0) | SERCOM_USART_BAUD_FRAC_BAUD(26);
 
   SERCOM0->USART.CTRLA.bit.ENABLE = 1; /* activate SERCOM */
