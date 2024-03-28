@@ -412,8 +412,10 @@ bool tuh_deinit(uint8_t rhport) {
   // deinit host controller
   hcd_int_disable(rhport);
   hcd_deinit(rhport);
-
   _usbh_controller = TUSB_INDEX_INVALID_8;
+
+  // "unplug" all devices on this rhport (hub_addr = 0, hub_port = 0)
+  process_removing_device(rhport, 0, 0);
 
   // deinit host stack if no controller is active
   if (!tuh_inited()) {
