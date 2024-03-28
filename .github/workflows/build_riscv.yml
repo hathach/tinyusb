@@ -32,6 +32,7 @@ jobs:
       matrix:
         family:
         # Alphabetical order
+        - 'ch32v20x'
         - 'ch32v307'
         - 'fomu'
         - 'gd32vf103'
@@ -45,7 +46,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set Toolchain URL
-      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/download/v10.1.0-1.1/xpack-riscv-none-embed-gcc-10.1.0-1.1-linux-x64.tar.gz
+      run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz
 
     - name: Cache Toolchain
       uses: actions/cache@v3

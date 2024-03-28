@@ -1,8 +1,8 @@
 # https://www.embecosm.com/resources/tool-chain-downloads/#riscv-stable
 #CROSS_COMPILE ?= riscv32-unknown-elf-
 
-# Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
-CROSS_COMPILE ?= riscv-none-embed-
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
+CROSS_COMPILE ?= riscv-none-elf-
 
 # Submodules
 CH32V307_SDK = hw/mcu/wch/ch32v307
@@ -15,7 +15,7 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
 	-flto \
-	-march=rv32imac \
+	-march=rv32imac_zicsr \
 	-mabi=ilp32 \
 	-msmall-data-limit=8 \
 	-mno-save-restore -Os \
