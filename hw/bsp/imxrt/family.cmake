@@ -70,7 +70,7 @@ function(add_board_target BOARD_TARGET)
 
   # LD_FILE and STARTUP_FILE can be defined in board.cmake
   if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-    set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx${MCU_CORE}_flexspi_nor.ld)
+    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker_scripts/${MCU_VARIANT}xxxxx${MCU_CORE}_flexspi_nor.ld)
     #set(LD_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld)
   endif ()
 
