@@ -1219,11 +1219,10 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
       if (dev->rhport == rhport && dev->connected &&
           (hub_addr == 0 || dev->hub_addr == hub_addr) &&
           (hub_port == 0 || dev->hub_port == hub_port)) {
-        TU_LOG_USBH("Device unplugged address = %u\r\n", daddr);
+        TU_LOG_USBH("[%u:%u:%u] unplugged address = %u\r\n", rhport, hub_addr, hub_port, daddr);
 
         if (is_hub_addr(daddr)) {
           TU_LOG_USBH("  is a HUB device %u\r\n", daddr);
-          // marking this hub to run the loop on its children next (unroll recursive)
           removing_hubs |= TU_BIT(dev_id - CFG_TUH_DEVICE_MAX);
         } else {
           // Invoke callback before closing driver (maybe call it later ?)
@@ -1244,9 +1243,11 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
       }
     }
 
+    // if removing a hub, we need to remove its downstream devices
+    #if CFG_TUH_HUB
     if (removing_hubs == 0) break;
 
-    // find the next hub to process
+    // find a marked hub to process
     for (uint8_t h_id = 0; h_id < CFG_TUH_HUB; h_id++) {
       if (tu_bit_test(removing_hubs, h_id)) {
         removing_hubs &= ~TU_BIT(h_id);
@@ -1257,6 +1258,10 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
         break;
       }
     }
+    #else
+    (void) removing_hubs;
+    break;
+    #endif
   } while(1);
 }
 
