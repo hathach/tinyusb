@@ -28,6 +28,8 @@
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
+#define NAK_RETRY_HANDLING 1
+
 #include <stdatomic.h>
 #include "host/hcd.h"
 
@@ -180,6 +182,9 @@ typedef struct {
     uint8_t data_toggle   : 1;
     uint8_t xfer_pending  : 1;
     uint8_t xfer_complete : 1;
+#if NAK_RETRY_HANDLING
+    uint8_t retry_pending : 1;
+#endif
   };
 
   struct TU_ATTR_PACKED {
@@ -593,7 +598,7 @@ void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   }
 
   uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
-  TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
+//  TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
   if (xact_len) {
     fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
   }
@@ -803,6 +808,7 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
   xfer_result_t xfer_result;
   switch(hresult) {
     case HRSL_SUCCESS:
+//      putchar('S');
       xfer_result = XFER_RESULT_SUCCESS;
       break;
 
@@ -811,6 +817,19 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
       break;
 
     case HRSL_NAK:
+//      putchar('N');
+#if NAK_RETRY_HANDLING
+      ep->retry_pending = 1;
+      ep->xfer_pending = 0;
+      max3421_ep_t * next_ep = find_next_pending_ep(ep);
+      if (next_ep) {
+        // switch to next pending TODO could have issue with double buffered if not clear previously out data
+        xact_inout(rhport, next_ep, true, in_isr);
+      } else {
+        // no more pending
+        atomic_flag_clear(&_hcd_data.busy);
+      }
+#else
       if (ep_num == 0) {
         // NAK on control, retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
@@ -828,6 +847,7 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
           TU_ASSERT(false,);
         }
       }
+#endif
       return;
 
     case HRSL_BAD_REQ:
@@ -909,6 +929,29 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
+
+#if NAK_RETRY_HANDLING
+    // retry EPs
+    max3421_ep_t * next_ep = NULL;
+    for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+      max3421_ep_t * ep = &_hcd_data.ep[i];
+      // set retryable EPs to pending
+      if (ep->retry_pending) {
+//        putchar('R');
+        ep->xfer_pending = 1;
+        ep->retry_pending = 0;
+        if (next_ep == NULL) {
+          next_ep = &_hcd_data.ep[i];
+        }
+      }
+    }
+    // trigger 1st retryable EP
+    if (next_ep) {
+      if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
+        xact_inout(rhport, next_ep, true, in_isr);
+      }
+    }
+#endif
   }
 
   if (hirq & HIRQ_CONDET_IRQ) {
