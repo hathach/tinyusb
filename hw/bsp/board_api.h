@@ -116,6 +116,7 @@ static inline uint32_t board_millis(void) {
 
 #elif CFG_TUSB_OS == OPT_OS_CUSTOM
 // Implement your own board_millis() in any of .c file
+uint32_t board_millis(void);
 
 #else
   #error "board_millis() is not implemented for this OS"
