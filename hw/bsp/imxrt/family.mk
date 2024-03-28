@@ -29,7 +29,7 @@ CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough -Wno-error
 LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
-LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx${MCU_CORE}_flexspi_nor.ld
+LD_FILE ?= $(FAMILY_PATH)/linker_scripts/$(MCU_VARIANT)xxxxx${MCU_CORE}_flexspi_nor.ld
 
 # TODO for net_lwip_webserver example, but may not needed !!
 LDFLAGS += \
