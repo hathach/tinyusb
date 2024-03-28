@@ -202,6 +202,7 @@
   // MCU with on-chip HS Phy
   #if defined(STM32F723xx) || defined(STM32F730xx) || defined(STM32F733xx)
     #define TUP_RHPORT_HIGHSPEED  1 // Port0: FS, Port1: HS
+    #define TUP_USBIP_DWC2_TEST_MODE_SUPPORT
   #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
@@ -270,6 +271,7 @@
       defined(STM32U5F7xx) || defined(STM32U5F9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx)
     #define TUP_DCD_ENDPOINT_MAX  9
     #define TUP_RHPORT_HIGHSPEED  1
+    #define TUP_USBIP_DWC2_TEST_MODE_SUPPORT
   #else
     #define TUP_DCD_ENDPOINT_MAX  6
   #endif
