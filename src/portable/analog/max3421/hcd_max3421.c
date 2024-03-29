@@ -29,6 +29,7 @@
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
 #define NAK_RETRY_HANDLING 1
+#define PUTCHAR_LOGS 0 // TODO to be deleted later
 
 #include <stdatomic.h>
 #include "host/hcd.h"
@@ -808,7 +809,11 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
   xfer_result_t xfer_result;
   switch(hresult) {
     case HRSL_SUCCESS:
-//      putchar('S');
+#if PUTCHAR_LOGS // TODO to be deleted later
+      putchar(ep->ep_dir ? 's' : 'S');
+      putchar('0' + ep->daddr);
+//      putchar('0' + ep->ep_num);
+#endif
       xfer_result = XFER_RESULT_SUCCESS;
       break;
 
@@ -817,7 +822,12 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
       break;
 
     case HRSL_NAK:
-//      putchar('N');
+#if PUTCHAR_LOGS // TODO to be deleted later
+      putchar(ep->ep_dir ? 'n' : 'N');
+      putchar('0' + ep->daddr);
+//      putchar('0' + ep->ep_num);
+//      putchar('0' + ep->xfer_attemp);
+#endif
 #if NAK_RETRY_HANDLING
       ep->retry_pending = 1;
       ep->xfer_pending = 0;
@@ -928,6 +938,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 //  print_hirq(hirq);
 
   if (hirq & HIRQ_FRAME_IRQ) {
+    LL_GPIO_SetOutputPin ( D2_GPIO_Port, D2_Pin ); // TODO to be deleted later
+#if PUTCHAR_LOGS // TODO to be deleted later
+    putchar(13);
+    putchar(10);
+    putchar('F');
+#endif
     _hcd_data.frame_count++;
 
 #if NAK_RETRY_HANDLING
@@ -937,7 +953,11 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
       max3421_ep_t * ep = &_hcd_data.ep[i];
       // set retryable EPs to pending
       if (ep->retry_pending) {
-//        putchar('R');
+#if PUTCHAR_LOGS // TODO to be deleted later
+        putchar(ep->ep_dir ? 'r' : 'R');
+        putchar('0' + ep->daddr);
+//        putchar('0' + ep->ep_num);
+#endif
         ep->xfer_pending = 1;
         ep->retry_pending = 0;
         if (next_ep == NULL) {
@@ -948,10 +968,16 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     // trigger 1st retryable EP
     if (next_ep) {
       if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
+#if PUTCHAR_LOGS // TODO to be deleted later
+        putchar(next_ep->ep_dir ? 't' : 'T');
+        putchar('0' + next_ep->daddr);
+//        putchar('0' + next_ep->ep_num);
+#endif
         xact_inout(rhport, next_ep, true, in_isr);
       }
     }
 #endif
+    LL_GPIO_SetOutputPin ( D2_GPIO_Port, D2_Pin << 16 );
   }
 
   if (hirq & HIRQ_CONDET_IRQ) {
