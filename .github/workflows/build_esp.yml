@@ -52,7 +52,7 @@ jobs:
 
     - name: Upload Artifacts for Hardware Testing
       if: matrix.board == 'espressif_s3_devkitc' && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.board }}
         path: |
@@ -86,11 +86,17 @@ jobs:
         # USB bus on rpi4 is not stable, reset it before testing
       - name: Reset USB bus
         run: |
-          for port in $(lspci | grep USB | cut -d' ' -f1); do
-              echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
-              sleep 0.1;
-              echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
-          done
+          lsusb
+          lsusb -t
+          # reset VIA Labs 2.0 hub
+          sudo usbreset 001/002
+
+          # legacy code
+          #for port in $(lspci | grep USB | cut -d' ' -f1); do
+          #    echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
+          #    sleep 0.1;
+          #    echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
+          #done
 
       - name: Checkout test/hil
         uses: actions/checkout@v4
@@ -98,7 +104,7 @@ jobs:
           sparse-checkout: test/hil
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.board }}
           path: cmake-build/cmake-build-${{ matrix.board }}

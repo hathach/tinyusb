@@ -160,22 +160,23 @@ typedef enum {
 /* A.9.1 VideoControl Interface Control Selectors */
 typedef enum {
   VIDEO_VC_CTL_UNDEFINED = 0x00,
-  VIDEO_VC_CTL_VIDEO_POWER_MODE,
-  VIDEO_VC_CTL_REQUEST_ERROR_CODE,
+  VIDEO_VC_CTL_VIDEO_POWER_MODE,   // 0x01
+  VIDEO_VC_CTL_REQUEST_ERROR_CODE, // 0x02
 } video_interface_control_selector_t;
 
 /* A.9.8 VideoStreaming Interface Control Selectors */
 typedef enum {
   VIDEO_VS_CTL_UNDEFINED = 0x00,
-  VIDEO_VS_CTL_PROBE,
-  VIDEO_VS_CTL_COMMIT,
-  VIDEO_VS_CTL_STILL_PROBE,
-  VIDEO_VS_CTL_STILL_COMMIT,
-  VIDEO_VS_CTL_STILL_IMAGE_TRIGGER,
-  VIDEO_VS_CTL_STREAM_ERROR_CODE,
-  VIDEO_VS_CTL_GENERATE_KEY_FRAME,
-  VIDEO_VS_CTL_UPDATE_FRAME_SEGMENT,
-  VIDEO_VS_CTL_SYNCH_DELAY_CONTROL,
+  VIDEO_VS_CTL_PROBE,                // 0x01
+  VIDEO_VS_CTL_COMMIT,               // 0x02
+  VIDEO_VS_CTL_STILL_PROBE,          // 0x03
+  VIDEO_VS_CTL_STILL_COMMIT,         // 0x04
+  VIDEO_VS_CTL_STILL_IMAGE_TRIGGER,  // 0x05
+  VIDEO_VS_CTL_STREAM_ERROR_CODE,    // 0x06
+  VIDEO_VS_CTL_GENERATE_KEY_FRAME,   // 0x07
+  VIDEO_VS_CTL_UPDATE_FRAME_SEGMENT, // 0x08
+  VIDEO_VS_CTL_SYNCH_DELAY_CONTROL,  // 0x09
+
 } video_interface_streaming_selector_t;
 
 /* B. Terminal Types */
@@ -368,6 +369,8 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bCopyProtect;
 } tusb_desc_video_format_uncompressed_t;
 
+TU_VERIFY_STATIC(sizeof(tusb_desc_video_format_uncompressed_t) == 27, "size is not correct");
+
 // Uncompressed payload specs: 3.1.2 frame descriptor
 #define tusb_desc_video_frame_uncompressed_nint_t(_nint) \
   struct TU_ATTR_PACKED { \
@@ -381,7 +384,7 @@ typedef struct TU_ATTR_PACKED {
     uint32_t dwMinBitRate; \
     uint32_t dwMaxBitRate; \
     uint32_t dwMaxVideoFrameBufferSize; /* deprecated in 1.5 */ \
-    uint32_t dwDefaultFrameInterval; \
+    uint32_t dwDefaultFrameInterval; /* 100ns unit */\
     uint8_t  bFrameIntervalType; \
     uint32_t dwFrameInterval[_nint]; \
   }
@@ -412,6 +415,8 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bmInterlaceFlags;
   uint8_t bCopyProtect;
 } tusb_desc_video_format_mjpeg_t;
+
+TU_VERIFY_STATIC(sizeof(tusb_desc_video_format_mjpeg_t) == 11, "size is not correct");
 
 // MJPEG payload specs: 3.1.2 frame descriptor (same as uncompressed)
 typedef tusb_desc_video_frame_uncompressed_t tusb_desc_video_frame_mjpeg_t;

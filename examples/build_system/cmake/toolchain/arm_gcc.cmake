@@ -1,8 +1,14 @@
 set(CMAKE_SYSTEM_NAME Generic)
 
-set(CMAKE_C_COMPILER "arm-none-eabi-gcc")
-set(CMAKE_CXX_COMPILER "arm-none-eabi-g++")
-set(CMAKE_ASM_COMPILER "arm-none-eabi-gcc")
+if (NOT DEFINED CMAKE_C_COMPILER)
+  set(CMAKE_C_COMPILER "arm-none-eabi-gcc")
+endif ()
+
+if (NOT DEFINED CMAKE_CXX_COMPILER)
+  set(CMAKE_CXX_COMPILER "arm-none-eabi-g++")
+endif ()
+
+set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
 
 set(CMAKE_SIZE "arm-none-eabi-size" CACHE FILEPATH "")
 set(CMAKE_OBJCOPY "arm-none-eabi-objcopy" CACHE FILEPATH "")

@@ -171,7 +171,7 @@ function(family_configure_target TARGET RTOS)
 
 	pico_add_extra_outputs(${TARGET})
 	pico_enable_stdio_uart(${TARGET} 1)
-	target_link_libraries(${TARGET} PUBLIC pico_stdlib pico_bootsel_via_double_reset tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
+	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
 
 	family_flash_openocd(${TARGET} ${OPENOCD_OPTION})
 	family_flash_jlink(${TARGET})
