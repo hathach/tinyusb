@@ -949,7 +949,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
 #if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
     // retry EPs
-    max3421_ep_t * next_ep = NULL;
     for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
       max3421_ep_t * ep = &_hcd_data.ep[i];
       // set retryable EPs to pending
@@ -960,20 +959,17 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 //        putchar('0' + ep->ep_num);
 #endif
         ep->state = EP_STATE_PENDING;
-        if (next_ep == NULL) {
-          next_ep = &_hcd_data.ep[i];
-        }
-      }
-    }
-    // trigger 1st retryable EP
-    if (next_ep) {
-      if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
+        // trigger 1st retryable EP
+        if (ep->packet_size) { // first test packet_size before atomic_flag_test_and_set()
+          if (!atomic_flag_test_and_set(&_hcd_data.busy) ) {
 #if PUTCHAR_LOGS // TODO to be deleted later
-        putchar(next_ep->ep_dir ? 't' : 'T');
-        putchar('0' + next_ep->daddr);
-//        putchar('0' + next_ep->ep_num);
+              putchar(ep->ep_dir ? 't' : 'T');
+              putchar('0' + ep->daddr);
+//              putchar('0' + ep->ep_num);
 #endif
-        xact_inout(rhport, next_ep, true, in_isr);
+            xact_inout(rhport, ep, true, in_isr);
+          }
+        }
       }
     }
 #endif
