@@ -828,36 +828,36 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
 //      putchar('0' + ep->ep_num);
 //      putchar('0' + ep->xfer_attemp);
 #endif
-#if NAK_RETRY_HANDLING
-      ep->retry_pending = 1;
-      ep->xfer_pending = 0;
-      max3421_ep_t * next_ep = find_next_pending_ep(ep);
-      if (next_ep) {
-        // switch to next pending TODO could have issue with double buffered if not clear previously out data
-        xact_inout(rhport, next_ep, true, in_isr);
-      } else {
-        // no more pending
-        atomic_flag_clear(&_hcd_data.busy);
-      }
-#else
       if (ep_num == 0) {
         // NAK on control, retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-      }else {
+      } else {
+      #if NAK_RETRY_HANDLING
+        ep->retry_pending = 1;
+        ep->xfer_pending = 0;
+        max3421_ep_t * next_ep = find_next_pending_ep(ep);
+        if (next_ep) {
+          // switch to next pending TODO could have issue with double buffered if not clear previously out data
+          xact_inout(rhport, next_ep, true, in_isr);
+        } else {
+          // no more pending
+          atomic_flag_clear(&_hcd_data.busy);
+        }
+      #else
         // NAK on non-control, find next pending to switch
         max3421_ep_t *next_ep = find_next_pending_ep(ep);
 
         if (ep == next_ep) {
           // this endpoint is only one pending, retry immediately
           hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-        }else if (next_ep) {
+        } else if (next_ep) {
           // switch to next pending TODO could have issue with double buffered if not clear previously out data
           xact_inout(rhport, next_ep, true, in_isr);
-        }else {
+        } else {
           TU_ASSERT(false,);
         }
+      #endif
       }
-#endif
       return;
 
     case HRSL_BAD_REQ:
