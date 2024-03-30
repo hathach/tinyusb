@@ -788,7 +788,7 @@ static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t re
   hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, in_isr);
 
   // Find next pending endpoint
-  max3421_ep_t *next_ep = find_next_pending_ep(ep);
+  max3421_ep_t * next_ep = find_next_pending_ep(ep);
   if (next_ep) {
     xact_inout(rhport, next_ep, true, in_isr);
   }else {
@@ -811,11 +811,11 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
   xfer_result_t xfer_result;
   switch(hresult) {
     case HRSL_SUCCESS:
-#if PUTCHAR_LOGS // TODO to be deleted later
-      putchar(ep->ep_dir ? 's' : 'S');
-      putchar('0' + ep->daddr);
-//      putchar('0' + ep->ep_num);
-#endif
+      #if PUTCHAR_LOGS // TODO to be deleted later
+        putchar(ep->ep_dir ? 's' : 'S');
+        putchar('0' + ep->daddr);
+//        putchar('0' + ep->ep_num);
+      #endif
       xfer_result = XFER_RESULT_SUCCESS;
       break;
 
@@ -824,12 +824,12 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
       break;
 
     case HRSL_NAK:
-#if PUTCHAR_LOGS // TODO to be deleted later
-      putchar(ep->ep_dir ? 'n' : 'N');
-      putchar('0' + ep->daddr);
-//      putchar('0' + ep->ep_num);
-//      putchar('0' + ep->xfer_attemp);
-#endif
+      #if PUTCHAR_LOGS // TODO to be deleted later
+        putchar(ep->ep_dir ? 'n' : 'N');
+        putchar('0' + ep->daddr);
+//        putchar('0' + ep->ep_num);
+        putchar('0' + ep->state);
+      #endif
       if (ep_num == 0) {
         // NAK on control, retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
@@ -917,13 +917,13 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
 void print_hirq(uint8_t hirq) {
   TU_LOG3_HEX(hirq);
 
-  if (hirq & HIRQ_HXFRDN_IRQ) TU_LOG3(" HXFRDN");
-  if (hirq & HIRQ_FRAME_IRQ)  TU_LOG3(" FRAME");
-  if (hirq & HIRQ_CONDET_IRQ) TU_LOG3(" CONDET");
-  if (hirq & HIRQ_SUSDN_IRQ)  TU_LOG3(" SUSDN");
-  if (hirq & HIRQ_SNDBAV_IRQ) TU_LOG3(" SNDBAV");
-  if (hirq & HIRQ_RCVDAV_IRQ) TU_LOG3(" RCVDAV");
-  if (hirq & HIRQ_RWU_IRQ)    TU_LOG3(" RWU");
+  if (hirq & HIRQ_HXFRDN_IRQ)   TU_LOG3(" HXFRDN");
+  if (hirq & HIRQ_FRAME_IRQ)    TU_LOG3(" FRAME");
+  if (hirq & HIRQ_CONDET_IRQ)   TU_LOG3(" CONDET");
+  if (hirq & HIRQ_SUSDN_IRQ)    TU_LOG3(" SUSDN");
+  if (hirq & HIRQ_SNDBAV_IRQ)   TU_LOG3(" SNDBAV");
+  if (hirq & HIRQ_RCVDAV_IRQ)   TU_LOG3(" RCVDAV");
+  if (hirq & HIRQ_RWU_IRQ)      TU_LOG3(" RWU");
   if (hirq & HIRQ_BUSEVENT_IRQ) TU_LOG3(" BUSEVENT");
 
   TU_LOG3("\r\n");
@@ -940,33 +940,28 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (hirq & HIRQ_FRAME_IRQ) {
     LL_GPIO_SetOutputPin ( D2_GPIO_Port, D2_Pin ); // TODO to be deleted later
-#if PUTCHAR_LOGS // TODO to be deleted later
-    putchar(13);
-    putchar(10);
-    putchar('F');
-#endif
+    #if PUTCHAR_LOGS // TODO to be deleted later
+      putchar(13);
+      putchar(10);
+      putchar('F');
+    #endif
     _hcd_data.frame_count++;
 
-#if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
-    // retry EPs
-    for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
-      max3421_ep_t * ep = &_hcd_data.ep[i];
-      // set retryable EPs to pending
-      if (ep->state == EP_STATE_SUSPENDED) {
-#if PUTCHAR_LOGS // TODO to be deleted later
-        putchar(ep->ep_dir ? 'r' : 'R');
-        putchar('0' + ep->daddr);
-//        putchar('0' + ep->ep_num);
-#endif
+    #if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
+      // retry EPs
+      for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+        max3421_ep_t * ep = &_hcd_data.ep[i];
+        // set retryable EPs to pending
+        if (ep->state == EP_STATE_SUSPENDED) {
         ep->state = EP_STATE_PENDING;
         // trigger 1st retryable EP
         if (ep->packet_size) { // first test packet_size before atomic_flag_test_and_set()
           if (!atomic_flag_test_and_set(&_hcd_data.busy) ) {
-#if PUTCHAR_LOGS // TODO to be deleted later
-              putchar(ep->ep_dir ? 't' : 'T');
-              putchar('0' + ep->daddr);
-//              putchar('0' + ep->ep_num);
-#endif
+              #if PUTCHAR_LOGS // TODO to be deleted later
+                putchar(ep->ep_dir ? 't' : 'T');
+                putchar('0' + ep->daddr);
+//                putchar('0' + ep->ep_num);
+              #endif
             xact_inout(rhport, ep, true, in_isr);
           }
         }
