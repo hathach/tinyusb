@@ -679,8 +679,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   // carry out transfer if not busy
   if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
     xact_inout(rhport, ep, true, false);
-  } else {
-    return true;
   }
 
   return true;
