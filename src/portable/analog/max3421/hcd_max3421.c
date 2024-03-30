@@ -168,6 +168,15 @@ enum {
   DEFAULT_HIEN = HIRQ_CONDET_IRQ | HIRQ_FRAME_IRQ | HIRQ_HXFRDN_IRQ | HIRQ_RCVDAV_IRQ
 };
 
+enum {
+  EP_STATE_IDLE = 0,
+  EP_STATE_PENDING,
+#if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
+  EP_STATE_SUSPENDED,
+#endif
+  EP_STATE_COMPLETE
+};
+
 TU_VERIFY_STATIC(CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME >= 0 && CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME <= 1, "unsupported attemp quantity");
 
 //--------------------------------------------------------------------+
@@ -178,15 +187,11 @@ typedef struct {
   uint8_t daddr;
 
   struct TU_ATTR_PACKED {
-    uint8_t ep_dir        : 1;
-    uint8_t is_iso        : 1;
-    uint8_t is_setup      : 1;
+    uint8_t state         : 4;
+    uint8_t is_setup      : 1; // also bit 4 in HXFR reg (smaller code, no shift necessary)
+    uint8_t ep_dir        : 1; // also bit 5 in HXFR reg (smaller code, no shift necessary)
+    uint8_t is_iso        : 1; // also bit 6 in HXFR reg (smaller code, no shift necessary)
     uint8_t data_toggle   : 1;
-    uint8_t xfer_pending  : 1;
-    uint8_t xfer_complete : 1;
-#if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
-    uint8_t retry_pending : 1;
-#endif
   };
 
   struct TU_ATTR_PACKED {
@@ -406,7 +411,7 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
   // starting from next endpoint
   for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
-    if (ep->xfer_pending && ep->packet_size) {
+    if (ep->state == EP_STATE_PENDING && ep->packet_size) {
 //      TU_LOG3("next pending i = %u\r\n", i);
       return ep;
     }
@@ -415,7 +420,7 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
   // wrap around including current endpoint
   for (size_t i = 0; i <= idx; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
-    if (ep->xfer_pending && ep->packet_size) {
+    if (ep->state == EP_STATE_PENDING && ep->packet_size) {
 //      TU_LOG3("next pending i = %u\r\n", i);
       return ep;
     }
@@ -664,8 +669,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   ep->buf = buffer;
   ep->total_len = buflen;
   ep->xferred_len = 0;
-  ep->xfer_complete = 0;
-  ep->xfer_pending = 1;
+  ep->state = EP_STATE_PENDING;
 
   if ( ep_num == 0 ) {
     ep->is_setup = 0;
@@ -704,8 +708,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
   ep->buf = (uint8_t*)(uintptr_t) setup_packet;
   ep->total_len = 8;
   ep->xferred_len = 0;
-  ep->xfer_complete = 0;
-  ep->xfer_pending = 1;
+  ep->state = EP_STATE_PENDING;
 
   // carry out transfer if not busy
   if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
@@ -783,7 +786,7 @@ static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t re
     ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1u : 0u;
   }
 
-  ep->xfer_pending = 0;
+  ep->state = EP_STATE_IDLE;
   hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, in_isr);
 
   // Find next pending endpoint
@@ -834,8 +837,7 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
       } else {
       #if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
-        ep->retry_pending = 1;
-        ep->xfer_pending = 0;
+        ep->state = EP_STATE_SUSPENDED;
         max3421_ep_t * next_ep = find_next_pending_ep(ep);
         if (next_ep) {
           // switch to next pending TODO could have issue with double buffered if not clear previously out data
@@ -879,11 +881,11 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
   if (ep_dir) {
     // IN transfer: fifo data is already received in RCVDAV IRQ
     if ( hxfr_type & HXFR_HS ) {
-      ep->xfer_complete = 1;
+      ep->state = EP_STATE_COMPLETE;
     }
 
     // short packet or all bytes transferred
-    if ( ep->xfer_complete ) {
+    if (ep->state == EP_STATE_COMPLETE) {
       xfer_complete_isr(rhport, ep, xfer_result, hrsl, in_isr);
     }else {
       // more to transfer
@@ -953,14 +955,13 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
       max3421_ep_t * ep = &_hcd_data.ep[i];
       // set retryable EPs to pending
-      if (ep->retry_pending) {
+      if (ep->state == EP_STATE_SUSPENDED) {
 #if PUTCHAR_LOGS // TODO to be deleted later
         putchar(ep->ep_dir ? 'r' : 'R');
         putchar('0' + ep->daddr);
 //        putchar('0' + ep->ep_num);
 #endif
-        ep->xfer_pending = 1;
-        ep->retry_pending = 0;
+        ep->state = EP_STATE_PENDING;
         if (next_ep == NULL) {
           next_ep = &_hcd_data.ep[i];
         }
@@ -1009,7 +1010,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
       }
 
       if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
-        ep->xfer_complete = 1;
+        ep->state = EP_STATE_COMPLETE;
       }
     }
 
