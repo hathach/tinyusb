@@ -28,7 +28,6 @@
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
-#define NAK_RETRY_HANDLING 1
 #define PUTCHAR_LOGS 0 // TODO to be deleted later
 
 #include <stdatomic.h>
@@ -169,6 +168,8 @@ enum {
   DEFAULT_HIEN = HIRQ_CONDET_IRQ | HIRQ_FRAME_IRQ | HIRQ_HXFRDN_IRQ | HIRQ_RCVDAV_IRQ
 };
 
+TU_VERIFY_STATIC(CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME >= 0 && CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME <= 1, "unsupported attemp quantity");
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
@@ -183,7 +184,7 @@ typedef struct {
     uint8_t data_toggle   : 1;
     uint8_t xfer_pending  : 1;
     uint8_t xfer_complete : 1;
-#if NAK_RETRY_HANDLING
+#if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
     uint8_t retry_pending : 1;
 #endif
   };
@@ -832,7 +833,7 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
         // NAK on control, retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
       } else {
-      #if NAK_RETRY_HANDLING
+      #if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
         ep->retry_pending = 1;
         ep->xfer_pending = 0;
         max3421_ep_t * next_ep = find_next_pending_ep(ep);
@@ -946,7 +947,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 #endif
     _hcd_data.frame_count++;
 
-#if NAK_RETRY_HANDLING
+#if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
     // retry EPs
     max3421_ep_t * next_ep = NULL;
     for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {

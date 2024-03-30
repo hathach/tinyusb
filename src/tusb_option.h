@@ -529,6 +529,15 @@
   #define CFG_TUH_MAX3421  0
 #endif
 
+// MAX3421 Host max. transfer attemps per frame (except control and iso)
+// temporary only one attemp (no retry) per frame allowed (more in work)
+// retry quantity = (CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME - 1)
+// 0 = endless retries in current frame. is default to keep compatibility
+#ifndef CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
+  #define CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME 0
+#endif
+
+
 //--------------------------------------------------------------------+
 // TypeC Options (Default)
 //--------------------------------------------------------------------+
