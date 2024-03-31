@@ -625,7 +625,7 @@ void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_isr) {
   }
 
   uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
-//  TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
+  TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
   if (xact_len) {
     fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
   }
