@@ -102,7 +102,13 @@ static bool _out_ep_closed;                   // Flag to check if RX FIFO size n
 // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
 static bool _sof_en;
 
-// Calculate the RX FIFO size according to recommendations from reference manual
+// Calculate the RX FIFO size according to minimum recommendations from reference manual
+// RxFIFO = (5 * number of control endpoints + 8) +
+//          ((largest USB packet used / 4) + 1 for status information) +
+//          (2 * number of OUT endpoints) + 1 for Global NAK
+// with number of control endpoints = 1 we have
+// RxFIFO = 15 + (largest USB packet used / 4) + 2 * number of OUT endpoints
+// we double the largest USB packet size to be able to hold up to 2 packets
 static inline uint16_t calc_grxfsiz(uint16_t max_ep_size, uint8_t ep_count) {
   return 15 + 2 * (max_ep_size / 4) + 2 * ep_count;
 }
@@ -121,11 +127,9 @@ static void update_grxfsiz(uint8_t rhport) {
   dwc2->grxfsiz = calc_grxfsiz(max_epsize, ep_count);
 }
 
-static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size)
-{
+static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
-
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
@@ -133,6 +137,26 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size)
 
   uint16_t const fifo_size = tu_div_ceil(packet_size, 4);
 
+  // "USB Data FIFOs" section in reference manual
+  // Peripheral FIFO architecture
+  //
+  // --------------- 320 or 1024 ( 1280 or 4096 bytes )
+  // | IN FIFO 0   |
+  // --------------- (320 or 1024) - 16
+  // | IN FIFO 1   |
+  // --------------- (320 or 1024) - 16 - x
+  // |   . . . .   |
+  // --------------- (320 or 1024) - 16 - x - y - ... - z
+  // | IN FIFO MAX |
+  // ---------------
+  // |    FREE     |
+  // --------------- GRXFSIZ
+  // | OUT FIFO    |
+  // | ( Shared )  |
+  // --------------- 0
+  //
+  // In FIFO is allocated by following rules:
+  // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
   if (dir == TUSB_DIR_OUT) {
     // Calculate required size of RX FIFO
     uint16_t const sz = calc_grxfsiz(4 * fifo_size, ep_count);
@@ -144,35 +168,10 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size)
       // Enlarge RX FIFO
       dwc2->grxfsiz = sz;
     }
-
-  } else
-  {
-    // "USB Data FIFOs" section in reference manual
-    // Peripheral FIFO architecture
-    //
-    // --------------- 320 or 1024 ( 1280 or 4096 bytes )
-    // | IN FIFO 0   |
-    // --------------- (320 or 1024) - 16
-    // | IN FIFO 1   |
-    // --------------- (320 or 1024) - 16 - x
-    // |   . . . .   |
-    // --------------- (320 or 1024) - 16 - x - y - ... - z
-    // | IN FIFO MAX |
-    // ---------------
-    // |    FREE     |
-    // --------------- GRXFSIZ
-    // | OUT FIFO    |
-    // | ( Shared )  |
-    // --------------- 0
-    //
-    // In FIFO is allocated by following rules:
-    // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
-
+  } else {
     // Check if free space is available
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= _dwc2_controller[rhport].ep_fifo_size / 4);
-
     _allocated_fifo_words_tx += fifo_size;
-
     TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %lu", fifo_size * 4,
            _dwc2_controller[rhport].ep_fifo_size - _allocated_fifo_words_tx * 4);
 
@@ -185,10 +184,8 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size)
   return true;
 }
 
-static void edpt_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc)
-{
+static void edpt_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
   uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
 
@@ -196,21 +193,17 @@ static void edpt_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoi
   xfer->max_size = tu_edpt_packet_size(p_endpoint_desc);
   xfer->interval = p_endpoint_desc->bInterval;
 
+  // USBAEP, EPTYP, SD0PID_SEVNFRM, MPSIZ are the same for IN and OUT endpoints.
+  uint32_t const dxepctl = (1 << DOEPCTL_USBAEP_Pos) |
+                           (p_endpoint_desc->bmAttributes.xfer << DOEPCTL_EPTYP_Pos) |
+                           (p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? DOEPCTL_SD0PID_SEVNFRM : 0) |
+                           (xfer->max_size << DOEPCTL_MPSIZ_Pos);
+
   if (dir == TUSB_DIR_OUT) {
-    dwc2->epout[epnum].doepctl |= (1 << DOEPCTL_USBAEP_Pos) |
-                                  (p_endpoint_desc->bmAttributes.xfer << DOEPCTL_EPTYP_Pos) |
-                                  (p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? DOEPCTL_SD0PID_SEVNFRM : 0) |
-                                  (xfer->max_size << DOEPCTL_MPSIZ_Pos);
-
+    dwc2->epout[epnum].doepctl |= dxepctl;
     dwc2->daintmsk |= TU_BIT(DAINTMSK_OEPM_Pos + epnum);
-  } else
-  {
-    dwc2->epin[epnum].diepctl |= (1 << DIEPCTL_USBAEP_Pos) |
-                                 (epnum << DIEPCTL_TXFNUM_Pos) |
-                                 (p_endpoint_desc->bmAttributes.xfer << DIEPCTL_EPTYP_Pos) |
-                                 (p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? DIEPCTL_SD0PID_SEVNFRM : 0) |
-                                 (xfer->max_size << DIEPCTL_MPSIZ_Pos);
-
+  } else {
+    dwc2->epin[epnum].diepctl |= dxepctl | (epnum << DIEPCTL_TXFNUM_Pos);
     dwc2->daintmsk |= (1 << (DAINTMSK_IEPM_Pos + epnum));
   }
 }
@@ -219,7 +212,6 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   (void) rhport;
 
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
@@ -426,7 +418,6 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 /* Controller API
  *------------------------------------------------------------------*/
 #if CFG_TUSB_DEBUG >= DWC2_DEBUG
-
 void print_dwc2_info(dwc2_regs_t* dwc2) {
   // print guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4
   // use dwc2_info.py/md for bit-field value and comparison with other ports
@@ -437,7 +428,6 @@ void print_dwc2_info(dwc2_regs_t* dwc2) {
   }
   TU_LOG(DWC2_DEBUG, "0x%08lX\r\n", p[5]);
 }
-
 #endif
 
 static void reset_core(dwc2_regs_t* dwc2) {
@@ -702,12 +692,8 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
  *------------------------------------------------------------------*/
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
-  (void) rhport;
-
   TU_ASSERT(fifo_alloc(rhport, desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt)));
-
   edpt_activate(rhport, desc_edpt);
-
   return true;
 }
 
@@ -733,15 +719,12 @@ void dcd_edpt_close_all(uint8_t rhport) {
   _allocated_fifo_words_tx = 16;
 }
 
-bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size)
-{
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   TU_ASSERT(fifo_alloc(rhport, ep_addr, largest_packet_size));
-
   return true;
 }
 
-bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc)
-{
+bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc) {
   // Disable EP to clear potential incomplete transfers
   edpt_disable(rhport, p_endpoint_desc->bEndpointAddress, false);
 
@@ -807,11 +790,6 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   return true;
 }
 
-
-
-/**
- * Close an endpoint.
- */
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
