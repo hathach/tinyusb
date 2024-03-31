@@ -169,15 +169,33 @@ enum {
 };
 
 enum {
-  EP_STATE_IDLE = 0,
-  EP_STATE_PENDING,
-#if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
-  EP_STATE_SUSPENDED,
-#endif
-  EP_STATE_COMPLETE
+  EP_STATE_IDLE       = 0,
+  EP_STATE_ATTEMP1    = 1,  // pending 1st attemp
+  #if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
+    EP_STATE_ATTEMP2  = 2,  // don't change order
+    EP_STATE_ATTEMP3  = 3,  // need to be incrementable
+    EP_STATE_ATTEMP4  = 4,
+    EP_STATE_ATTEMP5  = 5,
+    EP_STATE_ATTEMP6  = 6,
+    EP_STATE_ATTEMP7  = 7,
+    EP_STATE_ATTEMP8  = 8,
+    EP_STATE_ATTEMP9  = 9,
+    EP_STATE_ATTEMP10 = 10,
+    EP_STATE_SUSPENDED,    // keep next behind last attemp
+  #endif
+  EP_STATE_COMPLETE,
+  EP_STATE_QUANTITY        // not used. only to get quantity. keep last
 };
 
-TU_VERIFY_STATIC(CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME >= 0 && CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME <= 1, "unsupported attemp quantity");
+TU_VERIFY_STATIC(EP_STATE_QUANTITY <= 16, "no more than 16 states possible. ep->state has 4 bits");
+
+#if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
+  #define EP_STATE_ATTEMP_QUANTITY (EP_STATE_SUSPENDED - 1)
+  TU_VERIFY_STATIC(CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME >= 1 &&
+                   CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME <= EP_STATE_ATTEMP_QUANTITY, "unsupported attemp quantity");
+#else
+  #define EP_STATE_ATTEMP_QUANTITY 1
+#endif
 
 //--------------------------------------------------------------------+
 //
@@ -406,12 +424,16 @@ static void free_ep(uint8_t daddr) {
 }
 
 static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
+  // search for next pending endpoint using round-robin scheduling
+  // if no other endpoint is pending and current endpoint is still pending, the current endpoint will be returned
+  // if no other endpoint is pending and current endpoint is not pending, NULL will be returned
+  // TODO maybe priorization control/interrupt/bulk/iso
   size_t const idx = (size_t) (cur_ep - _hcd_data.ep);
 
   // starting from next endpoint
   for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
-    if (ep->state == EP_STATE_PENDING && ep->packet_size) {
+    if (ep->state >= EP_STATE_ATTEMP1 && ep->state <= EP_STATE_ATTEMP_QUANTITY && ep->packet_size) {
 //      TU_LOG3("next pending i = %u\r\n", i);
       return ep;
     }
@@ -420,7 +442,7 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
   // wrap around including current endpoint
   for (size_t i = 0; i <= idx; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
-    if (ep->state == EP_STATE_PENDING && ep->packet_size) {
+    if (ep->state >= EP_STATE_ATTEMP1 && ep->state <= EP_STATE_ATTEMP_QUANTITY && ep->packet_size) {
 //      TU_LOG3("next pending i = %u\r\n", i);
       return ep;
     }
@@ -669,7 +691,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   ep->buf = buffer;
   ep->total_len = buflen;
   ep->xferred_len = 0;
-  ep->state = EP_STATE_PENDING;
+  ep->state = EP_STATE_ATTEMP1;
 
   if ( ep_num == 0 ) {
     ep->is_setup = 0;
@@ -706,7 +728,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
   ep->buf = (uint8_t*)(uintptr_t) setup_packet;
   ep->total_len = 8;
   ep->xferred_len = 0;
-  ep->state = EP_STATE_PENDING;
+  ep->state = EP_STATE_ATTEMP1;
 
   // carry out transfer if not busy
   if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
@@ -824,6 +846,8 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
       break;
 
     case HRSL_NAK:
+      // TODO no retry for iso in current frame
+      // TODO retry limitation over all (not only per frame)
       #if PUTCHAR_LOGS // TODO to be deleted later
         putchar(ep->ep_dir ? 'n' : 'N');
         putchar('0' + ep->daddr);
@@ -831,33 +855,38 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
         putchar('0' + ep->state);
       #endif
       if (ep_num == 0) {
-        // NAK on control, retry immediately
+        // setup/control => retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-      } else {
       #if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
+      } else if (ep->state == CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME) {
+        // no more retry this frame if max. attemps are reached => suspend and retry it next frame
         ep->state = EP_STATE_SUSPENDED;
+
         max3421_ep_t * next_ep = find_next_pending_ep(ep);
         if (next_ep) {
-          // switch to next pending TODO could have issue with double buffered if not clear previously out data
+          // switch to next pending endpoint TODO could have issue with double buffered if not clear previously out data
           xact_inout(rhport, next_ep, true, in_isr);
         } else {
-          // no more pending
+          // no more pending => clear busy
           atomic_flag_clear(&_hcd_data.busy);
         }
-      #else
-        // NAK on non-control, find next pending to switch
-        max3421_ep_t *next_ep = find_next_pending_ep(ep);
+      #endif
+      } else {
+        // another attemp
+        #if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
+          ep->state++;
+        #endif
 
+        max3421_ep_t * next_ep = find_next_pending_ep(ep);
         if (ep == next_ep) {
-          // this endpoint is only one pending, retry immediately
+          // this endpoint is only one pending => retry immediately
           hxfr_write(rhport, _hcd_data.hxfr, in_isr);
         } else if (next_ep) {
-          // switch to next pending TODO could have issue with double buffered if not clear previously out data
+          // switch to next pending endpoint TODO could have issue with double buffered if not clear previously out data
           xact_inout(rhport, next_ep, true, in_isr);
         } else {
           TU_ASSERT(false,);
         }
-      #endif
       }
       return;
 
@@ -948,26 +977,37 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     _hcd_data.frame_count++;
 
     #if CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
-      // retry EPs
+      // endpoints retry or restart attemp next frame
       for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
         max3421_ep_t * ep = &_hcd_data.ep[i];
-        // set retryable EPs to pending
+
+        // retry the endpoints that are suspended (NAK) last frame
         if (ep->state == EP_STATE_SUSPENDED) {
-        ep->state = EP_STATE_PENDING;
-        // trigger 1st retryable EP
-        if (ep->packet_size) { // first test packet_size before atomic_flag_test_and_set()
-          if (!atomic_flag_test_and_set(&_hcd_data.busy) ) {
+          // resume and retry suspended endpoint with attemp 1
+          ep->state = EP_STATE_ATTEMP1;
+
+          if (ep->packet_size) { // first test packet_size before atomic_flag_test_and_set()
+            if (!atomic_flag_test_and_set(&_hcd_data.busy) ) {
+              // trigger endpoint to be retried
               #if PUTCHAR_LOGS // TODO to be deleted later
                 putchar(ep->ep_dir ? 't' : 'T');
                 putchar('0' + ep->daddr);
 //                putchar('0' + ep->ep_num);
               #endif
-            xact_inout(rhport, ep, true, in_isr);
+              xact_inout(rhport, ep, true, in_isr);
+            }
           }
+        } else if (ep->state > EP_STATE_ATTEMP1 && ep->state <= CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME) {
+          // restart all other running/pending endpoints
+          #if PUTCHAR_LOGS // TODO to be deleted later
+            putchar(ep->ep_dir ? 'r' : 'R');
+            putchar('0' + ep->daddr);
+//            putchar('0' + ep->ep_num);
+          #endif
+          ep->state = EP_STATE_ATTEMP1;
         }
       }
-    }
-#endif
+    #endif
     LL_GPIO_SetOutputPin ( D2_GPIO_Port, D2_Pin << 16 );
   }
 
