@@ -529,14 +529,14 @@
   #define CFG_TUH_MAX3421  0
 #endif
 
-// MAX3421 Host max. transfer attemps per frame (except control and iso)
+// MAX3421 Host max. transfer attempts per frame (except control and iso)
 // retry quantity = (CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME - 1)
 // 0 = endless retries. is default to keep compatibility
 //     => this may overload MCU with permanently repeating NAK interrupts
 //     => possible increased USB traffic, increased latencies, reduced data throughput
-// a usual attemp quantity is 3 (reference: the book "USB Complete" by Jan Axelson)
-#ifndef CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME
-  #define CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME 0
+// a usual attempt quantity is 3 (reference: the book "USB Complete" by Jan Axelson)
+#ifndef CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME
+  #define CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME 0
 #endif
 
 
