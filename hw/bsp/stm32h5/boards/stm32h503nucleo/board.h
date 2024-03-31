@@ -33,28 +33,29 @@ extern "C" {
 #endif
 
 // LED
-#define LED_PORT              GPIOI
-#define LED_PIN               GPIO_PIN_9
-#define LED_STATE_ON          0
+#define LED_PORT              GPIOA
+#define LED_PIN               GPIO_PIN_5
+#define LED_STATE_ON          1
 
 // Button
-#define BUTTON_PORT           GPIOC
-#define BUTTON_PIN            GPIO_PIN_13
+#define BUTTON_PORT           GPIOA
+#define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   0
 
 // UART Enable for STLink VCOM
-#define UART_DEV              USART1
-#define UART_CLK_EN           __USART1_CLK_ENABLE
+#define UART_DEV              USART3
+#define UART_CLK_EN           __USART3_CLK_ENABLE
 #define UART_GPIO_PORT        GPIOA
-#define UART_GPIO_AF          GPIO_AF7_USART1
+#define UART_GPIO_AF          GPIO_AF13_USART3
 
-#define UART_TX_PIN           GPIO_PIN_9
-#define UART_RX_PIN           GPIO_PIN_10
+#define UART_TX_PIN           GPIO_PIN_3
+#define UART_RX_PIN           GPIO_PIN_4
 
-//--------------------------------------------------------------------+
-// RCC Clock
-//--------------------------------------------------------------------+
-static inline void board_clock_init(void) {
+// //--------------------------------------------------------------------+
+// // RCC Clock
+// //--------------------------------------------------------------------+
+static inline void board_clock_init(void)
+{
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
@@ -63,39 +64,50 @@ static inline void board_clock_init(void) {
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOI_CLK_ENABLE();
 
-  /** Configure the main internal regulator output voltage */
-  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+  /** Configure the main internal regulator output voltage
+  */
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
+
+  while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
-  Freq 250MHZ */
-
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS_DIGITAL;
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLL1_SOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 5;
-  RCC_OscInitStruct.PLL.PLLN = 100;
+  RCC_OscInitStruct.PLL.PLLM = 12;
+  RCC_OscInitStruct.PLL.PLLN = 250;
   RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 10;
+  RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1_VCIRANGE_2;
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1_VCIRANGE_1;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1_VCORANGE_WIDE;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
-  HAL_RCC_OscConfig(&RCC_OscInitStruct);
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
-  /** Initializes the CPU, AHB and APB buses clocks */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1;
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                                |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
+                                |RCC_CLOCKTYPE_PCLK3;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   // Configure CRS clock source
   __HAL_RCC_CRS_CLK_ENABLE();
@@ -120,8 +132,7 @@ static inline void board_clock_init(void) {
 
 static inline void board_enable_vdd_usb(void)
 {
-  /* Enable VDDUSB to power on USB peripheral */
-  HAL_PWREx_EnableVddUSB();
+  // USB in STM32H503RB does not require enabling VDD
 }
 
 #ifdef __cplusplus

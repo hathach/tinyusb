@@ -54,9 +54,20 @@ extern "C" {
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void SystemClock_Config(void) {
+static inline void board_clock_init(void)
+{
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  // Enable All GPIOs clocks
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOI_CLK_ENABLE();
 
   /** Configure the main internal regulator output voltage
   */
@@ -122,6 +133,11 @@ static inline void SystemClock_Config(void) {
   __HAL_RCC_USB_CLK_ENABLE();
 }
 
+static inline void board_enable_vdd_usb(void)
+{
+  /* Enable VDDUSB to power on USB peripheral */
+  HAL_PWREx_EnableVddUSB();
+}
 #ifdef __cplusplus
 }
 #endif

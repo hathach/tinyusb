@@ -115,6 +115,11 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H5
   #include "stm32h5xx.h"
   #define FSDEV_BUS_32BIT
+
+  #ifdef STM32H503xx
+  #define USB_DRD_BASE USB_DRD_FS_BASE
+  #endif
+
   #define FSDEV_PMA_SIZE (2048u)
   #undef USB_PMAADDR
   #define USB_PMAADDR USB_DRD_PMAADDR
