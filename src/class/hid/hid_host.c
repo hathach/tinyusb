@@ -410,8 +410,7 @@ void hidh_close(uint8_t daddr) {
     if (p_hid->daddr == daddr) {
       TU_LOG_DRV("  HIDh close addr = %u index = %u\r\n", daddr, i);
       if (tuh_hid_umount_cb) tuh_hid_umount_cb(daddr, i);
-      p_hid->daddr = 0;
-      p_hid->mounted = false;
+      tu_memclr(p_hid, sizeof(hidh_interface_t));
     }
   }
 }
