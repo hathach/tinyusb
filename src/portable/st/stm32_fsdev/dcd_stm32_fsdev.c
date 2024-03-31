@@ -200,8 +200,7 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
 // Inline helper
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr)
-{
+TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr) {
   uint8_t epnum = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
   // Fix -Werror=null-dereference
@@ -524,7 +523,7 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
   xfer_ctl_t * xfer = xfer_ctl_ptr(ep_addr);
   if((xfer->total_len != xfer->queued_len)) /* TX not complete */
   {
-      dcd_transmit_packet(xfer, EPindex);
+    dcd_transmit_packet(xfer, EPindex);
   }
   else /* TX Complete */
   {
@@ -533,10 +532,29 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
 }
 
 // Handle CTR interrupt for the RX/OUT direction
-//
 // Upon call, (wIstr & USB_ISTR_DIR) == 0U
-static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
-{
+static void dcd_ep_ctr_rx_handler(uint32_t wIstr) {
+  #ifdef FSDEV_BUS_32BIT
+  /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
+   * From STM32H503 errata 2.15.1: Buffer description table update completes after CTR interrupt triggers
+   * Description:
+   * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM accesses
+   * have completed. If the software responds quickly to the interrupt, the full buffer contents may not be correct.
+   * Workaround:
+   * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
+   * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
+   * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
+   * also takes time, so we'll wait 40 cycles (count = 20).
+   * - Since Low Speed mode is not supported/popular, we will ignore it for now.
+   *
+   * Note: this errata also seems to apply to G0, U5, H5 etc.
+   */
+  volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
+  while (cycle_count > 0U) {
+    cycle_count--; // each count take 2 cycle (1 cycle for sub, 1 cycle for compare/jump)
+  }
+  #endif
+
   uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
   uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
   uint8_t ep_addr = wEPRegVal & USB_EPADDR_FIELD;
@@ -545,8 +563,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
 
   // Verify the CTR_RX bit is set. This was in the ST Micro code,
   // but I'm not sure it's actually necessary?
-  if((wEPRegVal & USB_EP_CTR_RX) == 0U)
-  {
+  if((wEPRegVal & USB_EP_CTR_RX) == 0U) {
     return;
   }
 
@@ -633,26 +650,22 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   // (Based on the docs, it seems SETUP will always be accepted after CTR is cleared)
   if(ep_addr == 0u)
   {
-      // Always be prepared for a status packet...
+    // Always be prepared for a status packet...
     pcd_set_ep_rx_bufsize(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
     pcd_clear_rx_ep_ctr(USB, EPindex);
   }
 }
 
-static void dcd_ep_ctr_handler(void)
-{
+static void dcd_ep_ctr_handler(void) {
   uint32_t wIstr;
 
   /* stay in loop while pending interrupts */
-  while (((wIstr = USB->ISTR) & USB_ISTR_CTR) != 0U)
-  {
-
-    if ((wIstr & USB_ISTR_DIR) == 0U) /* TX/IN */
-    {
+  while (((wIstr = USB->ISTR) & USB_ISTR_CTR) != 0U) {
+    if ((wIstr & USB_ISTR_DIR) == 0U) {
+      /* TX/IN */
       dcd_ep_ctr_tx_handler(wIstr);
-    }
-    else /* RX/OUT*/
-    {
+    } else {
+      /* RX/OUT*/
       dcd_ep_ctr_rx_handler(wIstr);
     }
   }
