@@ -30,6 +30,11 @@
  extern "C" {
 #endif
 
+// board_test example is special example that doesn't enable device or host stack
+// This can cause some TinyUSB API missing, this define hack to allow us to fill those API
+// to pass the compilation process
+#define tud_int_handler(x)
+
 //--------------------------------------------------------------------
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------
@@ -41,6 +46,11 @@
 
 #ifndef CFG_TUSB_OS
   #define CFG_TUSB_OS               OPT_OS_NONE
+#endif
+
+// Espressif IDF requires "freertos/" prefix in include path
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+#define CFG_TUSB_OS_INC_PATH  freertos/
 #endif
 
 // This example only test LED & GPIO, disable both device and host stack

@@ -50,7 +50,7 @@
 /* #define HAL_NAND_MODULE_ENABLED */
 // #define HAL_NOR_MODULE_ENABLED
 // #define HAL_SRAM_MODULE_ENABLED
-/* #define HAL_HCD_MODULE_ENABLED */ 
+/* #define HAL_HCD_MODULE_ENABLED */
 #define HAL_GPIO_MODULE_ENABLED
 //#define HAL_I2C_MODULE_ENABLED
 /* #define HAL_IRDA_MODULE_ENABLED */
@@ -115,7 +115,7 @@
   *        When the CRS is not used, the HSI48 RC oscillator runs on it default frequency
   *        which is subject to manufacturing process variations.
   */
-#if !defined  (HSI48_VALUE) 
+#if !defined  (HSI48_VALUE)
  #define HSI48_VALUE   48000000U             /*!< Value of the Internal High Speed oscillator for USB FS/SDMMC/RNG in Hz.
                                               The real value my vary depending on manufacturing process variations.*/
 #endif /* HSI48_VALUE */
@@ -123,7 +123,7 @@
 /**
   * @brief Internal Low Speed oscillator (LSI) value.
   */
-#if !defined  (LSI_VALUE) 
+#if !defined  (LSI_VALUE)
  #define LSI_VALUE  32000U                 /*!< LSI Typical Value in Hz*/
 #endif /* LSI_VALUE */                     /*!< Value of the Internal Low Speed oscillator in Hz
                                              The real value may vary depending on the variations
@@ -142,7 +142,7 @@
 
 /**
   * @brief External clock source for SAI1 peripheral
-  *        This value is used by the RCC HAL module to compute the SAI1 & SAI2 clock source 
+  *        This value is used by the RCC HAL module to compute the SAI1 & SAI2 clock source
   *        frequency.
   */
 #if !defined  (EXTERNAL_SAI1_CLOCK_VALUE)
@@ -151,7 +151,7 @@
 
 /**
   * @brief External clock source for SAI2 peripheral
-  *        This value is used by the RCC HAL module to compute the SAI1 & SAI2 clock source 
+  *        This value is used by the RCC HAL module to compute the SAI1 & SAI2 clock source
   *        frequency.
   */
 #if !defined  (EXTERNAL_SAI2_CLOCK_VALUE)

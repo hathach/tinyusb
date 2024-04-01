@@ -50,8 +50,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
 TU_ATTR_ALWAYS_INLINE static inline
-void tud_task (void)
-{
+void tud_task (void) {
   tud_task_ext(UINT32_MAX, false);
 }
 
@@ -80,8 +79,7 @@ bool tud_suspended(void);
 
 // Check if device is ready to transfer
 TU_ATTR_ALWAYS_INLINE static inline
-bool tud_ready(void)
-{
+bool tud_ready(void) {
   return tud_mounted() && !tud_suspended();
 }
 
@@ -147,6 +145,9 @@ TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
 
 // Invoked when usb bus is resumed
 TU_ATTR_WEAK void tud_resume_cb(void);
+
+// Invoked when there is a new usb event, which need to be processed by tud_task()/tud_task_ext()
+void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 
 // Invoked when received control request with VENDOR TYPE
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
@@ -293,7 +294,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   /* MIDI Streaming (MS) Interface */\
   9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum) + 1), 0, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_FUNC_PROTOCOL_CODE_UNDEF, 0,\
   /* MS Header */\
-  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(7 + (_numcables) * TUD_MIDI_DESC_JACK_LEN)
+  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(7 + (_numcables) * TUD_MIDI_DESC_JACK_LEN + 2 * TUD_MIDI_DESC_EP_LEN(_numcables))
 
 #define TUD_MIDI_JACKID_IN_EMB(_cablenum) \
   (uint8_t)(((_cablenum) - 1) * 4 + 1)
@@ -308,15 +309,17 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   (uint8_t)(((_cablenum) - 1) * 4 + 4)
 
 #define TUD_MIDI_DESC_JACK_LEN (6 + 6 + 9 + 9)
-#define TUD_MIDI_DESC_JACK(_cablenum) \
+#define TUD_MIDI_DESC_JACK_DESC(_cablenum, _stridx) \
   /* MS In Jack (Embedded) */\
-  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EMBEDDED, TUD_MIDI_JACKID_IN_EMB(_cablenum), 0,\
+  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EMBEDDED, TUD_MIDI_JACKID_IN_EMB(_cablenum), _stridx,\
   /* MS In Jack (External) */\
-  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EXTERNAL, TUD_MIDI_JACKID_IN_EXT(_cablenum), 0,\
+  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EXTERNAL, TUD_MIDI_JACKID_IN_EXT(_cablenum), _stridx,\
   /* MS Out Jack (Embedded), connected to In Jack External */\
-  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EMBEDDED, TUD_MIDI_JACKID_OUT_EMB(_cablenum), 1, TUD_MIDI_JACKID_IN_EXT(_cablenum), 1, 0,\
+  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EMBEDDED, TUD_MIDI_JACKID_OUT_EMB(_cablenum), 1, TUD_MIDI_JACKID_IN_EXT(_cablenum), 1, _stridx,\
   /* MS Out Jack (External), connected to In Jack Embedded */\
-  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EXTERNAL, TUD_MIDI_JACKID_OUT_EXT(_cablenum), 1, TUD_MIDI_JACKID_IN_EMB(_cablenum), 1, 0
+  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EXTERNAL, TUD_MIDI_JACKID_OUT_EXT(_cablenum), 1, TUD_MIDI_JACKID_IN_EMB(_cablenum), 1, _stridx
+
+#define TUD_MIDI_DESC_JACK(_cablenum) TUD_MIDI_DESC_JACK_DESC(_cablenum, 0)
 
 #define TUD_MIDI_DESC_EP_LEN(_numcables) (9 + 4 + (_numcables))
 #define TUD_MIDI_DESC_EP(_epout, _epsize, _numcables) \
@@ -333,7 +336,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 // - 1 Embedded Jack out connected to 1 External Jack In
 #define TUD_MIDI_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
   TUD_MIDI_DESC_HEAD(_itfnum, _stridx, 1),\
-  TUD_MIDI_DESC_JACK(1),\
+  TUD_MIDI_DESC_JACK_DESC(1, 0),\
   TUD_MIDI_DESC_EP(_epout, _epsize, 1),\
   TUD_MIDI_JACKID_IN_EMB(1),\
   TUD_MIDI_DESC_EP(_epin, _epsize, 1),\
@@ -345,8 +348,8 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 
 /* Standard Interface Association Descriptor (IAD) */
 #define TUD_AUDIO_DESC_IAD_LEN 8
-#define TUD_AUDIO_DESC_IAD(_firstitfs, _nitfs, _stridx) \
-  TUD_AUDIO_DESC_IAD_LEN, TUSB_DESC_INTERFACE_ASSOCIATION, _firstitfs, _nitfs, TUSB_CLASS_AUDIO, AUDIO_FUNCTION_SUBCLASS_UNDEFINED, AUDIO_FUNC_PROTOCOL_CODE_V2, _stridx
+#define TUD_AUDIO_DESC_IAD(_firstitf, _nitfs, _stridx) \
+  TUD_AUDIO_DESC_IAD_LEN, TUSB_DESC_INTERFACE_ASSOCIATION, _firstitf, _nitfs, TUSB_CLASS_AUDIO, AUDIO_FUNCTION_SUBCLASS_UNDEFINED, AUDIO_FUNC_PROTOCOL_CODE_V2, _stridx
 
 /* Standard AC Interface Descriptor(4.7.1) */
 #define TUD_AUDIO_DESC_STD_AC_LEN 9
@@ -418,7 +421,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 /* Standard AS Isochronous Feedback Endpoint Descriptor(4.10.2.1) */
 #define TUD_AUDIO_DESC_STD_AS_ISO_FB_EP_LEN 7
 #define TUD_AUDIO_DESC_STD_AS_ISO_FB_EP(_ep, _interval) \
-  TUD_AUDIO_DESC_STD_AS_ISO_FB_EP_LEN, TUSB_DESC_ENDPOINT, _ep, (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_NO_SYNC | TUSB_ISO_EP_ATT_EXPLICIT_FB), U16_TO_U8S_LE(4), _interval
+  TUD_AUDIO_DESC_STD_AS_ISO_FB_EP_LEN, TUSB_DESC_ENDPOINT, _ep, (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_NO_SYNC | (uint8_t)TUSB_ISO_EP_ATT_EXPLICIT_FB), U16_TO_U8S_LE(4), _interval
 
 // AUDIO simple descriptor (UAC2) for 1 microphone input
 // - 1 Input Terminal, 1 Feature Unit (Mute and Volume Control), 1 Output Terminal, 1 Clock Source
@@ -441,7 +444,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 
 #define TUD_AUDIO_MIC_ONE_CH_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epin, _epsize) \
   /* Standard Interface Association Descriptor (IAD) */\
-  TUD_AUDIO_DESC_IAD(/*_firstitfs*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
+  TUD_AUDIO_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
   /* Standard AC Interface Descriptor(4.7.1) */\
   TUD_AUDIO_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.7.2) */\
@@ -465,7 +468,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   /* Type I Format Type Descriptor(2.3.1.6 - Audio Formats) */\
   TUD_AUDIO_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.10.1.1) */\
-  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS | TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ TUD_OPT_HIGH_SPEED ? 0x04 : 0x01),\
+  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS | TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
   TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000)
 
@@ -490,7 +493,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 
 #define TUD_AUDIO_MIC_FOUR_CH_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epin, _epsize) \
   /* Standard Interface Association Descriptor (IAD) */\
-  TUD_AUDIO_DESC_IAD(/*_firstitfs*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
+  TUD_AUDIO_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
   /* Standard AC Interface Descriptor(4.7.1) */\
   TUD_AUDIO_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.7.2) */\
@@ -514,7 +517,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   /* Type I Format Type Descriptor(2.3.1.6 - Audio Formats) */\
   TUD_AUDIO_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.10.1.1) */\
-  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS | TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ TUD_OPT_HIGH_SPEED ? 0x04 : 0x01),\
+  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS | TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
   TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000)
 
@@ -538,7 +541,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 
 #define TUD_AUDIO_SPEAKER_MONO_FB_DESCRIPTOR(_itfnum, _stridx, _nBytesPerSample, _nBitsUsedPerSample, _epout, _epsize, _epfb) \
   /* Standard Interface Association Descriptor (IAD) */\
-  TUD_AUDIO_DESC_IAD(/*_firstitfs*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
+  TUD_AUDIO_DESC_IAD(/*_firstitf*/ _itfnum, /*_nitfs*/ 0x02, /*_stridx*/ 0x00),\
   /* Standard AC Interface Descriptor(4.7.1) */\
   TUD_AUDIO_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.7.2) */\
@@ -562,7 +565,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   /* Type I Format Type Descriptor(2.3.1.6 - Audio Formats) */\
   TUD_AUDIO_DESC_TYPE_I_FORMAT(_nBytesPerSample, _nBitsUsedPerSample),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.10.1.1) */\
-  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epout, /*_attr*/ (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS | TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ TUD_OPT_HIGH_SPEED ? 0x04 : 0x01),\
+  TUD_AUDIO_DESC_STD_AS_ISO_EP(/*_ep*/ _epout, /*_attr*/ (uint8_t) (TUSB_XFER_ISOCHRONOUS | TUSB_ISO_EP_ATT_ASYNCHRONOUS | TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.10.1.2) */\
   TUD_AUDIO_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO_CS_AS_ISO_DATA_EP_ATT_NON_MAX_PACKETS_OK, /*_ctrl*/ AUDIO_CTRL_NONE, /*_lockdelayunit*/ AUDIO_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000),\
   /* Standard AS Isochronous Feedback Endpoint Descriptor(4.10.2.1) */\
@@ -602,7 +605,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 /* optional interrupt endpoint */ \
 // _int_pollingInterval : for LS/FS, expressed in frames (1ms each). 16 may be a good number?
 #define TUD_USBTMC_INT_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval ) \
-  7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), 0x16
+  7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), _int_pollingInterval
 
 #define TUD_USBTMC_INT_DESCRIPTOR_LEN (7u)
 
@@ -647,7 +650,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 #define TUD_DFU_DESC_LEN(_alt_count)    (9 + (_alt_count) * 9)
 
 // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
-// Note: Alternate count must be numberic or macro, string index is increased by one for each Alt interface
+// Note: Alternate count must be numeric or macro, string index is increased by one for each Alt interface
 #define TUD_DFU_DESCRIPTOR(_itfnum, _alt_count, _stridx, _attr, _timeout, _xfer_size) \
   TU_XSTRCAT(_TUD_DFU_ALT_,_alt_count)(_itfnum, 0, _stridx), \
   /* Function */ \
@@ -770,10 +773,6 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 #define TUD_BT_APP_SUBCLASS                 0x01
 #define TUD_BT_PROTOCOL_PRIMARY_CONTROLLER  0x01
 #define TUD_BT_PROTOCOL_AMP_CONTROLLER      0x02
-
-#ifndef CFG_TUD_BTH_ISO_ALT_COUNT
-#define CFG_TUD_BTH_ISO_ALT_COUNT 0
-#endif
 
 // Length of template descriptor: 38 bytes + number of ISO alternatives * 23
 #define TUD_BTH_DESC_LEN (8 + 9 + 7 + 7 + 7 + (CFG_TUD_BTH_ISO_ALT_COUNT) * (9 + 7 + 7))

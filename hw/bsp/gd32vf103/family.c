@@ -28,7 +28,7 @@
 #include "drv_usb_hw.h"
 #include "drv_usb_dev.h"
 
-#include "../board.h"
+#include "../board_api.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -44,7 +44,7 @@ void USBFS_IRQHandler(void) { tud_int_handler(0); }
 
 // According to GD32VF103 user manual clock tree:
 // Systick clock = AHB clock / 4.
-#define TIMER_TICKS         ((SystemCoreClock / 4) / 1000) 
+#define TIMER_TICKS         ((SystemCoreClock / 4) / 1000)
 
 #define BUTTON_PORT         GPIOA
 #define BUTTON_PIN          GPIO_PIN_0
@@ -112,7 +112,7 @@ void board_init(void) {
   otg_core_regs->GCCFG &= ~GCCFG_VBUSIG;
 #endif
 
-  /* Enable interrupts globaly */
+  /* Enable interrupts globally */
   __enable_irq();
 }
 
@@ -120,7 +120,7 @@ void gd32vf103_reset(void) {
   /* The MTIMER unit of the GD32VF103 doesn't have the MSFRST
    * register to generate a software reset request.
    * BUT instead two undocumented registers in the debug peripheral
-   * that allow issueing a software reset.
+   * that allow issuing a software reset.
    * https://github.com/esmil/gd32vf103inator/blob/master/include/gd32vf103/dbg.h
    */
   DBG_KEY = DBG_KEY_UNLOCK;

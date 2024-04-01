@@ -1,0 +1,54 @@
+name: Build Windows/MacOS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/build_win_mac.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - '.github/workflows/build_win_mac.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------
+  # Build ARM family
+  # ---------------------------------------
+  build-arm:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install ARM GCC
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '10.3-2021.10'
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v4
+
+    - name: Get Dependencies
+      run: python3 tools/get_deps.py stm32f4
+
+    - name: Build
+      run: python3 tools/build_make.py stm32f4 stm32f411disco

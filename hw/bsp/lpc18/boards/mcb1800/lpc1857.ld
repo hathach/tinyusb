@@ -11,44 +11,44 @@
 MEMORY
 {
   /* Define each memory region */
-  MFlashA512 (rx) : ORIGIN = 0x1a000000, LENGTH = 0x80000 /* 512K bytes (alias Flash) */  
-  MFlashB512 (rx) : ORIGIN = 0x1b000000, LENGTH = 0x80000 /* 512K bytes (alias Flash2) */  
-  RamLoc32 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x8000 /* 32K bytes (alias RAM) */  
-  RamLoc40 (rwx) : ORIGIN = 0x10080000, LENGTH = 0xa000 /* 40K bytes (alias RAM2) */  
-  RamAHB32 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000 /* 32K bytes (alias RAM3) */  
-  RamAHB16 (rwx) : ORIGIN = 0x20008000, LENGTH = 0x4000 /* 16K bytes (alias RAM4) */  
-  RamAHB_ETB16 (rwx) : ORIGIN = 0x2000c000, LENGTH = 0x4000 /* 16K bytes (alias RAM5) */  
+  MFlashA512 (rx) : ORIGIN = 0x1a000000, LENGTH = 0x80000 /* 512K bytes (alias Flash) */
+  MFlashB512 (rx) : ORIGIN = 0x1b000000, LENGTH = 0x80000 /* 512K bytes (alias Flash2) */
+  RamLoc32 (rwx) : ORIGIN = 0x10000000, LENGTH = 0x8000 /* 32K bytes (alias RAM) */
+  RamLoc40 (rwx) : ORIGIN = 0x10080000, LENGTH = 0xa000 /* 40K bytes (alias RAM2) */
+  RamAHB32 (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000 /* 32K bytes (alias RAM3) */
+  RamAHB16 (rwx) : ORIGIN = 0x20008000, LENGTH = 0x4000 /* 16K bytes (alias RAM4) */
+  RamAHB_ETB16 (rwx) : ORIGIN = 0x2000c000, LENGTH = 0x4000 /* 16K bytes (alias RAM5) */
 }
 
 /* Define a symbol for the top of each memory region */
-__base_MFlashA512 = 0x1a000000  ; /* MFlashA512 */  
-__base_Flash = 0x1a000000 ; /* Flash */  
-__top_MFlashA512 = 0x1a000000 + 0x80000 ; /* 512K bytes */  
-__top_Flash = 0x1a000000 + 0x80000 ; /* 512K bytes */  
-__base_MFlashB512 = 0x1b000000  ; /* MFlashB512 */  
-__base_Flash2 = 0x1b000000 ; /* Flash2 */  
-__top_MFlashB512 = 0x1b000000 + 0x80000 ; /* 512K bytes */  
-__top_Flash2 = 0x1b000000 + 0x80000 ; /* 512K bytes */  
-__base_RamLoc32 = 0x10000000  ; /* RamLoc32 */  
-__base_RAM = 0x10000000 ; /* RAM */  
-__top_RamLoc32 = 0x10000000 + 0x8000 ; /* 32K bytes */  
-__top_RAM = 0x10000000 + 0x8000 ; /* 32K bytes */  
-__base_RamLoc40 = 0x10080000  ; /* RamLoc40 */  
-__base_RAM2 = 0x10080000 ; /* RAM2 */  
-__top_RamLoc40 = 0x10080000 + 0xa000 ; /* 40K bytes */  
-__top_RAM2 = 0x10080000 + 0xa000 ; /* 40K bytes */  
-__base_RamAHB32 = 0x20000000  ; /* RamAHB32 */  
-__base_RAM3 = 0x20000000 ; /* RAM3 */  
-__top_RamAHB32 = 0x20000000 + 0x8000 ; /* 32K bytes */  
-__top_RAM3 = 0x20000000 + 0x8000 ; /* 32K bytes */  
-__base_RamAHB16 = 0x20008000  ; /* RamAHB16 */  
-__base_RAM4 = 0x20008000 ; /* RAM4 */  
-__top_RamAHB16 = 0x20008000 + 0x4000 ; /* 16K bytes */  
-__top_RAM4 = 0x20008000 + 0x4000 ; /* 16K bytes */  
-__base_RamAHB_ETB16 = 0x2000c000  ; /* RamAHB_ETB16 */  
-__base_RAM5 = 0x2000c000 ; /* RAM5 */  
-__top_RamAHB_ETB16 = 0x2000c000 + 0x4000 ; /* 16K bytes */  
-__top_RAM5 = 0x2000c000 + 0x4000 ; /* 16K bytes */  
+__base_MFlashA512 = 0x1a000000  ; /* MFlashA512 */
+__base_Flash = 0x1a000000 ; /* Flash */
+__top_MFlashA512 = 0x1a000000 + 0x80000 ; /* 512K bytes */
+__top_Flash = 0x1a000000 + 0x80000 ; /* 512K bytes */
+__base_MFlashB512 = 0x1b000000  ; /* MFlashB512 */
+__base_Flash2 = 0x1b000000 ; /* Flash2 */
+__top_MFlashB512 = 0x1b000000 + 0x80000 ; /* 512K bytes */
+__top_Flash2 = 0x1b000000 + 0x80000 ; /* 512K bytes */
+__base_RamLoc32 = 0x10000000  ; /* RamLoc32 */
+__base_RAM = 0x10000000 ; /* RAM */
+__top_RamLoc32 = 0x10000000 + 0x8000 ; /* 32K bytes */
+__top_RAM = 0x10000000 + 0x8000 ; /* 32K bytes */
+__base_RamLoc40 = 0x10080000  ; /* RamLoc40 */
+__base_RAM2 = 0x10080000 ; /* RAM2 */
+__top_RamLoc40 = 0x10080000 + 0xa000 ; /* 40K bytes */
+__top_RAM2 = 0x10080000 + 0xa000 ; /* 40K bytes */
+__base_RamAHB32 = 0x20000000  ; /* RamAHB32 */
+__base_RAM3 = 0x20000000 ; /* RAM3 */
+__top_RamAHB32 = 0x20000000 + 0x8000 ; /* 32K bytes */
+__top_RAM3 = 0x20000000 + 0x8000 ; /* 32K bytes */
+__base_RamAHB16 = 0x20008000  ; /* RamAHB16 */
+__base_RAM4 = 0x20008000 ; /* RAM4 */
+__top_RamAHB16 = 0x20008000 + 0x4000 ; /* 16K bytes */
+__top_RAM4 = 0x20008000 + 0x4000 ; /* 16K bytes */
+__base_RamAHB_ETB16 = 0x2000c000  ; /* RamAHB_ETB16 */
+__base_RAM5 = 0x2000c000 ; /* RAM5 */
+__top_RamAHB_ETB16 = 0x2000c000 + 0x4000 ; /* 16K bytes */
+__top_RAM5 = 0x2000c000 + 0x4000 ; /* 16K bytes */
 
 ENTRY(ResetISR)
 
@@ -118,9 +118,9 @@ SECTIONS
     } > MFlashA512
     /*
      * for exception handling/unwind - some Newlib functions (in common
-     * with C++ and STDC++) use this. 
+     * with C++ and STDC++) use this.
      */
-    .ARM.extab : ALIGN(4) 
+    .ARM.extab : ALIGN(4)
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
     } > MFlashA512
@@ -134,7 +134,7 @@ SECTIONS
     __exidx_end = .;
 
     _etext = .;
-        
+
     /* DATA section for RamLoc40 */
 
     .data_RAM2 : ALIGN(4)
@@ -215,7 +215,7 @@ SECTIONS
        *(.bss.$RamLoc40*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM2 = .) ;
-    } > RamLoc40 
+    } > RamLoc40
 
     /* BSS section for RamAHB32 */
     .bss_RAM3 : ALIGN(4)
@@ -225,7 +225,7 @@ SECTIONS
        *(.bss.$RamAHB32*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM3 = .) ;
-    } > RamAHB32 
+    } > RamAHB32
 
     /* BSS section for RamAHB16 */
     .bss_RAM4 : ALIGN(4)
@@ -235,7 +235,7 @@ SECTIONS
        *(.bss.$RamAHB16*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM4 = .) ;
-    } > RamAHB16 
+    } > RamAHB16
 
     /* BSS section for RamAHB_ETB16 */
     .bss_RAM5 : ALIGN(4)
@@ -245,7 +245,7 @@ SECTIONS
        *(.bss.$RamAHB_ETB16*)
        . = ALIGN (. != 0 ? 4 : 1) ; /* avoid empty segment */
        PROVIDE(__end_bss_RAM5 = .) ;
-    } > RamAHB_ETB16 
+    } > RamAHB_ETB16
 
     /* MAIN BSS SECTION */
     .bss : ALIGN(4)
@@ -264,7 +264,7 @@ SECTIONS
        *(.noinit.$RAM2*)
        *(.noinit.$RamLoc40*)
        . = ALIGN(4) ;
-    } > RamLoc40 
+    } > RamLoc40
 
     /* NOINIT section for RamAHB32 */
     .noinit_RAM3 (NOLOAD) : ALIGN(4)
@@ -272,7 +272,7 @@ SECTIONS
        *(.noinit.$RAM3*)
        *(.noinit.$RamAHB32*)
        . = ALIGN(4) ;
-    } > RamAHB32 
+    } > RamAHB32
 
     /* NOINIT section for RamAHB16 */
     .noinit_RAM4 (NOLOAD) : ALIGN(4)
@@ -280,7 +280,7 @@ SECTIONS
        *(.noinit.$RAM4*)
        *(.noinit.$RamAHB16*)
        . = ALIGN(4) ;
-    } > RamAHB16 
+    } > RamAHB16
 
     /* NOINIT section for RamAHB_ETB16 */
     .noinit_RAM5 (NOLOAD) : ALIGN(4)
@@ -288,13 +288,13 @@ SECTIONS
        *(.noinit.$RAM5*)
        *(.noinit.$RamAHB_ETB16*)
        . = ALIGN(4) ;
-    } > RamAHB_ETB16 
+    } > RamAHB_ETB16
 
     /* DEFAULT NOINIT SECTION */
     .noinit (NOLOAD): ALIGN(4)
     {
         _noinit = .;
-        *(.noinit*) 
+        *(.noinit*)
          . = ALIGN(4) ;
         _end_noinit = .;
     } > RamLoc32
@@ -302,11 +302,11 @@ SECTIONS
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_RamLoc32 - 0);
 
     /* ## Create checksum value (used in startup) ## */
-    PROVIDE(__valid_user_code_checksum = 0 - 
-                                         (_vStackTop 
-                                         + (ResetISR + 1) 
-                                         + (NMI_Handler + 1) 
-                                         + (HardFault_Handler + 1) 
+    PROVIDE(__valid_user_code_checksum = 0 -
+                                         (_vStackTop
+                                         + (ResetISR + 1)
+                                         + (NMI_Handler + 1)
+                                         + (HardFault_Handler + 1)
                                          + (( DEFINED(MemManage_Handler) ? MemManage_Handler : 0 ) + 1)   /* MemManage_Handler may not be defined */
                                          + (( DEFINED(BusFault_Handler) ? BusFault_Handler : 0 ) + 1)     /* BusFault_Handler may not be defined */
                                          + (( DEFINED(UsageFault_Handler) ? UsageFault_Handler : 0 ) + 1) /* UsageFault_Handler may not be defined */

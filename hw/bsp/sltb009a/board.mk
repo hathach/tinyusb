@@ -19,6 +19,8 @@ SILABS_CMSIS = hw/mcu/silabs/cmsis-dfp-$(SILABS_FAMILY)/Device/SiliconLabs/$(she
 DEPS_SUBMODULES += hw/mcu/silabs/cmsis-dfp-$(SILABS_FAMILY)
 DEPS_SUBMODULES += lib/CMSIS_5
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # All source paths should be relative to the top level.
 LD_FILE = $(SILABS_CMSIS)/Source/GCC/$(SILABS_FAMILY).ld
 
@@ -35,7 +37,7 @@ INC += \
   $(TOP)/hw/bsp/$(BOARD)
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM3
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # For flash-jlink target
 JLINK_DEVICE = EFM32GG12B810F1024

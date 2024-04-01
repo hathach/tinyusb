@@ -6,19 +6,28 @@ ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m0
 
+# --------------
+# Compiler Flags
+# --------------
 CFLAGS += \
-  -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m0 \
-  -mfloat-abi=soft \
-  -nostdlib -nostartfiles \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
+# GCC Flags
+CFLAGS_GCC += \
+  -flto \
+  -nostdlib -nostartfiles \
+
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=cast-qual
+CFLAGS_GCC += -Wno-error=unused-parameter -Wno-error=cast-align
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
+# ------------------------
+# All source paths should be relative to the top level.
+# ------------------------
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
@@ -28,7 +37,9 @@ SRC_C += \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
   $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c \
-  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_dma.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c \
+  $(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart_ex.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
@@ -36,5 +47,9 @@ INC += \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
 
-# For freeRTOS port source
-FREERTOS_PORT = ARM_CM0
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+
+# Linker
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf

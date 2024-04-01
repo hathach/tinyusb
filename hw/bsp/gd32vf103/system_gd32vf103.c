@@ -95,7 +95,7 @@ void SystemInit(void)
     /* reset the RCC clock configuration to the default reset state */
     /* enable IRC8M */
     RCU_CTL |= RCU_CTL_IRC8MEN;
-    
+
     /* reset SCS, AHBPSC, APB1PSC, APB2PSC, ADCPSC, CKOUT0SEL bits */
     RCU_CFG0 &= ~(RCU_CFG0_SCS | RCU_CFG0_AHBPSC | RCU_CFG0_APB1PSC | RCU_CFG0_APB2PSC |
                   RCU_CFG0_ADCPSC | RCU_CFG0_ADCPSC_2 | RCU_CFG0_CKOUT0SEL);
@@ -107,7 +107,7 @@ void SystemInit(void)
     RCU_CTL &= ~(RCU_CTL_HXTALBPS);
 
     /* reset PLLSEL, PREDV0_LSB, PLLMF, USBFSPSC bits */
-    
+
     RCU_CFG0 &= ~(RCU_CFG0_PLLSEL | RCU_CFG0_PREDV0_LSB | RCU_CFG0_PLLMF |
                   RCU_CFG0_USBFSPSC | RCU_CFG0_PLLMF_4);
     RCU_CFG1 = 0x00000000U;
@@ -141,12 +141,12 @@ void SystemCoreClockUpdate(void)
         case SEL_IRC8M:
             SystemCoreClock = IRC8M_VALUE;
             break;
-            
+
         /* HXTAL is selected as CK_SYS */
         case SEL_HXTAL:
             SystemCoreClock = HXTAL_VALUE;
             break;
-            
+
         /* PLL is selected as CK_SYS */
         case SEL_PLL:
             /* PLL clock source selection, HXTAL or IRC8M/2 */
@@ -313,7 +313,7 @@ static void system_clock_72m_hxtal(void)
     /* APB1 = AHB/2 */
     RCU_CFG0 |= RCU_APB1_CKAHB_DIV2;
 
-    /* CK_PLL = (CK_PREDIV0) * 18 = 72 MHz */ 
+    /* CK_PLL = (CK_PREDIV0) * 18 = 72 MHz */
     RCU_CFG0 &= ~(RCU_CFG0_PLLMF | RCU_CFG0_PLLMF_4);
     RCU_CFG0 |= (RCU_PLLSRC_HXTAL | RCU_PLL_MUL18);
 
@@ -574,7 +574,7 @@ void ECLIC_Init(void)
  * \param [in]  IRQn        NMI interrupt handler address
  * \param [in]  shv         \ref ECLIC_NON_VECTOR_INTERRUPT means non-vector mode, and \ref ECLIC_VECTOR_INTERRUPT is vector mode
  * \param [in]  trig_mode   see \ref ECLIC_TRIGGER_Type
- * \param [in]  lvl         interupt level
+ * \param [in]  lvl         interrupt level
  * \param [in]  priority    interrupt priority
  * \param [in]  handler     interrupt handler, if NULL, handler will not be installed
  * \return       -1 means invalid input parameter. 0 means successful.

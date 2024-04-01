@@ -23,7 +23,7 @@
  *
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
@@ -160,7 +160,9 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
         putchar(ch);
         if ( ch == '\r' ) putchar('\n'); // added new line for enter key
 
+        #ifndef __ICCARM__ // TODO IAR doesn't support stream control ?
         fflush(stdout); // flush right away, else nanolib will wait for newline
+        #endif
       }
     }
     // TODO example skips key released
@@ -247,7 +249,7 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
     // Composite report, 1st byte is report ID, data starts from 2nd byte
     uint8_t const rpt_id = report[0];
 
-    // Find report id in the arrray
+    // Find report id in the array
     for(uint8_t i=0; i<rpt_count; i++)
     {
       if (rpt_id == rpt_info_arr[i].report_id )
@@ -263,7 +265,7 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
 
   if (!rpt_info)
   {
-    printf("Couldn't find the report info for this report !\r\n");
+    printf("Couldn't find report info !\r\n");
     return;
   }
 

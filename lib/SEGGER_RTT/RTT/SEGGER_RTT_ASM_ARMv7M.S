@@ -23,6 +23,7 @@ Additional information:
 *
 **********************************************************************
 */
+
 #define _CCIAR   0
 #define _CCCLANG 1
 
@@ -36,9 +37,9 @@ Additional information:
   #define _THUMB_CODE          .code 16
   #define _WORD                .word
   #define _SECTION(Sect, Type, AlignExp) .section Sect ##, "ax"
-  #define _ALIGN(Exp)          .align Exp 
+  #define _ALIGN(Exp)          .align Exp
   #define _PLACE_LITS          .ltorg
-  #define _DATA_SECT_START 
+  #define _DATA_SECT_START
   #define _C_STARTUP           _start
   #define _STACK_END           __stack_end__
   #define _RAMFUNC
@@ -58,7 +59,7 @@ Additional information:
   #define _THUMB_CODE          THUMB
   #define _WORD                DCD
   #define _SECTION(Sect, Type, AlignExp) SECTION Sect ## : ## Type ## :REORDER:NOROOT ## (AlignExp)
-  #define _ALIGN(Exp)          alignrom Exp 
+  #define _ALIGN(Exp)          alignrom Exp
   #define _PLACE_LITS
   #define _DATA_SECT_START     DATA
   #define _C_STARTUP           __iar_program_start
@@ -182,6 +183,9 @@ _LoopCopyStraight:                               // memcpy(pRing->pBuffer + WrOf
         SUBS     R2,R2,#+1
         BNE      _LoopCopyStraight
 _CSDone:
+#if _CORE_NEEDS_DMB                              // Do not slow down cores that do not need a DMB instruction here
+        DMB                                      // Cortex-M7 may delay memory writes and also change the order in which the writes happen. Therefore, make sure that all buffer writes are finished, before updating the <WrOff> in the struct
+#endif
         STR      R0,[R6, #+12]                   // pRing->WrOff = WrOff + NumBytes;
         MOVS     R0,#+1
         POP      {R4-R7}
@@ -214,6 +218,9 @@ _LoopCopyAfterWrapAround:                        // memcpy(pRing->pBuffer, pData
         SUBS     R2,R2,#+1
         BNE      _LoopCopyAfterWrapAround
 _No2ChunkNeeded:
+#if _CORE_NEEDS_DMB                              // Do not slow down cores that do not need a DMB instruction here
+        DMB                                      // Cortex-M7 may delay memory writes and also change the order in which the writes happen. Therefore, make sure that all buffer writes are finished, before updating the <WrOff> in the struct
+#endif
         STR      R4,[R6, #+12]                   // pRing->WrOff = NumBytes; => Must be written after copying data because J-Link may read control block asynchronously while writing into buffer
         MOVS     R0,#+1
         POP      {R4-R7}

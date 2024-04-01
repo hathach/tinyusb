@@ -27,13 +27,17 @@
  */
 
 #include "stm32l4xx_hal.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
+#if defined(USB_OTG_FS)
 void OTG_FS_IRQHandler(void)
+#else
+void USB_IRQHandler(void)
+#endif
 {
   tud_int_handler(0);
 }
@@ -44,8 +48,7 @@ void OTG_FS_IRQHandler(void)
 
 UART_HandleTypeDef UartHandle;
 
-void board_init(void)
-{
+void board_init(void) {
   board_clock_init();
 
   // Enable All GPIOs clocks
@@ -53,9 +56,15 @@ void board_init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
+#if defined(GPIOE)
   __HAL_RCC_GPIOE_CLK_ENABLE();
+#endif
+#if defined(GPIOF)
   __HAL_RCC_GPIOF_CLK_ENABLE();
+#endif
+#if defined(GPIOG)
   __HAL_RCC_GPIOG_CLK_ENABLE();
+#endif
   __HAL_RCC_GPIOH_CLK_ENABLE();
   UART_CLK_EN();
 
@@ -64,7 +73,11 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#if defined(USB_OTG_FS)
+  NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#else
+  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#endif
 #endif
 
   /* Enable USB power on Pwrctrl CR2 register */
@@ -95,7 +108,10 @@ void board_init(void)
 
   // IOSV bit MUST be set to access GPIO port G[2:15] */
   __HAL_RCC_PWR_CLK_ENABLE();
+
+#if defined(PWR_CR2_IOSV)
   HAL_PWREx_EnableVddIO2();
+#endif
 
   // Uart
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
@@ -124,9 +140,14 @@ void board_init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+#if defined(USB_OTG_FS)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
+#else
+  GPIO_InitStruct.Alternate = GPIO_AF10_USB_FS;
+#endif
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+#if defined(USB_OTG_FS)
   /* Configure VBUS Pin */
   GPIO_InitStruct.Pin = GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -139,60 +160,75 @@ void board_init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+#endif
 
   /* Enable USB FS Clocks */
+#if defined(USB_OTG_FS)
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-
   board_vbus_sense_init();
+#else
+  __HAL_RCC_USB_CLK_ENABLE();
+#endif
+
 }
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  GPIO_PinState pin_state = (GPIO_PinState) (state ? LED_STATE_ON : (1 - LED_STATE_ON));
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, pin_state);
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
-  return 0;
-}
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+  volatile uint32_t * stm32_uuid = (volatile uint32_t *) UID_BASE;
+  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
+  uint8_t const len = 12;
 
-int board_uart_write(void const * buf, int len)
-{
-  HAL_UART_Transmit(&UartHandle, (uint8_t*)(uintptr_t) buf, len, 0xffff);
+  id32[0] = stm32_uuid[0];
+  id32[1] = stm32_uuid[1];
+  id32[2] = stm32_uuid[2];
+
   return len;
 }
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+int board_uart_read(uint8_t *buf, int len) {
+  (void) buf;
+  (void) len;
+  return 0;
+}
+
+int board_uart_write(void const *buf, int len) {
+  HAL_UART_Transmit(&UartHandle, (uint8_t *) (uintptr_t) buf, len, 0xffff);
+  return len;
+}
+
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
+  HAL_IncTick();
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
 
-void HardFault_Handler (void)
-{
-  asm("bkpt");
+void HardFault_Handler(void) {
+  __asm("BKPT #0\n");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
-void _init(void)
-{
+void _init(void) {
 
 }

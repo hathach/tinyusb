@@ -27,21 +27,53 @@
 #ifndef BOARD_H_
 #define BOARD_H_
 
-// Note: This definition file covers all MM900EV1B, MM900EV2B, and MM900EV3B boards.
+// Note: This definition file covers all MM900EV1B, MM900EV2B, MM900EV3B,
+// MM900EV-Lite boards.
 // Each of these boards has an FT900 device.
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#define GPIO_UART0_TX 48
-#define GPIO_UART0_RX 49
-#define GPIO_ETH_LED0 61
-#define GPIO_ETH_LED1 62
-#define GPIO_REMOTE_WAKEUP_PIN 18
-#define USBD_VBUS_DTC_PIN 3
+// UART to use on this board.
+#ifndef BOARD_UART
+#define BOARD_UART UART0
+#endif
 
-#define GPIO_REMOTE_WAKEUP
+// UART is on connector CN1.
+#ifndef BOARD_GPIO_UART0_TX
+#define BOARD_GPIO_UART0_TX 48 // Pin 4 of CN1.
+#endif
+#ifndef BOARD_GPIO_UART0_RX
+#define BOARD_GPIO_UART0_RX 49 // Pin 6 of CN1.
+#endif
+
+// LED is connected to pins 17 (signal) and 15 (GND) of CN1.
+#ifndef BOARD_GPIO_LED
+#define BOARD_GPIO_LED 35
+#endif
+#ifndef BOARD_GPIO_LED_STATE_ON
+#define BOARD_GPIO_LED_STATE_ON 1
+#endif
+// Button is connected to pins 13 (signal) and 15 (GND) of CN1.
+#ifndef BOARD_GPIO_BUTTON
+#define BOARD_GPIO_BUTTON 56
+#endif
+// Button is pulled up and grounded for active.
+#ifndef BOARD_GPIO_BUTTON_STATE_ACTIVE
+#define BOARD_GPIO_BUTTON_STATE_ACTIVE 0
+#endif
+
+// Enable the Remote Wakeup signalling.
+// Remote wakeup is wired to pin 40 of CN1.
+#ifndef BOARD_GPIO_REMOTE_WAKEUP
+#define BOARD_GPIO_REMOTE_WAKEUP 18
+#endif
+
+// USB VBus signal is connected directly to the FT900.
+#ifndef BOARD_USBD_VBUS_DTC_PIN
+#define BOARD_USBD_VBUS_DTC_PIN 3
+#endif
 
 #ifdef __cplusplus
  }

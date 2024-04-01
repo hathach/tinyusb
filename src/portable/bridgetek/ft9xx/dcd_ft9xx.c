@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright 2021 Bridgetek Pte Ltd
@@ -24,22 +24,19 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* 
- * Contains code adapted from Bridgetek Pte Ltd via license terms stated 
+/*
+ * Contains code adapted from Bridgetek Pte Ltd via license terms stated
  * in https://brtchip.com/BRTSourceCodeLicenseAgreement
  */
 
 #include "tusb_option.h"
 
 #if CFG_TUD_ENABLED && \
-  (CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X) 
+  (CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X)
 
 #include <stdint.h>
 #include <ft900.h>
 #include <registers/ft900_registers.h>
-
-#include "board.h"
-#include "bsp/board.h"
 
 #define USBD_USE_STREAMS
 
@@ -50,17 +47,21 @@
 //--------------------------------------------------------------------+
 
 // Board code will determine the state of VBUS from USB host.
-extern int8_t board_ft90x_vbus(void);
+extern int8_t board_ft9xx_vbus(void);
+extern int board_uart_write(void const *buf, int len);
 
 // Static array to store an incoming SETUP request for processing by tinyusb.
-static uint8_t _ft90x_setup_packet[8];
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN
+static uint8_t _ft9xx_setup_packet[8];
 
-struct ft90x_xfer_state
+struct ft9xx_xfer_state
 {
+  volatile uint8_t ready; // OUT Transfer has been received and waiting for transfer.
   volatile uint8_t valid; // Transfer is pending and total_size, remain_size, and buff_ptr are valid.
-  volatile int16_t total_size; // Total transfer size in bytes for this transfer.
-  volatile int16_t remain_size; // Total remaining in transfer.
-  volatile uint8_t *buff_ptr; // Pointer to buffer to transmit from or receive to.
+
+  int16_t total_size; // Total transfer size in bytes for this transfer.
+  int16_t remain_size; // Total remaining in transfer.
+  uint8_t *buff_ptr; // Pointer to buffer to transmit from or receive to.
 
   uint8_t type; // Endpoint type. Of type USBD_ENDPOINT_TYPE from endpoint descriptor.
   uint8_t dir; // Endpoint direction. TUSB_DIR_OUT or TUSB_DIR_IN. For control endpoint this is the current direction.
@@ -68,32 +69,32 @@ struct ft90x_xfer_state
   uint16_t size; // Max packet size for endpoint from endpoint descriptor.
 };
 // Endpoint description array for each endpoint.
-static struct ft90x_xfer_state ep_xfer[USBD_MAX_ENDPOINT_COUNT];
+static struct ft9xx_xfer_state ep_xfer[USBD_MAX_ENDPOINT_COUNT];
 // USB speed.
 static tusb_speed_t _speed;
 
 // Interrupt handlers.
-void _ft90x_usbd_ISR(void); // Interrupt handler for USB device.
-void ft90x_usbd_pm_ISR(void); // Interrupt handler for USB device for power management (called by board).
+void _ft9xx_usbd_ISR(void); // Interrupt handler for USB device.
+void ft9xx_usbd_pm_ISR(void); // Interrupt handler for USB device for power management (called by board).
 
 // Internal functions forward declarations.
-static uint16_t _ft90x_edpt_xfer_out(uint8_t ep_number, uint8_t *buffer, uint16_t xfer_bytes);
-static uint16_t _ft90x_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t xfer_bytes);
-static void _ft90x_reset_edpts(void);
-static inline void _ft90x_phy_enable(bool en);
-static void _ft90x_usb_speed(void);
-static void _dcd_ft90x_attach(void);
-static void _dcd_ft90x_detach(void) __attribute__((unused));
-static uint16_t _ft90x_dusb_in(uint8_t ep_number, const uint8_t *buffer, uint16_t length);
-static uint16_t _ft90x_dusb_out(uint8_t ep_number, uint8_t *buffer, uint16_t length);
+static uint16_t _ft9xx_edpt_xfer_out(uint8_t ep_number, uint8_t *buffer, uint16_t xfer_bytes);
+static uint16_t _ft9xx_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t xfer_bytes);
+static void _ft9xx_reset_edpts(void);
+static inline void _ft9xx_phy_enable(bool en);
+static void _ft9xx_usb_speed(void);
+static void _dcd_ft9xx_attach(void);
+static void _dcd_ft9xx_detach(void) __attribute__((unused));
+static uint16_t _ft9xx_dusb_in(uint8_t ep_number, const uint8_t *buffer, uint16_t length);
+static uint16_t _ft9xx_dusb_out(uint8_t ep_number, uint8_t *buffer, uint16_t length);
 
 // Internal functions.
 
 // Manage an OUT transfer from the host.
 // This can be up-to the maximum packet size of the endpoint.
-// Continuation of a transfer beyond the maximum packet size is performed 
+// Continuation of a transfer beyond the maximum packet size is performed
 // by the interrupt handler.
-static uint16_t _ft90x_edpt_xfer_out(uint8_t ep_number, uint8_t *buffer, uint16_t xfer_bytes)
+static uint16_t _ft9xx_edpt_xfer_out(uint8_t ep_number, uint8_t *buffer, uint16_t xfer_bytes)
 {
   //Note: this is called from only the interrupt handler when an OUT transfer is called.
   uint16_t ep_size = ep_xfer[ep_number].size;
@@ -108,7 +109,7 @@ static uint16_t _ft90x_edpt_xfer_out(uint8_t ep_number, uint8_t *buffer, uint16_
     //;
 
   // Send the first packet of max packet size
-  xfer_bytes = _ft90x_dusb_out(ep_number, (uint8_t *)buffer, xfer_bytes);
+  xfer_bytes = _ft9xx_dusb_out(ep_number, (uint8_t *)buffer, xfer_bytes);
   if (ep_number == USBD_EP_0)
   {
     // Set flags to indicate data ready.
@@ -124,9 +125,9 @@ static uint16_t _ft90x_edpt_xfer_out(uint8_t ep_number, uint8_t *buffer, uint16_
 
 // Manage an IN transfer to the host.
 // This can be up-to the maximum packet size of the endpoint.
-// Continuation of a transfer beyond the maximum packet size is performed 
+// Continuation of a transfer beyond the maximum packet size is performed
 // by the interrupt handler.
-static uint16_t _ft90x_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t xfer_bytes)
+static uint16_t _ft9xx_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t xfer_bytes)
 {
   //Note: this may be called from the interrupt handler or from normal code.
   uint8_t end = 0;
@@ -154,17 +155,24 @@ static uint16_t _ft90x_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t
   }
   else
   {
-    uint8_t sr_reg;
     // If there is data to transmit then wait until the IN buffer
     // for the endpoint is empty.
-    do
+    // This does not apply to interrupt endpoints.
+    if (ep_xfer[ep_number].type != TUSB_XFER_INTERRUPT)
     {
-      sr_reg = USBD_EP_SR_REG(ep_number);
-    } while (sr_reg & MASK_USBD_EPxSR_INPRDY);
-    
+      uint8_t sr_reg;
+      do
+      {
+        sr_reg = USBD_EP_SR_REG(ep_number);
+      } while (sr_reg & MASK_USBD_EPxSR_INPRDY);
+    }
   }
 
-  xfer_bytes = _ft90x_dusb_in(ep_number, (uint8_t *)buffer, xfer_bytes);
+  // Do not send a ZLP for interrupt endpoints.
+  if ((ep_xfer[ep_number].type != TUSB_XFER_INTERRUPT) || (xfer_bytes > 0))
+  {
+    xfer_bytes = _ft9xx_dusb_in(ep_number, (uint8_t *)buffer, xfer_bytes);
+  }
 
   if (ep_number == USBD_EP_0)
   {
@@ -188,25 +196,25 @@ static uint16_t _ft90x_edpt_xfer_in(uint8_t ep_number, uint8_t *buffer, uint16_t
   return xfer_bytes;
 }
 
-// Reset all non-control endpoints to a default state. 
+// Reset all non-control endpoints to a default state.
 // Control endpoint is always enabled and ready. All others disabled.
-static void _ft90x_reset_edpts(void)
+static void _ft9xx_reset_edpts(void)
 {
   // Disable all endpoints and remove configuration values.
   for (int i = 1; i < USBD_MAX_ENDPOINT_COUNT; i++)
   {
     // Clear settings.
-    tu_memclr(&ep_xfer[i], sizeof(struct ft90x_xfer_state));
+    tu_memclr(&ep_xfer[i], sizeof(struct ft9xx_xfer_state));
     // Disable hardware.
     USBD_EP_CR_REG(i) = 0;
   }
-  
+
   // Enable interrupts from USB device control.
   USBD_REG(cmie) = MASK_USBD_CMIE_ALL;
 }
 
 // Enable or disable the USB PHY.
-static inline void _ft90x_phy_enable(bool en)
+static inline void _ft9xx_phy_enable(bool en)
 {
   if (en)
     SYS->PMCFG_L |= MASK_SYS_PMCFG_DEV_PHY_EN;
@@ -215,7 +223,7 @@ static inline void _ft90x_phy_enable(bool en)
 }
 
 // Safely connect to the USB.
-static void _dcd_ft90x_attach(void)
+static void _dcd_ft9xx_attach(void)
 {
   uint8_t reg;
 
@@ -271,7 +279,7 @@ static void _dcd_ft90x_attach(void)
 }
 
 // Gracefully disconnect from the USB.
-static void _dcd_ft90x_detach(void)
+static void _dcd_ft9xx_detach(void)
 {
   // Disable device connect/disconnect/host reset detection.
   SYS->PMCFG_L = SYS->PMCFG_L & (~MASK_SYS_PMCFG_DEV_DETECT_EN);
@@ -311,9 +319,9 @@ static void _dcd_ft90x_detach(void)
 }
 
 // Determine the speed of the USB to which we are connected.
-// Set the speed of the PHY accordingly. 
+// Set the speed of the PHY accordingly.
 // High speed can be disabled through CFG_TUSB_RHPORT0_MODE or CFG_TUD_MAX_SPEED settings.
-static void _ft90x_usb_speed(void)
+static void _ft9xx_usb_speed(void)
 {
 	uint8_t  fctrl_val;
 
@@ -371,16 +379,16 @@ static void _ft90x_usb_speed(void)
 }
 
 // Send a buffer to the USB IN FIFO.
-// When the macro USBD_USE_STREAMS is defined this will stream a buffer of data 
+// When the macro USBD_USE_STREAMS is defined this will stream a buffer of data
 // to the FIFO using the most efficient MCU streamout combination.
-// If streaming is disabled then it will send each byte of the buffer in turn 
+// If streaming is disabled then it will send each byte of the buffer in turn
 // to the FIFO. The is no reason to not stream.
 // The total number of bytes sent to the FIFO is returned.
-static uint16_t _ft90x_dusb_in(uint8_t ep_number, const uint8_t *buffer, uint16_t length)
+static uint16_t _ft9xx_dusb_in(uint8_t ep_number, const uint8_t *buffer, uint16_t length)
 {
   uint16_t bytes_read = 0;
   uint16_t buff_size = length;
-  
+
 #ifdef USBD_USE_STREAMS
   volatile uint8_t *data_reg;
 
@@ -415,7 +423,7 @@ static uint16_t _ft90x_dusb_in(uint8_t ep_number, const uint8_t *buffer, uint16_
     bytes_read = buff_size;
   }
 #else // USBD_USE_STREAMS
-  
+
   bytes_read = buff_size;
   while (buff_size--)
   {
@@ -430,17 +438,17 @@ static uint16_t _ft90x_dusb_in(uint8_t ep_number, const uint8_t *buffer, uint16_
 // Receive a buffer from the USB OUT FIFO.
 // When the macro USBD_USE_STREAMS is defined this will stream from the FIFO
 // to a buffer of data using the most efficient MCU streamin combination.
-// If streaming is disabled then it will receive each byte from the FIFO in turn 
+// If streaming is disabled then it will receive each byte from the FIFO in turn
 // to the buffer. The is no reason to not stream.
 // The total number of bytes received from the FIFO is returned.
-static uint16_t _ft90x_dusb_out(uint8_t ep_number, uint8_t *buffer, uint16_t length)
+static uint16_t _ft9xx_dusb_out(uint8_t ep_number, uint8_t *buffer, uint16_t length)
 {
 #ifdef USBD_USE_STREAMS
   volatile uint8_t *data_reg;
 #endif // USBD_USE_STREAMS
   uint16_t bytes_read = 0;
   uint16_t buff_size = length;
-  
+
   if (length > 0)
   {
     if (ep_number == USBD_EP_0)
@@ -511,11 +519,11 @@ static uint16_t _ft90x_dusb_out(uint8_t ep_number, uint8_t *buffer, uint16_t len
 // Initialize controller to device mode
 void dcd_init(uint8_t rhport)
 {
-  TU_LOG2("FT90x initialisation\r\n");
+  TU_LOG2("FT9xx initialisation\r\n");
 
-  _dcd_ft90x_attach();
+  _dcd_ft9xx_attach();
 
-  interrupt_attach(interrupt_usb_device, (int8_t)interrupt_usb_device, _ft90x_usbd_ISR);
+  interrupt_attach(interrupt_usb_device, (int8_t)interrupt_usb_device, _ft9xx_usbd_ISR);
 
   dcd_connect(rhport);
 }
@@ -524,7 +532,7 @@ void dcd_init(uint8_t rhport)
 void dcd_int_enable(uint8_t rhport)
 {
   (void)rhport;
-  TU_LOG3("FT90x int enable\r\n");
+  TU_LOG3("FT9xx int enable\r\n");
 
   // Peripheral devices interrupt enable.
   interrupt_enable_globally();
@@ -534,7 +542,7 @@ void dcd_int_enable(uint8_t rhport)
 void dcd_int_disable(uint8_t rhport)
 {
   (void)rhport;
-  TU_LOG3("FT90x int disable\r\n");
+  TU_LOG3("FT9xx int disable\r\n");
 
   // Peripheral devices interrupt disable.
   interrupt_disable_globally();
@@ -587,8 +595,8 @@ void dcd_remote_wakeup(uint8_t rhport)
 
   SYS->MSC0CFG = SYS->MSC0CFG | MASK_SYS_MSC0CFG_DEV_RMWAKEUP;
 
-  // Atleast 2 ms of delay needed for RESUME Data K state.
-  delayms(2); 
+  // At least 2 ms of delay needed for RESUME Data K state.
+  delayms(2);
 
   SYS->MSC0CFG &= ~MASK_SYS_MSC0CFG_DEV_RMWAKEUP;
 
@@ -600,20 +608,20 @@ void dcd_remote_wakeup(uint8_t rhport)
 void dcd_connect(uint8_t rhport)
 {
   (void)rhport;
-  TU_LOG2("FT90x connect\r\n");
+  TU_LOG2("FT9xx connect\r\n");
 
   CRITICAL_SECTION_BEGIN
   // Is device connected?
-  if (board_ft90x_vbus())
+  if (board_ft9xx_vbus())
   {
     // Clear/disable address register.
     USBD_REG(faddr) = 0;
-    _ft90x_phy_enable(true);
+    _ft9xx_phy_enable(true);
 
     // Determine bus speed and signal speed to tusb.
-    _ft90x_usb_speed();
+    _ft9xx_usb_speed();
   }
-  
+
   // Setup the control endpoint only.
 #if CFG_TUD_ENDPOINT0_SIZE == 64
   USBD_EP_CR_REG(USBD_EP_0) = (USBD_EP0_MAX_SIZE_64 << BIT_USBD_EP0_MAX_SIZE);
@@ -636,17 +644,17 @@ void dcd_connect(uint8_t rhport)
   USBD_REG(epie) = (MASK_USBD_EPIE_EP0IE);
 
   // Restore default endpoint state.
-  _ft90x_reset_edpts();
+  _ft9xx_reset_edpts();
 }
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport)
 {
   (void)rhport;
-  TU_LOG2("FT90x disconnect\r\n");
+  TU_LOG2("FT9xx disconnect\r\n");
 
   // Disable the USB PHY.
-  _ft90x_phy_enable(false);
+  _ft9xx_phy_enable(false);
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en)
@@ -674,12 +682,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
   uint8_t ep_reg_data = 0;
   int16_t total_ram;
 
-  TU_LOG2("FT90x endpoint open %d %c\r\n", ep_number, ep_dir?'I':'O');
+  TU_LOG2("FT9xx endpoint open %d %c\r\n", ep_number, ep_dir?'I':'O');
 
   // Check that the requested endpoint number is allowable.
   if (ep_number >= USBD_MAX_ENDPOINT_COUNT)
   {
-    TU_LOG1("FT90x endpoint not valid: requested %d max %d\r\n", ep_number, USBD_MAX_ENDPOINT_COUNT);
+    TU_LOG1("FT9xx endpoint not valid: requested %d max %d\r\n", ep_number, USBD_MAX_ENDPOINT_COUNT);
     return false;
   }
 
@@ -691,10 +699,10 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
   }
   if (ep_reg_size > USBD_EP_MAX_SIZE_1024)
   {
-    TU_LOG1("FT90x endpoint size not valid: requested %d max 1024\r\n", ep_size);
+    TU_LOG1("FT9xx endpoint size not valid: requested %d max 1024\r\n", ep_size);
     return false;
   }
-  // Calculate actual amount of buffer RAM used by this endpoint. This may be more than the 
+  // Calculate actual amount of buffer RAM used by this endpoint. This may be more than the
   // requested size.
   ep_buff_size = 8 << ep_reg_size;
 
@@ -706,21 +714,21 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
     if (ep_xfer[ep_number].type != USBD_EP_TYPE_DISABLED)
     {
       // This could be because an endpoint has been assigned with the same number.
-      // On FT90x, IN and OUT endpoints may not have the same number. e.g. There 
+      // On FT9xx, IN and OUT endpoints may not have the same number. e.g. There
       // cannot been an 0x81 and 0x01 endpoint.
-      TU_LOG1("FT90x endpoint %d already assigned\r\n", ep_number);
+      TU_LOG1("FT9xx endpoint %d already assigned\r\n", ep_number);
       return false;
     }
 
     // Check that there is enough buffer RAM to allocate to this new endpoint.
     // Available buffer RAM depends on the device revision.
     // The IN and OUT buffer RAM should be the same size.
-    if (ep_dir == USBD_DIR_IN) 
+    if (ep_dir == USBD_DIR_IN)
       total_ram = USBD_RAMTOTAL_IN;
     else
       total_ram = USBD_RAMTOTAL_OUT;
     // Work out how much has been allocated to existing endpoints.
-    // The total RAM allocated shoudl alsyes be a positive number as this
+    // The total RAM allocated should always be a positive number as this
     // algorithm should not let it go below zero.
     for (int i = 1; i < USBD_MAX_ENDPOINT_COUNT; i++)
     {
@@ -732,23 +740,28 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
         }
       }
     }
-    // The control endpoint is taken into account as well.
-    total_ram -= ep_xfer[0].buff_size;
+
+    if (sys_check_ft900_revB())
+    {
+      // The control endpoint is taken into account as well on RevB silicon.
+      total_ram -= ep_xfer[0].buff_size;
+    }
+
     // Make sure we have enough space. The corner case is having zero bytes
     // free which means that total_ram must be signed as zero bytes free is
     // allowable.
     if (total_ram < ep_buff_size)
     {
-      TU_LOG1("FT90x insufficient buffer RAM for endpoint %d\r\n", ep_number);
-      return false;    
+      TU_LOG1("FT9xx insufficient buffer RAM for endpoint %d\r\n", ep_number);
+      return false;
     }
 
     // Set the type of this endpoint in the control register.
-    if (ep_type == USBD_EP_BULK)
+    if (ep_type == TUSB_XFER_BULK)
       ep_reg_data |= (USBD_EP_DIS_BULK << BIT_USBD_EP_CONTROL_DIS);
-    else if (ep_type == USBD_EP_INT)
+    else if (ep_type == TUSB_XFER_INTERRUPT)
       ep_reg_data |= (USBD_EP_DIS_INT << BIT_USBD_EP_CONTROL_DIS);
-    else if (ep_type == USBD_EP_ISOC)
+    else if (ep_type == TUSB_XFER_ISOCHRONOUS)
       ep_reg_data |= (USBD_EP_DIS_ISO << BIT_USBD_EP_CONTROL_DIS);
     // Set the direction of this endpoint in the control register.
     if (ep_dir == USBD_DIR_IN)
@@ -756,9 +769,9 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
     // Do not perform double buffering.
     //if (<double buffering flag> != USBD_DB_OFF)
     //ep_reg_data |= MASK_USBD_EPxCR_DB;
-    // Set the control endpoint for this endpoint.
+    // Set the control register for this endpoint.
     USBD_EP_CR_REG(ep_number) = ep_reg_data;
-    TU_LOG2("FT90x endpoint setting %x\r\n", ep_reg_data);
+    TU_LOG2("FT9xx endpoint setting %x\r\n", ep_reg_data);
   }
   else
   {
@@ -766,14 +779,15 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc)
     USBD_EP_CR_REG(USBD_EP_0) = (ep_reg_size << BIT_USBD_EP0_MAX_SIZE);
   }
 
+  CRITICAL_SECTION_BEGIN
   // Store the endpoint characteristics for later reference.
   ep_xfer[ep_number].dir = ep_dir;
   ep_xfer[ep_number].type = ep_type;
   ep_xfer[ep_number].size = ep_size;
   ep_xfer[ep_number].buff_size = ep_buff_size;
 
-  CRITICAL_SECTION_BEGIN
   // Clear register transaction continuation and signalling state.
+  ep_xfer[ep_number].ready = 0;
   ep_xfer[ep_number].valid = 0;
   ep_xfer[ep_number].buff_ptr = NULL;
   ep_xfer[ep_number].total_size = 0;
@@ -788,7 +802,7 @@ void dcd_edpt_close_all(uint8_t rhport)
 {
   (void)rhport;
   // Reset the endpoint configurations.
-  _ft90x_reset_edpts();
+  _ft9xx_reset_edpts();
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
@@ -796,7 +810,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 {
   (void)rhport;
   uint8_t ep_number = tu_edpt_number(ep_addr);
-  uint8_t dir = tu_edpt_dir(ep_addr);
+  uint8_t ep_dir = tu_edpt_dir(ep_addr);
   uint16_t xfer_bytes;
   bool status = false;
 
@@ -806,19 +820,17 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   // ep_xfer is used to tell the interrupt handler what to do.
   // ep_xfer can be used at interrupt level to continue transfers.
   CRITICAL_SECTION_BEGIN
+
   // Transfer currently in progress.
   if (ep_xfer[ep_number].valid == 0)
   {
-    status = true;
-
     ep_xfer[ep_number].total_size = total_bytes;
     ep_xfer[ep_number].remain_size = total_bytes;
     ep_xfer[ep_number].buff_ptr = buffer;
-    ep_xfer[ep_number].valid = 1;
-    
+
     if (ep_number == USBD_EP_0)
     {
-      ep_xfer[USBD_EP_0].dir = dir;
+      ep_xfer[USBD_EP_0].dir = ep_dir;
     }
     else
     {
@@ -827,18 +839,53 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       USBD_REG(epie) = USBD_REG(epie) | (1 << ep_number);
     }
 
-    if (dir == TUSB_DIR_IN)
+    if (ep_dir == TUSB_DIR_IN)
     {
       // For IN transfers send the first packet as a starter. Interrupt handler to complete
       // this if it is larger than one packet.
-      xfer_bytes = _ft90x_edpt_xfer_in(ep_number, buffer, total_bytes);
+      xfer_bytes = _ft9xx_edpt_xfer_in(ep_number, buffer, total_bytes);
 
       ep_xfer[ep_number].buff_ptr += xfer_bytes;
       ep_xfer[ep_number].remain_size -= xfer_bytes;
+
+      // Tell the interrupt handler to signal dcd_event_xfer_complete on completion.
+      ep_xfer[ep_number].valid = 1;
     }
+    else // (dir == TUSB_DIR_OUT)
+    {
+      // For OUT transfers on the control endpoint.
+      // The host may already have performed the first data transfer after the SETUP packet
+      // before the transfer is setup for it.
+      if (ep_xfer[ep_number].ready)
+      {
+        // We have received a data packet on the endpoint without a transfer
+        // being initialised. This can be because the host has sent this packet before
+        // a new transfer has been initiated on the endpoint.
+        // We will now stream the data from the FIFO.
+        ep_xfer[ep_number].ready = 0;
+
+        // Transfer incoming data from an OUT packet to the buffer.
+        xfer_bytes = _ft9xx_edpt_xfer_out(ep_number, buffer, total_bytes);
+
+        // Report completion of the transfer.
+        dcd_event_xfer_complete(BOARD_TUD_RHPORT, ep_number /*| TUSB_DIR_OUT_MASK */, xfer_bytes, XFER_RESULT_SUCCESS, false);
+      }
+      else
+      {
+        // Tell the interrupt handler to wait for the packet to be received and
+        // then report the transfer complete with dcd_event_xfer_complete.
+        ep_xfer[ep_number].valid = 1;
+      }
+    }
+    status = true;
   }
+  else
+  {
+    // Note: should not arrive here.
+  }
+
   CRITICAL_SECTION_END
-  
+
   return status;
 }
 
@@ -875,7 +922,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   CRITICAL_SECTION_END
 }
 
-// Clear stall (non-control endpoint), data toggle is also reset to DATA0 
+// Clear stall (non-control endpoint), data toggle is also reset to DATA0
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t ep_number = tu_edpt_number(ep_addr);
@@ -889,6 +936,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
     USBD_EP_SR_REG(ep_number) = MASK_USBD_EPxSR_CLR_TOGGLE;
 
     // Allow transfers to restart.
+    ep_xfer[ep_number].ready = 0;
     ep_xfer[ep_number].valid = 0;
     ep_xfer[ep_number].remain_size = 0;
     CRITICAL_SECTION_END
@@ -897,9 +945,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 // Interrupt handling.
 
-void _ft90x_usbd_ISR(void)
+void _ft9xx_usbd_ISR(void)
 {
-  tud_int_handler(BOARD_TUD_RHPORT); // Resolves to dcd_int_handler().
+  dcd_int_handler(BOARD_TUD_RHPORT);
 }
 
 void dcd_int_handler(uint8_t rhport)
@@ -936,7 +984,7 @@ void dcd_int_handler(uint8_t rhport)
     if (cmif & MASK_USBD_CMIF_RSTIRQ) //Handle Reset interrupt
     {
       // Reset endpoints to default state.
-      _ft90x_reset_edpts();
+      _ft9xx_reset_edpts();
       dcd_event_bus_reset(BOARD_TUD_RHPORT, _speed, true);
     }
     if (cmif & MASK_USBD_CMIF_SUSIRQ) //Handle Suspend interrupt
@@ -962,7 +1010,6 @@ void dcd_int_handler(uint8_t rhport)
     {
       // Clear interrupt register.
       USBD_REG(epif) = MASK_USBD_EPIF_EP0IRQ;
-
       // Test for an incoming SETUP request on the control endpoint.
       if (USBD_EP_SR_REG(USBD_EP_0) & MASK_USBD_EP0SR_SETUP)
       {
@@ -976,16 +1023,19 @@ void dcd_int_handler(uint8_t rhport)
           USBD_EP_SR_REG(USBD_EP_0) = MASK_USBD_EP0SR_STALL;
         }
 
-        // Host has sent a SETUP packet. Recieve this into the setup packet store.
-        _ft90x_dusb_out(USBD_EP_0, (uint8_t *)_ft90x_setup_packet, sizeof(USB_device_request));
-        
+        // Host has sent a SETUP packet. Receive this into the SETUP packet store.
+        _ft9xx_dusb_out(USBD_EP_0, (uint8_t *)_ft9xx_setup_packet, sizeof(USB_device_request));
+
         // Send the packet to tinyusb.
-        dcd_event_setup_received(BOARD_TUD_RHPORT, _ft90x_setup_packet, true);
+        dcd_event_setup_received(BOARD_TUD_RHPORT, _ft9xx_setup_packet, true);
 
         // Clear the interrupt that signals a SETUP packet is received.
         USBD_EP_SR_REG(USBD_EP_0) = (MASK_USBD_EP0SR_SETUP);
 
-        // Allow new transfers on the control endpoint.
+        // Any SETUP packet will clear the incoming FIFO.
+        ep_xfer[USBD_EP_0].ready = 0;
+
+        // Allow new DATA and ACK transfers on the control endpoint.
         ep_xfer[USBD_EP_0].valid = 0;
         return;
       }
@@ -996,16 +1046,30 @@ void dcd_int_handler(uint8_t rhport)
         {
           xfer_bytes = (uint16_t)ep_xfer[USBD_EP_0].total_size;
 
-          // Transfer incoming data from an OUT packet to the buffer supplied.        
+          // Transfer incoming data from an OUT packet to the buffer supplied.
           if (ep_xfer[USBD_EP_0].dir == TUSB_DIR_OUT)
-          { 
-            xfer_bytes = _ft90x_edpt_xfer_out(USBD_EP_0, (uint8_t *)ep_xfer[USBD_EP_0].buff_ptr, xfer_bytes);
+          {
+            xfer_bytes = _ft9xx_edpt_xfer_out(USBD_EP_0, ep_xfer[USBD_EP_0].buff_ptr, xfer_bytes);
           }
           // Now signal completion of data packet.
-          dcd_event_xfer_complete(BOARD_TUD_RHPORT, (ep_xfer[USBD_EP_0].dir ? TUSB_DIR_IN_MASK : 0), xfer_bytes, XFER_RESULT_SUCCESS, true);
+          dcd_event_xfer_complete(BOARD_TUD_RHPORT, USBD_EP_0 | (ep_xfer[USBD_EP_0].dir ? TUSB_DIR_IN_MASK : 0),
+            xfer_bytes, XFER_RESULT_SUCCESS, true);
+
+          // Incoming FIFO has been cleared.
+          ep_xfer[USBD_EP_0].ready = 0;
 
           // Allow new transfers on the control endpoint.
           ep_xfer[USBD_EP_0].valid = 0;
+        }
+        // No transfer is in flight for EP0.
+        else
+        {
+          // We have received a data packet on the control endpoint without a transfer
+          // being initialised. This can be because the host has sent this packet before
+          // a new transfer has been initiated on the control endpoint.
+          // We will record that there is data in the FIFO for dcd_edpt_xfer to obtain
+          // once the transfer is initiated.
+          ep_xfer[USBD_EP_0].ready = 1;
         }
       }
     }
@@ -1026,7 +1090,6 @@ void dcd_int_handler(uint8_t rhport)
         if (ep_xfer[ep_number].valid)
         {
           xfer_bytes = 0;
-          uint8_t ep_dirmask = (ep_xfer[ep_number].dir ? TUSB_DIR_IN_MASK : 0);
 
           // Clear interrupt register for this endpoint.
           USBD_REG(epif) = MASK_USBD_EPIF_IRQ(ep_number);
@@ -1034,9 +1097,14 @@ void dcd_int_handler(uint8_t rhport)
           // Start or continue an OUT transfer.
           if (ep_xfer[ep_number].dir == TUSB_DIR_OUT)
           {
-            xfer_bytes = _ft90x_edpt_xfer_out(ep_number, 
-                            (uint8_t *)ep_xfer[ep_number].buff_ptr, 
+            xfer_bytes = _ft9xx_edpt_xfer_out(ep_number,
+                            ep_xfer[ep_number].buff_ptr,
                             (uint16_t)ep_xfer[ep_number].remain_size);
+
+            // Report each OUT packet received to the stack.
+            dcd_event_xfer_complete(BOARD_TUD_RHPORT,
+                                      ep_number /* | TUSB_DIR_OUT_MASK */,
+                                      xfer_bytes, XFER_RESULT_SUCCESS, true);
 
             ep_xfer[ep_number].buff_ptr += xfer_bytes;
             ep_xfer[ep_number].remain_size -= xfer_bytes;
@@ -1046,26 +1114,44 @@ void dcd_int_handler(uint8_t rhport)
           {
             if (ep_xfer[ep_number].remain_size > 0)
             {
-              xfer_bytes = _ft90x_edpt_xfer_in(ep_number, 
-                            (uint8_t *)ep_xfer[ep_number].buff_ptr, 
+              xfer_bytes = _ft9xx_edpt_xfer_in(ep_number,
+                            ep_xfer[ep_number].buff_ptr,
                             (uint16_t)ep_xfer[ep_number].remain_size);
 
               ep_xfer[ep_number].buff_ptr += xfer_bytes;
               ep_xfer[ep_number].remain_size -= xfer_bytes;
+            }
+
+            if (ep_xfer[ep_number].remain_size == 0)
+            {
+              dcd_event_xfer_complete(BOARD_TUD_RHPORT,
+                                      ep_number | TUSB_DIR_IN_MASK,
+                                      ep_xfer[ep_number].total_size, XFER_RESULT_SUCCESS, true);
             }
           }
 
           // When the transfer is complete...
           if (ep_xfer[ep_number].remain_size == 0)
           {
-            // Signal tinyUSB.
-            dcd_event_xfer_complete(BOARD_TUD_RHPORT, ep_number | ep_dirmask, ep_xfer[ep_number].total_size, XFER_RESULT_SUCCESS, true);
-
-            // Allow new transfers on this endpoint.
+            // Finish this transfer and allow new transfers on this endpoint.
             ep_xfer[ep_number].valid = 0;
 
             // Disable the interrupt for this endpoint now it is complete.
             USBD_REG(epie) = USBD_REG(epie) & (~(1 << ep_number));
+          }
+
+          ep_xfer[ep_number].ready = 0;
+        }
+        // No OUT transfer is in flight for this endpoint.
+        else
+        {
+          if (ep_xfer[ep_number].dir == TUSB_DIR_OUT)
+          {
+            // We will record that there is data in the FIFO for dcd_edpt_xfer to obtain
+            // once the transfer is initiated.
+            // Strictly this should not happen for a non-control endpoint. Interrupts
+            // are disabled when there are no transfers setup for an endpoint.
+            ep_xfer[ep_number].ready = 1;
           }
         }
       }
@@ -1073,13 +1159,13 @@ void dcd_int_handler(uint8_t rhport)
   }
 }
 
-// Power management interrupt handler. 
+// Power management interrupt handler.
 // This handles USB device related power management interrupts only.
-void ft90x_usbd_pm_ISR(void)
+void ft9xx_usbd_pm_ISR(void)
 {
     uint16_t pmcfg = SYS->PMCFG_H;
 
-  // Main interrupt handler is responible for 
+  // Main interrupt handler is responible for
   if (pmcfg & MASK_SYS_PMCFG_DEV_CONN_DEV)
   {
       // Signal connection interrupt

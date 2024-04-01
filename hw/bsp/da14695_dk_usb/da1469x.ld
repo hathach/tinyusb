@@ -242,4 +242,3 @@ SECTIONS
     /* Check that intvect is at the beginning of RAM */
     ASSERT(__intvect_start__ == ORIGIN(RAM), "intvect is not at beginning of RAM")
 }
-

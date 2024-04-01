@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <bsp/imxrt/boards/teensy_40/teensy40_flexspi_nor_config.h>
+#include "teensy40_flexspi_nor_config.h"
 
 /* Component ID definition, used by tools. */
 #ifndef FSL_COMPONENT_ID

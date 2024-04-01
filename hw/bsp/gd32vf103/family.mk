@@ -44,7 +44,7 @@ SRC_C += \
 	$(LIBC_STUBS)/isatty.c \
 	$(LIBC_STUBS)/fstat.c \
 	$(LIBC_STUBS)/lseek.c \
-	$(LIBC_STUBS)/read.c 
+	$(LIBC_STUBS)/read.c
 
 SRC_S += \
 	$(STARTUP_ASM)/startup_gd32vf103.S \
@@ -57,7 +57,7 @@ INC += \
 	$(TOP)/$(GD32VF103_SDK_SOC)/Common/Include/Usb
 
 # For freeRTOS port source
-FREERTOS_PORT = RISC-V
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 
 # For flash-jlink target
 JLINK_IF = jtag

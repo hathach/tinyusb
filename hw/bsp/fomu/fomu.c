@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../board.h"
+#include "../board_api.h"
 #include "csr.h"
 #include "irq.h"
 

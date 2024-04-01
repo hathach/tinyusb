@@ -55,7 +55,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION btd_interface_t _btd_itf;
+CFG_TUD_MEM_SECTION btd_interface_t _btd_itf;
 
 static bool bt_tx_data(uint8_t ep, void *data, uint16_t len)
 {
@@ -204,7 +204,9 @@ bool btd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t c
         request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE)
     {
       // HCI command packet addressing for single function Primary Controllers
-      TU_VERIFY(request->bRequest == 0 && request->wValue == 0 && request->wIndex == 0);
+      // also compatible with historical mode if enabled
+      TU_VERIFY((request->bRequest == 0 && request->wValue == 0 && request->wIndex == 0) ||
+                (CFG_TUD_BTH_HISTORICAL_COMPATIBLE && request->bRequest == 0xe0));
     }
     else if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE)
     {

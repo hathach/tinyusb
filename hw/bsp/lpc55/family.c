@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -24,15 +24,18 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
 #include "fsl_power.h"
 #include "fsl_iocon.h"
 #include "fsl_usart.h"
+
+#ifdef NEOPIXEL_PIN
 #include "fsl_sctimer.h"
 #include "sct_neopixel.h"
+#endif
 
 #ifdef BOARD_TUD_RHPORT
   #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
@@ -192,7 +195,7 @@ void board_init(void)
   CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
   CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
 
-  /*According to reference mannual, device mode setting has to be set by access usb host register */
+  /*According to reference manual, device mode setting has to be set by access usb host register */
   CLOCK_EnableClock(kCLOCK_Usbhsl0);  // enable usb0 host clock
   USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
   CLOCK_DisableClock(kCLOCK_Usbhsl0); // disable usb0 host clock
@@ -213,7 +216,7 @@ void board_init(void)
   RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
 
-  /* According to reference mannual, device mode setting has to be set by access usb host register */
+  /* According to reference manual, device mode setting has to be set by access usb host register */
   CLOCK_EnableClock(kCLOCK_Usbh1); // enable usb0 host clock
 
   USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK; // Put PHY powerdown under software control

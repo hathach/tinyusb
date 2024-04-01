@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Koji Kitayama
@@ -189,7 +189,7 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // BDT(Buffer Descriptor Table) must be 256-byte aligned
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(512) volatile static dcd_data_t _dcd;
+CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(512) volatile static dcd_data_t _dcd;
 
 #if TU_PIC_INT_SIZE == 4
 TU_VERIFY_STATIC( sizeof(_dcd.bdt) == 512, "size is not correct" );
@@ -486,7 +486,7 @@ void dcd_init(uint8_t rhport)
 #else
   U1PWRCbits.USBPWR = 1;
 #endif
-  
+
 #if TU_PIC_INT_SIZE == 4
   uint32_t bdt_phys = KVA_TO_PA((uintptr_t)_dcd.bdt);
 

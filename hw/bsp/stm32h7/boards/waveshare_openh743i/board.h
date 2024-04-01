@@ -104,7 +104,7 @@
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void board_stm32h7_clock_init(void)
+static inline void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
@@ -186,12 +186,20 @@ static inline void timer_board_delay(TIM_HandleTypeDef* tim_hdl, uint32_t ms)
 
 static inline void board_stm32h7_post_init(void)
 {
-  // walkaround for reseting the ULPI PHY using Timer since systick is not
+  // walkaround for resetting the ULPI PHY using Timer since systick is not
   // available when RTOS is used.
 
   // Init timer
   TIM_HandleTypeDef tim2Handle;
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  GPIO_InitTypeDef  GPIO_InitStruct;
+
+  // ULPI_RST
+  GPIO_InitStruct.Pin   = ULPI_RST_PIN;
+  GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull  = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = 0;
+  HAL_GPIO_Init(ULPI_RST_PORT, &GPIO_InitStruct);
 
   __HAL_RCC_TIM2_CLK_ENABLE();
 
@@ -212,9 +220,9 @@ static inline void board_stm32h7_post_init(void)
 
   // Reset PHY, change the delays as you see fit
   timer_board_delay(&tim2Handle, 5U);
-  HAL_GPIO_WritePin(ULPI_RST_PORT, ULPI_RST_PIN, 1U);
+  HAL_GPIO_WritePin(ULPI_RST_PORT, ULPI_RST_PIN, GPIO_PIN_SET);
   timer_board_delay(&tim2Handle, 20U);
-  HAL_GPIO_WritePin(ULPI_RST_PORT, ULPI_RST_PIN, 0U);
+  HAL_GPIO_WritePin(ULPI_RST_PORT, ULPI_RST_PIN, GPIO_PIN_RESET);
   timer_board_delay(&tim2Handle, 20U);
 
   //Disable the timer used for delays

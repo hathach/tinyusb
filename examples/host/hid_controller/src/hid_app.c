@@ -23,7 +23,7 @@
  *
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 /* From https://www.kernel.org/doc/html/latest/input/gamepad.html
@@ -91,9 +91,8 @@ typedef struct TU_ATTR_PACKED
     uint8_t counter : 6; // +1 each report
   };
 
-  // comment out since not used by this example
-  // uint8_t l2_trigger; // 0 released, 0xff fully pressed
-  // uint8_t r2_trigger; // as above
+  uint8_t l2_trigger; // 0 released, 0xff fully pressed
+  uint8_t r2_trigger; // as above
 
   //  uint16_t timestamp;
   //  uint8_t  battery;
@@ -105,15 +104,54 @@ typedef struct TU_ATTR_PACKED
 
 } sony_ds4_report_t;
 
+typedef struct TU_ATTR_PACKED {
+  // First 16 bits set what data is pertinent in this structure (1 = set; 0 = not set)
+  uint8_t set_rumble : 1;
+  uint8_t set_led : 1;
+  uint8_t set_led_blink : 1;
+  uint8_t set_ext_write : 1;
+  uint8_t set_left_volume : 1;
+  uint8_t set_right_volume : 1;
+  uint8_t set_mic_volume : 1;
+  uint8_t set_speaker_volume : 1;
+  uint8_t set_flags2;
+
+  uint8_t reserved;
+
+  uint8_t motor_right;
+  uint8_t motor_left;
+
+  uint8_t lightbar_red;
+  uint8_t lightbar_green;
+  uint8_t lightbar_blue;
+  uint8_t lightbar_blink_on;
+  uint8_t lightbar_blink_off;
+
+  uint8_t ext_data[8];
+
+  uint8_t volume_left;
+  uint8_t volume_right;
+  uint8_t volume_mic;
+  uint8_t volume_speaker;
+
+  uint8_t other[9];
+} sony_ds4_output_report_t;
+
+static bool ds4_mounted = false;
+static uint8_t ds4_dev_addr = 0;
+static uint8_t ds4_instance = 0;
+static uint8_t motor_left = 0;
+static uint8_t motor_right = 0;
+
 // check if device is Sony DualShock 4
 static inline bool is_sony_ds4(uint8_t dev_addr)
 {
   uint16_t vid, pid;
   tuh_vid_pid_get(dev_addr, &vid, &pid);
 
-  return ( (vid == 0x054c && (pid == 0x09cc || pid == 0x05c4)) // Sony DualShock4 
-           || (vid == 0x0f0d && pid == 0x005e)                 // Hori FC4 
-           || (vid == 0x0f0d && pid == 0x00ee)                 // Hori PS4 Mini (PS4-099U) 
+  return ( (vid == 0x054c && (pid == 0x09cc || pid == 0x05c4)) // Sony DualShock4
+           || (vid == 0x0f0d && pid == 0x005e)                 // Hori FC4
+           || (vid == 0x0f0d && pid == 0x00ee)                 // Hori PS4 Mini (PS4-099U)
            || (vid == 0x1f4f && pid == 0x1002)                 // ASW GG xrd controller
          );
 }
@@ -124,7 +162,23 @@ static inline bool is_sony_ds4(uint8_t dev_addr)
 
 void hid_app_task(void)
 {
-  // nothing to do
+  if (ds4_mounted)
+  {
+    const uint32_t interval_ms = 200;
+    static uint32_t start_ms = 0;
+
+    uint32_t current_time_ms = board_millis();
+    if ( current_time_ms - start_ms >= interval_ms)
+    {
+      start_ms = current_time_ms;
+
+      sony_ds4_output_report_t output_report = {0};
+      output_report.set_rumble = 1;
+      output_report.motor_left = motor_left;
+      output_report.motor_right = motor_right;
+      tuh_hid_send_report(ds4_dev_addr, ds4_instance, 5, &output_report, sizeof(output_report));
+    }
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -149,6 +203,14 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   // Sony DualShock 4 [CUH-ZCT2x]
   if ( is_sony_ds4(dev_addr) )
   {
+    if (!ds4_mounted)
+    {
+      ds4_dev_addr = dev_addr;
+      ds4_instance = instance;
+      motor_left = 0;
+      motor_right = 0;
+      ds4_mounted = true;
+    }
     // request to receive report
     // tuh_hid_report_received_cb() will be invoked when report is available
     if ( !tuh_hid_receive_report(dev_addr, instance) )
@@ -162,7 +224,10 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
-
+  if (ds4_mounted && ds4_dev_addr == dev_addr && ds4_instance == instance)
+  {
+    ds4_mounted = false;
+  }
 }
 
 // check if different than 2
@@ -180,8 +245,8 @@ bool diff_report(sony_ds4_report_t const* rpt1, sony_ds4_report_t const* rpt2)
   result = diff_than_2(rpt1->x, rpt2->x) || diff_than_2(rpt1->y , rpt2->y ) ||
            diff_than_2(rpt1->z, rpt2->z) || diff_than_2(rpt1->rz, rpt2->rz);
 
-  // check the reset with mem compare
-  result |= memcmp(&rpt1->rz + 1, &rpt2->rz + 1, sizeof(sony_ds4_report_t)-4);
+  // check the rest with mem compare
+  result |= memcmp(&rpt1->rz + 1, &rpt2->rz + 1, sizeof(sony_ds4_report_t)-6);
 
   return result;
 }
@@ -234,6 +299,10 @@ void process_sony_ds4(uint8_t const* report, uint16_t len)
 
       printf("\r\n");
     }
+
+    // The left and right triggers control the intensity of the left and right rumble motors
+    motor_left = ds4_report.l2_trigger;
+    motor_right = ds4_report.r2_trigger;
 
     prev_report = ds4_report;
   }

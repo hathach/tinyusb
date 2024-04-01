@@ -2,6 +2,7 @@ import sounddevice as sd
 import matplotlib.pyplot as plt
 import numpy as np
 import platform
+import csv
 
 if __name__ == '__main__':
 
@@ -31,4 +32,6 @@ if __name__ == '__main__':
     plt.ylabel('Amplitude')
     plt.title('MicNode')
     plt.show()
-    
+
+    samples = np.array(myrecording)
+    np.savetxt('Output.csv', samples, delimiter=",", fmt='%s')

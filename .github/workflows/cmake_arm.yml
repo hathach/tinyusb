@@ -1,0 +1,169 @@
+name: CMake ARM
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'test/hil/**'
+      - 'tools/get_deps.py'
+      - '.github/workflows/cmake_arm.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'test/hil/**'
+      - 'tools/get_deps.py'
+      - '.github/workflows/cmake_arm.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------
+  # Build ARM family
+  # ---------------------------------------
+  build-arm:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+          # Alphabetical order
+          - 'imxrt'
+          - 'kinetis_k kinetis_kl'
+          - 'lpc17 lpc18 lpc40 lpc43'
+          - 'lpc54 lpc55'
+          - 'mcx'
+          - 'nrf'
+          - 'ra'
+          - 'rp2040'
+          - 'samd21'
+          - 'samd51'
+          - 'stm32f0'
+          - 'stm32f1'
+          - 'stm32f4'
+          - 'stm32f7'
+          - 'stm32g0'
+          - 'stm32g4'
+          - 'stm32h5'
+          - 'stm32h7'
+          - 'stm32l4'
+          - 'stm32u5'
+    steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install ARM GCC
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '11.2-2022.02'
+
+    - name: Install Ninja
+      run: sudo apt install -y ninja-build
+
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v4
+
+    - name: Checkout pico-sdk for rp2040
+      if: matrix.family == 'rp2040'
+      uses: actions/checkout@v4
+      with:
+        repository: raspberrypi/pico-sdk
+        ref: develop
+        path: pico-sdk
+
+    - name: Get Dependencies
+      run: python3 tools/get_deps.py ${{ matrix.family }}
+
+    - name: Build
+      run: python tools/build_cmake.py ${{ matrix.family }} -DCMAKE_BUILD_TYPE=MinSizeRel
+      env:
+        # for rp2040, there is no harm if defined for other families
+        PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+
+    - name: Upload Artifacts for Hardware Testing (rp2040)
+      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v4
+      with:
+        name: raspberry_pi_pico
+        path: |
+          cmake-build/cmake-build-raspberry_pi_pico/*/*/*.elf
+
+    - name: Upload Artifacts for Hardware Testing (nRF)
+      if: matrix.family == 'nrf' && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v4
+      with:
+        name: feather_nrf52840_express
+        path: |
+          cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
+
+    - name: Upload Artifacts for Hardware Testing (samd51)
+      if: matrix.family == 'samd51' && github.repository_owner == 'hathach'
+      uses: actions/upload-artifact@v4
+      with:
+        name: itsybitsy_m4
+        path: |
+          cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
+  # ---------------------------------------
+  hil-test:
+    # run only with hathach's commit due to limited resource on RPI4
+    if: github.repository_owner == 'hathach'
+    needs: build-arm
+    runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - 'feather_nrf52840_express'
+          - 'itsybitsy_m4'
+          - 'raspberry_pi_pico'
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+        # USB bus on rpi4 is not stable, reset it before testing
+      - name: Reset USB bus
+        run: |
+          lsusb
+          lsusb -t
+          # reset VIA Labs 2.0 hub
+          sudo usbreset 001/002
+
+          # legacy code
+          #for port in $(lspci | grep USB | cut -d' ' -f1); do
+          #    echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
+          #    sleep 0.1;
+          #    echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
+          #done
+
+      - name: Checkout test/hil
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: test/hil
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.board }}
+          path: cmake-build/cmake-build-${{ matrix.board }}
+
+      - name: Test on actual hardware
+        run: |
+          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json

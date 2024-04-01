@@ -6,15 +6,12 @@ ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m7
 
+# --------------
+# Compiler Flags
+# --------------
 CFLAGS += \
-  -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m7 \
-  -mfloat-abi=hard \
-  -mfpu=fpv5-d16 \
-  -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7 \
   -DBOARD_TUD_RHPORT=$(PORT)
 
@@ -30,14 +27,26 @@ else
   $(info "Using OTG_FS")
 endif
 
+# GCC Flags
+CFLAGS_GCC += \
+  -flto \
+  -nostdlib -nostartfiles
+
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=shadow -Wno-error=cast-align
+CFLAGS_GCC += -Wno-error=cast-align
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
+# -----------------
+# Sources & Include
+# -----------------
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
+	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_dma.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_gpio.c \
@@ -50,5 +59,9 @@ INC += \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
-# For freeRTOS port source
-FREERTOS_PORT = ARM_CM7/r0p1
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+
+# Linker
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf

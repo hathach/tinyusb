@@ -1,10 +1,9 @@
 DEPS_SUBMODULES += lib/lwip
 
-include ../../../tools/top.mk
-include ../../make.mk
+include ../../build_system/make/make.mk
 
 # suppress warning caused by lwip
-CFLAGS += \
+CFLAGS_GCC += \
   -Wno-error=null-dereference \
   -Wno-error=unused-parameter \
   -Wno-error=unused-variable
@@ -68,4 +67,4 @@ SRC_C += \
   lib/networking/dnserver.c \
   lib/networking/rndis_reports.c
 
-include ../../rules.mk
+include ../../build_system/make/rules.mk

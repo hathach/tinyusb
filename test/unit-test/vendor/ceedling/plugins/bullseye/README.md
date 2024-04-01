@@ -1,0 +1,76 @@
+ceedling-bullseye
+=================
+
+# Plugin Overview
+
+Plugin for integrating Bullseye code coverage tool into Ceedling projects.
+This plugin requires a working license to Bullseye code coverage tools. The tools
+must be within the path or the path should be added to the environment in the
+`project.yml file`.
+
+## Configuration
+
+The bullseye plugin supports configuration options via your `project.yml` provided
+by Ceedling. The following is a typical configuration example:
+
+```
+:bullseye:
+  :auto_license: TRUE
+:plugins:
+  :bullseye_lib_path: []
+:paths:
+  :bullseye_toolchain_include: []
+
+:tools:
+  :bullseye_instrumentation:
+    :executable: covc
+    :arguments:
+      - '--file $': ENVIRONMENT_COVFILE
+      - -q
+      - ${1}
+  :bullseye_compiler:
+    :executable: gcc
+    :arguments:
+      - -g
+      - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR
+      - -I"$": COLLECTION_PATHS_BULLSEYE_TOOLCHAIN_INCLUDE
+      - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR
+      - -DBULLSEYE_COMPILER
+      - -c "${1}"
+      - -o "${2}"
+  :bullseye_linker:
+    :executable: gcc
+    :arguments:
+      - ${1}
+      - -o ${2}
+      - -L$: PLUGINS_BULLSEYE_LIB_PATH
+      - -lcov
+  :bullseye_fixture:
+    :executable: ${1}
+  :bullseye_report_covsrc:
+    :executable: covsrc
+    :arguments:
+      - '--file $': ENVIRONMENT_COVFILE
+      - -q
+      - -w140
+  :bullseye_report_covfn:
+    :executable: covfn
+    :stderr_redirect: :auto
+    :arguments:
+      - '--file $': ENVIRONMENT_COVFILE
+      - --width 120
+      - --no-source
+      - '"${1}"'
+  :bullseye_browser:
+    :executable: CoverageBrowser
+    :background_exec: :auto
+    :optional: TRUE
+    :arguments:
+      - '"$"': ENVIRONMENT_COVFILE
+```
+
+## Example Usage
+
+```sh
+ceedling bullseye:all utils:bullseye
+```
