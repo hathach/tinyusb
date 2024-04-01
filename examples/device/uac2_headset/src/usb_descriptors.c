@@ -82,27 +82,32 @@ uint8_t const * tud_descriptor_device_cb(void)
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
   #define EPNUM_AUDIO_IN    0x03
   #define EPNUM_AUDIO_OUT   0x03
+  #define EPNUM_AUDIO_INT   0x01
 
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
   // ISO endpoints for NRF5x are fixed to 0x08 (0x88)
   #define EPNUM_AUDIO_IN    0x08
   #define EPNUM_AUDIO_OUT   0x08
+  #define EPNUM_AUDIO_INT   0x01
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG  || CFG_TUSB_MCU ==  OPT_MCU_SAMX7X
   // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_AUDIO_IN    0x01
   #define EPNUM_AUDIO_OUT   0x02
+  #define EPNUM_AUDIO_INT   0x03
 
 #elif CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X
   // FT9XX doesn't support a same endpoint number with different direction IN and OUT
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_AUDIO_IN    0x01
   #define EPNUM_AUDIO_OUT   0x02
+  #define EPNUM_AUDIO_INT   0x03
 
 #else
   #define EPNUM_AUDIO_IN    0x01
   #define EPNUM_AUDIO_OUT   0x01
+  #define EPNUM_AUDIO_INT   0x02
 #endif
 
 uint8_t const desc_configuration[] =
@@ -111,7 +116,7 @@ uint8_t const desc_configuration[] =
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
     // Interface number, string index, EP Out & EP In address, EP size
-    TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR(2, EPNUM_AUDIO_OUT, EPNUM_AUDIO_IN | 0x80)
+    TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR(2, EPNUM_AUDIO_OUT, EPNUM_AUDIO_IN | 0x80, EPNUM_AUDIO_INT | 0x80)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
