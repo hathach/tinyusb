@@ -83,7 +83,7 @@ typedef struct TU_ATTR_ALIGNED(16)
   volatile uint32_t condition_code : 4;
 
 	// Word 1
-	volatile uint8_t* current_buffer_pointer;
+	uint8_t* volatile current_buffer_pointer;
 
 	// Word 2 : next TD
 	volatile uint32_t next;

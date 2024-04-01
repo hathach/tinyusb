@@ -130,7 +130,7 @@ jobs:
         category: "/language:${{matrix.language}}"
 
     - name: Archive CodeQL results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: codeql-results
         path: ${{ steps.step1.outputs.sarif-output }}

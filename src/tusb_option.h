@@ -29,9 +29,14 @@
 
 #include "common/tusb_compiler.h"
 
+// Version is release as major.minor.revision eg 1.0.0. though there could be notable APIs before a new release.
+// For notable API changes within a release, we increase the build number.
 #define TUSB_VERSION_MAJOR     0
 #define TUSB_VERSION_MINOR     16
 #define TUSB_VERSION_REVISION  0
+#define TUSB_VERSION_BUILD     1
+
+#define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR << 24 | TUSB_VERSION_MINOR << 16 | TUSB_VERSION_REVISION << 8 | TUSB_VERSION_BUILD)
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
 //--------------------------------------------------------------------+
@@ -125,6 +130,7 @@
 #define OPT_MCU_KINETIS_KL       1200 ///< NXP KL series
 #define OPT_MCU_KINETIS_K32L     1201 ///< NXP K32L series
 #define OPT_MCU_KINETIS_K32      1201 ///< Alias to K32L
+#define OPT_MCU_KINETIS_K        1202 ///< NXP K series
 
 #define OPT_MCU_MKL25ZXX         1200 ///< Alias to KL (obsolete)
 #define OPT_MCU_K32L2BXX         1201 ///< Alias to K32 (obsolete)
