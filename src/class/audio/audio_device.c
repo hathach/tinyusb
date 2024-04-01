@@ -301,8 +301,8 @@ typedef struct
 
 #endif
 
-#if CFG_TUD_AUDIO_INT_EPSIZE_IN
-  uint8_t ep_int;           // Audio control interrupt EP.
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+  uint8_t ep_int;               // Audio control interrupt EP.
 #endif
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
@@ -358,8 +358,8 @@ typedef struct
 #endif
 
   // Audio control interrupt buffer - no FIFO - 6 Bytes according to UAC 2 specification (p. 74)
-#if CFG_TUD_AUDIO_INT_EPSIZE_IN
-  CFG_TUSB_MEM_ALIGN uint8_t ep_int_buf[CFG_TUD_AUDIO_INT_EP_IN_SW_BUFFER_SIZE];
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+  CFG_TUSB_MEM_ALIGN uint8_t ep_int_buf[6];
 #endif
 
   // Decoding parameters - parameters are set when alternate AS interface is set by host
@@ -826,26 +826,29 @@ tu_fifo_t* tud_audio_n_get_tx_support_ff(uint8_t func_id, uint8_t ff_idx)
 
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-
 // If no interrupt transmit is pending bytes get written into buffer and a transmit is scheduled - once transmit completed tud_audio_int_done_cb() is called in inform user
-uint16_t tud_audio_int_n_write(uint8_t func_id, uint8_t const* buffer, uint16_t len)
+bool tud_audio_int_n_write(uint8_t func_id, const audio_interrupt_data_t * data)
 {
-  TU_VERIFY(_audiod_fct[func_id].ep_int != 0);
-
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
 
+  TU_VERIFY(_audiod_fct[func_id].ep_int != 0);
+
   // We write directly into the EP's buffer - abort if previous transfer not complete
-  TU_VERIFY(!usbd_edpt_busy(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int));
+  TU_VERIFY(usbd_edpt_claim(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int));
 
   // Check length
-  TU_VERIFY(tu_memcpy_s(_audiod_fct[func_id].ep_int_buf, CFG_TUD_AUDIO_INT_EP_IN_SW_BUFFER_SIZE,  buffer, len)==0);
-
-  // Schedule transmit
-  TU_VERIFY(usbd_edpt_xfer(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int, _audiod_fct[func_id].ep_int_buf, len));
+  if (tu_memcpy_s(_audiod_fct[func_id].ep_int_buf, sizeof(_audiod_fct[func_id].ep_int_buf),  data, sizeof(audio_interrupt_data_t)) == 0)
+  {
+    // Schedule transmit
+    TU_ASSERT(usbd_edpt_xfer(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int, _audiod_fct[func_id].ep_int_buf, sizeof(_audiod_fct[func_id].ep_int_buf)), 0);
+  } else
+  {
+    // Release endpoint since we don't make any transfer
+    usbd_edpt_release(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int);
+  }
 
   return true;
 }
-
 #endif
 
 // This function is called once a transmit of an audio packet was successfully completed. Here, we encode samples and place it in IN EP's buffer for next transmission.
@@ -1088,48 +1091,6 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
 static inline bool audiod_fb_send(uint8_t rhport, audiod_function_t *audio)
 {
   return usbd_edpt_xfer(rhport, audio->ep_fb, (uint8_t *) &audio->feedback.value, 4);
-}
-#endif
-
-#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-static bool set_int_number(audiod_function_t *audio)
-{
-
-  uint8_t const *p_desc = audio->p_desc;
-  // Get pointer at end
-  uint8_t const *p_desc_end = audio->p_desc + audio->desc_length - TUD_AUDIO_DESC_IAD_LEN;
-
-
-  bool found = false;
-  while (!found && p_desc < p_desc_end)
-  {
-    // For each interface/alternate
-    if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE)
-    {
-      uint8_t foundEPs = 0, nEps = ((tusb_desc_interface_t const * )p_desc)->bNumEndpoints;
-      while (!found && foundEPs < nEps && p_desc < p_desc_end)
-      {
-        // For each endpoint
-        if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
-        {
-          tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-          uint8_t const ep_addr = desc_ep->bEndpointAddress;
-          // If endpoint is input-direction and interrupt-type
-          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.xfer == 0x03)   // Check if usage is interrupt EP
-          {
-            // Store endpoint number and open endpoint
-            audio->ep_int = ep_addr;
-            TU_ASSERT(usbd_edpt_open(audio->rhport, desc_ep));
-            found = true;
-          }
-          foundEPs += 1;
-        }
-        p_desc = tu_desc_next(p_desc);
-      }
-    }
-    p_desc = tu_desc_next(p_desc);
-  }
-  return found;
 }
 #endif
 
@@ -1492,10 +1453,11 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   // Verify version is correct - this check can be omitted
   TU_VERIFY(itf_desc->bInterfaceProtocol == AUDIO_INT_PROTOCOL_CODE_V2);
 
-  // Verify interrupt control EP is enabled if demanded by descriptor - this should be best some static check however - this check can be omitted
-  if (itf_desc->bNumEndpoints == 1) // 0 or 1 EPs are allowed
+  // Verify interrupt control EP is enabled if demanded by descriptor
+  TU_ASSERT(itf_desc->bNumEndpoints <= 1); // 0 or 1 EPs are allowed
+  if (itf_desc->bNumEndpoints == 1)
   {
-    TU_VERIFY(CFG_TUD_AUDIO_INT_EPSIZE_IN > 0);
+    TU_ASSERT(CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP);
   }
 
   // Alternate setting MUST be zero - this check can be omitted
@@ -1639,6 +1601,31 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
       }
 #endif // CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
 
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+      {
+        uint8_t const *p_desc = _audiod_fct[i].p_desc;
+        uint8_t const *p_desc_end = p_desc + _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
+        // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+        while (p_desc_end - p_desc > 0)
+        {
+          // For each endpoint
+          if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
+          {
+            tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+            uint8_t const ep_addr = desc_ep->bEndpointAddress;
+            // If endpoint is input-direction and interrupt-type
+            if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.xfer == TUSB_XFER_INTERRUPT)
+            {
+              // Store endpoint number and open endpoint
+              _audiod_fct[i].ep_int = ep_addr;
+              TU_ASSERT(usbd_edpt_open(_audiod_fct[i].rhport, desc_ep));
+            }
+          }
+          p_desc = tu_desc_next(p_desc);
+        }
+      }
+#endif
+
       break;
     }
   }
@@ -1648,10 +1635,6 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 
   // This is all we need so far - the EPs are setup by a later set_interface request (as per UAC2 specification)
   uint16_t drv_len = _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;    // - TUD_AUDIO_DESC_IAD_LEN since tinyUSB already handles the IAD descriptor
-
-#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-  TU_ASSERT(set_int_number(&_audiod_fct[i]));
-#endif
 
   return drv_len;
 }
@@ -2169,7 +2152,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   {
     audiod_function_t* audio = &_audiod_fct[func_id];
 
-#if CFG_TUD_AUDIO_INT_EPSIZE_IN
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
 
     // Data transmission of control interrupt finished
     if (audio->ep_int == ep_addr)
@@ -2181,7 +2164,8 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       // I assume here, that things above are handled by PHY
       // All transmission is done - what remains to do is to inform job was completed
 
-      if (tud_audio_int_done_cb) TU_VERIFY(tud_audio_int_done_cb(rhport, (uint16_t) xferred_bytes));
+      if (tud_audio_int_done_cb) tud_audio_int_done_cb(rhport);
+      return true;
     }
 
 #endif
