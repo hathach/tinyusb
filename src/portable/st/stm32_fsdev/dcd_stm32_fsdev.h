@@ -116,7 +116,7 @@
   #include "stm32h5xx.h"
   #define FSDEV_BUS_32BIT
 
-  #ifdef STM32H503xx
+  #if !defined(USB_DRD_BASE) && defined(USB_DRD_FS_BASE)
   #define USB_DRD_BASE USB_DRD_FS_BASE
   #endif
 

@@ -51,20 +51,13 @@ extern "C" {
 #define UART_TX_PIN           GPIO_PIN_3
 #define UART_RX_PIN           GPIO_PIN_4
 
-// //--------------------------------------------------------------------+
-// // RCC Clock
-// //--------------------------------------------------------------------+
-static inline void board_clock_init(void)
+//--------------------------------------------------------------------+
+// RCC Clock
+//--------------------------------------------------------------------+
+static inline void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
-    // Enable All GPIOs clocks
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOH_CLK_ENABLE();
 
   /** Configure the main internal regulator output voltage
   */

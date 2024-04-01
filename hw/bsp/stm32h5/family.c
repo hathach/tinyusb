@@ -59,8 +59,25 @@ UART_HandleTypeDef UartHandle;
 
 void board_init(void) {
   HAL_Init(); // required for HAL_RCC_Osc TODO check with freeRTOS
-  board_clock_init(); // implemented in board.h
+  SystemClock_Config(); // implemented in board.h
   SystemCoreClockUpdate();
+
+  // Enable All GPIOs clocks
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  
+  #ifdef __HAL_RCC_GPIOE_CLK_ENABLE
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  #endif
+  #ifdef __HAL_RCC_GPIOG_CLK_ENABLE
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  #endif
+  #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  #endif
 
   UART_CLK_EN();
 
