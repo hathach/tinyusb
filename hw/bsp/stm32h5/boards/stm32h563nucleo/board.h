@@ -54,8 +54,7 @@ extern "C" {
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void SystemClock_Config(void)
-{
+static inline void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
@@ -123,8 +122,7 @@ static inline void SystemClock_Config(void)
   __HAL_RCC_USB_CLK_ENABLE();
 }
 
-static inline void board_enable_vdd_usb(void)
-{
+static inline void board_enable_vdd_usb(void) {
   /* Enable VDDUSB to power on USB peripheral */
   HAL_PWREx_EnableVddUSB();
 }

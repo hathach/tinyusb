@@ -54,8 +54,7 @@ extern "C" {
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void SystemClock_Config(void)
-{
+static inline void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
@@ -81,10 +80,7 @@ static inline void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1_VCIRANGE_1;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1_VCORANGE_WIDE;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
   /** Initializes the CPU, AHB and APB buses clocks
   */
@@ -96,11 +92,7 @@ static inline void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_HCLK_DIV1;
-
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
 
   // Configure CRS clock source
   __HAL_RCC_CRS_CLK_ENABLE();
@@ -123,8 +115,7 @@ static inline void SystemClock_Config(void)
   __HAL_RCC_USB_CLK_ENABLE();
 }
 
-static inline void board_enable_vdd_usb(void)
-{
+static inline void board_enable_vdd_usb(void) {
   // USB in STM32H503RB does not require enabling VDD
 }
 
