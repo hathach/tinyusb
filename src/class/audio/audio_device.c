@@ -305,6 +305,8 @@ typedef struct
   uint8_t ep_int;               // Audio control interrupt EP.
 #endif
 
+  bool mounted;                 // Device opened
+
   /*------------- From this point, data is not cleared by bus reset -------------*/
 
   uint16_t desc_length;         // Length of audio function descriptor
@@ -486,23 +488,7 @@ bool tud_audio_n_mounted(uint8_t func_id)
   TU_VERIFY(func_id < CFG_TUD_AUDIO);
   audiod_function_t* audio = &_audiod_fct[func_id];
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT
-  if (audio->ep_out == 0) return false;
-#endif
-
-#if CFG_TUD_AUDIO_ENABLE_EP_IN
-  if (audio->ep_in == 0) return false;
-#endif
-
-#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-  if (audio->ep_int == 0) return false;
-#endif
-
-#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-  if (audio->ep_fb == 0) return false;
-#endif
-
-  return true;
+  return audio->mounted;
 }
 
 //--------------------------------------------------------------------+
@@ -1626,6 +1612,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
       }
 #endif
 
+      _audiod_fct[i].mounted = true;
       break;
     }
   }
