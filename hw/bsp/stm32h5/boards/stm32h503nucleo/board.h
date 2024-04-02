@@ -115,10 +115,6 @@ static inline void SystemClock_Config(void) {
   __HAL_RCC_USB_CLK_ENABLE();
 }
 
-static inline void board_enable_vdd_usb(void) {
-  // USB in STM32H503RB does not require enabling VDD
-}
-
 #ifdef __cplusplus
 }
 #endif

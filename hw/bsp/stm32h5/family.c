@@ -145,7 +145,9 @@ void board_init(void) {
   __HAL_RCC_USB_CLK_ENABLE();
 
   /* Enable VDDUSB */
-  board_enable_vdd_usb();
+  #if defined (PWR_USBSCR_USB33DEN)
+  HAL_PWREx_EnableVddUSB();
+  #endif
 }
 
 //--------------------------------------------------------------------+
