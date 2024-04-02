@@ -96,13 +96,6 @@
   #define  USE_LINEAR_BUFFER     1
 #endif
 
-// Temporarily put the check here
-#if defined(TUP_USBIP_FSDEV) || defined(TUP_USBIP_DWC2)
-  #define  USE_ISO_EP_ALLOCATION   1
-#else
-  #define  USE_ISO_EP_ALLOCATION   0
-#endif
-
 // Declaration of buffers
 
 // Check for maximum supported numbers
@@ -1483,7 +1476,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 #endif
       }
 
-#if USE_ISO_EP_ALLOCATION
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
       {
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
         uint8_t  ep_in = 0;
@@ -1559,7 +1552,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
         }
   #endif
       }
-#endif // USE_ISO_EP_ALLOCATION
+#endif // TUP_DCD_EDPT_ISO_ALLOC
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
       {
@@ -1655,7 +1648,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   if (audio->ep_in_as_intf_num == itf)
   {
     audio->ep_in_as_intf_num = 0;
-  #if !USE_ISO_EP_ALLOCATION
+  #ifndef TUP_DCD_EDPT_ISO_ALLOC
     usbd_edpt_close(rhport, audio->ep_in);
   #endif
 
@@ -1686,7 +1679,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   if (audio->ep_out_as_intf_num == itf)
   {
     audio->ep_out_as_intf_num = 0;
-  #if !USE_ISO_EP_ALLOCATION
+  #ifndef TUP_DCD_EDPT_ISO_ALLOC
     usbd_edpt_close(rhport, audio->ep_out);
   #endif
 
@@ -1707,7 +1700,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
     // Close corresponding feedback EP
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-    #if !USE_ISO_EP_ALLOCATION
+    #ifndef TUP_DCD_EDPT_ISO_ALLOC
     usbd_edpt_close(rhport, audio->ep_fb);
     #endif
     audio->ep_fb = 0;
@@ -1739,7 +1732,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
         if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
         {
           tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-#if USE_ISO_EP_ALLOCATION
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
           TU_ASSERT(usbd_edpt_iso_activate(rhport, desc_ep));
 #else
           TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
