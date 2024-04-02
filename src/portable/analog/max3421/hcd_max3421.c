@@ -167,33 +167,15 @@ enum {
 };
 
 enum {
-  EP_STATE_IDLE        = 0,
-  EP_STATE_ATTEMPT1    = 1, // pending 1st attempt
-  #if CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME
-    EP_STATE_ATTEMPT2  = 2, // don't change order
-    EP_STATE_ATTEMPT3  = 3, // need to be incrementable
-    EP_STATE_ATTEMPT4  = 4,
-    EP_STATE_ATTEMPT5  = 5,
-    EP_STATE_ATTEMPT6  = 6,
-    EP_STATE_ATTEMPT7  = 7,
-    EP_STATE_ATTEMPT8  = 8,
-    EP_STATE_ATTEMPT9  = 9,
-    EP_STATE_ATTEMPT10 = 10,
-    EP_STATE_SUSPENDED,    // keep next behind last attempt
-  #endif
-  EP_STATE_COMPLETE,
-  EP_STATE_QUANTITY        // not used. only to get quantity. keep last
+  MAX_NAK_DEFAULT = 1 // Number of NAK per endpoint per usb frame
 };
 
-TU_VERIFY_STATIC(EP_STATE_QUANTITY <= 16, "no more than 16 states possible. ep->state has 4 bits");
-
-#if CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME
-  #define EP_STATE_ATTEMPT_QUANTITY (EP_STATE_SUSPENDED - 1)
-  TU_VERIFY_STATIC(CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME >= 1 &&
-                   CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME <= EP_STATE_ATTEMPT_QUANTITY, "unsupported attempt quantity");
-#else
-  #define EP_STATE_ATTEMPT_QUANTITY 1
-#endif
+enum {
+  EP_STATE_IDLE        = 0,
+  EP_STATE_COMPLETE,
+  EP_STATE_ATTEMPT_1, // pending 1st attempt
+  EP_STATE_ATTEMPT_MAX = 15
+};
 
 //--------------------------------------------------------------------+
 //
@@ -223,6 +205,8 @@ typedef struct {
 TU_VERIFY_STATIC(sizeof(max3421_ep_t) == 12, "size is not correct");
 
 typedef struct {
+  volatile uint16_t frame_count;
+
   // cached register
   uint8_t sndbc;
   uint8_t hirq;
@@ -232,17 +216,17 @@ typedef struct {
   uint8_t hxfr;
 
   atomic_flag busy; // busy transferring
-  volatile uint16_t frame_count;
 
-  max3421_ep_t ep[CFG_TUH_MAX3421_ENDPOINT_TOTAL]; // [0] is reserved for addr0
-
-  OSAL_MUTEX_DEF(spi_mutexdef);
 #if OSAL_MUTEX_REQUIRED
+  OSAL_MUTEX_DEF(spi_mutexdef);
   osal_mutex_t spi_mutex;
 #endif
+
+  max3421_ep_t ep[CFG_TUH_MAX3421_ENDPOINT_TOTAL]; // [0] is reserved for addr0
 } max3421_data_t;
 
 static max3421_data_t _hcd_data;
+static uint8_t _max_nak = MAX_NAK_DEFAULT; // max NAK before giving up in a usb frame
 
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E
@@ -332,7 +316,6 @@ static void fifo_write(uint8_t rhport, uint8_t reg, uint8_t const * buffer, uint
   tuh_max3421_spi_xfer_api(rhport, buffer, NULL, len);
 
   max3421_spi_unlock(rhport, in_isr);
-
 }
 
 static void fifo_read(uint8_t rhport, uint8_t * buffer, uint16_t len, bool in_isr) {
@@ -421,18 +404,22 @@ static void free_ep(uint8_t daddr) {
   }
 }
 
+// Check if endpoint has an queued transfer
+TU_ATTR_ALWAYS_INLINE static inline bool is_ep_pending(max3421_ep_t const * ep) {
+  uint8_t const state = ep->state;
+  return ep->packet_size && state >= EP_STATE_ATTEMPT_1 && state < EP_STATE_ATTEMPT_1 + _max_nak;
+}
+
+// Find the next pending endpoint using round-robin scheduling, starting from next endpoint.
+// return NULL if not found
+// TODO respect interrupt endpoint's interval
 static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
-  // search for next pending endpoint using round-robin scheduling
-  // if no other endpoint is pending and current endpoint is still pending, the current endpoint will be returned
-  // if no other endpoint is pending and current endpoint is not pending, NULL will be returned
-  // TODO maybe prioritisation control/interrupt/bulk/iso
   size_t const idx = (size_t) (cur_ep - _hcd_data.ep);
 
   // starting from next endpoint
   for (size_t i = idx + 1; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
-    if (ep->state >= EP_STATE_ATTEMPT1 && ep->state <= EP_STATE_ATTEMPT_QUANTITY && ep->packet_size) {
-//      TU_LOG3("next pending i = %u\r\n", i);
+    if (is_ep_pending(ep)) {
       return ep;
     }
   }
@@ -440,8 +427,7 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
   // wrap around including current endpoint
   for (size_t i = 0; i <= idx; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
-    if (ep->state >= EP_STATE_ATTEMPT1 && ep->state <= EP_STATE_ATTEMPT_QUANTITY && ep->packet_size) {
-//      TU_LOG3("next pending i = %u\r\n", i);
+    if (is_ep_pending(ep)) {
       return ep;
     }
   }
@@ -469,7 +455,9 @@ bool hcd_init(uint8_t rhport) {
   tuh_max3421_int_api(rhport, false);
 
   TU_LOG2_INT(sizeof(max3421_ep_t));
+  TU_LOG2_INT(sizeof(atomic_flag));
   TU_LOG2_INT(sizeof(max3421_data_t));
+  TU_LOG2_INT(offsetof(max3421_data_t, ep));
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
   _hcd_data.peraddr = 0xff; // invalid
@@ -689,7 +677,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   ep->buf = buffer;
   ep->total_len = buflen;
   ep->xferred_len = 0;
-  ep->state = EP_STATE_ATTEMPT1;
+  ep->state = EP_STATE_ATTEMPT_1;
 
   if ( ep_num == 0 ) {
     ep->is_setup = 0;
@@ -726,7 +714,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
   ep->buf = (uint8_t*)(uintptr_t) setup_packet;
   ep->total_len = 8;
   ep->xferred_len = 0;
-  ep->state = EP_STATE_ATTEMPT1;
+  ep->state = EP_STATE_ATTEMPT_1;
 
   // carry out transfer if not busy
   if ( !atomic_flag_test_and_set(&_hcd_data.busy) ) {
@@ -839,40 +827,24 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
       break;
 
     case HRSL_NAK:
-      // TODO no retry for iso in current frame
-      // TODO retry limitation over all (not only per frame)
       if (ep_num == 0) {
-        // setup/control => retry immediately
+        // control endpoint -> retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-      #if CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME
-      } else if (ep->state == CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME) {
-        // no more retry this frame if max. attempts are reached => suspend and retry it next frame
-        ep->state = EP_STATE_SUSPENDED;
-
-        max3421_ep_t * next_ep = find_next_pending_ep(ep);
-        if (next_ep) {
-          // switch to next pending endpoint TODO could have issue with double buffered if not clear previously out data
-          xact_inout(rhport, next_ep, true, in_isr);
-        } else {
-          // no more pending => clear busy
-          atomic_flag_clear(&_hcd_data.busy);
-        }
-      #endif
       } else {
-        // another attempt
-        #if CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME
+        if (ep->state < EP_STATE_ATTEMPT_MAX) {
           ep->state++;
-        #endif
+        }
 
         max3421_ep_t * next_ep = find_next_pending_ep(ep);
         if (ep == next_ep) {
-          // this endpoint is only one pending => retry immediately
+          // this endpoint is only one pending -> retry immediately
           hxfr_write(rhport, _hcd_data.hxfr, in_isr);
         } else if (next_ep) {
           // switch to next pending endpoint TODO could have issue with double buffered if not clear previously out data
           xact_inout(rhport, next_ep, true, in_isr);
         } else {
-          TU_ASSERT(false,);
+          // no more pending in this frame -> clear busy
+          atomic_flag_clear(&_hcd_data.busy);
         }
       }
       return;
@@ -957,28 +929,24 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
 
-    #if CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME
-      // endpoints retry or restart attempt next frame
-      for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
-        max3421_ep_t * ep = &_hcd_data.ep[i];
+    max3421_ep_t* ep_retry = NULL;
 
-        // retry the endpoints that are suspended (NAK) last frame
-        if (ep->state == EP_STATE_SUSPENDED) {
-          // resume and retry suspended endpoint with attempt 1
-          ep->state = EP_STATE_ATTEMPT1;
+    // reset all endpoints attempt counter
+    for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
+      max3421_ep_t* ep = &_hcd_data.ep[i];
+      if (ep->packet_size && ep->state > EP_STATE_ATTEMPT_1) {
+        ep->state = EP_STATE_ATTEMPT_1;
 
-          if (ep->packet_size) { // first test packet_size before atomic_flag_test_and_set()
-            if (!atomic_flag_test_and_set(&_hcd_data.busy) ) {
-              // trigger endpoint to be retried
-              xact_inout(rhport, ep, true, in_isr);
-            }
-          }
-        } else if (ep->state > EP_STATE_ATTEMPT1 && ep->state <= CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME) {
-          // restart all other running/pending endpoints
-          ep->state = EP_STATE_ATTEMPT1;
+        if (ep_retry == NULL) {
+          ep_retry = ep;
         }
       }
-    #endif
+    }
+
+    // start usb transfer if not busy
+    if (ep_retry != NULL && !atomic_flag_test_and_set(&_hcd_data.busy)) {
+      xact_inout(rhport, ep_retry, true, in_isr);
+    }
   }
 
   if (hirq & HIRQ_CONDET_IRQ) {
@@ -987,17 +955,17 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   // queue more transfer in handle_xfer_done() can cause hirq to be set again while external IRQ may not catch and/or
   // not call this handler again. So we need to loop until all IRQ are cleared
-  while ( hirq & (HIRQ_RCVDAV_IRQ | HIRQ_HXFRDN_IRQ) ) {
-    if ( hirq & HIRQ_RCVDAV_IRQ ) {
+  while (hirq & (HIRQ_RCVDAV_IRQ | HIRQ_HXFRDN_IRQ)) {
+    if (hirq & HIRQ_RCVDAV_IRQ) {
       uint8_t const ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
-      max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
+      max3421_ep_t* ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
       uint8_t xact_len = 0;
 
       // RCVDAV_IRQ can trigger 2 times (dual buffered)
-      while ( hirq & HIRQ_RCVDAV_IRQ ) {
+      while (hirq & HIRQ_RCVDAV_IRQ) {
         uint8_t rcvbc = reg_read(rhport, RCVBC_ADDR, in_isr);
         xact_len = (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len);
-        if ( xact_len ) {
+        if (xact_len) {
           fifo_read(rhport, ep->buf, xact_len, in_isr);
           ep->buf += xact_len;
           ep->xferred_len += xact_len;
@@ -1008,12 +976,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
         hirq = reg_read(rhport, HIRQ_ADDR, in_isr);
       }
 
-      if ( xact_len < ep->packet_size || ep->xferred_len >= ep->total_len ) {
+      if (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len) {
         ep->state = EP_STATE_COMPLETE;
       }
     }
 
-    if ( hirq & HIRQ_HXFRDN_IRQ ) {
+    if (hirq & HIRQ_HXFRDN_IRQ) {
       hirq_write(rhport, HIRQ_HXFRDN_IRQ, in_isr);
       handle_xfer_done(rhport, in_isr);
     }
