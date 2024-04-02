@@ -30,6 +30,7 @@
 
 #include <stdatomic.h>
 #include "host/hcd.h"
+#include "host/usbh.h"
 
 //--------------------------------------------------------------------+
 //
@@ -230,7 +231,9 @@ typedef struct {
 } max3421_data_t;
 
 static max3421_data_t _hcd_data;
-static uint8_t _max_nak = MAX_NAK_DEFAULT; // max NAK before giving up in a usb frame
+
+// max NAK before giving up in a frame. 0 means infinite NAKs
+static uint8_t _max_nak = MAX_NAK_DEFAULT;
 
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E
@@ -409,10 +412,11 @@ static void free_ep(uint8_t daddr) {
   }
 }
 
-// Check if endpoint has an queued transfer
+// Check if endpoint has an queued transfer and not reach max NAK
 TU_ATTR_ALWAYS_INLINE static inline bool is_ep_pending(max3421_ep_t const * ep) {
   uint8_t const state = ep->state;
-  return ep->packet_size && state >= EP_STATE_ATTEMPT_1 && state < EP_STATE_ATTEMPT_1 + _max_nak;
+  return ep->packet_size && (state >= EP_STATE_ATTEMPT_1) &&
+         (_max_nak == 0 || state < EP_STATE_ATTEMPT_1 + _max_nak);
 }
 
 // Find the next pending endpoint using round-robin scheduling, starting from next endpoint.
@@ -447,10 +451,11 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
 // optional hcd configuration, called by tuh_configure()
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport;
-  (void) cfg_id;
-  (void) cfg_param;
+  TU_VERIFY(cfg_id == TUH_CFGID_MAX3421);
 
-  return false;
+  tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
+  _max_nak = cfg->max3421.max_nak;
+  return true;
 }
 
 // Initialize controller to host mode

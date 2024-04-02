@@ -144,7 +144,6 @@
 #define OPT_MCU_RX72N            1402 ///< Renesas RX72N
 #define OPT_MCU_RAXXX            1403 ///< Renesas RAxxx families
 
-
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
 
