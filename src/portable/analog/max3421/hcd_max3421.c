@@ -454,7 +454,7 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   TU_VERIFY(cfg_id == TUH_CFGID_MAX3421);
 
   tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
-  _max_nak = cfg->max3421.max_nak;
+  _max_nak = tu_max8(cfg->max3421.max_nak, EP_STATE_ATTEMPT_MAX-EP_STATE_ATTEMPT_1);
   return true;
 }
 
