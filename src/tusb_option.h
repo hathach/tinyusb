@@ -34,7 +34,7 @@
 #define TUSB_VERSION_MAJOR     0
 #define TUSB_VERSION_MINOR     16
 #define TUSB_VERSION_REVISION  0
-#define TUSB_VERSION_BUILD     1
+#define TUSB_VERSION_BUILD     2
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR << 24 | TUSB_VERSION_MINOR << 16 | TUSB_VERSION_REVISION << 8 | TUSB_VERSION_BUILD)
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
@@ -528,17 +528,6 @@
 #ifndef CFG_TUH_MAX3421
   #define CFG_TUH_MAX3421  0
 #endif
-
-// MAX3421 Host max. transfer attempts per frame (except control and iso)
-// retry quantity = (CFG_TUH_MAX3421_MAX_ATTEMPS_PER_FRAME - 1)
-// 0 = endless retries. is default to keep compatibility
-//     => this may overload MCU with permanently repeating NAK interrupts
-//     => possible increased USB traffic, increased latencies, reduced data throughput
-// a usual attempt quantity is 3 (reference: the book "USB Complete" by Jan Axelson)
-#ifndef CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME
-  #define CFG_TUH_MAX3421_MAX_ATTEMPTS_PER_FRAME 0
-#endif
-
 
 //--------------------------------------------------------------------+
 // TypeC Options (Default)
