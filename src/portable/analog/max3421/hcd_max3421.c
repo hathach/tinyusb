@@ -173,8 +173,8 @@ enum {
 
 enum {
   EP_STATE_IDLE        = 0,
-  EP_STATE_COMPLETE,
-  EP_STATE_ATTEMPT_1, // pending 1st attempt
+  EP_STATE_COMPLETE    = 1,
+  EP_STATE_ATTEMPT_1   = 2, // pending 1st attempt
   EP_STATE_ATTEMPT_MAX = 15
 };
 
@@ -465,7 +465,6 @@ bool hcd_init(uint8_t rhport) {
   tuh_max3421_int_api(rhport, false);
 
   TU_LOG2_INT(sizeof(max3421_ep_t));
-  TU_LOG2_INT(sizeof(atomic_flag));
   TU_LOG2_INT(sizeof(max3421_data_t));
   TU_LOG2_INT(offsetof(max3421_data_t, ep));
 
@@ -873,7 +872,9 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
 
   if (ep_dir) {
     // IN transfer: fifo data is already received in RCVDAV IRQ
-    if ( hxfr_type & HXFR_HS ) {
+
+    // mark control handshake as complete
+    if (hxfr_type & HXFR_HS) {
       ep->state = EP_STATE_COMPLETE;
     }
 
