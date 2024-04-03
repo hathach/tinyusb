@@ -451,10 +451,10 @@ static max3421_ep_t * find_next_pending_ep(max3421_ep_t * cur_ep) {
 // optional hcd configuration, called by tuh_configure()
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport;
-  TU_VERIFY(cfg_id == TUH_CFGID_MAX3421);
+  TU_VERIFY(cfg_id == TUH_CFGID_MAX3421 && cfg_param != NULL);
 
   tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
-  _max_nak = cfg->max3421.max_nak;
+  _max_nak = tu_min8(cfg->max3421.max_nak, EP_STATE_ATTEMPT_MAX-EP_STATE_ATTEMPT_1);
   return true;
 }
 
