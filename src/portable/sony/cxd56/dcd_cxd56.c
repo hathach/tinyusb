@@ -103,19 +103,23 @@ static int _dcd_bind(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_
   usbdcd_driver.ep[0] = dev->ep0;
 
   #ifdef EP_ALLOCREQ
+  // SDK v2
   usbdcd_driver.req[0] = EP_ALLOCREQ(usbdcd_driver.ep[0]);
-  if (usbdcd_driver.req[0] != NULL)
-  {
+  if (usbdcd_driver.req[0] != NULL) {
     usbdcd_driver.req[0]->len = 64;
     usbdcd_driver.req[0]->buf = EP_ALLOCBUFFER(usbdcd_driver.ep[0], 64);
-    if (!usbdcd_driver.req[0]->buf)
-    {
+    if (!usbdcd_driver.req[0]->buf) {
       EP_FREEREQ(usbdcd_driver.ep[0], usbdcd_driver.req[0]);
       usbdcd_driver.req[0] = NULL;
+      return ENOMEM;
     }
   }
   #else
-  usbdcd_driver.req[0] = usbdev_allocreq(usbdcd_driver.ep[0],64);
+  // SDK v3
+  usbdcd_driver.req[0] = usbdev_allocreq(usbdcd_driver.ep[0], 64);
+  if (usbdcd_driver.req[0] == NULL) {
+    return ENOMEM;
+  }
   #endif
 
   usbdcd_driver.req[0]->callback = usbdcd_ep0incomplete;
@@ -301,17 +305,17 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
   usbdcd_driver.req[epnum] = NULL;
 
   #ifdef EP_ALLOCREQ
+  // sdk v2
   usbdcd_driver.req[epnum] = EP_ALLOCREQ(usbdcd_driver.ep[epnum]);
-  if (usbdcd_driver.req[epnum] != NULL)
-  {
+  if (usbdcd_driver.req[epnum] != NULL) {
     usbdcd_driver.req[epnum]->len = ep_mps;
   }
-  else
   #else
+  // sdk v3
   usbdcd_driver.req[epnum] = usbdev_allocreq(usbdcd_driver.ep[epnum], ep_mps);
-  if(usbdcd_driver.req[epnum] == NULL)
   #endif
-  {
+
+  if(usbdcd_driver.req[epnum] == NULL) {
     return false;
   }
 
