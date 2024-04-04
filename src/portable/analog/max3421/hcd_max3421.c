@@ -654,7 +654,7 @@ static void xact_generic(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool 
 
     // status
     if (ep->buf == NULL || ep->total_len == 0) {
-      uint8_t const hxfr = HXFR_HS | (ep->hxfr_bm.is_out ? HXFR_OUT_NIN : 0);
+      uint8_t const hxfr = (uint8_t) (HXFR_HS | (ep->hxfr & HXFR_OUT_NIN));
       peraddr_write(rhport, ep->daddr, in_isr);
       hxfr_write(rhport, hxfr, in_isr);
       return;
@@ -676,18 +676,17 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
   TU_VERIFY(ep);
 
-  // control transfer can switch direction
-  ep->hxfr_bm.is_out = ep_dir ? 0u : 1u;
+  if (ep_num == 0) {
+    // control transfer can switch direction
+    ep->hxfr_bm.is_out = ep_dir ? 0 : 1;
+    ep->hxfr_bm.is_setup = 0;
+    ep->data_toggle = 1;
+  }
 
   ep->buf = buffer;
   ep->total_len = buflen;
   ep->xferred_len = 0;
   ep->state = EP_STATE_ATTEMPT_1;
-
-  if (ep_num == 0) {
-    ep->hxfr_bm.is_setup = 0;
-    ep->data_toggle = 1;
-  }
 
   // carry out transfer if not busy
   if (!atomic_flag_test_and_set(&_hcd_data.busy)) {
