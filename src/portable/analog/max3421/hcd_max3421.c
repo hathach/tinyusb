@@ -654,7 +654,7 @@ static void xact_generic(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool 
 
     // status
     if (ep->buf == NULL || ep->total_len == 0) {
-      uint8_t const hxfr = HXFR_HS | (ep->hxfr_bm.is_out ? HXFR_OUT_NIN : 0);
+      uint8_t const hxfr = (uint8_t) (HXFR_HS | (ep->hxfr & HXFR_OUT_NIN));
       peraddr_write(rhport, ep->daddr, in_isr);
       hxfr_write(rhport, hxfr, in_isr);
       return;
