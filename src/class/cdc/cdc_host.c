@@ -1382,7 +1382,8 @@ static void ftdi_process_config(tuh_xfer_t * xfer) {
     case CONFIG_FTDI_FLOW_CONTROL:
       // disable flow control
       TU_ASSERT_COMPLETE(ftdi_set_request(p_cdc, FTDI_SIO_SET_FLOW_CTRL_REQUEST, FTDI_SIO_SET_FLOW_CTRL_REQUEST_TYPE,
-                                          0, FTDI_SIO_DISABLE_FLOW_CTRL, ftdi_process_config, CONFIG_FTDI_MODEM_CTRL));
+                                          FTDI_SIO_DISABLE_FLOW_CTRL, p_cdc->ftdi.channel,
+                                          ftdi_process_config, CONFIG_FTDI_MODEM_CTRL));
       break;
 
     case CONFIG_FTDI_MODEM_CTRL:
