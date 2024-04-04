@@ -96,17 +96,17 @@ enum ftdi_sio_baudrate {
 #define FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE      0x40
 #define FTDI_SIO_SET_MODEM_CTRL_REQUEST           FTDI_SIO_MODEM_CTRL
 
-#define FTDI_SIO_SET_DTR_MASK                     0x1
-#define FTDI_SIO_SET_DTR_HIGH                     ((FTDI_SIO_SET_DTR_MASK << 8) | 1)
-#define FTDI_SIO_SET_DTR_LOW                      ((FTDI_SIO_SET_DTR_MASK << 8) | 0)
-#define FTDI_SIO_SET_RTS_MASK                     0x2
-#define FTDI_SIO_SET_RTS_HIGH                     ((FTDI_SIO_SET_RTS_MASK << 8) | 2)
-#define FTDI_SIO_SET_RTS_LOW                      ((FTDI_SIO_SET_RTS_MASK << 8) | 0)
+#define FTDI_SIO_SET_DTR_MASK                     0x1UL
+#define FTDI_SIO_SET_DTR_HIGH                     ((FTDI_SIO_SET_DTR_MASK << 8) | 1UL)
+#define FTDI_SIO_SET_DTR_LOW                      ((FTDI_SIO_SET_DTR_MASK << 8) | 0UL)
+#define FTDI_SIO_SET_RTS_MASK                     0x2UL
+#define FTDI_SIO_SET_RTS_HIGH                     ((FTDI_SIO_SET_RTS_MASK << 8) | 2UL)
+#define FTDI_SIO_SET_RTS_LOW                      ((FTDI_SIO_SET_RTS_MASK << 8) | 0UL)
 
 // FTDI_SIO_SET_FLOW_CTRL
 #define FTDI_SIO_SET_FLOW_CTRL_REQUEST_TYPE       0x40
 #define FTDI_SIO_SET_FLOW_CTRL_REQUEST            FTDI_SIO_SET_FLOW_CTRL
-#define FTDI_SIO_DISABLE_FLOW_CTRL 0x0
+#define FTDI_SIO_DISABLE_FLOW_CTRL                0x0
 #define FTDI_SIO_RTS_CTS_HS                       (0x1 << 8)
 #define FTDI_SIO_DTR_DSR_HS                       (0x2 << 8)
 #define FTDI_SIO_XON_XOFF_HS                      (0x4 << 8)

@@ -1181,9 +1181,9 @@ static bool ftdi_change_speed(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_c
 static bool ftdi_set_data_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 7 && p_cdc->requested_line_coding.data_bits <= 8, 0);
   uint16_t value = (uint16_t) (
-    ((uint32_t) p_cdc->requested_line_coding.data_bits & 0xfu)       |  // data bit quantity is stored in bits 0-3
-    ((uint32_t) p_cdc->requested_line_coding.parity    & 0x7u) <<  8 |  // parity is stored in bits 8-10, same coding
-    ((uint32_t) p_cdc->requested_line_coding.stop_bits & 0x3u) << 11 ); // stop bits quantity is stored in bits 11-12, same coding
+    (p_cdc->requested_line_coding.data_bits & 0xfUL)       |  // data bit quantity is stored in bits 0-3
+    (p_cdc->requested_line_coding.parity    & 0x7UL) <<  8 |  // parity is stored in bits 8-10, same coding
+    (p_cdc->requested_line_coding.stop_bits & 0x3UL) << 11 ); // stop bits quantity is stored in bits 11-12, same coding
                                                                         // not each FTDI supports 1.5 stop bits
 
   return ftdi_set_request(p_cdc, FTDI_SIO_SET_DATA_REQUEST, FTDI_SIO_SET_DATA_REQUEST_TYPE,
@@ -1191,8 +1191,8 @@ static bool ftdi_set_data_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t comple
 }
 
 static inline bool ftdi_update_mctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint16_t value = (uint16_t) ((p_cdc->requested_line_state.dtr ? (uint32_t) FTDI_SIO_SET_DTR_HIGH : (uint32_t) FTDI_SIO_SET_DTR_LOW) |
-                               (p_cdc->requested_line_state.rts ? (uint32_t) FTDI_SIO_SET_RTS_HIGH : (uint32_t) FTDI_SIO_SET_RTS_LOW));
+  uint16_t value = (uint16_t) ((p_cdc->requested_line_state.dtr ? FTDI_SIO_SET_DTR_HIGH : FTDI_SIO_SET_DTR_LOW) |
+                               (p_cdc->requested_line_state.rts ? FTDI_SIO_SET_RTS_HIGH : FTDI_SIO_SET_RTS_LOW));
 
   return ftdi_set_request(p_cdc, FTDI_SIO_SET_MODEM_CTRL_REQUEST, FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE,
                           value, p_cdc->ftdi.channel, complete_cb, user_data);
@@ -1338,7 +1338,10 @@ static void ftdi_process_config(tuh_xfer_t * xfer) {
         // other interfaces have same type as interface 0
         uint8_t const idx_itf0 = tuh_cdc_itf_get_index(xfer->daddr, 0);
         cdch_interface_t const * p_cdc_itf0 = get_itf(idx_itf0);
-        p_cdc->ftdi.chip_type = p_cdc_itf0->ftdi.chip_type;
+        TU_ASSERT_COMPLETE(p_cdc_itf0);
+        if (p_cdc_itf0) {
+         p_cdc->ftdi.chip_type = p_cdc_itf0->ftdi.chip_type;
+        }
       }
       TU_ATTR_FALLTHROUGH;
 
@@ -1715,9 +1718,9 @@ static bool cp210x_set_baudrate_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t 
 static bool cp210x_set_line_ctl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 9, 0);
   uint16_t lcr = (uint16_t) (
-    ((uint32_t) p_cdc->requested_line_coding.data_bits & 0xfu) << 8 | // data bit quantity is stored in bits 8-11
-    ((uint32_t) p_cdc->requested_line_coding.parity    & 0xfu) << 4 | // parity is stored in bits 4-7, same coding
-    ((uint32_t) p_cdc->requested_line_coding.stop_bits & 0xfu));      // parity is stored in bits 0-3, same coding
+    (p_cdc->requested_line_coding.data_bits & 0xfUL) << 8 | // data bit quantity is stored in bits 8-11
+    (p_cdc->requested_line_coding.parity    & 0xfUL) << 4 | // parity is stored in bits 4-7, same coding
+    (p_cdc->requested_line_coding.stop_bits & 0xfUL));      // parity is stored in bits 0-3, same coding
 
   return cp210x_set_request(p_cdc, CP210X_SET_LINE_CTL, lcr, NULL, 0, complete_cb, user_data);
 }
@@ -1725,8 +1728,8 @@ static bool cp210x_set_line_ctl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete
 static inline bool cp210x_set_mhs(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // CP210x has the same bit coding
   return cp210x_set_request(p_cdc, CP210X_SET_MHS,
-                            (uint16_t) ((uint32_t) CP210X_CONTROL_WRITE_DTR |
-                                        (uint32_t) CP210X_CONTROL_WRITE_RTS | p_cdc->requested_line_state.all),
+                            (uint16_t) (CP210X_CONTROL_WRITE_DTR | CP210X_CONTROL_WRITE_RTS |
+                                        p_cdc->requested_line_state.all),
                             NULL, 0, complete_cb, user_data);
 }
 
@@ -2327,7 +2330,7 @@ static bool pl2303_vendor_write(cdch_interface_t * p_cdc, uint16_t value, uint16
 
 static inline bool pl2303_supports_hx_status(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-  uint8_t buf;
+  uint8_t buf = 0;
 
   return pl2303_set_request(p_cdc, PL2303_VENDOR_READ_REQUEST, PL2303_VENDOR_READ_REQUEST_TYPE, PL2303_READ_TYPE_HX_STATUS, 0,
                             &buf, 1, complete_cb, user_data);
@@ -2519,7 +2522,7 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
   cdch_interface_t * p_cdc = get_itf(idx);
   // state CONFIG_PL2303_READ1 may have no success due to expected stall by pl2303_supports_hx_status()
   TU_ASSERT_COMPLETE(p_cdc && (xfer->result == XFER_RESULT_SUCCESS || xfer->user_data == CONFIG_PL2303_READ1));
-  uint8_t buf;
+  uint8_t buf = 0;
   int8_t type;
 
   switch (state) {

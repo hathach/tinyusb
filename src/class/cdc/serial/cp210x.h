@@ -101,8 +101,8 @@
 #define CP210X_MSR_DCD                  0x0080
 #define CP210X_MSR_ALL                  0x00F0
 
-#define CP210X_CONTROL_WRITE_DTR        0x0100
-#define CP210X_CONTROL_WRITE_RTS        0x0200
+#define CP210X_CONTROL_WRITE_DTR        0x0100UL
+#define CP210X_CONTROL_WRITE_RTS        0x0200UL
 
 #define CP210X_LSR_BREAK                0x0001
 #define CP210X_LSR_FRAMING_ERROR        0x0002
