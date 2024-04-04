@@ -1400,7 +1400,7 @@ static void ftdi_process_config(tuh_xfer_t * xfer) {
       break;
 
     default:
-      set_config_complete(idx, 0, false);
+      TU_ASSERT_COMPLETE(false);
       break;
   }
 }
@@ -1876,7 +1876,7 @@ static void cp210x_process_config(tuh_xfer_t * xfer) {
       break;
 
     default:
-      set_config_complete(idx, 0, false);
+      TU_ASSERT_COMPLETE(false);
       break;
   }
 }
@@ -2158,7 +2158,7 @@ static void ch34x_process_config(tuh_xfer_t* xfer) {
       break;
 
     default:
-      set_config_complete(idx, 0, false);
+      TU_ASSERT_COMPLETE(false);
       break;
   }
 }
@@ -2729,7 +2729,7 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
       break;
 
     default:
-      set_config_complete(idx, 0, false);
+      TU_ASSERT_COMPLETE(false);
       break;
   }
 }
