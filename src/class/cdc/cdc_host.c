@@ -1701,22 +1701,14 @@ static inline bool cp210x_ifc_enable(cdch_interface_t * p_cdc, uint16_t enabled,
 }
 
 static bool cp210x_set_baudrate_request(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  // Check baudrate is supported. It's only a specific list. reference: datasheets and AN205 "CP210x Baud Rate Support"
-  uint32_t const supported_baudrates_list[] = CP210X_SUPPORTED_BAUDRATES_LIST;
-  uint8_t i;
-  for ( i=0; supported_baudrates_list[i]; i++ ){
-    if (p_cdc->requested_line_coding.bit_rate == supported_baudrates_list[i]) {
-      break;
-    }
-  }
-  TU_VERIFY(supported_baudrates_list[i]);
+  // Not every baud rate is supported. See datasheets and AN205 "CP210x Baud Rate Support"
   uint32_t baud_le = tu_htole32(p_cdc->requested_line_coding.bit_rate);
 
   return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4, complete_cb, user_data);
 }
 
 static bool cp210x_set_line_ctl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 9, 0);
+  TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8, 0);
   uint16_t lcr = (uint16_t) (
     (p_cdc->requested_line_coding.data_bits & 0xfUL) << 8 | // data bit quantity is stored in bits 8-11
     (p_cdc->requested_line_coding.parity    & 0xfUL) << 4 | // parity is stored in bits 4-7, same coding

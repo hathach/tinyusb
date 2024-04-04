@@ -111,13 +111,4 @@
 #define CP210X_LSR_PARITY_ERROR         0x0010
 #define CP210X_LSR_ALL                  0x001F
 
-// supported baudrates
-// reference: datasheets and AN205 "CP210x Baud Rate Support"
-#define CP210X_SUPPORTED_BAUDRATES_LIST { \
-  300, 600, \
-  1200, 1800, 2400, 4000, 4800, 7200, 9600, \
-  14400, 16000, 19200, 28800, 38400, 51200, 56000, 57600, 64000, 76800, \
-  115200, 128000, 153600, 230400, 250000, 256000, 460800, 500000, 576000, 921600, \
-  0 }
-
 #endif //TUSB_CP210X_H
