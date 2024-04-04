@@ -56,8 +56,8 @@ char const* string_desc_arr[] = {
     "TinyUSB",                     // 1: Manufacturer
     "TinyUSB Device",              // 2: Product
     NULL,                          // 3: Serials will use unique ID if possible
-    "TinyUSB UVC Control",         // 4: UVC Interface
-    "TinyUSB UVC Streaming",       // 5: UVC Interface
+    "UVC Control",                 // 4: UVC Interface
+    "UVC Streaming",               // 5: UVC Interface
 };
 
 //--------------------------------------------------------------------+

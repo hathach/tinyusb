@@ -116,31 +116,27 @@ static unsigned frame_num[CFG_TUD_VIDEO_STREAMING] = {1};
 static unsigned tx_busy = 0;
 static unsigned interval_ms[CFG_TUD_VIDEO_STREAMING] = {1000 / FRAME_RATE};
 
-#ifdef CFG_EXAMPLE_VIDEO_READONLY
 // For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
 // To further reduce the size, we use MJPEG format instead of YUY2.
 #include "images.h"
 
-#if !defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
 static struct {
   uint32_t       size;
   uint8_t const *buffer;
-} const frames[] = {
-  {color_bar_0_jpg_len, color_bar_0_jpg},
-  {color_bar_1_jpg_len, color_bar_1_jpg},
-  {color_bar_2_jpg_len, color_bar_2_jpg},
-  {color_bar_3_jpg_len, color_bar_3_jpg},
-  {color_bar_4_jpg_len, color_bar_4_jpg},
-  {color_bar_5_jpg_len, color_bar_5_jpg},
-  {color_bar_6_jpg_len, color_bar_6_jpg},
-  {color_bar_7_jpg_len, color_bar_7_jpg},
+} const framebuf_mjpeg[] = {
+    {sizeof(color_bar_0_jpg), color_bar_0_jpg},
+    {sizeof(color_bar_1_jpg), color_bar_1_jpg},
+    {sizeof(color_bar_2_jpg), color_bar_2_jpg},
+    {sizeof(color_bar_3_jpg), color_bar_3_jpg},
+    {sizeof(color_bar_4_jpg), color_bar_4_jpg},
+    {sizeof(color_bar_5_jpg), color_bar_5_jpg},
+    {sizeof(color_bar_6_jpg), color_bar_6_jpg},
+    {sizeof(color_bar_7_jpg), color_bar_7_jpg},
 };
-#endif
-
-#else
 
 // YUY2 frame buffer
-static uint8_t frame_buffer[2][FRAME_WIDTH * FRAME_HEIGHT * 16 / 8];
+#define FRAMEBUF_SIZE (FRAME_WIDTH * FRAME_HEIGHT * 16 / 8)
+static uint8_t framebuf_yuy2[FRAMEBUF_SIZE];
 
 static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
   /* EBU color bars: https://stackoverflow.com/questions/6939422 */
@@ -179,7 +175,26 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
   }
 }
 
-#endif
+size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, void **fb) {
+  uint32_t idx = ctl_idx + stm_idx;
+
+  if (idx == 0) {
+    // stream 0 use uncompressed YUY2 frame
+    fill_color_bar(framebuf_yuy2, frame_num[idx]);
+    *fb = framebuf_yuy2;
+    return FRAMEBUF_SIZE;
+  }else {
+    // stream 1 use MJPEG frame
+    size_t const bar_id = fnum & 0x7;
+
+    *fb = (void*)(uintptr_t) framebuf_mjpeg[bar_id].buffer;
+    return framebuf_mjpeg[bar_id].size;
+  }
+}
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 
 void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   static unsigned start_ms[CFG_TUD_VIDEO_STREAMING] = {0, };
@@ -191,22 +206,16 @@ void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
     frame_num[idx] = 0;
     return;
   }
+  void* fp;
+  size_t fb_size;
 
   if (!(already_sent & (1u << idx))) {
     already_sent |= 1u << idx;
     tx_busy |= 1u << idx;
     start_ms[idx] = board_millis();
-#ifdef CFG_EXAMPLE_VIDEO_READONLY
-    #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-    tud_video_n_frame_xfer(ctl_idx, stm_idx, (void*)(uintptr_t)&frame_buffer[(frame_num[idx] % (FRAME_WIDTH / 2)) * 4],
-                           FRAME_WIDTH * FRAME_HEIGHT * 16/8);
-    #else
-    tud_video_n_frame_xfer(ctl_idx, stm_idx, (void*)(uintptr_t)frames[frame_num[idx] % 8].buffer, frames[frame_num[idx] % 8].size);
-    #endif
-#else
-    fill_color_bar(frame_buffer[idx], frame_num[idx]);
-    tud_video_n_frame_xfer(ctl_idx, stm_idx, (void*) frame_buffer[idx], FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
-#endif
+
+    fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], &fp);
+    tud_video_n_frame_xfer(ctl_idx, stm_idx, fp, fb_size);
   }
 
   unsigned cur = board_millis();
@@ -215,17 +224,8 @@ void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   start_ms[idx] += interval_ms[idx];
   tx_busy |= 1u << idx;
 
-#ifdef CFG_EXAMPLE_VIDEO_READONLY
-  #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
-  tud_video_n_frame_xfer(ctl_idx, stm_idx, (void*)(uintptr_t)&frame_buffer[(frame_num[idx] % (FRAME_WIDTH / 2)) * 4],
-                         FRAME_WIDTH * FRAME_HEIGHT * 16/8);
-  #else
-  tud_video_n_frame_xfer(ctl_idx, stm_idx, (void*)(uintptr_t)frames[frame_num[idx] % 8].buffer, frames[frame_num[idx] % 8].size);
-  #endif
-#else
-  fill_color_bar(frame_buffer[idx], frame_num[idx]);
-  tud_video_n_frame_xfer(ctl_idx, stm_idx, (void*) frame_buffer[idx], FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
-#endif
+  fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], &fp);
+  tud_video_n_frame_xfer(ctl_idx, stm_idx, fp, fb_size);
 }
 
 

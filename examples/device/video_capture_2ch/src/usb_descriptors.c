@@ -55,13 +55,14 @@ enum {
 // array of pointer to string descriptors
 char const* string_desc_arr[] = {
     (const char[]) {0x09, 0x04}, // 0: is supported language is English (0x0409)
-    "TinyUSB",                     // 1: Manufacturer
-    "TinyUSB Device",              // 2: Product
-    NULL,                          // 3: Serials will use unique ID if possible
-    "TinyUSB UVC Control 1",       // 4: UVC Interface 1
-    "TinyUSB UVC Streaming 1",     // 5: UVC Interface 1
-    "TinyUSB UVC Control 2",       // 6: UVC Interface 2
-    "TinyUSB UVC Streaming 2",     // 7: UVC Interface 2
+    "TinyUSB",                   // 1: Manufacturer
+    "TinyUSB Device",            // 2: Product
+    NULL,                        // 3: Serials will use unique ID if possible
+    "UVC Control 1",             // 4: UVC Interface 1
+    "UVC Streaming 1",           // 5: UVC Interface 1
+    "UVC Control 2",             // 6: UVC Interface 2
+    "UVC Streaming 2",           // 7: UVC Interface 2
+
 };
 
 //--------------------------------------------------------------------+
@@ -140,15 +141,8 @@ typedef struct TU_ATTR_PACKED {
 typedef struct TU_ATTR_PACKED {
   tusb_desc_interface_t itf;
   tusb_desc_video_streaming_input_header_1byte_t header;
-
-#if USE_MJPEG
-  tusb_desc_video_format_mjpeg_t format;
-  tusb_desc_video_frame_mjpeg_continuous_t frame;
-#else
   tusb_desc_video_format_uncompressed_t format;
   tusb_desc_video_frame_uncompressed_continuous_t frame;
-#endif
-
   tusb_desc_video_streaming_color_matching_t color;
 
 #if USE_ISO_STREAMING
@@ -157,15 +151,37 @@ typedef struct TU_ATTR_PACKED {
 #endif
 
   tusb_desc_endpoint_t ep;
-} uvc_streaming_desc_t;
+} uvc_streaming_yuy2_desc_t;
+
+typedef struct TU_ATTR_PACKED {
+  tusb_desc_interface_t itf;
+  tusb_desc_video_streaming_input_header_1byte_t header;
+  tusb_desc_video_format_mjpeg_t format;
+  tusb_desc_video_frame_mjpeg_continuous_t frame;
+  tusb_desc_video_streaming_color_matching_t color;
+
+#if USE_ISO_STREAMING
+  // For ISO streaming, USB spec requires to alternate interface
+  tusb_desc_interface_t itf_alt;
+#endif
+
+  tusb_desc_endpoint_t ep;
+} uvc_streaming_mpeg_desc_t;
 
 typedef struct TU_ATTR_PACKED {
   tusb_desc_configuration_t config;
+
   struct TU_ATTR_PACKED {
     tusb_desc_interface_assoc_t iad;
     uvc_control_desc_t video_control;
-    uvc_streaming_desc_t video_streaming;
-  } uvc[2];
+    uvc_streaming_yuy2_desc_t video_streaming;
+  } uvc_yuy2;
+
+  struct TU_ATTR_PACKED {
+    tusb_desc_interface_assoc_t iad;
+    uvc_control_desc_t video_control;
+    uvc_streaming_mpeg_desc_t video_streaming;
+  } uvc_mpeg;
 } uvc_cfg_desc_t;
 
 const uvc_cfg_desc_t desc_fs_configuration = {
@@ -180,369 +196,336 @@ const uvc_cfg_desc_t desc_fs_configuration = {
         .bmAttributes =  TU_BIT(7),
         .bMaxPower = 100 / 2
     },
-    .uvc = {
-        {
-            .iad = {
-                .bLength = sizeof(tusb_desc_interface_assoc_t),
-                .bDescriptorType = TUSB_DESC_INTERFACE_ASSOCIATION,
+    //------------- Stream 0: YUY2 -------------//
+    .uvc_yuy2 = {
+        .iad = {
+            .bLength = sizeof(tusb_desc_interface_assoc_t),
+            .bDescriptorType = TUSB_DESC_INTERFACE_ASSOCIATION,
 
-                .bFirstInterface = ITF_NUM_VIDEO_CONTROL_1,
-                .bInterfaceCount = 2,
-                .bFunctionClass = TUSB_CLASS_VIDEO,
-                .bFunctionSubClass = VIDEO_SUBCLASS_INTERFACE_COLLECTION,
-                .bFunctionProtocol = VIDEO_ITF_PROTOCOL_UNDEFINED,
-                .iFunction = 0
+            .bFirstInterface = ITF_NUM_VIDEO_CONTROL_1,
+            .bInterfaceCount = 2,
+            .bFunctionClass = TUSB_CLASS_VIDEO,
+            .bFunctionSubClass = VIDEO_SUBCLASS_INTERFACE_COLLECTION,
+            .bFunctionProtocol = VIDEO_ITF_PROTOCOL_UNDEFINED,
+            .iFunction = 0
+        },
+        .video_control = {
+            .itf = {
+                .bLength = sizeof(tusb_desc_interface_t),
+                .bDescriptorType = TUSB_DESC_INTERFACE,
+
+                .bInterfaceNumber = ITF_NUM_VIDEO_CONTROL_1,
+                .bAlternateSetting = 0,
+                .bNumEndpoints = 0,
+                .bInterfaceClass = TUSB_CLASS_VIDEO,
+                .bInterfaceSubClass = VIDEO_SUBCLASS_CONTROL,
+                .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
+                .iInterface = STRID_UVC_CONTROL_1
             },
+            .header = {
+                .bLength = sizeof(tusb_desc_video_control_header_1itf_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VC_HEADER,
 
-            .video_control = {
-                .itf = {
-                    .bLength = sizeof(tusb_desc_interface_t),
-                    .bDescriptorType = TUSB_DESC_INTERFACE,
-
-                    .bInterfaceNumber = ITF_NUM_VIDEO_CONTROL_1,
-                    .bAlternateSetting = 0,
-                    .bNumEndpoints = 0,
-                    .bInterfaceClass = TUSB_CLASS_VIDEO,
-                    .bInterfaceSubClass = VIDEO_SUBCLASS_CONTROL,
-                    .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
-                    .iInterface = STRID_UVC_CONTROL_1
-                },
-                .header = {
-                    .bLength = sizeof(tusb_desc_video_control_header_1itf_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VC_HEADER,
-
-                    .bcdUVC = VIDEO_BCD_1_50,
-                    .wTotalLength = sizeof(uvc_control_desc_t) - sizeof(tusb_desc_interface_t), // CS VC descriptors only
-                    .dwClockFrequency = UVC_CLOCK_FREQUENCY,
-                    .bInCollection = 1,
-                    .baInterfaceNr = { ITF_NUM_VIDEO_STREAMING_1 }
-                },
-                .camera_terminal = {
-                    .bLength = sizeof(tusb_desc_video_control_camera_terminal_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VC_INPUT_TERMINAL,
-
-                    .bTerminalID = UVC_ENTITY_CAP_INPUT_TERMINAL,
-                    .wTerminalType = VIDEO_ITT_CAMERA,
-                    .bAssocTerminal = 0,
-                    .iTerminal = 0,
-                    .wObjectiveFocalLengthMin = 0,
-                    .wObjectiveFocalLengthMax = 0,
-                    .wOcularFocalLength = 0,
-                    .bControlSize = 3,
-                    .bmControls = { 0, 0, 0 }
-                },
-                .output_terminal = {
-                    .bLength = sizeof(tusb_desc_video_control_output_terminal_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VC_OUTPUT_TERMINAL,
-
-                    .bTerminalID = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
-                    .wTerminalType = VIDEO_TT_STREAMING,
-                    .bAssocTerminal = 0,
-                    .bSourceID = UVC_ENTITY_CAP_INPUT_TERMINAL,
-                    .iTerminal = 0
-                }
+                .bcdUVC = VIDEO_BCD_1_50,
+                .wTotalLength = sizeof(uvc_control_desc_t) - sizeof(tusb_desc_interface_t), // CS VC descriptors only
+                .dwClockFrequency = UVC_CLOCK_FREQUENCY,
+                .bInCollection = 1,
+                .baInterfaceNr = {ITF_NUM_VIDEO_STREAMING_1}
             },
+            .camera_terminal = {
+                .bLength = sizeof(tusb_desc_video_control_camera_terminal_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VC_INPUT_TERMINAL,
 
-            .video_streaming = {
-                .itf = {
-                    .bLength = sizeof(tusb_desc_interface_t),
-                    .bDescriptorType = TUSB_DESC_INTERFACE,
+                .bTerminalID = UVC_ENTITY_CAP_INPUT_TERMINAL,
+                .wTerminalType = VIDEO_ITT_CAMERA,
+                .bAssocTerminal = 0,
+                .iTerminal = 0,
+                .wObjectiveFocalLengthMin = 0,
+                .wObjectiveFocalLengthMax = 0,
+                .wOcularFocalLength = 0,
+                .bControlSize = 3,
+                .bmControls = {0, 0, 0}
+            },
+            .output_terminal = {
+                .bLength = sizeof(tusb_desc_video_control_output_terminal_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VC_OUTPUT_TERMINAL,
 
-                    .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING_1,
-                    .bAlternateSetting = 0,
-                    .bNumEndpoints = CFG_TUD_VIDEO_STREAMING_BULK, // bulk 1, iso 0
-                    .bInterfaceClass = TUSB_CLASS_VIDEO,
-                    .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
-                    .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
-                    .iInterface = STRID_UVC_STREAMING_1
-                },
-                .header = {
-                    .bLength = sizeof(tusb_desc_video_streaming_input_header_1byte_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_INPUT_HEADER,
-
-                    .bNumFormats = 1,
-                    .wTotalLength = sizeof(uvc_streaming_desc_t) - sizeof(tusb_desc_interface_t)
-                    - sizeof(tusb_desc_endpoint_t) - (USE_ISO_STREAMING ? sizeof(tusb_desc_interface_t) : 0) , // CS VS descriptors only
-                    .bEndpointAddress = EPNUM_VIDEO_IN_1,
-                    .bmInfo = 0,
-                    .bTerminalLink = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
-                    .bStillCaptureMethod = 0,
-                    .bTriggerSupport = 0,
-                    .bTriggerUsage = 0,
-                    .bControlSize = 1,
-                    .bmaControls = { 0 }
-                },
-                .format = {
-#if USE_MJPEG
-                    .bLength = sizeof(tusb_desc_video_format_mjpeg_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_MJPEG,
-                    .bFormatIndex = 1, // 1-based index
-                    .bNumFrameDescriptors = 1,
-                    .bmFlags = 0,
-#else
-                    .bLength = sizeof(tusb_desc_video_format_uncompressed_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED,
-                    .bFormatIndex = 1, // 1-based index
-                    .bNumFrameDescriptors = 1,
-                    .guidFormat = { TUD_VIDEO_GUID_YUY2 },
-                    .bBitsPerPixel = 16,
-#endif
-                    .bDefaultFrameIndex = 1,
-                    .bAspectRatioX = 0,
-                    .bAspectRatioY = 0,
-                    .bmInterlaceFlags = 0,
-                    .bCopyProtect = 0
-                },
-                .frame = {
-#if USE_MJPEG
-                    .bLength = sizeof(tusb_desc_video_frame_mjpeg_continuous_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_MJPEG,
-#else
-                    .bLength = sizeof(tusb_desc_video_frame_uncompressed_continuous_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED,
-#endif
-                    .bFrameIndex = 1, // 1-based index
-                    .bmCapabilities = 0,
-                    .wWidth = FRAME_WIDTH,
-                    .wHeight = FRAME_HEIGHT,
-                    .dwMinBitRate = FRAME_WIDTH * FRAME_HEIGHT * 16 * 1,
-                    .dwMaxBitRate = FRAME_WIDTH * FRAME_HEIGHT * 16 * FRAME_RATE,
-                    .dwMaxVideoFrameBufferSize = FRAME_WIDTH * FRAME_HEIGHT * 16 / 8,
-                    .dwDefaultFrameInterval = 10000000 / FRAME_RATE,
-                    .bFrameIntervalType = 0, // continuous
-                    .dwFrameInterval = {
-                        10000000 / FRAME_RATE, // min
-                        10000000, // max
-                        10000000 / FRAME_RATE // step
-                    }
-                },
-                .color = {
-                    .bLength = sizeof(tusb_desc_video_streaming_color_matching_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_COLORFORMAT,
-
-                    .bColorPrimaries = VIDEO_COLOR_PRIMARIES_BT709,
-                    .bTransferCharacteristics = VIDEO_COLOR_XFER_CH_BT709,
-                    .bMatrixCoefficients = VIDEO_COLOR_COEF_SMPTE170M
-                },
-
-#if USE_ISO_STREAMING
-                .itf_alt = {
-                    .bLength = sizeof(tusb_desc_interface_t),
-                    .bDescriptorType = TUSB_DESC_INTERFACE,
-
-                    .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING_1,
-                    .bAlternateSetting = 1,
-                    .bNumEndpoints = 1,
-                    .bInterfaceClass = TUSB_CLASS_VIDEO,
-                    .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
-                    .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
-                    .iInterface = STRID_UVC_STREAMING_1
-                },
-#endif
-
-                .ep = {
-                    .bLength = sizeof(tusb_desc_endpoint_t),
-                    .bDescriptorType = TUSB_DESC_ENDPOINT,
-
-                    .bEndpointAddress = EPNUM_VIDEO_IN_1,
-                    .bmAttributes = {
-                        .xfer = CFG_TUD_VIDEO_STREAMING_BULK ? TUSB_XFER_BULK : TUSB_XFER_ISOCHRONOUS,
-                        .sync = CFG_TUD_VIDEO_STREAMING_BULK ? 0 : 1 // asynchronous
-                    },
-                    .wMaxPacketSize = CFG_TUD_VIDEO_STREAMING_BULK ? 64 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE,
-                    .bInterval = 1
-                }
+                .bTerminalID = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
+                .wTerminalType = VIDEO_TT_STREAMING,
+                .bAssocTerminal = 0,
+                .bSourceID = UVC_ENTITY_CAP_INPUT_TERMINAL,
+                .iTerminal = 0
             }
         },
-        {
-            .iad = {
-                .bLength = sizeof(tusb_desc_interface_assoc_t),
-                .bDescriptorType = TUSB_DESC_INTERFACE_ASSOCIATION,
 
-                .bFirstInterface = ITF_NUM_VIDEO_CONTROL_2,
-                .bInterfaceCount = 2,
-                .bFunctionClass = TUSB_CLASS_VIDEO,
-                .bFunctionSubClass = VIDEO_SUBCLASS_INTERFACE_COLLECTION,
-                .bFunctionProtocol = VIDEO_ITF_PROTOCOL_UNDEFINED,
-                .iFunction = 0
+        .video_streaming = {
+            .itf = {
+                .bLength = sizeof(tusb_desc_interface_t),
+                .bDescriptorType = TUSB_DESC_INTERFACE,
+
+                .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING_1,
+                .bAlternateSetting = 0,
+                .bNumEndpoints = CFG_TUD_VIDEO_STREAMING_BULK, // bulk 1, iso 0
+                .bInterfaceClass = TUSB_CLASS_VIDEO,
+                .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
+                .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
+                .iInterface = STRID_UVC_STREAMING_1
             },
+            .header = {
+                .bLength = sizeof(tusb_desc_video_streaming_input_header_1byte_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VS_INPUT_HEADER,
 
-            .video_control = {
-                .itf = {
-                    .bLength = sizeof(tusb_desc_interface_t),
-                    .bDescriptorType = TUSB_DESC_INTERFACE,
-
-                    .bInterfaceNumber = ITF_NUM_VIDEO_CONTROL_2,
-                    .bAlternateSetting = 0,
-                    .bNumEndpoints = 0,
-                    .bInterfaceClass = TUSB_CLASS_VIDEO,
-                    .bInterfaceSubClass = VIDEO_SUBCLASS_CONTROL,
-                    .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
-                    .iInterface = STRID_UVC_CONTROL_2
-                },
-                .header = {
-                    .bLength = sizeof(tusb_desc_video_control_header_1itf_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VC_HEADER,
-
-                    .bcdUVC = VIDEO_BCD_1_50,
-                    .wTotalLength = sizeof(uvc_control_desc_t) - sizeof(tusb_desc_interface_t), // CS VC descriptors only
-                    .dwClockFrequency = UVC_CLOCK_FREQUENCY,
-                    .bInCollection = 1,
-                    .baInterfaceNr = { ITF_NUM_VIDEO_STREAMING_2 }
-                },
-                .camera_terminal = {
-                    .bLength = sizeof(tusb_desc_video_control_camera_terminal_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VC_INPUT_TERMINAL,
-
-                    .bTerminalID = UVC_ENTITY_CAP_INPUT_TERMINAL,
-                    .wTerminalType = VIDEO_ITT_CAMERA,
-                    .bAssocTerminal = 0,
-                    .iTerminal = 0,
-                    .wObjectiveFocalLengthMin = 0,
-                    .wObjectiveFocalLengthMax = 0,
-                    .wOcularFocalLength = 0,
-                    .bControlSize = 3,
-                    .bmControls = { 0, 0, 0 }
-                },
-                .output_terminal = {
-                    .bLength = sizeof(tusb_desc_video_control_output_terminal_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VC_OUTPUT_TERMINAL,
-
-                    .bTerminalID = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
-                    .wTerminalType = VIDEO_TT_STREAMING,
-                    .bAssocTerminal = 0,
-                    .bSourceID = UVC_ENTITY_CAP_INPUT_TERMINAL,
-                    .iTerminal = 0
+                .bNumFormats = 1,
+                .wTotalLength = sizeof(uvc_streaming_yuy2_desc_t) - sizeof(tusb_desc_interface_t)
+                                - sizeof(tusb_desc_endpoint_t) -
+                                (USE_ISO_STREAMING ? sizeof(tusb_desc_interface_t) : 0), // CS VS descriptors only
+                .bEndpointAddress = EPNUM_VIDEO_IN_1,
+                .bmInfo = 0,
+                .bTerminalLink = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
+                .bStillCaptureMethod = 0,
+                .bTriggerSupport = 0,
+                .bTriggerUsage = 0,
+                .bControlSize = 1,
+                .bmaControls = {0}
+            },
+            .format = {
+                .bLength = sizeof(tusb_desc_video_format_uncompressed_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED,
+                .bFormatIndex = 1, // 1-based index
+                .bNumFrameDescriptors = 1,
+                .guidFormat = {TUD_VIDEO_GUID_YUY2},
+                .bBitsPerPixel = 16,
+                .bDefaultFrameIndex = 1,
+                .bAspectRatioX = 0,
+                .bAspectRatioY = 0,
+                .bmInterlaceFlags = 0,
+                .bCopyProtect = 0
+            },
+            .frame = {
+                .bLength = sizeof(tusb_desc_video_frame_uncompressed_continuous_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED,
+                .bFrameIndex = 1, // 1-based index
+                .bmCapabilities = 0,
+                .wWidth = FRAME_WIDTH,
+                .wHeight = FRAME_HEIGHT,
+                .dwMinBitRate = FRAME_WIDTH * FRAME_HEIGHT * 16 * 1,
+                .dwMaxBitRate = FRAME_WIDTH * FRAME_HEIGHT * 16 * FRAME_RATE,
+                .dwMaxVideoFrameBufferSize = FRAME_WIDTH * FRAME_HEIGHT * 16 / 8,
+                .dwDefaultFrameInterval = 10000000 / FRAME_RATE,
+                .bFrameIntervalType = 0, // continuous
+                .dwFrameInterval = {
+                    10000000 / FRAME_RATE, // min
+                    10000000, // max
+                    10000000 / FRAME_RATE // step
                 }
             },
+            .color = {
+                .bLength = sizeof(tusb_desc_video_streaming_color_matching_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VS_COLORFORMAT,
 
-            .video_streaming = {
-                .itf = {
-                    .bLength = sizeof(tusb_desc_interface_t),
-                    .bDescriptorType = TUSB_DESC_INTERFACE,
-
-                    .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING_2,
-                    .bAlternateSetting = 0,
-                    .bNumEndpoints = CFG_TUD_VIDEO_STREAMING_BULK, // bulk 1, iso 0
-                    .bInterfaceClass = TUSB_CLASS_VIDEO,
-                    .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
-                    .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
-                    .iInterface = STRID_UVC_STREAMING_2
-                },
-                .header = {
-                    .bLength = sizeof(tusb_desc_video_streaming_input_header_1byte_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_INPUT_HEADER,
-
-                    .bNumFormats = 1,
-                    .wTotalLength = sizeof(uvc_streaming_desc_t) - sizeof(tusb_desc_interface_t)
-                    - sizeof(tusb_desc_endpoint_t) - (USE_ISO_STREAMING ? sizeof(tusb_desc_interface_t) : 0) , // CS VS descriptors only
-                    .bEndpointAddress = EPNUM_VIDEO_IN_2,
-                    .bmInfo = 0,
-                    .bTerminalLink = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
-                    .bStillCaptureMethod = 0,
-                    .bTriggerSupport = 0,
-                    .bTriggerUsage = 0,
-                    .bControlSize = 1,
-                    .bmaControls = { 0 }
-                },
-                .format = {
-#if USE_MJPEG
-                    .bLength = sizeof(tusb_desc_video_format_mjpeg_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_MJPEG,
-                    .bFormatIndex = 1, // 1-based index
-                    .bNumFrameDescriptors = 1,
-                    .bmFlags = 0,
-#else
-                    .bLength = sizeof(tusb_desc_video_format_uncompressed_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED,
-                    .bFormatIndex = 1, // 1-based index
-                    .bNumFrameDescriptors = 1,
-                    .guidFormat = { TUD_VIDEO_GUID_YUY2 },
-                    .bBitsPerPixel = 16,
-#endif
-                    .bDefaultFrameIndex = 1,
-                    .bAspectRatioX = 0,
-                    .bAspectRatioY = 0,
-                    .bmInterlaceFlags = 0,
-                    .bCopyProtect = 0
-                },
-                .frame = {
-#if USE_MJPEG
-                    .bLength = sizeof(tusb_desc_video_frame_mjpeg_continuous_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_MJPEG,
-#else
-                    .bLength = sizeof(tusb_desc_video_frame_uncompressed_continuous_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_UNCOMPRESSED,
-#endif
-                    .bFrameIndex = 1, // 1-based index
-                    .bmCapabilities = 0,
-                    .wWidth = FRAME_WIDTH,
-                    .wHeight = FRAME_HEIGHT,
-                    .dwMinBitRate = FRAME_WIDTH * FRAME_HEIGHT * 16 * 1,
-                    .dwMaxBitRate = FRAME_WIDTH * FRAME_HEIGHT * 16 * FRAME_RATE,
-                    .dwMaxVideoFrameBufferSize = FRAME_WIDTH * FRAME_HEIGHT * 16 / 8,
-                    .dwDefaultFrameInterval = 10000000 / FRAME_RATE,
-                    .bFrameIntervalType = 0, // continuous
-                    .dwFrameInterval = {
-                        10000000 / FRAME_RATE, // min
-                        10000000, // max
-                        10000000 / FRAME_RATE // step
-                    }
-                },
-                .color = {
-                    .bLength = sizeof(tusb_desc_video_streaming_color_matching_t),
-                    .bDescriptorType = TUSB_DESC_CS_INTERFACE,
-                    .bDescriptorSubType = VIDEO_CS_ITF_VS_COLORFORMAT,
-
-                    .bColorPrimaries = VIDEO_COLOR_PRIMARIES_BT709,
-                    .bTransferCharacteristics = VIDEO_COLOR_XFER_CH_BT709,
-                    .bMatrixCoefficients = VIDEO_COLOR_COEF_SMPTE170M
-                },
+                .bColorPrimaries = VIDEO_COLOR_PRIMARIES_BT709,
+                .bTransferCharacteristics = VIDEO_COLOR_XFER_CH_BT709,
+                .bMatrixCoefficients = VIDEO_COLOR_COEF_SMPTE170M
+            },
 
 #if USE_ISO_STREAMING
-                .itf_alt = {
-                    .bLength = sizeof(tusb_desc_interface_t),
-                    .bDescriptorType = TUSB_DESC_INTERFACE,
+            .itf_alt = {
+                .bLength = sizeof(tusb_desc_interface_t),
+                .bDescriptorType = TUSB_DESC_INTERFACE,
 
-                    .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING_2,
-                    .bAlternateSetting = 1,
-                    .bNumEndpoints = 1,
-                    .bInterfaceClass = TUSB_CLASS_VIDEO,
-                    .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
-                    .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
-                    .iInterface = STRID_UVC_STREAMING_2
-                },
+                .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING_1,
+                .bAlternateSetting = 1,
+                .bNumEndpoints = 1,
+                .bInterfaceClass = TUSB_CLASS_VIDEO,
+                .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
+                .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
+                .iInterface = STRID_UVC_STREAMING_1
+            },
 #endif
+            .ep = {
+                .bLength = sizeof(tusb_desc_endpoint_t),
+                .bDescriptorType = TUSB_DESC_ENDPOINT,
 
-                .ep = {
-                    .bLength = sizeof(tusb_desc_endpoint_t),
-                    .bDescriptorType = TUSB_DESC_ENDPOINT,
+                .bEndpointAddress = EPNUM_VIDEO_IN_1,
+                .bmAttributes = {
+                    .xfer = CFG_TUD_VIDEO_STREAMING_BULK ? TUSB_XFER_BULK : TUSB_XFER_ISOCHRONOUS,
+                    .sync = CFG_TUD_VIDEO_STREAMING_BULK ? 0 : 1 // asynchronous
+                },
+                .wMaxPacketSize = CFG_TUD_VIDEO_STREAMING_BULK ? 64 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE,
+                .bInterval = 1
+            }
+        }
+    },
+      //------------- Stream 1: MPEG -------------//
+    .uvc_mpeg = {
+        .iad = {
+            .bLength = sizeof(tusb_desc_interface_assoc_t),
+            .bDescriptorType = TUSB_DESC_INTERFACE_ASSOCIATION,
 
-                    .bEndpointAddress = EPNUM_VIDEO_IN_2,
-                    .bmAttributes = {
-                        .xfer = CFG_TUD_VIDEO_STREAMING_BULK ? TUSB_XFER_BULK : TUSB_XFER_ISOCHRONOUS,
-                        .sync = CFG_TUD_VIDEO_STREAMING_BULK ? 0 : 1 // asynchronous
-                    },
-                    .wMaxPacketSize = CFG_TUD_VIDEO_STREAMING_BULK ? 64 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE,
-                    .bInterval = 1
+            .bFirstInterface = ITF_NUM_VIDEO_CONTROL_2,
+            .bInterfaceCount = 2,
+            .bFunctionClass = TUSB_CLASS_VIDEO,
+            .bFunctionSubClass = VIDEO_SUBCLASS_INTERFACE_COLLECTION,
+            .bFunctionProtocol = VIDEO_ITF_PROTOCOL_UNDEFINED,
+            .iFunction = 0
+        },
+
+        .video_control = {
+            .itf = {
+                .bLength = sizeof(tusb_desc_interface_t),
+                .bDescriptorType = TUSB_DESC_INTERFACE,
+
+                .bInterfaceNumber = ITF_NUM_VIDEO_CONTROL_2,
+                .bAlternateSetting = 0,
+                .bNumEndpoints = 0,
+                .bInterfaceClass = TUSB_CLASS_VIDEO,
+                .bInterfaceSubClass = VIDEO_SUBCLASS_CONTROL,
+                .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
+                .iInterface = STRID_UVC_CONTROL_2
+            },
+            .header = {
+                .bLength = sizeof(tusb_desc_video_control_header_1itf_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VC_HEADER,
+
+                .bcdUVC = VIDEO_BCD_1_50,
+                .wTotalLength = sizeof(uvc_control_desc_t) - sizeof(tusb_desc_interface_t), // CS VC descriptors only
+                .dwClockFrequency = UVC_CLOCK_FREQUENCY,
+                .bInCollection = 1,
+                .baInterfaceNr = { ITF_NUM_VIDEO_STREAMING_2 }
+            },
+            .camera_terminal = {
+                .bLength = sizeof(tusb_desc_video_control_camera_terminal_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VC_INPUT_TERMINAL,
+
+                .bTerminalID = UVC_ENTITY_CAP_INPUT_TERMINAL,
+                .wTerminalType = VIDEO_ITT_CAMERA,
+                .bAssocTerminal = 0,
+                .iTerminal = 0,
+                .wObjectiveFocalLengthMin = 0,
+                .wObjectiveFocalLengthMax = 0,
+                .wOcularFocalLength = 0,
+                .bControlSize = 3,
+                .bmControls = { 0, 0, 0 }
+            },
+            .output_terminal = {
+                .bLength = sizeof(tusb_desc_video_control_output_terminal_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VC_OUTPUT_TERMINAL,
+
+                .bTerminalID = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
+                .wTerminalType = VIDEO_TT_STREAMING,
+                .bAssocTerminal = 0,
+                .bSourceID = UVC_ENTITY_CAP_INPUT_TERMINAL,
+                .iTerminal = 0
+            }
+        },
+
+        .video_streaming = {
+            .itf = {
+                .bLength = sizeof(tusb_desc_interface_t),
+                .bDescriptorType = TUSB_DESC_INTERFACE,
+
+                .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING_2,
+                .bAlternateSetting = 0,
+                .bNumEndpoints = CFG_TUD_VIDEO_STREAMING_BULK, // bulk 1, iso 0
+                .bInterfaceClass = TUSB_CLASS_VIDEO,
+                .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
+                .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
+                .iInterface = STRID_UVC_STREAMING_2
+            },
+            .header = {
+                .bLength = sizeof(tusb_desc_video_streaming_input_header_1byte_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VS_INPUT_HEADER,
+
+                .bNumFormats = 1,
+                .wTotalLength = sizeof(uvc_streaming_mpeg_desc_t) - sizeof(tusb_desc_interface_t)
+                                - sizeof(tusb_desc_endpoint_t) - (USE_ISO_STREAMING ? sizeof(tusb_desc_interface_t) : 0) , // CS VS descriptors only
+                .bEndpointAddress = EPNUM_VIDEO_IN_2,
+                .bmInfo = 0,
+                .bTerminalLink = UVC_ENTITY_CAP_OUTPUT_TERMINAL,
+                .bStillCaptureMethod = 0,
+                .bTriggerSupport = 0,
+                .bTriggerUsage = 0,
+                .bControlSize = 1,
+                .bmaControls = { 0 }
+            },
+            .format = {
+                .bLength = sizeof(tusb_desc_video_format_mjpeg_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VS_FORMAT_MJPEG,
+                .bFormatIndex = 1, // 1-based index
+                .bNumFrameDescriptors = 1,
+                .bmFlags = 0,
+                .bDefaultFrameIndex = 1,
+                .bAspectRatioX = 0,
+                .bAspectRatioY = 0,
+                .bmInterlaceFlags = 0,
+                .bCopyProtect = 0
+            },
+            .frame = {
+                .bLength = sizeof(tusb_desc_video_frame_mjpeg_continuous_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VS_FRAME_MJPEG,
+                .bFrameIndex = 1, // 1-based index
+                .bmCapabilities = 0,
+                .wWidth = FRAME_WIDTH,
+                .wHeight = FRAME_HEIGHT,
+                .dwMinBitRate = FRAME_WIDTH * FRAME_HEIGHT * 16 * 1,
+                .dwMaxBitRate = FRAME_WIDTH * FRAME_HEIGHT * 16 * FRAME_RATE,
+                .dwMaxVideoFrameBufferSize = FRAME_WIDTH * FRAME_HEIGHT * 16 / 8,
+                .dwDefaultFrameInterval = 10000000 / FRAME_RATE,
+                .bFrameIntervalType = 0, // continuous
+                .dwFrameInterval = {
+                    10000000 / FRAME_RATE, // min
+                    10000000, // max
+                    10000000 / FRAME_RATE // step
                 }
+            },
+            .color = {
+                .bLength = sizeof(tusb_desc_video_streaming_color_matching_t),
+                .bDescriptorType = TUSB_DESC_CS_INTERFACE,
+                .bDescriptorSubType = VIDEO_CS_ITF_VS_COLORFORMAT,
+
+                .bColorPrimaries = VIDEO_COLOR_PRIMARIES_BT709,
+                .bTransferCharacteristics = VIDEO_COLOR_XFER_CH_BT709,
+                .bMatrixCoefficients = VIDEO_COLOR_COEF_SMPTE170M
+            },
+
+#if USE_ISO_STREAMING
+            .itf_alt = {
+                .bLength = sizeof(tusb_desc_interface_t),
+                .bDescriptorType = TUSB_DESC_INTERFACE,
+
+                .bInterfaceNumber = ITF_NUM_VIDEO_STREAMING_2,
+                .bAlternateSetting = 1,
+                .bNumEndpoints = 1,
+                .bInterfaceClass = TUSB_CLASS_VIDEO,
+                .bInterfaceSubClass = VIDEO_SUBCLASS_STREAMING,
+                .bInterfaceProtocol = VIDEO_ITF_PROTOCOL_15,
+                .iInterface = STRID_UVC_STREAMING_2
+            },
+#endif
+            .ep = {
+                .bLength = sizeof(tusb_desc_endpoint_t),
+                .bDescriptorType = TUSB_DESC_ENDPOINT,
+
+                .bEndpointAddress = EPNUM_VIDEO_IN_2,
+                .bmAttributes = {
+                    .xfer = CFG_TUD_VIDEO_STREAMING_BULK ? TUSB_XFER_BULK : TUSB_XFER_ISOCHRONOUS,
+                    .sync = CFG_TUD_VIDEO_STREAMING_BULK ? 0 : 1 // asynchronous
+                },
+                .wMaxPacketSize = CFG_TUD_VIDEO_STREAMING_BULK ? 64 : CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE,
+                .bInterval = 1
             }
         }
     }
@@ -558,8 +541,8 @@ static uint8_t * get_hs_configuration_desc(void) {
     desc_hs_configuration = desc_fs_configuration;
     // change endpoint bulk size to 512 if bulk streaming
     if (CFG_TUD_VIDEO_STREAMING_BULK) {
-      desc_hs_configuration.uvc[0].video_streaming.ep.wMaxPacketSize = 512;
-      desc_hs_configuration.uvc[1].video_streaming.ep.wMaxPacketSize = 512;
+      desc_hs_configuration.uvc_yuy2.video_streaming.ep.wMaxPacketSize = 512;
+      desc_hs_configuration.uvc_mpeg.video_streaming.ep.wMaxPacketSize = 512;
     }
   }
   init = true;
