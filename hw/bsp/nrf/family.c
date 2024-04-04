@@ -292,20 +292,7 @@ void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
 }
 
 static void max3421_init(void) {
-  // MAX3421 need 3.3v signal (may not be needed)
-//  #if defined(UICR_REGOUT0_VOUT_Msk)
-//  if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) != UICR_REGOUT0_VOUT_3V3) {
-//    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos;
-//    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
-//
-//    NRF_UICR->REGOUT0 = (NRF_UICR->REGOUT0 & ~UICR_REGOUT0_VOUT_Msk) | UICR_REGOUT0_VOUT_3V3;
-//
-//    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren << NVMC_CONFIG_WEN_Pos;
-//    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
-//
-//    NVIC_SystemReset();
-//  }
-//  #endif
+  // Somehow pca10056/95 is not working probably due to signal incompatible (1.8V 3v3) with MAC3421E !?
 
   // manually manage CS
   nrf_gpio_cfg_output(MAX3421_CS_PIN);

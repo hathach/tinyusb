@@ -74,6 +74,8 @@ LDFLAGS += -Wl,--print-memory-usage
 endif
 
 # from version 12
-ifeq ($(shell expr $(CC_VERSION_MAJOR) \>= 12),1)
+ifeq ($(strip $(if $(CMDEXE),\
+               $(shell if $(CC_VERSION_MAJOR) geq 12 (echo 1) else (echo 0)),\
+               $(shell expr $(CC_VERSION_MAJOR) \>= 12))), 1)
 LDFLAGS += -Wl,--no-warn-rwx-segment
 endif

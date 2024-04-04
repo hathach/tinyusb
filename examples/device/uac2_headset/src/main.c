@@ -96,6 +96,7 @@ uint8_t current_resolution;
 
 void led_blinking_task(void);
 void audio_task(void);
+void audio_control_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -115,6 +116,7 @@ int main(void)
   {
     tud_task(); // TinyUSB device task
     audio_task();
+    audio_control_task();
     led_blinking_task();
   }
 }
@@ -426,6 +428,45 @@ void audio_task(void)
       spk_data_size = 0;
     }
   }
+}
+
+void audio_control_task(void)
+{
+  // Press on-board button to control volume
+  // Open host volume control, volume should switch between 10% and 100%
+
+  // Poll every 50ms
+  const uint32_t interval_ms = 50;
+  static uint32_t start_ms = 0;
+  static uint32_t btn_prev = 0;
+
+  if ( board_millis() - start_ms < interval_ms) return; // not enough time
+  start_ms += interval_ms;
+
+  uint32_t btn = board_button_read();
+
+  if (!btn_prev && btn)
+  {
+    // Adjust volume between 0dB (100%) and -30dB (10%)
+    for (int i = 0; i < CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1; i++)
+    {
+      volume[i] = volume[i] == 0 ? -VOLUME_CTRL_30_DB : 0;
+    }
+
+    // 6.1 Interrupt Data Message
+    const audio_interrupt_data_t data = {
+      .bInfo = 0,                                       // Class-specific interrupt, originated from an interface
+      .bAttribute = AUDIO_CS_REQ_CUR,                   // Caused by current settings
+      .wValue_cn_or_mcn = 0,                            // CH0: master volume
+      .wValue_cs = AUDIO_FU_CTRL_VOLUME,                // Volume change
+      .wIndex_ep_or_int = 0,                            // From the interface itself
+      .wIndex_entity_id = UAC2_ENTITY_SPK_FEATURE_UNIT, // From feature unit
+    };
+
+    tud_audio_int_write(&data);
+  }
+
+  btn_prev = btn;
 }
 
 //--------------------------------------------------------------------+
