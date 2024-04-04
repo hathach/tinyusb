@@ -2475,8 +2475,8 @@ enum {
   CONFIG_PL2303_RESET_ENDP2,
   CONFIG_PL2303_LINE_CODING,
   CONFIG_PL2303_MODEM_CONTROL,
-  CONFIG_PL2303_FLOW_CTRL_READ,
-  CONFIG_PL2303_FLOW_CTRL_WRITE,
+//  CONFIG_PL2303_FLOW_CTRL_READ,
+//  CONFIG_PL2303_FLOW_CTRL_WRITE,
   CONFIG_PL2303_COMPLETE
 };
 
@@ -2691,35 +2691,38 @@ static void pl2303_process_config(tuh_xfer_t * xfer) {
     case CONFIG_PL2303_MODEM_CONTROL:
       #ifdef LINE_CONTROL_ON_ENUM
         p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
-        TU_ASSERT_COMPLETE(pl2303_set_control_lines(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_FLOW_CTRL_READ));
+        TU_ASSERT_COMPLETE(pl2303_set_control_lines(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_COMPLETE));
         break;
       #else
         TU_ATTR_FALLTHROUGH;
       #endif
 
-    case CONFIG_PL2303_FLOW_CTRL_READ:
-      // read flow control register for modify & write back in next step
-      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, PL2303_HXN_FLOWCTRL_REG, &buf, pl2303_process_config,
-                                              CONFIG_PL2303_FLOW_CTRL_WRITE));
-      } else {
-        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0, &buf, pl2303_process_config, CONFIG_PL2303_FLOW_CTRL_WRITE));
-      }
-      break;
-
-    case CONFIG_PL2303_FLOW_CTRL_WRITE:
-      // no flow control
-      buf = xfer->buffer[0];
-      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
-        buf &= (uint8_t) ~PL2303_HXN_FLOWCTRL_MASK;
-        buf |= PL2303_HXN_FLOWCTRL_NONE;
-        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, PL2303_HXN_FLOWCTRL_REG, buf, pl2303_process_config,
-                                               CONFIG_PL2303_COMPLETE));
-      } else {
-        buf &= (uint8_t) ~PL2303_FLOWCTRL_MASK;
-        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 0, buf, pl2303_process_config, CONFIG_PL2303_COMPLETE));
-      }
-      break;
+// skipped, because it's not working with each PL230x. flow control can be also set by PL2303 EEPROM Writer Program
+//    case CONFIG_PL2303_FLOW_CTRL_READ:
+//      // read flow control register for modify & write back in next step
+//      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+//        TU_LOG_P_CDC ( "1\r\n" );
+//        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, PL2303_HXN_FLOWCTRL_REG, &buf, pl2303_process_config,
+//                                              CONFIG_PL2303_FLOW_CTRL_WRITE));
+//      } else {
+//        TU_LOG_P_CDC ( "2\r\n" );
+//        TU_ASSERT_COMPLETE(pl2303_vendor_read(p_cdc, 0, &buf, pl2303_process_config, CONFIG_PL2303_FLOW_CTRL_WRITE));
+//      }
+//      break;
+//
+//    case CONFIG_PL2303_FLOW_CTRL_WRITE:
+//      // no flow control
+//      buf = xfer->buffer[0];
+//      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+//        buf &= (uint8_t) ~PL2303_HXN_FLOWCTRL_MASK;
+//        buf |= PL2303_HXN_FLOWCTRL_NONE;
+//        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, PL2303_HXN_FLOWCTRL_REG, buf, pl2303_process_config,
+//                                               CONFIG_PL2303_COMPLETE));
+//      } else {
+//        buf &= (uint8_t) ~PL2303_FLOWCTRL_MASK;
+//        TU_ASSERT_COMPLETE(pl2303_vendor_write(p_cdc, 0, buf, pl2303_process_config, CONFIG_PL2303_COMPLETE));
+//      }
+//      break;
 
     case CONFIG_PL2303_COMPLETE:
       set_config_complete(idx, 0, true);
