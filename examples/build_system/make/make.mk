@@ -113,6 +113,7 @@ CFLAGS += -DBOARD_$(BOARD_UPPER)
 ifeq (${MAX3421_HOST},1)
   SRC_C += src/portable/analog/max3421/hcd_max3421.c
   CFLAGS += -DCFG_TUH_MAX3421=1
+  CMAKE_DEFSYM +=	-DMAX3421_HOST=1
 endif
 
 # Log level is mapped to TUSB DEBUG option

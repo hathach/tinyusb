@@ -676,18 +676,17 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
   TU_VERIFY(ep);
 
-  // control transfer can switch direction
-  ep->hxfr_bm.is_out = ep_dir ? 0u : 1u;
+  if (ep_num == 0) {
+    // control transfer can switch direction
+    ep->hxfr_bm.is_out = ep_dir ? 0 : 1;
+    ep->hxfr_bm.is_setup = 0;
+    ep->data_toggle = 1;
+  }
 
   ep->buf = buffer;
   ep->total_len = buflen;
   ep->xferred_len = 0;
   ep->state = EP_STATE_ATTEMPT_1;
-
-  if (ep_num == 0) {
-    ep->hxfr_bm.is_setup = 0;
-    ep->data_toggle = 1;
-  }
 
   // carry out transfer if not busy
   if (!atomic_flag_test_and_set(&_hcd_data.busy)) {
