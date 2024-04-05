@@ -64,7 +64,13 @@
 
 /* Cortex M23/M33 port configuration. */
 #define configENABLE_MPU                        0
+
+#if defined(__ARM_FP) && __ARM_FP >= 4
 #define configENABLE_FPU                        1
+#else
+#define configENABLE_FPU                        0
+#endif
+
 #define configENABLE_TRUSTZONE                  0
 #define configMINIMAL_SECURE_STACK_SIZE         (1024)
 
