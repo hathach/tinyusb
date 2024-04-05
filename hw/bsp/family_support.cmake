@@ -79,17 +79,27 @@ set(WARNING_FLAGS_IAR "")
 function(family_filter RESULT DIR)
   get_filename_component(DIR ${DIR} ABSOLUTE BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-  if (EXISTS "${DIR}/only.txt")
-    file(READ "${DIR}/only.txt" ONLYS)
-    # Replace newlines with semicolon so that it is treated as a list by CMake
-    string(REPLACE "\n" ";" ONLYS_LINES ${ONLYS})
+  if (EXISTS "${DIR}/skip.txt")
+    file(STRINGS "${DIR}/skip.txt" SKIPS_LINES)
+    foreach(MCU IN LISTS FAMILY_MCUS)
+      # For each line in only.txt
+      foreach(_line ${SKIPS_LINES})
+        # If mcu:xxx exists for this mcu then skip
+        if (${_line} STREQUAL "mcu:${MCU}" OR ${_line} STREQUAL "board:${BOARD}" OR ${_line} STREQUAL "family:${FAMILY}")
+          set(${RESULT} 0 PARENT_SCOPE)
+          return()
+        endif()
+      endforeach()
+    endforeach()
+  endif ()
 
-    # For each mcu
+  if (EXISTS "${DIR}/only.txt")
+    file(STRINGS "${DIR}/only.txt" ONLYS_LINES)
     foreach(MCU IN LISTS FAMILY_MCUS)
       # For each line in only.txt
       foreach(_line ${ONLYS_LINES})
         # If mcu:xxx exists for this mcu or board:xxx then include
-        if (${_line} STREQUAL "mcu:${MCU}" OR ${_line} STREQUAL "board:${BOARD}")
+        if (${_line} STREQUAL "mcu:${MCU}" OR ${_line} STREQUAL "board:${BOARD}" OR ${_line} STREQUAL "family:${FAMILY}")
           set(${RESULT} 1 PARENT_SCOPE)
           return()
         endif()
@@ -98,29 +108,8 @@ function(family_filter RESULT DIR)
 
     # Didn't find it in only file so don't build
     set(${RESULT} 0 PARENT_SCOPE)
-
-  elseif (EXISTS "${DIR}/skip.txt")
-    file(READ "${DIR}/skip.txt" SKIPS)
-    # Replace newlines with semicolon so that it is treated as a list by CMake
-    string(REPLACE "\n" ";" SKIPS_LINES ${SKIPS})
-
-    # For each mcu
-    foreach(MCU IN LISTS FAMILY_MCUS)
-      # For each line in only.txt
-      foreach(_line ${SKIPS_LINES})
-        # If mcu:xxx exists for this mcu then skip
-        if (${_line} STREQUAL "mcu:${MCU}")
-          set(${RESULT} 0 PARENT_SCOPE)
-          return()
-        endif()
-      endforeach()
-    endforeach()
-
-    # Didn't find in skip file so build
-    set(${RESULT} 1 PARENT_SCOPE)
   else()
-
-    # Didn't find skip or only file so build
+    # only.txt not exist so build
     set(${RESULT} 1 PARENT_SCOPE)
   endif()
 endfunction()
