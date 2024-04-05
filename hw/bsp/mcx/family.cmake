@@ -27,13 +27,13 @@ function(add_board_target BOARD_TARGET)
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_gpio.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_common_arm.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpuart.c
-      
+
       # mcu
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
       )
-    
+
       if (${FAMILY_MCUS} STREQUAL "MCXN9")
         target_sources(${BOARD_TARGET} PRIVATE
           ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
@@ -105,7 +105,7 @@ function(family_configure_example TARGET RTOS)
   elseif(${FAMILY_MCUS} STREQUAL "MCXA15")
     family_add_tinyusb(${TARGET} OPT_MCU_MCXA15 ${RTOS})
   endif()
-  
+
   target_sources(${TARGET}-tinyusb PUBLIC
     # TinyUSB: Port0 is chipidea FS, Port1 is chipidea HS
     ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>

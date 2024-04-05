@@ -151,7 +151,7 @@ void board_init(void)
   CLOCK_EnableClock(kCLOCK_Usb0Ram);
   CLOCK_EnableClock(kCLOCK_Usb0Fs);
   CLOCK_EnableUsbfsClock();
-  
+
 #endif
 
 #if PORT_SUPPORT_DEVICE(1) && (CFG_TUSB_MCU == OPT_MCU_MCXN9)

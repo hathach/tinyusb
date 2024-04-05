@@ -36,7 +36,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_MCXA15
 	#define CI_FS_REG(_port)        ((ci_fs_regs_t*) USB0_BASE)
 	#define USB0_IRQN 				USB0_IRQn
-	
+
 #else
   #error "MCU is not supported"
 #endif

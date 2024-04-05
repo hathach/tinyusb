@@ -38,7 +38,7 @@ SRC_C += \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_gpio.c \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_lpuart.c \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_common_arm.c \
-	
+
 
 # fsl_lpflexcomm just needed for MCXN9
 ifeq ($(MCU_VARIANT), MCXN947)
@@ -54,7 +54,7 @@ ifeq ($(MCU_VARIANT), MCXA153)
 
 endif
 
-	
+
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
