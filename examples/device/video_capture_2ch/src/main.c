@@ -112,6 +112,8 @@ void tud_resume_cb(void) {
 //--------------------------------------------------------------------+
 // USB Video
 //--------------------------------------------------------------------+
+#define FRAMEBUF_SIZE (FRAME_WIDTH * FRAME_HEIGHT * 16 / 8)
+
 static unsigned frame_num[CFG_TUD_VIDEO_STREAMING] = {1};
 static unsigned tx_busy = 0;
 static unsigned interval_ms[CFG_TUD_VIDEO_STREAMING] = {1000 / FRAME_RATE};
@@ -134,8 +136,8 @@ static struct {
     {sizeof(color_bar_7_jpg), color_bar_7_jpg},
 };
 
+#if !defined(CFG_EXAMPLE_VIDEO_READONLY)
 // YUY2 frame buffer
-#define FRAMEBUF_SIZE (FRAME_WIDTH * FRAME_HEIGHT * 16 / 8)
 static uint8_t framebuf_yuy2[FRAMEBUF_SIZE];
 
 static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
@@ -174,14 +176,20 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
     p += FRAME_WIDTH * 2;
   }
 }
+#endif
 
 size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, void **fb) {
   uint32_t idx = ctl_idx + stm_idx;
 
   if (idx == 0) {
     // stream 0 use uncompressed YUY2 frame
+    #if defined(CFG_EXAMPLE_VIDEO_READONLY)
+    *fb = (void*)(uintptr_t ) framebuf_yuy2_readonly[(fnum % (FRAME_WIDTH / 2)) * 4];
+    #else
     fill_color_bar(framebuf_yuy2, frame_num[idx]);
     *fb = framebuf_yuy2;
+    #endif
+
     return FRAMEBUF_SIZE;
   }else {
     // stream 1 use MJPEG frame
