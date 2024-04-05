@@ -97,7 +97,6 @@ static uint16_t ep0_pending[2];               // Index determines direction as t
 
 // TX FIFO RAM allocation so far in words - RX FIFO size is readily available from dwc2->grxfsiz
 static uint16_t _allocated_fifo_words_tx;     // TX FIFO size in words (IN EPs)
-static bool _out_ep_closed;                   // Flag to check if RX FIFO size needs an update (reduce its size)
 
 // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
 static bool _sof_en;
@@ -111,20 +110,6 @@ static bool _sof_en;
 // we double the largest USB packet size to be able to hold up to 2 packets
 static inline uint16_t calc_grxfsiz(uint16_t max_ep_size, uint8_t ep_count) {
   return 15 + 2 * (max_ep_size / 4) + 2 * ep_count;
-}
-
-static void update_grxfsiz(uint8_t rhport) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
-
-  // Determine largest EP size for RX FIFO
-  uint16_t max_epsize = 0;
-  for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
-    max_epsize = tu_max16(max_epsize, xfer_status[epnum][TUSB_DIR_OUT].max_size);
-  }
-
-  // Update size of RX FIFO
-  dwc2->grxfsiz = calc_grxfsiz(max_epsize, ep_count);
 }
 
 static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
@@ -268,7 +253,6 @@ static void bus_reset(uint8_t rhport) {
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
   tu_memclr(xfer_status, sizeof(xfer_status));
-  _out_ep_closed = false;
 
   _sof_en = false;
 
@@ -791,26 +775,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
 }
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
-
   edpt_disable(rhport, ep_addr, false);
-
-  // Update max_size
-  xfer_status[epnum][dir].max_size = 0;  // max_size = 0 marks a disabled EP - required for changing FIFO allocation
-
-  if (dir == TUSB_DIR_IN) {
-    uint16_t const fifo_size = (dwc2->dieptxf[epnum - 1] & DIEPTXF_INEPTXFD_Msk) >> DIEPTXF_INEPTXFD_Pos;
-    uint16_t const fifo_start = (dwc2->dieptxf[epnum - 1] & DIEPTXF_INEPTXSA_Msk) >> DIEPTXF_INEPTXSA_Pos;
-
-    // For now only the last opened endpoint can be closed without fuss.
-    TU_ASSERT(fifo_start == _dwc2_controller[rhport].ep_fifo_size / 4 - _allocated_fifo_words_tx,);
-    _allocated_fifo_words_tx -= fifo_size;
-  } else {
-    _out_ep_closed = true;     // Set flag such that RX FIFO gets reduced in size once RX FIFO is empty
-  }
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -1180,14 +1145,6 @@ void dcd_int_handler(uint8_t rhport) {
     do {
       handle_rxflvl_irq(rhport);
     } while (dwc2->gotgint & GINTSTS_RXFLVL);
-
-    // Manage RX FIFO size
-    if (_out_ep_closed) {
-      update_grxfsiz(rhport);
-
-      // Disable flag
-      _out_ep_closed = false;
-    }
 
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
   }
