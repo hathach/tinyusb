@@ -67,6 +67,11 @@
 // Debug level for DWC2
 #define DWC2_DEBUG    2
 
+// DMA switch
+#ifndef DWC2_ENABLE_DMA
+#define DWC2_ENABLE_DMA    1
+#endif
+
 #ifndef dcache_clean
 #define dcache_clean(_addr, _size)
 #endif
@@ -184,6 +189,32 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   }
 
   return true;
+}
+
+static bool dma_supported(uint8_t rhport)
+{
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  // Internal DMA only
+  return (dwc2->ghwcfg2_bm.arch == 2) && DWC2_ENABLE_DMA;
+}
+
+static void dma_stpkt_rx(uint8_t rhport)
+{
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  if (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a) {
+    if(dwc2->epout[0].doepctl & DOEPCTL_EPENA)
+      return;
+  }
+
+  // Receive only 1 packet
+  dwc2->epout[0].doeptsiz = 0;
+  dwc2->epout[0].doeptsiz |= (1 << DOEPTSIZ_STUPCNT_Pos);
+  dwc2->epout[0].doeptsiz |= 8;
+  dwc2->epout[0].doeptsiz |= (1 << DOEPTSIZ_PKTCNT_Pos);
+  dwc2->epout[0].doepdma = (uintptr_t)_setup_packet;
+
+  dwc2->epout[0].doepctl |= DOEPCTL_EPENA | DOEPCTL_USBAEP;
 }
 
 static void edpt_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc) {
@@ -351,6 +382,11 @@ static void bus_reset(uint8_t rhport) {
   // Setup the control endpoint 0
   _allocated_fifo_words_tx = 16;
 
+  // DMA needs extra space for processing, needs size confirmation
+  if(dma_supported(rhport)) {
+    _allocated_fifo_words_tx += 72;
+  }
+
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
   dwc2->dieptxf0 = (16 << DIEPTXF0_TX0FD_Pos) | (_dwc2_controller[rhport].ep_fifo_size / 4 - _allocated_fifo_words_tx);
 
@@ -361,6 +397,10 @@ static void bus_reset(uint8_t rhport) {
 
   dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
 
+  if(dma_supported(rhport)) {
+    dma_stpkt_rx(rhport);
+  }
+
   dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
 }
 
@@ -369,11 +409,11 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
   (void) rhport;
 
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
 
   // EP0 is limited to one packet each xfer
   // We use multiple transaction of xfer->max_size length to get a whole transfer done
   if (epnum == 0) {
-    xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
     total_bytes = tu_min16(ep0_pending[dir], xfer->max_size);
     ep0_pending[dir] -= total_bytes;
   }
@@ -386,17 +426,31 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     epin[epnum].dieptsiz = (num_packets << DIEPTSIZ_PKTCNT_Pos) |
                            ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
 
-    epin[epnum].diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
+    if(dma_supported(rhport)) {
+      epin[epnum].diepdma = (uintptr_t)xfer->buffer;
 
-    // For ISO endpoint set correct odd/even bit for next frame.
-    if ((epin[epnum].diepctl & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1) {
-      // Take odd/even bit from frame counter.
-      uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
-      epin[epnum].diepctl |= (odd_frame_now ? DIEPCTL_SD0PID_SEVNFRM_Msk : DIEPCTL_SODDFRM_Msk);
-    }
-    // Enable fifo empty interrupt only if there are something to put in the fifo.
-    if (total_bytes != 0) {
-      dwc2->diepempmsk |= (1 << epnum);
+      // For ISO endpoint set correct odd/even bit for next frame.
+      if ((epin[epnum].diepctl & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1) {
+        // Take odd/even bit from frame counter.
+        uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
+        epin[epnum].diepctl |= (odd_frame_now ? DIEPCTL_SD0PID_SEVNFRM_Msk : DIEPCTL_SODDFRM_Msk);
+      }
+
+      epin[epnum].diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
+    } else {
+
+      epin[epnum].diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
+
+      // For ISO endpoint set correct odd/even bit for next frame.
+      if ((epin[epnum].diepctl & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1) {
+        // Take odd/even bit from frame counter.
+        uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
+        epin[epnum].diepctl |= (odd_frame_now ? DIEPCTL_SD0PID_SEVNFRM_Msk : DIEPCTL_SODDFRM_Msk);
+      }
+      // Enable fifo empty interrupt only if there are something to put in the fifo.
+      if (total_bytes != 0) {
+        dwc2->diepempmsk |= (1 << epnum);
+      }
     }
   } else {
     dwc2_epout_t* epout = dwc2->epout;
@@ -406,13 +460,18 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     epout[epnum].doeptsiz |= (num_packets << DOEPTSIZ_PKTCNT_Pos) |
                              ((total_bytes << DOEPTSIZ_XFRSIZ_Pos) & DOEPTSIZ_XFRSIZ_Msk);
 
-    epout[epnum].doepctl |= DOEPCTL_EPENA | DOEPCTL_CNAK;
     if ((epout[epnum].doepctl & DOEPCTL_EPTYP) == DOEPCTL_EPTYP_0 &&
         XFER_CTL_BASE(epnum, dir)->interval == 1) {
       // Take odd/even bit from frame counter.
       uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
       epout[epnum].doepctl |= (odd_frame_now ? DOEPCTL_SD0PID_SEVNFRM_Msk : DOEPCTL_SODDFRM_Msk);
     }
+
+    if(dma_supported(rhport)) {
+      epout[epnum].doepdma = (uintptr_t)xfer->buffer;
+    }
+
+    epout[epnum].doepctl |= DOEPCTL_EPENA | DOEPCTL_CNAK;
   }
 }
 
@@ -619,6 +678,11 @@ void dcd_init(uint8_t rhport) {
   // Enable global interrupt
   dwc2->gahbcfg |= GAHBCFG_GINT;
 
+  if (dma_supported(rhport)) {
+    dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
+    dwc2->gintmsk &=~GINTMSK_RXFLVLM;
+  }
+
   // make sure we are in device mode
 //  TU_ASSERT(!(dwc2->gintsts & GINTSTS_CMOD), );
 
@@ -728,6 +792,11 @@ void dcd_edpt_close_all(uint8_t rhport) {
   // reset allocated fifo IN
   _allocated_fifo_words_tx = 16;
 
+  // DMA needs extra space for processing, needs size confirmation
+  if(dma_supported(rhport)) {
+    _allocated_fifo_words_tx += 72;
+  }
+
   fifo_flush_tx(dwc2, 0x10); // all tx fifo
   fifo_flush_rx(dwc2);
 }
@@ -809,6 +878,9 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   edpt_disable(rhport, ep_addr, true);
+  if((tu_edpt_number(ep_addr) == 0) && dma_supported(rhport)) {
+    dma_stpkt_rx(rhport);
+  }
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -991,32 +1063,51 @@ static void handle_epout_irq(uint8_t rhport) {
 
       uint32_t const doepint = epout->doepint;
 
-      // SETUP packet Setup Phase done.
-      if (doepint & DOEPINT_STUP) {
-        uint32_t clear_flag = DOEPINT_STUP;
-
-        // STPKTRX is only available for version from 3_00a
-        if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
-          clear_flag |= DOEPINT_STPKTRX;
-        }
-
-        epout->doepint = clear_flag;
-        dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
-      }
-
       // OUT XFER complete
       if (epout->doepint & DOEPINT_XFRC) {
         epout->doepint = DOEPINT_XFRC;
 
         xfer_ctl_t* xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
 
-        // EP0 can only handle one packet
-        if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
-          // Schedule another packet to be received.
-          edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+        if (doepint & DOEPINT_STUP) {
+          // STPKTRX is only available for version from 3_00a
+          if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
+            epout->doepint = DOEPINT_STPKTRX;
+          }
+        } else if (doepint & DOEPINT_OTEPSPR) {
+          epout->doepint = DOEPINT_OTEPSPR;
         } else {
-          dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+          // EP0 can only handle one packet
+          if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
+            // Schedule another packet to be received.
+            edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+          } else {
+            if(dma_supported(rhport)) {
+              // Fix packet length
+              uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
+              xfer->total_len -= remain;
+              // this is ZLP, so prepare EP0 for next setup
+              if(n == 0 && xfer->total_len == 0) {
+                dma_stpkt_rx(rhport);
+              }
+            }
+
+            dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+          }
         }
+      }
+
+      // SETUP packet Setup Phase done.
+      if (doepint & DOEPINT_STUP) {
+        epout->doepint = DOEPINT_STUP;
+        if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
+          epout->doepint = DOEPINT_STPKTRX;
+        }
+        if(dma_supported(rhport) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
+          dma_stpkt_rx(rhport);
+        }
+
+        dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
       }
     }
   }
@@ -1042,6 +1133,9 @@ static void handle_epin_irq(uint8_t rhport) {
           // Schedule another packet to be transmitted.
           edpt_schedule_packets(rhport, n, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
         } else {
+          if((n == 0) && dma_supported(rhport)) {
+            dma_stpkt_rx(rhport);
+          }
           dcd_event_xfer_complete(rhport, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
       }
