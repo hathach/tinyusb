@@ -52,7 +52,8 @@
   #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
-#define CDC_STACK_SZIE      configMINIMAL_STACK_SIZE
+#define CDC_STACK_SIZE      configMINIMAL_STACK_SIZE
+#define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
@@ -69,21 +70,22 @@ enum {
   BLINK_SUSPENDED = 2500,
 };
 
-// static timer & task
+// static task
 #if configSUPPORT_STATIC_ALLOCATION
-StaticTimer_t blinky_tmdef;
+StackType_t blinky_stack[BLINKY_STACK_SIZE];
+StaticTask_t blinky_taskdef;
 
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
-StackType_t  cdc_stack[CDC_STACK_SZIE];
+StackType_t  cdc_stack[CDC_STACK_SIZE];
 StaticTask_t cdc_taskdef;
 #endif
 
-TimerHandle_t blinky_tm;
+static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-static void led_blinky_cb(TimerHandle_t xTimer);
 static void usb_device_task(void *param);
+void led_blinking_task(void* param);
 void cdc_task(void *params);
 
 //--------------------------------------------------------------------+
@@ -94,21 +96,19 @@ int main(void) {
   board_init();
 
 #if configSUPPORT_STATIC_ALLOCATION
-  // soft timer for blinky
-  blinky_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &blinky_tmdef);
+  // blinky task
+  xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
 
   // Create a task for tinyusb device stack
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
 
   // Create CDC task
-  xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
+  xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, cdc_stack, &cdc_taskdef);
 #else
-  blinky_tm = xTimerCreate(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb);
+  xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
   xTaskCreate(cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
-
-  xTimerStart(blinky_tm, 0);
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
 #if !TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
@@ -154,12 +154,12 @@ static void usb_device_task(void *param) {
 
 // Invoked when device is mounted
 void tud_mount_cb(void) {
-  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
+  blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void) {
-  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
+  blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
 // Invoked when usb bus is suspended
@@ -167,16 +167,12 @@ void tud_umount_cb(void) {
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
 void tud_suspend_cb(bool remote_wakeup_en) {
   (void) remote_wakeup_en;
-  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
+  blink_interval_ms = BLINK_SUSPENDED;
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void) {
-  if (tud_mounted()) {
-    xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
-  } else {
-    xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
-  }
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 //--------------------------------------------------------------------+
@@ -235,10 +231,17 @@ void tud_cdc_rx_cb(uint8_t itf) {
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-static void led_blinky_cb(TimerHandle_t xTimer) {
-  (void) xTimer;
+void led_blinking_task(void* param) {
+  (void) param;
+  static uint32_t start_ms = 0;
   static bool led_state = false;
 
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+  while (1) {
+    // Blink every interval ms
+    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+    start_ms += blink_interval_ms;
+
+    board_led_write(led_state);
+    led_state = 1 - led_state; // toggle
+  }
 }

@@ -42,8 +42,8 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_RX_PIN           32
-#define UART_TX_PIN           33
+#define UART_RX_PIN           22
+#define UART_TX_PIN           20
 
 // SPI for USB host shield
 // Pin is correct but not working probably due to signal incompatible (1.8V 3v3) with MAC3421E !?
