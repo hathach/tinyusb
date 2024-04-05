@@ -28,7 +28,7 @@
 #define BOARD_H_
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 // LED
@@ -38,29 +38,27 @@
 #define LED_STATE_ON          0
 
 // ISP button (Dummy, use unused pin
- #define BUTTON_GPIO           GPIO3
- #define BUTTON_CLK            kCLOCK_GateGPIO3
- #define BUTTON_PIN            29 //sw2
- #define BUTTON_STATE_ACTIVE   0
+#define BUTTON_GPIO           GPIO3
+#define BUTTON_CLK            kCLOCK_GateGPIO3
+#define BUTTON_PIN            29 //sw2
+#define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_DEV              LPUART0
 
 static inline void board_uart_init_clock(void) {
-
   /* attach 12 MHz clock to LPUART0 (debug console) */
-    CLOCK_SetClockDiv(kCLOCK_DivLPUART0, 1u);
-    CLOCK_AttachClk(kFRO12M_to_LPUART0);
+  CLOCK_SetClockDiv(kCLOCK_DivLPUART0, 1u);
+  CLOCK_AttachClk(kFRO12M_to_LPUART0);
 
-    RESET_PeripheralReset(kLPUART0_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kLPUART0_RST_SHIFT_RSTn);
 }
-
 
 // XTAL
 #define XTAL0_CLK_HZ          (24 * 1000 * 1000U)
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif

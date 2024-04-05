@@ -2,7 +2,7 @@ MCU_VARIANT = MCXA153
 MCU_CORE = MCXA153
 PORT = 0
 
-CPU_CORE ?= cortex-m33-nodsp-nofp
+CPU_CORE = cortex-m33-nodsp-nofp
 CFLAGS += \
 	-DCPU_MCXA153VLH \
 	-DCFG_TUSB_MCU=OPT_MCU_MCXA15 \

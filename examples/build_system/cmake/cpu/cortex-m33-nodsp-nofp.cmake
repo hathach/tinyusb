@@ -12,6 +12,6 @@ elseif (TOOLCHAIN STREQUAL "iar")
     --cpu cortex-m33+nodsp
     )
 
-  set(FREERTOS_PORT IAR_ARM_CM4F CACHE INTERNAL "")
+  set(FREERTOS_PORT IAR_ARM_CM33_NTZ_NONSECURE CACHE INTERNAL "")
 
 endif ()

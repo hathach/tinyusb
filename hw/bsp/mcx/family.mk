@@ -39,22 +39,15 @@ SRC_C += \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_lpuart.c \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_common_arm.c \
 
-
-# fsl_lpflexcomm just needed for MCXN9
+# fsl_lpflexcomm for MCXN9
 ifeq ($(MCU_VARIANT), MCXN947)
-	SRC_C += \
-		$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_lpflexcomm.c \
-
+	SRC_C += $(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_lpflexcomm.c
 endif
 
-# fsl_spc just needed for MCXNA15
+# fsl_spc for MCXNA15
 ifeq ($(MCU_VARIANT), MCXA153)
-	SRC_C += \
-		$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_spc.c  \
-
+	SRC_C += $(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_spc.c
 endif
-
-
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
