@@ -208,7 +208,7 @@ static void ncm_start_tx(void) {
   }
 
   transmit_ntb_t *ntb = &transmit_ntb[ncm_interface.current_ntb];
-  // use actual payload length (non padded), reduces likelyhood of aligning with packet length, requiring fewer ZLP
+  // use actual payload length (non padded), reduces likelihood of aligning with packet length, requiring fewer ZLP
   ndp16_datagram_t * last_dg_info = &ntb->ndp.datagram[ncm_interface.datagram_count-1];
   size_t ntb_length = last_dg_info->wDatagramIndex + last_dg_info->wDatagramLength;
 
