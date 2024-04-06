@@ -755,6 +755,7 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   TU_LOG_DRV("    reopen VS %d\r\n", altnum);
   uint8_t const *desc = _videod_itf[stm->index_vc].beg;
 
+#ifndef TUP_DCD_EDPT_ISO_ALLOC
   /* Close endpoints of previous settings. */
   for (i = 0; i < TU_ARRAY_SIZE(stm->desc.ep); ++i) {
     uint_fast16_t ofs_ep = stm->desc.ep[i];
@@ -762,13 +763,12 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)(desc + ofs_ep);
     /* Only ISO endpoints needs to be closed */
     if(ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
-#ifndef TUP_DCD_EDPT_ISO_ALLOC
       usbd_edpt_close(rhport, ep->bEndpointAddress);
-#endif
       stm->desc.ep[i] = 0;
       TU_LOG_DRV("    close EP%02x\r\n", ep->bEndpointAddress);
     }
   }
+#endif
 
   /* clear transfer management information */
   stm->buffer  = NULL;
