@@ -260,6 +260,10 @@ void netd_init(void)
   ncm_prepare_for_tx();
 }
 
+bool netd_deinit(void) {
+  return true;
+}
+
 void netd_reset(uint8_t rhport)
 {
   (void) rhport;

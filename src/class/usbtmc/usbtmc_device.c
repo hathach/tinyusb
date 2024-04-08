@@ -260,6 +260,13 @@ void usbtmcd_init_cb(void)
   usbtmcLock = osal_mutex_create(&usbtmcLockBuffer);
 }
 
+bool usbtmcd_deinit(void) {
+  #if OSAL_MUTEX_REQUIRED
+  osal_mutex_delete(usbtmcLock);
+  #endif
+  return true;
+}
+
 uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   (void)rhport;

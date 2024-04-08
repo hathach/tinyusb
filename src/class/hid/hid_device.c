@@ -179,9 +179,12 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
-void hidd_init(void)
-{
+void hidd_init(void) {
   hidd_reset(0);
+}
+
+bool hidd_deinit(void) {
+  return true;
 }
 
 void hidd_reset(uint8_t rhport)

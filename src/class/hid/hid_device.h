@@ -465,6 +465,7 @@ static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y
 // Internal Class Driver API
 //--------------------------------------------------------------------+
 void     hidd_init            (void);
+bool     hidd_deinit          (void);
 void     hidd_reset           (uint8_t rhport);
 uint16_t hidd_open            (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);

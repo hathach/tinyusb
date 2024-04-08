@@ -685,6 +685,7 @@ static inline bool tud_audio_fb_set(uint32_t feedback)
 // Internal Class Driver API
 //--------------------------------------------------------------------+
 void     audiod_init           (void);
+bool     audiod_deinit         (void);
 void     audiod_reset          (uint8_t rhport);
 uint16_t audiod_open           (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);

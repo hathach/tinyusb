@@ -425,7 +425,7 @@ bool tuh_deinit(uint8_t rhport) {
     // Class drivers
     for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
       usbh_class_driver_t const* driver = get_driver(drv_id);
-      if (driver) {
+      if (driver && driver->deinit) {
         TU_LOG_USBH("%s deinit\r\n", driver->name);
         driver->deinit();
       }
