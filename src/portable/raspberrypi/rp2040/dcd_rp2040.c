@@ -408,7 +408,7 @@ void dcd_init(uint8_t rhport) {
 }
 
 bool dcd_deinit(uint8_t rhport) {
-  assert(rhport == 0);
+  (void) rhport;
 
   reset_non_control_endpoints();
   irq_remove_handler(USBCTRL_IRQ, dcd_rp2040_irq);
