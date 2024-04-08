@@ -755,15 +755,20 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
   TU_LOG_DRV("    reopen VS %d\r\n", altnum);
   uint8_t const *desc = _videod_itf[stm->index_vc].beg;
 
+#ifndef TUP_DCD_EDPT_ISO_ALLOC
   /* Close endpoints of previous settings. */
   for (i = 0; i < TU_ARRAY_SIZE(stm->desc.ep); ++i) {
     uint_fast16_t ofs_ep = stm->desc.ep[i];
     if (!ofs_ep) break;
-    uint8_t  ep_adr = _desc_ep_addr(desc + ofs_ep);
-    usbd_edpt_close(rhport, ep_adr);
-    stm->desc.ep[i] = 0;
-    TU_LOG_DRV("    close EP%02x\r\n", ep_adr);
+    tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)(desc + ofs_ep);
+    /* Only ISO endpoints needs to be closed */
+    if(ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
+      usbd_edpt_close(rhport, ep->bEndpointAddress);
+      stm->desc.ep[i] = 0;
+      TU_LOG_DRV("    close EP%02x\r\n", ep->bEndpointAddress);
+    }
   }
+#endif
 
   /* clear transfer management information */
   stm->buffer  = NULL;
@@ -788,16 +793,18 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     TU_ASSERT(cur < end);
     tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)cur;
     uint_fast32_t max_size = stm->max_payload_transfer_size;
-    if (altnum) {
-      if ((TUSB_XFER_ISOCHRONOUS == ep->bmAttributes.xfer) &&
-          (tu_edpt_packet_size(ep) < max_size)) {
-        /* FS must be less than or equal to max packet size */
-        return false;
-      }
+    if (altnum && (TUSB_XFER_ISOCHRONOUS == ep->bmAttributes.xfer)) {
+      /* FS must be less than or equal to max packet size */
+      TU_VERIFY (tu_edpt_packet_size(ep) >= max_size);
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
+      usbd_edpt_iso_activate(rhport, ep);
+#else
+      TU_ASSERT(usbd_edpt_open(rhport, ep));
+#endif
     } else {
       TU_VERIFY(TUSB_XFER_BULK == ep->bmAttributes.xfer);
+      TU_ASSERT(usbd_edpt_open(rhport, ep));
     }
-    TU_ASSERT(usbd_edpt_open(rhport, ep));
     stm->desc.ep[i] = (uint16_t) (cur - desc);
     TU_LOG_DRV("    open EP%02x\r\n", _desc_ep_addr(cur));
   }
@@ -1283,6 +1290,24 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     cur = _next_desc_itf(cur, end);
     stm->desc.end = (uint16_t) ((uintptr_t)cur - (uintptr_t)itf_desc);
     stm->state = VS_STATE_PROBING;
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
+    /* Allocate ISO endpoints */
+    uint16_t ep_size = 0;
+    uint16_t ep_addr = 0;
+    uint8_t const *p_desc = (uint8_t const*)itf_desc + stm->desc.beg;
+    uint8_t const *p_desc_end = (uint8_t const*)itf_desc + stm->desc.end;
+    while (p_desc < p_desc_end) {
+      if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT) {
+        tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+        if (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
+              ep_addr = desc_ep->bEndpointAddress;
+              ep_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_size);
+        }
+      }
+      p_desc = tu_desc_next(p_desc);
+    }
+    if(ep_addr > 0 && ep_size > 0) usbd_edpt_iso_alloc(rhport, ep_addr, ep_size);
+#endif
     if (0 == stm_idx && 1 == bInCollection) {
       /* If there is only one streaming interface and no alternate settings,
        * host may not issue set_interface so open the streaming interface here. */

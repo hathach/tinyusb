@@ -441,4 +441,8 @@
   #define TU_ATTR_FAST_FUNC
 #endif
 
+#if defined(TUP_USBIP_DWC2) || defined(TUP_USBIP_FSDEV)
+  #define TUP_DCD_EDPT_ISO_ALLOC
+#endif
+
 #endif
