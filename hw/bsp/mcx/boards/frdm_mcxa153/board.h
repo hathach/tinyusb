@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2023 Ha Thach (tinyusb.org)
+ * Copyright (c) 2021, Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,33 +24,41 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _CI_FS_MCX_H
-#define _CI_FS_MCX_H
+#ifndef BOARD_H_
+#define BOARD_H_
 
-#include "fsl_device_registers.h"
-
-#if CFG_TUSB_MCU == OPT_MCU_MCXN9
-  #define CI_FS_REG(_port)  ((ci_fs_regs_t*) USBFS0_BASE)
-  #define CIFS_IRQN 				USB0_FS_IRQn
-
-#elif CFG_TUSB_MCU == OPT_MCU_MCXA15
-  #define CI_FS_REG(_port)  ((ci_fs_regs_t*) USB0_BASE)
-  #define CIFS_IRQN         USB0_IRQn
-
-#else
-  #error "MCU is not supported"
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-#define CI_REG              CI_FS_REG(0)
+// LED
+#define LED_GPIO              GPIO3
+#define LED_CLK               kCLOCK_GateGPIO3
+#define LED_PIN               12 // red
+#define LED_STATE_ON          0
 
-void dcd_int_enable(uint8_t rhport) {
-  (void) rhport;
-  NVIC_EnableIRQ(CIFS_IRQN);
+// ISP button (Dummy, use unused pin
+#define BUTTON_GPIO           GPIO3
+#define BUTTON_CLK            kCLOCK_GateGPIO3
+#define BUTTON_PIN            29 //sw2
+#define BUTTON_STATE_ACTIVE   0
+
+// UART
+#define UART_DEV              LPUART0
+
+static inline void board_uart_init_clock(void) {
+  /* attach 12 MHz clock to LPUART0 (debug console) */
+  CLOCK_SetClockDiv(kCLOCK_DivLPUART0, 1u);
+  CLOCK_AttachClk(kFRO12M_to_LPUART0);
+
+  RESET_PeripheralReset(kLPUART0_RST_SHIFT_RSTn);
 }
 
-void dcd_int_disable(uint8_t rhport) {
-  (void) rhport;
-  NVIC_DisableIRQ(CIFS_IRQN);
+// XTAL
+#define XTAL0_CLK_HZ          (24 * 1000 * 1000U)
+
+#ifdef __cplusplus
 }
+#endif
 
 #endif

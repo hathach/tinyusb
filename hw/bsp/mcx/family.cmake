@@ -11,11 +11,17 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+if (MCU_VARIANT STREQUAL "MCXA153")
+  set(CMAKE_SYSTEM_PROCESSOR cortex-m33-nodsp-nofp CACHE INTERNAL "System Processor")
+  set(FAMILY_MCUS MCXA15 CACHE INTERNAL "")
+elseif (MCU_VARIANT STREQUAL "MCXN947")
+  set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+  set(FAMILY_MCUS MCXN9 CACHE INTERNAL "")
+else()
+  message(FATAL_ERROR "MCU_VARIANT not supported")
+endif()
+
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
-
-set(FAMILY_MCUS MCXN9 CACHE INTERNAL "")
-
 
 #------------------------------------
 # BOARD_TARGET
@@ -31,12 +37,23 @@ function(add_board_target BOARD_TARGET)
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_gpio.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_common_arm.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpuart.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
+
       # mcu
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
       ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
       )
+
+      if (${FAMILY_MCUS} STREQUAL "MCXN9")
+        target_sources(${BOARD_TARGET} PRIVATE
+          ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
+        )
+      elseif(${FAMILY_MCUS} STREQUAL "MCXA15")
+        target_sources(${BOARD_TARGET} PRIVATE
+        ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_spc.c
+      )
+      endif()
+
     #  target_compile_definitions(${BOARD_TARGET} PUBLIC
     #    )
     target_include_directories(${BOARD_TARGET} PUBLIC
@@ -93,7 +110,12 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MCXN9 ${RTOS})
+  if (${FAMILY_MCUS} STREQUAL "MCXN9")
+    family_add_tinyusb(${TARGET} OPT_MCU_MCXN9 ${RTOS})
+  elseif(${FAMILY_MCUS} STREQUAL "MCXA15")
+    family_add_tinyusb(${TARGET} OPT_MCU_MCXA15 ${RTOS})
+  endif()
+
   target_sources(${TARGET}-tinyusb PUBLIC
     # TinyUSB: Port0 is chipidea FS, Port1 is chipidea HS
     ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
