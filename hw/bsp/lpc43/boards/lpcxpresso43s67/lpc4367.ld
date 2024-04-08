@@ -292,7 +292,7 @@ SECTIONS
        PROVIDE(__end_bss_RamAHB_ETB16 = .) ;
     } > RamAHB_ETB16 AT> RamAHB_ETB16
 
-    /* MAIN BSS SECTION */
+    /* MAIN BSS SECTION: EDIT change to RamLoc40 */
     .bss : ALIGN(4)
     {
         _bss = .;
@@ -305,7 +305,7 @@ SECTIONS
         PROVIDE(__end_bss_RAM = .) ;
         PROVIDE(__end_bss_RamLoc32 = .) ;
         PROVIDE(end = .);
-    } > RamLoc32 AT> RamLoc32
+    } > RamLoc40 AT> RamLoc40 /* > RamLoc32 AT> RamLoc32 */
 
     /* NOINIT section for RamLoc40 */
     .noinit_RAM2 (NOLOAD) : ALIGN(4)

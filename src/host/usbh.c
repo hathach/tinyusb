@@ -52,6 +52,13 @@ TU_ATTR_WEAK bool hcd_deinit(uint8_t rhport) {
   return false;
 }
 
+TU_ATTR_WEAK bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
+  (void) rhport;
+  (void) cfg_id;
+  (void) cfg_param;
+  return false;
+}
+
 TU_ATTR_WEAK void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
   (void) rhport;
   (void) eventid;
@@ -332,11 +339,7 @@ bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
 //--------------------------------------------------------------------+
 
 bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void *cfg_param) {
-  if ( hcd_configure ) {
-    return hcd_configure(rhport, cfg_id, cfg_param);
-  } else {
-    return false;
-  }
+  return hcd_configure(rhport, cfg_id, cfg_param);
 }
 
 static void clear_device(usbh_device_t* dev) {
@@ -422,7 +425,7 @@ bool tuh_deinit(uint8_t rhport) {
     // Class drivers
     for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
       usbh_class_driver_t const* driver = get_driver(drv_id);
-      if (driver) {
+      if (driver && driver->deinit) {
         TU_LOG_USBH("%s deinit\r\n", driver->name);
         driver->deinit();
       }

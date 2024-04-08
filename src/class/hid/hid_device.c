@@ -146,6 +146,19 @@ bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id,
   return tud_hid_n_report(instance, report_id, &report, sizeof(report));
 }
 
+bool tud_hid_n_abs_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal)
+{
+  hid_abs_mouse_report_t report =
+  {
+    .buttons = buttons,
+    .x       = x,
+    .y       = y,
+    .wheel   = vertical,
+    .pan     = horizontal
+  };
+  return tud_hid_n_report(instance, report_id, &report, sizeof(report));
+}
+
 bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
                               int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons) {
   hid_gamepad_report_t report =
@@ -166,9 +179,12 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
-void hidd_init(void)
-{
+void hidd_init(void) {
   hidd_reset(0);
+}
+
+bool hidd_deinit(void) {
+  return true;
 }
 
 void hidd_reset(uint8_t rhport)

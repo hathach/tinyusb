@@ -295,7 +295,7 @@ void dcd_init(uint8_t rhport)
   CI_REG->INT_EN = USB_INTEN_USBRSTEN_MASK;
 
   dcd_connect(rhport);
-  // NVIC_ClearPendingIRQ(USB0_IRQn);
+  // NVIC_ClearPendingIRQ(CIFS_IRQN);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
