@@ -251,9 +251,13 @@ static inline void set_sense_medium_not_present(uint8_t lun)
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void mscd_init(void)
-{
+void mscd_init(void) {
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
+}
+
+bool mscd_deinit(void) {
+  // nothing to do
+  return true;
 }
 
 void mscd_reset(uint8_t rhport)

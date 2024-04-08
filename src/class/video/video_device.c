@@ -1229,6 +1229,10 @@ void videod_init(void) {
   }
 }
 
+bool videod_deinit(void) {
+  return true;
+}
+
 void videod_reset(uint8_t rhport) {
   (void) rhport;
   for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO; ++i) {

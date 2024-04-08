@@ -169,21 +169,47 @@ uint32_t tud_vendor_n_write_available (uint8_t itf)
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void vendord_init(void)
-{
+void vendord_init(void) {
   tu_memclr(_vendord_itf, sizeof(_vendord_itf));
 
-  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++)
-  {
+  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++) {
     vendord_interface_t* p_itf = &_vendord_itf[i];
 
     // config fifo
     tu_fifo_config(&p_itf->rx_ff, p_itf->rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE, 1, false);
     tu_fifo_config(&p_itf->tx_ff, p_itf->tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, 1, false);
 
-    tu_fifo_config_mutex(&p_itf->rx_ff, NULL, osal_mutex_create(&p_itf->rx_ff_mutex));
-    tu_fifo_config_mutex(&p_itf->tx_ff, osal_mutex_create(&p_itf->tx_ff_mutex), NULL);
+    #if OSAL_MUTEX_REQUIRED
+    osal_mutex_t mutex_rd = osal_mutex_create(&p_itf->rx_ff_mutex);
+    osal_mutex_t mutex_wr = osal_mutex_create(&p_itf->tx_ff_mutex);
+    TU_ASSERT(mutex_rd && mutex_wr,);
+
+    tu_fifo_config_mutex(&p_itf->rx_ff, NULL, mutex_rd);
+    tu_fifo_config_mutex(&p_itf->tx_ff, mutex_wr, NULL);
+    #endif
   }
+}
+
+bool vendord_deinit(void) {
+  #if OSAL_MUTEX_REQUIRED
+  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++) {
+    vendord_interface_t* p_itf = &_vendord_itf[i];
+    osal_mutex_t mutex_rd = p_itf->rx_ff.mutex_rd;
+    osal_mutex_t mutex_wr = p_itf->tx_ff.mutex_wr;
+
+    if (mutex_rd) {
+      osal_mutex_delete(mutex_rd);
+      tu_fifo_config_mutex(&p_itf->rx_ff, NULL, NULL);
+    }
+
+    if (mutex_wr) {
+      osal_mutex_delete(mutex_wr);
+      tu_fifo_config_mutex(&p_itf->tx_ff, NULL, NULL);
+    }
+  }
+  #endif
+
+  return true;
 }
 
 void vendord_reset(uint8_t rhport)

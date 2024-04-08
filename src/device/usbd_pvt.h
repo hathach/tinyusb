@@ -40,11 +40,9 @@
 //--------------------------------------------------------------------+
 
 typedef struct {
-  #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
   char const* name;
-  #endif
-
   void     (* init             ) (void);
+  bool     (* deinit           ) (void);
   void     (* reset            ) (uint8_t rhport);
   uint16_t (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t max_len);
   bool     (* control_xfer_cb  ) (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);

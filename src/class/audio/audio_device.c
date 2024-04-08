@@ -1396,6 +1396,10 @@ void audiod_init(void)
   }
 }
 
+bool audiod_deinit(void) {
+  return false; // TODO not implemented yet
+}
+
 void audiod_reset(uint8_t rhport)
 {
   (void) rhport;

@@ -123,7 +123,7 @@ void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) TU_ATTR_W
 void dcd_init(uint8_t rhport);
 
 // Deinitialize controller, unset device mode.
-void dcd_deinit(uint8_t rhport);
+bool dcd_deinit(uint8_t rhport);
 
 // Interrupt Handler
 void dcd_int_handler(uint8_t rhport);
