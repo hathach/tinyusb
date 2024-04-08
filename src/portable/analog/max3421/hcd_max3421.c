@@ -233,7 +233,11 @@ typedef struct {
 static max3421_data_t _hcd_data;
 
 // max NAK before giving up in a frame. 0 means infinite NAKs
-static uint8_t _max_nak = MAX_NAK_DEFAULT;
+static tuh_configure_max3421_t _tuh_cfg = {
+    .max_nak = MAX_NAK_DEFAULT,
+    .cpuctl = 0, // default: INT pulse width = 10.6 us
+    .pinctl = 0, // default: negative edge interrupt
+};
 
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E
@@ -416,7 +420,7 @@ static void free_ep(uint8_t daddr) {
 TU_ATTR_ALWAYS_INLINE static inline bool is_ep_pending(max3421_ep_t const * ep) {
   uint8_t const state = ep->state;
   return ep->packet_size && (state >= EP_STATE_ATTEMPT_1) &&
-         (_max_nak == 0 || state < EP_STATE_ATTEMPT_1 + _max_nak);
+         (_tuh_cfg.max_nak == 0 || state < EP_STATE_ATTEMPT_1 + _tuh_cfg.max_nak);
 }
 
 // Find the next pending endpoint using round-robin scheduling, starting from next endpoint.
@@ -454,7 +458,7 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   TU_VERIFY(cfg_id == TUH_CFGID_MAX3421 && cfg_param != NULL);
 
   tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
-  _max_nak = tu_min8(cfg->max3421.max_nak, EP_STATE_ATTEMPT_MAX-EP_STATE_ATTEMPT_1);
+  _tuh_cfg = cfg->max3421;
   return true;
 }
 
@@ -476,7 +480,7 @@ bool hcd_init(uint8_t rhport) {
 #endif
 
   // full duplex, interrupt negative edge
-  reg_write(rhport, PINCTL_ADDR, PINCTL_FDUPSPI, false);
+  reg_write(rhport, PINCTL_ADDR, _tuh_cfg.pinctl | PINCTL_FDUPSPI, false);
 
   // v1 is 0x01, v2 is 0x12, v3 is 0x13
   uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
@@ -505,7 +509,7 @@ bool hcd_init(uint8_t rhport) {
   tuh_max3421_int_api(rhport, true);
 
   // Enable Interrupt pin
-  reg_write(rhport, CPUCTL_ADDR, CPUCTL_IE, false);
+  reg_write(rhport, CPUCTL_ADDR, _tuh_cfg.cpuctl | CPUCTL_IE, false);
 
   return true;
 }
@@ -516,9 +520,9 @@ bool hcd_deinit(uint8_t rhport) {
   // disable interrupt
   tuh_max3421_int_api(rhport, false);
 
-  // reset max3421
+  // reset max3421 and power down
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
-  reg_write(rhport, USBCTL_ADDR, 0, false);
+  reg_write(rhport, USBCTL_ADDR, USBCTL_PWRDOWN, false);
 
   #if OSAL_MUTEX_REQUIRED
   osal_mutex_delete(_hcd_data.spi_mutex);
