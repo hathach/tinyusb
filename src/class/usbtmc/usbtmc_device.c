@@ -261,7 +261,9 @@ void usbtmcd_init_cb(void)
 }
 
 bool usbtmcd_deinit(void) {
+  #if OSAL_MUTEX_REQUIRED
   osal_mutex_delete(usbtmcLock);
+  #endif
   return true;
 }
 
