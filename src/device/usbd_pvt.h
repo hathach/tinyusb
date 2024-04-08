@@ -40,7 +40,10 @@
 //--------------------------------------------------------------------+
 
 typedef struct {
+  #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
   char const* name;
+  #endif
+
   void     (* init             ) (void);
   bool     (* deinit           ) (void);
   void     (* reset            ) (uint8_t rhport);
