@@ -28,8 +28,8 @@ jobs:
               issueOrPrNumber = context.payload.pull_request.number;
             }
 
+            // Check if an Adafruit member
             try {
-              // Check for Adafruit membership
               const adafruitResponse = await github.rest.orgs.checkMembershipForUser({
                 org: 'adafruit',
                 username: username
@@ -38,8 +38,14 @@ jobs:
               if (adafruitResponse.status === 204) {
                 console.log('Adafruit Member');
                 label = 'Prio Urgent';
-              } else {
-                // If not a Adafruit member, check if the user is a contributor
+              }
+            } catch (error) {
+              console.log('Not an Adafruit member');
+            }
+
+            // Check if a contributor
+            if (label == '') {
+              try {
                 const collaboratorResponse = await github.rest.repos.checkCollaborator({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -50,9 +56,9 @@ jobs:
                   console.log('Contributor');
                   label = 'Prio Higher';
                 }
+              } catch (error) {
+                console.log('Not a contributor');
               }
-            } catch (error) {
-              console.log(`Error processing user ${username}: ${error.message}`);
             }
 
             if (label !== '') {
