@@ -35,12 +35,12 @@ extern "C" {
 // LED
 #define LED_PORT              GPIOI
 #define LED_PIN               GPIO_PIN_9
-#define LED_STATE_ON          0
+#define LED_STATE_ON          1
 
 // Button
 #define BUTTON_PORT           GPIOC
 #define BUTTON_PIN            GPIO_PIN_13
-#define BUTTON_STATE_ACTIVE   0
+#define BUTTON_STATE_ACTIVE   1
 
 // UART Enable for STLink VCOM
 #define UART_DEV              USART1

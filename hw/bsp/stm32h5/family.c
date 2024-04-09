@@ -73,10 +73,10 @@ void board_init(void) {
   __HAL_RCC_GPIOE_CLK_ENABLE();
   #endif
   #ifdef __HAL_RCC_GPIOG_CLK_ENABLE
-  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
   #endif
   #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
-  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOI_CLK_ENABLE();
   #endif
 
   UART_CLK_EN();
