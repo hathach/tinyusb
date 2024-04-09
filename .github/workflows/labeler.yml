@@ -9,7 +9,9 @@ on:
 jobs:
   label-priority:
     runs-on: ubuntu-latest
-
+    permissions:
+      issues: write
+      pull-requests: write
     steps:
       - name: Label New Issue or PR
         uses: actions/github-script@v7
