@@ -120,7 +120,7 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
 
   TU_ASSERT(epnum < ep_count);
 
-  uint16_t const fifo_size = tu_div_ceil(packet_size, 4);
+  uint16_t fifo_size = tu_div_ceil(packet_size, 4);
 
   // "USB Data FIFOs" section in reference manual
   // Peripheral FIFO architecture
@@ -154,6 +154,10 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
       dwc2->grxfsiz = sz;
     }
   } else {
+    // The fifo-empty interrupt fires when the interrupt is half empty. In order
+    // to be able to write a packet at that point, the fifo must be twice the max_size.
+    fifo_size = fifo_size * 2;
+
     // Check if free space is available
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= _dwc2_controller[rhport].ep_fifo_size / 4);
     _allocated_fifo_words_tx += fifo_size;
@@ -591,6 +595,9 @@ void dcd_init(uint8_t rhport) {
   dwc2->gintsts |= int_mask;
   int_mask = dwc2->gotgint;
   dwc2->gotgint |= int_mask;
+
+  // Configure TX FIFO to set the TX FIFO empty interrupt when half-empty
+  dwc2->gahbcfg &= ~GAHBCFG_TXFELVL;
 
   // Required as part of core initialization.
   dwc2->gintmsk = GINTMSK_OTGINT | GINTMSK_RXFLVLM |
@@ -1144,7 +1151,7 @@ void dcd_int_handler(uint8_t rhport) {
     // Loop until all available packets were handled
     do {
       handle_rxflvl_irq(rhport);
-    } while (dwc2->gotgint & GINTSTS_RXFLVL);
+    } while(dwc2->gintsts & GINTSTS_RXFLVL);
 
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
   }
