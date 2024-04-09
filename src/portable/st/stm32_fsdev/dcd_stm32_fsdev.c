@@ -151,9 +151,7 @@ typedef struct
   tu_fifo_t * ff;
   uint16_t total_len;
   uint16_t queued_len;
-  uint16_t pma_ptr;
   uint16_t max_packet_size;
-  uint16_t pma_alloc_size;
   uint8_t ep_idx; // index for USB_EPnR register
 } xfer_ctl_t;
 
@@ -180,12 +178,12 @@ static uint8_t remoteWakeCountdown; // When wake is requested
 // into the stack.
 static void dcd_handle_bus_reset(void);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix);
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr);
 static void dcd_ep_ctr_handler(void);
 
 // PMA allocation/access
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
-static void dcd_pma_alloc_reset(void);
-static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length);
+static uint32_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length, bool dbuf);
 static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type);
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes);
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes);
@@ -491,7 +489,9 @@ static void dcd_handle_bus_reset(void)
     ep_alloc_status[i].allocated[1] = false;
   }
 
-  dcd_pma_alloc_reset();
+  // Reset PMA allocation
+  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT;
+
   dcd_edpt_open (0, &ep0OUT_desc);
   dcd_edpt_open (0, &ep0IN_desc);
 
@@ -760,39 +760,14 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
   }
 }
 
-static void dcd_pma_alloc_reset(void)
-{
-  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
-  //TU_LOG2("dcd_pma_alloc_reset()\r\n");
-  for(uint32_t i=0; i<MAX_EP_COUNT; i++)
-  {
-    xfer_ctl_ptr(tu_edpt_addr(i,TUSB_DIR_OUT))->pma_alloc_size = 0U;
-    xfer_ctl_ptr(tu_edpt_addr(i,TUSB_DIR_IN))->pma_alloc_size = 0U;
-    xfer_ctl_ptr(tu_edpt_addr(i,TUSB_DIR_OUT))->pma_ptr = 0U;
-    xfer_ctl_ptr(tu_edpt_addr(i,TUSB_DIR_IN))->pma_ptr = 0U;
-  }
-}
-
 /***
  * Allocate a section of PMA
- *
- * If the EP number has already been allocated, and the new allocation
- * is larger than the old allocation, then this will fail with a TU_ASSERT.
- * (This is done to simplify the code. More complicated algorithms could be used)
- *
+ * In case of double buffering, high 16bit is the address of 2nd buffer
  * During failure, TU_ASSERT is used. If this happens, rework/reallocate memory manually.
  */
-static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length)
+static uint32_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length, bool dbuf)
 {
   xfer_ctl_t* epXferCtl = xfer_ctl_ptr(ep_addr);
-
-  if(epXferCtl->pma_alloc_size != 0U)
-  {
-    //TU_LOG2("dcd_pma_alloc(%x,%x)=%x (cached)\r\n",ep_addr,length,epXferCtl->pma_ptr);
-    // Previously allocated
-    TU_ASSERT(length <= epXferCtl->pma_alloc_size, 0xFFFF);  // Verify no larger than previous alloc
-    return epXferCtl->pma_ptr;
-  }
 
   // Ensure allocated buffer is aligned
 #ifdef FSDEV_BUS_32BIT
@@ -801,15 +776,16 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length)
   length = (length + 1) & ~0x01;
 #endif
 
-  uint16_t addr = ep_buf_ptr;
+  uint32_t addr = ep_buf_ptr;
   ep_buf_ptr = (uint16_t)(ep_buf_ptr + length); // increment buffer pointer
 
-  // Verify no overflow
-  TU_ASSERT(ep_buf_ptr <= FSDEV_PMA_SIZE, 0xFFFF);
+  if(dbuf) {
+    addr |= ((uint32_t)ep_buf_ptr) << 16;
+    ep_buf_ptr = (uint16_t)(ep_buf_ptr + length); // increment buffer pointer
+  }
 
-  epXferCtl->pma_ptr = addr;
-  epXferCtl->pma_alloc_size = length;
-  //TU_LOG1("dcd_pma_alloc(%x,%x)=%x\r\n",ep_addr,length,addr);
+  // Verify packet buffer is not overflowed
+  TU_ASSERT(ep_buf_ptr <= FSDEV_PMA_SIZE, 0xFFFF);
 
   return addr;
 }
@@ -898,9 +874,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   pcd_set_eptype(USB, ep_idx, wType);
   pcd_set_ep_address(USB, ep_idx, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
 
-  /* Create a packet memory buffer area. For isochronous endpoints,
-   * use the same buffer as the double buffer, essentially disabling double buffering */
-  pma_addr = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress, buffer_size);
+  /* Create a packet memory buffer area. */
+  pma_addr = dcd_pma_alloc(p_endpoint_desc->bEndpointAddress, buffer_size, false);
 
   if(dir == TUSB_DIR_IN)
   {
@@ -966,7 +941,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
   /* Create a packet memory buffer area. For isochronous endpoints,
    * use the same buffer as the double buffer, essentially disabling double buffering */
-  uint16_t pma_addr = dcd_pma_alloc(ep_addr, buffer_size);
+  uint16_t pma_addr = dcd_pma_alloc(ep_addr, buffer_size, false);
 
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
@@ -1036,7 +1011,7 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
 
   /* Write into correct register when ISOCHRONOUS (double buffered) */
-  if ( (ep_reg & USB_EP_DTOG_TX) && ( (ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) ) {
+  if ((ep_reg & USB_EP_DTOG_TX) && ((ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS)) {
     pcd_set_ep_rx_cnt(USB, ep_ix, len);
   } else {
     pcd_set_ep_tx_cnt(USB, ep_ix, len);
@@ -1045,7 +1020,7 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
   pcd_set_ep_tx_status(USB, ep_ix, USB_EP_TX_VALID);
 }
 
-bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
@@ -1053,26 +1028,18 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const ep_idx = xfer->ep_idx;
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  xfer->buffer = buffer;
-  xfer->ff     = NULL;
-  xfer->total_len = total_bytes;
-  xfer->queued_len = 0;
-
   if ( dir == TUSB_DIR_OUT )
   {
     // A setup token can occur immediately after an OUT STATUS packet so make sure we have a valid
     // buffer for the control endpoint.
-    if (ep_idx == 0 && buffer == NULL)
+    if (ep_idx == 0 && xfer->buffer == NULL)
     {
-        xfer->buffer = (uint8_t*)_setup_packet;
+      xfer->buffer = (uint8_t*)_setup_packet;
     }
 
-    if(total_bytes > xfer->max_packet_size)
-    {
-      pcd_set_ep_rx_bufsize(USB,ep_idx,xfer->max_packet_size);
-    } else {
-      pcd_set_ep_rx_bufsize(USB,ep_idx,total_bytes);
-    }
+    uint32_t bufsize = xfer->total_len > xfer->max_packet_size ? xfer->max_packet_size : xfer->total_len;
+    pcd_set_ep_rx_bufsize(USB, ep_idx, bufsize);
+
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_VALID);
   }
   else // IN
@@ -1082,34 +1049,27 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
+bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+{
+  xfer_ctl_t * xfer = xfer_ctl_ptr(ep_addr);
+
+  xfer->buffer = buffer;
+  xfer->ff     = NULL;
+  xfer->total_len = total_bytes;
+  xfer->queued_len = 0;
+
+  return edpt_xfer(rhport, ep_addr);
+}
+
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
-  (void) rhport;
-
   xfer_ctl_t * xfer = xfer_ctl_ptr(ep_addr);
-  uint8_t const epnum = xfer->ep_idx;
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-
   xfer->buffer = NULL;
   xfer->ff     = ff;
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 
-  if ( dir == TUSB_DIR_OUT )
-  {
-    if(total_bytes > xfer->max_packet_size)
-    {
-      pcd_set_ep_rx_bufsize(USB,epnum,xfer->max_packet_size);
-    } else {
-      pcd_set_ep_rx_bufsize(USB,epnum,total_bytes);
-    }
-    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_VALID);
-  }
-  else // IN
-  {
-    dcd_transmit_packet(xfer,epnum);
-  }
-  return true;
+  return edpt_xfer(rhport, ep_addr);
 }
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
