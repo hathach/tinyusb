@@ -153,6 +153,7 @@ typedef struct
   uint16_t queued_len;
   uint16_t max_packet_size;
   uint8_t ep_idx; // index for USB_EPnR register
+  bool in_complete; // Workaround for ISO IN EP doesn't have interrupt mask
 } xfer_ctl_t;
 
 // EP allocator
@@ -518,6 +519,19 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
   pcd_clear_tx_ep_ctr(USB, EPindex);
 
   xfer_ctl_t * xfer = xfer_ctl_ptr(ep_addr);
+
+  /* Ignore spurious int */
+  if(xfer->in_complete) return;
+  xfer->in_complete = true;
+
+  if ((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
+    if (wEPRegVal & USB_EP_DTOG_TX) {
+      pcd_set_ep_tx_dbuf0_cnt(USB, EPindex, 0);
+    } else {
+      pcd_set_ep_tx_dbuf1_cnt(USB, EPindex, 0);
+    }
+  }
+
   if((xfer->total_len != xfer->queued_len)) /* TX not complete */
   {
     dcd_transmit_packet(xfer, EPindex);
@@ -1019,7 +1033,10 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
   }
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
 
+  dcd_int_disable(0);
   pcd_set_ep_tx_status(USB, ep_ix, USB_EP_TX_VALID);
+  xfer->in_complete = false;
+  dcd_int_enable(0);
 }
 
 static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
