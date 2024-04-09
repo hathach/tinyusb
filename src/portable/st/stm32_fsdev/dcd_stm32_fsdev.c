@@ -586,26 +586,31 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr) {
   }
   else
   {
+    // Clear RX CTR interrupt flag
+    if(ep_addr != 0u) {
+      pcd_clear_rx_ep_ctr(USB, EPindex);
+    }
+
     uint32_t count;
+    uint16_t addr;
     /* Read from correct register when ISOCHRONOUS (double buffered) */
-    if ( (wEPRegVal & USB_EP_DTOG_RX) && ( (wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) ) {
-      count = pcd_get_ep_tx_cnt(USB, EPindex);
+    if ((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
+      if (wEPRegVal & USB_EP_DTOG_RX) {
+        count = pcd_get_ep_dbuf0_cnt(USB, EPindex);
+        addr = pcd_get_ep_dbuf0_address(USB, EPindex);
+      } else {
+        count = pcd_get_ep_dbuf1_cnt(USB, EPindex);
+        addr = pcd_get_ep_dbuf1_address(USB, EPindex);
+      }
     } else {
       count = pcd_get_ep_rx_cnt(USB, EPindex);
+      addr = pcd_get_ep_rx_address(USB, EPindex);
     }
 
     TU_ASSERT(count <= xfer->max_packet_size, /**/);
 
-    // Clear RX CTR interrupt flag
-    if(ep_addr != 0u)
-    {
-      pcd_clear_rx_ep_ctr(USB, EPindex);
-    }
-
     if (count != 0U)
     {
-      uint16_t addr = pcd_get_ep_rx_address(USB, EPindex);
-
       if (xfer->ff)
       {
         dcd_read_packet_memory_ff(xfer->ff, addr, count);
@@ -627,16 +632,15 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr) {
     }
     else
     {
-      uint32_t remaining = (uint32_t)xfer->total_len - (uint32_t)xfer->queued_len;
-      if(remaining >= xfer->max_packet_size) {
-        pcd_set_ep_rx_bufsize(USB, EPindex,xfer->max_packet_size);
-      } else {
-        pcd_set_ep_rx_bufsize(USB, EPindex,remaining);
-      }
-
+      /* Set endpoint active again for receiving more data.
+       * Note that isochronous endpoints stay active always */
       if (!((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS)) {
-        /* Set endpoint active again for receiving more data.
-         * Note that isochronous endpoints stay active always */
+        uint32_t remaining = (uint32_t)xfer->total_len - (uint32_t)xfer->queued_len;
+        if(remaining >= xfer->max_packet_size) {
+          pcd_set_ep_rx_cnt(USB, EPindex,xfer->max_packet_size);
+        } else {
+          pcd_set_ep_rx_cnt(USB, EPindex,remaining);
+        }
         pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
       }
     }
@@ -648,7 +652,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr) {
   if(ep_addr == 0u)
   {
     // Always be prepared for a status packet...
-    pcd_set_ep_rx_bufsize(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
+    pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
     pcd_clear_rx_ep_ctr(USB, EPindex);
   }
 }
@@ -838,7 +842,7 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
 // The STM32F0 doesn't seem to like |= or &= to manipulate the EP#R registers,
 // so I'm using the #define from HAL here, instead.
 
-bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void)rhport;
   uint8_t const ep_idx = dcd_ep_alloc(p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
@@ -880,7 +884,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   if(dir == TUSB_DIR_IN)
   {
     pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
-    pcd_set_ep_tx_bufsize(USB, ep_idx, buffer_size);
     pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_NAK);
     pcd_clear_tx_dtog(USB, ep_idx);
   }
@@ -888,7 +891,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   if(dir == TUSB_DIR_OUT)
   {
     pcd_set_ep_rx_address(USB, ep_idx, pma_addr);
-    pcd_set_ep_rx_bufsize(USB, ep_idx, buffer_size);
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_NAK);
     pcd_clear_rx_dtog(USB, ep_idx);
   }
@@ -912,7 +914,7 @@ void dcd_edpt_close_all (uint8_t rhport)
  *
  * This also clears transfers in progress, should there be any.
  */
-void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr)
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
 
@@ -939,16 +941,15 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
   const uint16_t buffer_size = pcd_aligned_buffer_size(largest_packet_size);
 
-  /* Create a packet memory buffer area. For isochronous endpoints,
-   * use the same buffer as the double buffer, essentially disabling double buffering */
-  uint16_t pma_addr = dcd_pma_alloc(ep_addr, buffer_size, false);
+  /* Create a packet memory buffer area. Enable double buffering */
+  uint32_t pma_addr = dcd_pma_alloc(ep_addr, buffer_size, true);
 
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
   pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
 
-  pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
-  pcd_set_ep_rx_address(USB, ep_idx, pma_addr);
+  pcd_set_ep_tx_address(USB, ep_idx, pma_addr & 0xFFFF);
+  pcd_set_ep_rx_address(USB, ep_idx, pma_addr >> 16);
 
   return true;
 }
@@ -961,25 +962,19 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
   const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
   const uint16_t buffer_size = pcd_aligned_buffer_size(packet_size);
 
-  /* Disable endpoint */
-  if(dir == TUSB_DIR_IN)
-  {
-    pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_DIS);
-  }
-  else
-  {
-    pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_DIS);
-  }
+  pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_DIS);
+  pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_DIS);
 
   pcd_set_ep_address(USB, ep_idx, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
-  // Be normal, for now, instead of only accepting zero-byte packets (on control endpoint)
-  // or being double-buffered (bulk endpoints)
-  pcd_clear_ep_kind(USB,0);
 
-  pcd_set_ep_tx_bufsize(USB, ep_idx, buffer_size);
-  pcd_set_ep_rx_bufsize(USB, ep_idx, buffer_size);
   pcd_clear_tx_dtog(USB, ep_idx);
   pcd_clear_rx_dtog(USB, ep_idx);
+
+  if(dir == TUSB_DIR_IN) {
+    pcd_rx_dtog(USB, ep_idx);
+  } else {
+    pcd_tx_dtog(USB, ep_idx);
+  }
 
   xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = packet_size;
 
@@ -998,7 +993,21 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
   }
 
   uint16_t ep_reg = pcd_get_endpoint(USB, ep_ix);
-  uint16_t addr_ptr = pcd_get_ep_tx_address(USB, ep_ix);
+  uint16_t addr_ptr;
+
+
+  if ((ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
+    if (ep_reg & USB_EP_DTOG_TX) {
+      addr_ptr = pcd_get_ep_dbuf1_address(USB, ep_ix);
+      pcd_set_ep_tx_dbuf1_cnt(USB, ep_ix, len);
+    } else {
+      addr_ptr = pcd_get_ep_dbuf0_address(USB, ep_ix);
+      pcd_set_ep_tx_dbuf0_cnt(USB, ep_ix, len);
+    }
+  } else {
+    addr_ptr = pcd_get_ep_tx_address(USB, ep_ix);
+    pcd_set_ep_tx_cnt(USB, ep_ix, len);
+  }
 
   if (xfer->ff)
   {
@@ -1009,13 +1018,6 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
     dcd_write_packet_memory(addr_ptr, &(xfer->buffer[xfer->queued_len]), len);
   }
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
-
-  /* Write into correct register when ISOCHRONOUS (double buffered) */
-  if ((ep_reg & USB_EP_DTOG_TX) && ((ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS)) {
-    pcd_set_ep_rx_cnt(USB, ep_ix, len);
-  } else {
-    pcd_set_ep_tx_cnt(USB, ep_ix, len);
-  }
 
   pcd_set_ep_tx_status(USB, ep_ix, USB_EP_TX_VALID);
 }
@@ -1037,8 +1039,15 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
       xfer->buffer = (uint8_t*)_setup_packet;
     }
 
-    uint32_t bufsize = xfer->total_len > xfer->max_packet_size ? xfer->max_packet_size : xfer->total_len;
-    pcd_set_ep_rx_bufsize(USB, ep_idx, bufsize);
+    uint32_t cnt = xfer->total_len > xfer->max_packet_size ? xfer->max_packet_size : xfer->total_len;
+    uint16_t ep_reg = pcd_get_endpoint(USB, ep_idx);
+
+    if ((ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
+      pcd_set_ep_rx_dbuf0_cnt(USB, ep_idx, cnt);
+      pcd_set_ep_rx_dbuf1_cnt(USB, ep_idx, cnt);
+    } else {
+      pcd_set_ep_rx_cnt(USB, ep_idx, cnt);
+    }
 
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_VALID);
   }
