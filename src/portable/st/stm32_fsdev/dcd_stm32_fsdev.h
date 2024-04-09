@@ -298,6 +298,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USB
 #endif
 }
 
+#define pcd_get_ep_dbuf0_cnt pcd_get_ep_tx_cnt
+#define pcd_get_ep_dbuf1_cnt pcd_get_ep_rx_cnt
+
 /**
   * @brief  Sets address in an endpoint register.
   * @param  USBx USB peripheral instance register address.
@@ -331,6 +334,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_address(USB_TypeDef *
 #endif
 }
 
+#define pcd_get_ep_dbuf0_address pcd_get_ep_tx_address
+#define pcd_get_ep_dbuf1_address pcd_get_ep_rx_address
+
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr) {
 #ifdef FSDEV_BUS_32BIT
   (void) USBx;
@@ -349,6 +355,9 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USB
 #endif
 }
 
+#define pcd_set_ep_dbuf0_address pcd_set_ep_tx_address
+#define pcd_set_ep_dbuf1_address pcd_set_ep_rx_address
+
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
 #ifdef FSDEV_BUS_32BIT
   (void) USBx;
@@ -359,7 +368,9 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, u
 #endif
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
+#define pcd_set_ep_tx_dbuf0_cnt pcd_set_ep_tx_cnt
+
+TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_dbuf1_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
 #ifdef FSDEV_BUS_32BIT
   (void) USBx;
   pma32[2*bEpIdx + 1] = (pma32[2*bEpIdx + 1] & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
@@ -395,13 +406,15 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_bufsize(USB_TypeDef * USBx, 
   pcd_set_ep_blsize_num_blocks(USBx, rxtx_idx, blocksize, numblocks);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_bufsize(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
+TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_dbuf0_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
   pcd_set_ep_bufsize(USBx, 2*bEpIdx, wCount);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_bufsize(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
+TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
   pcd_set_ep_bufsize(USBx, 2*bEpIdx + 1, wCount);
 }
+
+#define pcd_set_ep_rx_dbuf1_cnt pcd_set_ep_rx_cnt
 
 /**
   * @brief  sets the status for tx transfer (bits STAT_TX[1:0]).
