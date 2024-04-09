@@ -950,20 +950,26 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 {
   (void)rhport;
 
-  TU_ASSERT(largest_packet_size <= 1024);
+  TU_ASSERT(largest_packet_size < 1024);
 
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
   const uint16_t buffer_size = pcd_aligned_buffer_size(largest_packet_size);
 
-  /* Create a packet memory buffer area. Enable double buffering */
+  /* Create a packet memory buffer area. Enable double buffering for devices with 2048 bytes PMA,
+     for smaller devices double buffering occupy too much space. */
+#if FSDEV_PMA_SIZE > 1024u
   uint32_t pma_addr = dcd_pma_alloc(ep_addr, buffer_size, true);
-
-  xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
+  uint16_t pma_addr2 = pma_addr >> 16;
+#else
+  uint32_t pma_addr = dcd_pma_alloc(ep_addr, buffer_size, true);
+  uint16_t pma_addr2 = pma_addr;
+#endif
+  pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
+  pcd_set_ep_rx_address(USB, ep_idx, pma_addr2);
 
   pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
 
-  pcd_set_ep_tx_address(USB, ep_idx, pma_addr & 0xFFFF);
-  pcd_set_ep_rx_address(USB, ep_idx, pma_addr >> 16);
+  xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
   return true;
 }
