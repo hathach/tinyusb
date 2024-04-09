@@ -4,8 +4,9 @@ mcu:MSP430x5xx
 mcu:NUC121
 mcu:SAMD11
 mcu:STM32L0
-mcu:MKL25ZXX
+mcu:KINETIS_KL
 family:broadcom_64bit
 family:broadcom_32bit
 board:curiosity_nano
 board:frdm_kl25z
+family:espressif

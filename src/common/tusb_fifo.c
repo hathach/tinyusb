@@ -224,6 +224,7 @@ static void _ff_push_n(tu_fifo_t* f, void const * app_buf, uint16_t n, uint16_t 
         if (wrap_bytes > 0) _ff_push_const_addr(ff_buf, app_buf, wrap_bytes);
       }
       break;
+    default: break;
   }
 }
 
@@ -539,7 +540,7 @@ static uint16_t _tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n, tu
     // Advance index
     f->wr_idx = advance_index(f->depth, wr_idx, n);
 
-    TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\n", f->wr_idx);
+    TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\r\n", f->wr_idx);
   }
 
   _ff_unlock(f->mutex_wr);

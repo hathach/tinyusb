@@ -29,10 +29,24 @@
 #if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
 #include <stdatomic.h>
+
+// Suppress warning caused by nrfx driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #include "nrf.h"
 #include "nrf_clock.h"
 #include "nrf_power.h"
 #include "nrfx_usbd_errata.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "device/dcd.h"
 
 // TODO remove later
@@ -232,7 +246,7 @@ static void xact_in_dma(uint8_t epnum)
 //--------------------------------------------------------------------+
 void dcd_init (uint8_t rhport)
 {
-  TU_LOG1("dcd init\r\n");
+  TU_LOG2("dcd init\r\n");
   (void) rhport;
 }
 
@@ -326,6 +340,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       NRF_USBD->INTENSET = TU_BIT(USBD_INTEN_ENDEPIN0_Pos + epnum);
       NRF_USBD->EPINEN  |= TU_BIT(epnum);
     }
+    // clear stall and reset DataToggle
+    NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+    NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
   }
   else
   {
@@ -360,10 +377,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       NRF_USBD->EPINEN  |= USBD_EPINEN_ISOIN_Msk;
     }
   }
-
-  // clear stall and reset DataToggle
-  NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
-  NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
 
   __ISB(); __DSB();
 
@@ -640,7 +653,11 @@ void dcd_int_handler(uint8_t rhport)
     if (NRF_USBD->EPOUTEN & USBD_EPOUTEN_ISOOUT_Msk)
     {
       iso_enabled = true;
-      xact_out_dma(EP_ISO_NUM);
+      // Transfer from endpoint to RAM only if data is not corrupted
+      if ((int_status & USBD_INTEN_USBEVENT_Msk) == 0 ||
+          (NRF_USBD->EVENTCAUSE & USBD_EVENTCAUSE_ISOOUTCRC_Msk) == 0) {
+        xact_out_dma(EP_ISO_NUM);
+      }
     }
 
     // ISOIN: Notify client that data was transferred
@@ -668,9 +685,9 @@ void dcd_int_handler(uint8_t rhport)
 
   if ( int_status & USBD_INTEN_USBEVENT_Msk )
   {
-    TU_LOG(2, "EVENTCAUSE = 0x%04lX\r\n", NRF_USBD->EVENTCAUSE);
+    TU_LOG(3, "EVENTCAUSE = 0x%04lX\r\n", NRF_USBD->EVENTCAUSE);
 
-    enum { EVT_CAUSE_MASK = USBD_EVENTCAUSE_SUSPEND_Msk | USBD_EVENTCAUSE_RESUME_Msk | USBD_EVENTCAUSE_USBWUALLOWED_Msk };
+    enum { EVT_CAUSE_MASK = USBD_EVENTCAUSE_SUSPEND_Msk | USBD_EVENTCAUSE_RESUME_Msk | USBD_EVENTCAUSE_USBWUALLOWED_Msk | USBD_EVENTCAUSE_ISOOUTCRC_Msk };
     uint32_t const evt_cause = NRF_USBD->EVENTCAUSE & EVT_CAUSE_MASK;
     NRF_USBD->EVENTCAUSE = evt_cause; // clear interrupt
 

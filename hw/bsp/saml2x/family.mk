@@ -1,14 +1,11 @@
 UF2_FAMILY_ID = 0x68ed2b88
 DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/microchip
-
-include $(TOP)/$(BOARD_PATH)/board.mk
-
 MCU_DIR = hw/mcu/microchip/$(SAML_VARIANT)
 
+include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m0plus
+
 CFLAGS += \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m0plus \
   -nostdlib -nostartfiles \
   -DCONF_OSC32K_CALIB_ENABLE=0 \
   -DCFG_TUSB_MCU=OPT_MCU_SAML22
@@ -18,6 +15,8 @@ CFLAGS += -Wno-error=redundant-decls
 
 # SAM driver is flooded with -Wcast-qual which slow down complication significantly
 CFLAGS_SKIP += -Wcast-qual
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
@@ -32,7 +31,7 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(MCU_DIR)/ \
+	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/config \
 	$(TOP)/$(MCU_DIR)/include \
 	$(TOP)/$(MCU_DIR)/hal/include \
@@ -40,9 +39,6 @@ INC += \
 	$(TOP)/$(MCU_DIR)/hpl/port \
 	$(TOP)/$(MCU_DIR)/hri \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
 
 # flash using bossac at least version 1.8
 # can be found in arduino15/packages/arduino/tools/bossac/

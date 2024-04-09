@@ -6,29 +6,26 @@ ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m4
+
+PORT ?= 0
 
 # --------------
 # Compiler Flags
 # --------------
 CFLAGS += \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32F4
+  -DCFG_TUSB_MCU=OPT_MCU_STM32F4 \
+  -DBOARD_TUD_RHPORT=$(PORT)
 
 # GCC Flags
-GCC_CFLAGS += \
+CFLAGS_GCC += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles
 
 # suppress warning caused by vendor mcu driver
-GCC_CFLAGS += -Wno-error=cast-align
+CFLAGS_GCC += -Wno-error=cast-align
 
-# IAR Flags
-IAR_CFLAGS += --cpu cortex-m4 --fpu VFPv4
-IAR_ASFLAGS += --cpu cortex-m4 --fpu VFPv4
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # -----------------
 # Sources & Include
@@ -50,9 +47,6 @@ INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
 # flash target using on-board stlink
 flash: flash-stlink

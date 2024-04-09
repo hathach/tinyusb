@@ -2,12 +2,10 @@ DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m3
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m3 \
   -nostdlib \
   -DCORE_M3 \
   -D__USE_LPCOPEN \
@@ -20,10 +18,12 @@ CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 # caused by freeRTOS port !!
 CFLAGS += -Wno-error=maybe-uninitialized
 
-MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/nxp/lpc17_40/dcd_lpc17_40.c \
+	src/portable/ohci/ohci.c \
+	src/portable/nxp/lpc17_40/hcd_lpc17_40.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc175x_6x.c \
 	$(MCU_DIR)/src/chip_17xx_40xx.c \
 	$(MCU_DIR)/src/clock_17xx_40xx.c \
@@ -31,10 +31,8 @@ SRC_C += \
 	$(MCU_DIR)/src/iocon_17xx_40xx.c \
 	$(MCU_DIR)/src/sysctl_17xx_40xx.c \
 	$(MCU_DIR)/src/sysinit_17xx_40xx.c \
-	$(MCU_DIR)/src/uart_17xx_40xx.c
+	$(MCU_DIR)/src/uart_17xx_40xx.c \
 
 INC += \
-	$(TOP)/$(MCU_DIR)/inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3
+	$(TOP)/$(BOARD_PATH) \
+	$(TOP)/$(MCU_DIR)/inc \

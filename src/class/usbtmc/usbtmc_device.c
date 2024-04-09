@@ -143,7 +143,7 @@ typedef struct
   usbtmc_capabilities_specific_t const * capabilities;
 } usbtmc_interface_state_t;
 
-CFG_TUSB_MEM_SECTION tu_static usbtmc_interface_state_t usbtmc_state =
+CFG_TUD_MEM_SECTION tu_static usbtmc_interface_state_t usbtmc_state =
 {
     .itf_id = 0xFF,
 };
@@ -258,6 +258,13 @@ void usbtmcd_init_cb(void)
 #endif
 
   usbtmcLock = osal_mutex_create(&usbtmcLockBuffer);
+}
+
+bool usbtmcd_deinit(void) {
+  #if OSAL_MUTEX_REQUIRED
+  osal_mutex_delete(usbtmcLock);
+  #endif
+  return true;
 }
 
 uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)

@@ -6,6 +6,7 @@ ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m7
 
 # --------------
 # Compiler Flags
@@ -27,21 +28,14 @@ else
 endif
 
 # GCC Flags
-GCC_CFLAGS += \
+CFLAGS_GCC += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m7 \
-  -mfloat-abi=hard \
-  -mfpu=fpv5-d16 \
   -nostdlib -nostartfiles
 
 # mcu driver cause following warnings
-GCC_CFLAGS += -Wno-error=shadow -Wno-error=cast-align
+CFLAGS_GCC += -Wno-error=cast-align
 
-# IAR Flags
-IAR_CFLAGS += --cpu cortex-m7 --fpu VFPv5_D16
-IAR_ASFLAGS += --cpu cortex-m7 --fpu VFPv5_D16
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # -----------------
 # Sources & Include
@@ -65,5 +59,9 @@ INC += \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7/r0p1
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+
+# Linker
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf

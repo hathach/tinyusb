@@ -36,7 +36,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
@@ -99,6 +99,10 @@ int main(void)
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
 
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
   // Init values
   sampFreq = sampleRatesList[0];
   clkValid = 1;
@@ -142,7 +146,7 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 //--------------------------------------------------------------------+
@@ -268,7 +272,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
 
         sampFreq = (uint32_t)((audio_control_cur_4_t *)pBuff)->bCur;
 
-        TU_LOG2("Clock set current freq: %d\r\n", sampFreq);
+        TU_LOG2("Clock set current freq: %lu\r\n", sampFreq);
 
         return true;
       break;

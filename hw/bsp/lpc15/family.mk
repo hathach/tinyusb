@@ -1,18 +1,18 @@
 DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m3
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m3 \
   -nostdlib \
   -DCORE_M3 \
   -D__USE_LPCOPEN \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_LPC15XX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=cast-qual
@@ -34,6 +34,3 @@ SRC_C += \
 INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(MCU_DIR)/inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3

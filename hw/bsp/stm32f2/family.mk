@@ -9,18 +9,19 @@ DEPS_SUBMODULES += \
 	$(ST_HAL_DRIVER)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m3
 
 CFLAGS += \
+	-DCFG_TUSB_MCU=OPT_MCU_STM32F2
+
+CFLAGS_GCC += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m3 \
-  -mfloat-abi=soft \
   -nostdlib -nostartfiles \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32F2
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=sign-compare
+CFLAGS_GCC += -Wno-error=sign-compare
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
   src/portable/synopsys/dwc2/dcd_dwc2.c \
@@ -36,6 +37,3 @@ INC += \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc \
   $(TOP)/$(BOARD_PATH)
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3

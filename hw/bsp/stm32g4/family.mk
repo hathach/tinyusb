@@ -1,11 +1,10 @@
 UF2_FAMILY_ID = 0x4c71240a
 ST_FAMILY = g4
-DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
-
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m4
 
 # --------------
 # Compiler Flags
@@ -14,21 +13,14 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32G4
 
 # GCC Flags
-GCC_CFLAGS += \
+CFLAGS_GCC += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
 
 # suppress warning caused by vendor mcu driver
-GCC_CFLAGS += -Wno-error=cast-align
+CFLAGS_GCC += -Wno-error=cast-align
 
-# IAR Flags
-IAR_CFLAGS += --cpu cortex-m4 --fpu VFPv4
-IAR_ASFLAGS += --cpu cortex-m4 --fpu VFPv4
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # -----------------
 # Sources & Include
@@ -36,6 +28,7 @@ IAR_ASFLAGS += --cpu cortex-m4 --fpu VFPv4
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/typec/typec_stm32.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
@@ -52,8 +45,12 @@ INC += \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+
+# Linker
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
 
 # flash target using on-board stlink
 flash: flash-stlink

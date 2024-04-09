@@ -3,17 +3,17 @@ DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 MCU_DIR = $(SDK_DIR)/devices/$(MCU)
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m0plus \
   -DCFG_TUSB_MCU=OPT_MCU_LPC51UXX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/$(MCU)_flash.ld
@@ -40,6 +40,3 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU).S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower.a
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0

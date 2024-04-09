@@ -1,10 +1,9 @@
+MCU_VARIANT = stm32f072xb
+
 CFLAGS += -DSTM32F072xB -DCFG_EXAMPLE_VIDEO_READONLY
 
-GCC_SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f072xb.s
-GCC_LD_FILE = $(BOARD_PATH)/STM32F072RBTx_FLASH.ld
-
-IAR_SRC_S += $(ST_CMSIS)/Source/Templates/iar/startup_stm32f072xb.s
-IAR_LD_FILE = $(ST_CMSIS)/Source/Templates/iar/linker/stm32f072xb_flash.icf
+# Linker
+LD_FILE_GCC = $(BOARD_PATH)/STM32F072RBTx_FLASH.ld
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f072rb

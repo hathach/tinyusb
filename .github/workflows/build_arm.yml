@@ -1,12 +1,14 @@
 name: Build ARM
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'tools/get_deps.py'
       - '.github/workflows/build_arm.yml'
   pull_request:
     branches: [ master ]
@@ -15,6 +17,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'tools/get_deps.py'
       - '.github/workflows/build_arm.yml'
 
 concurrency:
@@ -33,26 +36,17 @@ jobs:
         family:
         # Alphabetical order
         - 'broadcom_32bit'
-        - 'imxrt'
-        - 'kinetis_k32 kinetis_kl'
-        - 'lpc11 lpc13 lpc15 lpc17 lpc18'
-        - 'lpc51 lpc54 lpc55'
+        - 'kinetis_k32l2'
+        - 'lpc11 lpc13 lpc15'
+        - 'lpc51'
         - 'mm32 msp432e4'
-        - 'nrf'
-        - 'ra'
-        - 'rp2040'
-        - 'samd11 samd21'
-        - 'samd51 same5x'
-        - 'saml2x'
-        - 'stm32f0 stm32f1 stm32f2 stm32f3'
-        - 'stm32f4'
-        - 'stm32f7'
-        - 'stm32g4 stm32h7'
-        - 'stm32l0 stm32l4 stm32u5 stm32wb'
+        - 'samd11 same5x saml2x'
+        - 'stm32f2 stm32f3'
+        - 'stm32l0 stm32wb'
         - 'tm4c123 xmc4000'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
@@ -62,183 +56,10 @@ jobs:
         release: '11.2-2022.02'
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v3
-
-    - name: Checkout hathach/linkermap
-      uses: actions/checkout@v3
-      with:
-         repository: hathach/linkermap
-         path: linkermap
-
-    - name: Checkout pico-sdk for rp2040
-      if: matrix.family == 'rp2040'
-      run: |
-        git clone --depth 1 -b develop https://github.com/raspberrypi/pico-sdk ~/pico-sdk
-        echo >> $GITHUB_ENV PICO_SDK_PATH=~/pico-sdk
+      uses: actions/checkout@v4
 
     - name: Get Dependencies
-      run: python3 tools/get_family_deps.py ${{ matrix.family }}
+      run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
-      run: python3 tools/build_family.py ${{ matrix.family }}
-
-    - name: Linker Map
-      run: |
-        pip install linkermap/
-        # find -quit to only print linkermap of 1 board per example
-        for ex in `ls -d examples/*/*/`
-        do
-          find ${ex} -name *.map -print -quit | xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'
-        done
-
-    # Upload binaries for rp2040/stm32l412nucleo hardware test with self-hosted
-
-    - name: Prepare rp2040 Artifacts
-      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
-      run: find examples/ -name "*.elf" -exec mv {} . \;
-
-    - name: Prepare stm32l412nucleo Artifacts
-      if: contains(matrix.family, 'stm32l4')
-      run: find examples/ -path "*stm32l412nucleo/*.elf" -exec mv {} . \;
-
-    - name: Upload Artifacts for rp2040
-      if: contains(matrix.family,'rp2040') && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v3
-      with:
-        name: rp2040
-        path: |
-          *.elf
-
-    - name: Upload Artifacts for stm32l412nucleo
-      if: contains(matrix.family, 'stm32l4') && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v3
-      with:
-        name: stm32l4
-        path: |
-          *.elf
-
-  # ---------------------------------------
-  # Hardware in the loop (HIL)
-  # Current self-hosted instance is running on an RPI4 with
-  # - pico + pico-probe connected via USB
-  # - pico-probe is /dev/ttyACM0
-  # ---------------------------------------
-  hw-rp2040-test:
-    # run only with hathach's commit due to limited resource on RPI4
-    if: github.repository_owner == 'hathach'
-    needs: build-arm
-    runs-on: [self-hosted, Linux, ARM64, rp2040]
-
-    steps:
-    - name: Clean workspace
-      run: |
-        echo "Cleaning up previous run"
-        rm -rf "${{ github.workspace }}"
-        mkdir -p "${{ github.workspace }}"
-
-    - name: Download rp2040 Artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: rp2040
-
-    - name: Create flash.sh
-      run: |
-        #echo > flash.sh 'cmdout=$(openocd -f "interface/picoprobe.cfg" -f "target/rp2040.cfg" -c "program $1 reset exit")'
-        echo > flash.sh 'pyocd flash -t rp2040 $1'
-        echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
-        chmod +x flash.sh
-
-    - name: Test cdc_dual_ports
-      run: |
-        ./flash.sh cdc_dual_ports.elf
-        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 10 ]; do :; done
-        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
-        test -e /dev/ttyACM2 && echo "ttyACM2 exists"
-
-    - name: Test cdc_msc
-      run: |
-        ./flash.sh cdc_msc.elf
-        readme='/media/pi/TinyUSB MSC/README.TXT'
-        while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 10 ]; do :; done
-        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
-        test -f "$readme" && echo "$readme exists"
-        cat "$readme"
-
-    - name: Test dfu
-      run: |
-        ./flash.sh dfu.elf
-        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 10 ]; do :; done
-        dfu-util -d cafe -a 0 -U dfu0
-        dfu-util -d cafe -a 1 -U dfu1
-        grep "TinyUSB DFU! - Partition 0" dfu0
-        grep "TinyUSB DFU! - Partition 1" dfu1
-
-    - name: Test dfu_runtime
-      run: |
-        ./flash.sh dfu_runtime.elf
-        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 10 ]; do :; done
-
-  # ---------------------------------------
-  # Hardware in the loop (HIL)
-  # Current self-hosted instance is running on an EPYC 7232 server hosted by HiFiPhile user
-  # - STM32L412 Nucleo with on-board jlink as ttyACM0
-  # ---------------------------------------
-  hw-stm32l412nucleo-test:
-    needs: build-arm
-    runs-on: [self-hosted, Linux, X64, hifiphile]
-
-    steps:
-    - name: Clean workspace
-      run: |
-        echo "Cleaning up previous run"
-        rm -rf "${{ github.workspace }}"
-        mkdir -p "${{ github.workspace }}"
-
-    - name: Download stm32l4 Artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: stm32l4
-
-    - name: Create flash.sh
-      run: |
-        echo > flash.sh 'echo halt > flash.jlink'
-        echo >> flash.sh 'echo r >> flash.jlink'
-        echo >> flash.sh 'echo loadfile $1 >> flash.jlink'
-        echo >> flash.sh 'echo r >> flash.jlink'
-        echo >> flash.sh 'echo go >> flash.jlink'
-        echo >> flash.sh 'echo exit >> flash.jlink'
-        echo >> flash.sh 'cmdout=$(JLinkExe -device stm32l412kb -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink)'
-        echo >> flash.sh 'if (( $? )) ; then echo $cmdout ; fi'
-        chmod +x flash.sh
-
-    - name: Test cdc_dual_ports
-      run: |
-        ./flash.sh cdc_dual_ports.elf
-        while (! ([ -e /dev/ttyACM1 ] && [ -e /dev/ttyACM2 ])) && [ $SECONDS -le 10 ]; do :; done
-        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
-        test -e /dev/ttyACM2 && echo "ttyACM2 exists"
-
-      # Debian does not auto mount usb drive. skip this test for now
-    - name: Test cdc_msc
-      if: false
-      run: |
-        ./flash.sh cdc_msc.elf
-        readme='/media/pi/TinyUSB MSC/README.TXT'
-        while (! ([ -e /dev/ttyACM1 ] && [ -f "$readme" ])) && [ $SECONDS -le 10 ]; do :; done
-        test -e /dev/ttyACM1 && echo "ttyACM1 exists"
-        test -f "$readme" && echo "$readme exists"
-        cat "$readme"
-
-    - name: Test dfu
-      run: |
-        ./flash.sh dfu.elf
-        while (! (dfu-util -l | grep "Found DFU")) && [ $SECONDS -le 10 ]; do :; done
-        dfu-util -d cafe -a 0 -U dfu0
-        dfu-util -d cafe -a 1 -U dfu1
-        grep "TinyUSB DFU! - Partition 0" dfu0
-        grep "TinyUSB DFU! - Partition 1" dfu1
-
-    - name: Test dfu_runtime
-      run: |
-        ./flash.sh dfu_runtime.elf
-        while (! (dfu-util -l | grep "Found Runtime")) && [ $SECONDS -le 10 ]; do :; done
+      run: python3 tools/build_make.py ${{ matrix.family }}

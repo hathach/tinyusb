@@ -40,22 +40,22 @@
 
 // Include order follows OPT_MCU_ number
 #if   TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX) || \
-      TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC18XX)  || \
-      TU_CHECK_MCU(OPT_MCU_LPC40XX, OPT_MCU_LPC43XX)
+  TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC18XX)  || \
+  TU_CHECK_MCU(OPT_MCU_LPC40XX, OPT_MCU_LPC43XX)
   #include "chip.h"
 
-#elif TU_CHECK_MCU(OPT_MCU_LPC51UXX, OPT_MCU_LPC54XXX, OPT_MCU_LPC55XX)
+#elif TU_CHECK_MCU(OPT_MCU_LPC51UXX, OPT_MCU_LPC54XXX, OPT_MCU_LPC55XX, OPT_MCU_MCXN9)
   #include "fsl_device_registers.h"
 
-#elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32)
+#elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L, OPT_MCU_KINETIS_K)
   #include "fsl_device_registers.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
   #include "nrf.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
-      CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
-      CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21
+  CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
+  CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21
   #include "sam.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_SAMG
@@ -83,6 +83,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32G4
   #include "stm32g4xx.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
+  #include "stm32h5xx.h"
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H7
   #include "stm32h7xx.h"
 
@@ -101,6 +104,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
   #include "stm32u5xx.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  #include "stm32g0xx.h"
+
 #elif CFG_TUSB_MCU == OPT_MCU_CXD56
   // no header needed
 
@@ -113,7 +119,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI
   // no header needed
 
-#elif CFG_TUSB_MCU == OPT_MCU_MIMXRT
+#elif CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "fsl_device_registers.h"
 
 #elif CFG_TUSB_MCU == OPT_MCU_NUC120
@@ -157,6 +163,9 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_TM4C123
   #include "TM4C123.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_CH32F20X
+  #include "ch32f20x.h"
 
 #elif TU_CHECK_MCU(OPT_MCU_BCM2711, OPT_MCU_BCM2835, OPT_MCU_BCM2837)
   // no header needed

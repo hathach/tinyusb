@@ -2,12 +2,10 @@ DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc13xx/lpc_chip_13xx
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m3
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m3 \
   -nostdlib \
   -DCORE_M3 \
   -D__USE_LPCOPEN \
@@ -15,6 +13,8 @@ CFLAGS += \
   -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_LPC13XX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # startup.c and lpc_types.h cause following errors
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=redundant-decls
@@ -34,6 +34,3 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(MCU_DIR)/inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3

@@ -1,6 +1,7 @@
 name: pre-commit
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
     branches: [ master ]
@@ -14,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
@@ -24,7 +25,7 @@ jobs:
         ruby-version: '3.0'
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Get Dependencies
       run: |

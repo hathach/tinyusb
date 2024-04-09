@@ -3,17 +3,14 @@ SDK_DIR = hw/mcu/nxp/mcux-sdk
 DEPS_SUBMODULES += lib/CMSIS_5 lib/sct_neopixel $(SDK_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m33
+MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 # Default to Highspeed PORT1
 PORT ?= 1
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m33 \
-  -mfloat-abi=hard \
-  -mfpu=fpv5-sp-d16 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC55XX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
   -DBOARD_TUD_RHPORT=$(PORT)
@@ -31,7 +28,7 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal
 
-MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_CORE)_flash.ld
@@ -63,6 +60,3 @@ INC += \
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_hardabi.a
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure

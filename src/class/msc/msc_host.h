@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MSC_HOST_H_
-#define _TUSB_MSC_HOST_H_
+#ifndef TUSB_MSC_HOST_H_
+#define TUSB_MSC_HOST_H_
 
 #include "msc.h"
 
@@ -73,7 +73,7 @@ uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun);
 // Perform a full SCSI command (cbw, data, csw) in non-blocking manner.
 // Complete callback is invoked when SCSI op is complete.
 // return true if success, false if there is already pending operation.
-bool tuh_msc_scsi_command(uint8_t dev_addr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
+bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
 
 // Perform SCSI Inquiry command
 // Complete callback is invoked when SCSI op is complete.
@@ -113,7 +113,8 @@ TU_ATTR_WEAK void tuh_msc_umount_cb(uint8_t dev_addr);
 // Internal Class Driver API
 //--------------------------------------------------------------------+
 
-void msch_init       (void);
+bool msch_init       (void);
+bool msch_deinit     (void);
 bool msch_open       (uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len);
 bool msch_set_config (uint8_t dev_addr, uint8_t itf_num);
 void msch_close      (uint8_t dev_addr);
@@ -123,4 +124,4 @@ bool msch_xfer_cb    (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, ui
  }
 #endif
 
-#endif /* _TUSB_MSC_HOST_H_ */
+#endif

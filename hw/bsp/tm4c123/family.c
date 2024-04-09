@@ -1,5 +1,5 @@
 #include "TM4C123.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+
@@ -8,7 +8,7 @@
 void USB0_Handler(void)
 {
 #if CFG_TUH_ENABLED
-  tuh_int_handler(0);
+  tuh_int_handler(0, true);
 #endif
 
 #if CFG_TUD_ENABLED

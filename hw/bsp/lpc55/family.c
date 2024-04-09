@@ -24,15 +24,18 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
 #include "fsl_power.h"
 #include "fsl_iocon.h"
 #include "fsl_usart.h"
+
+#ifdef NEOPIXEL_PIN
 #include "fsl_sctimer.h"
 #include "sct_neopixel.h"
+#endif
 
 #ifdef BOARD_TUD_RHPORT
   #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)

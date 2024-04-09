@@ -21,6 +21,8 @@ _build
 /examples/*/*/ses
 /examples/*/*/ozone
 /examples/obsolete
+hw/bsp/**/cubemx/*/
+.mxproject
 # coverity intermediate files
 cov-int
 # cppcheck build directories
@@ -79,6 +81,7 @@ hw/mcu/st/stm32u5xx_hal_driver
 hw/mcu/st/stm32wbxx_hal_driver
 hw/mcu/ti
 hw/mcu/wch/ch32v307
+hw/mcu/wch/ch32f20x
 lib/CMSIS_5
 lib/FreeRTOS-Kernel
 lib/lwip

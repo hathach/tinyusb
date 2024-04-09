@@ -1,6 +1,6 @@
 DEPS_SUBMODULES += lib/FreeRTOS-Kernel
 
-include ../../make.mk
+include ../../build_system/make/make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
 FREERTOS_PORTABLE_PATH= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)
@@ -36,12 +36,12 @@ SRC_S += \
 # CFLAGS += -Wno-error=sign-compare
 
 # Suppress FreeRTOSConfig.h warnings
-GCC_CFLAGS += -Wno-error=redundant-decls
+CFLAGS_GCC += -Wno-error=redundant-decls
 
 # Suppress FreeRTOS source warnings
-GCC_CFLAGS += -Wno-error=cast-qual
+CFLAGS_GCC += -Wno-error=cast-qual
 
 # FreeRTOS (lto + Os) linker issue
-LDFLAGS += -Wl,--undefined=vTaskSwitchContext
+LDFLAGS_GCC += -Wl,--undefined=vTaskSwitchContext
 
-include ../../rules.mk
+include ../../build_system/make/rules.mk

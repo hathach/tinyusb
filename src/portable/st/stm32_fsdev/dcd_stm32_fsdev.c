@@ -44,6 +44,7 @@
  * L0x2, L0x3                     1024 byte buffer
  * L1                              512 byte buffer
  * L4x2, L4x3                     1024 byte buffer
+ * G0                             2048 byte buffer
  *
  * To use this driver, you must:
  * - If you are using a device with crystal-less USB, set up the clock recovery system (CRS)
@@ -108,7 +109,7 @@
 #ifdef TUP_USBIP_FSDEV_STM32
   // Undefine to reduce the dependence on HAL
   #undef USE_HAL_DRIVER
-  #include "portable/st/stm32_fsdev/dcd_stm32_fsdev_pvt_st.h"
+  #include "portable/st/stm32_fsdev/dcd_stm32_fsdev.h"
 #endif
 
 /*****************************************************
@@ -127,8 +128,8 @@
 #  define DCD_STM32_BTABLE_BASE 0U
 #endif
 
-#ifndef DCD_STM32_BTABLE_LENGTH
-#  define DCD_STM32_BTABLE_LENGTH (PMA_LENGTH - DCD_STM32_BTABLE_BASE)
+#ifndef DCD_STM32_BTABLE_SIZE
+#  define DCD_STM32_BTABLE_SIZE (FSDEV_PMA_SIZE - DCD_STM32_BTABLE_BASE)
 #endif
 
 /***************************************************
@@ -136,7 +137,7 @@
  */
 
 TU_VERIFY_STATIC((MAX_EP_COUNT) <= STFSDEV_EP_COUNT, "Only 8 endpoints supported on the hardware");
-TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LENGTH), "BTABLE does not fit in PMA RAM");
+TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_SIZE)) <= (FSDEV_PMA_SIZE), "BTABLE does not fit in PMA RAM");
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
 
 //--------------------------------------------------------------------+
@@ -185,12 +186,12 @@ static void dcd_ep_ctr_handler(void);
 static uint8_t open_ep_count;
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
 static void dcd_pma_alloc_reset(void);
-static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length);
+static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length);
 static void dcd_pma_free(uint8_t ep_addr);
 static void dcd_ep_free(uint8_t ep_addr);
 static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type);
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes);
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes);
 
 static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wNBytes);
 static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNBytes);
@@ -199,25 +200,13 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
 // Inline helper
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr)
-{
+TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t ep_addr) {
   uint8_t epnum = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
   // Fix -Werror=null-dereference
   TU_ASSERT(epnum < MAX_EP_COUNT, &xfer_status[0][0]);
 
   return &xfer_status[epnum][dir];
-}
-
-// Using a function due to better type checks
-// This seems better than having to do type casts everywhere else
-TU_ATTR_ALWAYS_INLINE static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
-  *reg = (uint16_t)(*reg & ~mask);
-}
-
-// Bits in ISTR are cleared upon writing 0
-TU_ATTR_ALWAYS_INLINE static inline void clear_istr_bits(uint16_t mask) {
-  USB->ISTR = ~mask;
 }
 
 //--------------------------------------------------------------------+
@@ -242,7 +231,9 @@ void dcd_init (uint8_t rhport)
   {
     asm("NOP");
   }
-  reg16_clear_bits(&USB->CNTR, USB_CNTR_PDWN);// Remove powerdown
+
+  USB->CNTR &= ~USB_CNTR_PDWN;
+
   // Wait startup time, for F042 and F070, this is <= 1 us.
   for(uint32_t i = 0; i<200; i++) // should be a few us
   {
@@ -250,8 +241,9 @@ void dcd_init (uint8_t rhport)
   }
   USB->CNTR = 0; // Enable USB
 
+#if !defined(STM32G0) && !defined(STM32H5)  // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
-
+#endif
   USB->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
@@ -312,7 +304,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
   }
   else
   {
-    USB->CNTR &= (uint16_t) ~USB_CNTR_SOFM;
+    USB->CNTR &= ~USB_CNTR_SOFM;
   }
 }
 
@@ -357,6 +349,16 @@ void dcd_int_enable (uint8_t rhport)
   NVIC_EnableIRQ(USB_HP_IRQn);
   NVIC_EnableIRQ(USB_LP_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  #ifdef STM32G0B0xx
+    NVIC_EnableIRQ(USB_IRQn);
+  #else
+    NVIC_EnableIRQ(USB_UCPD1_2_IRQn);
+  #endif
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
+    NVIC_EnableIRQ(USB_DRD_FS_IRQn);
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_EnableIRQ(USB_HP_IRQn);
@@ -408,6 +410,16 @@ void dcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB_LP_IRQn);
   NVIC_DisableIRQ(USBWakeUp_IRQn);
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  #ifdef STM32G0B0xx
+    NVIC_DisableIRQ(USB_IRQn);
+  #else
+    NVIC_DisableIRQ(USB_UCPD1_2_IRQn);
+  #endif
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
+    NVIC_DisableIRQ(USB_DRD_FS_IRQn);
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   NVIC_DisableIRQ(USB_HP_IRQn);
   NVIC_DisableIRQ(USB_LP_IRQn);
@@ -439,7 +451,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 
-  USB->CNTR |= (uint16_t) USB_CNTR_RESUME;
+  USB->CNTR |= USB_CNTR_RESUME;
   remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
@@ -469,7 +481,6 @@ static void dcd_handle_bus_reset(void)
 {
   //__IO uint16_t * const epreg = &(EPREG(0));
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
-
 
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
   {
@@ -512,7 +523,7 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
   xfer_ctl_t * xfer = xfer_ctl_ptr(ep_addr);
   if((xfer->total_len != xfer->queued_len)) /* TX not complete */
   {
-      dcd_transmit_packet(xfer, EPindex);
+    dcd_transmit_packet(xfer, EPindex);
   }
   else /* TX Complete */
   {
@@ -521,10 +532,29 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
 }
 
 // Handle CTR interrupt for the RX/OUT direction
-//
 // Upon call, (wIstr & USB_ISTR_DIR) == 0U
-static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
-{
+static void dcd_ep_ctr_rx_handler(uint32_t wIstr) {
+  #ifdef FSDEV_BUS_32BIT
+  /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
+   * From STM32H503 errata 2.15.1: Buffer description table update completes after CTR interrupt triggers
+   * Description:
+   * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM accesses
+   * have completed. If the software responds quickly to the interrupt, the full buffer contents may not be correct.
+   * Workaround:
+   * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
+   * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
+   * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
+   * also takes time, so we'll wait 40 cycles (count = 20).
+   * - Since Low Speed mode is not supported/popular, we will ignore it for now.
+   *
+   * Note: this errata also seems to apply to G0, U5, H5 etc.
+   */
+  volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
+  while (cycle_count > 0U) {
+    cycle_count--; // each count take 2 cycle (1 cycle for sub, 1 cycle for compare/jump)
+  }
+  #endif
+
   uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
   uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
   uint8_t ep_addr = wEPRegVal & USB_EPADDR_FIELD;
@@ -533,16 +563,12 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
 
   // Verify the CTR_RX bit is set. This was in the ST Micro code,
   // but I'm not sure it's actually necessary?
-  if((wEPRegVal & USB_EP_CTR_RX) == 0U)
-  {
+  if((wEPRegVal & USB_EP_CTR_RX) == 0U) {
     return;
   }
 
   if((ep_addr == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) /* Setup packet */
   {
-    // The setup_received function uses memcpy, so this must first copy the setup data into
-    // user memory, to allow for the 32-bit access that memcpy performs.
-    uint8_t userMemBuf[8];
     uint32_t count = pcd_get_ep_rx_cnt(USB, EPindex);
     /* Get SETUP Packet*/
     if(count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
@@ -550,8 +576,15 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
       // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
       pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
       pcd_set_ep_tx_status(USB,0u,USB_EP_TX_NAK);
-      dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
+#ifdef FSDEV_BUS_32BIT
+      dcd_event_setup_received(0, (uint8_t*)(USB_PMAADDR + pcd_get_ep_rx_address(USB, EPindex)), true);
+#else
+      // The setup_received function uses memcpy, so this must first copy the setup data into
+      // user memory, to allow for the 32-bit access that memcpy performs.
+      uint8_t userMemBuf[8];
+      dcd_read_packet_memory(userMemBuf, pcd_get_ep_rx_address(USB,EPindex), 8);
       dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
+#endif
     }
   }
   else
@@ -574,7 +607,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
 
     if (count != 0U)
     {
-      uint16_t addr = *pcd_ep_rx_address_ptr(USB, EPindex);
+      uint16_t addr = pcd_get_ep_rx_address(USB, EPindex);
 
       if (xfer->ff)
       {
@@ -617,26 +650,22 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   // (Based on the docs, it seems SETUP will always be accepted after CTR is cleared)
   if(ep_addr == 0u)
   {
-      // Always be prepared for a status packet...
+    // Always be prepared for a status packet...
     pcd_set_ep_rx_bufsize(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
     pcd_clear_rx_ep_ctr(USB, EPindex);
   }
 }
 
-static void dcd_ep_ctr_handler(void)
-{
+static void dcd_ep_ctr_handler(void) {
   uint32_t wIstr;
 
   /* stay in loop while pending interrupts */
-  while (((wIstr = USB->ISTR) & USB_ISTR_CTR) != 0U)
-  {
-
-    if ((wIstr & USB_ISTR_DIR) == 0U) /* TX/IN */
-    {
+  while (((wIstr = USB->ISTR) & USB_ISTR_CTR) != 0U) {
+    if ((wIstr & USB_ISTR_DIR) == 0U) {
+      /* TX/IN */
       dcd_ep_ctr_tx_handler(wIstr);
-    }
-    else /* RX/OUT*/
-    {
+    } else {
+      /* RX/OUT*/
       dcd_ep_ctr_rx_handler(wIstr);
     }
   }
@@ -657,13 +686,13 @@ void dcd_int_handler(uint8_t rhport) {
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
   if(int_status & USB_ISTR_SOF) {
-    clear_istr_bits(USB_ISTR_SOF);
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_SOF;
     dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
   }
 
   if(int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
-    clear_istr_bits(USB_ISTR_RESET);
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_RESET;
     dcd_handle_bus_reset();
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
@@ -678,9 +707,10 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (int_status & USB_ISTR_WKUP)
   {
-    reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
-    reg16_clear_bits(&USB->CNTR, USB_CNTR_FSUSP);
-    clear_istr_bits(USB_ISTR_WKUP);
+    USB->CNTR &= ~USB_CNTR_LPMODE;
+    USB->CNTR &= ~USB_CNTR_FSUSP;
+
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_WKUP;
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
@@ -694,20 +724,20 @@ void dcd_int_handler(uint8_t rhport) {
     USB->CNTR |= USB_CNTR_LPMODE;
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
-    clear_istr_bits(USB_ISTR_SUSP);
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_SUSP;
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
   if(int_status & USB_ISTR_ESOF) {
     if(remoteWakeCountdown == 1u)
     {
-      USB->CNTR &= (uint16_t)(~USB_CNTR_RESUME);
+      USB->CNTR &= ~USB_CNTR_RESUME;
     }
     if(remoteWakeCountdown > 0u)
     {
       remoteWakeCountdown--;
     }
-    clear_istr_bits(USB_ISTR_ESOF);
+    USB->ISTR = (fsdev_bus_t)~USB_ISTR_ESOF;
   }
 }
 
@@ -728,8 +758,8 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const * re
     uint8_t const dev_addr = (uint8_t) request->wValue;
 
     // Setting new address after the whole request is complete
-    reg16_clear_bits(&USB->DADDR, USB_DADDR_ADD);
-    USB->DADDR = (uint16_t)(USB->DADDR | dev_addr); // leave the enable bit set
+    USB->DADDR &= ~USB_DADDR_ADD;
+    USB->DADDR |= dev_addr; // leave the enable bit set
   }
 }
 
@@ -756,7 +786,7 @@ static void dcd_pma_alloc_reset(void)
  *
  * During failure, TU_ASSERT is used. If this happens, rework/reallocate memory manually.
  */
-static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
+static uint16_t dcd_pma_alloc(uint8_t ep_addr, uint16_t length)
 {
   xfer_ctl_t* epXferCtl = xfer_ctl_ptr(ep_addr);
 
@@ -768,17 +798,24 @@ static uint16_t dcd_pma_alloc(uint8_t ep_addr, size_t length)
     return epXferCtl->pma_ptr;
   }
 
+  // Ensure allocated buffer is aligned
+#ifdef FSDEV_BUS_32BIT
+  length = (length + 3) & ~0x03;
+#else
+  length = (length + 1) & ~0x01;
+#endif
+
   open_ep_count++;
 
   uint16_t addr = ep_buf_ptr;
   ep_buf_ptr = (uint16_t)(ep_buf_ptr + length); // increment buffer pointer
 
   // Verify no overflow
-  TU_ASSERT(ep_buf_ptr <= PMA_LENGTH, 0xFFFF);
+  TU_ASSERT(ep_buf_ptr <= FSDEV_PMA_SIZE, 0xFFFF);
 
   epXferCtl->pma_ptr = addr;
   epXferCtl->pma_alloc_size = length;
-  //TU_LOG2("dcd_pma_alloc(%x,%x)=%x\r\n",ep_addr,length,addr);
+  //TU_LOG1("dcd_pma_alloc(%x,%x)=%x\r\n",ep_addr,length,addr);
 
   return addr;
 }
@@ -931,14 +968,14 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   if( (dir == TUSB_DIR_IN) || (wType == USB_EP_ISOCHRONOUS) )
   {
-    *pcd_ep_tx_address_ptr(USB, ep_idx) = pma_addr;
+    pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
     pcd_set_ep_tx_bufsize(USB, ep_idx, buffer_size);
     pcd_clear_tx_dtog(USB, ep_idx);
   }
 
   if( (dir == TUSB_DIR_OUT) || (wType == USB_EP_ISOCHRONOUS) )
   {
-    *pcd_ep_rx_address_ptr(USB, ep_idx) = pma_addr;
+    pcd_set_ep_rx_address(USB, ep_idx, pma_addr);
     pcd_set_ep_rx_bufsize(USB, ep_idx, buffer_size);
     pcd_clear_rx_dtog(USB, ep_idx);
   }
@@ -1018,8 +1055,8 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
   pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
 
-  *pcd_ep_tx_address_ptr(USB, ep_idx) = pma_addr;
-  *pcd_ep_rx_address_ptr(USB, ep_idx) = pma_addr;
+  pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
+  pcd_set_ep_rx_address(USB, ep_idx, pma_addr);
 
   return true;
 }
@@ -1069,7 +1106,7 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
   }
 
   uint16_t ep_reg = pcd_get_endpoint(USB, ep_ix);
-  uint16_t addr_ptr = *pcd_ep_tx_address_ptr(USB,ep_ix);
+  uint16_t addr_ptr = pcd_get_ep_tx_address(USB, ep_ix);
 
   if (xfer->ff)
   {
@@ -1203,6 +1240,40 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
 }
 
+#ifdef FSDEV_BUS_32BIT
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes)
+{
+  const uint8_t* srcVal = src;
+  volatile uint32_t* dst32 = (volatile uint32_t*)(USB_PMAADDR + dst);
+
+  for (uint32_t n = wNBytes / 4; n > 0; --n) {
+    *dst32++ = tu_unaligned_read32(srcVal);
+    srcVal += 4;
+  }
+
+  wNBytes = wNBytes & 0x03;
+  if (wNBytes)
+  {
+    uint32_t wrVal = *srcVal;
+    wNBytes--;
+
+    if (wNBytes)
+    {
+      wrVal |= *++srcVal << 8;
+      wNBytes--;
+
+      if (wNBytes)
+      {
+        wrVal |= *++srcVal << 16;
+      }
+    }
+
+    *dst32 = wrVal;
+  }
+
+  return true;
+}
+#else
 // Packet buffer access can only be 8- or 16-bit.
 /**
   * @brief Copy a buffer from user memory area to packet memory area (PMA).
@@ -1214,7 +1285,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
   */
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes)
 {
   uint32_t n = (uint32_t)wNBytes >> 1U;
   uint16_t temp1, temp2;
@@ -1225,7 +1296,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   __IO uint16_t *pdwVal;
 
   srcVal = src;
-  pdwVal = &pma[PMA_STRIDE*(dst>>1)];
+  pdwVal = &pma[FSDEV_PMA_STRIDE * (dst >> 1)];
 
   while (n--)
   {
@@ -1233,11 +1304,11 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
     srcVal++;
     temp2 = temp1 | ((uint16_t)(((uint16_t)(*srcVal)) << 8U)) ;
     *pdwVal = temp2;
-    pdwVal += PMA_STRIDE;
+    pdwVal += FSDEV_PMA_STRIDE;
     srcVal++;
   }
 
-  if (wNBytes & 0x01)
+  if (wNBytes)
   {
     temp1 = *srcVal;
     *pdwVal = temp1;
@@ -1245,6 +1316,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
 
   return true;
 }
+#endif
 
 /**
   * @brief Copy from FIFO to packet memory area (PMA).
@@ -1263,7 +1335,37 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
 
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part
-  // To ensure PMA is always access 16bit aligned (dst aligned to 16 bit)
+  // To ensure PMA is always access aligned (dst aligned to 16 or 32 bit)
+#ifdef FSDEV_BUS_32BIT
+  if((cnt_lin & 0x03) && cnt_wrap)
+  {
+    // Copy first linear part
+    dcd_write_packet_memory(dst, info.ptr_lin, cnt_lin &~0x03);
+    dst += cnt_lin &~0x03;
+
+    // Copy last linear bytes & first wrapped bytes to buffer
+    uint32_t i;
+    uint8_t tmp[4];
+    for (i = 0; i < (cnt_lin & 0x03); i++)
+    {
+      tmp[i] = ((uint8_t*)info.ptr_lin)[(cnt_lin &~0x03) + i];
+    }
+    uint32_t wCnt = cnt_wrap;
+    for (; i < 4 && wCnt > 0; i++, wCnt--)
+    {
+      tmp[i] = *(uint8_t*)info.ptr_wrap;
+      info.ptr_wrap = (uint8_t*)info.ptr_wrap + 1;
+    }
+
+    // Write unaligned buffer
+    dcd_write_packet_memory(dst, &tmp, 4);
+    dst += 4;
+
+    // Copy rest of wrapped byte
+    if (wCnt)
+        dcd_write_packet_memory(dst, info.ptr_wrap, wCnt);
+  }
+#else
   if((cnt_lin & 0x01) && cnt_wrap)
   {
     // Copy first linear part
@@ -1278,6 +1380,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
     // Copy rest of wrapped byte
     dcd_write_packet_memory(dst, ((uint8_t*)info.ptr_wrap) + 1, cnt_wrap - 1);
   }
+#endif
   else
   {
     // Copy linear part
@@ -1296,13 +1399,47 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t * ff, uint16_t dst, uint16_t wN
   return true;
 }
 
+#ifdef FSDEV_BUS_32BIT
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes)
+{
+  uint8_t* dstVal = dst;
+  volatile uint32_t* src32 = (volatile uint32_t*)(USB_PMAADDR + src);
+
+  for (uint32_t n = wNBytes / 4; n > 0; --n) {
+    tu_unaligned_write32(dstVal, *src32++);
+    dstVal += 4;
+  }
+
+  wNBytes = wNBytes & 0x03;
+  if (wNBytes)
+  {
+    uint32_t rdVal = *src32;
+
+    *dstVal = tu_u32_byte0(rdVal);
+    wNBytes--;
+
+    if (wNBytes)
+    {
+      *++dstVal = tu_u32_byte1(rdVal);
+      wNBytes--;
+
+      if (wNBytes)
+      {
+        *++dstVal = tu_u32_byte2(rdVal);
+      }
+    }
+  }
+
+  return true;
+}
+#else
 /**
   * @brief Copy a buffer from packet memory area (PMA) to user memory area.
   *        Uses byte-access of system memory and 16-bit access of packet memory
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
   */
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes)
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes)
 {
   uint32_t n = (uint32_t)wNBytes >> 1U;
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
@@ -1310,13 +1447,13 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   __IO const uint16_t *pdwVal;
   uint32_t temp;
 
-  pdwVal = &pma[PMA_STRIDE*(src>>1)];
+  pdwVal = &pma[FSDEV_PMA_STRIDE * (src >> 1)];
   uint8_t *dstVal = (uint8_t*)dst;
 
   while (n--)
   {
     temp = *pdwVal;
-    pdwVal += PMA_STRIDE;
+    pdwVal += FSDEV_PMA_STRIDE;
     *dstVal++ = ((temp >> 0) & 0xFF);
     *dstVal++ = ((temp >> 8) & 0xFF);
   }
@@ -1324,11 +1461,12 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   if (wNBytes & 0x01)
   {
     temp = *pdwVal;
-    pdwVal += PMA_STRIDE;
+    pdwVal += FSDEV_PMA_STRIDE;
     *dstVal++ = ((temp >> 0) & 0xFF);
   }
   return true;
 }
+#endif
 
 /**
   * @brief Copy a buffer from user packet memory area (PMA) to FIFO.
@@ -1346,9 +1484,39 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
   uint16_t cnt_lin =  TU_MIN(wNBytes, info.len_lin);
   uint16_t cnt_wrap = TU_MIN(wNBytes - cnt_lin, info.len_wrap);
 
+
   // We want to read from PMA and write it into the FIFO, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part
-  // To ensure PMA is always access 16bit aligned (src aligned to 16 bit)
+  // To ensure PMA is always access aligned (src aligned to 16 or 32 bit)
+#ifdef FSDEV_BUS_32BIT
+  if((cnt_lin & 0x03) && cnt_wrap)
+  {
+    // Copy first linear part
+    dcd_read_packet_memory(info.ptr_lin, src, cnt_lin &~0x03);
+    src += cnt_lin &~0x03;
+
+    // Copy last linear bytes & first wrapped bytes
+    uint8_t tmp[4];
+    dcd_read_packet_memory(tmp, src, 4);
+    src += 4;
+
+    uint32_t i;
+    for (i = 0; i < (cnt_lin & 0x03); i++)
+    {
+      ((uint8_t*)info.ptr_lin)[(cnt_lin &~0x03) + i] = tmp[i];
+    }
+    uint32_t wCnt = cnt_wrap;
+    for (; i < 4 && wCnt > 0; i++, wCnt--)
+    {
+      *(uint8_t*)info.ptr_wrap = tmp[i];
+      info.ptr_wrap = (uint8_t*)info.ptr_wrap + 1;
+    }
+
+    // Copy rest of wrapped byte
+    if (wCnt)
+      dcd_read_packet_memory(info.ptr_wrap, src, wCnt);
+  }
+#else
   if((cnt_lin & 0x01) && cnt_wrap)
   {
     // Copy first linear part
@@ -1356,16 +1524,17 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t * ff, uint16_t src, uint16_t wNB
     src += cnt_lin &~0x01;
 
     // Copy last linear byte & first wrapped byte
-    uint16_t tmp;
-    dcd_read_packet_memory(&tmp, src, 2);
-
-    ((uint8_t*)info.ptr_lin)[cnt_lin - 1] = (uint8_t)tmp;
-    ((uint8_t*)info.ptr_wrap)[0] = (uint8_t)(tmp >> 8U);
+    uint8_t tmp[2];
+    dcd_read_packet_memory(tmp, src, 2);
     src += 2;
+
+    ((uint8_t*)info.ptr_lin)[cnt_lin - 1] = tmp[0];
+    ((uint8_t*)info.ptr_wrap)[0] = tmp[1];
 
     // Copy rest of wrapped byte
     dcd_read_packet_memory(((uint8_t*)info.ptr_wrap) + 1, src, cnt_wrap - 1);
   }
+#endif
   else
   {
     // Copy linear part

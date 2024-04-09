@@ -3,18 +3,17 @@ SDK_DIR = hw/mcu/mindmotion/mm32sdk
 DEPS_SUBMODULES += lib/CMSIS_5 $(SDK_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m3
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m3 \
-  -mfloat-abi=soft \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_MM32F327X
 
 # suppress warning caused by vendor mcu driver
 CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized -Wno-error=cast-qual
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/mindmotion/mm32/dcd_mm32f327x_otg.c \
@@ -28,9 +27,6 @@ INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(SDK_DIR)/mm32f327x/MM32F327x/Include \
 	$(TOP)/$(SDK_DIR)/mm32f327x/MM32F327x/HAL_Lib/Inc
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM3
 
 # flash target using on-board
 flash: flash-jlink

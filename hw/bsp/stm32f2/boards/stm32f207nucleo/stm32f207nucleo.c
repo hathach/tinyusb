@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 #include "stm32f2xx_hal.h"
 
@@ -203,7 +203,7 @@ uint32_t board_millis(void)
 
 void HardFault_Handler (void)
 {
-  asm("bkpt");
+  __asm("BKPT #0\n");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using

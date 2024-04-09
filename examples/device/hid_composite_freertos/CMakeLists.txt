@@ -29,15 +29,6 @@ target_include_directories(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
-# Configure compilation flags and libraries for the example... see the corresponding function
-# in hw/bsp/FAMILY/family.cmake for details.
-family_configure_device_example(${PROJECT})
-
-if (NOT TARGET freertos_kernel)
-family_add_freertos_config(${PROJECT})
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../lib/FreeRTOS-Kernel lib/FreeRTOS-Kernel)
-endif()
-
-target_link_libraries(${PROJECT} PUBLIC
-  freertos_kernel
-  )
+# Configure compilation flags and libraries for the example with FreeRTOS.
+# See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
+family_configure_device_example(${PROJECT} freertos)

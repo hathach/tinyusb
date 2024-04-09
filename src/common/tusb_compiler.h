@@ -56,7 +56,7 @@
 #elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
   #define TU_VERIFY_STATIC   _Static_assert
 #elif defined(__CCRX__)
-  #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(Line, __LINE__)[(const_expr) ? 1 : 0];
+  #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(_verify_static_, _TU_COUNTER_)[(const_expr) ? 1 : 0];
 #else
   #define TU_VERIFY_STATIC(const_expr, _mess) enum { TU_XSTRCAT(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
 #endif
@@ -128,7 +128,9 @@
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
   #define TU_ATTR_PACKED                __attribute__ ((packed))
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
-  #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
+  #ifndef TU_ATTR_ALWAYS_INLINE // allow to override for debug
+    #define TU_ATTR_ALWAYS_INLINE       __attribute__ ((always_inline))
+  #endif
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
@@ -205,7 +207,9 @@
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
   #define TU_ATTR_PACKED                __attribute__ ((packed))
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
-  #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
+  #ifndef TU_ATTR_ALWAYS_INLINE // allow to override for debug
+    #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
+  #endif
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used

@@ -28,9 +28,17 @@
 #define _TUSB_RUSB2_TYPE_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+// CCRX specific attribute to generate a Code that Accesses Variables in the Declared Size
+#ifdef __CCRX__
+  #define _ccrx_evenaccess __evenaccess
+#else
+  #define _ccrx_evenaccess
 #endif
 
 /*--------------------------------------------------------------------*/
@@ -41,40 +49,55 @@ extern "C" {
 TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
 
-typedef struct TU_ATTR_PACKED {
+// TODO same as RUSB2_PIPE_TR_t
+typedef struct TU_ATTR_PACKED _ccrx_evenaccess {
+  union {
+    struct {
+      uint16_t      : 8;
+      uint16_t TRCLR: 1;
+      uint16_t TRENB: 1;
+      uint16_t      : 0;
+    };
+    uint16_t TRE;
+  };
+  uint16_t TRN;
+} reg_pipetre_t;
+
+typedef struct {
   union {
     volatile uint16_t E; /* (@ 0x00000000) Pipe Transaction Counter Enable Register */
 
-    struct {
-      uint16_t : 8;
+    struct TU_ATTR_PACKED {
+      uint16_t                : 8;
       volatile uint16_t TRCLR : 1; /* [8..8] Transaction Counter Clear */
       volatile uint16_t TRENB : 1; /* [9..9] Transaction Counter Enable */
-      uint16_t : 6;
+      uint16_t                : 6;
     } E_b;
   };
 
   union {
     volatile uint16_t N; /* (@ 0x00000002) Pipe Transaction Counter Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t TRNCNT : 16; /* [15..0] Transaction Counter */
     } N_b;
   };
 } RUSB2_PIPE_TR_t; /* Size = 4 (0x4) */
 
-/* LINK_REG Structure */
-typedef struct TU_ATTR_PACKED {
+
+/* RUSB2 Registers Structure */
+typedef struct _ccrx_evenaccess {
   union {
     volatile uint16_t SYSCFG; /* (@ 0x00000000) System Configuration Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t USBE  : 1; /* [0..0] USB Operation Enable */
       uint16_t                : 2;
       volatile uint16_t DMRPU : 1; /* [3..3] D- Line Resistor Control */
       volatile uint16_t DPRPU : 1; /* [4..4] D+ Line Resistor Control */
       volatile uint16_t DRPD  : 1; /* [5..5] D+/D- Line Resistor Control */
       volatile uint16_t DCFM  : 1; /* [6..6] Controller Function Select */
-      uint16_t                : 1;
+      volatile uint16_t HSE   : 1; // [7..7] High-Speed Operation Enable
       volatile uint16_t CNEN  : 1; /* [8..8] CNEN Single End Receiver Enable */
       uint16_t                : 1;
       volatile uint16_t SCKE  : 1; /* [10..10] USB Clock Enable */
@@ -85,21 +108,20 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t BUSWAIT; /* (@ 0x00000002) CPU Bus Wait Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t BWAIT : 4; /* [3..0] CPU Bus Access Wait Specification BWAIT waits (BWAIT+2 access cycles) */
-      uint16_t : 12;
+      uint16_t                : 12;
     } BUSWAIT_b;
   };
 
   union {
     volatile const uint16_t SYSSTS0; /* (@ 0x00000004) System Configuration Status Register 0 */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t LNST   : 2; /* [1..0] USB Data Line Status Monitor */
       volatile const uint16_t IDMON  : 1; /* [2..2] External ID0 Input Pin Monitor */
       uint16_t                       : 2;
-      volatile const uint16_t
-        SOFEA                        : 1; /* [5..5] SOF Active Monitor While Host Controller Function is Selected. */
+      volatile const uint16_t SOFEA  : 1; /* [5..5] SOF Active Monitor While Host Controller Function is Selected. */
       volatile const uint16_t HTACT  : 1; /* [6..6] USB Host Sequencer Status Monitor */
       uint16_t                       : 7;
       volatile const uint16_t OVCMON : 2; /* [15..14] External USB0_OVRCURA/ USB0_OVRCURB Input Pin Monitor */
@@ -109,16 +131,16 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile const uint16_t PLLSTA; /* (@ 0x00000006) PLL Status Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t PLLLOCK : 1; /* [0..0] PLL Lock Flag */
-      uint16_t : 15;
+      uint16_t                        : 15;
     } PLLSTA_b;
   };
 
   union {
     volatile uint16_t DVSTCTR0; /* (@ 0x00000008) Device State Control Register 0 */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t RHST : 3; /* [2..0] USB Bus Reset Status */
       uint16_t                     : 1;
       volatile uint16_t UACT       : 1; /* [4..4] USB Bus Enable */
@@ -137,9 +159,9 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t TESTMODE; /* (@ 0x0000000C) USB Test Mode Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t UTST : 4; /* [3..0] Test Mode */
-      uint16_t : 12;
+      uint16_t               : 12;
     } TESTMODE_b;
   };
   volatile const uint16_t RESERVED1;
@@ -148,7 +170,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint32_t CFIFO; /* (@ 0x00000014) CFIFO Port Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       union {
         volatile uint16_t CFIFOL; /* (@ 0x00000014) CFIFO Port Register L */
         volatile uint8_t CFIFOLL; /* (@ 0x00000014) CFIFO Port Register LL */
@@ -157,7 +179,7 @@ typedef struct TU_ATTR_PACKED {
       union {
         volatile uint16_t CFIFOH; /* (@ 0x00000016) CFIFO Port Register H */
 
-        struct {
+        struct TU_ATTR_PACKED {
           volatile const uint8_t RESERVED3;
           volatile uint8_t CFIFOHH; /* (@ 0x00000017) CFIFO Port Register HH */
         };
@@ -168,7 +190,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint32_t D0FIFO; /* (@ 0x00000018) D0FIFO Port Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       union {
         volatile uint16_t D0FIFOL; /* (@ 0x00000018) D0FIFO Port Register L */
         volatile uint8_t D0FIFOLL; /* (@ 0x00000018) D0FIFO Port Register LL */
@@ -177,7 +199,7 @@ typedef struct TU_ATTR_PACKED {
       union {
         volatile uint16_t D0FIFOH; /* (@ 0x0000001A) D0FIFO Port Register H */
 
-        struct {
+        struct TU_ATTR_PACKED {
           volatile const uint8_t RESERVED4;
           volatile uint8_t D0FIFOHH; /* (@ 0x0000001B) D0FIFO Port Register HH */
         };
@@ -188,7 +210,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint32_t D1FIFO; /* (@ 0x0000001C) D1FIFO Port Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       union {
         volatile uint16_t D1FIFOL; /* (@ 0x0000001C) D1FIFO Port Register L */
         volatile uint8_t D1FIFOLL; /* (@ 0x0000001C) D1FIFO Port Register LL */
@@ -197,7 +219,7 @@ typedef struct TU_ATTR_PACKED {
       union {
         volatile uint16_t D1FIFOH; /* (@ 0x0000001E) D1FIFO Port Register H */
 
-        struct {
+        struct TU_ATTR_PACKED {
           volatile const uint8_t RESERVED5;
           volatile uint8_t D1FIFOHH; /* (@ 0x0000001F) D1FIFO Port Register HH */
         };
@@ -208,7 +230,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t CFIFOSEL; /* (@ 0x00000020) CFIFO Port Select Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t CURPIPE : 4; /* [3..0] CFIFO Port Access Pipe Specification */
       uint16_t                  : 1;
       volatile uint16_t ISEL    : 1; /* [5..5] CFIFO Port Access Direction When DCP is Selected */
@@ -225,12 +247,12 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t CFIFOCTR; /* (@ 0x00000022) CFIFO Port Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t DTLN : 12; /* [11..0] Receive Data LengthIndicates the length of the receive data. */
       uint16_t                     : 1;
       volatile const uint16_t FRDY : 1;  /* [13..13] FIFO Port Ready */
-      volatile uint16_t BCLR       : 1;	 /* [14..14] CPU Buffer ClearNote: Only 0 can be read. */
-      volatile uint16_t BVAL       : 1;	 /* [15..15] Buffer Memory Valid Flag */
+      volatile uint16_t BCLR       : 1;  /* [14..14] CPU Buffer ClearNote: Only 0 can be read. */
+      volatile uint16_t BVAL       : 1;  /* [15..15] Buffer Memory Valid Flag */
     } CFIFOCTR_b;
   };
   volatile const uint32_t RESERVED6;
@@ -238,7 +260,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t D0FIFOSEL; /* (@ 0x00000028) D0FIFO Port Select Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t CURPIPE : 4; /* [3..0] FIFO Port Access Pipe Specification */
       uint16_t                  : 4;
       volatile uint16_t BIGEND  : 1; /* [8..8] FIFO Port Endian Control */
@@ -254,19 +276,19 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t D0FIFOCTR; /* (@ 0x0000002A) D0FIFO Port Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t DTLN : 12; /* [11..0] Receive Data LengthIndicates the length of the receive data. */
       uint16_t                     : 1;
       volatile const uint16_t FRDY : 1;  /* [13..13] FIFO Port Ready */
-      volatile uint16_t BCLR       : 1;	 /* [14..14] CPU Buffer ClearNote: Only 0 can be read. */
-      volatile uint16_t BVAL       : 1;	 /* [15..15] Buffer Memory Valid Flag */
+      volatile uint16_t BCLR       : 1;  /* [14..14] CPU Buffer ClearNote: Only 0 can be read. */
+      volatile uint16_t BVAL       : 1;  /* [15..15] Buffer Memory Valid Flag */
     } D0FIFOCTR_b;
   };
 
   union {
     volatile uint16_t D1FIFOSEL; /* (@ 0x0000002C) D1FIFO Port Select Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t CURPIPE : 4; /* [3..0] FIFO Port Access Pipe Specification */
       uint16_t                  : 4;
       volatile uint16_t BIGEND  : 1; /* [8..8] FIFO Port Endian Control */
@@ -282,7 +304,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t D1FIFOCTR; /* (@ 0x0000002E) D1FIFO Port Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t DTLN : 12; /* [11..0] Receive Data LengthIndicates the length of the receive data. */
       uint16_t                     : 1;
       volatile const uint16_t FRDY : 1;  /* [13..13] FIFO Port Ready */
@@ -294,8 +316,8 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t INTENB0; /* (@ 0x00000030) Interrupt Enable Register 0 */
 
-    struct {
-      uint16_t : 8;
+    struct TU_ATTR_PACKED {
+      uint16_t                : 8;
       volatile uint16_t BRDYE : 1; /* [8..8] Buffer Ready Interrupt Enable */
       volatile uint16_t NRDYE : 1; /* [9..9] Buffer Not Ready Response Interrupt Enable */
       volatile uint16_t BEMPE : 1; /* [10..10] Buffer Empty Interrupt Enable */
@@ -310,13 +332,16 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t INTENB1; /* (@ 0x00000032) Interrupt Enable Register 1 */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PDDETINTE0 : 1; /* [0..0] PDDETINT0 Detection Interrupt Enable */
       uint16_t                     : 3;
       volatile uint16_t SACKE      : 1; /* [4..4] Setup Transaction Normal Response Interrupt Enable */
       volatile uint16_t SIGNE      : 1; /* [5..5] Setup Transaction Error Interrupt Enable */
       volatile uint16_t EOFERRE    : 1; /* [6..6] EOF Error Detection Interrupt Enable */
-      uint16_t                     : 4;
+               uint16_t            : 1;
+      volatile uint16_t LPMENDE    : 1; /*!< [8..8] LPM Transaction End Interrupt Enable                               */
+      volatile uint16_t L1RSMENDE  : 1; /*!< [9..9] L1 Resume End Interrupt Enable                                     */
+               uint16_t            : 1;
       volatile uint16_t ATTCHE     : 1; /* [11..11] Connection Detection Interrupt Enable */
       volatile uint16_t DTCHE      : 1; /* [12..12] Disconnection Detection Interrupt Enable */
       uint16_t                     : 1;
@@ -329,7 +354,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t BRDYENB; /* (@ 0x00000036) BRDY Interrupt Enable Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PIPE0BRDYE : 1; /* [0..0] BRDY Interrupt Enable for PIPE */
       volatile uint16_t PIPE1BRDYE : 1; /* [1..1] BRDY Interrupt Enable for PIPE */
       volatile uint16_t PIPE2BRDYE : 1; /* [2..2] BRDY Interrupt Enable for PIPE */
@@ -340,14 +365,14 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t PIPE7BRDYE : 1; /* [7..7] BRDY Interrupt Enable for PIPE */
       volatile uint16_t PIPE8BRDYE : 1; /* [8..8] BRDY Interrupt Enable for PIPE */
       volatile uint16_t PIPE9BRDYE : 1; /* [9..9] BRDY Interrupt Enable for PIPE */
-      uint16_t : 6;
+      uint16_t                     : 6;
     } BRDYENB_b;
   };
 
   union {
     volatile uint16_t NRDYENB; /* (@ 0x00000038) NRDY Interrupt Enable Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PIPE0NRDYE : 1; /* [0..0] NRDY Interrupt Enable for PIPE */
       volatile uint16_t PIPE1NRDYE : 1; /* [1..1] NRDY Interrupt Enable for PIPE */
       volatile uint16_t PIPE2NRDYE : 1; /* [2..2] NRDY Interrupt Enable for PIPE */
@@ -358,14 +383,14 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t PIPE7NRDYE : 1; /* [7..7] NRDY Interrupt Enable for PIPE */
       volatile uint16_t PIPE8NRDYE : 1; /* [8..8] NRDY Interrupt Enable for PIPE */
       volatile uint16_t PIPE9NRDYE : 1; /* [9..9] NRDY Interrupt Enable for PIPE */
-      uint16_t : 6;
+      uint16_t                     : 6;
     } NRDYENB_b;
   };
 
   union {
     volatile uint16_t BEMPENB; /* (@ 0x0000003A) BEMP Interrupt Enable Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PIPE0BEMPE : 1; /* [0..0] BEMP Interrupt Enable for PIPE */
       volatile uint16_t PIPE1BEMPE : 1; /* [1..1] BEMP Interrupt Enable for PIPE */
       volatile uint16_t PIPE2BEMPE : 1; /* [2..2] BEMP Interrupt Enable for PIPE */
@@ -376,28 +401,28 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t PIPE7BEMPE : 1; /* [7..7] BEMP Interrupt Enable for PIPE */
       volatile uint16_t PIPE8BEMPE : 1; /* [8..8] BEMP Interrupt Enable for PIPE */
       volatile uint16_t PIPE9BEMPE : 1; /* [9..9] BEMP Interrupt Enable for PIPE */
-      uint16_t : 6;
+      uint16_t                     : 6;
     } BEMPENB_b;
   };
 
   union {
     volatile uint16_t SOFCFG; /* (@ 0x0000003C) SOF Output Configuration Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       uint16_t                        : 4;
       volatile const uint16_t EDGESTS : 1; /* [4..4] Edge Interrupt Output Status Monitor */
       volatile uint16_t INTL          : 1; /* [5..5] Interrupt Output Sense Select */
       volatile uint16_t BRDYM         : 1; /* [6..6] BRDY Interrupt Status Clear Timing */
       uint16_t                        : 1;
       volatile uint16_t TRNENSEL      : 1; /* [8..8] Transaction-Enabled Time Select */
-      uint16_t : 7;
+      uint16_t                        : 7;
     } SOFCFG_b;
   };
 
   union {
     volatile uint16_t PHYSET; /* (@ 0x0000003E) PHY Setting Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t DIRPD    : 1; /* [0..0] Power-Down Control */
       volatile uint16_t PLLRESET : 1; /* [1..1] PLL Reset Control */
       uint16_t                   : 1;
@@ -415,7 +440,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t INTSTS0; /* (@ 0x00000040) Interrupt Status Register 0 */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t CTSQ  : 3; /* [2..0] Control Transfer Stage */
       volatile uint16_t VALID       : 1; /* [3..3] USB Request Reception */
       volatile const uint16_t DVSQ  : 3; /* [6..4] Device State */
@@ -434,7 +459,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t INTSTS1; /* (@ 0x00000042) Interrupt Status Register 1 */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PDDETINT0 : 1; /* [0..0] PDDET0 Detection Interrupt Status */
       uint16_t                    : 3;
       volatile uint16_t SACK      : 1; /* [4..4] Setup Transaction Normal Response Interrupt Status */
@@ -456,7 +481,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t BRDYSTS; /* (@ 0x00000046) BRDY Interrupt Status Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PIPE0BRDY : 1; /* [0..0] BRDY Interrupt Status for PIPE */
       volatile uint16_t PIPE1BRDY : 1; /* [1..1] BRDY Interrupt Status for PIPE */
       volatile uint16_t PIPE2BRDY : 1; /* [2..2] BRDY Interrupt Status for PIPE */
@@ -467,14 +492,14 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t PIPE7BRDY : 1; /* [7..7] BRDY Interrupt Status for PIPE */
       volatile uint16_t PIPE8BRDY : 1; /* [8..8] BRDY Interrupt Status for PIPE */
       volatile uint16_t PIPE9BRDY : 1; /* [9..9] BRDY Interrupt Status for PIPE */
-      uint16_t : 6;
+      uint16_t                    : 6;
     } BRDYSTS_b;
   };
 
   union {
     volatile uint16_t NRDYSTS; /* (@ 0x00000048) NRDY Interrupt Status Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PIPE0NRDY : 1; /* [0..0] NRDY Interrupt Status for PIPE */
       volatile uint16_t PIPE1NRDY : 1; /* [1..1] NRDY Interrupt Status for PIPE */
       volatile uint16_t PIPE2NRDY : 1; /* [2..2] NRDY Interrupt Status for PIPE */
@@ -485,14 +510,14 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t PIPE7NRDY : 1; /* [7..7] NRDY Interrupt Status for PIPE */
       volatile uint16_t PIPE8NRDY : 1; /* [8..8] NRDY Interrupt Status for PIPE */
       volatile uint16_t PIPE9NRDY : 1; /* [9..9] NRDY Interrupt Status for PIPE */
-      uint16_t : 6;
+      uint16_t                    : 6;
     } NRDYSTS_b;
   };
 
   union {
     volatile uint16_t BEMPSTS; /* (@ 0x0000004A) BEMP Interrupt Status Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PIPE0BEMP : 1; /* [0..0] BEMP Interrupt Status for PIPE */
       volatile uint16_t PIPE1BEMP : 1; /* [1..1] BEMP Interrupt Status for PIPE */
       volatile uint16_t PIPE2BEMP : 1; /* [2..2] BEMP Interrupt Status for PIPE */
@@ -503,14 +528,14 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t PIPE7BEMP : 1; /* [7..7] BEMP Interrupt Status for PIPE */
       volatile uint16_t PIPE8BEMP : 1; /* [8..8] BEMP Interrupt Status for PIPE */
       volatile uint16_t PIPE9BEMP : 1; /* [9..9] BEMP Interrupt Status for PIPE */
-      uint16_t : 6;
+      uint16_t                    : 6;
     } BEMPSTS_b;
   };
 
   union {
     volatile uint16_t FRMNUM; /* (@ 0x0000004C) Frame Number Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t FRNM : 11; /* [10..0] Frame NumberLatest frame number */
       uint16_t                     : 3;
       volatile uint16_t CRCE       : 1; /* [14..14] Receive Data Error */
@@ -521,7 +546,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t UFRMNUM; /* (@ 0x0000004E) uFrame Number Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t UFRNM : 3; /* [2..0] MicroframeIndicate the microframe number. */
       uint16_t                      : 12;
       volatile uint16_t DVCHG       : 1; /* [15..15] Device State Change */
@@ -531,7 +556,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t USBADDR; /* (@ 0x00000050) USB Address Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t USBADDR : 7; /* [6..0] USB Address In device controller mode */
       uint16_t                        : 1;
       volatile uint16_t STSRECOV0     : 3; /* [10..8] Status Recovery */
@@ -543,7 +568,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t USBREQ; /* (@ 0x00000054) USB Request Type Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t BMREQUESTTYPE : 8; /* [7..0] Request TypeThese bits store the USB request bmRequestType value. */
       volatile uint16_t BREQUEST      : 8; /* [15..8] RequestThese bits store the USB request bRequest value. */
     } USBREQ_b;
@@ -552,7 +577,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t USBVAL; /* (@ 0x00000056) USB Request Value Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t WVALUE : 16; /* [15..0] ValueThese bits store the USB request Value value. */
     } USBVAL_b;
   };
@@ -560,7 +585,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t USBINDX; /* (@ 0x00000058) USB Request Index Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t WINDEX : 16; /* [15..0] IndexThese bits store the USB request wIndex value. */
     } USBINDX_b;
   };
@@ -568,7 +593,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t USBLENG; /* (@ 0x0000005A) USB Request Length Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t WLENGTH : 16; /* [15..0] LengthThese bits store the USB request wLength value. */
     } USBLENG_b;
   };
@@ -576,7 +601,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t DCPCFG; /* (@ 0x0000005C) DCP Configuration Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       uint16_t                 : 4;
       volatile uint16_t DIR    : 1; /* [4..4] Transfer Direction */
       uint16_t                 : 2;
@@ -589,7 +614,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t DCPMAXP; /* (@ 0x0000005E) DCP Maximum Packet Size Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t MXPS   : 7; /* [6..0] Maximum Packet Size */
       uint16_t                 : 5;
       volatile uint16_t DEVSEL : 4; /* [15..12] Device Select */
@@ -599,7 +624,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t DCPCTR; /* (@ 0x00000060) DCP Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PID         : 2; /* [1..0] Response PID */
       volatile uint16_t CCPL        : 1; /* [2..2] Control Transfer End Enable */
       uint16_t                      : 2;
@@ -609,7 +634,8 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t SQCLR       : 1; /* [8..8] Sequence Toggle Bit Clear */
       uint16_t                      : 2;
       volatile uint16_t SUREQCLR    : 1; /* [11..11] SUREQ Bit Clear */
-      uint16_t                      : 2;
+      volatile uint16_t CSSTS       : 1; /* [12..12] Split Transaction COMPLETE SPLIT(CSPLIT) Status                  */
+      volatile uint16_t CSCLR       : 1; /* [13..13] Split Transaction CSPLIT Status Clear                            */
       volatile uint16_t SUREQ       : 1; /* [14..14] Setup Token Transmission */
       volatile const uint16_t BSTS  : 1; /* [15..15] Buffer Status */
     } DCPCTR_b;
@@ -619,9 +645,9 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t PIPESEL; /* (@ 0x00000064) Pipe Window Select Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PIPESEL : 4; /* [3..0] Pipe Window Select */
-      uint16_t : 12;
+      uint16_t                  : 12;
     } PIPESEL_b;
   };
   volatile const uint16_t RESERVED11;
@@ -629,26 +655,36 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t PIPECFG;      /* (@ 0x00000068) Pipe Configuration Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t EPNUM  : 4; /* [3..0] Endpoint Number */
       volatile uint16_t DIR    : 1; /* [4..4] Transfer Direction */
       uint16_t                 : 2;
       volatile uint16_t SHTNAK : 1; /* [7..7] Pipe Disabled at End of Transfer */
-      uint16_t                 : 1;
+      volatile uint16_t CNTMD  : 1; /* [8..8] Continuous Transfer Mode                                           */
       volatile uint16_t DBLB   : 1; /* [9..9] Double Buffer Mode */
       volatile uint16_t BFRE   : 1; /* [10..10] BRDY Interrupt Operation Specification */
       uint16_t                 : 3;
       volatile uint16_t TYPE   : 2; /* [15..14] Transfer Type */
     } PIPECFG_b;
   };
-  volatile const uint16_t RESERVED12;
+
+  union {
+    volatile uint16_t PIPEBUF;         /*!< (@ 0x0000006A) Pipe Buffer Register                                       */
+
+    struct {
+      volatile uint16_t BUFNMB  : 8; // [7..0] Buffer NumberThese bits specify the FIFO buffer number of the selected pipe (04h to 87h)
+      uint16_t                  : 2;
+      volatile uint16_t BUFSIZE : 5; /*!< [14..10] Buffer Size 00h: 64 bytes 01h: 128 bytes : 1Fh: 2 Kbytes         */
+      uint16_t                  : 1;
+    } PIPEBUF_b;
+  };
 
   union {
     volatile uint16_t PIPEMAXP; /* (@ 0x0000006C) Pipe Maximum Packet Size Register */
 
-    struct {
-      volatile uint16_t MXPS   : 9; /* [8..0] Maximum Packet Size */
-      uint16_t                 : 3;
+    struct TU_ATTR_PACKED {
+      volatile uint16_t MXPS   : 11; /* [10..0] Maximum Packet Size */
+      uint16_t                 : 1;
       volatile uint16_t DEVSEL : 4; /* [15..12] Device Select */
     } PIPEMAXP_b;
   };
@@ -656,7 +692,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t PIPEPERI; /* (@ 0x0000006E) Pipe Cycle Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t IITV : 3; /* [2..0] Interval Error Detection Interval */
       uint16_t               : 9;
       volatile uint16_t IFIS : 1; /* [12..12] Isochronous IN Buffer Flush */
@@ -667,7 +703,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t PIPE_CTR[9];        /* (@ 0x00000070) Pipe [0..8] Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t PID          : 2; /* [1..0] Response PID */
       uint16_t                       : 3;
       volatile const uint16_t PBUSY  : 1; /* [5..5] Pipe Busy */
@@ -691,14 +727,12 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t USBBCCTRL0;             /* (@ 0x000000B0) BC Control Register 0 */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t RPDME0           : 1; /* [0..0] D- Pin Pull-Down Control */
       volatile uint16_t IDPSRCE0         : 1; /* [1..1] D+ Pin IDPSRC Output Control */
-      volatile uint16_t
-        IDMSINKE0                        : 1; /* [2..2] D- Pin 0.6 V Input Detection (Comparator and Sink) Control */
+      volatile uint16_t IDMSINKE0        : 1; /* [2..2] D- Pin 0.6 V Input Detection (Comparator and Sink) Control */
       volatile uint16_t VDPSRCE0         : 1; /* [3..3] D+ Pin VDPSRC (0.6 V) Output Control */
-      volatile uint16_t
-        IDPSINKE0                        : 1; /* [4..4] D+ Pin 0.6 V Input Detection (Comparator and Sink) Control */
+      volatile uint16_t IDPSINKE0        : 1; /* [4..4] D+ Pin 0.6 V Input Detection (Comparator and Sink) Control */
       volatile uint16_t VDMSRCE0         : 1; /* [5..5] D- Pin VDMSRC (0.6 V) Output Control */
       uint16_t                           : 1;
       volatile uint16_t BATCHGE0         : 1; /* [7..7] BC (Battery Charger) Function Ch0 General Enable Control */
@@ -713,9 +747,9 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t UCKSEL; /* (@ 0x000000C4) USB Clock Selection Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t UCKSELC : 1; /* [0..0] USB Clock Selection */
-      uint16_t : 15;
+      uint16_t                  : 15;
     } UCKSEL_b;
   };
   volatile const uint16_t RESERVED18;
@@ -724,7 +758,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t USBMC; /* (@ 0x000000CC) USB Module Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t VDDUSBE : 1; /* [0..0] USB Reference Power Supply Circuit On/Off Control */
       uint16_t                  : 6;
       volatile uint16_t VDCEN   : 1; /* [7..7] USB Regulator On/Off Control */
@@ -736,12 +770,12 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t DEVADD[10]; /* (@ 0x000000D0) Device Address Configuration Register */
 
-    struct {
-      uint16_t : 6;
+    struct TU_ATTR_PACKED {
+      uint16_t                  : 6;
       volatile uint16_t USBSPD  : 2; /* [7..6] Transfer Speed of Communication Target Device */
       volatile uint16_t HUBPORT : 3; /* [10..8] Communication Target Connecting Hub Port */
       volatile uint16_t UPPHUB  : 4; /* [14..11] Communication Target Connecting Hub Register */
-      uint16_t : 1;
+      uint16_t                  : 1;
     } DEVADD_b[10];
   };
   volatile const uint32_t RESERVED21[3];
@@ -749,12 +783,12 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint32_t PHYSLEW; /* (@ 0x000000F0) PHY Cross Point Adjustment Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint32_t SLEWR00 : 1; /* [0..0] Receiver Cross Point Adjustment 00 */
       volatile uint32_t SLEWR01 : 1; /* [1..1] Receiver Cross Point Adjustment 01 */
       volatile uint32_t SLEWF00 : 1; /* [2..2] Receiver Cross Point Adjustment 00 */
       volatile uint32_t SLEWF01 : 1; /* [3..3] Receiver Cross Point Adjustment 01 */
-      uint32_t : 28;
+      uint32_t                  : 28;
     } PHYSLEW_b;
   };
   volatile const uint32_t RESERVED22[3];
@@ -762,20 +796,20 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t LPCTRL; /* (@ 0x00000100) Low Power Control Register */
 
-    struct {
-      uint16_t : 7;
+    struct TU_ATTR_PACKED {
+      uint16_t                : 7;
       volatile uint16_t HWUPM : 1; /* [7..7] Resume Return Mode Setting */
-      uint16_t : 8;
+      uint16_t                : 8;
     } LPCTRL_b;
   };
 
   union {
     volatile uint16_t LPSTS; /* (@ 0x00000102) Low Power Status Register */
 
-    struct {
-      uint16_t : 14;
+    struct TU_ATTR_PACKED {
+      uint16_t                   : 14;
       volatile uint16_t SUSPENDM : 1; /* [14..14] UTMI SuspendM Control */
-      uint16_t : 1;
+      uint16_t                   : 1;
     } LPSTS_b;
   };
   volatile const uint32_t RESERVED23[15];
@@ -783,7 +817,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t BCCTRL; /* (@ 0x00000140) Battery Charging Control Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t IDPSRCE         : 1; /* [0..0] IDPSRC Control */
       volatile uint16_t IDMSINKE        : 1; /* [1..1] IDMSINK Control */
       volatile uint16_t VDPSRCE         : 1; /* [2..2] VDPSRC Control */
@@ -793,7 +827,7 @@ typedef struct TU_ATTR_PACKED {
       uint16_t                          : 2;
       volatile const uint16_t CHGDETSTS : 1; /* [8..8] CHGDET Status */
       volatile const uint16_t PDDETSTS  : 1; /* [9..9] PDDET Status */
-      uint16_t : 6;
+      uint16_t                          : 6;
     } BCCTRL_b;
   };
   volatile const uint16_t RESERVED24;
@@ -801,7 +835,7 @@ typedef struct TU_ATTR_PACKED {
   union {
     volatile uint16_t PL1CTRL1; /* (@ 0x00000144) Function L1 Control Register 1 */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t L1RESPEN   : 1; /* [0..0] L1 Response Enable */
       volatile uint16_t L1RESPMD   : 2; /* [2..1] L1 Response Mode */
       volatile uint16_t L1NEGOMD   : 1; /* [3..3] L1 Response Negotiation Control. */
@@ -809,35 +843,35 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t HIRDTHR    : 4; /* [11..8] L1 Response Negotiation Threshold Value */
       uint16_t                     : 2;
       volatile uint16_t L1EXTMD    : 1; /* [14..14] PHY Control Mode at L1 Return */
-      uint16_t : 1;
+      uint16_t                     : 1;
     } PL1CTRL1_b;
   };
 
   union {
     volatile uint16_t PL1CTRL2; /* (@ 0x00000146) Function L1 Control Register 2 */
 
-    struct {
-      uint16_t : 8;
+    struct TU_ATTR_PACKED {
+      uint16_t                  : 8;
       volatile uint16_t HIRDMON : 4; /* [11..8] HIRD Value Monitor */
       volatile uint16_t RWEMON  : 1;  /* [12..12] RWE Value Monitor */
-      uint16_t : 3;
+      uint16_t                  : 3;
     } PL1CTRL2_b;
   };
 
   union {
     volatile uint16_t HL1CTRL1; /* (@ 0x00000148) Host L1 Control Register 1 */
 
-    struct {
-      volatile uint16_t L1REQ          : 1;	      /* [0..0] L1 Transition Request */
+    struct TU_ATTR_PACKED {
+      volatile uint16_t L1REQ          : 1;       /* [0..0] L1 Transition Request */
       volatile const uint16_t L1STATUS : 2; /* [2..1] L1 Request Completion Status */
-      uint16_t : 13;
+      uint16_t                         : 13;
     } HL1CTRL1_b;
   };
 
   union {
     volatile uint16_t HL1CTRL2; /* (@ 0x0000014A) Host L1 Control Register 2 */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint16_t L1ADDR : 4; /* [3..0] LPM Token DeviceAddress */
       uint16_t                 : 4;
       volatile uint16_t HIRD   : 4; /* [11..8] LPM Token HIRD */
@@ -846,26 +880,56 @@ typedef struct TU_ATTR_PACKED {
       volatile uint16_t BESL   : 1; /* [15..15] BESL & Alternate HIRD */
     } HL1CTRL2_b;
   };
-  volatile const uint32_t RESERVED25[5];
+
+  volatile uint32_t RESERVED25_1;
+
+  union {
+    volatile uint16_t PHYTRIM1;          /*!< (@ 0x00000150) PHY Timing Register 1                                      */
+
+    struct {
+      volatile uint16_t DRISE      : 2; /*!< [1..0] FS/LS Rising-Edge Output Waveform Adjustment Function              */
+      volatile uint16_t DFALL      : 2; /*!< [3..2] FS/LS Falling-Edge Output Waveform Adjustment Function             */
+               uint16_t            : 3;
+      volatile uint16_t PCOMPENB   : 1; /*!< [7..7] PVDD Start-up Detection                                            */
+      volatile uint16_t HSIUP      : 4; /*!< [11..8] HS Output Level Setting                                           */
+      volatile uint16_t IMPOFFSET  : 3; /*!< [14..12] terminating resistance offset value setting.Offset value for adjusting the terminating resistance.                           */
+               uint16_t            : 1;
+    } PHYTRIM1_b;
+  };
+
+  union {
+    volatile uint16_t PHYTRIM2;         /*!< (@ 0x00000152) PHY Timing Register 2                                      */
+
+    struct {
+      volatile  uint16_t SQU      : 4; /*!< [3..0] Squelch Detection Level                                            */
+      uint16_t                    : 3;
+      volatile  uint16_t HSRXENMO : 1; /*!< [7..7] HS Receive Enable Control Mode                                     */
+      volatile  uint16_t PDR      : 2; /*!< [9..8] HS Output Adjustment Function                                      */
+      uint16_t                    : 2;
+      volatile  uint16_t DIS      : 3; /*!< [14..12] Disconnect Detection Level                                       */
+      uint16_t                    : 1;
+    } PHYTRIM2_b;
+  };
+  volatile uint32_t RESERVED25_2[3];
 
   union {
     volatile const uint32_t DPUSR0R; /* (@ 0x00000160) Deep Standby USB Transceiver Control/Pin Monitor Register */
 
-    struct {
-      uint32_t : 20;
+    struct TU_ATTR_PACKED {
+      uint32_t                         : 20;
       volatile const uint32_t DOVCAHM  : 1; /* [20..20] OVRCURA InputIndicates OVRCURA input signal on the HS side of USB port. */
       volatile const uint32_t DOVCBHM  : 1; /* [21..21] OVRCURB InputIndicates OVRCURB input signal on the HS side of USB port. */
       uint32_t                         : 1;
       volatile const uint32_t DVBSTSHM : 1; /* [23..23] VBUS InputIndicates VBUS input signal on the HS side of USB port. */
-      uint32_t : 8;
+      uint32_t                         : 8;
     } DPUSR0R_b;
   };
 
   union {
     volatile uint32_t DPUSR1R; /* (@ 0x00000164) Deep Standby USB Suspend/Resume Interrupt Register */
 
-    struct {
-      uint32_t : 4;
+    struct TU_ATTR_PACKED {
+      uint32_t                        : 4;
       volatile uint32_t DOVCAHE       : 1; /* [4..4] OVRCURA Interrupt Enable Clear */
       volatile uint32_t DOVCBHE       : 1; /* [5..5] OVRCURB Interrupt Enable Clear */
       uint32_t                        : 1;
@@ -875,14 +939,14 @@ typedef struct TU_ATTR_PACKED {
       volatile const uint32_t DOVCBH  : 1; /* [21..21] Indication of Return from OVRCURB Interrupt Source */
       uint32_t                        : 1;
       volatile const uint32_t DVBSTSH : 1; /* [23..23] Indication of Return from VBUS Interrupt Source */
-      uint32_t : 8;
+      uint32_t                        : 8;
     } DPUSR1R_b;
   };
 
   union {
     volatile uint16_t DPUSR2R; /* (@ 0x00000168) Deep Standby USB Suspend/Resume Interrupt Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile const uint16_t DPINT : 1; /* [0..0] Indication of Return from DP Interrupt Source */
       volatile const uint16_t DMINT : 1; /* [1..1] Indication of Return from DM Interrupt Source */
       uint16_t                      : 2;
@@ -891,17 +955,17 @@ typedef struct TU_ATTR_PACKED {
       uint16_t                      : 2;
       volatile uint16_t DPINTE      : 1; /* [8..8] DP Interrupt Enable Clear */
       volatile uint16_t DMINTE      : 1; /* [9..9] DM Interrupt Enable Clear */
-      uint16_t : 6;
+      uint16_t                      : 6;
     } DPUSR2R_b;
   };
 
   union {
     volatile uint16_t DPUSRCR; /* (@ 0x0000016A) Deep Standby USB Suspend/Resume Command Register */
 
-    struct {
-      volatile uint16_t FIXPHY   : 1;	/* [0..0] USB Transceiver Control Fix */
+    struct TU_ATTR_PACKED {
+      volatile uint16_t FIXPHY   : 1; /* [0..0] USB Transceiver Control Fix */
       volatile uint16_t FIXPHYPD : 1; /* [1..1] USB Transceiver Control Fix for PLL */
-      uint16_t : 14;
+      uint16_t                   : 14;
     } DPUSRCR_b;
   };
   volatile const uint32_t RESERVED26[165];
@@ -910,7 +974,7 @@ typedef struct TU_ATTR_PACKED {
     volatile uint32_t
       DPUSR0R_FS; /* (@ 0x00000400) Deep Software Standby USB Transceiver Control/Pin Monitor Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint32_t SRPC0         : 1; /* [0..0] USB Single End Receiver Control */
       volatile uint32_t RPUE0         : 1; /* [1..1] DP Pull-Up Resistor Control */
       uint32_t                        : 1;
@@ -924,14 +988,14 @@ typedef struct TU_ATTR_PACKED {
       volatile const uint32_t DOVCB0  : 1; /* [21..21] USB OVRCURB InputIndicates the OVRCURB input signal of the USB. */
       uint32_t                        : 1;
       volatile const uint32_t DVBSTS0 : 1; /* [23..23] USB VBUS InputIndicates the VBUS input signal of the USB. */
-      uint32_t : 8;
+      uint32_t                        : 8;
     } DPUSR0R_FS_b;
   };
 
   union {
     volatile uint32_t DPUSR1R_FS; /* (@ 0x00000404) Deep Software Standby USB Suspend/Resume Interrupt Register */
 
-    struct {
+    struct TU_ATTR_PACKED {
       volatile uint32_t DPINTE0        : 1; /* [0..0] USB DP Interrupt Enable/Clear */
       volatile uint32_t DMINTE0        : 1; /* [1..1] USB DM Interrupt Enable/Clear */
       uint32_t                         : 2;
@@ -947,10 +1011,10 @@ typedef struct TU_ATTR_PACKED {
       volatile const uint32_t DOVRCRB0 : 1; /* [21..21] USB OVRCURB Interrupt Source Recovery */
       uint32_t                         : 1;
       volatile const uint32_t DVBINT0  : 1; /* [23..23] USB VBUS Interrupt Source Recovery */
-      uint32_t : 8;
+      uint32_t                         : 8;
     } DPUSR1R_FS_b;
   };
-} RUSB2_REG_t; /* Size = 1032 (0x408) */
+} rusb2_reg_t; /* Size = 1032 (0x408) */
 
 TU_ATTR_PACKED_END /* End of definition of packed structs (used by the CCRX toolchain) */
 TU_ATTR_BIT_FIELD_ORDER_END
@@ -970,13 +1034,15 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_PIPE_TR_N_TRNCNT_Pos      (0UL)        /* TRNCNT (Bit 0) */
 #define RUSB2_PIPE_TR_N_TRNCNT_Msk      (0xffffUL)   /* TRNCNT (Bitfield-Mask: 0xffff) */
 
-// LINK_REG
+// Core Registers
 
 // SYSCFG
 #define RUSB2_SYSCFG_SCKE_Pos           (10UL)       /* SCKE (Bit 10) */
 #define RUSB2_SYSCFG_SCKE_Msk           (0x400UL)    /* SCKE (Bitfield-Mask: 0x01) */
 #define RUSB2_SYSCFG_CNEN_Pos           (8UL)        /* CNEN (Bit 8) */
 #define RUSB2_SYSCFG_CNEN_Msk           (0x100UL)    /* CNEN (Bitfield-Mask: 0x01) */
+#define RUSB2_SYSCFG_HSE_Pos            (7UL)        /*!< HSE (Bit 7)                                           */
+#define RUSB2_SYSCFG_HSE_Msk            (0x80UL)     /*!< HSE (Bitfield-Mask: 0x01)                             */
 #define RUSB2_SYSCFG_DCFM_Pos           (6UL)        /* DCFM (Bit 6) */
 #define RUSB2_SYSCFG_DCFM_Msk           (0x40UL)     /* DCFM (Bitfield-Mask: 0x01) */
 #define RUSB2_SYSCFG_DRPD_Pos           (5UL)        /* DRPD (Bit 5) */
@@ -1135,6 +1201,10 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_INTENB1_DTCHE_Msk         (0x1000UL)   /* DTCHE (Bitfield-Mask: 0x01) */
 #define RUSB2_INTENB1_ATTCHE_Pos        (11UL)       /* ATTCHE (Bit 11) */
 #define RUSB2_INTENB1_ATTCHE_Msk        (0x800UL)    /* ATTCHE (Bitfield-Mask: 0x01) */
+#define RUSB2_INTENB1_L1RSMENDE_Pos     (9UL)        /*!< L1RSMENDE (Bit 9)                                     */
+#define RUSB2_INTENB1_L1RSMENDE_Msk     (0x200UL)    /*!< L1RSMENDE (Bitfield-Mask: 0x01)                       */
+#define RUSB2_INTENB1_LPMENDE_Pos       (8UL)        /*!< LPMENDE (Bit 8)                                       */
+#define RUSB2_INTENB1_LPMENDE_Msk       (0x100UL)    /*!< LPMENDE (Bitfield-Mask: 0x01)                         */
 #define RUSB2_INTENB1_EOFERRE_Pos       (6UL)        /* EOFERRE (Bit 6) */
 #define RUSB2_INTENB1_EOFERRE_Msk       (0x40UL)     /* EOFERRE (Bitfield-Mask: 0x01) */
 #define RUSB2_INTENB1_SIGNE_Pos         (5UL)        /* SIGNE (Bit 5) */
@@ -1299,6 +1369,10 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_DCPCTR_BSTS_Msk           (0x8000UL)   /* BSTS (Bitfield-Mask: 0x01) */
 #define RUSB2_DCPCTR_SUREQ_Pos          (14UL)       /* SUREQ (Bit 14) */
 #define RUSB2_DCPCTR_SUREQ_Msk          (0x4000UL)   /* SUREQ (Bitfield-Mask: 0x01) */
+#define R_USB_HS0_DCPCTR_CSCLR_Pos      (13UL)       /*!< CSCLR (Bit 13)                                        */
+#define RUSB2_DCPCTR_CSCLR_Msk          (0x2000UL)   /*!< CSCLR (Bitfield-Mask: 0x01)                           */
+#define RUSB2_DCPCTR_CSSTS_Pos          (12UL)       /*!< CSSTS (Bit 12)                                        */
+#define RUSB2_DCPCTR_CSSTS_Msk          (0x1000UL)   /*!< CSSTS (Bitfield-Mask: 0x01)                           */
 #define RUSB2_DCPCTR_SUREQCLR_Pos       (11UL)       /* SUREQCLR (Bit 11) */
 #define RUSB2_DCPCTR_SUREQCLR_Msk       (0x800UL)    /* SUREQCLR (Bitfield-Mask: 0x01) */
 #define RUSB2_DCPCTR_SQCLR_Pos          (8UL)        /* SQCLR (Bit 8) */
@@ -1325,12 +1399,20 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_PIPECFG_BFRE_Msk          (0x400UL)    /* BFRE (Bitfield-Mask: 0x01) */
 #define RUSB2_PIPECFG_DBLB_Pos          (9UL)        /* DBLB (Bit 9) */
 #define RUSB2_PIPECFG_DBLB_Msk          (0x200UL)    /* DBLB (Bitfield-Mask: 0x01) */
+#define RUSB2_PIPECFG_CNTMD_Pos         (8UL)        /*!< CNTMD (Bit 8)                                         */
+#define RUSB2_PIPECFG_CNTMD_Msk         (0x100UL)    /*!< CNTMD (Bitfield-Mask: 0x01)                           */
 #define RUSB2_PIPECFG_SHTNAK_Pos        (7UL)        /* SHTNAK (Bit 7) */
 #define RUSB2_PIPECFG_SHTNAK_Msk        (0x80UL)     /* SHTNAK (Bitfield-Mask: 0x01) */
 #define RUSB2_PIPECFG_DIR_Pos           (4UL)        /* DIR (Bit 4) */
 #define RUSB2_PIPECFG_DIR_Msk           (0x10UL)     /* DIR (Bitfield-Mask: 0x01) */
 #define RUSB2_PIPECFG_EPNUM_Pos         (0UL)        /* EPNUM (Bit 0) */
 #define RUSB2_PIPECFG_EPNUM_Msk         (0xfUL)      /* EPNUM (Bitfield-Mask: 0x0f) */
+
+// PIPEBUF
+#define RUSB2_PIPEBUF_BUFSIZE_Pos       (10UL)       /*!< BUFSIZE (Bit 10)                                      */
+#define RUSB2_PIPEBUF_BUFSIZE_Msk       (0x7c00UL)   /*!< BUFSIZE (Bitfield-Mask: 0x1f)                         */
+#define RUSB2_PIPEBUF_BUFNMB_Pos        (0UL)        /*!< BUFNMB (Bit 0)                                        */
+#define RUSB2_PIPEBUF_BUFNMB_Msk        (0xffUL)     /*!< BUFNMB (Bitfield-Mask: 0xff)                          */
 
 // PIPEMAXP
 #define RUSB2_PIPEMAXP_DEVSEL_Pos       (12UL)       /* DEVSEL (Bit 12) */
@@ -1478,6 +1560,28 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_HL1CTRL2_L1ADDR_Pos       (0UL)        /* L1ADDR (Bit 0) */
 #define RUSB2_HL1CTRL2_L1ADDR_Msk       (0xfUL)      /* L1ADDR (Bitfield-Mask: 0x0f) */
 
+// PHYTRIM1
+#define RUSB2_PHYTRIM1_IMPOFFSET_Pos    (12UL)       /*!< IMPOFFSET (Bit 12)                                    */
+#define RUSB2_PHYTRIM1_IMPOFFSET_Msk    (0x7000UL)   /*!< IMPOFFSET (Bitfield-Mask: 0x07)                       */
+#define RUSB2_PHYTRIM1_HSIUP_Pos        (8UL)        /*!< HSIUP (Bit 8)                                         */
+#define RUSB2_PHYTRIM1_HSIUP_Msk        (0xf00UL)    /*!< HSIUP (Bitfield-Mask: 0x0f)                           */
+#define RUSB2_PHYTRIM1_PCOMPENB_Pos     (7UL)        /*!< PCOMPENB (Bit 7)                                      */
+#define RUSB2_PHYTRIM1_PCOMPENB_Msk     (0x80UL)     /*!< PCOMPENB (Bitfield-Mask: 0x01)                        */
+#define RUSB2_PHYTRIM1_DFALL_Pos        (2UL)        /*!< DFALL (Bit 2)                                         */
+#define RUSB2_PHYTRIM1_DFALL_Msk        (0xcUL)      /*!< DFALL (Bitfield-Mask: 0x03)                           */
+#define RUSB2_PHYTRIM1_DRISE_Pos        (0UL)        /*!< DRISE (Bit 0)                                         */
+#define RUSB2_PHYTRIM1_DRISE_Msk        (0x3UL)      /*!< DRISE (Bitfield-Mask: 0x03)                           */
+
+// PHYTRIM2
+#define RUSB2_PHYTRIM2_DIS_Pos          (12UL)       /*!< DIS (Bit 12)                                          */
+#define RUSB2_PHYTRIM2_DIS_Msk          (0x7000UL)   /*!< DIS (Bitfield-Mask: 0x07)                             */
+#define RUSB2_PHYTRIM2_PDR_Pos          (8UL)        /*!< PDR (Bit 8)                                           */
+#define RUSB2_PHYTRIM2_PDR_Msk          (0x300UL)    /*!< PDR (Bitfield-Mask: 0x03)                             */
+#define RUSB2_PHYTRIM2_HSRXENMO_Pos     (7UL)        /*!< HSRXENMO (Bit 7)                                      */
+#define RUSB2_PHYTRIM2_HSRXENMO_Msk     (0x80UL)     /*!< HSRXENMO (Bitfield-Mask: 0x01)                        */
+#define RUSB2_PHYTRIM2_SQU_Pos          (0UL)        /*!< SQU (Bit 0)                                           */
+#define RUSB2_PHYTRIM2_SQU_Msk          (0xfUL)      /*!< SQU (Bitfield-Mask: 0x0f)                             */
+
 // DPUSR0R
 #define RUSB2_DPUSR0R_DVBSTSHM_Pos      (23UL)       /* DVBSTSHM (Bit 23) */
 #define RUSB2_DPUSR0R_DVBSTSHM_Msk      (0x800000UL) /* DVBSTSHM (Bitfield-Mask: 0x01) */
@@ -1568,9 +1672,11 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_PIPE_CTR_PID_NAK          (0U << RUSB2_PIPE_CTR_PID_Pos)    /* NAK response */
 #define RUSB2_PIPE_CTR_PID_BUF          (1U << RUSB2_PIPE_CTR_PID_Pos)    /* BUF response (depends buffer state) */
 #define RUSB2_PIPE_CTR_PID_STALL        (2U << RUSB2_PIPE_CTR_PID_Pos)    /* STALL response */
+#define RUSB2_PIPE_CTR_PID_STALL2       (3U << RUSB2_PIPE_CTR_PID_Pos)    /* Also STALL response */
 
 #define RUSB2_DVSTCTR0_RHST_LS          (1U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Low-speed connection */
 #define RUSB2_DVSTCTR0_RHST_FS          (2U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Full-speed connection */
+#define RUSB2_DVSTCTR0_RHST_HS          (3U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Full-speed connection */
 
 #define RUSB2_DEVADD_USBSPD_LS          (1U << RUSB2_DEVADD_USBSPD_Pos)   /* Target Device Low-speed */
 #define RUSB2_DEVADD_USBSPD_FS          (2U << RUSB2_DEVADD_USBSPD_Pos)   /* Target Device Full-speed */
@@ -1580,6 +1686,7 @@ TU_ATTR_BIT_FIELD_ORDER_END
 #define RUSB2_FIFOSEL_BIGEND            (1U << RUSB2_CFIFOSEL_BIGEND_Pos) /* FIFO Big Endian */
 #define RUSB2_FIFOSEL_MBW_8BIT          (0U << RUSB2_CFIFOSEL_MBW_Pos)    /* 8-bit width */
 #define RUSB2_FIFOSEL_MBW_16BIT         (1U << RUSB2_CFIFOSEL_MBW_Pos)    /* 16-bit width */
+#define RUSB2_FIFOSEL_MBW_32BIT         (2U << RUSB2_CFIFOSEL_MBW_Pos)    /* 32-bit width */
 
 #define RUSB2_INTSTS0_CTSQ_CTRL_RDATA   (1U << RUSB2_INTSTS0_CTSQ_Pos)
 
@@ -1599,68 +1706,72 @@ TU_ATTR_BIT_FIELD_ORDER_END
 //--------------------------------------------------------------------+
 
 TU_VERIFY_STATIC(sizeof(RUSB2_PIPE_TR_t) == 4, "incorrect size");
+TU_VERIFY_STATIC(sizeof(rusb2_reg_t) == 1032, "incorrect size");
 
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, SYSCFG     ) == 0x00000000, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, BUSWAIT    ) == 0x00000002, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, SYSSTS0    ) == 0x00000004, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PLLSTA     ) == 0x00000006, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DVSTCTR0   ) == 0x00000008, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, TESTMODE   ) == 0x0000000C, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, CFIFO      ) == 0x00000014, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, D0FIFO     ) == 0x00000018, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, D1FIFO     ) == 0x0000001C, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, CFIFOSEL   ) == 0x00000020, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, CFIFOCTR   ) == 0x00000022, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, D0FIFOSEL  ) == 0x00000028, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, D0FIFOCTR  ) == 0x0000002A, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, D1FIFOSEL  ) == 0x0000002C, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, D1FIFOCTR  ) == 0x0000002E, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, INTENB0    ) == 0x00000030, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, INTENB1    ) == 0x00000032, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, BRDYENB    ) == 0x00000036, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, NRDYENB    ) == 0x00000038, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, BEMPENB    ) == 0x0000003A, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, SOFCFG     ) == 0x0000003C, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PHYSET     ) == 0x0000003E, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, INTSTS0    ) == 0x00000040, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, INTSTS1    ) == 0x00000042, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, BRDYSTS    ) == 0x00000046, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, NRDYSTS    ) == 0x00000048, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, BEMPSTS    ) == 0x0000004A, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, FRMNUM     ) == 0x0000004C, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, UFRMNUM    ) == 0x0000004E, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, USBADDR    ) == 0x00000050, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, USBREQ     ) == 0x00000054, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, USBVAL     ) == 0x00000056, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, USBINDX    ) == 0x00000058, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, USBLENG    ) == 0x0000005A, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DCPCFG     ) == 0x0000005C, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DCPMAXP    ) == 0x0000005E, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DCPCTR     ) == 0x00000060, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PIPESEL    ) == 0x00000064, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PIPECFG    ) == 0x00000068, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PIPEMAXP   ) == 0x0000006C, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PIPEPERI   ) == 0x0000006E, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PIPE_CTR   ) == 0x00000070, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PIPE_TR    ) == 0x00000090, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, USBBCCTRL0 ) == 0x000000B0, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, UCKSEL     ) == 0x000000C4, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, USBMC      ) == 0x000000CC, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DEVADD     ) == 0x000000D0, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PHYSLEW    ) == 0x000000F0, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, LPCTRL     ) == 0x00000100, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, LPSTS      ) == 0x00000102, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, BCCTRL     ) == 0x00000140, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PL1CTRL1   ) == 0x00000144, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, PL1CTRL2   ) == 0x00000146, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, HL1CTRL1   ) == 0x00000148, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, HL1CTRL2   ) == 0x0000014A, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DPUSR0R    ) == 0x00000160, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DPUSR1R    ) == 0x00000164, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DPUSR2R    ) == 0x00000168, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DPUSRCR    ) == 0x0000016A, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DPUSR0R_FS ) == 0x00000400, "incorrect offset");
-TU_VERIFY_STATIC(offsetof(RUSB2_REG_t, DPUSR1R_FS ) == 0x00000404, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, SYSCFG     ) == 0x0000, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, BUSWAIT    ) == 0x0002, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, SYSSTS0    ) == 0x0004, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PLLSTA     ) == 0x0006, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DVSTCTR0   ) == 0x0008, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, TESTMODE   ) == 0x000C, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, CFIFO      ) == 0x0014, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, D0FIFO     ) == 0x0018, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, D1FIFO     ) == 0x001C, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, CFIFOSEL   ) == 0x0020, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, CFIFOCTR   ) == 0x0022, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, D0FIFOSEL  ) == 0x0028, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, D0FIFOCTR  ) == 0x002A, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, D1FIFOSEL  ) == 0x002C, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, D1FIFOCTR  ) == 0x002E, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, INTENB0    ) == 0x0030, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, INTENB1    ) == 0x0032, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, BRDYENB    ) == 0x0036, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, NRDYENB    ) == 0x0038, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, BEMPENB    ) == 0x003A, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, SOFCFG     ) == 0x003C, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PHYSET     ) == 0x003E, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, INTSTS0    ) == 0x0040, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, INTSTS1    ) == 0x0042, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, BRDYSTS    ) == 0x0046, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, NRDYSTS    ) == 0x0048, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, BEMPSTS    ) == 0x004A, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, FRMNUM     ) == 0x004C, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, UFRMNUM    ) == 0x004E, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, USBADDR    ) == 0x0050, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, USBREQ     ) == 0x0054, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, USBVAL     ) == 0x0056, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, USBINDX    ) == 0x0058, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, USBLENG    ) == 0x005A, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DCPCFG     ) == 0x005C, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DCPMAXP    ) == 0x005E, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DCPCTR     ) == 0x0060, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PIPESEL    ) == 0x0064, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PIPECFG    ) == 0x0068, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PIPEBUF    ) == 0x006A, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PIPEMAXP   ) == 0x006C, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PIPEPERI   ) == 0x006E, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PIPE_CTR   ) == 0x0070, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PIPE_TR    ) == 0x0090, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, USBBCCTRL0 ) == 0x00B0, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, UCKSEL     ) == 0x00C4, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, USBMC      ) == 0x00CC, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DEVADD     ) == 0x00D0, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PHYSLEW    ) == 0x00F0, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, LPCTRL     ) == 0x0100, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, LPSTS      ) == 0x0102, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, BCCTRL     ) == 0x0140, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PL1CTRL1   ) == 0x0144, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PL1CTRL2   ) == 0x0146, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, HL1CTRL1   ) == 0x0148, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, HL1CTRL2   ) == 0x014A, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PHYTRIM1   ) == 0x0150, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, PHYTRIM2   ) == 0x0152, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DPUSR0R    ) == 0x0160, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DPUSR1R    ) == 0x0164, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DPUSR2R    ) == 0x0168, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DPUSRCR    ) == 0x016A, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DPUSR0R_FS ) == 0x0400, "incorrect offset");
+TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DPUSR1R_FS ) == 0x0404, "incorrect offset");
 
 #ifdef __cplusplus
 }

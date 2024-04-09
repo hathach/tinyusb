@@ -24,7 +24,7 @@
  */
 
 #include "sam.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 #include "peripheral_clk_config.h"
 #include "hal/include/hal_init.h"

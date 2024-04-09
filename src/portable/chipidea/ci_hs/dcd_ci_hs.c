@@ -28,34 +28,52 @@
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_CHIPIDEA_HS)
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "device/dcd.h"
 #include "ci_hs_type.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_MIMXRT
+#if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "ci_hs_imxrt.h"
-#elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
+
+  void dcd_dcache_clean(void const* addr, uint32_t data_size) {
+    imxrt_dcache_clean(addr, data_size);
+  }
+
+  void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+    imxrt_dcache_invalidate(addr, data_size);
+  }
+
+  void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+    imxrt_dcache_clean_invalidate(addr, data_size);
+  }
+
+#else
+
+#if TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
+
+#elif TU_CHECK_MCU(OPT_MCU_MCXN9)
+  // MCX N9 only port 1 use this controller
+  #include "ci_hs_mcx.h"
 #else
   #error "Unsupported MCUs"
+#endif
+
+  TU_ATTR_WEAK void dcd_dcache_clean(void const* addr, uint32_t data_size) {
+    (void) addr; (void) data_size;
+  }
+
+  TU_ATTR_WEAK void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+    (void) addr; (void) data_size;
+  }
+
+  TU_ATTR_WEAK void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+    (void) addr; (void) data_size;
+  }
 #endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-#define CI_HS_REG(_port)      ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
-
-// Clean means to push any cached changes to RAM and invalidate "removes" the
-// entry from the cache.
-#if defined(__CORTEX_M) && __CORTEX_M == 7 && __DCACHE_PRESENT == 1
-  #define CleanInvalidateDCache_by_Addr   SCB_CleanInvalidateDCache_by_Addr
-#else
-  #define CleanInvalidateDCache_by_Addr(_addr, _dsize)
-#endif
-
 
 // ENDPTCTRL
 enum {
@@ -157,8 +175,18 @@ typedef struct {
   dcd_qtd_t qtd[TUP_DCD_ENDPOINT_MAX][2] TU_ATTR_ALIGNED(32);
 }dcd_data_t;
 
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048)
+CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(2048)
 static dcd_data_t _dcd_data;
+
+//--------------------------------------------------------------------+
+// Prototypes and Helper Functions
+//--------------------------------------------------------------------+
+
+TU_ATTR_ALWAYS_INLINE
+static inline uint8_t ci_ep_count(ci_hs_regs_t const* dcd_reg)
+{
+  return dcd_reg->DCCPARAMS & DCCPARAMS_DEN_MASK;
+}
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -174,7 +202,8 @@ static void bus_reset(uint8_t rhport)
   // endpoint type of the unused direction must be changed from the control type to any other
   // type (e.g. bulk). Leaving an un-configured endpoint control will cause undefined behavior
   // for the data PID tracking on the active endpoint.
-  for( uint8_t i=1; i < _ci_controller[rhport].ep_count; i++)
+  uint8_t const ep_count = ci_ep_count(dcd_reg);
+  for( uint8_t i=1; i < ep_count; i++)
   {
     dcd_reg->ENDPTCTRL[i] = (TUSB_XFER_BULK << ENDPTCTRL_TYPE_POS) | (TUSB_XFER_BULK << (16+ENDPTCTRL_TYPE_POS));
   }
@@ -202,7 +231,7 @@ static void bus_reset(uint8_t rhport)
 
   _dcd_data.qhd[0][0].int_on_setup = 1; // OUT only
 
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 }
 
 void dcd_init(uint8_t rhport)
@@ -211,26 +240,34 @@ void dcd_init(uint8_t rhport)
 
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
+  TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX, );
+
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
   while( dcd_reg->USBCMD & USBCMD_RESET ) {}
 
   // Set mode to device, must be set immediately after reset
-  dcd_reg->USBMODE = USBMODE_CM_DEVICE;
+  uint32_t usbmode = dcd_reg->USBMODE & ~USBMOD_CM_MASK;
+  usbmode |= USBMODE_CM_DEVICE;
+  dcd_reg->USBMODE = usbmode;
+
   dcd_reg->OTGSC = OTGSC_VBUS_DISCHARGE | OTGSC_OTG_TERMINATION;
 
 #if !TUD_OPT_HIGH_SPEED
   dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
 #endif
 
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
   dcd_reg->USBINTR = INTR_USB | INTR_ERROR | INTR_PORT_CHANGE | INTR_SUSPEND;
 
-  dcd_reg->USBCMD &= ~0x00FF0000;     // Interrupt Threshold Interval = 0
-  dcd_reg->USBCMD |= USBCMD_RUN_STOP; // Connect
+  uint32_t usbcmd = dcd_reg->USBCMD;
+  usbcmd &= ~USBCMD_INTR_THRESHOLD_MASK; // Interrupt Threshold Interval = 0
+  usbcmd |= USBCMD_RUN_STOP; // run
+
+  dcd_reg->USBCMD = usbcmd;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -286,7 +323,7 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
   // Force the CPU to flush the buffer. We increase the size by 31 because the call aligns the
   // address to 32-byte boundaries. Buffer must be word aligned
-  CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes + 31);
+  dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes + 31);
 
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
@@ -343,8 +380,10 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
 
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
+
   // Must not exceed max endpoint number
-  TU_ASSERT( epnum < _ci_controller[rhport].ep_count );
+  TU_ASSERT(epnum < ci_ep_count(dcd_reg));
 
   //------------- Prepare Queue Head -------------//
   dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
@@ -359,11 +398,9 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   // Enable EP Control
-  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
-
   uint32_t const epctrl = (p_endpoint_desc->bmAttributes.xfer << ENDPTCTRL_TYPE_POS) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
 
   if ( dir == TUSB_DIR_OUT )
@@ -382,7 +419,8 @@ void dcd_edpt_close_all (uint8_t rhport)
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
   // Disable all non-control endpoints
-  for( uint8_t epnum=1; epnum < _ci_controller[rhport].ep_count; epnum++)
+  uint8_t const ep_count = ci_ep_count(dcd_reg);
+  for (uint8_t epnum = 1; epnum < ep_count; epnum++)
   {
     _dcd_data.qhd[epnum][TUSB_DIR_OUT].qtd_overlay.halted = 1;
     _dcd_data.qhd[epnum][TUSB_DIR_IN ].qtd_overlay.halted = 1;
@@ -420,7 +458,7 @@ static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir)
   p_qhd->qtd_overlay.next   = (uint32_t) p_qtd; // link qtd to qhd
 
   // flush cache
-  CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   if ( epnum == 0 )
   {
@@ -498,7 +536,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
         }
       }
 
-      CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), total_bytes - fifo_info.len_wrap + 31);
+      dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), total_bytes - fifo_info.len_wrap + 31);
     }
     else
     {
@@ -611,19 +649,10 @@ void dcd_int_handler(uint8_t rhport)
   if (int_status & INTR_USB)
   {
     // Make sure we read the latest version of _dcd_data.
-    CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd_data, sizeof(dcd_data_t));
+    dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
     uint32_t const edpt_complete = dcd_reg->ENDPTCOMPLETE;
     dcd_reg->ENDPTCOMPLETE = edpt_complete; // acknowledge
-
-    if (dcd_reg->ENDPTSETUPSTAT)
-    {
-      //------------- Set up Received -------------//
-      // 23.10.10.2 Operational model for setup transfers
-      dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
-
-      dcd_event_setup_received(rhport, (uint8_t*)(uintptr_t) &_dcd_data.qhd[0][0].setup_request, true);
-    }
 
     // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
     // nothing to do, we will submit xfer as error to usbd
@@ -636,6 +665,15 @@ void dcd_int_handler(uint8_t rhport)
         if ( tu_bit_test(edpt_complete, epnum)    ) process_edpt_complete_isr(rhport, epnum, TUSB_DIR_OUT);
         if ( tu_bit_test(edpt_complete, epnum+16) ) process_edpt_complete_isr(rhport, epnum, TUSB_DIR_IN);
       }
+    }
+
+    // Set up Received
+    // 23.10.10.2 Operational model for setup transfers
+    // Must be after normal transfer complete since it is possible to have both previous control status + new setup
+    // in the same frame and we should handle previous status first.
+    if (dcd_reg->ENDPTSETUPSTAT) {
+      dcd_reg->ENDPTSETUPSTAT = dcd_reg->ENDPTSETUPSTAT;
+      dcd_event_setup_received(rhport, (uint8_t *) (uintptr_t) &_dcd_data.qhd[0][0].setup_request, true);
     }
   }
 

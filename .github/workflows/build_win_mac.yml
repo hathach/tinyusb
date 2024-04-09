@@ -1,6 +1,7 @@
 name: Build Windows/MacOS
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'src/**'
@@ -34,7 +35,7 @@ jobs:
 
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
@@ -44,10 +45,10 @@ jobs:
         release: '10.3-2021.10'
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Get Dependencies
-      run: python3 tools/get_family_deps.py stm32f4
+      run: python3 tools/get_deps.py stm32f4
 
     - name: Build
-      run: python3 tools/build_family.py stm32f4 stm32f411disco
+      run: python3 tools/build_make.py stm32f4 stm32f411disco

@@ -1,11 +1,10 @@
 DEPS_SUBMODULES += hw/mcu/microchip
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
   -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m0plus \
   -nostdlib -nostartfiles \
   -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
   -DOSC32K_OVERWRITE_CALIBRATION=0 \
@@ -18,6 +17,8 @@ CFLAGS += -Wno-error=redundant-decls
 
 # SAM driver is flooded with -Wcast-qual which slow down complication significantly
 CFLAGS_SKIP += -Wcast-qual
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
@@ -40,6 +41,3 @@ INC += \
 	$(TOP)/hw/mcu/microchip/samd11/hri \
 	$(TOP)/hw/mcu/microchip/samd11/CMSIS/Include \
 	$(TOP)/hw/mcu/microchip/samd11/CMSIS/Core/Include
-
-# For freeRTOS port source
-FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
