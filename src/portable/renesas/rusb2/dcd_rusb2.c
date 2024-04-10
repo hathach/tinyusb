@@ -89,39 +89,39 @@ static dcd_data_t _dcd;
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-// Transfer conditions specifiable for each pipe:
+// Transfer conditions specifiable for each pipe for most MCUs
 // - Pipe 0: Control transfer with 64-byte single buffer
-// - Pipes 1 and 2: Bulk isochronous transfer continuous transfer mode with programmable buffer size up
-//   to 2 KB and optional double buffer
-// - Pipes 3 to 5: Bulk transfer continuous transfer mode with programmable buffer size up to 2 KB and
-//   optional double buffer
-// - Pipes 6 to 9: Interrupt transfer with 64-byte single buffer
+// - Pipes 1 and 2: Bulk or ISO
+// - Pipes 3 to 5: Bulk
+// - Pipes 6 to 9: Interrupt
+//
+// Note: for small mcu such as
+// - RA2A1: only pipe 4-7 are available, and no support for ISO
+
 enum {
-  PIPE_1ST_BULK = 3,
-  PIPE_1ST_INTERRUPT = 6,
+  PIPE_LAST_ISO = 2,
+  PIPE_LAST_BULK = 5,
+  PIPE_LAST_INTERRUPT = 9,
   PIPE_COUNT = 10,
 };
 
-static unsigned find_pipe(unsigned xfer)
-{
-  switch (xfer) {
+static unsigned find_pipe(unsigned xfer_type) {
+  switch (xfer_type) {
     case TUSB_XFER_ISOCHRONOUS:
-      for (int i = 1; i < PIPE_1ST_BULK; ++i) {
+      for (int i = PIPE_LAST_ISO; i > 0; i--) {
         if (0 == _dcd.pipe[i].ep) return i;
       }
       break;
 
     case TUSB_XFER_BULK:
-      for (int i = PIPE_1ST_BULK; i < PIPE_1ST_INTERRUPT; ++i) {
-        if (0 == _dcd.pipe[i].ep) return i;
-      }
-      for (int i = 1; i < PIPE_1ST_BULK; ++i) {
+      // find backward since only pipe 1, 2 support ISO
+      for (int i = PIPE_LAST_BULK; i > 0; i--) {
         if (0 == _dcd.pipe[i].ep) return i;
       }
       break;
 
     case TUSB_XFER_INTERRUPT:
-      for (int i = PIPE_1ST_INTERRUPT; i < PIPE_COUNT; ++i) {
+      for(int i = PIPE_LAST_INTERRUPT; i > PIPE_LAST_BULK; i--) {
         if (0 == _dcd.pipe[i].ep) return i;
       }
       break;
@@ -1025,20 +1025,12 @@ void dcd_int_handler(uint8_t rhport)
     unsigned s = rusb->BRDYSTS & m;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BRDYSTS = ~s;
-    while (s) {
-#if defined(__CCRX__)
-      static const int Mod37BitPosition[] = {
-        -1, 0, 1, 26, 2, 23, 27, 0, 3, 16, 24, 30, 28, 11, 0, 13, 4,
-        7, 17, 0, 25, 22, 31, 15, 29, 10, 12, 6, 0, 21, 14, 9, 5,
-        20, 8, 19, 18
-      };
 
-      const unsigned num = Mod37BitPosition[(-s & s) % 37];
-#else
-      const unsigned num = __builtin_ctz(s);
-#endif
-      process_pipe_brdy(rhport, num);
-      s &= ~TU_BIT(num);
+    for (unsigned pipe = 0; pipe < PIPE_COUNT; ++pipe) {
+      if (tu_bit_test(s, pipe)) {
+        process_pipe_brdy(rhport, pipe);
+        s = tu_bit_clear(s, pipe);
+      }
     }
   }
 }
