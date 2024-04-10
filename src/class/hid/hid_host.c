@@ -222,6 +222,50 @@ bool tuh_hid_set_protocol(uint8_t daddr, uint8_t idx, uint8_t protocol) {
   return _hidh_set_protocol(daddr, p_hid->itf_num, protocol, set_protocol_complete, 0);
 }
 
+static void get_report_complete(tuh_xfer_t* xfer) {
+  TU_LOG_DRV("HID Get Report complete\r\n");
+
+  if (tuh_hid_get_report_complete_cb) {
+    uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+    uint8_t const idx = tuh_hid_itf_get_index(xfer->daddr, itf_num);
+
+    uint8_t const report_type = tu_u16_high(xfer->setup->wValue);
+    uint8_t const report_id = tu_u16_low(xfer->setup->wValue);
+
+    tuh_hid_get_report_complete_cb(xfer->daddr, idx, report_id, report_type,
+                                   (xfer->result == XFER_RESULT_SUCCESS) ? xfer->setup->wLength : 0);
+  }
+}
+
+bool tuh_hid_get_report(uint8_t daddr, uint8_t idx, uint8_t report_id, uint8_t report_type, void* report, uint16_t len) {
+  hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
+  TU_VERIFY(p_hid);
+  TU_LOG_DRV("HID Get Report: id = %u, type = %u, len = %u\r\n", report_id, report_type, len);
+
+  tusb_control_request_t const request = {
+      .bmRequestType_bit = {
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
+          .type      = TUSB_REQ_TYPE_CLASS,
+          .direction = TUSB_DIR_IN
+      },
+      .bRequest = HID_REQ_CONTROL_GET_REPORT,
+      .wValue   = tu_htole16(tu_u16(report_type, report_id)),
+      .wIndex   = tu_htole16((uint16_t) p_hid->itf_num),
+      .wLength  = len
+  };
+
+  tuh_xfer_t xfer = {
+      .daddr       = daddr,
+      .ep_addr     = 0,
+      .setup       = &request,
+      .buffer      = report,
+      .complete_cb = get_report_complete,
+      .user_data   = 0
+  };
+
+  return tuh_control_xfer(&xfer);
+}
+
 static void set_report_complete(tuh_xfer_t* xfer) {
   TU_LOG_DRV("HID Set Report complete\r\n");
 
