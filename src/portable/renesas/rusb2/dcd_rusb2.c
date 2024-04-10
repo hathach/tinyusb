@@ -89,6 +89,10 @@ static dcd_data_t _dcd;
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
+enum {
+  PIPE_COUNT = 10,
+};
+
 // Transfer conditions specifiable for each pipe for most MCUs
 // - Pipe 0: Control transfer with 64-byte single buffer
 // - Pipes 1 and 2: Bulk or ISO
@@ -97,44 +101,33 @@ static dcd_data_t _dcd;
 //
 // Note: for small mcu such as
 // - RA2A1: only pipe 4-7 are available, and no support for ISO
-
-enum {
-  PIPE_LAST_ISO = 2,
-  PIPE_LAST_BULK = 5,
-  PIPE_LAST_INTERRUPT = 9,
-  PIPE_COUNT = 10,
-};
-
 static unsigned find_pipe(unsigned xfer_type) {
-  switch (xfer_type) {
-    case TUSB_XFER_ISOCHRONOUS:
-      for (int i = PIPE_LAST_ISO; i > 0; i--) {
-        if (0 == _dcd.pipe[i].ep) return i;
-      }
-      break;
+  #if defined(BSP_MCU_GROUP_RA2A1)
+  const uint8_t pipe_idx_arr[4][2] = {
+      { 0, 0 }, // Control
+      { 0, 0 }, // Isochronous not supported
+      { 4, 5 }, // Bulk
+      { 6, 7 }, // Interrupt
+  };
+  #else
+  const uint8_t pipe_idx_arr[4][2] = {
+      { 0, 0 }, // Control
+      { 1, 2 }, // Isochronous
+      { 1, 5 }, // Bulk
+      { 6, 9 }, // Interrupt
+  };
+  #endif
 
-    case TUSB_XFER_BULK:
-      // find backward since only pipe 1, 2 support ISO
-      for (int i = PIPE_LAST_BULK; i > 0; i--) {
-        if (0 == _dcd.pipe[i].ep) return i;
-      }
-      break;
-
-    case TUSB_XFER_INTERRUPT:
-      for(int i = PIPE_LAST_INTERRUPT; i > PIPE_LAST_BULK; i--) {
-        if (0 == _dcd.pipe[i].ep) return i;
-      }
-      break;
-
-    default:
-      /* No support for control transfer */
-      break;
+  // find backward since only pipe 1, 2 support ISO
+  const uint8_t* idx = pipe_idx_arr[xfer_type];
+  for (int i = idx[1]; i >= idx[0]; i--) {
+    if (0 == _dcd.pipe[i].ep) return i;
   }
+
   return 0;
 }
 
-static volatile uint16_t* get_pipectr(rusb2_reg_t *rusb, unsigned num)
-{
+static volatile uint16_t* get_pipectr(rusb2_reg_t *rusb, unsigned num) {
   if (num) {
     return (volatile uint16_t*)&(rusb->PIPE_CTR[num - 1]);
   } else {
@@ -142,8 +135,7 @@ static volatile uint16_t* get_pipectr(rusb2_reg_t *rusb, unsigned num)
   }
 }
 
-static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num)
-{
+static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num) {
   volatile reg_pipetre_t* tre = NULL;
   if ((1 <= num) && (num <= 5)) {
     tre = (volatile reg_pipetre_t*)&(rusb->PIPE_TR[num - 1].E);
@@ -151,8 +143,7 @@ static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num)
   return tre;
 }
 
-static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr)
-{
+static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr) {
   rusb2_reg_t *rusb = RUSB2_REG(rhport);
   const unsigned epn = tu_edpt_number(ep_addr);
 
@@ -165,19 +156,16 @@ static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr)
   }
 }
 
-static uint16_t edpt0_max_packet_size(rusb2_reg_t* rusb)
-{
+static uint16_t edpt0_max_packet_size(rusb2_reg_t* rusb) {
   return rusb->DCPMAXP_b.MXPS;
 }
 
-static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num)
-{
+static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num) {
   rusb->PIPESEL = num;
   return rusb->PIPEMAXP;
 }
 
-static inline void pipe_wait_for_ready(rusb2_reg_t * rusb, unsigned num)
-{
+static inline void pipe_wait_for_ready(rusb2_reg_t * rusb, unsigned num) {
   while ( rusb->D0FIFOSEL_b.CURPIPE != num ) {}
   while ( !rusb->D0FIFOCTR_b.FRDY ) {}
 }
@@ -1026,10 +1014,10 @@ void dcd_int_handler(uint8_t rhport)
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BRDYSTS = ~s;
 
-    for (unsigned pipe = 0; pipe < PIPE_COUNT; ++pipe) {
-      if (tu_bit_test(s, pipe)) {
-        process_pipe_brdy(rhport, pipe);
-        s = tu_bit_clear(s, pipe);
+    for (unsigned p = 0; p < PIPE_COUNT; ++p) {
+      if (tu_bit_test(s, p)) {
+        process_pipe_brdy(rhport, p);
+        s = tu_bit_clear(s, p);
       }
     }
   }

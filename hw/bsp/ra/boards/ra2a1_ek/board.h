@@ -31,10 +31,10 @@
 extern "C" {
 #endif
 
-#define LED1          BSP_IO_PORT_01_PIN_06
+#define LED1          BSP_IO_PORT_02_PIN_05
 #define LED_STATE_ON  1
 
-#define SW1                   BSP_IO_PORT_01_PIN_05
+#define SW1                   BSP_IO_PORT_02_PIN_06
 #define BUTTON_STATE_ACTIVE   0
 
 static const ioport_pin_cfg_t board_pin_cfg[] = {
