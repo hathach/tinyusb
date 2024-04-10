@@ -101,6 +101,19 @@ static uint16_t _allocated_fifo_words_tx;     // TX FIFO size in words (IN EPs)
 // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
 static bool _sof_en;
 
+static inline void fifo_flush(uint8_t rhport)
+{
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // flush all TX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
+  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
+
+  // flush RX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_RXFFLSH;
+  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+}
+
 // Calculate the RX FIFO size according to minimum recommendations from reference manual
 // RxFIFO = (5 * number of control endpoints + 8) +
 //          ((largest USB packet used / 4) + 1 for status information) +
@@ -270,13 +283,7 @@ static void bus_reset(uint8_t rhport) {
     dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
   }
 
-  // flush all TX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
-
-  // flush RX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+  fifo_flush(rhport);
 
   // 2. Set up interrupt mask
   dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
@@ -584,13 +591,7 @@ void dcd_init(uint8_t rhport) {
   // (non zero-length packet), send STALL back and discard.
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
-  // flush all TX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
-
-  // flush RX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+  fifo_flush(rhport);
 
   // Clear all interrupts
   uint32_t int_mask = dwc2->gintsts;
@@ -708,8 +709,12 @@ void dcd_edpt_close_all(uint8_t rhport) {
     xfer_status[n][TUSB_DIR_IN].max_size = 0;
   }
 
+  // reset allocated fifo OUT
+  dwc2->grxfsiz = calc_grxfsiz(64, ep_count);
   // reset allocated fifo IN
   _allocated_fifo_words_tx = 16;
+
+  fifo_flush(rhport);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
