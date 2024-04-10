@@ -57,29 +57,22 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
+enum {
+  PIPE_COUNT = 10,
+};
 
-/* Start of definition of packed structs (used by the CCRX toolchain) */
-TU_ATTR_PACKED_BEGIN
-TU_ATTR_BIT_FIELD_ORDER_BEGIN
-
-typedef struct TU_ATTR_PACKED
-{
+typedef struct {
   void      *buf;      /* the start address of a transfer data buffer */
   uint16_t  length;    /* the number of bytes in the buffer */
   uint16_t  remaining; /* the number of bytes remaining in the buffer */
-  struct {
-    uint32_t ep  : 8;  /* an assigned endpoint address */
-    uint32_t ff  : 1;  /* `buf` is TU_FUFO or POD */
-    uint32_t     : 0;
-  };
-} pipe_state_t;
 
-TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
-TU_ATTR_BIT_FIELD_ORDER_END
+  uint8_t ep; /* an assigned endpoint address */
+  uint8_t ff; /* `buf` is TU_FUFO or POD */
+} pipe_state_t;
 
 typedef struct
 {
-  pipe_state_t pipe[10];
+  pipe_state_t pipe[PIPE_COUNT];
   uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
 } dcd_data_t;
 
@@ -89,9 +82,6 @@ static dcd_data_t _dcd;
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-enum {
-  PIPE_COUNT = 10,
-};
 
 // Transfer conditions specifiable for each pipe for most MCUs
 // - Pipe 0: Control transfer with 64-byte single buffer
@@ -119,8 +109,10 @@ static unsigned find_pipe(unsigned xfer_type) {
   #endif
 
   // find backward since only pipe 1, 2 support ISO
-  const uint8_t* idx = pipe_idx_arr[xfer_type];
-  for (int i = idx[1]; i >= idx[0]; i--) {
+  const uint8_t idx_first = pipe_idx_arr[xfer_type][0];
+  const uint8_t idx_last  = pipe_idx_arr[xfer_type][1];
+
+  for (int i = idx_last; i >= idx_first; i--) {
     if (0 == _dcd.pipe[i].ep) return i;
   }
 
@@ -823,7 +815,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   }
 
   rusb->PIPECFG = cfg;
-  rusb->BRDYSTS = 0x1FFu ^ TU_BIT(num);
+  rusb->BRDYSTS = 0x3FFu ^ TU_BIT(num);
   rusb->BRDYENB |= TU_BIT(num);
 
   if (dir || (xfer != TUSB_XFER_BULK)) {
@@ -1010,14 +1002,13 @@ void dcd_int_handler(uint8_t rhport)
   // Buffer ready
   if ( is0 & RUSB2_INTSTS0_BRDY_Msk ) {
     const unsigned m = rusb->BRDYENB;
-    unsigned s = rusb->BRDYSTS & m;
+    const unsigned s = rusb->BRDYSTS & m;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BRDYSTS = ~s;
 
     for (unsigned p = 0; p < PIPE_COUNT; ++p) {
       if (tu_bit_test(s, p)) {
         process_pipe_brdy(rhport, p);
-        s = tu_bit_clear(s, p);
       }
     }
   }
