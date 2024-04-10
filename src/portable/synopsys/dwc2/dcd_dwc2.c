@@ -154,9 +154,11 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
       dwc2->grxfsiz = sz;
     }
   } else {
-    // The fifo-empty interrupt fires when the interrupt is half empty. In order
+    // Note if The TXFELVL is configured as half empty. In order
     // to be able to write a packet at that point, the fifo must be twice the max_size.
-    fifo_size = fifo_size * 2;
+    if ((dwc2->gahbcfg & GAHBCFG_TXFELVL) == 0) {
+      fifo_size *= 2;
+    }
 
     // Check if free space is available
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= _dwc2_controller[rhport].ep_fifo_size / 4);
@@ -596,12 +598,12 @@ void dcd_init(uint8_t rhport) {
   int_mask = dwc2->gotgint;
   dwc2->gotgint |= int_mask;
 
-  // Configure TX FIFO to set the TX FIFO empty interrupt when half-empty
-  dwc2->gahbcfg &= ~GAHBCFG_TXFELVL;
-
   // Required as part of core initialization.
   dwc2->gintmsk = GINTMSK_OTGINT | GINTMSK_RXFLVLM |
                   GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
+
+  // Configure TX FIFO empty level for interrupt. Default is complete empty
+  dwc2->gahbcfg |= GAHBCFG_TXFELVL;
 
   // Enable global interrupt
   dwc2->gahbcfg |= GAHBCFG_GINT;
