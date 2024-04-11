@@ -71,6 +71,7 @@ typedef struct
   OSAL_MUTEX_DEF(tx_ff_mutex);
 
   // Endpoint Transfer buffer
+  CFG_TUSB_MEM_ALIGN cdc_notif_serial_state_t serial_state_buf;
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
 
@@ -128,6 +129,27 @@ uint8_t tud_cdc_n_get_line_state (uint8_t itf)
 void tud_cdc_n_get_line_coding (uint8_t itf, cdc_line_coding_t* coding)
 {
   (*coding) = _cdcd_itf[itf].line_coding;
+}
+
+bool tud_cdc_n_send_uart_state (uint8_t itf, cdc_uart_state_t state)
+{
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+
+  // Skip if usb is not ready yet
+  TU_VERIFY( tud_ready(), 0 );
+
+  // claim endpoint
+  TU_VERIFY(usbd_edpt_claim(p_cdc->rhport, p_cdc->ep_notif));
+
+  p_cdc->serial_state_buf.bmRequestType = CDC_REQ_TYPE_NOTIF;
+  p_cdc->serial_state_buf.bNotification = CDC_NOTIF_SERIAL_STATE;
+  p_cdc->serial_state_buf.wValue = 0;
+  p_cdc->serial_state_buf.wIndex = p_cdc->itf_num;
+  p_cdc->serial_state_buf.wLength = 2;
+  p_cdc->serial_state_buf.bmUartState = state;
+
+  // transfer
+  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notif, (uint8_t *)&p_cdc->serial_state_buf, sizeof(p_cdc->serial_state_buf));
 }
 
 void tud_cdc_n_set_wanted_char (uint8_t itf, char wanted)
@@ -457,7 +479,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   for (itf = 0; itf < CFG_TUD_CDC; itf++)
   {
     p_cdc = &_cdcd_itf[itf];
-    if ( ( ep_addr == p_cdc->ep_out ) || ( ep_addr == p_cdc->ep_in ) ) break;
+    if ( ( ep_addr == p_cdc->ep_out ) || ( ep_addr == p_cdc->ep_in ) || ( ep_addr == p_cdc->ep_notif )) break;
   }
   TU_ASSERT(itf < CFG_TUD_CDC);
 

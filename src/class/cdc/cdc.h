@@ -412,6 +412,35 @@ typedef struct TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
 
+//--------------------------------------------------------------------+
+// Notifications
+//--------------------------------------------------------------------+
+typedef struct TU_ATTR_PACKED
+{
+  uint16_t bRxCarrier  : 1;
+  uint16_t bTxCarrier  : 1;
+  uint16_t bBreak      : 1;
+  uint16_t bRingSignal : 1;
+  uint16_t bFraming    : 1;
+  uint16_t bParity     : 1;
+  uint16_t bOverRun    : 1;
+  uint16_t             : 9;
+} cdc_uart_state_t;
+
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t  bmRequestType;
+  uint8_t  bNotification;
+  uint16_t wValue;
+  uint16_t wIndex;
+  uint16_t wLength;
+  cdc_uart_state_t bmUartState;
+} cdc_notif_serial_state_t;
+
+TU_VERIFY_STATIC(sizeof(cdc_notif_serial_state_t) == 10, "size is not correct");
+
+#define CDC_REQ_TYPE_NOTIF 0xA1 ///< Direction IN; Type Class; Recipient Interface
+
 TU_ATTR_PACKED_END  // End of all packed definitions
 TU_ATTR_BIT_FIELD_ORDER_END
 
