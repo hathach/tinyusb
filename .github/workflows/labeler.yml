@@ -4,19 +4,18 @@ on:
   issues:
     types: [opened]
   pull_request:
+    branches: [ master ]
     types: [opened]
 
 jobs:
   label-priority:
+    if: github.repository_owner == 'hathach'
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: write
     steps:
       - name: Label New Issue or PR
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.API_TOKEN_GITHUB }}
           script: |
             let label = '';
             let username = '';
