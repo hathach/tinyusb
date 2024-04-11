@@ -459,13 +459,9 @@ static const tusb_desc_endpoint_t ep0IN_desc = {
 
 static void dcd_handle_bus_reset(void)
 {
-  //__IO uint16_t * const epreg = &(EPREG(0));
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
 
   for (uint32_t i = 0; i < STFSDEV_EP_COUNT; i++) {
-    // Clear all EPREG (or maybe this is automatic? I'm not sure)
-    pcd_set_endpoint(USB, i, 0u);
-
     // Clear EP allocation status
     ep_alloc_status[i].ep_num = 0xFF;
     ep_alloc_status[i].ep_type = 0xFF;
@@ -624,7 +620,6 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
         uint16_t remaining = xfer->total_len - xfer->queued_len;
         uint16_t cnt = tu_min16(remaining, xfer->max_packet_size);
         pcd_set_ep_rx_cnt(USB, EPindex, cnt);
-        pcd_set_ep_rx_cnt(USB, EPindex, remaining);
       }
       pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
     }
