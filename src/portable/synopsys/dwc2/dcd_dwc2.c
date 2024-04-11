@@ -112,6 +112,17 @@ static inline uint16_t calc_grxfsiz(uint16_t max_ep_size, uint8_t ep_count) {
   return 15 + 2 * (max_ep_size / 4) + 2 * ep_count;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void fifo_flush_tx(dwc2_regs_t* dwc2, uint8_t epnum) {
+  // flush TX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_TXFFLSH | (epnum << GRSTCTL_TXFNUM_Pos);
+  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
+}
+TU_ATTR_ALWAYS_INLINE static inline void fifo_flush_rx(dwc2_regs_t* dwc2) {
+  // flush RX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_RXFFLSH;
+  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+}
+
 static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
@@ -225,8 +236,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    dwc2->grstctl = ((epnum << GRSTCTL_TXFNUM_Pos) | GRSTCTL_TXFFLSH);
-    while ((dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) != 0) {}
+    fifo_flush_tx(dwc2, epnum);
   } else {
     dwc2_epout_t* epout = dwc2->epout;
 
@@ -270,13 +280,8 @@ static void bus_reset(uint8_t rhport) {
     dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
   }
 
-  // flush all TX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
-
-  // flush RX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+  fifo_flush_tx(dwc2, 0x10); // all tx fifo
+  fifo_flush_rx(dwc2);
 
   // 2. Set up interrupt mask
   dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
@@ -584,13 +589,8 @@ void dcd_init(uint8_t rhport) {
   // (non zero-length packet), send STALL back and discard.
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
-  // flush all TX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
-
-  // flush RX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+  fifo_flush_tx(dwc2, 0x10); // all tx fifo
+  fifo_flush_rx(dwc2);
 
   // Clear all interrupts
   uint32_t int_mask = dwc2->gintsts;
@@ -708,8 +708,13 @@ void dcd_edpt_close_all(uint8_t rhport) {
     xfer_status[n][TUSB_DIR_IN].max_size = 0;
   }
 
+  // reset allocated fifo OUT
+  dwc2->grxfsiz = calc_grxfsiz(64, ep_count);
   // reset allocated fifo IN
   _allocated_fifo_words_tx = 16;
+
+  fifo_flush_tx(dwc2, 0x10); // all tx fifo
+  fifo_flush_rx(dwc2);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
