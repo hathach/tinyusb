@@ -152,7 +152,7 @@ typedef struct {
   uint16_t queued_len;
   uint16_t max_packet_size;
   uint8_t ep_idx;   // index for USB_EPnR register
-  bool in_complete; // Workaround for ISO IN EP doesn't have interrupt mask
+  bool iso_in_sending; // Workaround for ISO IN EP doesn't have interrupt mask
 } xfer_ctl_t;
 
 // EP allocator
@@ -502,13 +502,15 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
 
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
 
-  /* Ignore spurious int */
-  if (xfer->in_complete) {
-    return;
-  }
-  xfer->in_complete = true;
-
   if ((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
+    // Ignore spurious interrupts that we don't schedule
+    // host can send IN token while there is no data to send, since ISO does not have NAK
+    // this will result to zero length packet --> trigger interrupt (which cannot be masked)
+    if (!xfer->iso_in_sending) {
+      return;
+    }
+    xfer->iso_in_sending = false;
+
     if (wEPRegVal & USB_EP_DTOG_TX) {
       pcd_set_ep_tx_dbuf0_cnt(USB, EPindex, 0);
     } else {
@@ -955,9 +957,10 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix)
   }
 
   uint16_t ep_reg = pcd_get_endpoint(USB, ep_ix);
+  bool const is_iso = (ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
   uint16_t addr_ptr;
 
-  if ((ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
+  if (is_iso) {
     if (ep_reg & USB_EP_DTOG_TX) {
       addr_ptr = pcd_get_ep_dbuf1_address(USB, ep_ix);
       pcd_set_ep_tx_dbuf1_cnt(USB, ep_ix, len);
@@ -979,7 +982,9 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix)
 
   dcd_int_disable(0);
   pcd_set_ep_tx_status(USB, ep_ix, USB_EP_TX_VALID);
-  xfer->in_complete = false;
+  if (is_iso) {
+    xfer->iso_in_sending = true;
+  }
   dcd_int_enable(0);
 }
 
