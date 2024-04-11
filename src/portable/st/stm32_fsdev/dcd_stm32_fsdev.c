@@ -864,7 +864,19 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
 void dcd_edpt_close_all(uint8_t rhport)
 {
   (void)rhport;
-  // TODO implement dcd_edpt_close_all()
+
+  for (uint32_t i = 1; i < STFSDEV_EP_COUNT; i++) {
+    // Reset endpoint
+    pcd_set_endpoint(USB, i, 0);
+    // Clear EP allocation status
+    ep_alloc_status[i].ep_num = 0xFF;
+    ep_alloc_status[i].ep_type = 0xFF;
+    ep_alloc_status[i].allocated[0] = false;
+    ep_alloc_status[i].allocated[1] = false;
+  }
+
+  // Reset PMA allocation
+  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8 * MAX_EP_COUNT + 2 * CFG_TUD_ENDPOINT0_SIZE;
 }
 
 /**
