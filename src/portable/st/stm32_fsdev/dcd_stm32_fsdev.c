@@ -216,22 +216,19 @@ void dcd_init(uint8_t rhport)
   /* The RM mentions to use a special ordering of PDWN and FRES, but this isn't done in HAL.
    * Here, the RM is followed. */
 
-  for (uint32_t i = 0; i < 200; i++) // should be a few us
-  {
+  for (uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
   // Perform USB peripheral reset
   USB->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
-  for (uint32_t i = 0; i < 200; i++) // should be a few us
-  {
+  for (uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
 
   USB->CNTR &= ~USB_CNTR_PDWN;
 
   // Wait startup time, for F042 and F070, this is <= 1 us.
-  for (uint32_t i = 0; i < 200; i++) // should be a few us
-  {
+  for (uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
   USB->CNTR = 0; // Enable USB
@@ -251,8 +248,9 @@ void dcd_init(uint8_t rhport)
   dcd_handle_bus_reset();
 
   // Enable pull-up if supported
-  if (dcd_connect)
+  if (dcd_connect) {
     dcd_connect(rhport);
+  }
 }
 
 // Define only on MCU with internal pull-up. BSP can define on MCU without internal PU.
@@ -441,21 +439,23 @@ void dcd_remote_wakeup(uint8_t rhport)
   remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
-static const tusb_desc_endpoint_t ep0OUT_desc = {.bLength = sizeof(tusb_desc_endpoint_t),
-                                                 .bDescriptorType = TUSB_DESC_ENDPOINT,
+static const tusb_desc_endpoint_t ep0OUT_desc = {
+    .bLength = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x00,
+    .bmAttributes = {.xfer = TUSB_XFER_CONTROL},
+    .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
+    .bInterval = 0
+};
 
-                                                 .bEndpointAddress = 0x00,
-                                                 .bmAttributes = {.xfer = TUSB_XFER_CONTROL},
-                                                 .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-                                                 .bInterval = 0};
-
-static const tusb_desc_endpoint_t ep0IN_desc = {.bLength = sizeof(tusb_desc_endpoint_t),
-                                                .bDescriptorType = TUSB_DESC_ENDPOINT,
-
-                                                .bEndpointAddress = 0x80,
-                                                .bmAttributes = {.xfer = TUSB_XFER_CONTROL},
-                                                .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-                                                .bInterval = 0};
+static const tusb_desc_endpoint_t ep0IN_desc = {
+    .bLength = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x80,
+    .bmAttributes = {.xfer = TUSB_XFER_CONTROL},
+    .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
+    .bInterval = 0
+};
 
 static void dcd_handle_bus_reset(void)
 {
@@ -503,8 +503,9 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
 
   /* Ignore spurious int */
-  if (xfer->in_complete)
+  if (xfer->in_complete) {
     return;
+  }
   xfer->in_complete = true;
 
   if ((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
@@ -515,11 +516,9 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
     }
   }
 
-  if ((xfer->total_len != xfer->queued_len)) /* TX not complete */
-  {
+  if ((xfer->total_len != xfer->queued_len)) {
     dcd_transmit_packet(xfer, EPindex);
-  } else /* TX Complete */
-  {
+  } else {
     dcd_event_xfer_complete(0, ep_addr, xfer->total_len, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -561,12 +560,11 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
     return;
   }
 
-  if ((ep_addr == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) /* Setup packet */
-  {
+  if ((ep_addr == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) {
+    /* Setup packet */
     uint32_t count = pcd_get_ep_rx_cnt(USB, EPindex);
-    /* Get SETUP Packet*/
-    if (count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
-    {
+    // Setup packet should always be 8 bytes. If not, ignore it, and try again.
+    if (count == 8) {
       // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
       pcd_set_ep_rx_status(USB, 0u, USB_EP_RX_NAK);
       pcd_set_ep_tx_status(USB, 0u, USB_EP_TX_NAK);
@@ -615,16 +613,14 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
     }
 
     if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len)) {
-      /* RX COMPLETE */
+      // all bytes received or short packet
       dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-      // Though the host could still send, we don't know.
-      // Does the bulk pipe need to be reset to valid to allow for a ZLP?
     } else {
       /* Set endpoint active again for receiving more data.
        * Note that isochronous endpoints stay active always */
-      if (!((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS)) {
+      if ((wEPRegVal & USB_EP_TYPE_MASK) != USB_EP_ISOCHRONOUS) {
         uint16_t remaining = xfer->total_len - xfer->queued_len;
-        uint16_t cnt = remaining >= xfer->max_packet_size ? xfer->max_packet_size : remaining;
+        uint16_t cnt = tu_min16(remaining, xfer->max_packet_size);
         pcd_set_ep_rx_cnt(USB, EPindex, cnt);
         pcd_set_ep_rx_cnt(USB, EPindex, remaining);
       }
@@ -734,7 +730,9 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *req
 {
   (void)rhport;
 
-  if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE && request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && request->bRequest == TUSB_REQ_SET_ADDRESS) {
+  if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
+      request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
+      request->bRequest == TUSB_REQ_SET_ADDRESS) {
     uint8_t const dev_addr = (uint8_t)request->wValue;
 
     // Setting new address after the whole request is complete
@@ -781,13 +779,16 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
 
   for (uint8_t i = 0; i < STFSDEV_EP_COUNT; i++) {
     // Check if already allocated
-    if (ep_alloc_status[i].allocated[dir] && ep_alloc_status[i].ep_type == ep_type && ep_alloc_status[i].ep_num == epnum) {
+    if (ep_alloc_status[i].allocated[dir] &&
+        ep_alloc_status[i].ep_type == ep_type &&
+        ep_alloc_status[i].ep_num == epnum) {
       return i;
     }
 
     // If EP of current direction is not allocated
     // Except for ISO endpoint, both direction should be free
-    if (!ep_alloc_status[i].allocated[dir] && (ep_type != TUSB_XFER_ISOCHRONOUS || !ep_alloc_status[i].allocated[dir ^ 1])) {
+    if (!ep_alloc_status[i].allocated[dir] &&
+        (ep_type != TUSB_XFER_ISOCHRONOUS || !ep_alloc_status[i].allocated[dir ^ 1])) {
       // Check if EP number is the same
       if (ep_alloc_status[i].ep_num == 0xFF || ep_alloc_status[i].ep_num == epnum) {
         // One EP pair has to be the same type
@@ -812,8 +813,9 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
 {
   (void)rhport;
-  uint8_t const ep_idx = dcd_ep_alloc(p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
-  uint8_t const dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
+  uint8_t const ep_addr = p_endpoint_desc->bEndpointAddress;
+  uint8_t const ep_idx = dcd_ep_alloc(ep_addr, p_endpoint_desc->bmAttributes.xfer);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
   const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
   const uint16_t buffer_size = pcd_aligned_buffer_size(packet_size);
   uint16_t pma_addr;
@@ -822,28 +824,26 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
   TU_ASSERT(ep_idx < STFSDEV_EP_COUNT);
   TU_ASSERT(buffer_size <= 64);
 
-  // ISO endpoint should use alloc / active functions
-  TU_ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
-
   // Set type
   switch (p_endpoint_desc->bmAttributes.xfer) {
-  case TUSB_XFER_CONTROL:
-    wType = USB_EP_CONTROL;
-    break;
-  case TUSB_XFER_BULK:
-    wType = USB_EP_CONTROL;
-    break;
+    case TUSB_XFER_CONTROL:
+      wType = USB_EP_CONTROL;
+      break;
+    case TUSB_XFER_BULK:
+      wType = USB_EP_CONTROL;
+      break;
 
-  case TUSB_XFER_INTERRUPT:
-    wType = USB_EP_INTERRUPT;
-    break;
+    case TUSB_XFER_INTERRUPT:
+      wType = USB_EP_INTERRUPT;
+      break;
 
-  default:
-    TU_ASSERT(false);
+    default:
+      // Note: ISO endpoint should use alloc / active functions
+      TU_ASSERT(false);
   }
 
   pcd_set_eptype(USB, ep_idx, wType);
-  pcd_set_ep_address(USB, ep_idx, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
+  pcd_set_ep_address(USB, ep_idx, tu_edpt_number(ep_addr));
 
   /* Create a packet memory buffer area. */
   pma_addr = dcd_pma_alloc(buffer_size, false);
@@ -852,16 +852,14 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
     pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
     pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_NAK);
     pcd_clear_tx_dtog(USB, ep_idx);
-  }
-
-  if (dir == TUSB_DIR_OUT) {
+  } else {
     pcd_set_ep_rx_address(USB, ep_idx, pma_addr);
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_NAK);
     pcd_clear_rx_dtog(USB, ep_idx);
   }
 
-  xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = packet_size;
-  xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->ep_idx = ep_idx;
+  xfer_ctl_ptr(ep_addr)->max_packet_size = packet_size;
+  xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
   return true;
 }
@@ -898,8 +896,6 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 {
   (void)rhport;
 
-  TU_ASSERT(largest_packet_size < 1024);
-
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
   const uint16_t buffer_size = pcd_aligned_buffer_size(largest_packet_size);
 
@@ -925,14 +921,15 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
 {
   (void)rhport;
-  uint8_t const ep_idx = xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->ep_idx;
-  uint8_t const dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
+  uint8_t const ep_addr = p_endpoint_desc->bEndpointAddress;
+  uint8_t const ep_idx = xfer_ctl_ptr(ep_addr)->ep_idx;
+  uint8_t const dir = tu_edpt_dir(ep_addr);
   const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
 
   pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_DIS);
   pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_DIS);
 
-  pcd_set_ep_address(USB, ep_idx, tu_edpt_number(p_endpoint_desc->bEndpointAddress));
+  pcd_set_ep_address(USB, ep_idx, tu_edpt_number(ep_addr));
 
   pcd_clear_tx_dtog(USB, ep_idx);
   pcd_clear_rx_dtog(USB, ep_idx);
@@ -943,7 +940,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoin
     pcd_tx_dtog(USB, ep_idx);
   }
 
-  xfer_ctl_ptr(p_endpoint_desc->bEndpointAddress)->max_packet_size = packet_size;
+  xfer_ctl_ptr(ep_addr)->max_packet_size = packet_size;
 
   return true;
 }
@@ -953,9 +950,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoin
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix)
 {
   uint16_t len = (uint16_t)(xfer->total_len - xfer->queued_len);
-
-  if (len > xfer->max_packet_size) // max packet size for FS transfer
-  {
+  if (len > xfer->max_packet_size) {
     len = xfer->max_packet_size;
   }
 
@@ -996,14 +991,16 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
   uint8_t const ep_idx = xfer->ep_idx;
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  if (dir == TUSB_DIR_OUT) {
+  if (dir == TUSB_DIR_IN) {
+    dcd_transmit_packet(xfer, ep_idx);
+  } else {
     // A setup token can occur immediately after an OUT STATUS packet so make sure we have a valid
     // buffer for the control endpoint.
     if (ep_idx == 0 && xfer->buffer == NULL) {
       xfer->buffer = (uint8_t *)_setup_packet;
     }
 
-    uint32_t cnt = xfer->total_len > xfer->max_packet_size ? xfer->max_packet_size : xfer->total_len;
+    uint32_t cnt = (uint32_t ) tu_min16(xfer->total_len, xfer->max_packet_size);
     uint16_t ep_reg = pcd_get_endpoint(USB, ep_idx);
 
     if ((ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
@@ -1014,10 +1011,8 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
     }
 
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_VALID);
-  } else // IN
-  {
-    dcd_transmit_packet(xfer, ep_idx);
   }
+
   return true;
 }
 
@@ -1052,9 +1047,9 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const ep_idx = xfer->ep_idx;
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  if (dir == TUSB_DIR_IN) { // IN
+  if (dir == TUSB_DIR_IN) {
     pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_STALL);
-  } else { // OUT
+  } else {
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_STALL);
   }
 }
