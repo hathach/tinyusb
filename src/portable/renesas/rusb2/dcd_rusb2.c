@@ -1005,7 +1005,6 @@ void dcd_int_handler(uint8_t rhport)
     const unsigned s = rusb->BRDYSTS & m;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BRDYSTS = ~s;
-
     for (unsigned p = 0; p < PIPE_COUNT; ++p) {
       if (tu_bit_test(s, p)) {
         process_pipe_brdy(rhport, p);
