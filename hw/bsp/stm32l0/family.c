@@ -163,7 +163,7 @@ uint32_t board_millis(void)
 
 void HardFault_Handler (void)
 {
-  asm("bkpt");
+  __asm("BKPT #0\n");
 }
 
 #ifdef  USE_FULL_ASSERT

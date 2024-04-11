@@ -104,39 +104,39 @@ int main(void)
   // Generate dummy data
 #if CFG_TUD_AUDIO_ENABLE_ENCODING
   uint16_t * p_buff = i2s_dummy_buffer[0];
-  uint16_t dataVal = 1;
+  uint16_t dataVal = 0;
   for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
   {
     // CH0 saw wave
     *p_buff++ = dataVal;
     // CH1 inverted saw wave
-    *p_buff++ = 60 + AUDIO_SAMPLE_RATE/1000 - dataVal;
-    dataVal++;
+    *p_buff++ = 3200 + AUDIO_SAMPLE_RATE/1000 - dataVal;
+    dataVal+= 32;
   }
   p_buff = i2s_dummy_buffer[1];
   for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
   {
     // CH3 square wave
-    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 120:170;
+    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 3400:5000;
     // CH4 sinus wave
     float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
-    *p_buff++ = (uint16_t)(sinf(t) * 25) + 200;
+    *p_buff++ = (uint16_t)((int16_t)(sinf(t) * 750) + 6000);
   }
 #else
   uint16_t * p_buff = i2s_dummy_buffer;
-  uint16_t dataVal = 1;
+  uint16_t dataVal = 0;
   for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
   {
     // CH0 saw wave
     *p_buff++ = dataVal;
     // CH1 inverted saw wave
-    *p_buff++ = 60 + AUDIO_SAMPLE_RATE/1000 - dataVal;
-    dataVal++;
+    *p_buff++ = 3200 + AUDIO_SAMPLE_RATE/1000 - dataVal;
+    dataVal+= 32;
     // CH3 square wave
-    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 120:170;
+    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 3400:5000;
     // CH4 sinus wave
     float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
-    *p_buff++ = (uint16_t)(sinf(t) * 25) + 200;
+    *p_buff++ = (uint16_t)((int16_t)(sinf(t) * 750) + 6000);
   }
 #endif
 

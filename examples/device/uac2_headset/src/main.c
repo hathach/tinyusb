@@ -35,11 +35,7 @@
 //--------------------------------------------------------------------+
 
 // List of supported sample rates
-#if defined(__RX__)
-  const uint32_t sample_rates[] = {44100, 48000};
-#else
-  const uint32_t sample_rates[] = {44100, 48000, 88200, 96000};
-#endif
+const uint32_t sample_rates[] = {44100, 48000};
 
 uint32_t current_sample_rate  = 44100;
 
