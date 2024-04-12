@@ -26,8 +26,8 @@ jobs:
               username = context.payload.issue.user.login;
               issueOrPrNumber = context.payload.issue.number;
             } else if (context.eventName === 'pull_request_target') {
-              username = context.payload.pull_request_target.user.login;
-              issueOrPrNumber = context.payload.pull_request_target.number;
+              username = context.payload.pull_request.user.login;
+              issueOrPrNumber = context.payload.pull_request.number;
             }
 
             // Check if an Adafruit member
