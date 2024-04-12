@@ -404,8 +404,14 @@
 #elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
   #define TUP_DCD_ENDPOINT_MAX    16
   #define TUP_RHPORT_HIGHSPEED    1
-#endif
 
+//--------------------------------------------------------------------+
+// ArteryTek
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F415)
+    #define TUP_USBIP_DWC2
+    #define TUP_DCD_ENDPOINT_MAX  4
+#endif
 
 //--------------------------------------------------------------------+
 // External USB controller

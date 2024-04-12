@@ -167,6 +167,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_CH32F20X
   #include "ch32f20x.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F415
+  #include "at32f415.h"
+
 #elif TU_CHECK_MCU(OPT_MCU_BCM2711, OPT_MCU_BCM2835, OPT_MCU_BCM2837)
   // no header needed
 

@@ -177,10 +177,12 @@
 #define OPT_MCU_CH32V307         2200 ///< WCH CH32V307
 #define OPT_MCU_CH32F20X         2210 ///< WCH CH32F20x
 
-
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
 #define OPT_MCU_MCXA15           2301  ///< NXP MCX A15 Series
+
+// ArteryTek
+#define OPT_MCU_AT32F415         2400  ///< AT32F415 Series
 
 // Check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input

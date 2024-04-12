@@ -34,6 +34,7 @@ sdkconfig
 
 # submodules
 hw/mcu/allwinner
+hw/mcu/arterytek/at32f415_fw_lib
 hw/mcu/bridgetek/ft9xx/ft90x-sdk
 hw/mcu/broadcom
 hw/mcu/gd/nuclei-sdk

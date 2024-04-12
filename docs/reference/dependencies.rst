@@ -8,6 +8,7 @@ MCU low-level peripheral driver and external libraries for building TinyUSB exam
 Local Path                                Repo                                                            Commit                                    Required by
 ========================================  ==============================================================  ========================================  =======================================================================================================================================================================================================
 hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                 8e5e89e8e132c0fd90e72d5422e5d3d68232b756  fc100s
+hw/mcu/arterytek/at32f415_fw_lib          https://github.com/ArteryTek/AT32F415_Firmware_Library.git      9d554c6b9100cb877fcdf0717473e1def0f0d238  at32f415
 hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                     91060164afe239fcb394122e8bf9eb24d3194eb1  brtmm90x
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git            08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git               7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103

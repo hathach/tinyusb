@@ -10,6 +10,8 @@ Supported MCUs
 +==============+=======================+========+======+===========+===================+==============+
 | Allwinner    | F1C100s/F1C200s       | ✔      |      | ✔         | sunxi             | musb variant |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
+| ArteryTek    | AT32F415              | ✔      |      | ✖         | dwc2              |              |
++--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | Analog       | MAX3421E              |        | ✔    | ✖         | max3421           | via SPI      |
 +--------------+-----------------------+--------+------+-----------+-------------------+--------------+
 | Brigetek     | FT90x                 | ✔      |      | ✔         | ft9xx             |              |
@@ -153,6 +155,11 @@ The board support code is only used for self-contained examples and testing. It 
 -  One UART : optional for device, but required for host examples
 
 The following boards are supported (sorted alphabetically):
+
+ArteryTek
+----------
+
+-  `AT-START-F415 <https://www.arterychip.com/en/product/AT32F415.jsp>`__
 
 Broadcom
 --------

@@ -53,6 +53,8 @@
   #include "dwc2_efm32.h"
 #elif TU_CHECK_MCU(OPT_MCU_XMC4000)
   #include "dwc2_xmc.h"
+#elif TU_CHECK_MCU(OPT_MCU_AT32F415)
+  #include "dwc2_at32.h"
 #else
   #error "Unsupported MCUs"
 #endif
