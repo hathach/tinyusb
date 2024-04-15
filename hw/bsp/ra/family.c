@@ -64,8 +64,11 @@ BSP_DONT_REMOVE BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS)
 const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] = {
     [0] = usbfs_interrupt_handler, /* USBFS INT (USBFS interrupt) */
     [1] = usbfs_resume_handler,    /* USBFS RESUME (USBFS resume interrupt) */
+
+#ifndef BSP_MCU_GROUP_RA2A1
     [2] = usbfs_d0fifo_handler,    /* USBFS FIFO 0 (DMA transfer request 0) */
     [3] = usbfs_d1fifo_handler,    /* USBFS FIFO 1 (DMA transfer request 1) */
+#endif
 
 #ifdef BOARD_HAS_USB_HIGHSPEED
     [4] = usbhs_interrupt_handler, /* USBHS INT (USBHS interrupt) */
