@@ -61,7 +61,9 @@ jobs:
         tar -C ~/cache/toolchain -xaf toolchain.tar.bz2
 
     - name: Set Toolchain Path
-      run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+      run: |
+        echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+        sudo apt install -y ninja-build
 
     - name: Build
       run: |
