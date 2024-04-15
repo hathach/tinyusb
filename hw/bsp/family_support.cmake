@@ -460,6 +460,21 @@ function(family_flash_dfu_util TARGET OPTION)
     )
 endfunction()
 
+function(family_flash_msp430flasher TARGET)
+  if (NOT DEFINED MSP430Flasher)
+    set(MSP430FLASHER MSP430Flasher)
+  endif ()
+
+  # set LD_LIBRARY_PATH to find libmsp430.so (directory containing MSP430Flasher)
+  find_program(MSP430FLASHER_PATH MSP430Flasher)
+  get_filename_component(MSP430FLASHER_PARENT_DIR "${MSP430FLASHER_PATH}" DIRECTORY)
+  add_custom_target(${TARGET}-msp430flasher
+    DEPENDS ${TARGET}
+    COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${MSP430FLASHER_PARENT_DIR}
+            ${MSP430FLASHER} -w $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex -z [VCC]
+    )
+endfunction()
+
 #----------------------------------
 # Family specific
 #----------------------------------

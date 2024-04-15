@@ -535,14 +535,14 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
    * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
    * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
    * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
-   * also takes time, so we'll wait 40 cycles (count = 20).
+   * also takes time, so we'll wait 60 cycles (count = 20).
    * - Since Low Speed mode is not supported/popular, we will ignore it for now.
    *
    * Note: this errata also seems to apply to G0, U5, H5 etc.
    */
   volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
   while (cycle_count > 0U) {
-    cycle_count--; // each count take 2 cycle (1 cycle for sub, 1 cycle for compare/jump)
+    cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
   }
 #endif
 
