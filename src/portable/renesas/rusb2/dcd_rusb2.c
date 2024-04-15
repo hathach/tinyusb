@@ -915,6 +915,18 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
+
+#if defined(__CCRX__)
+TU_ATTR_ALWAYS_INLINE static inline unsigned __builtin_ctz(unsigned int value) {
+  unsigned int count = 0;
+  while ((value & 1) == 0) {
+    value >>= 1;
+    count++;
+  }
+  return count;
+}
+#endif
+
 void dcd_int_handler(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
@@ -1002,13 +1014,13 @@ void dcd_int_handler(uint8_t rhport)
   // Buffer ready
   if ( is0 & RUSB2_INTSTS0_BRDY_Msk ) {
     const unsigned m = rusb->BRDYENB;
-    const unsigned s = rusb->BRDYSTS & m;
+    unsigned s = rusb->BRDYSTS & m;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BRDYSTS = ~s;
-    for (unsigned p = 0; p < PIPE_COUNT; ++p) {
-      if (tu_bit_test(s, p)) {
-        process_pipe_brdy(rhport, p);
-      }
+    while (s) {
+      const unsigned num = __builtin_ctz(s);
+      process_pipe_brdy(rhport, num);
+      s &= ~TU_BIT(num);
     }
   }
 }

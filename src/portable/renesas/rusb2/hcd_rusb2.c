@@ -758,6 +758,17 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
+#if defined(__CCRX__)
+TU_ATTR_ALWAYS_INLINE static inline unsigned __builtin_ctz(unsigned int value) {
+  unsigned int count = 0;
+  while ((value & 1) == 0) {
+    value >>= 1;
+    count++;
+  }
+  return count;
+}
+#endif
+
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
   (void) in_isr;
 
@@ -807,23 +818,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     }
   }
 
-#if defined(__CCRX__)
-  static const int Mod37BitPosition[] = {
-    -1, 0, 1, 26, 2, 23, 27, 0, 3, 16, 24, 30, 28, 11, 0, 13, 4,
-    7, 17, 0, 25, 22, 31, 15, 29, 10, 12, 6, 0, 21, 14, 9, 5,
-    20, 8, 19, 18};
-#endif
-
   if (is0 & RUSB2_INTSTS0_NRDY_Msk) {
     const unsigned m = rusb->NRDYENB;
     unsigned s = rusb->NRDYSTS & m;
     rusb->NRDYSTS = ~s;
     while (s) {
-#if defined(__CCRX__)
-      const unsigned num = Mod37BitPosition[(-s & s) % 37];
-#else
       const unsigned num = __builtin_ctz(s);
-#endif
       process_pipe_nrdy(rhport, num);
       s &= ~TU_BIT(num);
     }
@@ -833,10 +833,10 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     unsigned s = rusb->BRDYSTS & m;
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BRDYSTS = ~s;
-    for (unsigned p = 0; p < PIPE_COUNT; ++p) {
-      if (tu_bit_test(s, p)) {
-        process_pipe_brdy(rhport, p);
-      }
+    while (s) {
+      const unsigned num = __builtin_ctz(s);
+      process_pipe_brdy(rhport, num);
+      s &= ~TU_BIT(num);
     }
   }
 }
