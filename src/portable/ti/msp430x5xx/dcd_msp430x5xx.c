@@ -154,14 +154,11 @@ void dcd_init (uint8_t rhport)
 
   USBVECINT = 0;
 
-  if(USBPWRCTL & USBBGVBV)  // Bus power detected?
-  {
+  if(USBPWRCTL & USBBGVBV) {// Bus power detected?
     USBPWRCTL |= VBOFFIE;   // Enable bus-power-removed interrupt.
     USBIE |= RSTRIE;        // Enable reset and wait for it before continuing.
     USBCNF |= PUR_EN;       // Enable pullup.
-  }
-  else
-  {
+  } else {
     USBPWRCTL |= VBONIE;    // Enable bus-power-applied interrupt.
     USBCNF &= ~USB_EN;      // Disable USB module until bus power is detected.
   }
@@ -639,8 +636,7 @@ static void handle_setup_packet(void)
     _setup_packet[i] = setup_buf[i];
   }
 
-  // Force NAKs until tinyusb can handle the SETUP packet and prepare
-  // for a new xfer.
+  // Force NAKs until tinyusb can handle the SETUP packet and prepare for a new xfer.
   USBIEPCNT_0 |= NAK;
   USBOEPCNT_0 |= NAK;
 
@@ -660,16 +656,28 @@ static void handle_setup_packet(void)
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
-static void handle_bus_power_event(void *param)
-{
+#if CFG_TUSB_OS == OPT_OS_NONE
+TU_ATTR_ALWAYS_INLINE static inline void tu_delay(uint32_t ms) {
+  // msp430 can run up to 25Mhz -> 40ns per cycle. 1 ms = 25000 cycles
+  // each loop need 4 cycle: 1 sub, 1 cmp, 1 jump, 1 nop
+  volatile uint32_t cycles = (25000 * ms) >> 2;
+  while (cycles > 0) {
+    cycles--;
+    asm("nop");
+  }
+}
+#else
+#define tu_delay(ms) osal_task_delay(ms)
+#endif
+
+static void handle_bus_power_event(void *param) {
   (void) param;
 
-  osal_task_delay(5);                 // Bus power settling delay.
+  tu_delay(5);                 // Bus power settling delay.
 
   USBKEYPID = USBKEY;
 
-  if(USBPWRCTL & USBBGVBV)            // Event caused by application of bus power.
-  {
+  if(USBPWRCTL & USBBGVBV) {          // Event caused by application of bus power.
     USBPWRCTL |= VBOFFIE;             // Enable bus-power-removed interrupt.
     USBPLLDIVB = USBPLLDIVB;          // For some reason the PLL will *NOT* lock unless the divider
                                       // register is re-written. The assumption here is that this
@@ -678,21 +686,17 @@ static void handle_bus_power_event(void *param)
     USBPLLCTL |= (UPLLEN | UPFDEN);   // Enable the PLL.
 
     uint16_t attempts = 0;
-
-    do                                // Poll the PLL, checking for a successful lock.
-    {
+    do {                              // Poll the PLL, checking for a successful lock.
       USBPLLIR = 0;
-      osal_task_delay(1);
+      tu_delay(1);
       attempts++;
     } while ((attempts < 10) && (USBPLLIR != 0));
 
-    if(!USBPLLIR)                     // A successful lock is indicated by all PLL-related interrupt
-    {                                 // flags being cleared.
+    // A successful lock is indicated by all PLL-related interrupt flags being cleared.
+    if(!USBPLLIR) {
       dcd_init(0);                    // Re-initialize the USB module.
     }
-  }
-  else                                // Event caused by removal of bus power.
-  {
+  } else {                            // Event caused by removal of bus power.
     USBPWRCTL |= VBONIE;              // Enable bus-power-applied interrupt.
     USBPLLCTL &= ~(UPLLEN | UPFDEN);  // Disable the PLL.
     USBCNF = 0;                       // Disable the USB module.
@@ -741,20 +745,19 @@ void dcd_int_handler(uint8_t rhport)
       break;
 
     case USBVECINT_PWR_VBUSOn:
-    case USBVECINT_PWR_VBUSOff:
+    case USBVECINT_PWR_VBUSOff: {
       USBKEYPID = USBKEY;
       // Prevent (possibly) unstable power from generating spurious interrupts.
       USBPWRCTL &= ~(VBONIE | VBOFFIE);
       USBKEYPID = 0;
 
-      {
-        dcd_event_t event;
+      dcd_event_t event;
 
-        event.rhport = 0;
-        event.event_id = USBD_EVENT_FUNC_CALL;
-        event.func_call.func = handle_bus_power_event;
+      event.rhport = 0;
+      event.event_id = USBD_EVENT_FUNC_CALL;
+      event.func_call.func = handle_bus_power_event;
 
-        dcd_event_handler(&event, true);
+      dcd_event_handler(&event, true);
       }
       break;
 
