@@ -258,27 +258,13 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
-#if defined(SOFTDEVICE_PRESENT)  &&  defined(NORDIC_SDK_OLD_API)
-  if (sd_nvic_EnableIRQ(USBD_IRQn) != NRF_SUCCESS)
-  {
-    NVIC_EnableIRQ(USBD_IRQn);
-  }
-#else
   NVIC_EnableIRQ(USBD_IRQn);
-#endif
 }
 
 void dcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
-#if defined(SOFTDEVICE_PRESENT)  &&  defined(NORDIC_SDK_OLD_API)
-  if (sd_nvic_DisableIRQ(USBD_IRQn) != NRF_SUCCESS)
-  {
-    NVIC_DisableIRQ(USBD_IRQn);
-  }
-#else
   NVIC_DisableIRQ(USBD_IRQn);
-#endif
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
@@ -1132,27 +1118,14 @@ void tusb_hal_nrf_power_event (uint32_t event)
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk;
 
       // Enable interrupt, priorities should be set by application
-#if defined(SOFTDEVICE_PRESENT)  &&  defined(NORDIC_SDK_OLD_API)
-      if (sd_nvic_ClearPendingIRQ(USBD_IRQn) != NRF_SUCCESS)
-      {
-        NVIC_ClearPendingIRQ(USBD_IRQn);
-      }
-#else
       NVIC_ClearPendingIRQ(USBD_IRQn);
-#endif
+
       // Don't enable USBD interrupt yet, if dcd_init() did not finish yet
       // Interrupt will be enabled by tud_init(), when USB stack is ready
       // to handle interrupts.
       if (tud_inited())
       {
-#if defined(SOFTDEVICE_PRESENT)  &&  defined(NORDIC_SDK_OLD_API)
-        if (sd_nvic_EnableIRQ(USBD_IRQn) != NRF_SUCCESS)
-        {
-          NVIC_EnableIRQ(USBD_IRQn);
-        }
-#else
         NVIC_EnableIRQ(USBD_IRQn);
-#endif
       }
 
       // Wait for HFCLK
@@ -1173,14 +1146,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         __ISB(); __DSB(); // for sync
 
         // Disable Interrupt
-#if defined(SOFTDEVICE_PRESENT)  &&  defined(NORDIC_SDK_OLD_API)
-        if (sd_nvic_DisableIRQ(USBD_IRQn) != NRF_SUCCESS)
-        {
-          NVIC_DisableIRQ(USBD_IRQn);
-        }
-#else
         NVIC_DisableIRQ(USBD_IRQn);
-#endif
 
         // disable all interrupt
         NRF_USBD->INTENCLR = NRF_USBD->INTEN;
