@@ -56,25 +56,24 @@
 #include "mcu/mcu.h"
 #endif
 
-// Unfortunately there are API differences between nrfx<2.0.0 and nrfx>=2.0.0
-// Nordic actually has generated a mess here: nrfx==1.9.0 has MDK 8.40.3 while nrfx==2.0.0 has MDK 8.29.0.
-// See the below statement to catch all nrfx versions with an old API.
-#define _MDK_VERSION 10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION
-#if _MDK_VERSION <= 82701
-    // nrfx <= 1.8.1
-    #define NORDIC_SDK_OLD_API
-#elif  _MDK_VERSION == 83201
-    // nrfx 1.8.2 / 1.8.4
-    #define NORDIC_SDK_OLD_API
-#elif  _MDK_VERSION == 83203
-    // nrfx 1.8.5
-    #define NORDIC_SDK_OLD_API
-#elif  _MDK_VERSION == 83500
-    // nrfx 1.8.6
-    #define NORDIC_SDK_OLD_API
-#elif _MDK_VERSION == 84003
-    // nrfx 1.9.0
-    #define NORDIC_SDK_OLD_API
+/* Try to detect nrfx version if not configured with CFG_TUD_NRF_NRFX_VERSION
+ * nrfx v1 and v2 are concurrently developed. There is no NRFX_VERSION only MDK VERSION which is as follows:
+ * - v2.6.0: 8.44.1, v2.5.0: 8.40.2, v2.4.0: 8.37.0, v2.3.0: 8.35.0, v2.2.0: 8.32.1, v2.1.0: 8.30.2, v2.0.0: 8.29.0
+ * - v1.9.0: 8.40.3, v1.8.6: 8.35.0 (conflict with v2.3.0), v1.8.5: 8.32.3, v1.8.4: 8.32.1 (conflict with v2.2.0),
+ *   v1.8.2: 8.32.1 (conflict with v2.2.0), v1.8.1: 8.27.1
+ * Therefore the check for v1 would be:
+ * - MDK < 8.29.0 (v2.0), MDK == 8.32.3, 8.40.3
+ * - in case of conflict User of those version must upgrade to other 1.x version or set CFG_TUD_NRF_NRFX_VERSION
+*/
+#ifndef CFG_TUD_NRF_NRFX_VERSION
+  #define _MDK_VERSION  (10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION)
+
+  #if _MDK_VERSION < 82900 || _MDK_VERSION == 83203 || _MDK_VERSION == 84003
+    // nrfx <= 1.8.1, or 1.8.5 or 1.9.0
+    #define CFG_TUD_NRF_NRFX_VERSION 1
+  #else
+    #define CFG_TUD_NRF_NRFX_VERSION 2
+  #endif
 #endif
 
 /*------------------------------------------------------------------*/
@@ -921,7 +920,7 @@ static bool hfclk_running(void)
   }
 #endif
 
-#ifdef NORDIC_SDK_OLD_API
+#if CFG_TUD_NRF_NRFX_VERSION == 1
   return nrf_clock_hf_is_running(NRF_CLOCK_HFCLK_HIGH_ACCURACY);
 #else
   return nrf_clock_hf_is_running(NRF_CLOCK, NRF_CLOCK_HFCLK_HIGH_ACCURACY);
@@ -946,7 +945,7 @@ static void hfclk_enable(void)
   }
 #endif
 
-#ifdef NORDIC_SDK_OLD_API
+#if CFG_TUD_NRF_NRFX_VERSION == 1
   nrf_clock_event_clear(NRF_CLOCK_EVENT_HFCLKSTARTED);
   nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTART);
 #else
@@ -971,7 +970,7 @@ static void hfclk_disable(void)
   }
 #endif
 
-#ifdef NORDIC_SDK_OLD_API
+#if CFG_TUD_NRF_NRFX_VERSION == 1
   nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTOP);
 #else
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
