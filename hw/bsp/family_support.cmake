@@ -6,12 +6,24 @@ include(CMakePrintHelpers)
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
 get_filename_component(TOP ${TOP} ABSOLUTE)
 
-# Default to gcc
+#-------------------------------------------------------------
+# Toolchain
+# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
+#-------------------------------------------------------------
+if (DEFINED CMAKE_C_COMPILER)
+  string(FIND ${CMAKE_C_COMPILER} "iccarm" IS_IAR)
+  if (NOT IS_IAR EQUAL -1)
+    set(TOOLCHAIN iar)
+  endif ()
+endif ()
+
 if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
 
-# FAMILY not defined, try to detect it from BOARD
+#-------------------------------------------------------------
+# FAMILY and BOARD
+#-------------------------------------------------------------
 if (NOT DEFINED FAMILY)
   if (NOT DEFINED BOARD)
     message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, espressif).
@@ -74,6 +86,9 @@ set(WARNING_FLAGS_GNU
 
 set(WARNING_FLAGS_IAR "")
 
+#-------------------------------------------------------------
+# Functions
+#-------------------------------------------------------------
 
 # Filter example based on only.txt and skip.txt
 function(family_filter RESULT DIR)

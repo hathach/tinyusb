@@ -1,8 +1,16 @@
 set(CMAKE_SYSTEM_NAME Generic)
 
-set(CMAKE_C_COMPILER "iccarm")
-set(CMAKE_CXX_COMPILER "iccarm")
-set(CMAKE_ASM_COMPILER "iasmarm")
+if (NOT DEFINED CMAKE_C_COMPILER)
+  set(CMAKE_C_COMPILER "iccarm")
+endif()
+
+if (NOT DEFINED CMAKE_CXX_COMPILER)
+  set(CMAKE_CXX_COMPILER "iccarm")
+endif()
+
+if (NOT DEFINED CMAKE_ASM_COMPILER)
+  set(CMAKE_ASM_COMPILER "iasmarm")
+endif()
 
 set(CMAKE_SIZE "size" CACHE FILEPATH "")
 set(CMAKE_OBJCOPY "ielftool" CACHE FILEPATH "")
