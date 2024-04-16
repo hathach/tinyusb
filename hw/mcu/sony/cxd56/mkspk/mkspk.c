@@ -358,7 +358,7 @@ int main(int argc, char **argv)
       free(elf->data);
   }
   free(elf);
-  
+
 
   c = cipher_init(vmk, NULL);
   cipher_calc_cmac(c, spkimage, size, (uint8_t *) spkimage + size);
