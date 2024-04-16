@@ -1136,16 +1136,14 @@ void dcd_int_handler(uint8_t rhport) {
 
   if(int_status & GINTSTS_SOF) {
     dwc2->gintsts = GINTSTS_SOF;
+    const uint32_t frame = (dwc2->dsts & DSTS_FNSOF) >> DSTS_FNSOF_Pos;
 
-    if (_sof_en) {
-      uint32_t frame = (dwc2->dsts & (DSTS_FNSOF)) >> 8;
-      dcd_event_sof(rhport, frame, true);
-    } else {
-      // Disable SOF interrupt if SOF was not explicitly enabled. SOF was used for remote wakeup detection
+    // Disable SOF interrupt if SOF was not explicitly enabled since SOF was used for remote wakeup detection
+    if (!_sof_en) {
       dwc2->gintmsk &= ~GINTMSK_SOFM;
     }
 
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+    dcd_event_sof(rhport, frame, true);
   }
 
   // RxFIFO non-empty interrupt handling.
