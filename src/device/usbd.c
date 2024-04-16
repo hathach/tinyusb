@@ -636,7 +636,7 @@ static bool invoke_class_control(uint8_t rhport, usbd_class_driver_t const * dri
 }
 
 // This handles the actual request and its response.
-// return false will cause its caller to stall control endpoint
+// Returns false if unable to complete the request, causing caller to stall control endpoints.
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request) {
   usbd_control_set_complete_callback(NULL);
   TU_ASSERT(p_request->bmRequestType_bit.type < TUSB_REQ_TYPE_INVALID);
@@ -1306,12 +1306,10 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   // only stalled if currently cleared
-  if (!_usbd_dev.ep_status[epnum][dir].stalled) {
-    TU_LOG_USBD("    Stall EP %02X\r\n", ep_addr);
-    dcd_edpt_stall(rhport, ep_addr);
-    _usbd_dev.ep_status[epnum][dir].stalled = 1;
-    _usbd_dev.ep_status[epnum][dir].busy = 1;
-  }
+  TU_LOG_USBD("    Stall EP %02X\r\n", ep_addr);
+  dcd_edpt_stall(rhport, ep_addr);
+  _usbd_dev.ep_status[epnum][dir].stalled = 1;
+  _usbd_dev.ep_status[epnum][dir].busy = 1;
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -1321,12 +1319,10 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   // only clear if currently stalled
-  if (_usbd_dev.ep_status[epnum][dir].stalled) {
-    TU_LOG_USBD("    Clear Stall EP %02X\r\n", ep_addr);
-    dcd_edpt_clear_stall(rhport, ep_addr);
-    _usbd_dev.ep_status[epnum][dir].stalled = 0;
-    _usbd_dev.ep_status[epnum][dir].busy = 0;
-  }
+  TU_LOG_USBD("    Clear Stall EP %02X\r\n", ep_addr);
+  dcd_edpt_clear_stall(rhport, ep_addr);
+  _usbd_dev.ep_status[epnum][dir].stalled = 0;
+  _usbd_dev.ep_status[epnum][dir].busy = 0;
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
