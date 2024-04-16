@@ -288,9 +288,9 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec) {
 #endif
 
 TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, bool in_isr) {
-  bool ret = osal_queue_send(_usbh_q, event, in_isr);
+  TU_ASSERT(osal_queue_send(_usbh_q, event, in_isr));
   tuh_event_hook_cb(event->rhport, event->event_id, in_isr);
-  return ret;
+  return true;
 }
 
 //--------------------------------------------------------------------+
