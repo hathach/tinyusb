@@ -40,7 +40,6 @@
 
 #include "nrf.h"
 #include "nrf_clock.h"
-#include "nrf_power.h"
 #include "nrfx_usbd_errata.h"
 
 #ifdef __GNUC__
@@ -55,6 +54,26 @@
 
 #if CFG_TUSB_OS == OPT_OS_MYNEWT
 #include "mcu/mcu.h"
+#endif
+
+/* Try to detect nrfx version if not configured with CFG_TUD_NRF_NRFX_VERSION
+ * nrfx v1 and v2 are concurrently developed. There is no NRFX_VERSION only MDK VERSION which is as follows:
+ * - v2.6.0: 8.44.1, v2.5.0: 8.40.2, v2.4.0: 8.37.0, v2.3.0: 8.35.0, v2.2.0: 8.32.1, v2.1.0: 8.30.2, v2.0.0: 8.29.0
+ * - v1.9.0: 8.40.3, v1.8.6: 8.35.0 (conflict with v2.3.0), v1.8.5: 8.32.3, v1.8.4: 8.32.1 (conflict with v2.2.0),
+ *   v1.8.2: 8.32.1 (conflict with v2.2.0), v1.8.1: 8.27.1
+ * Therefore the check for v1 would be:
+ * - MDK < 8.29.0 (v2.0), MDK == 8.32.3, 8.40.3
+ * - in case of conflict User of those version must upgrade to other 1.x version or set CFG_TUD_NRF_NRFX_VERSION
+*/
+#ifndef CFG_TUD_NRF_NRFX_VERSION
+  #define _MDK_VERSION  (10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION)
+
+  #if _MDK_VERSION < 82900 || _MDK_VERSION == 83203 || _MDK_VERSION == 84003
+    // nrfx <= 1.8.1, or 1.8.5 or 1.9.0
+    #define CFG_TUD_NRF_NRFX_VERSION 1
+  #else
+    #define CFG_TUD_NRF_NRFX_VERSION 2
+  #endif
 #endif
 
 /*------------------------------------------------------------------*/
@@ -109,21 +128,6 @@ static struct
 /*------------------------------------------------------------------*/
 /* Control / Bulk / Interrupt (CBI) Transfer
  *------------------------------------------------------------------*/
-
-// NVIC_GetEnableIRQ is only available in CMSIS v5
-#ifndef NVIC_GetEnableIRQ
-static inline uint32_t NVIC_GetEnableIRQ(IRQn_Type IRQn)
-{
-  if ((int32_t)(IRQn) >= 0)
-  {
-    return((uint32_t)(((NVIC->ISER[(((uint32_t)(int32_t)IRQn) >> 5UL)] & (1UL << (((uint32_t)(int32_t)IRQn) & 0x1FUL))) != 0UL) ? 1UL : 0UL));
-  }
-  else
-  {
-    return(0U);
-  }
-}
-#endif
 
 // check if we are in ISR
 TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
@@ -916,7 +920,11 @@ static bool hfclk_running(void)
   }
 #endif
 
+#if CFG_TUD_NRF_NRFX_VERSION == 1
+  return nrf_clock_hf_is_running(NRF_CLOCK_HFCLK_HIGH_ACCURACY);
+#else
   return nrf_clock_hf_is_running(NRF_CLOCK, NRF_CLOCK_HFCLK_HIGH_ACCURACY);
+#endif
 }
 
 static void hfclk_enable(void)
@@ -937,8 +945,13 @@ static void hfclk_enable(void)
   }
 #endif
 
+#if CFG_TUD_NRF_NRFX_VERSION == 1
+  nrf_clock_event_clear(NRF_CLOCK_EVENT_HFCLKSTARTED);
+  nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTART);
+#else
   nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_HFCLKSTARTED);
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTART);
+#endif
 #endif
 }
 
@@ -957,7 +970,11 @@ static void hfclk_disable(void)
   }
 #endif
 
+#if CFG_TUD_NRF_NRFX_VERSION == 1
+  nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTOP);
+#else
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
+#endif
 #endif
 }
 
@@ -1101,6 +1118,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
       // Enable interrupt, priorities should be set by application
       NVIC_ClearPendingIRQ(USBD_IRQn);
+
       // Don't enable USBD interrupt yet, if dcd_init() did not finish yet
       // Interrupt will be enabled by tud_init(), when USB stack is ready
       // to handle interrupts.
