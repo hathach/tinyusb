@@ -37,7 +37,16 @@ elseif (TOOLCHAIN STREQUAL "iar")
     --diag_suppress=Li065
     )
 elseif (TOOLCHAIN STREQUAL "clang")
-  message(FATAL_ERROR "Clang not supported")
+  list(APPEND TOOLCHAIN_COMMON_FLAGS
+    -fdata-sections
+    -ffunction-sections
+    -fno-strict-aliasing
+    )
+  list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
+    -Wl,--print-memory-usage
+    -Wl,--gc-sections
+    -Wl,--cref
+    )
 endif ()
 
 # join the toolchain flags into a single string

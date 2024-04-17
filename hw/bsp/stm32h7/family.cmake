@@ -29,6 +29,7 @@ function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
     # Startup & Linker script
     set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+    set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
     set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
 
     if(NOT DEFINED LD_FILE_IAR)
@@ -71,6 +72,10 @@ function(add_board_target BOARD_TARGET)
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC
         "LINKER:--config=${LD_FILE_IAR}"
+        )
+    elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+      target_link_options(${BOARD_TARGET} PUBLIC
+        "LINKER:--script=${LD_FILE_GNU}"
         )
     endif ()
   endif ()

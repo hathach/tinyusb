@@ -10,13 +10,22 @@ get_filename_component(TOP ${TOP} ABSOLUTE)
 # Toolchain
 # Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
 #-------------------------------------------------------------
+# Detect toolchain based on CMAKE_C_COMPILER
 if (DEFINED CMAKE_C_COMPILER)
   string(FIND ${CMAKE_C_COMPILER} "iccarm" IS_IAR)
+  string(FIND ${CMAKE_C_COMPILER} "clang" IS_CLANG)
+  string(FIND ${CMAKE_C_COMPILER} "gcc" IS_GCC)
+
   if (NOT IS_IAR EQUAL -1)
     set(TOOLCHAIN iar)
+  elseif (NOT IS_CLANG EQUAL -1)
+    set(TOOLCHAIN clang)
+  elseif (NOT IS_GCC EQUAL -1)
+    set(TOOLCHAIN gcc)
   endif ()
 endif ()
 
+# default to gcc
 if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
