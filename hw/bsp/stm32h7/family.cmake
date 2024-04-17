@@ -56,10 +56,8 @@ function(add_board_target BOARD_TARGET)
       ${ST_CMSIS}/Include
       ${ST_HAL_DRIVER}/Inc
       )
-    target_compile_options(${BOARD_TARGET} PUBLIC
-      )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      )
+    #target_compile_options(${BOARD_TARGET} PUBLIC)
+    #target_compile_definitions(${BOARD_TARGET} PUBLIC)
 
     update_board(${BOARD_TARGET})
 
@@ -75,6 +73,7 @@ function(add_board_target BOARD_TARGET)
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
       target_link_options(${BOARD_TARGET} PUBLIC
+        #-ldummyhost
         "LINKER:--script=${LD_FILE_GNU}"
         )
     endif ()

@@ -174,7 +174,7 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
     // Check if free space is available
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= _dwc2_controller[rhport].ep_fifo_size / 4);
     _allocated_fifo_words_tx += fifo_size;
-    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %lu", fifo_size * 4,
+    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %" PRIu32, fifo_size * 4,
            _dwc2_controller[rhport].ep_fifo_size - _allocated_fifo_words_tx * 4);
 
     // DIEPTXF starts at FIFO #1.
@@ -419,9 +419,9 @@ void print_dwc2_info(dwc2_regs_t* dwc2) {
   volatile uint32_t const* p = (volatile uint32_t const*) &dwc2->guid;
   TU_LOG(DWC2_DEBUG, "guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4\r\n");
   for (size_t i = 0; i < 5; i++) {
-    TU_LOG(DWC2_DEBUG, "0x%08lX, ", p[i]);
+    TU_LOG(DWC2_DEBUG, "0x%08" PRIX32 ", ", p[i]);
   }
-  TU_LOG(DWC2_DEBUG, "0x%08lX\r\n", p[5]);
+  TU_LOG(DWC2_DEBUG, "0x%08" PRIX32 "\r\n", p[5]);
 }
 #endif
 

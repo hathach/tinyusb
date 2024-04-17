@@ -45,7 +45,7 @@ elseif (TOOLCHAIN STREQUAL "clang")
   list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
     -Wl,--print-memory-usage
     -Wl,--gc-sections
-    -Wl,--cref
+    #-Wl,--cref
     )
 endif ()
 
