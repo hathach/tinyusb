@@ -32,7 +32,10 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdbool.h>
+#include <string.h>
+
 #include "tusb.h"
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS

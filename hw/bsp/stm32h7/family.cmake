@@ -67,14 +67,13 @@ function(add_board_target BOARD_TARGET)
         -nostartfiles
         --specs=nosys.specs --specs=nano.specs
         )
+    elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+      target_link_options(${BOARD_TARGET} PUBLIC
+        "LINKER:--script=${LD_FILE_GNU}"
+        )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC
         "LINKER:--config=${LD_FILE_IAR}"
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        #-ldummyhost
-        "LINKER:--script=${LD_FILE_GNU}"
         )
     endif ()
   endif ()

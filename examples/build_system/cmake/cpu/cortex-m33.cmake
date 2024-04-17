@@ -5,15 +5,16 @@ if (TOOLCHAIN STREQUAL "gcc")
     -mfloat-abi=hard
     -mfpu=fpv5-sp-d16
     )
-
   set(FREERTOS_PORT GCC_ARM_CM33_NTZ_NONSECURE CACHE INTERNAL "")
+
+elseif (TOOLCHAIN STREQUAL "clang")
+  message(FATAL_ERROR "Clang is not supported for this target")
 
 elseif (TOOLCHAIN STREQUAL "iar")
   set(TOOLCHAIN_COMMON_FLAGS
     --cpu cortex-m33
     --fpu VFPv5-SP
     )
-
   set(FREERTOS_PORT IAR_ARM_CM33_NTZ_NONSECURE CACHE INTERNAL "")
 
 endif ()

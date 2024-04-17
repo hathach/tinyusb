@@ -7,13 +7,6 @@ if (TOOLCHAIN STREQUAL "gcc")
     )
   set(FREERTOS_PORT GCC_ARM_CM7 CACHE INTERNAL "")
 
-elseif (TOOLCHAIN STREQUAL "iar")
-  set(TOOLCHAIN_COMMON_FLAGS
-    --cpu cortex-m7
-    --fpu VFPv5_D16
-    )
-  set(FREERTOS_PORT IAR_ARM_CM7 CACHE INTERNAL "")
-
 elseif (TOOLCHAIN STREQUAL "clang")
   set(TOOLCHAIN_COMMON_FLAGS
     --target=arm-none-eabi
@@ -21,5 +14,12 @@ elseif (TOOLCHAIN STREQUAL "clang")
     -mfpu=fpv5-d16
     )
   set(FREERTOS_PORT GCC_ARM_CM7 CACHE INTERNAL "")
+
+elseif (TOOLCHAIN STREQUAL "iar")
+  set(TOOLCHAIN_COMMON_FLAGS
+    --cpu cortex-m7
+    --fpu VFPv5_D16
+    )
+  set(FREERTOS_PORT IAR_ARM_CM7 CACHE INTERNAL "")
 
 endif ()
