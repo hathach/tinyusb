@@ -28,9 +28,9 @@ concurrency:
 
 jobs:
   # ---------------------------------------
-  # Build ARM family
+  # Build ARM with GCC
   # ---------------------------------------
-  build-arm:
+  arm-gcc:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -68,9 +68,6 @@ jobs:
       with:
         release: '11.2-2022.02'
 
-    - name: Install Ninja
-      run: sudo apt install -y ninja-build
-
     - name: Checkout TinyUSB
       uses: actions/checkout@v4
 
@@ -82,13 +79,12 @@ jobs:
         ref: develop
         path: pico-sdk
 
-    - name: Get Dependencies
-      run: python3 tools/get_deps.py ${{ matrix.family }}
-
     - name: Build
-      run: python tools/build_cmake.py ${{ matrix.family }} -DCMAKE_BUILD_TYPE=MinSizeRel
+      run: |
+        sudo apt install -y ninja-build
+        python3 tools/get_deps.py ${{ matrix.family }}
+        python tools/build_cmake.py ${{ matrix.family }} -DCMAKE_BUILD_TYPE=MinSizeRel
       env:
-        # for rp2040, there is no harm if defined for other families
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
     - name: Upload Artifacts for Hardware Testing (rp2040)
@@ -116,13 +112,88 @@ jobs:
           cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
 
   # ---------------------------------------
+  # Build ARM with Clang
+  # ---------------------------------------
+  arm-clang:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+          # Alphabetical order
+          - 'imxrt'
+          - 'kinetis_k kinetis_kl'
+          - 'lpc17 lpc18 lpc40 lpc43'
+          - 'lpc54 lpc55'
+          - 'mcx'
+          - 'nrf'
+          - 'ra'
+          - 'rp2040'
+          - 'samd21'
+          - 'samd51'
+          - 'stm32f0'
+          - 'stm32f1'
+          - 'stm32f4'
+          - 'stm32f7'
+          - 'stm32g0'
+          - 'stm32g4'
+          - 'stm32h5'
+          - 'stm32h7'
+          - 'stm32l4'
+          - 'stm32u5'
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Set Toolchain URL
+        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
+
+      - name: Cache Toolchain
+        uses: actions/cache@v3
+        id: cache-toolchain
+        with:
+          path: ~/cache/
+          key: ${{ runner.os }}-24-04-17-${{ env.TOOLCHAIN_URL }}
+
+      - name: Install Toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/cache/toolchain
+          wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.xz
+          tar -C ~/cache/toolchain -xaf toolchain.tar.xz
+
+      - name: Set Toolchain Path
+        run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+
+      - name: Checkout pico-sdk for rp2040
+        if: matrix.family == 'rp2040'
+        uses: actions/checkout@v4
+        with:
+          repository: raspberrypi/pico-sdk
+          ref: develop
+          path: pico-sdk
+
+      - name: Build
+        run: |
+          sudo apt install -y ninja-build
+          python3 tools/get_deps.py ${{ matrix.family }}
+          python tools/build_cmake.py ${{ matrix.family }} -DCMAKE_BUILD_TYPE=MinSizeRel
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+
+  # ---------------------------------------
   # Hardware in the loop (HIL)
   # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
   # ---------------------------------------
   hil-test:
     # run only with hathach's commit due to limited resource on RPI4
     if: github.repository_owner == 'hathach'
-    needs: build-arm
+    needs: arm-gcc
     runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
     strategy:
       fail-fast: false
