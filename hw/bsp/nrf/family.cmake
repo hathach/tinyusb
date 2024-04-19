@@ -31,14 +31,13 @@ set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
     if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-      set(LD_FILE_GNU ${NRFX_DIR}/mdk/${MCU_VARIANT}_xxaa.ld)
-      set(LD_FILE_Clang ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/clang/${MCU_VARIANT}_xxaa.ld)
+      set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa.ld)
+      set(LD_FILE_Clang ${LD_FILE_GNU})
     endif ()
 
     if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
       set(STARTUP_FILE_GNU ${NRFX_DIR}/mdk/gcc_startup_${MCU_VARIANT}.S)
       set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-      #set(STARTUP_FILE_Clang ${NRFX_DIR}/mdk/arm_startup_${MCU_VARIANT}.s)
     endif ()
 
     add_library(${BOARD_TARGET} STATIC
@@ -48,9 +47,13 @@ function(add_board_target BOARD_TARGET)
       ${NRFX_DIR}/drivers/src/nrfx_spim.c
       ${NRFX_DIR}/drivers/src/nrfx_uarte.c
       ${NRFX_DIR}/mdk/system_${MCU_VARIANT}.c
+      ${NRFX_DIR}/soc/nrfx_atomic.c
       ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
       )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC CONFIG_GPIO_AS_PINRESET)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      __STARTUP_CLEAR_BSS
+      CONFIG_GPIO_AS_PINRESET
+      )
 
     if (MCU_VARIANT STREQUAL "nrf52840")
       target_compile_definitions(${BOARD_TARGET} PUBLIC NRF52840_XXAA)
@@ -82,12 +85,12 @@ function(add_board_target BOARD_TARGET)
         "LINKER:--script=${LD_FILE_GNU}"
         -L${NRFX_DIR}/mdk
         --specs=nosys.specs --specs=nano.specs
+        -nostartfiles
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
       target_link_options(${BOARD_TARGET} PUBLIC
         "LINKER:--script=${LD_FILE_Clang}"
         -L${NRFX_DIR}/mdk
-        -lcrt0
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC

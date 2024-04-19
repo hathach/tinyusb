@@ -33,6 +33,7 @@
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #pragma GCC diagnostic ignored "-Wcast-align"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wundef"
 #pragma GCC diagnostic ignored "-Wredundant-decls"
 #endif
@@ -53,6 +54,14 @@
 #pragma GCC diagnostic pop
 #endif
 
+
+// There is API changes between nrfx v2 and v3
+#if 85301 >= (10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION)
+  // note MDK 8.53.1 is also used by nrfx v3.0.0, just skip this version and use later 3.x
+  #define NRFX_VER 2
+#else
+  #define NRFX_VER 3
+#endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -100,10 +109,18 @@ static void max3421_init(void);
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
 #endif
 
-
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
+
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
 
 void board_init(void) {
   // stop LF clock just in case we jump from application without reset
@@ -124,6 +141,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 
   // UART
+  #if NRFX_VER == 2
   nrfx_uarte_config_t uart_cfg = {
       .pseltxd   = UART_TX_PIN,
       .pselrxd   = UART_RX_PIN,
@@ -137,6 +155,21 @@ void board_init(void) {
           .parity    = NRF_UARTE_PARITY_EXCLUDED,
       }
   };
+  #elif NRFX_VER == 3
+  nrfx_uarte_config_t uart_cfg = {
+      .txd_pin   = UART_TX_PIN,
+      .rxd_pin   = UART_RX_PIN,
+      .rts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
+      .cts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
+      .p_context = NULL,
+      .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
+      .interrupt_priority = 7,
+      .config = {
+          .hwfc      = NRF_UARTE_HWFC_DISABLED,
+          .parity    = NRF_UARTE_PARITY_EXCLUDED,
+      }
+  };
+  #endif
 
   nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
 
@@ -224,11 +257,17 @@ int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
   return 0;
-//  return NRFX_SUCCESS == nrfx_uart_rx(&_uart_id, buf, (size_t) len) ? len : 0;
+//  nrfx_err_t err = nrfx_uarte_rx(&_uart_id, buf, (size_t) len);
+//  return NRFX_SUCCESS == err ? len : 0;
 }
 
 int board_uart_write(void const* buf, int len) {
-  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
+  nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len
+                                 #if NRFX_VER == 3
+                                 ,0
+                                 #endif
+                                );
+  return (NRFX_SUCCESS == err) ? len : 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -241,7 +280,6 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
-
 #endif
 
 #ifdef SOFTDEVICE_PRESENT

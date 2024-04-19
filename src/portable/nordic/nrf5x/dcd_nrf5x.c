@@ -58,7 +58,8 @@
 
 /* Try to detect nrfx version if not configured with CFG_TUD_NRF_NRFX_VERSION
  * nrfx v1 and v2 are concurrently developed. There is no NRFX_VERSION only MDK VERSION which is as follows:
- * - v2.6.0: 8.44.1, v2.5.0: 8.40.2, v2.4.0: 8.37.0, v2.3.0: 8.35.0, v2.2.0: 8.32.1, v2.1.0: 8.30.2, v2.0.0: 8.29.0
+ * - v3.0.0: 8.53.1 (conflict with v2.11.0), v3.1.0: 8.55.0 ...
+ * - v2.11.0: 8.53.1, v2.6.0: 8.44.1, v2.5.0: 8.40.2, v2.4.0: 8.37.0, v2.3.0: 8.35.0, v2.2.0: 8.32.1, v2.1.0: 8.30.2, v2.0.0: 8.29.0
  * - v1.9.0: 8.40.3, v1.8.6: 8.35.0 (conflict with v2.3.0), v1.8.5: 8.32.3, v1.8.4: 8.32.1 (conflict with v2.2.0),
  *   v1.8.2: 8.32.1 (conflict with v2.2.0), v1.8.1: 8.27.1
  * Therefore the check for v1 would be:

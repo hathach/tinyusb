@@ -42,7 +42,7 @@ deps_optional = {
                                   '0b79559eb411149d36e073c1635c620e576308d4',
                                   'mm32'],
     'hw/mcu/nordic/nrfx': ['https://github.com/NordicSemiconductor/nrfx.git',
-                           '2527e3c8449cfd38aee41598e8af8492f410ed15',
+                           '7c47cc0a56ce44658e6da2458e86cd8783ccc4a2',
                            'nrf'],
     'hw/mcu/nuvoton': ['https://github.com/majbthrd/nuc_driver.git',
                        '2204191ec76283371419fbcec207da02e1bc22fa',
