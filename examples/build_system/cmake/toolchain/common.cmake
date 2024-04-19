@@ -31,11 +31,13 @@ if (TOOLCHAIN STREQUAL "gcc")
     -Wl,--gc-sections
     -Wl,--cref
     )
+
 elseif (TOOLCHAIN STREQUAL "iar")
   #list(APPEND TOOLCHAIN_COMMON_FLAGS)
   list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
     --diag_suppress=Li065
     )
+
 elseif (TOOLCHAIN STREQUAL "clang")
   list(APPEND TOOLCHAIN_COMMON_FLAGS
     -fdata-sections
@@ -45,7 +47,7 @@ elseif (TOOLCHAIN STREQUAL "clang")
   list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
     -Wl,--print-memory-usage
     -Wl,--gc-sections
-    #-Wl,--cref
+    -Wl,--cref
     )
 endif ()
 
