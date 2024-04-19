@@ -18,12 +18,23 @@ set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -c \"transport select swd\" -f ta
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
+    set(LD_FILE_Clang ${LD_FILE_GNU})
+    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
+      message(FATAL_ERROR "LD_FILE_${CMAKE_C_COMPILER_ID} not defined")
+    endif ()
+
+    if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
+      set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_samd21.c)
+      set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+    endif ()
+
     add_library(${BOARD_TARGET} STATIC
       ${SDK_DIR}/gcc/system_samd21.c
       ${SDK_DIR}/hpl/gclk/hpl_gclk.c
       ${SDK_DIR}/hpl/pm/hpl_pm.c
       ${SDK_DIR}/hpl/sysctrl/hpl_sysctrl.c
       ${SDK_DIR}/hal/src/hal_atomic.c
+      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
       )
     target_include_directories(${BOARD_TARGET} PUBLIC
       ${SDK_DIR}
@@ -40,23 +51,15 @@ function(add_board_target BOARD_TARGET)
 
     update_board(${BOARD_TARGET})
 
-    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-      message(FATAL_ERROR "LD_FILE_${CMAKE_C_COMPILER_ID} not defined")
-    endif ()
-
-    if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-      set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_samd21.c)
-    endif ()
-
-    target_sources(${BOARD_TARGET} PRIVATE
-      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
-      )
-
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
       target_link_options(${BOARD_TARGET} PUBLIC
         "LINKER:--script=${LD_FILE_GNU}"
         -nostartfiles
         --specs=nosys.specs --specs=nano.specs
+        )
+    elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+      target_link_options(${BOARD_TARGET} PUBLIC
+        "LINKER:--script=${LD_FILE_Clang}"
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC
