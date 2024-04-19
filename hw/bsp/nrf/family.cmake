@@ -30,15 +30,25 @@ set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
+    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
+      set(LD_FILE_GNU ${NRFX_DIR}/mdk/${MCU_VARIANT}_xxaa.ld)
+      set(LD_FILE_Clang ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/clang/${MCU_VARIANT}_xxaa.ld)
+    endif ()
+
+    if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
+      set(STARTUP_FILE_GNU ${NRFX_DIR}/mdk/gcc_startup_${MCU_VARIANT}.S)
+      set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+      #set(STARTUP_FILE_Clang ${NRFX_DIR}/mdk/arm_startup_${MCU_VARIANT}.s)
+    endif ()
+
     add_library(${BOARD_TARGET} STATIC
-      # driver
       ${NRFX_DIR}/helpers/nrfx_flag32_allocator.c
       ${NRFX_DIR}/drivers/src/nrfx_gpiote.c
       ${NRFX_DIR}/drivers/src/nrfx_power.c
       ${NRFX_DIR}/drivers/src/nrfx_spim.c
       ${NRFX_DIR}/drivers/src/nrfx_uarte.c
-      # mcu
       ${NRFX_DIR}/mdk/system_${MCU_VARIANT}.c
+      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
       )
     target_compile_definitions(${BOARD_TARGET} PUBLIC CONFIG_GPIO_AS_PINRESET)
 
@@ -67,24 +77,17 @@ function(add_board_target BOARD_TARGET)
 
     update_board(${BOARD_TARGET})
 
-    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-      set(LD_FILE_GNU ${NRFX_DIR}/mdk/${MCU_VARIANT}_xxaa.ld)
-    endif ()
-
-    if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-      set(STARTUP_FILE_GNU ${NRFX_DIR}/mdk/gcc_startup_${MCU_VARIANT}.S)
-    endif ()
-
-    target_sources(${BOARD_TARGET} PUBLIC
-      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
-      )
-
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
       target_link_options(${BOARD_TARGET} PUBLIC
-        # linker file
         "LINKER:--script=${LD_FILE_GNU}"
         -L${NRFX_DIR}/mdk
         --specs=nosys.specs --specs=nano.specs
+        )
+    elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+      target_link_options(${BOARD_TARGET} PUBLIC
+        "LINKER:--script=${LD_FILE_Clang}"
+        -L${NRFX_DIR}/mdk
+        -lcrt0
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC
