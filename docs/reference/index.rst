@@ -27,7 +27,7 @@ Supports multiple device configurations by dynamically changing USB descriptors,
 
 -  Audio Class 2.0 (UAC2)
 -  Bluetooth Host Controller Interface (BTH HCI)
--  Communication Device Class (CDC)
+-  Communications Device Class (CDC)
 -  Device Firmware Update (DFU): DFU mode (WIP) and Runtime
 -  Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 -  Mass Storage Class (MSC): with multiple LUNs
@@ -45,8 +45,8 @@ Host Stack
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
-- Communication Device Class: CDC-ACM
-- Vendor serial over USB: FTDI, CP210x
+- Communications Device Class (CDC): Abstract Control Model (ACM)
+- Vendor serial over USB: FTDI, CP210x, CH34x, PL230x
 - Hub with multiple-level support
 
 Similar to the Device Stack, if you have a special requirement, `usbh_app_driver_get_cb()` can be used to write your own class driver without modifying the stack.
