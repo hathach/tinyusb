@@ -39,7 +39,6 @@ function(add_board_target BOARD_TARGET)
     if (NOT DEFINED LD_FILE_GNU)
       set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT_XXAA}.ld)
     endif ()
-    set(LD_FILE_Clang ${LD_FILE_GNU})
 
     if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
       set(STARTUP_FILE_GNU ${NRFX_DIR}/mdk/gcc_startup_${MCU_VARIANT}.S)
@@ -89,7 +88,7 @@ function(add_board_target BOARD_TARGET)
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
       target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--script=${LD_FILE_Clang}"
+        "LINKER:--script=${LD_FILE_GNU}"
         -L${NRFX_DIR}/mdk
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")

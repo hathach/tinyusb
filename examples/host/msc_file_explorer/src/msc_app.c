@@ -95,7 +95,6 @@ void msc_app_task(void)
 //
 //--------------------------------------------------------------------+
 
-
 bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data)
 {
   msc_cbw_t const* cbw = cb_data->cbw;
