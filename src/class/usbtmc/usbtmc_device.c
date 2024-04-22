@@ -360,7 +360,7 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc,
 // processing a command (such as a clear). Returns true if it was
 // in the NAK state and successfully transitioned to the ACK wait
 // state.
-bool tud_usbtmc_start_bus_read()
+bool tud_usbtmc_start_bus_read(void)
 {
   usbtmcd_state_enum oldState = usbtmc_state.state;
   switch(oldState)

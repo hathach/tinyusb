@@ -147,7 +147,7 @@ static void start_dma(volatile uint32_t* reg_startep) {
 
 static void edpt_dma_start(volatile uint32_t* reg_startep) {
   if (atomic_flag_test_and_set(&_dcd.dma_running)) {
-    usbd_defer_func((osal_task_func_t) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
+    usbd_defer_func((osal_task_func_t)(uintptr_t ) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
   } else {
     start_dma(reg_startep);
   }
