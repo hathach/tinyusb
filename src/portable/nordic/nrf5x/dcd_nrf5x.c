@@ -119,7 +119,7 @@ static struct {
   xfer_td_t xfer[EP_CBI_COUNT + 1][2];
 
   // nRF can only carry one DMA at a time, this is used to guard the access to EasyDMA
-  atomic_bool dma_running;
+  atomic_flag dma_running;
 } _dcd;
 
 /*------------------------------------------------------------------*/
@@ -155,7 +155,6 @@ static void edpt_dma_start(volatile uint32_t* reg_startep) {
 
 // DMA is complete
 static void edpt_dma_end(void) {
-  TU_ASSERT(_dcd.dma_running,);
   atomic_flag_clear(&_dcd.dma_running);
 }
 
@@ -618,7 +617,7 @@ void dcd_int_handler(uint8_t rhport) {
   }
 
   if (int_status & USBD_INTEN_USBEVENT_Msk) {
-    TU_LOG(3, "EVENTCAUSE = 0x%04lX\r\n", NRF_USBD->EVENTCAUSE);
+    TU_LOG(3, "EVENTCAUSE = 0x%04" PRIX32 "\r\n", NRF_USBD->EVENTCAUSE);
 
     enum {
       EVT_CAUSE_MASK = USBD_EVENTCAUSE_SUSPEND_Msk | USBD_EVENTCAUSE_RESUME_Msk | USBD_EVENTCAUSE_USBWUALLOWED_Msk |

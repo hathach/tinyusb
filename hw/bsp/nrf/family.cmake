@@ -30,10 +30,10 @@ set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
-    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
+    if (NOT DEFINED LD_FILE_GNU)
       set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa.ld)
-      set(LD_FILE_Clang ${LD_FILE_GNU})
     endif ()
+    set(LD_FILE_Clang ${LD_FILE_GNU})
 
     if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
       set(STARTUP_FILE_GNU ${NRFX_DIR}/mdk/gcc_startup_${MCU_VARIANT}.S)
