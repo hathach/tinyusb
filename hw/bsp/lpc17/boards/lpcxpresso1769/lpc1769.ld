@@ -181,15 +181,15 @@ SECTIONS
     /* ## Create checksum value (used in startup) ## */
     /* This cause issue with clang linker, so it is disabled */
     /* MemManage_Handler, BusFault_Handler, UsageFault_Handler may not be defined */
-/*    PROVIDE(__valid_user_code_checksum = 0 -*/
-/*                                         (_vStackTop*/
-/*                                         + (ResetISR + 1)*/
-/*                                         + (NMI_Handler + 1)*/
-/*                                         + (HardFault_Handler + 1)*/
-/*                                         + (( DEFINED(MemManage_Handler) ? MemManage_Handler : 0 ) + 1)*/
-/*                                         + (( DEFINED(BusFault_Handler) ? BusFault_Handler : 0 ) + 1)*/
-/*                                         + (( DEFINED(UsageFault_Handler) ? UsageFault_Handler : 0 ) + 1)*/
-/*                                         ) );*/
+    PROVIDE(__valid_user_code_checksum = 0 -
+                                         (_vStackTop
+                                         + (ResetISR + 1)
+                                         + (NMI_Handler + 1)
+                                         + (HardFault_Handler + 1)
+                                         + (( DEFINED(MemManage_Handler) ? MemManage_Handler : 0 ) + 1)
+                                         + (( DEFINED(BusFault_Handler) ? BusFault_Handler : 0 ) + 1)
+                                         + (( DEFINED(UsageFault_Handler) ? UsageFault_Handler : 0 ) + 1)
+                                         ) );
 
     /* Provide basic symbols giving location and size of main text
      * block, including initial values of RW data sections. Note that
