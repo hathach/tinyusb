@@ -1,9 +1,5 @@
 include_guard()
 
-if (NOT BOARD)
-  message(FATAL_ERROR "BOARD not specified")
-endif ()
-
 set(NRFX_DIR ${TOP}/hw/mcu/nordic/nrfx)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
