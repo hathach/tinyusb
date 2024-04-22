@@ -107,6 +107,11 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 static void max3421_init(void);
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
+
+#if NRFX_VER > 2
+static nrfx_gpiote_t _gpiote = NRFX_GPIOTE_INSTANCE(0);
+#endif
+
 #endif
 
 //--------------------------------------------------------------------+
@@ -141,7 +146,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 
   // UART
-  #if NRFX_VER == 2
+  #if NRFX_VER <= 2
   nrfx_uarte_config_t uart_cfg = {
       .pseltxd   = UART_TX_PIN,
       .pselrxd   = UART_RX_PIN,
@@ -155,7 +160,7 @@ void board_init(void) {
           .parity    = NRF_UARTE_PARITY_EXCLUDED,
       }
   };
-  #elif NRFX_VER == 3
+  #else
   nrfx_uarte_config_t uart_cfg = {
       .txd_pin   = UART_TX_PIN,
       .rxd_pin   = UART_RX_PIN,
@@ -263,7 +268,7 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
   nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len
-                                 #if NRFX_VER == 3
+                                 #if NRFX_VER > 2
                                  ,0
                                  #endif
                                 );
@@ -324,8 +329,16 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
-void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
-  if (!(pin == MAX3421_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
+#if NRFX_VER <= 2
+void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action ) {
+  if (action != NRF_GPIOTE_POLARITY_HITOLO) return;
+#else
+void max3421_int_handler(nrfx_gpiote_pin_t pin, nrfx_gpiote_trigger_t action, void* p_context) {
+  (void) p_context;
+  if (action != NRFX_GPIOTE_TRIGGER_HITOLO) return;
+#endif
+
+  if (pin != MAX3421_INTR_PIN) return;
   tuh_int_handler(1, true);
 }
 
@@ -341,7 +354,11 @@ static void max3421_init(void) {
       .sck_pin        = MAX3421_SCK_PIN,
       .mosi_pin       = MAX3421_MOSI_PIN,
       .miso_pin       = MAX3421_MISO_PIN,
+  #if NRFX_VER <= 2
       .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
+  #else
+      .ss_pin         = NRF_SPIM_PIN_NOT_CONNECTED,
+  #endif
       .ss_active_high = false,
       .irq_priority   = 3,
       .orc            = 0xFF,
@@ -355,14 +372,35 @@ static void max3421_init(void) {
   nrfx_spim_init(&_spi, &cfg, NULL, NULL);
 
   // max3421e interrupt pin
+  #if NRFX_VER <= 2
   nrfx_gpiote_init(1);
   nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
   in_config.pull = NRF_GPIO_PIN_PULLUP;
-
   NVIC_SetPriority(GPIOTE_IRQn, 2);
-
   nrfx_gpiote_in_init(MAX3421_INTR_PIN, &in_config, max3421_int_handler);
   nrfx_gpiote_trigger_enable(MAX3421_INTR_PIN, true);
+  #else
+  nrf_gpio_pin_pull_t intr_pull = NRF_GPIO_PIN_PULLUP;
+  nrfx_gpiote_trigger_config_t intr_trigger = {
+      .trigger = NRFX_GPIOTE_TRIGGER_HITOLO,
+      .p_in_channel = NULL, // sensing mechanism
+  };
+  nrfx_gpiote_handler_config_t intr_handler = {
+      .handler = max3421_int_handler,
+      .p_context = NULL,
+  };
+  nrfx_gpiote_input_pin_config_t intr_config = {
+      .p_pull_config = &intr_pull,
+      .p_trigger_config = &intr_trigger,
+      .p_handler_config = &intr_handler,
+  };
+
+  nrfx_gpiote_init(&_gpiote, 1);
+  NVIC_SetPriority(GPIOTE_IRQn, 2);
+
+  nrfx_gpiote_input_configure(&_gpiote, MAX3421_INTR_PIN, &intr_config);
+  nrfx_gpiote_trigger_enable(&_gpiote, MAX3421_INTR_PIN, true);
+  #endif
 }
 
 // API to enable/disable MAX3421 INTR pin interrupt
