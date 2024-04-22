@@ -308,9 +308,10 @@ SECTIONS
         _ebss = .;
         PROVIDE(__end_bss_RAM = .) ;
         PROVIDE(__end_bss_RamLoc32 = .) ;
-        PROVIDE(end = .);
+/*        PROVIDE(end = .);*/
     } > RamLoc40 AT> RamLoc40 /* > RamLoc32 AT> RamLoc32 */
 
+    /* hathach add heap section for clang */
     .heap (NOLOAD): {
         __heap_start = .;
         __HeapBase = .;
@@ -393,7 +394,7 @@ SECTIONS
        PROVIDE(__end_noinit_RAM = .) ;
        PROVIDE(__end_noinit_RamLoc32 = .) ;
     } > RamLoc32 AT> RamLoc32
-    PROVIDE(_pvHeapStart = DEFINED(__user_heap_base) ? __user_heap_base : .);
+/*    PROVIDE(_pvHeapStart = DEFINED(__user_heap_base) ? __user_heap_base : .);*/
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_RamLoc32 - 0);
 
     /* ## Create checksum value (used in startup) ## */
