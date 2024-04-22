@@ -30,8 +30,14 @@ set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
   if (NOT TARGET ${BOARD_TARGET})
+    if (MCU_VARIANT STREQUAL "nrf5340_application")
+      set(MCU_VARIANT_XXAA "nrf5340_xxaa_application")
+    else ()
+      set(MCU_VARIANT_XXAA "${MCU_VARIANT}_xxaa")
+    endif ()
+
     if (NOT DEFINED LD_FILE_GNU)
-      set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa.ld)
+      set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT_XXAA}.ld)
     endif ()
     set(LD_FILE_Clang ${LD_FILE_GNU})
 
@@ -50,18 +56,12 @@ function(add_board_target BOARD_TARGET)
       ${NRFX_DIR}/soc/nrfx_atomic.c
       ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
       )
+    string(TOUPPER "${MCU_VARIANT_XXAA}" MCU_VARIANT_XXAA_UPPER)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       __STARTUP_CLEAR_BSS
       CONFIG_GPIO_AS_PINRESET
+      ${MCU_VARIANT_XXAA_UPPER}
       )
-
-    if (MCU_VARIANT STREQUAL "nrf52840")
-      target_compile_definitions(${BOARD_TARGET} PUBLIC NRF52840_XXAA)
-    elseif (MCU_VARIANT STREQUAL "nrf52833")
-      target_compile_definitions(${BOARD_TARGET} PUBLIC NRF52833_XXAA)
-    elseif (MCU_VARIANT STREQUAL "nrf5340_application")
-      target_compile_definitions(${BOARD_TARGET} PUBLIC NRF5340_XXAA NRF5340_XXAA_APPLICATION)
-    endif ()
 
     if (TRACE_ETM STREQUAL "1")
       # ENABLE_TRACE will cause system_nrf5x.c to set up ETM trace

@@ -356,20 +356,22 @@ static void max3421_init(void) {
       .miso_pin       = MAX3421_MISO_PIN,
   #if NRFX_VER <= 2
       .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
+      .frequency      = NRF_SPIM_FREQ_4M,
   #else
       .ss_pin         = NRF_SPIM_PIN_NOT_CONNECTED,
+      .frequency      = 4000000u,
   #endif
       .ss_active_high = false,
       .irq_priority   = 3,
       .orc            = 0xFF,
       // default setting 4 Mhz, Mode 0, MSB first
-      .frequency      = NRF_SPIM_FREQ_4M,
       .mode           = NRF_SPIM_MODE_0,
       .bit_order      = NRF_SPIM_BIT_ORDER_MSB_FIRST,
+      .miso_pull      = NRF_GPIO_PIN_NOPULL,
   };
 
   // no handler --> blocking
-  nrfx_spim_init(&_spi, &cfg, NULL, NULL);
+  TU_ASSERT(NRFX_SUCCESS == nrfx_spim_init(&_spi, &cfg, NULL, NULL), );
 
   // max3421e interrupt pin
   #if NRFX_VER <= 2
