@@ -79,11 +79,13 @@ jobs:
         ref: develop
         path: pico-sdk
 
-    - name: Build
+    - name: Get Dependencies
       run: |
         sudo apt install -y ninja-build
         python3 tools/get_deps.py ${{ matrix.family }}
-        python tools/build_cmake.py ${{ matrix.family }} -DCMAKE_BUILD_TYPE=MinSizeRel
+
+    - name: Build
+      run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang -DCMAKE_BUILD_TYPE=MinSizeRel
       env:
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
@@ -125,7 +127,7 @@ jobs:
           - 'kinetis_k kinetis_kl'
           - 'lpc17 lpc18 lpc40 lpc43'
           - 'lpc54 lpc55'
-          - 'mcx'
+          #- 'mcx' not working with gcc anymore, need to fix this first
           - 'nrf'
           - 'ra'
           - 'rp2040'
@@ -178,11 +180,13 @@ jobs:
           ref: develop
           path: pico-sdk
 
-      - name: Build
+      - name: Get Dependencies
         run: |
           sudo apt install -y ninja-build
           python3 tools/get_deps.py ${{ matrix.family }}
-          python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang -DCMAKE_BUILD_TYPE=MinSizeRel
+
+      - name: Build
+        run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang -DCMAKE_BUILD_TYPE=MinSizeRel
         env:
           PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
