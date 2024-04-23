@@ -44,7 +44,7 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-  #include "stm32f1xx.h"
+  #include "stm32f2xx.h"
 #endif
 
 /* Cortex M23/M33 port configuration. */
