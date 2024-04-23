@@ -202,10 +202,10 @@ static void edpt_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoin
                            (xfer->max_size << DOEPCTL_MPSIZ_Pos);
 
   if (dir == TUSB_DIR_OUT) {
-    dwc2->epout[epnum].doepctl |= dxepctl;
+    dwc2->epout[epnum].doepctl = dxepctl;
     dwc2->daintmsk |= TU_BIT(DAINTMSK_OEPM_Pos + epnum);
   } else {
-    dwc2->epin[epnum].diepctl |= dxepctl | (epnum << DIEPCTL_TXFNUM_Pos);
+    dwc2->epin[epnum].diepctl = dxepctl | (epnum << DIEPCTL_TXFNUM_Pos);
     dwc2->daintmsk |= (1 << (DAINTMSK_IEPM_Pos + epnum));
   }
 }
@@ -280,10 +280,17 @@ static void bus_reset(uint8_t rhport) {
     dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
   }
 
+  // 2. Disable all IN endpoints
+  for (uint8_t n = 0; n < ep_count; n++) {
+    if (dwc2->epin[n].diepctl & DIEPCTL_EPENA) {
+      dwc2->epin[n].diepctl |= DIEPCTL_SNAK | DIEPCTL_EPDIS;
+    }
+  }
+
   fifo_flush_tx(dwc2, 0x10); // all tx fifo
   fifo_flush_rx(dwc2);
 
-  // 2. Set up interrupt mask
+  // 3. Set up interrupt mask
   dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
   dwc2->doepmsk = DOEPMSK_STUPM | DOEPMSK_XFRCM;
   dwc2->diepmsk = DIEPMSK_TOM | DIEPMSK_XFRCM;
@@ -704,11 +711,15 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
   for (uint8_t n = 1; n < ep_count; n++) {
     // disable OUT endpoint
-    dwc2->epout[n].doepctl = 0;
+    if (dwc2->epout[n].doepctl & DOEPCTL_EPENA) {
+      dwc2->epout[n].doepctl |= DOEPCTL_SNAK | DOEPCTL_EPDIS;
+    }
     xfer_status[n][TUSB_DIR_OUT].max_size = 0;
 
     // disable IN endpoint
-    dwc2->epin[n].diepctl = 0;
+    if (dwc2->epin[n].diepctl & DIEPCTL_EPENA) {
+      dwc2->epin[n].diepctl |= DIEPCTL_SNAK | DIEPCTL_EPDIS;
+    }
     xfer_status[n][TUSB_DIR_IN].max_size = 0;
   }
 
