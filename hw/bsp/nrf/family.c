@@ -118,15 +118,6 @@ static nrfx_gpiote_t _gpiote = NRFX_GPIOTE_INSTANCE(0);
 //
 //--------------------------------------------------------------------+
 
-// Implement _start() since we use linker flag '-nostartfiles'.
-// Requires defined __STARTUP_CLEAR_BSS,
-extern int main(void);
-TU_ATTR_UNUSED void _start(void) {
-  // called by startup code
-  main();
-  while (1) {}
-}
-
 void board_init(void) {
   // stop LF clock just in case we jump from application without reset
   NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
@@ -287,6 +278,20 @@ uint32_t board_millis(void) {
 }
 #endif
 
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+#endif
+
+//--------------------------------------------------------------------+
+// Softdevice running
+//--------------------------------------------------------------------+
 #ifdef SOFTDEVICE_PRESENT
 // process SOC event from SD
 uint32_t proc_soc(void) {
