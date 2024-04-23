@@ -440,11 +440,15 @@ static void reset_core(dwc2_regs_t* dwc2) {
 }
 
 static bool phy_hs_supported(dwc2_regs_t* dwc2) {
-  // note: esp32 incorrect report its hs_phy_type as utmi
+  (void) dwc2;
+
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+  // note: esp32 incorrect report its hs_phy_type as utmi
+  return false;
+#elif !TUD_OPT_HIGH_SPEED
   return false;
 #else
-  return TUD_OPT_HIGH_SPEED && dwc2->ghwcfg2_bm.hs_phy_type != HS_PHY_TYPE_NONE;
+  return dwc2->ghwcfg2_bm.hs_phy_type != HS_PHY_TYPE_NONE;
 #endif
 }
 

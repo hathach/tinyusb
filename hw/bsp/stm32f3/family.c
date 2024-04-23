@@ -24,8 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board_api.h"
 #include "stm32f3xx_hal.h"
+#include "bsp/board_api.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -38,23 +39,20 @@
 // USB high-priority interrupt (Channel 74): Triggered only by a correct
 // transfer event for isochronous and double-buffer bulk transfer to reach
 // the highest possible transfer rate.
-void USB_HP_IRQHandler(void)
-{
+void USB_HP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
 // USB low-priority interrupt (Channel 75): Triggered by all USB events
 // (Correct transfer, USB reset, etc.). The firmware has to check the
 // interrupt source before serving the interrupt.
-void USB_LP_IRQHandler(void)
-{
+void USB_LP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
 // USB wakeup interrupt (Channel 76): Triggered by the wakeup event from the USB
 // Suspend mode.
-void USBWakeUp_RMP_IRQHandler(void)
-{
+void USBWakeUp_RMP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
@@ -62,69 +60,11 @@ void USBWakeUp_RMP_IRQHandler(void)
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#define LED_PORT              GPIOE
-#define LED_PIN               GPIO_PIN_9
-#define LED_STATE_ON          1
 
-#define BUTTON_PORT           GPIOA
-#define BUTTON_PIN            GPIO_PIN_0
-#define BUTTON_STATE_ACTIVE   1
-
-
-/**
-  * @brief  System Clock Configuration
-  *         The system Clock is configured as follow :
-  *            System Clock source            = PLL (HSE)
-  *            SYSCLK(Hz)                     = 72000000
-  *            HCLK(Hz)                       = 72000000
-  *            AHB Prescaler                  = 1
-  *            APB1 Prescaler                 = 2
-  *            APB2 Prescaler                 = 1
-  *            HSE Frequency(Hz)              = 8000000
-  *            HSE PREDIV                     = 1
-  *            PLLMUL                         = RCC_PLL_MUL9 (9)
-  *            Flash Latency(WS)              = 2
-  * @param  None
-  * @retval None
-  */
-static void SystemClock_Config(void)
-{
-  RCC_ClkInitTypeDef RCC_ClkInitStruct;
-  RCC_OscInitTypeDef RCC_OscInitStruct;
-  RCC_PeriphCLKInitTypeDef  RCC_PeriphClkInit;
-
-  /* Enable HSE Oscillator and activate PLL with HSE as source */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
-  HAL_RCC_OscConfig(&RCC_OscInitStruct);
-
-  /* Configures the USB clock */
-  HAL_RCCEx_GetPeriphCLKConfig(&RCC_PeriphClkInit);
-  RCC_PeriphClkInit.USBClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
-  HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphClkInit);
-
-  /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2
-  clocks dividers */
-  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
-
-  /* Enable Power Clock */
-  __HAL_RCC_PWR_CLK_ENABLE();
-}
-
-void board_init(void)
-{
+void board_init(void) {
   SystemClock_Config();
 
-  #if CFG_TUSB_OS  == OPT_OS_NONE
+  #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
   #endif
@@ -135,7 +75,7 @@ void board_init(void)
 
   // LED
   __HAL_RCC_GPIOE_CLK_ENABLE();
-  GPIO_InitTypeDef  GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct;
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -167,50 +107,46 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_write(void const* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
   HAL_IncTick();
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
 
-void HardFault_Handler (void)
-{
+void HardFault_Handler(void) {
   asm("bkpt");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
-void _init(void)
-{
+void _init(void) {
 
 }

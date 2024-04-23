@@ -1,6 +1,6 @@
 include_guard()
 
-set(ST_FAMILY f1)
+set(ST_FAMILY f3)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
@@ -14,7 +14,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_PROCESSOR cortex-m3 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS STM32F1 CACHE INTERNAL "")
+set(FAMILY_MCUS STM32F3 CACHE INTERNAL "")
 
 
 #------------------------------------
@@ -29,9 +29,7 @@ function(add_board_target BOARD_TARGET)
     set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
 
     set(LD_FILE_Clang ${LD_FILE_GNU})
-    if (NOT DEFINED LD_FILE_IAR)
-      set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
-    endif ()
+    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
     add_library(${BOARD_TARGET} STATIC
       ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
@@ -97,7 +95,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32F1 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32F3 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
