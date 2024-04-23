@@ -85,7 +85,7 @@ jobs:
         python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
-      run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang -DCMAKE_BUILD_TYPE=MinSizeRel
+      run: python tools/build_cmake.py ${{ matrix.family }} -DCMAKE_BUILD_TYPE=MinSizeRel
       env:
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
