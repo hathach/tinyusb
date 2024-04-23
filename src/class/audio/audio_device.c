@@ -2015,7 +2015,10 @@ static bool audiod_control_request(uint8_t rhport, tusb_control_request_t const 
       case TUSB_REQ_SET_INTERFACE:
         return audiod_set_interface(rhport, p_request);
 
-        // Unknown/Unsupported request
+      case TUSB_REQ_CLEAR_FEATURE:
+        return true;
+
+      // Unknown/Unsupported request
       default: TU_BREAKPOINT(); return false;
     }
   }
