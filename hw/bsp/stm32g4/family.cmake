@@ -52,6 +52,7 @@ function(add_board_target BOARD_TARGET)
     ${ST_CMSIS}/Include
     ${ST_HAL_DRIVER}/Inc
     )
+
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
