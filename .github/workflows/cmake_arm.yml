@@ -66,7 +66,7 @@ jobs:
     - name: Install ARM GCC
       uses: carlosperate/arm-none-eabi-gcc-action@v1
       with:
-        release: '11.2-2022.02'
+        release: '12.3.Rel1'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v4
@@ -129,7 +129,7 @@ jobs:
           - 'lpc54 lpc55'
           #- 'mcx' not working with gcc anymore, need to fix this first
           - 'nrf'
-          - 'ra'
+          #- 'ra' port later
           - 'rp2040'
           - 'samd21'
           - 'samd51'
