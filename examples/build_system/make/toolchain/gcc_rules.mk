@@ -22,6 +22,7 @@ CFLAGS := $(filter-out $(CFLAGS_SKIP),$(CFLAGS))
 endif
 
 ifeq ($(TOOLCHAIN),clang)
+CFLAGS += $(CFLAGS_CLANG)
 LDFLAGS += $(CFLAGS) $(LDFLAGS_CLANG)
 else
 LDFLAGS += $(CFLAGS) $(LDFLAGS_GCC)

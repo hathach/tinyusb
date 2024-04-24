@@ -17,7 +17,7 @@ CFLAGS_SKIP += -Wcast-qual
 
 LDFLAGS_GCC += \
   -nostdlib -nostartfiles \
-  -specs=nosys.specs -specs=nano.specs \
+  --specs=nosys.specs --specs=nano.specs \
 
 LDFLAGS_CLANG +=
 

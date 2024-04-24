@@ -6,13 +6,14 @@ CPU_CORE ?= cortex-m4
 
 CFLAGS += \
   -flto \
-  -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD51
 
 # SAM driver is flooded with -Wcast-qual which slow down complication significantly
 CFLAGS_SKIP += -Wcast-qual
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
@@ -33,7 +34,7 @@ INC += \
 	$(TOP)/hw/mcu/microchip/samd51/hal/utils/include \
 	$(TOP)/hw/mcu/microchip/samd51/hpl/port \
 	$(TOP)/hw/mcu/microchip/samd51/hri \
-	$(TOP)/hw/mcu/microchip/samd51/CMSIS/Include
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 
 # flash using bossac at least version 1.8
 # can be found in arduino15/packages/arduino/tools/bossac/
