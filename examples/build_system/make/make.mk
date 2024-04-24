@@ -20,8 +20,6 @@ ifndef TOOLCHAIN
   TOOLCHAIN = gcc
 endif
 
-$(info TOOLCHAIN: $(TOOLCHAIN))
-
 #-------------- TOP and CURRENT_PATH ------------
 
 # Set TOP to be the path to get from the current directory (where make was invoked) to the top of the tree.

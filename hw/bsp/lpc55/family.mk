@@ -11,9 +11,10 @@ PORT ?= 1
 
 CFLAGS += \
   -flto \
+  -D__STARTUP_CLEAR_BSS \
   -DCFG_TUSB_MCU=OPT_MCU_LPC55XX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
-  -DBOARD_TUD_RHPORT=$(PORT)
+  -DBOARD_TUD_RHPORT=$(PORT) \
 
 ifeq ($(PORT), 1)
   $(info "PORT1 High Speed")
@@ -28,7 +29,9 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs \
 
 # All source paths should be relative to the top level.
 LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_CORE)_flash.ld
