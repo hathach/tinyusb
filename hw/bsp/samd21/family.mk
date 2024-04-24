@@ -6,7 +6,6 @@ CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
   -flto \
-  -nostdlib -nostartfiles \
   -DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD21
 
@@ -16,7 +15,11 @@ CFLAGS += -Wno-error=redundant-decls
 # SAM driver is flooded with -Wcast-qual which slow down complication significantly
 CFLAGS_SKIP += -Wcast-qual
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  -specs=nosys.specs -specs=nano.specs \
+
+LDFLAGS_CLANG +=
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \

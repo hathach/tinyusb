@@ -21,8 +21,13 @@ ifneq ($(CFLAGS_SKIP),)
 CFLAGS := $(filter-out $(CFLAGS_SKIP),$(CFLAGS))
 endif
 
+ifeq ($(TOOLCHAIN),clang)
+LDFLAGS += $(CFLAGS) $(LDFLAGS_CLANG)
+else
 LDFLAGS += $(CFLAGS) $(LDFLAGS_GCC)
+endif
 
+# TODO should be removed after all examples are updated
 ifdef LD_FILE
 LDFLAGS += -Wl,-T,$(TOP)/$(LD_FILE)
 endif
@@ -33,11 +38,7 @@ endif
 
 ASFLAGS += $(CFLAGS)
 
-LIBS_GCC ?= -lgcc -lm -lnosys
-
 # libc
-LIBS += $(LIBS_GCC)
-
 ifneq ($(BOARD), spresense)
 LIBS += -lc
 endif

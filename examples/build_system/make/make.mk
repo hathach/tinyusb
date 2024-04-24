@@ -2,6 +2,26 @@
 # Common make definition for all examples
 # ---------------------------------------
 
+#-------------------------------------------------------------
+# Toolchain
+# Can be changed via TOOLCHAIN=gcc|iar or CC=arm-none-eabi-gcc|iccarm|clang
+#-------------------------------------------------------------
+
+ifneq (,$(findstring clang,$(CC)))
+  TOOLCHAIN = clang
+else ifneq (,$(findstring iccarm,$(CC)))
+  TOOLCHAIN = iar
+else ifneq (,$(findstring gcc,$(CC)))
+  TOOLCHAIN = gcc
+endif
+
+# Default to GCC
+ifndef TOOLCHAIN
+  TOOLCHAIN = gcc
+endif
+
+$(info TOOLCHAIN: $(TOOLCHAIN))
+
 #-------------- TOP and CURRENT_PATH ------------
 
 # Set TOP to be the path to get from the current directory (where make was invoked) to the top of the tree.
@@ -75,12 +95,6 @@ else
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-#-------------------------------------------------------------
-# Toolchain
-# Can be changed via TOOLCHAIN=gcc|iar or CC=arm-none-eabi-gcc|iccarm|clang
-#-------------------------------------------------------------
-TOOLCHAIN ?= gcc
-
 #-------------- Source files and compiler flags --------------
 # tinyusb makefile
 include $(TOP)/src/tinyusb.mk
@@ -112,7 +126,7 @@ endif
 
 # Logger: default is uart, can be set to rtt or swo
 ifneq ($(LOGGER),)
-	CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
+  CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
 endif
 
 ifeq ($(LOGGER),rtt)
