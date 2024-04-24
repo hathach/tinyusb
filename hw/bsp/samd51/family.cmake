@@ -18,54 +18,56 @@ set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -c \"transport select swd\" -c \"
 #------------------------------------
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
-  if (NOT TARGET ${BOARD_TARGET})
-    set(LD_FILE_Clang ${LD_FILE_GNU})
-    if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-      message(FATAL_ERROR "LD_FILE_${CMAKE_C_COMPILER_ID} not defined")
-    endif ()
+  if (TARGET ${BOARD_TARGET})
+    return()
+  endif ()
 
-    if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-      set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_samd51.c)
-      set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-    endif ()
+  set(LD_FILE_Clang ${LD_FILE_GNU})
+  if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
+    message(FATAL_ERROR "LD_FILE_${CMAKE_C_COMPILER_ID} not defined")
+  endif ()
 
-    add_library(${BOARD_TARGET} STATIC
-      ${SDK_DIR}/gcc/system_samd51.c
-      ${SDK_DIR}/hpl/gclk/hpl_gclk.c
-      ${SDK_DIR}/hpl/mclk/hpl_mclk.c
-      ${SDK_DIR}/hpl/osc32kctrl/hpl_osc32kctrl.c
-      ${SDK_DIR}/hpl/oscctrl/hpl_oscctrl.c
-      ${SDK_DIR}/hal/src/hal_atomic.c
-      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+  if (NOT DEFINED STARTUP_FILE_GNU)
+    set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_samd51.c)
+  endif ()
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+
+  add_library(${BOARD_TARGET} STATIC
+    ${SDK_DIR}/gcc/system_samd51.c
+    ${SDK_DIR}/hpl/gclk/hpl_gclk.c
+    ${SDK_DIR}/hpl/mclk/hpl_mclk.c
+    ${SDK_DIR}/hpl/osc32kctrl/hpl_osc32kctrl.c
+    ${SDK_DIR}/hpl/oscctrl/hpl_oscctrl.c
+    ${SDK_DIR}/hal/src/hal_atomic.c
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    )
+  target_include_directories(${BOARD_TARGET} PUBLIC
+    ${SDK_DIR}/
+    ${SDK_DIR}/config
+    ${SDK_DIR}/include
+    ${SDK_DIR}/hal/include
+    ${SDK_DIR}/hal/utils/include
+    ${SDK_DIR}/hpl/port
+    ${SDK_DIR}/hri
+    ${CMSIS_5}/CMSIS/Core/Include
+    )
+
+  update_board(${BOARD_TARGET})
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      -nostartfiles
+      --specs=nosys.specs --specs=nano.specs
       )
-    target_include_directories(${BOARD_TARGET} PUBLIC
-      ${SDK_DIR}/
-      ${SDK_DIR}/config
-      ${SDK_DIR}/include
-      ${SDK_DIR}/hal/include
-      ${SDK_DIR}/hal/utils/include
-      ${SDK_DIR}/hpl/port
-      ${SDK_DIR}/hri
-      ${CMSIS_5}/CMSIS/Core/Include
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
       )
-
-    update_board(${BOARD_TARGET})
-
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--script=${LD_FILE_GNU}"
-        -nostartfiles
-        --specs=nosys.specs --specs=nano.specs
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--script=${LD_FILE_Clang}"
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--config=${LD_FILE_IAR}"
-        )
-    endif ()
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
   endif ()
 endfunction()
 
