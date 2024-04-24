@@ -41,7 +41,6 @@ jobs:
         - 'lpc51'
         - 'mm32 msp432e4'
         - 'samd11 same5x saml2x'
-        - 'stm32f2 stm32f3'
         - 'stm32l0 stm32wb'
         - 'tm4c123 xmc4000'
     steps:

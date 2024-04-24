@@ -47,7 +47,7 @@ jobs:
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz
 
     - name: Cache Toolchain
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       id: cache-toolchain
       with:
         path: ~/cache/

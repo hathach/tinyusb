@@ -704,7 +704,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
   tusb_control_request_t const * request = &_ctrl_xfer.request;
 
   if (XFER_RESULT_SUCCESS != result) {
-    TU_LOG_USBH("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, daddr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
+    TU_LOG_USBH("[%u:%u] Control %s, xferred_bytes = %" PRIu32 "\r\n", rhport, daddr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
     TU_LOG_BUF_USBH(request, 8);
 
     // terminate transfer if any stage failed

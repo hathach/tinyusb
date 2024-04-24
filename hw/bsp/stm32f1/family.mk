@@ -16,12 +16,13 @@ CFLAGS += \
 # GCC Flags
 CFLAGS_GCC += \
   -flto \
-  -nostdlib -nostartfiles \
 
 # mcu driver cause following warnings
 CFLAGS_GCC += -Wno-error=cast-align
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  -specs=nosys.specs -specs=nano.specs
 
 # ------------------------
 # All source paths should be relative to the top level.

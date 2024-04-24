@@ -6,12 +6,33 @@ include(CMakePrintHelpers)
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
 get_filename_component(TOP ${TOP} ABSOLUTE)
 
-# Default to gcc
+#-------------------------------------------------------------
+# Toolchain
+# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
+#-------------------------------------------------------------
+# Detect toolchain based on CMAKE_C_COMPILER
+if (DEFINED CMAKE_C_COMPILER)
+  string(FIND ${CMAKE_C_COMPILER} "iccarm" IS_IAR)
+  string(FIND ${CMAKE_C_COMPILER} "clang" IS_CLANG)
+  string(FIND ${CMAKE_C_COMPILER} "gcc" IS_GCC)
+
+  if (NOT IS_IAR EQUAL -1)
+    set(TOOLCHAIN iar)
+  elseif (NOT IS_CLANG EQUAL -1)
+    set(TOOLCHAIN clang)
+  elseif (NOT IS_GCC EQUAL -1)
+    set(TOOLCHAIN gcc)
+  endif ()
+endif ()
+
+# default to gcc
 if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
 
-# FAMILY not defined, try to detect it from BOARD
+#-------------------------------------------------------------
+# FAMILY and BOARD
+#-------------------------------------------------------------
 if (NOT DEFINED FAMILY)
   if (NOT DEFINED BOARD)
     message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, espressif).
@@ -74,6 +95,9 @@ set(WARNING_FLAGS_GNU
 
 set(WARNING_FLAGS_IAR "")
 
+#-------------------------------------------------------------
+# Functions
+#-------------------------------------------------------------
 
 # Filter example based on only.txt and skip.txt
 function(family_filter RESULT DIR)
@@ -195,8 +219,9 @@ function(family_configure_common TARGET RTOS)
     if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
-  endif()
-  if (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+ elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
   endif()
 
@@ -214,7 +239,7 @@ function(family_configure_common TARGET RTOS)
       if (NOT TARGET segger_rtt)
         add_library(segger_rtt STATIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
         target_include_directories(segger_rtt PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
-        #target_compile_definitions(segger_rtt PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
+#        target_compile_definitions(segger_rtt PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
       endif()
       target_link_libraries(${TARGET} PUBLIC segger_rtt)
     endif ()

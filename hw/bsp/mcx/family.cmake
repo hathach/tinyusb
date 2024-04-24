@@ -1,9 +1,5 @@
 include_guard()
 
-if (NOT BOARD)
-  message(FATAL_ERROR "BOARD not specified")
-endif ()
-
 set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
@@ -28,60 +24,63 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 #------------------------------------
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
-  if (NOT TARGET ${BOARD_TARGET})
-    add_library(${BOARD_TARGET} STATIC
-      # external driver
-      #lib/sct_neopixel/sct_neopixel.c
+  if (TARGET ${BOARD_TARGET})
+    return()
+  endif()
 
-      # driver
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_gpio.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_common_arm.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpuart.c
+  if (NOT DEFINED LD_FILE_GNU)
+    set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
+  endif ()
+  set(LD_FILE_Clang ${LD_FILE_GNU})
 
-      # mcu
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
+  if (NOT DEFINED STARTUP_FILE_GNU)
+    set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S)
+  endif()
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+
+  add_library(${BOARD_TARGET} STATIC
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    # driver
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_gpio.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_common_arm.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpuart.c
+    # mcu
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
+    )
+  target_include_directories(${BOARD_TARGET} PUBLIC
+    ${CMSIS_DIR}/CMSIS/Core/Include
+    ${SDK_DIR}/devices/${MCU_VARIANT}
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+    )
+
+  if (${FAMILY_MCUS} STREQUAL "MCXN9")
+    target_sources(${BOARD_TARGET} PRIVATE
+      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
+    )
+  elseif(${FAMILY_MCUS} STREQUAL "MCXA15")
+    target_sources(${BOARD_TARGET} PRIVATE
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_spc.c
+  )
+  endif()
+
+  update_board(${BOARD_TARGET})
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      --specs=nosys.specs --specs=nano.specs
+      #-nostartfiles
       )
-
-      if (${FAMILY_MCUS} STREQUAL "MCXN9")
-        target_sources(${BOARD_TARGET} PRIVATE
-          ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
-        )
-      elseif(${FAMILY_MCUS} STREQUAL "MCXA15")
-        target_sources(${BOARD_TARGET} PRIVATE
-        ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_spc.c
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
       )
-      endif()
-
-    #  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    #    )
-    target_include_directories(${BOARD_TARGET} PUBLIC
-      # driver
-      # mcu
-      ${CMSIS_DIR}/CMSIS/Core/Include
-      ${SDK_DIR}/devices/${MCU_VARIANT}
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
       )
-
-    update_board(${BOARD_TARGET})
-
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_sources(${BOARD_TARGET} PUBLIC
-        ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S
-        )
-      target_link_options(${BOARD_TARGET} PUBLIC
-        # linker file
-        "LINKER:--script=${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld"
-        # nanolib
-        --specs=nosys.specs
-        --specs=nano.specs
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--config=${LD_FILE_IAR}"
-        )
-    endif ()
   endif ()
 endfunction()
 

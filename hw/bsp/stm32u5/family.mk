@@ -8,14 +8,23 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m33
 
 CFLAGS += \
-  -flto \
-  -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32U5
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=maybe-uninitialized -Wno-error=cast-align -Wno-error=undef -Wno-error=unused-parameter
+CFLAGS_GCC += \
+  -flto \
+  -Wno-error=cast-align \
+  -Wno-error=undef \
+  -Wno-error=unused-parameter \
+  -Wno-error=type-limits \
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+ifeq ($(TOOLCHAIN),gcc)
+CFLAGS_GCC += -Wno-error=maybe-uninitialized
+endif
+
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \

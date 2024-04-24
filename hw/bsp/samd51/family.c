@@ -388,3 +388,8 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx
 }
 
 #endif
+
+void HardFault_Handler(void) {
+  __BKPT(0);
+  while (1);
+}

@@ -11,7 +11,6 @@ SKIPPED = "\033[33mskipped\033[0m"
 
 build_separator = '-' * 106
 
-make_iar_option = 'TOOLCHAIN=iar'
 
 def filter_with_input(mylist):
     if len(sys.argv) > 1:
@@ -36,9 +35,10 @@ def build_family(example, family, make_option):
 
 
 if __name__ == '__main__':
-    # IAR CC
-    if make_iar_option not in sys.argv:
-        make_iar_option = ''
+    make_option = ''
+    for a in sys.argv:
+        if 'TOOLCHAIN=' in sys.argv:
+            make_option += ' ' + a
 
     # If examples are not specified in arguments, build all
     all_examples = []
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     for example in all_examples:
         print(build_separator)
         for family in all_families:
-            fret = build_family(example, family, make_iar_option)
+            fret = build_family(example, family, make_option)
             if len(fret) == len(total_result):
                 total_result = [total_result[i] + fret[i] for i in range(len(fret))]
 
