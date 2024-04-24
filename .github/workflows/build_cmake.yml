@@ -132,7 +132,7 @@ jobs:
           #- 'mcx' not working with gcc anymore, need to fix this first
           - 'nrf'
           #- 'ra' port later
-          - 'rp2040'
+          #- 'rp2040' port later
           - 'samd21'
           - 'samd51'
           - 'stm32f0'
@@ -193,7 +193,7 @@ jobs:
           PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
   # ---------------------------------------
-  # Build ARM with Clang
+  # Build MSP430 with GCC
   # ---------------------------------------
   msp430-gcc:
     runs-on: ubuntu-latest
