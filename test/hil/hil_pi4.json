@@ -8,13 +8,13 @@
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
         },
         {
-            "name": "espressif_s3_devkitc",
-            "uid": "7CDFA1E073CC",
+            "name": "espressif_s3_devkitm",
+            "uid": "84F703C084E4",
             "tests": [
                 "cdc_msc_freertos", "hid_composite_freertos"
             ],
             "flasher": "esptool",
-            "flasher_sn": "461cb8d7decdeb119be9b506e93fd3f1",
+            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
             "flasher_args": "-b 1500000"
         },
         {

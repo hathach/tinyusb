@@ -1,5 +1,8 @@
 # makefile for arm gcc toolchain
 
+# Can be set by family, default to ARM GCC
+CROSS_COMPILE ?= arm-none-eabi-
+
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 AS = $(CC) -x assembler-with-cpp

@@ -168,7 +168,7 @@ jobs:
         run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
 
       - name: Cache Toolchain
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-toolchain
         with:
           path: ~/cache/
@@ -216,7 +216,7 @@ jobs:
         run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
 
       - name: Cache Toolchain
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-toolchain
         with:
           path: ~/cache/

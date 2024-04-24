@@ -15,6 +15,8 @@ TOP = $(abspath $(subst make.mk,../../..,$(THIS_MAKEFILE)))
 # Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
 CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
 
+#-------------- Linux/Windows ------------
+
 # Detect whether shell style is windows or not
 # https://stackoverflow.com/questions/714100/os-detecting-makefile/52062069#52062069
 ifeq '$(findstring ;,$(PATH))' ';'
@@ -26,13 +28,18 @@ CMDEXE := 1
 SHELL := cmd.exe
 endif
 
-# Handy check parameter function
-check_defined = \
-    $(strip $(foreach 1,$1, \
-    $(call __check_defined,$1,$(strip $(value 2)))))
-__check_defined = \
-    $(if $(value $1),, \
-    $(error Undefined make flag: $1$(if $2, ($2))))
+ifeq ($(CMDEXE),1)
+  CP = copy
+  RM = del
+  MKDIR = mkdir
+  PYTHON = python
+else
+  CP = cp
+  RM = rm
+  MKDIR = mkdir
+  PYTHON = python3
+endif
+
 
 # Build directory
 BUILD := _build/$(BOARD)
@@ -44,8 +51,8 @@ BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
 # Board without family
 ifneq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/board.mk),)
-BOARD_PATH := hw/bsp/$(BOARD)
-FAMILY :=
+  BOARD_PATH := hw/bsp/$(BOARD)
+  FAMILY :=
 endif
 
 # Board within family
@@ -68,30 +75,11 @@ else
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-#-------------- Toolchain  ------------
-
-# Supported toolchain: gcc, iar
+#-------------------------------------------------------------
+# Toolchain
+# Can be changed via TOOLCHAIN=gcc|iar or CC=arm-none-eabi-gcc|iccarm|clang
+#-------------------------------------------------------------
 TOOLCHAIN ?= gcc
-
-# Can be set by board, default to ARM GCC
-CROSS_COMPILE ?= arm-none-eabi-
-
-ifeq ($(TOOLCHAIN),iar)
-CC := iccarm
-USE_IAR = 1
-endif
-
-ifeq ($(CMDEXE),1)
-  CP = copy
-  RM = del
-  MKDIR = mkdir
-  PYTHON = python
-else
-  CP = cp
-  RM = rm
-  MKDIR = mkdir
-  PYTHON = python3
-endif
 
 #-------------- Source files and compiler flags --------------
 # tinyusb makefile
@@ -143,3 +131,11 @@ endif
 
 # toolchain specific
 include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN).mk
+
+# Handy check parameter function
+check_defined = \
+    $(strip $(foreach 1,$1, \
+    $(call __check_defined,$1,$(strip $(value 2)))))
+__check_defined = \
+    $(if $(value $1),, \
+    $(error Undefined make flag: $1$(if $2, ($2))))

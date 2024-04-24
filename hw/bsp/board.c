@@ -26,6 +26,14 @@
 #include "board_api.h"
 
 //--------------------------------------------------------------------+
+// Board API
+//--------------------------------------------------------------------+
+int board_getchar(void) {
+  char c;
+  return (sys_read(0, &c, 1) > 0) ? (int) c : (-1);
+}
+
+//--------------------------------------------------------------------+
 // newlib read()/write() retarget
 //--------------------------------------------------------------------+
 #ifdef __ICCARM__
@@ -126,8 +134,3 @@ FILE *const stdin = &__stdio;
 __strong_reference(stdin, stdout);
 __strong_reference(stdin, stderr);
 #endif
-
-int board_getchar(void) {
-  char c;
-  return (sys_read(0, &c, 1) > 0) ? (int) c : (-1);
-}
