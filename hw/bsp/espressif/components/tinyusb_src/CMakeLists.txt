@@ -5,17 +5,7 @@ set(includes_public)
 set(compile_options)
 set(tusb_src "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../src")
 
-if(target STREQUAL "esp32s3")
-  set(tusb_mcu "OPT_MCU_ESP32S3")
-elseif(target STREQUAL "esp32s2")
-  set(tusb_mcu "OPT_MCU_ESP32S2")
-else()
-  # CONFIG_TINYUSB dependency has been guaranteed by Kconfig logic,
-  # So it's not possible that cmake goes here
-  message(FATAL_ERROR "TinyUSB is not support on ${target}.")
-  return()
-endif()
-
+string(TOUPPER OPT_MCU_${target} tusb_mcu)
 list(APPEND compile_definitions
   CFG_TUSB_MCU=${tusb_mcu}
   CFG_TUSB_OS=OPT_OS_FREERTOS

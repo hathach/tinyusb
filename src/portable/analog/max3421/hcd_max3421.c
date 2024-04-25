@@ -484,8 +484,8 @@ bool hcd_init(uint8_t rhport) {
 
   // v1 is 0x01, v2 is 0x12, v3 is 0x13
   uint8_t const revision = reg_read(rhport, REVISION_ADDR, false);
-  TU_ASSERT(revision == 0x01 || revision == 0x12 || revision == 0x13, false);
   TU_LOG2_HEX(revision);
+  TU_ASSERT(revision == 0x01 || revision == 0x12 || revision == 0x13, false);
 
   // reset
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);

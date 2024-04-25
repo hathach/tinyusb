@@ -329,6 +329,9 @@
   #define TUP_USBIP_DWC2
   #define TUP_DCD_ENDPOINT_MAX    6
 
+#elif TU_CHECK_MCU(OPT_MCU_ESP32) && (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
+  #error "MCUs are only supported with CFG_TUH_MAX3421 enabled"
+
 //--------------------------------------------------------------------+
 // Dialog
 //--------------------------------------------------------------------+
@@ -426,7 +429,7 @@
 #define TUP_MCU_MULTIPLE_CORE 0
 #endif
 
-#ifndef TUP_DCD_ENDPOINT_MAX
+#if CFG_TUD_ENABLED && !defined(TUP_DCD_ENDPOINT_MAX)
   #warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define TUP_DCD_ENDPOINT_MAX    8
 #endif
