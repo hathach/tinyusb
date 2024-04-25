@@ -393,9 +393,10 @@ static void bus_reset(uint8_t rhport) {
   // Setup the control endpoint 0
   _allocated_fifo_words_tx = 16;
 
-  // DMA needs extra space for processing, needs size confirmation
+  // DMA needs extra space for processing
   if(dma_supported(rhport)) {
-    _allocated_fifo_words_tx += 72;
+    uint16_t reserved = _dwc2_controller[rhport].ep_fifo_size / 4- dwc2->ghwcfg3_bm.total_fifo_size;
+    _allocated_fifo_words_tx += reserved;
   }
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
@@ -805,13 +806,14 @@ void dcd_edpt_close_all(uint8_t rhport) {
   // reset allocated fifo IN
   _allocated_fifo_words_tx = 16;
 
-  // DMA needs extra space for processing, needs size confirmation
-  if(dma_supported(rhport)) {
-    _allocated_fifo_words_tx += 72;
-  }
-
   fifo_flush_tx(dwc2, 0x10); // all tx fifo
   fifo_flush_rx(dwc2);
+
+  // DMA needs extra space for processing
+  if(dma_supported(rhport)) {
+    uint16_t reserved = _dwc2_controller[rhport].ep_fifo_size / 4- dwc2->ghwcfg3_bm.total_fifo_size;
+    _allocated_fifo_words_tx += reserved;
+  }
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
