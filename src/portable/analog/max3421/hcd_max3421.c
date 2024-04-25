@@ -479,6 +479,8 @@ bool hcd_init(uint8_t rhport) {
   _hcd_data.spi_mutex = osal_mutex_create(&_hcd_data.spi_mutexdef);
 #endif
 
+  // NOTE: driver does not seem to work without nRST pin signal
+
   // full duplex, interrupt negative edge
   reg_write(rhport, PINCTL_ADDR, _tuh_cfg.pinctl | PINCTL_FDUPSPI, false);
 
