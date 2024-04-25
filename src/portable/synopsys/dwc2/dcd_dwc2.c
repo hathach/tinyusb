@@ -103,6 +103,9 @@ static uint16_t ep0_pending[2];               // Index determines direction as t
 // TX FIFO RAM allocation so far in words - RX FIFO size is readily available from dwc2->grxfsiz
 static uint16_t _allocated_fifo_words_tx;     // TX FIFO size in words (IN EPs)
 
+// Number of IN endpoints active
+static uint8_t _allocated_ep_in_count;
+
 // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
 static bool _sof_en;
 
@@ -170,6 +173,12 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
       dwc2->grxfsiz = sz;
     }
   } else {
+    // Check IN endpoints concurrently active limit
+    if(_dwc2_controller->ep_in_count) {
+      TU_ASSERT(_allocated_ep_in_count < _dwc2_controller->ep_in_count);
+      _allocated_ep_in_count++;
+    }
+
     // Note if The TXFELVL is configured as half empty. In order
     // to be able to write a packet at that point, the fifo must be twice the max_size.
     if ((dwc2->gahbcfg & GAHBCFG_TXFELVL) == 0) {
@@ -302,6 +311,8 @@ static void bus_reset(uint8_t rhport) {
   tu_memclr(xfer_status, sizeof(xfer_status));
 
   _sof_en = false;
+
+  _allocated_ep_in_count = 1;
 
   // clear device address
   dwc2->dcfg &= ~DCFG_DAD_Msk;
@@ -769,6 +780,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
 void dcd_edpt_close_all(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
+
+  _allocated_ep_in_count = 1;
 
   // Disable non-control interrupt
   dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);

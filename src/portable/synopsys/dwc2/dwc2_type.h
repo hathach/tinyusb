@@ -29,6 +29,7 @@ typedef struct
   uintptr_t reg_base;
   uint32_t  irqnum;
   uint8_t   ep_count;
+  uint8_t   ep_in_count;
   uint32_t  ep_fifo_size;
 }dwc2_controller_t;
 
