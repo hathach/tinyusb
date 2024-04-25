@@ -27,7 +27,7 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+#if TUP_MCU_ESPRESSIF
 // ESP-IDF need "freertos/" prefix in include path.
 // CFG_TUSB_OS_INC_PATH should be defined accordingly.
   #include "freertos/FreeRTOS.h"
