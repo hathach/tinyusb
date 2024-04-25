@@ -429,7 +429,7 @@
 #define TUP_MCU_MULTIPLE_CORE 0
 #endif
 
-#if CFG_TUD_ENABLED && !defined(TUP_DCD_ENDPOINT_MAX)
+#if !defined(TUP_DCD_ENDPOINT_MAX)
   #warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define TUP_DCD_ENDPOINT_MAX    8
 #endif
