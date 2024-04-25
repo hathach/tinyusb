@@ -34,6 +34,7 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "class/hid/hid.h"
 
 // English
 #define LANGUAGE_ID 0x0409
