@@ -67,23 +67,6 @@
 // Debug level for DWC2
 #define DWC2_DEBUG    2
 
-// DMA switch
-#ifndef DWC2_ENABLE_DMA
-#define DWC2_ENABLE_DMA    1
-#endif
-
-#ifndef dcache_clean
-#define dcache_clean(_addr, _size)
-#endif
-
-#ifndef dcache_invalidate
-#define dcache_invalidate(_addr, _size)
-#endif
-
-#ifndef dcache_clean_invalidate
-#define dcache_clean_invalidate(_addr, _size)
-#endif
-
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
 typedef struct {
@@ -200,11 +183,17 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   return true;
 }
 
-static bool dma_supported(uint8_t rhport)
+static inline bool dma_enabled(uint8_t rhport)
 {
+  // DMA doesn't support fifo transfer
+#ifdef TUD_AUDIO_PREFER_RING_BUFFER
+#if TUD_AUDIO_PREFER_RING_BUFFER
+  return false;
+#endif
+#endif
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   // Internal DMA only
-  return (dwc2->ghwcfg2_bm.arch == 2) && DWC2_ENABLE_DMA;
+  return (dwc2->ghwcfg2_bm.arch == 2);
 }
 
 static void dma_stpkt_rx(uint8_t rhport)
@@ -394,7 +383,7 @@ static void bus_reset(uint8_t rhport) {
   _allocated_fifo_words_tx = 16;
 
   // DMA needs extra space for processing
-  if(dma_supported(rhport)) {
+  if(dma_enabled(rhport)) {
     uint16_t reserved = _dwc2_controller[rhport].ep_fifo_size / 4- dwc2->ghwcfg3_bm.total_fifo_size;
     _allocated_fifo_words_tx += reserved;
   }
@@ -409,7 +398,7 @@ static void bus_reset(uint8_t rhport) {
 
   dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
 
-  if(dma_supported(rhport)) {
+  if(dma_enabled(rhport)) {
     dma_stpkt_rx(rhport);
   }
 
@@ -438,7 +427,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     epin[epnum].dieptsiz = (num_packets << DIEPTSIZ_PKTCNT_Pos) |
                            ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
 
-    if(dma_supported(rhport)) {
+    if(dma_enabled(rhport)) {
       epin[epnum].diepdma = (uintptr_t)xfer->buffer;
 
       // For ISO endpoint set correct odd/even bit for next frame.
@@ -479,7 +468,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
       epout[epnum].doepctl |= (odd_frame_now ? DOEPCTL_SD0PID_SEVNFRM_Msk : DOEPCTL_SODDFRM_Msk);
     }
 
-    if(dma_supported(rhport)) {
+    if(dma_enabled(rhport)) {
       epout[epnum].doepdma = (uintptr_t)xfer->buffer;
     }
 
@@ -690,7 +679,7 @@ void dcd_init(uint8_t rhport) {
   // Enable global interrupt
   dwc2->gahbcfg |= GAHBCFG_GINT;
 
-  if (dma_supported(rhport)) {
+  if (dma_enabled(rhport)) {
     dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
     dwc2->gintmsk &=~GINTMSK_RXFLVLM;
   }
@@ -810,7 +799,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   fifo_flush_rx(dwc2);
 
   // DMA needs extra space for processing
-  if(dma_supported(rhport)) {
+  if(dma_enabled(rhport)) {
     uint16_t reserved = _dwc2_controller[rhport].ep_fifo_size / 4- dwc2->ghwcfg3_bm.total_fifo_size;
     _allocated_fifo_words_tx += reserved;
   }
@@ -893,7 +882,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   edpt_disable(rhport, ep_addr, true);
-  if((tu_edpt_number(ep_addr) == 0) && dma_supported(rhport)) {
+  if((tu_edpt_number(ep_addr) == 0) && dma_enabled(rhport)) {
     dma_stpkt_rx(rhport);
   }
 }
@@ -1097,7 +1086,7 @@ static void handle_epout_irq(uint8_t rhport) {
             // Schedule another packet to be received.
             edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
           } else {
-            if(dma_supported(rhport)) {
+            if(dma_enabled(rhport)) {
               // Fix packet length
               uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
               xfer->total_len -= remain;
@@ -1118,7 +1107,7 @@ static void handle_epout_irq(uint8_t rhport) {
         if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
           epout->doepint = DOEPINT_STPKTRX;
         }
-        if(dma_supported(rhport) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
+        if(dma_enabled(rhport) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
           dma_stpkt_rx(rhport);
         }
 
@@ -1148,7 +1137,7 @@ static void handle_epin_irq(uint8_t rhport) {
           // Schedule another packet to be transmitted.
           edpt_schedule_packets(rhport, n, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
         } else {
-          if((n == 0) && dma_supported(rhport)) {
+          if((n == 0) && dma_enabled(rhport)) {
             dma_stpkt_rx(rhport);
           }
           dcd_event_xfer_complete(rhport, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
