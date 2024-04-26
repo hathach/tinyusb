@@ -13,9 +13,6 @@ $(BUILD):
 all: $(BUILD)
 	$(MAKE) -C $(BUILD)
 
-clean:
-	$(RM) -rf $(BUILD)
-
 flash: flash-pyocd
 flash-uf2:
 	@$(CP) $(BUILD)/$(PROJECT).uf2 /media/$(USER)/RPI-RP2

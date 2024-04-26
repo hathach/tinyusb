@@ -2,19 +2,18 @@ UF2_FAMILY_ID = 0x55114460
 DEPS_SUBMODULES += hw/mcu/microchip
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= cortex-m4
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs \
-  -mcpu=cortex-m4 \
-  -mfloat-abi=hard \
-  -mfpu=fpv4-sp-d16 \
-  -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_SAMD51
 
-# suppress warning caused by vendor mcu driver
-CFLAGS += -Wno-error=cast-qual
+# SAM driver is flooded with -Wcast-qual which slow down complication significantly
+CFLAGS_SKIP += -Wcast-qual
+
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
@@ -35,10 +34,7 @@ INC += \
 	$(TOP)/hw/mcu/microchip/samd51/hal/utils/include \
 	$(TOP)/hw/mcu/microchip/samd51/hpl/port \
 	$(TOP)/hw/mcu/microchip/samd51/hri \
-	$(TOP)/hw/mcu/microchip/samd51/CMSIS/Include
-
-# For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 
 # flash using bossac at least version 1.8
 # can be found in arduino15/packages/arduino/tools/bossac/

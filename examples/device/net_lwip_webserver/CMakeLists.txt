@@ -1,83 +1,93 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.17)
 
-set(TOP "../../..")
-get_filename_component(TOP "${TOP}" REALPATH)
+include(${CMAKE_CURRENT_LIST_DIR}/../../../hw/bsp/family_support.cmake)
 
-if (EXISTS ${TOP}/lib/lwip/src)
-    include(${TOP}/hw/bsp/family_support.cmake)
+# gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
+family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
-    # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
-    family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
-
-    project(${PROJECT})
-
-    # Checks this example is valid for the family and initializes the project
-    family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
-
-    add_executable(${PROJECT})
-
-    # Example source
-    target_sources(${PROJECT} PUBLIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
-            )
-
-    # Example include
-    target_include_directories(${PROJECT} PUBLIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/src
-            ${TOP}/lib/lwip/src/include
-            ${TOP}/lib/lwip/src/include/ipv4
-            ${TOP}/lib/lwip/src/include/lwip/apps
-            ${TOP}/lib/networking
-            )
-
-    target_sources(${PROJECT} PUBLIC
-            ${TOP}/lib/lwip/src/core/altcp.c
-            ${TOP}/lib/lwip/src/core/altcp_alloc.c
-            ${TOP}/lib/lwip/src/core/altcp_tcp.c
-            ${TOP}/lib/lwip/src/core/def.c
-            ${TOP}/lib/lwip/src/core/dns.c
-            ${TOP}/lib/lwip/src/core/inet_chksum.c
-            ${TOP}/lib/lwip/src/core/init.c
-            ${TOP}/lib/lwip/src/core/ip.c
-            ${TOP}/lib/lwip/src/core/mem.c
-            ${TOP}/lib/lwip/src/core/memp.c
-            ${TOP}/lib/lwip/src/core/netif.c
-            ${TOP}/lib/lwip/src/core/pbuf.c
-            ${TOP}/lib/lwip/src/core/raw.c
-            ${TOP}/lib/lwip/src/core/stats.c
-            ${TOP}/lib/lwip/src/core/sys.c
-            ${TOP}/lib/lwip/src/core/tcp.c
-            ${TOP}/lib/lwip/src/core/tcp_in.c
-            ${TOP}/lib/lwip/src/core/tcp_out.c
-            ${TOP}/lib/lwip/src/core/timeouts.c
-            ${TOP}/lib/lwip/src/core/udp.c
-            ${TOP}/lib/lwip/src/core/ipv4/autoip.c
-            ${TOP}/lib/lwip/src/core/ipv4/dhcp.c
-            ${TOP}/lib/lwip/src/core/ipv4/etharp.c
-            ${TOP}/lib/lwip/src/core/ipv4/icmp.c
-            ${TOP}/lib/lwip/src/core/ipv4/igmp.c
-            ${TOP}/lib/lwip/src/core/ipv4/ip4.c
-            ${TOP}/lib/lwip/src/core/ipv4/ip4_addr.c
-            ${TOP}/lib/lwip/src/core/ipv4/ip4_frag.c
-            ${TOP}/lib/lwip/src/netif/ethernet.c
-            ${TOP}/lib/lwip/src/netif/slipif.c
-            ${TOP}/lib/lwip/src/apps/http/httpd.c
-            ${TOP}/lib/lwip/src/apps/http/fs.c
-            ${TOP}/lib/networking/dhserver.c
-            ${TOP}/lib/networking/dnserver.c
-            ${TOP}/lib/networking/rndis_reports.c
-            )
-
-    # due to warnings from other net source, we need to prevent error from some of the warnings options
-    target_compile_options(${PROJECT} PUBLIC
-        -Wno-error=null-dereference
-        -Wno-error=conversion
-        -Wno-error=sign-conversion
-        -Wno-error=sign-compare
-        )
-
-    # Configure compilation flags and libraries for the example... see the corresponding function
-    # in hw/bsp/FAMILY/family.cmake for details.
-    family_configure_device_example(${PROJECT})
+set(LWIP ${TOP}/lib/lwip)
+if (NOT EXISTS ${LWIP}/src)
+  family_example_missing_dependency(${PROJECT} "lib/lwip")
+  return()
 endif()
+
+project(${PROJECT} C CXX ASM)
+
+# Checks this example is valid for the family and initializes the project
+family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
+
+add_executable(${PROJECT})
+
+# Example source
+target_sources(${PROJECT} PUBLIC
+  ${CMAKE_CURRENT_LIST_DIR}/src/main.c
+  ${CMAKE_CURRENT_LIST_DIR}/src/usb_descriptors.c
+  )
+
+# Example include
+target_include_directories(${PROJECT} PUBLIC
+  ${CMAKE_CURRENT_LIST_DIR}/src
+  ${LWIP}/src/include
+  ${LWIP}/src/include/ipv4
+  ${LWIP}/src/include/lwip/apps
+  ${TOP}/lib/networking
+  )
+
+# lib/networking sources
+target_sources(${PROJECT} PUBLIC
+  ${TOP}/lib/networking/dhserver.c
+  ${TOP}/lib/networking/dnserver.c
+  ${TOP}/lib/networking/rndis_reports.c
+  )
+
+# lwip sources
+target_sources(${PROJECT} PUBLIC
+  ${LWIP}/src/core/altcp.c
+  ${LWIP}/src/core/altcp_alloc.c
+  ${LWIP}/src/core/altcp_tcp.c
+  ${LWIP}/src/core/def.c
+  ${LWIP}/src/core/dns.c
+  ${LWIP}/src/core/inet_chksum.c
+  ${LWIP}/src/core/init.c
+  ${LWIP}/src/core/ip.c
+  ${LWIP}/src/core/mem.c
+  ${LWIP}/src/core/memp.c
+  ${LWIP}/src/core/netif.c
+  ${LWIP}/src/core/pbuf.c
+  ${LWIP}/src/core/raw.c
+  ${LWIP}/src/core/stats.c
+  ${LWIP}/src/core/sys.c
+  ${LWIP}/src/core/tcp.c
+  ${LWIP}/src/core/tcp_in.c
+  ${LWIP}/src/core/tcp_out.c
+  ${LWIP}/src/core/timeouts.c
+  ${LWIP}/src/core/udp.c
+  ${LWIP}/src/core/ipv4/autoip.c
+  ${LWIP}/src/core/ipv4/dhcp.c
+  ${LWIP}/src/core/ipv4/etharp.c
+  ${LWIP}/src/core/ipv4/icmp.c
+  ${LWIP}/src/core/ipv4/igmp.c
+  ${LWIP}/src/core/ipv4/ip4.c
+  ${LWIP}/src/core/ipv4/ip4_addr.c
+  ${LWIP}/src/core/ipv4/ip4_frag.c
+  ${LWIP}/src/netif/ethernet.c
+  ${LWIP}/src/netif/slipif.c
+  ${LWIP}/src/apps/http/httpd.c
+  ${LWIP}/src/apps/http/fs.c
+  )
+
+# due to warnings from other net source, we need to prevent error from some of the warnings options
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+  target_compile_options(${PROJECT} PUBLIC
+    -Wno-error=null-dereference
+    -Wno-error=conversion
+    -Wno-error=sign-conversion
+    -Wno-error=sign-compare
+    )
+elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+
+endif ()
+
+# Configure compilation flags and libraries for the example without RTOS.
+# See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
+family_configure_device_example(${PROJECT} noos)

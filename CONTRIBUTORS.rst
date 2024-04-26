@@ -119,6 +119,7 @@ Notable contributors
 
 -  Port DCD Synopsys to support Silabs EFM32GG12 with SLTB009A board
 -  Rewrite documentation in rst and setup for readthedocs
+-  Generalize Renesas driver and support RA family with EK-RA4M3 board
 
 
 `Raspberry Pi Team <https://github.com/raspberrypi>`__
@@ -199,6 +200,8 @@ Notable contributors
 -  Add new DCD port for Microchip SAMx7x
 -  Add IAR compiler support
 -  Improve UAC2, CDC, DFU class driver
+-  Improve stm32_fsdev, chipidea_ci_hs, lpc_ip3511 DCD
+-  Host IAR Build CI & hardware in the loop (HITL) test
 
 
 `Full contributors list <https://github.com/hathach/tinyusb/contributors>`__

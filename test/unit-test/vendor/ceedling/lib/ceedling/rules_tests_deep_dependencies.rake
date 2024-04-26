@@ -12,4 +12,3 @@ rule(/#{PROJECT_TEST_DEPENDENCIES_PATH}\/#{'.+\\'+EXTENSION_DEPENDENCIES}$/ => [
   	@ceedling[:file_path_utils].form_test_build_c_object_filepath(dep.source),
   	dep.name)
 end
-

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -824,10 +824,10 @@ typedef struct TU_ATTR_PACKED
             uint8_t type      :  2; ///< Request type tusb_request_type_t.
             uint8_t direction :  1; ///< Direction type. tusb_dir_t
         } bmRequestType_bit;
-        
+
         uint8_t bmRequestType;
     };
-    
+
     uint8_t bRequest;  ///< Request type audio_cs_req_t
     uint8_t bChannelNumber;
     uint8_t bControlSelector;
@@ -923,6 +923,31 @@ typedef struct TU_ATTR_PACKED {
     uint32_t bRes           ; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
     } subrange[numSubRanges];                   \
 }
+
+// 6.1 Interrupt Data Message Format
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bInfo;
+  uint8_t bAttribute;
+  union
+  {
+    uint16_t wValue;
+    struct
+    {
+      uint8_t wValue_cn_or_mcn;
+      uint8_t wValue_cs;
+    };
+  };
+  union
+  {
+    uint16_t wIndex;
+    struct
+    {
+      uint8_t wIndex_ep_or_int;
+      uint8_t wIndex_entity_id;
+    };
+  };
+} audio_interrupt_data_t;
 
 /** @} */
 

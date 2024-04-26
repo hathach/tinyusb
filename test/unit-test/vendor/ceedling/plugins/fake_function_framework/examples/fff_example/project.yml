@@ -28,12 +28,12 @@
   :source:
     - src/**
   :support:
-      
+
 :defines:
   # in order to add common defines:
   #  1) remove the trailing [] from the :common: section
   #  2) add entries to the :common: section (e.g. :test: has TEST defined)
-  :commmon: &common_defines []
+  :common: &common_defines []
   :test:
     - *common_defines
     - TEST

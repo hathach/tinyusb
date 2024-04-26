@@ -136,8 +136,7 @@ typedef enum{
 //--------------------------------------------------------------------+
 
 /// Communication Interface Management Element Request Codes
-typedef enum
-{
+typedef enum {
   CDC_REQUEST_SEND_ENCAPSULATED_COMMAND                    = 0x00, ///< is used to issue a command in the format of the supported control protocol of the Communications Class interface
   CDC_REQUEST_GET_ENCAPSULATED_RESPONSE                    = 0x01, ///< is used to request a response in the format of the supported control protocol of the Communications Class interface.
   CDC_REQUEST_SET_COMM_FEATURE                             = 0x02,
@@ -180,37 +179,38 @@ typedef enum
   CDC_REQUEST_GET_ATM_VC_STATISTICS                        = 0x53,
 
   CDC_REQUEST_MDLM_SEMANTIC_MODEL                          = 0x60,
-}cdc_management_request_t;
+} cdc_management_request_t;
 
-enum
-{
+typedef enum {
   CDC_CONTROL_LINE_STATE_DTR = 0x01,
   CDC_CONTROL_LINE_STATE_RTS = 0x02,
-};
+} cdc_control_line_state_t;
 
-enum
-{
-  CDC_LINE_CONDING_STOP_BITS_1   = 0, // 1   bit
-  CDC_LINE_CONDING_STOP_BITS_1_5 = 1, // 1.5 bits
-  CDC_LINE_CONDING_STOP_BITS_2   = 2, // 2   bits
-};
+typedef enum {
+  CDC_LINE_CODING_STOP_BITS_1   = 0, // 1   bit
+  CDC_LINE_CODING_STOP_BITS_1_5 = 1, // 1.5 bits
+  CDC_LINE_CODING_STOP_BITS_2   = 2, // 2   bits
+} cdc_line_coding_stopbits_t;
 
-enum
-{
+// TODO Backward compatible for typos. Maybe removed in the future release
+#define CDC_LINE_CONDING_STOP_BITS_1   CDC_LINE_CODING_STOP_BITS_1
+#define CDC_LINE_CONDING_STOP_BITS_1_5 CDC_LINE_CODING_STOP_BITS_1_5
+#define CDC_LINE_CONDING_STOP_BITS_2   CDC_LINE_CODING_STOP_BITS_2
+
+typedef enum {
   CDC_LINE_CODING_PARITY_NONE  = 0,
   CDC_LINE_CODING_PARITY_ODD   = 1,
   CDC_LINE_CODING_PARITY_EVEN  = 2,
   CDC_LINE_CODING_PARITY_MARK  = 3,
   CDC_LINE_CODING_PARITY_SPACE = 4,
-};
+} cdc_line_coding_parity_t;
 
 //--------------------------------------------------------------------+
 // Management Element Notification (Notification Endpoint)
 //--------------------------------------------------------------------+
 
 /// 6.3 Notification Codes
-typedef enum
-{
+typedef enum {
   CDC_NOTIF_NETWORK_CONNECTION               = 0x00, ///< This notification allows the device to notify the host about network connection status.
   CDC_NOTIF_RESPONSE_AVAILABLE               = 0x01, ///< This notification allows the device to notify the hostthat a response is available. This response can be retrieved with a subsequent \ref CDC_REQUEST_GET_ENCAPSULATED_RESPONSE request.
   CDC_NOTIF_AUX_JACK_HOOK_STATE              = 0x08,
@@ -377,7 +377,9 @@ typedef struct TU_ATTR_PACKED
     uint32_t incoming_distinctive   : 1; ///< 0 : Reports only incoming ringing. 1 : Reports incoming distinctive ringing patterns.
     uint32_t dual_tone_multi_freq   : 1; ///< 0 : Cannot report dual tone multi-frequency (DTMF) digits input remotely over the telephone line. 1 : Can report DTMF digits input remotely over the telephone line.
     uint32_t line_state_change      : 1; ///< 0 : Does not support line state change notification. 1 : Does support line state change notification
-    uint32_t TU_RESERVED            : 26;
+    uint32_t TU_RESERVED0           : 2;
+    uint32_t TU_RESERVED1           : 16;
+    uint32_t TU_RESERVED2           : 8;
   } bmCapabilities;
 }cdc_desc_func_telephone_call_state_reporting_capabilities_t;
 
@@ -404,7 +406,8 @@ typedef struct TU_ATTR_PACKED
 {
   uint16_t dtr : 1;
   uint16_t rts : 1;
-  uint16_t : 14;
+  uint16_t : 6;
+  uint16_t : 8;
 } cdc_line_control_state_t;
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");

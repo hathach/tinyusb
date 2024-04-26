@@ -213,4 +213,3 @@ void CMock_Guts_MemFreeFinal(void)
   }
 #endif
 }
-

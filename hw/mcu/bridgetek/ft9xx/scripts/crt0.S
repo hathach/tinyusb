@@ -50,11 +50,11 @@ _start:
 
 codestart:
         jmp    init
-        
+
 .global _exithook
 _exithook:               # Debugger uses '_exithook' at 0x90 to catch program exit
         return
-        
+
 init:
         # Disable all interrupts
         ldk     $r0,0x80
@@ -63,12 +63,12 @@ init:
 .else
         sta.b   0x100e3,$r0
 .endif
-        
+
         # Reset all peripherals
         # lda.l   $r0, 0x10018
         # bins.l  $r0, $r0, 0x23F  # Set bit 31
         # sta.l   0x10018, $r0
-        
+
         # Initialize DATA by copying from program memory
         ldk.l   $r0,__data_load_start
         ldk.l   $r1,__data_load_end

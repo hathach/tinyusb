@@ -50,7 +50,7 @@
  * regarding downloading.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "iodefine.h"
 #include "interrupt_handlers.h"
 
@@ -126,7 +126,7 @@ void INT_Excep_SCI5_TXI5(void)
 {
   uint8_t *buf = sci_buf[0].buf;
   uint32_t cnt = sci_buf[0].cnt;
-  
+
   if (!buf || !cnt) {
     SCI5.SCR.BYTE &= ~(SCI_SCR_TEIE | SCI_SCR_TE | SCI_SCR_TIE);
     return;
@@ -177,7 +177,7 @@ void INT_Excep_SCI5_RXI5(void)
 void INT_Excep_USB0_USBI0(void)
 {
 #if CFG_TUH_ENABLED
-  tuh_int_handler(0);
+  tuh_int_handler(0, true);
 #endif
 #if CFG_TUD_ENABLED
   tud_int_handler(0);
@@ -248,6 +248,12 @@ void board_init(void)
   IEN(ICU,GROUPBL0)  = 1;
   EN(SCI5, TEI5)     = 1;
 
+  /* Enable USB0 */
+  unsigned short oldPRCR = SYSTEM.PRCR.WORD;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
+  MSTP(USB0) = 0;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | oldPRCR;
+
   /* setup USBI0 interrupt. */
   IR(USB0, USBI0)  = 0;
   IPR(USB0, USBI0) = IRQ_PRIORITY_USBI0;
@@ -272,6 +278,7 @@ int board_uart_read(uint8_t* buf, int len)
   sci_buf[1].buf = buf;
   sci_buf[1].cnt = len;
   SCI5.SCR.BYTE |= SCI_SCR_RE | SCI_SCR_RIE;
+  // TODO change to non blocking, return -1 immediately if no data
   while (SCI5.SCR.BIT.RE) ;
   return len - sci_buf[1].cnt;
 }

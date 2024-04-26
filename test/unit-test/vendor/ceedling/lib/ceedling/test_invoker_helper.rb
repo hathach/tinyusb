@@ -19,14 +19,14 @@ class TestInvokerHelper
 
     yield( dependencies_list ) if block_given?
   end
-  
+
   def extract_sources(test)
     sources  = []
     includes = @test_includes_extractor.lookup_includes_list(test)
-    
+
     includes.each { |include| sources << @file_finder.find_compilation_input_file(include, :ignore) }
-    
+
     return sources.compact
   end
-  
+
 end

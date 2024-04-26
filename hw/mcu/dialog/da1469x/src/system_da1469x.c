@@ -34,7 +34,7 @@ SystemInit(void)
   __ISB();
 #endif
 
-  /* Freez watchdog */
+  /* Freeze watchdog */
   GPREG->SET_FREEZE_REG |= GPREG_SET_FREEZE_REG_FRZ_SYS_WDOG_Msk;
   /* Initialize power domains (disable radio only) */
   CRG_TOP->PMU_CTRL_REG = CRG_TOP_PMU_CTRL_REG_RADIO_SLEEP_Msk;

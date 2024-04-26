@@ -3,8 +3,8 @@ ceedling-stdout-gtestlike-tests-report
 
 ## Overview
 
-The stdout_gtestlike_tests_report replaces the normal ceedling "pretty" output with 
-a variant that resembles the output of gtest. This is most helpful when trying to 
+The stdout_gtestlike_tests_report replaces the normal ceedling "pretty" output with
+a variant that resembles the output of gtest. This is most helpful when trying to
 integrate into an IDE or CI that is meant to work with google test.
 
 ## Setup

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Ha Thach (tinyusb.org)
@@ -181,6 +181,11 @@
 #endif
 #endif
 
+// (For TYPE-I format only) Flow control is necessary to allow IN ep send correct amount of data, unless it's a virtual device where data is perfectly synchronized to USB clock.
+#ifndef CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+#define CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL  1
+#endif
+
 // Enable/disable feedback EP (required for asynchronous RX applications)
 #ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP                    0                             // Feedback - 0 or 1
@@ -191,13 +196,9 @@
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION     0                             // 0 or 1
 #endif
 
-// Audio interrupt control EP size - disabled if 0
-#ifndef CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-#define CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN                     0                             // Audio interrupt control - if required - 6 Bytes according to UAC 2 specification (p. 74)
-#endif
-
-#ifndef CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE
-#define CFG_TUD_AUDIO_INT_CTR_EP_IN_SW_BUFFER_SIZE          6                             // Buffer size of audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
+// Enable/disable interrupt EP (required for notifying host of control changes)
+#ifndef CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+#define CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP                   0                             // Feedback - 0 or 1
 #endif
 
 // Use software encoding/decoding
@@ -388,9 +389,10 @@ uint16_t tud_audio_n_write_support_ff             (uint8_t func_id, uint8_t ff_i
 tu_fifo_t* tud_audio_n_get_tx_support_ff          (uint8_t func_id, uint8_t ff_idx);
 #endif
 
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-uint16_t    tud_audio_int_ctr_n_write             (uint8_t func_id, uint8_t const* buffer, uint16_t len);
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+bool    tud_audio_int_n_write                     (uint8_t func_id, const audio_interrupt_data_t * data);
 #endif
+
 
 //--------------------------------------------------------------------+
 // Application API (Interface0)
@@ -431,8 +433,8 @@ static inline tu_fifo_t* tud_audio_get_tx_support_ff        (uint8_t ff_idx);
 
 // INT CTR API
 
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-static inline uint16_t tud_audio_int_ctr_write              (uint8_t const* buffer, uint16_t len);
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+static inline bool tud_audio_int_write                      (const audio_interrupt_data_t * data);
 #endif
 
 // Buffer control EP data and schedule a transmit
@@ -473,7 +475,7 @@ TU_ATTR_WEAK void tud_audio_fb_done_cb(uint8_t func_id);
 // the choice of format is left to the caller and feedback argument is sent as-is. If CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION is set, then tinyusb
 // expects 16.16 format and handles the conversion to 10.14 on FS.
 //
-// Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0 devices. On Linux and macOS it seems the 
+// Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0 devices. On Linux and macOS it seems the
 // driver can work with either format. So a good compromise is to keep format correction disabled and stick to 16.16 format.
 
 // Feedback value can be determined from within the SOF ISR of the audio driver. This should reduce jitter. If the feature is used, the user can not set the feedback value.
@@ -531,8 +533,8 @@ TU_ATTR_WEAK TU_ATTR_FAST_FUNC void tud_audio_feedback_interval_isr(uint8_t func
 
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-TU_ATTR_WEAK bool tud_audio_int_ctr_done_cb(uint8_t rhport, uint16_t n_bytes_copied);
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+TU_ATTR_WEAK void tud_audio_int_done_cb(uint8_t rhport);
 #endif
 
 // Invoked when audio set interface request received
@@ -663,10 +665,10 @@ static inline tu_fifo_t* tud_audio_get_tx_support_ff(uint8_t ff_idx)
 
 #endif
 
-#if CFG_TUD_AUDIO_INT_CTR_EPSIZE_IN
-static inline uint16_t tud_audio_int_ctr_write(uint8_t const* buffer, uint16_t len)
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+static inline bool tud_audio_int_write(const audio_interrupt_data_t * data)
 {
-  return tud_audio_int_ctr_n_write(0, buffer, len);
+  return tud_audio_int_n_write(0, data);
 }
 #endif
 
@@ -683,6 +685,7 @@ static inline bool tud_audio_fb_set(uint32_t feedback)
 // Internal Class Driver API
 //--------------------------------------------------------------------+
 void     audiod_init           (void);
+bool     audiod_deinit         (void);
 void     audiod_reset          (uint8_t rhport);
 uint16_t audiod_open           (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);

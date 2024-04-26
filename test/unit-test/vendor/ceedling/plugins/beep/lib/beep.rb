@@ -37,4 +37,3 @@ class Beep < Plugin
     end
   end
 end
-

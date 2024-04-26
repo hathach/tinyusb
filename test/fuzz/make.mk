@@ -2,6 +2,34 @@
 # Common make definition for all examples
 # ---------------------------------------
 
+#-------------- TOP and CURRENT_PATH ------------
+
+# Set TOP to be the path to get from the current directory (where make was
+# invoked) to the top of the tree. $(lastword $(MAKEFILE_LIST)) returns
+# the name of this makefile relative to where make was invoked.
+THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
+
+# strip off /tools/top.mk to get for example ../../..
+# and Set TOP to an absolute path
+TOP = $(abspath $(subst make.mk,../..,$(THIS_MAKEFILE)))
+
+# Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
+CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
+
+# Detect whether shell style is windows or not
+# https://stackoverflow.com/questions/714100/os-detecting-makefile/52062069#52062069
+ifeq '$(findstring ;,$(PATH))' ';'
+# PATH contains semicolon - so we're definitely on Windows.
+CMDEXE := 1
+
+# makefile shell commands should use syntax for DOS CMD, not unix sh
+# Unfortunately, SHELL may point to sh or bash, which can't accept DOS syntax.
+# We can't just use sh, because while sh and/or bash shell may be available,
+# many Windows environments won't have utilities like realpath used below, so...
+# Force DOS command shell on Windows.
+SHELL := cmd.exe
+endif
+
 # Build directory
 BUILD := _build
 PROJECT := $(notdir $(CURDIR))
@@ -42,8 +70,6 @@ SANITIZER_FLAGS ?= -fsanitize=fuzzer \
 CFLAGS += $(COVERAGE_FLAGS) $(SANITIZER_FLAGS)
 
 #-------------- Source files and compiler flags --------------
-
-
 INC += $(TOP)/test
 
 # Compiler Flags
@@ -78,7 +104,8 @@ CFLAGS += \
 CFLAGS += \
 	-Wno-error=unreachable-code \
   -DOPT_MCU_FUZZ=1 \
-  -DCFG_TUSB_MCU=OPT_MCU_FUZZ 
+  -DCFG_TUSB_MCU=OPT_MCU_FUZZ \
+  -D_FUZZ
 
 CXXFLAGS += \
   -xc++ \
@@ -87,7 +114,7 @@ CXXFLAGS += \
 
 # conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
 #  -Wconversion
-  
+
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
   CFLAGS += -Og
@@ -105,4 +132,3 @@ endif
 ifneq ($(LOGGER),)
 	CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
 endif
-

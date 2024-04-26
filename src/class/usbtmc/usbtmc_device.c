@@ -78,12 +78,12 @@
 
 #ifdef xDEBUG
 #include "uart_util.h"
-static char logMsg[150];
+tu_static char logMsg[150];
 #endif
 
 // Buffer size must be an exact multiple of the max packet size for both
 // bulk  (up to 64 bytes for FS, 512 bytes for HS). In addation, this driver
-// imposes a minimum buffer size of 32 bytes. 
+// imposes a minimum buffer size of 32 bytes.
 #define USBTMCD_BUFFER_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
 /*
@@ -143,7 +143,7 @@ typedef struct
   usbtmc_capabilities_specific_t const * capabilities;
 } usbtmc_interface_state_t;
 
-CFG_TUSB_MEM_SECTION static usbtmc_interface_state_t usbtmc_state =
+CFG_TUD_MEM_SECTION tu_static usbtmc_interface_state_t usbtmc_state =
 {
     .itf_id = 0xFF,
 };
@@ -154,8 +154,11 @@ TU_VERIFY_STATIC(USBTMCD_BUFFER_SIZE >= 32u,"USBTMC dev buffer size too small");
 static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len);
 static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen);
 
-static uint8_t termChar;
-static uint8_t termCharRequested = false;
+#ifndef NDEBUG
+tu_static uint8_t termChar;
+#endif
+
+tu_static uint8_t termCharRequested = false;
 
 #if OSAL_MUTEX_REQUIRED
 static OSAL_MUTEX_DEF(usbtmcLockBuffer);
@@ -257,6 +260,13 @@ void usbtmcd_init_cb(void)
   usbtmcLock = osal_mutex_create(&usbtmcLockBuffer);
 }
 
+bool usbtmcd_deinit(void) {
+  #if OSAL_MUTEX_REQUIRED
+  osal_mutex_delete(usbtmcLock);
+  #endif
+  return true;
+}
+
 uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len)
 {
   (void)rhport;
@@ -350,7 +360,7 @@ uint16_t usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc,
 // processing a command (such as a clear). Returns true if it was
 // in the NAK state and successfully transitioned to the ACK wait
 // state.
-bool tud_usbtmc_start_bus_read()
+bool tud_usbtmc_start_bus_read(void)
 {
   usbtmcd_state_enum oldState = usbtmc_state.state;
   switch(oldState)
@@ -442,7 +452,10 @@ static bool handle_devMsgIn(void *data, size_t len)
   usbtmc_state.transfer_size_sent = 0u;
 
   termCharRequested = msg->bmTransferAttributes.TermCharEnabled;
+
+#ifndef NDEBUG
   termChar = msg->TermChar;
+#endif
 
   if(termCharRequested)
     TU_VERIFY(usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);
@@ -511,6 +524,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       return true;
 
     case STATE_ABORTING_BULK_OUT:
+      // Should be stalled by now, shouldn't have received a packet.
       return false;
 
     case STATE_TX_REQUESTED:
@@ -598,7 +612,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
     uint32_t ep_addr = (request->wIndex);
 
     // At this point, a transfer MAY be in progress. Based on USB spec, when clearing bulk EP HALT,
-    // the EP transfer buffer needs to be cleared and DTOG needs to be reset, even if 
+    // the EP transfer buffer needs to be cleared and DTOG needs to be reset, even if
     // the EP is not halted. The only USBD API interface to do this is to stall and then un-stall the EP.
     if(ep_addr == usbtmc_state.ep_bulk_out)
     {

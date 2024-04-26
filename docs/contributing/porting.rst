@@ -62,9 +62,9 @@ Feel free to skip this until you want to verify your demo code is running. To im
 OS Abstraction Layer (OSAL)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The OS Abstraction Layer is responsible for providing basic data structures for TinyUSB that may allow for concurrency when used with an RTOS. Without an RTOS it simply handles concurrency issues between the main code and interrupts.
+The OS Abstraction Layer is responsible for providing basic data structures for TinyUSB that may allow for concurrency when used with an RTOS. Without an RTOS it simply handles concurrency issues between the main code and interrupts. The code is almost entirely agnostic of MCU and lives in ``src/osal``.
 
-The code is almost entirely agnostic of MCU and lives in ``src/osal``.
+In RTOS configurations, tud_task()/tuh_task() blocks behind a synchronization structure when the event queue is empty, so that the scheduler may give the CPU to a different task. To take advantage of the library's capability to yield the CPU when there are no actionable USB device events, ensure that the `CFG_TUSB_OS` symbol is defined, e.g `OPT_OS_FREERTOS` enables the FreeRTOS scheduler to schedule other threads than that which calls `tud_task()/tuh_task()`.
 
 Device API
 ^^^^^^^^^^

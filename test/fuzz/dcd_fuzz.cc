@@ -39,7 +39,7 @@ struct State {
   uint8_t address;
 };
 
-static State state = {false, 0, 0};
+tu_static State state = {false, 0, 0};
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -185,7 +185,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer,
 
 /* TODO: implement a fuzzed version of this.
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff,
-                        uint16_t total_bytes) {} 
+                        uint16_t total_bytes) {}
 */
 
 // Stall endpoint, any queuing transfer should be removed from endpoint

@@ -5,7 +5,7 @@ class String
   def left_margin(margin=0)
     non_whitespace_column = 0
     new_lines = []
-    
+
     # find first line with non-whitespace and count left columns of whitespace
     self.each_line do |line|
       if (line =~ /^\s*\S/)
@@ -13,7 +13,7 @@ class String
         break
       end
     end
-    
+
     # iterate through each line, chopping off leftmost whitespace columns and add back the desired whitespace margin
     self.each_line do |line|
       columns = []
@@ -25,7 +25,7 @@ class String
         new_lines << "\n"
       end
     end
-    
+
     return new_lines.join
   end
 end
@@ -74,7 +74,7 @@ class Plugin
   # whole shebang (any use of Ceedling)
   def pre_build; end
   def post_build; end
-  
+
   def summary; end
 
 end

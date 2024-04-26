@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Peter Lawrence
@@ -61,8 +61,11 @@ typedef struct
 #define CFG_TUD_NET_PACKET_PREFIX_LEN sizeof(rndis_data_packet_t)
 #define CFG_TUD_NET_PACKET_SUFFIX_LEN 0
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static
+uint8_t received[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
+
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static
+uint8_t transmitted[CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN];
 
 struct ecm_notify_struct
 {
@@ -70,7 +73,7 @@ struct ecm_notify_struct
   uint32_t downlink, uplink;
 };
 
-static const struct ecm_notify_struct ecm_notify_nc =
+tu_static const struct ecm_notify_struct ecm_notify_nc =
 {
   .header = {
     .bmRequestType = 0xA1,
@@ -80,7 +83,7 @@ static const struct ecm_notify_struct ecm_notify_nc =
   },
 };
 
-static const struct ecm_notify_struct ecm_notify_csc =
+tu_static const struct ecm_notify_struct ecm_notify_csc =
 {
   .header = {
     .bmRequestType = 0xA1,
@@ -91,8 +94,8 @@ static const struct ecm_notify_struct ecm_notify_csc =
   .uplink = 9728000,
 };
 
-// TODO remove CFG_TUSB_MEM_SECTION, control internal buffer is already in this special section
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static union
+// TODO remove CFG_TUD_MEM_SECTION, control internal buffer is already in this special section
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static union
 {
   uint8_t rndis_buf[120];
   struct ecm_notify_struct ecm_buf;
@@ -101,10 +104,10 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static union
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-// TODO remove CFG_TUSB_MEM_SECTION
-CFG_TUSB_MEM_SECTION static netd_interface_t _netd_itf;
+// TODO remove CFG_TUD_MEM_SECTION
+CFG_TUD_MEM_SECTION tu_static netd_interface_t _netd_itf;
 
-static bool can_xmit;
+tu_static bool can_xmit;
 
 void tud_network_recv_renew(void)
 {
@@ -129,9 +132,12 @@ void netd_report(uint8_t *buf, uint16_t len)
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void netd_init(void)
-{
+void netd_init(void) {
   tu_memclr(&_netd_itf, sizeof(_netd_itf));
+}
+
+bool netd_deinit(void) {
+  return true;
 }
 
 void netd_reset(uint8_t rhport)

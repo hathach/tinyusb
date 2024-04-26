@@ -6,7 +6,7 @@
 #
 cmock_dir = include_directories('.')
 
-cmock_lib = static_library(meson.project_name(), 
+cmock_lib = static_library(meson.project_name(),
     files('cmock.c'),
     dependencies: [unity_dep],
     include_directories: cmock_dir)
