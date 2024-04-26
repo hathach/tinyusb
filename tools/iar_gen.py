@@ -56,6 +56,7 @@ def Main():
 def ListPath(path, blacklist=[]):
     # Get all .c files
     files = glob.glob(f'../{path}/**/*.c', recursive=True)
+    files.extend(glob.glob(f'../{path}/**/*.h', recursive=True))
     # Filter
     files = [x for x in files if all(y not in x for y in blacklist)]
     # Get common dir list
@@ -77,6 +78,8 @@ def List():
     ListPath('lib/SEGGER_RTT')
 
 if __name__ == "__main__":
+    if os.path.dirname(os.getcwd()) != 'tools':
+        os.chdir('tools')
     if (len(sys.argv) > 1):
         if (sys.argv[1] == 'l'):
             List()
