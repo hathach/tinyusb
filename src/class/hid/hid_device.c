@@ -46,9 +46,9 @@ typedef struct
   uint8_t ep_out;        // optional Out endpoint
   uint8_t itf_protocol;  // Boot mouse or keyboard
 
-  uint8_t protocol_mode; // Boot (0) or Report protocol (1)
-  uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t report_desc_len;
+  CFG_TUSB_MEM_ALIGN uint8_t protocol_mode; // Boot (0) or Report protocol (1)
+  CFG_TUSB_MEM_ALIGN uint8_t idle_rate;     // up to application to handle idle rate
 
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
