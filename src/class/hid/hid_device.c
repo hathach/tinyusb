@@ -381,6 +381,8 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
 
 bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) result;
+
   uint8_t instance = 0;
   hidd_interface_t * p_hid = _hidd_itf;
 
@@ -396,9 +398,9 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   if (XFER_RESULT_SUCCESS != result)
   {
     // Inform application about the issue
-    if (tud_hid_report_issue_cb)
+    if (tud_hid_report_fail_cb)
     {
-      tud_hid_report_issue_cb(instance, ep_addr, result, (uint16_t) xferred_bytes);
+      tud_hid_report_fail_cb(instance, ep_addr, (uint16_t) xferred_bytes);
     }
 
     // Allow a new transfer to be received if issue happened on an OUT endpoint
