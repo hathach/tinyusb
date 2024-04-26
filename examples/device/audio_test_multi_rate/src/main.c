@@ -272,7 +272,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
 
         sampFreq = (uint32_t)((audio_control_cur_4_t *)pBuff)->bCur;
 
-        TU_LOG2("Clock set current freq: %lu\r\n", sampFreq);
+        TU_LOG2("Clock set current freq: %" PRIu32 "\r\n", sampFreq);
 
         return true;
       break;

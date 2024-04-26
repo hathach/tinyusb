@@ -239,7 +239,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(ep_cmd_sts_t* ep_cs, bool is_
   return is_highspeed ? (ep_cs[0].cmd_sts.type && !ep_cs[0].cmd_sts.rf_tv) : ep_cs->cmd_sts.type;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool ep_is_bulk(ep_cmd_sts_t* ep_cs) {
+TU_ATTR_ALWAYS_INLINE TU_ATTR_UNUSED static inline bool ep_is_bulk(ep_cmd_sts_t* ep_cs) {
   return (ep_cs[0].cmd_sts.type == 0) && (ep_cs[0].cmd_sts.rf_tv == 0);
 }
 

@@ -179,7 +179,6 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
-
 #endif
 
 void HardFault_Handler(void) {

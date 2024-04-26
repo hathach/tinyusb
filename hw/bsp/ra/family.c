@@ -64,8 +64,11 @@ BSP_DONT_REMOVE BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS)
 const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] = {
     [0] = usbfs_interrupt_handler, /* USBFS INT (USBFS interrupt) */
     [1] = usbfs_resume_handler,    /* USBFS RESUME (USBFS resume interrupt) */
+
+#ifndef BSP_MCU_GROUP_RA2A1
     [2] = usbfs_d0fifo_handler,    /* USBFS FIFO 0 (DMA transfer request 0) */
     [3] = usbfs_d1fifo_handler,    /* USBFS FIFO 1 (DMA transfer request 1) */
+#endif
 
 #ifdef BOARD_HAS_USB_HIGHSPEED
     [4] = usbhs_interrupt_handler, /* USBHS INT (USBHS interrupt) */
@@ -77,8 +80,11 @@ const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] = {
 const bsp_interrupt_event_t g_interrupt_event_link_select[BSP_ICU_VECTOR_MAX_ENTRIES] = {
     [0] = BSP_PRV_IELS_ENUM(EVENT_USBFS_INT),            /* USBFS INT (USBFS interrupt) */
     [1] = BSP_PRV_IELS_ENUM(EVENT_USBFS_RESUME),         /* USBFS RESUME (USBFS resume interrupt) */
+
+#ifndef BSP_MCU_GROUP_RA2A1
     [2] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_0),         /* USBFS FIFO 0 (DMA transfer request 0) */
     [3] = BSP_PRV_IELS_ENUM(EVENT_USBFS_FIFO_1),         /* USBFS FIFO 1 (DMA transfer request 1) */
+#endif
 
 #ifdef BOARD_HAS_USB_HIGHSPEED
     [4] = BSP_PRV_IELS_ENUM(EVENT_USBHS_USB_INT_RESUME), /* USBHS USB INT RESUME (USBHS interrupt) */
@@ -188,7 +194,7 @@ void usbfs_interrupt_handler(void) {
   R_BSP_IrqStatusClear(irq);
 
   #if PORT_SUPPORT_HOST(0)
-  tuh_int_handler(0);
+  tuh_int_handler(0, true);
   #endif
 
   #if PORT_SUPPORT_DEVICE(0)
@@ -201,7 +207,7 @@ void usbfs_resume_handler(void) {
   R_BSP_IrqStatusClear(irq);
 
   #if PORT_SUPPORT_HOST(0)
-  tuh_int_handler(0);
+  tuh_int_handler(0, true);
   #endif
 
   #if PORT_SUPPORT_DEVICE(0)
@@ -229,7 +235,7 @@ void usbhs_interrupt_handler(void) {
   R_BSP_IrqStatusClear(irq);
 
   #if PORT_SUPPORT_HOST(1)
-  tuh_int_handler(1);
+  tuh_int_handler(1, true);
   #endif
 
   #if PORT_SUPPORT_DEVICE(1)

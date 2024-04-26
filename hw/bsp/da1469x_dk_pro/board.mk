@@ -1,3 +1,5 @@
+MCU_FAMILY_DIR = hw/mcu/dialog/da1469x
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -11,7 +13,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_DA1469X \
   -DCFG_TUD_ENDPOINT0_SIZE=8\
 
-MCU_FAMILY_DIR = hw/mcu/dialog/da1469x
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/da1469x.ld

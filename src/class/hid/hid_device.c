@@ -46,12 +46,13 @@ typedef struct
   uint8_t ep_out;        // optional Out endpoint
   uint8_t itf_protocol;  // Boot mouse or keyboard
 
-  uint8_t protocol_mode; // Boot (0) or Report protocol (1)
-  uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t report_desc_len;
+  CFG_TUSB_MEM_ALIGN uint8_t protocol_mode; // Boot (0) or Report protocol (1)
+  CFG_TUSB_MEM_ALIGN uint8_t idle_rate;     // up to application to handle idle rate
 
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf[CFG_TUD_HID_EP_BUFSIZE];
 
   // TODO save hid descriptor since host can specifically request this after enumeration
   // Note: HID descriptor may be not available from application after enumeration
@@ -146,6 +147,19 @@ bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id,
   return tud_hid_n_report(instance, report_id, &report, sizeof(report));
 }
 
+bool tud_hid_n_abs_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal)
+{
+  hid_abs_mouse_report_t report =
+  {
+    .buttons = buttons,
+    .x       = x,
+    .y       = y,
+    .wheel   = vertical,
+    .pan     = horizontal
+  };
+  return tud_hid_n_report(instance, report_id, &report, sizeof(report));
+}
+
 bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
                               int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons) {
   hid_gamepad_report_t report =
@@ -166,9 +180,12 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
-void hidd_init(void)
-{
+void hidd_init(void) {
   hidd_reset(0);
+}
+
+bool hidd_deinit(void) {
+  return true;
 }
 
 void hidd_reset(uint8_t rhport)
@@ -279,7 +296,7 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           uint8_t const report_type = tu_u16_high(request->wValue);
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
-          uint8_t* report_buf = p_hid->epin_buf;
+          uint8_t* report_buf = p_hid->ctrl_buf;
           uint16_t req_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
 
           uint16_t xferlen = 0;
@@ -296,22 +313,22 @@ bool hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t
           xferlen += tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, report_buf, req_len);
           TU_ASSERT( xferlen > 0 );
 
-          tud_control_xfer(rhport, request, p_hid->epin_buf, xferlen);
+          tud_control_xfer(rhport, request, p_hid->ctrl_buf, xferlen);
         }
       break;
 
       case  HID_REQ_CONTROL_SET_REPORT:
         if ( stage == CONTROL_STAGE_SETUP )
         {
-          TU_VERIFY(request->wLength <= sizeof(p_hid->epout_buf));
-          tud_control_xfer(rhport, request, p_hid->epout_buf, request->wLength);
+          TU_VERIFY(request->wLength <= sizeof(p_hid->ctrl_buf));
+          tud_control_xfer(rhport, request, p_hid->ctrl_buf, request->wLength);
         }
         else if ( stage == CONTROL_STAGE_ACK )
         {
           uint8_t const report_type = tu_u16_high(request->wValue);
           uint8_t const report_id   = tu_u16_low(request->wValue);
 
-          uint8_t const* report_buf = p_hid->epout_buf;
+          uint8_t const* report_buf = p_hid->ctrl_buf;
           uint16_t report_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
 
           // If host request a specific Report ID, extract report ID in buffer before invoking callback

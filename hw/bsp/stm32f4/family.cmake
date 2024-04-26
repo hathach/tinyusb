@@ -1,9 +1,5 @@
 include_guard()
 
-if (NOT BOARD)
-  message(FATAL_ERROR "BOARD not specified")
-endif ()
-
 set(ST_FAMILY f4)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
@@ -16,7 +12,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/tools/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32F4 CACHE INTERNAL "")
 
@@ -32,7 +28,10 @@ function(add_board_target BOARD_TARGET)
 
   # Startup & Linker script
   set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
   set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+
+  set(LD_FILE_Clang ${LD_FILE_GNU})
   set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
   add_library(${BOARD_TARGET} STATIC
@@ -53,10 +52,8 @@ function(add_board_target BOARD_TARGET)
     ${ST_CMSIS}/Include
     ${ST_HAL_DRIVER}/Inc
     )
-  target_compile_options(${BOARD_TARGET} PUBLIC
-    )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    )
+  # target_compile_options(${BOARD_TARGET} PUBLIC)
+  # target_compile_definitions(${BOARD_TARGET} PUBLIC)
 
   update_board(${BOARD_TARGET})
 
@@ -64,9 +61,11 @@ function(add_board_target BOARD_TARGET)
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
-      # nanolib
-      --specs=nosys.specs
-      --specs=nano.specs
+      --specs=nosys.specs --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
