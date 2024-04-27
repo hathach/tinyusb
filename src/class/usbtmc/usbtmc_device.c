@@ -552,9 +552,10 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     case STATE_TX_INITIATED:
       if(usbtmc_state.transfer_size_remaining >= sizeof(usbtmc_state.ep_bulk_in_buf))
       {
-        // FIXME! This removes const below!
+        // Copy buffer to ensure alignment correctness
+        memcpy(usbtmc_state.ep_bulk_in_buf, usbtmc_state.devInBuffer, sizeof(usbtmc_state.ep_bulk_in_buf));
         TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in,
-            (void*)(uintptr_t) usbtmc_state.devInBuffer, sizeof(usbtmc_state.ep_bulk_in_buf)));
+            usbtmc_state.ep_bulk_in_buf, sizeof(usbtmc_state.ep_bulk_in_buf)));
         usbtmc_state.devInBuffer += sizeof(usbtmc_state.ep_bulk_in_buf);
         usbtmc_state.transfer_size_remaining -= sizeof(usbtmc_state.ep_bulk_in_buf);
         usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.ep_bulk_in_buf);
