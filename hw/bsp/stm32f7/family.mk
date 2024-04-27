@@ -6,7 +6,7 @@ ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
-CPU_CORE ?= cortex-m7
+CPU_CORE ?= cortex-m7-fpsp
 
 # --------------
 # Compiler Flags
