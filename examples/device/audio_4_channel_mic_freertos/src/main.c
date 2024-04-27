@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include "bsp/board_api.h"
 #include "tusb.h"
@@ -60,13 +61,13 @@
   #define USBD_STACK_SIZE    (4*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
+#define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
+#define AUDIO_STACK_SIZE    configMINIMAL_STACK_SIZE
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
-
-#ifndef AUDIO_SAMPLE_RATE
-#define AUDIO_SAMPLE_RATE   48000
-#endif
+#define AUDIO_SAMPLE_RATE   CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE
 
 /* Blink pattern
  * - 250 ms  : device not mounted
@@ -79,12 +80,19 @@ enum  {
   BLINK_SUSPENDED = 2500,
 };
 
-// static timer
-StaticTimer_t blinky_tmdef;
-TimerHandle_t blinky_tm;
+// static task
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t  blinky_stack[BLINKY_STACK_SIZE];
+StaticTask_t blinky_taskdef;
+
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
+StackType_t  audio_stack[AUDIO_STACK_SIZE];
+StaticTask_t audio_taskdef;
+#endif
+
+static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 // Audio controls
 // Current states
@@ -97,22 +105,22 @@ uint8_t clkValid;
 audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX+1]; 			// Volume range state
 audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range state
 
-// Audio test data
-uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_EP_SZ_IN/2];   // Ensure half word aligned
-uint16_t samples[] = {0, 0, 0, 0};
+#if CFG_TUD_AUDIO_ENABLE_ENCODING
+// Audio test data, each buffer contains 2 channels, buffer[0] for CH0-1, buffer[1] for CH1-2
+uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX*CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE/1000/CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO];
+#else
+// Audio test data, 4 channels muxed together, buffer[0] for CH0, buffer[1] for CH1, buffer[2] for CH2, buffer[3] for CH3
+uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX*CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE/1000];
+#endif
 
-void led_blinky_cb(TimerHandle_t xTimer);
+void led_blinking_task(void* param);
 void usb_device_task(void* param);
-void audio_task(void);
+void audio_task(void* param);
 
 /*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
-
-  // soft timer for blinky
-  blinky_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &blinky_tmdef);
-  xTimerStart(blinky_tm, 0);
 
   // Init values
   sampFreq = AUDIO_SAMPLE_RATE;
@@ -123,11 +131,58 @@ int main(void)
   sampleFreqRng.subrange[0].bMax = AUDIO_SAMPLE_RATE;
   sampleFreqRng.subrange[0].bRes = 0;
 
+  // Generate dummy data
+#if CFG_TUD_AUDIO_ENABLE_ENCODING
+  uint16_t * p_buff = i2s_dummy_buffer[0];
+  uint16_t dataVal = 0;
+  for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
+  {
+    // CH0 saw wave
+    *p_buff++ = dataVal;
+    // CH1 inverted saw wave
+    *p_buff++ = 3200 + AUDIO_SAMPLE_RATE/1000 - dataVal;
+    dataVal+= 32;
+  }
+  p_buff = i2s_dummy_buffer[1];
+  for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
+  {
+    // CH3 square wave
+    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 3400:5000;
+    // CH4 sinus wave
+    float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
+    *p_buff++ = (uint16_t)((int16_t)(sinf(t) * 750) + 6000);
+  }
+#else
+  uint16_t * p_buff = i2s_dummy_buffer;
+  uint16_t dataVal = 0;
+  for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
+  {
+    // CH0 saw wave
+    *p_buff++ = dataVal;
+    // CH1 inverted saw wave
+    *p_buff++ = 3200 + AUDIO_SAMPLE_RATE/1000 - dataVal;
+    dataVal+= 32;
+    // CH3 square wave
+    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 3400:5000;
+    // CH4 sinus wave
+    float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
+    *p_buff++ = (uint16_t)((int16_t)(sinf(t) * 750) + 6000);
+  }
+#endif
+
 #if configSUPPORT_STATIC_ALLOCATION
+  // blinky task
+  xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
+
   // Create a task for tinyusb device stack
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+
+   // Create a task for audio
+  xTaskCreateStatic(audio_task, "audio", AUDIO_STACK_SIZE, NULL, configMAX_PRIORITIES-1, audio_stack, &audio_taskdef);
 #else
+  xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
+  xTaskCreate(audio_task, "audio", AUDIO_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
 #endif
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
@@ -175,13 +230,13 @@ void usb_device_task(void* param)
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
+  blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
+  blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
 // Invoked when usb bus is suspended
@@ -190,23 +245,36 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void) remote_wakeup_en;
-  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
+  blink_interval_ms = BLINK_SUSPENDED;
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 //--------------------------------------------------------------------+
 // AUDIO Task
 //--------------------------------------------------------------------+
 
-void audio_task(void)
+void audio_task(void* param)
 {
-  // Yet to be filled - e.g. put meas data into TX FIFOs etc.
-  // asm("nop");
+  (void) param;
+  // Yet to be filled - e.g. read audio from I2S buffer.
+  // Here we simulate a I2S receive callback every 1ms.
+  while (1) {
+    vTaskDelay(1);
+#if CFG_TUD_AUDIO_ENABLE_ENCODING
+  // Write I2S buffer into FIFO
+    for (uint8_t cnt=0; cnt < 2; cnt++)
+    {
+      tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
+    }
+#else
+    tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
+#endif
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -427,7 +495,8 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
         {
           case AUDIO_CS_REQ_CUR:
             TU_LOG2("    Get Sample Freq.\r\n");
-            return tud_control_xfer(rhport, p_request, &sampFreq, sizeof(sampFreq));
+            // Buffered control transfer is needed for IN flow control to work
+            return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &sampFreq, sizeof(sampFreq));
 
           case AUDIO_CS_REQ_RANGE:
             TU_LOG2("    Get Sample Freq. range\r\n");
@@ -463,7 +532,14 @@ bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, u
   (void) ep_in;
   (void) cur_alt_setting;
 
-  tud_audio_write((uint8_t*)i2s_dummy_buffer, CFG_TUD_AUDIO_EP_SZ_IN);
+
+  // In read world application data flow is driven by I2S clock,
+  // both tud_audio_tx_done_pre_load_cb() & tud_audio_tx_done_post_load_cb() are hardly used.
+  // For example in your I2S receive callback:
+  // void I2S_Rx_Callback(int channel, const void* data, uint16_t samples)
+  // {
+  //    tud_audio_write_support_ff(channel, data, samples * N_BYTES_PER_SAMPLE * N_CHANNEL_PER_FIFO);
+  // }
 
   return true;
 }
@@ -475,14 +551,6 @@ bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uin
   (void) itf;
   (void) ep_in;
   (void) cur_alt_setting;
-
-  uint16_t* p_buff = i2s_dummy_buffer;
-  for (int samples_num = 0; samples_num < AUDIO_SAMPLE_RATE/1000; samples_num++) {
-    for (int ch=0; ch < CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX; ch++) {
-      *p_buff++ = samples[ch];
-      samples[ch] = samples[ch]+(ch+1);
-    }
-  }
 
   return true;
 }
@@ -498,11 +566,17 @@ bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const 
 ///--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinky_cb(TimerHandle_t xTimer)
-{
-  (void) xTimer;
+void led_blinking_task(void* param) {
+  (void) param;
+  static uint32_t start_ms = 0;
   static bool led_state = false;
 
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+  while (1) {
+    // Blink every interval ms
+    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+    start_ms += blink_interval_ms;
+
+    board_led_write(led_state);
+    led_state = 1 - led_state; // toggle
+  }
 }
