@@ -6,9 +6,10 @@
 $ cd /tinyusb/examples/device/audio_test_freertos
 ```
 
-3. Run make in project directory specifying the board
+3. Run cmake in project directory specifying the board
 ```
-$ make BOARD=espressif_s3_devkitc all
+$ cmake -DBOARD=espressif_s3_devkitc -B build -G Ninja .
+$ ninja.exe -C build
 ```
 
 4. Flash the binary onto the esp32-s3 by copy-paste of the full command output by the esp-idf build system replacing **(PORT)** with eg. /dev/ttyUSB0

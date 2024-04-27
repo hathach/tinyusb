@@ -42,6 +42,9 @@
  * See http://www.freertos.org/a00110.html.
  *----------------------------------------------------------*/
 
+// skip if included from IAR assembler
+#ifndef __IASMARM__
+
 // Include MCU header
 #include "bsp/board_mcu.h"
 
@@ -53,7 +56,10 @@
 #if CFG_TUSB_MCU == OPT_MCU_MM32F327X
   extern u32 SystemCoreClock;
 #else
+  // FIXME cause redundant-decls warnings
   extern uint32_t SystemCoreClock;
+#endif
+
 #endif
 
 /* Cortex M23/M33 port configuration. */
@@ -68,14 +74,14 @@
 #define configTICK_RATE_HZ                      ( 1000 )
 #define configMAX_PRIORITIES                    ( 5 )
 #define configMINIMAL_STACK_SIZE                ( 128 )
-#define configTOTAL_HEAP_SIZE                   ( 0*1024 ) // dynamic is not used
+#define configTOTAL_HEAP_SIZE                   ( configSUPPORT_DYNAMIC_ALLOCATION*4*1024 )
 #define configMAX_TASK_NAME_LEN                 16
 #define configUSE_16_BIT_TICKS                  0
 #define configIDLE_SHOULD_YIELD                 1
 #define configUSE_MUTEXES                       1
 #define configUSE_RECURSIVE_MUTEXES             1
 #define configUSE_COUNTING_SEMAPHORES           1
-#define configQUEUE_REGISTRY_SIZE               2
+#define configQUEUE_REGISTRY_SIZE               4
 #define configUSE_QUEUE_SETS                    0
 #define configUSE_TIME_SLICING                  0
 #define configUSE_NEWLIB_REENTRANT              0
@@ -90,6 +96,7 @@
 #define configUSE_TICK_HOOK                    0
 #define configUSE_MALLOC_FAILED_HOOK           0 // cause nested extern warning
 #define configCHECK_FOR_STACK_OVERFLOW         2
+#define configCHECK_HANDLER_INSTALLATION       0
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS          0
@@ -124,29 +131,12 @@
 #define INCLUDE_xEventGroupSetBitFromISR       0
 #define INCLUDE_xTimerPendFunctionCall         0
 
-/* Define to trap errors during development. */
-// Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
-#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
-  #define configASSERT(_exp) \
-    do {\
-      if ( !(_exp) ) { \
-        volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
-        if ( (*ARM_CM_DHCSR) & 1UL ) {  /* Only halt mcu if debugger is attached */ \
-          taskDISABLE_INTERRUPTS(); \
-           __asm("BKPT #0\n"); \
-        }\
-      }\
-    } while(0)
-#else
-  #define configASSERT( x )
-#endif
-
 #ifdef __RX__
 /* Renesas RX series */
-#define vSoftwareInterruptISR					INT_Excep_ICU_SWINT
-#define vTickISR								INT_Excep_CMT0_CMI0
-#define configPERIPHERAL_CLOCK_HZ				(configCPU_CLOCK_HZ/2)
-#define configKERNEL_INTERRUPT_PRIORITY			1
+#define vSoftwareInterruptISR					        INT_Excep_ICU_SWINT
+#define vTickISR								              INT_Excep_CMT0_CMI0
+#define configPERIPHERAL_CLOCK_HZ				      (configCPU_CLOCK_HZ/2)
+#define configKERNEL_INTERRUPT_PRIORITY			  1
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY	4
 
 #else
@@ -162,9 +152,18 @@
 #if defined(__NVIC_PRIO_BITS)
   // For Cortex-M specific: __NVIC_PRIO_BITS is defined in core_cmx.h
 	#define configPRIO_BITS       __NVIC_PRIO_BITS
+
 #elif defined(__ECLIC_INTCTLBITS)
   // RISC-V Bumblebee core from nuclei
   #define configPRIO_BITS       __ECLIC_INTCTLBITS
+
+#elif defined(__IASMARM__)
+  // FIXME: IAR Assembler cannot include mcu header directly to get __NVIC_PRIO_BITS.
+  // Therefore we will hard coded it to minimum value of 2 to get pass ci build.
+  // IAR user must update this to correct value of the target MCU
+  #message "configPRIO_BITS is hard coded to 2 to pass IAR build only. User should update it per MCU"
+  #define configPRIO_BITS       2
+
 #else
   #error "FreeRTOS configPRIO_BITS to be defined"
 #endif
