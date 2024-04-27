@@ -86,21 +86,16 @@ TU_ATTR_WEAK bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg);
 //TU_ATTR_WEAK bool tud_usbtmc_app_go_to_local_cb();
 #endif
 
-/*******************************************
- * Called from app
- *
- * We keep a reference to the buffer, so it MUST not change until the app is
- * notified that the transfer is complete.
- ******************************************/
-
+// Called from app
+//
+// We keep a reference to the buffer, so it MUST not change until the app is
+// notified that the transfer is complete.
 bool tud_usbtmc_transmit_dev_msg_data(
     const void * data, size_t len,
     bool endOfMessage, bool usingTermChar);
 
-// Buffers a notification to be sent to the host. The buffer must be
-// valid until the tud_usbtmc_notification_complete_cb callback. The
-// data starts with the bNotify1 field, see the USBTMC Specification,
-// Table 13.
+// Buffers a notification to be sent to the host. The data starts
+// with the bNotify1 field, see the USBTMC Specification, Table 13.
 //
 // If the previous notification data has not yet been sent, this
 // returns false.

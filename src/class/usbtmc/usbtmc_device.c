@@ -86,6 +86,11 @@ tu_static char logMsg[150];
 // imposes a minimum buffer size of 32 bytes.
 #define USBTMCD_BUFFER_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
+// Interrupt endpoint buffer size, default to 2 bytes as USB488 specification.
+#ifndef CFG_TUD_USBTMC_INT_EP_SIZE
+#define CFG_TUD_USBTMC_INT_EP_SIZE 2
+#endif
+
 /*
  * The state machine does not allow simultaneous reading and writing. This is
  * consistent with USBTMC.
@@ -124,13 +129,15 @@ typedef struct
   uint8_t ep_bulk_in;
   uint8_t ep_bulk_out;
   uint8_t ep_int_in;
+  uint32_t ep_bulk_in_wMaxPacketSize;
+  uint32_t ep_bulk_out_wMaxPacketSize;
   // IN buffer is only used for first packet, not the remainder
   // in order to deal with prepending header
   CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_in_buf[USBTMCD_BUFFER_SIZE];
-  uint32_t ep_bulk_in_wMaxPacketSize;
   // OUT buffer receives one packet at a time
   CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_out_buf[USBTMCD_BUFFER_SIZE];
-  uint32_t ep_bulk_out_wMaxPacketSize;
+  // Buffer int msg to ensure alignment and placement correctness
+  CFG_TUSB_MEM_ALIGN uint8_t ep_int_in_buf[CFG_TUD_USBTMC_INT_EP_SIZE];
 
   uint32_t transfer_size_remaining; // also used for requested length for bulk IN.
   uint32_t transfer_size_sent;      // To keep track of data bytes that have been queued in FIFO (not header bytes)
@@ -243,12 +250,13 @@ bool tud_usbtmc_transmit_dev_msg_data(
 bool tud_usbtmc_transmit_notification_data(const void * data, size_t len)
 {
 #ifndef NDEBUG
-  TU_ASSERT(len >= 1);
+  TU_ASSERT(len > 0);
   TU_ASSERT(usbtmc_state.ep_int_in != 0);
 #endif
-  if (usbd_edpt_busy(usbtmc_state.rhport, usbtmc_state.ep_int_in)) return false;
+  TU_VERIFY(usbd_edpt_busy(usbtmc_state.rhport, usbtmc_state.ep_int_in));
 
-  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, (void *)(uintptr_t) data, len));
+  TU_VERIFY(tu_memcpy_s(usbtmc_state.ep_int_in_buf, sizeof(usbtmc_state.ep_int_in_buf), data, len) == 0);
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, usbtmc_state.ep_int_in_buf, len));
   return true;
 }
 
