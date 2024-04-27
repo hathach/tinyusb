@@ -9,5 +9,6 @@ mcu:SAMD11
 mcu:SAMX7X
 mcu:VALENTYUSB_EPTRI
 mcu:RAXXX
+mcu:STM32L0
 family:broadcom_32bit
 family:broadcom_64bit

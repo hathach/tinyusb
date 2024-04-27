@@ -379,8 +379,6 @@ bool tud_audio_get_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_re
 
   (void) channelNum; (void) ctrlSel; (void) ep;
 
-  //	return tud_control_xfer(rhport, p_request, &tmp, 1);
-
   return false; 	// Yet not implemented
 }
 
