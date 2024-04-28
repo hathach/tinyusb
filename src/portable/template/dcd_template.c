@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_NONE
+#if CFG_TUD_ENABLED && CFG_TUSB_MCU == OPT_MCU_NONE
 
 #include "device/dcd.h"
 
@@ -140,5 +140,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
   (void) ep_addr;
 }
+
+
 
 #endif

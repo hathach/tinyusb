@@ -24,30 +24,24 @@
  * This file is part of the TinyUSB stack.
  */
 
+#ifndef BOARD_MIMXRT1010_EVK_H_
+#define BOARD_MIMXRT1010_EVK_H_
 
-#ifndef BOARD_H_
-#define BOARD_H_
-
-#include "fsl_device_registers.h"
-
-// required since iMX RT10xx SDK include this file for board size
+// required since iMXRT MCUX-SDK include this file for board size
 #define BOARD_FLASH_SIZE (0x1000000U)
 
-// LED
-#define LED_PINMUX            IOMUXC_GPIO_11_GPIOMUX_IO11
-#define LED_PORT              GPIO1
-#define LED_PIN               11
+// LED: IOMUXC_GPIO_11_GPIOMUX_IO11
+#define LED_PORT              BOARD_INITPINS_USER_LED_PERIPHERAL
+#define LED_PIN               BOARD_INITPINS_USER_LED_CHANNEL
 #define LED_STATE_ON          0
 
-// SW8 button
-#define BUTTON_PINMUX         IOMUXC_GPIO_SD_05_GPIO2_IO05
-#define BUTTON_PORT           GPIO2
-#define BUTTON_PIN            5
+// SW8 button: IOMUXC_GPIO_SD_05_GPIO2_IO05
+#define BUTTON_PORT           BOARD_INITPINS_USER_BUTTON_GPIO
+#define BUTTON_PIN            BOARD_INITPINS_USER_BUTTON_GPIO_PIN
 #define BUTTON_STATE_ACTIVE   0
 
-// UART
+// UART: IOMUXC_GPIO_09_LPUART1_RXD, IOMUXC_GPIO_10_LPUART1_TXD
 #define UART_PORT             LPUART1
-#define UART_RX_PINMUX        IOMUXC_GPIO_09_LPUART1_RXD
-#define UART_TX_PINMUX        IOMUXC_GPIO_10_LPUART1_TXD
+#define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 
-#endif /* BOARD_H_ */
+#endif

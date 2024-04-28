@@ -92,7 +92,7 @@ CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 //--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEBUG >= (EHCI_DBG + 1)
+#if 0 && CFG_TUSB_DEBUG >= (EHCI_DBG + 1)
 static inline void print_portsc(ehci_registers_t* regs) {
   TU_LOG_HEX(EHCI_DBG, regs->portsc);
   TU_LOG(EHCI_DBG, "  Connect Status : %u\r\n", regs->portsc_bm.current_connect_status);
@@ -578,8 +578,10 @@ void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
     if ( qtd_overlay->halted ) {
       if (qtd_overlay->xact_err || qtd_overlay->err_count == 0 || qtd_overlay->buffer_err || qtd_overlay->babble_err) {
         // Error count = 0 often occurs when device disconnected, or other bus-related error
+        // clear halted bit if not caused by STALL to allow more transfer
         xfer_result = XFER_RESULT_FAILED;
-        TU_LOG3("  QHD xfer err count: %d\n", qtd_overlay->err_count);
+        qtd_overlay->halted = false;
+        TU_LOG3("  QHD xfer err count: %d\r\n", qtd_overlay->err_count);
         // TU_BREAKPOINT(); // TODO skip unplugged device
       }else {
         // no error bits are set, endpoint is halted due to STALL
@@ -654,15 +656,15 @@ void process_period_xfer_isr(uint8_t rhport, uint32_t interval_ms)
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
-void hcd_int_handler(uint8_t rhport)
-{
+void hcd_int_handler(uint8_t rhport, bool in_isr) {
+  (void) in_isr;
   ehci_registers_t* regs = ehci_data.regs;
   uint32_t const int_status = regs->status;
 
   if (int_status & EHCI_INT_MASK_HC_HALTED) {
     // something seriously wrong, maybe forget to flush/invalidate cache
     TU_BREAKPOINT();
-    TU_LOG1("  HC halted\n");
+    TU_LOG1("  HC halted\r\n");
     return;
   }
 

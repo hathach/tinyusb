@@ -37,6 +37,7 @@
 #define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
 #define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
 #define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
+#define TU_DIV_CEIL(n, d)     (((n) + (d) - 1) / (d))
 
 #define TU_U16(_high, _low)   ((uint16_t) (((_high) << 8) | (_low)))
 #define TU_U16_HIGH(_u16)     ((uint8_t) (((_u16) >> 8) & 0x00ff))
@@ -64,6 +65,7 @@
 // Standard Headers
 #include <stdbool.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
@@ -74,8 +76,6 @@
 #include "tusb_verify.h"
 #include "tusb_types.h"
 #include "tusb_debug.h"
-
-#include "tusb_timeout.h" // TODO remove
 
 //--------------------------------------------------------------------+
 // Optional API implemented by application if needed
@@ -122,13 +122,11 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, c
 
 
 //------------- Bytes -------------//
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_u32(uint8_t b3, uint8_t b2, uint8_t b1, uint8_t b0)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_u32(uint8_t b3, uint8_t b2, uint8_t b1, uint8_t b0) {
   return ( ((uint32_t) b3) << 24) | ( ((uint32_t) b2) << 16) | ( ((uint32_t) b1) << 8) | b0;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_u16(uint8_t high, uint8_t low)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_u16(uint8_t high, uint8_t low) {
   return (uint16_t) ((((uint16_t) high) << 8) | low);
 }
 

@@ -796,7 +796,9 @@ void netd_init(void)
     }
 }   // netd_init
 
-
+bool netd_deinit(void) {
+  return true;
+}
 
 void netd_reset(uint8_t rhport)
 /**
