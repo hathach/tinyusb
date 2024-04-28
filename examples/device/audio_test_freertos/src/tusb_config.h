@@ -53,8 +53,14 @@ extern "C" {
 #error CFG_TUSB_MCU must be defined
 #endif
 
+// This examples use FreeRTOS
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS                 OPT_OS_NONE
+#define CFG_TUSB_OS                 OPT_OS_FREERTOS
+#endif
+
+// Espressif IDF requires "freertos/" prefix in include path
+#if TUP_MCU_ESPRESSIF
+#define CFG_TUSB_OS_INC_PATH  freertos/
 #endif
 
 #ifndef CFG_TUSB_DEBUG

@@ -38,6 +38,30 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
+#if TUP_MCU_ESPRESSIF
+  // ESP-IDF need "freertos/" prefix in include path.
+  // CFG_TUSB_OS_INC_PATH should be defined accordingly.
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/semphr.h"
+  #include "freertos/queue.h"
+  #include "freertos/task.h"
+  #include "freertos/timers.h"
+
+  #define USBD_STACK_SIZE     4096
+#else
+
+  #include "FreeRTOS.h"
+  #include "semphr.h"
+  #include "queue.h"
+  #include "task.h"
+  #include "timers.h"
+
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE    (4*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+#endif
+
+#define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -52,6 +76,15 @@ enum  {
   BLINK_MOUNTED = 1000,
   BLINK_SUSPENDED = 2500,
 };
+
+// static task
+#if configSUPPORT_STATIC_ALLOCATION
+StackType_t blinky_stack[BLINKY_STACK_SIZE];
+StaticTask_t blinky_taskdef;
+
+StackType_t  usb_device_stack[USBD_STACK_SIZE];
+StaticTask_t usb_device_taskdef;
+#endif
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
@@ -70,20 +103,14 @@ audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range stat
 uint16_t test_buffer_audio[(CFG_TUD_AUDIO_EP_SZ_IN - 2) / 2];
 uint16_t startVal = 0;
 
-void led_blinking_task(void);
+void led_blinking_task(void* param);
+void usb_device_task(void* param);
 void audio_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
-
-  // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
-
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
 
   // Init values
   sampFreq = CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE;
@@ -94,11 +121,52 @@ int main(void)
   sampleFreqRng.subrange[0].bMax = CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE;
   sampleFreqRng.subrange[0].bRes = 0;
 
+#if configSUPPORT_STATIC_ALLOCATION
+  // blinky task
+  xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
+
+  // Create a task for tinyusb device stack
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+#else
+  xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
+#endif
+
+  // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
+  #if !TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+    vTaskStartScheduler();
+  #endif
+
+  return 0;
+}
+
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+void app_main(void)
+{
+  main();
+}
+#endif
+
+// USB Device Driver task
+// This top level thread process all usb events and invoke callbacks
+void usb_device_task(void* param)
+{
+  (void) param;
+
+  // init device stack on configured roothub port
+  // This should be called after scheduler/kernel is started.
+  // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
+  tud_init(BOARD_TUD_RHPORT);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
+  // RTOS forever loop
   while (1)
   {
-    tud_task(); // tinyusb device task
-    led_blinking_task();
-    audio_task();
+    // tinyusb device task
+    tud_task();
   }
 }
 
@@ -107,29 +175,25 @@ int main(void)
 //--------------------------------------------------------------------+
 
 // Invoked when device is mounted
-void tud_mount_cb(void)
-{
+void tud_mount_cb(void) {
   blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Invoked when device is unmounted
-void tud_umount_cb(void)
-{
+void tud_umount_cb(void) {
   blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
 // Invoked when usb bus is suspended
 // remote_wakeup_en : if host allow us  to perform remote wakeup
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
-void tud_suspend_cb(bool remote_wakeup_en)
-{
+void tud_suspend_cb(bool remote_wakeup_en) {
   (void) remote_wakeup_en;
   blink_interval_ms = BLINK_SUSPENDED;
 }
 
 // Invoked when usb bus is resumed
-void tud_resume_cb(void)
-{
+void tud_resume_cb(void) {
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
@@ -244,8 +308,6 @@ bool tud_audio_get_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_re
   uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
   (void) channelNum; (void) ctrlSel; (void) ep;
-
-  //	return tud_control_xfer(rhport, p_request, &tmp, 1);
 
   return false; 	// Yet not implemented
 }
@@ -430,15 +492,17 @@ bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
+void led_blinking_task(void* param) {
+  (void) param;
   static uint32_t start_ms = 0;
   static bool led_state = false;
 
-  // Blink every interval ms
-  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
-  start_ms += blink_interval_ms;
+  while (1) {
+    // Blink every interval ms
+    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
+    start_ms += blink_interval_ms;
 
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+    board_led_write(led_state);
+    led_state = 1 - led_state; // toggle
+  }
 }

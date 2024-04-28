@@ -44,14 +44,29 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-  #include "stm32l0xx.h"
+
+// Include MCU header
+#include "bsp/board_mcu.h"
+
+#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
+  #error "ESP32-Sx should use IDF's FreeRTOSConfig.h"
+#endif
+
+// TODO fix later
+#if CFG_TUSB_MCU == OPT_MCU_MM32F327X
+  extern u32 SystemCoreClock;
+#else
+  // FIXME cause redundant-decls warnings
+  extern uint32_t SystemCoreClock;
+#endif
+
 #endif
 
 /* Cortex M23/M33 port configuration. */
-#define configENABLE_MPU                        0
-#define configENABLE_FPU                        0
-#define configENABLE_TRUSTZONE                  0
-#define configMINIMAL_SECURE_STACK_SIZE         (1024)
+#define configENABLE_MPU								        0
+#define configENABLE_FPU								        1
+#define configENABLE_TRUSTZONE					        0
+#define configMINIMAL_SECURE_STACK_SIZE					( 1024 )
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
@@ -85,7 +100,6 @@
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS          0
-#define configRECORD_STACK_HIGH_ADDRESS        1
 #define configUSE_TRACE_FACILITY               1 // legacy trace
 #define configUSE_STATS_FORMATTING_FUNCTIONS   0
 
@@ -108,7 +122,7 @@
 #define INCLUDE_vTaskDelayUntil                1
 #define INCLUDE_vTaskDelay                     1
 #define INCLUDE_xTaskGetSchedulerState         0
-#define INCLUDE_xTaskGetCurrentTaskHandle      1
+#define INCLUDE_xTaskGetCurrentTaskHandle      0
 #define INCLUDE_uxTaskGetStackHighWaterMark    0
 #define INCLUDE_xTaskGetIdleTaskHandle         0
 #define INCLUDE_xTimerGetTimerDaemonTaskHandle 0
@@ -116,6 +130,16 @@
 #define INCLUDE_eTaskGetState                  0
 #define INCLUDE_xEventGroupSetBitFromISR       0
 #define INCLUDE_xTimerPendFunctionCall         0
+
+#ifdef __RX__
+/* Renesas RX series */
+#define vSoftwareInterruptISR					        INT_Excep_ICU_SWINT
+#define vTickISR								              INT_Excep_CMT0_CMI0
+#define configPERIPHERAL_CLOCK_HZ				      (configCPU_CLOCK_HZ/2)
+#define configKERNEL_INTERRUPT_PRIORITY			  1
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY	4
+
+#else
 
 /* FreeRTOS hooks to NVIC vectors */
 #define xPortPendSVHandler    PendSV_Handler
@@ -125,9 +149,24 @@
 //--------------------------------------------------------------------+
 // Interrupt nesting behavior configuration.
 //--------------------------------------------------------------------+
+#if defined(__NVIC_PRIO_BITS)
+  // For Cortex-M specific: __NVIC_PRIO_BITS is defined in core_cmx.h
+	#define configPRIO_BITS       __NVIC_PRIO_BITS
 
-// For Cortex-M specific: __NVIC_PRIO_BITS is defined in mcu header
-#define configPRIO_BITS       2
+#elif defined(__ECLIC_INTCTLBITS)
+  // RISC-V Bumblebee core from nuclei
+  #define configPRIO_BITS       __ECLIC_INTCTLBITS
+
+#elif defined(__IASMARM__)
+  // FIXME: IAR Assembler cannot include mcu header directly to get __NVIC_PRIO_BITS.
+  // Therefore we will hard coded it to minimum value of 2 to get pass ci build.
+  // IAR user must update this to correct value of the target MCU
+  #message "configPRIO_BITS is hard coded to 2 to pass IAR build only. User should update it per MCU"
+  #define configPRIO_BITS       2
+
+#else
+  #error "FreeRTOS configPRIO_BITS to be defined"
+#endif
 
 /* The lowest interrupt priority that can be used in a call to a "set priority" function. */
 #define configLIBRARY_LOWEST_INTERRUPT_PRIORITY			  ((1<<configPRIO_BITS) - 1)
@@ -147,3 +186,5 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
 #endif
+
+#endif /* __FREERTOS_CONFIG__H */
