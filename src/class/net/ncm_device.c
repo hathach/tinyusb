@@ -947,7 +947,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     }
 
     switch (request->bmRequestType_bit.type) {
-        case TUSB_REQ_TYPE_STANDARD:
+        case TUSB_REQ_TYPE_STANDARD: {
             switch (request->bRequest) {
                 case TUSB_REQ_GET_INTERFACE: {
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex, false);
@@ -975,14 +975,15 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 default:
                     return false;
             }
-            break;
+        }
+        break;
 
-        case TUSB_REQ_TYPE_CLASS:
+        case TUSB_REQ_TYPE_CLASS: {
             TU_VERIFY(ncm_interface.itf_num == request->wIndex, false);
-
+            switch (request->bRequest) {
             TU_LOG3("  TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
 
-            if (request->bRequest == NCM_GET_NTB_PARAMETERS) {
+            case NCM_GET_NTB_PARAMETERS: {
                 // transfer NTB parameters to host.
                 // TODO can one assume, that tud_control_xfer() succeeds?
                 TU_LOG3("    NCM_GET_NTB_PARAMETERS\n");
@@ -990,6 +991,13 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
             }
             break;
 
+                // unsupported request
+            default:
+                return false ;
+
+            }
+        }
+        break;
             // unsupported request
         default:
             return false ;
