@@ -1,4 +1,5 @@
 DEPS_SUBMODULES += hw/mcu/microchip
+ASF_DIR = hw/mcu/microchip/samg55
 
 CFLAGS += \
   -flto \
@@ -17,7 +18,7 @@ CFLAGS += -Wno-error=undef -Wno-error=null-dereference -Wno-error=redundant-decl
 # SAM driver is flooded with -Wcast-qual which slow down complication significantly
 CFLAGS_SKIP += -Wcast-qual
 
-ASF_DIR = hw/mcu/microchip/samg55
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/samg55j19_flash.ld

@@ -38,6 +38,7 @@
 // Button
 #define BUTTON_PIN            PIN_PA14 // pin PB22
 #define BUTTON_STATE_ACTIVE   0
+#define BUTTON_PULL_MODE      GPIO_PULL_UP
 
 #ifdef __cplusplus
  }

@@ -29,7 +29,7 @@
 #include <arch/board/board.h>
 #include <arch/chip/pin.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM

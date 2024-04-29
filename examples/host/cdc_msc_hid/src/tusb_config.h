@@ -30,28 +30,8 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// Board Specific Configuration
-//--------------------------------------------------------------------+
-
-#if CFG_TUSB_MCU == OPT_MCU_RP2040
-// change to 1 if using pico-pio-usb as host controller for raspberry rp2040
-#define CFG_TUH_RPI_PIO_USB   0
-#define BOARD_TUH_RHPORT      CFG_TUH_RPI_PIO_USB
-#endif
-
-// RHPort number used for host can be defined by board.mk, default to port 0
-#ifndef BOARD_TUH_RHPORT
-#define BOARD_TUH_RHPORT      0
-#endif
-
-// RHPort max operational speed can defined by board.mk
-#ifndef BOARD_TUH_MAX_SPEED
-#define BOARD_TUH_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
-#endif
-
 //--------------------------------------------------------------------
-// COMMON CONFIGURATION
+// Common Configuration
 //--------------------------------------------------------------------
 
 // defined by compiler flags for flexibility
@@ -67,12 +47,6 @@
 #define CFG_TUSB_DEBUG        0
 #endif
 
-// Enable Host stack
-#define CFG_TUH_ENABLED       1
-
-// Default is max speed that hardware controller could support with on-chip PHY
-#define CFG_TUH_MAX_SPEED     BOARD_TUH_MAX_SPEED
-
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
  * into those specific section.
@@ -85,11 +59,43 @@
 #endif
 
 #ifndef CFG_TUH_MEM_ALIGN
-#define CFG_TUH_MEM_ALIGN        __attribute__ ((aligned(4)))
+#define CFG_TUH_MEM_ALIGN     __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
-// CONFIGURATION
+// Host Configuration
+//--------------------------------------------------------------------
+
+// Enable Host stack
+#define CFG_TUH_ENABLED       1
+
+#if CFG_TUSB_MCU == OPT_MCU_RP2040
+  // #define CFG_TUH_RPI_PIO_USB   1 // use pio-usb as host controller
+  // #define CFG_TUH_MAX3421       1 // use max3421 as host controller
+
+  // host roothub port is 1 if using either pio-usb or max3421
+  #if (defined(CFG_TUH_RPI_PIO_USB) && CFG_TUH_RPI_PIO_USB) || (defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
+    #define BOARD_TUH_RHPORT      1
+  #endif
+#endif
+
+// Default is max speed that hardware controller could support with on-chip PHY
+#define CFG_TUH_MAX_SPEED     BOARD_TUH_MAX_SPEED
+
+//------------------------- Board Specific --------------------------
+
+// RHPort number used for host can be defined by board.mk, default to port 0
+#ifndef BOARD_TUH_RHPORT
+#define BOARD_TUH_RHPORT      0
+#endif
+
+// RHPort max operational speed can defined by board.mk
+#ifndef BOARD_TUH_MAX_SPEED
+#define BOARD_TUH_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+#endif
+
+//--------------------------------------------------------------------
+// Driver Configuration
 //--------------------------------------------------------------------
 
 // Size of buffer to hold descriptors and other data used for enumeration
@@ -99,6 +105,7 @@
 #define CFG_TUH_CDC                 1 // CDC ACM
 #define CFG_TUH_CDC_FTDI            1 // FTDI Serial.  FTDI is not part of CDC class, only to re-use CDC driver API
 #define CFG_TUH_CDC_CP210X          1 // CP210x Serial. CP210X is not part of CDC class, only to re-use CDC driver API
+#define CFG_TUH_CDC_CH34X           1 // CH340 or CH341 Serial. CH34X is not part of CDC class, only to re-use CDC driver API
 #define CFG_TUH_HID                 (3*CFG_TUH_DEVICE_MAX) // typical keyboard + mouse device can have 3-4 HID interfaces
 #define CFG_TUH_MSC                 1
 #define CFG_TUH_VENDOR              0
@@ -118,7 +125,7 @@
 
 // Set Line Coding on enumeration/mounted, value for cdc_line_coding_t
 // bit rate = 115200, 1 stop bit, no parity, 8 bit data width
-#define CFG_TUH_CDC_LINE_CODING_ON_ENUM   { 115200, CDC_LINE_CONDING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
+#define CFG_TUH_CDC_LINE_CODING_ON_ENUM   { 115200, CDC_LINE_CODING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
 
 
 #ifdef __cplusplus

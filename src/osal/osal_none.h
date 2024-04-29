@@ -24,11 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_OSAL_NONE_H_
-#define _TUSB_OSAL_NONE_H_
+#ifndef TUSB_OSAL_NONE_H_
+#define TUSB_OSAL_NONE_H_
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
@@ -37,45 +37,46 @@
 
 #if CFG_TUH_ENABLED
 // currently only needed/available in host mode
-void osal_task_delay(uint32_t msec);
+TU_ATTR_WEAK void osal_task_delay(uint32_t msec);
 #endif
 
 //--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
-typedef struct
-{
+typedef struct {
   volatile uint16_t count;
-}osal_semaphore_def_t;
+} osal_semaphore_def_t;
 
 typedef osal_semaphore_def_t* osal_semaphore_t;
 
-TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
-{
+TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef) {
   semdef->count = 0;
   return semdef;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_delete(osal_semaphore_t semd_hdl) {
+  (void) semd_hdl;
+  return true; // nothing to do
+}
+
+
+TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr) {
   (void) in_isr;
   sem_hdl->count++;
   return true;
 }
 
 // TODO blocking for now
-TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec) {
   (void) msec;
 
-  while (sem_hdl->count == 0) { }
+  while (sem_hdl->count == 0) {}
   sem_hdl->count--;
 
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
-{
+TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl) {
   sem_hdl->count = 0;
 }
 
@@ -90,19 +91,21 @@ typedef osal_semaphore_t osal_mutex_t;
 // Note: multiple cores MCUs usually do provide IPC API for mutex
 // or we can use std atomic function
 
-TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
-{
+TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef) {
   mdef->count = 1;
   return mdef;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_lock (osal_mutex_t mutex_hdl, uint32_t msec)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_delete(osal_mutex_t mutex_hdl) {
+  (void) mutex_hdl;
+  return true; // nothing to do
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_lock (osal_mutex_t mutex_hdl, uint32_t msec) {
   return osal_semaphore_wait(mutex_hdl, msec);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl) {
   return osal_semaphore_post(mutex_hdl, false);
 }
 
@@ -119,11 +122,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hd
 //--------------------------------------------------------------------+
 #include "common/tusb_fifo.h"
 
-typedef struct
-{
-  void (*interrupt_set)(bool);
+typedef struct {
+  void (* interrupt_set)(bool);
   tu_fifo_t ff;
-}osal_queue_def_t;
+} osal_queue_def_t;
 
 typedef osal_queue_def_t* osal_queue_t;
 
@@ -136,27 +138,28 @@ typedef osal_queue_def_t* osal_queue_t;
   }
 
 // lock queue by disable USB interrupt
-TU_ATTR_ALWAYS_INLINE static inline void _osal_q_lock(osal_queue_t qhdl)
-{
+TU_ATTR_ALWAYS_INLINE static inline void _osal_q_lock(osal_queue_t qhdl) {
   // disable dcd/hcd interrupt
   qhdl->interrupt_set(false);
 }
 
 // unlock queue
-TU_ATTR_ALWAYS_INLINE static inline void _osal_q_unlock(osal_queue_t qhdl)
-{
+TU_ATTR_ALWAYS_INLINE static inline void _osal_q_unlock(osal_queue_t qhdl) {
   // enable dcd/hcd interrupt
   qhdl->interrupt_set(true);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
-{
+TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
   tu_fifo_clear(&qdef->ff);
   return (osal_queue_t) qdef;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_delete(osal_queue_t qhdl) {
+  (void) qhdl;
+  return true; // nothing to do
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec) {
   (void) msec; // not used, always behave as msec = 0
 
   _osal_q_lock(qhdl);
@@ -166,8 +169,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, v
   return success;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const * data, bool in_isr)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const* data, bool in_isr) {
   if (!in_isr) {
     _osal_q_lock(qhdl);
   }
@@ -178,20 +180,17 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void
     _osal_q_unlock(qhdl);
   }
 
-  TU_ASSERT(success);
-
   return success;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_empty(osal_queue_t qhdl)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_empty(osal_queue_t qhdl) {
   // Skip queue lock/unlock since this function is primarily called
   // with interrupt disabled before going into low power mode
   return tu_fifo_empty(&qhdl->ff);
 }
 
 #ifdef __cplusplus
- }
+}
 #endif
 
-#endif /* _TUSB_OSAL_NONE_H_ */
+#endif

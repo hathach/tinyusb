@@ -77,7 +77,7 @@ static tusb_speed_t get_speed(void);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix);
 
 // DMA descriptors shouldn't be placed in ITCM !
-CFG_TUSB_MEM_SECTION static dma_desc_t dma_desc[6];
+CFG_TUD_MEM_SECTION static dma_desc_t dma_desc[6];
 
 static xfer_ctl_t xfer_status[EP_MAX];
 

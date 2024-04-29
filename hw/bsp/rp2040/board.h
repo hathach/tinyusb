@@ -54,25 +54,36 @@
 // default to pin on Adafruit Feather rp2040 USB Host or Tester if defined
 //--------------------------------------------------------------------+
 
-// #define USE_ADAFRUIT_RP2040_TESTER
-#ifdef USE_ADAFRUIT_RP2040_TESTER
-#define PICO_DEFAULT_PIO_USB_DP_PIN       20
-#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   22
+// #define USE_ADAFRUIT_FEATHER_RP2040_USBHOST
+#ifdef USE_ADAFRUIT_FEATHER_RP2040_USBHOST
+#define PICO_DEFAULT_PIO_USB_DP_PIN       16
+#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   18
 #endif
 
 #ifndef PICO_DEFAULT_PIO_USB_DP_PIN
-#define PICO_DEFAULT_PIO_USB_DP_PIN       16
+#define PICO_DEFAULT_PIO_USB_DP_PIN       20
 #endif
 
 // VBUS enable pin and its active state
 #ifndef PICO_DEFAULT_PIO_USB_VBUSEN_PIN
-#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   18
+#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   22
 #endif
 
 // VBUS enable state
 #ifndef PICO_DEFAULT_PIO_USB_VBUSEN_STATE
 #define PICO_DEFAULT_PIO_USB_VBUSEN_STATE 1
 #endif
+
+//--------------------------------------------------------------------
+// USB Host MAX3421E
+//--------------------------------------------------------------------
+
+#define MAX3421_SPI      PICO_DEFAULT_SPI_INSTANCE
+#define MAX3421_SCK_PIN  PICO_DEFAULT_SPI_SCK_PIN
+#define MAX3421_MOSI_PIN PICO_DEFAULT_SPI_TX_PIN
+#define MAX3421_MISO_PIN PICO_DEFAULT_SPI_RX_PIN
+#define MAX3421_CS_PIN   10
+#define MAX3421_INTR_PIN 9
 
 #ifdef __cplusplus
  }

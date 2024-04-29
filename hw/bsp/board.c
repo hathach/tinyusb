@@ -23,7 +23,7 @@
  *
  */
 
-#include "board.h"
+#include "board_api.h"
 
 //--------------------------------------------------------------------+
 // newlib read()/write() retarget
@@ -46,15 +46,13 @@
 #if !(defined __SES_ARM) && !(defined __SES_RISCV) && !(defined __CROSSWORKS_ARM)
 #include "SEGGER_RTT.h"
 
-TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
-{
+TU_ATTR_USED int sys_write(int fhdl, const char *buf, size_t count) {
   (void) fhdl;
-  SEGGER_RTT_Write(0, (const char*) buf, (int) count);
-  return count;
+  SEGGER_RTT_Write(0, (const char *) buf, (int) count);
+  return (int) count;
 }
 
-TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
-{
+TU_ATTR_USED int sys_read(int fhdl, char *buf, size_t count) {
   (void) fhdl;
   int rd = (int) SEGGER_RTT_Read(0, buf, count);
   return (rd > 0) ? rd : -1;
@@ -64,11 +62,9 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 
 #elif defined(LOGGER_SWO)
 // Logging with SWO for ARM Cortex
-
 #include "board_mcu.h"
 
-TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
-{
+TU_ATTR_USED int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
   uint8_t const* buf8 = (uint8_t const*) buf;
 
@@ -79,8 +75,7 @@ TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
   return (int) count;
 }
 
-TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
-{
+TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count) {
   (void) fhdl;
   (void) buf;
   (void) count;
@@ -90,14 +85,12 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 #else
 
 // Default logging with on-board UART
-TU_ATTR_USED int sys_write (int fhdl, const void *buf, size_t count)
-{
+TU_ATTR_USED int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
   return board_uart_write(buf, (int) count);
 }
 
-TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
-{
+TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count) {
   (void) fhdl;
   int rd = board_uart_read((uint8_t*) buf, (int) count);
   return (rd > 0) ? rd : -1;
@@ -105,8 +98,39 @@ TU_ATTR_USED int sys_read (int fhdl, char *buf, size_t count)
 
 #endif
 
-int board_getchar(void)
-{
+//TU_ATTR_USED int _close(int fhdl) {
+//  (void) fhdl;
+//  return 0;
+//}
+
+//TU_ATTR_USED int _fstat(int file, struct stat *st) {
+//  memset(st, 0, sizeof(*st));
+//  st->st_mode = S_IFCHR;
+//}
+
+// Clang use picolibc
+#if defined(__clang__)
+static int cl_putc(char c, FILE *f) {
+  (void) f;
+  return sys_write(0, &c, 1);
+}
+
+static int cl_getc(FILE* f) {
+  (void) f;
   char c;
-  return ( sys_read(0, &c, 1) > 0 ) ? (int) c : (-1);
+  return sys_read(0, &c, 1) > 0 ? c : -1;
+}
+
+static FILE __stdio = FDEV_SETUP_STREAM(cl_putc, cl_getc, NULL, _FDEV_SETUP_RW);
+FILE *const stdin = &__stdio;
+__strong_reference(stdin, stdout);
+__strong_reference(stdin, stderr);
+#endif
+
+//--------------------------------------------------------------------+
+// Board API
+//--------------------------------------------------------------------+
+int board_getchar(void) {
+  char c;
+  return (sys_read(0, &c, 1) > 0) ? (int) c : (-1);
 }

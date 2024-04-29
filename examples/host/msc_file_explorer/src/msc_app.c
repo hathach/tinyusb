@@ -25,7 +25,7 @@
 
 #include <ctype.h>
 #include "tusb.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 #include "ff.h"
 #include "diskio.h"
@@ -66,7 +66,10 @@ bool msc_app_init(void)
   for(size_t i=0; i<CFG_TUH_DEVICE_MAX; i++) _disk_busy[i] = false;
 
   // disable stdout buffered for echoing typing command
+  #ifndef __ICCARM__ // TODO IAR doesn't support stream control ?
   setbuf(stdout, NULL);
+  #endif
+
   cli_init();
 
   return true;
@@ -92,7 +95,6 @@ void msc_app_task(void)
 //
 //--------------------------------------------------------------------+
 
-
 bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data)
 {
   msc_cbw_t const* cbw = cb_data->cbw;
@@ -111,7 +113,7 @@ bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_da
   uint32_t const block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
   uint32_t const block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
 
-  printf("Disk Size: %lu MB\r\n", block_count / ((1024*1024)/block_size));
+  printf("Disk Size: %" PRIu32 " MB\r\n", block_count / ((1024*1024)/block_size));
   // printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
 
   // For simplicity: we only mount 1 LUN per device
@@ -538,10 +540,10 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
         printf("%-40s", fno.fname);
         if (fno.fsize < 1024)
         {
-          printf("%lu B\r\n", fno.fsize);
+          printf("%" PRIu32 " B\r\n", fno.fsize);
         }else
         {
-          printf("%lu KB\r\n", fno.fsize / 1024);
+          printf("%" PRIu32 " KB\r\n", fno.fsize / 1024);
         }
       }
     }

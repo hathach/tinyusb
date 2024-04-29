@@ -1,125 +1,110 @@
-// Copyright 2019 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2022-2023 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #pragma once
+
+#include <stdint.h>
+#include "esp_err.h"
+#include "led_strip_rmt.h"
+#include "esp_idf_version.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#include "led_strip_spi.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "esp_err.h"
-
 /**
-* @brief LED Strip Type
-*
-*/
-typedef struct led_strip_s led_strip_t;
-
-/**
-* @brief LED Strip Device Type
-*
-*/
-typedef void *led_strip_dev_t;
-
-/**
-* @brief Declare of LED Strip Type
-*
-*/
-struct led_strip_s {
-    /**
-    * @brief Set RGB for a specific pixel
-    *
-    * @param strip: LED strip
-    * @param index: index of pixel to set
-    * @param red: red part of color
-    * @param green: green part of color
-    * @param blue: blue part of color
-    *
-    * @return
-    *      - ESP_OK: Set RGB for a specific pixel successfully
-    *      - ESP_ERR_INVALID_ARG: Set RGB for a specific pixel failed because of invalid parameters
-    *      - ESP_FAIL: Set RGB for a specific pixel failed because other error occurred
-    */
-    esp_err_t (*set_pixel)(led_strip_t *strip, uint32_t index, uint32_t red, uint32_t green, uint32_t blue);
-
-    /**
-    * @brief Refresh memory colors to LEDs
-    *
-    * @param strip: LED strip
-    * @param timeout_ms: timeout value for refreshing task
-    *
-    * @return
-    *      - ESP_OK: Refresh successfully
-    *      - ESP_ERR_TIMEOUT: Refresh failed because of timeout
-    *      - ESP_FAIL: Refresh failed because some other error occurred
-    *
-    * @note:
-    *      After updating the LED colors in the memory, a following invocation of this API is needed to flush colors to strip.
-    */
-    esp_err_t (*refresh)(led_strip_t *strip, uint32_t timeout_ms);
-
-    /**
-    * @brief Clear LED strip (turn off all LEDs)
-    *
-    * @param strip: LED strip
-    * @param timeout_ms: timeout value for clearing task
-    *
-    * @return
-    *      - ESP_OK: Clear LEDs successfully
-    *      - ESP_ERR_TIMEOUT: Clear LEDs failed because of timeout
-    *      - ESP_FAIL: Clear LEDs failed because some other error occurred
-    */
-    esp_err_t (*clear)(led_strip_t *strip, uint32_t timeout_ms);
-
-    /**
-    * @brief Free LED strip resources
-    *
-    * @param strip: LED strip
-    *
-    * @return
-    *      - ESP_OK: Free resources successfully
-    *      - ESP_FAIL: Free resources failed because error occurred
-    */
-    esp_err_t (*del)(led_strip_t *strip);
-};
-
-/**
-* @brief LED Strip Configuration Type
-*
-*/
-typedef struct {
-    uint32_t max_leds;   /*!< Maximum LEDs in a single strip */
-    led_strip_dev_t dev; /*!< LED strip device (e.g. RMT channel, PWM channel, etc) */
-} led_strip_config_t;
-
-/**
- * @brief Default configuration for LED strip
+ * @brief Set RGB for a specific pixel
  *
+ * @param strip: LED strip
+ * @param index: index of pixel to set
+ * @param red: red part of color
+ * @param green: green part of color
+ * @param blue: blue part of color
+ *
+ * @return
+ *      - ESP_OK: Set RGB for a specific pixel successfully
+ *      - ESP_ERR_INVALID_ARG: Set RGB for a specific pixel failed because of invalid parameters
+ *      - ESP_FAIL: Set RGB for a specific pixel failed because other error occurred
  */
-#define LED_STRIP_DEFAULT_CONFIG(number, dev_hdl) \
-    {                                             \
-        .max_leds = number,                       \
-        .dev = dev_hdl,                           \
-    }
+esp_err_t led_strip_set_pixel(led_strip_handle_t strip, uint32_t index, uint32_t red, uint32_t green, uint32_t blue);
 
 /**
-* @brief Install a new ws2812 driver (based on RMT peripheral)
-*
-* @param config: LED strip configuration
-* @return
-*      LED strip instance or NULL
-*/
-led_strip_t *led_strip_new_rmt_ws2812(const led_strip_config_t *config);
+ * @brief Set RGBW for a specific pixel
+ *
+ * @note Only call this function if your led strip does have the white component (e.g. SK6812-RGBW)
+ * @note Also see `led_strip_set_pixel` if you only want to specify the RGB part of the color and bypass the white component
+ *
+ * @param strip: LED strip
+ * @param index: index of pixel to set
+ * @param red: red part of color
+ * @param green: green part of color
+ * @param blue: blue part of color
+ * @param white: separate white component
+ *
+ * @return
+ *      - ESP_OK: Set RGBW color for a specific pixel successfully
+ *      - ESP_ERR_INVALID_ARG: Set RGBW color for a specific pixel failed because of an invalid argument
+ *      - ESP_FAIL: Set RGBW color for a specific pixel failed because other error occurred
+ */
+esp_err_t led_strip_set_pixel_rgbw(led_strip_handle_t strip, uint32_t index, uint32_t red, uint32_t green, uint32_t blue, uint32_t white);
+
+/**
+ * @brief Set HSV for a specific pixel
+ *
+ * @param strip: LED strip
+ * @param index: index of pixel to set
+ * @param hue: hue part of color (0 - 360)
+ * @param saturation: saturation part of color (0 - 255)
+ * @param value: value part of color (0 - 255)
+ *
+ * @return
+ *      - ESP_OK: Set HSV color for a specific pixel successfully
+ *      - ESP_ERR_INVALID_ARG: Set HSV color for a specific pixel failed because of an invalid argument
+ *      - ESP_FAIL: Set HSV color for a specific pixel failed because other error occurred
+ */
+esp_err_t led_strip_set_pixel_hsv(led_strip_handle_t strip, uint32_t index, uint16_t hue, uint8_t saturation, uint8_t value);
+
+/**
+ * @brief Refresh memory colors to LEDs
+ *
+ * @param strip: LED strip
+ *
+ * @return
+ *      - ESP_OK: Refresh successfully
+ *      - ESP_FAIL: Refresh failed because some other error occurred
+ *
+ * @note:
+ *      After updating the LED colors in the memory, a following invocation of this API is needed to flush colors to strip.
+ */
+esp_err_t led_strip_refresh(led_strip_handle_t strip);
+
+/**
+ * @brief Clear LED strip (turn off all LEDs)
+ *
+ * @param strip: LED strip
+ *
+ * @return
+ *      - ESP_OK: Clear LEDs successfully
+ *      - ESP_FAIL: Clear LEDs failed because some other error occurred
+ */
+esp_err_t led_strip_clear(led_strip_handle_t strip);
+
+/**
+ * @brief Free LED strip resources
+ *
+ * @param strip: LED strip
+ *
+ * @return
+ *      - ESP_OK: Free resources successfully
+ *      - ESP_FAIL: Free resources failed because error occurred
+ */
+esp_err_t led_strip_del(led_strip_handle_t strip);
 
 #ifdef __cplusplus
 }

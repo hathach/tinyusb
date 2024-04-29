@@ -26,7 +26,7 @@
 #include <string.h>
 #include <stdlib.h>     /* atoi */
 #include "tusb.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "main.h"
 
 #if (CFG_TUD_USBTMC_ENABLE_488)

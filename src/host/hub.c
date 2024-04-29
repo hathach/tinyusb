@@ -30,7 +30,7 @@
 
 #include "hcd.h"
 #include "usbh.h"
-#include "usbh_classdriver.h"
+#include "usbh_pvt.h"
 #include "hub.h"
 
 // Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
@@ -45,8 +45,8 @@ typedef struct
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t port_count;
-  uint8_t status_change; // data from status change interrupt endpoint
 
+  CFG_TUH_MEM_ALIGN uint8_t status_change;
   CFG_TUH_MEM_ALIGN hub_port_status_response_t port_status;
   CFG_TUH_MEM_ALIGN hub_status_response_t hub_status;
 } hub_interface_t;
@@ -182,9 +182,13 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-void hub_init(void)
-{
+bool hub_init(void) {
   tu_memclr(hub_data, sizeof(hub_data));
+  return true;
+}
+
+bool hub_deinit(void) {
+  return true;
 }
 
 bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
@@ -330,7 +334,7 @@ static void connection_port_reset_complete (tuh_xfer_t* xfer);
 bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;
-  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  TU_VERIFY(result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
@@ -435,9 +439,12 @@ static void hub_port_get_status_complete (tuh_xfer_t* xfer)
     // Other changes are: L1 state
     // TODO clear change
 
-    // prepare for next hub status
-    // TODO continue with status_change, or maybe we can do it again with status
-    hub_edpt_status_xfer(daddr);
+    else
+    {
+      // prepare for next hub status
+      // TODO continue with status_change, or maybe we can do it again with status
+      hub_edpt_status_xfer(daddr);
+    }
   }
 }
 
