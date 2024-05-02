@@ -37,8 +37,10 @@ jobs:
       matrix:
         family:
           # Alphabetical order
+          - 'broadcom_32bit'
           - 'imxrt'
-          - 'kinetis_k kinetis_kl'
+          - 'kinetis_k kinetis_kl kinetis_k32l2'
+          - 'lpc11 lpc13 lpc15'
           - 'lpc17 lpc18 lpc40 lpc43'
           - 'lpc54 lpc55'
           - 'mcx'
