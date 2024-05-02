@@ -1,6 +1,4 @@
 MCU_DIR = hw/mcu/broadcom
-DEPS_SUBMODULES += $(MCU_DIR)
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
@@ -26,8 +24,6 @@ SRC_C += \
 	$(MCU_DIR)/broadcom/caches.c \
 	$(MCU_DIR)/broadcom/vcmailbox.c
 
-SKIP_NANOLIB = 1
-
 LD_FILE = $(MCU_DIR)/broadcom/link8.ld
 
 INC += \
@@ -35,7 +31,7 @@ INC += \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core_A/Include
 
-SRC_S += $(MCU_DIR)/broadcom/boot8.S
+SRC_S += $(MCU_DIR)/broadcom/boot8.s
 
 $(BUILD)/kernel8.img: $(BUILD)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $^ $@
