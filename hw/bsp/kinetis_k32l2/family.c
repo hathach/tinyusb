@@ -25,77 +25,57 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board_api.h"
-#include "board.h"
 #include "fsl_gpio.h"
 #include "fsl_port.h"
 #include "fsl_clock.h"
 #include "fsl_lpuart.h"
 
 #include "clock_config.h"
+#include "bsp/board_api.h"
+#include "board.h"
+
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
+void USB0_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void board_init(void)
-{
-  /* Enable port clocks for UART/LED/Button pins */
-  CLOCK_EnableClock(UART_PIN_CLOCK);
-  CLOCK_EnableClock(LED_PIN_CLOCK);
-  CLOCK_EnableClock(BUTTON_PIN_CLOCK);
+void board_init(void) {
+  /* Enable port clocks for GPIO pins */
+  CLOCK_EnableClock(kCLOCK_PortA);
+  CLOCK_EnableClock(kCLOCK_PortB);
+  CLOCK_EnableClock(kCLOCK_PortC);
+  CLOCK_EnableClock(kCLOCK_PortD);
+  CLOCK_EnableClock(kCLOCK_PortE);
 
-  gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0 };
+  BOARD_InitBootPins();
+  BOARD_BootClockRUN();
+  SystemCoreClockUpdate();
+
+  gpio_pin_config_t led_config = {kGPIO_DigitalOutput, 0};
   GPIO_PinInit(LED_GPIO, LED_PIN, &led_config);
   PORT_SetPinMux(LED_PORT, LED_PIN, kPORT_MuxAsGpio);
 
-  gpio_pin_config_t button_config = { kGPIO_DigitalInput, 0 };
+#ifdef BUTTON_PIN
+  gpio_pin_config_t button_config = {kGPIO_DigitalInput, 0};
   GPIO_PinInit(BUTTON_GPIO, BUTTON_PIN, &button_config);
   const port_pin_config_t BUTTON_CFG = {
-    kPORT_PullUp,
-    kPORT_FastSlewRate,
-    kPORT_PassiveFilterDisable,
-    kPORT_OpenDrainDisable,
-    kPORT_LowDriveStrength,
-    kPORT_MuxAsGpio,
-    kPORT_UnlockRegister
+      kPORT_PullUp,
+      kPORT_FastSlewRate,
+      kPORT_PassiveFilterDisable,
+#if defined(FSL_FEATURE_PORT_HAS_OPEN_DRAIN) && FSL_FEATURE_PORT_HAS_OPEN_DRAIN
+      kPORT_OpenDrainDisable,
+#endif
+      kPORT_LowDriveStrength,
+      kPORT_MuxAsGpio,
+#if defined(FSL_FEATURE_PORT_HAS_PIN_CONTROL_LOCK) && FSL_FEATURE_PORT_HAS_PIN_CONTROL_LOCK
+      kPORT_UnlockRegister
+#endif
   };
   PORT_SetPinConfig(BUTTON_PORT, BUTTON_PIN, &BUTTON_CFG);
-
-  /*
-    Enable LPUART0 clock and configure port pins.
-    FIR clock is being used so the USB examples work.
-  */
-  PCC_LPUART0  = 0U;                          /* Clock must be off to set PCS */
-  PCC_LPUART0  = PCC_CLKCFG_PCS( 3U );        /* Select the clock. 1:OSCCLK/Bus Clock, 2:Slow IRC, 3: Fast IRC, 6: System PLL */
-  PCC_LPUART0 |= PCC_CLKCFG_CGC( 1U );        /* Enable LPUART */
-
-  /* PORTB16 (pin 62) is configured as LPUART0_RX */
-  gpio_pin_config_t const lpuart_config_rx = { kGPIO_DigitalInput, 0 };
-  GPIO_PinInit(UART_PIN_GPIO, UART_PIN_RX, &lpuart_config_rx);
-  const port_pin_config_t UART_CFG = {
-    kPORT_PullUp,
-    kPORT_FastSlewRate,
-    kPORT_PassiveFilterDisable,
-    kPORT_OpenDrainDisable,
-    kPORT_LowDriveStrength,
-    kPORT_MuxAsGpio,
-    kPORT_UnlockRegister
-  };
-  PORT_SetPinConfig(UART_PIN_PORT, UART_PIN_RX, &UART_CFG);
-  PORT_SetPinMux(   UART_PIN_PORT, UART_PIN_RX, kPORT_MuxAlt3);
-
-  /* PORTB17 (pin 63) is configured as LPUART0_TX */
-  gpio_pin_config_t const lpuart_config_tx = { kGPIO_DigitalOutput, 0 };
-  GPIO_PinInit(   UART_PIN_GPIO, UART_PIN_TX, &lpuart_config_tx);
-  PORT_SetPinMux( UART_PIN_PORT, UART_PIN_TX, kPORT_MuxAlt3);
-
-  BOARD_BootClockRUN();
-  SystemCoreClockUpdate();
+#endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -110,28 +90,29 @@ void board_init(void)
   uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
   uart_config.enableTx = true;
   uart_config.enableRx = true;
-  LPUART_Init(UART_PORT, &uart_config, CLOCK_GetFreq(kCLOCK_ScgFircClk));
+  LPUART_Init(UART_PORT, &uart_config, UART_CLOCK_SOURCE_HZ);
 
   // USB
-  CLOCK_EnableUsbfs0Clock(kCLOCK_IpSrcFircAsync, 48000000U);
+  CLOCK_EnableUsbfs0Clock(USB_CLOCK_SOURCE, 48000000U);
 }
 
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  GPIO_PinWrite(LED_GPIO, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  GPIO_PinWrite(LED_GPIO, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
+#ifdef BUTTON_PIN
   return BUTTON_STATE_ACTIVE == GPIO_PinRead(BUTTON_GPIO, BUTTON_PIN);
+#else
+  return 0;
+#endif
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
+int board_uart_read(uint8_t* buf, int len) {
 #if 0 /*
 	Use this version if want the LED to blink during BOARD=board_test,
 	without having to hit a key.
@@ -151,21 +132,39 @@ int board_uart_read(uint8_t* buf, int len)
 #endif
 }
 
-int board_uart_write(void const * buf, int len)
-{
+int board_uart_write(void const* buf, int len) {
   LPUART_WriteBlocking(UART_PORT, (uint8_t const*) buf, len);
   return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
+#endif
+
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+
+#ifdef __clang__
+void	_exit (int __status) {
+  while (1) {}
+}
+#endif
+
 #endif
