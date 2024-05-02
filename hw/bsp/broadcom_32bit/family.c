@@ -27,12 +27,23 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
 #include "broadcom/cpu.h"
 #include "broadcom/gpio.h"
 #include "broadcom/interrupts.h"
 #include "broadcom/mmu.h"
 #include "broadcom/caches.h"
 #include "broadcom/vcmailbox.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 // LED
 #define LED_PIN               18
