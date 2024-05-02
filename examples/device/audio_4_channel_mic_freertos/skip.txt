@@ -10,5 +10,6 @@ mcu:SAMX7X
 mcu:VALENTYUSB_EPTRI
 mcu:RAXXX
 mcu:STM32L0
+board:lpcxpresso11u37
 family:broadcom_32bit
 family:broadcom_64bit

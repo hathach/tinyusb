@@ -44,7 +44,16 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-  #include "fsl_device_registers.h"
+  #ifdef __GNUC__
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused-parameter"
+  #endif
+
+  #include "chip.h"
+
+  #ifdef __GNUC__
+    #pragma GCC diagnostic pop
+  #endif
 #endif
 
 /* Cortex M23/M33 port configuration. */

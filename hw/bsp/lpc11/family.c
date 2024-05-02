@@ -24,55 +24,42 @@
  * This file is part of the TinyUSB stack.
  */
 
+#ifdef __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #include "chip.h"
+
+#ifdef __GNUC__
+  #pragma GCC diagnostic pop
+#endif
+
 #include "bsp/board_api.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB_IRQHandler(void)
-{
+void USB_IRQHandler(void) {
   tud_int_handler(0);
 }
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#define LED_PORT              2
-#define LED_PIN               17
-#define LED_STATE_ON          0
-
-// Wake up Switch
-#define BUTTON_PORT           0
-#define BUTTON_PIN            16
-#define BUTTON_STATE_ACTIVE   0
-
-/* System oscillator rate and RTC oscillator rate */
-const uint32_t OscRateIn = 12000000;
-const uint32_t RTCOscRateIn = 32768;
-
-/* Pin muxing table, only items that need changing from their default pin
-   state are in this table. Not every pin is mapped. */
-static const PINMUX_GRP_T pinmuxing[] =
-{
-  {0, 3,  (IOCON_FUNC1 | IOCON_MODE_INACT | IOCON_DIGMODE_EN)}, // USB VBUS
-  {0, 18, (IOCON_FUNC1 | IOCON_MODE_INACT | IOCON_DIGMODE_EN)}, // UART0 RX
-  {0, 19, (IOCON_FUNC1 | IOCON_MODE_INACT | IOCON_DIGMODE_EN)}, // UART0 TX
-  {2, 0,  (IOCON_FUNC1 | IOCON_MODE_INACT)}, // XTALIN
-  {2, 1,  (IOCON_FUNC1 | IOCON_MODE_INACT)}, // XTALOUT
-};
 
 // Invoked by startup code
-void SystemInit(void)
-{
+void SystemInit(void) {
   /* Enable IOCON clock */
   Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_IOCON);
-  Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+  for (uint32_t i = 0; i < (sizeof(pinmuxing) / sizeof(PINMUX_GRP_T)); i++) {
+    Chip_IOCON_PinMuxSet(LPC_IOCON, pinmuxing[i].port, pinmuxing[i].pin, pinmuxing[i].modefunc);
+  }
   Chip_SetupXtalClocking();
 }
 
-void board_init(void)
-{
+void board_init(void) {
   SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -99,37 +86,35 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_write(void const* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif

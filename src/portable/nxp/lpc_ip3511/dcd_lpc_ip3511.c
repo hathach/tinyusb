@@ -42,7 +42,17 @@
 
 #if TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
   // LPCOpen
+  #ifdef __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wunused-parameter"
+  #endif
+
   #include "chip.h"
+
+  #ifdef __GNUC__
+  #pragma GCC diagnostic pop
+  #endif
+
 #else
   // SDK
   #include "fsl_device_registers.h"
