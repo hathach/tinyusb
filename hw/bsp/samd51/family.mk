@@ -17,6 +17,7 @@ LDFLAGS_GCC += \
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
+	src/portable/microchip/samd/hcd_samd.c \
 	hw/mcu/microchip/samd51/gcc/gcc/startup_samd51.c \
 	hw/mcu/microchip/samd51/gcc/system_samd51.c \
 	hw/mcu/microchip/samd51/hpl/gclk/hpl_gclk.c \
