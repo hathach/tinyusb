@@ -1,5 +1,5 @@
 UF2_FAMILY_ID = 0x68ed2b88
-SDK_DIR = hw/mcu/microchip/$(MCU_VARIANT)
+SDK_DIR = hw/mcu/microchip/$(SAM_FAMILY)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m0plus
@@ -22,8 +22,8 @@ LDFLAGS_GCC += \
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
-	$(SDK_DIR)/gcc/gcc/startup_$(MCU_VARIANT).c \
-	$(SDK_DIR)/gcc/system_$(MCU_VARIANT).c \
+	$(SDK_DIR)/gcc/gcc/startup_$(SAM_FAMILY).c \
+	$(SDK_DIR)/gcc/system_$(SAM_FAMILY).c \
 	$(SDK_DIR)/hal/src/hal_atomic.c \
 	$(SDK_DIR)/hpl/gclk/hpl_gclk.c \
 	$(SDK_DIR)/hpl/mclk/hpl_mclk.c \

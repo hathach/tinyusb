@@ -34,8 +34,8 @@
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #endif
 
-#include "hal/include/hal_gpio.h"
-#include "hal/include/hal_init.h"
+#include "hal_gpio.h"
+#include "hal_init.h"
 #include "hpl/gclk/hpl_gclk_base.h"
 #include "hpl_mclk_config.h"
 
@@ -106,9 +106,11 @@ void board_init(void) {
   gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
   gpio_set_pin_level(LED_PIN, 0);
 
+#ifdef BUTTON_PIN
   // Button init
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
   gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
+#endif
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -154,7 +156,11 @@ void board_led_write(bool state) {
 
 uint32_t board_button_read(void) {
   // button is active low
+  #ifdef BUTTON_PIN
   return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
+  #else
+  return 0;
+  #endif
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
@@ -193,6 +199,53 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
+
+#if 0
+/* Initialize SERCOM2 for 115200 bps 8N1 using a 48 MHz clock */
+static inline void uart_init(void) {
+  gpio_set_pin_function(PIN_PB24, PINMUX_PB24D_SERCOM2_PAD1);
+  gpio_set_pin_function(PIN_PB25, PINMUX_PB25D_SERCOM2_PAD0);
+
+  MCLK->APBBMASK.bit.SERCOM2_ = 1;
+  GCLK->PCHCTRL[SERCOM2_GCLK_ID_CORE].reg = GCLK_PCHCTRL_GEN_GCLK0 | GCLK_PCHCTRL_CHEN;
+
+  BOARD_SERCOM->USART.CTRLA.bit.SWRST = 1; /* reset and disable SERCOM -> enable configuration */
+  while (BOARD_SERCOM->USART.SYNCBUSY.bit.SWRST);
+
+  BOARD_SERCOM->USART.CTRLA.reg =
+      SERCOM_USART_CTRLA_SAMPR(0) | /* 0 = 16x / arithmetic baud rate, 1 = 16x / fractional baud rate */
+      SERCOM_USART_CTRLA_SAMPA(0) | /* 16x over sampling */
+      SERCOM_USART_CTRLA_FORM(0) | /* 0x0 USART frame, 0x1 USART frame with parity, ... */
+      SERCOM_USART_CTRLA_DORD | /* LSB first */
+      SERCOM_USART_CTRLA_MODE(1) | /* 0x0 USART with external clock, 0x1 USART with internal clock */
+      SERCOM_USART_CTRLA_RXPO(1) | /* SERCOM PAD[1] is used for data reception */
+      SERCOM_USART_CTRLA_TXPO(0); /* SERCOM PAD[0] is used for data transmission */
+
+  BOARD_SERCOM->USART.CTRLB.reg = /* RXEM = 0 -> receiver disabled, LINCMD = 0 -> normal USART transmission, SFDE = 0 -> start-of-frame detection disabled, SBMODE = 0 -> one stop bit, CHSIZE = 0 -> 8 bits */
+      SERCOM_USART_CTRLB_TXEN | /* transmitter enabled */
+      SERCOM_USART_CTRLB_RXEN; /* receiver enabled */
+  // BOARD_SERCOM->USART.BAUD.reg = SERCOM_USART_BAUD_FRAC_FP(0) | SERCOM_USART_BAUD_FRAC_BAUD(26); /* 48000000/(16*115200) = 26.041666667 */
+  BOARD_SERCOM->USART.BAUD.reg = SERCOM_USART_BAUD_BAUD(63019); /* 65536*(1−16*115200/48000000) */
+
+  BOARD_SERCOM->USART.CTRLA.bit.ENABLE = 1; /* activate SERCOM */
+  while (BOARD_SERCOM->USART.SYNCBUSY.bit.ENABLE); /* wait for SERCOM to be ready */
+}
+
+static inline void uart_send_buffer(uint8_t const* text, size_t len) {
+  for (size_t i = 0; i < len; ++i) {
+    BOARD_SERCOM->USART.DATA.reg = text[i];
+    while ((BOARD_SERCOM->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_TXC) == 0);
+  }
+}
+
+static inline void uart_send_str(const char* text) {
+  while (*text) {
+    BOARD_SERCOM->USART.DATA.reg = *text++;
+    while ((BOARD_SERCOM->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_TXC) == 0);
+  }
+}
+
+#endif
 
 #endif
 

@@ -44,6 +44,8 @@ MEMORY
 /* The stack size used by the application. NOTE: you need to adjust according to your application. */
 STACK_SIZE = DEFINED(__stack_size__) ? __stack_size__ : 0x1000;
 
+ENTRY(Reset_Handler)
+
 /* Section Definitions */
 SECTIONS
 {

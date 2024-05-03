@@ -1,4 +1,4 @@
-MCU = same51
+SAM_FAMILY = same51
 
 HWREV ?= 1
 

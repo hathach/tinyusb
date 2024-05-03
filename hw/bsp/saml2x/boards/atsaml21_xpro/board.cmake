@@ -1,4 +1,4 @@
-set(MCU_VARIANT saml21)
+set(SAM_FAMILY saml21)
 set(JLINK_DEVICE ATSAML21J18)
 set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/saml21j18b_flash.ld)
 

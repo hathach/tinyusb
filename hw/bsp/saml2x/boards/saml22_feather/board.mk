@@ -1,4 +1,4 @@
-MCU_VARIANT = saml22
+SAM_FAMILY = saml22
 
 CFLAGS += -D__SAML22J18A__
 

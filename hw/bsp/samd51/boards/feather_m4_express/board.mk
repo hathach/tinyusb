@@ -1,3 +1,5 @@
+SAM_FAMILY = samd51
+
 CFLAGS += -D__SAMD51J19A__
 
 LD_FILE = $(BOARD_PATH)/$(BOARD).ld

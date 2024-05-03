@@ -3,7 +3,7 @@ include_guard()
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-set(SDK_DIR ${TOP}/hw/mcu/microchip/${MCU_VARIANT})
+set(SDK_DIR ${TOP}/hw/mcu/microchip/${SAM_FAMILY})
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
 # toolchain set up
@@ -27,11 +27,11 @@ function(add_board_target BOARD_TARGET)
     message(FATAL_ERROR "LD_FILE_${CMAKE_C_COMPILER_ID} not defined")
   endif ()
 
-  set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_${MCU_VARIANT}.c)
+  set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_${SAM_FAMILY}.c)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   add_library(${BOARD_TARGET} STATIC
-    ${SDK_DIR}/gcc/system_${MCU_VARIANT}.c
+    ${SDK_DIR}/gcc/system_${SAM_FAMILY}.c
     ${SDK_DIR}/hal/src/hal_atomic.c
     ${SDK_DIR}/hpl/gclk/hpl_gclk.c
     ${SDK_DIR}/hpl/mclk/hpl_mclk.c
