@@ -44,7 +44,7 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-  #include "msp.h"
+  #include "TM4C123.h"
 #endif
 
 /* Cortex M23/M33 port configuration. */

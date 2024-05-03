@@ -113,7 +113,7 @@ jobs:
           cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
 
     - name: Upload Artifacts for Hardware Testing (samd51)
-      if: matrix.family == 'samd51' && github.repository_owner == 'hathach'
+      if: matrix.family == 'samd5x_e5x' && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v4
       with:
         name: itsybitsy_m4
@@ -139,7 +139,7 @@ jobs:
           #- 'ra' port later
           #- 'rp2040' port later
           - 'samd21'
-          - 'samd51'
+          - 'samd5x_e5x'
           - 'stm32f0'
           - 'stm32f1'
           - 'stm32f2'
