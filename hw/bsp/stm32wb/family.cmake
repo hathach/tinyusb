@@ -1,6 +1,6 @@
 include_guard()
 
-set(ST_FAMILY h7)
+set(ST_FAMILY wb)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
@@ -11,10 +11,10 @@ set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS STM32H7 CACHE INTERNAL "")
+set(FAMILY_MCUS STM32WB CACHE INTERNAL "")
 
 
 #------------------------------------
@@ -27,14 +27,15 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   # Startup & Linker script
-  set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+  set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}_cm4.s)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-  set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+  set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}_cm4.s)
 
-  set(LD_FILE_Clang ${LD_FILE_GNU})
-  if(NOT DEFINED LD_FILE_IAR)
-    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+  if (NOT DEFINED LD_FILE_GNU)
+    set(LD_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/linker/${MCU_VARIANT}_flash_cm4.ld)
   endif()
+  set(LD_FILE_Clang ${LD_FILE_GNU})
+  set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash_cm4.icf)
 
   add_library(${BOARD_TARGET} STATIC
     ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
@@ -56,8 +57,8 @@ function(add_board_target BOARD_TARGET)
     ${ST_CMSIS}/Include
     ${ST_HAL_DRIVER}/Inc
     )
-  #target_compile_options(${BOARD_TARGET} PUBLIC)
-  #target_compile_definitions(${BOARD_TARGET} PUBLIC)
+#    target_compile_options(${BOARD_TARGET} PUBLIC)
+#    target_compile_definitions(${BOARD_TARGET} PUBLIC)
 
   update_board(${BOARD_TARGET})
 
@@ -103,9 +104,9 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32H7 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_${FAMILY_MCUS} ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
-    ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
+    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
