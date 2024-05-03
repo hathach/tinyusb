@@ -63,6 +63,7 @@ jobs:
           - 'stm32u5'
           - 'stm32wb'
           - 'tm4c'
+          - 'xmc4000'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v5
