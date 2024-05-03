@@ -36,8 +36,7 @@ jobs:
         family:
         # Alphabetical order
         - 'mm32'
-        - 'same5x'
-        - 'tm4c123 xmc4000'
+        - 'xmc4000'
     steps:
     - name: Setup Python
       uses: actions/setup-python@v5
