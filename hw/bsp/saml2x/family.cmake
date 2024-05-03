@@ -1,15 +1,16 @@
 include_guard()
 
-set(SDK_DIR ${TOP}/hw/mcu/microchip/samd21)
-
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+
+set(SDK_DIR ${TOP}/hw/mcu/microchip/${MCU_VARIANT})
+set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
 # toolchain set up
 set(CMAKE_SYSTEM_PROCESSOR cortex-m0plus CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS SAMD21 CACHE INTERNAL "")
+set(FAMILY_MCUS SAML21 SAML22 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -c \"transport select swd\" -f target/at91samdXX.cfg")
 
 #------------------------------------
@@ -26,15 +27,17 @@ function(add_board_target BOARD_TARGET)
     message(FATAL_ERROR "LD_FILE_${CMAKE_C_COMPILER_ID} not defined")
   endif ()
 
-  set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_samd21.c)
+  set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_${MCU_VARIANT}.c)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   add_library(${BOARD_TARGET} STATIC
-    ${SDK_DIR}/gcc/system_samd21.c
-    ${SDK_DIR}/hpl/gclk/hpl_gclk.c
-    ${SDK_DIR}/hpl/pm/hpl_pm.c
-    ${SDK_DIR}/hpl/sysctrl/hpl_sysctrl.c
+    ${SDK_DIR}/gcc/system_${MCU_VARIANT}.c
     ${SDK_DIR}/hal/src/hal_atomic.c
+    ${SDK_DIR}/hpl/gclk/hpl_gclk.c
+    ${SDK_DIR}/hpl/mclk/hpl_mclk.c
+    ${SDK_DIR}/hpl/osc32kctrl/hpl_osc32kctrl.c
+    ${SDK_DIR}/hpl/oscctrl/hpl_oscctrl.c
+    ${SDK_DIR}/hpl/pm/hpl_pm.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
@@ -46,10 +49,11 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/hpl/pm
     ${SDK_DIR}/hpl/port
     ${SDK_DIR}/hri
-    ${SDK_DIR}/CMSIS/Include
+    ${CMSIS_5}/CMSIS/Core/Include
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CONF_DFLL_OVERWRITE_CALIBRATION=0
+    CONF_OSC32K_CALIB_ENABLE=0
+    CFG_EXAMPLE_VIDEO_READONLY
     )
 
   update_board(${BOARD_TARGET})
@@ -96,7 +100,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_SAMD21 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_SAML22 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/microchip/samd/dcd_samd.c
     )
