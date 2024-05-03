@@ -27,6 +27,3 @@ INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(SDK_DIR)/mm32f327x/MM32F327x/Include \
 	$(TOP)/$(SDK_DIR)/mm32f327x/MM32F327x/HAL_Lib/Inc
-
-# flash target using on-board
-flash: flash-jlink
