@@ -1,6 +1,6 @@
 include_guard()
 
-set(MCU_DIR ${TOP}/hw/mcu/broadcom)
+set(SDK_DIR ${TOP}/hw/mcu/broadcom)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -21,22 +21,20 @@ function(add_board_target BOARD_TARGET)
   endif ()
 
   if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${MCU_DIR}/broadcom/link.ld)
+    set(LD_FILE_GNU ${SDK_DIR}/broadcom/link.ld)
   endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
-  if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-    set(STARTUP_FILE_GNU ${MCU_DIR}/broadcom/boot.s)
-  endif ()
+  set(STARTUP_FILE_GNU ${SDK_DIR}/broadcom/boot.s)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   add_library(${BOARD_TARGET} STATIC
-    ${MCU_DIR}/broadcom/gen/interrupt_handlers.c
-    ${MCU_DIR}/broadcom/gpio.c
-    ${MCU_DIR}/broadcom/interrupts.c
-    ${MCU_DIR}/broadcom/mmu.c
-    ${MCU_DIR}/broadcom/caches.c
-    ${MCU_DIR}/broadcom/vcmailbox.c
+    ${SDK_DIR}/broadcom/gen/interrupt_handlers.c
+    ${SDK_DIR}/broadcom/gpio.c
+    ${SDK_DIR}/broadcom/interrupts.c
+    ${SDK_DIR}/broadcom/mmu.c
+    ${SDK_DIR}/broadcom/caches.c
+    ${SDK_DIR}/broadcom/vcmailbox.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_compile_options(${BOARD_TARGET} PUBLIC
@@ -47,7 +45,7 @@ function(add_board_target BOARD_TARGET)
     -std=c17
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${MCU_DIR}
+    ${SDK_DIR}
     )
 
   update_board(${BOARD_TARGET})
@@ -55,11 +53,14 @@ function(add_board_target BOARD_TARGET)
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      -nostdlib -nostartfiles
+      "LINKER:--entry=_start"
+      --specs=nosys.specs
+      -nostartfiles
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_Clang}"
+      "LINKER:--entry=_start"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC

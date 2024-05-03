@@ -7,6 +7,7 @@ CFLAGS += \
 	-ffreestanding \
 	-nostdlib \
 	-nostartfiles \
+	--specs=nosys.specs \
 	-mgeneral-regs-only \
 	-std=c17
 
