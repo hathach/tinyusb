@@ -39,10 +39,9 @@ extern void sys_uart_putc(char c);
 
 static void timer_init(void);
 
-void board_init(void)
-{
+void board_init(void) {
   arch_local_irq_disable();
-	do_init_mem_pool();
+  do_init_mem_pool();
   f1c100s_intc_init();
   timer_init();
   printf("Timer INIT done\n");
@@ -50,42 +49,38 @@ void board_init(void)
 }
 
 // No LED, no button
-void board_led_write(bool state)
-{
-
+void board_led_write(bool state) {
+  (void) state;
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return 0;
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
+int board_uart_write(void const* buf, int len) {
   int txsize = len;
   while (txsize--) {
-    sys_uart_putc(*(uint8_t const*)buf);
+    sys_uart_putc(*(uint8_t const*) buf);
     buf++;
   }
   return len;
 }
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
 
-static void timer_handler(void)
-{
-  volatile uint32_t *temp_addr = (uint32_t *)(0x01C20C00 + 0x04);
+static void timer_handler(void) {
+  volatile uint32_t* temp_addr = (uint32_t*) (0x01C20C00 + 0x04);
 
   /* clear timer */
   *temp_addr |= 0x01;
@@ -95,36 +90,37 @@ static void timer_handler(void)
 
 static void timer_init(void) {
   uint32_t temp;
-  volatile uint32_t *temp_addr;
+  volatile uint32_t* temp_addr;
 
   /* reload value */
   temp = 12000000 / 1000;
-  temp_addr = (uint32_t *)(0x01C20C00 + 0x14);
+  temp_addr = (uint32_t*) (0x01C20C00 + 0x14);
   *temp_addr = temp;
 
   /* continuous | /2 | 24Mhz |  reload*/
   temp = (0x00 << 7) | (0x01 << 4) | (0x01 << 2) | (0x00 << 1);
-  temp_addr = (uint32_t *)(0x01C20C00 + 0x10);
+  temp_addr = (uint32_t*) (0x01C20C00 + 0x10);
   *temp_addr &= 0xffffff00;
   *temp_addr |= temp;
 
   /* open timer irq */
   temp = 0x01 << 0;
-  temp_addr = (uint32_t *)(0x01C20C00);
+  temp_addr = (uint32_t*) (0x01C20C00);
   *temp_addr |= temp;
 
   /* set init value */
-  temp_addr = (uint32_t *)(0x01C20C00 + 0x18);
+  temp_addr = (uint32_t*) (0x01C20C00 + 0x18);
   *temp_addr = 0;
 
   /* begin run timer */
   temp = 0x01 << 0;
-  temp_addr = (uint32_t *)(0x01C20C00 + 0x10);
+  temp_addr = (uint32_t*) (0x01C20C00 + 0x10);
   *temp_addr |= temp;
 
   f1c100s_intc_set_isr(F1C100S_IRQ_TIMER0, timer_handler);
   f1c100s_intc_enable_irq(F1C100S_IRQ_TIMER0);
 }
+
 #else
 static void timer_init(void) { }
 #endif
