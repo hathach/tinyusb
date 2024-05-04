@@ -32,13 +32,17 @@
  * \def CONF_SLCK_FREQUENCY
  * \brief Slow Clock frequency
  */
+#ifndef CONF_SLCK_FREQUENCY
 #define CONF_SLCK_FREQUENCY 32768
+#endif
 
 /**
  * \def CONF_MCK_FREQUENCY
  * \brief Master Clock frequency
  */
+#ifndef CONF_MCK_FREQUENCY
 #define CONF_MCK_FREQUENCY 8000000
+#endif
 
 // <o> USB Clock Source
 // <0=> USB Clock Controller (USB_48M)

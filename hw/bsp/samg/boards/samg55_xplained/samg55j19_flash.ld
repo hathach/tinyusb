@@ -32,6 +32,8 @@
 OUTPUT_FORMAT("elf32-littlearm", "elf32-littlearm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
 
+ENTRY(Reset_Handler)
+
 /* Memory Spaces Definitions */
 MEMORY
 {
@@ -43,7 +45,7 @@ MEMORY
 STACK_SIZE = DEFINED(__stack_size__) ? __stack_size__ : 0x0400;
 
 /* The heapsize used by the application. NOTE: you need to adjust according to your application. */
-HEAP_SIZE = DEFINED(HEAP_SIZE) ? HEAP_SIZE : DEFINED(__heap_size__) ? __heap_size__ : 0x0200;
+HEAP_SIZE = DEFINED(__heap_size__) ? __heap_size__ : 0x0200;
 
 /* Section Definitions */
 SECTIONS
