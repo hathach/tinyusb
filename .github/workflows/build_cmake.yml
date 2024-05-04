@@ -97,7 +97,7 @@ jobs:
         PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
     - name: Upload Artifacts for Hardware Testing (rp2040)
-      if: matrix.family == 'rp2040' && github.repository_owner == 'hathach'
+      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v4
       with:
         name: raspberry_pi_pico
@@ -105,7 +105,7 @@ jobs:
           cmake-build/cmake-build-raspberry_pi_pico/*/*/*.elf
 
     - name: Upload Artifacts for Hardware Testing (nRF)
-      if: matrix.family == 'nrf' && github.repository_owner == 'hathach'
+      if: contains(matrix.family, 'nrf') && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v4
       with:
         name: feather_nrf52840_express
@@ -113,7 +113,7 @@ jobs:
           cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
 
     - name: Upload Artifacts for Hardware Testing (samd51)
-      if: matrix.family == 'samd5x_e5x' && github.repository_owner == 'hathach'
+      if: contains(matrix.family, 'samd5x_e5x') && github.repository_owner == 'hathach'
       uses: actions/upload-artifact@v4
       with:
         name: itsybitsy_m4
