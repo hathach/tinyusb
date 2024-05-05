@@ -79,7 +79,7 @@ typedef struct {
     uint8_t     rhport;                            //!< storage of \a rhport because some callbacks are done without it
 
     // recv handling
-    CFG_TUSB_MEM_ALIGN recv_ntb_t  recv_ntb[RECV_NTB_N]; //!< actual recv NTBs
+    CFG_TUSB_MEM_ALIGN recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
     recv_ntb_t *recv_free_ntb[RECV_NTB_N];         //!< free list of recv NTBs
     recv_ntb_t *recv_ready_ntb[RECV_NTB_N];        //!< NTBs waiting for transmission to glue logic
     recv_ntb_t *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
@@ -87,7 +87,7 @@ typedef struct {
     uint16_t               recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
-    CFG_TUSB_MEM_ALIGN xmit_ntb_t  xmit_ntb[XMIT_NTB_N]; //!< actual xmit NTBs
+    CFG_TUSB_MEM_ALIGN xmit_ntb_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
     xmit_ntb_t *xmit_free_ntb[XMIT_NTB_N];         //!< free list of xmit NTBs
     xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission to TinyUSB
     xmit_ntb_t *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
@@ -128,6 +128,18 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
         .wNtbOutMaxDatagrams     = CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB,
 };
+
+// Some confusing remarks about wNtbOutMaxDatagrams...
+//      ==1 -> SystemView packets/s goes up to 2000 and events are lost during startup
+//      ==0 -> SystemView runs fine, iperf shows in wireshark a lot of error
+//      ==6 -> SystemView runs fine, iperf also
+//      >6  -> iperf starts to show errors
+//      -> 6 seems to be the best value.  Why?  Don't know, perhaps only on my system?
+//      switch \a TU_LOG2 on to see interesting values for this.
+//
+//      iperf:    for MSS in 100 200 400 800 1200 1450 1500; do iperf -c 192.168.14.1 -e -i 1 -M $MSS -l 8192 -P 1; sleep 2; done
+//      sysview:  SYSTICKS_PER_SEC=35000, IDLE_US=1000, PRINT_MOD=1000
+//
 
 //-----------------------------------------------------------------------------
 //
@@ -340,7 +352,7 @@ static void xmit_start_if_possible(uint8_t rhport)
         ncm_interface.xmit_glue_ntb = NULL;
     }
 
-#ifdef DEBUG_OUT_ENABLED
+#if CFG_TUSB_DEBUG >= 3
     {
         uint16_t len = ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength;
         TU_LOG3(" %d\n", len);
@@ -708,7 +720,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    TU_LOG2("tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
+    TU_LOG2("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 
@@ -796,9 +808,17 @@ void netd_init(void)
     }
 }   // netd_init
 
-bool netd_deinit(void) {
-  return true;
+
+
+bool netd_deinit(void)
+/**
+ * Deinit driver
+ */
+{
+    return true;
 }
+
+
 
 void netd_reset(uint8_t rhport)
 /**
@@ -947,12 +967,14 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
     }
 
     switch (request->bmRequestType_bit.type) {
-        case TUSB_REQ_TYPE_STANDARD: {
+        case TUSB_REQ_TYPE_STANDARD:
+            TU_LOG3("  TUSB_REQ_TYPE_STANDARD: %d\n", request->bRequest);
+
             switch (request->bRequest) {
                 case TUSB_REQ_GET_INTERFACE: {
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex, false);
 
-                    TU_LOG3("  TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
+                    TU_LOG3("    TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
                     tud_control_xfer(rhport, request, &ncm_interface.itf_data_alt, 1);
                 }
                 break;
@@ -961,7 +983,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  request->wValue < 2, false);
 
                     ncm_interface.itf_data_alt = (uint8_t)request->wValue;
-                    TU_LOG3("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
+                    TU_LOG3("    TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
 
                     if (ncm_interface.itf_data_alt == 1) {
                         tud_network_recv_renew_r(rhport);
@@ -975,15 +997,14 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 default:
                     return false;
             }
-        }
-        break;
+            break;
 
-        case TUSB_REQ_TYPE_CLASS: {
+        case TUSB_REQ_TYPE_CLASS:
             TU_VERIFY(ncm_interface.itf_num == request->wIndex, false);
-            switch (request->bRequest) {
+
             TU_LOG3("  TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
 
-            case NCM_GET_NTB_PARAMETERS: {
+            if (request->bRequest == NCM_GET_NTB_PARAMETERS) {
                 // transfer NTB parameters to host.
                 // TODO can one assume, that tud_control_xfer() succeeds?
                 TU_LOG3("    NCM_GET_NTB_PARAMETERS\n");
@@ -991,13 +1012,6 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
             }
             break;
 
-                // unsupported request
-            default:
-                return false ;
-
-            }
-        }
-        break;
             // unsupported request
         default:
             return false ;
