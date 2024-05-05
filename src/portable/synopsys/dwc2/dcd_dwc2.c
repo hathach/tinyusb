@@ -1081,22 +1081,26 @@ static void handle_epout_irq(uint8_t rhport) {
         } else if (doepint & DOEPINT_OTEPSPR) {
           epout->doepint = DOEPINT_OTEPSPR;
         } else {
-          // EP0 can only handle one packet
-          if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
-            // Schedule another packet to be received.
-            edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+          if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
+            epout->doepint = DOEPINT_STPKTRX;
           } else {
-            if(dma_enabled(rhport)) {
-              // Fix packet length
-              uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
-              xfer->total_len -= remain;
-              // this is ZLP, so prepare EP0 for next setup
-              if(n == 0 && xfer->total_len == 0) {
-                dma_stpkt_rx(rhport);
+            // EP0 can only handle one packet
+            if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
+              // Schedule another packet to be received.
+              edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+            } else {
+              if(dma_enabled(rhport)) {
+                // Fix packet length
+                uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
+                xfer->total_len -= remain;
+                // this is ZLP, so prepare EP0 for next setup
+                if(n == 0 && xfer->total_len == 0) {
+                  dma_stpkt_rx(rhport);
+                }
               }
-            }
 
-            dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+              dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+            }
           }
         }
       }
