@@ -1,8 +1,8 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2023 Hardy Griech
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2024 Hardy Griech
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -126,7 +126,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor          = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams     = 6                                     // 0=no limit
+        .wNtbOutMaxDatagrams     = CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB,
 };
 
 //-----------------------------------------------------------------------------
@@ -371,7 +371,7 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
     if (ncm_interface.xmit_glue_ntb == NULL) {
         return false;
     }
-    if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB) {
+    if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_IN_MAX_DATAGRAMS_PER_NTB) {
         return false;
     }
     if (ncm_interface.xmit_glue_ntb->nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
