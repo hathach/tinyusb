@@ -448,4 +448,8 @@
   #define TUP_DCD_EDPT_ISO_ALLOC
 #endif
 
+#if defined(TUP_USBIP_DWC2)
+  #define TUP_MEM_CONST_ADDR
+#endif
+
 #endif

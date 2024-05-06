@@ -156,11 +156,15 @@ void tu_fifo_config_mutex(tu_fifo_t *f, osal_mutex_t wr_mutex, osal_mutex_t rd_m
 
 bool     tu_fifo_write                  (tu_fifo_t* f, void const * p_data);
 uint16_t tu_fifo_write_n                (tu_fifo_t* f, void const * p_data, uint16_t n);
+#ifdef TUP_MEM_CONST_ADDR
 uint16_t tu_fifo_write_n_const_addr_full_words    (tu_fifo_t* f, const void * data, uint16_t n);
+#endif
 
 bool     tu_fifo_read                   (tu_fifo_t* f, void * p_buffer);
 uint16_t tu_fifo_read_n                 (tu_fifo_t* f, void * p_buffer, uint16_t n);
+#ifdef TUP_MEM_CONST_ADDR
 uint16_t tu_fifo_read_n_const_addr_full_words     (tu_fifo_t* f, void * buffer, uint16_t n);
+#endif
 
 bool     tu_fifo_peek                   (tu_fifo_t* f, void * p_buffer);
 uint16_t tu_fifo_peek_n                 (tu_fifo_t* f, void * p_buffer, uint16_t n);
