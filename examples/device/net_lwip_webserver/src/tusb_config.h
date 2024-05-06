@@ -27,8 +27,10 @@
 #define _TUSB_CONFIG_H_
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
+
+#include "lwipopts.h"
 
 //--------------------------------------------------------------------+
 // Board Specific Configuration
@@ -36,12 +38,12 @@
 
 // RHPort number used for device can be defined by board.mk, default to port 0
 #ifndef BOARD_TUD_RHPORT
-#define BOARD_TUD_RHPORT      0
+  #define BOARD_TUD_RHPORT 0
 #endif
 
 // RHPort max operational speed can defined by board.mk
 #ifndef BOARD_TUD_MAX_SPEED
-#define BOARD_TUD_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+  #define BOARD_TUD_MAX_SPEED OPT_MODE_DEFAULT_SPEED
 #endif
 
 //--------------------------------------------------------------------
@@ -50,22 +52,22 @@
 
 // defined by compiler flags for flexibility
 #ifndef CFG_TUSB_MCU
-#error CFG_TUSB_MCU must be defined
+  #error CFG_TUSB_MCU must be defined
 #endif
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS           OPT_OS_NONE
+  #define CFG_TUSB_OS OPT_OS_NONE
 #endif
 
 #ifndef CFG_TUSB_DEBUG
-#define CFG_TUSB_DEBUG        0
+  #define CFG_TUSB_DEBUG 0
 #endif
 
 // Enable Device stack
-#define CFG_TUD_ENABLED       1
+#define CFG_TUD_ENABLED 1
 
 // Default is max speed that hardware controller could support with on-chip PHY
-#define CFG_TUD_MAX_SPEED     BOARD_TUD_MAX_SPEED
+#define CFG_TUD_MAX_SPEED BOARD_TUD_MAX_SPEED
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
@@ -75,21 +77,33 @@
  * - CFG_TUSB_MEM_ALIGN   : __attribute__ ((aligned(4)))
  */
 #ifndef CFG_TUSB_MEM_SECTION
-#define CFG_TUSB_MEM_SECTION
+  #define CFG_TUSB_MEM_SECTION
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN        __attribute__ ((aligned(4)))
+  #define CFG_TUSB_MEM_ALIGN __attribute__((aligned(4)))
 #endif
 
-// number of NCM transfer blocks for reception side (only valid if NCM is selected below)
+//--------------------------------------------------------------------
+// NCM CLASS CONFIGURATION, SEE "ncm.h" FOR PERFORMANCE TUNNING
+//--------------------------------------------------------------------
+
+// Must be >> MTU
+// Can be set to 2048 without impact
+#define CFG_TUD_NCM_IN_NTB_MAX_SIZE (2 * TCP_MSS + 100)
+
+// Must be >> MTU
+// Can be set to smaller values if wNtbOutMaxDatagrams==1
+#define CFG_TUD_NCM_OUT_NTB_MAX_SIZE (2 * TCP_MSS + 100)
+
+// Number of NCM transfer blocks for reception side
 #ifndef CFG_TUD_NCM_OUT_NTB_N
-#define CFG_TUD_NCM_OUT_NTB_N     2
+  #define CFG_TUD_NCM_OUT_NTB_N 1
 #endif
 
-// number of NCM transfer blocks for transmission side (only valid if NCM is selected below)
+// Number of NCM transfer blocks for transmission side
 #ifndef CFG_TUD_NCM_IN_NTB_N
-#define CFG_TUD_NCM_IN_NTB_N      3
+  #define CFG_TUD_NCM_IN_NTB_N 1
 #endif
 
 //--------------------------------------------------------------------
@@ -97,18 +111,18 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE    64
+  #define CFG_TUD_ENDPOINT0_SIZE 64
 #endif
 
 //------------- CLASS -------------//
 
 // Network class has 2 drivers: ECM/RNDIS and NCM.
 // Only one of the drivers can be enabled
-#define CFG_TUD_ECM_RNDIS         1
-#define CFG_TUD_NCM               (1-CFG_TUD_ECM_RNDIS)
+#define CFG_TUD_ECM_RNDIS     1
+#define CFG_TUD_NCM           (1 - CFG_TUD_ECM_RNDIS)
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif /* _TUSB_CONFIG_H_ */
