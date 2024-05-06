@@ -11,7 +11,7 @@ set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS SAMG CACHE INTERNAL "")
-set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -c \"transport select swd\" -f target/at91samdXX.cfg")
+set(OPENOCD_OPTION "-f board/atmel_samg55_xplained_pro.cfg")
 
 #------------------------------------
 # BOARD_TARGET
@@ -110,5 +110,5 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
-  #family_flash_openocd(${TARGET} ${OPENOCD_OPTION})
+  family_flash_openocd(${TARGET})
 endfunction()

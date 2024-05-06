@@ -41,5 +41,5 @@ INC += \
 	$(TOP)/${SDK_DIR}/CMSIS/Core/Include
 
 # flash using edbg from https://github.com/ataradov/edbg
-flash: $(BUILD)/$(PROJECT).bin
+flash-edbg: $(BUILD)/$(PROJECT).bin
 	edbg --verbose -t samg55 -pv -f $<
