@@ -97,7 +97,7 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------
-// NCM CLASS CONFIGURATION, SEE "ncm.h" FOR PERFORMANCE TUNNING
+// NCM CLASS CONFIGURATION, SEE "ncm.h" FOR PERFORMANCE TUNING
 //--------------------------------------------------------------------
 
 // Must be >> MTU
