@@ -35,13 +35,11 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB0_0_IRQHandler(void)
-{
+void USB0_0_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void board_init(void)
-{
+void board_init(void) {
   board_clock_init();
   SystemCoreClockUpdate();
 
@@ -95,33 +93,30 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  uint32_t is_high = state ? LED_STATE_ON : (1-LED_STATE_ON);
+void board_led_write(bool state) {
+  uint32_t is_high = state ? LED_STATE_ON : (1 - LED_STATE_ON);
 
   XMC_GPIO_SetOutputLevel(LED_PIN, is_high ? XMC_GPIO_OUTPUT_LEVEL_HIGH : XMC_GPIO_OUTPUT_LEVEL_LOW);
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == XMC_GPIO_GetInput(BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
+int board_uart_read(uint8_t* buf, int len) {
 #ifdef UART_DEV
   for(int i=0;i<len;i++) {
     buf[i] = XMC_UART_CH_GetReceivedData(UART_DEV);
   }
   return len;
 #else
-  (void) buf; (void) len;
+  (void) buf;
+  (void) len;
   return 0;
 #endif
 }
 
-int board_uart_write(void const * buf, int len)
-{
+int board_uart_write(void const* buf, int len) {
 #ifdef UART_DEV
   char const* bufch = (char const*) buf;
   for(int i=0;i<len;i++) {
@@ -129,20 +124,26 @@ int board_uart_write(void const * buf, int len)
   }
   return len;
 #else
-  (void) buf; (void) len;
+  (void) buf;
+  (void) len;
   return 0;
 #endif
 }
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
+
+// Required by __libc_init_array in startup code if we are compiling using
+// -nostdlib/-nostartfiles.
+//void _init(void) {
+//}

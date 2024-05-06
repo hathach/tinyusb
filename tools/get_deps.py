@@ -37,9 +37,9 @@ deps_optional = {
                                         'xmc4000'],
     'hw/mcu/microchip': ['https://github.com/hathach/microchip_driver.git',
                          '9e8b37e307d8404033bb881623a113931e1edf27',
-                         'sam3x samd11 samd21 samd51 same5x same7x saml2x samg'],
+                         'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'],
     'hw/mcu/mindmotion/mm32sdk': ['https://github.com/hathach/mm32sdk.git',
-                                  '0b79559eb411149d36e073c1635c620e576308d4',
+                                  'b93e856211060ae825216c6a1d6aa347ec758843',
                                   'mm32'],
     'hw/mcu/nordic/nrfx': ['https://github.com/NordicSemiconductor/nrfx.git',
                            '7c47cc0a56ce44658e6da2458e86cd8783ccc4a2',
@@ -166,7 +166,7 @@ deps_optional = {
                                        'stm32wb'],
     'hw/mcu/ti': ['https://github.com/hathach/ti_driver.git',
                   '143ed6cc20a7615d042b03b21e070197d473e6e5',
-                  'msp430 msp432e4 tm4c123'],
+                  'msp430 msp432e4 tm4c'],
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
                             '17761f5cf9dbbf2dcf665b7c04934188add20082',
                             'ch32v307'],
@@ -179,7 +179,8 @@ deps_optional = {
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'
                     'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5'
                     'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'
-                    'sam3x samd11 samd21 samd51 same5x same7x saml2x samg'],
+                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'
+                    'tm4c'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],

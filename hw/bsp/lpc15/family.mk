@@ -28,8 +28,8 @@ SRC_C += \
 	$(MCU_DIR)/src/iocon_15xx.c \
 	$(MCU_DIR)/src/swm_15xx.c \
 	$(MCU_DIR)/src/sysctl_15xx.c \
+	$(MCU_DIR)/src/sysinit_15xx.c \
 	$(MCU_DIR)/src/uart_15xx.c \
-	$(MCU_DIR)/src/sysinit_15xx.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
