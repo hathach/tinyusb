@@ -283,7 +283,18 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
+
+#ifdef __GNUC__ // caused by extra declaration of SystemCoreClock in freeRTOSConfig.h
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
 extern u32 SystemCoreClock;
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;

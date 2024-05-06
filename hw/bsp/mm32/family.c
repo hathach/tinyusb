@@ -31,6 +31,21 @@
 #include "board.h"
 
 //--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
+//--------------------------------------------------------------------+
+
+#ifdef __GNUC__ // caused by extra declaration of SystemCoreClock in freeRTOSConfig.h
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
+extern u32 SystemCoreClock;
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+//--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void OTG_FS_IRQHandler(void) {
@@ -46,19 +61,12 @@ void USB_DeviceClockInit(void) {
   /* Enable USB clock */
   RCC->AHB2ENR |= 0x1 << 7;
 }
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
-
-extern u32 SystemCoreClock;
 
 void board_init(void) {
 //   usb clock
   USB_DeviceClockInit();
 
-  if (SysTick_Config(SystemCoreClock / 1000)) {
-    while (1);
-  }
+  SysTick_Config(SystemCoreClock / 1000);
   NVIC_SetPriority(SysTick_IRQn, 0x0);
 
   RCC_AHBPeriphClockCmd(RCC_AHBENR_GPIOA, ENABLE);
