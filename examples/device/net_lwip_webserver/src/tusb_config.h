@@ -84,6 +84,18 @@ extern "C" {
   #define CFG_TUSB_MEM_ALIGN __attribute__((aligned(4)))
 #endif
 
+// Use different configurations to test all net devices (also due to resource limitations)
+#if TU_CHECK_MCU(OPT_MCU_LPC15XX, OPT_MCU_LPC40XX, OPT_MCU_LPC51UXX, OPT_MCU_LPC54)
+  #define USE_ECM 1
+#elif TU_CHECK_MCU(OPT_MCU_SAMD21, OPT_MCU_SAML21, OPT_MCU_SAML22)
+  #define USE_ECM 1
+#elif TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F1)
+  #define USE_ECM 1
+#else
+  #define USE_ECM 0
+  #define INCLUDE_IPERF
+#endif
+
 //--------------------------------------------------------------------
 // NCM CLASS CONFIGURATION, SEE "ncm.h" FOR PERFORMANCE TUNNING
 //--------------------------------------------------------------------
@@ -118,7 +130,7 @@ extern "C" {
 
 // Network class has 2 drivers: ECM/RNDIS and NCM.
 // Only one of the drivers can be enabled
-#define CFG_TUD_ECM_RNDIS     1
+#define CFG_TUD_ECM_RNDIS     USE_ECM
 #define CFG_TUD_NCM           (1 - CFG_TUD_ECM_RNDIS)
 
 #ifdef __cplusplus
