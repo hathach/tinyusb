@@ -45,6 +45,7 @@ jobs:
           - 'lpc51 lpc54 lpc55'
           - 'mcx'
           - 'msp432e4'
+          - 'mm32'
           - 'nrf'
           - 'ra'
           - 'rp2040'

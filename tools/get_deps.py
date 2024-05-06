@@ -39,7 +39,7 @@ deps_optional = {
                          '9e8b37e307d8404033bb881623a113931e1edf27',
                          'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'],
     'hw/mcu/mindmotion/mm32sdk': ['https://github.com/hathach/mm32sdk.git',
-                                  '0b79559eb411149d36e073c1635c620e576308d4',
+                                  'b93e856211060ae825216c6a1d6aa347ec758843',
                                   'mm32'],
     'hw/mcu/nordic/nrfx': ['https://github.com/NordicSemiconductor/nrfx.git',
                            '7c47cc0a56ce44658e6da2458e86cd8783ccc4a2',
