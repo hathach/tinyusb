@@ -77,6 +77,18 @@
   #endif
 #endif
 
+/** disable interrupts */
+#define DISABLE_IRQ()                \
+    uint32_t prim = __get_PRIMASK(); \
+    __disable_irq();
+
+/** (re)enable interrupts */
+#define ENABLE_IRQ()    \
+    if (!prim)          \
+    {                   \
+      __enable_irq();   \
+    }
+
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
@@ -147,7 +159,7 @@ static void start_dma(volatile uint32_t* reg_startep) {
 
 static void edpt_dma_start(volatile uint32_t* reg_startep) {
   if (atomic_flag_test_and_set(&_dcd.dma_running)) {
-    usbd_defer_func((osal_task_func_t)(uintptr_t ) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
+    usbd_defer_func((osal_task_func_t)(uintptr_t ) edpt_dma_start, (void*) (uintptr_t) reg_startep, is_in_isr());
   } else {
     start_dma(reg_startep);
   }
@@ -434,11 +446,15 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
 
   if (control_status) {
+    DISABLE_IRQ();
+
     // Status Phase also requires EasyDMA has to be available as well !!!!
     edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
 
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
     dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, is_in_isr());
+
+    ENABLE_IRQ();
   } else if (dir == TUSB_DIR_OUT) {
     xfer->started = true;
     if (epnum == 0) {
