@@ -30,6 +30,8 @@
 
 #include "fsl_device_registers.h"
 
+#define USB_CLOCK_SOURCE kCLOCK_IpSrcFircAsync
+
 // LED
 // The Red   LED is on PTE29.
 // The Green LED is on PTC4.
@@ -54,5 +56,37 @@
 #define UART_PIN_PORT         PORTB
 #define UART_PIN_RX           16u
 #define UART_PIN_TX           17u
+#define UART_CLOCK_SOURCE_HZ  CLOCK_GetFreq(kCLOCK_ScgFircClk)
+
+static inline void BOARD_InitBootPins(void) {
+  /*
+    Enable LPUART0 clock and configure port pins.
+    FIR clock is being used so the USB examples work.
+  */
+  PCC_LPUART0 = 0U;                          /* Clock must be off to set PCS */
+  PCC_LPUART0 = PCC_CLKCFG_PCS(
+      3U);        /* Select the clock. 1:OSCCLK/Bus Clock, 2:Slow IRC, 3: Fast IRC, 6: System PLL */
+  PCC_LPUART0 |= PCC_CLKCFG_CGC(1U);        /* Enable LPUART */
+
+  /* PORTB16 (pin 62) is configured as LPUART0_RX */
+  gpio_pin_config_t const lpuart_config_rx = {kGPIO_DigitalInput, 0};
+  GPIO_PinInit(UART_PIN_GPIO, UART_PIN_RX, &lpuart_config_rx);
+  const port_pin_config_t UART_CFG = {
+      kPORT_PullUp,
+      kPORT_FastSlewRate,
+      kPORT_PassiveFilterDisable,
+      kPORT_OpenDrainDisable,
+      kPORT_LowDriveStrength,
+      kPORT_MuxAsGpio,
+      kPORT_UnlockRegister
+  };
+  PORT_SetPinConfig(UART_PIN_PORT, UART_PIN_RX, &UART_CFG);
+  PORT_SetPinMux(UART_PIN_PORT, UART_PIN_RX, kPORT_MuxAlt3);
+
+  /* PORTB17 (pin 63) is configured as LPUART0_TX */
+  gpio_pin_config_t const lpuart_config_tx = {kGPIO_DigitalOutput, 0};
+  GPIO_PinInit(UART_PIN_GPIO, UART_PIN_TX, &lpuart_config_tx);
+  PORT_SetPinMux(UART_PIN_PORT, UART_PIN_TX, kPORT_MuxAlt3);
+}
 
 #endif /* BOARD_H_ */

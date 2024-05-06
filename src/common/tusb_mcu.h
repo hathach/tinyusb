@@ -430,7 +430,7 @@
 #endif
 
 #if !defined(TUP_DCD_ENDPOINT_MAX) && defined(CFG_TUD_ENABLED) && CFG_TUD_ENABLED
-#warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
+  #warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define TUP_DCD_ENDPOINT_MAX    8
 #endif
 

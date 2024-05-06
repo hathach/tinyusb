@@ -53,7 +53,7 @@ processor_version: 9.0.0
  * Variables
  ******************************************************************************/
 /* System clock frequency. */
-extern uint32_t SystemCoreClock;
+//extern uint32_t SystemCoreClock;
 
 /*******************************************************************************
  * Code

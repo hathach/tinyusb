@@ -48,7 +48,7 @@ board: FRDM-K32L2B
  * Variables
  ******************************************************************************/
 /* System clock frequency. */
-extern uint32_t SystemCoreClock;
+//extern uint32_t SystemCoreClock;
 
 /*******************************************************************************
  ************************ BOARD_InitBootClocks function ************************

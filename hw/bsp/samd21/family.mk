@@ -25,14 +25,14 @@ SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
 	${SDK_DIR}/gcc/gcc/startup_samd21.c \
 	${SDK_DIR}/gcc/system_samd21.c \
+	${SDK_DIR}/hal/src/hal_atomic.c \
 	${SDK_DIR}/hpl/gclk/hpl_gclk.c \
 	${SDK_DIR}/hpl/pm/hpl_pm.c \
 	${SDK_DIR}/hpl/sysctrl/hpl_sysctrl.c \
-	${SDK_DIR}/hal/src/hal_atomic.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/${SDK_DIR}/ \
+	$(TOP)/${SDK_DIR} \
 	$(TOP)/${SDK_DIR}/config \
 	$(TOP)/${SDK_DIR}/include \
 	$(TOP)/${SDK_DIR}/hal/include \
@@ -40,7 +40,7 @@ INC += \
 	$(TOP)/${SDK_DIR}/hpl/pm/ \
 	$(TOP)/${SDK_DIR}/hpl/port \
 	$(TOP)/${SDK_DIR}/hri \
-	$(TOP)/${SDK_DIR}/CMSIS/Include
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 
 # flash using bossac at least version 1.8
 # can be found in arduino15/packages/arduino/tools/bossac/

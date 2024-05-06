@@ -1,5 +1,4 @@
 MCU_DIR = hw/mcu/broadcom
-DEPS_SUBMODULES += $(MCU_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -27,15 +26,13 @@ SRC_C += \
 	$(MCU_DIR)/broadcom/caches.c \
 	$(MCU_DIR)/broadcom/vcmailbox.c
 
-SKIP_NANOLIB = 1
-
 LD_FILE = $(MCU_DIR)/broadcom/link$(SUFFIX).ld
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(MCU_DIR)
 
-SRC_S += $(MCU_DIR)/broadcom/boot$(SUFFIX).S
+SRC_S += $(MCU_DIR)/broadcom/boot$(SUFFIX).s
 
 $(BUILD)/kernel$(SUFFIX).img: $(BUILD)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $^ $@
