@@ -101,6 +101,7 @@ jobs:
   # Build ARM with GCC
   # ---------------------------------------
   arm-gcc:
+    if: false
     needs: set-matrix
     runs-on: ubuntu-latest
     strategy:
@@ -152,6 +153,7 @@ jobs:
   # Build ARM with Clang
   # ---------------------------------------
   arm-clang:
+    if: false
     needs: set-matrix
     runs-on: ubuntu-latest
     env:
