@@ -48,12 +48,15 @@ jobs:
       - name: Generate matrix for ARM GCC
         id: set-matrix-armgcc
         run: |
-          echo "::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-gcc)"
+          echo '::set-output name=matrix::{"family": ["nrf", "stm32f0"]}'
+          #echo "::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-gcc)"
+
 
       - name: Generate matrix for ARM Clang
         id: set-matrix-armclang
         run: |
-          echo "::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-clang)"
+          echo '::set-output name=matrix::{"family": ["nrf", "stm32f0"]}'
+          #echo '::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-clang)'
 
   # ---------------------------------------
   # Build ARM with GCC
