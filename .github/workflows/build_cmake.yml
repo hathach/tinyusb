@@ -84,11 +84,6 @@ jobs:
       matrix:
         family: ${{ fromJSON(needs.set-matrix.outputs.arm-gcc).family }}
     steps:
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
@@ -142,11 +137,6 @@ jobs:
       matrix:
          family: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).family }}
     steps:
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
@@ -174,11 +164,6 @@ jobs:
         family:
           - 'msp430'
     steps:
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
