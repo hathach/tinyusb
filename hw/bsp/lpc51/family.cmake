@@ -34,7 +34,6 @@ function(add_board_target BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     # driver
-    ${SDK_DIR}/drivers/common/fsl_common_arm.c
     ${SDK_DIR}/drivers/lpc_gpio/fsl_gpio.c
     ${SDK_DIR}/drivers/flexcomm/fsl_flexcomm.c
     ${SDK_DIR}/drivers/flexcomm/fsl_usart.c

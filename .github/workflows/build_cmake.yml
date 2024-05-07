@@ -200,26 +200,30 @@ jobs:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
-      - name: Set Toolchain URL
-        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+#      - name: Set Toolchain URL
+#        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
+#
+#      - name: Cache Toolchain
+#        uses: actions/cache@v4
+#        id: cache-toolchain
+#        with:
+#          path: ~/cache/
+#          key: ${{ runner.os }}-24-04-17-${{ env.TOOLCHAIN_URL }}
+#
+#      - name: Install Toolchain
+#        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+#        run: |
+#          mkdir -p ~/cache/toolchain
+#          wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.bz2
+#          tar -C ~/cache/toolchain -xaf toolchain.tar.bz2
 
-      - name: Cache Toolchain
-        uses: actions/cache@v4
-        id: cache-toolchain
+      - name: Setup Toolchain
+        uses: ./.github/workflows/setup_toolchain.yml
         with:
-          path: ~/cache/
-          key: ${{ runner.os }}-24-04-17-${{ env.TOOLCHAIN_URL }}
+          toolchain_url: 'http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2'
 
-      - name: Install Toolchain
-        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      - name: Get dependencies
         run: |
-          mkdir -p ~/cache/toolchain
-          wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.bz2
-          tar -C ~/cache/toolchain -xaf toolchain.tar.bz2
-
-      - name: Prepare to build
-        run: |
-          echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
           sudo apt install -y ninja-build
           python3 tools/get_deps.py ${{ matrix.family }}
 
