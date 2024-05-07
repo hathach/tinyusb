@@ -97,23 +97,13 @@ jobs:
         with:
           release: '12.3.Rel1'
 
-      - name: Checkout pico-sdk for rp2040
-        if: contains(matrix.family, 'rp2040')
-        uses: actions/checkout@v4
+      - name: Prepare to build
+        uses: ./.github/actions/prepare_build
         with:
-          repository: raspberrypi/pico-sdk
-          ref: develop
-          path: pico-sdk
-
-      - name: Get Dependencies
-        run: |
-          sudo apt install -y ninja-build
-          python3 tools/get_deps.py ${{ matrix.family }}
+          family: ${{ matrix.family }}
 
       - name: Build
         run: python tools/build_cmake.py ${{ matrix.family }}
-        env:
-          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
       - name: Upload Artifacts for Hardware Testing (rp2040)
         if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
@@ -168,19 +158,6 @@ jobs:
         with:
           family: ${{ matrix.family }}
 
-#      - name: Checkout pico-sdk for rp2040
-#        if: contains(matrix.family, 'rp2040')
-#        uses: actions/checkout@v4
-#        with:
-#          repository: raspberrypi/pico-sdk
-#          ref: develop
-#          path: pico-sdk
-#
-#      - name: Get dependencies
-#        run: |
-#          sudo apt install -y ninja-build
-#          python3 tools/get_deps.py ${{ matrix.family }}
-
       - name: Build
         run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang
 
@@ -208,10 +185,10 @@ jobs:
         with:
           toolchain_url: ${{ env.msp43-gcc_url }}
 
-      - name: Get dependencies
-        run: |
-          sudo apt install -y ninja-build
-          python3 tools/get_deps.py ${{ matrix.family }}
+      - name: Prepare to build
+        uses: ./.github/actions/prepare_build
+        with:
+          family: ${{ matrix.family }}
 
       - name: Build
         run: python tools/build_cmake.py ${{ matrix.family }}
