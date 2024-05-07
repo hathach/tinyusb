@@ -50,12 +50,12 @@ jobs:
         run: |
           MATRIX_JSON=$(python tools/ci.py --toolchain arm-gcc)
           echo $MATRIX_JSON
-          echo 'matrix::$MATRIX_JSON' >> "$GITHUB_OUTPUT"
+          echo 'matrix=$MATRIX_JSON' >> $GITHUB_OUTPUT
 
       - name: Generate matrix for ARM Clang
         id: set-matrix-armclang
         run: |
-          #echo `matrix::$(python tools/ci.py --toolchain arm-clang)` >> $GITHUB_OUTPUT
+          #echo `matrix=$(python tools/ci.py --toolchain arm-clang)` >> $GITHUB_OUTPUT
           echo 'matrix={"family": ["stm32f0"]}' >> $GITHUB_OUTPUT
 
   # ---------------------------------------
