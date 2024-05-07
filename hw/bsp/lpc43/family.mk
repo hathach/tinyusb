@@ -12,7 +12,13 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC43XX
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes  -Wno-error=cast-qual
+CFLAGS += \
+  -Wno-error=unused-parameter \
+  -Wno-error=strict-prototypes \
+  -Wno-error=cast-qual \
+  -Wno-error=incompatible-pointer-types \
+
+LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
@@ -21,14 +27,14 @@ SRC_C += \
 	${SDK_DIR}/../gcc/cr_startup_lpc43xx.c \
 	${SDK_DIR}/src/chip_18xx_43xx.c \
 	${SDK_DIR}/src/clock_18xx_43xx.c \
+	${SDK_DIR}/src/fpu_init.c \
 	${SDK_DIR}/src/gpio_18xx_43xx.c \
+	${SDK_DIR}/src/iap_18xx_43xx.c \
 	${SDK_DIR}/src/sysinit_18xx_43xx.c \
-	${SDK_DIR}/src/i2c_18xx_43xx.c \
-	${SDK_DIR}/src/i2cm_18xx_43xx.c \
 	${SDK_DIR}/src/uart_18xx_43xx.c \
-	${SDK_DIR}/src/fpu_init.c
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
 	${TOP}/${SDK_DIR}/inc \
-	${TOP}/${SDK_DIR}/inc/config_43xx
+	${TOP}/${SDK_DIR}/inc/config_43xx \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \

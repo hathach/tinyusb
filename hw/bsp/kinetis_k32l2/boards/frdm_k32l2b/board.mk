@@ -8,9 +8,6 @@ CFLAGS += -Wno-error=unused-parameter -Wno-error=redundant-decls
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/K32L2B31xxxxA_flash.ld
 
-SRC_C += \
-	$(MCU_DIR)/project_template/clock_config.c \
-
 # For flash-jlink target
 JLINK_DEVICE = K32L2B31xxxxA
 

@@ -31,3 +31,5 @@
 
 // UART
 #define UART_SERCOM           0
+#define UART_RX_PIN           7
+#define UART_TX_PIN           6
