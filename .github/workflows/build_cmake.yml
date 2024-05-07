@@ -55,8 +55,8 @@ jobs:
       - name: Generate matrix for ARM Clang
         id: set-matrix-armclang
         run: |
-          MATRIX_JSON={"family": ["stm32f0"]}
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          #echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          echo 'matrix={"family": ["stm32f0"]}' >> $GITHUB_OUTPUT
 
   # ---------------------------------------
   # Build ARM with GCC
