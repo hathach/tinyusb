@@ -156,7 +156,7 @@ jobs:
 #        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
 
       - name: Setup Toolchain
-        uses: ./.github/actions/setup_toolchain.yml
+        uses: ./.github/actions/setup_toolchain
         with:
           toolchain_url: 'https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz'
 
@@ -223,7 +223,7 @@ jobs:
 #          tar -C ~/cache/toolchain -xaf toolchain.tar.bz2
 
       - name: Setup Toolchain
-        uses: ./.github/actions/setup_toolchain.yml
+        uses: ./.github/actions/setup_toolchain
         with:
           toolchain_url: 'http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2'
 
