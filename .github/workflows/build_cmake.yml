@@ -48,15 +48,15 @@ jobs:
       - name: Generate matrix for ARM GCC
         id: set-matrix-armgcc
         run: |
-          MATRIX_JSON=$(python tools/ci.py --toolchain arm-gcc)
+          MATRIX_JSON=$(python tools/ci.py --toolchain arm-gcc | sed 's/"/\\"/g')
           echo $MATRIX_JSON
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
       - name: Generate matrix for ARM Clang
         id: set-matrix-armclang
         run: |
-          #echo `matrix=$(python tools/ci.py --toolchain arm-clang)` >> $GITHUB_OUTPUT
-          echo 'matrix={"family": ["stm32f0"]}' >> $GITHUB_OUTPUT
+          MATRIX_JSON={"family": ["stm32f0"]
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
   # Build ARM with GCC
