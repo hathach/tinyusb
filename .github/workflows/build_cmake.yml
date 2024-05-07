@@ -11,6 +11,7 @@ on:
       - 'test/hil/**'
       - 'tools/get_deps.py'
       - '.github/workflows/build_cmake.yml'
+      - '.github/actions/**'
   pull_request:
     branches: [ master ]
     paths:
@@ -21,6 +22,7 @@ on:
       - 'test/hil/**'
       - 'tools/get_deps.py'
       - '.github/workflows/build_cmake.yml'
+      - '.github/actions/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
