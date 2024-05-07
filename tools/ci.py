@@ -6,6 +6,8 @@ toolchain_list = {
     "arm-gcc": {"url": ""},
     "arm-clang": {
         "url": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz"},
+    "msp430-gcc": {
+        "url": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2"},
 }
 
 # family: toolchain
@@ -59,7 +61,7 @@ family_list = {
 @click.option('--toolchain', default='arm-gcc', help='Toolchain to filter by.')
 def get_family_matrix(toolchain):
     filtered_families = [family for family, toolchains in family_list.items() if toolchain in toolchains]
-    print(json.dumps({"family": filtered_families, "toolchain": toolchain, "toolchain_url" : toolchain_list[toolchain]}))
+    print(json.dumps({"family": filtered_families, "toolchain": toolchain, "toolchain_url": toolchain_list[toolchain]}))
 
 
 if __name__ == '__main__':

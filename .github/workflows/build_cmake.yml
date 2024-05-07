@@ -32,8 +32,9 @@ jobs:
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
-      arm-gcc: ${{ steps.set-matrix-armgcc.outputs.matrix }}
-      arm-clang: ${{ steps.set-matrix-armclang.outputs.matrix }}
+      arm-gcc: ${{ steps.set-matrix-arm-gcc.outputs.matrix }}
+      arm-clang: ${{ steps.set-matrix-arm-clang.outputs.matrix }}
+      msp430-gcc: ${{ steps.set-matrix-msp430-gcc.outputs.matrix }}
     steps:
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -48,95 +49,40 @@ jobs:
           pip install click
 
       - name: Generate matrix for ARM GCC
-        id: set-matrix-armgcc
+        id: set-matrix-arm-gcc
         run: |
           MATRIX_JSON=$(python tools/ci.py --toolchain arm-gcc)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
       - name: Generate matrix for ARM Clang
-        id: set-matrix-armclang
+        id: set-matrix-arm-clang
         run: |
           MATRIX_JSON=$(python tools/ci.py --toolchain arm-clang)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
-  # ---------------------------------------
-  # Build ARM with GCC
-  # ---------------------------------------
-  arm-gcc:
-    needs: set-matrix
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        family: ${{ fromJSON(needs.set-matrix.outputs.arm-gcc).family }}
-    steps:
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
-
-    - name: Install ARM GCC
-      uses: carlosperate/arm-none-eabi-gcc-action@v1
-      with:
-        release: '12.3.Rel1'
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v4
-
-    - name: Checkout pico-sdk for rp2040
-      if: contains(matrix.family, 'rp2040')
-      uses: actions/checkout@v4
-      with:
-        repository: raspberrypi/pico-sdk
-        ref: develop
-        path: pico-sdk
-
-    - name: Get Dependencies
-      run: |
-        sudo apt install -y ninja-build
-        python3 tools/get_deps.py ${{ matrix.family }}
-
-    - name: Build
-      run: python tools/build_cmake.py ${{ matrix.family }}
-      env:
-        PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
-
-    - name: Upload Artifacts for Hardware Testing (rp2040)
-      if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v4
-      with:
-        name: raspberry_pi_pico
-        path: |
-          cmake-build/cmake-build-raspberry_pi_pico/*/*/*.elf
-
-    - name: Upload Artifacts for Hardware Testing (nRF)
-      if: contains(matrix.family, 'nrf') && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v4
-      with:
-        name: feather_nrf52840_express
-        path: |
-          cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
-
-    - name: Upload Artifacts for Hardware Testing (samd51)
-      if: contains(matrix.family, 'samd5x_e5x') && github.repository_owner == 'hathach'
-      uses: actions/upload-artifact@v4
-      with:
-        name: itsybitsy_m4
-        path: |
-          cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
+      - name: Generate matrix for MSP430 GCC
+        id: set-matrix-msp430-gcc
+        run: |
+          MATRIX_JSON=$(python tools/ci.py --toolchain msp430-gcc)
+          echo "matrix=$MATRIX_JSON"
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
   # Build ARM with Clang
   # ---------------------------------------
-  arm-clang:
+  build:
     needs: set-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        family: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).family }}
+        include:
+          - family: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).family }}
+            toolchain_url: "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz"
+          - family: ${{ fromJSON(needs.set-matrix.outputs.msp430-gcc).family }}
+            toolchain_url: "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2"
     steps:
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -154,28 +100,11 @@ jobs:
           ref: develop
           path: pico-sdk
 
-#      - name: Set Toolchain URL
-#        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
-
       - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
-          toolchain_url: 'https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz'
+          toolchain_url: ${{ matrix.toolchain_url }}
 
-#      - name: Cache Toolchain
-#        uses: actions/cache@v4
-#        id: cache-toolchain
-#        with:
-#          path: ~/cache/
-#          key: ${{ runner.os }}-24-04-17-${{ env.TOOLCHAIN_URL }}
-#
-#      - name: Install Toolchain
-#        if: steps.cache-toolchain.outputs.cache-hit != 'true'
-#        run: |
-#          mkdir -p ~/cache/toolchain
-#          wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.xz
-#          tar -C ~/cache/toolchain -xaf toolchain.tar.xz
-#
       - name: Get dependencies
         run: |
           sudo apt install -y ninja-build
@@ -189,59 +118,107 @@ jobs:
   # ---------------------------------------
   # Build MSP430 with GCC
   # ---------------------------------------
-  msp430-gcc:
+#  msp430-gcc:
+#    runs-on: ubuntu-latest
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        family:
+#          # Alphabetical order
+#          - 'msp430'
+#    steps:
+#      - name: Setup Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: '3.x'
+#
+#      - name: Checkout TinyUSB
+#        uses: actions/checkout@v4
+#
+#      - name: Setup Toolchain
+#        uses: ./.github/actions/setup_toolchain
+#        with:
+#          toolchain_url: 'http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2'
+#
+#      - name: Get dependencies
+#        run: |
+#          sudo apt install -y ninja-build
+#          python3 tools/get_deps.py ${{ matrix.family }}
+#
+#      - name: Build
+#        run: python tools/build_cmake.py ${{ matrix.family }}
+
+  # ---------------------------------------
+  # Build ARM with GCC
+  # ---------------------------------------
+  arm-gcc:
+    needs: set-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        family:
-          # Alphabetical order
-          - 'msp430'
+        family: ${{ fromJSON(needs.set-matrix.outputs.arm-gcc).family }}
     steps:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
+      - name: Install ARM GCC
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '12.3.Rel1'
+
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
-#      - name: Set Toolchain URL
-#        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2
-#
-#      - name: Cache Toolchain
-#        uses: actions/cache@v4
-#        id: cache-toolchain
-#        with:
-#          path: ~/cache/
-#          key: ${{ runner.os }}-24-04-17-${{ env.TOOLCHAIN_URL }}
-#
-#      - name: Install Toolchain
-#        if: steps.cache-toolchain.outputs.cache-hit != 'true'
-#        run: |
-#          mkdir -p ~/cache/toolchain
-#          wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.bz2
-#          tar -C ~/cache/toolchain -xaf toolchain.tar.bz2
-
-      - name: Setup Toolchain
-        uses: ./.github/actions/setup_toolchain
+      - name: Checkout pico-sdk for rp2040
+        if: contains(matrix.family, 'rp2040')
+        uses: actions/checkout@v4
         with:
-          toolchain_url: 'http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2'
+          repository: raspberrypi/pico-sdk
+          ref: develop
+          path: pico-sdk
 
-      - name: Get dependencies
+      - name: Get Dependencies
         run: |
           sudo apt install -y ninja-build
           python3 tools/get_deps.py ${{ matrix.family }}
 
       - name: Build
         run: python tools/build_cmake.py ${{ matrix.family }}
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+
+      - name: Upload Artifacts for Hardware Testing (rp2040)
+        if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
+        uses: actions/upload-artifact@v4
+        with:
+          name: raspberry_pi_pico
+          path: |
+            cmake-build/cmake-build-raspberry_pi_pico/*/*/*.elf
+
+      - name: Upload Artifacts for Hardware Testing (nRF)
+        if: contains(matrix.family, 'nrf') && github.repository_owner == 'hathach'
+        uses: actions/upload-artifact@v4
+        with:
+          name: feather_nrf52840_express
+          path: |
+            cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
+
+      - name: Upload Artifacts for Hardware Testing (samd51)
+        if: contains(matrix.family, 'samd5x_e5x') && github.repository_owner == 'hathach'
+        uses: actions/upload-artifact@v4
+        with:
+          name: itsybitsy_m4
+          path: |
+            cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
   # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
   # ---------------------------------------
   hil-test:
-    # run only with hathach's commit due to limited resource on RPI4
     if: github.repository_owner == 'hathach'
     needs: arm-gcc
     runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
@@ -266,13 +243,6 @@ jobs:
           lsusb -t
           # reset VIA Labs 2.0 hub
           sudo usbreset 001/002
-
-          # legacy code
-          #for port in $(lspci | grep USB | cut -d' ' -f1); do
-          #    echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
-          #    sleep 0.1;
-          #    echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
-          #done
 
       - name: Checkout test/hil
         uses: actions/checkout@v4
