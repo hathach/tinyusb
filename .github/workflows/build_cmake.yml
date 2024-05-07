@@ -49,7 +49,7 @@ jobs:
         id: set-matrix-armgcc
         run: |
           MATRIX_JSON=$(python tools/ci.py --toolchain arm-gcc)
-          echo "matrix::$MATRIX_JSON"" >> $GITHUB_OUTPUT
+          echo "matrix::$MATRIX_JSON" >> $GITHUB_OUTPUT
 
       - name: Generate matrix for ARM Clang
         id: set-matrix-armclang
