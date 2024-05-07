@@ -176,11 +176,10 @@ jobs:
 #          wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.xz
 #          tar -C ~/cache/toolchain -xaf toolchain.tar.xz
 #
-#      - name: Prepare to build
-#        run: |
-#          echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
-#          sudo apt install -y ninja-build
-#          python3 tools/get_deps.py ${{ matrix.family }}
+      - name: Get dependencies
+        run: |
+          sudo apt install -y ninja-build
+          python3 tools/get_deps.py ${{ matrix.family }}
 
       - name: Build
         run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang
