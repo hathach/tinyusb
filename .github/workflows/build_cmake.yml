@@ -28,6 +28,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  arm-clang_url: "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz"
+  msp43-gcc_url: "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2"
+
 jobs:
   set-matrix:
     runs-on: ubuntu-latest
@@ -72,17 +76,13 @@ jobs:
   # ---------------------------------------
   # Build ARM with Clang
   # ---------------------------------------
-  build:
+  arm-clang:
     needs: set-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - family: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).family }}
-            toolchain_url: "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz"
-          - family: ${{ fromJSON(needs.set-matrix.outputs.msp430-gcc).family }}
-            toolchain_url: "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2"
+         family: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).family }}
     steps:
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -103,7 +103,7 @@ jobs:
       - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
-          toolchain_url: ${{ matrix.toolchain_url }}
+          toolchain_url: ${{ env.arm-clang_url }}
 
       - name: Get dependencies
         run: |
@@ -118,35 +118,34 @@ jobs:
   # ---------------------------------------
   # Build MSP430 with GCC
   # ---------------------------------------
-#  msp430-gcc:
-#    runs-on: ubuntu-latest
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        family:
-#          # Alphabetical order
-#          - 'msp430'
-#    steps:
-#      - name: Setup Python
-#        uses: actions/setup-python@v5
-#        with:
-#          python-version: '3.x'
-#
-#      - name: Checkout TinyUSB
-#        uses: actions/checkout@v4
-#
-#      - name: Setup Toolchain
-#        uses: ./.github/actions/setup_toolchain
-#        with:
-#          toolchain_url: 'http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2'
-#
-#      - name: Get dependencies
-#        run: |
-#          sudo apt install -y ninja-build
-#          python3 tools/get_deps.py ${{ matrix.family }}
-#
-#      - name: Build
-#        run: python tools/build_cmake.py ${{ matrix.family }}
+  msp430-gcc:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+          - 'msp430'
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain_url: ${{ env.msp43-gcc_url }}
+
+      - name: Get dependencies
+        run: |
+          sudo apt install -y ninja-build
+          python3 tools/get_deps.py ${{ matrix.family }}
+
+      - name: Build
+        run: python tools/build_cmake.py ${{ matrix.family }}
 
   # ---------------------------------------
   # Build ARM with GCC
@@ -164,13 +163,13 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
       - name: Install ARM GCC
         uses: carlosperate/arm-none-eabi-gcc-action@v1
         with:
           release: '12.3.Rel1'
-
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
 
       - name: Checkout pico-sdk for rp2040
         if: contains(matrix.family, 'rp2040')
