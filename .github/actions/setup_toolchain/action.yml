@@ -18,11 +18,13 @@ runs:
 
     - name: Install Toolchain
       if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      shell: bash
       run: |
         mkdir -p ~/cache/toolchain
         wget --progress=dot:mega ${{ inputs.toolchain_url }} -O toolchain.tar.gz
         tar -C ~/cache/toolchain -xaf toolchain.tar.gz
 
     - name: Set Toolchain Path
+      shell: bash
       run: |
         echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
