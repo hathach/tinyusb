@@ -152,28 +152,33 @@ jobs:
           ref: develop
           path: pico-sdk
 
-      - name: Set Toolchain URL
-        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
+#      - name: Set Toolchain URL
+#        run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
 
-      - name: Cache Toolchain
-        uses: actions/cache@v4
-        id: cache-toolchain
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain.yml
         with:
-          path: ~/cache/
-          key: ${{ runner.os }}-24-04-17-${{ env.TOOLCHAIN_URL }}
+          toolchain_url: 'https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz'
 
-      - name: Install Toolchain
-        if: steps.cache-toolchain.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ~/cache/toolchain
-          wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.xz
-          tar -C ~/cache/toolchain -xaf toolchain.tar.xz
-
-      - name: Prepare to build
-        run: |
-          echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
-          sudo apt install -y ninja-build
-          python3 tools/get_deps.py ${{ matrix.family }}
+#      - name: Cache Toolchain
+#        uses: actions/cache@v4
+#        id: cache-toolchain
+#        with:
+#          path: ~/cache/
+#          key: ${{ runner.os }}-24-04-17-${{ env.TOOLCHAIN_URL }}
+#
+#      - name: Install Toolchain
+#        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+#        run: |
+#          mkdir -p ~/cache/toolchain
+#          wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.xz
+#          tar -C ~/cache/toolchain -xaf toolchain.tar.xz
+#
+#      - name: Prepare to build
+#        run: |
+#          echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+#          sudo apt install -y ninja-build
+#          python3 tools/get_deps.py ${{ matrix.family }}
 
       - name: Build
         run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang
@@ -218,7 +223,7 @@ jobs:
 #          tar -C ~/cache/toolchain -xaf toolchain.tar.bz2
 
       - name: Setup Toolchain
-        uses: ./.github/workflows/setup_toolchain.yml
+        uses: ./.github/actions/setup_toolchain.yml
         with:
           toolchain_url: 'http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2'
 
