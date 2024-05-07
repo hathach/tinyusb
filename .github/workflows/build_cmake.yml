@@ -74,80 +74,6 @@ jobs:
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
-  # Build ARM with Clang
-  # ---------------------------------------
-  arm-clang:
-    needs: set-matrix
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-         family: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).family }}
-    steps:
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
-
-      - name: Checkout pico-sdk for rp2040
-        if: contains(matrix.family, 'rp2040')
-        uses: actions/checkout@v4
-        with:
-          repository: raspberrypi/pico-sdk
-          ref: develop
-          path: pico-sdk
-
-      - name: Setup Toolchain
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain_url: ${{ env.arm-clang_url }}
-
-      - name: Get dependencies
-        run: |
-          sudo apt install -y ninja-build
-          python3 tools/get_deps.py ${{ matrix.family }}
-
-      - name: Build
-        run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang
-        env:
-          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
-
-  # ---------------------------------------
-  # Build MSP430 with GCC
-  # ---------------------------------------
-  msp430-gcc:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        family:
-          - 'msp430'
-    steps:
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
-
-      - name: Setup Toolchain
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain_url: ${{ env.msp43-gcc_url }}
-
-      - name: Get dependencies
-        run: |
-          sudo apt install -y ninja-build
-          python3 tools/get_deps.py ${{ matrix.family }}
-
-      - name: Build
-        run: python tools/build_cmake.py ${{ matrix.family }}
-
-  # ---------------------------------------
   # Build ARM with GCC
   # ---------------------------------------
   arm-gcc:
@@ -212,6 +138,83 @@ jobs:
           name: itsybitsy_m4
           path: |
             cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
+
+  # ---------------------------------------
+  # Build ARM with Clang
+  # ---------------------------------------
+  arm-clang:
+    needs: set-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+         family: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).family }}
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain_url: ${{ env.arm-clang_url }}
+
+      - name: Prepare to build
+        uses: ./.github/actions/prepare_build
+        with:
+          family: ${{ matrix.family }}
+
+#      - name: Checkout pico-sdk for rp2040
+#        if: contains(matrix.family, 'rp2040')
+#        uses: actions/checkout@v4
+#        with:
+#          repository: raspberrypi/pico-sdk
+#          ref: develop
+#          path: pico-sdk
+#
+#      - name: Get dependencies
+#        run: |
+#          sudo apt install -y ninja-build
+#          python3 tools/get_deps.py ${{ matrix.family }}
+
+      - name: Build
+        run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang
+
+  # ---------------------------------------
+  # Build MSP430 with GCC
+  # ---------------------------------------
+  msp430-gcc:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+          - 'msp430'
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain_url: ${{ env.msp43-gcc_url }}
+
+      - name: Get dependencies
+        run: |
+          sudo apt install -y ninja-build
+          python3 tools/get_deps.py ${{ matrix.family }}
+
+      - name: Build
+        run: python tools/build_cmake.py ${{ matrix.family }}
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
