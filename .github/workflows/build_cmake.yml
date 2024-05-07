@@ -48,7 +48,7 @@ jobs:
       - name: Generate matrix for ARM GCC
         id: set-matrix-armgcc
         run: |
-          echo '::set-output name=matrix::{"family": ["stm32f1", "stm32f0"]}'
+          echo 'matrix={"family": ["stm32f0"]}' >> $GITHUB_OUTPUT
           #echo "::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-gcc)"
 
 
@@ -56,7 +56,7 @@ jobs:
         id: set-matrix-armclang
         run: |
           #echo '::set-output name=matrix::{"family": ["stm32f1", "stm32f0"]}'
-          echo '::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-clang)'
+          echo `matrix::$(python3 tools/ci.py --toolchain arm-clang)` >> $GITHUB_OUTPUT
 
   # ---------------------------------------
   # Build ARM with GCC
