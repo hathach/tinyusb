@@ -48,15 +48,15 @@ jobs:
       - name: Generate matrix for ARM GCC
         id: set-matrix-armgcc
         run: |
-          echo '::set-output name=matrix::{"family": ["nrf", "stm32f0"]}'
+          echo '::set-output name=matrix::{"family": ["stm32f1", "stm32f0"]}'
           #echo "::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-gcc)"
 
 
       - name: Generate matrix for ARM Clang
         id: set-matrix-armclang
         run: |
-          echo '::set-output name=matrix::{"family": ["nrf", "stm32f0"]}'
-          #echo '::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-clang)'
+          #echo '::set-output name=matrix::{"family": ["stm32f1", "stm32f0"]}'
+          echo '::set-output name=matrix::$(python3 tools/ci.py --toolchain arm-clang)'
 
   # ---------------------------------------
   # Build ARM with GCC
@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        family: ${{ fromJSON(needs.set-matrix.outputs.arm-gcc) }}
+        family: ${{ fromJSON(needs.set-matrix.outputs.arm-gcc).family }}
     steps:
     - name: Setup Python
       uses: actions/setup-python@v5
