@@ -51,7 +51,7 @@ jobs:
 
       - name: Generate matrix for ARM Clang
         id: set-matrix-armclang
-        run: echo "::set-output name=matrix::$(python3 ci.py --toolchain armclang)"
+        run: echo "::set-output name=matrix::$(python3 tools/ci.py --toolchain armclang)"
 
   # ---------------------------------------
   # Build ARM with GCC
