@@ -2,7 +2,7 @@
 <project version="4">
   <component name="CMakeSharedSettings">
     <configurations>
-      <configuration PROFILE_NAME="pico" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1" />
+      <configuration PROFILE_NAME="pico" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1" />
       <configuration PROFILE_NAME="feather_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_feather_rp2040 -DLOG=2" />
       <configuration PROFILE_NAME="feather_rp2040_max3421" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_rp2040_max3421 -DLOG=2" />
       <configuration PROFILE_NAME="metro_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_metro_rp2040 -DLOG=2 -DMAX3421_HOST=1" />
@@ -125,7 +125,8 @@
       <configuration PROFILE_NAME="ek_tm4c123gxl" ENABLED="false" CONFIG_NAME="MinSizeRel" GENERATION_OPTIONS="-DBOARD=ek_tm4c123gxl" />
       <configuration PROFILE_NAME="xmc4500_relax" ENABLED="false" GENERATION_OPTIONS="-DBOARD=xmc4500_relax -DLOG=2 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="f1c100s" ENABLED="false" GENERATION_OPTIONS="-DBOARD=f1c100s" />
-      <configuration PROFILE_NAME="samg55_xplained" ENABLED="true" GENERATION_OPTIONS="-DBOARD=samg55_xplained" />
+      <configuration PROFILE_NAME="mm32f327x_mb39" ENABLED="false" GENERATION_OPTIONS="-DBOARD=mm32f327x_mb39" />
+      <configuration PROFILE_NAME="samg55_xplained" ENABLED="false" GENERATION_OPTIONS="-DBOARD=samg55_xplained" />
     </configurations>
   </component>
 </project>
