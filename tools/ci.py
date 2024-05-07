@@ -3,6 +3,7 @@ import json
 
 # toolchain
 toolchain_list = {
+    "aarch64-gcc": "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz",
     "arm-gcc": "",
     "arm-clang": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz",
     "msp430-gcc": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
@@ -11,6 +12,7 @@ toolchain_list = {
 # family: toolchain
 family_list = {
     "broadcom_32bit": ["arm-gcc"],
+    "broadcom_64bit": ["aarch64-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k": ["arm-gcc", "arm-clang"],
     "kinetis_kl": ["arm-gcc", "arm-clang"],

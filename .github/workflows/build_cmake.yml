@@ -36,6 +36,7 @@ jobs:
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
+      aarch64-gcc: ${{ steps.set-matrix-aarch64-gcc.outputs.matrix }}
       arm-gcc: ${{ steps.set-matrix-arm-gcc.outputs.matrix }}
       arm-clang: ${{ steps.set-matrix-arm-clang.outputs.matrix }}
       msp430-gcc: ${{ steps.set-matrix-msp430-gcc.outputs.matrix }}
@@ -51,6 +52,13 @@ jobs:
       - name: Install dependencies
         run: |
           pip install click
+
+      - name: Generate matrix for AARCH64 GCC
+        id: set-matrix-aarch64-gcc
+        run: |
+          MATRIX_JSON=$(python tools/ci.py --toolchain aarch64-gcc)
+          echo "matrix=$MATRIX_JSON"
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
       - name: Generate matrix for ARM GCC
         id: set-matrix-arm-gcc
@@ -179,6 +187,22 @@ jobs:
 
       - name: Build
         run: python tools/build_cmake.py ${{ matrix.family }}
+
+  # ---------------------------------------
+  # Build
+  # ---------------------------------------
+  build:
+    needs: set-matrix
+    uses: ./.github/workflows/build_family.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - 'aarch64-gcc'
+          - 'arm-clang'
+      with:
+        family: ${{ fromJSON(needs.set-matrix.outputs.${{ matrix.toolchain }}).family }}
+        toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.${{ matrix.toolchain }}).toolchain_url }}
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
