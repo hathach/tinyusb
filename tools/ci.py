@@ -38,7 +38,7 @@ family_list = {
 @click.option('--toolchain', default='arm-gcc', help='Toolchain to filter by.')
 def get_family_matrix(toolchain):
     filtered_families = [family for family, toolchains in family_list.items() if toolchain in toolchains]
-    print(json.dumps({"family": filtered_families}, indent=2))
+    print(json.dumps({"family": filtered_families}))
 
 
 if __name__ == '__main__':

@@ -49,7 +49,6 @@ jobs:
         id: set-matrix-armgcc
         run: |
           MATRIX_JSON=$(python tools/ci.py --toolchain arm-gcc)
-          echo $MATRIX_JSON
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
