@@ -27,44 +27,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  set-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      arm-gcc: ${{ steps.set-matrix-armgcc.outputs.matrix }}
+      arm-clang: ${{ steps.set-matrix-armclang.outputs.matrix }}
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pip install click
+
+      - name: Generate matrix for ARM GCC
+        id: set-matrix-armgcc
+        run: echo "::set-output name=matrix::$(python3 tools/ci.py --toolchain armgcc)"
+
+      - name: Generate matrix for ARM Clang
+        id: set-matrix-armclang
+        run: echo "::set-output name=matrix::$(python3 ci.py --toolchain armclang)"
+
   # ---------------------------------------
   # Build ARM with GCC
   # ---------------------------------------
   arm-gcc:
+    needs: set-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        family:
-          # Alphabetical order
-          - 'broadcom_32bit'
-          - 'imxrt'
-          - 'kinetis_k kinetis_kl kinetis_k32l2'
-          - 'lpc11 lpc13 lpc15'
-          - 'lpc17 lpc18 lpc40 lpc43'
-          - 'lpc51 lpc54 lpc55'
-          - 'mcx'
-          - 'msp432e4'
-          - 'mm32'
-          - 'nrf'
-          - 'ra'
-          - 'rp2040'
-          - 'samd11 samd21 saml2x samd5x_e5x samg'
-          - 'stm32f0'
-          - 'stm32f1'
-          - 'stm32f2'
-          - 'stm32f3'
-          - 'stm32f4'
-          - 'stm32f7'
-          - 'stm32g0'
-          - 'stm32g4'
-          - 'stm32h5'
-          - 'stm32h7'
-          - 'stm32l4'
-          - 'stm32u5'
-          - 'stm32wb'
-          - 'tm4c'
-          - 'xmc4000'
+        family: ${{ fromJSON(needs.set-matrix.outputs.arm-gcc) }}
     steps:
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -80,7 +78,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Checkout pico-sdk for rp2040
-      if: matrix.family == 'rp2040'
+      if: contains(matrix.family, 'rp2040')
       uses: actions/checkout@v4
       with:
         repository: raspberrypi/pico-sdk
@@ -131,14 +129,14 @@ jobs:
       matrix:
         family:
           # Alphabetical order
+          #- 'mcx' not working with gcc anymore, need to fix this first
+          #- 'ra' port later
+          #- 'rp2040' port later
           - 'imxrt'
           - 'kinetis_k kinetis_kl'
           - 'lpc17 lpc18 lpc40 lpc43'
           - 'lpc54 lpc55'
-          #- 'mcx' not working with gcc anymore, need to fix this first
           - 'nrf'
-          #- 'ra' port later
-          #- 'rp2040' port later
           - 'samd21'
           - 'samd5x_e5x'
           - 'stm32f0'
