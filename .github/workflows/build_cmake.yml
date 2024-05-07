@@ -56,7 +56,7 @@ jobs:
         id: set-matrix-armclang
         run: |
           #echo '::set-output name=matrix::{"family": ["stm32f1", "stm32f0"]}'
-          echo `matrix::$(python3 tools/ci.py --toolchain arm-clang)` >> $GITHUB_OUTPUT
+          echo `matrix::$(python tools/ci.py --toolchain arm-clang)` >> $GITHUB_OUTPUT
 
   # ---------------------------------------
   # Build ARM with GCC
