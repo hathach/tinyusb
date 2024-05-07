@@ -31,6 +31,7 @@
 #include "device/dcd.h"
 #include "tusb.h"
 #include "common/tusb_private.h"
+#include "common/tusb_quirk.h"
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -966,6 +967,10 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 {
   tusb_desc_type_t const desc_type = (tusb_desc_type_t) tu_u16_high(p_request->wValue);
   uint8_t const desc_index = tu_u16_low( p_request->wValue );
+
+#if CFG_TUD_QUIRK_HOST_OS_HINT
+  tud_quirk_host_os_hint_desc_cb(desc_type);
+#endif
 
   switch(desc_type)
   {

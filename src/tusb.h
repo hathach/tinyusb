@@ -37,6 +37,7 @@
 #include "common/tusb_common.h"
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
+#include "common/tusb_quirk.h"
 
 //------------- TypeC -------------//
 #if CFG_TUC_ENABLED
