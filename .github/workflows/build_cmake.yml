@@ -82,6 +82,22 @@ jobs:
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
+  # Build
+  # ---------------------------------------
+  build:
+    needs: set-matrix
+    uses: ./.github/workflows/build_family.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - 'aarch64-gcc'
+          - 'msp430-gcc'
+    with:
+      family: ${{ fromJSON(needs.set-matrix.outputs[matrix.toolchain]).family }}
+      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs[matrix.toolchain]).toolchain_url }}
+
+  # ---------------------------------------
   # Build ARM with GCC
   # ---------------------------------------
   arm-gcc:
@@ -187,22 +203,6 @@ jobs:
 #
 #      - name: Build
 #        run: python tools/build_cmake.py ${{ matrix.family }}
-
-  # ---------------------------------------
-  # Build
-  # ---------------------------------------
-  build:
-    needs: set-matrix
-    uses: ./.github/workflows/build_family.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain:
-          - 'aarch64-gcc'
-          - 'msp43-gcc'
-    with:
-      family: ${{ fromJSON(needs.set-matrix.outputs.${{ matrix.toolchain }}).family }}
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.${{ matrix.toolchain }}).toolchain_url }}
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
