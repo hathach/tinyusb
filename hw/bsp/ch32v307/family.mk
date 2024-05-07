@@ -28,8 +28,10 @@ CFLAGS += \
 	-Xlinker --gc-sections \
 	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 SRC_C += \
-	src/portable/wch/ch32v307/dcd_usbhs.c \
+	src/portable/wch/dcd_ch32_usbhs.c \
 	$(CH32V307_SDK_SRC)/Core/core_riscv.c \
 	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_gpio.c \
 	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_misc.c \

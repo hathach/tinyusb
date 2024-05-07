@@ -31,13 +31,11 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB_HP_IRQHandler(void)
-{
+void USB_HP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USB_LP_IRQHandler(void)
-{
+void USB_LP_IRQHandler(void) {
   tud_int_handler(0);
 }
 
@@ -46,8 +44,7 @@ void USB_LP_IRQHandler(void)
 //--------------------------------------------------------------------+
 UART_HandleTypeDef UartHandle;
 
-void board_init(void)
-{
+void board_init(void) {
   board_clock_init();
 
   // Enable All GPIOs clocks
@@ -71,7 +68,7 @@ void board_init(void)
   NVIC_SetPriority(USB_LP_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
-  GPIO_InitTypeDef  GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct;
 
   // LED
   GPIO_InitStruct.Pin = LED_PIN;
@@ -102,22 +99,22 @@ void board_init(void)
 
 #ifdef UART_DEV
   // UART
-  GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
-  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull      = GPIO_PULLUP;
-  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = UART_GPIO_AF;
   HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
 
-  UartHandle = (UART_HandleTypeDef){
-    .Instance        = UART_DEV,
-    .Init.BaudRate   = CFG_BOARD_UART_BAUDRATE,
-    .Init.WordLength = UART_WORDLENGTH_8B,
-    .Init.StopBits   = UART_STOPBITS_1,
-    .Init.Parity     = UART_PARITY_NONE,
-    .Init.HwFlowCtl  = UART_HWCONTROL_NONE,
-    .Init.Mode       = UART_MODE_TX_RX,
-    .Init.OverSampling = UART_OVERSAMPLING_16
+  UartHandle = (UART_HandleTypeDef) {
+      .Instance        = UART_DEV,
+      .Init.BaudRate   = CFG_BOARD_UART_BAUDRATE,
+      .Init.WordLength = UART_WORDLENGTH_8B,
+      .Init.StopBits   = UART_STOPBITS_1,
+      .Init.Parity     = UART_PARITY_NONE,
+      .Init.HwFlowCtl  = UART_HWCONTROL_NONE,
+      .Init.Mode       = UART_MODE_TX_RX,
+      .Init.OverSampling = UART_OVERSAMPLING_16
   };
   HAL_UART_Init(&UartHandle);
 #endif
@@ -138,26 +135,23 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
+int board_uart_write(void const* buf, int len) {
 #ifdef UART_DEV
-  HAL_UART_Transmit(&UartHandle, (uint8_t*)(uintptr_t) buf, len, 0xffff);
+  HAL_UART_Transmit(&UartHandle, (uint8_t*) (uintptr_t) buf, len, 0xffff);
   return len;
 #else
   (void) buf; (void) len; (void) UartHandle;
@@ -165,28 +159,26 @@ int board_uart_write(void const * buf, int len)
 #endif
 }
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
   HAL_IncTick();
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
 
-void HardFault_Handler (void)
-{
+void HardFault_Handler(void) {
   asm("bkpt");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
-void _init(void)
-{
+void _init(void) {
 
 }

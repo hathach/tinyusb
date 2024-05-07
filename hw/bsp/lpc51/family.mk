@@ -1,17 +1,21 @@
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
-MCU_DIR = $(SDK_DIR)/devices/$(MCU)
 include $(TOP)/$(BOARD_PATH)/board.mk
+MCU_DIR = $(SDK_DIR)/devices/$(MCU)
 CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
   -flto \
+  -D__STARTUP_CLEAR_BSS \
   -DCFG_TUSB_MCU=OPT_MCU_LPC51UXX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
+
+LDFLAGS_GCC += \
+  -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs \
 
 # All source paths should be relative to the top level.
 LD_FILE = $(MCU_DIR)/gcc/$(MCU)_flash.ld
@@ -27,7 +31,8 @@ SRC_C += \
 	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c
 
 INC += \
-	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
+  $(TOP)/$(BOARD_PATH) \
+  $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(SDK_DIR)/drivers/common \

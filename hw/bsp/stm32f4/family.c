@@ -99,6 +99,7 @@ void board_init(void) {
   HAL_UART_Init(&UartHandle);
 #endif
 
+#if BOARD_TUD_RHPORT == 0
   /* Configure USB FS GPIOs */
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
@@ -124,6 +125,38 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  // Enable USB OTG clock
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+#else
+  /* Configure USB HS GPIOs */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /* Configure USB D+ D- Pins */
+  GPIO_InitStruct.Pin = GPIO_PIN_14 | GPIO_PIN_15;
+  GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF12_OTG_HS_FS;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* Configure VBUS Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* ID Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF12_OTG_HS_FS;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  // Enable USB OTG clock
+  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+#endif
+
 #ifdef STM32F412Zx
   /* Configure POWER_SWITCH IO pin */
   __HAL_RCC_GPIOG_CLK_ENABLE();
@@ -132,11 +165,6 @@ void board_init(void) {
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 #endif
-
-  // Enable USB OTG clock
-  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-
-//  __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
 
   board_vbus_sense_init();
 }

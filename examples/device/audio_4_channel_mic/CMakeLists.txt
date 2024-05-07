@@ -28,6 +28,11 @@ target_include_directories(${PROJECT} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
+# Add libm for GCC
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+  target_link_libraries(${PROJECT} PUBLIC m)
+endif()
+
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
 family_configure_device_example(${PROJECT} noos)
