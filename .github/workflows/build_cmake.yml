@@ -135,6 +135,8 @@ jobs:
   arm-clang:
     needs: set-matrix
     runs-on: ubuntu-latest
+    env:
+      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).toolchain_url }}
     strategy:
       fail-fast: false
       matrix:
@@ -151,7 +153,7 @@ jobs:
       - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
-          toolchain_url: ${{ env.arm-clang_url }}
+          toolchain_url: ${{ env.toolchain_url }}
 
       - name: Prepare to build
         uses: ./.github/actions/prepare_build

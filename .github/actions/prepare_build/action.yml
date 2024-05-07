@@ -20,5 +20,5 @@ runs:
       run: |
         sudo apt install -y ninja-build
         python3 tools/get_deps.py ${{ inputs.family }}
-        echo >> $GITHUB_ENV `PICO_SDK_PATH=${{ github.workspace }}/pico-sdk`
+        echo >> $GITHUB_ENV "PICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk"
       shell: bash
