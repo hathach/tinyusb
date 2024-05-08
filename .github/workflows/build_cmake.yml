@@ -126,15 +126,15 @@ jobs:
   # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
   # ---------------------------------------
   hil-test:
-    if: github.repository_owner == 'hathach' && false
+    if: github.repository_owner == 'hathach'
     runs-on: [ self-hosted, rp2040, nrf52840, hardware-in-the-loop ]
-    strategy:
-      fail-fast: false
-      matrix:
-        board:
-          - 'feather_nrf52840_express'
-          - 'itsybitsy_m4'
-          - 'raspberry_pi_pico'
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        board:
+#          - 'feather_nrf52840_express'
+#          - 'itsybitsy_m4'
+#          - 'raspberry_pi_pico'
     steps:
       - name: Clean workspace
         run: |
@@ -147,15 +147,15 @@ jobs:
 
       - name: Get dependencies
         run: |
-          python tools/get_deps.py rp2040 nrf samd5x_e5x
+          python tools/get_deps.py nrf rp2040 samd5x_e5x
 
       - name: Build
         run: |
-          cmake examples -B
+          python tools/build_cmake.py -b feather_nrf52840_express -b itsybitsy_m4 -b raspberry_pi_pico
 
       - name: Test on actual hardware
         run: |
-          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
+          python3 test/hil/hil_test.py -b feather_nrf52840_express -b itsybitsy_m4 -b raspberry_pi_pico hil_pi4.json
 
   hil-test-bck:
     if: github.repository_owner == 'hathach' && false
