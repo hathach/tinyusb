@@ -430,6 +430,138 @@ typedef struct
 #define ITF_MEM_RESET_SIZE   offsetof(audiod_function_t, ctrl_buf)
 
 //--------------------------------------------------------------------+
+// WEAK FUNCTION STUBS
+//--------------------------------------------------------------------+
+
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
+TU_ATTR_WEAK bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting) {
+  (void) rhport;
+  (void) func_id;
+  (void) ep_in;
+  (void) cur_alt_setting;
+  return true;
+}
+
+TU_ATTR_WEAK bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting) {
+  (void) rhport;
+  (void) n_bytes_copied;
+  (void) func_id;
+  (void) ep_in;
+  (void) cur_alt_setting;
+  return true;
+}
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+TU_ATTR_WEAK bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting) {
+  (void) rhport;
+  (void) n_bytes_received;
+  (void) func_id;
+  (void) ep_out;
+  (void) cur_alt_setting;
+  return true;
+}
+
+TU_ATTR_WEAK bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting) {
+  (void) rhport;
+  (void) n_bytes_received;
+  (void) func_id;
+  (void) ep_out;
+  (void) cur_alt_setting;
+  return true;
+}
+#endif
+
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+TU_ATTR_WEAK void tud_audio_fb_done_cb(uint8_t func_id) {
+  (void) func_id;
+}
+
+TU_ATTR_WEAK void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedback_params_t* feedback_param) {
+  (void) func_id;
+  (void) alt_itf;
+  feedback_param->method = AUDIO_FEEDBACK_METHOD_DISABLED;
+}
+#endif
+
+TU_ATTR_WEAK TU_ATTR_FAST_FUNC void tud_audio_feedback_interval_isr(uint8_t func_id, uint32_t frame_number, uint8_t interval_shift) {
+  (void) func_id;
+  (void) frame_number;
+  (void) interval_shift;
+}
+
+#if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+TU_ATTR_WEAK void tud_audio_int_done_cb(uint8_t rhport) {
+  (void) rhport;
+}
+#endif
+
+// Invoked when audio set interface request received
+TU_ATTR_WEAK bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request) {
+  (void) rhport;
+  (void) p_request;
+  return true;
+}
+
+// Invoked when audio set interface request received which closes an EP
+TU_ATTR_WEAK bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const * p_request) {
+  (void) rhport;
+  (void) p_request;
+  return true;
+}
+
+// Invoked when audio class specific set request received for an EP
+TU_ATTR_WEAK bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request, uint8_t *pBuff) {
+  (void) rhport;
+  (void) p_request;
+  (void) pBuff;
+  TU_LOG2("  No EP set request callback available!\r\n");
+  return false;   // In case no callback function is present or request can not be conducted we stall it
+}
+
+// Invoked when audio class specific set request received for an interface
+TU_ATTR_WEAK bool tud_audio_set_req_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request, uint8_t *pBuff) {
+  (void) rhport;
+  (void) p_request;
+  (void) pBuff;
+  TU_LOG2("  No interface set request callback available!\r\n");
+  return false;   // In case no callback function is present or request can not be conducted we stall it
+}
+
+// Invoked when audio class specific set request received for an entity
+TU_ATTR_WEAK bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * p_request, uint8_t *pBuff) {
+  (void) rhport;
+  (void) p_request;
+  (void) pBuff;
+  TU_LOG2("  No entity set request callback available!\r\n");
+  return false;   // In case no callback function is present or request can not be conducted we stall it
+}
+
+// Invoked when audio class specific get request received for an EP
+TU_ATTR_WEAK bool tud_audio_get_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request) {
+  (void) rhport;
+  (void) p_request;
+  TU_LOG2("  No EP get request callback available!\r\n");
+  return false;   // Stall
+}
+
+// Invoked when audio class specific get request received for an interface
+TU_ATTR_WEAK bool tud_audio_get_req_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request) {
+  (void) rhport;
+  (void) p_request;
+  TU_LOG2("  No interface get request callback available!\r\n");
+  return false;   // Stall
+}
+
+// Invoked when audio class specific get request received for an entity
+TU_ATTR_WEAK bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * p_request) {
+  (void) rhport;
+  (void) p_request;
+  TU_LOG2("  No entity get request callback available!\r\n");
+  return false;   // Stall
+}
+
+//--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 tu_static CFG_TUD_MEM_SECTION audiod_function_t _audiod_fct[CFG_TUD_AUDIO];
@@ -557,17 +689,11 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
   uint8_t const *dummy2;
   uint8_t idx_audio_fct = 0;
 
-  if (tud_audio_rx_done_pre_read_cb || tud_audio_rx_done_post_read_cb)
-  {
-    idx_audio_fct = audiod_get_audio_fct_idx(audio);
-    TU_VERIFY(audiod_get_AS_interface_index(audio->ep_out_as_intf_num, audio, &idxItf, &dummy2));
-  }
+  idx_audio_fct = audiod_get_audio_fct_idx(audio);
+  TU_VERIFY(audiod_get_AS_interface_index(audio->ep_out_as_intf_num, audio, &idxItf, &dummy2));
 
   // Call a weak callback here - a possibility for user to get informed an audio packet was received and data gets now loaded into EP FIFO (or decoded into support RX software FIFO)
-  if (tud_audio_rx_done_pre_read_cb)
-  {
-    TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
-  }
+  TU_VERIFY(tud_audio_rx_done_pre_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
 
 #if CFG_TUD_AUDIO_ENABLE_DECODING
 
@@ -628,10 +754,7 @@ static bool audiod_rx_done_cb(uint8_t rhport, audiod_function_t* audio, uint16_t
 #endif
 
   // Call a weak callback here - a possibility for user to get informed decoding was completed
-  if (tud_audio_rx_done_post_read_cb)
-  {
-    TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
-  }
+  TU_VERIFY(tud_audio_rx_done_post_read_cb(rhport, n_bytes_received, idx_audio_fct, audio->ep_out, audio->alt_setting[idxItf]));
 
   return true;
 }
@@ -865,7 +988,7 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_function_t * audio)
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and data gets now loaded into EP in buffer (in case FIFOs are used) or
   // if no FIFOs are used the user may use this call back to load its data into the EP IN buffer by use of tud_audio_n_write_ep_in_buffer().
-  if (tud_audio_tx_done_pre_load_cb) TU_VERIFY(tud_audio_tx_done_pre_load_cb(rhport, idx_audio_fct, audio->ep_in, audio->alt_setting[idxItf]));
+  TU_VERIFY(tud_audio_tx_done_pre_load_cb(rhport, idx_audio_fct, audio->ep_in, audio->alt_setting[idxItf]));
 
   // Send everything in ISO EP FIFO
   uint16_t n_bytes_tx;
@@ -928,7 +1051,7 @@ static bool audiod_tx_done_cb(uint8_t rhport, audiod_function_t * audio)
 #endif
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and how many bytes were loaded for the next frame
-  if (tud_audio_tx_done_post_load_cb) TU_VERIFY(tud_audio_tx_done_post_load_cb(rhport, n_bytes_tx, idx_audio_fct, audio->ep_in, audio->alt_setting[idxItf]));
+  TU_VERIFY(tud_audio_tx_done_post_load_cb(rhport, n_bytes_tx, idx_audio_fct, audio->ep_in, audio->alt_setting[idxItf]));
 
   return true;
 }
@@ -1723,7 +1846,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   #endif
 
     // Invoke callback - can be used to stop data sampling
-    if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
+    TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
 
     audio->ep_in = 0;                           // Necessary?
 
@@ -1754,7 +1877,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   #endif
 
     // Invoke callback - can be used to stop data sampling
-    if (tud_audio_set_itf_close_EP_cb) TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
+    TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
 
     audio->ep_out = 0;                          // Necessary?
 
@@ -1870,9 +1993,6 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           {
             audio->ep_fb = ep_addr;
             audio->feedback.frame_shift = desc_ep->bInterval -1;
-
-            // Enable SOF interrupt if callback is implemented
-            if (tud_audio_feedback_interval_isr) usbd_sof_enable(rhport, true);
           }
   #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1885,11 +2005,11 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
       TU_VERIFY(foundEPs == nEps);
 
       // Invoke one callback for a final set interface
-      if (tud_audio_set_itf_cb) TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
+      TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-      // Prepare feedback computation if callback is available
-      if (tud_audio_feedback_params_cb)
+      // Prepare feedback computation if endpoint is available
+      if(audio->ep_fb != 0)
       {
         audio_feedback_params_t fb_param;
 
@@ -1907,6 +2027,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
           case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
             audiod_set_fb_params_freq(audio, fb_param.sample_freq, fb_param.frequency.mclk_freq);
+            // Enable SOF interrupt
+            usbd_sof_enable(rhport, true);
           break;
 
           case AUDIO_FEEDBACK_METHOD_FIFO_COUNT:
@@ -1983,35 +2105,19 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
 
         if (entityID != 0)
         {
-          if (tud_audio_set_req_entity_cb)
-          {
-            // Check if entity is present and get corresponding driver index
-            TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &func_id));
+          // Check if entity is present and get corresponding driver index
+          TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &func_id));
 
-            // Invoke callback
-            return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
-          }
-          else
-          {
-            TU_LOG2("  No entity set request callback available!\r\n");
-            return false;     // In case no callback function is present or request can not be conducted we stall it
-          }
+          // Invoke callback
+          return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
         }
         else
         {
-          if (tud_audio_set_req_itf_cb)
-          {
-            // Find index of audio driver structure and verify interface really exists
-            TU_VERIFY(audiod_verify_itf_exists(itf, &func_id));
+          // Find index of audio driver structure and verify interface really exists
+          TU_VERIFY(audiod_verify_itf_exists(itf, &func_id));
 
-            // Invoke callback
-            return tud_audio_set_req_itf_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
-          }
-          else
-          {
-            TU_LOG2("  No interface set request callback available!\r\n");
-            return false;     // In case no callback function is present or request can not be conducted we stall it
-          }
+          // Invoke callback
+          return tud_audio_set_req_itf_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
         }
       }
       break;
@@ -2020,19 +2126,11 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
       {
         uint8_t ep = TU_U16_LOW(p_request->wIndex);
 
-        if (tud_audio_set_req_ep_cb)
-        {
-          // Check if entity is present and get corresponding driver index
-          TU_VERIFY(audiod_verify_ep_exists(ep, &func_id));
+        // Check if entity is present and get corresponding driver index
+        TU_VERIFY(audiod_verify_ep_exists(ep, &func_id));
 
-          // Invoke callback
-          return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
-        }
-        else
-        {
-          TU_LOG2("  No EP set request callback available!\r\n");
-          return false;   // In case no callback function is present or request can not be conducted we stall it
-        }
+        // Invoke callback
+        return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
       }
       break;
       // Unknown/Unsupported recipient
@@ -2089,15 +2187,7 @@ static bool audiod_control_request(uint8_t rhport, tusb_control_request_t const 
           // In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
           if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
           {
-            if (tud_audio_get_req_entity_cb)
-            {
-              return tud_audio_get_req_entity_cb(rhport, p_request);
-            }
-            else
-            {
-              TU_LOG2("  No entity get request callback available!\r\n");
-              return false;   // Stall
-            }
+            return tud_audio_get_req_entity_cb(rhport, p_request);
           }
         }
         else
@@ -2108,15 +2198,7 @@ static bool audiod_control_request(uint8_t rhport, tusb_control_request_t const 
           // In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
           if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
           {
-            if (tud_audio_get_req_itf_cb)
-            {
-              return tud_audio_get_req_itf_cb(rhport, p_request);
-            }
-            else
-            {
-              TU_LOG2("  No interface get request callback available!\r\n");
-              return false;   // Stall
-            }
+            return tud_audio_get_req_itf_cb(rhport, p_request);
           }
         }
       }
@@ -2132,15 +2214,7 @@ static bool audiod_control_request(uint8_t rhport, tusb_control_request_t const 
         // In case we got a get request invoke callback - callback needs to answer as defined in UAC2 specification page 89 - 5. Requests
         if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN)
         {
-          if (tud_audio_get_req_ep_cb)
-          {
-            return tud_audio_get_req_ep_cb(rhport, p_request);
-          }
-          else
-          {
-            TU_LOG2("  No EP get request callback available!\r\n");
-            return false;     // Stall
-          }
+          return tud_audio_get_req_ep_cb(rhport, p_request);
         }
       }
       break;
@@ -2195,7 +2269,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       // I assume here, that things above are handled by PHY
       // All transmission is done - what remains to do is to inform job was completed
 
-      if (tud_audio_int_done_cb) tud_audio_int_done_cb(rhport);
+      tud_audio_int_done_cb(rhport);
       return true;
     }
 
@@ -2236,7 +2310,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     // Transmission of feedback EP finished
     if (audio->ep_fb == ep_addr)
     {
-      if (tud_audio_fb_done_cb) tud_audio_fb_done_cb(func_id);
+      tud_audio_fb_done_cb(func_id);
 
       // Schedule a transmit with the new value if EP is not busy
       if (usbd_edpt_claim(rhport, audio->ep_fb))
@@ -2397,7 +2471,7 @@ TU_ATTR_FAST_FUNC void audiod_sof_isr (uint8_t rhport, uint32_t frame_count)
       uint32_t const interval = 1UL << (audio->feedback.frame_shift - hs_adjust);
       if ( 0 == (frame_count & (interval-1)) )
       {
-        if(tud_audio_feedback_interval_isr) tud_audio_feedback_interval_isr(i, frame_count, audio->feedback.frame_shift);
+        tud_audio_feedback_interval_isr(i, frame_count, audio->feedback.frame_shift);
       }
     }
   }
