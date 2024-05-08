@@ -415,17 +415,17 @@ endfunction()
 
 
 # Add flash openocd target
-function(family_flash_openocd TARGET CLI_OPTIONS)
+function(family_flash_openocd TARGET)
   if (NOT DEFINED OPENOCD)
     set(OPENOCD openocd)
   endif ()
 
-  separate_arguments(CLI_OPTIONS_LIST UNIX_COMMAND ${CLI_OPTIONS})
+  separate_arguments(OPENOCD_OPTION_LIST UNIX_COMMAND ${OPENOCD_OPTION})
 
   # note skip verify since it has issue with rp2040
   add_custom_target(${TARGET}-openocd
     DEPENDS ${TARGET}
-    COMMAND ${OPENOCD} ${CLI_OPTIONS_LIST} -c "program $<TARGET_FILE:${TARGET}> reset exit"
+    COMMAND ${OPENOCD} ${OPENOCD_OPTION_LIST} -c "program $<TARGET_FILE:${TARGET}> reset exit"
     VERBATIM
     )
 endfunction()

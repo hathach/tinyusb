@@ -1,9 +1,11 @@
 mcu:LPC11UXX
 mcu:LPC13XX
+mcu:LPC15XX
 mcu:MSP430x5xx
 mcu:NUC121
 mcu:SAMD11
 mcu:STM32L0
+mcu:STM32F0
 mcu:KINETIS_KL
 family:broadcom_64bit
 family:broadcom_32bit

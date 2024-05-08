@@ -26,9 +26,7 @@ function(add_board_target BOARD_TARGET)
     message(FATAL_ERROR "LD_FILE_${CMAKE_C_COMPILER_ID} not defined")
   endif ()
 
-  if (NOT DEFINED STARTUP_FILE_GNU)
-    set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_samd21.c)
-  endif ()
+  set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_samd21.c)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   add_library(${BOARD_TARGET} STATIC
@@ -50,7 +48,9 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/hri
     ${SDK_DIR}/CMSIS/Include
     )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC CONF_DFLL_OVERWRITE_CALIBRATION=0)
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    CONF_DFLL_OVERWRITE_CALIBRATION=0
+    )
 
   update_board(${BOARD_TARGET})
 
@@ -108,5 +108,5 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
-  #family_flash_openocd(${TARGET} ${OPENOCD_OPTION})
+  #family_flash_openocd(${TARGET})
 endfunction()

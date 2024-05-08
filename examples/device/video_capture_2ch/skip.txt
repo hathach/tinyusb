@@ -3,6 +3,7 @@ mcu:NUC121
 mcu:SAMD11
 mcu:GD32VF103
 mcu:CH32V307
+mcu:STM32L0
 family:espressif
 board:curiosity_nano
 board:kuiic

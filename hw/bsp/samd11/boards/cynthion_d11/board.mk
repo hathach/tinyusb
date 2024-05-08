@@ -6,7 +6,7 @@ CFLAGS += -D__SAMD11D14AM__ \
 	-D_BOARD_REVISION_MINOR_=$(BOARD_REVISION_MINOR)
 
 # All source paths should be relative to the top level.
-LD_FILE = $(BOARD_PATH)/samd11d14am_flash.ld
+LD_FILE = $(BOARD_PATH)/cynthion_d11.ld
 
 # Default bootloader size is now 2K, allow to specify other
 ifeq ($(BOOTLOADER_SIZE), )

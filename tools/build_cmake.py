@@ -36,7 +36,7 @@ def build_family(family, cmake_option):
 
         # Generate build
         r = subprocess.run(f"cmake examples -B {build_dir} -G \"Ninja\" -DFAMILY={family} -DBOARD"
-                           f"={board} {cmake_option}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                           f"={board} -DCMAKE_BUILD_TYPE=MinSizeRel {cmake_option}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         # Build
         if r.returncode == 0:
