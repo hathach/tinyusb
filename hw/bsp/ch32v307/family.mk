@@ -11,7 +11,7 @@ CH32V307_SDK = hw/mcu/wch/ch32v307
 CH32V307_SDK_SRC = $(CH32V307_SDK)/EVT/EXAM/SRC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
-CPU_CORE ?= riscv32
+CPU_CORE ?= rv32imac-ilp32
 
 CFLAGS += \
 	-flto \

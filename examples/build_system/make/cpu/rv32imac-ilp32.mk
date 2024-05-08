@@ -8,3 +8,6 @@ else ifeq ($(TOOLCHAIN),iar)
 	#ASFLAGS += --cpu cortex-a53
 
 endif
+
+# For freeRTOS port source
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
