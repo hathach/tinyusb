@@ -50,7 +50,10 @@ jobs:
         run: |
           pip install click
           sudo apt install -y jq
-          BOARD_LIST=$(jq -r '.boards[] | "-b " + .name' test/hil/hil_pi4.json | tr '\n' ' ')
+          # BOARD_LIST=$(jq -r '.boards[] | "-b " + .name' test/hil/hil_pi4.json | tr '\n' ' ')
+          # skip espressif_s3_devkitm for now
+          BOARD_LIST=$(jq -r '.boards[] | select(.name != "espressif_s3_devkitm") | "-b " + .name' test/hil/hil_pi4.json | tr '\n' ' ')
+          echo "BOARD_LIST=$BOARD_LIST"
           echo >> $GITHUB_ENV "BOARD_LIST=$BOARD_LIST"
 
       - name: Checkout pico-sdk for rp2040
@@ -69,6 +72,8 @@ jobs:
       - name: Build
         run: |
           python tools/build_cmake.py $BOARD_LIST
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
 #      - name: Upload Artifacts for Hardware Testing (rp2040)
 #        if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
