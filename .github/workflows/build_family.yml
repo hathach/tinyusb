@@ -3,6 +3,9 @@ name: Build family
 on:
   workflow_call:
     inputs:
+      toolchain:
+        required: true
+        type: string
       build-json:
         required: true
         type: string
@@ -26,12 +29,8 @@ jobs:
       - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
+          toolchain: ${{ inputs.toolchain }}
           toolchain_url: ${{ fromJSON(inputs.build-json).toolchain_url }}
-
-      - name: Prepare to build
-        uses: ./.github/actions/prepare_build
-        with:
-          family: ${{ matrix.family }}
 
       - name: Checkout pico-sdk for rp2040
         if: contains(matrix.family, 'rp2040')

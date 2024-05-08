@@ -68,22 +68,11 @@ jobs:
       matrix:
         toolchain:
           - 'aarch64-gcc'
+          - 'arm-gcc'
           - 'msp430-gcc'
     with:
+      toolchain: ${{ matrix.toolchain }}
       build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-
-  build-test:
-    needs: set-matrix
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain:
-          - 'aarch64-gcc'
-          - 'msp430-gcc'
-    steps:
-      - run: |
-          echo "1: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain] }}"
 
   # ---------------------------------------
   # Build ARM with GCC
@@ -157,6 +146,7 @@ jobs:
       - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
+          toolchain: 'arm-clang'
           toolchain_url: ${{ env.toolchain_url }}
 
       - name: Prepare to build
@@ -166,33 +156,6 @@ jobs:
 
       - name: Build
         run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang
-
-  # ---------------------------------------
-  # Build MSP430 with GCC
-  # ---------------------------------------
-#  msp430-gcc:
-#    runs-on: ubuntu-latest
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        family:
-#          - 'msp430'
-#    steps:
-#      - name: Checkout TinyUSB
-#        uses: actions/checkout@v4
-#
-#      - name: Setup Toolchain
-#        uses: ./.github/actions/setup_toolchain
-#        with:
-#          toolchain_url: ${{ env.msp43-gcc_url }}
-#
-#      - name: Prepare to build
-#        uses: ./.github/actions/prepare_build
-#        with:
-#          family: ${{ matrix.family }}
-#
-#      - name: Build
-#        run: python tools/build_cmake.py ${{ matrix.family }}
 
   # ---------------------------------------
   # Hardware in the loop (HIL)

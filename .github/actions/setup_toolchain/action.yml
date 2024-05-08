@@ -1,6 +1,9 @@
 name: Setup Toolchain
 
 inputs:
+  toolchain:
+    required: true
+    type: string
   toolchain_url:
     required: true
     type: string
@@ -8,7 +11,14 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Install ARM GCC
+      if: inputs.toolchain == 'arm-gcc'
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '12.3.Rel1'
+
     - name: Cache Toolchain
+      if: inputs.toolchain != 'arm-gcc'
       uses: actions/cache@v4
       id: cache-toolchain
       with:
@@ -16,7 +26,7 @@ runs:
         key: ${{ runner.os }}-${{ inputs.toolchain_url }}
 
     - name: Install Toolchain
-      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      if: inputs.toolchain != 'arm-gcc' && steps.cache-toolchain.outputs.cache-hit != 'true'
       run: |
         mkdir -p ~/cache/toolchain
         wget --progress=dot:mega ${{ inputs.toolchain_url }} -O toolchain.tar.gz
@@ -24,6 +34,7 @@ runs:
       shell: bash
 
     - name: Set Toolchain Path
+      if: inputs.toolchain != 'arm-gcc'
       run: |
         echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
       shell: bash
