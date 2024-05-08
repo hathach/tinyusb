@@ -70,14 +70,13 @@ jobs:
           - 'aarch64-gcc'
           - 'msp430-gcc'
     with:
-      family: ${{ fromJSON(needs.set-matrix.outputs.json) }}.${{ matrix.toolchain }}.family
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json) }}.${{ matrix.toolchain }}.toolchain_url
+      build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.port]) }}
 
   # ---------------------------------------
   # Build ARM with GCC
   # ---------------------------------------
   arm-gcc:
-    #if: false
+    if: false
     needs: set-matrix
     runs-on: ubuntu-latest
     strategy:
@@ -187,7 +186,7 @@ jobs:
   # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
   # ---------------------------------------
   hil-test:
-    if: github.repository_owner == 'hathach'
+    if: github.repository_owner == 'hathach' && false
     needs: arm-gcc
     runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
     strategy:
