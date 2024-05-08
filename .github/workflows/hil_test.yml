@@ -12,7 +12,6 @@ on:
       - 'tools/get_deps.py'
       - '.github/actions/**'
       - '.github/workflows/hil_test.yml'
-      - '.github/workflows/ci_set_matrix.py'
   pull_request:
     branches: [ master ]
     paths:
@@ -24,13 +23,13 @@ on:
       - 'tools/get_deps.py'
       - '.github/actions/**'
       - '.github/workflows/hil_test.yml'
-      - '.github/workflows/ci_set_matrix.py'
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   build:
+    if: github.repository_owner == 'hathach'
     runs-on: ubuntu-latest
     outputs:
       BOARD_LIST: ${{ steps.parse_hil_json.outputs.BOARD_LIST }}
@@ -79,29 +78,12 @@ jobs:
         env:
           PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 
-#      - name: Upload Artifacts for Hardware Testing (rp2040)
-#        if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: raspberry_pi_pico
-#          path: |
-#            cmake-build/cmake-build-raspberry_pi_pico/*/*/*.elf
-#
-#      - name: Upload Artifacts for Hardware Testing (nRF)
-#        if: contains(matrix.family, 'nrf') && github.repository_owner == 'hathach'
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: feather_nrf52840_express
-#          path: |
-#            cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
-#
-#      - name: Upload Artifacts for Hardware Testing (samd51)
-#        if: contains(matrix.family, 'samd5x_e5x') && github.repository_owner == 'hathach'
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: itsybitsy_m4
-#          path: |
-#            cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
+      - name: Upload Artifacts for Hardware Testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: hil_pi4
+          path: |
+            cmake-build/cmake-build-*/*/*/*.elf
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -135,12 +117,16 @@ jobs:
 
       - run: echo $BOARD_LIST
 
-#      - name: Download Artifacts
-#        uses: actions/download-artifact@v4
-#        with:
-#          name: ${{ matrix.board }}
-#          path: cmake-build/cmake-build-${{ matrix.board }}
-#
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: hil_pi4
+          path: hil_pi4
+          #path: cmake-build/cmake-build-${{ matrix.board }}
+
+      - run: |
+          tree hil_pi4
+
 #      - name: Test on actual hardware
 #        run: |
 #          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
