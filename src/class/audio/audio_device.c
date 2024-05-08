@@ -66,8 +66,10 @@
 //--------------------------------------------------------------------+
 
 // Use ring buffer if it's available, some MCUs need extra RAM requirements
+// For DWC2 enable ring buffer will disable DMA (if available)
 #ifndef TUD_AUDIO_PREFER_RING_BUFFER
-  #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
+  #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX || \
+      defined(TUP_USBIP_DWC2)
     #define TUD_AUDIO_PREFER_RING_BUFFER 0
   #else
     #define TUD_AUDIO_PREFER_RING_BUFFER 1
@@ -2347,11 +2349,11 @@ static bool audiod_set_fb_params_freq(audiod_function_t* audio, uint32_t sample_
   if ((mclk_freq % sample_freq) == 0 && tu_is_power_of_two(mclk_freq / sample_freq))
   {
     audio->feedback.compute_method     = AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2;
-    audio->feedback.compute.power_of_2 = 16 - audio->feedback.frame_shift - tu_log2(mclk_freq / sample_freq);
+    audio->feedback.compute.power_of_2 = 16 - (audio->feedback.frame_shift - 1) - tu_log2(mclk_freq / sample_freq);
   }
   else if ( audio->feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT)
   {
-    audio->feedback.compute.float_const = (float)sample_freq / mclk_freq * (1UL << (16 - audio->feedback.frame_shift));
+    audio->feedback.compute.float_const = (float)sample_freq / mclk_freq * (1UL << (16 - (audio->feedback.frame_shift - 1)));
   }
   else
   {
@@ -2411,7 +2413,7 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles)
 
     case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED:
     {
-      uint64_t fb64 = (((uint64_t) cycles) * audio->feedback.compute.fixed.sample_freq) << (16 - audio->feedback.frame_shift);
+      uint64_t fb64 = (((uint64_t) cycles) * audio->feedback.compute.fixed.sample_freq) << (16 - (audio->feedback.frame_shift - 1));
       feedback = (uint32_t) (fb64 / audio->feedback.compute.fixed.mclk_freq);
     }
     break;
