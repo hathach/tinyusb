@@ -243,7 +243,8 @@
 // Enable encoding/decodings - for these to work, support FIFOs need to be setup in appropriate numbers and size
 // The actual coding parameters of active AS alternate interface is parsed from the descriptors
 
-// The item size of the FIFO is always fixed to one i.e. bytes! Furthermore, the actively used FIFO depth is reconfigured such that the depth is a multiple of the current sample size in order to avoid samples to get split up in case of a wrap in the FIFO ring buffer (depth = (max_depth / sampe_sz) * sampe_sz)!
+// The item size of the FIFO is always fixed to one i.e. bytes! Furthermore, the actively used FIFO depth is reconfigured such that the depth is a multiple
+// of the current sample size in order to avoid samples to get split up in case of a wrap in the FIFO ring buffer (depth = (max_depth / sample_sz) * sample_sz)!
 // This is important to remind in case you use DMAs! If the sample sizes changes, the DMA MUST BE RECONFIGURED just like the FIFOs for a different depth!!!
 
 // For PCM encoding/decoding
@@ -447,7 +448,7 @@ static inline bool tud_audio_int_write                      (const audio_interru
 bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_request_t const * p_request, void* data, uint16_t len);
 
 //--------------------------------------------------------------------+
-// Application Callback API (weak is optional)
+// Application Callback API
 //--------------------------------------------------------------------+
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
@@ -464,42 +465,62 @@ bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_bytes_received, u
 void tud_audio_fb_done_cb(uint8_t func_id);
 
 
-// determined by the user itself and set by use of tud_audio_n_fb_set(). The feedback value may be determined e.g. from some fill status of some FIFO buffer. Advantage: No ISR interrupt is enabled, hence the CPU need not to handle an ISR every 1ms or 125us and thus less CPU load, disadvantage: typically a larger FIFO is needed to compensate for jitter (e.g. 8 frames), i.e. a larger delay is introduced.
+// Note about feedback calculation
+//
+// Option 1 - AUDIO_FEEDBACK_METHOD_FIFO_COUNT
+// Feedback value is calculated within the audio driver by regulating the FIFO level to half fill.
+// Advantage: No ISR interrupt is enabled, hence the CPU need not to handle an ISR every 1ms or 125us and thus less CPU load, well tested
+// (Windows, Linux, OSX) with a reliable result so far.
+// Disadvantage: A FIFO of minimal 4 frames is needed to compensate for jitter, an average delay of 2 frames is introduced.
+//
+// Option 2 - AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED / AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT
+// Feedback value is calculated within the audio driver by use of SOF interrupt. The driver needs information about the master clock f_m from
+// which the audio sample frequency f_s is derived, f_s itself, and the cycle count of f_m at time of the SOF interrupt (e.g. by use of a hardware counter).
+// See tud_audio_set_fb_params() and tud_audio_feedback_update()
+// Advantage: Reduced jitter in the feedback value computation, hence, the receive FIFO can be smaller and thus a smaller delay is possible.
+// Disadvantage: higher CPU load due to SOF ISR handling every frame i.e. 1ms or 125us. (The most critical point is the reading of the cycle counter value of f_m.
+// It is read from within the SOF ISR - see: audiod_sof() -, hence, the ISR must has a high priority such that no software dependent "random" delay i.e. jitter is introduced).
+// Long-term drift could occur since error is accumulated.
+//
+// Option 3 - manual
+// Determined by the user itself and set by use of tud_audio_n_fb_set(). The feedback value may be determined e.g. from some fill status of some FIFO buffer.
+// Advantage: No ISR interrupt is enabled, hence the CPU need not to handle an ISR every 1ms or 125us and thus less CPU load.
+// Disadvantage: typically a larger FIFO is needed to compensate for jitter (e.g. 6 frames), i.e. a larger delay is introduced.
 
-// Feedback value is calculated within the audio driver by use of SOF interrupt. The driver needs information about the master clock f_m from which the audio sample frequency f_s is derived, f_s itself, and the cycle count of f_m at time of the SOF interrupt (e.g. by use of a hardware counter) - see tud_audio_set_fb_params(). Advantage: Reduced jitter in the feedback value computation, hence, the receive FIFO can be smaller (e.g. 2 frames) and thus a smaller delay is possible, disadvantage: higher CPU load due to SOF ISR handling every frame i.e. 1ms or 125us. This option is a great starting point to try the SOF ISR option but depending on your hardware setup (performance of the CPU) it might not work. If so, figure out why and use the next option. (The most critical point is the reading of the cycle counter value of f_m. It is read from within the SOF ISR - see: audiod_sof() -, hence, the ISR must has a high priority such that no software dependent "random" delay i.e. jitter is introduced).
-
-// Feedback value is determined by the user by use of SOF interrupt. The user may use tud_audio_sof_isr() which is called every SOF (of course only invoked when an alternate interface other than zero was set). The number of frames used to determine the feedback value for the currently active alternate setting can be get by tud_audio_get_fb_n_frames(). The feedback value must be set by use of tud_audio_n_fb_set().
 
 // This function is used to provide data rate feedback from an asynchronous sink. Feedback value will be sent at FB endpoint interval till it's changed.
 //
 // The feedback format is specified to be 16.16 for HS and 10.14 for FS devices (see Universal Serial Bus Specification Revision 2.0 5.12.4.2). By default,
-// the choice of format is left to the caller and feedback argument is sent as-is. If CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION is set, then tinyusb
-// expects 16.16 format and handles the conversion to 10.14 on FS.
+// the choice of format is left to the caller and feedback argument is sent as-is. If CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION is set
+// then tinyusb expects 16.16 format and handles the conversion to 10.14 on FS.
 //
-// Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0 devices. On Linux and macOS it seems the
-// driver can work with either format. So a good compromise is to keep format correction disabled and stick to 16.16 format.
-
+// Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0 devices. On Linux and it seems the
+// driver can work with either format.
+//
 // Feedback value can be determined from within the SOF ISR of the audio driver. This should reduce jitter. If the feature is used, the user can not set the feedback value.
-
+//
 // Determine feedback value - The feedback method is described in 5.12.4.2 of the USB 2.0 spec
 // Boiled down, the feedback value Ff = n_samples / (micro)frame.
-// Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_m) frames need to be measured, where K = 10 for full speed and K = 13 for high speed, f_s is the sampling frequency e.g. 48 kHz and f_m is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
+// Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_m) frames need to be measured, where K = 10 for full speed and K = 13
+// for high speed, f_s is the sampling frequency e.g. 48 kHz and f_m is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
 // The update interval in the (4.10.2.1) Feedback Endpoint Descriptor must be less or equal to 2^(K - P), where P = min( ceil(log2(f_m / f_s)), K)
 // feedback = n_cycles / n_frames * f_s / f_m in 16.16 format, where n_cycles are the number of main clock cycles within fb_n_frames
-
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 
-// Update feedback value with passed cycles since last time this update function is called.
+// Update feedback value with passed MCLK cycles since last time this update function is called.
 // Typically called within tud_audio_sof_isr(). Required tud_audio_feedback_params_cb() is implemented
 // This function will also call tud_audio_feedback_set()
 // return feedback value in 16.16 for reference (0 for error)
+// Example :
+//   binterval=3 (4ms); FS = 48kHz; MCLK = 12.288MHz
+//   In 4 SOF MCLK counted 49152 cycles
 uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles);
 
 enum {
   AUDIO_FEEDBACK_METHOD_DISABLED,
   AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED,
   AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT,
-  AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2,
+  AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2, // For driver internal use only
   AUDIO_FEEDBACK_METHOD_FIFO_COUNT
 };
 
