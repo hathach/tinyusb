@@ -10,8 +10,9 @@ on:
       - 'hw/**'
       - 'test/hil/**'
       - 'tools/get_deps.py'
-      - '.github/workflows/build_cmake.yml'
       - '.github/actions/**'
+      - '.github/workflows/build_cmake.yml'
+      - '.github/workflows/ci_set_matrix.py'
   pull_request:
     branches: [ master ]
     paths:
@@ -21,9 +22,9 @@ on:
       - 'hw/**'
       - 'test/hil/**'
       - 'tools/get_deps.py'
-      - '.github/workflows/build_cmake.yml'
       - '.github/actions/**'
-
+      - '.github/workflows/build_cmake.yml'
+      - '.github/workflows/ci_set_matrix.py'
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -125,6 +126,38 @@ jobs:
   # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
   # ---------------------------------------
   hil-test:
+    if: github.repository_owner == 'hathach' && false
+    runs-on: [ self-hosted, rp2040, nrf52840, hardware-in-the-loop ]
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - 'feather_nrf52840_express'
+          - 'itsybitsy_m4'
+          - 'raspberry_pi_pico'
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get dependencies
+        run: |
+          python tools/get_deps.py rp2040 nrf samd5x_e5x
+
+      - name: Build
+        run: |
+          cmake examples -B
+
+      - name: Test on actual hardware
+        run: |
+          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
+
+  hil-test-bck:
     if: github.repository_owner == 'hathach' && false
     needs: arm-gcc
     runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
