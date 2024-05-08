@@ -70,7 +70,7 @@ jobs:
           - 'aarch64-gcc'
           - 'msp430-gcc'
     with:
-      build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.port]) }}
+      build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
 
   build-test:
     needs: set-matrix
@@ -81,13 +81,14 @@ jobs:
         toolchain:
           - 'aarch64-gcc'
           - 'msp430-gcc'
+    env:
+      build_json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
     steps:
       - run: |
-          echo "1: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.port] }}"
+          echo "1: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain] }}"
           echo "2: ${{ build_json }}"
           echo "3: ${{ fromJSON(build_json).family }}"
-        env:
-          build_json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.port]) }}
+
 
   # ---------------------------------------
   # Build ARM with GCC
