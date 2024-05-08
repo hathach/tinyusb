@@ -193,6 +193,7 @@
 #endif
 
 // Enable/disable conversion from 16.16 to 10.14 format on full-speed devices. See tud_audio_n_fb_set().
+// Can be override by tud_audio_feedback_format_correction_cb()
 #ifndef CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION     0                             // 0 or 1
 #endif
@@ -491,8 +492,8 @@ void tud_audio_fb_done_cb(uint8_t func_id);
 // This function is used to provide data rate feedback from an asynchronous sink. Feedback value will be sent at FB endpoint interval till it's changed.
 //
 // The feedback format is specified to be 16.16 for HS and 10.14 for FS devices (see Universal Serial Bus Specification Revision 2.0 5.12.4.2). By default,
-// the choice of format is left to the caller and feedback argument is sent as-is. If CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION is set
-// then tinyusb expects 16.16 format and handles the conversion to 10.14 on FS.
+// the choice of format is left to the caller and feedback argument is sent as-is. If CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION is set or tud_audio_feedback_format_correction_cb()
+// return true, then tinyusb expects 16.16 format and handles the conversion to 10.14 on FS.
 //
 // Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0 devices. On Linux and it seems the
 // driver can work with either format.
@@ -545,6 +546,9 @@ void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedba
 // interval_shift: number of bit shift i.e log2(interval) from Feedback endpoint descriptor
 TU_ATTR_FAST_FUNC void tud_audio_feedback_interval_isr(uint8_t func_id, uint32_t frame_number, uint8_t interval_shift);
 
+// (Full-Speed only) Callback to set feedback format correction is applied or not,
+// default to CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION if not implemented.
+bool tud_audio_feedback_format_correction_cb(uint8_t func_id);
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP

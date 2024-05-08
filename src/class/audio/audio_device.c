@@ -329,7 +329,7 @@ typedef struct
 
     uint8_t frame_shift;  // bInterval-1 in unit of frame (FS), micro-frame (HS)
     uint8_t compute_method;
-
+    bool format_correction;
     union {
       uint8_t power_of_2; // pre-computed power of 2 shift
       float float_const;  // pre-computed float constant
@@ -483,6 +483,11 @@ TU_ATTR_WEAK void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf,
   (void) func_id;
   (void) alt_itf;
   feedback_param->method = AUDIO_FEEDBACK_METHOD_DISABLED;
+}
+
+TU_ATTR_WEAK bool tud_audio_feedback_format_correction_cb(uint8_t func_id) {
+  (void) func_id;
+  return CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION;
 }
 #endif
 
@@ -1211,9 +1216,9 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 static inline bool audiod_fb_send(audiod_function_t *audio)
 {
+  bool apply_correction = TUSB_SPEED_FULL == tud_speed_get() && audio->feedback.format_correction;
   // Format the feedback value
-#if CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION
-  if ( TUSB_SPEED_FULL == tud_speed_get() )
+  if (apply_correction)
   {
     uint8_t * fb = (uint8_t *) &audio->feedback.send_buf;
 
@@ -1221,17 +1226,12 @@ static inline bool audiod_fb_send(audiod_function_t *audio)
     *(fb++) = (audio->feedback.value >> 2) & 0xFF;
     *(fb++) = (audio->feedback.value >> 10) & 0xFF;
     *(fb++) = (audio->feedback.value >> 18) & 0xFF;
-    // 4th byte is needed to work correctly with MS Windows
-    *fb = 0;
   } else
   {
-    value = audio->feedback.value;
+    audio->feedback.send_buf = audio->feedback.value;
   }
-#else
-  audio->feedback.send_buf = audio->feedback.value;
-#endif
 
-  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) &audio->feedback.send_buf, 4);
+  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) &audio->feedback.send_buf, apply_correction ? 3 : 4);
 }
 #endif
 
@@ -2017,6 +2017,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
         tud_audio_feedback_params_cb(func_id, alt, &fb_param);
         audio->feedback.compute_method = fb_param.method;
+
+        if(TUSB_SPEED_FULL == tud_speed_get())
+          audio->feedback.format_correction = tud_audio_feedback_format_correction_cb(func_id);
 
         // Minimal/Maximum value in 16.16 format for full speed (1ms per frame) or high speed (125 us per frame)
         uint32_t const frame_div  = (TUSB_SPEED_FULL == tud_speed_get()) ? 1000 : 8000;
