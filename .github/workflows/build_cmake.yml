@@ -36,10 +36,7 @@ jobs:
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
-      aarch64-gcc: ${{ steps.set-matrix-aarch64-gcc.outputs.matrix }}
-      arm-gcc: ${{ steps.set-matrix-arm-gcc.outputs.matrix }}
-      arm-clang: ${{ steps.set-matrix-arm-clang.outputs.matrix }}
-      msp430-gcc: ${{ steps.set-matrix-msp430-gcc.outputs.matrix }}
+      json: ${{ steps.set-matrix-json.outputs.matrix }}
     steps:
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -53,31 +50,10 @@ jobs:
         run: |
           pip install click
 
-      - name: Generate matrix for AARCH64 GCC
-        id: set-matrix-aarch64-gcc
+      - name: Generate matrix json
+        id: set-matrix-json
         run: |
-          MATRIX_JSON=$(python tools/ci.py --toolchain aarch64-gcc)
-          echo "matrix=$MATRIX_JSON"
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
-
-      - name: Generate matrix for ARM GCC
-        id: set-matrix-arm-gcc
-        run: |
-          MATRIX_JSON=$(python tools/ci.py --toolchain arm-gcc)
-          echo "matrix=$MATRIX_JSON"
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
-
-      - name: Generate matrix for ARM Clang
-        id: set-matrix-arm-clang
-        run: |
-          MATRIX_JSON=$(python tools/ci.py --toolchain arm-clang)
-          echo "matrix=$MATRIX_JSON"
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
-
-      - name: Generate matrix for MSP430 GCC
-        id: set-matrix-msp430-gcc
-        run: |
-          MATRIX_JSON=$(python tools/ci.py --toolchain msp430-gcc)
+          MATRIX_JSON=$(python tools/ci_set_matrix.py)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -94,20 +70,20 @@ jobs:
           - 'aarch64-gcc'
           - 'msp430-gcc'
     with:
-      family: ${{ fromJSON(needs.set-matrix.outputs[matrix.toolchain]).family }}
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs[matrix.toolchain]).toolchain_url }}
+      family: ${{ fromJSON(needs.set-matrix.outputs.json).${{ matrix.toolchain }}.family }}
+      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.${{ matrix.toolchain }}.toolchain_url }}
 
   # ---------------------------------------
   # Build ARM with GCC
   # ---------------------------------------
   arm-gcc:
-    if: false
+    #if: false
     needs: set-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        family: ${{ fromJSON(needs.set-matrix.outputs.arm-gcc).family }}
+        family: ${{ fromJSON(needs.set-matrix.outputs.json).arm-gcc.family }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -157,11 +133,11 @@ jobs:
     needs: set-matrix
     runs-on: ubuntu-latest
     env:
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).toolchain_url }}
+      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json).arm-clang.toolchain_url }}
     strategy:
       fail-fast: false
       matrix:
-         family: ${{ fromJSON(needs.set-matrix.outputs.arm-clang).family }}
+         family: ${{ fromJSON(needs.set-matrix.outputs.json).arm-clang.family }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4

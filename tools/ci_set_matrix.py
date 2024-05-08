@@ -1,7 +1,7 @@
 import click
 import json
 
-# toolchain
+# toolchain, url
 toolchain_list = {
     "aarch64-gcc": "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz",
     "arm-gcc": "",
@@ -9,7 +9,7 @@ toolchain_list = {
     "msp430-gcc": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
 }
 
-# family: toolchain
+# family: [supported toolchain]
 family_list = {
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
@@ -57,12 +57,14 @@ family_list = {
 }
 
 
-@click.command()
-@click.option('--toolchain', default='arm-gcc', help='Toolchain to filter by.')
-def get_family_matrix(toolchain):
-    filtered_families = [family for family, toolchains in family_list.items() if toolchain in toolchains]
-    print(json.dumps({"family": filtered_families, "toolchain": toolchain, "toolchain_url": toolchain_list[toolchain]}))
+def set_matrix_json():
+    matrix = {}
+    for toolchain in toolchain_list.keys():
+        filtered_families = [family for family, supported_toolchain in family_list.items() if
+                             toolchain in supported_toolchain]
+        matrix[toolchain] = {"family": filtered_families, "toolchain_url": toolchain_list[toolchain]}
+    print(json.dumps(matrix))
 
 
 if __name__ == '__main__':
-    get_family_matrix()
+    set_matrix_json()
