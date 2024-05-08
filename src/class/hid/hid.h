@@ -697,32 +697,33 @@ enum {
 
 /// HID Usage Table - Table 1: Usage Page Summary
 enum {
-  HID_USAGE_PAGE_DESKTOP         = 0x01,
-  HID_USAGE_PAGE_SIMULATE        = 0x02,
-  HID_USAGE_PAGE_VIRTUAL_REALITY = 0x03,
-  HID_USAGE_PAGE_SPORT           = 0x04,
-  HID_USAGE_PAGE_GAME            = 0x05,
-  HID_USAGE_PAGE_GENERIC_DEVICE  = 0x06,
-  HID_USAGE_PAGE_KEYBOARD        = 0x07,
-  HID_USAGE_PAGE_LED             = 0x08,
-  HID_USAGE_PAGE_BUTTON          = 0x09,
-  HID_USAGE_PAGE_ORDINAL         = 0x0a,
-  HID_USAGE_PAGE_TELEPHONY       = 0x0b,
-  HID_USAGE_PAGE_CONSUMER        = 0x0c,
-  HID_USAGE_PAGE_DIGITIZER       = 0x0d,
-  HID_USAGE_PAGE_PID             = 0x0f,
-  HID_USAGE_PAGE_UNICODE         = 0x10,
-  HID_USAGE_PAGE_ALPHA_DISPLAY   = 0x14,
-  HID_USAGE_PAGE_MEDICAL         = 0x40,
-  HID_USAGE_PAGE_MONITOR         = 0x80, //0x80 - 0x83
-  HID_USAGE_PAGE_POWER           = 0x84, // 0x084 - 0x87
-  HID_USAGE_PAGE_BARCODE_SCANNER = 0x8c,
-  HID_USAGE_PAGE_SCALE           = 0x8d,
-  HID_USAGE_PAGE_MSR             = 0x8e,
-  HID_USAGE_PAGE_CAMERA          = 0x90,
-  HID_USAGE_PAGE_ARCADE          = 0x91,
-  HID_USAGE_PAGE_FIDO            = 0xF1D0, // FIDO alliance HID usage page
-  HID_USAGE_PAGE_VENDOR          = 0xFF00 // 0xFF00 - 0xFFFF
+  HID_USAGE_PAGE_DESKTOP                   = 0x01,
+  HID_USAGE_PAGE_SIMULATE                  = 0x02,
+  HID_USAGE_PAGE_VIRTUAL_REALITY           = 0x03,
+  HID_USAGE_PAGE_SPORT                     = 0x04,
+  HID_USAGE_PAGE_GAME                      = 0x05,
+  HID_USAGE_PAGE_GENERIC_DEVICE            = 0x06,
+  HID_USAGE_PAGE_KEYBOARD                  = 0x07,
+  HID_USAGE_PAGE_LED                       = 0x08,
+  HID_USAGE_PAGE_BUTTON                    = 0x09,
+  HID_USAGE_PAGE_ORDINAL                   = 0x0a,
+  HID_USAGE_PAGE_TELEPHONY                 = 0x0b,
+  HID_USAGE_PAGE_CONSUMER                  = 0x0c,
+  HID_USAGE_PAGE_DIGITIZER                 = 0x0d,
+  HID_USAGE_PAGE_PID                       = 0x0f,
+  HID_USAGE_PAGE_UNICODE                   = 0x10,
+  HID_USAGE_PAGE_ALPHA_DISPLAY             = 0x14,
+  HID_USAGE_PAGE_MEDICAL                   = 0x40,
+  HID_USAGE_PAGE_LIGHTING_AND_ILLUMINATION = 0x59,
+  HID_USAGE_PAGE_MONITOR                   = 0x80, //0x80 - 0x83
+  HID_USAGE_PAGE_POWER                     = 0x84, // 0x084 - 0x87
+  HID_USAGE_PAGE_BARCODE_SCANNER           = 0x8c,
+  HID_USAGE_PAGE_SCALE                     = 0x8d,
+  HID_USAGE_PAGE_MSR                       = 0x8e,
+  HID_USAGE_PAGE_CAMERA                    = 0x90,
+  HID_USAGE_PAGE_ARCADE                    = 0x91,
+  HID_USAGE_PAGE_FIDO                      = 0xF1D0, // FIDO alliance HID usage page
+  HID_USAGE_PAGE_VENDOR                    = 0xFF00 // 0xFF00 - 0xFFFF
 };
 
 /// HID Usage Table - Table 6: Generic Desktop Page
@@ -801,8 +802,7 @@ enum {
 
 /// HID Usage Table: Consumer Page (0x0C)
 /// Only contains controls that supported by Windows (whole list is too long)
-enum
-{
+enum {
   // Generic Control
   HID_USAGE_CONSUMER_CONTROL                           = 0x0001,
 
@@ -858,9 +858,45 @@ enum
   HID_USAGE_CONSUMER_AC_PAN                            = 0x0238,
 };
 
+/// HID Usage Table - Lighting And Illumination Page (0x59)
+enum {
+  HID_USAGE_LIGHTING_LAMP_ARRAY                          = 0x01,
+  HID_USAGE_LIGHTING_LAMP_ARRAY_ATTRIBUTES_REPORT        = 0x02,
+  HID_USAGE_LIGHTING_LAMP_COUNT                          = 0x03,
+  HID_USAGE_LIGHTING_BOUNDING_BOX_WIDTH_IN_MICROMETERS   = 0x04,
+  HID_USAGE_LIGHTING_BOUNDING_BOX_HEIGHT_IN_MICROMETERS  = 0x05,
+  HID_USAGE_LIGHTING_BOUNDING_BOX_DEPTH_IN_MICROMETERS   = 0x06,
+  HID_USAGE_LIGHTING_LAMP_ARRAY_KIND                     = 0x07,
+  HID_USAGE_LIGHTING_MIN_UPDATE_INTERVAL_IN_MICROSECONDS = 0x08,
+  HID_USAGE_LIGHTING_LAMP_ATTRIBUTES_REQUEST_REPORT      = 0x20,
+  HID_USAGE_LIGHTING_LAMP_ID                             = 0x21,
+  HID_USAGE_LIGHTING_LAMP_ATTRIBUTES_RESPONSE_REPORT     = 0x22,
+  HID_USAGE_LIGHTING_POSITION_X_IN_MICROMETERS           = 0x23,
+  HID_USAGE_LIGHTING_POSITION_Y_IN_MICROMETERS           = 0x24,
+  HID_USAGE_LIGHTING_POSITION_Z_IN_MICROMETERS           = 0x25,
+  HID_USAGE_LIGHTING_LAMP_PURPOSES                       = 0x26,
+  HID_USAGE_LIGHTING_UPDATE_LATENCY_IN_MICROSECONDS      = 0x27,
+  HID_USAGE_LIGHTING_RED_LEVEL_COUNT                     = 0x28,
+  HID_USAGE_LIGHTING_GREEN_LEVEL_COUNT                   = 0x29,
+  HID_USAGE_LIGHTING_BLUE_LEVEL_COUNT                    = 0x2A,
+  HID_USAGE_LIGHTING_INTENSITY_LEVEL_COUNT               = 0x2B,
+  HID_USAGE_LIGHTING_IS_PROGRAMMABLE                     = 0x2C,
+  HID_USAGE_LIGHTING_INPUT_BINDING                       = 0x2D,
+  HID_USAGE_LIGHTING_LAMP_MULTI_UPDATE_REPORT            = 0x50,
+  HID_USAGE_LIGHTING_RED_UPDATE_CHANNEL                  = 0x51,
+  HID_USAGE_LIGHTING_GREEN_UPDATE_CHANNEL                = 0x52,
+  HID_USAGE_LIGHTING_BLUE_UPDATE_CHANNEL                 = 0x53,
+  HID_USAGE_LIGHTING_INTENSITY_UPDATE_CHANNEL            = 0x54,
+  HID_USAGE_LIGHTING_LAMP_UPDATE_FLAGS                   = 0x55,
+  HID_USAGE_LIGHTING_LAMP_RANGE_UPDATE_REPORT            = 0x60,
+  HID_USAGE_LIGHTING_LAMP_ID_START                       = 0x61,
+  HID_USAGE_LIGHTING_LAMP_ID_END                         = 0x62,
+  HID_USAGE_LIGHTING_LAMP_ARRAY_CONTROL_REPORT           = 0x70,
+  HID_USAGE_LIGHTING_AUTONOMOUS_MODE                     = 0x71,
+};
+
 /// HID Usage Table: FIDO Alliance Page (0xF1D0)
-enum
-{
+enum {
   HID_USAGE_FIDO_U2FHID   = 0x01, // U2FHID usage for top-level collection
   HID_USAGE_FIDO_DATA_IN  = 0x20, // Raw IN data report
   HID_USAGE_FIDO_DATA_OUT = 0x21  // Raw OUT data report
