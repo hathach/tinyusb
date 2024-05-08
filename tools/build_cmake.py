@@ -75,7 +75,7 @@ def build_family(family, toolchain):
 @click.option('-b', '--board', multiple=True, default=None, help='Boards to build')
 @click.option('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
 def main(family, board, toolchain):
-    if family is None and board is None:
+    if len(family) == 0 and len(board) == 0:
         print("Please specify family or board to build")
         return
 

@@ -1,3 +1,4 @@
+import click
 import sys
 import subprocess
 from pathlib import Path
@@ -227,27 +228,46 @@ def get_a_dep(d):
     return 0
 
 
-# Arguments can be
-# - family name
-# - specific deps path
-# - all
-if __name__ == "__main__":
+def find_family(board):
+    bsp_dir = Path(TOP / "hw/bsp")
+    for family_dir in bsp_dir.iterdir():
+        if family_dir.is_dir():
+            board_dir = family_dir / 'boards' / board
+            if board_dir.exists():
+                return family_dir.name
+    return None
+
+
+@click.command()
+@click.argument('family', nargs=-1, required=False)
+@click.option('-b', '--board', multiple=True, default=None, help='Boards to fetch')
+def main(family, board):
+    if len(family) == 0 and len(board) == 0:
+        print("Please specify family or board to fetch")
+        return
+
     status = 0
     deps = list(deps_mandatory.keys())
-    # get all if  'all' is argument
-    if len(sys.argv) == 2 and sys.argv[1] == 'all':
+
+    if 'all' in family:
         deps += deps_optional.keys()
     else:
-        for arg in sys.argv[1:]:
-            if arg in deps_all.keys():
-                # if arg is a dep, add it
-                deps.append(arg)
-            else:
-                # arg is a family name, add all deps of that family
-                for d in deps_optional:
-                    if arg in deps_optional[d][2]:
-                        deps.append(d)
+        family = list(family)
+        if board is not None:
+            for b in board:
+                f = find_family(b)
+                if f is not None:
+                    family.append(f)
+
+        for f in family:
+            for d in deps_optional:
+                if f in deps_optional[d][2]:
+                    deps.append(d)
 
     with Pool() as pool:
         status = sum(pool.map(get_a_dep, deps))
-    sys.exit(status)
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())
