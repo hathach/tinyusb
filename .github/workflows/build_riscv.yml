@@ -32,7 +32,6 @@ jobs:
       matrix:
         family:
         # Alphabetical order
-        - 'fomu'
         - 'gd32vf103'
     steps:
     - name: Setup Python

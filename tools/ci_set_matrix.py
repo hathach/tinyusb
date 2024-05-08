@@ -14,7 +14,7 @@ family_list = {
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
     "ch32v307": ["riscv-gcc"],
-    # "fomu": ["riscv-gcc"],
+    "fomu": ["riscv-gcc"],
     # "gd32vf103": ["riscv-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k": ["arm-gcc", "arm-clang"],
