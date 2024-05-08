@@ -32,6 +32,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      BOARD_LIST: ${{ steps.parse_hil_json.outputs.BOARD_LIST }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -47,6 +49,7 @@ jobs:
           release: '12.3.Rel1'
 
       - name: Parse HIL json
+        id: parse_hil_json
         run: |
           pip install click
           sudo apt install -y jq
@@ -55,6 +58,7 @@ jobs:
           BOARD_LIST=$(jq -r '.boards[] | select(.name != "espressif_s3_devkitm") | "-b " + .name' test/hil/hil_pi4.json | tr '\n' ' ')
           echo "BOARD_LIST=$BOARD_LIST"
           echo >> $GITHUB_ENV "BOARD_LIST=$BOARD_LIST"
+          echo >> $GITHUB_OUTPUT "BOARD_LIST=$BOARD_LIST"
 
       - name: Checkout pico-sdk for rp2040
         #if: contains($BOARD_LIST, 'rp2040')
@@ -104,16 +108,11 @@ jobs:
   # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
   # ---------------------------------------
   hil-test:
-    if: github.repository_owner == 'hathach' && false
+    if: github.repository_owner == 'hathach'
     needs: build
     runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
-    strategy:
-      fail-fast: false
-      matrix:
-        board:
-          - 'feather_nrf52840_express'
-          - 'itsybitsy_m4'
-          - 'raspberry_pi_pico'
+    env:
+        BOARD_LIST: ${{ needs.build.outputs.BOARD_LIST }}
     steps:
       - name: Clean workspace
         run: |
@@ -134,12 +133,14 @@ jobs:
         with:
           sparse-checkout: test/hil
 
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.board }}
-          path: cmake-build/cmake-build-${{ matrix.board }}
+      - run: echo $BOARD_LIST
 
-      - name: Test on actual hardware
-        run: |
-          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
+#      - name: Download Artifacts
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: ${{ matrix.board }}
+#          path: cmake-build/cmake-build-${{ matrix.board }}
+#
+#      - name: Test on actual hardware
+#        run: |
+#          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
