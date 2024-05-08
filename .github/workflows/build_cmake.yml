@@ -70,8 +70,9 @@ jobs:
           - 'aarch64-gcc'
           - 'msp430-gcc'
     with:
-      family: ${{ fromJSON(needs.set-matrix.outputs.json).${{ matrix.toolchain }}.family }}
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.${{ matrix.toolchain }}.toolchain_url }}
+      matrix-json: ${{ fromJSON(needs.set-matrix.outputs.json) }}
+      family: matrix-json.${{ matrix.toolchain }}.family
+      toolchain_url: matrix-json.${{ matrix.toolchain }}.toolchain_url
 
   # ---------------------------------------
   # Build ARM with GCC
