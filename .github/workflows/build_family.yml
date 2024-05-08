@@ -47,4 +47,9 @@ jobs:
           echo >> $GITHUB_ENV "PICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk"
 
       - name: Build
-        run: python tools/build_cmake.py ${{ matrix.family }}
+        run: |
+          OPTION=""
+          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
+            OPTION="-DTOOLCHAIN=clang"
+          fi
+          python tools/build_cmake.py ${{ matrix.family }} $OPTION

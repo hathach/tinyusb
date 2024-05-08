@@ -28,10 +28,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-env:
-  arm-clang_url: "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz"
-  msp43-gcc_url: "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2"
-
 jobs:
   set-matrix:
     runs-on: ubuntu-latest
@@ -49,7 +45,7 @@ jobs:
       - name: Generate matrix json
         id: set-matrix-json
         run: |
-          MATRIX_JSON=$(python tools/ci_set_matrix.py)
+          MATRIX_JSON=$(python ./github/workflows/ci_set_matrix.py)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -64,7 +60,7 @@ jobs:
       matrix:
         toolchain:
           - 'aarch64-gcc'
-          #- 'arm-clang'
+          - 'arm-clang'
           #- 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
@@ -123,37 +119,6 @@ jobs:
           name: itsybitsy_m4
           path: |
             cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
-
-  # ---------------------------------------
-  # Build ARM with Clang
-  # ---------------------------------------
-  arm-clang:
-    if: false
-    needs: set-matrix
-    runs-on: ubuntu-latest
-    env:
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json).arm-clang.toolchain_url }}
-    strategy:
-      fail-fast: false
-      matrix:
-         family: ${{ fromJSON(needs.set-matrix.outputs.json).arm-clang.family }}
-    steps:
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
-
-      - name: Setup Toolchain
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain: 'arm-clang'
-          toolchain_url: ${{ env.toolchain_url }}
-
-      - name: Prepare to build
-        uses: ./.github/actions/prepare_build
-        with:
-          family: ${{ matrix.family }}
-
-      - name: Build
-        run: python tools/build_cmake.py ${{ matrix.family }} -DTOOLCHAIN=clang
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
