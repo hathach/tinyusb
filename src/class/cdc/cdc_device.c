@@ -295,7 +295,9 @@ void cdcd_reset(uint8_t rhport)
 
     tu_memclr(p_cdc, ITF_MEM_RESET_SIZE);
     tu_fifo_clear(&p_cdc->rx_ff);
+    #if !CFG_TUD_CDC_PERSISTENT_TX_BUFF
     tu_fifo_clear(&p_cdc->tx_ff);
+    #endif
     tu_fifo_set_overwritable(&p_cdc->tx_ff, true);
   }
 }
