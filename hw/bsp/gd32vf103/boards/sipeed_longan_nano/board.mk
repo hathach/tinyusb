@@ -10,4 +10,3 @@ INC += $(TOP)/$(LONGAN_NANO_SDK_BSP)/Include
 
 # Longan Nano 128k ROM 32k RAM
 JLINK_DEVICE = gd32vf103cbt6
-#JLINK_DEVICE = gd32vf103c8t6 # Longan Nano Lite 64k ROM 20k RAM

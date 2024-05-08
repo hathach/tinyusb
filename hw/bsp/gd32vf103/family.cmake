@@ -1,6 +1,7 @@
 include_guard()
 
-set(SDK_DIR ${TOP}/hw/mcu/wch/ch32v307/EVT/EXAM/SRC)
+set(SDK_DIR ${TOP}/hw/mcu/gd/nuclei-sdk)
+set(SOC_DIR ${SDK_DIR}/SoC/gd32vf103)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -9,9 +10,9 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_PROCESSOR rv32imac-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS CH32V307 CACHE INTERNAL "")
-set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
-set(OPENOCD_OPTION2 "-c wlink_reset_resume")
+set(FAMILY_MCUS GD32VF103 CACHE INTERNAL "")
+
+set(JLINK_IF jtag)
 
 #------------------------------------
 # BOARD_TARGET
@@ -23,46 +24,46 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ch32v307.ld)
+    message(FATAL_ERROR "LD_FILE_GNU is not defined")
   endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
   if (NOT DEFINED STARTUP_FILE_GNU)
-    set(STARTUP_FILE_GNU ${SDK_DIR}/Startup/startup_ch32v30x_D8C.S)
+    set(STARTUP_FILE_GNU
+      ${SOC_DIR}/Common/Source/GCC/startup_gd32vf103.S
+      ${SOC_DIR}/Common/Source/GCC/intexc_gd32vf103.S
+      )
   endif ()
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   add_library(${BOARD_TARGET} STATIC
-    ${SDK_DIR}/Core/core_riscv.c
-    ${SDK_DIR}/Peripheral/src/ch32v30x_gpio.c
-    ${SDK_DIR}/Peripheral/src/ch32v30x_misc.c
-    ${SDK_DIR}/Peripheral/src/ch32v30x_rcc.c
-    ${SDK_DIR}/Peripheral/src/ch32v30x_usart.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ch32v30x_it.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_ch32v30x.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_gd32vf103.c
+    ${SOC_DIR}/Common/Source/Drivers/gd32vf103_rcu.c
+    ${SOC_DIR}/Common/Source/Drivers/gd32vf103_gpio.c
+    ${SOC_DIR}/Common/Source/Drivers/Usb/gd32vf103_usb_hw.c
+    ${SOC_DIR}/Common/Source/Drivers/gd32vf103_usart.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${SDK_DIR}/Peripheral/inc
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    ${SDK_DIR}/NMSIS/Core/Include
+    ${SOC_DIR}/Common/Include
+    ${SOC_DIR}/Common/Include/Usb
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+    DOWNLOAD_MODE=DOWNLOAD_MODE_FLASHXIP
     )
 
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(${BOARD_TARGET} PUBLIC
-      -msmall-data-limit=8
-      -mno-save-restore
-      -fmessage-length=0
-      -fsigned-char
+      -mcmodel=medlow
+      -mstrict-align
       )
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
-      --specs=nosys.specs --specs=nano.specs
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     message(FATAL_ERROR "Clang is not supported for MSP432E4")
@@ -88,8 +89,13 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET} PUBLIC
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/debug_uart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${SOC_DIR}/Common/Source/Stubs/sbrk.c
+    ${SOC_DIR}/Common/Source/Stubs/close.c
+    ${SOC_DIR}/Common/Source/Stubs/isatty.c
+    ${SOC_DIR}/Common/Source/Stubs/fstat.c
+    ${SOC_DIR}/Common/Source/Stubs/lseek.c
+    ${SOC_DIR}/Common/Source/Stubs/read.c
     )
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
@@ -99,9 +105,9 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_CH32V307 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_GD32VF103 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
-    ${TOP}/src/portable/wch/dcd_ch32_usbhs.c
+    ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
@@ -109,6 +115,5 @@ function(family_configure_example TARGET RTOS)
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
-  family_add_bin_hex(${TARGET})
-  family_flash_openocd_wch(${TARGET})
+  family_flash_jlink(${TARGET})
 endfunction()

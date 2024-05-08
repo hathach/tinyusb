@@ -385,6 +385,10 @@ function(family_flash_jlink TARGET)
     set(JLINKEXE JLinkExe)
   endif ()
 
+  if (NOT DEFINED JLINK_IF)
+    set(JLINK_IF swd)
+  endif ()
+
   file(GENERATE
     OUTPUT $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     CONTENT "halt
@@ -396,7 +400,7 @@ exit"
 
   add_custom_target(${TARGET}-jlink
     DEPENDS ${TARGET}
-    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     )
 endfunction()
 
@@ -433,6 +437,15 @@ function(family_flash_openocd TARGET)
     COMMAND ${OPENOCD} ${OPTION_LIST} -c "program $<TARGET_FILE:${TARGET}> reset" ${OPTION_LIST2} -c exit
     VERBATIM
     )
+endfunction()
+
+# Add flash openocd-wch target
+function(family_flash_openocd_wch TARGET)
+  if (NOT DEFINED OPENOCD)
+    set(OPENOCD $ENV{HOME}/app/riscv-openocd-wch/src/openocd)
+  endif ()
+
+  family_flash_openocd(${TARGET})
 endfunction()
 
 # Add flash pycod target
