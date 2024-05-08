@@ -46,10 +46,6 @@ jobs:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          pip install click
-
       - name: Generate matrix json
         id: set-matrix-json
         run: |
@@ -68,8 +64,10 @@ jobs:
       matrix:
         toolchain:
           - 'aarch64-gcc'
-          - 'arm-gcc'
+          #- 'arm-clang'
+          #- 'arm-gcc'
           - 'msp430-gcc'
+          - 'riscv-gcc'
     with:
       toolchain: ${{ matrix.toolchain }}
       build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
