@@ -52,6 +52,6 @@ jobs:
           if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
             OPTION="--toolchain clang"
           fi
-          python tools/build_cmake.py -f ${{ matrix.family }} $OPTION
+          python tools/build_cmake.py $OPTION ${{ matrix.family }}
         env:
           PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk

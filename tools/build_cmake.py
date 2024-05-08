@@ -71,7 +71,7 @@ def build_family(family, toolchain):
 
 
 @click.command()
-@click.option('-f', '--family', multiple=True, default=None, help='Families to build')
+@click.argument('family', nargs=-1, required=False)
 @click.option('-b', '--board', multiple=True, default=None, help='Boards to build')
 @click.option('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
 def main(family, board, toolchain):
