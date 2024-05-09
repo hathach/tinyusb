@@ -1,0 +1,14 @@
+{
+    "boards": [
+        {
+            "name": "espressif_s3_devkitm",
+            "uid": "84F703C084E4",
+            "tests": [
+                "cdc_msc_freertos", "hid_composite_freertos"
+            ],
+            "flasher": "esptool",
+            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
+            "flasher_args": "-b 1500000"
+        }
+    ]
+}
