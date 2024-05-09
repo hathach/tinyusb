@@ -629,7 +629,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case DCD_EVENT_SOF:
-        if ( _usbd_dev.sof_cb_en) {
+        if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
           TU_LOG_USBD("\r\n");
           tud_sof_cb(event.sof.frame_count);
         }
@@ -1127,6 +1127,14 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       break;
 
     case DCD_EVENT_SOF:
+      // SOF driver handler in ISR context
+      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+        usbd_class_driver_t const* driver = get_driver(i);
+        if (driver && driver->sof) {
+          driver->sof(event->rhport, event->sof.frame_count);
+        }
+      }
+
       // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
       // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
       if (_usbd_dev.suspended) {
@@ -1136,15 +1144,10 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
         queue_event(&event_resume, in_isr);
       }
 
-      // SOF driver handler in ISR context
-      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
-        usbd_class_driver_t const* driver = get_driver(i);
-        if (driver && driver->sof) {
-          driver->sof(event->rhport, event->sof.frame_count);
-        }
+      if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
+        dcd_event_t const event_sof = {.rhport = event->rhport, .event_id = DCD_EVENT_SOF};
+        queue_event(&event_sof, in_isr);
       }
-
-      // skip osal queue for SOF in usbd task
       break;
 
     case DCD_EVENT_SETUP_RECEIVED:
