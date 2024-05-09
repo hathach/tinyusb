@@ -135,15 +135,12 @@ void dcd_remote_wakeup(uint8_t rhport)
   (void) rhport;
 }
 
-void dcd_sof_enable(uint8_t rhport, bool en) 
+void dcd_sof_enable(uint8_t rhport, bool en)
 {
     (void) rhport;
-    if (en) 
-    {
+    if (en) {
         USBHSD->INT_EN |= USBHS_SOF_ACT_EN;
-    } 
-    else
-    {
+    } else {
         USBHSD->INT_EN &= ~(USBHS_SOF_ACT_EN);
     }
 }
@@ -347,6 +344,7 @@ void dcd_int_handler(uint8_t rhport) {
 
         if (rx_token == PID_SOF) {
             dcd_event_sof(rhport, USBHSD->FRAME_NO, true);
+
         } else if (rx_token == PID_OUT) {
             uint16_t rx_len = USBHSD->RX_LEN;
 
