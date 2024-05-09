@@ -14,6 +14,8 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC13XX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # startup.c and lpc_types.h cause following errors
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=redundant-decls
 
@@ -31,4 +33,5 @@ SRC_C += \
 	$(MCU_DIR)/src/sysinit_13xx.c
 
 INC += \
-	$(TOP)/$(MCU_DIR)/inc
+  $(TOP)/$(BOARD_PATH) \
+  $(TOP)/$(MCU_DIR)/inc

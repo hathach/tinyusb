@@ -8,6 +8,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'tools/get_deps.py'
       - '.github/workflows/build_arm.yml'
   pull_request:
     branches: [ master ]
@@ -16,6 +17,7 @@ on:
       - 'examples/**'
       - 'lib/**'
       - 'hw/**'
+      - 'tools/get_deps.py'
       - '.github/workflows/build_arm.yml'
 
 concurrency:
@@ -33,23 +35,10 @@ jobs:
       matrix:
         family:
         # Alphabetical order
-        - 'broadcom_32bit'
-        - 'kinetis_k32l2'
-        - 'lpc11 lpc13 lpc15 lpc17'
-        - 'lpc51 lpc54'
-        - 'mm32 msp432e4'
-        - 'nrf'
-        - 'ra'
-        - 'samd11 samd21'
-        - 'samd51 same5x'
-        - 'saml2x'
-        - 'stm32f2 stm32f3'
-        - 'stm32f4'
-        - 'stm32l0 stm32u5 stm32wb'
-        - 'tm4c123 xmc4000'
+        - 'mm32'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
@@ -59,25 +48,10 @@ jobs:
         release: '11.2-2022.02'
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v3
-
-    - name: Checkout hathach/linkermap
-      uses: actions/checkout@v3
-      with:
-         repository: hathach/linkermap
-         path: linkermap
+      uses: actions/checkout@v4
 
     - name: Get Dependencies
       run: python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build
-      run: python3 tools/build_family.py ${{ matrix.family }}
-
-    - name: Linker Map
-      run: |
-        pip install linkermap/
-        # find -quit to only print linkermap of 1 board per example
-        for ex in `ls -d examples/*/*/`
-        do
-          find ${ex} -name *.map -print -quit | xargs -I % sh -c 'echo "::group::%"; linkermap -v %; echo "::endgroup::"'
-        done
+      run: python3 tools/build_make.py ${{ matrix.family }}

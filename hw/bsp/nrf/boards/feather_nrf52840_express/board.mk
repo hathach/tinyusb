@@ -1,6 +1,9 @@
 MCU_VARIANT = nrf52840
 CFLAGS += -DNRF52840_XXAA
 
+# enable max3421 host driver for this board
+MAX3421_HOST = 1
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/nrf/linker/nrf52840_s140_v6.ld
 

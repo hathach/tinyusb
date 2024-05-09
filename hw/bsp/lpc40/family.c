@@ -25,7 +25,7 @@
  */
 
 #include "chip.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+
@@ -37,7 +37,7 @@ void USB_IRQHandler(void) {
   #endif
 
   #if CFG_TUH_ENABLED
-  tuh_int_handler(0);
+  tuh_int_handler(0, true);
   #endif
 }
 

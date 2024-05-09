@@ -31,6 +31,8 @@
  extern "C" {
 #endif
 
+#define _PINNUM(port, pin)    ((port)*32 + (pin))
+
 // LED
 #define LED_PIN               28
 #define LED_STATE_ON          0
@@ -40,8 +42,16 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_RX_PIN           32
-#define UART_TX_PIN           33
+#define UART_RX_PIN           22
+#define UART_TX_PIN           20
+
+// SPI for USB host shield
+// Pin is correct but not working probably due to signal incompatible (1.8V 3v3) with MAC3421E !?
+//#define MAX3421_SCK_PIN  _PINNUM(1, 15)
+//#define MAX3421_MOSI_PIN _PINNUM(1, 13)
+//#define MAX3421_MISO_PIN _PINNUM(1, 14)
+//#define MAX3421_CS_PIN   _PINNUM(1, 12)
+//#define MAX3421_INTR_PIN _PINNUM(1, 11)
 
 #ifdef __cplusplus
  }

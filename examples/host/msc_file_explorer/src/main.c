@@ -59,7 +59,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
@@ -72,18 +72,21 @@ extern bool msc_app_init(void);
 extern void msc_app_task(void);
 
 /*------------- MAIN -------------*/
-int main(void)
-{
+int main(void) {
   board_init();
 
   printf("TinyUSB Host MassStorage Explorer Example\r\n");
 
   // init host stack on configured roothub port
   tuh_init(BOARD_TUH_RHPORT);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
   msc_app_init();
 
-  while (1)
-  {
+  while (1) {
     // tinyusb host task
     tuh_task();
 
@@ -98,28 +101,25 @@ int main(void)
 // TinyUSB Callbacks
 //--------------------------------------------------------------------+
 
-void tuh_mount_cb(uint8_t dev_addr)
-{
+void tuh_mount_cb(uint8_t dev_addr) {
   (void) dev_addr;
 }
 
-void tuh_umount_cb(uint8_t dev_addr)
-{
+void tuh_umount_cb(uint8_t dev_addr) {
   (void) dev_addr;
 }
 
 //--------------------------------------------------------------------+
 // Blinking Task
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
+void led_blinking_task(void) {
   const uint32_t interval_ms = 1000;
   static uint32_t start_ms = 0;
 
   static bool led_state = false;
 
   // Blink every interval ms
-  if ( board_millis() - start_ms < interval_ms) return; // not enough time
+  if (board_millis() - start_ms < interval_ms) return; // not enough time
   start_ms += interval_ms;
 
   board_led_write(led_state);

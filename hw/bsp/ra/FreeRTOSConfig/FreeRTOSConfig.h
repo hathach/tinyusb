@@ -64,7 +64,11 @@
 
 /* Cortex M23/M33 port configuration. */
 #define configENABLE_MPU                        0
-#define configENABLE_FPU                        1
+#if defined(__ARM_FP) && __ARM_FP >= 4
+  #define configENABLE_FPU                      1
+#else
+  #define configENABLE_FPU                      0
+#endif
 #define configENABLE_TRUSTZONE                  0
 #define configMINIMAL_SECURE_STACK_SIZE         (1024)
 
@@ -81,21 +85,22 @@
 #define configUSE_MUTEXES                       1
 #define configUSE_RECURSIVE_MUTEXES             1
 #define configUSE_COUNTING_SEMAPHORES           1
-#define configQUEUE_REGISTRY_SIZE               2
+#define configQUEUE_REGISTRY_SIZE               4
 #define configUSE_QUEUE_SETS                    0
 #define configUSE_TIME_SLICING                  0
 #define configUSE_NEWLIB_REENTRANT              0
 #define configENABLE_BACKWARD_COMPATIBILITY     1
 #define configSTACK_ALLOCATION_FROM_SEPARATE_HEAP   0
 
-#define configSUPPORT_STATIC_ALLOCATION         0
-#define configSUPPORT_DYNAMIC_ALLOCATION        1
+#define configSUPPORT_STATIC_ALLOCATION         1
+#define configSUPPORT_DYNAMIC_ALLOCATION        0
 
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                    0
 #define configUSE_TICK_HOOK                    0
 #define configUSE_MALLOC_FAILED_HOOK           0 // cause nested extern warning
 #define configCHECK_FOR_STACK_OVERFLOW         2
+#define configCHECK_HANDLER_INSTALLATION       0
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS          0
@@ -130,23 +135,6 @@
 #define INCLUDE_eTaskGetState                  0
 #define INCLUDE_xEventGroupSetBitFromISR       0
 #define INCLUDE_xTimerPendFunctionCall         0
-
-/* Define to trap errors during development. */
-// Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
-#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
-  #define configASSERT(_exp) \
-    do {\
-      if ( !(_exp) ) { \
-        volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
-        if ( (*ARM_CM_DHCSR) & 1UL ) {  /* Only halt mcu if debugger is attached */ \
-          taskDISABLE_INTERRUPTS(); \
-           __asm("BKPT #0\n"); \
-        }\
-      }\
-    } while(0)
-#else
-  #define configASSERT( x )
-#endif
 
 /* FreeRTOS hooks to NVIC vectors */
 #define xPortPendSVHandler    PendSV_Handler

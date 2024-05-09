@@ -25,19 +25,29 @@
  */
 
 #include "sam.h"
-#include "bsp/board.h"
-#include "board.h"
+
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#endif
 
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
 #include "hpl/gclk/hpl_gclk_base.h"
 #include "hpl_mclk_config.h"
 
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#include "bsp/board_api.h"
+#include "board.h"
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB_Handler(void)
-{
+void USB_Handler(void) {
   tud_int_handler(0);
 }
 
@@ -50,8 +60,7 @@ void USB_Handler(void)
 /* Not referenced GCLKs, initialized last */
 #define _GCLK_INIT_LAST 0x0000001F
 
-void board_init(void)
-{
+void board_init(void) {
   // Clock init ( follow hpl_init.c )
   hri_nvmctrl_set_CTRLB_RWS_bf(NVMCTRL, CONF_NVM_WAIT_STATE);
 
@@ -84,7 +93,7 @@ void board_init(void)
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
   gpio_set_pin_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULL_DOWN : GPIO_PULL_UP);
 
-#if CFG_TUSB_OS  == OPT_OS_FREERTOS
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
@@ -121,43 +130,39 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
+void board_led_write(bool state) {
   gpio_set_pin_level(LED_PIN, state);
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   // button is active low
   return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_write(void const* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler (void)
-{
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif
-void _init(void)
-{
+
+void _init(void) {
 
 }

@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "NUC100Series.h"
 #include "clk.h"
 #include "sys.h"

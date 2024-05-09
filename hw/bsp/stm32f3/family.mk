@@ -13,11 +13,14 @@ CPU_CORE ?= cortex-m4
 
 CFLAGS += \
   -flto \
-  -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F3
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
+
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \

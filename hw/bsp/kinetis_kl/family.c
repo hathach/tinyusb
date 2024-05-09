@@ -23,7 +23,7 @@
  * THE SOFTWARE.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
@@ -39,7 +39,7 @@
 void USB0_IRQHandler(void)
 {
 #if CFG_TUH_ENABLED
-  tuh_int_handler(0);
+  tuh_int_handler(0, true);
 #endif
 #if CFG_TUD_ENABLED
   tud_int_handler(0);
@@ -140,4 +140,23 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
+#endif
+
+
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+
+#ifdef __clang__
+void	_exit (int __status) {
+  while (1) {}
+}
+#endif
+
 #endif

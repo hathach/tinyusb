@@ -52,7 +52,7 @@
  * regarding downloading.
  */
 
-#include "../board.h"
+#include "bsp/board_api.h"
 #include "iodefine.h"
 #include "interrupt_handlers.h"
 
@@ -203,9 +203,10 @@ void board_init(void)
   IEN(SCI0, TEI0) = 1;
 
   /* Enable USB0 */
+  unsigned short oldPRCR = SYSTEM.PRCR.WORD;
   SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | SYSTEM_PRCR_PRC1;
   MSTP(USB0) = 0;
-  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY;
+  SYSTEM.PRCR.WORD = SYSTEM_PRCR_PRKEY | oldPRCR;
 }
 
 //--------------------------------------------------------------------+

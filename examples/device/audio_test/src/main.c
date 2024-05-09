@@ -35,16 +35,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
-
-#ifndef AUDIO_SAMPLE_RATE
-#define AUDIO_SAMPLE_RATE   48000
-#endif
 
 /* Blink pattern
  * - 250 ms  : device not mounted
@@ -85,13 +81,17 @@ int main(void)
   // init device stack on configured roothub port
   tud_init(BOARD_TUD_RHPORT);
 
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
+
   // Init values
-  sampFreq = AUDIO_SAMPLE_RATE;
+  sampFreq = CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE;
   clkValid = 1;
 
   sampleFreqRng.wNumSubRanges = 1;
-  sampleFreqRng.subrange[0].bMin = AUDIO_SAMPLE_RATE;
-  sampleFreqRng.subrange[0].bMax = AUDIO_SAMPLE_RATE;
+  sampleFreqRng.subrange[0].bMin = CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE;
+  sampleFreqRng.subrange[0].bMax = CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE;
   sampleFreqRng.subrange[0].bRes = 0;
 
   while (1)
@@ -130,7 +130,7 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 //--------------------------------------------------------------------+

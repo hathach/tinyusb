@@ -17,3 +17,10 @@ TINYUSB_SRC_C += \
 	src/class/usbtmc/usbtmc_device.c \
 	src/class/video/video_device.c \
 	src/class/vendor/vendor_device.c \
+  src/host/usbh.c \
+  src/host/hub.c \
+  src/class/cdc/cdc_host.c \
+  src/class/hid/hid_host.c \
+  src/class/msc/msc_host.c \
+  src/class/vendor/vendor_host.c \
+  src/typec/usbc.c \
