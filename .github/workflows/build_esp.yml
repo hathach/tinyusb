@@ -48,7 +48,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Build
-      run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build_esp32.py ${{ matrix.board }}
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py -b ${{ matrix.board }}
 
     - name: Upload Artifacts for Hardware Testing
       if: matrix.board == 'espressif_s3_devkitm' && github.repository_owner == 'hathach'
