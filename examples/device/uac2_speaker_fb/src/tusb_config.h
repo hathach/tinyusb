@@ -122,6 +122,9 @@ extern "C" {
 
 #define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                                TUD_AUDIO_SPEAKER_STEREO_FB_DESC_LEN
 
+// Enable if Full-Speed on OSX, also set feedback EP size to 3
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION              0
+
 // Audio format type I specifications
 #if defined(__RX__)
 #define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         48000

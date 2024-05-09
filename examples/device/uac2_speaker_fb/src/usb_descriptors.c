@@ -149,8 +149,8 @@ uint8_t const desc_configuration[] =
     // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-    // Interface number, string index, byte per sample, bit per sample, EP Out, EP size, EP feedback
-    TUD_AUDIO_SPEAKER_STEREO_FB_DESCRIPTOR(0, 4, CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX, EPNUM_AUDIO_OUT, CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX, EPNUM_AUDIO_FB | 0x80),
+    // Interface number, string index, byte per sample, bit per sample, EP Out, EP size, EP feedback, feedback EP size,
+    TUD_AUDIO_SPEAKER_STEREO_FB_DESCRIPTOR(0, 4, CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX, EPNUM_AUDIO_OUT, CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX, EPNUM_AUDIO_FB | 0x80, 4),
 
 #if CFG_AUDIO_DEBUG
     // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
