@@ -68,7 +68,7 @@ jobs:
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url) }}
+      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain][toolchain_url] }}
       build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
 
   # ---------------------------------------
@@ -89,5 +89,5 @@ jobs:
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url) }}
+      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain][toolchain_url] }}
       build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
