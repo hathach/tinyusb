@@ -1,16 +1,13 @@
 include_guard()
 
-set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
-set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
-
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m0plus CACHE INTERNAL "System Processor")
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+set(CMAKE_SYSTEM_PROCESSOR rv32i-ilp32 CACHE INTERNAL "System Processor")
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS LPC51 CACHE INTERNAL "")
+set(FAMILY_MCUS VALENTYUSB_EPTRI CACHE INTERNAL "")
 
 #------------------------------------
 # BOARD_TARGET
@@ -22,43 +19,20 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}_flash.ld)
+    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/fomu.ld)
   endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
   if (NOT DEFINED STARTUP_FILE_GNU)
-    set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S)
+    set(STARTUP_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/crt0-vexriscv.S)
   endif ()
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   add_library(${BOARD_TARGET} STATIC
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
-    # driver
-    ${SDK_DIR}/drivers/lpc_gpio/fsl_gpio.c
-    ${SDK_DIR}/drivers/flexcomm/fsl_flexcomm.c
-    ${SDK_DIR}/drivers/flexcomm/fsl_usart.c
-    # mcu
-    ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_power.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${TOP}/lib/sct_neopixel
-    # driver
-    ${SDK_DIR}/drivers/common
-    ${SDK_DIR}/drivers/flexcomm
-    ${SDK_DIR}/drivers/lpc_iocon
-    ${SDK_DIR}/drivers/lpc_gpio
-    ${SDK_DIR}/drivers/lpuart
-    # mcu
-    ${SDK_DIR}/devices/${MCU_VARIANT}
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
-    ${CMSIS_DIR}/CMSIS/Core/Include
-    )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
-    __STARTUP_CLEAR_BSS
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/include
     )
 
   update_board(${BOARD_TARGET})
@@ -66,13 +40,11 @@ function(add_board_target BOARD_TARGET)
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      --specs=nosys.specs --specs=nano.specs
       -nostartfiles
+      --specs=nosys.specs --specs=nano.specs
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_Clang}"
-      )
+    message(FATAL_ERROR "Clang is not supported for MSP432E4")
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--config=${LD_FILE_IAR}"
@@ -97,7 +69,6 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     )
-
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
@@ -106,9 +77,9 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_LPC51 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_VALENTYUSB_EPTRI ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
-    ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
+    ${TOP}/src/portable/valentyusb/eptri/dcd_eptri.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
@@ -116,7 +87,5 @@ function(family_configure_example TARGET RTOS)
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
-  family_flash_jlink(${TARGET})
-  #family_flash_nxplink(${TARGET})
-  #family_flash_pyocd(${TARGET})
+  family_add_bin_hex(${TARGET})
 endfunction()

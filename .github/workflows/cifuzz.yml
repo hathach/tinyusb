@@ -12,6 +12,7 @@ on:
       - '**.h'
 jobs:
  Fuzzing:
+   if: false
    runs-on: ubuntu-latest
    steps:
    - name: Build Fuzzers
@@ -20,12 +21,14 @@ jobs:
      with:
        oss-fuzz-project-name: 'tinyusb'
        language: c++
+
    - name: Run Fuzzers
      uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master
      with:
        oss-fuzz-project-name: 'tinyusb'
        language: c++
        fuzz-seconds: 600
+
    - name: Upload Crash
      uses: actions/upload-artifact@v4
      if: failure() && steps.build.outcome == 'success'

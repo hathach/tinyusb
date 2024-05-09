@@ -1,0 +1,64 @@
+name: Build family
+
+on:
+  workflow_call:
+    inputs:
+      build-system:
+        required: true
+        type: string
+      toolchain:
+        required: true
+        type: string
+      toolchain_url:
+        required: true
+        type: string
+      build-family:
+        required: true
+        type: string
+
+jobs:
+  family:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        family: ${{ fromJSON(inputs.build-family) }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          toolchain_url: ${{ inputs.toolchain_url }}
+
+      - name: Checkout pico-sdk for rp2040
+        if: contains(matrix.family, 'rp2040')
+        uses: actions/checkout@v4
+        with:
+          repository: raspberrypi/pico-sdk
+          ref: develop
+          path: pico-sdk
+
+      - name: Get Dependencies
+        run: |
+          sudo apt install -y ninja-build
+          pip install click
+          python3 tools/get_deps.py ${{ matrix.family }}
+
+      - name: Build
+        run: |
+          OPTION=""
+          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
+            OPTION="--toolchain clang"
+          fi
+          echo "OPTION=$OPTION"
+          python tools/build.py -s ${{ inputs.build-system }} $OPTION ${{ matrix.family }}
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk

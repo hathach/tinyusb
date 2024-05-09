@@ -33,12 +33,14 @@ import serial
 import subprocess
 import json
 import glob
+import platform
 
 # for RPI double reset
-try:
-    import gpiozero
-except ImportError:
-    pass
+if platform.machine() == 'aarch64':
+    try:
+        import gpiozero
+    except ImportError:
+        pass
 
 
 ENUM_TIMEOUT = 10
@@ -111,27 +113,39 @@ def read_disk_file(id, fname):
 # -------------------------------------------------------------
 # Flashing firmware
 # -------------------------------------------------------------
+def run_cmd(cmd):
+    # print(cmd)
+    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    title = 'command error'
+    if r.returncode != 0:
+        # print build output if failed
+        if os.getenv('CI'):
+            print(f"::group::{title}")
+            print(r.stdout.decode("utf-8"))
+            print(f"::endgroup::")
+        else:
+            print(title)
+            print(r.stdout.decode("utf-8"))
+    return r
+
+
 def flash_jlink(board, firmware):
-    script = ['halt', 'r', f'loadfile {firmware}', 'r', 'go', 'exit']
+    script = ['halt', 'r', f'loadfile {firmware}.elf', 'r', 'go', 'exit']
     with open('flash.jlink', 'w') as f:
         f.writelines(f'{s}\n' for s in script)
-    ret = subprocess.run(
-        f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink',
-        shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ret = run_cmd(f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink')
     os.remove('flash.jlink')
     return ret
 
 
 def flash_openocd(board, firmware):
-    ret = subprocess.run(
-        f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware} reset exit"',
-        shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ret = run_cmd(f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware}.elf reset exit"')
     return ret
 
 
 def flash_esptool(board, firmware):
     port = get_serial_dev(board["flasher_sn"], None, None, 0)
-    dir = os.path.dirname(firmware)
+    dir = os.path.dirname(f'{firmware}.bin')
     with open(f'{dir}/config.env') as f:
         IDF_TARGET = json.load(f)['IDF_TARGET']
     with open(f'{dir}/flash_args') as f:
@@ -154,9 +168,11 @@ def doublereset_with_rpi_gpio(board):
     time.sleep(0.1)
     led.on()
 
+
 def flash_bossac(board, firmware):
     # double reset to enter bootloader
-    doublereset_with_rpi_gpio(board)
+    if platform.machine() == 'aarch64':
+        doublereset_with_rpi_gpio(board)
 
     port = get_serial_dev(board["uid"], board["flashser_vendor"], board["flasher_product"], 0)
     timeout = ENUM_TIMEOUT
@@ -169,8 +185,7 @@ def flash_bossac(board, firmware):
     assert timeout, 'bossac bootloader is not available'
     # sleep a bit more for bootloader to be ready
     time.sleep(0.5)
-    ret = subprocess.run(f'bossac --port {port} {board["flasher_args"]} -U -i -R -e -w {firmware}', shell=True, stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT)
+    ret = run_cmd(f'bossac --port {port} {board["flasher_args"]} -U -i -R -e -w {firmware}.bin')
     return ret
 
 # -------------------------------------------------------------
@@ -325,7 +340,8 @@ def main(config_file, board):
         config_boards = [e for e in config['boards'] if e['name'] in board]
 
     for item in config_boards:
-        print(f'Testing board:{item["name"]}')
+        name = item['name']
+        print(f'Testing board:{name}')
         flasher = item['flasher'].lower()
 
         # default to all tests
@@ -344,29 +360,12 @@ def main(config_file, board):
                     test_list.remove(skip)
 
         for test in test_list:
-            fw_list = [
-                # cmake: esp32 & samd51 use .bin file
-                f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.elf',
-                f'cmake-build/cmake-build-{item["name"]}/device/{test}/{test}.bin',
-                # make
-                f'examples/device/{test}/_build/{item["name"]}/{test}.elf'
-            ]
-
-            fw = None
-            for f in fw_list:
-                if os.path.isfile(f):
-                    fw = f
-                    break
-
-            if fw is None:
-                print(f'Cannot find binary file for {test}')
-                sys.exit(-1)
-
+            fw_name = f'cmake-build/cmake-build-{name}/device/{test}/{test}'
             print(f'  {test} ...', end='')
 
             # flash firmware. It may fail randomly, retry a few times
             for i in range(3):
-                ret = globals()[f'flash_{flasher}'](item, fw)
+                ret = globals()[f'flash_{flasher}'](item, fw_name)
                 if ret.returncode == 0:
                     break
                 else:

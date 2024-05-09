@@ -26,9 +26,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../board_api.h"
 #include "csr.h"
 #include "irq.h"
+
+#include "bsp/board_api.h"
 
 //--------------------------------------------------------------------+
 // Board porting API
