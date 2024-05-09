@@ -144,7 +144,7 @@ def flash_openocd(board, firmware):
 
 
 def flash_esptool(board, firmware):
-    #port = get_serial_dev(board["flasher_sn"], None, None, 0)
+    port = get_serial_dev(board["flasher_sn"], None, None, 0)
     dir = os.path.dirname(f'{firmware}.bin')
     with open(f'{dir}/config.env') as f:
         IDF_TARGET = json.load(f)['IDF_TARGET']

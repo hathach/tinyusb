@@ -62,7 +62,7 @@ jobs:
         toolchain:
           - 'aarch64-gcc'
           - 'arm-clang'
-          #- 'arm-gcc'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -83,7 +83,7 @@ jobs:
         toolchain:
           - 'aarch64-gcc'
           #- 'arm-clang'
-          #- 'arm-gcc'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
