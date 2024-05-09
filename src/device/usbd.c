@@ -1385,9 +1385,9 @@ void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en) {
   uint8_t consumer_old = _usbd_dev.sof_consumer;
   // Keep track how many class instances need the SOF interrupt
   if (en) {
-    _usbd_dev.sof_consumer = tu_bit_set(_usbd_dev.sof_consumer, consumer);
+    _usbd_dev.sof_consumer |= (uint8_t)(1 << consumer);
   } else {
-    _usbd_dev.sof_consumer = tu_bit_clear(_usbd_dev.sof_consumer, consumer);
+    _usbd_dev.sof_consumer &= (uint8_t)(~(1 << consumer));
   }
 
   // Test logically unequal
