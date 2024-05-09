@@ -11,7 +11,7 @@ on:
       - 'tools/get_deps.py'
       - 'tools/build.py'
       - '.github/actions/**'
-      - '.github/workflows/build.yml'
+      - '.github/workflows/build_cmake.yml'
       - '.github/workflows/ci_set_matrix.py'
   pull_request:
     branches: [ master ]
@@ -23,7 +23,7 @@ on:
       - 'tools/get_deps.py'
       - 'tools/build.py'
       - '.github/actions/**'
-      - '.github/workflows/build.yml'
+      - '.github/workflows/build_cmake.yml'
       - '.github/workflows/ci_set_matrix.py'
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
