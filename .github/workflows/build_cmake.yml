@@ -66,9 +66,26 @@ jobs:
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
+      build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
 
   # ---------------------------------------
   # Build Make
   # ---------------------------------------
+  make:
+    needs: set-matrix
+    uses: ./.github/workflows/build_family.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - 'aarch64-gcc'
+          #- 'arm-clang'
+          #- 'arm-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
+    with:
+      build-system: 'make'
+      toolchain: ${{ matrix.toolchain }}
+      build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
