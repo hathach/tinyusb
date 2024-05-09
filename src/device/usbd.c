@@ -725,6 +725,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
               // already configured: need to clear all endpoints and driver first
               TU_LOG_USBD("  Clear current Configuration (%u) before switching\r\n", _usbd_dev.cfg_num);
 
+              // disable SOF
+              dcd_sof_enable(rhport, false);
+
               // close all non-control endpoints, cancel all pending transfers if any
               dcd_edpt_close_all(rhport);
 
