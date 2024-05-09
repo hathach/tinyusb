@@ -71,7 +71,7 @@ jobs:
 
       - name: Build
         run: |
-          python tools/build_cmake.py $BOARD_LIST
+          python tools/build.py $BOARD_LIST
         env:
           PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 

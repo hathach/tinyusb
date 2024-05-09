@@ -52,7 +52,7 @@ jobs:
         run: python3 tools/get_deps.py ${{ matrix.family }}
 
       - name: Build
-        run: python3 tools/build_cmake.py --toolchain iar ${{ matrix.family }}
+        run: python3 tools/build.py --toolchain iar ${{ matrix.family }}
 
       - name: Test on actual hardware (hardware in the loop)
         run: |
