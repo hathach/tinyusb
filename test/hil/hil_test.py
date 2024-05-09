@@ -114,7 +114,7 @@ def read_disk_file(id, fname):
 # Flashing firmware
 # -------------------------------------------------------------
 def run_cmd(cmd):
-    print(cmd)
+    # print(cmd)
     r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     title = 'command error'
     if r.returncode != 0:
@@ -144,7 +144,7 @@ def flash_openocd(board, firmware):
 
 
 def flash_esptool(board, firmware):
-    port = get_serial_dev(board["flasher_sn"], None, None, 0)
+    #port = get_serial_dev(board["flasher_sn"], None, None, 0)
     dir = os.path.dirname(f'{firmware}.bin')
     with open(f'{dir}/config.env') as f:
         IDF_TARGET = json.load(f)['IDF_TARGET']
@@ -152,7 +152,7 @@ def flash_esptool(board, firmware):
         flash_args = f.read().strip().replace('\n', ' ')
     command = (f'esptool.py --chip {IDF_TARGET} -p {port} {board["flasher_args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
-    ret = run_cmd(command)
+    ret = subprocess.run(command, shell=True, cwd=dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
 
 

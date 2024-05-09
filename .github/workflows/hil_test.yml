@@ -121,4 +121,5 @@ jobs:
 
       - name: Test on actual hardware
         run: |
+          echo "BOARD_LIST=$BOARD_LIST"
           python3 test/hil/hil_test.py $BOARD_LIST pi4.json
