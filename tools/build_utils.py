@@ -64,18 +64,19 @@ def skip_example(example, board):
     skip_file = ex_dir / "skip.txt"
     only_file = ex_dir / "only.txt"
 
-    if skip_file.exists() and only_file.exists():
-        raise RuntimeError("Only have a skip or only file. Not both.")
-    elif skip_file.exists():
+    if skip_file.exists():
         skips = skip_file.read_text().split()
-        return ("mcu:" + mcu in skips or
-                "board:" + board in skips or
-                "family:" + family in skips)
-    elif only_file.exists():
+        if ("mcu:" + mcu in skips or
+            "board:" + board in skips or
+            "family:" + family in skips):
+            return True
+
+    if only_file.exists():
         onlys = only_file.read_text().split()
-        return not ("mcu:" + mcu in onlys or
-                    "board:" + board in onlys or
-                    "family:" + family in onlys)
+        if not ("mcu:" + mcu in onlys or
+                "board:" + board in onlys or
+                "family:" + family in onlys):
+            return True
 
     return False
 

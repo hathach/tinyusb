@@ -24,29 +24,25 @@
  * This file is part of the TinyUSB stack.
  */
 
+#ifndef BOARD_MIMXRT1024_EVK_H_
+#define BOARD_MIMXRT1024_EVK_H_
 
-#ifndef BOARD_H_
-#define BOARD_H_
-
-// required since iMX RT10xx SDK include this file for board size
+// required since iMXRT MCUX-SDK include this file for board size
 // RT1020-EVK #define BOARD_FLASH_SIZE (0x800000U)
 #define BOARD_FLASH_SIZE (0x400000U) // builtin flash of RT1024
 
-// LED - DRN updated for RT1024EVK
-#define LED_PINMUX            IOMUXC_GPIO_AD_B1_08_GPIO1_IO24
-#define LED_PORT              GPIO1
-#define LED_PIN               24
+// LED: IOMUXC_GPIO_AD_B1_08_GPIO1_IO24
+#define LED_PORT              BOARD_INITPINS_USER_LED_GPIO
+#define LED_PIN               BOARD_INITPINS_USER_LED_PIN
 #define LED_STATE_ON          1
 
-// SW8 button - DRN verified
-#define BUTTON_PINMUX         IOMUXC_SNVS_WAKEUP_GPIO5_IO00
-#define BUTTON_PORT           GPIO5
-#define BUTTON_PIN            0
+// SW8 button: IOMUXC_SNVS_WAKEUP_GPIO5_IO00
+#define BUTTON_PORT           BOARD_INITPINS_USER_BUTTON_GPIO
+#define BUTTON_PIN            BOARD_INITPINS_USER_BUTTON_PIN
 #define BUTTON_STATE_ACTIVE   0
 
-// UART - DRN verified
+// UART: IOMUXC_GPIO_AD_B0_07_LPUART1_RX, IOMUXC_GPIO_AD_B0_06_LPUART1_TX
 #define UART_PORT             LPUART1
-#define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_07_LPUART1_RX
-#define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_06_LPUART1_TX
+#define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 
-#endif /* BOARD_H_ */
+#endif

@@ -73,10 +73,24 @@ typedef struct {
   tusb_desc_interface_t desc;
 } tuh_itf_info_t;
 
-// ConfigID for tuh_config()
+// ConfigID for tuh_configure()
 enum {
-  TUH_CFGID_RPI_PIO_USB_CONFIGURATION = OPT_MCU_RP2040 << 8 // cfg_param: pio_usb_configuration_t
+  TUH_CFGID_INVALID = 0,
+  TUH_CFGID_RPI_PIO_USB_CONFIGURATION = 100, // cfg_param: pio_usb_configuration_t
+  TUH_CFGID_MAX3421 = 200,
 };
+
+typedef struct {
+  uint8_t max_nak; // max NAK per endpoint per frame
+  uint8_t cpuctl; // R16: CPU Control Register
+  uint8_t pinctl; // R17: Pin Control Register. FDUPSPI bit is ignored
+} tuh_configure_max3421_t;
+
+typedef union {
+  // For TUH_CFGID_RPI_PIO_USB_CONFIGURATION use pio_usb_configuration_t
+
+  tuh_configure_max3421_t max3421;
+} tuh_configure_param_t;
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
@@ -90,8 +104,11 @@ TU_ATTR_WEAK void tuh_mount_cb (uint8_t daddr);
 // Invoked when a device failed to mount during enumeration process
 // TU_ATTR_WEAK void tuh_mount_failed_cb (uint8_t daddr);
 
-/// Invoked when a device is unmounted (detached)
+// Invoked when a device is unmounted (detached)
 TU_ATTR_WEAK void tuh_umount_cb(uint8_t daddr);
+
+// Invoked when there is a new usb event, which need to be processed by tuh_task()/tuh_task_ext()
+void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -106,7 +123,11 @@ bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 // Init host stack
 bool tuh_init(uint8_t rhport);
 
+// Deinit host stack on rhport
+bool tuh_deinit(uint8_t rhport);
+
 // Check if host stack is already initialized with any roothub ports
+// To check if an rhport is initialized, use tuh_rhport_is_active()
 bool tuh_inited(void);
 
 // Task function should be called in main/rtos loop, extended version of tuh_task()
@@ -124,11 +145,16 @@ void tuh_task(void) {
 bool tuh_task_event_ready(void);
 
 #ifndef _TUSB_HCD_H_
-extern void hcd_int_handler(uint8_t rhport);
+extern void hcd_int_handler(uint8_t rhport, bool in_isr);
 #endif
 
-// Interrupt handler, name alias to HCD
-#define tuh_int_handler   hcd_int_handler
+// Interrupt handler alias to HCD with in_isr as optional parameter
+// - tuh_int_handler(rhport) --> hcd_int_handler(rhport, true)
+// - tuh_int_handler(rhport, in_isr) --> hcd_int_handler(rhport, in_isr)
+// Note: this is similar to TU_VERIFY(), _GET_3RD_ARG() is defined in tusb_verify.h
+#define _tuh_int_handler_1arg(_rhport)            hcd_int_handler(_rhport, true)
+#define _tuh_int_hanlder_2arg(_rhport, _in_isr)   hcd_int_handler(_rhport, _in_isr)
+#define tuh_int_handler(...)   _GET_3RD_ARG(__VA_ARGS__, _tuh_int_hanlder_2arg, _tuh_int_handler_1arg, _dummy)(__VA_ARGS__)
 
 // Check if roothub port is initialized and active as a host
 bool tuh_rhport_is_active(uint8_t rhport);

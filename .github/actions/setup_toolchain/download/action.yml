@@ -1,0 +1,29 @@
+name: Download Toolchain
+
+inputs:
+  toolchain_url:
+    required: true
+    type: string
+
+runs:
+  using: "composite"
+  steps:
+    - name: Cache Toolchain
+      uses: actions/cache@v4
+      id: cache-toolchain
+      with:
+        path: ~/cache/toolchain
+        key: ${{ runner.os }}-${{ inputs.toolchain_url }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/toolchain
+        wget --progress=dot:mega ${{ inputs.toolchain_url }} -O toolchain.tar.gz
+        tar -C ~/cache/toolchain -xaf toolchain.tar.gz
+      shell: bash
+
+    - name: Set Toolchain Path
+      run: |
+        echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
+      shell: bash

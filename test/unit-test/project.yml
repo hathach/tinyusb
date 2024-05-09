@@ -44,12 +44,13 @@
   # in order to add common defines:
   #  1) remove the trailing [] from the :common: section
   #  2) add entries to the :common: section (e.g. :test: has TEST defined)
-  :common: &common_defines
-    - _UNITY_TEST_
+  :common: &common_defines []
   :test:
-    - *common_defines
+    - _UNITY_TEST_
+    #- *common_defines
   :test_preprocess:
-    - *common_defines
+    - _UNITY_TEST_
+    #- *common_defines
 
 :cmock:
   :mock_prefix: mock_
@@ -80,20 +81,20 @@
 
 :tools:
   :test_compiler:
-     :executable: clang
-     :name: 'clang compiler'
+     :executable: gcc
+     :name: 'gcc compiler'
      :arguments:
         - -I"$": COLLECTION_PATHS_TEST_TOOLCHAIN_INCLUDE               #expands to -I search paths
         - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR   #expands to -I search paths
         - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR  #expands to all -D defined symbols
-        - -fsanitize=address
+        #- -fsanitize=address
         - -c ${1}                       #source code input file (Ruby method call param list sub)
         - -o ${2}                       #object file output (Ruby method call param list sub)
   :test_linker:
-     :executable: clang
-     :name: 'clang linker'
+     :executable: gcc
+     :name: 'gcc linker'
      :arguments:
-        - -fsanitize=address
+        #- -fsanitize=address
         - ${1}               #list of object files to link (Ruby method call param list sub)
         - -o ${2}            #executable file output (Ruby method call param list sub)
 
@@ -106,9 +107,9 @@
   :flag: "${1}"  # or "-L ${1}" for example
   :common: &common_libraries []
   :test:
-    - *common_libraries
+    #- *common_libraries
   :release:
-    - *common_libraries
+    #- *common_libraries
 
 :plugins:
   :load_paths:

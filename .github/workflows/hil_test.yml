@@ -1,0 +1,125 @@
+name: Hardware Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'test/hil/**'
+      - 'tools/get_deps.py'
+      - '.github/actions/**'
+      - '.github/workflows/hil_test.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'test/hil/**'
+      - 'tools/get_deps.py'
+      - '.github/actions/**'
+      - '.github/workflows/hil_test.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository_owner == 'hathach'
+    runs-on: ubuntu-latest
+    outputs:
+      BOARD_LIST: ${{ steps.parse_hil_json.outputs.BOARD_LIST }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install ARM GCC
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '12.3.Rel1'
+
+      - name: Parse HIL json
+        id: parse_hil_json
+        run: |
+          sudo apt install -y jq
+          BOARD_LIST=$(jq -r '.boards[] | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          echo "BOARD_LIST=$BOARD_LIST"
+          echo >> $GITHUB_ENV "BOARD_LIST=$BOARD_LIST"
+          echo >> $GITHUB_OUTPUT "BOARD_LIST=$BOARD_LIST"
+
+      - name: Checkout pico-sdk for rp2040
+        uses: actions/checkout@v4
+        with:
+          repository: raspberrypi/pico-sdk
+          ref: develop
+          path: pico-sdk
+
+      - name: Get Dependencies
+        run: |
+          pip install click
+          sudo apt install -y ninja-build
+          python3 tools/get_deps.py $BOARD_LIST
+
+      - name: Build
+        run: |
+          python tools/build.py $BOARD_LIST
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+
+      - name: Upload Artifacts for Hardware Testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: hil_pi4
+          path: |
+            cmake-build/cmake-build-*/*/*/*.elf
+            cmake-build/cmake-build-*/*/*/*.bin
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
+  # ---------------------------------------
+  hil-pi4:
+    if: github.repository_owner == 'hathach'
+    needs: build
+    runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
+    env:
+        BOARD_LIST: ${{ needs.build.outputs.BOARD_LIST }}
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+        # USB bus on rpi4 is not stable, reset it before testing
+      - name: Reset USB bus
+        run: |
+          lsusb
+          lsusb -t
+          # reset VIA Labs 2.0 hub
+          sudo usbreset 001/002
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: test/hil
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: hil_pi4
+          path: cmake-build
+
+      - name: Test on actual hardware
+        run: |
+          echo "BOARD_LIST=$BOARD_LIST"
+          python3 test/hil/hil_test.py $BOARD_LIST pi4.json

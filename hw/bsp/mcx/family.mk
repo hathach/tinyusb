@@ -4,18 +4,18 @@ SDK_DIR = hw/mcu/nxp/mcux-sdk
 DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 include $(TOP)/$(BOARD_PATH)/board.mk
-CPU_CORE ?= cortex-m33
 
 # Default to Highspeed PORT1
 PORT ?= 1
 
 CFLAGS += \
   -flto \
-  -DCFG_TUSB_MCU=OPT_MCU_MCXN9 \
   -DBOARD_TUD_RHPORT=$(PORT) \
 
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=old-style-declaration
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE ?= $(SDK_DIR)/devices/$(MCU_VARIANT)/gcc/$(MCU_CORE)_flash.ld
@@ -36,9 +36,18 @@ SRC_C += \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_clock.c \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_reset.c \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_gpio.c \
-	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_common_arm.c \
-	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_lpflexcomm.c \
 	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_lpuart.c \
+	$(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_common_arm.c \
+
+# fsl_lpflexcomm for MCXN9
+ifeq ($(MCU_VARIANT), MCXN947)
+	SRC_C += $(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_lpflexcomm.c
+endif
+
+# fsl_spc for MCXNA15
+ifeq ($(MCU_VARIANT), MCXA153)
+	SRC_C += $(SDK_DIR)/devices/$(MCU_VARIANT)/drivers/fsl_spc.c
+endif
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \

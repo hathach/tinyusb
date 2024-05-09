@@ -24,11 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "board.h"
 #include "drv_usb_hw.h"
 #include "drv_usb_dev.h"
 
-#include "../board_api.h"
+#include "bsp/board_api.h"
+#include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler

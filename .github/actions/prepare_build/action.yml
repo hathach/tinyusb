@@ -1,0 +1,30 @@
+name: Prepare to build
+
+inputs:
+  family:
+    required: true
+    type: string
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Checkout pico-sdk for rp2040
+      if: contains(inputs.family, 'rp2040')
+      uses: actions/checkout@v4
+      with:
+        repository: raspberrypi/pico-sdk
+        ref: develop
+        path: pico-sdk
+
+    - name: Get Dependencies
+      run: |
+        sudo apt install -y ninja-build
+        pip install click
+        python3 tools/get_deps.py ${{ inputs.family }}
+        echo >> $GITHUB_ENV "PICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk"
+      shell: bash

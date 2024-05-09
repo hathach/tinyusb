@@ -12,17 +12,26 @@ CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
   -flto \
-  -nostdlib -nostartfiles \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L0
 
 # mcu driver cause following warnings
-CFLAGS += \
+CFLAGS_GCC += \
 	-Wno-error=unused-parameter \
 	-Wno-error=redundant-decls \
 	-Wno-error=cast-align \
-	-Wno-error=maybe-uninitialized
+
+ifeq ($(TOOLCHAIN),gcc)
+CFLAGS_GCC += -Wno-error=maybe-uninitialized
+endif
+
+CFLAGS_CLANG += \
+  -Wno-error=parentheses-equality
+
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
   src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \

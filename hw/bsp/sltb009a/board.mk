@@ -19,6 +19,8 @@ SILABS_CMSIS = hw/mcu/silabs/cmsis-dfp-$(SILABS_FAMILY)/Device/SiliconLabs/$(she
 DEPS_SUBMODULES += hw/mcu/silabs/cmsis-dfp-$(SILABS_FAMILY)
 DEPS_SUBMODULES += lib/CMSIS_5
 
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+
 # All source paths should be relative to the top level.
 LD_FILE = $(SILABS_CMSIS)/Source/GCC/$(SILABS_FAMILY).ld
 

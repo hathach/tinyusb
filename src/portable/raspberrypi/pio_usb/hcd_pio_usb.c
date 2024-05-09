@@ -182,14 +182,6 @@ void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id) {
   root_port_t *rport = PIO_USB_ROOT_PORT(root_id);
   uint32_t const ints = rport->ints;
 
-  if ( ints & PIO_USB_INTS_CONNECT_BITS ) {
-    hcd_event_device_attach(tu_rhport, true);
-  }
-
-  if ( ints & PIO_USB_INTS_DISCONNECT_BITS ) {
-    hcd_event_device_remove(tu_rhport, true);
-  }
-
   if ( ints & PIO_USB_INTS_ENDPOINT_COMPLETE_BITS ) {
     handle_endpoint_irq(rport, XFER_RESULT_SUCCESS, &rport->ep_complete);
   }
@@ -200,6 +192,14 @@ void __no_inline_not_in_flash_func(pio_usb_host_irq_handler)(uint8_t root_id) {
 
   if ( ints & PIO_USB_INTS_ENDPOINT_ERROR_BITS ) {
     handle_endpoint_irq(rport, XFER_RESULT_FAILED, &rport->ep_error);
+  }
+
+  if ( ints & PIO_USB_INTS_CONNECT_BITS ) {
+    hcd_event_device_attach(tu_rhport, true);
+  }
+
+  if ( ints & PIO_USB_INTS_DISCONNECT_BITS ) {
+    hcd_event_device_remove(tu_rhport, true);
   }
 
   // clear all

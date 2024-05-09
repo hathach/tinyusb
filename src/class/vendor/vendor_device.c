@@ -36,6 +36,8 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+#define BULK_PACKET_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+
 typedef struct
 {
   uint8_t itf_num;
@@ -49,10 +51,8 @@ typedef struct
   uint8_t rx_ff_buf[CFG_TUD_VENDOR_RX_BUFSIZE];
   uint8_t tx_ff_buf[CFG_TUD_VENDOR_TX_BUFSIZE];
 
-#if CFG_FIFO_MUTEX
-  osal_mutex_def_t rx_ff_mutex;
-  osal_mutex_def_t tx_ff_mutex;
-#endif
+  OSAL_MUTEX_DEF(rx_ff_mutex);
+  OSAL_MUTEX_DEF(tx_ff_mutex);
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_VENDOR_EPSIZE];
@@ -171,23 +171,47 @@ uint32_t tud_vendor_n_write_available (uint8_t itf)
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void vendord_init(void)
-{
+void vendord_init(void) {
   tu_memclr(_vendord_itf, sizeof(_vendord_itf));
 
-  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++)
-  {
+  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++) {
     vendord_interface_t* p_itf = &_vendord_itf[i];
 
     // config fifo
     tu_fifo_config(&p_itf->rx_ff, p_itf->rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE, 1, false);
     tu_fifo_config(&p_itf->tx_ff, p_itf->tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, 1, false);
 
-#if CFG_FIFO_MUTEX
-    tu_fifo_config_mutex(&p_itf->rx_ff, NULL, osal_mutex_create(&p_itf->rx_ff_mutex));
-    tu_fifo_config_mutex(&p_itf->tx_ff, osal_mutex_create(&p_itf->tx_ff_mutex), NULL);
-#endif
+    #if OSAL_MUTEX_REQUIRED
+    osal_mutex_t mutex_rd = osal_mutex_create(&p_itf->rx_ff_mutex);
+    osal_mutex_t mutex_wr = osal_mutex_create(&p_itf->tx_ff_mutex);
+    TU_ASSERT(mutex_rd && mutex_wr,);
+
+    tu_fifo_config_mutex(&p_itf->rx_ff, NULL, mutex_rd);
+    tu_fifo_config_mutex(&p_itf->tx_ff, mutex_wr, NULL);
+    #endif
   }
+}
+
+bool vendord_deinit(void) {
+  #if OSAL_MUTEX_REQUIRED
+  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++) {
+    vendord_interface_t* p_itf = &_vendord_itf[i];
+    osal_mutex_t mutex_rd = p_itf->rx_ff.mutex_rd;
+    osal_mutex_t mutex_wr = p_itf->tx_ff.mutex_wr;
+
+    if (mutex_rd) {
+      osal_mutex_delete(mutex_rd);
+      tu_fifo_config_mutex(&p_itf->rx_ff, NULL, NULL);
+    }
+
+    if (mutex_wr) {
+      osal_mutex_delete(mutex_wr);
+      tu_fifo_config_mutex(&p_itf->tx_ff, NULL, NULL);
+    }
+  }
+  #endif
+
+  return true;
 }
 
 void vendord_reset(uint8_t rhport)
@@ -251,7 +275,6 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
 
 bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
-  (void) rhport;
   (void) result;
 
   uint8_t itf = 0;
@@ -278,7 +301,18 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   {
     if (tud_vendor_tx_cb) tud_vendor_tx_cb(itf, (uint16_t) xferred_bytes);
     // Send complete, try to send more if possible
-    tud_vendor_n_write_flush(itf);
+    if ( 0 == tud_vendor_n_write_flush(itf) )
+    {
+      // If there is no data left, a ZLP should be sent if
+      // xferred_bytes is multiple of EP Packet size and not zero
+      if ( !tu_fifo_count(&p_itf->tx_ff) && xferred_bytes && (0 == (xferred_bytes & (BULK_PACKET_SIZE-1))) )
+      {
+        if ( usbd_edpt_claim(rhport, p_itf->ep_in) )
+        {
+          usbd_edpt_xfer(rhport, p_itf->ep_in, NULL, 0);
+        }
+      }
+    }
   }
 
   return true;
