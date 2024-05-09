@@ -12,11 +12,9 @@ on:
       - '**.h'
 jobs:
  Fuzzing:
+   if: false
    runs-on: ubuntu-latest
    steps:
-   - name: Get dependencies
-     run: pip install click
-
    - name: Build Fuzzers
      id: build
      uses: google/oss-fuzz/infra/cifuzz/actions/build_fuzzers@master

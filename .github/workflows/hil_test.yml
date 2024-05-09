@@ -81,6 +81,7 @@ jobs:
           name: hil_pi4
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
+            cmake-build/cmake-build-*/*/*/*.bin
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
