@@ -5,7 +5,7 @@ inputs:
     required: true
     type: string
   toolchain_url:
-    required: true
+    required: false
     type: string
 
 runs:
@@ -17,24 +17,15 @@ runs:
       with:
         release: '12.3.Rel1'
 
-    - name: Cache Toolchain
-      if: inputs.toolchain != 'arm-gcc'
-      uses: actions/cache@v4
-      id: cache-toolchain
+    - name: Pull ESP-IDF docker
+      if: inputs.toolchain == 'esp-idf'
+      run: docker pull espressif/idf:latest
+      shell: bash
+
+    - name: Download Toolchain
+      if: >-
+        inputs.toolchain != 'arm-gcc' &&
+        inputs.toolchain != 'esp-idf'
+      uses: ./.github/actions/setup_toolchain/download
       with:
-        path: ~/cache/toolchain
-        key: ${{ runner.os }}-${{ inputs.toolchain_url }}
-
-    - name: Install Toolchain
-      if: inputs.toolchain != 'arm-gcc' && steps.cache-toolchain.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/cache/toolchain
-        wget --progress=dot:mega ${{ inputs.toolchain_url }} -O toolchain.tar.gz
-        tar -C ~/cache/toolchain -xaf toolchain.tar.gz
-      shell: bash
-
-    - name: Set Toolchain Path
-      if: inputs.toolchain != 'arm-gcc'
-      run: |
-        echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
-      shell: bash
+        toolchain_url: ${{ inputs.toolchain_url }}

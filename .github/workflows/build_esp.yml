@@ -41,8 +41,10 @@ jobs:
       with:
         python-version: '3.x'
 
-    - name: Pull ESP-IDF docker
-      run: docker pull espressif/idf:latest
+    - name: Setup Toolchain
+      uses: ./.github/actions/setup_toolchain
+      with:
+        toolchain: 'esp-idf'
 
     - name: Checkout TinyUSB
       uses: actions/checkout@v4
