@@ -38,6 +38,7 @@ jobs:
 
     - name: Build Fuzzer
       run: |
+        pip install click
         export CC=clang
         export CXX=clang++
         fuzz_harness=$(ls -d test/fuzz/device/*/)

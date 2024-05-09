@@ -77,7 +77,7 @@ def build_family(family, toolchain):
 def main(family, board, toolchain):
     if len(family) == 0 and len(board) == 0:
         print("Please specify family or board to build")
-        return
+        return 1
 
     print(build_separator)
     print(build_utils.build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))
@@ -111,8 +111,8 @@ def main(family, board, toolchain):
     print(build_separator)
     print(f"Build Summary: {total_result[0]} {SUCCEEDED}, {total_result[1]} {FAILED} and took {total_time:.2f}s")
     print(build_separator)
-    sys.exit(total_result[1])
+    return total_result[1]
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

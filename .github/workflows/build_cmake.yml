@@ -1,4 +1,4 @@
-name: Build CMake
+name: Build
 
 on:
   workflow_dispatch:
@@ -51,9 +51,9 @@ jobs:
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
-  # Build
+  # Build CMake
   # ---------------------------------------
-  build:
+  cmake:
     needs: set-matrix
     uses: ./.github/workflows/build_family.yml
     strategy:
@@ -70,98 +70,5 @@ jobs:
       build-json: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
 
   # ---------------------------------------
-  # Build ARM with GCC
+  # Build Make
   # ---------------------------------------
-  arm-gcc:
-    if: false
-    needs: set-matrix
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        family: ${{ fromJSON(needs.set-matrix.outputs.json).arm-gcc.family }}
-    steps:
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
-
-      - name: Install ARM GCC
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
-        with:
-          release: '12.3.Rel1'
-
-      - name: Prepare to build
-        uses: ./.github/actions/prepare_build
-        with:
-          family: ${{ matrix.family }}
-
-      - name: Build
-        run: python tools/build_cmake.py ${{ matrix.family }}
-
-      - name: Upload Artifacts for Hardware Testing (rp2040)
-        if: contains(matrix.family, 'rp2040') && github.repository_owner == 'hathach'
-        uses: actions/upload-artifact@v4
-        with:
-          name: raspberry_pi_pico
-          path: |
-            cmake-build/cmake-build-raspberry_pi_pico/*/*/*.elf
-
-      - name: Upload Artifacts for Hardware Testing (nRF)
-        if: contains(matrix.family, 'nrf') && github.repository_owner == 'hathach'
-        uses: actions/upload-artifact@v4
-        with:
-          name: feather_nrf52840_express
-          path: |
-            cmake-build/cmake-build-feather_nrf52840_express/*/*/*.elf
-
-      - name: Upload Artifacts for Hardware Testing (samd51)
-        if: contains(matrix.family, 'samd5x_e5x') && github.repository_owner == 'hathach'
-        uses: actions/upload-artifact@v4
-        with:
-          name: itsybitsy_m4
-          path: |
-            cmake-build/cmake-build-itsybitsy_m4/*/*/*.bin
-
-  # ---------------------------------------
-  # Hardware in the loop (HIL)
-  # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
-  # ---------------------------------------
-  hil-test:
-    if: github.repository_owner == 'hathach' && false
-    needs: arm-gcc
-    runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
-    strategy:
-      fail-fast: false
-      matrix:
-        board:
-          - 'feather_nrf52840_express'
-          - 'itsybitsy_m4'
-          - 'raspberry_pi_pico'
-    steps:
-      - name: Clean workspace
-        run: |
-          echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"
-          mkdir -p "${{ github.workspace }}"
-
-        # USB bus on rpi4 is not stable, reset it before testing
-      - name: Reset USB bus
-        run: |
-          lsusb
-          lsusb -t
-          # reset VIA Labs 2.0 hub
-          sudo usbreset 001/002
-
-      - name: Checkout test/hil
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: test/hil
-
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.board }}
-          path: cmake-build/cmake-build-${{ matrix.board }}
-
-      - name: Test on actual hardware
-        run: |
-          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json

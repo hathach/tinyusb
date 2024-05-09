@@ -51,7 +51,7 @@ jobs:
         id: parse_hil_json
         run: |
           sudo apt install -y jq
-          BOARD_LIST=$(jq -r '.boards[] | "-b " + .name' test/hil/hil_pi4.json | tr '\n' ' ')
+          BOARD_LIST=$(jq -r '.boards[] | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
           echo "BOARD_LIST=$BOARD_LIST"
           echo >> $GITHUB_ENV "BOARD_LIST=$BOARD_LIST"
           echo >> $GITHUB_OUTPUT "BOARD_LIST=$BOARD_LIST"

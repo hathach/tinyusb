@@ -56,4 +56,4 @@ jobs:
 
       - name: Test on actual hardware (hardware in the loop)
         run: |
-          python3 test/hil/hil_test.py hil_hfp.json
+          python3 test/hil/hil_test.py hfp.json
