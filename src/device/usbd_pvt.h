@@ -23,8 +23,8 @@
  *
  * This file is part of the TinyUSB stack.
  */
-#ifndef _TUSB_USBD_PVT_H_
-#define _TUSB_USBD_PVT_H_
+#ifndef TUSB_USBD_PVT_H_
+#define TUSB_USBD_PVT_H_
 
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
@@ -40,10 +40,7 @@
 //--------------------------------------------------------------------+
 
 typedef struct {
-  #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
   char const* name;
-  #endif
-
   void     (* init             ) (void);
   bool     (* deinit           ) (void);
   void     (* reset            ) (uint8_t rhport);

@@ -41,14 +41,16 @@ jobs:
       with:
         python-version: '3.x'
 
-    - name: Pull ESP-IDF docker
-      run: docker pull espressif/idf:latest
-
     - name: Checkout TinyUSB
       uses: actions/checkout@v4
 
+    - name: Setup Toolchain
+      uses: ./.github/actions/setup_toolchain
+      with:
+        toolchain: 'esp-idf'
+
     - name: Build
-      run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build_esp32.py ${{ matrix.board }}
+      run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py -b ${{ matrix.board }}
 
     - name: Upload Artifacts for Hardware Testing
       if: matrix.board == 'espressif_s3_devkitm' && github.repository_owner == 'hathach'
@@ -91,13 +93,6 @@ jobs:
           # reset VIA Labs 2.0 hub
           sudo usbreset 001/002
 
-          # legacy code
-          #for port in $(lspci | grep USB | cut -d' ' -f1); do
-          #    echo -n "0000:${port}"| sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind;
-          #    sleep 0.1;
-          #    echo -n "0000:${port}" | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind;
-          #done
-
       - name: Checkout test/hil
         uses: actions/checkout@v4
         with:
@@ -111,4 +106,4 @@ jobs:
 
       - name: Test on actual hardware
         run: |
-          python3 test/hil/hil_test.py --board ${{ matrix.board }} hil_pi4.json
+          python3 test/hil/hil_test.py --board ${{ matrix.board }} pi4_esp32.json

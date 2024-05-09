@@ -48,7 +48,9 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Get Dependencies
-      run: python3 tools/get_deps.py stm32f4
+      run: |
+        pip install click
+        python3 tools/get_deps.py stm32f4
 
     - name: Build
-      run: python3 tools/build_make.py stm32f4 stm32f411disco
+      run: python3 tools/build.py -s make stm32f2

@@ -90,16 +90,16 @@ tu_static usbd_device_t _usbd_dev;
 // Class Driver
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
-  #define DRIVER_NAME(_name)    .name = _name,
+  #define DRIVER_NAME(_name)  _name
 #else
-  #define DRIVER_NAME(_name)
+  #define DRIVER_NAME(_name)  NULL
 #endif
 
 // Built-in class drivers
 tu_static usbd_class_driver_t const _usbd_driver[] = {
     #if CFG_TUD_CDC
     {
-        DRIVER_NAME("CDC")
+        .name             = DRIVER_NAME("CDC"),
         .init             = cdcd_init,
         .deinit           = cdcd_deinit,
         .reset            = cdcd_reset,
@@ -112,7 +112,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_MSC
     {
-        DRIVER_NAME("MSC")
+        .name             = DRIVER_NAME("MSC"),
         .init             = mscd_init,
         .deinit           = NULL,
         .reset            = mscd_reset,
@@ -125,7 +125,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_HID
     {
-        DRIVER_NAME("HID")
+        .name             = DRIVER_NAME("HID"),
         .init             = hidd_init,
         .deinit           = hidd_deinit,
         .reset            = hidd_reset,
@@ -138,7 +138,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_AUDIO
     {
-        DRIVER_NAME("AUDIO")
+        .name             = DRIVER_NAME("AUDIO"),
         .init             = audiod_init,
         .deinit           = audiod_deinit,
         .reset            = audiod_reset,
@@ -151,7 +151,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_VIDEO
     {
-        DRIVER_NAME("VIDEO")
+        .name             = DRIVER_NAME("VIDEO"),
         .init             = videod_init,
         .deinit           = videod_deinit,
         .reset            = videod_reset,
@@ -164,7 +164,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_MIDI
     {
-        DRIVER_NAME("MIDI")
+        .name             = DRIVER_NAME("MIDI"),
         .init             = midid_init,
         .deinit           = midid_deinit,
         .open             = midid_open,
@@ -177,7 +177,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_VENDOR
     {
-        DRIVER_NAME("VENDOR")
+        .name             = DRIVER_NAME("VENDOR"),
         .init             = vendord_init,
         .deinit           = vendord_deinit,
         .reset            = vendord_reset,
@@ -190,7 +190,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_USBTMC
     {
-        DRIVER_NAME("TMC")
+        .name             = DRIVER_NAME("TMC"),
         .init             = usbtmcd_init_cb,
         .deinit           = usbtmcd_deinit,
         .reset            = usbtmcd_reset_cb,
@@ -203,7 +203,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_DFU_RUNTIME
     {
-        DRIVER_NAME("DFU-RUNTIME")
+        .name             = DRIVER_NAME("DFU-RUNTIME"),
         .init             = dfu_rtd_init,
         .deinit           = dfu_rtd_deinit,
         .reset            = dfu_rtd_reset,
@@ -216,7 +216,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_DFU
     {
-        DRIVER_NAME("DFU")
+        .name             = DRIVER_NAME("DFU"),
         .init             = dfu_moded_init,
         .deinit           = dfu_moded_deinit,
         .reset            = dfu_moded_reset,
@@ -229,7 +229,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_ECM_RNDIS || CFG_TUD_NCM
     {
-        DRIVER_NAME("NET")
+        .name             = DRIVER_NAME("NET"),
         .init             = netd_init,
         .deinit           = netd_deinit,
         .reset            = netd_reset,
@@ -242,7 +242,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 
     #if CFG_TUD_BTH
     {
-        DRIVER_NAME("BTH")
+        .name             = DRIVER_NAME("BTH"),
         .init             = btd_init,
         .deinit           = btd_deinit,
         .reset            = btd_reset,
