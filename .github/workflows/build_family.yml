@@ -12,7 +12,7 @@ on:
       toolchain_url:
         required: true
         type: string
-      build-json:
+      build-family:
         required: true
         type: string
 
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        family: ${{ fromJSON(inputs.build-json).family }}
+        family: ${{ fromJSON(inputs.build-family) }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
