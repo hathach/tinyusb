@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019, Ha Thach (tinyusb.org)
@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_HOST_ENABLED && \
+#if CFG_TUH_ENABLED && \
     (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 
 #include "chip.h"
@@ -44,4 +44,3 @@ void hcd_int_disable(uint8_t rhport)
 }
 
 #endif
-

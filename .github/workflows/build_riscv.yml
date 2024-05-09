@@ -1,11 +1,28 @@
 name: Build RISC-V
 
 on:
-  pull_request:
+  workflow_dispatch:
   push:
-  release:
-    types:
-      - created
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'tools/get_deps.py'
+      - '.github/workflows/build_riscv.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'tools/get_deps.py'
+      - '.github/workflows/build_riscv.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   build-riscv:
@@ -15,22 +32,23 @@ jobs:
       matrix:
         family:
         # Alphabetical order
+        - 'ch32v307'
         - 'fomu'
+        - 'gd32vf103'
     steps:
     - name: Setup Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v2
-
-    - name: Checkout common submodules in lib
-      run: git submodule update --init lib/FreeRTOS-Kernel lib/lwip
+      uses: actions/checkout@v4
 
     - name: Set Toolchain URL
       run: echo >> $GITHUB_ENV TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/download/v10.1.0-1.1/xpack-riscv-none-embed-gcc-10.1.0-1.1-linux-x64.tar.gz
 
     - name: Cache Toolchain
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       id: cache-toolchain
       with:
         path: ~/cache/
@@ -46,5 +64,8 @@ jobs:
     - name: Set Toolchain Path
       run: echo >> $GITHUB_PATH `echo ~/cache/toolchain/*/bin`
 
+    - name: Get Dependencies
+      run: python3 tools/get_deps.py ${{ matrix.family }}
+
     - name: Build
-      run: python3 tools/build_family.py ${{ matrix.family }}
+      run: python3 tools/build_make.py ${{ matrix.family }}

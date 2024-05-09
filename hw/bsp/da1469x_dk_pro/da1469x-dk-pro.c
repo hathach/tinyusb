@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Jerzy Kasenberg
@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include <hal/hal_gpio.h>
 #include <mcu/mcu.h>
 
@@ -35,6 +35,21 @@ void USB_IRQHandler(void)
 {
   tud_int_handler(0);
 }
+
+#if CFG_TUD_ENABLED
+// DA146xx driver function that must be called whenever VBUS changes
+extern void tusb_vbus_changed(bool present);
+
+// VBUS change interrupt handler
+void VBUS_IRQHandler(void)
+{
+  bool present = (CRG_TOP->ANA_STATUS_REG & CRG_TOP_ANA_STATUS_REG_VBUS_AVAILABLE_Msk) != 0;
+  // Clear VBUS interrupt
+  CRG_TOP->VBUS_IRQ_CLEAR_REG = 1;
+
+  tusb_vbus_changed(present);
+}
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -65,12 +80,20 @@ void board_init(void)
   hal_gpio_init_out(5, 0);
 
   // Button
-  hal_gpio_init_in(BUTTON_PIN, HAL_GPIO_PULL_NONE);
+  hal_gpio_init_in(BUTTON_PIN, HAL_GPIO_PULL_UP);
 
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
-  NVIC_SetPriority(USB_IRQn, 2);
+#if CFG_TUD_ENABLED
+  // Setup interrupt for both connect and disconnect
+  CRG_TOP->VBUS_IRQ_MASK_REG = CRG_TOP_VBUS_IRQ_MASK_REG_VBUS_IRQ_EN_FALL_Msk |
+                               CRG_TOP_VBUS_IRQ_MASK_REG_VBUS_IRQ_EN_RISE_Msk;
+  NVIC_SetPriority(VBUS_IRQn, 2);
+  // Trigger interrupt at the start to inform driver about VBUS state at start
+  // otherwise it could go unnoticed.
+  NVIC_SetPendingIRQ(VBUS_IRQn);
+  NVIC_EnableIRQ(VBUS_IRQn);
 
   /* Setup USB IRQ */
   NVIC_SetPriority(USB_IRQn, 2);
@@ -81,6 +104,7 @@ void board_init(void)
 
   mcu_gpio_set_pin_function(14, MCU_GPIO_MODE_INPUT, MCU_GPIO_FUNC_USB);
   mcu_gpio_set_pin_function(15, MCU_GPIO_MODE_INPUT, MCU_GPIO_FUNC_USB);
+#endif
 }
 
 //--------------------------------------------------------------------+

@@ -1,4 +1,5 @@
 DEPS_SUBMODULES += hw/mcu/microchip
+ASF_DIR = hw/mcu/microchip/same70
 
 CFLAGS += \
   -mthumb \
@@ -8,18 +9,21 @@ CFLAGS += \
   -mfpu=fpv4-sp-d16 \
   -nostdlib -nostartfiles \
   -D__SAME70Q21B__ \
-  -DCFG_TUSB_MCU=OPT_MCU_NONE
+  -DCFG_TUSB_MCU=OPT_MCU_SAMX7X
 
 # suppress following warnings from mcu driver
-CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align
+CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=redundant-decls
 
-ASF_DIR = hw/mcu/microchip/same70
+# SAM driver is flooded with -Wcast-qual which slow down complication significantly
+CFLAGS_SKIP += -Wcast-qual
+
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE = $(ASF_DIR)/same70b/gcc/gcc/same70q21b_flash.ld
 
 SRC_C += \
-	src/portable/template/dcd_template.c \
+	src/portable/microchip/samx7x/dcd_samx7x.c \
 	$(ASF_DIR)/same70b/gcc/gcc/startup_same70q21b.c \
 	$(ASF_DIR)/same70b/gcc/system_same70q21b.c \
 	$(ASF_DIR)/hpl/core/hpl_init.c \
@@ -43,13 +47,8 @@ INC += \
 	$(TOP)/$(ASF_DIR)/hri \
 	$(TOP)/$(ASF_DIR)/CMSIS/Core/Include
 
-# For TinyUSB port source
-#SRC_C += src/portable/template/dcd_template.c
-VENDOR = .
-CHIP_FAMILY = template
-
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM7
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM7
 
 # For flash-jlink target
 JLINK_DEVICE = SAME70Q21B
@@ -58,4 +57,4 @@ JLINK_DEVICE = SAME70Q21B
 # Note: SAME70's GPNVM1 must be set to 1 to boot from flash with
 # 	edbg -t same70 -F w0,1,1
 flash: $(BUILD)/$(PROJECT).bin
-	edbg --verbose -t same70 -pv -f $< 
+	edbg --verbose -t same70 -pv -f $<

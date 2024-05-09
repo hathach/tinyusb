@@ -1,0 +1,86 @@
+name: Bug Report
+description: Report a problem with TinyUSB
+labels: 'Bug 🐞'
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+        It's okay to leave some blank if it doesn't apply to your problem.
+
+  - type: dropdown
+    attributes:
+      label: Operating System
+      options:
+              - Linux
+              - MacOS
+              - RaspberryPi OS
+              - Windows 7
+              - Windows 10
+              - Windows 11
+              - Others
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Board
+      placeholder: e.g Feather nRF52840 Express
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Firmware
+      placeholder: |
+        e.g examples/device/cdc_msc. If it is custom firmware, it is preferably compiled like one in example folder and reviewable for people to comment on. The easiest way is
+        - Fork this repo, checkout a new branch
+        - Add your-own-example based on stock one
+        - Push and post it here.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: What happened ?
+      placeholder: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: How to reproduce ?
+      placeholder: |
+        Exact steps in chronological order, details should be specific e.g if you use a command/script to test with, please post it as well.
+        1. Go to '...'
+        2. Click on '....'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Debug Log as txt file (LOG/CFG_TUSB_DEBUG=2)
+      placeholder: |
+        Attach your debug log txt file here, where the issue occurred, best with comments to explain the actual events.
+
+        Note1: Please DO NOT paste your lengthy log contents here since it hurts the readability.
+        Note2: To enable logging, add `LOG=2` to to the make command if building with stock examples or set `CFG_TUSB_DEBUG=2` in your tusb_config.h.
+        More information can be found at [example's readme](https://github.com/hathach/tinyusb/blob/master/docs/getting_started.md)
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem.
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: I have checked existing issues, dicussion and documentation
+      description: You agree to check all the resources above before opening a new issue.
+      options:
+        - label: I confirm I have checked existing issues, dicussion and documentation.
+          required: true

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -27,16 +27,33 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "timers.h"
-#include "queue.h"
-#include "semphr.h"
-
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
-
 #include "usb_descriptors.h"
+
+#if TUP_MCU_ESPRESSIF
+  // ESP-IDF need "freertos/" prefix in include path.
+  // CFG_TUSB_OS_INC_PATH should be defined accordingly.
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/semphr.h"
+  #include "freertos/queue.h"
+  #include "freertos/task.h"
+  #include "freertos/timers.h"
+
+  #define USBD_STACK_SIZE     4096
+
+#else
+  #include "FreeRTOS.h"
+  #include "semphr.h"
+  #include "queue.h"
+  #include "task.h"
+  #include "timers.h"
+
+  // Increase stack size when debug log is enabled
+  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+#endif
+
+#define HID_STACK_SZIE      configMINIMAL_STACK_SIZE
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -53,25 +70,18 @@ enum  {
   BLINK_SUSPENDED = 2500,
 };
 
-// static timer
+// static timer & task
+#if configSUPPORT_STATIC_ALLOCATION
 StaticTimer_t blinky_tmdef;
-TimerHandle_t blinky_tm;
-
-// static task for usbd
-#if CFG_TUSB_DEBUG
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE)
-#else
-  #define USBD_STACK_SIZE     (3*configMINIMAL_STACK_SIZE/2)
-#endif
 
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
-// static task for hid
-#define HID_STACK_SZIE      configMINIMAL_STACK_SIZE
 StackType_t  hid_stack[HID_STACK_SZIE];
 StaticTask_t hid_taskdef;
+#endif
 
+TimerHandle_t blinky_tm;
 
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
@@ -85,25 +95,32 @@ int main(void)
 {
   board_init();
 
+#if configSUPPORT_STATIC_ALLOCATION
   // soft timer for blinky
   blinky_tm = xTimerCreateStatic(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb, &blinky_tmdef);
-  xTimerStart(blinky_tm, 0);
 
   // Create a task for tinyusb device stack
-  (void) xTaskCreateStatic( usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
+  xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
 
   // Create HID task
-  (void) xTaskCreateStatic( hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
+  xTaskCreateStatic(hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, hid_stack, &hid_taskdef);
+#else
+  blinky_tm = xTimerCreate(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb);
+  xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+  xTaskCreate(hid_task, "hid", HID_STACK_SZIE, NULL, configMAX_PRIORITIES-2, NULL);
+#endif
+
+  xTimerStart(blinky_tm, 0);
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
-#if CFG_TUSB_MCU != OPT_MCU_ESP32S2 && CFG_TUSB_MCU != OPT_MCU_ESP32S3
+#if !TUP_MCU_ESPRESSIF
   vTaskStartScheduler();
 #endif
 
   return 0;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
+#if TUP_MCU_ESPRESSIF
 void app_main(void)
 {
   main();
@@ -116,15 +133,22 @@ void usb_device_task(void* param)
 {
   (void) param;
 
+  // init device stack on configured roothub port
   // This should be called after scheduler/kernel is started.
   // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-  tusb_init();
+  tud_init(BOARD_TUD_RHPORT);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
 
   // RTOS forever loop
   while (1)
   {
-    // tinyusb device task
+    // put this thread to waiting state until there is new events
     tud_task();
+
+    // following code only run if tud_task() process at least 1 event
   }
 }
 
@@ -156,7 +180,14 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
+  if (tud_mounted())
+  {
+    xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
+  }
+  else
+  {
+    xTimerChangePeriod(blinky_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -282,9 +313,9 @@ void hid_task(void* param)
 // Invoked when sent REPORT successfully to host
 // Application can use this to send the next report
 // Note: For composite reports, report[0] is report ID
-void tud_hid_report_complete_cb(uint8_t itf, uint8_t const* report, uint8_t len)
+void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len)
 {
-  (void) itf;
+  (void) instance;
   (void) len;
 
   uint8_t next_report_id = report[0] + 1;
@@ -299,10 +330,10 @@ void tud_hid_report_complete_cb(uint8_t itf, uint8_t const* report, uint8_t len)
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
 // Return zero will cause the stack to STALL request
-uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
+uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
-  (void) itf;
+  (void) instance;
   (void) report_id;
   (void) report_type;
   (void) buffer;
@@ -313,14 +344,33 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 
 // Invoked when received SET_REPORT control request or
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
-void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
+void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
-  // TODO set LED based on CAPLOCK, NUMLOCK etc...
-  (void) itf;
-  (void) report_id;
-  (void) report_type;
-  (void) buffer;
-  (void) bufsize;
+  (void) instance;
+
+  if (report_type == HID_REPORT_TYPE_OUTPUT)
+  {
+    // Set keyboard LED e.g Capslock, Numlock etc...
+    if (report_id == REPORT_ID_KEYBOARD)
+    {
+      // bufsize should be (at least) 1
+      if ( bufsize < 1 ) return;
+
+      uint8_t const kbd_leds = buffer[0];
+
+      if (kbd_leds & KEYBOARD_LED_CAPSLOCK)
+      {
+        // Capslock On: disable blink, turn led on
+        xTimerStop(blinky_tm, portMAX_DELAY);
+        board_led_write(true);
+      }else
+      {
+        // Caplocks Off: back to normal blink
+        board_led_write(false);
+        xTimerStart(blinky_tm, portMAX_DELAY);
+      }
+    }
+  }
 }
 
 //--------------------------------------------------------------------+

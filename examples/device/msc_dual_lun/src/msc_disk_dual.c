@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -23,10 +23,13 @@
  *
  */
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 #if CFG_TUD_MSC
+
+// When button is pressed, LUN1 will be set to not ready to simulate
+// medium not present (e.g SD card removed)
 
 // Some MCU doesn't have enough 8KB SRAM to store the whole disk
 // We will use Flash as read-only disk with board that has
@@ -227,7 +230,7 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 // return true allowing host to read/write this LUN e.g SD card inserted
 bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
-  (void) lun;
+  if ( lun == 1 && board_button_read() ) return false;
 
   return true; // RAM disk is always ready
 }
@@ -268,16 +271,33 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
+  // out of ramdisk
+  if ( lba >= DISK_BLOCK_NUM ) return -1;
+
   uint8_t const* addr = (lun ? msc_disk1[lba] : msc_disk0[lba]) + offset;
   memcpy(buffer, addr, bufsize);
 
-  return bufsize;
+  return (int32_t) bufsize;
+}
+
+bool tud_msc_is_writable_cb (uint8_t lun)
+{
+  (void) lun;
+
+#ifdef CFG_EXAMPLE_MSC_READONLY
+  return false;
+#else
+  return true;
+#endif
 }
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
+  // out of ramdisk
+  if ( lba >= DISK_BLOCK_NUM ) return -1;
+
 #ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t* addr = (lun ? msc_disk1[lba] : msc_disk0[lba])  + offset;
   memcpy(addr, buffer, bufsize);
@@ -285,7 +305,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
   (void) lun; (void) lba; (void) offset; (void) buffer;
 #endif
 
-  return bufsize;
+  return (int32_t) bufsize;
 }
 
 // Callback invoked when received an SCSI command not in built-in list below
@@ -296,30 +316,13 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
   // read10 & write10 has their own callback and MUST not be handled here
 
   void const* response = NULL;
-  uint16_t resplen = 0;
+  int32_t resplen = 0;
 
   // most scsi handled is input
   bool in_xfer = true;
 
   switch (scsi_cmd[0])
   {
-    case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
-      // Host is about to read/write etc ... better not to disconnect disk
-      resplen = 0;
-    break;
-
-    case SCSI_CMD_START_STOP_UNIT:
-      // Host try to eject/safe remove/poweroff us. We could safely disconnect with disk storage, or go into lower power
-      /* scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
-        // Start bit = 0 : low power mode, if load_eject = 1 : unmount disk storage as well
-        // Start bit = 1 : Ready mode, if load_eject = 1 : mount disk storage
-        start_stop->start;
-        start_stop->load_eject;
-       */
-       resplen = 0;
-    break;
-
-
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
@@ -336,7 +339,7 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
   {
     if(in_xfer)
     {
-      memcpy(buffer, response, resplen);
+      memcpy(buffer, response, (size_t) resplen);
     }else
     {
       // SCSI output

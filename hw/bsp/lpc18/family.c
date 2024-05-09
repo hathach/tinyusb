@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -25,31 +25,41 @@
  */
 
 #include "chip.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
+
+#ifdef BOARD_TUD_RHPORT
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#ifdef BOARD_TUH_RHPORT
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
 
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    tuh_int_handler(0);
+void USB0_IRQHandler(void) {
+  #if PORT_SUPPORT_DEVICE(0)
+  tud_int_handler(0);
   #endif
 
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-    tud_int_handler(0);
+  #if PORT_SUPPORT_HOST(0)
+  tuh_int_handler(0, true);
   #endif
 }
 
-void USB1_IRQHandler(void)
-{
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    tuh_int_handler(1);
+void USB1_IRQHandler(void) {
+  #if PORT_SUPPORT_DEVICE(1)
+  tud_int_handler(1);
   #endif
 
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
-    tud_int_handler(1);
+  #if PORT_SUPPORT_HOST(1)
+  tuh_int_handler(1, true);
   #endif
 }
 
@@ -57,26 +67,31 @@ void USB1_IRQHandler(void)
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-
 /* System configuration variables used by chip driver */
 const uint32_t OscRateIn = 12000000;
 const uint32_t ExtRateIn = 0;
 
 // Invoked by startup code
-void SystemInit(void)
-{
+void SystemInit(void) {
 #ifdef __USE_LPCOPEN
-	extern void (* const g_pfnVectors[])(void);
+  extern void (*const g_pfnVectors[])(void);
   unsigned int *pSCB_VTOR = (unsigned int *) 0xE000ED08;
-	*pSCB_VTOR = (unsigned int) g_pfnVectors;
+  *pSCB_VTOR = (unsigned int) g_pfnVectors;
 #endif
 
   board_lpc18_pinmux();
-  Chip_SetupXtalClocking();
+
+#ifdef TRACE_ETM
+  // Trace clock is limited to 60MHz, limit CPU clock to 120MHz
+  Chip_SetupCoreClock(CLKIN_CRYSTAL, 120000000UL, true);
+#else
+  // CPU clock max to 180 Mhz
+  Chip_SetupCoreClock(CLKIN_CRYSTAL, MAX_CLOCK_FREQ, true);
+#endif
+
 }
 
-void board_init(void)
-{
+void board_init(void) {
   SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -84,7 +99,8 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(USB1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
@@ -102,11 +118,11 @@ void board_init(void)
   Chip_UART_TXEnable(UART_DEV);
 
   //------------- USB -------------//
-#if CFG_TUSB_RHPORT0_MODE
+#if PORT_SUPPORT_DEVICE(0) || PORT_SUPPORT_HOST(0)
   Chip_USB0_Init();
 #endif
 
-#if CFG_TUSB_RHPORT1_MODE
+#if PORT_SUPPORT_DEVICE(1) || PORT_SUPPORT_HOST(1)
   Chip_USB1_Init();
 #endif
 }
@@ -115,29 +131,22 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
+void board_led_write(bool state) {
   Chip_GPIO_SetPinState(LPC_GPIO_PORT, LED_PORT, LED_PIN, state);
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   // active low
   return Chip_GPIO_GetPinState(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  //return UART_ReceiveByte(BOARD_UART_PORT);
-  (void) buf; (void) len;
-  return 0;
+int board_uart_read(uint8_t *buf, int len) {
+  return Chip_UART_Read(UART_DEV, buf, len);
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  uint8_t const* buf8 = (uint8_t const*) buf;
-  for(int i=0; i<len; i++)
-  {
+int board_uart_write(void const *buf, int len) {
+  uint8_t const *buf8 = (uint8_t const *) buf;
+  for (int i = 0; i < len; i++) {
     while ((Chip_UART_ReadLineStatus(UART_DEV) & UART_LSR_THRE) == 0) {}
     Chip_UART_SendByte(UART_DEV, buf8[i]);
   }
@@ -147,13 +156,13 @@ int board_uart_write(void const * buf, int len)
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+
 #endif

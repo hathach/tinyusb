@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+#include "tusb_option.h"
+
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
+
 #ifndef DEBUG
 #define DEBUG 0
 #endif
@@ -31,10 +35,6 @@
 #ifndef LOG_USB
 #define LOG_USB 0
 #endif
-
-#include "tusb_option.h"
-
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_VALENTYUSB_EPTRI)
 
 #include "device/dcd.h"
 #include "dcd_eptri.h"
@@ -314,13 +314,13 @@ static void dcd_reset(void)
   usb_in_ctrl_write(1 << CSR_USB_IN_CTRL_RESET_OFFSET);
   usb_out_ctrl_write(1 << CSR_USB_OUT_CTRL_RESET_OFFSET);
 
-  memset((void *)rx_buffer, 0, sizeof(rx_buffer));
-  memset((void *)rx_buffer_max, 0, sizeof(rx_buffer_max));
-  memset((void *)rx_buffer_offset, 0, sizeof(rx_buffer_offset));
+  memset((void *)(uintptr_t) rx_buffer, 0, sizeof(rx_buffer));
+  memset((void *)(uintptr_t) rx_buffer_max, 0, sizeof(rx_buffer_max));
+  memset((void *)(uintptr_t) rx_buffer_offset, 0, sizeof(rx_buffer_offset));
 
-  memset((void *)tx_buffer, 0, sizeof(tx_buffer));
-  memset((void *)tx_buffer_max, 0, sizeof(tx_buffer_max));
-  memset((void *)tx_buffer_offset, 0, sizeof(tx_buffer_offset));
+  memset((void *)(uintptr_t) tx_buffer, 0, sizeof(tx_buffer));
+  memset((void *)(uintptr_t) tx_buffer_max, 0, sizeof(tx_buffer_max));
+  memset((void *)(uintptr_t) tx_buffer_offset, 0, sizeof(tx_buffer_offset));
   tx_ep = 0;
   tx_active = false;
 
@@ -401,6 +401,13 @@ void dcd_disconnect(uint8_t rhport)
   usb_pullup_out_write(0);
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
 
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
@@ -429,6 +436,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   return true;
 }
 
+void dcd_edpt_close_all (uint8_t rhport)
+{
+  (void) rhport;
+  // TODO implement dcd_edpt_close_all()
+}
+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
@@ -452,7 +465,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
       enable = 1;
     usb_out_ctrl_write((0 << CSR_USB_OUT_CTRL_STALL_OFFSET) | (enable << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | tu_edpt_number(ep_addr));
   }
-  // IN endpoints will get unstalled when more data is written.
+  // IN endpoints will get un-stalled when more data is written.
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)

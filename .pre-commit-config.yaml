@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2020 Diego Elio Pettenò
+#
+# SPDX-License-Identifier: Unlicense
+
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+  - id: check-yaml
+  - id: trailing-whitespace
+    exclude: |
+      (?x)^(
+        hw/bsp/mcx/sdk/
+      )
+  - id: end-of-file-fixer
+    exclude: |
+      (?x)^(
+        .idea/|
+        hw/bsp/mcx/sdk/|
+        docs/contributing/code_of_conduct.rst|
+        docs/info/contributors.rst
+      )
+  - id: forbid-submodules
+
+- repo: https://github.com/codespell-project/codespell
+  rev: v2.2.4
+  hooks:
+  - id: codespell
+    args: [-w]
+    exclude: |
+      (?x)^(
+        lib/|
+        hw/bsp/mcx/sdk/
+      )
+
+- repo: local
+  hooks:
+  - id: unit-test
+    name: unit-test
+    files: ^(src/|test/unit-test/)
+    entry: sh -c "cd test/unit-test && ceedling test:all"
+    pass_filenames: false
+    types_or: [c, header]
+    language: system

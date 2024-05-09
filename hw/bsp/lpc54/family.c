@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -30,8 +30,20 @@
 #include "fsl_iocon.h"
 #include "fsl_usart.h"
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "board.h"
+
+#ifdef BOARD_TUD_RHPORT
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#ifdef BOARD_TUH_RHPORT
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -58,13 +70,11 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
+void USB0_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USB1_IRQHandler(void)
-{
+void USB1_IRQHandler(void) {
   tud_int_handler(1);
 }
 
@@ -78,8 +88,7 @@ settings:
 sources:
 - {id: SYSCON.fro_hf.outFreq, value: 96 MHz}
 ******************************************************************/
-void BootClockFROHF96M(void)
-{
+void BootClockFROHF96M(void) {
   /*!< Set up the clock sources */
   /*!< Set up FRO */
   POWER_DisablePD(kPDRUNCFG_PD_FRO_EN); /*!< Ensure FRO is on  */
@@ -100,8 +109,7 @@ void BootClockFROHF96M(void)
   SystemCoreClock = 96000000U;
 }
 
-void board_init(void)
-{
+void board_init(void) {
   // Enable IOCON clock
   CLOCK_EnableClock(kCLOCK_Iocon);
 
@@ -152,14 +160,13 @@ void board_init(void)
 
 #if defined(FSL_FEATURE_SOC_USBHSD_COUNT) && FSL_FEATURE_SOC_USBHSD_COUNT
   // LPC546xx and LPC540xx has OTG 1 FS + 1 HS rhports
-
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+  #if PORT_SUPPORT_DEVICE(0)
     // Port0 is Full Speed
     POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*< Turn on USB Phy */
     CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
     CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
 
-    /*According to reference mannual, device mode setting has to be set by access usb host register */
+    /*According to reference manual, device mode setting has to be set by access usb host register */
     CLOCK_EnableClock(kCLOCK_Usbhsl0); /* enable usb0 host clock */
     USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
     CLOCK_DisableClock(kCLOCK_Usbhsl0); /* disable usb0 host clock */
@@ -167,21 +174,19 @@ void board_init(void)
     CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbSrcFro, CLOCK_GetFroHfFreq());
   #endif
 
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE
+  #if PORT_SUPPORT_DEVICE(1)
     // Port1 is High Speed
     POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY);
 
-    /*According to reference mannual, device mode setting has to be set by access usb host register */
+    /*According to reference manual, device mode setting has to be set by access usb host register */
     CLOCK_EnableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
     USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
     CLOCK_DisableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
 
     CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUsbPll, 0U);
   #endif
-
 #else
   // LPC5411x series only has full speed device
-
   POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); // Turn on USB Phy
   CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
 #endif
@@ -191,38 +196,53 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   // active low
   return BUTTON_STATE_ACTIVE == GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  USART_WriteBlocking(UART_DEV, (uint8_t *)buf, len);
+int board_uart_write(void const* buf, int len) {
+  USART_WriteBlocking(UART_DEV, (uint8_t const*) buf, len);
   return 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+#endif
+
+
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+
+#ifdef __clang__
+void	_exit (int __status) {
+  while (1) {}
+}
+#endif
+
 #endif

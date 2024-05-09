@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021, Ha Thach (tinyusb.org)
@@ -75,6 +75,8 @@ static inline void board_clock_init(void)
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 9;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
+
+  // TODO need to enable usb clock source
 
   /* Activate the OverDrive to reach the 216 MHz Frequency */
   HAL_PWREx_EnableOverDrive();

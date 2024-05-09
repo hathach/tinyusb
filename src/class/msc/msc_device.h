@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -131,6 +131,9 @@ TU_ATTR_WEAK uint8_t tud_msc_get_maxlun_cb(void);
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
 TU_ATTR_WEAK bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject);
 
+// Invoked when received REQUEST_SENSE
+TU_ATTR_WEAK int32_t tud_msc_request_sense_cb(uint8_t lun, void* buffer, uint16_t bufsize);
+
 // Invoked when Read10 command is complete
 TU_ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t lun);
 
@@ -140,13 +143,14 @@ TU_ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t lun);
 // Invoked when command in tud_msc_scsi_cb is complete
 TU_ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[16]);
 
-// Hook to make a mass storage device read-only. TODO remove
+// Invoked to check if device is writable as part of SCSI WRITE10
 TU_ATTR_WEAK bool tud_msc_is_writable_cb(uint8_t lun);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
 void     mscd_init            (void);
+bool     mscd_deinit          (void);
 void     mscd_reset           (uint8_t rhport);
 uint16_t mscd_open            (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     mscd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * p_request);

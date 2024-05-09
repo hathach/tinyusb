@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DFU_RUNTIME)
+#if (CFG_TUD_ENABLED && CFG_TUD_DFU_RUNTIME)
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -37,6 +37,13 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUD_DFU_RUNTIME_LOG_LEVEL
+  #define CFG_TUD_DFU_RUNTIME_LOG_LEVEL   CFG_TUD_LOG_LEVEL
+#endif
+
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_DFU_RUNTIME_LOG_LEVEL, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -44,8 +51,11 @@
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void dfu_rtd_init(void)
-{
+void dfu_rtd_init(void) {
+}
+
+bool dfu_rtd_deinit(void) {
+  return true;
 }
 
 void dfu_rtd_reset(uint8_t rhport)
@@ -99,7 +109,7 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
   {
     case DFU_REQUEST_DETACH:
     {
-      TU_LOG2("  DFU RT Request: DETACH\r\n");
+      TU_LOG_DRV("  DFU RT Request: DETACH\r\n");
       tud_control_status(rhport, request);
       tud_dfu_runtime_reboot_to_dfu_cb();
     }
@@ -107,17 +117,17 @@ bool dfu_rtd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
 
     case DFU_REQUEST_GETSTATUS:
     {
-      TU_LOG2("  DFU RT Request: GETSTATUS\r\n");
-      dfu_status_req_payload_t resp;
+      TU_LOG_DRV("  DFU RT Request: GETSTATUS\r\n");
+      dfu_status_response_t resp;
       // Status = OK, Poll timeout is ignored during RT, State = APP_IDLE, IString = 0
-      memset(&resp, 0x00, sizeof(dfu_status_req_payload_t));
-      tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_req_payload_t));
+      TU_VERIFY(tu_memset_s(&resp, sizeof(resp), 0x00, sizeof(resp))==0);
+      tud_control_xfer(rhport, request, &resp, sizeof(dfu_status_response_t));
     }
     break;
 
     default:
     {
-      TU_LOG2("  DFU RT Unexpected Request: %d\r\n", request->bRequest);
+      TU_LOG_DRV("  DFU RT Unexpected Request: %d\r\n", request->bRequest);
       return false; // stall unsupported request
     }
   }

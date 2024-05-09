@@ -158,7 +158,7 @@ enum {
   USBTMC_BULK_IN_ERR_DATA_TOO_SHORT = 4u,
   USBTMC_BULK_IN_ERR_DATA_TOO_LONG = 5u,
 };
-// bult-in halt errors
+// built-in halt errors
 enum {
   USBTMC_BULK_IN_ERR = 1u, ///< receives a USBTMC command message that expects a response while a
                            /// Bulk-IN transfer is in progress
@@ -184,12 +184,32 @@ typedef enum {
 } usmtmc_request_type_enum;
 
 typedef enum {
+  // The last and first valid bNotify1 for use by the USBTMC class specification.
+  USBTMC_bNOTIFY1_USBTMC_FIRST          = 0x00,
+  USBTMC_bNOTIFY1_USBTMC_LAST           = 0x3F,
+
+  // The last and first valid bNotify1 for use by vendors.
+  USBTMC_bNOTIFY1_VENDOR_SPECIFIC_FIRST = 0x40,
+  USBTMC_bNOTIFY1_VENDOR_SPECIFIC_LAST  = 0x7F,
+
+  // The last and first valid bNotify1 for use by USBTMC subclass specifications.
+  USBTMC_bNOTIFY1_SUBCLASS_FIRST        = 0x80,
+  USBTMC_bNOTIFY1_SUBCLASS_LAST         = 0xFF,
+
+  // From the USB488 Subclass Specification, Section 3.4.
+  USB488_bNOTIFY1_SRQ                   = 0x81,
+} usbtmc_int_in_payload_format;
+
+typedef enum {
   USBTMC_STATUS_SUCCESS = 0x01,
   USBTMC_STATUS_PENDING = 0x02,
   USBTMC_STATUS_FAILED = 0x80,
   USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS = 0x81,
   USBTMC_STATUS_SPLIT_NOT_IN_PROGRESS = 0x82,
-  USBTMC_STATUS_SPLIT_IN_PROGRESS  = 0x83
+  USBTMC_STATUS_SPLIT_IN_PROGRESS  = 0x83,
+
+  /****** USBTMC 488 *************/
+  USB488_STATUS_INTERRUPT_IN_BUSY = 0x20
 } usbtmc_status_enum;
 
 /************************************************************
@@ -259,14 +279,14 @@ typedef struct TU_ATTR_PACKED
 
   struct TU_ATTR_PACKED
   {
-    unsigned int listenOnly :1;
-    unsigned int talkOnly :1;
-    unsigned int supportsIndicatorPulse :1;
+    uint8_t listenOnly :1;
+    uint8_t talkOnly :1;
+    uint8_t supportsIndicatorPulse :1;
   } bmIntfcCapabilities;
 
   struct TU_ATTR_PACKED
   {
-    unsigned int canEndBulkInOnTermChar :1;
+    uint8_t canEndBulkInOnTermChar :1;
   } bmDevCapabilities;
 
   uint8_t _reserved2[6];
@@ -274,17 +294,17 @@ typedef struct TU_ATTR_PACKED
 
   struct TU_ATTR_PACKED
   {
-    unsigned int is488_2 :1;
-    unsigned int supportsREN_GTL_LLO :1;
-    unsigned int supportsTrigger :1;
+    uint8_t supportsTrigger :1;
+    uint8_t supportsREN_GTL_LLO :1;
+    uint8_t is488_2 :1;
   } bmIntfcCapabilities488;
 
   struct TU_ATTR_PACKED
   {
-    unsigned int SCPI :1;
-    unsigned int SR1 :1;
-    unsigned int RL1 :1;
-    unsigned int DT1 :1;
+    uint8_t DT1 :1;
+    uint8_t RL1 :1;
+    uint8_t SR1 :1;
+    uint8_t SCPI :1;
   } bmDevCapabilities488;
   uint8_t _reserved3[8];
 } usbtmc_response_capabilities_488_t;
@@ -302,6 +322,14 @@ TU_VERIFY_STATIC(sizeof(usbtmc_read_stb_rsp_488_t) == 3u, "struct wrong length")
 
 typedef struct TU_ATTR_PACKED
 {
+  uint8_t bNotify1; // Must be USB488_bNOTIFY1_SRQ
+  uint8_t StatusByte;
+} usbtmc_srq_interrupt_488_t;
+
+TU_VERIFY_STATIC(sizeof(usbtmc_srq_interrupt_488_t) == 2u, "struct wrong length");
+
+typedef struct TU_ATTR_PACKED
+{
   struct TU_ATTR_PACKED
   {
       unsigned int bTag : 7;
@@ -313,4 +341,3 @@ typedef struct TU_ATTR_PACKED
 TU_VERIFY_STATIC(sizeof(usbtmc_read_stb_interrupt_488_t) == 2u, "struct wrong length");
 
 #endif
-

@@ -1,3 +1,6 @@
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
+CROSS_COMPILE = riscv-none-embed-
+
 CFLAGS += \
   -flto \
   -march=rv32i \
@@ -5,8 +8,7 @@ CFLAGS += \
   -nostdlib \
   -DCFG_TUSB_MCU=OPT_MCU_VALENTYUSB_EPTRI
 
-# Cross Compiler for RISC-V
-CROSS_COMPILE = riscv-none-embed-
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE = $(FAMILY_PATH)/fomu.ld
@@ -19,12 +21,12 @@ INC += \
 	$(TOP)/$(FAMILY_PATH)/include
 
 # For freeRTOS port source
-FREERTOS_PORT = RISC-V
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 
 # flash using dfu-util
 $(BUILD)/$(PROJECT).dfu: $(BUILD)/$(PROJECT).bin
 	@echo "Create $@"
 	python $(TOP)/hw/bsp/$(BOARD)/dfu.py -b $^ -D 0x1209:0x5bf0 $@
-	
+
 flash: $(BUILD)/$(PROJECT).dfu
 	dfu-util -D $^

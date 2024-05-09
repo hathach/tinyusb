@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -27,7 +27,6 @@
 #ifndef _TUSB_CDC_DEVICE_H_
 #define _TUSB_CDC_DEVICE_H_
 
-#include "common/tusb_common.h"
 #include "cdc.h"
 
 //--------------------------------------------------------------------+
@@ -81,8 +80,8 @@ int32_t  tud_cdc_n_read_char       (uint8_t itf);
 // Clear the received FIFO
 void     tud_cdc_n_read_flush      (uint8_t itf);
 
-// Get a byte from FIFO at the specified position without removing it
-bool     tud_cdc_n_peek            (uint8_t itf, uint8_t* u8);
+// Get a byte from FIFO without removing it
+bool     tud_cdc_n_peek            (uint8_t itf, uint8_t* ui8);
 
 // Write bytes to TX FIFO, data may remain in the FIFO for a while
 uint32_t tud_cdc_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
@@ -116,7 +115,7 @@ static inline uint32_t tud_cdc_available       (void);
 static inline int32_t  tud_cdc_read_char       (void);
 static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize);
 static inline void     tud_cdc_read_flush      (void);
-static inline bool     tud_cdc_peek            (uint8_t* u8);
+static inline bool     tud_cdc_peek            (uint8_t* ui8);
 
 static inline uint32_t tud_cdc_write_char      (char ch);
 static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize);
@@ -135,7 +134,7 @@ TU_ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf);
 // Invoked when received `wanted_char`
 TU_ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
 
-// Invoked when space becomes available in TX buffer
+// Invoked when a TX is complete and therefore space becomes available in TX buffer
 TU_ATTR_WEAK void tud_cdc_tx_complete_cb(uint8_t itf);
 
 // Invoked when line state DTR & RTS are changed via SET_CONTROL_LINE_STATE
@@ -206,9 +205,9 @@ static inline void tud_cdc_read_flush (void)
   tud_cdc_n_read_flush(0);
 }
 
-static inline bool tud_cdc_peek (uint8_t* u8)
+static inline bool tud_cdc_peek (uint8_t* ui8)
 {
-  return tud_cdc_n_peek(0, u8);
+  return tud_cdc_n_peek(0, ui8);
 }
 
 static inline uint32_t tud_cdc_write_char (char ch)
@@ -248,6 +247,7 @@ static inline bool tud_cdc_write_clear(void)
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
 void     cdcd_init            (void);
+bool     cdcd_deinit          (void);
 void     cdcd_reset           (uint8_t rhport);
 uint16_t cdcd_open            (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     cdcd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);

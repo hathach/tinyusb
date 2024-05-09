@@ -1,0 +1,4 @@
+sphinx>=5.0
+furo>=2020.12.30.b24
+sphinx-autodoc-typehints>=1.10
+jinja2>=3.0.3

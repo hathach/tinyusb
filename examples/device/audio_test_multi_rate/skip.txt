@@ -1,0 +1,4 @@
+mcu:SAMD11
+mcu:SAME5X
+mcu:SAMG
+family:espressif

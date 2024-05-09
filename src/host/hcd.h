@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -35,7 +35,22 @@
  extern "C" {
 #endif
 
- //--------------------------------------------------------------------+
+//--------------------------------------------------------------------+
+// Configuration
+//--------------------------------------------------------------------+
+
+// Max number of endpoints pair per device
+// TODO optimize memory usage
+#ifndef CFG_TUH_ENDPOINT_MAX
+  #define CFG_TUH_ENDPOINT_MAX   16
+//  #ifdef TUP_HCD_ENDPOINT_MAX
+//    #define CFG_TUH_ENDPPOINT_MAX   TUP_HCD_ENDPOINT_MAX
+//  #else
+//    #define
+//  #endif
+#endif
+
+//--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef enum
@@ -62,6 +77,7 @@ typedef struct
     struct {
       uint8_t hub_addr;
       uint8_t hub_port;
+      uint8_t speed;
     } connection;
 
     // XFER_COMPLETE
@@ -80,27 +96,45 @@ typedef struct
 
 } hcd_event_t;
 
-#if TUSB_OPT_HOST_ENABLED
-// Max number of endpoints per device
-enum {
-  // TODO better computation
-  HCD_MAX_ENDPOINT = CFG_TUSB_HOST_DEVICE_MAX*(CFG_TUH_HUB + CFG_TUH_HID*2 + CFG_TUH_MSC*2 + CFG_TUH_CDC*3),
-  HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
-};
+typedef struct
+{
+  uint8_t rhport;
+  uint8_t hub_addr;
+  uint8_t hub_port;
+  uint8_t speed;
+} hcd_devtree_info_t;
 
-//#define HCD_MAX_ENDPOINT 16
-//#define HCD_MAX_XFER 16
-#endif
+//--------------------------------------------------------------------+
+// Memory API
+//--------------------------------------------------------------------+
+
+// clean/flush data cache: write cache -> memory.
+// Required before an DMA TX transfer to make sure data is in memory
+bool hcd_dcache_clean(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
+
+// invalidate data cache: mark cache as invalid, next read will read from memory
+// Required BOTH before and after an DMA RX transfer
+bool hcd_dcache_invalidate(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
+
+// clean and invalidate data cache
+// Required before an DMA transfer where memory is both read/write by DMA
+bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
 
+// optional hcd configuration, called by tuh_configure()
+bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
+
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport);
 
+// De-initialize controller
+bool hcd_deinit(uint8_t rhport);
+
 // Interrupt Handler
-void hcd_int_handler(uint8_t rhport);
+void hcd_int_handler(uint8_t rhport, bool in_isr);
 
 // Enable USB interrupt
 void hcd_int_enable (uint8_t rhport);
@@ -118,10 +152,11 @@ uint32_t hcd_frame_number(uint8_t rhport);
 // Get the current connect status of roothub port
 bool hcd_port_connect_status(uint8_t rhport);
 
-// Reset USB bus on the port
+// Reset USB bus on the port. Return immediately, bus reset sequence may not be complete.
+// Some port would require hcd_port_reset_end() to be invoked after 10ms to complete the reset sequence.
 void hcd_port_reset(uint8_t rhport);
 
-// TODO implement later
+// Complete bus reset sequence, may be required by some controllers
 void hcd_port_reset_end(uint8_t rhport);
 
 // Get port link speed
@@ -134,29 +169,74 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 // Endpoints API
 //--------------------------------------------------------------------+
 
-bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
+// Open an endpoint
+bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * ep_desc);
 
-bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
-bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr);
-bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
+// Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
+
+// Abort a queued transfer. Note: it can only abort transfer that has not been started
+// Return true if a queued transfer is aborted, false if there is no transfer to abort
+bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
+
+// Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
+bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]);
+
+// clear stall, data toggle is also reset to DATA0
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 
 //--------------------------------------------------------------------+
-// Event API (implemented by stack)
+// USBH implemented API
 //--------------------------------------------------------------------+
+
+// Get device tree information of a device
+// USB device tree can be complicated and manged by USBH, this help HCD to retrieve
+// needed topology info to carry out its work
+extern void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info);
+
+//------------- Event API -------------//
 
 // Called by HCD to notify stack
 extern void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 
 // Helper to send device attach event
-extern void hcd_event_device_attach(uint8_t rhport, bool in_isr);
+TU_ATTR_ALWAYS_INLINE static inline
+void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
+  hcd_event_t event;
+  event.rhport              = rhport;
+  event.event_id            = HCD_EVENT_DEVICE_ATTACH;
+  event.connection.hub_addr = 0;
+  event.connection.hub_port = 0;
+
+  hcd_event_handler(&event, in_isr);
+}
 
 // Helper to send device removal event
-extern void hcd_event_device_remove(uint8_t rhport, bool in_isr);
+TU_ATTR_ALWAYS_INLINE static inline
+void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
+  hcd_event_t event;
+  event.rhport              = rhport;
+  event.event_id            = HCD_EVENT_DEVICE_REMOVE;
+  event.connection.hub_addr = 0;
+  event.connection.hub_port = 0;
+
+  hcd_event_handler(&event, in_isr);
+}
 
 // Helper to send USB transfer event
-extern void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr);
+TU_ATTR_ALWAYS_INLINE static inline
+void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr) {
+  hcd_event_t event = {
+    .rhport   = 0, // TODO correct rhport
+    .event_id = HCD_EVENT_XFER_COMPLETE,
+    .dev_addr = dev_addr,
+  };
+  event.xfer_complete.ep_addr = ep_addr;
+  event.xfer_complete.result = result;
+  event.xfer_complete.len = xferred_bytes;
+
+  hcd_event_handler(&event, in_isr);
+}
 
 #ifdef __cplusplus
  }

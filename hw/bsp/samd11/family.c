@@ -25,8 +25,12 @@
  */
 
 #include "sam.h"
-#include "bsp/board.h"
-#include "board.h"
+
+// Suppress warning caused by mcu driver
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#endif
 
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
@@ -35,6 +39,14 @@
 #include "hpl/gclk/hpl_gclk_base.h"
 #include "hpl_pm_config.h"
 #include "hpl/pm/hpl_pm_base.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#include "bsp/board_api.h"
+#include "board.h"
+
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -78,7 +90,7 @@ void board_init(void)
 
   // Button init
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
-  gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
+  gpio_set_pin_pull_mode(BUTTON_PIN, BUTTON_PULL_MODE);
 
   /* USB Clock init
    * The USB module requires a GCLK_USB of 48 MHz ~ 0.25% clock

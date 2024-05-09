@@ -1,3 +1,5 @@
+MCU_FAMILY_DIR = hw/mcu/dialog/da1469x
+
 CFLAGS += \
   -flto \
   -mthumb \
@@ -11,7 +13,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_DA1469X \
   -DCFG_TUD_ENDPOINT0_SIZE=8\
 
-MCU_FAMILY_DIR = hw/mcu/dialog/da1469x
+LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/da1469x.ld
@@ -31,7 +33,7 @@ INC += \
 	$(TOP)/$(MCU_FAMILY_DIR)/SDK_10.0.8.105/sdk/bsp/include
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM33_NTZ/non_secure
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure
 
 # For flash-jlink target
 JLINK_DEVICE = DA14695
@@ -52,4 +54,3 @@ flash-dialog: $(BUILD)/$(PROJECT).bin
 	@echo go >> $(BUILD)/$(BOARD).jlink
 	@echo exit >> $(BUILD)/$(BOARD).jlink
 	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
-

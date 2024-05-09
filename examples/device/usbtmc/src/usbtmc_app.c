@@ -23,10 +23,10 @@
  *
  */
 
-#include <strings.h>
+#include <string.h>
 #include <stdlib.h>     /* atoi */
 #include "tusb.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "main.h"
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
@@ -88,14 +88,6 @@ static size_t buffer_tx_ix; // for transmitting using multiple transfers
 static uint8_t buffer[225]; // A few packets long should be enough.
 
 
-static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
-    .bmTransferAttributes =
-    {
-      .EOM = 1,
-      .UsingTermChar = 0
-    }
-};
-
 void tud_usbtmc_open_cb(uint8_t interface_id)
 {
   (void)interface_id;
@@ -148,11 +140,14 @@ bool tud_usbtmc_msg_data_cb(void *data, size_t len, bool transfer_complete)
   queryState = transfer_complete;
   idnQuery = 0;
 
-  if(transfer_complete && (len >=4) && !strncasecmp("*idn?",data,4))
+  if ( transfer_complete && (len >= 4) &&
+       (!strncmp("*idn?", data, 4) || !strncmp("*IDN?", data, 4)) )
   {
     idnQuery = 1;
   }
-  if(transfer_complete && !strncasecmp("delay ",data,5))
+
+  if ( transfer_complete &&
+       (!strncmp("delay ", data, 5) || !strncmp("DELAY ", data, 5)) )
   {
     queryState = 0;
     int d = atoi((char*)data + 5);
@@ -184,9 +179,6 @@ static unsigned int msgReqLen;
 
 bool tud_usbtmc_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request)
 {
-  rspMsg.header.MsgID = request->header.MsgID,
-  rspMsg.header.bTag = request->header.bTag,
-  rspMsg.header.bTagInverse = request->header.bTagInverse;
   msgReqLen = request->TransferSize;
 
 #ifdef xDEBUG
@@ -250,7 +242,6 @@ void usbtmc_app_task_iter(void) {
     break;
   default:
     TU_ASSERT(false,);
-    return;
   }
 }
 

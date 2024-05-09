@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_HOST_ENABLED && CFG_TUH_CDC && CFG_TUH_CDC_RNDIS)
+#if (CFG_TUH_ENABLED && CFG_TUH_CDC && CFG_TUH_CDC_RNDIS)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -35,15 +35,25 @@
 #include "cdc_host.h"
 #include "cdc_rndis_host.h"
 
+#if 0  // TODO remove subtask related macros later
+// Sub Task
+#define OSAL_SUBTASK_BEGIN
+#define OSAL_SUBTASK_END                    return TUSB_ERROR_NONE;
+
+#define STASK_RETURN(_error)                return _error;
+#define STASK_INVOKE(_subtask, _status)     (_status) = _subtask
+#define STASK_ASSERT(_cond)                 TU_VERIFY(_cond, TUSB_ERROR_OSAL_TASK_FAILED)
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 #define RNDIS_MSG_PAYLOAD_MAX   (1024*4)
 
-CFG_TUSB_MEM_SECTION static uint8_t msg_notification[CFG_TUSB_HOST_DEVICE_MAX][8];
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
+CFG_TUH_MEM_SECTION static uint8_t msg_notification[CFG_TUH_DEVICE_MAX][8];
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
 
-static rndish_data_t rndish_data[CFG_TUSB_HOST_DEVICE_MAX];
+static rndish_data_t rndish_data[CFG_TUH_DEVICE_MAX];
 
 // TODO Microsoft requires message length for any get command must be at least 4096 bytes
 
@@ -88,7 +98,7 @@ static tusb_error_t rndis_body_subtask(void)
 
   OSAL_SUBTASK_BEGIN
 
-  for (relative_addr = 0; relative_addr < CFG_TUSB_HOST_DEVICE_MAX; relative_addr++)
+  for (relative_addr = 0; relative_addr < CFG_TUH_DEVICE_MAX; relative_addr++)
   {
 
   }
@@ -103,12 +113,12 @@ static tusb_error_t rndis_body_subtask(void)
 //--------------------------------------------------------------------+
 void rndish_init(void)
 {
-  tu_memclr(rndish_data, sizeof(rndish_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(rndish_data, sizeof(rndish_data_t)*CFG_TUH_DEVICE_MAX);
 
   //------------- Task creation -------------//
 
-  //------------- semaphore creation for notificaiton pipe -------------//
-  for(uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX; i++)
+  //------------- semaphore creation for notification pipe -------------//
+  for(uint8_t i=0; i<CFG_TUH_DEVICE_MAX; i++)
   {
     rndish_data[i].sem_notification_hdl = osal_semaphore_create( OSAL_SEM_REF(rndish_data[i].semaphore_notification) );
   }

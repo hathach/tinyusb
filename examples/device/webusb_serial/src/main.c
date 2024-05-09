@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -47,7 +47,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
@@ -71,7 +71,7 @@ enum  {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-#define URL  "www.tinyusb.org/examples/webusb-serial"
+#define URL  "example.tinyusb.org/webusb-serial/index.html"
 
 const tusb_desc_webusb_url_t desc_url =
 {
@@ -93,7 +93,12 @@ int main(void)
 {
   board_init();
 
-  tusb_init();
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
 
   while (1)
   {
@@ -102,8 +107,6 @@ int main(void)
     webserial_task();
     led_blinking_task();
   }
-
-  return 0;
 }
 
 // send characters to both CDC and WebUSB
@@ -113,6 +116,7 @@ void echo_all(uint8_t buf[], uint32_t count)
   if ( web_serial_connected )
   {
     tud_vendor_write(buf, count);
+    tud_vendor_write_flush();
   }
 
   // echo to cdc
@@ -156,7 +160,7 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 //--------------------------------------------------------------------+
@@ -179,7 +183,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         case VENDOR_REQUEST_WEBUSB:
           // match vendor request in BOS descriptor
           // Get landing page url
-          return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
+          return tud_control_xfer(rhport, request, (void*)(uintptr_t) &desc_url, desc_url.bLength);
 
         case VENDOR_REQUEST_MICROSOFT:
           if ( request->wIndex == 7 )
@@ -188,7 +192,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
             uint16_t total_len;
             memcpy(&total_len, desc_ms_os_20+8, 2);
 
-            return tud_control_xfer(rhport, request, (void*) desc_ms_os_20, total_len);
+            return tud_control_xfer(rhport, request, (void*)(uintptr_t) desc_ms_os_20, total_len);
           }else
           {
             return false;
@@ -210,7 +214,8 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
           board_led_write(true);
           blink_interval_ms = BLINK_ALWAYS_ON;
 
-          tud_vendor_write_str("\r\nTinyUSB WebUSB device example\r\n");
+          tud_vendor_write_str("\r\nWebUSB interface connected\r\n");
+          tud_vendor_write_flush();
         }else
         {
           blink_interval_ms = BLINK_MOUNTED;

@@ -7,17 +7,17 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2015 by Sergey Fetisov <fsenok@gmail.com>
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -43,9 +43,9 @@ static usb_eth_stat_t usb_eth_stat = { 0, 0, 0, 0 };
 static uint32_t oid_packet_filter = 0x0000000;
 static rndis_state_t rndis_state;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t ndis_report[8] = { 0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t ndis_report[8] = { 0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
 
-static const uint32_t OIDSupportedList[] = 
+static const uint32_t OIDSupportedList[] =
 {
   OID_GEN_SUPPORTED_LIST,
   OID_GEN_HARDWARE_STATUS,
@@ -203,8 +203,8 @@ static void rndis_handle_set_msg(void)
       {
         rndis_packetFilter(oid_packet_filter);
         rndis_state = rndis_data_initialized;
-      } 
-      else 
+      }
+      else
       {
         rndis_state = rndis_initialized;
       }
@@ -220,7 +220,7 @@ static void rndis_handle_set_msg(void)
     case OID_802_3_MULTICAST_LIST:
       break;
 
-    /* Power Managment: fails for now */
+    /* Power Management: fails for now */
     case OID_PNP_ADD_WAKE_UP_PATTERN:
     case OID_PNP_REMOVE_WAKE_UP_PATTERN:
     case OID_PNP_ENABLE_WAKE_UP:
@@ -266,7 +266,7 @@ void rndis_class_set_handler(uint8_t *data, int size)
     case REMOTE_NDIS_QUERY_MSG:
       rndis_query();
       break;
-      
+
     case REMOTE_NDIS_SET_MSG:
       rndis_handle_set_msg();
       break;

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 /* This example demonstrate HID Generic raw Input & Output.
@@ -36,16 +36,24 @@
  *
  * There are 2 ways to test the sketch
  * 1. Using nodejs
- *    - Install nodejs and npm to your PC
- *    - Install excellent node-hid (https://github.com/node-hid/node-hid) by
- *      $ npm install node-hid
- *    - Run provided hid test script
- *      $ node hid_test.js
+ * - Install nodejs and npm to your PC
  *
- * 2. Using python hidRun
- *    - Python and `hid` package is required, for installation please follow https://pypi.org/project/hid/
- *    - Run provided hid test script to send and receive data to this device.
- *      $ python3 hid_test.py
+ * - Install excellent node-hid (https://github.com/node-hid/node-hid) by
+ *   $ npm install node-hid
+ *
+ * - Run provided hid test script
+ *   $ node hid_test.js
+ *
+ * 2. Using python
+ * - Install `hid` package (https://pypi.org/project/hid/) by
+ *   $ pip install hid
+ *
+ * - hid package replies on hidapi (https://github.com/libusb/hidapi) for backend,
+ *   which already available in Linux. However on windows, you may need to download its dlls from their release page and
+ *   copy it over to folder where python is installed.
+ *
+ * - Run provided hid test script to send and receive data to this device.
+ *   $ python3 hid_test.py
  */
 
 //--------------------------------------------------------------------+
@@ -72,15 +80,18 @@ int main(void)
 {
   board_init();
 
-  tusb_init();
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
 
   while (1)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -111,7 +122,7 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 //--------------------------------------------------------------------+

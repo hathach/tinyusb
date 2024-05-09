@@ -1,8 +1,9 @@
-CFLAGS += -DSTM32F070xB
+MCU_VARIANT = stm32f070xb
 
-LD_FILE = $(BOARD_PATH)/stm32F070rbtx_flash.ld
+CFLAGS += -DSTM32F070xB -DCFG_EXAMPLE_VIDEO_READONLY
 
-SRC_S += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32f070xb.s
+# Linker
+LD_FILE_GCC = $(BOARD_PATH)/stm32F070rbtx_flash.ld
 
 # For flash-jlink target
 JLINK_DEVICE = stm32f070rb

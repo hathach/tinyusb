@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_MIDI)
+#if (CFG_TUD_ENABLED && CFG_TUD_MIDI)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -82,7 +82,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
+CFG_TUD_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
 
 bool tud_midi_n_mounted (uint8_t itf)
 {
@@ -92,7 +92,7 @@ bool tud_midi_n_mounted (uint8_t itf)
 
 static void _prep_out_transaction (midid_interface_t* p_midi)
 {
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
   uint16_t available = tu_fifo_remaining(&p_midi->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
@@ -122,7 +122,12 @@ static void _prep_out_transaction (midid_interface_t* p_midi)
 uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num)
 {
   (void) cable_num;
-  return tu_fifo_count(&_midid_itf[itf].rx_ff);
+
+  midid_interface_t* midi = &_midid_itf[itf];
+  midid_stream_t const* stream = &midi->stream_read;
+
+  // when using with packet API stream total & index are both zero
+  return tu_fifo_count(&midi->rx_ff) + (uint8_t) (stream->total - stream->index);
 }
 
 uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, uint32_t bufsize)
@@ -174,10 +179,10 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, ui
     }
 
     // Copy data up to bufsize
-    uint32_t const count = tu_min32(stream->total - stream->index, bufsize);
+    uint8_t const count = (uint8_t) tu_min32(stream->total - stream->index, bufsize);
 
     // Skip the header (1st byte) in the buffer
-    memcpy(buf8, stream->buffer + 1 + stream->index, count);
+    TU_VERIFY(0 == tu_memcpy_s(buf8, bufsize, stream->buffer + 1 + stream->index, count));
 
     total_read += count;
     stream->index += count;
@@ -197,9 +202,11 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, ui
 
 bool tud_midi_n_packet_read (uint8_t itf, uint8_t packet[4])
 {
-  midid_interface_t* p_midi = &_midid_itf[itf];
-  uint32_t num_read = tu_fifo_read_n(&p_midi->rx_ff, packet, 4);
-  _prep_out_transaction(p_midi);
+  midid_interface_t* midi = &_midid_itf[itf];
+  TU_VERIFY(midi->ep_out);
+
+  uint32_t const num_read = tu_fifo_read_n(&midi->rx_ff, packet, 4);
+  _prep_out_transaction(midi);
   return (num_read == 4);
 }
 
@@ -212,7 +219,7 @@ static uint32_t write_flush(midid_interface_t* midi)
   // No data to send
   if ( !tu_fifo_count(&midi->tx_ff) ) return 0;
 
-  uint8_t const rhport = TUD_OPT_RHPORT;
+  uint8_t const rhport = 0;
 
   // skip if previous transfer not complete
   TU_VERIFY( usbd_edpt_claim(rhport, midi->ep_in), 0 );
@@ -234,19 +241,19 @@ static uint32_t write_flush(midid_interface_t* midi)
 uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
   midid_interface_t* midi = &_midid_itf[itf];
-  TU_VERIFY(midi->itf_num, 0);
+  TU_VERIFY(midi->ep_in, 0);
 
   midid_stream_t* stream = &midi->stream_write;
 
-  uint32_t total_written = 0;
   uint32_t i = 0;
-  while ( i < bufsize )
+  while ( (i < bufsize) && (tu_fifo_remaining(&midi->tx_ff) >= 4) )
   {
     uint8_t const data = buffer[i];
+    i++;
 
     if ( stream->index == 0 )
     {
-      // new event packet
+      //------------- New event packet -------------//
 
       uint8_t const msg = data >> 4;
 
@@ -254,11 +261,11 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
       stream->buffer[1] = data;
 
       // Check to see if we're still in a SysEx transmit.
-      if ( stream->buffer[0] == MIDI_CIN_SYSEX_START )
+      if ( ((stream->buffer[0]) & 0xF) == MIDI_CIN_SYSEX_START )
       {
         if ( data == MIDI_STATUS_SYSEX_END )
         {
-          stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
+          stream->buffer[0] = (uint8_t) ((cable_num << 4) | MIDI_CIN_SYSEX_END_1BYTE);
           stream->total = 2;
         }
         else
@@ -269,8 +276,14 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
       else if ( (msg >= 0x8 && msg <= 0xB) || msg == 0xE )
       {
         // Channel Voice Messages
-        stream->buffer[0] = (cable_num << 4) | msg;
+        stream->buffer[0] = (uint8_t) ((cable_num << 4) | msg);
         stream->total = 4;
+      }
+      else if ( msg == 0xC || msg == 0xD)
+      {
+        // Channel Voice Messages, two-byte variants (Program Change and Channel Pressure)
+        stream->buffer[0] = (uint8_t) ((cable_num << 4) | msg);
+        stream->total = 3;
       }
       else if ( msg == 0xf )
       {
@@ -295,11 +308,12 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
           stream->buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
           stream->total = 2;
         }
+        stream->buffer[0] |= (uint8_t)(cable_num << 4);
       }
       else
       {
         // Pack individual bytes if we don't support packing them into words.
-        stream->buffer[0] = cable_num << 4 | 0xf;
+        stream->buffer[0] = (uint8_t) (cable_num << 4 | 0xf);
         stream->buffer[2] = 0;
         stream->buffer[3] = 0;
         stream->index = 2;
@@ -308,16 +322,16 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
     }
     else
     {
-      // On-going (buffering) packet
+      //------------- On-going (buffering) packet -------------//
 
-      TU_ASSERT(stream->index < 4, total_written);
+      TU_ASSERT(stream->index < 4, i);
       stream->buffer[stream->index] = data;
       stream->index++;
 
       // See if this byte ends a SysEx.
-      if ( stream->buffer[0] == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END )
+      if ( (stream->buffer[0] & 0xF) == MIDI_CIN_SYSEX_START && data == MIDI_STATUS_SYSEX_END )
       {
-        stream->buffer[0] = MIDI_CIN_SYSEX_START + (stream->index - 1);
+        stream->buffer[0] = (uint8_t) ((cable_num << 4) | (MIDI_CIN_SYSEX_START + (stream->index - 1)));
         stream->total = stream->index;
       }
     }
@@ -333,27 +347,20 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* 
       // complete current event packet, reset stream
       stream->index = stream->total = 0;
 
-      // fifo overflow, here we assume FIFO is multiple of 4 and didn't check remaining before writing
-      if ( count != 4 ) break;
-
-      // updated written if succeeded
-      total_written = i;
+      // FIFO overflown, since we already check fifo remaining. It is probably race condition
+      TU_ASSERT(count == 4, i);
     }
-
-    i++;
   }
 
   write_flush(midi);
 
-  return total_written;
+  return i;
 }
 
 bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
 {
   midid_interface_t* midi = &_midid_itf[itf];
-  if (midi->itf_num == 0) {
-    return 0;
-  }
+  TU_VERIFY(midi->ep_in);
 
   if (tu_fifo_remaining(&midi->tx_ff) < 4) return false;
 
@@ -366,12 +373,10 @@ bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void midid_init(void)
-{
+void midid_init(void) {
   tu_memclr(_midid_itf, sizeof(_midid_itf));
 
-  for(uint8_t i=0; i<CFG_TUD_MIDI; i++)
-  {
+  for (uint8_t i = 0; i < CFG_TUD_MIDI; i++) {
     midid_interface_t* midi = &_midid_itf[i];
 
     // config fifo
@@ -379,10 +384,36 @@ void midid_init(void)
     tu_fifo_config(&midi->tx_ff, midi->tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE, 1, false); // OBVS.
 
     #if CFG_FIFO_MUTEX
-    tu_fifo_config_mutex(&midi->rx_ff, NULL, osal_mutex_create(&midi->rx_ff_mutex));
-    tu_fifo_config_mutex(&midi->tx_ff, osal_mutex_create(&midi->tx_ff_mutex), NULL);
+    osal_mutex_t mutex_rd = osal_mutex_create(&midi->rx_ff_mutex);
+    osal_mutex_t mutex_wr = osal_mutex_create(&midi->tx_ff_mutex);
+    TU_ASSERT(mutex_wr != NULL && mutex_wr != NULL, );
+
+    tu_fifo_config_mutex(&midi->rx_ff, NULL, mutex_rd);
+    tu_fifo_config_mutex(&midi->tx_ff, mutex_wr, NULL);
     #endif
   }
+}
+
+bool midid_deinit(void) {
+  #if CFG_FIFO_MUTEX
+  for(uint8_t i=0; i<CFG_TUD_MIDI; i++) {
+    midid_interface_t* midi = &_midid_itf[i];
+    osal_mutex_t mutex_rd = midi->rx_ff.mutex_rd;
+    osal_mutex_t mutex_wr = midi->tx_ff.mutex_wr;
+
+    if (mutex_rd) {
+      osal_mutex_delete(mutex_rd);
+      tu_fifo_config_mutex(&midi->rx_ff, NULL, NULL);
+    }
+
+    if (mutex_wr) {
+      osal_mutex_delete(mutex_wr);
+      tu_fifo_config_mutex(&midi->tx_ff, NULL, NULL);
+    }
+  }
+  #endif
+
+  return true;
 }
 
 void midid_reset(uint8_t rhport)
@@ -433,8 +464,10 @@ uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint
       break;
     }
   }
+  TU_ASSERT(p_midi);
 
   p_midi->itf_num = desc_midi->bInterfaceNumber;
+  (void) p_midi->itf_num;
 
   // next descriptor
   drv_len += tu_desc_len(p_desc);
@@ -505,7 +538,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
   // receive new data
   if ( ep_addr == p_midi->ep_out )
   {
-    tu_fifo_write_n(&p_midi->rx_ff, p_midi->epout_buf, xferred_bytes);
+    tu_fifo_write_n(&p_midi->rx_ff, p_midi->epout_buf, (uint16_t) xferred_bytes);
 
     // invoke receive callback if available
     if (tud_midi_rx_cb) tud_midi_rx_cb(itf);
