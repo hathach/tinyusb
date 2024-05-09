@@ -41,13 +41,13 @@ jobs:
       with:
         python-version: '3.x'
 
+    - name: Checkout TinyUSB
+      uses: actions/checkout@v4
+
     - name: Setup Toolchain
       uses: ./.github/actions/setup_toolchain
       with:
         toolchain: 'esp-idf'
-
-    - name: Checkout TinyUSB
-      uses: actions/checkout@v4
 
     - name: Build
       run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py -b ${{ matrix.board }}
