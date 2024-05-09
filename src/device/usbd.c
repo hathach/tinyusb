@@ -56,6 +56,10 @@ TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_is
   (void)in_isr;
 }
 
+TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
+  (void)frame_count;
+}
+
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
@@ -637,7 +641,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         if ( _usbd_sof.cb_en)
         {
           TU_LOG_USBD("\r\n");
-          if ( tud_sof_cb ) tud_sof_cb(event.sof.frame_count);
+          tud_sof_cb(event.sof.frame_count);
         }
       break;
 

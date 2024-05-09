@@ -156,7 +156,7 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 
 // Invoked when a new (micro) frame started
-TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count);
+void tud_sof_cb(uint32_t frame_count);
 
 // Invoked when received control request with VENDOR TYPE
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
