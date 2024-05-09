@@ -1835,7 +1835,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             audio->feedback.frame_shift = desc_ep->bInterval -1;
 
             // Enable SOF interrupt if callback is implemented
-            if (tud_audio_feedback_interval_isr) usbd_sof_enable(rhport, true);
+            if (tud_audio_feedback_interval_isr) usbd_sof_enable(rhport, SOF_CONSUMER_AUDIO, true);
           }
   #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1909,7 +1909,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
       break;
     }
   }
-  if (disable) usbd_sof_enable(rhport, false);
+  if (disable) usbd_sof_enable(rhport, SOF_CONSUMER_AUDIO, false);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL

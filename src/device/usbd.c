@@ -76,13 +76,11 @@ typedef struct {
     uint8_t remote_wakeup_en      : 1; // enable/disable by host
     uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
     uint8_t self_powered          : 1; // configuration descriptor's attribute
-
-    uint8_t sof_cb_en             : 1; // SOF user callback enable
   };
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
   volatile uint8_t setup_count;
-  uint8_t sof_ref_cnt;
+  volatile uint8_t sof_consumer;
 
   uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
@@ -392,10 +390,7 @@ bool tud_connect(void) {
 
 bool tud_sof_cb_enable(bool en)
 {
-  if(_usbd_dev.sof_cb_en != en) {
-    _usbd_dev.sof_cb_en = en;
-    usbd_sof_enable(_usbd_rhport, en);
-  }
+  usbd_sof_enable(_usbd_rhport, SOF_CONSUMER_USER, en);
   return true;
 }
 
@@ -1384,18 +1379,21 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   return;
 }
 
-void usbd_sof_enable(uint8_t rhport, bool en) {
+void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en) {
   rhport = _usbd_rhport;
 
+  uint8_t consumer_old = _usbd_dev.sof_consumer;
   // Keep track how many class instances need the SOF interrupt
   if (en) {
-    _usbd_dev.sof_ref_cnt++;
+    _usbd_dev.sof_consumer = tu_bit_set(_usbd_dev.sof_consumer, consumer);
   } else {
-    _usbd_dev.sof_ref_cnt--;
+    _usbd_dev.sof_consumer = tu_bit_clear(_usbd_dev.sof_consumer, consumer);
   }
 
-  // Only disable SOF interrupts if all drivers switched off SOF calls and if the SOF callback isn't used
-  dcd_sof_enable(rhport, _usbd_dev.sof_ref_cnt ? true : false);
+  // Test logically unequal
+  if(!!_usbd_dev.sof_consumer != !!consumer_old) {
+    dcd_sof_enable(rhport, _usbd_dev.sof_consumer);
+  }
 }
 
 bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {

@@ -36,6 +36,15 @@
 #define TU_LOG_USBD(...)   TU_LOG(CFG_TUD_LOG_LEVEL, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF PROTYPES
+//--------------------------------------------------------------------+
+
+typedef enum {
+  SOF_CONSUMER_USER = 0,
+  SOF_CONSUMER_AUDIO,
+} sof_consumer_t;
+
+//--------------------------------------------------------------------+
 // Class Driver API
 //--------------------------------------------------------------------+
 
@@ -108,7 +117,7 @@ bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr) {
 }
 
 // Enable SOF interrupt
-void usbd_sof_enable(uint8_t rhport, bool en);
+void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en);
 
 /*------------------------------------------------------------------*/
 /* Helper
