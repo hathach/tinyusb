@@ -1391,7 +1391,7 @@ void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en) {
   }
 
   // Test logically unequal
-  if(!!_usbd_dev.sof_consumer != !!consumer_old) {
+  if(!_usbd_dev.sof_consumer != !consumer_old) {
     dcd_sof_enable(rhport, _usbd_dev.sof_consumer);
   }
 }
