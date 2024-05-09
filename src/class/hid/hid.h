@@ -573,7 +573,7 @@ typedef enum
 #define HID_KEY_KEYPAD_CLEAR_ENTRY          0xD9
 #define HID_KEY_KEYPAD_BINARY               0xDA
 #define HID_KEY_KEYPAD_OCTAL                0xDB
-#define HID_KEY_KEYPAD_DECIMAL              0xDC
+#define HID_KEY_KEYPAD_DECIMAL_2            0xDC
 #define HID_KEY_KEYPAD_HEXADECIMAL          0xDD
 // RESERVED					                        0xDE-DF
 #define HID_KEY_CONTROL_LEFT                0xE0
