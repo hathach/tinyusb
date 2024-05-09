@@ -76,10 +76,13 @@ typedef struct {
     uint8_t remote_wakeup_en      : 1; // enable/disable by host
     uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
     uint8_t self_powered          : 1; // configuration descriptor's attribute
+
+    uint8_t sof_cb_en             : 1; // SOF user callback enable
   };
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
   volatile uint8_t setup_count;
+  uint8_t sof_ref_cnt;
 
   uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
@@ -279,20 +282,6 @@ TU_ATTR_ALWAYS_INLINE static inline usbd_class_driver_t const * get_driver(uint8
   return driver;
 }
 
-typedef struct
-{
-  union
-  {
-    struct
-    {
-      uint8_t count : 7;
-      uint8_t cb_en : 1;
-    };
-    uint8_t value;
-  };
-} usbd_sof_t;
-
-tu_static usbd_sof_t _usbd_sof = { .value = 0 };
 
 //--------------------------------------------------------------------+
 // DCD Event
@@ -403,8 +392,10 @@ bool tud_connect(void) {
 
 bool tud_sof_cb_enable(bool en)
 {
-  _usbd_sof.cb_en = en;
-  dcd_sof_enable(_usbd_rhport, _usbd_sof.value ? true : false);
+  if(_usbd_dev.sof_cb_en != en) {
+    _usbd_dev.sof_cb_en = en;
+    usbd_sof_enable(_usbd_rhport, en);
+  }
   return true;
 }
 
@@ -638,8 +629,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case DCD_EVENT_SOF:
-        if ( _usbd_sof.cb_en)
-        {
+        if ( _usbd_dev.sof_cb_en) {
           TU_LOG_USBD("\r\n");
           tud_sof_cb(event.sof.frame_count);
         }
@@ -1392,17 +1382,14 @@ void usbd_sof_enable(uint8_t rhport, bool en) {
   rhport = _usbd_rhport;
 
   // Keep track how many class instances need the SOF interrupt
-  if (en)
-  {
-    _usbd_sof.count++;
-  }
-  else
-  {
-    _usbd_sof.count--;
+  if (en) {
+    _usbd_dev.sof_ref_cnt++;
+  } else {
+    _usbd_dev.sof_ref_cnt--;
   }
 
   // Only disable SOF interrupts if all drivers switched off SOF calls and if the SOF callback isn't used
-  dcd_sof_enable(rhport, _usbd_sof.value ? true : false);
+  dcd_sof_enable(rhport, _usbd_dev.sof_ref_cnt ? true : false);
 }
 
 bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
