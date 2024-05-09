@@ -71,8 +71,8 @@ def build_family(family, toolchain, build_system):
             all_boards.append(entry.name)
     all_boards.sort()
 
-    # success, failed
-    ret = [0, 0]
+    # success, failed, skipped
+    ret = [0, 0, 0]
     if build_system == 'cmake':
         for board in all_boards:
             if build_board_cmake(board, toolchain):
@@ -84,9 +84,12 @@ def build_family(family, toolchain, build_system):
         for example in all_examples:
             with Pool(processes=os.cpu_count()) as pool:
                 pool_args = list((map(lambda b, e=example, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_boards)))
-                result = pool.starmap(build_utils.build_example, pool_args)
+                r = pool.starmap(build_utils.build_example, pool_args)
                 # sum all element of same index (column sum)
-                return list(map(sum, list(zip(*result))))
+                rsum = list(map(sum, list(zip(*r))))
+                ret[0] += rsum[0]
+                ret[1] += rsum[1]
+                ret[2] += rsum[2]
     return ret
 
 
@@ -103,7 +106,7 @@ def main(family, board, toolchain, build_system):
     print(build_separator)
     print(build_utils.build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))
     total_time = time.monotonic()
-    total_result = [0, 0]
+    total_result = [0, 0, 0]
 
     # build families: cmake, make
     if family is not None:
@@ -121,6 +124,7 @@ def main(family, board, toolchain, build_system):
             fret = build_family(f, toolchain, build_system)
             total_result[0] += fret[0]
             total_result[1] += fret[1]
+            total_result[2] += fret[2]
 
     # build board (only cmake)
     if board is not None:
