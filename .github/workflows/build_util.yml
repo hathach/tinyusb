@@ -50,9 +50,16 @@ jobs:
           ref: develop
           path: pico-sdk
 
-      - name: Install ninja-build
+      - name: Linux specific
         if: inputs.os == 'ubuntu-latest'
-        run: sudo apt install -y ninja-build
+        run: |
+          sudo apt install -y ninja-build
+          BUILD_OPTION=""
+          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
+            BUILD_OPTION="--toolchain clang"
+          fi
+          echo "BUILD_OPTION=$BUILD_OPTION"
+          echo "BUILD_OPTION=$BUILD_OPTION" >> $GITHUB_ENV
 
       - name: Get Dependencies
         run: |
@@ -61,12 +68,7 @@ jobs:
       - name: Build
         if: inputs.toolchain != 'esp-idf'
         run: |
-          OPTION=""
-          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
-            OPTION="--toolchain clang"
-          fi
-          echo "OPTION=$OPTION"
-          python tools/build.py -s ${{ inputs.build-system }} $OPTION ${{ matrix.arg }}
+          python tools/build.py -s ${{ inputs.build-system }} $BUILD_OPTION ${{ matrix.arg }}
         env:
           PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
 

@@ -184,8 +184,6 @@ def main():
                     total_result[1] += rsum[1]
                     total_result[2] += rsum[2]
 
-
-
     total_time = time.monotonic() - total_time
     print(build_separator)
     print(f"Build Summary: {total_result[0]} {SUCCEEDED}, {total_result[1]} {FAILED} and took {total_time:.2f}s")
