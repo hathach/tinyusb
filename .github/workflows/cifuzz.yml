@@ -12,7 +12,6 @@ on:
       - '**.h'
 jobs:
  Fuzzing:
-   if: false
    runs-on: ubuntu-latest
    steps:
    - name: Build Fuzzers
