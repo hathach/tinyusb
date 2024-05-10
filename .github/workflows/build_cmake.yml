@@ -26,7 +26,7 @@ on:
       - '.github/workflows/build_cmake.yml'
       - '.github/workflows/ci_set_matrix.py'
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
