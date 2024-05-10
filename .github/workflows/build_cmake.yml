@@ -108,3 +108,22 @@ jobs:
       build-system: 'make'
       toolchain: 'arm-gcc'
       build-args: '["-bstm32f411disco"]'
+
+  # ---------------------------------------
+  # Build Espressif
+  # ---------------------------------------
+  espressif:
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          # ESP32-S2
+          - 'espressif_kaluga_1'
+          # ESP32-S3 skip since devkitm is also compiled in hil-test workflow
+          #- 'espressif_s3_devkitm'
+    with:
+      build-system: 'cmake'
+      toolchain: 'esp-idf'
+      toolchain_url: 'v5.1.1'
+      build-args: '["-b${{ matrix.board }}"]'

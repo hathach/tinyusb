@@ -50,11 +50,12 @@ jobs:
           ref: develop
           path: pico-sdk
 
+      - name: Install ninja-build
+        if: inputs.os == 'ubuntu-latest'
+        run: sudo apt install -y ninja-build
+
       - name: Get Dependencies
         run: |
-          if [[ "${{ inputs.os }}" == "ubuntu-latest" ]]; then
-            apt install -y ninja-build
-          fi
           python3 tools/get_deps.py ${{ matrix.arg }}
 
       - name: Build
