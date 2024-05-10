@@ -63,20 +63,20 @@ jobs:
         with:
           toolchain: 'arm-gcc'
 
-      - name: Get Dependencies
-        uses: ./.github/actions/get_deps
-        with:
-          arg: env.BOARD_LIST
-
-      - name: Build
-        run: python tools/build.py $BOARD_LIST
-
       - name: Setup ESP-IDF
         if: env.BOARD_ESP_LIST != ''
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: 'esp-idf'
           toolchain_url: 'v5.1.1'
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: ${{ env.BOARD_LIST }}
+
+      - name: Build
+        run: python tools/build.py $BOARD_LIST
 
       - name: Build Espressif
         if: env.BOARD_ESP_LIST != ''
