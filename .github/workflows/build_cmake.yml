@@ -113,7 +113,6 @@ jobs:
   # Build Espressif
   # ---------------------------------------
   espressif:
-    if: false
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
