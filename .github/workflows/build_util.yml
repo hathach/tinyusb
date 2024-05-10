@@ -37,6 +37,7 @@ jobs:
           python-version: '3.x'
 
       - name: Setup Toolchain
+        id: setup-toolchain
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: ${{ inputs.toolchain }}
@@ -55,26 +56,15 @@ jobs:
         run: |
           sudo apt install -y ninja-build
 
-      - name: Set Build Option
-        run: |
-          BUILD_OPTION=""
-          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
-            BUILD_OPTION="--toolchain clang"
-          fi
-          echo "BUILD_OPTION=$BUILD_OPTION"
-          echo "BUILD_OPTION=$BUILD_OPTION" >> $GITHUB_ENV
-        shell: bash
-
       - name: Get Dependencies
         run: |
           python3 tools/get_deps.py ${{ matrix.arg }}
+          echo "PICO_SDK_PATH=${{ github.workspace }}/pico-sdk" >> $GITHUB_ENV
 
       - name: Build
         if: inputs.toolchain != 'esp-idf'
         run: |
-          python tools/build.py -s ${{ inputs.build-system }} $BUILD_OPTION ${{ matrix.arg }}
-        env:
-          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+          python tools/build.py -s ${{ inputs.build-system }} ${{ setup-toolchain.outputs.build_option }} ${{ matrix.arg }}
 
       - name: Build using ESP-IDF docker
         if: inputs.toolchain == 'esp-idf'
