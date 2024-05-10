@@ -48,9 +48,9 @@ jobs:
           sudo apt install -y jq
           # BOARDS_ALL is all boards
           BOARDS_ALL=$(jq -r '.boards[] | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
-          echo "BOARDS_ALL=$BOARD_LIST"
-          echo "BOARDS_ALL=$BOARD_LIST" >> $GITHUB_OUTPUT
-          echo "BOARDS_ALL=$BOARD_LIST" >> $GITHUB_ENV
+          echo "BOARDS_ALL=$BOARDS_ALL"
+          echo "BOARDS_ALL=$BOARDS_ALL" >> $GITHUB_OUTPUT
+          echo "BOARDS_ALL=$BOARDS_ALL" >> $GITHUB_ENV
 
           # Non-Espresif boards
           BOARDS_NON_ESP=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
@@ -137,5 +137,5 @@ jobs:
 
       - name: Test on actual hardware
         run: |
-          echo "BOARDS_ALL=$BOARD_LIST"
-          python3 test/hil/hil_test.py $BOARD_LIST pi4.json
+          echo "BOARDS_ALL=$BOARDS_ALL"
+          python3 test/hil/hil_test.py $BOARDS_ALL pi4.json
