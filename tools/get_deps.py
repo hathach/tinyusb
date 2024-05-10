@@ -1,4 +1,4 @@
-import click
+import argparse
 import sys
 import subprocess
 from pathlib import Path
@@ -238,28 +238,33 @@ def find_family(board):
     return None
 
 
-@click.command()
-@click.argument('family', nargs=-1, required=False)
-@click.option('-b', '--board', multiple=True, default=None, help='Boards to fetch')
-def main(family, board):
-    if len(family) == 0 and len(board) == 0:
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('families', nargs='*', default=[], help='Families to fetch')
+    parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
+    args = parser.parse_args()
+
+    families = args.families
+    board = args.board
+
+    if len(families) == 0 and len(board) == 0:
         print("Please specify family or board to fetch")
         return
 
     status = 0
     deps = list(deps_mandatory.keys())
 
-    if 'all' in family:
+    if 'all' in families:
         deps += deps_optional.keys()
     else:
-        family = list(family)
+        families = list(families)
         if board is not None:
             for b in board:
                 f = find_family(b)
                 if f is not None:
-                    family.append(f)
+                    families.append(f)
 
-        for f in family:
+        for f in families:
             for d in deps_optional:
                 if f in deps_optional[d][2]:
                     deps.append(d)
