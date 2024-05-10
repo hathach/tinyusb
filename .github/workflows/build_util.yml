@@ -64,7 +64,7 @@ jobs:
       - name: Build
         if: inputs.toolchain != 'esp-idf'
         run: |
-          python tools/build.py -s ${{ inputs.build-system }} ${{ setup-toolchain.outputs.build_option }} ${{ matrix.arg }}
+          python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ matrix.arg }}
 
       - name: Build using ESP-IDF docker
         if: inputs.toolchain == 'esp-idf'
