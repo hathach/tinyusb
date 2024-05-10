@@ -91,3 +91,18 @@ jobs:
       toolchain: ${{ matrix.toolchain }}
       toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
       build-family: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+
+  # ---------------------------------------
+  # Build Make on Windows/MacOS
+  # ---------------------------------------
+  make-os:
+    uses: ./.github/workflows/build_family.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    with:
+      os: ${{ matrix.os }}
+      build-system: 'make'
+      toolchain: 'arm-gcc'
+      build-family: '-b stm32f411disco'

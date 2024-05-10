@@ -27,6 +27,7 @@ jobs:
   # Build ARM family
   # ---------------------------------------
   build-arm:
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -49,7 +50,7 @@ jobs:
 
     - name: Get Dependencies
       run: |
-        python3 tools/get_deps.py stm32f4
+        python3 tools/get_deps.py stm32f2
 
     - name: Build
       run: python3 tools/build.py -s make stm32f2

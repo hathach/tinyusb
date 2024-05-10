@@ -10,15 +10,19 @@ on:
         required: true
         type: string
       toolchain_url:
-        required: true
+        required: false
         type: string
       build-family:
         required: true
         type: string
+      os:
+        required: true
+        type: string
+        default: 'ubuntu-latest'
 
 jobs:
   family:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.os }}
     strategy:
       fail-fast: false
       matrix:
