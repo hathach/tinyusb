@@ -107,4 +107,4 @@ jobs:
       os: ${{ matrix.os }}
       build-system: 'make'
       toolchain: 'arm-gcc'
-      build-args: ${{ toJSON('-b stm32f411disco') }}
+      build-args: ${{ toJSON('-bstm32f411disco') }}
