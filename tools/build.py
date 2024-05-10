@@ -1,8 +1,8 @@
+import argparse
 import os
 import sys
 import time
 import subprocess
-import click
 from pathlib import Path
 from multiprocessing import Pool
 
@@ -125,13 +125,20 @@ def build_family(family, toolchain, build_system):
     return ret
 
 
-@click.command()
-@click.argument('families', nargs=-1, required=False)
-@click.option('-b', '--board', multiple=True, default=None, help='Boards to build')
-@click.option('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
-@click.option('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
-def main(families, board, toolchain, build_system):
-    if len(families) == 0 and len(board) == 0:
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('families', nargs='*', default=[], help='Families to build')
+    parser.add_argument('-b', '--board', action='append', default=[], help='Boards to build')
+    parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
+    parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
+    args = parser.parse_args()
+
+    families = args.families
+    boards = args.board
+    toolchain = args.toolchain
+    build_system = args.build_system
+
+    if len(families) == 0 and len(boards) == 0:
         print("Please specify families or board to build")
         return 1
 
@@ -159,8 +166,8 @@ def main(families, board, toolchain, build_system):
             total_result[2] += fret[2]
 
     # build board (only cmake)
-    if board is not None:
-        for b in board:
+    if boards is not None:
+        for b in boards:
             r = build_board_cmake(b, toolchain)
             total_result[0] += r[0]
             total_result[1] += r[1]

@@ -65,7 +65,6 @@ jobs:
 
       - name: Get Dependencies
         run: |
-          pip install click
           sudo apt install -y ninja-build
           python3 tools/get_deps.py $BOARD_LIST
 

@@ -24,7 +24,6 @@ runs:
     - name: Get Dependencies
       run: |
         sudo apt install -y ninja-build
-        pip install click
         python3 tools/get_deps.py ${{ inputs.family }}
         echo >> $GITHUB_ENV "PICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk"
       shell: bash

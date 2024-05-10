@@ -245,9 +245,9 @@ def main():
     args = parser.parse_args()
 
     families = args.families
-    board = args.board
+    boards = args.board
 
-    if len(families) == 0 and len(board) == 0:
+    if len(families) == 0 and len(boards) == 0:
         print("Please specify family or board to fetch")
         return
 
@@ -258,8 +258,8 @@ def main():
         deps += deps_optional.keys()
     else:
         families = list(families)
-        if board is not None:
-            for b in board:
+        if boards is not None:
+            for b in boards:
                 f = find_family(b)
                 if f is not None:
                     families.append(f)
