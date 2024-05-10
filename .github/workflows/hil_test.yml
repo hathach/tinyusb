@@ -124,6 +124,7 @@ jobs:
         with:
           name: hil_pi4_esp
           path: |
+            cmake-build/cmake-build-*/*/*/*.bin
             cmake-build/cmake-build-*/*/*/bootloader/bootloader.bin
             cmake-build/cmake-build-*/*/*/partition_table/partition-table.bin
             cmake-build/cmake-build-*/*/*/config.env
