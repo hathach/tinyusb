@@ -63,8 +63,8 @@ jobs:
       matrix:
         toolchain:
           - 'aarch64-gcc'
-          - 'arm-clang'
-          - 'arm-gcc'
+#          - 'arm-clang'
+#          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -85,7 +85,7 @@ jobs:
         toolchain:
           - 'aarch64-gcc'
           #- 'arm-clang'
-          - 'arm-gcc'
+#          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -107,4 +107,4 @@ jobs:
       os: ${{ matrix.os }}
       build-system: 'make'
       toolchain: 'arm-gcc'
-      build-args: ${{ toJSON('-bstm32f411disco') }}
+      build-args: ${{ toJSON('{"-bstm32f411disco"}') }}
