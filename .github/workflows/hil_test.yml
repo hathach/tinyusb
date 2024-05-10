@@ -28,11 +28,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------
+  # Build Non Espressif
+  # ---------------------------------------
   build:
     if: github.repository_owner == 'hathach'
     runs-on: ubuntu-latest
     outputs:
-      BOARDS_ALL: ${{ steps.parse_hil_json.outputs.BOARDS_ALL }}
+      BOARDS_LIST: ${{ steps.parse_hil_json.outputs.BOARDS_LIST }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -46,45 +49,25 @@ jobs:
         id: parse_hil_json
         run: |
           sudo apt install -y jq
-          # BOARDS_ALL is all boards
-          BOARDS_ALL=$(jq -r '.boards[] | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
-          echo "BOARDS_ALL=$BOARDS_ALL"
-          echo "BOARDS_ALL=$BOARDS_ALL" >> $GITHUB_OUTPUT
-          echo "BOARDS_ALL=$BOARDS_ALL" >> $GITHUB_ENV
 
           # Non-Espresif boards
-          BOARDS_NON_ESP=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
-          echo "BOARDS_NON_ESP=$BOARDS_NON_ESP"
-          echo "BOARDS_NON_ESP=$BOARDS_NON_ESP" >> $GITHUB_ENV
-
-          # Espressif boards
-          BOARDS_ESP=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
-          echo "BOARDS_ESP=$BOARDS_ESP"
-          echo "BOARDS_ESP=$BOARDS_ESP" >> $GITHUB_ENV
+          BOARDS_LIST=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          echo "BOARDS_LIST=$BOARDS_LIST"
+          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
+          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
 
       - name: Setup ARM Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: 'arm-gcc'
 
-      - name: Setup ESP-IDF
-        if: env.BOARDS_ESP != ''
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain: 'esp-idf'
-          toolchain_url: 'v5.1.1'
-
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
         with:
-          arg: ${{ env.BOARDS_ALL }}
+          arg: ${{ env.BOARDS_LIST }}
 
       - name: Build
-        run: python tools/build.py $BOARDS_NON_ESP
-
-      - name: Build Espressif
-        if: env.BOARDS_ESP != ''
-        run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py $BOARDS_ESP
+        run: python tools/build.py $BOARDS_LIST
 
       - name: Upload Artifacts for Hardware Testing
         uses: actions/upload-artifact@v4
@@ -93,7 +76,54 @@ jobs:
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
             cmake-build/cmake-build-*/*/*/*.bin
-            # For Espressif
+
+  # ---------------------------------------
+  # Build Espressif
+  # ---------------------------------------
+  build-esp:
+    runs-on: ubuntu-latest
+    outputs:
+      BOARDS_LIST: ${{ steps.parse_hil_json.outputs.BOARDS_LIST }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Parse HIL json
+        id: parse_hil_json
+        run: |
+          sudo apt install -y jq
+          # Espressif boards
+          BOARDS_LIST=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          echo "BOARDS_LIST=$BOARDS_LIST"
+          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
+          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
+
+      - name: Setup ESP-IDF
+        if: env.BOARDS_LIST != ''
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'esp-idf'
+          toolchain_url: 'v5.1.1'
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: ${{ env.BOARDS_LIST }}
+
+      - name: Build Espressif
+        if: env.BOARDS_LIST != ''
+        run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py $BOARDS_LIST
+
+      - name: Upload Artifacts for Hardware Testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: hil_pi4_esp
+          path: |
             cmake-build/cmake-build-*/*/*/bootloader/bootloader.bin
             cmake-build/cmake-build-*/*/*/partition_table/partition-table.bin
             cmake-build/cmake-build-*/*/*/config.env
@@ -101,14 +131,16 @@ jobs:
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # Current self-hosted instance is running on an RPI4. For attached hardware checkout hil_pi4.json
+  # Current self-hosted instance is running on an RPI4. For attached hardware checkout test/hil/pi4.json
   # ---------------------------------------
   hil-pi4:
     if: github.repository_owner == 'hathach'
-    needs: build
+    needs:
+      - build
+      - build-esp
     runs-on: [self-hosted, rp2040, nrf52840, esp32s3, hardware-in-the-loop]
     env:
-        BOARDS_ALL: ${{ needs.build.outputs.BOARDS_ALL }}
+        BOARDS_LIST: "${{ needs.build.outputs.BOARDS_LIST }} ${{ needs.build-esp.outputs.BOARDS_LIST }}"
     steps:
       - name: Clean workspace
         run: |
@@ -137,5 +169,5 @@ jobs:
 
       - name: Test on actual hardware
         run: |
-          echo "BOARDS_ALL=$BOARDS_ALL"
-          python3 test/hil/hil_test.py $BOARDS_ALL pi4.json
+          echo "BOARDS_LIST=$BOARDS_LIST"
+          python3 test/hil/hil_test.py $BOARDS_LIST pi4.json
