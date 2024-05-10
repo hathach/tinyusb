@@ -19,7 +19,7 @@ runs:
 
     - name: Pull ESP-IDF docker
       if: inputs.toolchain == 'esp-idf'
-      run: docker pull espressif/idf:latest
+      run: docker pull espressif/idf:${{ inputs.toolchain_url }}
       shell: bash
 
     - name: Download Toolchain

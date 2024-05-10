@@ -52,10 +52,13 @@ jobs:
 
       - name: Get Dependencies
         run: |
-          sudo apt install -y ninja-build
+          if [[ "${{ inputs.os }}" == "ubuntu-latest" ]]; then
+            apt install -y ninja-build
+          fi
           python3 tools/get_deps.py ${{ matrix.arg }}
 
       - name: Build
+        if: inputs.toolchain != 'esp-idf'
         run: |
           OPTION=""
           if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
@@ -65,3 +68,8 @@ jobs:
           python tools/build.py -s ${{ inputs.build-system }} $OPTION ${{ matrix.arg }}
         env:
           PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+
+      - name: Build using ESP-IDF docker
+        if: inputs.toolchain == 'esp-idf'
+        run: |
+          docker run --rm -v $PWD:/project -w /project espressif/idf:${{ inputs.toolchain_url }} python3 tools/build.py ${{ matrix.arg }}
