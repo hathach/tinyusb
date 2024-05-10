@@ -168,10 +168,23 @@ def main():
     # build board (only cmake)
     if boards is not None:
         for b in boards:
-            r = build_board_cmake(b, toolchain)
-            total_result[0] += r[0]
-            total_result[1] += r[1]
-            total_result[2] += r[2]
+            if build_system == 'cmake':
+                r = build_board_cmake(b, toolchain)
+                total_result[0] += r[0]
+                total_result[1] += r[1]
+                total_result[2] += r[2]
+            elif build_system == 'make':
+                all_examples = get_examples(find_family(b))
+                with Pool(processes=os.cpu_count()) as pool:
+                    pool_args = list((map(lambda e, bb=b, o=f"TOOLCHAIN={toolchain}": [e, bb, o], all_examples)))
+                    r = pool.starmap(build_utils.build_example, pool_args)
+                    # sum all element of same index (column sum)
+                    rsum = list(map(sum, list(zip(*r))))
+                    total_result[0] += rsum[0]
+                    total_result[1] += rsum[1]
+                    total_result[2] += rsum[2]
+
+
 
     total_time = time.monotonic() - total_time
     print(build_separator)
