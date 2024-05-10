@@ -1,4 +1,4 @@
-name: Reusable build family
+name: Reusable build util
 
 on:
   workflow_call:
@@ -12,7 +12,7 @@ on:
       toolchain_url:
         required: false
         type: string
-      build-family:
+      build-args:
         required: true
         type: string
       os:
@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        family: ${{ fromJSON(inputs.build-family) }}
+        arg: ${{ fromJSON(inputs.build-args) }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
           toolchain_url: ${{ inputs.toolchain_url }}
 
       - name: Checkout pico-sdk for rp2040
-        if: contains(matrix.family, 'rp2040')
+        if: contains(matrix.arg, 'rp2040')
         uses: actions/checkout@v4
         with:
           repository: raspberrypi/pico-sdk
@@ -53,7 +53,7 @@ jobs:
       - name: Get Dependencies
         run: |
           sudo apt install -y ninja-build
-          python3 tools/get_deps.py ${{ matrix.family }}
+          python3 tools/get_deps.py ${{ matrix.arg }}
 
       - name: Build
         run: |
@@ -62,6 +62,6 @@ jobs:
             OPTION="--toolchain clang"
           fi
           echo "OPTION=$OPTION"
-          python tools/build.py -s ${{ inputs.build-system }} $OPTION ${{ matrix.family }}
+          python tools/build.py -s ${{ inputs.build-system }} $OPTION ${{ matrix.arg }}
         env:
           PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk

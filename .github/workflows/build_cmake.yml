@@ -12,7 +12,7 @@ on:
       - 'tools/build.py'
       - '.github/actions/**'
       - '.github/workflows/build_cmake.yml'
-      - '.github/workflows/build_family.yml'
+      - '.github/workflows/build_util.yml'
       - '.github/workflows/ci_set_matrix.py'
   pull_request:
     branches: [ master ]
@@ -25,7 +25,7 @@ on:
       - 'tools/build.py'
       - '.github/actions/**'
       - '.github/workflows/build_cmake.yml'
-      - '.github/workflows/build_family.yml'
+      - '.github/workflows/build_util.yml'
       - '.github/workflows/ci_set_matrix.py'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -57,7 +57,7 @@ jobs:
   # ---------------------------------------
   cmake:
     needs: set-matrix
-    uses: ./.github/workflows/build_family.yml
+    uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
@@ -71,14 +71,14 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
-      build-family: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
 
   # ---------------------------------------
   # Build Make
   # ---------------------------------------
   make:
     needs: set-matrix
-    uses: ./.github/workflows/build_family.yml
+    uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
@@ -92,13 +92,13 @@ jobs:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
       toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
-      build-family: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
 
   # ---------------------------------------
   # Build Make on Windows/MacOS
   # ---------------------------------------
   make-os:
-    uses: ./.github/workflows/build_family.yml
+    uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
@@ -107,4 +107,4 @@ jobs:
       os: ${{ matrix.os }}
       build-system: 'make'
       toolchain: 'arm-gcc'
-      build-family: '-b stm32f411disco'
+      build-args: ${{ toJSON('-b stm32f411disco') }}
