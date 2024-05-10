@@ -52,10 +52,14 @@ jobs:
           echo "BOARD_LIST=$BOARD_LIST" >> $GITHUB_OUTPUT
           echo "BOARD_LIST=$BOARD_LIST" >> $GITHUB_ENV
 
-          # Espresif boards need to build with docker
-          BOARD_NON_ESP=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
-          BOARD_ESP=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          # Non-Espresif boards
+          BOARD_NON_ESP=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          echo "BOARD_NON_ESP_LIST=$BOARD_NON_ESP_LIST"
           echo "BOARD_NON_ESP_LIST=$BOARD_NON_ESP_LIST" >> $GITHUB_ENV
+
+          # Espressif boards
+          BOARD_ESP=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          echo "BOARD_ESP_LIST=$BOARD_ESP_LIST"
           echo "BOARD_ESP_LIST=$BOARD_ESP_LIST" >> $GITHUB_ENV
 
       - name: Setup ARM Toolchain
@@ -76,11 +80,11 @@ jobs:
           arg: ${{ env.BOARD_LIST }}
 
       - name: Build
-        run: python tools/build.py $BOARD_LIST
+        run: python tools/build.py $BOARD_NON_ESP_LIST
 
       - name: Build Espressif
         if: env.BOARD_ESP_LIST != ''
-        run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py $BOARD_ESP
+        run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py $BOARD_ESP_LIST
 
       - name: Upload Artifacts for Hardware Testing
         uses: actions/upload-artifact@v4

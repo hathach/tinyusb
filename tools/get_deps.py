@@ -248,8 +248,7 @@ def main():
     boards = args.board
 
     if len(families) == 0 and len(boards) == 0:
-        print("Please specify family or board to fetch")
-        return 1
+        print("Warning: family and board are not specified, only fetching mandatory dependencies.")
 
     status = 0
     deps = list(deps_mandatory.keys())
