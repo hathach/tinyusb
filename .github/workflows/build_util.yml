@@ -43,23 +43,27 @@ jobs:
           toolchain_url: ${{ inputs.toolchain_url }}
 
       - name: Checkout pico-sdk for rp2040
-        if: contains(matrix.arg, 'rp2040')
+        if: contains(matrix.arg, 'rp2040') || contains(matrix.arg, 'raspberry_pi_pico')
         uses: actions/checkout@v4
         with:
           repository: raspberrypi/pico-sdk
           ref: develop
           path: pico-sdk
 
-      - name: Linux specific
-        if: inputs.os == 'ubuntu-latest'
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt install -y ninja-build
+
+      - name: Set Build Option
+        run: |
           BUILD_OPTION=""
           if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
             BUILD_OPTION="--toolchain clang"
           fi
           echo "BUILD_OPTION=$BUILD_OPTION"
           echo "BUILD_OPTION=$BUILD_OPTION" >> $GITHUB_ENV
+        shell: bash
 
       - name: Get Dependencies
         run: |
