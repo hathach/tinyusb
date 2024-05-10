@@ -45,6 +45,8 @@ jobs:
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
+        with:
+          arg: ${{ matrix.arg }}
 
       - name: Build
         if: inputs.toolchain != 'esp-idf'
