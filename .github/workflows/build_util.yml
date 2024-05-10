@@ -43,23 +43,8 @@ jobs:
           toolchain: ${{ inputs.toolchain }}
           toolchain_url: ${{ inputs.toolchain_url }}
 
-      - name: Checkout pico-sdk for rp2040
-        if: contains(matrix.arg, 'rp2040') || contains(matrix.arg, 'raspberry_pi_pico')
-        uses: actions/checkout@v4
-        with:
-          repository: raspberrypi/pico-sdk
-          ref: develop
-          path: pico-sdk
-
-      - name: Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt install -y ninja-build
-
       - name: Get Dependencies
-        run: |
-          python3 tools/get_deps.py ${{ matrix.arg }}
-          echo "PICO_SDK_PATH=${{ github.workspace }}/pico-sdk" >> $GITHUB_ENV
+        uses: ./.github/actions/get_deps
 
       - name: Build
         if: inputs.toolchain != 'esp-idf'
