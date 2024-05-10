@@ -50,6 +50,7 @@ jobs:
           BOARD_LIST=$(jq -r '.boards[] | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
           echo "BOARD_LIST=$BOARD_LIST"
           echo "BOARD_LIST=$BOARD_LIST" >> $GITHUB_OUTPUT
+          echo "BOARD_LIST=$BOARD_LIST" >> $GITHUB_ENV
 
           # Espresif boards need to build with docker
           BOARD_NON_ESP=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
