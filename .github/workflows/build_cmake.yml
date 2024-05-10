@@ -63,10 +63,10 @@ jobs:
       matrix:
         toolchain:
           - 'aarch64-gcc'
-#          - 'arm-clang'
-#          - 'arm-gcc'
-#          - 'msp430-gcc'
-#          - 'riscv-gcc'
+          - 'arm-clang'
+          - 'arm-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
@@ -85,9 +85,9 @@ jobs:
         toolchain:
           - 'aarch64-gcc'
           #- 'arm-clang'
-#          - 'arm-gcc'
-#          - 'msp430-gcc'
-#          - 'riscv-gcc'
+          - 'arm-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
