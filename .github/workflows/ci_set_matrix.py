@@ -16,7 +16,7 @@ family_list = {
     "ch32v307 fomu gd32vf103": ["riscv-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
-    "lpc11 lpc13 lpc15": ["arm-gcc"],
+    "lpc11 lpc13 lpc15": ["arm-gcc", "arm-clang"],
     "lpc17 lpc18 lpc40 lpc43": ["arm-gcc", "arm-clang"],
     "lpc51 lpc54 lpc55": ["arm-gcc", "arm-clang"],
     "mcx": ["arm-gcc"],

@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -38,7 +38,6 @@ jobs:
 
     - name: Build Fuzzer
       run: |
-        pip install click
         export CC=clang
         export CXX=clang++
         fuzz_harness=$(ls -d test/fuzz/device/*/)

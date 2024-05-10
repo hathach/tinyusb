@@ -12,6 +12,7 @@ on:
       - 'tools/build.py'
       - '.github/actions/**'
       - '.github/workflows/build_cmake.yml'
+      - '.github/workflows/build_util.yml'
       - '.github/workflows/ci_set_matrix.py'
   pull_request:
     branches: [ master ]
@@ -24,9 +25,10 @@ on:
       - 'tools/build.py'
       - '.github/actions/**'
       - '.github/workflows/build_cmake.yml'
+      - '.github/workflows/build_util.yml'
       - '.github/workflows/ci_set_matrix.py'
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -55,7 +57,7 @@ jobs:
   # ---------------------------------------
   cmake:
     needs: set-matrix
-    uses: ./.github/workflows/build_family.yml
+    uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
@@ -69,14 +71,14 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
-      build-family: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
 
   # ---------------------------------------
   # Build Make
   # ---------------------------------------
   make:
     needs: set-matrix
-    uses: ./.github/workflows/build_family.yml
+    uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
@@ -90,4 +92,38 @@ jobs:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
       toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
-      build-family: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+
+  # ---------------------------------------
+  # Build Make on Windows/MacOS
+  # ---------------------------------------
+  make-os:
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    with:
+      os: ${{ matrix.os }}
+      build-system: 'make'
+      toolchain: 'arm-gcc'
+      build-args: '["-bstm32f411disco"]'
+
+  # ---------------------------------------
+  # Build Espressif
+  # ---------------------------------------
+  espressif:
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          # ESP32-S2
+          - 'espressif_kaluga_1'
+          # ESP32-S3 skip since devkitm is also compiled in hil-test workflow
+          #- 'espressif_s3_devkitm'
+    with:
+      build-system: 'cmake'
+      toolchain: 'esp-idf'
+      toolchain_url: 'v5.1.1'
+      build-args: '["-b${{ matrix.board }}"]'

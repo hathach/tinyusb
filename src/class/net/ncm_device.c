@@ -112,7 +112,7 @@ typedef struct {
   bool notification_xmit_is_running;    // notification is currently transmitted
 } ncm_interface_t;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static ncm_interface_t ncm_interface;
+CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN tu_static ncm_interface_t ncm_interface;
 
 /**
  * This is the NTB parameter structure
@@ -120,7 +120,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static ncm_interface_t ncm_interface;
  * \attention
  *     We are lucky, that byte order is correct
  */
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
+CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
   .wLength                  = sizeof(ntb_parameters_t),
   .bmNtbFormatsSupported    = 0x01,// 16-bit NTB supported
   .dwNtbInMaxSize           = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
@@ -285,7 +285,7 @@ static xmit_ntb_t *xmit_get_next_ready_ntb(void) {
  *    This must be called from netd_xfer_cb() so that ep_in is ready
  */
 static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes) {
-  TU_LOG_DRV("xmit_insert_required_zlp(%d,%d)\n", rhport, xferred_bytes);
+  TU_LOG_DRV("xmit_insert_required_zlp(%d,%ld)\n", rhport, xferred_bytes);
 
   if (xferred_bytes == 0 || xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE != 0) {
     return false;
@@ -521,11 +521,11 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
     return false;
   }
   if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)) {
-    TU_LOG_DRV("(EE) ill min len: %d\n", len);
+    TU_LOG_DRV("(EE) ill min len: %lu\n", len);
     return false;
   }
   if (nth16->wBlockLength > len) {
-    TU_LOG_DRV("(EE) ill block length: %d > %d\n", nth16->wBlockLength, len);
+    TU_LOG_DRV("(EE) ill block length: %d > %lu\n", nth16->wBlockLength, len);
     return false;
   }
   if (nth16->wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
@@ -533,7 +533,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
     return false;
   }
   if (nth16->wNdpIndex < sizeof(nth16) || nth16->wNdpIndex > len - (sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t))) {
-    TU_LOG_DRV("(EE) ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
+    TU_LOG_DRV("(EE) ill position of first ndp: %d (%lu)\n", nth16->wNdpIndex, len);
     return false;
   }
 
@@ -567,11 +567,11 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
   while (ndp16_datagram[ndx].wDatagramIndex != 0 && ndp16_datagram[ndx].wDatagramLength != 0) {
     TU_LOG_DRV("  << %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
     if (ndp16_datagram[ndx].wDatagramIndex > len) {
-      TU_LOG_DRV("(EE) ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
+      TU_LOG_DRV("(EE) ill start of datagram[%d]: %d (%lu)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
       return false;
     }
     if (ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength > len) {
-      TU_LOG_DRV("(EE) ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
+      TU_LOG_DRV("(EE) ill end of datagram[%d]: %d (%lu)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
       return false;
     }
     ++ndx;
