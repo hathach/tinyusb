@@ -249,7 +249,7 @@ def main():
 
     if len(families) == 0 and len(boards) == 0:
         print("Please specify family or board to fetch")
-        return
+        return 1
 
     status = 0
     deps = list(deps_mandatory.keys())

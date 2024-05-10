@@ -42,37 +42,44 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install ARM GCC
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
-        with:
-          release: '12.3.Rel1'
-
       - name: Parse HIL json
         id: parse_hil_json
         run: |
           sudo apt install -y jq
+          # BOARD_LIST is all boards
           BOARD_LIST=$(jq -r '.boards[] | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
           echo "BOARD_LIST=$BOARD_LIST"
-          echo >> $GITHUB_ENV "BOARD_LIST=$BOARD_LIST"
-          echo >> $GITHUB_OUTPUT "BOARD_LIST=$BOARD_LIST"
+          echo "BOARD_LIST=$BOARD_LIST" >> $GITHUB_OUTPUT
 
-      - name: Checkout pico-sdk for rp2040
-        uses: actions/checkout@v4
+          # Espresif boards need to build with docker
+          BOARD_NON_ESP=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          BOARD_ESP=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          echo "BOARD_NON_ESP_LIST=$BOARD_NON_ESP_LIST" >> $GITHUB_ENV
+          echo "BOARD_ESP_LIST=$BOARD_ESP_LIST" >> $GITHUB_ENV
+
+      - name: Setup ARM Toolchain
+        uses: ./.github/actions/setup_toolchain
         with:
-          repository: raspberrypi/pico-sdk
-          ref: develop
-          path: pico-sdk
+          toolchain: 'arm-gcc'
 
       - name: Get Dependencies
-        run: |
-          sudo apt install -y ninja-build
-          python3 tools/get_deps.py $BOARD_LIST
+        uses: ./.github/actions/get_deps
+        with:
+          arg: env.BOARD_LIST
 
       - name: Build
-        run: |
-          python tools/build.py $BOARD_LIST
-        env:
-          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+        run: python tools/build.py $BOARD_LIST
+
+      - name: Setup ESP-IDF
+        if: env.BOARD_ESP_LIST != ''
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'esp-idf'
+          toolchain_url: 'v5.1.1'
+
+      - name: Build Espressif
+        if: env.BOARD_ESP_LIST != ''
+        run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py $BOARD_ESP
 
       - name: Upload Artifacts for Hardware Testing
         uses: actions/upload-artifact@v4
@@ -81,6 +88,11 @@ jobs:
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
             cmake-build/cmake-build-*/*/*/*.bin
+            # For Espressif
+            cmake-build/cmake-build-*/*/*/bootloader/bootloader.bin
+            cmake-build/cmake-build-*/*/*/partition_table/partition-table.bin
+            cmake-build/cmake-build-*/*/*/config.env
+            cmake-build/cmake-build-*/*/*/flash_args
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -89,7 +101,7 @@ jobs:
   hil-pi4:
     if: github.repository_owner == 'hathach'
     needs: build
-    runs-on: [self-hosted, rp2040, nrf52840, hardware-in-the-loop]
+    runs-on: [self-hosted, rp2040, nrf52840, esp32s3, hardware-in-the-loop]
     env:
         BOARD_LIST: ${{ needs.build.outputs.BOARD_LIST }}
     steps:
