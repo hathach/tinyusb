@@ -1,4 +1,4 @@
-name: Build family
+name: Reusable build family
 
 on:
   workflow_call:

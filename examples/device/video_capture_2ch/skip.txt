@@ -12,3 +12,5 @@ board:lpcxpresso11u68
 board:stm32f303disco
 board:stm32l412nucleo
 board:ek_tm4c123gxl
+board:uno_r4
+board:ra4m1_ek
