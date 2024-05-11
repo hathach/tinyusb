@@ -8,6 +8,11 @@ inputs:
     required: false
     type: string
 
+outputs:
+  build_option:
+    description: 'Build option for the toolchain e.g --toolchain clang'
+    value: ${{ steps.set-toolchain-option.outputs.build_option }}
+
 runs:
   using: "composite"
   steps:
@@ -19,7 +24,7 @@ runs:
 
     - name: Pull ESP-IDF docker
       if: inputs.toolchain == 'esp-idf'
-      run: docker pull espressif/idf:latest
+      run: docker pull espressif/idf:${{ inputs.toolchain_url }}
       shell: bash
 
     - name: Download Toolchain
@@ -29,3 +34,14 @@ runs:
       uses: ./.github/actions/setup_toolchain/download
       with:
         toolchain_url: ${{ inputs.toolchain_url }}
+
+    - name: Set toolchain option
+      id: set-toolchain-option
+      run: |
+          BUILD_OPTION=""
+          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
+            BUILD_OPTION="--toolchain clang"
+          fi
+          echo "build_option=$BUILD_OPTION"
+          echo "build_option=$BUILD_OPTION" >> $GITHUB_OUTPUT
+      shell: bash

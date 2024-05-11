@@ -21,7 +21,7 @@ on:
       - '.github/workflows/build_renesas.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,7 +65,6 @@ jobs:
 
     - name: Get Dependencies
       run: |
-        pip install click
         python3 tools/get_deps.py ${{ matrix.family }}
 
     - name: Build

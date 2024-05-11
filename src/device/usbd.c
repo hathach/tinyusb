@@ -56,6 +56,10 @@ TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_is
   (void)in_isr;
 }
 
+TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
+  (void)frame_count;
+}
+
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
@@ -76,6 +80,7 @@ typedef struct {
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
   volatile uint8_t setup_count;
+  volatile uint8_t sof_consumer;
 
   uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
@@ -275,6 +280,7 @@ TU_ATTR_ALWAYS_INLINE static inline usbd_class_driver_t const * get_driver(uint8
   return driver;
 }
 
+
 //--------------------------------------------------------------------+
 // DCD Event
 //--------------------------------------------------------------------+
@@ -379,6 +385,12 @@ bool tud_disconnect(void) {
 bool tud_connect(void) {
   TU_VERIFY(dcd_connect);
   dcd_connect(_usbd_rhport);
+  return true;
+}
+
+bool tud_sof_cb_enable(bool en)
+{
+  usbd_sof_enable(_usbd_rhport, SOF_CONSUMER_USER, en);
   return true;
 }
 
@@ -612,6 +624,12 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case DCD_EVENT_SOF:
+        if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
+          TU_LOG_USBD("\r\n");
+          tud_sof_cb(event.sof.frame_count);
+        }
+      break;
+
       default:
         TU_BREAKPOINT();
         break;
@@ -701,6 +719,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             if ( _usbd_dev.cfg_num ) {
               // already configured: need to clear all endpoints and driver first
               TU_LOG_USBD("  Clear current Configuration (%u) before switching\r\n", _usbd_dev.cfg_num);
+
+              // disable SOF
+              dcd_sof_enable(rhport, false);
 
               // close all non-control endpoints, cancel all pending transfers if any
               dcd_edpt_close_all(rhport);
@@ -1101,6 +1122,14 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       break;
 
     case DCD_EVENT_SOF:
+      // SOF driver handler in ISR context
+      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+        usbd_class_driver_t const* driver = get_driver(i);
+        if (driver && driver->sof) {
+          driver->sof(event->rhport, event->sof.frame_count);
+        }
+      }
+
       // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
       // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
       if (_usbd_dev.suspended) {
@@ -1110,15 +1139,10 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
         queue_event(&event_resume, in_isr);
       }
 
-      // SOF driver handler in ISR context
-      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
-        usbd_class_driver_t const* driver = get_driver(i);
-        if (driver && driver->sof) {
-          driver->sof(event->rhport, event->sof.frame_count);
-        }
+      if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
+        dcd_event_t const event_sof = {.rhport = event->rhport, .event_id = DCD_EVENT_SOF};
+        queue_event(&event_sof, in_isr);
       }
-
-      // skip osal queue for SOF in usbd task
       break;
 
     case DCD_EVENT_SETUP_RECEIVED:
@@ -1355,12 +1379,21 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   return;
 }
 
-void usbd_sof_enable(uint8_t rhport, bool en) {
+void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en) {
   rhport = _usbd_rhport;
 
-  // TODO: Check needed if all drivers including the user sof_cb does not need an active SOF ISR any more.
-  // Only if all drivers switched off SOF calls the SOF interrupt may be disabled
-  dcd_sof_enable(rhport, en);
+  uint8_t consumer_old = _usbd_dev.sof_consumer;
+  // Keep track how many class instances need the SOF interrupt
+  if (en) {
+    _usbd_dev.sof_consumer |= (uint8_t)(1 << consumer);
+  } else {
+    _usbd_dev.sof_consumer &= (uint8_t)(~(1 << consumer));
+  }
+
+  // Test logically unequal
+  if(!_usbd_dev.sof_consumer != !consumer_old) {
+    dcd_sof_enable(rhport, _usbd_dev.sof_consumer);
+  }
 }
 
 bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {

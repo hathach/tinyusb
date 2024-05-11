@@ -25,10 +25,10 @@
 # ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="usb", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", SYMLINK+="ttyUSB_%c.%s{bInterfaceNumber}"
 # ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
 
+import argparse
 import os
 import sys
 import time
-import click
 import serial
 import subprocess
 import json
@@ -318,13 +318,18 @@ def test_hid_composite_freertos(id):
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
-@click.command()
-@click.argument('config_file')
-@click.option('-b', '--board', multiple=True, default=None, help='Boards to test, all if not specified')
-def main(config_file, board):
+def main():
     """
     Hardware test on specified boards
     """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config_file', help='Configuration JSON file')
+    parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
+    args = parser.parse_args()
+
+    config_file = args.config_file
+    boards = args.board
+
     config_file = os.path.join(os.path.dirname(__file__), config_file)
     with open(config_file) as f:
         config = json.load(f)
@@ -334,10 +339,10 @@ def main(config_file, board):
         'cdc_dual_ports', 'cdc_msc', 'dfu', 'dfu_runtime', 'hid_boot_interface',
     ]
 
-    if len(board) == 0:
+    if len(boards) == 0:
         config_boards = config['boards']
     else:
-        config_boards = [e for e in config['boards'] if e['name'] in board]
+        config_boards = [e for e in config['boards'] if e['name'] in boards]
 
     for item in config_boards:
         name = item['name']

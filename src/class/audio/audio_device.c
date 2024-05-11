@@ -2093,7 +2093,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
       break;
     }
   }
-  if (disable) usbd_sof_enable(rhport, false);
+  if (disable) usbd_sof_enable(rhport, SOF_CONSUMER_AUDIO, false);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
