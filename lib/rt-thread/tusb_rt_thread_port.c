@@ -44,7 +44,12 @@ static void tusb_thread_entry(void *parameter)
     (void) parameter;
     while (1)
     {
+#if CFG_TUH_ENABLED
+        tuh_task();
+#endif
+#if CFG_TUD_ENABLED
         tud_task();
+#endif
     }
 }
 

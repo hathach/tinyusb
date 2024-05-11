@@ -113,6 +113,11 @@ extern "C" {
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
+#if defined(PKG_TINYUSB_DEVICE_ENABLE)
+  #define CFG_TUD_ENABLED             (1)
+#else
+  #define CFG_TUD_ENABLED             (0)
+#endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
 #define CFG_TUD_ENDPOINT0_SIZE        PKG_TINYUSB_EDPT0_SIZE
@@ -137,6 +142,72 @@ extern "C" {
 #ifndef PKG_TINYUSB_DEVICE_HID_STRING
 #define PKG_TINYUSB_DEVICE_HID_STRING ""
 #endif
+
+//--------------------------------------------------------------------
+// HOST CONFIGURATION
+//--------------------------------------------------------------------
+#if defined(PKG_TINYUSB_HOST_ENABLE)
+  #define CFG_TUH_ENABLED             (1)
+#else
+  #define CFG_TUH_ENABLED             (0)
+#endif
+
+#if (PKG_TINYUSB_HOST_PORT == 0)
+#undef CFG_TUSB_RHPORT0_MODE
+#define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_HOST | PKG_TINYUSB_HOST_PORT_SPEED)
+#endif
+
+#if (PKG_TINYUSB_HOST_PORT == 1)
+#undef CFG_TUSB_RHPORT1_MODE
+#define CFG_TUSB_RHPORT1_MODE     (OPT_MODE_HOST | PKG_TINYUSB_HOST_PORT_SPEED)
+#endif
+
+#define BOARD_TUH_RHPORT            PKG_TINYUSB_HOST_PORT // FULL SPEED
+#define BOARD_TUH_MAX_SPEED         PKG_TINYUSB_HOST_PORT_SPEED
+// Default is max speed that hardware controller could support with on-chip PHY
+#define CFG_TUH_MAX_SPEED           BOARD_TUH_MAX_SPEED
+
+//------------------------- Board Specific --------------------------
+
+// RHPort number used for host can be defined by board.mk, default to port 0
+#ifndef BOARD_TUH_RHPORT
+#define BOARD_TUH_RHPORT      0
+#endif
+
+// RHPort max operational speed can defined by board.mk
+#ifndef BOARD_TUH_MAX_SPEED
+#define BOARD_TUH_MAX_SPEED   OPT_MODE_DEFAULT_SPEED
+#endif
+
+// Size of buffer to hold descriptors and other data used for enumeration
+#define CFG_TUH_ENUMERATION_BUFSIZE 256
+
+#define CFG_TUH_HUB                 2 // number of supported hubs
+#define CFG_TUH_CDC                 0 // CDC ACM
+#define CFG_TUH_CDC_FTDI            0 // FTDI Serial.  FTDI is not part of CDC class, only to re-use CDC driver API
+#define CFG_TUH_CDC_CP210X          0 // CP210x Serial. CP210X is not part of CDC class, only to re-use CDC driver API
+#define CFG_TUH_CDC_CH34X           0 // CH340 or CH341 Serial. CH34X is not part of CDC class, only to re-use CDC driver API
+#define CFG_TUH_HID                 0 // typical keyboard + mouse device can have 3-4 HID interfaces
+#define CFG_TUH_MSC                 0
+//#define CFG_TUH_VENDOR              3
+
+// max device support (excluding hub device): 1 hub typically has 4 ports
+#define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
+
+//------------- HID -------------//
+#define CFG_TUH_HID_EPIN_BUFSIZE    64
+#define CFG_TUH_HID_EPOUT_BUFSIZE   64
+
+//------------- CDC -------------//
+
+// Set Line Control state on enumeration/mounted:
+// DTR ( bit 0), RTS (bit 1)
+#define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM    0x03
+
+// Set Line Coding on enumeration/mounted, value for cdc_line_coding_t
+// bit rate = 115200, 1 stop bit, no parity, 8 bit data width
+#define CFG_TUH_CDC_LINE_CODING_ON_ENUM   { 115200, CDC_LINE_CODING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
+
 
 
 #ifdef __cplusplus
