@@ -2045,8 +2045,6 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
           case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
           case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
             audiod_set_fb_params_freq(audio, fb_param.sample_freq, fb_param.frequency.mclk_freq);
-            // Enable SOF interrupt
-            usbd_sof_enable(rhport, true);
           break;
 
           case AUDIO_FEEDBACK_METHOD_FIFO_COUNT:
@@ -2084,16 +2082,19 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
   // Disable SOF interrupt if no driver has any enabled feedback EP
-  bool disable = true;
+  bool enable_sof = false;
   for(uint8_t i=0; i < CFG_TUD_AUDIO; i++)
   {
-    if (_audiod_fct[i].ep_fb != 0)
+    if (_audiod_fct[i].ep_fb != 0 &&
+      (_audiod_fct[i].feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED ||
+       _audiod_fct[i].feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT ||
+       _audiod_fct[i].feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2 ))
     {
-      disable = false;
+      enable_sof = true;
       break;
     }
   }
-  if (disable) usbd_sof_enable(rhport, SOF_CONSUMER_AUDIO, false);
+  usbd_sof_enable(rhport, SOF_CONSUMER_AUDIO, enable_sof);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
