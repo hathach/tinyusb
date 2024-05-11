@@ -1243,7 +1243,7 @@ static inline bool audiod_fb_send(audiod_function_t *audio)
   //              10.14    3            4          Linux, OSX
   //              10.14    3            3          Linux
   //
-  // OSX requires wMaxPacketSize=3 while sending 4 bytes (Wth ?!), so we still send 4 bytes even of correction is applied
+  // OSX requires wMaxPacketSize=3 while sending 4 bytes (WTF ?!), so we still send 4 bytes even of correction is applied
   return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) &audio->feedback.send_buf, 4);
 }
 #endif
