@@ -1231,7 +1231,20 @@ static inline bool audiod_fb_send(audiod_function_t *audio)
     audio->feedback.send_buf = audio->feedback.value;
   }
 
-  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) &audio->feedback.send_buf, apply_correction ? 3 : 4);
+  // About feedback format on FS
+  //
+  // 3 variables: Format | packetSize | sendSize | Working OS:
+  //              16.16    4            4          Linux, Windows
+  //              16.16    4            3          Linux
+  //              16.16    3            4          Linux
+  //              16.16    3            3          Linux
+  //              10.14    4            4          Linux
+  //              10.14    4            3          Linux
+  //              10.14    3            4          Linux, OSX
+  //              10.14    3            3          Linux
+  //
+  // OSX requires wMaxPacketSize=3 while sending 4 bytes (Wth ?!), so we still send 4 bytes even of correction is applied
+  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) &audio->feedback.send_buf, 4);
 }
 #endif
 
