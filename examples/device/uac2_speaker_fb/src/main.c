@@ -92,6 +92,8 @@ void audio_task(void);
 #if CFG_AUDIO_DEBUG
 void audio_debug_task(void);
 uint8_t current_alt_settings;
+uint16_t fifo_count;
+uint32_t fifo_count_avg;
 #endif
 
 /*------------- MAIN -------------*/
@@ -367,6 +369,21 @@ void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedba
   feedback_param->sample_freq = current_sample_rate;
 }
 
+#if CFG_AUDIO_DEBUG
+bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting)
+{
+  (void)rhport;
+  (void)func_id;
+  (void)ep_out;
+  (void)cur_alt_setting;
+
+  fifo_count = tud_audio_available();
+  // Same averaging method used in UAC2 class
+  fifo_count_avg = (uint32_t)(((uint64_t)fifo_count_avg * 63  + ((uint32_t)fifo_count << 16)) >> 6);
+
+  return true;
+}
+#endif
 //--------------------------------------------------------------------+
 // AUDIO Task
 //--------------------------------------------------------------------+
@@ -418,7 +435,6 @@ void led_blinking_task(void)
 //--------------------------------------------------------------------+
 // HID interface for audio debug
 //--------------------------------------------------------------------+
-
 // Every 1ms, we will sent 1 debug information report
 void audio_debug_task(void)
 {
@@ -426,12 +442,6 @@ void audio_debug_task(void)
   uint32_t curr_ms = board_millis();
   if ( start_ms == curr_ms ) return; // not enough time
   start_ms = curr_ms;
-
-  uint16_t fifo_count = tud_audio_available();
-  static uint32_t fifo_count_avg;
-
-  // Same averaging method used in UAC2 class
-  fifo_count_avg = (uint32_t)(((uint64_t)fifo_count_avg * 63  + ((uint32_t)fifo_count << 16)) >> 6);
 
   audio_debug_info_t debug_info;
   debug_info.sample_rate    = current_sample_rate;
