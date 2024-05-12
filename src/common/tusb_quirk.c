@@ -34,7 +34,7 @@ void tud_quirk_host_os_hint_desc_cb(tusb_desc_type_t desc) {
     desc_req_idx = 0;
   } else if (desc_req_idx < 2 && (desc == TUSB_DESC_CONFIGURATION || desc == TUSB_DESC_BOS || desc == TUSB_DESC_STRING)) {
     // Skip redundant request
-    if (desc_req_idx == 0 || desc_req_idx > 0 && desc_req_buf[desc_req_idx - 1] != desc) {
+    if (desc_req_idx == 0 || (desc_req_idx > 0 && desc_req_buf[desc_req_idx - 1] != desc)) {
       desc_req_buf[desc_req_idx++] = desc;
     }
   }
