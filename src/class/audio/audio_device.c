@@ -1216,7 +1216,7 @@ static uint16_t audiod_encode_type_I_pcm(uint8_t rhport, audiod_function_t* audi
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 static inline bool audiod_fb_send(audiod_function_t *audio)
 {
-  bool apply_correction = TUSB_SPEED_FULL == tud_speed_get() && audio->feedback.format_correction;
+  bool apply_correction = (TUSB_SPEED_FULL == tud_speed_get()) && audio->feedback.format_correction;
   // Format the feedback value
   if (apply_correction)
   {
@@ -1226,6 +1226,7 @@ static inline bool audiod_fb_send(audiod_function_t *audio)
     *(fb++) = (audio->feedback.value >> 2) & 0xFF;
     *(fb++) = (audio->feedback.value >> 10) & 0xFF;
     *(fb++) = (audio->feedback.value >> 18) & 0xFF;
+    *fb = 0;
   } else
   {
     audio->feedback.send_buf = audio->feedback.value;
@@ -1241,10 +1242,10 @@ static inline bool audiod_fb_send(audiod_function_t *audio)
   //              10.14    4            4          Linux
   //              10.14    4            3          Linux
   //              10.14    3            4          Linux, OSX
-  //              10.14    3            3          Linux
+  //              10.14    3            3          Linux, OSX
   //
-  // OSX requires wMaxPacketSize=3 while sending 4 bytes (WTF ?!), so we still send 4 bytes even of correction is applied
-  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) &audio->feedback.send_buf, 4);
+  // We send 3 bytes since sending packet larger than wMaxPacketSize is pretty ugly
+  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) &audio->feedback.send_buf, apply_correction ? 3 : 4);
 }
 #endif
 
