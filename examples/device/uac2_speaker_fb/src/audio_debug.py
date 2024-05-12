@@ -1,8 +1,13 @@
 # Install python3 HID package https://pypi.org/project/hid/
-import hid
+# Install python3 matplotlib package https://pypi.org/project/matplotlib/
+
 from ctypes import *
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+try:
+    import hid
+    import matplotlib.pyplot as plt
+    import matplotlib.animation as animation
+except:
+    print("Missing import, please try 'pip install hid matplotlib' or consult your OS's python package manager.")
 
 # Example must be compiled with CFG_AUDIO_DEBUG=1
 VID = 0xcafe
@@ -32,15 +37,16 @@ if dev:
     def animate(i):
         info = None
         for i in range(30):
-            str_in = dev.read(64, 10)
-            if str_in:
+            try:
+                str_in = dev.read(64, 50)
                 info = audio_debug_info_t.from_buffer_copy(str_in)
 
                 global fifo_avg
                 global fifo_cnt
                 fifo_avg.append(info.fifo_count_avg)
                 fifo_cnt.append(info.fifo_count)
-
+            except:
+                exit(1)
         # Limit to 1000 items
         fifo_avg = fifo_avg[-1000:]
         fifo_cnt = fifo_cnt[-1000:]
