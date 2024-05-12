@@ -46,7 +46,7 @@ void tud_quirk_host_os_hint_desc_cb(tusb_desc_type_t desc) {
 //    Config Desc
 //    BOS    Desc
 //    String Desc
-// Linux 5.4 - 6.8
+// Linux 4.14 - 6.8
 //    Device Desc
 //    BOS    Desc
 //    Config Desc
@@ -54,8 +54,8 @@ void tud_quirk_host_os_hint_desc_cb(tusb_desc_type_t desc) {
 // OS X
 //    Device Desc
 //    String Desc
-//    BOS    Desc
-//    Config Desc
+//    Config Desc || BOS    Desc
+//    BOS    Desc || Config Desc
 tud_quirk_host_os_t tud_quirk_host_os_hint(void) {
   if (desc_req_idx < 2) {
     return TUD_QUIRK_OS_HINT_UNKNOWN;
@@ -65,7 +65,7 @@ tud_quirk_host_os_t tud_quirk_host_os_hint(void) {
     return TUD_QUIRK_OS_HINT_LINUX;
   } else if (desc_req_buf[0] == TUSB_DESC_CONFIGURATION && desc_req_buf[1] == TUSB_DESC_BOS) {
     return TUD_QUIRK_OS_HINT_WINDOWS;
-  } else if (desc_req_buf[0] == TUSB_DESC_STRING && desc_req_buf[1] == TUSB_DESC_BOS) {
+  } else if (desc_req_buf[0] == TUSB_DESC_STRING && (desc_req_buf[1] == TUSB_DESC_BOS || desc_req_buf[1] == TUSB_DESC_CONFIGURATION)) {
     return TUD_QUIRK_OS_HINT_OSX;
   }
 
