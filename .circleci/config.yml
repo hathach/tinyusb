@@ -20,13 +20,12 @@ jobs:
             tar -C ~/cache/toolchain -xaf toolchain.tar.gz
       - run:
           name: Set Toolchain Path
-          command: echo `export PATH=$PATH:~/cache/toolchain/*/bin` >> $BASH_ENV
+          command: echo "export PATH=$PATH:`echo ~/cache/toolchain/*/bin`" >> $BASH_ENV
       - run:
           name: Install ninja-build
           command: |
             wget https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip -O ninja-linux.zip
-            unzip ninja-linux.zip -d ~/cache/ninja
-            echo `export PATH=$PATH:~/cache/ninja` >> $BASH_ENV
+            unzip ninja-linux.zip -d ~/bin
       - run:
           name: Get Dependencies
           command: |
