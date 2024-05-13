@@ -1,4 +1,5 @@
 import argparse
+import random
 import os
 import sys
 import time
@@ -96,15 +97,24 @@ def build_board_cmake(board, toolchain):
     return ret
 
 
-def build_family(family, toolchain, build_system):
+def build_family(family, toolchain, build_system, only_one, boards):
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
         if entry.is_dir() and entry.name != 'pico_sdk':
             all_boards.append(entry.name)
     all_boards.sort()
 
-    # success, failed, skipped
     ret = [0, 0, 0]
+
+    # If only-one flag is set, select one random board
+    if only_one:
+        for b in boards:
+            # skip if -b already specify one in this family
+            if find_family(b) == family:
+                return ret
+        all_boards = [random.choice(all_boards)]
+
+    # success, failed, skipped
     if build_system == 'cmake':
         for board in all_boards:
             if build_board_cmake(board, toolchain):
@@ -131,12 +141,14 @@ def main():
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to build')
     parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
+    parser.add_argument('-1', '--only-one', action='store_true', default=False, help='Build only one random board inside a family')
     args = parser.parse_args()
 
     families = args.families
     boards = args.board
     toolchain = args.toolchain
     build_system = args.build_system
+    only_one = args.only_one
 
     if len(families) == 0 and len(boards) == 0:
         print("Please specify families or board to build")
@@ -147,42 +159,40 @@ def main():
     total_time = time.monotonic()
     total_result = [0, 0, 0]
 
-    # build families: cmake, make
-    if families is not None:
-        all_families = []
-        if 'all' in families:
-            for entry in os.scandir("hw/bsp"):
-                if entry.is_dir() and entry.name != 'espressif' and os.path.isfile(entry.path + "/family.cmake"):
-                    all_families.append(entry.name)
-        else:
-            all_families = list(families)
-        all_families.sort()
+    # build families
+    all_families = []
+    if 'all' in families:
+        for entry in os.scandir("hw/bsp"):
+            if entry.is_dir() and entry.name != 'espressif' and os.path.isfile(entry.path + "/family.cmake"):
+                all_families.append(entry.name)
+    else:
+        all_families = list(families)
+    all_families.sort()
 
-        # succeeded, failed
-        for f in all_families:
-            fret = build_family(f, toolchain, build_system)
-            total_result[0] += fret[0]
-            total_result[1] += fret[1]
-            total_result[2] += fret[2]
+    # succeeded, failed
+    for f in all_families:
+        fret = build_family(f, toolchain, build_system, only_one, boards)
+        total_result[0] += fret[0]
+        total_result[1] += fret[1]
+        total_result[2] += fret[2]
 
-    # build board (only cmake)
-    if boards is not None:
-        for b in boards:
-            if build_system == 'cmake':
-                r = build_board_cmake(b, toolchain)
-                total_result[0] += r[0]
-                total_result[1] += r[1]
-                total_result[2] += r[2]
-            elif build_system == 'make':
-                all_examples = get_examples(find_family(b))
-                with Pool(processes=os.cpu_count()) as pool:
-                    pool_args = list((map(lambda e, bb=b, o=f"TOOLCHAIN={toolchain}": [e, bb, o], all_examples)))
-                    r = pool.starmap(build_utils.build_example, pool_args)
-                    # sum all element of same index (column sum)
-                    rsum = list(map(sum, list(zip(*r))))
-                    total_result[0] += rsum[0]
-                    total_result[1] += rsum[1]
-                    total_result[2] += rsum[2]
+    # build boards
+    for b in boards:
+        if build_system == 'cmake':
+            r = build_board_cmake(b, toolchain)
+            total_result[0] += r[0]
+            total_result[1] += r[1]
+            total_result[2] += r[2]
+        elif build_system == 'make':
+            all_examples = get_examples(find_family(b))
+            with Pool(processes=os.cpu_count()) as pool:
+                pool_args = list((map(lambda e, bb=b, o=f"TOOLCHAIN={toolchain}": [e, bb, o], all_examples)))
+                r = pool.starmap(build_utils.build_example, pool_args)
+                # sum all element of same index (column sum)
+                rsum = list(map(sum, list(zip(*r))))
+                total_result[0] += rsum[0]
+                total_result[1] += rsum[1]
+                total_result[2] += rsum[2]
 
     total_time = time.monotonic() - total_time
     print(build_separator)

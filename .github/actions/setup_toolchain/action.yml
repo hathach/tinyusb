@@ -32,6 +32,7 @@ runs:
     - name: Download Toolchain
       if: >-
         inputs.toolchain != 'arm-gcc' &&
+        inputs.toolchain != 'arm-iar' &&
         inputs.toolchain != 'esp-idf'
       uses: ./.github/actions/setup_toolchain/download
       with:
@@ -44,6 +45,8 @@ runs:
           BUILD_OPTION=""
           if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
             BUILD_OPTION="--toolchain clang"
+          elif [[ "${{ inputs.toolchain }}" == "arm-iar" ]]; then
+            BUILD_OPTION="--toolchain iar"
           fi
           echo "build_option=$BUILD_OPTION"
           echo "build_option=$BUILD_OPTION" >> $GITHUB_OUTPUT
