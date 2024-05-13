@@ -155,11 +155,12 @@ jobs:
 
       - run: |
           echo "1"
-          echo ${{ fromJSON(needs.set-matrix.outputs.json) }}
-          echo "2"
-          echo ${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'] }}
-          echo "3"
-          echo ${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family }}
+          BUILD_ARGS=$(echo '${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family) }}' | jq -R -s .)
+          echo $BUILD_ARGS
+#          echo "2"
+#          echo ${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'] }}
+#          echo "3"
+#          echo ${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family }}
 
 
 #      - name: Get Dependencies
