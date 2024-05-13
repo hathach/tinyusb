@@ -24,7 +24,9 @@ jobs:
           command: echo `echo ~/cache/toolchain/*/bin`  >> $BASH_ENV
       - run:
           name: Get Dependencies
-          command: python tools/get_deps.py stm32f1
+          command: |
+            apt install -y ninja-build
+            python tools/get_deps.py stm32f1
       - run:
           name: Build
           command: python tools/build.py -s cmake --toolchain clang stm32f1
