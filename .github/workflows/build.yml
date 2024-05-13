@@ -63,7 +63,7 @@ jobs:
       matrix:
         toolchain:
           - 'aarch64-gcc'
-          #- 'arm-clang'
+#          - 'arm-clang'
           - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
@@ -72,7 +72,7 @@ jobs:
       toolchain: ${{ matrix.toolchain }}
       toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
-      one-per-family: ${{ github.event_name == 'pull_request' }}
+      one-per-family: ${{ github.event_name == 'push' }}
 
   # ---------------------------------------
   # Build Make
