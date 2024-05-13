@@ -25,7 +25,7 @@ jobs:
       - run:
           name: Get Dependencies
           command: |
-            apt install -y ninja-build
+            sudo apt install -y ninja-build
             python tools/get_deps.py stm32f1
       - run:
           name: Build
