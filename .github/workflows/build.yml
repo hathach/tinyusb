@@ -143,14 +143,13 @@ jobs:
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
-      BUILD_ARGS: "${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family, ' ') }}"
+      BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family, ' ') }}
     steps:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
-          echo "BUILD_ARGS=$BUILD_ARGS"
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -159,7 +158,7 @@ jobs:
         run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
-        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
+        run: python3 tools/build.py --only-one --toolchain iar $BUILD_ARGS
 
       - name: Test on actual hardware (hardware in the loop)
         if: >-
