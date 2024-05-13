@@ -13,8 +13,9 @@ runs:
   steps:
     - id: set-docker-image
       run: |
-        echo "DOCKER_IMAGE=$HOME/cache/${{ inputs.toolchain }}/docker_image.tar" >> $GITHUB_ENV
-        echo "DOCKER_IMAGE=$HOME/cache/${{ inputs.toolchain }}/docker_image.tar" >> $GITHUB_OUTPUT
+        DOCKER_IMAGE=$HOME/cache/${{ inputs.toolchain }}/docker_image.tar
+        echo "DOCKER_IMAGE=$DOCKER_IMAGE" >> $GITHUB_ENV
+        echo "DOCKER_IMAGE=$DOCKER_IMAGE" >> $GITHUB_OUTPUT
       shell: bash
 
     - name: Cache Docker Image
