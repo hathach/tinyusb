@@ -142,8 +142,13 @@ jobs:
     needs: set-matrix
     if: github.repository_owner == 'hathach'
     runs-on: [self-hosted, Linux, X64, hifiphile]
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - 'arm-iar'
     env:
-      BUILD_ARGS: ${{ fromJSON(needs.set-matrix.outputs.json).arm-iar.family }}
+      BUILD_ARGS: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family }}
     steps:
       - name: Clean workspace
         run: |
@@ -153,16 +158,6 @@ jobs:
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
-
-      - run: |
-          echo "1"
-          BUILD_ARGS=$(echo ${{ fromJSON(needs.set-matrix.outputs.json).arm-iar.family }} | jq -R -s .)
-          echo $BUILD_ARGS
-#          echo "2"
-#          echo ${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'] }}
-#          echo "3"
-#          echo ${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family }}
-
 
 #      - name: Get Dependencies
 #        run: python3 tools/get_deps.py $BUILD_ARGS
