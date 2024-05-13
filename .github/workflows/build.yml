@@ -148,7 +148,7 @@ jobs:
         toolchain:
           - 'arm-iar'
     env:
-      BUILD_ARGS: "${{ join(' ', fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}"
+      BUILD_ARGS: "${{ join(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family), ' '}}"
     steps:
       - name: Clean workspace
         run: |
