@@ -118,7 +118,6 @@ jobs:
   # ---------------------------------------
   espressif:
     uses: ./.github/workflows/build_util.yml
-    if: false
     strategy:
       fail-fast: false
       matrix:
