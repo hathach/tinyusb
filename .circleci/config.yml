@@ -5,7 +5,7 @@ version: 2.1
 jobs:
   arm-clang:
     docker:
-      - image: cimg/base:current-22.04
+      - image: cimg/base:current
     resource_class: small      
     environment:
       TOOLCHAIN_URL: https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
@@ -22,9 +22,14 @@ jobs:
           name: Set Toolchain Path
           command: echo `echo ~/cache/toolchain/*/bin`  >> $BASH_ENV
       - run:
+          name: Install ninja-build
+          command: |
+            wget https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip -O ninja-linux.zip
+            unzip ninja-linux.zip -d ~/cache/ninja
+            echo `echo ~/cache/ninja`  >> $BASH_ENV
+      - run:
           name: Get Dependencies
           command: |
-            sudo apt install -y ninja-build
             python tools/get_deps.py stm32f1
       - run:
           name: Build
