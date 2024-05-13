@@ -19,15 +19,18 @@ jobs:
       - run:
           name: Install Toolchain
           command: |
-            mkdir -p ~/cache/toolchain
-            wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
-            tar -C ~/cache/toolchain -xaf toolchain.tar.gz
+            # Only download if folder does not exist (not cached)
+            if [ ! -d "~/cache/toolchain" ]; then
+              mkdir -p ~/cache/toolchain
+              wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
+              tar -C ~/cache/toolchain -xaf toolchain.tar.gz
+            fi
       - save_cache:
           key: $TOOLCHAIN_URL
           paths:
             - ~/cache/toolchain
       - run:
-          name: Setup Toolchain
+          name: Setup build environment
           command: |
             echo "export PATH=$PATH:`echo ~/cache/toolchain/*/bin`" >> $BASH_ENV
             # install ninja
