@@ -141,7 +141,7 @@ jobs:
     if: github.repository_owner == 'hathach'
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
-      BUILD_ARGS: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family) }}
+      BUILD_ARGS: ${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family }}
     steps:
       - name: Clean workspace
         run: |
