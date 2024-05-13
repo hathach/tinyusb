@@ -1207,10 +1207,6 @@ bool dcd_check_test_mode_support(test_mode_t test_selector) {
 }
 
 void dcd_enter_test_mode(uint8_t rhport, test_mode_t test_selector) {
-  // Disable test mode if not supported as a fall back
-  if (!dcd_check_test_mode_support(test_selector)) {
-    test_selector = 0;
-  }
   // Get port address...
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
