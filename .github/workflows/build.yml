@@ -64,17 +64,15 @@ jobs:
         toolchain:
           - 'aarch64-gcc'
           #- 'arm-clang'
-          #- 'arm-gcc'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
-#    if: >-
-#      github.event_name == 'pull_request' ||
-#      (github.event_name == 'push' && github.ref == 'refs/heads/master')
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      one-per-family: github.event_name == 'pull_request'
 
   # ---------------------------------------
   # Build Make
@@ -158,7 +156,7 @@ jobs:
         run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
-        run: python3 tools/build.py --only-one --toolchain iar $BUILD_ARGS
+        run: python3 tools/build.py --one_per_family --toolchain iar $BUILD_ARGS
 
       - name: Test on actual hardware (hardware in the loop)
         if: >-

@@ -97,7 +97,7 @@ def build_board_cmake(board, toolchain):
     return ret
 
 
-def build_family(family, toolchain, build_system, only_one, boards):
+def build_family(family, toolchain, build_system, one_per_family, boards):
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
         if entry.is_dir() and entry.name != 'pico_sdk':
@@ -107,7 +107,7 @@ def build_family(family, toolchain, build_system, only_one, boards):
     ret = [0, 0, 0]
 
     # If only-one flag is set, select one random board
-    if only_one:
+    if one_per_family:
         for b in boards:
             # skip if -b already specify one in this family
             if find_family(b) == family:
@@ -141,14 +141,14 @@ def main():
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to build')
     parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
-    parser.add_argument('-1', '--only-one', action='store_true', default=False, help='Build only one random board inside a family')
+    parser.add_argument('-1', '--one-per-family', action='store_true', default=False, help='Build only one random board inside a family')
     args = parser.parse_args()
 
     families = args.families
     boards = args.board
     toolchain = args.toolchain
     build_system = args.build_system
-    only_one = args.only_one
+    one_per_family = args.one_per_family
 
     if len(families) == 0 and len(boards) == 0:
         print("Please specify families or board to build")
@@ -171,7 +171,7 @@ def main():
 
     # succeeded, failed
     for f in all_families:
-        fret = build_family(f, toolchain, build_system, only_one, boards)
+        fret = build_family(f, toolchain, build_system, one_per_family, boards)
         total_result[0] += fret[0]
         total_result[1] += fret[1]
         total_result[2] += fret[2]
