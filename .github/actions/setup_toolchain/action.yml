@@ -2,11 +2,11 @@ name: Setup Toolchain
 
 inputs:
   toolchain:
+    description: 'Toolchain name'
     required: true
-    type: string
   toolchain_url:
+    description: 'Toolchain URL or version'
     required: false
-    type: string
 
 outputs:
   build_option:

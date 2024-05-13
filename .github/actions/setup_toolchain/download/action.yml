@@ -13,13 +13,13 @@ runs:
   steps:
     - name: Cache Toolchain
       uses: actions/cache@v4
-      id: cache-toolchain-${{ inputs.toolchain }}
+      id: cache-toolchain-download
       with:
         path: ~/cache/${{ inputs.toolchain }}
         key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
 
     - name: Install Toolchain
-      if: steps.cache-toolchain-${{ inputs.toolchain }}.outputs.cache-hit != 'true'
+      if: steps.cache-toolchain-download.outputs.cache-hit != 'true'
       run: |
         mkdir -p ~/cache/${{ inputs.toolchain }}
         wget --progress=dot:mega ${{ inputs.toolchain_url }} -O toolchain.tar.gz
