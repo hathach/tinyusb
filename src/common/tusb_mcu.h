@@ -195,6 +195,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32F4)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
+  #define TUP_USBIP_DWC2_TEST_MODE
 
   // For most mcu, FS has 4, HS has 6. TODO 446/469/479 HS has 9
   #define TUP_DCD_ENDPOINT_MAX    6
@@ -209,7 +210,7 @@
   // MCU with on-chip HS Phy
   #if defined(STM32F723xx) || defined(STM32F730xx) || defined(STM32F733xx)
     #define TUP_RHPORT_HIGHSPEED  1 // Port0: FS, Port1: HS
-    #define TUP_USBIP_DWC2_TEST_MODE_SUPPORT
+    #define TUP_USBIP_DWC2_TEST_MODE
   #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
@@ -278,7 +279,7 @@
       defined(STM32U5F7xx) || defined(STM32U5F9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx)
     #define TUP_DCD_ENDPOINT_MAX  9
     #define TUP_RHPORT_HIGHSPEED  1
-    #define TUP_USBIP_DWC2_TEST_MODE_SUPPORT
+    #define TUP_USBIP_DWC2_TEST_MODE
   #else
     #define TUP_DCD_ENDPOINT_MAX  6
   #endif

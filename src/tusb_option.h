@@ -364,6 +364,11 @@
   #define CFG_TUD_INTERFACE_MAX   16
 #endif
 
+// USB 2.0 compliance test mode support
+#ifndef CFG_TUD_TEST_MODE
+  #define CFG_TUD_TEST_MODE       0
+#endif
+
 //------------- Device Class Driver -------------//
 #ifndef CFG_TUD_BTH
   #define CFG_TUD_BTH             0

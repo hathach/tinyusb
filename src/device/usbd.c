@@ -313,8 +313,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool queue_event(dcd_event_t const * event, 
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
+#if CFG_TUD_TEST_MODE
 static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
-
+#endif
 // from usbd_control.c
 void usbd_control_reset(void);
 void usbd_control_set_request(tusb_control_request_t const *request);
@@ -766,16 +767,16 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
               tud_control_status(rhport, p_request);
             break;
 
-            #if !defined(TUSB_NO_TEST_MODE_SUPPORT)
+#if CFG_TUD_TEST_MODE
             // Support for TEST_MODE
-            case TUSB_REQ_FEATURE_TEST_MODE:
+            case TUSB_REQ_FEATURE_TEST_MODE: {
               // Only handle the test mode if supported and valid
               TU_VERIFY(dcd_enter_test_mode && dcd_check_test_mode_support && 0 == tu_u16_low(p_request->wIndex));
 
               uint8_t selector = tu_u16_high(p_request->wIndex);
 
               // Stall request if the selected test mode isn't supported
-              if (!dcd_check_test_mode_support(selector))
+              if (!dcd_check_test_mode_support((test_mode_t)selector))
               {
                 TU_LOG_USBD("    Unsupported Test Mode (test selector index: %d)\r\n", selector);
 
@@ -788,8 +789,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
               TU_LOG_USBD("    Enter Test Mode (test selector index: %d)\r\n", selector);
 
               usbd_control_set_complete_callback(process_test_mode_cb);
-            break;
-            #endif /* !TUSB_NO_TEST_MODE_SUPPORT */
+              break;
+            }
+#endif /* CFG_TUD_TEST_MODE */
 
             // Stall unsupported feature selector
             default: return false;
@@ -1121,7 +1123,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
   }
 }
 
-#if !defined(TUSB_NO_TEST_MODE_SUPPORT)
+#if CFG_TUD_TEST_MODE
 static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
   // At this point it should already be ensured that dcd_enter_test_mode() is defined
@@ -1129,11 +1131,11 @@ static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_req
   // Only enter the test mode after the request for it has completed
   TU_VERIFY(CONTROL_STAGE_ACK == stage);
 
-  dcd_enter_test_mode(rhport, tu_u16_high(request->wIndex));
+  dcd_enter_test_mode(rhport, (test_mode_t)tu_u16_high(request->wIndex));
 
   return true;
 }
-#endif /* !TUSB_NO_TEST_MODE_SUPPORT */
+#endif /* CFG_TUD_TEST_MODE */
 
 //--------------------------------------------------------------------+
 // DCD Event Handler

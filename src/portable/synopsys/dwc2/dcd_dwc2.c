@@ -1195,7 +1195,7 @@ void dcd_int_handler(uint8_t rhport) {
   //  }
 }
 
-#if defined(TUP_USBIP_DWC2_TEST_MODE_SUPPORT) && !defined(TUSB_NO_TEST_MODE_SUPPORT)
+#if defined(TUP_USBIP_DWC2_TEST_MODE) && CFG_TUD_TEST_MODE
 
 bool dcd_check_test_mode_support(test_mode_t test_selector) {
   // Check if test mode selector is unsupported
@@ -1218,6 +1218,6 @@ void dcd_enter_test_mode(uint8_t rhport, test_mode_t test_selector) {
   dwc2->dctl = (dwc2->dctl & ~DCTL_TCTL_Msk) | (test_selector << DCTL_TCTL_Pos);
 }
 
-#endif /* TUP_USBIP_DWC2_TEST_MODE_SUPPORT && !TUSB_NO_TEST_MODE_SUPPORT */
+#endif /* TUP_USBIP_DWC2_TEST_MODE && CFG_TUD_TEST_MODE */
 
 #endif
