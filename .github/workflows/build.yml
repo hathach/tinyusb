@@ -155,7 +155,7 @@ jobs:
 
       - run: |
           echo "1"
-          BUILD_ARGS=$(echo '${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family) }}' | jq -R -s .)
+          BUILD_ARGS=$(echo '${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family }}' | jq -R -s .)
           echo $BUILD_ARGS
 #          echo "2"
 #          echo ${{ fromJSON(needs.set-matrix.outputs.json)['arm-iar'] }}
