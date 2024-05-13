@@ -135,6 +135,16 @@ void dcd_remote_wakeup(uint8_t rhport)
   (void) rhport;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+    (void) rhport;
+    if (en) {
+        USBHSD->INT_EN |= USBHS_SOF_ACT_EN;
+    } else {
+        USBHSD->INT_EN &= ~(USBHS_SOF_ACT_EN);
+    }
+}
+
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request) {
     (void)rhport;
 
@@ -332,7 +342,10 @@ void dcd_int_handler(uint8_t rhport) {
 
         xfer_ctl_t *xfer = XFER_CTL_BASE(end_num, tu_edpt_dir(endp));
 
-        if (rx_token == PID_OUT) {
+        if (rx_token == PID_SOF) {
+            dcd_event_sof(rhport, USBHSD->FRAME_NO, true);
+
+        } else if (rx_token == PID_OUT) {
             uint16_t rx_len = USBHSD->RX_LEN;
 
             receive_packet(xfer, rx_len);

@@ -271,8 +271,20 @@ void dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
+  // save crystal-less setting (if available)
+  #if defined(FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED) && FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED == 1
+  uint32_t clk_recover_irc_en = CI_REG->CLK_RECOVER_IRC_EN;
+  uint32_t clk_recover_ctrl = CI_REG->CLK_RECOVER_CTRL;
+  #endif
+
   CI_REG->USBTRC0 |= USB_USBTRC0_USBRESET_MASK;
   while (CI_REG->USBTRC0 & USB_USBTRC0_USBRESET_MASK);
+
+  // restore crystal-less setting (if available)
+  #if defined(FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED) && FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED == 1
+  CI_REG->CLK_RECOVER_IRC_EN = clk_recover_irc_en;
+  CI_REG->CLK_RECOVER_CTRL  |= clk_recover_ctrl;
+  #endif
 
   tu_memclr(&_dcd, sizeof(_dcd));
   CI_REG->USBTRC0 |= TU_BIT(6); /* software must set this bit to 1 */
@@ -283,7 +295,7 @@ void dcd_init(uint8_t rhport)
   CI_REG->INT_EN = USB_INTEN_USBRSTEN_MASK;
 
   dcd_connect(rhport);
-  // NVIC_ClearPendingIRQ(USB0_IRQn);
+  // NVIC_ClearPendingIRQ(CIFS_IRQN);
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)

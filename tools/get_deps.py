@@ -1,3 +1,4 @@
+import argparse
 import sys
 import subprocess
 from pathlib import Path
@@ -37,22 +38,22 @@ deps_optional = {
                                         'xmc4000'],
     'hw/mcu/microchip': ['https://github.com/hathach/microchip_driver.git',
                          '9e8b37e307d8404033bb881623a113931e1edf27',
-                         'sam3x samd11 samd21 samd51 same5x same7x saml2x samg'],
+                         'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'],
     'hw/mcu/mindmotion/mm32sdk': ['https://github.com/hathach/mm32sdk.git',
-                                  '0b79559eb411149d36e073c1635c620e576308d4',
+                                  'b93e856211060ae825216c6a1d6aa347ec758843',
                                   'mm32'],
     'hw/mcu/nordic/nrfx': ['https://github.com/NordicSemiconductor/nrfx.git',
-                           '2527e3c8449cfd38aee41598e8af8492f410ed15',
+                           '7c47cc0a56ce44658e6da2458e86cd8783ccc4a2',
                            'nrf'],
     'hw/mcu/nuvoton': ['https://github.com/majbthrd/nuc_driver.git',
                        '2204191ec76283371419fbcec207da02e1bc22fa',
                        'nuc'],
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
-                           '84e0bd3e43910aaf71eefd62075cf57495418312',
+                           '04bfe7a5f6ee74a89a28ad618d3367dcfcfb7d83',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
-                            '950819b7de9b32f92c3edf396bc5ffb8d66e7009',
-                            'kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
+                            '144f1eb7ea8c06512e12f12b27383601c0272410',
+                            'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
                                          '0f747aaa0c16f750bdfa2ba37ec25d6c8e1bc117',
                                          'rp2040'],
@@ -84,7 +85,7 @@ deps_optional = {
                                   '2615e866fa48fe1ff1af9e31c348813f2b19e7ec',
                                   'stm32f4'],
     'hw/mcu/st/cmsis_device_f7': ['https://github.com/STMicroelectronics/cmsis_device_f7.git',
-                                  'fc676ef1ad177eb874eaa06444d3d75395fc51f4',
+                                  '25b0463439303b7a38f0d27b161f7d2f3c096e79',
                                   'stm32f7'],
     'hw/mcu/st/cmsis_device_g0': ['https://github.com/STMicroelectronics/cmsis_device_g0.git',
                                   '3a23e1224417f3f2d00300ecd620495e363f2094',
@@ -96,10 +97,10 @@ deps_optional = {
                                   '60dc2c913203dc8629dc233d4384dcc41c91e77f',
                                   'stm32h7'],
     'hw/mcu/st/cmsis_device_h5': ['https://github.com/STMicroelectronics/cmsis_device_h5.git',
-                                  '62b2cb0fbfe10c5791ee469bbde7b397c2fea8f5',
+                                  'cd2d1d579743de57b88ccaf61a968b9c05848ffc',
                                   'stm32h5'],
     'hw/mcu/st/cmsis_device_l0': ['https://github.com/STMicroelectronics/cmsis_device_l0.git',
-                                  '06748ca1f93827befdb8b794402320d94d02004f',
+                                  '69cd5999fd40ae6e546d4905b21635c6ca1bcb92',
                                   'stm32l0'],
     'hw/mcu/st/cmsis_device_l1': ['https://github.com/STMicroelectronics/cmsis_device_l1.git',
                                   '7f16ec0a1c4c063f84160b4cc6bf88ad554a823e',
@@ -111,7 +112,7 @@ deps_optional = {
                                   'd922865fc0326a102c26211c44b8e42f52c1e53d',
                                   'stm32l5'],
     'hw/mcu/st/cmsis_device_u5': ['https://github.com/STMicroelectronics/cmsis_device_u5.git',
-                                  '06d7edade7167b0eafdd550bf77cfc4fa98eae2e',
+                                  '5ad9797c54ec3e55eff770fc9b3cd4a1aefc1309',
                                   'stm32u5'],
     'hw/mcu/st/cmsis_device_wb': ['https://github.com/STMicroelectronics/cmsis_device_wb.git',
                                   '9c5d1920dd9fabbe2548e10561d63db829bb744f',
@@ -166,7 +167,7 @@ deps_optional = {
                                        'stm32wb'],
     'hw/mcu/ti': ['https://github.com/hathach/ti_driver.git',
                   '143ed6cc20a7615d042b03b21e070197d473e6e5',
-                  'msp430 msp432e4 tm4c123'],
+                  'msp430 msp432e4 tm4c'],
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
                             '17761f5cf9dbbf2dcf665b7c04934188add20082',
                             'ch32v307'],
@@ -176,8 +177,11 @@ deps_optional = {
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'
+                    'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'
                     'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5'
-                    'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'],
+                    'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'
+                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'
+                    'tm4c'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
@@ -224,27 +228,50 @@ def get_a_dep(d):
     return 0
 
 
-# Arguments can be
-# - family name
-# - specific deps path
-# - all
-if __name__ == "__main__":
+def find_family(board):
+    bsp_dir = Path(TOP / "hw/bsp")
+    for family_dir in bsp_dir.iterdir():
+        if family_dir.is_dir():
+            board_dir = family_dir / 'boards' / board
+            if board_dir.exists():
+                return family_dir.name
+    return None
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('families', nargs='*', default=[], help='Families to fetch')
+    parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
+    args = parser.parse_args()
+
+    families = args.families
+    boards = args.board
+
+    if len(families) == 0 and len(boards) == 0:
+        print("Warning: family and board are not specified, only fetching mandatory dependencies.")
+
     status = 0
     deps = list(deps_mandatory.keys())
-    # get all if  'all' is argument
-    if len(sys.argv) == 2 and sys.argv[1] == 'all':
+
+    if 'all' in families:
         deps += deps_optional.keys()
     else:
-        for arg in sys.argv[1:]:
-            if arg in deps_all.keys():
-                # if arg is a dep, add it
-                deps.append(arg)
-            else:
-                # arg is a family name, add all deps of that family
-                for d in deps_optional:
-                    if arg in deps_optional[d][2]:
-                        deps.append(d)
+        families = list(families)
+        if boards is not None:
+            for b in boards:
+                f = find_family(b)
+                if f is not None:
+                    families.append(f)
+
+        for f in families:
+            for d in deps_optional:
+                if f in deps_optional[d][2]:
+                    deps.append(d)
 
     with Pool() as pool:
         status = sum(pool.map(get_a_dep, deps))
-    sys.exit(status)
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

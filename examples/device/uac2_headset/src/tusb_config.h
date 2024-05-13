@@ -105,17 +105,18 @@ extern "C" {
 // AUDIO CLASS DRIVER CONFIGURATION
 //--------------------------------------------------------------------
 
+// Allow volume controlled by on-baord button
+#define CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP                            1
+
 #define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                                TUD_AUDIO_HEADSET_STEREO_DESC_LEN
 
 // How many formats are used, need to adjust USB descriptor if changed
 #define CFG_TUD_AUDIO_FUNC_1_N_FORMATS                               2
 
 // Audio format type I specifications
-#if defined(__RX__)
-#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         48000     // 16bit/48kHz is the best quality for Renesas RX
-#else
-#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         96000     // 24bit/96kHz is the best quality for full-speed, high-speed is needed beyond this
-#endif
+/* 24bit/48kHz is the best quality for headset or 24bit/96kHz for 2ch speaker,
+   high-speed is needed beyond this */
+#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         48000
 #define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX                           1
 #define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX                           2
 

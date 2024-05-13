@@ -11,5 +11,7 @@ CFLAGS += \
 # Linker
 LD_FILE_GCC = $(BOARD_PATH)/STM32F769ZITx_FLASH.ld
 
+JLINK_DEVICE = stm32f769ni
+
 # flash target using on-board stlink
 flash: flash-stlink

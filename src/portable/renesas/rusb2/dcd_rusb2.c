@@ -57,29 +57,22 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
+enum {
+  PIPE_COUNT = 10,
+};
 
-/* Start of definition of packed structs (used by the CCRX toolchain) */
-TU_ATTR_PACKED_BEGIN
-TU_ATTR_BIT_FIELD_ORDER_BEGIN
-
-typedef struct TU_ATTR_PACKED
-{
+typedef struct {
   void      *buf;      /* the start address of a transfer data buffer */
   uint16_t  length;    /* the number of bytes in the buffer */
   uint16_t  remaining; /* the number of bytes remaining in the buffer */
-  struct {
-    uint32_t ep  : 8;  /* an assigned endpoint address */
-    uint32_t ff  : 1;  /* `buf` is TU_FUFO or POD */
-    uint32_t     : 0;
-  };
-} pipe_state_t;
 
-TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
-TU_ATTR_BIT_FIELD_ORDER_END
+  uint8_t ep; /* an assigned endpoint address */
+  uint8_t ff; /* `buf` is TU_FUFO or POD */
+} pipe_state_t;
 
 typedef struct
 {
-  pipe_state_t pipe[10];
+  pipe_state_t pipe[PIPE_COUNT];
   uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
 } dcd_data_t;
 
@@ -89,52 +82,44 @@ static dcd_data_t _dcd;
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-// Transfer conditions specifiable for each pipe:
+
+// Transfer conditions specifiable for each pipe for most MCUs
 // - Pipe 0: Control transfer with 64-byte single buffer
-// - Pipes 1 and 2: Bulk isochronous transfer continuous transfer mode with programmable buffer size up
-//   to 2 KB and optional double buffer
-// - Pipes 3 to 5: Bulk transfer continuous transfer mode with programmable buffer size up to 2 KB and
-//   optional double buffer
-// - Pipes 6 to 9: Interrupt transfer with 64-byte single buffer
-enum {
-  PIPE_1ST_BULK = 3,
-  PIPE_1ST_INTERRUPT = 6,
-  PIPE_COUNT = 10,
-};
+// - Pipes 1 and 2: Bulk or ISO
+// - Pipes 3 to 5: Bulk
+// - Pipes 6 to 9: Interrupt
+//
+// Note: for small mcu such as
+// - RA2A1: only pipe 4-7 are available, and no support for ISO
+static unsigned find_pipe(unsigned xfer_type) {
+  #if defined(BSP_MCU_GROUP_RA2A1)
+  const uint8_t pipe_idx_arr[4][2] = {
+      { 0, 0 }, // Control
+      { 0, 0 }, // Isochronous not supported
+      { 4, 5 }, // Bulk
+      { 6, 7 }, // Interrupt
+  };
+  #else
+  const uint8_t pipe_idx_arr[4][2] = {
+      { 0, 0 }, // Control
+      { 1, 2 }, // Isochronous
+      { 1, 5 }, // Bulk
+      { 6, 9 }, // Interrupt
+  };
+  #endif
 
-static unsigned find_pipe(unsigned xfer)
-{
-  switch (xfer) {
-    case TUSB_XFER_ISOCHRONOUS:
-      for (int i = 1; i < PIPE_1ST_BULK; ++i) {
-        if (0 == _dcd.pipe[i].ep) return i;
-      }
-      break;
+  // find backward since only pipe 1, 2 support ISO
+  const uint8_t idx_first = pipe_idx_arr[xfer_type][0];
+  const uint8_t idx_last  = pipe_idx_arr[xfer_type][1];
 
-    case TUSB_XFER_BULK:
-      for (int i = PIPE_1ST_BULK; i < PIPE_1ST_INTERRUPT; ++i) {
-        if (0 == _dcd.pipe[i].ep) return i;
-      }
-      for (int i = 1; i < PIPE_1ST_BULK; ++i) {
-        if (0 == _dcd.pipe[i].ep) return i;
-      }
-      break;
-
-    case TUSB_XFER_INTERRUPT:
-      for (int i = PIPE_1ST_INTERRUPT; i < PIPE_COUNT; ++i) {
-        if (0 == _dcd.pipe[i].ep) return i;
-      }
-      break;
-
-    default:
-      /* No support for control transfer */
-      break;
+  for (int i = idx_last; i >= idx_first; i--) {
+    if (0 == _dcd.pipe[i].ep) return i;
   }
+
   return 0;
 }
 
-static volatile uint16_t* get_pipectr(rusb2_reg_t *rusb, unsigned num)
-{
+static volatile uint16_t* get_pipectr(rusb2_reg_t *rusb, unsigned num) {
   if (num) {
     return (volatile uint16_t*)&(rusb->PIPE_CTR[num - 1]);
   } else {
@@ -142,8 +127,7 @@ static volatile uint16_t* get_pipectr(rusb2_reg_t *rusb, unsigned num)
   }
 }
 
-static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num)
-{
+static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num) {
   volatile reg_pipetre_t* tre = NULL;
   if ((1 <= num) && (num <= 5)) {
     tre = (volatile reg_pipetre_t*)&(rusb->PIPE_TR[num - 1].E);
@@ -151,8 +135,7 @@ static volatile reg_pipetre_t* get_pipetre(rusb2_reg_t *rusb, unsigned num)
   return tre;
 }
 
-static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr)
-{
+static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr) {
   rusb2_reg_t *rusb = RUSB2_REG(rhport);
   const unsigned epn = tu_edpt_number(ep_addr);
 
@@ -165,19 +148,16 @@ static volatile uint16_t* ep_addr_to_pipectr(uint8_t rhport, unsigned ep_addr)
   }
 }
 
-static uint16_t edpt0_max_packet_size(rusb2_reg_t* rusb)
-{
+static uint16_t edpt0_max_packet_size(rusb2_reg_t* rusb) {
   return rusb->DCPMAXP_b.MXPS;
 }
 
-static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num)
-{
+static uint16_t edpt_max_packet_size(rusb2_reg_t *rusb, unsigned num) {
   rusb->PIPESEL = num;
   return rusb->PIPEMAXP;
 }
 
-static inline void pipe_wait_for_ready(rusb2_reg_t * rusb, unsigned num)
-{
+static inline void pipe_wait_for_ready(rusb2_reg_t * rusb, unsigned num) {
   while ( rusb->D0FIFOSEL_b.CURPIPE != num ) {}
   while ( !rusb->D0FIFOCTR_b.FRDY ) {}
 }
@@ -266,14 +246,6 @@ static void pipe_read_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void 
   tu_fifo_advance_write_pointer(f, count);
 }
 
-
-static bool wait_pipe_fifo_empty(rusb2_reg_t* rusb, uint8_t num) {
-  TU_ASSERT(num);
-  while( (rusb->PIPE_CTR[num-1] & RUSB2_PIPE_CTR_INBUFM_Msk) > 0 ) {}
-  return true;
-}
-
-
 //--------------------------------------------------------------------+
 // Pipe Transfer
 //--------------------------------------------------------------------+
@@ -347,7 +319,6 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   const unsigned rem  = pipe->remaining;
 
   if (!rem) {
-    wait_pipe_fifo_empty(rusb, num);
     pipe->buf = NULL;
     return true;
   }
@@ -844,7 +815,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   }
 
   rusb->PIPECFG = cfg;
-  rusb->BRDYSTS = 0x1FFu ^ TU_BIT(num);
+  rusb->BRDYSTS = 0x3FFu ^ TU_BIT(num);
   rusb->BRDYENB |= TU_BIT(num);
 
   if (dir || (xfer != TUSB_XFER_BULK)) {
@@ -944,6 +915,18 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
+
+#if defined(__CCRX__)
+TU_ATTR_ALWAYS_INLINE static inline unsigned __builtin_ctz(unsigned int value) {
+  unsigned int count = 0;
+  while ((value & 1) == 0) {
+    value >>= 1;
+    count++;
+  }
+  return count;
+}
+#endif
+
 void dcd_int_handler(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
@@ -1035,17 +1018,7 @@ void dcd_int_handler(uint8_t rhport)
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BRDYSTS = ~s;
     while (s) {
-#if defined(__CCRX__)
-      static const int Mod37BitPosition[] = {
-        -1, 0, 1, 26, 2, 23, 27, 0, 3, 16, 24, 30, 28, 11, 0, 13, 4,
-        7, 17, 0, 25, 22, 31, 15, 29, 10, 12, 6, 0, 21, 14, 9, 5,
-        20, 8, 19, 18
-      };
-
-      const unsigned num = Mod37BitPosition[(-s & s) % 37];
-#else
       const unsigned num = __builtin_ctz(s);
-#endif
       process_pipe_brdy(rhport, num);
       s &= ~TU_BIT(num);
     }

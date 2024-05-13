@@ -67,15 +67,19 @@ void board_init(void) {
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
+
+  #ifdef __HAL_RCC_GPIOE_CLK_ENABLE
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  #endif
+  #ifdef __HAL_RCC_GPIOG_CLK_ENABLE
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+  #endif
+  #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
   __HAL_RCC_GPIOI_CLK_ENABLE();
+  #endif
 
-  //__HAL_RCC_SYSCFG_CLK_ENABLE();
-  //__HAL_RCC_PWR_CLK_ENABLE();
-
-      UART_CLK_EN();
+  UART_CLK_EN();
 
   #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -141,7 +145,9 @@ void board_init(void) {
   __HAL_RCC_USB_CLK_ENABLE();
 
   /* Enable VDDUSB */
+  #if defined (PWR_USBSCR_USB33DEN)
   HAL_PWREx_EnableVddUSB();
+  #endif
 }
 
 //--------------------------------------------------------------------+

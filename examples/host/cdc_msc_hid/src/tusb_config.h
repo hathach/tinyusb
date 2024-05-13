@@ -71,7 +71,7 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_RP2040
   // #define CFG_TUH_RPI_PIO_USB   1 // use pio-usb as host controller
-  // #define CFG_TUH_RPI_PIO_USB   1 // use max3421 as host controller
+  // #define CFG_TUH_MAX3421       1 // use max3421 as host controller
 
   // host roothub port is 1 if using either pio-usb or max3421
   #if (defined(CFG_TUH_RPI_PIO_USB) && CFG_TUH_RPI_PIO_USB) || (defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
@@ -105,6 +105,7 @@
 #define CFG_TUH_CDC                 1 // CDC ACM
 #define CFG_TUH_CDC_FTDI            1 // FTDI Serial.  FTDI is not part of CDC class, only to re-use CDC driver API
 #define CFG_TUH_CDC_CP210X          1 // CP210x Serial. CP210X is not part of CDC class, only to re-use CDC driver API
+#define CFG_TUH_CDC_CH34X           1 // CH340 or CH341 Serial. CH34X is not part of CDC class, only to re-use CDC driver API
 #define CFG_TUH_HID                 (3*CFG_TUH_DEVICE_MAX) // typical keyboard + mouse device can have 3-4 HID interfaces
 #define CFG_TUH_MSC                 1
 #define CFG_TUH_VENDOR              0

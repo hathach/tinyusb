@@ -1,14 +1,15 @@
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
 CROSS_COMPILE = riscv-none-embed-
 
+CPU_CORE ?= rv32i-ilp32
+
 CFLAGS += \
   -flto \
-  -march=rv32i \
-  -mabi=ilp32 \
-  -nostdlib \
   -DCFG_TUSB_MCU=OPT_MCU_VALENTYUSB_EPTRI
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostdlib \
+  --specs=nosys.specs --specs=nano.specs \
 
 # All source paths should be relative to the top level.
 LD_FILE = $(FAMILY_PATH)/fomu.ld

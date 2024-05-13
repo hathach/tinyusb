@@ -30,12 +30,15 @@ endif
 # GCC Flags
 CFLAGS_GCC += \
   -flto \
-  -nostdlib -nostartfiles
 
 # suppress warning caused by vendor mcu driver
-CFLAGS_GCC += -Wno-error=maybe-uninitialized -Wno-error=cast-align -Wno-error=unused-parameter
+CFLAGS_GCC += \
+  -Wno-error=cast-align \
+  -Wno-error=unused-parameter \
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 # -----------------
 # Sources & Include

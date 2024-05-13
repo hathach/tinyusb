@@ -6,29 +6,28 @@ CROSS_COMPILE ?= riscv-none-embed-
 
 # Submodules
 CH32V307_SDK = hw/mcu/wch/ch32v307
-DEPS_SUBMODULES += $(CH32V307_SDK)
 
 # WCH-SDK paths
 CH32V307_SDK_SRC = $(CH32V307_SDK)/EVT/EXAM/SRC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= rv32imac-ilp32
 
 CFLAGS += \
 	-flto \
-	-march=rv32imac \
-	-mabi=ilp32 \
 	-msmall-data-limit=8 \
 	-mno-save-restore -Os \
 	-fmessage-length=0 \
 	-fsigned-char \
 	-ffunction-sections \
 	-fdata-sections \
-	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V307 \
 	-Xlinker --gc-sections \
 	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+	-nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/wch/dcd_ch32_usbhs.c \
@@ -62,5 +61,6 @@ FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 # openocd binaries will be generated in riscv-openocd-wch/src
 
 # flash target ROM bootloader
+OPENOCD_WCH = /home/${USER}/app/riscv-openocd-wch/src/openocd
 flash: $(BUILD)/$(PROJECT).elf
-	openocd -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "program $<" -c wlink_reset_resume -c exit
+	$(OPENOCD_WCH) -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "program $<" -c wlink_reset_resume -c exit

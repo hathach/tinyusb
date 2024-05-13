@@ -29,9 +29,14 @@
 
 #include "common/tusb_compiler.h"
 
+// Version is release as major.minor.revision eg 1.0.0. though there could be notable APIs before a new release.
+// For notable API changes within a release, we increase the build number.
 #define TUSB_VERSION_MAJOR     0
 #define TUSB_VERSION_MINOR     16
 #define TUSB_VERSION_REVISION  0
+#define TUSB_VERSION_BUILD     3
+
+#define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR << 24 | TUSB_VERSION_MINOR << 16 | TUSB_VERSION_REVISION << 8 | TUSB_VERSION_BUILD)
 #define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
 
 //--------------------------------------------------------------------+
@@ -50,7 +55,8 @@
 #define OPT_MCU_LPC18XX             6 ///< NXP LPC18xx
 #define OPT_MCU_LPC40XX             7 ///< NXP LPC40xx
 #define OPT_MCU_LPC43XX             8 ///< NXP LPC43xx
-#define OPT_MCU_LPC51UXX            9 ///< NXP LPC51U6x
+#define OPT_MCU_LPC51               9 ///< NXP LPC51
+#define OPT_MCU_LPC51UXX            OPT_MCU_LPC51 ///< NXP LPC51
 #define OPT_MCU_LPC54              10 ///< NXP LPC54
 #define OPT_MCU_LPC55              11 ///< NXP LPC55
 // legacy naming
@@ -114,6 +120,10 @@
 // Espressif
 #define OPT_MCU_ESP32S2           900 ///< Espressif ESP32-S2
 #define OPT_MCU_ESP32S3           901 ///< Espressif ESP32-S3
+#define OPT_MCU_ESP32             902 ///< Espressif ESP32 (for host max3421e)
+#define OPT_MCU_ESP32C3           903 ///< Espressif ESP32-C3
+#define OPT_MCU_ESP32C6           904 ///< Espressif ESP32-C6
+#define TUP_MCU_ESPRESSIF         (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
 
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
@@ -125,6 +135,7 @@
 #define OPT_MCU_KINETIS_KL       1200 ///< NXP KL series
 #define OPT_MCU_KINETIS_K32L     1201 ///< NXP K32L series
 #define OPT_MCU_KINETIS_K32      1201 ///< Alias to K32L
+#define OPT_MCU_KINETIS_K        1202 ///< NXP K series
 
 #define OPT_MCU_MKL25ZXX         1200 ///< Alias to KL (obsolete)
 #define OPT_MCU_K32L2BXX         1201 ///< Alias to K32 (obsolete)
@@ -137,7 +148,6 @@
 #define OPT_MCU_RX65X            1401 ///< Renesas RX65N/RX651
 #define OPT_MCU_RX72N            1402 ///< Renesas RX72N
 #define OPT_MCU_RAXXX            1403 ///< Renesas RAxxx families
-
 
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
@@ -175,6 +185,7 @@
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
+#define OPT_MCU_MCXA15           2301  ///< NXP MCX A15 Series
 
 // Check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
@@ -453,10 +464,12 @@
   #define CFG_TUH_CDC_FTDI 0
 #endif
 
-#ifndef CFG_TUH_CDC_FTDI_PID_LIST
-  // List of product IDs that can use the FTDI CDC driver
-  #define CFG_TUH_CDC_FTDI_PID_LIST \
-    0x6001, 0x6006, 0x6010, 0x6011, 0x6014, 0x6015, 0x8372, 0xFBFA, 0xCD18
+#ifndef CFG_TUH_CDC_FTDI_VID_PID_LIST
+  // List of product IDs that can use the FTDI CDC driver. 0x0403 is FTDI's VID
+  #define CFG_TUH_CDC_FTDI_VID_PID_LIST \
+    {0x0403, 0x6001}, {0x0403, 0x6006}, {0x0403, 0x6010}, {0x0403, 0x6011}, \
+    {0x0403, 0x6014}, {0x0403, 0x6015}, {0x0403, 0x8372}, {0x0403, 0xFBFA}, \
+    {0x0403, 0xCD18}
 #endif
 
 #ifndef CFG_TUH_CDC_CP210X
@@ -464,10 +477,27 @@
   #define CFG_TUH_CDC_CP210X 0
 #endif
 
-#ifndef CFG_TUH_CDC_CP210X_PID_LIST
-  // List of product IDs that can use the CP210X CDC driver
-  #define CFG_TUH_CDC_CP210X_PID_LIST \
-    0xEA60, 0xEA70
+#ifndef CFG_TUH_CDC_CP210X_VID_PID_LIST
+  // List of product IDs that can use the CP210X CDC driver. 0x10C4 is Silicon Labs' VID
+  #define CFG_TUH_CDC_CP210X_VID_PID_LIST \
+    {0x10C4, 0xEA60}, {0x10C4, 0xEA70}
+#endif
+
+#ifndef CFG_TUH_CDC_CH34X
+  // CH34X is not part of CDC class, only to re-use CDC driver API
+  #define CFG_TUH_CDC_CH34X 0
+#endif
+
+#ifndef CFG_TUH_CDC_CH34X_VID_PID_LIST
+  // List of product IDs that can use the CH34X CDC driver
+  #define CFG_TUH_CDC_CH34X_VID_PID_LIST \
+    { 0x1a86, 0x5523 }, /* ch341 chip */ \
+    { 0x1a86, 0x7522 }, /* ch340k chip */ \
+    { 0x1a86, 0x7523 }, /* ch340 chip */ \
+    { 0x1a86, 0xe523 }, /* ch330 chip */ \
+    { 0x4348, 0x5523 }, /* ch340 custom chip */ \
+    { 0x2184, 0x0057 }, /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */ \
+    { 0x9986, 0x7523 }  /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */
 #endif
 
 #ifndef CFG_TUH_HID

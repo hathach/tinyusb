@@ -10,19 +10,6 @@
 ifeq (,$(findstring $(FAMILY),espressif rp2040))
 
 # ---------------------------------------
-# Compiler Flags
-# ---------------------------------------
-
-CFLAGS += $(addprefix -I,$(INC))
-
-# Verbose mode
-ifeq ("$(V)","1")
-$(info CFLAGS  $(CFLAGS) ) $(info )
-$(info LDFLAGS $(LDFLAGS)) $(info )
-$(info ASFLAGS $(ASFLAGS)) $(info )
-endif
-
-# ---------------------------------------
 # Rules
 # ---------------------------------------
 
@@ -37,7 +24,20 @@ vpath %.c . $(TOP)
 vpath %.s . $(TOP)
 vpath %.S . $(TOP)
 
-include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN)_rules.mk
+include ${TOP}/examples/build_system/make/toolchain/$(TOOLCHAIN)_rules.mk
+
+# ---------------------------------------
+# Compiler Flags
+# ---------------------------------------
+
+CFLAGS += $(addprefix -I,$(INC))
+
+# Verbose mode
+ifeq ("$(V)","1")
+$(info CFLAGS  $(CFLAGS) ) $(info )
+$(info LDFLAGS $(LDFLAGS)) $(info )
+$(info ASFLAGS $(ASFLAGS)) $(info )
+endif
 
 
 OBJ_DIRS = $(sort $(dir $(OBJ)))

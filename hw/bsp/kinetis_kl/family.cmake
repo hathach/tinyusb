@@ -26,7 +26,12 @@ function(add_board_target BOARD_TARGET)
     return()
   endif ()
 
+  # LD_FILE and STARTUP_FILE can be defined in board.cmake
+  set(LD_FILE_Clang ${LD_FILE_GNU})
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+
   add_library(${BOARD_TARGET} STATIC
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     ${SDK_DIR}/drivers/gpio/fsl_gpio.c
     ${SDK_DIR}/drivers/lpsci/fsl_lpsci.c
     ${SDK_DIR}/drivers/uart/fsl_uart.c
@@ -34,6 +39,7 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
+    __STARTUP_CLEAR_BSS
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMSIS_DIR}/CMSIS/Core/Include
@@ -48,16 +54,15 @@ function(add_board_target BOARD_TARGET)
     )
   update_board(${BOARD_TARGET})
 
-  # LD_FILE and STARTUP_FILE can be defined in board.cmake
-  target_sources(${BOARD_TARGET} PUBLIC
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
-    )
-
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      # nanolib
       --specs=nosys.specs --specs=nano.specs
+      -nostartfiles
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
@@ -103,5 +108,4 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
-  #family_flash_nxplink(${TARGET})
 endfunction()

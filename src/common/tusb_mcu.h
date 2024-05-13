@@ -100,6 +100,13 @@
   #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_RHPORT_HIGHSPEED    1
 
+#elif TU_CHECK_MCU(OPT_MCU_MCXA15)
+  // USB0 is chipidea FS
+  #define TUP_USBIP_CHIPIDEA_FS
+  #define TUP_USBIP_CHIPIDEA_FS_MCX
+
+  #define TUP_DCD_ENDPOINT_MAX    16
+
 #elif TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX)
   #define TUP_USBIP_CHIPIDEA_HS
   #define TUP_USBIP_EHCI
@@ -107,7 +114,7 @@
   #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_RHPORT_HIGHSPEED    1
 
-#elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L)
+#elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L, OPT_MCU_KINETIS_K)
   #define TUP_USBIP_CHIPIDEA_FS
   #define TUP_USBIP_CHIPIDEA_FS_KINETIS
   #define TUP_DCD_ENDPOINT_MAX    16
@@ -324,6 +331,9 @@
   #define TUP_USBIP_DWC2
   #define TUP_DCD_ENDPOINT_MAX    6
 
+#elif TU_CHECK_MCU(OPT_MCU_ESP32) && (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
+  #error "MCUs are only supported with CFG_TUH_MAX3421 enabled"
+
 //--------------------------------------------------------------------+
 // Dialog
 //--------------------------------------------------------------------+
@@ -421,7 +431,7 @@
 #define TUP_MCU_MULTIPLE_CORE 0
 #endif
 
-#ifndef TUP_DCD_ENDPOINT_MAX
+#if !defined(TUP_DCD_ENDPOINT_MAX) && defined(CFG_TUD_ENABLED) && CFG_TUD_ENABLED
   #warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define TUP_DCD_ENDPOINT_MAX    8
 #endif
@@ -434,6 +444,14 @@
 // fast function, normally mean placing function in SRAM
 #ifndef TU_ATTR_FAST_FUNC
   #define TU_ATTR_FAST_FUNC
+#endif
+
+#if defined(TUP_USBIP_DWC2) || defined(TUP_USBIP_FSDEV)
+  #define TUP_DCD_EDPT_ISO_ALLOC
+#endif
+
+#if defined(TUP_USBIP_DWC2)
+  #define TUP_MEM_CONST_ADDR
 #endif
 
 #endif

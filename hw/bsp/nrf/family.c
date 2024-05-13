@@ -33,6 +33,7 @@
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #pragma GCC diagnostic ignored "-Wcast-align"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wundef"
 #pragma GCC diagnostic ignored "-Wredundant-decls"
 #endif
@@ -53,6 +54,14 @@
 #pragma GCC diagnostic pop
 #endif
 
+
+// There is API changes between nrfx v2 and v3
+#if 85301 >= (10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION)
+  // note MDK 8.53.1 is also used by nrfx v3.0.0, just skip this version and use later 3.x
+  #define NRFX_VER 2
+#else
+  #define NRFX_VER 3
+#endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -76,6 +85,7 @@ enum {
   #define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_LFRC
   #define VBUSDETECT_Msk USBREG_USBREGSTATUS_VBUSDETECT_Msk
   #define OUTPUTRDY_Msk USBREG_USBREGSTATUS_OUTPUTRDY_Msk
+  #define GPIOTE_IRQn GPIOTE1_IRQn
 #else
   #define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_RC
   #define VBUSDETECT_Msk POWER_USBREGSTATUS_VBUSDETECT_Msk
@@ -97,8 +107,12 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 static void max3421_init(void);
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
+
+#if NRFX_VER > 2
+static nrfx_gpiote_t _gpiote = NRFX_GPIOTE_INSTANCE(0);
 #endif
 
+#endif
 
 //--------------------------------------------------------------------+
 //
@@ -123,6 +137,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 
   // UART
+  #if NRFX_VER <= 2
   nrfx_uarte_config_t uart_cfg = {
       .pseltxd   = UART_TX_PIN,
       .pselrxd   = UART_RX_PIN,
@@ -136,6 +151,21 @@ void board_init(void) {
           .parity    = NRF_UARTE_PARITY_EXCLUDED,
       }
   };
+  #else
+  nrfx_uarte_config_t uart_cfg = {
+      .txd_pin   = UART_TX_PIN,
+      .rxd_pin   = UART_RX_PIN,
+      .rts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
+      .cts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
+      .p_context = NULL,
+      .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
+      .interrupt_priority = 7,
+      .config = {
+          .hwfc      = NRF_UARTE_HWFC_DISABLED,
+          .parity    = NRF_UARTE_PARITY_EXCLUDED,
+      }
+  };
+  #endif
 
   nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
 
@@ -223,11 +253,17 @@ int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
   return 0;
-//  return NRFX_SUCCESS == nrfx_uart_rx(&_uart_id, buf, (size_t) len) ? len : 0;
+//  nrfx_err_t err = nrfx_uarte_rx(&_uart_id, buf, (size_t) len);
+//  return NRFX_SUCCESS == err ? len : 0;
 }
 
 int board_uart_write(void const* buf, int len) {
-  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
+  nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len
+                                 #if NRFX_VER > 2
+                                 ,0
+                                 #endif
+                                );
+  return (NRFX_SUCCESS == err) ? len : 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -240,9 +276,22 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
-
 #endif
 
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+#endif
+
+//--------------------------------------------------------------------+
+// Softdevice running
+//--------------------------------------------------------------------+
 #ifdef SOFTDEVICE_PRESENT
 // process SOC event from SD
 uint32_t proc_soc(void) {
@@ -285,26 +334,21 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
-void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
-  if (!(pin == MAX3421_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
+#if NRFX_VER <= 2
+void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action ) {
+  if (action != NRF_GPIOTE_POLARITY_HITOLO) return;
+#else
+void max3421_int_handler(nrfx_gpiote_pin_t pin, nrfx_gpiote_trigger_t action, void* p_context) {
+  (void) p_context;
+  if (action != NRFX_GPIOTE_TRIGGER_HITOLO) return;
+#endif
+
+  if (pin != MAX3421_INTR_PIN) return;
   tuh_int_handler(1, true);
 }
 
 static void max3421_init(void) {
-  // MAX3421 need 3.3v signal (may not be needed)
-//  #if defined(UICR_REGOUT0_VOUT_Msk)
-//  if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) != UICR_REGOUT0_VOUT_3V3) {
-//    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos;
-//    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
-//
-//    NRF_UICR->REGOUT0 = (NRF_UICR->REGOUT0 & ~UICR_REGOUT0_VOUT_Msk) | UICR_REGOUT0_VOUT_3V3;
-//
-//    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren << NVMC_CONFIG_WEN_Pos;
-//    while (NRF_NVMC->READY == NVMC_READY_READY_Busy){}
-//
-//    NVIC_SystemReset();
-//  }
-//  #endif
+  // Somehow pca10056/95 is not working probably due to signal incompatible (1.8V 3v3) with MAC3421E !?
 
   // manually manage CS
   nrf_gpio_cfg_output(MAX3421_CS_PIN);
@@ -315,28 +359,55 @@ static void max3421_init(void) {
       .sck_pin        = MAX3421_SCK_PIN,
       .mosi_pin       = MAX3421_MOSI_PIN,
       .miso_pin       = MAX3421_MISO_PIN,
+  #if NRFX_VER <= 2
       .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
+      .frequency      = NRF_SPIM_FREQ_4M,
+  #else
+      .ss_pin         = NRF_SPIM_PIN_NOT_CONNECTED,
+      .frequency      = 4000000u,
+  #endif
       .ss_active_high = false,
       .irq_priority   = 3,
       .orc            = 0xFF,
       // default setting 4 Mhz, Mode 0, MSB first
-      .frequency      = NRF_SPIM_FREQ_4M,
       .mode           = NRF_SPIM_MODE_0,
       .bit_order      = NRF_SPIM_BIT_ORDER_MSB_FIRST,
+      .miso_pull      = NRF_GPIO_PIN_NOPULL,
   };
 
   // no handler --> blocking
-  nrfx_spim_init(&_spi, &cfg, NULL, NULL);
+  TU_ASSERT(NRFX_SUCCESS == nrfx_spim_init(&_spi, &cfg, NULL, NULL), );
 
   // max3421e interrupt pin
+  #if NRFX_VER <= 2
   nrfx_gpiote_init(1);
   nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
   in_config.pull = NRF_GPIO_PIN_PULLUP;
-
   NVIC_SetPriority(GPIOTE_IRQn, 2);
-
   nrfx_gpiote_in_init(MAX3421_INTR_PIN, &in_config, max3421_int_handler);
   nrfx_gpiote_trigger_enable(MAX3421_INTR_PIN, true);
+  #else
+  nrf_gpio_pin_pull_t intr_pull = NRF_GPIO_PIN_PULLUP;
+  nrfx_gpiote_trigger_config_t intr_trigger = {
+      .trigger = NRFX_GPIOTE_TRIGGER_HITOLO,
+      .p_in_channel = NULL, // sensing mechanism
+  };
+  nrfx_gpiote_handler_config_t intr_handler = {
+      .handler = max3421_int_handler,
+      .p_context = NULL,
+  };
+  nrfx_gpiote_input_pin_config_t intr_config = {
+      .p_pull_config = &intr_pull,
+      .p_trigger_config = &intr_trigger,
+      .p_handler_config = &intr_handler,
+  };
+
+  nrfx_gpiote_init(&_gpiote, 1);
+  NVIC_SetPriority(GPIOTE_IRQn, 2);
+
+  nrfx_gpiote_input_configure(&_gpiote, MAX3421_INTR_PIN, &intr_config);
+  nrfx_gpiote_trigger_enable(&_gpiote, MAX3421_INTR_PIN, true);
+  #endif
 }
 
 // API to enable/disable MAX3421 INTR pin interrupt

@@ -132,9 +132,12 @@ void netd_report(uint8_t *buf, uint16_t len)
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
-void netd_init(void)
-{
+void netd_init(void) {
   tu_memclr(&_netd_itf, sizeof(_netd_itf));
+}
+
+bool netd_deinit(void) {
+  return true;
 }
 
 void netd_reset(uint8_t rhport)
