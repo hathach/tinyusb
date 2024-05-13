@@ -63,10 +63,14 @@ jobs:
       matrix:
         toolchain:
           - 'aarch64-gcc'
-          #- 'arm-clang'
-          #- 'arm-gcc'
-#          - 'msp430-gcc'
-#          - 'riscv-gcc'
+          - 'arm-clang'
+          - 'arm-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
+    if: >-
+      matrix.toolchain != 'arm-clang' ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/master')
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
@@ -77,7 +81,9 @@ jobs:
   # Build Make
   # ---------------------------------------
   make:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/master')
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
@@ -86,9 +92,9 @@ jobs:
         toolchain:
           - 'aarch64-gcc'
           #- 'arm-clang'
-          #- 'arm-gcc'
-#          - 'msp430-gcc'
-#          - 'riscv-gcc'
+          - 'arm-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
