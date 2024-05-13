@@ -142,13 +142,8 @@ jobs:
     if: github.repository_owner == 'hathach'
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain:
-          - 'arm-iar'
     env:
-      BUILD_ARGS: "${{ join(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family, ' ') }}"
+      BUILD_ARGS: "${{ join(fromJSON(needs.set-matrix.outputs.json)[arm-iar].family, ' ') }}"
     steps:
       - name: Clean workspace
         run: |
