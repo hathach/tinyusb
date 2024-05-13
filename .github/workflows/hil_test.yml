@@ -30,11 +30,6 @@ jobs:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Parse HIL json
         id: parse_hil_json
         run: |
@@ -77,11 +72,6 @@ jobs:
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
 
       - name: Parse HIL json
         id: parse_hil_json
