@@ -120,8 +120,8 @@ def build_board_make_all_examples(board, toolchain, all_examples):
     example = 'all'
     title = build_utils.build_format.format(example, board, status, "{:.2f}s".format(duration), flash_size, sram_size)
     print(title)
-
     return ret
+
 
 def build_family(family, toolchain, build_system, one_per_family, boards):
     all_boards = []
@@ -141,23 +141,17 @@ def build_family(family, toolchain, build_system, one_per_family, boards):
         all_boards = [random.choice(all_boards)]
 
     # success, failed, skipped
-    if build_system == 'cmake':
-        for board in all_boards:
-            if build_board_cmake(board, toolchain):
-                ret[0] += 1
-            else:
-                ret[1] += 1
-    elif build_system == 'make':
-        all_examples = get_examples(family)
-        for example in all_examples:
-            with Pool(processes=os.cpu_count()) as pool:
-                pool_args = list((map(lambda b, e=example, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_boards)))
-                r = pool.starmap(build_utils.build_example, pool_args)
-                # sum all element of same index (column sum)
-                rsum = list(map(sum, list(zip(*r))))
-                ret[0] += rsum[0]
-                ret[1] += rsum[1]
-                ret[2] += rsum[2]
+    all_examples = get_examples(family)
+    for board in all_boards:
+        r = [0, 0, 0]
+        if build_system == 'cmake':
+            r = build_board_cmake(board, toolchain)
+        elif build_system == 'make':
+            r = build_board_make_all_examples(board, toolchain, all_examples)
+        ret[0] += r[0]
+        ret[1] += r[1]
+        ret[2] += r[2]
+
     return ret
 
 
