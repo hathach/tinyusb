@@ -2,15 +2,6 @@ name: Build IAR
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'src/**'
-      - 'examples/**'
-      - 'lib/**'
-      - 'hw/**'
-      - 'tools/get_deps.py'
-      - 'test/hil/**'
-      - '.github/workflows/build_iar.yml'
   pull_request:
     branches: [ master ]
     paths:
