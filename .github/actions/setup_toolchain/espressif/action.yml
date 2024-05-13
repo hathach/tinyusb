@@ -24,8 +24,9 @@ runs:
     - name: Load Docker Image
       if: steps.cache-toolchain-espressif.outputs.cache-hit == 'true'
       run: |
-        tree ~/cache
+        du -sh $DOCKER_IMAGE
         docker load --input $DOCKER_IMAGE
+        docker images
       shell: bash
 
     - name: Pull and Save Docker Image
@@ -33,7 +34,7 @@ runs:
       run: |
         docker pull espressif/idf:${{ inputs.toolchain_url }}
         mkdir -p ~/cache/${{ inputs.toolchain }}
-        tree ~/cache
-        docker save -o $DOCKER_IMAGE espressif/idf:${{ inputs.toolchain_url }} || exit 1
-        tree ~/cache
+        docker save -o $DOCKER_IMAGE espressif/idf:${{ inputs.toolchain_url }}
+        du -sh $DOCKER_IMAGE
+        docker images
       shell: bash
