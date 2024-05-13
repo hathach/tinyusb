@@ -1,0 +1,42 @@
+name: Setup ESP-IDF Toolchain
+
+inputs:
+  toolchain:
+    description: 'Toolchain name'
+    required: true
+  toolchain_url:
+    description: 'Toolchain URL or version'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - id: set-docker-image
+      run: |
+        DOCKER_IMAGE=$HOME/cache/${{ inputs.toolchain }}/docker_image.tar
+        echo "DOCKER_IMAGE=$DOCKER_IMAGE" >> $GITHUB_ENV
+        echo "DOCKER_IMAGE=$DOCKER_IMAGE" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Cache Docker Image
+      uses: actions/cache@v4
+      id: cache-toolchain-espressif
+      with:
+        path: ${{ steps.set-docker-image.outputs.DOCKER_IMAGE }}
+        key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
+
+    - name: Pull and Save Docker Image
+      if: steps.cache-toolchain-espressif.outputs.cache-hit != 'true'
+      run: |
+        docker pull espressif/idf:${{ inputs.toolchain_url }}
+        mkdir -p ~/cache/${{ inputs.toolchain }}
+        docker save -o $DOCKER_IMAGE espressif/idf:${{ inputs.toolchain_url }}
+        du -sh $DOCKER_IMAGE
+      shell: bash
+
+    - name: Load Docker Image
+      if: steps.cache-toolchain-espressif.outputs.cache-hit == 'true'
+      run: |
+        du -sh $DOCKER_IMAGE
+        docker load --input $DOCKER_IMAGE
+      shell: bash

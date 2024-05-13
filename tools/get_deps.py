@@ -242,10 +242,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to fetch')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
+    parser.add_argument('--print', action='store_true', help='Print commit hash only')
     args = parser.parse_args()
 
     families = args.families
     boards = args.board
+    print_only = args.print
 
     if len(families) == 0 and len(boards) == 0:
         print("Warning: family and board are not specified, only fetching mandatory dependencies.")
@@ -268,8 +270,15 @@ def main():
                 if f in deps_optional[d][2]:
                     deps.append(d)
 
-    with Pool() as pool:
-        status = sum(pool.map(get_a_dep, deps))
+    if print_only:
+        pvalue = {}
+        for d in deps:
+            commit = deps_all[d][1]
+            pvalue[d] = commit
+        print(pvalue)
+    else:
+        with Pool() as pool:
+            status = sum(pool.map(get_a_dep, deps))
     return status
 
 

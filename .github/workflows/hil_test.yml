@@ -2,16 +2,6 @@ name: Hardware Test
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'src/**'
-      - 'examples/**'
-      - 'lib/**'
-      - 'hw/**'
-      - 'test/hil/**'
-      - 'tools/get_deps.py'
-      - '.github/actions/**'
-      - '.github/workflows/hil_test.yml'
   pull_request:
     branches: [ master ]
     paths:
