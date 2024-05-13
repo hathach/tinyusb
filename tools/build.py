@@ -97,6 +97,32 @@ def build_board_cmake(board, toolchain):
     return ret
 
 
+def build_board_make_all_examples(board, toolchain, all_examples):
+    start_time = time.monotonic()
+    ret = [0, 0, 0]
+
+    with Pool(processes=os.cpu_count()) as pool:
+        pool_args = list((map(lambda e, b=board, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_examples)))
+        r = pool.starmap(build_utils.build_example, pool_args)
+        # sum all element of same index (column sum)
+        rsum = list(map(sum, list(zip(*r))))
+        ret[0] += rsum[0]
+        ret[1] += rsum[1]
+        ret[2] += rsum[2]
+    duration = time.monotonic() - start_time
+    if ret[1] == 0:
+        status = SUCCEEDED
+    else:
+        status = FAILED
+
+    flash_size = "-"
+    sram_size = "-"
+    example = 'all'
+    title = build_utils.build_format.format(example, board, status, "{:.2f}s".format(duration), flash_size, sram_size)
+    print(title)
+
+    return ret
+
 def build_family(family, toolchain, build_system, one_per_family, boards):
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
@@ -157,7 +183,7 @@ def main():
     print(build_separator)
     print(build_utils.build_format.format('Example', 'Board', '\033[39mResult\033[0m', 'Time', 'Flash', 'SRAM'))
     total_time = time.monotonic()
-    total_result = [0, 0, 0]
+    result = [0, 0, 0]
 
     # build families
     all_families = []
@@ -172,33 +198,27 @@ def main():
     # succeeded, failed
     for f in all_families:
         fret = build_family(f, toolchain, build_system, one_per_family, boards)
-        total_result[0] += fret[0]
-        total_result[1] += fret[1]
-        total_result[2] += fret[2]
+        result[0] += fret[0]
+        result[1] += fret[1]
+        result[2] += fret[2]
 
     # build boards
     for b in boards:
+        r = [0, 0, 0]
         if build_system == 'cmake':
             r = build_board_cmake(b, toolchain)
-            total_result[0] += r[0]
-            total_result[1] += r[1]
-            total_result[2] += r[2]
         elif build_system == 'make':
             all_examples = get_examples(find_family(b))
-            with Pool(processes=os.cpu_count()) as pool:
-                pool_args = list((map(lambda e, bb=b, o=f"TOOLCHAIN={toolchain}": [e, bb, o], all_examples)))
-                r = pool.starmap(build_utils.build_example, pool_args)
-                # sum all element of same index (column sum)
-                rsum = list(map(sum, list(zip(*r))))
-                total_result[0] += rsum[0]
-                total_result[1] += rsum[1]
-                total_result[2] += rsum[2]
+            r = build_board_make_all_examples(b, toolchain, all_examples)
+        result[0] += r[0]
+        result[1] += r[1]
+        result[2] += r[2]
 
     total_time = time.monotonic() - total_time
     print(build_separator)
-    print(f"Build Summary: {total_result[0]} {SUCCEEDED}, {total_result[1]} {FAILED} and took {total_time:.2f}s")
+    print(f"Build Summary: {result[0]} {SUCCEEDED}, {result[1]} {FAILED} and took {total_time:.2f}s")
     print(build_separator)
-    return total_result[1]
+    return result[1]
 
 
 if __name__ == '__main__':
