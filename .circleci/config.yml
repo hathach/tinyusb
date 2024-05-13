@@ -12,7 +12,7 @@ jobs:
       # Specify the version you desire here
       # See: https://circleci.com/developer/images/image/cimg/base
       - image: cimg/base:current
-    
+
     resource_class: small
 
     # Add steps to the job

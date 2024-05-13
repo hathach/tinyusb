@@ -24,15 +24,10 @@ runs:
 
     - name: Pull ESP-IDF docker
       if: inputs.toolchain == 'esp-idf'
-      uses: ./.github/actions/setup_toolchain/download
+      uses: ./.github/actions/setup_toolchain/espressif
       with:
         toolchain: ${{ inputs.toolchain }}
         toolchain_url: ${{ inputs.toolchain_url }}
-
-#    - name: Pull ESP-IDF docker
-#      if: inputs.toolchain == 'esp-idf'
-#      run: docker pull espressif/idf:${{ inputs.toolchain_url }}
-#      shell: bash
 
     - name: Download Toolchain
       if: >-
