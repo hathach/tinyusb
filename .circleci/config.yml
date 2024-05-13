@@ -11,8 +11,7 @@ jobs:
       TOOLCHAIN_URL: https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
 
     steps:
-      # Checkout the code as the first step.
-      - checkout
+      - checkout        
       - run:
           name: Install Toolchain
           command: |
