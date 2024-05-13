@@ -108,7 +108,8 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 
 void board_led_write(bool state) {
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
+  GPIO_PinState pin_state = (GPIO_PinState) (state ? LED_STATE_ON : (1 - LED_STATE_ON));
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, pin_state);
 }
 
 uint32_t board_button_read(void) {
@@ -142,7 +143,7 @@ uint32_t board_millis(void) {
 #endif
 
 void HardFault_Handler(void) {
-  asm("bkpt");
+  asm("bkpt 0");
 }
 
 // Required by __libc_init_array in startup code if we are compiling using
