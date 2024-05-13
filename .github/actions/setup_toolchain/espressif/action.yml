@@ -18,7 +18,7 @@ runs:
       uses: actions/cache@v4
       id: cache-toolchain-espressif
       with:
-        path: $DOCKER_IMAGE
+        path: $${ env.DOCKER_IMAGE }}
         key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
 
     - name: Load Docker Image
@@ -26,7 +26,6 @@ runs:
       run: |
         du -sh $DOCKER_IMAGE
         docker load --input $DOCKER_IMAGE
-        docker images
       shell: bash
 
     - name: Pull and Save Docker Image
@@ -36,5 +35,4 @@ runs:
         mkdir -p ~/cache/${{ inputs.toolchain }}
         docker save -o $DOCKER_IMAGE espressif/idf:${{ inputs.toolchain_url }}
         du -sh $DOCKER_IMAGE
-        docker images
       shell: bash
