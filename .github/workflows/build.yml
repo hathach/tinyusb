@@ -148,26 +148,27 @@ jobs:
         toolchain:
           - 'arm-iar'
     env:
-      BUILD_ARGS: "${{ join(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family), ' '}}"
+      BUILD_ARGS: "${{ join(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family, ' ') }}"
     steps:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
+          echo "BUILD_ARGS=$BUILD_ARGS"
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
-#      - name: Get Dependencies
-#        run: python3 tools/get_deps.py $BUILD_ARGS
-#
-#      - name: Build
-#        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
-#
-#      - name: Test on actual hardware (hardware in the loop)
-#        if: >-
-#          github.event_name == 'pull_request' ||
-#          (github.event_name == 'push' && github.ref == 'refs/heads/master')
-#        run: |
-#          python3 test/hil/hil_test.py hfp.json
+      - name: Get Dependencies
+        run: python3 tools/get_deps.py $BUILD_ARGS
+
+      - name: Build
+        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
+
+      - name: Test on actual hardware (hardware in the loop)
+        if: >-
+          github.event_name == 'pull_request' ||
+          (github.event_name == 'push' && github.ref == 'refs/heads/master')
+        run: |
+          python3 test/hil/hil_test.py hfp.json
