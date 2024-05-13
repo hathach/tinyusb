@@ -51,8 +51,6 @@ def set_matrix_json():
                 hfp_data = json.load(f)
             hfp_boards = [f"-b{board['name']}" for board in hfp_data['boards']]
             filtered_families = filtered_families + hfp_boards
-            print(hfp_boards)
-            print(filtered_families)
 
         matrix[toolchain] = {"family": filtered_families, "toolchain_url": toolchain_list[toolchain]}
 
