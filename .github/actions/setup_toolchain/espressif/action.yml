@@ -11,7 +11,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - run: echo "DOCKER_IMAGE=~/cache/${{ inputs.toolchain }}/docker_image.tar" >> $GITHUB_ENV
+    - run: echo "DOCKER_IMAGE=$HOME/cache/${{ inputs.toolchain }}/docker_image.tar" >> $GITHUB_ENV
       shell: bash
 
     - name: Cache Docker Image
@@ -25,7 +25,7 @@ runs:
       if: steps.cache-toolchain-espressif.outputs.cache-hit == 'true'
       run: |
         tree ~/cache
-        docker load < $DOCKER_IMAGE
+        docker load --input $DOCKER_IMAGE
       shell: bash
 
     - name: Pull and Save Docker Image
