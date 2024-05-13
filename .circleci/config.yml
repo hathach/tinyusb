@@ -4,6 +4,9 @@ version: 2.1
 # See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
 jobs:
   arm-clang:
+    parameters:
+      family:
+        type: string
     docker:
       - image: cimg/base:current
     resource_class: small
@@ -39,16 +42,15 @@ jobs:
       - run:
           name: Get Dependencies
           command: |
-            python tools/get_deps.py stm32f1
+            python tools/get_deps.py << parameters.family >>
       - run:
           name: Build
-          command: python tools/build.py -s cmake --toolchain clang --one-per-family stm32f1
+          command: python tools/build.py -s cmake --toolchain clang --one-per-family << parameters.family >>
 
-
-# Orchestrate jobs using workflows
-# See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
 workflows:
-  build: # This is the name of the workflow, feel free to change it to better match your workflow.
-    # Inside the workflow, you define the jobs you want to run.
+  build:
     jobs:
-      - arm-clang
+      - arm-clang:
+          matrix:
+            parameters:
+              family: [ 'stm32f1', 'stm32f2']
