@@ -12,18 +12,25 @@ jobs:
 
     steps:
       - checkout
+      - restore_cache:
+          key: $TOOLCHAIN_URL
+          paths:
+            - ~/cache/toolchain
       - run:
           name: Install Toolchain
           command: |
             mkdir -p ~/cache/toolchain
             wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
             tar -C ~/cache/toolchain -xaf toolchain.tar.gz
+      - save_cache:
+          key: $TOOLCHAIN_URL
+          paths:
+            - ~/cache/toolchain
       - run:
-          name: Set Toolchain Path
-          command: echo "export PATH=$PATH:`echo ~/cache/toolchain/*/bin`" >> $BASH_ENV
-      - run:
-          name: Install ninja-build
+          name: Setup Toolchain
           command: |
+            echo "export PATH=$PATH:`echo ~/cache/toolchain/*/bin`" >> $BASH_ENV
+            # install ninja
             wget https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip -O ninja-linux.zip
             unzip ninja-linux.zip -d ~/bin
       - run:
@@ -32,7 +39,7 @@ jobs:
             python tools/get_deps.py stm32f1
       - run:
           name: Build
-          command: python tools/build.py -s cmake --toolchain clang stm32f1
+          command: python tools/build.py -s cmake --toolchain clang --one-per-family stm32f1
 
 
 # Orchestrate jobs using workflows
