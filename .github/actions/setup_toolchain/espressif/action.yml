@@ -18,7 +18,7 @@ runs:
       uses: actions/cache@v4
       id: cache-toolchain-espressif
       with:
-        path: $HOME/cache/${{ inputs.toolchain }}
+        path: ~/cache/${{ inputs.toolchain }}
         key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
 
     - name: Load Docker Image
