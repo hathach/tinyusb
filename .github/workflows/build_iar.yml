@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   cmake:
-    if: github.repository_owner == 'hathach'
+    if: github.repository_owner == 'hathach' && false
     runs-on: [self-hosted, Linux, X64, hifiphile]
     strategy:
       fail-fast: false
