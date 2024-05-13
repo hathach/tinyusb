@@ -139,8 +139,8 @@ jobs:
   # Build IAR on HFP self-hosted
   # ---------------------------------------
   arm-iar:
-    needs: set-matrix
     if: github.repository_owner == 'hathach'
+    needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
     strategy:
       fail-fast: false
@@ -148,7 +148,7 @@ jobs:
         toolchain:
           - 'arm-iar'
     env:
-      BUILD_ARGS: "${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family }}"
+      BUILD_ARGS: "${{ join(' ', fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}"
     steps:
       - name: Clean workspace
         run: |
