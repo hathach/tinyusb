@@ -21,16 +21,19 @@ runs:
         path: $DOCKER_IMAGE
         key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
 
+    - name: Load Docker Image
+      if: steps.cache-toolchain-espressif.outputs.cache-hit == 'true'
+      run: |
+        tree ~/cache
+        docker load < $DOCKER_IMAGE
+      shell: bash
+
     - name: Pull and Save Docker Image
       if: steps.cache-toolchain-espressif.outputs.cache-hit != 'true'
       run: |
         docker pull espressif/idf:${{ inputs.toolchain_url }}
         mkdir -p ~/cache/${{ inputs.toolchain }}
+        tree ~/cache
         docker save espressif/idf:${{ inputs.toolchain_url }} > $DOCKER_IMAGE
-      shell: bash
-
-    - name: Load Docker Image
-      if: steps.cache-toolchain-espressif.outputs.cache-hit == 'true'
-      run: |
-        docker load < $DOCKER_IMAGE
+        tree ~/cache
       shell: bash
