@@ -6,12 +6,12 @@ jobs:
   arm-clang:
     docker:
       - image: cimg/base:current
-    resource_class: small      
+    resource_class: small
     environment:
       TOOLCHAIN_URL: https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
 
     steps:
-      - checkout        
+      - checkout
       - run:
           name: Install Toolchain
           command: |
@@ -20,13 +20,13 @@ jobs:
             tar -C ~/cache/toolchain -xaf toolchain.tar.gz
       - run:
           name: Set Toolchain Path
-          command: echo `echo ~/cache/toolchain/*/bin`  >> $BASH_ENV
+          command: echo `export PATH=$PATH:~/cache/toolchain/*/bin` >> $BASH_ENV
       - run:
           name: Install ninja-build
           command: |
             wget https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip -O ninja-linux.zip
             unzip ninja-linux.zip -d ~/cache/ninja
-            echo `echo ~/cache/ninja`  >> $BASH_ENV
+            echo `export PATH=$PATH:~/cache/ninja` >> $BASH_ENV
       - run:
           name: Get Dependencies
           command: |
@@ -34,7 +34,7 @@ jobs:
       - run:
           name: Build
           command: python tools/build.py -s cmake --toolchain clang stm32f1
- 
+
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
