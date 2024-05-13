@@ -143,7 +143,7 @@ jobs:
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
-      BUILD_ARGS: "${{ join(fromJSON(needs.set-matrix.outputs.json)[arm-iar].family, ' ') }}"
+      BUILD_ARGS: "${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family, ' ') }}"
     steps:
       - name: Clean workspace
         run: |
