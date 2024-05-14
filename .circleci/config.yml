@@ -91,7 +91,7 @@ jobs:
           family: << parameters.family >>
       - run:
           name: Build
-          command: python tools/build.py -s << parameters.build-system >> --toolchain clang --one-per-family << parameters.family >>
+          command: python tools/build.py -s << parameters.build-system >> --toolchain clang << parameters.family >>
 
 workflows:
   build:
