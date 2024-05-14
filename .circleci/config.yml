@@ -18,7 +18,7 @@ jobs:
       - checkout
       - restore_cache:
           name: Restore Toolchain Cache
-          key: "toolchain-$TOOLCHAIN_URL"
+          key: toolchain-{{ .Environment.TOOLCHAIN_URL }}
           paths:
             - ~/cache/toolchain
       - run:
@@ -32,14 +32,14 @@ jobs:
             fi
       - save_cache:
           name: Save Toolchain Cache
-          key: "toolchain-$TOOLCHAIN_URL"
+          key: toolchain-{{ .Environment.TOOLCHAIN_URL }}
           paths:
             - ~/cache/toolchain
 
       - restore_cache:
           name: Restore Dependencies Cache
           key: deps-{{ checksum "tools/get_deps.py" }}
-          paths: |
+          paths:
             - hw/mcu
             - lib
       - run:
@@ -49,7 +49,7 @@ jobs:
       - save_cache:
           name: Save Dependencies Cache
           key: deps-{{ checksum "tools/get_deps.py" }}
-          paths: |
+          paths:
             - hw/mcu
             - lib
 
