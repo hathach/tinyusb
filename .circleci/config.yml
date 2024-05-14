@@ -16,7 +16,9 @@ jobs:
 
     steps:
       - checkout
-      - run: echo $TOOLCHAIN_URL > toolchain_url.txt
+      - run:
+          name: Make toolchain_url.txt
+          command: echo $TOOLCHAIN_URL > toolchain_url.txt
       - restore_cache:
           name: Restore Toolchain Cache
           key: toolchain-{{ checksum "toolchain_url.txt" }}
@@ -37,22 +39,10 @@ jobs:
           paths:
             - ~/cache/toolchain
 
-      - restore_cache:
-          name: Restore Dependencies Cache
-          key: deps-{{ checksum "tools/get_deps.py" }}
-          paths:
-            - hw/mcu
-            - lib
       - run:
           name: Get Dependencies
           command: |
             python tools/get_deps.py << parameters.family >>
-      - save_cache:
-          name: Save Dependencies Cache
-          key: deps-{{ checksum "tools/get_deps.py" }}
-          paths:
-            - hw/mcu
-            - lib
 
       - run:
           name: Setup build environment
