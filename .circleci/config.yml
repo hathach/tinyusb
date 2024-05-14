@@ -91,7 +91,7 @@ jobs:
           family: << parameters.family >>
       - run:
           name: Build
-          command: python tools/build.py -s << parameters.build-system >> --toolchain clang << parameters.family >>
+          command: python tools/build.py -s << parameters.build-system >> --toolchain clang --one-per-family << parameters.family >>
 
 workflows:
   build:
@@ -102,5 +102,5 @@ workflows:
               build-system:
                 - cmake
               #family: ['stm32f1']
-              family: ['stm32f1', 'stm32f2']
-#              family: ['imxrt', 'kinetis_k kinetis_kl kinetis_k32l2', 'lpc11 lpc13 lpc15', 'lpc17 lpc18 lpc40 lpc43', 'lpc51 lpc54 lpc55', 'nrf', 'samd11 samd21 saml2x', 'samd5x_e5x samg', 'stm32f0 stm32f1 stm32f2 stm32f3', 'stm32f4', 'stm32f7', 'stm32g0 stm32g4 stm32h5', 'stm32h7', 'stm32l4 stm32u5 stm32wb']
+              #family: ['stm32f1', 'stm32f2']
+              family: ['imxrt', 'kinetis_k kinetis_kl kinetis_k32l2', 'lpc11 lpc13 lpc15', 'lpc17 lpc18 lpc40 lpc43', 'lpc51 lpc54 lpc55', 'nrf', 'samd11 samd21 saml2x', 'samd5x_e5x samg', 'stm32f0 stm32f1 stm32f2 stm32f3', 'stm32f4', 'stm32f7', 'stm32g0 stm32g4 stm32h5', 'stm32h7', 'stm32l4 stm32u5 stm32wb']
