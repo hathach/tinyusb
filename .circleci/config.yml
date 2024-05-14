@@ -8,9 +8,12 @@ commands:
         toolchain_url:
             type: string
     steps:
+      - run:
+          name: Make toolchain cache key
+          command: echo << parameters.toolchain >>-<< parameters.toolchain_url>> > toolchain_key
       - restore_cache:
           name: Restore Toolchain Cache
-          key: << parameters.toolchain >>-<< parameters.toolchain_url>>
+          key: deps-{{ checksum "toolchain_key" }}
           paths:
             - ~/cache/<< parameters.toolchain >>
       - run:
@@ -24,7 +27,7 @@ commands:
             fi
       - save_cache:
           name: Save Toolchain Cache
-          key: << parameters.toolchain >>-<< parameters.toolchain_url>>
+          key: deps-{{ checksum "toolchain_key" }}
           paths:
             - ~/cache/<< parameters.toolchain >>
       - run:
@@ -42,7 +45,7 @@ commands:
         type: string
     steps:
       - run:
-          name: Make cache key
+          name: Make deps cache key
           command: |
             python tools/get_deps.py --print << parameters.family >> > deps_key
       - restore_cache:
