@@ -12,6 +12,7 @@ jobs:
     resource_class: small
     environment:
       TOOLCHAIN_URL: https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
+      NINJA_URL: https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
 
     steps:
       - checkout
@@ -23,9 +24,9 @@ jobs:
           name: Install Toolchain
           command: |
             # Only download if folder does not exist (not cached)
-            if [ ! -d "~/cache/toolchain" ]; then
+            if [ ! -d ~/cache/toolchain ]; then
               mkdir -p ~/cache/toolchain
-              wget --progress=dot:mega $TOOLCHAIN_URL -O toolchain.tar.gz
+              wget $TOOLCHAIN_URL -O toolchain.tar.gz
               tar -C ~/cache/toolchain -xaf toolchain.tar.gz
             fi
       - save_cache:
@@ -37,7 +38,7 @@ jobs:
           command: |
             echo "export PATH=$PATH:`echo ~/cache/toolchain/*/bin`" >> $BASH_ENV
             # install ninja
-            wget https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip -O ninja-linux.zip
+            wget $NINJA_URL -O ninja-linux.zip
             unzip ninja-linux.zip -d ~/bin
       - run:
           name: Get Dependencies
@@ -53,4 +54,5 @@ workflows:
       - arm-clang:
           matrix:
             parameters:
-              family: [ 'stm32f1', 'stm32f2']
+              family: ['stm32f1']
+#              family: ['imxrt', 'kinetis_k kinetis_kl kinetis_k32l2', 'lpc11 lpc13 lpc15', 'lpc17 lpc18 lpc40 lpc43', 'lpc51 lpc54 lpc55', 'nrf', 'samd11 samd21 saml2x', 'samd5x_e5x samg', 'stm32f0 stm32f1 stm32f2 stm32f3', 'stm32f4', 'stm32f7', 'stm32g0 stm32g4 stm32h5', 'stm32h7', 'stm32l4 stm32u5 stm32wb']
