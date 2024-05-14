@@ -1,7 +1,61 @@
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
+commands:
+  setup-toolchain:
+    parameters:
+        toolchain:
+            type: string
+        toolchain_url:
+            type: string
+    steps:
+      - restore_cache:
+          name: Restore Toolchain Cache
+          key: << parameters.toolchain >>-<< parameters.toolchain_url>>
+          paths:
+            - ~/cache/<< parameters.toolchain >>
+      - run:
+          name: Install Toolchain
+          command: |
+            # Only download if folder does not exist (not cached)
+            if [ ! -d ~/cache/<< parameters.toolchain >> ]; then
+              mkdir -p ~/cache/<< parameters.toolchain >>
+              wget << parameters.toolchain_url>> -O toolchain.tar.gz
+              tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
+            fi
+      - save_cache:
+          name: Save Toolchain Cache
+          key: << parameters.toolchain >>-<< parameters.toolchain_url>>
+          paths:
+            - ~/cache/<< parameters.toolchain >>
+      - run:
+          name: Setup build environment
+          command: |
+            echo "export PATH=$PATH:`echo ~/cache/<< parameters.toolchain >>/*/bin`" >> $BASH_ENV
+            # Install Ninja
+            NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
+            wget $NINJA_URL -O ninja-linux.zip
+            unzip ninja-linux.zip -d ~/bin
+
+  get-deps:
+    parameters:
+      family:
+        type: string
+    steps:
+      - restore_cache:
+          name: Restore Dependencies Cache
+          key: deps-{{ checksum "lib/CMSIS_5/.git/HEAD" }}
+          paths:
+            - lib/CMSIS_5
+      - run:
+          name: Get Dependencies
+          command: |
+            python tools/get_deps.py << parameters.family >>
+      - save_cache:
+          name: Save Dependencies Cache
+          key: deps-{{ checksum "lib/CMSIS_5/.git/HEAD" }}
+          paths:
+              - lib/CMSIS_5
+
 jobs:
   arm-clang:
     parameters:
@@ -15,45 +69,13 @@ jobs:
     resource_class: medium
     environment:
       TOOLCHAIN_URL: https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
-      NINJA_URL: https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
-
     steps:
       - checkout
-      - run:
-          name: Make toolchain_url.txt
-          command: echo $TOOLCHAIN_URL > toolchain_url.txt
-      - restore_cache:
-          name: Restore Toolchain Cache
-          key: toolchain-{{ checksum "toolchain_url.txt" }}
-          paths:
-            - ~/cache/toolchain
-      - run:
-          name: Install Toolchain
-          command: |
-            # Only download if folder does not exist (not cached)
-            if [ ! -d ~/cache/toolchain ]; then
-              mkdir -p ~/cache/toolchain
-              wget $TOOLCHAIN_URL -O toolchain.tar.gz
-              tar -C ~/cache/toolchain -xaf toolchain.tar.gz
-            fi
-      - save_cache:
-          name: Save Toolchain Cache
-          key: toolchain-{{ checksum "toolchain_url.txt" }}
-          paths:
-            - ~/cache/toolchain
-
-      - run:
-          name: Get Dependencies
-          command: |
-            python tools/get_deps.py << parameters.family >>
-
-      - run:
-          name: Setup build environment
-          command: |
-            echo "export PATH=$PATH:`echo ~/cache/toolchain/*/bin`" >> $BASH_ENV
-            # install ninja
-            wget $NINJA_URL -O ninja-linux.zip
-            unzip ninja-linux.zip -d ~/bin
+      - setup-toolchain:
+          toolchain: clang
+          toolchain_url: $TOOLCHAIN_URL
+      - get-deps:
+          family: << parameters.family >>
       - run:
           name: Build
           command: python tools/build.py -s << parameters.build-system >> --toolchain clang --one-per-family << parameters.family >>
@@ -64,6 +86,7 @@ workflows:
       - arm-clang:
           matrix:
             parameters:
-              build-system: ['cmake', 'make']
+              build-system:
+                - cmake
               family: ['stm32f1']
 #              family: ['imxrt', 'kinetis_k kinetis_kl kinetis_k32l2', 'lpc11 lpc13 lpc15', 'lpc17 lpc18 lpc40 lpc43', 'lpc51 lpc54 lpc55', 'nrf', 'samd11 samd21 saml2x', 'samd5x_e5x samg', 'stm32f0 stm32f1 stm32f2 stm32f3', 'stm32f4', 'stm32f7', 'stm32g0 stm32g4 stm32h5', 'stm32h7', 'stm32l4 stm32u5 stm32wb']
