@@ -41,20 +41,30 @@ commands:
       family:
         type: string
     steps:
+      - run:
+          name: Make cache key
+          command: |
+            python tools/get_deps.py --print << parameters.family >> > deps_key
       - restore_cache:
           name: Restore Dependencies Cache
-          key: deps-{{ checksum "lib/CMSIS_5/.git/HEAD" }}
+          key: deps-{{ checksum "deps_key" }}
           paths:
             - lib/CMSIS_5
+            - lib/FreeRTOS-Kernel
+            - lib/lwip
+            - tools/uf2
       - run:
           name: Get Dependencies
           command: |
             python tools/get_deps.py << parameters.family >>
       - save_cache:
           name: Save Dependencies Cache
-          key: deps-{{ checksum "lib/CMSIS_5/.git/HEAD" }}
+          key: deps-{{ checksum "deps_key" }}
           paths:
-              - lib/CMSIS_5
+            - lib/CMSIS_5
+            - lib/FreeRTOS-Kernel
+            - lib/lwip
+            - tools/uf2
 
 jobs:
   arm-clang:
