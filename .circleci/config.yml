@@ -18,7 +18,7 @@ jobs:
       - checkout
       - restore_cache:
           name: Restore Toolchain Cache
-          key: toolchain-$TOOLCHAIN_URL
+          key: "toolchain-$TOOLCHAIN_URL"
           paths:
             - ~/cache/toolchain
       - run:
@@ -32,7 +32,7 @@ jobs:
             fi
       - save_cache:
           name: Save Toolchain Cache
-          key: toolchain-$TOOLCHAIN_URL
+          key: "toolchain-$TOOLCHAIN_URL"
           paths:
             - ~/cache/toolchain
 
