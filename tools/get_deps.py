@@ -249,9 +249,6 @@ def main():
     boards = args.board
     print_only = args.print
 
-    if len(families) == 0 and len(boards) == 0:
-        print("Warning: family and board are not specified, only fetching mandatory dependencies.")
-
     status = 0
     deps = list(deps_mandatory.keys())
 
@@ -272,6 +269,9 @@ def main():
 
     if print_only:
         pvalue = {}
+        # print only without arguments, always add CMSIS_5
+        if len(families) == 0 and len(boards) == 0:
+            deps.append('lib/CMSIS_5')
         for d in deps:
             commit = deps_all[d][1]
             pvalue[d] = commit

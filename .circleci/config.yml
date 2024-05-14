@@ -10,7 +10,7 @@ commands:
     steps:
       - run:
           name: Make toolchain cache key
-          command: echo << parameters.toolchain >>-<< parameters.toolchain_url>> > toolchain_key
+          command: echo "<< parameters.toolchain >>-<< parameters.toolchain_url>>" > toolchain_key
       - restore_cache:
           name: Restore Toolchain Cache
           key: deps-{{ checksum "toolchain_key" }}
@@ -47,7 +47,7 @@ commands:
       - run:
           name: Make deps cache key
           command: |
-            python tools/get_deps.py --print << parameters.family >> > deps_key
+            python tools/get_deps.py --print > deps_key
       - restore_cache:
           name: Restore Dependencies Cache
           key: deps-{{ checksum "deps_key" }}
