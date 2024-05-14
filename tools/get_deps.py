@@ -264,7 +264,7 @@ def main():
 
         for f in families:
             for d in deps_optional:
-                if f in deps_optional[d][2]:
+                if d not in deps and f in deps_optional[d][2]:
                     deps.append(d)
 
     if print_only:
