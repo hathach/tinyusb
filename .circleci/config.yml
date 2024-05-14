@@ -17,7 +17,8 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: $TOOLCHAIN_URL
+          name: Restore Toolchain Cache
+          key: toolchain-$TOOLCHAIN_URL
           paths:
             - ~/cache/toolchain
       - run:
@@ -30,9 +31,28 @@ jobs:
               tar -C ~/cache/toolchain -xaf toolchain.tar.gz
             fi
       - save_cache:
-          key: $TOOLCHAIN_URL
+          name: Save Toolchain Cache
+          key: toolchain-$TOOLCHAIN_URL
           paths:
             - ~/cache/toolchain
+
+      - restore_cache:
+          name: Restore Dependencies Cache
+          key: deps-{{ checksum "tools/get_deps.py" }}
+          paths: |
+            - hw/mcu
+            - lib
+      - run:
+          name: Get Dependencies
+          command: |
+            python tools/get_deps.py << parameters.family >>
+      - save_cache:
+          name: Save Dependencies Cache
+          key: deps-{{ checksum "tools/get_deps.py" }}
+          paths: |
+            - hw/mcu
+            - lib
+
       - run:
           name: Setup build environment
           command: |
@@ -40,10 +60,6 @@ jobs:
             # install ninja
             wget $NINJA_URL -O ninja-linux.zip
             unzip ninja-linux.zip -d ~/bin
-      - run:
-          name: Get Dependencies
-          command: |
-            python tools/get_deps.py << parameters.family >>
       - run:
           name: Build
           command: python tools/build.py -s cmake --toolchain clang --one-per-family << parameters.family >>
