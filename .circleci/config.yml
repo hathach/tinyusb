@@ -9,7 +9,7 @@ jobs:
         type: string
     docker:
       - image: cimg/base:current
-    resource_class: small
+    resource_class: medium
     environment:
       TOOLCHAIN_URL: https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
       NINJA_URL: https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
