@@ -101,6 +101,15 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
+
+#function(family_flash_adafruit_nrfutil TARGET)
+#  add_custom_target(${TARGET}-adafruit-nrfutil
+#    DEPENDS ${TARGET}
+#    COMMAND adafruit-nrfutil --verbose dfu serial --package $^ -p /dev/ttyACM0 -b 115200 --singlebank --touch 1200
+#    )
+#endfunction()
+
+
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
 
@@ -133,4 +142,5 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
+#  family_flash_adafruit_nrfutil(${TARGET})
 endfunction()
