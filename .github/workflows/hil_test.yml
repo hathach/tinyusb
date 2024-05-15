@@ -41,7 +41,7 @@ jobs:
           echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
           echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
 
-      - name: Setup ARM Toolchain
+      - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: 'arm-gcc'

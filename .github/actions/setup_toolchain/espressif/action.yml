@@ -23,7 +23,7 @@ runs:
       id: cache-toolchain-espressif
       with:
         path: ${{ steps.set-docker-image.outputs.DOCKER_IMAGE }}
-        key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
+        key: ${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
 
     - name: Pull and Save Docker Image
       if: steps.cache-toolchain-espressif.outputs.cache-hit != 'true'
