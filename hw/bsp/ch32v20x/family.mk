@@ -1,3 +1,9 @@
+# https://www.embecosm.com/resources/tool-chain-downloads/#riscv-stable
+#CROSS_COMPILE ?= riscv32-unknown-elf-
+
+# Toolchain from https://nucleisys.com/download.php
+#CROSS_COMPILE ?= riscv-nuclei-elf-
+
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
 CROSS_COMPILE ?= riscv-none-elf-
 
@@ -9,23 +15,21 @@ DEPS_SUBMODULES += $(CH32V20X_SDK)
 CH32V20X_SDK_SRC = $(CH32V20X_SDK)/EVT/EXAM/SRC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= rv32imac-ilp32
 
 CFLAGS += \
-	-march=rv32imac_zicsr \
-	-mabi=ilp32 \
 	-mcmodel=medany \
 	-ffunction-sections \
 	-fdata-sections \
 	-ffat-lto-objects \
 	-flto \
-	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V20X \
 	-DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED \
 
 LDFLAGS_GCC += \
 	-Wl,--gc-sections \
-	-specs=nosys.specs \
-	-specs=nano.specs \
+	-nostdlib -nostartfiles \
+	--specs=nosys.specs --specs=nano.specs \
 
 LD_FILE = $(CH32V20X_SDK_SRC)/Ld/Link.ld
 
@@ -46,5 +50,6 @@ FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 # wch-link is not supported yet in official openOCD yet. We need to either use
 # 1. download openocd as part of mounriver studio http://www.mounriver.com/download or
 # 2. compiled from modified source https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
+OPENOCD ?= $(HOME)/app/riscv-openocd-wch/src/openocd
 flash: $(BUILD)/$(PROJECT).elf
-	openocd -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "flash write_image $<" -c reset -c exit
+	$(OPENOCD) -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "flash write_image $<" -c reset -c exit

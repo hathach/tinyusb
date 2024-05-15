@@ -201,6 +201,14 @@ void dcd_disconnect(uint8_t rhport) {
     USBOTG_FS->BASE_CTRL &= ~USBFS_CTRL_DEV_PUEN;
 }
 
+void dcd_sof_enable(uint8_t rhport, bool en)
+{
+  (void) rhport;
+  (void) en;
+
+  // TODO implement later
+}
+
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request) {
     (void) rhport;
     if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
