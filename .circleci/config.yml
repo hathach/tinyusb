@@ -91,7 +91,13 @@ jobs:
           family: << parameters.family >>
       - run:
           name: Build
-          command: python tools/build.py -s << parameters.build-system >> --toolchain clang << parameters.family >>
+          command: |
+            # Only build one board per family for non PRs i.e commit to master
+            ONE_PER_FAMILY=""
+            if [ -z "$CIRCLE_PULL_REQUEST" ]; then
+              ONE_PER_FAMILY="--one-per-family"
+            fi
+            python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> --toolchain clang << parameters.family >>
 
 workflows:
   build:

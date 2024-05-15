@@ -174,7 +174,8 @@ enum {
 enum {
   EP_STATE_IDLE        = 0,
   EP_STATE_COMPLETE    = 1,
-  EP_STATE_ATTEMPT_1   = 2, // pending 1st attempt
+  EP_STATE_ABORTING    = 2,
+  EP_STATE_ATTEMPT_1   = 3, // pending 1st attempt
   EP_STATE_ATTEMPT_MAX = 15
 };
 
@@ -459,6 +460,7 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 
   tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
   _tuh_cfg = cfg->max3421;
+  _tuh_cfg.max_nak = tu_min8(_tuh_cfg.max_nak, EP_STATE_ATTEMPT_MAX-EP_STATE_ATTEMPT_1);
   return true;
 }
 
@@ -678,7 +680,6 @@ static void xact_generic(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
-
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
   TU_VERIFY(ep);
 
@@ -702,14 +703,19 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
   return true;
 }
 
-// Abort a queued transfer. Note: it can only abort transfer that has not been started
-// Return true if a queued transfer is aborted, false if there is no transfer to abort
-bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) dev_addr;
-  (void) ep_addr;
+bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
+  max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
+  TU_VERIFY(ep);
 
-  return false;
+  if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
+    hcd_int_disable(rhport);
+    ep->state = EP_STATE_ABORTING;
+    hcd_int_enable(rhport);
+  }
+
+  return true;
 }
 
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
@@ -819,7 +825,6 @@ static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t re
 static void handle_xfer_done(uint8_t rhport, bool in_isr) {
   uint8_t const hrsl = reg_read(rhport, HRSL_ADDR, in_isr);
   uint8_t const hresult = hrsl & HRSL_RESULT_MASK;
-
   uint8_t const ep_num = _hcd_data.hxfr & HXFR_EPNUM_MASK;
   uint8_t const hxfr_type = _hcd_data.hxfr & 0xf0;
   uint8_t const ep_dir = ((hxfr_type & HXFR_SETUP) || (hxfr_type & HXFR_OUT_NIN)) ? 0 : 1;
@@ -829,6 +834,37 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
 
   xfer_result_t xfer_result;
   switch(hresult) {
+    case HRSL_NAK:
+      if (ep->state == EP_STATE_ABORTING) {
+        ep->state = EP_STATE_IDLE;
+      } else {
+        if (ep_num == 0) {
+          // control endpoint -> retry immediately and return
+          hxfr_write(rhport, _hcd_data.hxfr, in_isr);
+          return;
+        } else if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
+          ep->state++;
+        }
+      }
+
+      max3421_ep_t * next_ep = find_next_pending_ep(ep);
+      if (ep == next_ep) {
+        // this endpoint is only one pending -> retry immediately
+        hxfr_write(rhport, _hcd_data.hxfr, in_isr);
+      } else if (next_ep) {
+        // switch to next pending endpoint
+        // TODO could have issue with double buffered if not clear previously out data
+        xact_generic(rhport, next_ep, true, in_isr);
+      } else {
+        // no more pending in this frame -> clear busy
+        atomic_flag_clear(&_hcd_data.busy);
+      }
+      return;
+
+    case HRSL_BAD_REQ:
+      // occurred when initialized without any pending transfer. Skip for now
+      return;
+
     case HRSL_SUCCESS:
       xfer_result = XFER_RESULT_SUCCESS;
       break;
@@ -836,33 +872,6 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
     case HRSL_STALL:
       xfer_result = XFER_RESULT_STALLED;
       break;
-
-    case HRSL_NAK:
-      if (ep_num == 0) {
-        // control endpoint -> retry immediately
-        hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-      } else {
-        if (ep->state < EP_STATE_ATTEMPT_MAX) {
-          ep->state++;
-        }
-
-        max3421_ep_t * next_ep = find_next_pending_ep(ep);
-        if (ep == next_ep) {
-          // this endpoint is only one pending -> retry immediately
-          hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-        } else if (next_ep) {
-          // switch to next pending endpoint TODO could have issue with double buffered if not clear previously out data
-          xact_generic(rhport, next_ep, true, in_isr);
-        } else {
-          // no more pending in this frame -> clear busy
-          atomic_flag_clear(&_hcd_data.busy);
-        }
-      }
-      return;
-
-    case HRSL_BAD_REQ:
-      // occurred when initialized without any pending transfer. Skip for now
-      return;
 
     default:
       TU_LOG3("HRSL: %02X\r\n", hrsl);
@@ -942,9 +951,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   if (hirq & HIRQ_FRAME_IRQ) {
     _hcd_data.frame_count++;
 
+    // reset all endpoints nak counter, retry with 1st pending ep.
     max3421_ep_t* ep_retry = NULL;
-
-    // reset all endpoints attempt counter
     for (size_t i = 0; i < CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
       max3421_ep_t* ep = &_hcd_data.ep[i];
       if (ep->packet_size && ep->state > EP_STATE_ATTEMPT_1) {
@@ -1004,7 +1012,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   // clear all interrupt except SNDBAV_IRQ (never clear by us). Note RCVDAV_IRQ, HXFRDN_IRQ already clear while processing
   hirq &= (uint8_t) ~HIRQ_SNDBAV_IRQ;
-  if ( hirq ) {
+  if (hirq) {
     hirq_write(rhport, hirq, in_isr);
   }
 }
