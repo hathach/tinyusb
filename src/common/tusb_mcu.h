@@ -329,7 +329,7 @@
   #define TUP_USBIP_DWC2
   #define TUP_DCD_ENDPOINT_MAX    6
 
-#elif TU_CHECK_MCU(OPT_MCU_ESP32) && (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
+#elif TU_CHECK_MCU(OPT_MCU_ESP32, OPT_MCU_ESP32C2, OPT_MCU_ESP32C3, OPT_MCU_ESP32C6, OPT_MCU_ESP32H2) && (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
   #error "MCUs are only supported with CFG_TUH_MAX3421 enabled"
 
 //--------------------------------------------------------------------+
