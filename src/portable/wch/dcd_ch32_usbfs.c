@@ -148,6 +148,8 @@ void dcd_int_handler(uint8_t rhport) {
 
             case PID_SETUP:
                 data.ep0_tog = true;
+                dcd_edpt_clear_stall(rhport, tu_edpt_addr(0, TUSB_DIR_IN)); // setup clears stall
+                dcd_edpt_clear_stall(rhport, tu_edpt_addr(0, TUSB_DIR_OUT));
                 dcd_event_setup_received(rhport, &data.buffer[0][TUSB_DIR_OUT][0], true);
                 break;
         }
@@ -261,10 +263,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
     uint8_t dir = tu_edpt_dir(ep_addr);
 
     struct usb_xfer *xfer = &data.xfer[ep][dir];
+    dcd_int_disable(rhport);
     xfer->valid = true;
     xfer->buffer = buffer;
     xfer->len = total_bytes;
     xfer->processed_len = 0;
+    dcd_int_enable(rhport);
 
     if (dir == TUSB_DIR_IN) {
         update_in(rhport, ep, true);
