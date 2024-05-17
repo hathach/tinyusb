@@ -123,6 +123,8 @@
 #define OPT_MCU_ESP32             902 ///< Espressif ESP32 (for host max3421e)
 #define OPT_MCU_ESP32C3           903 ///< Espressif ESP32-C3
 #define OPT_MCU_ESP32C6           904 ///< Espressif ESP32-C6
+#define OPT_MCU_ESP32C2           905 ///< Espressif ESP32-C2
+#define OPT_MCU_ESP32H2           906 ///< Espressif ESP32-H2
 #define TUP_MCU_ESPRESSIF         (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
 
 // Dialog
