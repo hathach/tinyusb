@@ -1,8 +1,15 @@
 #ifndef USB_CH32_USBFS_REG_H
 #define USB_CH32_USBFS_REG_H
 
-#if (CFG_TUSB_MCU == OPT_MCU_CH32V20X)
+#if (CFG_TUSB_MCU == OPT_MCU_CH32V307)
+#include <ch32v30x.h>
+#define USBHD_IRQn OTG_FS_IRQn
+
+#elif (CFG_TUSB_MCU == OPT_MCU_CH32V20X)
 #include <ch32v20x.h>
+
+#elif (CFG_TUSB_MCU == OPT_MCU_CH32F20X)
+#include <ch32f20x.h>
 #endif
 
 // CTRL

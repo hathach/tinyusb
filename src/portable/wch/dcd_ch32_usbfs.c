@@ -1,6 +1,6 @@
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_CH32V20X)
+#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_CH32V20X || CFG_TUSB_MCU == OPT_MCU_CH32V307)
 
 #include <stdio.h>
 #include "device/dcd.h"

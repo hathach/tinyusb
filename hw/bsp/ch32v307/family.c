@@ -46,6 +46,18 @@ __attribute__ ((used)) void USBHS_IRQHandler_impl (void)
   tud_int_handler(0);
 }
 
+
+void OTG_FS_IRQHandler (void) __attribute__((naked));
+void OTG_FS_IRQHandler (void)
+{
+  __asm volatile ("call OTG_FS_IRQHandler_impl; mret");
+}
+
+__attribute__ ((used)) void OTG_FS_IRQHandler_impl (void)
+{
+  tud_int_handler(0);
+}
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -72,12 +84,25 @@ void board_init(void) {
 
 	usart_printf_init(115200);
 
+  #if 0
   RCC_USBCLK48MConfig(RCC_USBCLK48MCLKSource_USBPHY);
   RCC_USBHSPLLCLKConfig(RCC_HSBHSPLLCLKSource_HSE);
   RCC_USBHSConfig(RCC_USBPLL_Div2);
   RCC_USBHSPLLCKREFCLKConfig(RCC_USBHSPLLCKREFCLK_4M);
   RCC_USBHSPHYPLLALIVEcmd(ENABLE);
   RCC_AHBPeriphClockCmd(RCC_AHBPeriph_USBHS, ENABLE);
+
+  #else
+  uint8_t otg_div;
+  switch (SystemCoreClock) {
+    case 48000000:  otg_div = RCC_OTGFSCLKSource_PLLCLK_Div1; break;
+    case 96000000:  otg_div = RCC_OTGFSCLKSource_PLLCLK_Div2; break;
+    case 144000000: otg_div = RCC_OTGFSCLKSource_PLLCLK_Div3; break;
+    default: TU_ASSERT(0,); break;
+  }
+  RCC_OTGFSCLKConfig(otg_div);
+  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_OTG_FS, ENABLE);
+  #endif
 
   GPIO_InitTypeDef GPIO_InitStructure = {0};
 
