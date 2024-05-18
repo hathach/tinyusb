@@ -390,10 +390,9 @@ bool tud_connect(void) {
   return true;
 }
 
-bool tud_sof_cb_enable(bool en)
+void tud_sof_cb_enable(bool en)
 {
   usbd_sof_enable(_usbd_rhport, SOF_CONSUMER_USER, en);
-  return true;
 }
 
 //--------------------------------------------------------------------+
