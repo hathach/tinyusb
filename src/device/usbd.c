@@ -1189,7 +1189,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       }
 
       if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
-        dcd_event_t const event_sof = {.rhport = event->rhport, .event_id = DCD_EVENT_SOF};
+        dcd_event_t const event_sof = {.rhport = event->rhport, .event_id = DCD_EVENT_SOF, .sof.frame_count = event->sof.frame_count};
         queue_event(&event_sof, in_isr);
       }
       break;
