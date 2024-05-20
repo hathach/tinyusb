@@ -300,10 +300,8 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 
 // Callback invoked when received an SCSI command not in built-in list below
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
-// - READ10 and WRITE10 has their own callbacks
+// - READ10 and WRITE10 has their own callbacks (MUST not be handled here)
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) {
-  // read10 & write10 has their own callback and MUST not be handled here
-
   void const* response = NULL;
   int32_t resplen = 0;
 
@@ -316,8 +314,7 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 
       // negative means error -> tinyusb could stall and/or response with failed status
-      resplen = -1;
-      break;
+      return -1;
   }
 
   // return resplen must not larger than bufsize
