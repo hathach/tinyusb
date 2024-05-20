@@ -404,14 +404,22 @@
 
 //------------- WCH -------------//
 #elif TU_CHECK_MCU(OPT_MCU_CH32V307)
-  #define TUP_DCD_ENDPOINT_MAX    8
-//  #define TUP_RHPORT_HIGHSPEED    1
+  // v307 support both FS and HS
+  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBFS
+
+  #define TUP_RHPORT_HIGHSPEED    1 // default to highspeed
+  #define TUP_DCD_ENDPOINT_MAX    (CFG_TUD_MAX_SPEED == OPT_MODE_HIGH_SPEED ? 16 : 8)
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
-  #define TUP_DCD_ENDPOINT_MAX    16
-  #define TUP_RHPORT_HIGHSPEED    1
+  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBFS
+
+  #define TUP_RHPORT_HIGHSPEED    1 // default to highspeed
+  #define TUP_DCD_ENDPOINT_MAX    (CFG_TUD_MAX_SPEED == OPT_MODE_HIGH_SPEED ? 16 : 8)
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
+  #define TUP_USBIP_WCH_USBFS
   #define TUP_DCD_ENDPOINT_MAX    8
 
 #endif

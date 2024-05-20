@@ -16,8 +16,6 @@ CPU_CORE ?= rv32imac-ilp32
 
 CFLAGS += \
 	-mcmodel=medany \
-	-ffunction-sections \
-	-fdata-sections \
 	-ffat-lto-objects \
 	-flto \
 	-DCH32V20x_${MCU_VARIANT} \
@@ -46,9 +44,5 @@ INC += \
 
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 
-# wch-link is not supported yet in official openOCD yet. We need to either use
-# 1. download openocd as part of mounriver studio http://www.mounriver.com/download or
-# 2. compiled from modified source https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
-OPENOCD ?= $(HOME)/app/riscv-openocd-wch/src/openocd
-flash: $(BUILD)/$(PROJECT).elf
-	$(OPENOCD) -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "flash write_image $<" -c reset -c exit
+OPENOCD_WCH_OPTION=-f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg
+flash: flash-openocd-wch

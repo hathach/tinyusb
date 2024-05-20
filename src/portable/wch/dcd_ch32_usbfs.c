@@ -1,6 +1,7 @@
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_CH32V20X || CFG_TUSB_MCU == OPT_MCU_CH32V307)
+// Note: CH32 can have both USB FS and HS, only use this driver if CFG_TUD_MAX_SPEED is full speed
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBFS) && (CFG_TUD_MAX_SPEED == OPT_MODE_FULL_SPEED)
 
 #include <stdio.h>
 #include "device/dcd.h"
