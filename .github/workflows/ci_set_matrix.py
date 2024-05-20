@@ -7,14 +7,14 @@ toolchain_list = {
     "arm-iar": "",
     "arm-gcc": "",
     "msp430-gcc": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
-    "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack/releases/download/v10.1.0-1.1/xpack-riscv-none-embed-gcc-10.1.0-1.1-linux-x64.tar.gz",
+    "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz"
 }
 
 # family: [supported toolchain]
 family_list = {
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
-    "ch32v307 fomu gd32vf103": ["riscv-gcc"],
+    "ch32v20x ch32v307 fomu gd32vf103": ["riscv-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
     "lpc11 lpc13 lpc15": ["arm-gcc", "arm-clang"],

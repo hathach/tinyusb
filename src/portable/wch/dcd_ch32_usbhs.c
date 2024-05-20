@@ -26,11 +26,11 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && ((CFG_TUSB_MCU == OPT_MCU_CH32V307) || (CFG_TUSB_MCU == OPT_MCU_CH32F20X))
-#include "device/dcd.h"
-
+// Note: CH32 can have both USB FS and HS, only use this driver if CFG_TUD_MAX_SPEED is high speed
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS) && (CFG_TUD_MAX_SPEED == OPT_MODE_HIGH_SPEED)
 #include "ch32_usbhs_reg.h"
 
+#include "device/dcd.h"
 
 // Max number of bi-directional endpoints including EP0
 #define EP_MAX 16

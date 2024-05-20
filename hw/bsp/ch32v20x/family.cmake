@@ -1,7 +1,7 @@
 include_guard()
 
-set(CH32_FAMILY ch32v30x)
-set(SDK_DIR ${TOP}/hw/mcu/wch/ch32v307)
+set(CH32_FAMILY ch32v20x)
+set(SDK_DIR ${TOP}/hw/mcu/wch/${CH32_FAMILY})
 set(SDK_SRC_DIR ${SDK_DIR}/EVT/EXAM/SRC)
 
 # include board specific
@@ -11,13 +11,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_PROCESSOR rv32imac-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS CH32V307 CACHE INTERNAL "")
+set(FAMILY_MCUS CH32V20X CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
-
-# default to highspeed
-if (NOT DEFINED SPEED)
-  set(SPEED high)
-endif()
 
 #------------------------------------
 # BOARD_TARGET
@@ -29,12 +24,12 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ch32v307.ld)
+    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${CH32_FAMILY}.ld)
   endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
   if (NOT DEFINED STARTUP_FILE_GNU)
-    set(STARTUP_FILE_GNU ${SDK_SRC_DIR}/Startup/startup_${CH32_FAMILY}_D8C.S)
+    set(STARTUP_FILE_GNU ${SDK_SRC_DIR}/Startup/startup_${CH32_FAMILY}_${MCU_VARIANT}.S)
   endif ()
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
@@ -44,7 +39,6 @@ function(add_board_target BOARD_TARGET)
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_misc.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_usart.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${CH32_FAMILY}_it.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_${CH32_FAMILY}.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
@@ -53,20 +47,20 @@ function(add_board_target BOARD_TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUD_MAX_SPEED=$<IF:$<STREQUAL:${SPEED},high>,OPT_MODE_HIGH_SPEED,OPT_MODE_FULL_SPEED>
+    CH32V20x_${MCU_VARIANT}
+    BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     )
 
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(${BOARD_TARGET} PUBLIC
-      -msmall-data-limit=8
-      -mno-save-restore
-      -fmessage-length=0
-      -fsigned-char
+      -mcmodel=medany
       )
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
+      -Wl,--defsym=__flash_size=${LD_FLASH_SIZE}
+      -Wl,--defsym=__ram_size=${LD_RAM_SIZE}
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
       )
@@ -94,7 +88,6 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET} PUBLIC
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/debug_uart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     )
   target_include_directories(${TARGET} PUBLIC
@@ -105,9 +98,8 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_CH32V307 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_CH32V20X ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
-    ${TOP}/src/portable/wch/dcd_ch32_usbhs.c
     ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})

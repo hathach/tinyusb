@@ -4,8 +4,8 @@
 # Toolchain from https://nucleisys.com/download.php
 #CROSS_COMPILE ?= riscv-nuclei-elf-
 
-# Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
-CROSS_COMPILE ?= riscv-none-embed-
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
+CROSS_COMPILE ?= riscv-none-elf-
 
 # Submodules
 NUCLEI_SDK = hw/mcu/gd/nuclei-sdk

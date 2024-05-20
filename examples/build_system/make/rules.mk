@@ -134,6 +134,17 @@ OPENOCD_OPTION ?=
 flash-openocd: $(BUILD)/$(PROJECT).elf
 	openocd $(OPENOCD_OPTION) -c "program $< verify reset exit"
 
+# --------------- openocd-wch -----------------
+# wch-linke is not supported yet in official openOCD yet. We need to either use
+# 1. download openocd as part of mounriver studio http://www.mounriver.com/download or
+# 2. compiled from https://github.com/hathach/riscv-openocd-wch or
+#    https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
+#    with  ./configure --disable-werror --enable-wlinke --enable-ch347=no
+OPENOCD_WCH ?= /home/${USER}/app/riscv-openocd-wch/src/openocd
+OPENOCD_WCH_OPTION ?=
+flash-openocd-wch: $(BUILD)/$(PROJECT).elf
+	$(OPENOCD_WCH) $(OPENOCD_WCH_OPTION) -c init -c halt -c "flash write_image $<" -c reset -c exit
+
 # --------------- dfu-util -----------------
 DFU_UTIL_OPTION ?= -a 0
 flash-dfu-util: $(BUILD)/$(PROJECT).bin

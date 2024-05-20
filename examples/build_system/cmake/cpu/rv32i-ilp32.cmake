@@ -1,13 +1,13 @@
 if (TOOLCHAIN STREQUAL "gcc")
   set(TOOLCHAIN_COMMON_FLAGS
-    -march=rv32i
+    -march=rv32i_zicsr
     -mabi=ilp32
     )
   set(FREERTOS_PORT GCC_RISC_V CACHE INTERNAL "")
 
 elseif (TOOLCHAIN STREQUAL "clang")
   set(TOOLCHAIN_COMMON_FLAGS
-    -march=rv32i
+    -march=rv32i_zicsr
     -mabi=ilp32
     )
   set(FREERTOS_PORT GCC_RISC_V CACHE INTERNAL "")
