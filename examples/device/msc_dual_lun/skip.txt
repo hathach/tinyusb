@@ -1,4 +1,3 @@
-mcu:CH32V20X
 mcu:SAMD11
 mcu:MKL25ZXX
 family:espressif

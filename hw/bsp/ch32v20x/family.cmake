@@ -1,7 +1,8 @@
 include_guard()
 
 set(CH32_FAMILY ch32v20x)
-set(SDK_DIR ${TOP}/hw/mcu/wch/${CH32_FAMILY}/EVT/EXAM/SRC)
+set(SDK_DIR ${TOP}/hw/mcu/wch/${CH32_FAMILY})
+set(SDK_SRC_DIR ${SDK_DIR}/EVT/EXAM/SRC)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -23,29 +24,30 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${SDK_DIR}/Ld/Link.ld)
+    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${CH32_FAMILY}.ld)
   endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
   if (NOT DEFINED STARTUP_FILE_GNU)
-    set(STARTUP_FILE_GNU ${SDK_DIR}/Startup/startup_${CH32_FAMILY}_${MCU_VARIANT}.S)
+    set(STARTUP_FILE_GNU ${SDK_SRC_DIR}/Startup/startup_${CH32_FAMILY}_${MCU_VARIANT}.S)
   endif ()
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   add_library(${BOARD_TARGET} STATIC
-    ${SDK_DIR}/Core/core_riscv.c
-    ${SDK_DIR}/Peripheral/src/${CH32_FAMILY}_gpio.c
-    ${SDK_DIR}/Peripheral/src/${CH32_FAMILY}_misc.c
-    ${SDK_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
-    ${SDK_DIR}/Peripheral/src/${CH32_FAMILY}_usart.c
+    ${SDK_SRC_DIR}/Core/core_riscv.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_gpio.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_misc.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_usart.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_${CH32_FAMILY}.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${SDK_DIR}/Peripheral/inc
+    ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
+    CH32V20x_${MCU_VARIANT}
     BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     )
 
@@ -57,6 +59,8 @@ function(add_board_target BOARD_TARGET)
       )
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
+      -Wl,--defsym=__flash_size=${LD_FLASH_SIZE}
+      -Wl,--defsym=__ram_size=${LD_RAM_SIZE}
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
       )
