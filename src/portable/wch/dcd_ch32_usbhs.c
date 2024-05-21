@@ -64,9 +64,8 @@ static xfer_ctl_t xfer_status[EP_MAX][2];
 /* Endpoint Buffer */
 TU_ATTR_ALIGNED(4) static uint8_t ep0_buffer[CFG_TUD_ENDPOINT0_SIZE];
 
-static void ep_set_response_and_toggle(uint8_t ep_addr, ep_response_list_t response_type) {
-  uint8_t const ep_num = tu_edpt_number(ep_addr);
-  if (ep_addr & TUSB_DIR_IN_MASK) {
+static void ep_set_response_and_toggle(uint8_t ep_num, tusb_dir_t ep_dir, ep_response_list_t response_type) {
+  if (ep_dir == TUSB_DIR_IN) {
     uint8_t response = (response_type == EP_RESPONSE_ACK) ? USBHS_EP_T_RES_ACK : USBHS_EP_T_RES_NAK;
     if (ep_num == 0) {
       if (response_type == EP_RESPONSE_ACK) {
@@ -97,11 +96,8 @@ static void ep_set_response_and_toggle(uint8_t ep_addr, ep_response_list_t respo
   }
 }
 
-static void xfer_data_packet(uint8_t ep_addr, xfer_ctl_t* xfer) {
-  uint8_t const ep_num = tu_edpt_number(ep_addr);
-  tusb_dir_t const dir = tu_edpt_dir(ep_addr);
-
-  if (dir == TUSB_DIR_IN) {
+static void xfer_data_packet(uint8_t ep_num, tusb_dir_t ep_dir, xfer_ctl_t* xfer) {
+  if (ep_dir == TUSB_DIR_IN) {
     uint16_t remaining = xfer->total_len - xfer->queued_len;
     uint16_t next_tx_size = TU_MIN(remaining, xfer->max_size);
 
@@ -133,7 +129,7 @@ static void xfer_data_packet(uint8_t ep_addr, xfer_ctl_t* xfer) {
       EP_RX_MAX_LEN(ep_num) = max_possible_rx_size;
     }
   }
-  ep_set_response_and_toggle(ep_addr, USBHS_EP_R_RES_ACK);
+  ep_set_response_and_toggle(ep_num, ep_dir, USBHS_EP_R_RES_ACK);
 }
 
 void dcd_init(uint8_t rhport) {
@@ -154,7 +150,7 @@ void dcd_init(uint8_t rhport) {
 #endif
 
   USBHSD->INT_EN = 0;
-  USBHSD->INT_EN = USBHS_SETUP_ACT_EN | USBHS_TRANSFER_EN | USBHS_DETECT_EN | USBHS_SUSPEND_EN | USBHS_ISO_ACT_EN;
+  USBHSD->INT_EN = USBHS_SETUP_ACT_EN | USBHS_TRANSFER_EN | USBHS_BUS_RST_EN | USBHS_SUSPEND_EN | USBHS_ISO_ACT_EN;
 
   USBHSD->ENDP_CONFIG = USBHS_EP0_T_EN | USBHS_EP0_R_EN;
   USBHSD->ENDP_TYPE = 0x00;
@@ -328,7 +324,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   xfer->queued_len = 0;
   xfer->is_last_packet = false;
 
-  xfer_data_packet(ep_addr, xfer);
+  xfer_data_packet(ep_num, dir, xfer);
 
   return true;
 }
@@ -339,77 +335,67 @@ void dcd_int_handler(uint8_t rhport) {
   uint8_t int_flag = USBHSD->INT_FG;
   uint8_t int_status = USBHSD->INT_ST;
 
-  if (int_flag & USBHS_ISO_ACT_FLAG) {
-    uint8_t ep_num = int_status & MASK_UIS_ENDP;
-    uint8_t rx_token = int_status & MASK_UIS_TOKEN;
-    uint8_t ep_addr = (rx_token == USBHS_TOKEN_PID_IN) ? (TUSB_DIR_IN_MASK | ep_num) : ep_num;
-    xfer_ctl_t* xfer = XFER_CTL_BASE(ep_num, tu_edpt_dir(ep_addr));
+  if (int_flag & (USBHS_ISO_ACT_FLAG | USBHS_TRANSFER_FLAG)) {
+    uint8_t const rx_token = int_status & MASK_UIS_TOKEN;
+    uint8_t const ep_num = int_status & MASK_UIS_ENDP;
+    tusb_dir_t const ep_dir = (rx_token == USBHS_TOKEN_PID_IN) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+    uint8_t const ep_addr = tu_edpt_addr(ep_num, ep_dir);
+    xfer_ctl_t* xfer = XFER_CTL_BASE(ep_num, ep_dir);
 
     if (rx_token == USBHS_TOKEN_PID_OUT) {
       uint16_t rx_len = USBHSD->RX_LEN;
+
+      if (ep_num == 0) {
+        memcpy(&xfer->buffer[xfer->queued_len], ep0_buffer, rx_len);
+      }
 
       xfer->queued_len += rx_len;
       if (rx_len < xfer->max_size) {
         xfer->is_last_packet = true;
       }
     } else if (rx_token == USBHS_TOKEN_PID_IN) {
-      if (xfer->is_last_packet == true) {
+      if (xfer->is_iso && xfer->is_last_packet) {
         /* Disable EP to avoid ISO_ACT interrupt generation */
         USBHSD->ENDP_CONFIG &= ~(USBHS_EP0_T_EN << ep_num);
+      }else {
+        // Do nothing, no need to update xfer->is_last_packet, it is already updated in xfer_data_packet
       }
     }
 
     if (xfer->is_last_packet == true) {
-      ep_set_response_and_toggle(ep_addr, EP_RESPONSE_NAK);
+      ep_set_response_and_toggle(ep_num, ep_dir, EP_RESPONSE_NAK);
       dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
     } else {
       /* prepare next part of packet to xref */
-      xfer_data_packet(ep_addr, xfer);
+      xfer_data_packet(ep_num, ep_dir, xfer);
     }
 
-    USBHSD->INT_FG = USBHS_ISO_ACT_FLAG; /* Clear flag */
-  } else if (int_flag & USBHS_TRANSFER_FLAG) {
-
-    uint8_t ep_num = int_status & MASK_UIS_ENDP;
-    uint8_t rx_token = int_status & MASK_UIS_TOKEN;
-    uint8_t ep_addr = (rx_token == USBHS_TOKEN_PID_IN) ? (TUSB_DIR_IN_MASK | ep_num) : ep_num;
-    xfer_ctl_t* xfer = XFER_CTL_BASE(ep_num, tu_edpt_dir(ep_addr));
-
-    if (xfer->is_iso == false) {
-      if (rx_token == USBHS_TOKEN_PID_OUT) {
-        uint16_t rx_len = USBHSD->RX_LEN;
-
-        if (ep_num == 0) {
-          memcpy(&xfer->buffer[xfer->queued_len], ep0_buffer, rx_len);
-        }
-
-        xfer->queued_len += rx_len;
-        if (rx_len < xfer->max_size) {
-          xfer->is_last_packet = true;
-        }
-
-      } else if (rx_token == USBHS_TOKEN_PID_IN) {
-        // Do nothing, no need to update xfer->is_last_packet, it is already updated in xfer_data_packet
-        // Common processing below
-      }
-
-      if (xfer->is_last_packet == true) {
-        ep_set_response_and_toggle(ep_addr, EP_RESPONSE_NAK);
-        dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-      } else {
-        /* prepare next part of packet to xref */
-        xfer_data_packet(ep_addr, xfer);
-      }
-    }
-
-    USBHSD->INT_FG = USBHS_TRANSFER_FLAG; /* Clear flag */
+    USBHSD->INT_FG = (int_flag & (USBHS_ISO_ACT_FLAG | USBHS_TRANSFER_FLAG)); /* Clear flag */
   } else if (int_flag & USBHS_SETUP_FLAG) {
-    ep_set_response_and_toggle(0x80, EP_RESPONSE_NAK);
-    ep_set_response_and_toggle(0x00, EP_RESPONSE_NAK);
+    ep_set_response_and_toggle(0, TUSB_DIR_IN, EP_RESPONSE_NAK);
+    ep_set_response_and_toggle(0, TUSB_DIR_OUT, EP_RESPONSE_NAK);
     dcd_event_setup_received(0, ep0_buffer, true);
 
     USBHSD->INT_FG = USBHS_SETUP_FLAG; /* Clear flag */
-  } else if (int_flag & USBHS_DETECT_FLAG) {
+  } else if (int_flag & USBHS_BUS_RST_FLAG) {
+    // TODO CH32 does not detect actual speed at this time (should be known at end of reset)
+    // This interrupt probably triggered at start of bus reset
+//    tusb_speed_t actual_speed;
+//    switch(USBHSD->SPEED_TYPE & USBHS_SPEED_TYPE_MASK){
+//      case USBHS_SPEED_TYPE_HIGH:
+//        actual_speed = TUSB_SPEED_HIGH;
+//        break;
+//      case USBHS_SPEED_TYPE_FULL:
+//        actual_speed = TUSB_SPEED_FULL;
+//        break;
+//      case USBHS_SPEED_TYPE_LOW:
+//        actual_speed = TUSB_SPEED_LOW;
+//        break;
+//      default:
+//        TU_ASSERT(0,);
+//        break;
+//    }
+//    dcd_event_bus_reset(0, actual_speed, true);
 
     dcd_event_bus_reset(0, TUSB_SPEED_HIGH, true);
 
@@ -417,7 +403,7 @@ void dcd_int_handler(uint8_t rhport) {
     EP_RX_CTRL(0) = USBHS_EP_R_RES_ACK | USBHS_EP_R_TOG_0;
     EP_TX_CTRL(0) = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
 
-    USBHSD->INT_FG = USBHS_DETECT_FLAG; /* Clear flag */
+    USBHSD->INT_FG = USBHS_BUS_RST_FLAG; /* Clear flag */
   } else if (int_flag & USBHS_SUSPEND_FLAG) {
     dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
     dcd_event_handler(&event, true);
