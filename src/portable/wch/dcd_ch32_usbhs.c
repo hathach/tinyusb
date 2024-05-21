@@ -336,38 +336,44 @@ void dcd_int_handler(uint8_t rhport) {
   uint8_t int_status = USBHSD->INT_ST;
 
   if (int_flag & (USBHS_ISO_ACT_FLAG | USBHS_TRANSFER_FLAG)) {
-    uint8_t const rx_token = int_status & MASK_UIS_TOKEN;
-    uint8_t const ep_num = int_status & MASK_UIS_ENDP;
-    tusb_dir_t const ep_dir = (rx_token == USBHS_TOKEN_PID_IN) ? TUSB_DIR_IN : TUSB_DIR_OUT;
-    uint8_t const ep_addr = tu_edpt_addr(ep_num, ep_dir);
-    xfer_ctl_t* xfer = XFER_CTL_BASE(ep_num, ep_dir);
+    uint8_t const token = int_status & MASK_UIS_TOKEN;
 
-    if (rx_token == USBHS_TOKEN_PID_OUT) {
-      uint16_t rx_len = USBHSD->RX_LEN;
+    if (token == USBHS_TOKEN_PID_SOF) {
+      uint32_t frame_count = USBHSD->FRAME_NO & USBHS_FRAME_NO_NUM_MASK;
+      dcd_event_sof(rhport, frame_count, true);
+    }else {
+      uint8_t const ep_num = int_status & MASK_UIS_ENDP;
+      tusb_dir_t const ep_dir = (token == USBHS_TOKEN_PID_IN) ? TUSB_DIR_IN : TUSB_DIR_OUT;
+      uint8_t const ep_addr = tu_edpt_addr(ep_num, ep_dir);
+      xfer_ctl_t* xfer = XFER_CTL_BASE(ep_num, ep_dir);
 
-      if (ep_num == 0) {
-        memcpy(&xfer->buffer[xfer->queued_len], ep0_buffer, rx_len);
+      if (token == USBHS_TOKEN_PID_OUT) {
+        uint16_t rx_len = USBHSD->RX_LEN;
+
+        if (ep_num == 0) {
+          memcpy(&xfer->buffer[xfer->queued_len], ep0_buffer, rx_len);
+        }
+
+        xfer->queued_len += rx_len;
+        if (rx_len < xfer->max_size) {
+          xfer->is_last_packet = true;
+        }
+      } else if (token == USBHS_TOKEN_PID_IN) {
+        if (xfer->is_iso && xfer->is_last_packet) {
+          /* Disable EP to avoid ISO_ACT interrupt generation */
+          USBHSD->ENDP_CONFIG &= ~(USBHS_EP0_T_EN << ep_num);
+        } else {
+          // Do nothing, no need to update xfer->is_last_packet, it is already updated in xfer_data_packet
+        }
       }
 
-      xfer->queued_len += rx_len;
-      if (rx_len < xfer->max_size) {
-        xfer->is_last_packet = true;
+      if (xfer->is_last_packet == true) {
+        ep_set_response_and_toggle(ep_num, ep_dir, EP_RESPONSE_NAK);
+        dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+      } else {
+        /* prepare next part of packet to xref */
+        xfer_data_packet(ep_num, ep_dir, xfer);
       }
-    } else if (rx_token == USBHS_TOKEN_PID_IN) {
-      if (xfer->is_iso && xfer->is_last_packet) {
-        /* Disable EP to avoid ISO_ACT interrupt generation */
-        USBHSD->ENDP_CONFIG &= ~(USBHS_EP0_T_EN << ep_num);
-      }else {
-        // Do nothing, no need to update xfer->is_last_packet, it is already updated in xfer_data_packet
-      }
-    }
-
-    if (xfer->is_last_packet == true) {
-      ep_set_response_and_toggle(ep_num, ep_dir, EP_RESPONSE_NAK);
-      dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-    } else {
-      /* prepare next part of packet to xref */
-      xfer_data_packet(ep_num, ep_dir, xfer);
     }
 
     USBHSD->INT_FG = (int_flag & (USBHS_ISO_ACT_FLAG | USBHS_TRANSFER_FLAG)); /* Clear flag */
