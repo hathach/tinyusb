@@ -8,14 +8,14 @@ commands:
         toolchain_url:
             type: string
     steps:
-      - run:
-          name: Make toolchain cache key
-          command: echo "<< parameters.toolchain >>-<< parameters.toolchain_url>>" > toolchain_key
-      - restore_cache:
-          name: Restore Toolchain Cache
-          key: deps-{{ checksum "toolchain_key" }}
-          paths:
-            - ~/cache/<< parameters.toolchain >>
+#      - run:
+#          name: Make toolchain cache key
+#          command: echo "<< parameters.toolchain >>-<< parameters.toolchain_url>>" > toolchain_key
+#      - restore_cache:
+#          name: Restore Toolchain Cache
+#          key: deps-{{ checksum "toolchain_key" }}
+#          paths:
+#            - ~/cache/<< parameters.toolchain >>
       - run:
           name: Install Toolchain
           command: |
@@ -25,11 +25,11 @@ commands:
               wget << parameters.toolchain_url>> -O toolchain.tar.gz
               tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
             fi
-      - save_cache:
-          name: Save Toolchain Cache
-          key: deps-{{ checksum "toolchain_key" }}
-          paths:
-            - ~/cache/<< parameters.toolchain >>
+#      - save_cache:
+#          name: Save Toolchain Cache
+#          key: deps-{{ checksum "toolchain_key" }}
+#          paths:
+#            - ~/cache/<< parameters.toolchain >>
       - run:
           name: Setup build environment
           command: |
