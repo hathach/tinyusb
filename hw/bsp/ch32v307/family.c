@@ -72,7 +72,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 #endif
 
-  usart_printf_init(115200);
+  usart_printf_init(CFG_BOARD_UART_BAUDRATE);
 
 #if CFG_TUD_MAX_SPEED == OPT_MODE_HIGH_SPEED
   // Use Highspeed USB
@@ -150,10 +150,11 @@ int board_uart_read(uint8_t* buf, int len) {
 
 int board_uart_write(void const* buf, int len) {
   int txsize = len;
+  const char* bufc = (const char*) buf;
   while (txsize--) {
-    uart_write(*(uint8_t const*) buf);
-    buf++;
+    uart_write(*bufc++);
   }
+  uart_sync();
   return len;
 }
 

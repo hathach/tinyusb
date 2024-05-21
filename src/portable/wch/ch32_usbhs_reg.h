@@ -63,8 +63,13 @@
 
 // USB DEV AD
 #define USBHS_DEV_AD_OFFSET 0x03
+
 // USB FRAME_NO
 #define USBHS_FRAME_NO_OFFSET 0x04
+#define USBHS_FRAME_NO_NUM_MASK (0x7FF)
+#define USBHS_FRAME_NO_MICROFRAME_SHIFT (11)
+#define USBHS_FRAME_NO_MICROFRAME_MASK  (0x7 << USBHS_FRAME_NO_MICROFRAME_SHIFT)
+
 // USB SUSPEND
 #define USBHS_SUSPEND_OFFSET    0x06
 #define USBHS_DEV_REMOTE_WAKEUP (1 << 2)
@@ -74,7 +79,10 @@
 
 // USB SPEED TYPE
 #define USBHS_SPEED_TYPE_OFFSET 0x08
-#define USBSPEED_MASK           (0x03)
+#define USBHS_SPEED_TYPE_MASK    0x03
+#define USBHS_SPEED_TYPE_FULL    0
+#define USBHS_SPEED_TYPE_HIGH    1
+#define USBHS_SPEED_TYPE_LOW     2
 
 // USB_MIS_ST
 #define USBHS_MIS_ST_OFFSET 0x09
@@ -99,12 +107,16 @@
 #define USBHS_ISO_ACT_FLAG    (1 << 6)
 
 // INT_ST
-#define USBHS_INT_ST_OFFSET  0x0B
-#define USBHS_DEV_UIS_IS_NAK (1 << 7)
-#define USBHS_DEV_UIS_TOG_OK (1 << 6)
-#define MASK_UIS_TOKEN       (3 << 4)
-#define MASK_UIS_ENDP        (0x0F)
-#define MASK_UIS_H_RES       (0x0F)
+#define USBHS_INT_ST_OFFSET   0x0B
+#define USBHS_DEV_UIS_IS_NAK  (1 << 7)
+#define USBHS_DEV_UIS_TOG_OK  (1 << 6)
+#define MASK_UIS_TOKEN        (3 << 4)
+#define USBHS_TOKEN_PID_OUT   (0 << 4)
+#define USBHS_TOKEN_PID_SOF   (1 << 4)
+#define USBHS_TOKEN_PID_IN    (2 << 4)
+#define USBHS_TOKEN_PID_SETUP (3 << 4)
+#define MASK_UIS_ENDP         (0x0F)
+#define MASK_UIS_H_RES        (0x0F)
 
 #define USBHS_TOGGLE_OK (0x40)
 #define USBHS_HOST_RES  (0x0f)
@@ -367,10 +379,5 @@
 #define USBHS_UH_T_TOG_AUTO (1 << 5)
 #define USBHS_UH_T_DATA_NO  (1 << 6)
 
-// 00: OUT, 01:SOF, 10:IN, 11:SETUP
-#define PID_OUT   0
-#define PID_SOF   1
-#define PID_IN    2
-#define PID_SETUP 3
 
 #endif
