@@ -12,6 +12,7 @@ runs:
   using: "composite"
   steps:
     - name: Cache Toolchain
+      if: ${{ !startsWith(inputs.toolchain_url, 'https://github.com') }}
       uses: actions/cache@v4
       id: cache-toolchain-download
       with:
@@ -22,7 +23,7 @@ runs:
       if: steps.cache-toolchain-download.outputs.cache-hit != 'true'
       run: |
         mkdir -p ~/cache/${{ inputs.toolchain }}
-        wget --progress=dot:mega ${{ inputs.toolchain_url }} -O toolchain.tar.gz
+        wget --progress=dot:giga ${{ inputs.toolchain_url }} -O toolchain.tar.gz
         tar -C ~/cache/${{ inputs.toolchain }} -xaf toolchain.tar.gz
       shell: bash
 
