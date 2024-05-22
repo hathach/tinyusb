@@ -398,7 +398,7 @@ static inline void const *_find_desc_format(void const *beg, void const *end, ui
     if ((fmt == VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED ||
          fmt == VIDEO_CS_ITF_VS_FORMAT_MJPEG ||
          fmt == VIDEO_CS_ITF_VS_FORMAT_DV ||
-         fmt == VIDEO_CS_ITF_VS_FRAME_FRAME_BASED) &&
+         fmt == VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED) &&
         fmtnum == p[3]) {
       return cur;
     }
@@ -464,6 +464,9 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
     case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
       break;
 
+    case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
+      break;
+
     default: return false;
   }
 
@@ -486,6 +489,10 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
+        break;
+
+      case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
         frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
         break;
 
@@ -578,6 +585,10 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
             frmnum = fmt->mjpeg.bDefaultFrameIndex;
             break;
 
+          case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
+            frmnum = fmt->frame_based.bDefaultFrameIndex;
+            break;
+
           default: return false;
         }
         break;
@@ -593,6 +604,10 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
+        break;
+
+      case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
         frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
         break;
 
