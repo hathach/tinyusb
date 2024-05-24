@@ -1,4 +1,5 @@
 import re
+import gen_doc
 
 version = '0.16.0'
 
@@ -45,5 +46,7 @@ with open(f_library_json, 'w') as f:
 ###################
 # docs/info/changelog.rst
 ###################
+
+gen_doc.gen_deps_doc()
 
 print("Update docs/info/changelog.rst")

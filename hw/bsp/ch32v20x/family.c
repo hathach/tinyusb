@@ -124,8 +124,6 @@ void board_init(void) {
 
   __enable_irq();
   board_delay(2);
-
-  printf("SystemCoreClock = %ld\r\n", SystemCoreClock);
 }
 
 void board_led_write(bool state) {
