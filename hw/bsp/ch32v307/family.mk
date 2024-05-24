@@ -26,11 +26,11 @@ CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V307 \
 
 ifeq ($(SPEED),high)
-  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
   $(info "Using USBHS driver for HighSpeed mode")
+  CFLAGS += -DCFG_TUD_WCH_USBIP_USBHS=1
 else
-  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
   $(info "Using USBFS driver for FullSpeed mode")
+  CFLAGS += -DCFG_TUD_WCH_USBIP_USBFS=1
 endif
 
 LDFLAGS_GCC += \

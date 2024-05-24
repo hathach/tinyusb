@@ -407,7 +407,7 @@ bool tud_init(uint8_t rhport) {
   // skip if already initialized
   if (tud_inited()) return true;
 
-  TU_LOG_USBD("USBD init on controller %u\r\n", rhport);
+  TU_LOG_USBD("USBD init on controller %u, Highspeed = %u\r\n", rhport, TUD_OPT_HIGH_SPEED);
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(usbd_device_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(dcd_event_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_fifo_t));
