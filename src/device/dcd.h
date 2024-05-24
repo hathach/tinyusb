@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DCD_H_
-#define _TUSB_DCD_H_
+#ifndef TUSB_DCD_H_
+#define TUSB_DCD_H_
 
 #include "common/tusb_common.h"
 #include "osal/osal.h"
@@ -34,11 +34,6 @@
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-//--------------------------------------------------------------------+
-// Configuration
-//--------------------------------------------------------------------+
-
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -251,4 +246,4 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_event_sof(uint8_t rhport, uint32_t 
  }
 #endif
 
-#endif /* _TUSB_DCD_H_ */
+#endif

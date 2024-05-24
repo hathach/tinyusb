@@ -128,13 +128,13 @@
       <configuration PROFILE_NAME="f1c100s" ENABLED="false" GENERATION_OPTIONS="-DBOARD=f1c100s" />
       <configuration PROFILE_NAME="mm32f327x_mb39" ENABLED="false" GENERATION_OPTIONS="-DBOARD=mm32f327x_mb39" />
       <configuration PROFILE_NAME="samg55_xplained" ENABLED="false" GENERATION_OPTIONS="-DBOARD=samg55_xplained" />
-      <configuration PROFILE_NAME="ch32v307v_r1_1v0" ENABLED="false" GENERATION_OPTIONS="-DBOARD=ch32v307v_r1_1v0 -DLOG=2" />
       <configuration PROFILE_NAME="fomu" ENABLED="false" GENERATION_OPTIONS="-DBOARD=fomu" />
       <configuration PROFILE_NAME="sipeed_longan_nano" ENABLED="false" GENERATION_OPTIONS="-DBOARD=sipeed_longan_nano" />
       <configuration PROFILE_NAME="nanoch32v203" ENABLED="false" GENERATION_OPTIONS="-DBOARD=nanoch32v203" />
       <configuration PROFILE_NAME="ch32v203_r0_1v0" ENABLED="false" CONFIG_NAME="MinSizeRel" GENERATION_OPTIONS="-DBOARD=ch32v203_r0_1v0" />
-      <configuration PROFILE_NAME="ch32v307v_r1_1v0 FullSpeed" ENABLED="false" GENERATION_OPTIONS="-DBOARD=ch32v307v_r1_1v0 -DSPEED=full" />
       <configuration PROFILE_NAME="ch32v203_r0_1v0 USBFS" ENABLED="false" CONFIG_NAME="MinSizeRel" GENERATION_OPTIONS="-DBOARD=ch32v203_r0_1v0 -DPORT=1" />
+      <configuration PROFILE_NAME="ch32v307v_r1_1v0" ENABLED="false" GENERATION_OPTIONS="-DBOARD=ch32v307v_r1_1v0 -DLOG=2" />
+      <configuration PROFILE_NAME="ch32v307v_r1_1v0 USBFS" ENABLED="false" GENERATION_OPTIONS="-DBOARD=ch32v307v_r1_1v0 -DSPEED=full" />
     </configurations>
   </component>
 </project>
