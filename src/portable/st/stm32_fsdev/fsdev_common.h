@@ -1,173 +1,42 @@
 /*
+ * The MIT License (MIT)
+ *
  * Copyright(c) 2016 STMicroelectronics
  * Copyright(c) N Conrad
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2024, hathach (tinyusb.org)
  *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- *   1. Redistributions of source code must retain the above copyright notice,
- *      this list of conditions and the following disclaimer.
- *   2. Redistributions in binary form must reproduce the above copyright notice,
- *      this list of conditions and the following disclaimer in the documentation
- *      and/or other materials provided with the distribution.
- *   3. Neither the name of STMicroelectronics nor the names of its contributors
- *      may be used to endorse or promote products derived from this software
- *      without specific prior written permission.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- * This file is part of the TinyUSB stack.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
  */
 
-// This file contains source copied from ST's HAL, and thus should have their copyright statement.
+#ifndef TUSB_FSDEV_COMMON_H
+#define TUSB_FSDEV_COMMON_H
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+#include "stdint.h"
 
 // FSDEV_PMA_SIZE is PMA buffer size in bytes.
 // On 512-byte devices, access with a stride of two words (use every other 16-bit address)
 // On 1024-byte devices, access with a stride of one word (use every 16-bit address)
-
-#ifndef PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
-#define PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
-
-#if CFG_TUSB_MCU == OPT_MCU_STM32F0
-  #include "stm32f0xx.h"
-  #define FSDEV_PMA_SIZE (1024u)
-  // F0x2 models are crystal-less
-  // All have internal D+ pull-up
-  // 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
-  // PMA dedicated to USB (no sharing with CAN)
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
-  #include "stm32f1xx.h"
-  #define FSDEV_PMA_SIZE (512u)
-  // NO internal Pull-ups
-  //         *B, and *C:    2 x 16 bits/word
-
-  // F1 names this differently from the rest
-  #define USB_CNTR_LPMODE   USB_CNTR_LP_MODE
-
-#elif defined(STM32F302xB) || defined(STM32F302xC) || \
-      defined(STM32F303xB) || defined(STM32F303xC) || \
-      defined(STM32F373xC)
-  #include "stm32f3xx.h"
-  #define FSDEV_PMA_SIZE (512u)
-  // NO internal Pull-ups
-  //         *B, and *C:    1 x 16 bits/word
-  // PMA dedicated to USB (no sharing with CAN)
-
-#elif defined(STM32F302x6) || defined(STM32F302x8) || \
-      defined(STM32F302xD) || defined(STM32F302xE) || \
-      defined(STM32F303xD) || defined(STM32F303xE)
-  #include "stm32f3xx.h"
-  #define FSDEV_PMA_SIZE (1024u)
-  // NO internal Pull-ups
-  // *6, *8, *D, and *E:    2 x 16 bits/word     LPM Support
-  // When CAN clock is enabled, USB can use first 768 bytes ONLY.
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L0
-  #include "stm32l0xx.h"
-  #define FSDEV_PMA_SIZE (1024u)
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L1
-  #include "stm32l1xx.h"
-  #define FSDEV_PMA_SIZE (512u)
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G4
-  #include "stm32g4xx.h"
-  #define FSDEV_PMA_SIZE (1024u)
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-  #include "stm32g0xx.h"
-  #define FSDEV_BUS_32BIT
-  #define FSDEV_PMA_SIZE (2048u)
-  #undef USB_PMAADDR
-  #define USB_PMAADDR USB_DRD_PMAADDR
-  #define USB_TypeDef USB_DRD_TypeDef
-  #define EP0R CHEP0R
-  #define USB_EP_CTR_RX USB_EP_VTRX
-  #define USB_EP_CTR_TX USB_EP_VTTX
-  #define USB_EP_T_FIELD USB_CHEP_UTYPE
-  #define USB_EPREG_MASK USB_CHEP_REG_MASK
-  #define USB_EPTX_DTOGMASK USB_CHEP_TX_DTOGMASK
-  #define USB_EPRX_DTOGMASK USB_CHEP_RX_DTOGMASK
-  #define USB_EPTX_DTOG1 USB_CHEP_TX_DTOG1
-  #define USB_EPTX_DTOG2 USB_CHEP_TX_DTOG2
-  #define USB_EPRX_DTOG1 USB_CHEP_RX_DTOG1
-  #define USB_EPRX_DTOG2 USB_CHEP_RX_DTOG2
-  #define USB_EPRX_STAT USB_CH_RX_VALID
-  #define USB_EPKIND_MASK USB_EP_KIND_MASK
-  #define USB USB_DRD_FS
-  #define USB_CNTR_FRES USB_CNTR_USBRST
-  #define USB_CNTR_RESUME USB_CNTR_L2RES
-  #define USB_ISTR_EP_ID USB_ISTR_IDN
-  #define USB_EPADDR_FIELD USB_CHEP_ADDR
-  #define USB_CNTR_LPMODE USB_CNTR_SUSPRDY
-  #define USB_CNTR_FSUSP USB_CNTR_SUSPEN
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
-  #include "stm32h5xx.h"
-  #define FSDEV_BUS_32BIT
-
-  #if !defined(USB_DRD_BASE) && defined(USB_DRD_FS_BASE)
-  #define USB_DRD_BASE USB_DRD_FS_BASE
-  #endif
-
-  #define FSDEV_PMA_SIZE (2048u)
-  #undef USB_PMAADDR
-  #define USB_PMAADDR USB_DRD_PMAADDR
-  #define USB_TypeDef USB_DRD_TypeDef
-  #define EP0R CHEP0R
-  #define USB_EP_CTR_RX USB_EP_VTRX
-  #define USB_EP_CTR_TX USB_EP_VTTX
-  #define USB_EP_T_FIELD USB_CHEP_UTYPE
-  #define USB_EPREG_MASK USB_CHEP_REG_MASK
-  #define USB_EPTX_DTOGMASK USB_CHEP_TX_DTOGMASK
-  #define USB_EPRX_DTOGMASK USB_CHEP_RX_DTOGMASK
-  #define USB_EPTX_DTOG1 USB_CHEP_TX_DTOG1
-  #define USB_EPTX_DTOG2 USB_CHEP_TX_DTOG2
-  #define USB_EPRX_DTOG1 USB_CHEP_RX_DTOG1
-  #define USB_EPRX_DTOG2 USB_CHEP_RX_DTOG2
-  #define USB_EPRX_STAT USB_CH_RX_VALID
-  #define USB_EPKIND_MASK USB_EP_KIND_MASK
-  #define USB USB_DRD_FS
-  #define USB_CNTR_FRES USB_CNTR_USBRST
-  #define USB_CNTR_RESUME USB_CNTR_L2RES
-  #define USB_ISTR_EP_ID USB_ISTR_IDN
-  #define USB_EPADDR_FIELD USB_CHEP_ADDR
-  #define USB_CNTR_LPMODE USB_CNTR_SUSPRDY
-  #define USB_CNTR_FSUSP USB_CNTR_SUSPEN
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32WB
-  #include "stm32wbxx.h"
-  #define FSDEV_PMA_SIZE (1024u)
-  /* ST provided header has incorrect value */
-  #undef USB_PMAADDR
-  #define USB_PMAADDR USB1_PMAADDR
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L4
-  #include "stm32l4xx.h"
-  #define FSDEV_PMA_SIZE (1024u)
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L5
-  #include "stm32l5xx.h"
-  #define FSDEV_PMA_SIZE (1024u)
-
-  #ifndef USB_PMAADDR
-    #define USB_PMAADDR (USB_BASE + (USB_PMAADDR_NS - USB_BASE_NS))
-  #endif
-
-#else
-  #error You are using an untested or unimplemented STM32 variant. Please update the driver.
-  // This includes L1x0, L1x1, L1x2, L4x2 and L4x3, G1x1, G1x3, and G1x4
-#endif
 
 // For purposes of accessing the packet
 #if ((FSDEV_PMA_SIZE) == 512u)
@@ -181,24 +50,24 @@
 // The compiler should warn us if we cast it to a non-volatile type?
 #ifdef FSDEV_BUS_32BIT
 typedef uint32_t fsdev_bus_t;
-static __IO uint32_t * const pma32 = (__IO uint32_t*)USB_PMAADDR;
+static volatile uint32_t * const pma32 = (volatile uint32_t*)USB_PMAADDR;
 
 #else
 typedef uint16_t fsdev_bus_t;
 // Volatile is also needed to prevent the optimizer from changing access to 32-bit (as 32-bit access is forbidden)
-static __IO uint16_t * const pma = (__IO uint16_t*)USB_PMAADDR;
+static volatile uint16_t * const pma = (volatile uint16_t*)USB_PMAADDR;
 
-TU_ATTR_ALWAYS_INLINE static inline __IO uint16_t * pcd_btable_word_ptr(USB_TypeDef * USBx, size_t x) {
+TU_ATTR_ALWAYS_INLINE static inline volatile uint16_t * pcd_btable_word_ptr(USB_TypeDef * USBx, size_t x) {
   size_t total_word_offset = (((USBx)->BTABLE)>>1) + x;
   total_word_offset *= FSDEV_PMA_STRIDE;
   return &(pma[total_word_offset]);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline __IO uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpIdx) {
+TU_ATTR_ALWAYS_INLINE static inline volatile uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpIdx) {
   return pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 1u);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline __IO uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpIdx) {
+TU_ATTR_ALWAYS_INLINE static inline volatile uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpIdx) {
   return pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 3u);
 }
 #endif
@@ -218,10 +87,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t pcd_aligned_buffer_size(uint16_t si
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_endpoint(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wRegValue) {
 #ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  __O uint32_t *reg = (__O uint32_t *)(USB_DRD_BASE + bEpIdx*4);
+  volatile uint32_t *reg = (volatile uint32_t *)(USB_DRD_BASE + bEpIdx*4);
   *reg = wRegValue;
 #else
-  __O uint16_t *reg = (__O uint16_t *)((&USBx->EP0R) + bEpIdx*2u);
+  volatile uint16_t *reg = (volatile uint16_t *)((&USBx->EP0R) + bEpIdx*2u);
   *reg = (uint16_t)wRegValue;
 #endif
 }
@@ -229,9 +98,9 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_endpoint(USB_TypeDef * USBx, ui
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_endpoint(USB_TypeDef * USBx, uint32_t bEpIdx) {
 #ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  __I uint32_t *reg = (__I uint32_t *)(USB_DRD_BASE + bEpIdx*4);
+  volatile const uint32_t *reg = (volatile const uint32_t *)(USB_DRD_BASE + bEpIdx*4);
 #else
-  __I uint16_t *reg = (__I uint16_t *)((&USBx->EP0R) + bEpIdx*2u);
+  volatile const uint16_t *reg = (volatile const uint16_t *)((&USBx->EP0R) + bEpIdx*2u);
 #endif
   return *reg;
 }
@@ -283,7 +152,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_cnt(USB_TypeDef * USB
   (void) USBx;
   return (pma32[2*bEpIdx] & 0x03FF0000) >> 16;
 #else
-  __I uint16_t *regPtr = pcd_ep_tx_cnt_ptr(USBx, bEpIdx);
+  volatile const uint16_t *regPtr = pcd_ep_tx_cnt_ptr(USBx, bEpIdx);
   return *regPtr & 0x3ffU;
 #endif
 }
@@ -293,7 +162,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USB
   (void) USBx;
   return (pma32[2*bEpIdx + 1] & 0x03FF0000) >> 16;
 #else
-  __I uint16_t *regPtr = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
+  volatile const uint16_t *regPtr = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
   return *regPtr & 0x3ffU;
 #endif
 }
@@ -363,7 +232,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, u
   (void) USBx;
   pma32[2*bEpIdx] = (pma32[2*bEpIdx] & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
 #else
-  __IO uint16_t * reg = pcd_ep_tx_cnt_ptr(USBx, bEpIdx);
+  volatile uint16_t * reg = pcd_ep_tx_cnt_ptr(USBx, bEpIdx);
   *reg = (uint16_t) (*reg & (uint16_t) ~0x3FFU) | (wCount & 0x3FFU);
 #endif
 }
@@ -375,7 +244,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_dbuf1_cnt(USB_TypeDef * U
   (void) USBx;
   pma32[2*bEpIdx + 1] = (pma32[2*bEpIdx + 1] & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
 #else
-  __IO uint16_t * reg = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
+  volatile uint16_t * reg = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
   *reg = (uint16_t) (*reg & (uint16_t) ~0x3FFU) | (wCount & 0x3FFU);
 #endif
 }
@@ -387,7 +256,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_blsize_num_blocks(USB_TypeDe
   (void) USBx;
   pma32[rxtx_idx] = (pma32[rxtx_idx] & 0x0000FFFFu) | (blocksize << 31) | ((numblocks - blocksize) << 26);
 #else
-  __IO uint16_t *pdwReg = pcd_btable_word_ptr(USBx, rxtx_idx*2u + 1u);
+  volatile uint16_t *pdwReg = pcd_btable_word_ptr(USBx, rxtx_idx*2u + 1u);
   *pdwReg = (blocksize << 15) | ((numblocks - blocksize) << 10);
 #endif
 }
@@ -472,13 +341,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_status(USB_TypeDef * 
   return (regVal & USB_EPRX_STAT) >> (12u);
 }
 
-
-/**
-  * @brief  Toggles DTOG_RX / DTOG_TX bit in the endpoint register.
-  * @param  USBx USB peripheral instance register address.
-  * @param  bEpIdx Endpoint Number.
-  * @retval None
-  */
 TU_ATTR_ALWAYS_INLINE static inline void pcd_rx_dtog(USB_TypeDef * USBx,  uint32_t bEpIdx) {
   uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
   regVal &= USB_EPREG_MASK;
@@ -493,12 +355,6 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_tx_dtog(USB_TypeDef * USBx,  uint32
   pcd_set_endpoint(USBx, bEpIdx, regVal);
 }
 
-/**
-  * @brief  Clears DTOG_RX / DTOG_TX bit in the endpoint register.
-  * @param  USBx USB peripheral instance register address.
-  * @param  bEpIdx Endpoint Number.
-  * @retval None
-  */
 TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_rx_dtog(USB_TypeDef * USBx,  uint32_t bEpIdx) {
   uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
   if((regVal & USB_EP_DTOG_RX) != 0) {
@@ -513,12 +369,6 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_dtog(USB_TypeDef * USBx,  
   }
 }
 
-/**
-  * @brief  set & clear EP_KIND bit.
-  * @param  USBx USB peripheral instance register address.
-  * @param  bEpIdx Endpoint Number.
-  * @retval None
-  */
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_kind(USB_TypeDef * USBx,  uint32_t bEpIdx) {
   uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
   regVal |= USB_EP_KIND;
@@ -534,18 +384,8 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_ep_kind(USB_TypeDef * USBx, u
   pcd_set_endpoint(USBx, bEpIdx, regVal);
 }
 
-// This checks if the device has "LPM"
-#if defined(USB_ISTR_L1REQ)
-#define USB_ISTR_L1REQ_FORCED (USB_ISTR_L1REQ)
-#else
-#define USB_ISTR_L1REQ_FORCED ((uint16_t)0x0000U)
+#ifdef __cplusplus
+ }
 #endif
 
-#define USB_ISTR_ALL_EVENTS (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_WKUP | USB_ISTR_SUSP | \
-     USB_ISTR_RESET | USB_ISTR_SOF | USB_ISTR_ESOF | USB_ISTR_L1REQ_FORCED )
-
-// Number of endpoints in hardware
-// TODO should use TUP_DCD_ENDPOINT_MAX
-#define STFSDEV_EP_COUNT (8u)
-
-#endif /* PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_ */
+#endif

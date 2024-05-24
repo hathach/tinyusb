@@ -423,7 +423,6 @@
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
   // v20x support both FSDEV (USBD) and USBFS, default to FSDEV
   #define TUP_USBIP_WCH_USBFS
-  #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_CH32
 
@@ -431,9 +430,11 @@
   #define CFG_TUD_WCH_USBIP_USBFS 0
   #endif
 
-  #if !defined(CFG_TUD_WCH_FSDEV)
+  #if !defined(CFG_TUD_WCH_USBIP_FSDEV)
   #define CFG_TUD_WCH_USBIP_FSDEV  (CFG_TUD_WCH_USBIP_USBFS ? 0 : 1)
   #endif
+
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V307)
   // v307 support both FS and HS, default to HS

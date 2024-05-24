@@ -374,6 +374,15 @@
   #define CFG_TUD_INTERFACE_MAX   16
 #endif
 
+// default to max hardware endpoint, but can be smaller to save RAM
+#ifndef CFG_TUD_ENDPPOINT_MAX
+  #define CFG_TUD_ENDPPOINT_MAX   TUP_DCD_ENDPOINT_MAX
+#endif
+
+#if CFG_TUD_ENDPPOINT_MAX > TUP_DCD_ENDPOINT_MAX
+  #error "CFG_TUD_ENDPPOINT_MAX must be less than or equal to TUP_DCD_ENDPOINT_MAX"
+#endif
+
 // USB 2.0 compliance test mode support
 #ifndef CFG_TUD_TEST_MODE
   #define CFG_TUD_TEST_MODE       0

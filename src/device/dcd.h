@@ -39,9 +39,6 @@
 // Configuration
 //--------------------------------------------------------------------+
 
-#ifndef CFG_TUD_ENDPPOINT_MAX
-  #define CFG_TUD_ENDPPOINT_MAX   TUP_DCD_ENDPOINT_MAX
-#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -149,10 +146,10 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 void dcd_remote_wakeup(uint8_t rhport);
 
 // Connect by enabling internal pull-up resistor on D+/D-
-void dcd_connect(uint8_t rhport) TU_ATTR_WEAK;
+void dcd_connect(uint8_t rhport);
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
-void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
+void dcd_disconnect(uint8_t rhport);
 
 // Enable/Disable Start-of-frame interrupt. Default is disabled
 void dcd_sof_enable(uint8_t rhport, bool en);
