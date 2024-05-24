@@ -14,7 +14,7 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 set(FAMILY_MCUS CH32V307 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
-# default to highspeed
+# default to highspeed, used to select USBFS / USBHS driver
 if (NOT DEFINED SPEED)
   set(SPEED high)
 endif()
@@ -52,9 +52,16 @@ function(add_board_target BOARD_TARGET)
     ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUD_MAX_SPEED=$<IF:$<STREQUAL:${SPEED},high>,OPT_MODE_HIGH_SPEED,OPT_MODE_FULL_SPEED>
-    )
+  if (SPEED STREQUAL high)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_USBHS=1
+#      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+      )
+  else ()
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_USBFS=1
+      )
+  endif ()
 
   update_board(${BOARD_TARGET})
 

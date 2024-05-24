@@ -38,13 +38,13 @@
 // TODO maybe having FS as port0, HS as port1
 
 __attribute__((interrupt)) void USBHS_IRQHandler(void) {
-  #if CFG_TUD_MAX_SPEED == OPT_MODE_HIGH_SPEED
+  #if CFG_TUD_WCH_USBIP_USBHS
   tud_int_handler(0);
   #endif
 }
 
 __attribute__((interrupt)) void OTG_FS_IRQHandler(void) {
-  #if CFG_TUD_MAX_SPEED == OPT_MODE_FULL_SPEED
+  #if CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(0);
   #endif
 }
@@ -74,15 +74,17 @@ void board_init(void) {
 
   usart_printf_init(CFG_BOARD_UART_BAUDRATE);
 
-#if CFG_TUD_MAX_SPEED == OPT_MODE_HIGH_SPEED
-  // Use Highspeed USB
+#ifdef CH32V30x_D8C
+  // v305/v307: Highspeed USB
   RCC_USBCLK48MConfig(RCC_USBCLK48MCLKSource_USBPHY);
   RCC_USBHSPLLCLKConfig(RCC_HSBHSPLLCLKSource_HSE);
   RCC_USBHSConfig(RCC_USBPLL_Div2);
   RCC_USBHSPLLCKREFCLKConfig(RCC_USBHSPLLCKREFCLK_4M);
   RCC_USBHSPHYPLLALIVEcmd(ENABLE);
   RCC_AHBPeriphClockCmd(RCC_AHBPeriph_USBHS, ENABLE);
-#else
+#endif
+
+  // Fullspeed USB
   uint8_t otg_div;
   switch (SystemCoreClock) {
     case 48000000:  otg_div = RCC_OTGFSCLKSource_PLLCLK_Div1; break;
@@ -92,7 +94,6 @@ void board_init(void) {
   }
   RCC_OTGFSCLKConfig(otg_div);
   RCC_AHBPeriphClockCmd(RCC_AHBPeriph_OTG_FS, ENABLE);
-#endif
 
   GPIO_InitTypeDef GPIO_InitStructure = {0};
 

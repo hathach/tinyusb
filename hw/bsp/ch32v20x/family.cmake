@@ -14,6 +14,11 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 set(FAMILY_MCUS CH32V20X CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
+# Port0 use FSDev, Port1 use USBFS
+if (NOT DEFINED PORT)
+  set(PORT 0)
+endif()
+
 #------------------------------------
 # BOARD_TARGET
 #------------------------------------
@@ -48,8 +53,19 @@ function(add_board_target BOARD_TARGET)
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     CH32V20x_${MCU_VARIANT}
-    BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     )
+
+  if (PORT EQUAL 0)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_FSDEV=1
+      )
+  elseif (PORT EQUAL 1)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_USBFS=1
+      )
+  else()
+    message(FATAL_ERROR "Invalid PORT ${PORT}")
+  endif()
 
   update_board(${BOARD_TARGET})
 
@@ -99,8 +115,10 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_CH32V20X ${RTOS})
+
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
+    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 

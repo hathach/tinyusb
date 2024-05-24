@@ -45,11 +45,6 @@
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
-TU_ATTR_WEAK bool dcd_deinit(uint8_t rhport) {
-  (void) rhport;
-  return false;
-}
-
 TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
   (void)rhport;
   (void)eventid;
@@ -58,6 +53,19 @@ TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_is
 
 TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
   (void)frame_count;
+}
+
+TU_ATTR_WEAK bool dcd_deinit(uint8_t rhport) {
+  (void) rhport;
+  return false;
+}
+
+TU_ATTR_WEAK void dcd_connect(uint8_t rhport) {
+  (void) rhport;
+}
+
+TU_ATTR_WEAK void dcd_disconnect(uint8_t rhport) {
+  (void) rhport;
 }
 
 //--------------------------------------------------------------------+
@@ -379,19 +387,16 @@ bool tud_remote_wakeup(void) {
 }
 
 bool tud_disconnect(void) {
-  TU_VERIFY(dcd_disconnect);
   dcd_disconnect(_usbd_rhport);
   return true;
 }
 
 bool tud_connect(void) {
-  TU_VERIFY(dcd_connect);
   dcd_connect(_usbd_rhport);
   return true;
 }
 
-bool tud_sof_cb_enable(bool en)
-{
+bool tud_sof_cb_enable(bool en) {
   usbd_sof_enable(_usbd_rhport, SOF_CONSUMER_USER, en);
   return true;
 }
@@ -407,7 +412,7 @@ bool tud_init(uint8_t rhport) {
   // skip if already initialized
   if (tud_inited()) return true;
 
-  TU_LOG_USBD("USBD init on controller %u\r\n", rhport);
+  TU_LOG_USBD("USBD init on controller %u, Highspeed = %u\r\n", rhport, TUD_OPT_HIGH_SPEED);
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(usbd_device_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(dcd_event_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_fifo_t));
