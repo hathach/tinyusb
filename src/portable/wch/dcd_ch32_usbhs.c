@@ -27,8 +27,7 @@
 
 #include "tusb_option.h"
 
-// Note: CH32 can have both USB FS and HS, only use this driver if CFG_TUD_MAX_SPEED is high speed
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS) && (CFG_TUD_MAX_SPEED == OPT_MODE_HIGH_SPEED)
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS) && CFG_TUD_WCH_USBIP_USBHS
 #include "ch32_usbhs_reg.h"
 
 #include "device/dcd.h"
