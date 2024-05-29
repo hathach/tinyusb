@@ -89,6 +89,12 @@ extern "C" {
     #define USB_OTG_FS_PERIPH_BASE    USB_OTG_FS_BASE
     #define EP_MAX_FS                 6
     #define EP_FIFO_SIZE_FS           1280
+    #define USB_OTG_FS_IRQN           OTG_FS_IRQn
+  #elif defined(USB_DRD_FS)
+    #define USB_OTG_FS_PERIPH_BASE    USB_DRD_BASE
+    #define EP_MAX_FS                 6
+    #define EP_FIFO_SIZE_FS           1280
+    #define USB_OTG_FS_IRQN           USB_IRQn
   #else
     #define USB_OTG_HS_PERIPH_BASE    USB_OTG_HS_BASE
     #define EP_MAX_HS                 9
@@ -109,7 +115,7 @@ extern "C" {
 // - Port0 to OTG_FS, and Port1 to OTG_HS
 static const dwc2_controller_t _dwc2_controller[] = {
     #ifdef USB_OTG_FS_PERIPH_BASE
-    { .reg_base = USB_OTG_FS_PERIPH_BASE, .irqnum = OTG_FS_IRQn, .ep_count = EP_MAX_FS, .ep_fifo_size = EP_FIFO_SIZE_FS },
+    { .reg_base = USB_OTG_FS_PERIPH_BASE, .irqnum = USB_OTG_FS_IRQN, .ep_count = EP_MAX_FS, .ep_fifo_size = EP_FIFO_SIZE_FS },
     #endif
 
     #ifdef USB_OTG_HS_PERIPH_BASE
