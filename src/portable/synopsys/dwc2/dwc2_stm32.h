@@ -91,8 +91,8 @@ extern "C" {
   // U53x/U54x are fullspeed with built-in FS PHY but not OTG
   #elif defined(USB_DRD_FS)
     #define USB_DRD_FS_PERIPH_BASE    USB_DRD_BASE
-    #define EP_MAX_FS                 6
-    #define EP_FIFO_SIZE_FS           1280
+    #define EP_MAX_FS                 8
+    #define EP_FIFO_SIZE_FS           2048
   // U59x/5Ax/5Fx/5Gx are highspeed with built-in HS PHY
   #else
     #define USB_OTG_HS_PERIPH_BASE    USB_OTG_HS_BASE
