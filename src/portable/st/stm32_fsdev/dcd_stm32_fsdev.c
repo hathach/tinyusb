@@ -232,7 +232,7 @@ void dcd_init(uint8_t rhport)
   }
   USB->CNTR = 0; // Enable USB
 
-#if !defined(STM32G0) && !defined(STM32H5) // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
+#if !defined(STM32G0) && !defined(STM32H5) && !defined(STM32U5) // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 #endif
   USB->ISTR = 0; // Clear pending interrupts

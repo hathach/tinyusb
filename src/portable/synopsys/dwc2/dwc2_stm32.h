@@ -84,16 +84,11 @@ extern "C" {
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
   #include "stm32u5xx.h"
+  // U59x/5Ax/5Fx/5Gx are highspeed with built-in HS PHY
   #ifdef USB_OTG_FS
     #define USB_OTG_FS_PERIPH_BASE    USB_OTG_FS_BASE
     #define EP_MAX_FS                 6
     #define EP_FIFO_SIZE_FS           1280
-  // U53x/U54x are fullspeed with built-in FS PHY but not OTG
-  #elif defined(USB_DRD_FS)
-    #define USB_DRD_FS_PERIPH_BASE    USB_DRD_BASE
-    #define EP_MAX_FS                 8
-    #define EP_FIFO_SIZE_FS           2048
-  // U59x/5Ax/5Fx/5Gx are highspeed with built-in HS PHY
   #else
     #define USB_OTG_HS_PERIPH_BASE    USB_OTG_HS_BASE
     #define EP_MAX_HS                 9
@@ -113,10 +108,6 @@ extern "C" {
 // On STM32 for consistency we associate
 // - Port0 to OTG_FS, and Port1 to OTG_HS
 static const dwc2_controller_t _dwc2_controller[] = {
-    #ifdef USB_DRD_FS_PERIPH_BASE
-    { .reg_base = USB_DRD_FS_PERIPH_BASE, .irqnum = USB_IRQn, .ep_count = EP_MAX_FS, .ep_fifo_size = EP_FIFO_SIZE_FS },
-    #endif
-
     #ifdef USB_OTG_FS_PERIPH_BASE
     { .reg_base = USB_OTG_FS_PERIPH_BASE, .irqnum = USB_OTG_FS_IRQN, .ep_count = EP_MAX_FS, .ep_fifo_size = EP_FIFO_SIZE_FS },
     #endif
