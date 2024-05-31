@@ -1,11 +1,15 @@
 ifeq ($(TOOLCHAIN),gcc)
   CFLAGS += \
-    -march=rv32imac \
+    -march=rv32imac_zicsr \
+    -mabi=ilp32 \
+
+else ifeq ($(TOOLCHAIN),clang)
+  CFLAGS += \
+    -march=rv32imac_zicsr \
     -mabi=ilp32 \
 
 else ifeq ($(TOOLCHAIN),iar)
-	#CFLAGS += --cpu cortex-a53
-	#ASFLAGS += --cpu cortex-a53
+  $(error not support)
 
 endif
 

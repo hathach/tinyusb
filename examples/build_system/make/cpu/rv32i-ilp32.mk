@@ -1,12 +1,15 @@
 ifeq ($(TOOLCHAIN),gcc)
   CFLAGS += \
-    -march=rv32i \
+    -march=rv32i_zicsr \
+    -mabi=ilp32 \
+
+else ifeq ($(TOOLCHAIN),clang)
+  CFLAGS += \
+    -march=rv32i_zicsr \
     -mabi=ilp32 \
 
 else ifeq ($(TOOLCHAIN),iar)
-	#CFLAGS += --cpu cortex-a53
-	#ASFLAGS += --cpu cortex-a53
-
+  $(error not support)
 endif
 
 # For freeRTOS port source

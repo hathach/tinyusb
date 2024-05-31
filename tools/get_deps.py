@@ -168,6 +168,9 @@ deps_optional = {
     'hw/mcu/ti': ['https://github.com/hathach/ti_driver.git',
                   '143ed6cc20a7615d042b03b21e070197d473e6e5',
                   'msp430 msp432e4 tm4c'],
+    'hw/mcu/wch/ch32v20x': ['https://github.com/openwch/ch32v20x.git',
+                            'de6d68c654340d7f27b00cebbfc9aa2740a1abc2',
+                            'ch32v20x'],
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
                             '17761f5cf9dbbf2dcf665b7c04934188add20082',
                             'ch32v307'],
@@ -242,13 +245,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to fetch')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
+    parser.add_argument('--print', action='store_true', help='Print commit hash only')
     args = parser.parse_args()
 
     families = args.families
     boards = args.board
-
-    if len(families) == 0 and len(boards) == 0:
-        print("Warning: family and board are not specified, only fetching mandatory dependencies.")
+    print_only = args.print
 
     status = 0
     deps = list(deps_mandatory.keys())
@@ -265,11 +267,21 @@ def main():
 
         for f in families:
             for d in deps_optional:
-                if f in deps_optional[d][2]:
+                if d not in deps and f in deps_optional[d][2]:
                     deps.append(d)
 
-    with Pool() as pool:
-        status = sum(pool.map(get_a_dep, deps))
+    if print_only:
+        pvalue = {}
+        # print only without arguments, always add CMSIS_5
+        if len(families) == 0 and len(boards) == 0:
+            deps.append('lib/CMSIS_5')
+        for d in deps:
+            commit = deps_all[d][1]
+            pvalue[d] = commit
+        print(pvalue)
+    else:
+        with Pool() as pool:
+            status = sum(pool.map(get_a_dep, deps))
     return status
 
 

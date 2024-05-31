@@ -82,6 +82,7 @@ hw/mcu/st/stm32l5xx_hal_driver
 hw/mcu/st/stm32u5xx_hal_driver
 hw/mcu/st/stm32wbxx_hal_driver
 hw/mcu/ti
+hw/mcu/wch/ch32v20x
 hw/mcu/wch/ch32v307
 hw/mcu/wch/ch32f20x
 lib/CMSIS_5

@@ -440,6 +440,7 @@ function(family_flash_openocd TARGET)
 endfunction()
 
 # Add flash openocd-wch target
+# compiled from https://github.com/hathach/riscv-openocd-wch or https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
 function(family_flash_openocd_wch TARGET)
   if (NOT DEFINED OPENOCD)
     set(OPENOCD $ENV{HOME}/app/riscv-openocd-wch/src/openocd)

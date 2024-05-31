@@ -120,6 +120,9 @@ static struct {
 
   // nRF can only carry one DMA at a time, this is used to guard the access to EasyDMA
   atomic_flag dma_running;
+
+  // Track whether sof has been manually enabled
+  bool sof_enabled;
 } _dcd;
 
 /*------------------------------------------------------------------*/
@@ -147,7 +150,7 @@ static void start_dma(volatile uint32_t* reg_startep) {
 
 static void edpt_dma_start(volatile uint32_t* reg_startep) {
   if (atomic_flag_test_and_set(&_dcd.dma_running)) {
-    usbd_defer_func((osal_task_func_t)(uintptr_t ) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
+    usbd_defer_func((osal_task_func_t)(uintptr_t ) edpt_dma_start, (void*) (uintptr_t) reg_startep, is_in_isr());
   } else {
     start_dma(reg_startep);
   }
@@ -283,9 +286,13 @@ void dcd_connect(uint8_t rhport) {
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
   (void) rhport;
-  (void) en;
-
-  // TODO implement later
+  if (en) {
+    _dcd.sof_enabled = true;
+    NRF_USBD->INTENSET = USBD_INTENSET_SOF_Msk;
+  } else {
+    _dcd.sof_enabled = false;
+    NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk;
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -607,13 +614,16 @@ void dcd_int_handler(uint8_t rhport) {
       }
     }
 
-    if (!iso_enabled) {
-      // ISO endpoint is not used, SOF is only enabled one-time for remote wakeup
-      // so we disable it now
-      NRF_USBD->INTENCLR = USBD_INTENSET_SOF_Msk;
+    if (!iso_enabled && !_dcd.sof_enabled) {
+      // SOF interrupt not manually enabled and ISO endpoint is not used,
+      // SOF is only enabled one-time for remote wakeup so we disable it now
+
+      NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk;
     }
 
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+    const uint32_t frame = NRF_USBD->FRAMECNTR;
+    dcd_event_sof(0, frame, true);
+    //dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 
   if (int_status & USBD_INTEN_USBEVENT_Msk) {

@@ -2,6 +2,72 @@
 Changelog
 *********
 
+0.17.0 (WIP)
+============
+
+General
+-------
+
+- Improved continuous integration: build both cmake and make. Make use of circleci to build arm-clang
+
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- WCH CH32
+
+  - Added support for USB OTG/FS and FSDev Driver. Update CH32V307 to allow manual select FS or HS driver.
+  - Fixed various bugs in CH32v307 usbhs driver: endpoint handling and data transfer management.
+
+- Fixed race conditions and other bugs in dcd_nrf5x and other drivers.
+- Implemented hcd abort transfer for Max3421 and rp2040
+- Added DWC2 Test Mode support.
+- stm32 fsdev: ISO EP buffer allocation improvements, implement dcd_edpt_close_all()
+- Added support for STM32G4 and STM32U5 microcontrollers.
+
+Device Stack
+------------
+
+- Added tud_deinit() to deinitialize TinyUSB device stack.
+- Added support for generic SOF callback.
+
+- Audio
+
+  - Add audio_test_freertos & audio_4_channel_mic_freertos
+  - Improved support for Audio Class 2.0 (UAC2) with various bug fixes.
+
+- HID
+
+  - Added missing key codes for keypad
+  - Added HID Lighting and Illumination functionality
+
+- Vendor: Added empty transfers for tud_vendor_n_write()
+- MSC: Added support for SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL
+
+- CDC
+
+  - Add option to make CDC TX buffer persistent
+  - Add missing capability bit for CDC ACM serial break support
+
+- Net
+
+  - Rewrite of NCM device driver
+  - removed obsolete tud_network_link_state_cb()
+
+- Enhanced CDC class with better handling of large data transmissions.
+- Fixed issues in the HID class for more reliable device enumeration.
+- Video Added support for USB Video Class (UVC) with MJPEG.
+- USBTMC Added notification support
+
+Host Stack
+----------
+
+- Added tuh_deinit() to deinitialize TinyUSB host stack.
+- Added support for new USB mass storage class APIs.
+- Enhanced stability of CDC-ACM devices during enumeration.
+- Improved error handling and retry mechanisms for unstable devices.
+- Added support for multiple interfaces in UVC.
+
 0.16.0
 ======
 

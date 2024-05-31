@@ -34,6 +34,8 @@ if GetDepend(["PKG_TINYUSB_DEVICE_ENABLE"]):
         src += ["../../src/class/cdc/cdc_device.c"]
     if GetDepend(["PKG_TINYUSB_DEVICE_MSC"]):
         src += ["../../src/class/msc/msc_device.c", "port/msc_device_port.c"]
+    if GetDepend(["PKG_TINYUSB_DEVICE_HID"]):
+        src += ["../../src/class/hid/hid_device.c"]
 
 # for host stack
 if GetDepend(["PKG_TINYUSB_HOST_ENABLE"]):

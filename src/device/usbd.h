@@ -60,7 +60,7 @@ void tud_task (void) {
 // Check if there is pending events need processing by tud_task()
 bool tud_task_event_ready(void);
 
-#ifndef _TUSB_DCD_H_
+#ifndef TUSB_DCD_H_
 extern void dcd_int_handler(uint8_t rhport);
 #endif
 
@@ -98,7 +98,7 @@ bool tud_disconnect(void);
 bool tud_connect(void);
 
 // Enable or disable the Start Of Frame callback support
-bool tud_sof_cb_enable(bool en);
+void tud_sof_cb_enable(bool en);
 
 // Carry out Data and Status stage of control transfer
 // - If len = 0, it is equivalent to sending status only

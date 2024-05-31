@@ -2,16 +2,6 @@ name: Hardware Test
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'src/**'
-      - 'examples/**'
-      - 'lib/**'
-      - 'hw/**'
-      - 'test/hil/**'
-      - 'tools/get_deps.py'
-      - '.github/actions/**'
-      - '.github/workflows/hil_test.yml'
   pull_request:
     branches: [ master ]
     paths:
@@ -40,11 +30,6 @@ jobs:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Parse HIL json
         id: parse_hil_json
         run: |
@@ -56,7 +41,7 @@ jobs:
           echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
           echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
 
-      - name: Setup ARM Toolchain
+      - name: Setup Toolchain
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: 'arm-gcc'
@@ -87,11 +72,6 @@ jobs:
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
 
       - name: Parse HIL json
         id: parse_hil_json
@@ -141,7 +121,7 @@ jobs:
       - build-esp
     runs-on: [self-hosted, rp2040, nrf52840, esp32s3, hardware-in-the-loop]
     env:
-        BOARDS_LIST: "${{ needs.build.outputs.BOARDS_LIST }} ${{ needs.build-esp.outputs.BOARDS_LIST }}"
+      BOARDS_LIST: "${{ needs.build.outputs.BOARDS_LIST }} ${{ needs.build-esp.outputs.BOARDS_LIST }}"
     steps:
       - name: Clean workspace
         run: |

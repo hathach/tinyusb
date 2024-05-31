@@ -2,8 +2,8 @@ name: Get dependencies
 
 inputs:
   arg:
+    description: 'Arguments to get_deps.py'
     required: true
-    type: string
 
 runs:
   using: "composite"

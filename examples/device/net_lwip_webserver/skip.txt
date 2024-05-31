@@ -1,3 +1,4 @@
+mcu:CH32V20X
 mcu:LPC11UXX
 mcu:LPC13XX
 mcu:LPC15XX

@@ -45,11 +45,6 @@
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
-TU_ATTR_WEAK bool dcd_deinit(uint8_t rhport) {
-  (void) rhport;
-  return false;
-}
-
 TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
   (void)rhport;
   (void)eventid;
@@ -58,6 +53,19 @@ TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_is
 
 TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
   (void)frame_count;
+}
+
+TU_ATTR_WEAK bool dcd_deinit(uint8_t rhport) {
+  (void) rhport;
+  return false;
+}
+
+TU_ATTR_WEAK void dcd_connect(uint8_t rhport) {
+  (void) rhport;
+}
+
+TU_ATTR_WEAK void dcd_disconnect(uint8_t rhport) {
+  (void) rhport;
 }
 
 //--------------------------------------------------------------------+
@@ -313,7 +321,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool queue_event(dcd_event_t const * event, 
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
-
+#if CFG_TUD_TEST_MODE
+static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+#endif
 // from usbd_control.c
 void usbd_control_reset(void);
 void usbd_control_set_request(tusb_control_request_t const *request);
@@ -377,21 +387,17 @@ bool tud_remote_wakeup(void) {
 }
 
 bool tud_disconnect(void) {
-  TU_VERIFY(dcd_disconnect);
   dcd_disconnect(_usbd_rhport);
   return true;
 }
 
 bool tud_connect(void) {
-  TU_VERIFY(dcd_connect);
   dcd_connect(_usbd_rhport);
   return true;
 }
 
-bool tud_sof_cb_enable(bool en)
-{
+void tud_sof_cb_enable(bool en) {
   usbd_sof_enable(_usbd_rhport, SOF_CONSUMER_USER, en);
-  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -405,7 +411,7 @@ bool tud_init(uint8_t rhport) {
   // skip if already initialized
   if (tud_inited()) return true;
 
-  TU_LOG_USBD("USBD init on controller %u\r\n", rhport);
+  TU_LOG_USBD("USBD init on controller %u, Highspeed = %u\r\n", rhport, TUD_OPT_HIGH_SPEED);
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(usbd_device_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(dcd_event_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_fifo_t));
@@ -753,14 +759,47 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         break;
 
         case TUSB_REQ_SET_FEATURE:
-          // Only support remote wakeup for device feature
-          TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
+          // Handle the feature selector
+          switch(p_request->wValue)
+          {
+            // Support for remote wakeup
+            case TUSB_REQ_FEATURE_REMOTE_WAKEUP:
+              TU_LOG_USBD("    Enable Remote Wakeup\r\n");
 
-          TU_LOG_USBD("    Enable Remote Wakeup\r\n");
+              // Host may enable remote wake up before suspending especially HID device
+              _usbd_dev.remote_wakeup_en = true;
+              tud_control_status(rhport, p_request);
+            break;
 
-          // Host may enable remote wake up before suspending especially HID device
-          _usbd_dev.remote_wakeup_en = true;
-          tud_control_status(rhport, p_request);
+#if CFG_TUD_TEST_MODE
+            // Support for TEST_MODE
+            case TUSB_REQ_FEATURE_TEST_MODE: {
+              // Only handle the test mode if supported and valid
+              TU_VERIFY(dcd_enter_test_mode && dcd_check_test_mode_support && 0 == tu_u16_low(p_request->wIndex));
+
+              uint8_t selector = tu_u16_high(p_request->wIndex);
+
+              // Stall request if the selected test mode isn't supported
+              if (!dcd_check_test_mode_support((test_mode_t)selector))
+              {
+                TU_LOG_USBD("    Unsupported Test Mode (test selector index: %d)\r\n", selector);
+
+                return false;
+              }
+
+              // Acknowledge request
+              tud_control_status(rhport, p_request);
+
+              TU_LOG_USBD("    Enter Test Mode (test selector index: %d)\r\n", selector);
+
+              usbd_control_set_complete_callback(process_test_mode_cb);
+              break;
+            }
+#endif /* CFG_TUD_TEST_MODE */
+
+            // Stall unsupported feature selector
+            default: return false;
+          }
         break;
 
         case TUSB_REQ_CLEAR_FEATURE:
@@ -1088,6 +1127,20 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
   }
 }
 
+#if CFG_TUD_TEST_MODE
+static bool process_test_mode_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+{
+  // At this point it should already be ensured that dcd_enter_test_mode() is defined
+
+  // Only enter the test mode after the request for it has completed
+  TU_VERIFY(CONTROL_STAGE_ACK == stage);
+
+  dcd_enter_test_mode(rhport, (test_mode_t)tu_u16_high(request->wIndex));
+
+  return true;
+}
+#endif /* CFG_TUD_TEST_MODE */
+
 //--------------------------------------------------------------------+
 // DCD Event Handler
 //--------------------------------------------------------------------+
@@ -1140,7 +1193,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       }
 
       if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
-        dcd_event_t const event_sof = {.rhport = event->rhport, .event_id = DCD_EVENT_SOF};
+        dcd_event_t const event_sof = {.rhport = event->rhport, .event_id = DCD_EVENT_SOF, .sof.frame_count = event->sof.frame_count};
         queue_event(&event_sof, in_isr);
       }
       break;

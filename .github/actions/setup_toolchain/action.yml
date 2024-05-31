@@ -2,11 +2,11 @@ name: Setup Toolchain
 
 inputs:
   toolchain:
+    description: 'Toolchain name'
     required: true
-    type: string
   toolchain_url:
+    description: 'Toolchain URL or version'
     required: false
-    type: string
 
 outputs:
   build_option:
@@ -24,15 +24,19 @@ runs:
 
     - name: Pull ESP-IDF docker
       if: inputs.toolchain == 'esp-idf'
-      run: docker pull espressif/idf:${{ inputs.toolchain_url }}
-      shell: bash
+      uses: ./.github/actions/setup_toolchain/espressif
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        toolchain_url: ${{ inputs.toolchain_url }}
 
     - name: Download Toolchain
       if: >-
         inputs.toolchain != 'arm-gcc' &&
+        inputs.toolchain != 'arm-iar' &&
         inputs.toolchain != 'esp-idf'
       uses: ./.github/actions/setup_toolchain/download
       with:
+        toolchain: ${{ inputs.toolchain }}
         toolchain_url: ${{ inputs.toolchain_url }}
 
     - name: Set toolchain option
@@ -41,6 +45,8 @@ runs:
           BUILD_OPTION=""
           if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
             BUILD_OPTION="--toolchain clang"
+          elif [[ "${{ inputs.toolchain }}" == "arm-iar" ]]; then
+            BUILD_OPTION="--toolchain iar"
           fi
           echo "build_option=$BUILD_OPTION"
           echo "build_option=$BUILD_OPTION" >> $GITHUB_OUTPUT

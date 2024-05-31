@@ -1,15 +1,24 @@
+# default Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
+if (NOT DEFINED CROSS_COMPILE)
+  set(CROSS_COMPILE "riscv-none-elf-")
+endif ()
+
 if (NOT DEFINED CMAKE_C_COMPILER)
-  set(CMAKE_C_COMPILER "riscv-none-embed-gcc")
+  set(CMAKE_C_COMPILER ${CROSS_COMPILE}gcc)
+endif ()
+
+if (NOT DEFINED CMAKE_C_COMPILER)
+  set(CMAKE_C_COMPILER ${CROSS_COMPILE}gcc)
 endif ()
 
 if (NOT DEFINED CMAKE_CXX_COMPILER)
-  set(CMAKE_CXX_COMPILER "riscv-none-embed-g++")
+  set(CMAKE_CXX_COMPILER ${CROSS_COMPILE}g++)
 endif ()
 
 set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
-set(CMAKE_SIZE "riscv-none-embed-size" CACHE FILEPATH "")
-set(CMAKE_OBJCOPY "riscv-none-embed-objcopy" CACHE FILEPATH "")
-set(CMAKE_OBJDUMP "riscv-none-embed-objdump" CACHE FILEPATH "")
+set(CMAKE_SIZE ${CROSS_COMPILE}size CACHE FILEPATH "")
+set(CMAKE_OBJCOPY ${CROSS_COMPILE}objcopy CACHE FILEPATH "")
+set(CMAKE_OBJDUMP ${CROSS_COMPILE}objdump CACHE FILEPATH "")
 
 include(${CMAKE_CURRENT_LIST_DIR}/common.cmake)
 

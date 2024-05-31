@@ -34,11 +34,6 @@ jobs:
         # Alphabetical order
         - 'rx'
     steps:
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
-
     - name: Checkout TinyUSB
       uses: actions/checkout@v4
 

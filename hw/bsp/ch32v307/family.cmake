@@ -1,6 +1,8 @@
 include_guard()
 
-set(SDK_DIR ${TOP}/hw/mcu/wch/ch32v307/EVT/EXAM/SRC)
+set(CH32_FAMILY ch32v30x)
+set(SDK_DIR ${TOP}/hw/mcu/wch/ch32v307)
+set(SDK_SRC_DIR ${SDK_DIR}/EVT/EXAM/SRC)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -11,7 +13,11 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 
 set(FAMILY_MCUS CH32V307 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
-set(OPENOCD_OPTION2 "-c wlink_reset_resume")
+
+# default to highspeed, used to select USBFS / USBHS driver
+if (NOT DEFINED SPEED)
+  set(SPEED high)
+endif()
 
 #------------------------------------
 # BOARD_TARGET
@@ -28,27 +34,34 @@ function(add_board_target BOARD_TARGET)
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
   if (NOT DEFINED STARTUP_FILE_GNU)
-    set(STARTUP_FILE_GNU ${SDK_DIR}/Startup/startup_ch32v30x_D8C.S)
+    set(STARTUP_FILE_GNU ${SDK_SRC_DIR}/Startup/startup_${CH32_FAMILY}_D8C.S)
   endif ()
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   add_library(${BOARD_TARGET} STATIC
-    ${SDK_DIR}/Core/core_riscv.c
-    ${SDK_DIR}/Peripheral/src/ch32v30x_gpio.c
-    ${SDK_DIR}/Peripheral/src/ch32v30x_misc.c
-    ${SDK_DIR}/Peripheral/src/ch32v30x_rcc.c
-    ${SDK_DIR}/Peripheral/src/ch32v30x_usart.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ch32v30x_it.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_ch32v30x.c
+    ${SDK_SRC_DIR}/Core/core_riscv.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_gpio.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_misc.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_usart.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${CH32_FAMILY}_it.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/system_${CH32_FAMILY}.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${SDK_DIR}/Peripheral/inc
+    ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
-    )
+  if (SPEED STREQUAL high)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_USBHS=1
+#      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+      )
+  else ()
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_USBFS=1
+      )
+  endif ()
 
   update_board(${BOARD_TARGET})
 
@@ -102,6 +115,7 @@ function(family_configure_example TARGET RTOS)
   family_add_tinyusb(${TARGET} OPT_MCU_CH32V307 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/wch/dcd_ch32_usbhs.c
+    ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
