@@ -163,6 +163,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = cdcd_open,
         .control_xfer_cb  = cdcd_control_xfer_cb,
         .xfer_cb          = cdcd_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -176,6 +177,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = mscd_open,
         .control_xfer_cb  = mscd_control_xfer_cb,
         .xfer_cb          = mscd_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -189,6 +191,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = hidd_open,
         .control_xfer_cb  = hidd_control_xfer_cb,
         .xfer_cb          = hidd_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -202,6 +205,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = audiod_open,
         .control_xfer_cb  = audiod_control_xfer_cb,
         .xfer_cb          = audiod_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = audiod_sof_isr
     },
     #endif
@@ -215,6 +219,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = videod_open,
         .control_xfer_cb  = videod_control_xfer_cb,
         .xfer_cb          = videod_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -228,6 +233,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .reset            = midid_reset,
         .control_xfer_cb  = midid_control_xfer_cb,
         .xfer_cb          = midid_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -241,6 +247,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = vendord_open,
         .control_xfer_cb  = tud_vendor_control_xfer_cb,
         .xfer_cb          = vendord_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -254,6 +261,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = usbtmcd_open_cb,
         .control_xfer_cb  = usbtmcd_control_xfer_cb,
         .xfer_cb          = usbtmcd_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -267,6 +275,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = dfu_rtd_open,
         .control_xfer_cb  = dfu_rtd_control_xfer_cb,
         .xfer_cb          = NULL,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -280,6 +289,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = dfu_moded_open,
         .control_xfer_cb  = dfu_moded_control_xfer_cb,
         .xfer_cb          = NULL,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -293,7 +303,8 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = netd_open,
         .control_xfer_cb  = netd_control_xfer_cb,
         .xfer_cb          = netd_xfer_cb,
-        .sof                  = NULL,
+        .xfer_isr         = NULL,
+        .sof              = NULL,
     },
     #endif
 
@@ -306,6 +317,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = btd_open,
         .control_xfer_cb  = btd_control_xfer_cb,
         .xfer_cb          = btd_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif
@@ -1230,6 +1242,27 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       _usbd_queued_setup++;
       send = true;
       break;
+
+    case DCD_EVENT_XFER_COMPLETE:
+    {
+      send = true;
+      // Invoke the class callback associated with the endpoint address
+      uint8_t const ep_addr = event->xfer_complete.ep_addr;
+      uint8_t const epnum = tu_edpt_number(ep_addr);
+      uint8_t const ep_dir = tu_edpt_dir(ep_addr);
+
+      if(epnum > 0) {
+        usbd_class_driver_t const* driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
+
+        if (driver && driver->xfer_isr) {
+          _usbd_dev.ep_status[epnum][ep_dir].busy = 0;
+          _usbd_dev.ep_status[epnum][ep_dir].claimed = 0;
+
+          send = !driver->xfer_isr(event->rhport, ep_addr, (xfer_result_t) event->xfer_complete.result, event->xfer_complete.len);
+        }
+      }
+      break;
+    }
 
     default:
       send = true;
