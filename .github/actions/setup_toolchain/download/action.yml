@@ -27,7 +27,7 @@ runs:
         if [[ ${{ inputs.toolchain }} == rx-gcc ]]; then
           mv toolchain.tar.gz toolchain.run
           chmod +x toolchain.run
-          ./toolchain.run -p ~/cache/${{ inputs.toolchain }} -y
+          ./toolchain.run -p ~/cache/${{ inputs.toolchain }}/gnurx -y
         else
           tar -C ~/cache/${{ inputs.toolchain }} -xaf toolchain.tar.gz
         fi
