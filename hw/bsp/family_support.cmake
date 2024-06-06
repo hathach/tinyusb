@@ -6,6 +6,8 @@ include(CMakePrintHelpers)
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
 get_filename_component(TOP ${TOP} ABSOLUTE)
 
+set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
+
 #-------------------------------------------------------------
 # Toolchain
 # Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
@@ -296,6 +298,13 @@ function(family_add_bin_hex TARGET)
     VERBATIM)
 endfunction()
 
+# Add uf2 output
+function(family_add_uf2 TARGET FAMILY_ID)
+  set(BIN_FILE $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex)
+  add_custom_command(TARGET ${TARGET} POST_BUILD
+    COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} -c -o $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2 ${BIN_FILE}
+    VERBATIM)
+endfunction()
 
 #----------------------------------
 # Example Target Configure (Default rule)
@@ -461,6 +470,13 @@ function(family_flash_pyocd TARGET)
     )
 endfunction()
 
+# Flash with UF2
+function(family_flash_uf2 TARGET FAMILY_ID)
+  add_custom_target(${TARGET}-uf2
+    DEPENDS ${TARGET}
+    COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} --deploy $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2
+    )
+endfunction()
 
 # Add flash teensy_cli target
 function(family_flash_teensy TARGET)

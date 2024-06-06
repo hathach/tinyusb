@@ -1,5 +1,6 @@
 include_guard()
 
+set(UF2_FAMILY_ID 0x699b62ec)
 set(CH32_FAMILY ch32v20x)
 set(SDK_DIR ${TOP}/hw/mcu/wch/${CH32_FAMILY})
 set(SDK_SRC_DIR ${SDK_DIR}/EVT/EXAM/SRC)
@@ -128,4 +129,7 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_openocd_wch(${TARGET})
+
+  #family_add_uf2(${TARGET} ${UF2_FAMILY_ID})
+  #family_flash_uf2(${TARGET} ${UF2_FAMILY_ID})
 endfunction()

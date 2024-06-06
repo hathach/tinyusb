@@ -14,7 +14,7 @@ deps_mandatory = {
                  '159e31b689577dbf69cf0683bbaffbd71fa5ee10',
                  'all'],
     'tools/uf2': ['https://github.com/microsoft/uf2.git',
-                  '19615407727073e36d81bf239c52108ba92e7660',
+                  'c594542b2faa01cc33a2b97c9fbebc38549df80a',
                   'all'],
 }
 
