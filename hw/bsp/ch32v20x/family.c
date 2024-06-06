@@ -127,7 +127,7 @@ void board_init(void) {
 }
 
 void board_led_write(bool state) {
-  GPIO_WriteBit(LED_PORT, LED_PIN, state);
+  GPIO_WriteBit(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void) {
