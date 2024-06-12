@@ -33,22 +33,22 @@ extern "C"
 #endif
 
 // LED GREEN
-#define LED_PORT GPIOC
-#define LED_PIN GPIO_PIN_7
+#define LED_PORT GPIOA
+#define LED_PIN GPIO_PIN_5
 #define LED_STATE_ON 1
 
 // BUTTON
-#define BUTTON_PORT GPIOA
-#define BUTTON_PIN GPIO_PIN_0
+#define BUTTON_PORT GPIOC
+#define BUTTON_PIN GPIO_PIN_13
 #define BUTTON_STATE_ACTIVE 1
 
 // UART Enable for STLink VCOM
 #define UART_DEV LPUART1
 #define UART_CLK_EN __HAL_RCC_LPUART1_CLK_ENABLE
-#define UART_GPIO_PORT GPIOG
+#define UART_GPIO_PORT GPIOA
 #define UART_GPIO_AF GPIO_AF8_LPUART1
-#define UART_TX_PIN GPIO_PIN_7
-#define UART_RX_PIN GPIO_PIN_8
+#define UART_TX_PIN GPIO_PIN_2
+#define UART_RX_PIN GPIO_PIN_3
 
 //--------------------------------------------------------------------+
 // RCC Clock
