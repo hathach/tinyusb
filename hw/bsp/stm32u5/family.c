@@ -142,7 +142,7 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = GPIO_AF10_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-#ifdef USB_OTG_HS
+#ifdef USB_DRD_FS
   // STM32U535/STM32U545
 
   /* Enable USB power on Pwrctrl CR2 register */
