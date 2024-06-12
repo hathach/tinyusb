@@ -41,7 +41,7 @@ SRC_C += \
 ifeq ($(MCU_VARIANT),stm32u545xx)
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
-else ($(MCU_VARIANT),stm32u535xx)
+else ifeq ($(MCU_VARIANT),stm32u535xx)
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
 else
