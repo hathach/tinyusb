@@ -102,7 +102,7 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_STM32U5 ${RTOS})
-  if ((${MCU_VARIANT} EQUAL "stm32u535xx") OR (${MCU_VARIANT} EQUAL "stm32u545xx"))
+  if ((${MCU_VARIANT} STREQUAL "stm32u535xx") OR (${MCU_VARIANT} STREQUAL "stm32u545xx"))
     target_sources(${TARGET}-tinyusb PUBLIC
       ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
       )
