@@ -43,10 +43,10 @@
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
 #endif
 
-#if CFG_TUSB_MCU == OPT_MCU_CH32V20X
-  #include <ch32v20x.h>
-#elif CFG_TUSB_MCU == OPT_MCU_CH32F20X
+#if CFG_TUSB_MCU == OPT_MCU_CH32F20X
   #include <ch32f20x.h>
+#elif CFG_TUSB_MCU == OPT_MCU_CH32V20X
+  #include <ch32v20x.h>
 #endif
 
 #ifdef __GNUC__
