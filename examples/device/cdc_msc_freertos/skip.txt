@@ -1,3 +1,4 @@
+mcu:CH32V103
 mcu:CH32V20X
 mcu:CH32V307
 mcu:CXD56

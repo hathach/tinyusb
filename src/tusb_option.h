@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_OPTION_H_
-#define TUSB_OPTION_H_
+#ifndef _TUSB_OPTION_H_
+#define _TUSB_OPTION_H_
 
 #include "common/tusb_compiler.h"
 
