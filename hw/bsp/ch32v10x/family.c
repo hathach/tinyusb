@@ -24,7 +24,7 @@ void USBHD_IRQHandler(void) {
 }
 
 __attribute__((interrupt)) __attribute__((used))
-void USBHDWakeUp_IRQHandler(void) {
+void USBWakeUp_IRQHandler(void) {
   #if CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(0);
   #endif
