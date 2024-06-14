@@ -7,7 +7,7 @@
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
 #endif
 
-#include "ch32v20x.h"
+#include "ch32v10x.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -16,13 +16,6 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
-/* CH32v203 depending on variants can support 2 USB IPs: FSDEV and USBFS.
- * By default, we use FSDEV, but you can explicitly select by define:
- * - CFG_TUD_WCH_USBIP_FSDEV
- * - CFG_TUD_WCH_USBIP_USBFS
- */
-
-// USBFS
 __attribute__((interrupt)) __attribute__((used))
 void USBHD_IRQHandler(void) {
   #if CFG_TUD_WCH_USBIP_USBFS
@@ -31,60 +24,41 @@ void USBHD_IRQHandler(void) {
 }
 
 __attribute__((interrupt)) __attribute__((used))
-void USBHDWakeUp_IRQHandler(void) {
+void USBWakeUp_IRQHandler(void) {
   #if CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(0);
   #endif
 }
 
-// USBD (fsdev)
-__attribute__((interrupt)) __attribute__((used))
-void USB_LP_CAN1_RX0_IRQHandler(void) {
-  #if CFG_TUD_WCH_USBIP_FSDEV
-  tud_int_handler(0);
-  #endif
-}
-
-__attribute__((interrupt)) __attribute__((used))
-void USB_HP_CAN1_TX_IRQHandler(void) {
-  #if CFG_TUD_WCH_USBIP_FSDEV
-  tud_int_handler(0);
-  #endif
-
-}
-
-__attribute__((interrupt)) __attribute__((used))
-void USBWakeUp_IRQHandler(void) {
-  #if CFG_TUD_WCH_USBIP_FSDEV
-  tud_int_handler(0);
-  #endif
-}
-
-
 #if CFG_TUSB_OS == OPT_OS_NONE
-
 volatile uint32_t system_ticks = 0;
 
-__attribute__((interrupt))
+__attribute__((interrupt)) __attribute__((used))
 void SysTick_Handler(void) {
-  SysTick->SR = 0;
+  SysTick->CNTL0 = SysTick->CNTL1 = SysTick->CNTL2 = SysTick->CNTL3 = 0;
+  SysTick->CNTH0 = SysTick->CNTH1 = SysTick->CNTH2 = SysTick->CNTH3 = 0;
   system_ticks++;
 }
 
 uint32_t SysTick_Config(uint32_t ticks) {
   NVIC_EnableIRQ(SysTicK_IRQn);
   SysTick->CTLR = 0;
-  SysTick->SR = 0;
-  SysTick->CNT = 0;
-  SysTick->CMP = ticks - 1;
-  SysTick->CTLR = 0xF;
+  SysTick->CNTL0 = SysTick->CNTL1 = SysTick->CNTL2 = SysTick->CNTL3 = 0;
+  SysTick->CNTH0 = SysTick->CNTH1 = SysTick->CNTH2 = SysTick->CNTH3 = 0;
+
+  SysTick->CMPLR0 = (u8)(ticks & 0xFF);
+  SysTick->CMPLR1 = (u8)(ticks >> 8);
+  SysTick->CMPLR2 = (u8)(ticks >> 16);
+  SysTick->CMPLR3 = (u8)(ticks >> 24);
+
+  SysTick->CMPHR0 = SysTick->CMPHR1 = SysTick->CMPHR2 =   SysTick->CMPHR3 = 0;
+  SysTick->CTLR = 1;
   return 0;
 }
 
 uint32_t board_millis(void) {
   return system_ticks;
 }
-
 #endif
 
 void board_init(void) {
@@ -96,23 +70,33 @@ void board_init(void) {
 
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
+  EXTEN->EXTEN_CTR |= EXTEN_USBFS_IO_EN;
   uint8_t usb_div;
   switch (SystemCoreClock) {
     case 48000000: usb_div = RCC_USBCLKSource_PLLCLK_Div1; break;
-    case 96000000: usb_div = RCC_USBCLKSource_PLLCLK_Div2; break;
-    case 144000000: usb_div = RCC_USBCLKSource_PLLCLK_Div3; break;
+    case 72000000: usb_div = RCC_USBCLKSource_PLLCLK_1Div5; break;
     default: TU_ASSERT(0,); break;
   }
   RCC_USBCLKConfig(usb_div);
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USB, ENABLE);  // FSDEV
-  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_OTG_FS, ENABLE); // USB FS
+  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_USBFS, ENABLE);
 
-  GPIO_InitTypeDef GPIO_InitStructure = {
-    .GPIO_Pin = LED_PIN,
-    .GPIO_Mode = GPIO_Mode_Out_OD,
-    .GPIO_Speed = GPIO_Speed_50MHz,
+  #ifdef LED_PIN
+  GPIO_InitTypeDef led_init = {
+      .GPIO_Pin = LED_PIN,
+      .GPIO_Mode = GPIO_Mode_Out_OD,
+      .GPIO_Speed = GPIO_Speed_50MHz,
   };
-  GPIO_Init(LED_PORT, &GPIO_InitStructure);
+  GPIO_Init(LED_PORT, &led_init);
+  #endif
+
+  #ifdef BUTTON_PIN
+  GPIO_InitTypeDef button_init = {
+      .GPIO_Pin = BUTTON_PIN,
+      .GPIO_Mode = GPIO_Mode_IPU,
+      .GPIO_Speed = GPIO_Speed_50MHz,
+  };
+  GPIO_Init(BUTTON_PORT, &button_init);
+  #endif
 
   // UART TX is PA9
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
@@ -135,7 +119,8 @@ void board_init(void) {
   USART_Cmd(USART1, ENABLE);
 
   __enable_irq();
-  board_delay(2);
+
+  board_led_write(true);
 }
 
 void board_led_write(bool state) {
@@ -143,7 +128,7 @@ void board_led_write(bool state) {
 }
 
 uint32_t board_button_read(void) {
-  return false;
+  return BUTTON_STATE_ACTIVE == GPIO_ReadInputDataBit(BUTTON_PORT, BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t *buf, int len) {

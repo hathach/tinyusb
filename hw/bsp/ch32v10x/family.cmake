@@ -1,8 +1,8 @@
 include_guard()
 
-set(UF2_FAMILY_ID 0x699b62ec)
-set(CH32_FAMILY ch32v20x)
-set(SDK_DIR ${TOP}/hw/mcu/wch/${CH32_FAMILY})
+#set(UF2_FAMILY_ID 0x699b62ec)
+set(CH32_FAMILY ch32v10x)
+set(SDK_DIR ${TOP}/hw/mcu/wch/ch32v103)
 set(SDK_SRC_DIR ${SDK_DIR}/EVT/EXAM/SRC)
 
 # include board specific
@@ -12,13 +12,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_PROCESSOR rv32imac-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS CH32V20X CACHE INTERNAL "")
+set(FAMILY_MCUS CH32V103 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
-
-# Port0 use FSDev, Port1 use USBFS
-if (NOT DEFINED PORT)
-  set(PORT 0)
-endif()
 
 #------------------------------------
 # BOARD_TARGET
@@ -35,7 +30,7 @@ function(add_board_target BOARD_TARGET)
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
   if (NOT DEFINED STARTUP_FILE_GNU)
-    set(STARTUP_FILE_GNU ${SDK_SRC_DIR}/Startup/startup_${CH32_FAMILY}_${MCU_VARIANT}.S)
+    set(STARTUP_FILE_GNU ${SDK_SRC_DIR}/Startup/startup_${CH32_FAMILY}.S)
   endif ()
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
@@ -54,20 +49,7 @@ function(add_board_target BOARD_TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CH32V20x_${MCU_VARIANT}
     )
-
-  if (PORT EQUAL 0)
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CFG_TUD_WCH_USBIP_FSDEV=1
-      )
-  elseif (PORT EQUAL 1)
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CFG_TUD_WCH_USBIP_USBFS=1
-      )
-  else()
-    message(FATAL_ERROR "Invalid PORT ${PORT}")
-  endif()
 
   update_board(${BOARD_TARGET})
 
@@ -116,11 +98,10 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_CH32V20X ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_CH32V103 ${RTOS})
 
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
-    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
