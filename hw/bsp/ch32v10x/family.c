@@ -68,6 +68,9 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 #endif
 
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+
+  EXTEN->EXTEN_CTR |= EXTEN_USBFS_IO_EN;
   uint8_t usb_div;
   switch (SystemCoreClock) {
     case 48000000: usb_div = RCC_USBCLKSource_PLLCLK_Div1; break;
@@ -75,9 +78,7 @@ void board_init(void) {
     default: TU_ASSERT(0,); break;
   }
   RCC_USBCLKConfig(usb_div);
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USB, ENABLE);
-
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+  RCC_AHBPeriphClockCmd(RCC_AHBPeriph_USBFS, ENABLE);
 
   #ifdef LED_PIN
   GPIO_InitTypeDef led_init = {
