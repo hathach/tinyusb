@@ -1,6 +1,8 @@
 /*
  * The MIT License (MIT)
  *
+ * Copyright (c) 2020 Jacob Berg Potter
+ * Copyright (c) 2020 Peter Lawrence
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
  * Copyright (c) 2024 Hardy Griech
  *
