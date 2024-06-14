@@ -25,6 +25,9 @@ CFLAGS += \
 	-fsigned-char \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V307 \
 
+# https://github.com/openwch/ch32v307/pull/90
+CFLAGS += -Wno-error=strict-prototypes
+
 ifeq ($(SPEED),high)
   $(info "Using USBHS driver for HighSpeed mode")
   CFLAGS += -DCFG_TUD_WCH_USBIP_USBHS=1
@@ -51,6 +54,7 @@ SRC_S += \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
+	$(TOP)/$(SDK_SRC_DIR)/Core \
 	$(TOP)/$(SDK_SRC_DIR)/Peripheral/inc
 
 # For freeRTOS port source

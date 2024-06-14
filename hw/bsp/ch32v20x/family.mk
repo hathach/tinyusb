@@ -24,6 +24,9 @@ CFLAGS += \
 	-DCH32V20x_${MCU_VARIANT} \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V20X
 
+# https://github.com/openwch/ch32v20x/pull/12
+CFLAGS += -Wno-error=strict-prototypes
+
 ifeq ($(PORT),0)
   $(info "Using FSDEV driver")
   CFLAGS += -DCFG_TUD_WCH_USBIP_FSDEV=1
@@ -51,6 +54,7 @@ SRC_S += $(SDK_SRC_DIR)/Startup/startup_ch32v20x_${MCU_VARIANT}.S
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
+	$(TOP)/$(SDK_SRC_DIR)/Core \
 	$(TOP)/$(SDK_SRC_DIR)/Peripheral/inc \
 
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V

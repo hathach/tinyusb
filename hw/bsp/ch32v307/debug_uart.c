@@ -25,8 +25,17 @@
  */
 
 #include "debug_uart.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+#endif
+
 #include <ch32v30x.h>
 
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #define UART_RINGBUFFER_SIZE_TX 128
 #define UART_RINGBUFFER_MASK_TX (UART_RINGBUFFER_SIZE_TX-1)
