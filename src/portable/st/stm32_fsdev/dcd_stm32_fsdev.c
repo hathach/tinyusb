@@ -37,14 +37,20 @@
  * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
  *  covers:
  *
- * F04x, F072, F078, 070x6/B      1024 byte buffer
+ * F04x, F072, F078, F070x6/B     1024 byte buffer
  * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
+ * G0                             2048 byte buffer; 32-bit bus
+ * G4                             1024 byte buffer
+ * H5                             2048 byte buffer; 32-bit bus
  * L0x2, L0x3                     1024 byte buffer
  * L1                              512 byte buffer
  * L4x2, L4x3                     1024 byte buffer
- * G0                             2048 byte buffer
+ * L5                             1024 byte buffer
+ * U0                             1024 byte buffer; 32-bit bus
+ * U535, U545                     2048 byte buffer; 32-bit bus
+ * WB35, WB55                     1024 byte buffer
  *
  * To use this driver, you must:
  * - If you are using a device with crystal-less USB, set up the clock recovery system (CRS)
