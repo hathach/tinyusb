@@ -420,6 +420,15 @@
   #define TUP_RHPORT_HIGHSPEED    CFG_TUD_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX    (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
 
+#elif TU_CHECK_MCU(OPT_MCU_CH32V103)
+  #define TUP_USBIP_WCH_USBFS
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBFS)
+  #define CFG_TUD_WCH_USBIP_USBFS 1
+  #endif
+
+  #define TUP_DCD_ENDPOINT_MAX    8
+
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
   // v20x support both FSDEV (USBD) and USBFS, default to FSDEV
   #define TUP_USBIP_WCH_USBFS
