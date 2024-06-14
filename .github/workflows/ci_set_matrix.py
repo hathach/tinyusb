@@ -15,7 +15,7 @@ toolchain_list = {
 family_list = {
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
-    "ch32v20x ch32v307 fomu gd32vf103": ["riscv-gcc"],
+    "ch32v10x ch32v20x ch32v307 fomu gd32vf103": ["riscv-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
     "lpc11 lpc13 lpc15": ["arm-gcc", "arm-clang"],
