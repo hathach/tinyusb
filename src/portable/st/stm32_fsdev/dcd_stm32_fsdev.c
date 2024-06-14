@@ -216,19 +216,19 @@ void dcd_init(uint8_t rhport)
    * Here, the RM is followed. */
 
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
-    __DSB();
+    asm("NOP");
   }
   // Perform USB peripheral reset
   USB->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
-    __DSB();
+    asm("NOP");
   }
 
   USB->CNTR &= ~USB_CNTR_PDWN;
 
   // Wait startup time, for F042 and F070, this is <= 1 us.
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
-    __DSB();
+    asm("NOP");
   }
   USB->CNTR = 0; // Enable USB
 
