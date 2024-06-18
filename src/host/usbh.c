@@ -1113,7 +1113,7 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
   TU_LOG_USBH("Set Interface %u Alternate %u\r\n", itf_num, itf_alt);
   tusb_control_request_t const request = {
       .bmRequestType_bit = {
-          .recipient = TUSB_REQ_RCPT_DEVICE,
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
           .type      = TUSB_REQ_TYPE_STANDARD,
           .direction = TUSB_DIR_OUT
       },
