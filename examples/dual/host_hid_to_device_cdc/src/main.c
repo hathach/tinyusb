@@ -55,14 +55,14 @@ const uint8_t colemak[128] = {
 };
 #endif
 
-static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
+static uint8_t const keycode2ascii[128][2] = {HID_KEYCODE_TO_ASCII};
 
 /* Blink pattern
  * - 250 ms  : device not mounted
  * - 1000 ms : device mounted
  * - 2500 ms : device is suspended
  */
-enum  {
+enum {
   BLINK_NOT_MOUNTED = 250,
   BLINK_MOUNTED = 1000,
   BLINK_SUSPENDED = 2500,
@@ -73,8 +73,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 void led_blinking_task(void);
 
 /*------------- MAIN -------------*/
-int main(void)
-{
+int main(void) {
   board_init();
 
   printf("TinyUSB Host HID <-> Device CDC Example\r\n");
@@ -87,8 +86,7 @@ int main(void)
     board_init_after_tusb();
   }
 
-  while (1)
-  {
+  while (1) {
     tud_task(); // tinyusb device task
     tuh_task(); // tinyusb host task
     led_blinking_task();
@@ -102,35 +100,30 @@ int main(void)
 //--------------------------------------------------------------------+
 
 // Invoked when device is mounted
-void tud_mount_cb(void)
-{
+void tud_mount_cb(void) {
   blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Invoked when device is unmounted
-void tud_umount_cb(void)
-{
+void tud_umount_cb(void) {
   blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
 // Invoked when usb bus is suspended
 // remote_wakeup_en : if host allow us  to perform remote wakeup
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
-void tud_suspend_cb(bool remote_wakeup_en)
-{
+void tud_suspend_cb(bool remote_wakeup_en) {
   (void) remote_wakeup_en;
   blink_interval_ms = BLINK_SUSPENDED;
 }
 
 // Invoked when usb bus is resumed
-void tud_resume_cb(void)
-{
+void tud_resume_cb(void) {
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 // Invoked when CDC interface received data from host
-void tud_cdc_rx_cb(uint8_t itf)
-{
+void tud_cdc_rx_cb(uint8_t itf) {
   (void) itf;
 
   char buf[64];
@@ -149,38 +142,36 @@ void tud_cdc_rx_cb(uint8_t itf)
 // can be used to parse common/simple enough descriptor.
 // Note: if report descriptor length > CFG_TUH_ENUMERATION_BUFSIZE, it will be skipped
 // therefore report_desc = NULL, desc_len = 0
-void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
-{
-  (void)desc_report;
-  (void)desc_len;
+void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
+  (void) desc_report;
+  (void) desc_len;
 
   // Interface protocol (hid_interface_protocol_enum_t)
-  const char* protocol_str[] = { "None", "Keyboard", "Mouse" };
+  const char* protocol_str[] = {"None", "Keyboard", "Mouse"};
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
   uint16_t vid, pid;
   tuh_vid_pid_get(dev_addr, &vid, &pid);
 
   char tempbuf[256];
-  int count = sprintf(tempbuf, "[%04x:%04x][%u] HID Interface%u, Protocol = %s\r\n", vid, pid, dev_addr, instance, protocol_str[itf_protocol]);
+  int count = sprintf(
+      tempbuf, "[%04x:%04x][%u] HID Interface%u, Protocol = %s\r\n", vid, pid, dev_addr, instance,
+      protocol_str[itf_protocol]);
 
   tud_cdc_write(tempbuf, (uint32_t) count);
   tud_cdc_write_flush();
 
   // Receive report from boot keyboard & mouse only
   // tuh_hid_report_received_cb() will be invoked when report is available
-  if (itf_protocol == HID_ITF_PROTOCOL_KEYBOARD || itf_protocol == HID_ITF_PROTOCOL_MOUSE)
-  {
-    if ( !tuh_hid_receive_report(dev_addr, instance) )
-    {
+  if (itf_protocol == HID_ITF_PROTOCOL_KEYBOARD || itf_protocol == HID_ITF_PROTOCOL_MOUSE) {
+    if (!tuh_hid_receive_report(dev_addr, instance)) {
       tud_cdc_write_str("Error: cannot request report\r\n");
     }
   }
 }
 
 // Invoked when device with hid interface is un-mounted
-void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
-{
+void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
   char tempbuf[256];
   int count = sprintf(tempbuf, "[%u] HID Interface%u is unmounted\r\n", dev_addr, instance);
   tud_cdc_write(tempbuf, (uint32_t) count);
@@ -188,11 +179,9 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 }
 
 // look up new key in previous keys
-static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8_t keycode)
-{
-  for(uint8_t i=0; i<6; i++)
-  {
-    if (report->keycode[i] == keycode)  return true;
+static inline bool find_key_in_report(hid_keyboard_report_t const* report, uint8_t keycode) {
+  for (uint8_t i = 0; i < 6; i++) {
+    if (report->keycode[i] == keycode) return true;
   }
 
   return false;
@@ -200,22 +189,17 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
 
 
 // convert hid keycode to ascii and print via usb device CDC (ignore non-printable)
-static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *report)
-{
+static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const* report) {
   (void) dev_addr;
-  static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
+  static hid_keyboard_report_t prev_report = {0, 0, {0}}; // previous report to check key released
   bool flush = false;
 
-  for(uint8_t i=0; i<6; i++)
-  {
+  for (uint8_t i = 0; i < 6; i++) {
     uint8_t keycode = report->keycode[i];
-    if ( keycode )
-    {
-      if ( find_key_in_report(&prev_report, keycode) )
-      {
+    if (keycode) {
+      if (find_key_in_report(&prev_report, keycode)) {
         // exist in previous report means the current key is holding
-      }else
-      {
+      } else {
         // not existed in previous report means the current key is pressed
 
         // remap the key code for Colemak layout
@@ -227,8 +211,7 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
         bool const is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
         uint8_t ch = keycode2ascii[keycode][is_shift ? 1 : 0];
 
-        if (ch)
-        {
+        if (ch) {
           if (ch == '\n') tud_cdc_write("\r", 1);
           tud_cdc_write(&ch, 1);
           flush = true;
@@ -244,13 +227,12 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const *re
 }
 
 // send mouse report to usb device CDC
-static void process_mouse_report(uint8_t dev_addr, hid_mouse_report_t const * report)
-{
+static void process_mouse_report(uint8_t dev_addr, hid_mouse_report_t const* report) {
   //------------- button state  -------------//
   //uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
-  char l = report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-';
+  char l = report->buttons & MOUSE_BUTTON_LEFT ? 'L' : '-';
   char m = report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-';
-  char r = report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-';
+  char r = report->buttons & MOUSE_BUTTON_RIGHT ? 'R' : '-';
 
   char tempbuf[32];
   int count = sprintf(tempbuf, "[%u] %c%c%c %d %d %d\r\n", dev_addr, l, m, r, report->x, report->y, report->wheel);
@@ -260,27 +242,25 @@ static void process_mouse_report(uint8_t dev_addr, hid_mouse_report_t const * re
 }
 
 // Invoked when received report from device via interrupt endpoint
-void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
-{
+void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
   (void) len;
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
-  switch(itf_protocol)
-  {
+  switch (itf_protocol) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      process_kbd_report(dev_addr, (hid_keyboard_report_t const*) report );
-    break;
+      process_kbd_report(dev_addr, (hid_keyboard_report_t const*) report);
+      break;
 
     case HID_ITF_PROTOCOL_MOUSE:
-      process_mouse_report(dev_addr, (hid_mouse_report_t const*) report );
-    break;
+      process_mouse_report(dev_addr, (hid_mouse_report_t const*) report);
+      break;
 
-    default: break;
+    default:
+      break;
   }
 
   // continue to request to receive report
-  if ( !tuh_hid_receive_report(dev_addr, instance) )
-  {
+  if (!tuh_hid_receive_report(dev_addr, instance)) {
     tud_cdc_write_str("Error: cannot request report\r\n");
   }
 }
@@ -288,13 +268,12 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
 //--------------------------------------------------------------------+
 // Blinking Task
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
+void led_blinking_task(void) {
   static uint32_t start_ms = 0;
   static bool led_state = false;
 
   // Blink every interval ms
-  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
+  if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);

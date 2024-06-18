@@ -23,10 +23,6 @@
  *
  */
 
-/* This example current worked and tested with following controller
- * - Sony DualShock 4 [CUH-ZCT2x] VID = 0x054c, PID = 0x09cc
- */
-
 
 #include <stdlib.h>
 #include <stdio.h>
