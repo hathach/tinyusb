@@ -140,7 +140,6 @@ function(family_filter RESULT DIR)
   endif()
 endfunction()
 
-
 function(family_add_subdirectory DIR)
   family_filter(SHOULD_ADD "${DIR}")
   if (SHOULD_ADD)
@@ -148,12 +147,10 @@ function(family_add_subdirectory DIR)
   endif()
 endfunction()
 
-
 function(family_get_project_name OUTPUT_NAME DIR)
   get_filename_component(SHORT_NAME ${DIR} NAME)
   set(${OUTPUT_NAME} ${TINYUSB_FAMILY_PROJECT_NAME_PREFIX}${SHORT_NAME} PARENT_SCOPE)
 endfunction()
-
 
 function(family_initialize_project PROJECT DIR)
   # set output suffix to .elf (skip espressif and rp2040)
@@ -167,7 +164,6 @@ function(family_initialize_project PROJECT DIR)
     message(FATAL_ERROR "${SHORT_NAME} is not supported on FAMILY=${FAMILY}")
   endif()
 endfunction()
-
 
 #-------------------------------------------------------------
 # Common Target Configure
@@ -194,7 +190,6 @@ function(family_add_rtos TARGET RTOS)
   endif ()
 endfunction()
 
-
 # Add common configuration to example
 function(family_configure_common TARGET RTOS)
   family_add_rtos(${TARGET} ${RTOS})
@@ -205,14 +200,12 @@ function(family_configure_common TARGET RTOS)
     BOARD_${BOARD_UPPER}
   )
 
-  # run size after build
-  find_program(SIZE_EXE ${CMAKE_SIZE})
-  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
-    add_custom_command(TARGET ${TARGET} POST_BUILD
-      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
-      )
-  endif ()
-  # Add warnings flags
+  # compile define from command line
+  if(DEFINED COMPILE_DEFINE)
+    #separate_arguments(COMPILE_DEFINE_LIST UNIX_COMMAND "${COMPILE_DEFINE}")
+    target_compile_definitions(${TARGET} PUBLIC ${COMPILE_DEFINE})
+  endif()
+
   target_compile_options(${TARGET} PUBLIC ${WARNING_FLAGS_${CMAKE_C_COMPILER_ID}})
 
   # Generate linker map file
@@ -235,7 +228,6 @@ function(family_configure_common TARGET RTOS)
   # LOGGER option
   if (DEFINED LOGGER)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
-
     # Add segger rtt to example
     if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
       if (NOT TARGET segger_rtt)
@@ -246,8 +238,15 @@ function(family_configure_common TARGET RTOS)
       target_link_libraries(${TARGET} PUBLIC segger_rtt)
     endif ()
   endif ()
-endfunction()
 
+  # run size after build
+  find_program(SIZE_EXE ${CMAKE_SIZE})
+  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
+      )
+  endif ()
+endfunction()
 
 # Add tinyusb to example
 function(family_add_tinyusb TARGET OPT_MCU RTOS)
@@ -288,7 +287,6 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
   endif ()
 
 endfunction()
-
 
 # Add bin/hex output
 function(family_add_bin_hex TARGET)

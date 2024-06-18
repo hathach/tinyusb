@@ -175,6 +175,12 @@ function(family_configure_target TARGET RTOS)
 	# export RTOS_SUFFIX to parent scope
 	set(RTOS_SUFFIX ${RTOS_SUFFIX} PARENT_SCOPE)
 
+	# compile define from command line
+	if(DEFINED COMPILE_DEFINE)
+		#separate_arguments(COMPILE_DEFINE_LIST UNIX_COMMAND "${COMPILE_DEFINE}")
+		target_compile_definitions(${TARGET} PUBLIC ${COMPILE_DEFINE})
+	endif()
+
 	pico_add_extra_outputs(${TARGET})
 	pico_enable_stdio_uart(${TARGET} 1)
 	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
