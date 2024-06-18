@@ -23,8 +23,7 @@
  *
  */
 
-/* Host example will get device descriptors of attached devices and print it out via
- * device cdc (Serial) as follows:
+/* Host example will get device descriptors of attached devices and print it out via uart/rtt (logger) as follows:
  *    Device 1: ID 046d:c52f
       Device Descriptor:
         bLength             18
