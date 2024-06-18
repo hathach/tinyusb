@@ -70,7 +70,7 @@
 #define CFG_TUH_ENABLED       1
 
 #if CFG_TUSB_MCU == OPT_MCU_RP2040
-   #define CFG_TUH_RPI_PIO_USB   1 // use pio-usb as host controller
+  // #define CFG_TUH_RPI_PIO_USB   1 // use pio-usb as host controller
   // #define CFG_TUH_MAX3421       1 // use max3421 as host controller
 
   // host roothub port is 1 if using either pio-usb or max3421
