@@ -41,15 +41,15 @@
  * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
- * G0                             2048 byte buffer; 32-bit bus
+ * G0                             2048 byte buffer; 32-bit bus; host mode
  * G4                             1024 byte buffer
- * H5                             2048 byte buffer; 32-bit bus
+ * H5                             2048 byte buffer; 32-bit bus; host mode
  * L0x2, L0x3                     1024 byte buffer
  * L1                              512 byte buffer
  * L4x2, L4x3                     1024 byte buffer
  * L5                             1024 byte buffer
  * U0                             1024 byte buffer; 32-bit bus
- * U535, U545                     2048 byte buffer; 32-bit bus
+ * U535, U545                     2048 byte buffer; 32-bit bus; host mode
  * WB35, WB55                     1024 byte buffer
  *
  * To use this driver, you must:
