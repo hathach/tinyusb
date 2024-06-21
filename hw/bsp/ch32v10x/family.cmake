@@ -59,8 +59,8 @@ function(add_board_target BOARD_TARGET)
       )
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      -Wl,--defsym=__flash_size=${LD_FLASH_SIZE}
-      -Wl,--defsym=__ram_size=${LD_RAM_SIZE}
+      -Wl,--defsym=__FLASH_SIZE=${LD_FLASH_SIZE}
+      -Wl,--defsym=__RAM_SIZE=${LD_RAM_SIZE}
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
       )
