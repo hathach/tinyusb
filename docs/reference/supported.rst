@@ -151,12 +151,12 @@ Supported MCUs
 Table Legend
 ------------
 
-= ===================
-✔ Supported
-⚠ Partial support
-✖ Not supported by hardware
-[empty] Unknown
-= ===================
+========= =========================
+✔         Supported
+⚠         Partial support
+✖         Not supported by hardware
+\[empty\] Unknown
+========= =========================
 
 Supported Boards
 ================
