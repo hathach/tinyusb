@@ -41,6 +41,7 @@ function(add_board_target BOARD_TARGET)
 
   add_library(${BOARD_TARGET} STATIC
     ${SDK_SRC_DIR}/Core/core_riscv.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_flash.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_gpio.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_misc.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
@@ -76,14 +77,14 @@ function(add_board_target BOARD_TARGET)
       -mcmodel=medany
       )
     target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -Wl,--defsym=__flash_size=${LD_FLASH_SIZE}
-      -Wl,--defsym=__ram_size=${LD_RAM_SIZE}
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
+      -Wl,--defsym=__FLASH_SIZE=${LD_FLASH_SIZE}
+      -Wl,--defsym=__RAM_SIZE=${LD_RAM_SIZE}
+      "LINKER:--script=${LD_FILE_GNU}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message(FATAL_ERROR "Clang is not supported for MSP432E4")
+    message(FATAL_ERROR "Clang is not supported for CH32v")
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--config=${LD_FILE_IAR}"

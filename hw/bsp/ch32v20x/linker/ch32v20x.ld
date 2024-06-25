@@ -1,16 +1,15 @@
 /* Define default values if not already defined */
-__FLASH_SIZE = DEFINED(__flash_size) ? __flash_size : 64K;
-__RAM_SIZE = DEFINED(__ram_size) ? __ram_size : 20K;
+__flash_size = DEFINED(__FLASH_SIZE) ? __FLASH_SIZE : 64K;
+__ram_size = DEFINED(__RAM_SIZE) ? __RAM_SIZE : 20K;
+__stack_size = DEFINED(__STACK_SIZE) ? __STACK_SIZE : 2048;
 
 MEMORY
 {
-	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = __FLASH_SIZE
-	RAM (xrw) : ORIGIN = 0x20000000, LENGTH = __RAM_SIZE
+	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = __flash_size
+	RAM (xrw) : ORIGIN = 0x20000000, LENGTH = __ram_size
 }
 
 ENTRY( _start )
-
-__stack_size = 2048;
 
 PROVIDE( _stack_size = __stack_size );
 
