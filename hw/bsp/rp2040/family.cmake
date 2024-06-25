@@ -176,9 +176,8 @@ function(family_configure_target TARGET RTOS)
 	set(RTOS_SUFFIX ${RTOS_SUFFIX} PARENT_SCOPE)
 
 	# compile define from command line
-	if(DEFINED COMPILE_DEFINE)
-		#separate_arguments(COMPILE_DEFINE_LIST UNIX_COMMAND "${COMPILE_DEFINE}")
-		target_compile_definitions(${TARGET} PUBLIC ${COMPILE_DEFINE})
+	if(DEFINED CFLAGS_CLI)
+		target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
 	endif()
 
 	pico_add_extra_outputs(${TARGET})

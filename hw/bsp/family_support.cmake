@@ -201,9 +201,8 @@ function(family_configure_common TARGET RTOS)
   )
 
   # compile define from command line
-  if(DEFINED COMPILE_DEFINE)
-    #separate_arguments(COMPILE_DEFINE_LIST UNIX_COMMAND "${COMPILE_DEFINE}")
-    target_compile_definitions(${TARGET} PUBLIC ${COMPILE_DEFINE})
+  if(DEFINED CFLAGS_CLI)
+    target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
   endif()
 
   target_compile_options(${TARGET} PUBLIC ${WARNING_FLAGS_${CMAKE_C_COMPILER_ID}})

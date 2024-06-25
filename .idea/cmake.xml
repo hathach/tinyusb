@@ -3,7 +3,7 @@
   <component name="CMakeSharedSettings">
     <configurations>
       <configuration PROFILE_NAME="pico" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1" />
-      <configuration PROFILE_NAME="pico pio-host" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1 -DCOMPILE_DEFINE=&quot;CFG_TUH_RPI_PIO_USB=1&quot;" BUILD_OPTIONS="-v" />
+      <configuration PROFILE_NAME="pico pio-host" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" BUILD_OPTIONS="-v" />
       <configuration PROFILE_NAME="feather_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_feather_rp2040 -DLOG=2" />
       <configuration PROFILE_NAME="feather_rp2040_max3421" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_rp2040_max3421 -DLOG=2" />
       <configuration PROFILE_NAME="metro_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_metro_rp2040 -DLOG=2 -DMAX3421_HOST=1" />
