@@ -1,3 +1,5 @@
+mcu:CH32V103
+mcu:CH32V20X
 mcu:CH32V307
 mcu:CXD56
 mcu:F1C100S
@@ -9,5 +11,6 @@ mcu:SAMD11
 mcu:SAMX7X
 mcu:VALENTYUSB_EPTRI
 mcu:RAXXX
+mcu:STM32L0
 family:broadcom_32bit
 family:broadcom_64bit

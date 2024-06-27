@@ -689,6 +689,24 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       }
     break;
 
+    case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
+      resplen = 0;
+
+      if (tud_msc_prevent_allow_medium_removal_cb)
+      {
+         scsi_prevent_allow_medium_removal_t const * prevent_allow = (scsi_prevent_allow_medium_removal_t const *) scsi_cmd;
+        if ( !tud_msc_prevent_allow_medium_removal_cb(lun, prevent_allow->prohibit_removal, prevent_allow->control) )
+        {
+          // Failed status response
+          resplen = - 1;
+
+          // set default sense if not set by callback
+          if ( p_msc->sense_key == 0 ) set_sense_medium_not_present(lun);
+        }
+      }
+    break;
+
+
     case SCSI_CMD_READ_CAPACITY_10:
     {
       uint32_t block_count;

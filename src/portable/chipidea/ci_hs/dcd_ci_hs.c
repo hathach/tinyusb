@@ -309,10 +309,12 @@ void dcd_disconnect(uint8_t rhport)
 
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
-  (void) rhport;
-  (void) en;
-
-  // TODO implement later
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
+  if (en) {
+      dcd_reg->USBINTR |= INTR_SOF;
+  } else {
+      dcd_reg->USBINTR &= ~INTR_SOF;
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -679,7 +681,8 @@ void dcd_int_handler(uint8_t rhport)
 
   if (int_status & INTR_SOF)
   {
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+    const uint32_t frame = dcd_reg->FRINDEX;
+    dcd_event_sof(rhport, frame, true);
   }
 }
 

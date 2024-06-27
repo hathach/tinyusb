@@ -36,6 +36,8 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+#define BULK_PACKET_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+
 typedef struct
 {
   uint8_t itf_num;
@@ -273,7 +275,6 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
 
 bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
-  (void) rhport;
   (void) result;
 
   uint8_t itf = 0;
@@ -300,7 +301,18 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   {
     if (tud_vendor_tx_cb) tud_vendor_tx_cb(itf, (uint16_t) xferred_bytes);
     // Send complete, try to send more if possible
-    tud_vendor_n_write_flush(itf);
+    if ( 0 == tud_vendor_n_write_flush(itf) )
+    {
+      // If there is no data left, a ZLP should be sent if
+      // xferred_bytes is multiple of EP Packet size and not zero
+      if ( !tu_fifo_count(&p_itf->tx_ff) && xferred_bytes && (0 == (xferred_bytes & (BULK_PACKET_SIZE-1))) )
+      {
+        if ( usbd_edpt_claim(rhport, p_itf->ep_in) )
+        {
+          usbd_edpt_xfer(rhport, p_itf->ep_in, NULL, 0);
+        }
+      }
+    }
   }
 
   return true;

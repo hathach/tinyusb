@@ -6,6 +6,8 @@ include(CMakePrintHelpers)
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
 get_filename_component(TOP ${TOP} ABSOLUTE)
 
+set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
+
 #-------------------------------------------------------------
 # Toolchain
 # Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
@@ -138,7 +140,6 @@ function(family_filter RESULT DIR)
   endif()
 endfunction()
 
-
 function(family_add_subdirectory DIR)
   family_filter(SHOULD_ADD "${DIR}")
   if (SHOULD_ADD)
@@ -146,12 +147,10 @@ function(family_add_subdirectory DIR)
   endif()
 endfunction()
 
-
 function(family_get_project_name OUTPUT_NAME DIR)
   get_filename_component(SHORT_NAME ${DIR} NAME)
   set(${OUTPUT_NAME} ${TINYUSB_FAMILY_PROJECT_NAME_PREFIX}${SHORT_NAME} PARENT_SCOPE)
 endfunction()
-
 
 function(family_initialize_project PROJECT DIR)
   # set output suffix to .elf (skip espressif and rp2040)
@@ -165,7 +164,6 @@ function(family_initialize_project PROJECT DIR)
     message(FATAL_ERROR "${SHORT_NAME} is not supported on FAMILY=${FAMILY}")
   endif()
 endfunction()
-
 
 #-------------------------------------------------------------
 # Common Target Configure
@@ -192,7 +190,6 @@ function(family_add_rtos TARGET RTOS)
   endif ()
 endfunction()
 
-
 # Add common configuration to example
 function(family_configure_common TARGET RTOS)
   family_add_rtos(${TARGET} ${RTOS})
@@ -203,14 +200,11 @@ function(family_configure_common TARGET RTOS)
     BOARD_${BOARD_UPPER}
   )
 
-  # run size after build
-  find_program(SIZE_EXE ${CMAKE_SIZE})
-  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
-    add_custom_command(TARGET ${TARGET} POST_BUILD
-      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
-      )
-  endif ()
-  # Add warnings flags
+  # compile define from command line
+  if(DEFINED CFLAGS_CLI)
+    target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
+  endif()
+
   target_compile_options(${TARGET} PUBLIC ${WARNING_FLAGS_${CMAKE_C_COMPILER_ID}})
 
   # Generate linker map file
@@ -233,7 +227,6 @@ function(family_configure_common TARGET RTOS)
   # LOGGER option
   if (DEFINED LOGGER)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
-
     # Add segger rtt to example
     if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
       if (NOT TARGET segger_rtt)
@@ -244,8 +237,15 @@ function(family_configure_common TARGET RTOS)
       target_link_libraries(${TARGET} PUBLIC segger_rtt)
     endif ()
   endif ()
-endfunction()
 
+  # run size after build
+  find_program(SIZE_EXE ${CMAKE_SIZE})
+  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
+      )
+  endif ()
+endfunction()
 
 # Add tinyusb to example
 function(family_add_tinyusb TARGET OPT_MCU RTOS)
@@ -287,7 +287,6 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
 
 endfunction()
 
-
 # Add bin/hex output
 function(family_add_bin_hex TARGET)
   add_custom_command(TARGET ${TARGET} POST_BUILD
@@ -296,6 +295,13 @@ function(family_add_bin_hex TARGET)
     VERBATIM)
 endfunction()
 
+# Add uf2 output
+function(family_add_uf2 TARGET FAMILY_ID)
+  set(BIN_FILE $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex)
+  add_custom_command(TARGET ${TARGET} POST_BUILD
+    COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} -c -o $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2 ${BIN_FILE}
+    VERBATIM)
+endfunction()
 
 #----------------------------------
 # Example Target Configure (Default rule)
@@ -385,6 +391,10 @@ function(family_flash_jlink TARGET)
     set(JLINKEXE JLinkExe)
   endif ()
 
+  if (NOT DEFINED JLINK_IF)
+    set(JLINK_IF swd)
+  endif ()
+
   file(GENERATE
     OUTPUT $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     CONTENT "halt
@@ -396,7 +406,7 @@ exit"
 
   add_custom_target(${TARGET}-jlink
     DEPENDS ${TARGET}
-    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     )
 endfunction()
 
@@ -415,19 +425,34 @@ endfunction()
 
 
 # Add flash openocd target
-function(family_flash_openocd TARGET CLI_OPTIONS)
+function(family_flash_openocd TARGET)
   if (NOT DEFINED OPENOCD)
     set(OPENOCD openocd)
   endif ()
 
-  separate_arguments(CLI_OPTIONS_LIST UNIX_COMMAND ${CLI_OPTIONS})
+  if (NOT DEFINED OPENOCD_OPTION2)
+    set(OPENOCD_OPTION2 "")
+  endif ()
+
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${OPENOCD_OPTION})
+  separate_arguments(OPTION_LIST2 UNIX_COMMAND ${OPENOCD_OPTION2})
 
   # note skip verify since it has issue with rp2040
   add_custom_target(${TARGET}-openocd
     DEPENDS ${TARGET}
-    COMMAND ${OPENOCD} ${CLI_OPTIONS_LIST} -c "program $<TARGET_FILE:${TARGET}> reset exit"
+    COMMAND ${OPENOCD} ${OPTION_LIST} -c init -c halt -c "program $<TARGET_FILE:${TARGET}> reset" ${OPTION_LIST2} -c exit
     VERBATIM
     )
+endfunction()
+
+# Add flash openocd-wch target
+# compiled from https://github.com/hathach/riscv-openocd-wch or https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
+function(family_flash_openocd_wch TARGET)
+  if (NOT DEFINED OPENOCD)
+    set(OPENOCD $ENV{HOME}/app/riscv-openocd-wch/src/openocd)
+  endif ()
+
+  family_flash_openocd(${TARGET})
 endfunction()
 
 # Add flash pycod target
@@ -442,6 +467,13 @@ function(family_flash_pyocd TARGET)
     )
 endfunction()
 
+# Flash with UF2
+function(family_flash_uf2 TARGET FAMILY_ID)
+  add_custom_target(${TARGET}-uf2
+    DEPENDS ${TARGET}
+    COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} --deploy $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2
+    )
+endfunction()
 
 # Add flash teensy_cli target
 function(family_flash_teensy TARGET)

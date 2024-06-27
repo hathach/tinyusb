@@ -37,14 +37,20 @@
  * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
  *  covers:
  *
- * F04x, F072, F078, 070x6/B      1024 byte buffer
+ * F04x, F072, F078, F070x6/B     1024 byte buffer
  * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
+ * G0                             2048 byte buffer; 32-bit bus; host mode
+ * G4                             1024 byte buffer
+ * H5                             2048 byte buffer; 32-bit bus; host mode
  * L0x2, L0x3                     1024 byte buffer
  * L1                              512 byte buffer
  * L4x2, L4x3                     1024 byte buffer
- * G0                             2048 byte buffer
+ * L5                             1024 byte buffer
+ * U0                             1024 byte buffer; 32-bit bus
+ * U535, U545                     2048 byte buffer; 32-bit bus; host mode
+ * WB35, WB55                     1024 byte buffer
  *
  * To use this driver, you must:
  * - If you are using a device with crystal-less USB, set up the clock recovery system (CRS)
@@ -102,25 +108,29 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_FSDEV)
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_FSDEV) && \
+    !(defined(TUP_USBIP_FSDEV_CH32) && CFG_TUD_WCH_USBIP_FSDEV == 0)
 
 #include "device/dcd.h"
 
-#ifdef TUP_USBIP_FSDEV_STM32
-// Undefine to reduce the dependence on HAL
-#undef USE_HAL_DRIVER
-#include "portable/st/stm32_fsdev/dcd_stm32_fsdev.h"
+#if defined(TUP_USBIP_FSDEV_STM32)
+  // Undefine to reduce the dependence on HAL
+  #undef USE_HAL_DRIVER
+  #include "fsdev_stm32.h"
+#elif defined(TUP_USBIP_FSDEV_CH32)
+  #include "fsdev_ch32.h"
+#else
+  #error "Unknown USB IP"
 #endif
 
-/*****************************************************
- * Configuration
- *****************************************************/
+#include "fsdev_common.h"
 
-// HW supports max of 8 bidirectional endpoints, but this can be reduced to save RAM
-// (8u here would mean 8 IN and 8 OUT)
-#ifndef MAX_EP_COUNT
-#define MAX_EP_COUNT 8U
-#endif
+//--------------------------------------------------------------------+
+// Configuration
+//--------------------------------------------------------------------+
+
+// hardware limit endpoint
+#define FSDEV_EP_COUNT 8
 
 // If sharing with CAN, one can set this to be non-zero to give CAN space where it wants it
 // Both of these MUST be a multiple of 2, and are in byte units.
@@ -132,11 +142,6 @@
 #define DCD_STM32_BTABLE_SIZE (FSDEV_PMA_SIZE - DCD_STM32_BTABLE_BASE)
 #endif
 
-/***************************************************
- * Checks, structs, defines, function definitions, etc.
- */
-
-TU_VERIFY_STATIC((MAX_EP_COUNT) <= STFSDEV_EP_COUNT, "Only 8 endpoints supported on the hardware");
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_SIZE)) <= (FSDEV_PMA_SIZE), "BTABLE does not fit in PMA RAM");
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
 
@@ -162,9 +167,9 @@ typedef struct {
   bool allocated[2];
 } ep_alloc_t;
 
-static xfer_ctl_t xfer_status[MAX_EP_COUNT][2];
+static xfer_ctl_t xfer_status[CFG_TUD_ENDPPOINT_MAX][2];
 
-static ep_alloc_t ep_alloc_status[STFSDEV_EP_COUNT];
+static ep_alloc_t ep_alloc_status[FSDEV_EP_COUNT];
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
@@ -199,7 +204,7 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint32_t ep_addr)
   uint8_t epnum = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
   // Fix -Werror=null-dereference
-  TU_ASSERT(epnum < MAX_EP_COUNT, &xfer_status[0][0]);
+  TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX, &xfer_status[0][0]);
 
   return &xfer_status[epnum][dir];
 }
@@ -216,30 +221,30 @@ void dcd_init(uint8_t rhport)
   /* The RM mentions to use a special ordering of PDWN and FRES, but this isn't done in HAL.
    * Here, the RM is followed. */
 
-  for (uint32_t i = 0; i < 200; i++) { // should be a few us
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
   // Perform USB peripheral reset
   USB->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
-  for (uint32_t i = 0; i < 200; i++) { // should be a few us
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
 
   USB->CNTR &= ~USB_CNTR_PDWN;
 
   // Wait startup time, for F042 and F070, this is <= 1 us.
-  for (uint32_t i = 0; i < 200; i++) { // should be a few us
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
   USB->CNTR = 0; // Enable USB
 
-#if !defined(STM32G0) && !defined(STM32H5) // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
+#if !defined(STM32G0) && !defined(STM32H5) && !defined(STM32U5) // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 #endif
   USB->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
-  for (uint32_t i = 0; i < STFSDEV_EP_COUNT; i++) {
+  for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {
     // This doesn't clear all bits since some bits are "toggle", but does set the type to DISABLED.
     pcd_set_endpoint(USB, i, 0u);
   }
@@ -248,43 +253,9 @@ void dcd_init(uint8_t rhport)
   dcd_handle_bus_reset();
 
   // Enable pull-up if supported
-  if (dcd_connect) {
-    dcd_connect(rhport);
-  }
+  dcd_connect(rhport);
 }
 
-// Define only on MCU with internal pull-up. BSP can define on MCU without internal PU.
-#if defined(USB_BCDR_DPPU)
-
-// Disable internal D+ PU
-void dcd_disconnect(uint8_t rhport)
-{
-  (void)rhport;
-  USB->BCDR &= ~(USB_BCDR_DPPU);
-}
-
-// Enable internal D+ PU
-void dcd_connect(uint8_t rhport)
-{
-  (void)rhport;
-  USB->BCDR |= USB_BCDR_DPPU;
-}
-
-#elif defined(SYSCFG_PMC_USB_PU) // works e.g. on STM32L151
-// Disable internal D+ PU
-void dcd_disconnect(uint8_t rhport)
-{
-  (void)rhport;
-  SYSCFG->PMC &= ~(SYSCFG_PMC_USB_PU);
-}
-
-// Enable internal D+ PU
-void dcd_connect(uint8_t rhport)
-{
-  (void)rhport;
-  SYSCFG->PMC |= SYSCFG_PMC_USB_PU;
-}
-#endif
 
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
@@ -296,126 +267,6 @@ void dcd_sof_enable(uint8_t rhport, bool en)
   } else {
     USB->CNTR &= ~USB_CNTR_SOFM;
   }
-}
-
-// Enable device interrupt
-void dcd_int_enable(uint8_t rhport)
-{
-  (void)rhport;
-  // Member here forces write to RAM before allowing ISR to execute
-  __DSB();
-  __ISB();
-#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0 || CFG_TUSB_MCU == OPT_MCU_STM32L4
-  NVIC_EnableIRQ(USB_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L1
-  NVIC_EnableIRQ(USB_LP_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-// Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
-// shared USB/CAN IRQs to separate CAN and USB IRQs.
-// This dynamically checks if this remap is active to enable the right IRQs.
-#ifdef SYSCFG_CFGR1_USB_IT_RMP
-  if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP) {
-    NVIC_EnableIRQ(USB_HP_IRQn);
-    NVIC_EnableIRQ(USB_LP_IRQn);
-    NVIC_EnableIRQ(USBWakeUp_RMP_IRQn);
-  } else
-#endif
-  {
-    NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
-    NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
-    NVIC_EnableIRQ(USBWakeUp_IRQn);
-  }
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
-  NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
-  NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
-  NVIC_EnableIRQ(USBWakeUp_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G4
-  NVIC_EnableIRQ(USB_HP_IRQn);
-  NVIC_EnableIRQ(USB_LP_IRQn);
-  NVIC_EnableIRQ(USBWakeUp_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-#ifdef STM32G0B0xx
-  NVIC_EnableIRQ(USB_IRQn);
-#else
-  NVIC_EnableIRQ(USB_UCPD1_2_IRQn);
-#endif
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
-  NVIC_EnableIRQ(USB_DRD_FS_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32WB
-  NVIC_EnableIRQ(USB_HP_IRQn);
-  NVIC_EnableIRQ(USB_LP_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L5
-  NVIC_EnableIRQ(USB_FS_IRQn);
-
-#else
-#error Unknown arch in USB driver
-#endif
-}
-
-// Disable device interrupt
-void dcd_int_disable(uint8_t rhport)
-{
-  (void)rhport;
-
-#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0 || CFG_TUSB_MCU == OPT_MCU_STM32L4
-  NVIC_DisableIRQ(USB_IRQn);
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L1
-  NVIC_DisableIRQ(USB_LP_IRQn);
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F3
-// Some STM32F302/F303 devices allow to remap the USB interrupt vectors from
-// shared USB/CAN IRQs to separate CAN and USB IRQs.
-// This dynamically checks if this remap is active to disable the right IRQs.
-#ifdef SYSCFG_CFGR1_USB_IT_RMP
-  if (SYSCFG->CFGR1 & SYSCFG_CFGR1_USB_IT_RMP) {
-    NVIC_DisableIRQ(USB_HP_IRQn);
-    NVIC_DisableIRQ(USB_LP_IRQn);
-    NVIC_DisableIRQ(USBWakeUp_RMP_IRQn);
-  } else
-#endif
-  {
-    NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
-    NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
-    NVIC_DisableIRQ(USBWakeUp_IRQn);
-  }
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
-  NVIC_DisableIRQ(USB_HP_CAN1_TX_IRQn);
-  NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
-  NVIC_DisableIRQ(USBWakeUp_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G4
-  NVIC_DisableIRQ(USB_HP_IRQn);
-  NVIC_DisableIRQ(USB_LP_IRQn);
-  NVIC_DisableIRQ(USBWakeUp_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-#ifdef STM32G0B0xx
-  NVIC_DisableIRQ(USB_IRQn);
-#else
-  NVIC_DisableIRQ(USB_UCPD1_2_IRQn);
-#endif
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32H5
-  NVIC_DisableIRQ(USB_DRD_FS_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32WB
-  NVIC_DisableIRQ(USB_HP_IRQn);
-  NVIC_DisableIRQ(USB_LP_IRQn);
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L5
-  NVIC_DisableIRQ(USB_FS_IRQn);
-
-#else
-#error Unknown arch in USB driver
-#endif
-
-  // CMSIS has a membar after disabling interrupts
 }
 
 // Receive Set Address request, mcu port must also include status IN response
@@ -461,7 +312,7 @@ static void dcd_handle_bus_reset(void)
 {
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
 
-  for (uint32_t i = 0; i < STFSDEV_EP_COUNT; i++) {
+  for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {
     // Clear EP allocation status
     ep_alloc_status[i].ep_num = 0xFF;
     ep_alloc_status[i].ep_type = 0xFF;
@@ -470,7 +321,7 @@ static void dcd_handle_bus_reset(void)
   }
 
   // Reset PMA allocation
-  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8 * MAX_EP_COUNT;
+  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX;
 
   dcd_edpt_open(0, &ep0OUT_desc);
   dcd_edpt_open(0, &ep0IN_desc);
@@ -653,7 +504,6 @@ static void dcd_ep_ctr_handler(void)
 
 void dcd_int_handler(uint8_t rhport)
 {
-
   (void)rhport;
 
   uint32_t int_status = USB->ISTR;
@@ -774,7 +624,7 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  for (uint8_t i = 0; i < STFSDEV_EP_COUNT; i++) {
+  for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
     // Check if already allocated
     if (ep_alloc_status[i].allocated[dir] &&
         ep_alloc_status[i].ep_type == ep_type &&
@@ -818,7 +668,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
   uint16_t pma_addr;
   uint32_t wType;
 
-  TU_ASSERT(ep_idx < STFSDEV_EP_COUNT);
+  TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
   TU_ASSERT(buffer_size <= 64);
 
   // Set type
@@ -865,7 +715,7 @@ void dcd_edpt_close_all(uint8_t rhport)
 {
   (void)rhport;
 
-  for (uint32_t i = 1; i < STFSDEV_EP_COUNT; i++) {
+  for (uint32_t i = 1; i < FSDEV_EP_COUNT; i++) {
     // Reset endpoint
     pcd_set_endpoint(USB, i, 0);
     // Clear EP allocation status
@@ -876,7 +726,7 @@ void dcd_edpt_close_all(uint8_t rhport)
   }
 
   // Reset PMA allocation
-  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8 * MAX_EP_COUNT + 2 * CFG_TUD_ENDPOINT0_SIZE;
+  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX + 2 * CFG_TUD_ENDPOINT0_SIZE;
 }
 
 /**
@@ -1155,7 +1005,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
   }
 
   if (wNBytes) {
-    temp1 = *srcVal;
+    temp1 = (uint16_t) *srcVal;
     *pdwVal = temp1;
   }
 

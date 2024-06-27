@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
-
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc$(MCU)/lpc_chip_$(MCU)
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m0plus
@@ -34,7 +32,8 @@ SRC_C += \
 endif
 
 INC += \
-	$(TOP)/$(MCU_DIR)/inc
+	$(TOP)/$(BOARD_PATH) \
+	$(TOP)/$(MCU_DIR)/inc \
 
 # For flash-jlink target
 JLINK_DEVICE = LPC11U68

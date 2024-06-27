@@ -60,7 +60,7 @@ void tud_task (void) {
 // Check if there is pending events need processing by tud_task()
 bool tud_task_event_ready(void);
 
-#ifndef _TUSB_DCD_H_
+#ifndef TUSB_DCD_H_
 extern void dcd_int_handler(uint8_t rhport);
 #endif
 
@@ -96,6 +96,9 @@ bool tud_disconnect(void);
 // Disable pull-up resistor on D+ D-
 // Return false on unsupported MCUs
 bool tud_connect(void);
+
+// Enable or disable the Start Of Frame callback support
+void tud_sof_cb_enable(bool en);
 
 // Carry out Data and Status stage of control transfer
 // - If len = 0, it is equivalent to sending status only
@@ -151,6 +154,9 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 
 // Invoked when there is a new usb event, which need to be processed by tud_task()/tud_task_ext()
 void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
+
+// Invoked when a new (micro) frame started
+void tud_sof_cb(uint32_t frame_count);
 
 // Invoked when received control request with VENDOR TYPE
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
@@ -221,8 +227,8 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
   5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
   /* CDC Call */\
   5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_CALL_MANAGEMENT, 0, (uint8_t)((_itfnum) + 1),\
-  /* CDC ACM: support line request */\
-  4, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 2,\
+  /* CDC ACM: support line request + send break */\
+  4, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 6,\
   /* CDC Union */\
   5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, _itfnum, (uint8_t)((_itfnum) + 1),\
   /* Endpoint Notification */\
