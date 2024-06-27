@@ -1032,21 +1032,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // XFRC complete is additionally generated when
       // - setup packet is received
       // - complete the data stage of control write is complete
-      if ((epnum == 0) && (bcnt == 0) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
-        uint32_t doepint = epout->doepint;
-
-        if (doepint & (DOEPINT_STPKTRX | DOEPINT_OTEPSPR)) {
-          // skip this "no-data" transfer complete event
-          // Note: STPKTRX will be clear later by setup received handler
-          uint32_t clear_flags = DOEPINT_XFRC;
-
-          if (doepint & DOEPINT_OTEPSPR) clear_flags |= DOEPINT_OTEPSPR;
-
-          epout->doepint = clear_flags;
-
-          // TU_LOG(DWC2_DEBUG, "  FIX extra transfer complete on setup/data compete\r\n");
-        }
-      }
+      // It will be handled in handle_epout_irq()
       break;
 
     default:    // Invalid
@@ -1073,23 +1059,23 @@ static void handle_epout_irq(uint8_t rhport) {
 
         xfer_ctl_t* xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
 
-        if (doepint & DOEPINT_STUP) {
-          // STPKTRX is only available for version from 3_00a
-          if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
-            epout->doepint = DOEPINT_STPKTRX;
-          }
-        } else if (doepint & DOEPINT_OTEPSPR) {
-          epout->doepint = DOEPINT_OTEPSPR;
-        } else {
-          if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
-            epout->doepint = DOEPINT_STPKTRX;
+        if(dma_enabled(rhport)) {
+          if (doepint & DOEPINT_STUP) {
+            // STPKTRX is only available for version from 3_00a
+            if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
+              epout->doepint = DOEPINT_STPKTRX;
+            }
+          } else if (doepint & DOEPINT_OTEPSPR) {
+            epout->doepint = DOEPINT_OTEPSPR;
           } else {
-            // EP0 can only handle one packet
-            if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
-              // Schedule another packet to be received.
-              edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+            if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
+              epout->doepint = DOEPINT_STPKTRX;
             } else {
-              if(dma_enabled(rhport)) {
+              // EP0 can only handle one packet
+              if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
+                // Schedule another packet to be received.
+                edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+              } else {
                 // Fix packet length
                 uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
                 xfer->total_len -= remain;
@@ -1097,8 +1083,24 @@ static void handle_epout_irq(uint8_t rhport) {
                 if(n == 0 && xfer->total_len == 0) {
                   dma_stpkt_rx(rhport);
                 }
-              }
 
+                dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+              }
+            }
+          }
+        } else {
+          if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid == DWC2_CORE_REV_3_10a)) {
+            epout->doepint = DOEPINT_STPKTRX;
+          } else {
+            if ((doepint & DOEPINT_OTEPSPR) && (dwc2->gsnpsid == DWC2_CORE_REV_3_10a)) {
+              epout->doepint = DOEPINT_OTEPSPR;
+            }
+
+            // EP0 can only handle one packet
+            if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
+              // Schedule another packet to be received.
+              edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+            } else {
               dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
             }
           }
@@ -1108,10 +1110,10 @@ static void handle_epout_irq(uint8_t rhport) {
       // SETUP packet Setup Phase done.
       if (doepint & DOEPINT_STUP) {
         epout->doepint = DOEPINT_STUP;
-        if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
+        if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
           epout->doepint = DOEPINT_STPKTRX;
         }
-        if(dma_enabled(rhport) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
+        if(dma_enabled(rhport) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
           dma_stpkt_rx(rhport);
         }
 
