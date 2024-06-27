@@ -83,6 +83,11 @@ void dcd_init (uint8_t rhport)
   (void) rhport;
 
   // Reset to get in a clean state.
+
+  // TODO (nikhil 6/27/24): it appears the enable bit must be set to write to other registers
+  // TODO test and confirm and maybe open PR on main repo
+  USB->DEVICE.CTRLA.bit.ENABLE = true;
+  
   USB->DEVICE.CTRLA.bit.SWRST = true;
   while (USB->DEVICE.SYNCBUSY.bit.SWRST == 0) {}
   while (USB->DEVICE.SYNCBUSY.bit.SWRST == 1) {}

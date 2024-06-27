@@ -48,8 +48,26 @@
   #include "task.h"
   #include "timers.h"
 
+  // FREERTOS FOOBAR
+
+    void vApplicationIdleHook( void )
+    {
+        // Application is idle.
+        return;
+    }
+
+    // This function will get called once and only once once FreeRTOS is fully operational.
+    // The intention is to use it for startup tasks such as power on self tests.
+    void vApplicationDaemonTaskStartupHook( void )
+    {
+        // Run once at startup.
+        return;
+    }
+
+  // ---
+
   // Increase stack size when debug log is enabled
-  #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+  #define USBD_STACK_SIZE  1024 //   (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
 #define CDC_STACK_SIZE      configMINIMAL_STACK_SIZE
@@ -107,7 +125,7 @@ int main(void) {
 #else
   xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
-  xTaskCreate(cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES - 2, NULL);
+  xTaskCreate(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
