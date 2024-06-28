@@ -117,6 +117,16 @@ uint8_t const * tud_descriptor_device_cb(void)
   #define EPNUM_CDC_OUT     0x04
   #define EPNUM_CDC_IN      0x85
 
+#elif CFG_TUSB_MCU == OPT_MCU_MAX32690
+  // MAX32 doesn't support a same endpoint number with different direction IN and OUT
+  //    e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_AUDIO_IN    0x01
+  #define EPNUM_AUDIO_OUT   0x02
+
+  #define EPNUM_CDC_NOTIF   0x83
+  #define EPNUM_CDC_OUT     0x04
+  #define EPNUM_CDC_IN      0x85
+
 #else
   #define EPNUM_AUDIO_IN    0x01
   #define EPNUM_AUDIO_OUT   0x01

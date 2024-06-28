@@ -97,6 +97,12 @@ enum
   #define EPNUM_MSC_OUT   0x01
   #define EPNUM_MSC_IN    0x82
 
+#elif CFG_TUSB_MCU == OPT_MCU_MAX32690
+  // MAX32 doesn't support a same endpoint number with different direction IN and OUT
+  //    e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_MSC_OUT   0x01
+  #define EPNUM_MSC_IN    0x82
+
 #else
   #define EPNUM_MSC_OUT   0x01
   #define EPNUM_MSC_IN    0x81
