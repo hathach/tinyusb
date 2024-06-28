@@ -1490,7 +1490,8 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   #endif
         uint8_t const *p_desc = _audiod_fct[i].p_desc;
         uint8_t const *p_desc_end = p_desc + _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
-        while (p_desc < p_desc_end)
+        // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+        while (p_desc_end - p_desc > 0)
         {
           if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
           {
@@ -1740,7 +1741,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
   uint8_t const *p_desc_end = audio->p_desc + audio->desc_length - TUD_AUDIO_DESC_IAD_LEN;
 
   // p_desc starts at required interface with alternate setting zero
-  while (p_desc < p_desc_end)
+  // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+  while (p_desc_end - p_desc > 0)
   {
     // Find correct interface
     if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bInterfaceNumber == itf && ((tusb_desc_interface_t const * )p_desc)->bAlternateSetting == alt)
@@ -1750,7 +1752,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
 #endif
       // From this point forward follow the EP descriptors associated to the current alternate setting interface - Open EPs if necessary
       uint8_t foundEPs = 0, nEps = ((tusb_desc_interface_t const * )p_desc)->bNumEndpoints;
-      while (foundEPs < nEps && p_desc < p_desc_end)
+      // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+      while (foundEPs < nEps && (p_desc_end - p_desc > 0))
       {
         if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT)
         {
@@ -2394,7 +2397,8 @@ static bool audiod_get_AS_interface_index(uint8_t itf, audiod_function_t * audio
     p_desc += ((audio_desc_cs_ac_interface_t const *)p_desc)->wTotalLength;
 
     uint8_t tmp = 0;
-    while (p_desc < p_desc_end)
+    // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+    while (p_desc_end - p_desc > 0)
     {
       // We assume the number of alternate settings is increasing thus we return the index of alternate setting zero!
       if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const * )p_desc)->bAlternateSetting == 0)
@@ -2447,7 +2451,8 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *
       uint8_t const *p_desc_end = ((audio_desc_cs_ac_interface_t const *)p_desc)->wTotalLength + p_desc;
       p_desc = tu_desc_next(p_desc);                                                                            // Get past CS AC descriptor
 
-      while (p_desc < p_desc_end)
+      // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+      while (p_desc_end - p_desc > 0)
       {
         if (p_desc[3] == entityID)  // Entity IDs are always at offset 3
         {
@@ -2471,8 +2476,8 @@ static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *func_id)
       // Get pointer at beginning and end
       uint8_t const *p_desc = _audiod_fct[i].p_desc;
       uint8_t const *p_desc_end = _audiod_fct[i].p_desc + _audiod_fct[i].desc_length - TUD_AUDIO_DESC_IAD_LEN;
-
-      while (p_desc < p_desc_end)
+      // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+      while (p_desc_end - p_desc > 0)
       {
         if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *)_audiod_fct[i].p_desc)->bInterfaceNumber == itf)
         {
@@ -2500,7 +2505,8 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *func_id)
       uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);
       p_desc += ((audio_desc_cs_ac_interface_t const *)p_desc)->wTotalLength;
 
-      while (p_desc < p_desc_end)
+      // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+      while (p_desc_end - p_desc > 0)
       {
         if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT && ((tusb_desc_endpoint_t const * )p_desc)->bEndpointAddress == ep)
         {
@@ -2531,8 +2537,8 @@ static void audiod_parse_for_AS_params(audiod_function_t* audio, uint8_t const *
 #endif
 
   p_desc = tu_desc_next(p_desc);    // Exclude standard AS interface descriptor of current alternate interface descriptor
-
-  while (p_desc < p_desc_end)
+  // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
+  while (p_desc_end - p_desc > 0)
   {
     // Abort if follow up descriptor is a new standard interface descriptor - indicates the last AS descriptor was already finished
     if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE) break;
