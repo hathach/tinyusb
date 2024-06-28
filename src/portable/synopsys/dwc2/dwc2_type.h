@@ -46,6 +46,7 @@ typedef struct
   uintptr_t reg_base;
   uint32_t  irqnum;
   uint8_t   ep_count;
+  uint8_t   ep_in_count;
   uint32_t  ep_fifo_size;
 }dwc2_controller_t;
 
@@ -230,15 +231,15 @@ union {
   volatile uint32_t ghwcfg1;          // 044 User Hardware Configuration1: endpoint dir (2 bit per ep)
 union {
   volatile uint32_t ghwcfg2;          // 048 User Hardware Configuration2
-  dwc2_ghwcfg2_t    ghwcfg2_bm;
+  volatile dwc2_ghwcfg2_t ghwcfg2_bm;
 };
 union {
   volatile uint32_t ghwcfg3;          // 04C User Hardware Configuration3
-  dwc2_ghwcfg3_t    ghwcfg3_bm;
+  volatile dwc2_ghwcfg3_t ghwcfg3_bm;
 };
 union {
   volatile uint32_t ghwcfg4;          // 050 User Hardware Configuration4
-  dwc2_ghwcfg4_t    ghwcfg4_bm;
+  volatile dwc2_ghwcfg4_t ghwcfg4_bm;
 };
   volatile uint32_t glpmcfg;          // 054 Core LPM Configuration
   volatile uint32_t gpwrdn;           // 058 Power Down

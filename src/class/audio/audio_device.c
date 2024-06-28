@@ -65,8 +65,10 @@
 //--------------------------------------------------------------------+
 
 // Use ring buffer if it's available, some MCUs need extra RAM requirements
+// For DWC2 enable ring buffer will disable DMA (if available)
 #ifndef TUD_AUDIO_PREFER_RING_BUFFER
-  #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
+  #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX || \
+      defined(TUP_USBIP_DWC2)
     #define TUD_AUDIO_PREFER_RING_BUFFER 0
   #else
     #define TUD_AUDIO_PREFER_RING_BUFFER 1
