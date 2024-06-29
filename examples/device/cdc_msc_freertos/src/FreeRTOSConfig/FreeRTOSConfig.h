@@ -67,6 +67,7 @@
 #define configENABLE_FPU								        1
 #define configENABLE_TRUSTZONE					        0
 #define configMINIMAL_SECURE_STACK_SIZE					( 1024 )
+#define configRUN_FREERTOS_SECURE_ONLY          1
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
