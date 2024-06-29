@@ -55,6 +55,30 @@ TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
   (void)frame_count;
 }
 
+TU_ATTR_WEAK uint8_t const * tud_descriptor_bos_cb(void) {
+  return NULL;
+}
+
+TU_ATTR_WEAK void tud_mount_cb(void) {
+}
+
+TU_ATTR_WEAK void tud_umount_cb(void) {
+}
+
+TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en) {
+  (void)remote_wakeup_en;
+}
+
+TU_ATTR_WEAK void tud_resume_cb(void) {
+}
+
+TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request) {
+  (void)rhport;
+  (void)stage;
+  (void)request;
+  return false;
+}
+
 TU_ATTR_WEAK bool dcd_deinit(uint8_t rhport) {
   (void) rhport;
   return false;
@@ -557,7 +581,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
       case DCD_EVENT_UNPLUGGED:
         TU_LOG_USBD("\r\n");
         usbd_reset(event.rhport);
-        if (tud_umount_cb) tud_umount_cb();
+        tud_umount_cb();
         break;
 
       case DCD_EVENT_SETUP_RECEIVED:
@@ -617,7 +641,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         // e.g suspend -> resume -> unplug/plug. Skip suspend/resume if not connected
         if (_usbd_dev.connected) {
           TU_LOG_USBD(": Remote Wakeup = %u\r\n", _usbd_dev.remote_wakeup_en);
-          if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
+          tud_suspend_cb(_usbd_dev.remote_wakeup_en);
         } else {
           TU_LOG_USBD(" Skipped\r\n");
         }
@@ -626,7 +650,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
       case DCD_EVENT_RESUME:
         if (_usbd_dev.connected) {
           TU_LOG_USBD("\r\n");
-          if (tud_resume_cb) tud_resume_cb();
+          tud_resume_cb();
         } else {
           TU_LOG_USBD(" Skipped\r\n");
         }
@@ -758,9 +782,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
                 _usbd_dev.cfg_num = 0;
                 return false;
               }
-              if ( tud_mount_cb ) tud_mount_cb();
+              tud_mount_cb();
             } else {
-              if ( tud_umount_cb ) tud_umount_cb();
+              tud_umount_cb();
             }
           }
 
