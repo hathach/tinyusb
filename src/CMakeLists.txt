@@ -10,6 +10,7 @@ function(add_tinyusb TARGET)
     # common
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/tusb.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/common/tusb_fifo.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/common/tusb_quirk.c
     # device
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/device/usbd.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/device/usbd_control.c
