@@ -126,7 +126,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid);
 
 // Invoked when received GET BOS DESCRIPTOR request
 // Application return pointer to descriptor
-TU_ATTR_WEAK uint8_t const * tud_descriptor_bos_cb(void);
+uint8_t const * tud_descriptor_bos_cb(void);
 
 // Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
@@ -140,17 +140,17 @@ TU_ATTR_WEAK uint8_t const* tud_descriptor_device_qualifier_cb(void);
 TU_ATTR_WEAK uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index);
 
 // Invoked when device is mounted (configured)
-TU_ATTR_WEAK void tud_mount_cb(void);
+void tud_mount_cb(void);
 
 // Invoked when device is unmounted
-TU_ATTR_WEAK void tud_umount_cb(void);
+void tud_umount_cb(void);
 
 // Invoked when usb bus is suspended
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
-TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
+void tud_suspend_cb(bool remote_wakeup_en);
 
 // Invoked when usb bus is resumed
-TU_ATTR_WEAK void tud_resume_cb(void);
+void tud_resume_cb(void);
 
 // Invoked when there is a new usb event, which need to be processed by tud_task()/tud_task_ext()
 void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
@@ -159,7 +159,7 @@ void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 void tud_sof_cb(uint32_t frame_count);
 
 // Invoked when received control request with VENDOR TYPE
-TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
 //--------------------------------------------------------------------+
 // Binary Device Object Store (BOS) Descriptor Templates
