@@ -1421,6 +1421,9 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       break;
 
     case ENUM_GET_DEVICE_DESC: {
+      // Allow 2ms for address recovery time, Ref USB Spec 9.2.6.3
+      osal_task_delay(2);
+
       uint8_t const new_addr = (uint8_t) tu_le16toh(xfer->setup->wValue);
 
       usbh_device_t* new_dev = get_device(new_addr);
