@@ -171,6 +171,11 @@ static void pipe_write_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo
 
   volatile uint16_t *ff16;
   volatile uint8_t *ff8;
+	
+  // flush cache
+#ifdef __DCACHE_PRESENT
+  SCB_CleanInvalidateDCache_by_Addr(&_dcd, sizeof(dcd_data_t));
+#endif
 
   // Highspeed FIFO is 32-bit
   if ( rusb2_is_highspeed_reg(rusb) ) {
@@ -219,6 +224,9 @@ static void pipe_write_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void
   uint16_t rem = total_len - count;
   if (rem) {
     rem = tu_min16(rem, info.len_wrap);
+#ifdef __DCACHE_PRESENT
+	SCB_CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) info.ptr_wrap, 4), total_len - info.len_wrap + 31);
+#endif
     pipe_write_packet(rusb, info.ptr_wrap, fifo, rem);
     count += rem;
   }
@@ -506,6 +514,11 @@ static bool process_pipe_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_add
 static bool process_edpt_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes)
 {
   const unsigned epn = tu_edpt_number(ep_addr);
+	
+#ifdef __DCACHE_PRESENT
+	SCB_CleanInvalidateDCache_by_Addr((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
+#endif
+
   if (0 == epn) {
     return process_pipe0_xfer(rusb, buffer_type, ep_addr, buffer, total_bytes);
   } else {
@@ -659,6 +672,8 @@ static void enable_interrupt(uint32_t pswi)
 
 void dcd_init(uint8_t rhport)
 {
+  tu_memclr(&_dcd, sizeof(dcd_data_t));
+
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   rusb2_module_start(rhport, true);
 
@@ -671,10 +686,18 @@ _dcd.sof_enabled = false;
     rusb->SYSCFG_b.HSE = 1;
 
     // leave CLKSEL as default (0x11) 24Mhz
-
+#ifdef __DCACHE_PRESENT
+  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd, sizeof(dcd_data_t));
+#endif
     // Power and reset UTMI Phy
     uint16_t physet = (rusb->PHYSET | RUSB2_PHYSET_PLLRESET_Msk) & ~RUSB2_PHYSET_DIRPD_Msk;
     rusb->PHYSET = physet;
+
+#if defined(RENESAS_CORTEX_M85)
+	// RA8 PHYSET-CLKSEL need set 20Mhz
+    rusb->PHYSET = (rusb->PHYSET & ~(1 << 4)) | (1 << 5);
+#endif
+
     R_BSP_SoftwareDelay((uint32_t) 1, BSP_DELAY_UNITS_MILLISECONDS);
     rusb->PHYSET_b.PLLRESET = 0;
 
@@ -823,6 +846,9 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     *ctr = RUSB2_PIPE_CTR_PID_BUF;
   }
 
+#ifdef __DCACHE_PRESENT
+  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd, sizeof(dcd_data_t));
+#endif
   // TU_LOG1("O %d %x %x\r\n", rusb->PIPESEL, rusb->PIPECFG, rusb->PIPEMAXP);
   dcd_int_enable(rhport);
 
@@ -995,6 +1021,9 @@ void dcd_int_handler(uint8_t rhport)
 
   // Control transfer stage changes
   if ( is0 & RUSB2_INTSTS0_CTRT_Msk ) {
+#ifdef __DCACHE_PRESENT
+  SCB_CleanInvalidateDCache_by_Addr((uint32_t*) &_dcd, sizeof(dcd_data_t));
+#endif
     if ( is0 & RUSB2_INTSTS0_CTSQ_CTRL_RDATA ) {
       /* A setup packet has been received. */
       process_setup_packet(rhport);
