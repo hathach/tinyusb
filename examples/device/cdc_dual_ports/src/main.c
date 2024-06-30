@@ -94,7 +94,6 @@ void tud_umount_cb(void) {
   blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
-
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
@@ -115,6 +114,16 @@ static void cdc_task(void) {
         echo_serial_port(0, buf, count);
         echo_serial_port(1, buf, count);
       }
+
+      // Press on-board button to send Uart status notification
+      static uint32_t btn_prev = 0;
+      static cdc_uart_state_t state = {0};
+      uint32_t btn = board_button_read();
+      if (!btn_prev && btn) {
+        state.bTxCarrier ^= 1;
+        tud_cdc_send_uart_state(state);
+      }
+      btn_prev = btn;
     }
   }
 }
