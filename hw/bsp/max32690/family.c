@@ -24,12 +24,12 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board_api.h"
 #include "board.h"
-#include "mxc_device.h"
-#include "mcr_regs.h"
-#include "uart.h"
+#include "bsp/board_api.h"
 #include "gpio.h"
+#include "mcr_regs.h"
+#include "mxc_device.h"
+#include "uart.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -49,7 +49,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
   mxc_gpio_cfg_t gpioConfig;
 
@@ -87,10 +87,10 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 
 void board_led_write(bool state) {
-  #if LED_STATE_ON
-    state = !state;
-  #endif
-  if(state) {
+#if LED_STATE_ON
+  state = !state;
+#endif
+  if (state) {
     MXC_GPIO_OutClr(LED_PORT, LED_PIN);
   } else {
     MXC_GPIO_OutSet(LED_PORT, LED_PIN);
@@ -103,9 +103,9 @@ uint32_t board_button_read(void) {
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
-  uint8_t hw_id[MXC_SYS_USN_CHECKSUM_LEN]; //USN Buffer
-  /* All other 2nd parameter is optional checkum buffer */
-   MXC_SYS_GetUSN(hw_id, NULL);
+  uint8_t hw_id[MXC_SYS_USN_CHECKSUM_LEN];//USN Buffer
+                                          /* All other 2nd parameter is optional checkum buffer */
+  MXC_SYS_GetUSN(hw_id, NULL);
 
   size_t act_len = TU_MIN(max_len, MXC_SYS_USN_LEN);
   memcpy(id, hw_id, act_len);
@@ -116,11 +116,11 @@ int board_uart_read(uint8_t *buf, int len) {
   int uart_val;
   int act_len = 0;
 
-  while( act_len < len ) {
-    if((uart_val = MXC_UART_ReadCharacterRaw(ConsoleUart)) == E_UNDERFLOW) {
+  while (act_len < len) {
+    if ((uart_val = MXC_UART_ReadCharacterRaw(ConsoleUart)) == E_UNDERFLOW) {
       break;
     } else {
-      *buf++ = (uint8_t)uart_val;
+      *buf++ = (uint8_t) uart_val;
       act_len++;
     }
   }
@@ -129,8 +129,8 @@ int board_uart_read(uint8_t *buf, int len) {
 
 int board_uart_write(void const *buf, int len) {
   int act_len = 0;
-  const uint8_t* ch_ptr = (const uint8_t*)buf;
-  while(act_len < len){
+  const uint8_t *ch_ptr = (const uint8_t *) buf;
+  while (act_len < len) {
     MXC_UART_WriteCharacter(ConsoleUart, *ch_ptr++);
     act_len++;
   }

@@ -35,19 +35,19 @@ extern "C" {
 #endif
 
 // LED
-#define LED_PORT        MXC_GPIO0
-#define LED_PIN         MXC_GPIO_PIN_14
+#define LED_PORT        MXC_GPIO2
+#define LED_PIN         MXC_GPIO_PIN_1
 #define LED_VDDIO       MXC_GPIO_VSSEL_VDDIOH
-#define LED_STATE_ON    0
+#define LED_STATE_ON    1
 
 // Button
-#define BUTTON_PORT         MXC_GPIO4
-#define BUTTON_PIN          MXC_GPIO_PIN_0
-#define BUTTON_PULL         MXC_GPIO_PAD_PULL_UP
-#define BUTTON_STATE_ACTIVE 0
+#define BUTTON_PORT         MXC_GPIO1
+#define BUTTON_PIN          MXC_GPIO_PIN_27
+#define BUTTON_PULL         MXC_GPIO_PAD_NONE
+#define BUTTON_STATE_ACTIVE 1
 
-// UART Enable for EvKit's Integrated FTDI Adapter. Pin Mux handled by the HAL
-#define UART_NUM 2
+// UART Enable for UART on ARM SWD Connector
+#define UART_NUM 0
 
 #ifdef __cplusplus
 }
