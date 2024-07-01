@@ -27,7 +27,8 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && TU_CHECK_MCU(OPT_MCU_MAX32690)
+#if CFG_TUD_ENABLED && \
+    TU_CHECK_MCU(OPT_MCU_MAX32690, OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX78002)
 
   #if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
 /* GCC warns that an address may be unaligned, even though

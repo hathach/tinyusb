@@ -455,7 +455,8 @@
 //--------------------------------------------------------------------+
 // Analog Devices
 //--------------------------------------------------------------------+
-#elif TU_CHECK_MCU(OPT_MCU_MAX32690)
+#elif TU_CHECK_MCU(OPT_MCU_MAX32690, OPT_MCU_MAX32666, \
+                   OPT_MCU_MAX32650, OPT_MCU_MAX78002)
   #define TUP_DCD_ENDPOINT_MAX    12
   #define TUP_RHPORT_HIGHSPEED    1
 

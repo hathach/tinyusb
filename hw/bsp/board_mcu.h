@@ -173,6 +173,15 @@
 #elif CFG_TUSB_MCU == OPT_MCU_MAX32690
   #include "max32690.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_MAX32650
+  #include "max32650.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_MAX32666
+  #include "max32665.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_MAX78002
+  #include "max78002.h"
+
 #else
   #error "Missing MCU header"
 #endif
