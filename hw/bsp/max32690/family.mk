@@ -57,7 +57,7 @@ flash: flash-jlink
 # If the MSDK is installed, flash-msdk can be run to utilize the the modified
 # openocd with the algorithms
 MAXIM_PATH := $(subst \,/,$(MAXIM_PATH))
-flash-msdk:
+flash-msdk: $(BUILD)/$(PROJECT).elf
 	$(MAXIM_PATH)/Tools/OpenOCD/openocd -s $(MAXIM_PATH)/Tools/OpenOCD/scripts \
 		-f interface/cmsis-dap.cfg -f target/max32690.cfg \
 		-c "program $(BUILD)/$(PROJECT).elf verify; init; reset; exit"

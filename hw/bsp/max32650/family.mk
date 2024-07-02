@@ -11,8 +11,7 @@ CPU_CORE ?= cortex-m4
 PORT ?= 0
 
 # GCC
-SRC_S_GCC += $(MAX32_CMSIS)/Device/Maxim/MAX32665/Source/GCC/startup_max32665.S
-LD_FILE = $(FAMILY_PATH)/max32666.ld
+SRC_S_GCC += $(MAX32_CMSIS)/Device/Maxim/MAX32650/Source/GCC/startup_max32650.S
 
 # IAR
 #SRC_S_IAR += ?
@@ -20,40 +19,26 @@ LD_FILE = $(FAMILY_PATH)/max32666.ld
 # --------------
 # Compiler Flags
 # --------------
-# Flags for the MAX32665/6 SDK
-CFLAGS +=   -DTARGET=MAX32665 \
+# Flags for the MAX32650/1/2 SDK
+CFLAGS +=   -DTARGET=MAX32650 \
 			-DTARGET_REV=0x4131 \
 			-DMXC_ASSERT_ENABLE \
-			-DMAX32665 \
+			-DMAX32650 \
 			-DIAR_PRAGMAS=0
 
 # Flags for TUSB features
 CFLAGS += \
-  -DCFG_TUSB_MCU=OPT_MCU_MAX32666 \
+  -DCFG_TUSB_MCU=OPT_MCU_MAX32650 \
   -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
 # mcu driver cause following warnings
 CFLAGS += 	-Wno-error=strict-prototypes \
 			-Wno-error=unused-parameter \
 			-Wno-error=cast-align \
-			-Wno-error=cast-qual
+			-Wno-error=cast-qual \
+			-Wno-error=sign-compare
+
 LDFLAGS_GCC += -nostartfiles --specs=nosys.specs --specs=nano.specs
-
-# For flash-jlink target
-JLINK_DEVICE = max32666
-
-# flash target using Jlik
-flash: flash-jlink
-
-# Optional flash option when running within an installed MSDK to use OpenOCD
-# Mainline OpenOCD does not yet have the MAX32's flash algorithm integrated.
-# If the MSDK is installed, flash-msdk can be run to utilize the the modified
-# openocd with the algorithms
-MAXIM_PATH := $(subst \,/,$(MAXIM_PATH))
-flash-msdk: $(BUILD)/$(PROJECT).elf
-	$(MAXIM_PATH)/Tools/OpenOCD/openocd -s $(MAXIM_PATH)/Tools/OpenOCD/scripts \
-		-f interface/cmsis-dap.cfg -f target/max32665.cfg \
-		-c "program $(BUILD)/$(PROJECT).elf verify; init; reset; exit"
 
 # -----------------
 # Sources & Include
@@ -61,26 +46,28 @@ flash-msdk: $(BUILD)/$(PROJECT).elf
 PERIPH_SRC = $(TOP)/$(MAX32_PERIPH)/Source
 SRC_C += \
 	src/portable/analog/max32/dcd_max32.c \
-	$(MAX32_CMSIS)/Device/Maxim/MAX32665/Source/heap.c \
-	$(MAX32_CMSIS)/Device/Maxim/MAX32665/Source/system_max32665.c \
+	$(MAX32_CMSIS)/Device/Maxim/MAX32650/Source/heap.c \
+	$(MAX32_CMSIS)/Device/Maxim/MAX32650/Source/system_max32650.c \
+	$(MAX32_CMSIS)/Device/Maxim/MAX32650/Source/header_MAX32650.c \
 	$(PERIPH_SRC)/SYS/mxc_assert.c \
 	$(PERIPH_SRC)/SYS/mxc_delay.c \
 	$(PERIPH_SRC)/SYS/mxc_lock.c \
 	$(PERIPH_SRC)/SYS/nvic_table.c \
-	$(PERIPH_SRC)/SYS/pins_me14.c \
-	$(PERIPH_SRC)/SYS/sys_me14.c \
+	$(PERIPH_SRC)/SYS/pins_me10.c \
+	$(PERIPH_SRC)/SYS/sys_me10.c \
 	$(PERIPH_SRC)/FLC/flc_common.c \
-	$(PERIPH_SRC)/FLC/flc_me14.c \
+	$(PERIPH_SRC)/FLC/flc_me10.c \
 	$(PERIPH_SRC)/FLC/flc_reva.c \
 	$(PERIPH_SRC)/GPIO/gpio_common.c \
-	$(PERIPH_SRC)/GPIO/gpio_me14.c \
+	$(PERIPH_SRC)/GPIO/gpio_me10.c \
 	$(PERIPH_SRC)/GPIO/gpio_reva.c \
-	$(PERIPH_SRC)/ICC/icc_me14.c \
+	$(PERIPH_SRC)/ICC/icc_me10.c \
 	$(PERIPH_SRC)/ICC/icc_reva.c \
-	$(PERIPH_SRC)/TPU/tpu_me14.c \
+	$(PERIPH_SRC)/ICC/icc_common.c \
+	$(PERIPH_SRC)/TPU/tpu_me10.c \
     $(PERIPH_SRC)/TPU/tpu_reva.c \
 	$(PERIPH_SRC)/UART/uart_common.c \
-	$(PERIPH_SRC)/UART/uart_me14.c \
+	$(PERIPH_SRC)/UART/uart_me10.c \
 	$(PERIPH_SRC)/UART/uart_reva.c \
 
 
@@ -88,8 +75,8 @@ INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(MAX32_CMSIS)/Include \
-	$(TOP)/$(MAX32_CMSIS)/Device/Maxim/MAX32665/Include \
-	$(TOP)/$(MAX32_PERIPH)/Include/MAX32665 \
+	$(TOP)/$(MAX32_CMSIS)/Device/Maxim/MAX32650/Include \
+	$(TOP)/$(MAX32_PERIPH)/Include/MAX32650 \
 	$(PERIPH_SRC)/SYS \
 	$(PERIPH_SRC)/GPIO \
 	$(PERIPH_SRC)/ICC \

@@ -35,20 +35,20 @@ extern "C" {
 #endif
 
 // LED
-#define LED_PORT        MXC_GPIO0
-#define LED_PIN         MXC_GPIO_PIN_29
-#define LED_VDDIO       MXC_GPIO_VSSEL_VDDIOH
+#define LED_PORT        MXC_GPIO1
+#define LED_PIN         MXC_GPIO_PIN_14
+#define LED_VDDIO       MXC_GPIO_VSSEL_VDDIO
 #define LED_STATE_ON    0
 
 // Button
 #define BUTTON_PORT         MXC_GPIO1
-#define BUTTON_PIN          MXC_GPIO_PIN_10
-#define BUTTON_PULL         MXC_GPIO_PAD_PULL_UP
+#define BUTTON_PIN          MXC_GPIO_PIN_19
+#define BUTTON_PULL         MXC_GPIO_PAD_WEAK_PULL_UP
 #define BUTTON_STATE_ACTIVE 0
 
-// UART Enable for UART on SWD. Pin Mux handled by the HAL
-#define UART_NUM    1
-#define UART_MAP    MAP_B
+// UART Enable for SWD UART Pins. Pin Mux handled by the HAL
+#define UART_NUM    0
+
 
 #ifdef __cplusplus
 }
