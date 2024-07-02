@@ -159,6 +159,8 @@ SECTIONS {
     .heap (COPY):
     {
         . = ALIGN(4);
+        PROVIDE ( end = . );
+        PROVIDE ( _end = . );
         *(.heap*)
         __HeapLimit = ABSOLUTE(__StackLimit);
     } > SRAM

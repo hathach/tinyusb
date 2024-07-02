@@ -88,7 +88,7 @@ function(add_board_target BOARD_TARGET)
     ${PERIPH_SRC}/UART
     )
 
-  target_compile_options(${TARGET} PRIVATE
+  target_compile_options(${BOARD_TARGET} PRIVATE
   -Wno-error=strict-prototypes
   )
   update_board(${BOARD_TARGET})
@@ -139,10 +139,14 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/analog/max32/dcd_max32.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_compile_options(${TARGET} PRIVATE
+    -Wno-error=strict-prototypes
+    )
+
+    target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
   target_compile_options(${TARGET}-tinyusb PRIVATE
-  -Wno-error=strict-prototypes
-  )
+    -Wno-error=strict-prototypes
+    )
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)

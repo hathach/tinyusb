@@ -86,7 +86,7 @@ function(add_board_target BOARD_TARGET)
     ${PERIPH_SRC}/UART
     )
 
-  target_compile_options(${TARGET} PRIVATE
+  target_compile_options(${BOARD_TARGET} PRIVATE
   -Wno-error=strict-prototypes
   -Wno-error=redundant-decls
   )
@@ -132,6 +132,12 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
+
+  target_compile_options(${TARGET} PRIVATE
+    -Wno-error=strict-prototypes
+    -Wno-error=redundant-decls
+    )
+
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_MAX78002 ${RTOS})
