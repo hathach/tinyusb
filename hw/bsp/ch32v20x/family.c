@@ -139,6 +139,34 @@ void board_init(void) {
   __enable_irq();
 }
 
+void board_reset_to_bootloader(void) {
+  board_led_write(true);
+
+  __disable_irq();
+
+#if CFG_TUD_ENABLED
+  tud_deinit(0);
+  RCC_APB1PeriphResetCmd(RCC_APB1Periph_USB, ENABLE);
+  RCC_APB1PeriphResetCmd(RCC_APB1Periph_USB, DISABLE);
+#endif
+
+  SysTick->CTLR = 0;
+  for (int i = WWDG_IRQn; i< DMA1_Channel8_IRQn; i++) {
+    NVIC_DisableIRQ(i);
+  }
+
+  __enable_irq();
+
+  // define function pointer to BOOT ROM address
+  void (*bootloader_entry)(void) = (void (*)(void))0x1FFF8000;
+
+  bootloader_entry();
+
+  board_led_write(false);
+
+  // while(1) { }
+}
+
 void board_led_write(bool state) {
   GPIO_WriteBit(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
@@ -166,3 +194,7 @@ int board_uart_write(void const *buf, int len) {
 
   return len;
 }
+
+//--------------------------------------------------------------------
+// Neopixel
+//--------------------------------------------------------------------
