@@ -4,10 +4,10 @@ set(MAX32_PERIPH ${TOP}/hw/mcu/analog/max32/Libraries/PeriphDrivers)
 set(MAX32_CMSIS ${TOP}/hw/mcu/analog/max32/Libraries/CMSIS)
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
-# include board specific
+# include board specific information and functions
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-# Get the linker file from current location (family)
+# Get the linker file
 set(LD_FILE_Clang ${LD_FILE_GNU})
 
 # toolchain set up
@@ -27,6 +27,9 @@ function(update_board TARGET)
     CFG_TUSB_MCU=OPT_MCU_MAX32650
     BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
     )
+
+    # Run any board specific updates
+    update_board_extras(${TARGET})
 endfunction()
 
 #------------------------------------
@@ -41,11 +44,11 @@ function(add_board_target BOARD_TARGET)
   # Startup & Linker script
   set(STARTUP_FILE_GNU ${MAX32_CMSIS}/Device/Maxim/MAX32650/Source/GCC/startup_max32650.S)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-  #set(STARTUP_FILE_IAR ?)
 
   set(PERIPH_SRC ${MAX32_PERIPH}/Source)
   add_library(${BOARD_TARGET} STATIC
     ${MAX32_CMSIS}/Device/Maxim/MAX32650/Source/heap.c
+    ${MAX32_CMSIS}/Device/Maxim/MAX32650/Source/header_MAX32650.c
     ${MAX32_CMSIS}/Device/Maxim/MAX32650/Source/system_max32650.c
     ${PERIPH_SRC}/SYS/mxc_assert.c
     ${PERIPH_SRC}/SYS/mxc_delay.c
@@ -84,7 +87,7 @@ function(add_board_target BOARD_TARGET)
     )
 
   target_compile_options(${BOARD_TARGET} PRIVATE
-  -Wno-error=strict-prototypes
+    -Wno-error=strict-prototypes
   )
   update_board(${BOARD_TARGET})
 
@@ -93,14 +96,11 @@ function(add_board_target BOARD_TARGET)
       "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
+      -u sb_header #Needed when linking libraries to not lose the Signing header
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_Clang}"
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
       )
   endif ()
 endfunction()
@@ -148,5 +148,21 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
+
+  # Add the optional MSDK OpenOCD flashing
+  family_flash_msdk(${TARGET})
 endfunction()
 
+function(family_flash_msdk TARGET)
+  # Prepare the image (signed) if the board requires it
+  prepare_image(${TARGET})
+
+  set(MAXIM_PATH "$ENV{MAXIM_PATH}")
+  add_custom_target(${TARGET}-msdk
+    DEPENDS ${TARGET}
+    COMMAND ${MAXIM_PATH}/Tools/OpenOCD/openocd -s ${MAXIM_PATH}/Tools/OpenOCD/scripts
+            -f interface/cmsis-dap.cfg -f target/max32650.cfg
+            -c "program $<TARGET_FILE:${TARGET}> verify; init; reset; exit"
+    VERBATIM
+  )
+endfunction()

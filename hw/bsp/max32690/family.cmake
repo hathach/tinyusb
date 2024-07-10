@@ -46,7 +46,6 @@ function(add_board_target BOARD_TARGET)
   # Startup & Linker script
   set(STARTUP_FILE_GNU ${MAX32_CMSIS}/Device/Maxim/MAX32690/Source/GCC/startup_max32690.s)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-  set(STARTUP_FILE_IAR ${MAX32_CMSIS}/Device/Maxim/MAX32690/Source/IAR/startup_max32690.s)
 
   set(PERIPH_SRC ${MAX32_PERIPH}/Source)
   add_library(${BOARD_TARGET} STATIC
@@ -89,7 +88,7 @@ function(add_board_target BOARD_TARGET)
     )
 
   target_compile_options(${BOARD_TARGET} PRIVATE
-  -Wno-error=strict-prototypes
+    -Wno-error=strict-prototypes
   )
   update_board(${BOARD_TARGET})
 
@@ -102,10 +101,6 @@ function(add_board_target BOARD_TARGET)
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_Clang}"
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
       )
   endif ()
 endfunction()
@@ -153,4 +148,18 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
+  family_flash_msdk(${TARGET})
+endfunction()
+
+# Add flash msdk target
+function(family_flash_msdk TARGET)
+  set(MAXIM_PATH "$ENV{MAXIM_PATH}")
+
+  add_custom_target(${TARGET}-msdk
+    DEPENDS ${TARGET}
+    COMMAND ${MAXIM_PATH}/Tools/OpenOCD/openocd -s ${MAXIM_PATH}/Tools/OpenOCD/scripts
+		        -f interface/cmsis-dap.cfg -f target/max32690.cfg
+		        -c "program $<TARGET_FILE:${TARGET}> verify; init; reset; exit"
+    VERBATIM
+    )
 endfunction()

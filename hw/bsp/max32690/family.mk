@@ -14,9 +14,6 @@ PORT ?= 0
 SRC_S_GCC += $(MAX32_CMSIS)/Device/Maxim/MAX32690/Source/GCC/startup_max32690.s
 LD_FILE = $(FAMILY_PATH)/max32690.ld
 
-# IAR
-SRC_S_IAR += $(MAX32_CMSIS)/Device/Maxim/MAX32690/Source/IAR/startup_max32690.s
-
 # --------------
 # Compiler Flags
 # --------------
@@ -49,7 +46,7 @@ LDFLAGS_GCC += -nostartfiles --specs=nosys.specs --specs=nano.specs
 # For flash-jlink target
 JLINK_DEVICE = max32690
 
-# flash target using Jlik
+# flash target using Jlink by default
 flash: flash-jlink
 
 # Optional flash option when running within an installed MSDK to use OpenOCD
@@ -90,7 +87,6 @@ SRC_C += \
 	$(PERIPH_SRC)/UART/uart_common.c \
 	$(PERIPH_SRC)/UART/uart_me18.c \
 	$(PERIPH_SRC)/UART/uart_revb.c \
-
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
