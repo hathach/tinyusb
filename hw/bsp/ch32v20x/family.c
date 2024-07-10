@@ -62,7 +62,6 @@ void USBWakeUp_IRQHandler(void) {
 
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-
 volatile uint32_t system_ticks = 0;
 
 __attribute__((interrupt))
@@ -84,7 +83,6 @@ uint32_t SysTick_Config(uint32_t ticks) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
-
 #endif
 
 void board_init(void) {
@@ -140,29 +138,29 @@ void board_init(void) {
 }
 
 void board_reset_to_bootloader(void) {
-  board_led_write(true);
-
-  __disable_irq();
-
-#if CFG_TUD_ENABLED
-  tud_deinit(0);
-  RCC_APB1PeriphResetCmd(RCC_APB1Periph_USB, ENABLE);
-  RCC_APB1PeriphResetCmd(RCC_APB1Periph_USB, DISABLE);
-#endif
-
-  SysTick->CTLR = 0;
-  for (int i = WWDG_IRQn; i< DMA1_Channel8_IRQn; i++) {
-    NVIC_DisableIRQ(i);
-  }
-
-  __enable_irq();
-
-  // define function pointer to BOOT ROM address
-  void (*bootloader_entry)(void) = (void (*)(void))0x1FFF8000;
-
-  bootloader_entry();
-
-  board_led_write(false);
+//   board_led_write(true);
+//
+//   __disable_irq();
+//
+// #if CFG_TUD_ENABLED
+//   tud_deinit(0);
+//   RCC_APB1PeriphResetCmd(RCC_APB1Periph_USB, ENABLE);
+//   RCC_APB1PeriphResetCmd(RCC_APB1Periph_USB, DISABLE);
+// #endif
+//
+//   SysTick->CTLR = 0;
+//   for (int i = WWDG_IRQn; i< DMA1_Channel8_IRQn; i++) {
+//     NVIC_DisableIRQ(i);
+//   }
+//
+//   __enable_irq();
+//
+//   // define function pointer to BOOT ROM address
+//   void (*bootloader_entry)(void) = (void (*)(void))0x1FFF8000;
+//
+//   bootloader_entry();
+//
+//   board_led_write(false);
 
   // while(1) { }
 }
