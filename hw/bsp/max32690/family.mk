@@ -11,7 +11,7 @@ CPU_CORE ?= cortex-m4
 PORT ?= 0
 
 # GCC
-SRC_S_GCC += $(MAX32_CMSIS)/Device/Maxim/MAX32690/Source/GCC/startup_max32690.s
+SRC_S_GCC += $(MAX32_CMSIS)/Device/Maxim/MAX32690/Source/GCC/startup_max32690.S
 LD_FILE = $(FAMILY_PATH)/max32690.ld
 
 # --------------

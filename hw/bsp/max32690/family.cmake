@@ -44,7 +44,7 @@ function(add_board_target BOARD_TARGET)
   endif ()
 
   # Startup & Linker script
-  set(STARTUP_FILE_GNU ${MAX32_CMSIS}/Device/Maxim/MAX32690/Source/GCC/startup_max32690.s)
+  set(STARTUP_FILE_GNU ${MAX32_CMSIS}/Device/Maxim/MAX32690/Source/GCC/startup_max32690.S)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   set(PERIPH_SRC ${MAX32_PERIPH}/Source)
