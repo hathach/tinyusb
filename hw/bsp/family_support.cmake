@@ -455,6 +455,18 @@ function(family_flash_openocd_wch TARGET)
   family_flash_openocd(${TARGET})
 endfunction()
 
+# Add flash with https://github.com/ch32-rs/wlink
+function(family_flash_wlink_rs TARGET)
+  if (NOT DEFINED WLINK_RS)
+    set(WLINK_RS wlink)
+  endif ()
+
+  add_custom_target(${TARGET}-wlink-rs
+    DEPENDS ${TARGET}
+    COMMAND ${WLINK_RS} flash $<TARGET_FILE:${TARGET}>
+    )
+endfunction()
+
 # Add flash pycod target
 function(family_flash_pyocd TARGET)
   if (NOT DEFINED PYOC)

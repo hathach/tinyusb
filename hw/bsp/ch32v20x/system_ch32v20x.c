@@ -19,9 +19,9 @@
 * If none of the define below is enabled, the HSI is used as System clock source.
 */
 //#define SYSCLK_FREQ_HSE    HSE_VALUE
-//#define SYSCLK_FREQ_48MHz_HSE  48000000
+// #define SYSCLK_FREQ_48MHz_HSE  48000000
 //#define SYSCLK_FREQ_56MHz_HSE  56000000
-//#define SYSCLK_FREQ_72MHz_HSE  72000000
+// #define SYSCLK_FREQ_72MHz_HSE  72000000
 // #define SYSCLK_FREQ_96MHz_HSE  96000000
 //#define SYSCLK_FREQ_120MHz_HSE  120000000
 //#define SYSCLK_FREQ_144MHz_HSE  144000000
@@ -109,6 +109,16 @@ static void SetSysClockTo144_HSI( void );
  */
 void SystemInit (void)
 {
+  // Enable Flash enhance read mode for full 224KB
+#if defined(CH32_FLASH_ENHANCE_READ_MODE) && CH32_FLASH_ENHANCE_READ_MODE == 1
+  FLASH->KEYR = 0x45670123; // FLASH_Unlock_Fast();
+  FLASH->KEYR = 0xCDEF89AB;
+
+  FLASH->CTLR |= (1 << 24); // Enhanced Read Mode
+
+  FLASH->CTLR |= (1 << 15); // FLASH_Lock_Fast();
+#endif
+
   RCC->CTLR |= (uint32_t)0x00000001;
   RCC->CFGR0 &= (uint32_t)0xF8FF0000;
   RCC->CTLR &= (uint32_t)0xFEF6FFFF;
