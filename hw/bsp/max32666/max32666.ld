@@ -101,7 +101,7 @@ SECTIONS {
     {
         . = ALIGN(4);
         _bss = .;
-        *(.bss*)     /*read-write zero initialized data: uninitialzed global variable*/
+        *(.bss*)     /*read-write zero initialized data: uninitialized global variable*/
         *(COMMON)
         _ebss = ALIGN(., 4);
     } > SRAM

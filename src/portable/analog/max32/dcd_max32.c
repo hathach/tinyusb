@@ -196,7 +196,7 @@ static bool handle_xfer_in(uint_fast8_t ep_addr) {
     }
     pipe->remaining = rem - len;
   }
-  MXC_USBHS->incsrl = MXC_F_USBHS_INCSRL_INPKTRDY;//TODO: Verify a | isnt needed
+  MXC_USBHS->incsrl = MXC_F_USBHS_INCSRL_INPKTRDY;//TODO: Verify a | isn't needed
 
   return false;
 }

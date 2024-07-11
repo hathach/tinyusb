@@ -121,7 +121,7 @@ SIGN_EXE := sign_app.exe
 endif
 endif
 
-# Rule to sign the build.  This will in-place modifiy the existing .elf file
+# Rule to sign the build.  This will in-place modify the existing .elf file
 # an populate the .sig section with the signature value
 sign-build: $(BUILD)/$(PROJECT).elf
 	$(OBJCOPY) $(BUILD)/$(PROJECT).elf -R .sig -O binary $(BUILD)/$(PROJECT).bin

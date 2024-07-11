@@ -104,7 +104,7 @@ uint32_t board_button_read(void) {
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   uint8_t hw_id[MXC_SYS_USN_CHECKSUM_LEN];//USN Buffer
-                                          /* All other 2nd parameter is optional checkum buffer */
+                                          /* All other 2nd parameter is optional checksum buffer */
   MXC_SYS_GetUSN(hw_id, NULL);
 
   size_t act_len = TU_MIN(max_len, MXC_SYS_USN_LEN);

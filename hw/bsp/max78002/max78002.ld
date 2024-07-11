@@ -127,7 +127,7 @@ SECTIONS {
     {
         . = ALIGN(4);
         _bss = .;
-        *(.bss*)     /*read-write zero initialized data: uninitialzed global variable*/
+        *(.bss*)     /*read-write zero initialized data: uninitialized global variable*/
         *(COMMON)
         _ebss = ALIGN(., 4);
     } > SRAM
@@ -138,7 +138,7 @@ SECTIONS {
         _shared = .;
         *(.mailbox*)
         . = ALIGN(4);
-        *(.shared*)     /*read-write zero initialized data: uninitialzed global variable*/
+        *(.shared*)     /*read-write zero initialized data: uninitialized global variable*/
         _eshared = ALIGN(., 4);
     } > SRAM
     __shared_data = LOADADDR(.shared);
