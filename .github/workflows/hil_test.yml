@@ -132,9 +132,9 @@ jobs:
         # USB bus on rpi4 is not stable, reset it before testing
       - name: Reset USB bus
         run: |
-          # lsusb -t
           # reset VIA Labs 2.0 hub
           sudo usbreset 001/002
+          lsusb -t
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
