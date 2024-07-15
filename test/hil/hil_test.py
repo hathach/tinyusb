@@ -330,7 +330,9 @@ def main():
     config_file = args.config_file
     boards = args.board
 
-    config_file = os.path.join(os.path.dirname(__file__), config_file)
+    # if config file is not found, try to find it in the same directory as this script
+    if not os.path.exists(config_file):
+        config_file = os.path.join(os.path.dirname(__file__), config_file)
     with open(config_file) as f:
         config = json.load(f)
 
