@@ -25,24 +25,25 @@
  */
 
 #include "bsp/board_api.h"
+#include "board.h"
 #include <hal/hal_gpio.h>
 #include <mcu/mcu.h>
+
+#define LED_STATE_OFF   (1-LED_STATE_ON)
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB_IRQHandler(void)
-{
+void USB_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-#if CFG_TUD_ENABLED
-// DA146xx driver function that must be called whenever VBUS changes
+// DA146xx driver function that must be called whenever VBUS changes.
 extern void tusb_vbus_changed(bool present);
 
+#if defined(NEED_VBUS_MONITOR) && CFG_TUD_ENABLED
 // VBUS change interrupt handler
-void VBUS_IRQHandler(void)
-{
+void VBUS_IRQHandler(void) {
   bool present = (CRG_TOP->ANA_STATUS_REG & CRG_TOP_ANA_STATUS_REG_VBUS_AVAILABLE_Msk) != 0;
   // Clear VBUS interrupt
   CRG_TOP->VBUS_IRQ_CLEAR_REG = 1;
@@ -54,22 +55,13 @@ void VBUS_IRQHandler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-
-#define LED_PIN         33
-#define LED_STATE_ON    1
-#define LED_STATE_OFF   0
-
-#define BUTTON_PIN      6
-
-void UnhandledIRQ(void)
-{
+void UnhandledIRQ(void) {
   CRG_TOP->SYS_CTRL_REG = 0x80;
   __BKPT(1);
-  while(1);
+  while (1);
 }
 
-void board_init(void)
-{
+void board_init(void) {
   // LED
   hal_gpio_init_out(LED_PIN, LED_STATE_ON);
 
@@ -80,12 +72,13 @@ void board_init(void)
   hal_gpio_init_out(5, 0);
 
   // Button
-  hal_gpio_init_in(BUTTON_PIN, HAL_GPIO_PULL_UP);
+  hal_gpio_init_in(BUTTON_PIN, BUTTON_STATE_ACTIVE ? HAL_GPIO_PULL_DOWN : HAL_GPIO_PULL_UP);
 
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
 #if CFG_TUD_ENABLED
+  #ifdef NEED_VBUS_MONITOR
   // Setup interrupt for both connect and disconnect
   CRG_TOP->VBUS_IRQ_MASK_REG = CRG_TOP_VBUS_IRQ_MASK_REG_VBUS_IRQ_EN_FALL_Msk |
                                CRG_TOP_VBUS_IRQ_MASK_REG_VBUS_IRQ_EN_RISE_Msk;
@@ -94,6 +87,10 @@ void board_init(void)
   // otherwise it could go unnoticed.
   NVIC_SetPendingIRQ(VBUS_IRQn);
   NVIC_EnableIRQ(VBUS_IRQn);
+  #else
+  // This board is USB powered there is no need to monitor VBUS line.  Notify driver that VBUS is present.
+  tusb_vbus_changed(true);
+  #endif
 
   /* Setup USB IRQ */
   NVIC_SetPriority(USB_IRQn, 2);
@@ -111,41 +108,35 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
+void board_led_write(bool state) {
   hal_gpio_write(LED_PIN, state ? LED_STATE_ON : LED_STATE_OFF);
 }
 
-uint32_t board_button_read(void)
-{
-  // button is active LOW
-  return hal_gpio_read(BUTTON_PIN) ^ 1;
+uint32_t board_button_read(void) {
+  return BUTTON_STATE_ACTIVE == hal_gpio_read(BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void)buf;
-  (void)len;
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  (void)buf;
-  (void)len;
+int board_uart_write(void const* buf, int len) {
+  (void) buf;
+  (void) len;
 
   return 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
 #endif

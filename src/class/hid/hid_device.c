@@ -46,16 +46,16 @@ typedef struct {
   uint8_t itf_protocol; // Boot mouse or keyboard
 
   uint16_t report_desc_len;
-  CFG_TUSB_MEM_ALIGN uint8_t protocol_mode; // Boot (0) or Report protocol (1)
-  CFG_TUSB_MEM_ALIGN uint8_t idle_rate;     // up to application to handle idle rate
-
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf[CFG_TUD_HID_EP_BUFSIZE];
+  uint8_t protocol_mode; // Boot (0) or Report protocol (1)
+  uint8_t idle_rate;     // up to application to handle idle rate
 
   // TODO save hid descriptor since host can specifically request this after enumeration
   // Note: HID descriptor may be not available from application after enumeration
   tusb_hid_descriptor_hid_t const *hid_descriptor;
+
+  uint8_t ctrl_buf[CFG_TUD_HID_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
 } hidd_interface_t;
 
 CFG_TUD_MEM_SECTION tu_static hidd_interface_t _hidd_itf[CFG_TUD_HID];
