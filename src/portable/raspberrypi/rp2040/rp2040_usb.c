@@ -75,7 +75,6 @@ void rp2040_usb_init(void) {
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
 #endif
 #endif
-  memset(usb_hw, 0, sizeof(*usb_hw));
   memset(usb_dpram, 0, sizeof(*usb_dpram));
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
