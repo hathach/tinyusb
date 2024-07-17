@@ -16,6 +16,7 @@ family_list = {
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
     "ch32v10x ch32v20x ch32v307 fomu gd32vf103": ["riscv-gcc"],
+    "da1469x": ["arm-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
     "lpc11 lpc13 lpc15": ["arm-gcc", "arm-clang"],
@@ -36,7 +37,7 @@ family_list = {
     "stm32f7": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32g0 stm32g4 stm32h5": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32h7": ["arm-gcc", "arm-clang", "arm-iar"],
-    "stm32l4 stm32u5 stm32wb": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32l0 stm32l4 stm32u5 stm32wb": ["arm-gcc", "arm-clang", "arm-iar"],
     "xmc4000": ["arm-gcc"],
 }
 
