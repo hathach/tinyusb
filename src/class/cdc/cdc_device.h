@@ -58,7 +58,7 @@ typedef struct TU_ATTR_PACKED {
 bool tud_cdc_configure_fifo(tud_cdc_configure_fifo_t const* cfg);
 
 //--------------------------------------------------------------------+
-// Application API (Multiple Ports) i.e CFG_TUD_CDC > 1
+// Application API (Multiple Ports) i.e. CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
 
 // Check if terminal is connected to this port

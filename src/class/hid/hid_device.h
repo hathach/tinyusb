@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_HID_DEVICE_H_
-#define _TUSB_HID_DEVICE_H_
+#ifndef TUSB_HID_DEVICE_H_
+#define TUSB_HID_DEVICE_H_
 
 #include "hid.h"
 
@@ -48,8 +48,7 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Application API (Multiple Instances)
-// CFG_TUD_HID > 1
+// Application API (Multiple Instances) i.e. CFG_TUD_HID > 1
 //--------------------------------------------------------------------+
 
 // Check if the interface is ready to use
@@ -76,12 +75,6 @@ bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons
 // use template layout report as defined by hid_abs_mouse_report_t
 bool tud_hid_n_abs_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal);
 
-
-static inline bool tud_hid_abs_mouse_report(uint8_t report_id, uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal)
-{
-  return tud_hid_n_abs_mouse_report(0, report_id, buttons, x, y, vertical, horizontal);
-}
-
 // Gamepad: convenient helper to send gamepad report if application
 // use template layout report TUD_HID_REPORT_DESC_GAMEPAD
 bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons);
@@ -89,16 +82,40 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
-static inline bool    tud_hid_ready(void);
-static inline uint8_t tud_hid_interface_protocol(void);
-static inline uint8_t tud_hid_get_protocol(void);
-static inline bool    tud_hid_report(uint8_t report_id, void const* report, uint16_t len);
-static inline bool    tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
-static inline bool    tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
-static inline bool    tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons);
+TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_ready(void) {
+  return tud_hid_n_ready(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tud_hid_interface_protocol(void) {
+  return tud_hid_n_interface_protocol(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tud_hid_get_protocol(void) {
+  return tud_hid_n_get_protocol(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_report(uint8_t report_id, void const* report, uint16_t len) {
+  return tud_hid_n_report(0, report_id, report, len);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]) {
+  return tud_hid_n_keyboard_report(0, report_id, modifier, keycode);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal) {
+  return tud_hid_n_mouse_report(0, report_id, buttons, x, y, vertical, horizontal);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_abs_mouse_report(uint8_t report_id, uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal) {
+  return tud_hid_n_abs_mouse_report(0, report_id, buttons, x, y, vertical, horizontal);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons) {
+  return tud_hid_n_gamepad_report(0, report_id, x, y, z, rz, rx, ry, hat, buttons);
+}
 
 //--------------------------------------------------------------------+
-// Callbacks (Weak is optional)
+// Application Callbacks
 //--------------------------------------------------------------------+
 
 // Invoked when received GET HID REPORT DESCRIPTOR request
@@ -111,63 +128,25 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t instance);
 uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
 
 // Invoked when received SET_REPORT control request or
-// received data on OUT endpoint ( Report ID = 0, Type = 0 )
+// received data on OUT endpoint (Report ID = 0, Type = OUTPUT)
 void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 // Invoked when received SET_PROTOCOL request
 // protocol is either HID_PROTOCOL_BOOT (0) or HID_PROTOCOL_REPORT (1)
-TU_ATTR_WEAK void tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol);
+void tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol);
 
 // Invoked when received SET_IDLE request. return false will stall the request
-// - Idle Rate = 0 : only send report if there is changes, i.e skip duplication
+// - Idle Rate = 0 : only send report if there is changes, i.e. skip duplication
 // - Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
-TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t instance, uint8_t idle_rate);
+bool tud_hid_set_idle_cb(uint8_t instance, uint8_t idle_rate);
 
 // Invoked when sent REPORT successfully to host
 // Application can use this to send the next report
 // Note: For composite reports, report[0] is report ID
-TU_ATTR_WEAK void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len);
+void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len);
 
 // Invoked when a transfer wasn't successful
-TU_ATTR_WEAK void tud_hid_report_fail_cb(uint8_t instance, uint8_t ep_addr, uint16_t len);
-
-//--------------------------------------------------------------------+
-// Inline Functions
-//--------------------------------------------------------------------+
-static inline bool tud_hid_ready(void)
-{
-  return tud_hid_n_ready(0);
-}
-
-static inline uint8_t tud_hid_interface_protocol(void)
-{
-  return tud_hid_n_interface_protocol(0);
-}
-
-static inline uint8_t tud_hid_get_protocol(void)
-{
-  return tud_hid_n_get_protocol(0);
-}
-
-static inline bool tud_hid_report(uint8_t report_id, void const* report, uint16_t len)
-{
-  return tud_hid_n_report(0, report_id, report, len);
-}
-
-static inline bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
-{
-  return tud_hid_n_keyboard_report(0, report_id, modifier, keycode);
-}
-
-static inline bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
-{
-  return tud_hid_n_mouse_report(0, report_id, buttons, x, y, vertical, horizontal);
-}
-
-static inline bool  tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons)
-{
-  return tud_hid_n_gamepad_report(0, report_id, x, y, z, rz, rx, ry, hat, buttons);
-}
+void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, uint8_t const* report, uint16_t xferred_bytes);
 
 /* --------------------------------------------------------------------+
  * HID Report Descriptor Template
@@ -645,9 +624,8 @@ uint16_t hidd_open            (uint8_t rhport, tusb_desc_interface_t const * itf
 bool     hidd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 bool     hidd_xfer_cb         (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
-
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_HID_DEVICE_H_ */
+#endif
