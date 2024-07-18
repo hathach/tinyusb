@@ -50,7 +50,8 @@ SRC_C += \
 	$(SDK_DIR)/drivers/common/fsl_common.c \
 	$(SDK_DIR)/drivers/common/fsl_common_arm.c \
 	$(SDK_DIR)/drivers/igpio/fsl_gpio.c \
-	$(SDK_DIR)/drivers/lpuart/fsl_lpuart.c
+	$(SDK_DIR)/drivers/lpuart/fsl_lpuart.c \
+	$(SDK_DIR)/drivers/ocotp/fsl_ocotp.c \
 
 # Optional drivers: only available for some mcus: rt1160, rt1170
 ifneq (,$(wildcard ${TOP}/${MCU_DIR}/drivers/fsl_dcdc.c))
@@ -68,7 +69,8 @@ INC += \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(SDK_DIR)/drivers/common \
 	$(TOP)/$(SDK_DIR)/drivers/igpio \
-	$(TOP)/$(SDK_DIR)/drivers/lpuart
+	$(TOP)/$(SDK_DIR)/drivers/lpuart \
+	$(TOP)/$(SDK_DIR)/drivers/ocotp \
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT_WITH_CORE).S
 
