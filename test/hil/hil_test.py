@@ -335,9 +335,13 @@ def main():
     with open(config_file) as f:
         config = json.load(f)
 
-    # all possible tests
+    # all possible tests: board_test is added last to disable board's usb
     all_tests = [
-        'cdc_dual_ports', 'cdc_msc', 'dfu', 'dfu_runtime', 'hid_boot_interface',
+        'cdc_dual_ports',
+        'cdc_msc', 'cdc_msc_freertos',
+        'dfu', 'dfu_runtime',
+        'hid_boot_interface',
+        'board_test'
     ]
 
     if len(boards) == 0:
@@ -352,12 +356,9 @@ def main():
 
         # default to all tests
         if 'tests' in item:
-            test_list = item['tests']
+            test_list = item['tests'] + ['board_test']
         else:
             test_list = all_tests
-
-        # board_test is added last to disable board's usb
-        test_list.append('board_test')
 
         # remove skip_tests
         if 'tests_skip' in item:
