@@ -235,6 +235,7 @@ static void process_mouse_report(hid_mouse_report_t const * report)
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
   (void) dev_addr;
+  (void) len;
 
   uint8_t const rpt_count = hid_info[instance].report_count;
   tuh_hid_report_info_t* rpt_info_arr = hid_info[instance].report_info;
