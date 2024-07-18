@@ -30,6 +30,13 @@
             "flasher": "esptool",
             "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
             "flasher_args": "-b 1500000"
+        },
+        {
+            "name": "metro_m7_1011",
+            "uid": "9CE8715DD71137363E00005002004200",
+            "flasher": "jlink",
+            "flasher_sn": "000611000000",
+            "flasher_args": "-device MIMXRT1011xxx5A"
         }
     ]
 }
