@@ -40,6 +40,7 @@
 #include "fsl_iomuxc.h"
 #include "fsl_clock.h"
 #include "fsl_lpuart.h"
+#include "fsl_ocotp.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -184,6 +185,29 @@ void board_led_write(bool state) {
 
 uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == GPIO_PinRead(BUTTON_PORT, BUTTON_PIN);
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+
+  #if FSL_FEATURE_OCOTP_HAS_TIMING_CTRL
+  OCOTP_Init(OCOTP, CLOCK_GetFreq(kCLOCK_IpgClk));
+  #else
+  OCOTP_Init(OCOTP, 0u);
+  #endif
+
+  // Reads shadow registers 0x01 - 0x04 (Configuration and Manufacturing Info)
+  // into 8 bit wide destination, avoiding punning.
+  for (int i = 0; i < 4; ++i) {
+    uint32_t wr = OCOTP_ReadFuseShadowRegister(OCOTP, i + 1);
+    for (int j = 0; j < 4; j++) {
+      id[i*4+j] = wr & 0xff;
+      wr >>= 8;
+    }
+  }
+  OCOTP_Deinit(OCOTP);
+
+  return 16;
 }
 
 int board_uart_read(uint8_t* buf, int len) {

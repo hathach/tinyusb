@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _BOARD_API_H_
-#define _BOARD_API_H_
+#ifndef BOARD_API_H_
+#define BOARD_API_H_
 
 #ifdef __cplusplus
 extern "C" {
