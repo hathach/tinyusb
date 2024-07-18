@@ -373,6 +373,10 @@ def main():
             fw_name = f'{fw_dir}/{test}'
             print(f'  {test} ...', end='')
 
+            if not os.path.exists(fw_dir):
+                print('Skip')
+                continue
+
             # flash firmware. It may fail randomly, retry a few times
             for i in range(3):
                 ret = globals()[f'flash_{flasher}'](item, fw_name)
