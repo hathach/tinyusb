@@ -69,6 +69,10 @@ if (NOT FAMILY STREQUAL rp2040)
   endif()
 endif()
 
+if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
+  set(NO_WARN_RWX_SEGMENTS_SUPPORTED 1)
+endif()
+
 set(WARNING_FLAGS_GNU
   -Wall
   -Wextra
@@ -210,7 +214,7 @@ function(family_configure_common TARGET RTOS)
   # Generate linker map file
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
@@ -360,7 +364,7 @@ function(family_add_default_example_warnings TARGET)
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif()
 
