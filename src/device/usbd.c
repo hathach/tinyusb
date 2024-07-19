@@ -46,13 +46,46 @@
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
 TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
-  (void)rhport;
-  (void)eventid;
-  (void)in_isr;
+  (void) rhport;
+  (void) eventid;
+  (void) in_isr;
 }
 
 TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
-  (void)frame_count;
+  (void) frame_count;
+}
+
+TU_ATTR_WEAK uint8_t const* tud_descriptor_bos_cb(void) {
+  return NULL;
+}
+
+TU_ATTR_WEAK uint8_t const* tud_descriptor_device_qualifier_cb(void) {
+  return NULL;
+}
+
+TU_ATTR_WEAK uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  (void) index;
+  return NULL;
+}
+
+TU_ATTR_WEAK void tud_mount_cb(void) {
+}
+
+TU_ATTR_WEAK void tud_umount_cb(void) {
+}
+
+TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en) {
+  (void) remote_wakeup_en;
+}
+
+TU_ATTR_WEAK void tud_resume_cb(void) {
+}
+
+TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
+  (void) rhport;
+  (void) stage;
+  (void) request;
+  return false;
 }
 
 TU_ATTR_WEAK bool dcd_deinit(uint8_t rhport) {
@@ -557,7 +590,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
       case DCD_EVENT_UNPLUGGED:
         TU_LOG_USBD("\r\n");
         usbd_reset(event.rhport);
-        if (tud_umount_cb) tud_umount_cb();
+        tud_umount_cb();
         break;
 
       case DCD_EVENT_SETUP_RECEIVED:
@@ -617,7 +650,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         // e.g suspend -> resume -> unplug/plug. Skip suspend/resume if not connected
         if (_usbd_dev.connected) {
           TU_LOG_USBD(": Remote Wakeup = %u\r\n", _usbd_dev.remote_wakeup_en);
-          if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
+          tud_suspend_cb(_usbd_dev.remote_wakeup_en);
         } else {
           TU_LOG_USBD(" Skipped\r\n");
         }
@@ -626,7 +659,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
       case DCD_EVENT_RESUME:
         if (_usbd_dev.connected) {
           TU_LOG_USBD("\r\n");
-          if (tud_resume_cb) tud_resume_cb();
+          tud_resume_cb();
         } else {
           TU_LOG_USBD(" Skipped\r\n");
         }
@@ -675,8 +708,6 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
   // Vendor request
   if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR ) {
-    TU_VERIFY(tud_vendor_control_xfer_cb);
-
     usbd_control_set_complete_callback(tud_vendor_control_xfer_cb);
     return tud_vendor_control_xfer_cb(rhport, CONTROL_STAGE_SETUP, p_request);
   }
@@ -758,9 +789,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
                 _usbd_dev.cfg_num = 0;
                 return false;
               }
-              if ( tud_mount_cb ) tud_mount_cb();
+              tud_mount_cb();
             } else {
-              if ( tud_umount_cb ) tud_umount_cb();
+              tud_umount_cb();
             }
           }
 
@@ -1027,39 +1058,34 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
   switch(desc_type)
   {
-    case TUSB_DESC_DEVICE:
-    {
+    case TUSB_DESC_DEVICE: {
       TU_LOG_USBD(" Device\r\n");
 
       void* desc_device = (void*) (uintptr_t) tud_descriptor_device_cb();
+      TU_ASSERT(desc_device);
 
       // Only response with exactly 1 Packet if: not addressed and host requested more data than device descriptor has.
       // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
       if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed &&
-          ((tusb_control_request_t const*) p_request)->wLength > sizeof(tusb_desc_device_t))
-      {
+          ((tusb_control_request_t const*) p_request)->wLength > sizeof(tusb_desc_device_t)) {
         // Hack here: we modify the request length to prevent usbd_control response with zlp
         // since we are responding with 1 packet & less data than wLength.
         tusb_control_request_t mod_request = *p_request;
         mod_request.wLength = CFG_TUD_ENDPOINT0_SIZE;
 
         return tud_control_xfer(rhport, &mod_request, desc_device, CFG_TUD_ENDPOINT0_SIZE);
-      }else
-      {
+      }else {
         return tud_control_xfer(rhport, p_request, desc_device, sizeof(tusb_desc_device_t));
       }
     }
     // break; // unreachable
 
-    case TUSB_DESC_BOS:
-    {
+    case TUSB_DESC_BOS: {
       TU_LOG_USBD(" BOS\r\n");
 
       // requested by host if USB > 2.0 ( i.e 2.1 or 3.x )
-      if (!tud_descriptor_bos_cb) return false;
-
       uintptr_t desc_bos = (uintptr_t) tud_descriptor_bos_cb();
-      TU_ASSERT(desc_bos);
+      TU_VERIFY(desc_bos);
 
       // Use offsetof to avoid pointer to the odd/misaligned address
       uint16_t const total_len = tu_le16toh( tu_unaligned_read16((const void*) (desc_bos + offsetof(tusb_desc_bos_t, wTotalLength))) );
@@ -1069,23 +1095,19 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     // break; // unreachable
 
     case TUSB_DESC_CONFIGURATION:
-    case TUSB_DESC_OTHER_SPEED_CONFIG:
-    {
+    case TUSB_DESC_OTHER_SPEED_CONFIG: {
       uintptr_t desc_config;
 
-      if ( desc_type == TUSB_DESC_CONFIGURATION )
-      {
+      if ( desc_type == TUSB_DESC_CONFIGURATION ) {
         TU_LOG_USBD(" Configuration[%u]\r\n", desc_index);
         desc_config = (uintptr_t) tud_descriptor_configuration_cb(desc_index);
-      }else
-      {
+        TU_ASSERT(desc_config);
+      }else {
         // Host only request this after getting Device Qualifier descriptor
         TU_LOG_USBD(" Other Speed Configuration\r\n");
-        TU_VERIFY( tud_descriptor_other_speed_configuration_cb );
         desc_config = (uintptr_t) tud_descriptor_other_speed_configuration_cb(desc_index);
+        TU_VERIFY(desc_config);
       }
-
-      TU_ASSERT(desc_config);
 
       // Use offsetof to avoid pointer to the odd/misaligned address
       uint16_t const total_len = tu_le16toh( tu_unaligned_read16((const void*) (desc_config + offsetof(tusb_desc_configuration_t, wTotalLength))) );
@@ -1107,16 +1129,10 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     }
     // break; // unreachable
 
-    case TUSB_DESC_DEVICE_QUALIFIER:
-    {
+    case TUSB_DESC_DEVICE_QUALIFIER: {
       TU_LOG_USBD(" Device Qualifier\r\n");
-
-      TU_VERIFY( tud_descriptor_device_qualifier_cb );
-
       uint8_t const* desc_qualifier = tud_descriptor_device_qualifier_cb();
       TU_VERIFY(desc_qualifier);
-
-      // first byte of descriptor is its size
       return tud_control_xfer(rhport, p_request, (void*) (uintptr_t) desc_qualifier, tu_desc_len(desc_qualifier));
     }
     // break; // unreachable
