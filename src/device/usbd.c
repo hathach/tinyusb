@@ -747,17 +747,23 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
               _usbd_dev.speed = speed; // restore speed
             }
 
+            _usbd_dev.cfg_num = cfg_num;
+
             // Handle the new configuration and execute the corresponding callback
             if ( cfg_num ) {
               // switch to new configuration if not zero
-              TU_ASSERT( process_set_config(rhport, cfg_num) );
+              if (!process_set_config(rhport, cfg_num)) {
+                TU_MESS_FAILED();
+                TU_BREAKPOINT();
+                _usbd_dev.cfg_num = 0;
+                return false;
+              }
               if ( tud_mount_cb ) tud_mount_cb();
             } else {
               if ( tud_umount_cb ) tud_umount_cb();
             }
           }
 
-          _usbd_dev.cfg_num = cfg_num;
           tud_control_status(rhport, p_request);
         }
         break;

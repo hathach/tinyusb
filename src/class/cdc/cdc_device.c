@@ -81,11 +81,11 @@ typedef struct {
 CFG_TUD_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 static tud_cdc_configure_fifo_t _cdcd_fifo_cfg;
 
-static bool _prep_out_transaction (cdcd_interface_t* p_cdc, bool itf_open) {
+static bool _prep_out_transaction (cdcd_interface_t* p_cdc) {
   uint8_t const rhport = 0;
 
   // Skip if usb is not ready yet
-  TU_VERIFY(tud_ready() || itf_open);
+  TU_VERIFY(tud_ready() && p_cdc->ep_out);
 
   uint16_t available = tu_fifo_remaining(&p_cdc->rx_ff);
 
@@ -120,6 +120,10 @@ bool tud_cdc_configure_fifo(tud_cdc_configure_fifo_t const* cfg) {
   return true;
 }
 
+bool tud_cdc_n_ready(uint8_t itf) {
+  return tud_ready() && _cdcd_itf[itf].ep_in != 0 && _cdcd_itf[itf].ep_out != 0;
+}
+
 bool tud_cdc_n_connected(uint8_t itf) {
   // DTR (bit 0) active  is considered as connected
   return tud_ready() && tu_bit_test(_cdcd_itf[itf].line_state, 0);
@@ -147,7 +151,7 @@ uint32_t tud_cdc_n_available(uint8_t itf) {
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize) {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
   uint32_t num_read = tu_fifo_read_n(&p_cdc->rx_ff, buffer, (uint16_t) TU_MIN(bufsize, UINT16_MAX));
-  _prep_out_transaction(p_cdc, false);
+  _prep_out_transaction(p_cdc);
   return num_read;
 }
 
@@ -158,7 +162,7 @@ bool tud_cdc_n_peek(uint8_t itf, uint8_t* chr) {
 void tud_cdc_n_read_flush(uint8_t itf) {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
   tu_fifo_clear(&p_cdc->rx_ff);
-  _prep_out_transaction(p_cdc, false);
+  _prep_out_transaction(p_cdc);
 }
 
 //--------------------------------------------------------------------+
@@ -340,7 +344,7 @@ uint16_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   }
 
   // Prepare for incoming data
-  _prep_out_transaction(p_cdc, true);
+  _prep_out_transaction(p_cdc);
 
   return drv_len;
 }
@@ -449,7 +453,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     if (tud_cdc_rx_cb && !tu_fifo_empty(&p_cdc->rx_ff)) tud_cdc_rx_cb(itf);
 
     // prepare for OUT transaction
-    _prep_out_transaction(p_cdc, false);
+    _prep_out_transaction(p_cdc);
   }
 
   // Data sent to host, we continue to fetch from tx fifo to send.
