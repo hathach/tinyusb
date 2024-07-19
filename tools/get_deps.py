@@ -49,7 +49,7 @@ deps_optional = {
                        '2204191ec76283371419fbcec207da02e1bc22fa',
                        'nuc'],
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
-                           '04bfe7a5f6ee74a89a28ad618d3367dcfcfb7d83',
+                           'b41cf930e65c734d8ec6de04f1d57d46787c76ae',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
                             '144f1eb7ea8c06512e12f12b27383601c0272410',

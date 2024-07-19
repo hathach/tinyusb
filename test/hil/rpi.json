@@ -46,6 +46,13 @@
             "flasher": "jlink",
             "flasher_sn": "000831174392",
             "flasher_args": "-device R7FA4M1AB"
+        },
+        {
+            "name": "lpcxpresso11u37",
+            "uid": "17121919",
+            "flasher": "jlink",
+            "flasher_sn": "000724441579",
+            "flasher_args": "-device LPC11U37/401"
         }
     ]
 }
