@@ -90,6 +90,13 @@ void board_led_write(bool state) {
   Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  if ( max_len < 16 ) return 0;
+  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
+  id32[0] = Chip_IAP_ReadUID();
+  return 4;
+}
+
 uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 }
