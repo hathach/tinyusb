@@ -358,7 +358,7 @@ def main():
         if 'tests' in item:
             test_list = item['tests'] + ['board_test']
         else:
-            test_list = all_tests
+            test_list = list(all_tests)
 
         # remove skip_tests
         if 'tests_skip' in item:
