@@ -37,6 +37,13 @@
             "flasher": "jlink",
             "flasher_sn": "000611000000",
             "flasher_args": "-device MIMXRT1011xxx5A"
+        },
+        {
+            "name": "ra4m1_ek",
+            "uid": "152E163038303131393346E46F26574B",
+            "flasher": "jlink",
+            "flasher_sn": "000831174392",
+            "flasher_args": "-device R7FA4M1AB"
         }
     ]
 }
