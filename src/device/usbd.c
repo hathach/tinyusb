@@ -46,16 +46,25 @@
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
 TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
-  (void)rhport;
-  (void)eventid;
-  (void)in_isr;
+  (void) rhport;
+  (void) eventid;
+  (void) in_isr;
 }
 
 TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
-  (void)frame_count;
+  (void) frame_count;
 }
 
-TU_ATTR_WEAK uint8_t const * tud_descriptor_bos_cb(void) {
+TU_ATTR_WEAK uint8_t const* tud_descriptor_bos_cb(void) {
+  return NULL;
+}
+
+TU_ATTR_WEAK uint8_t const* tud_descriptor_device_qualifier_cb(void) {
+  return NULL;
+}
+
+TU_ATTR_WEAK uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  (void) index;
   return NULL;
 }
 
@@ -66,16 +75,16 @@ TU_ATTR_WEAK void tud_umount_cb(void) {
 }
 
 TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en) {
-  (void)remote_wakeup_en;
+  (void) remote_wakeup_en;
 }
 
 TU_ATTR_WEAK void tud_resume_cb(void) {
 }
 
-TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request) {
-  (void)rhport;
-  (void)stage;
-  (void)request;
+TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
+  (void) rhport;
+  (void) stage;
+  (void) request;
   return false;
 }
 
@@ -1075,15 +1084,12 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     }
     // break; // unreachable
 
-    case TUSB_DESC_BOS:
-    {
+    case TUSB_DESC_BOS: {
       TU_LOG_USBD(" BOS\r\n");
 
       // requested by host if USB > 2.0 ( i.e 2.1 or 3.x )
-      if (!tud_descriptor_bos_cb) return false;
-
       uintptr_t desc_bos = (uintptr_t) tud_descriptor_bos_cb();
-      TU_ASSERT(desc_bos);
+      TU_VERIFY(desc_bos);
 
       // Use offsetof to avoid pointer to the odd/misaligned address
       uint16_t const total_len = tu_le16toh( tu_unaligned_read16((const void*) (desc_bos + offsetof(tusb_desc_bos_t, wTotalLength))) );
@@ -1093,23 +1099,19 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     // break; // unreachable
 
     case TUSB_DESC_CONFIGURATION:
-    case TUSB_DESC_OTHER_SPEED_CONFIG:
-    {
+    case TUSB_DESC_OTHER_SPEED_CONFIG: {
       uintptr_t desc_config;
 
-      if ( desc_type == TUSB_DESC_CONFIGURATION )
-      {
+      if ( desc_type == TUSB_DESC_CONFIGURATION ) {
         TU_LOG_USBD(" Configuration[%u]\r\n", desc_index);
         desc_config = (uintptr_t) tud_descriptor_configuration_cb(desc_index);
-      }else
-      {
+        TU_ASSERT(desc_config);
+      }else {
         // Host only request this after getting Device Qualifier descriptor
         TU_LOG_USBD(" Other Speed Configuration\r\n");
-        TU_VERIFY( tud_descriptor_other_speed_configuration_cb );
         desc_config = (uintptr_t) tud_descriptor_other_speed_configuration_cb(desc_index);
+        TU_VERIFY(desc_config);
       }
-
-      TU_ASSERT(desc_config);
 
       // Use offsetof to avoid pointer to the odd/misaligned address
       uint16_t const total_len = tu_le16toh( tu_unaligned_read16((const void*) (desc_config + offsetof(tusb_desc_configuration_t, wTotalLength))) );
@@ -1131,16 +1133,10 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
     }
     // break; // unreachable
 
-    case TUSB_DESC_DEVICE_QUALIFIER:
-    {
+    case TUSB_DESC_DEVICE_QUALIFIER: {
       TU_LOG_USBD(" Device Qualifier\r\n");
-
-      TU_VERIFY( tud_descriptor_device_qualifier_cb );
-
       uint8_t const* desc_qualifier = tud_descriptor_device_qualifier_cb();
       TU_VERIFY(desc_qualifier);
-
-      // first byte of descriptor is its size
       return tud_control_xfer(rhport, p_request, (void*) (uintptr_t) desc_qualifier, tu_desc_len(desc_qualifier));
     }
     // break; // unreachable
