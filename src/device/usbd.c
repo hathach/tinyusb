@@ -708,8 +708,6 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
   // Vendor request
   if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR ) {
-    TU_VERIFY(tud_vendor_control_xfer_cb);
-
     usbd_control_set_complete_callback(tud_vendor_control_xfer_cb);
     return tud_vendor_control_xfer_cb(rhport, CONTROL_STAGE_SETUP, p_request);
   }
@@ -1060,25 +1058,23 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
   switch(desc_type)
   {
-    case TUSB_DESC_DEVICE:
-    {
+    case TUSB_DESC_DEVICE: {
       TU_LOG_USBD(" Device\r\n");
 
       void* desc_device = (void*) (uintptr_t) tud_descriptor_device_cb();
+      TU_ASSERT(desc_device);
 
       // Only response with exactly 1 Packet if: not addressed and host requested more data than device descriptor has.
       // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
       if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed &&
-          ((tusb_control_request_t const*) p_request)->wLength > sizeof(tusb_desc_device_t))
-      {
+          ((tusb_control_request_t const*) p_request)->wLength > sizeof(tusb_desc_device_t)) {
         // Hack here: we modify the request length to prevent usbd_control response with zlp
         // since we are responding with 1 packet & less data than wLength.
         tusb_control_request_t mod_request = *p_request;
         mod_request.wLength = CFG_TUD_ENDPOINT0_SIZE;
 
         return tud_control_xfer(rhport, &mod_request, desc_device, CFG_TUD_ENDPOINT0_SIZE);
-      }else
-      {
+      }else {
         return tud_control_xfer(rhport, p_request, desc_device, sizeof(tusb_desc_device_t));
       }
     }
