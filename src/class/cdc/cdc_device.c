@@ -81,8 +81,7 @@ typedef struct {
 CFG_TUD_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 static tud_cdc_configure_fifo_t _cdcd_fifo_cfg;
 
-static bool _prep_out_transaction (cdcd_interface_t* p_cdc, bool itf_open)
-{
+static bool _prep_out_transaction (cdcd_interface_t* p_cdc, bool itf_open) {
   uint8_t const rhport = 0;
 
   // Skip if usb is not ready yet
