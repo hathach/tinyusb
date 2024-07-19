@@ -66,14 +66,14 @@
       <configuration PROFILE_NAME="feather_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m0_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="metro_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m0_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="feather_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
-      <configuration PROFILE_NAME="metro_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="metro_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express" />
       <configuration PROFILE_NAME="itsybitsy_m4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=itsybitsy_m4" />
       <configuration PROFILE_NAME="same54_xplained" ENABLED="false" GENERATION_OPTIONS="-DBOARD=same54_xplained -DLOG=2 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="feather_nrf52840_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_nrf52840_express -DLOG=3 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="pca10056" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10056 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="pca10095" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10095 -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="metro m7 1011 sd" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011_sd -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
-      <configuration PROFILE_NAME="metro m7 1011" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011 -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="metro_m7_1011" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011 -DLOG=3 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="rt1010 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1010_evk -DLOG=3 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="rt1060 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1060_evk -DLOG=3 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="rt1170 evkb" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1170_evkb -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
@@ -106,11 +106,11 @@
       <configuration PROFILE_NAME="stm32u575nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u575nucleo -DLOG=2 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32u5a5nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u5a5nucleo -DLOG=3 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32wb55nucleo" ENABLED="false" GENERATION_OPTIONS="-DBOARD=stm32wb55nucleo" />
-      <configuration PROFILE_NAME="ra2a1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra2a1_ek -DLOG=3 -DLOGGER=RTT" />
-      <configuration PROFILE_NAME="ra4m1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra4m1_ek -DLOG=3 -DLOGGER=RTT" />
-      <configuration PROFILE_NAME="ra6m1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m1_ek -DLOG=3 -DLOGGER=RTT" />
-      <configuration PROFILE_NAME="ra6m5" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
-      <configuration PROFILE_NAME="ra6m5 PORT0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1 -DPORT=0" />
+      <configuration PROFILE_NAME="ra2a1_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra2a1_ek -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra4m1_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra4m1_ek -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra6m1_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m1_ek -DLOG=3 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra6m5_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="ra6m5_ek PORT0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=3 -DLOGGER=RTT -DTRACE_ETM=1 -DPORT=0" />
       <configuration PROFILE_NAME="uno_r4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=uno_r4 -DLOG=4 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="portenta_c33" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=portenta_c33 -DLOG=3" />
       <configuration PROFILE_NAME="msp430f5529" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=msp_exp430f5529lp" />
