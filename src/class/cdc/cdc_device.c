@@ -83,6 +83,10 @@ static tud_cdc_configure_fifo_t _cdcd_fifo_cfg;
 
 static bool _prep_out_transaction (cdcd_interface_t* p_cdc) {
   uint8_t const rhport = 0;
+
+  // Skip if usb is not ready yet
+  TU_VERIFY(tud_ready() && p_cdc->ep_out);
+
   uint16_t available = tu_fifo_remaining(&p_cdc->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
@@ -114,6 +118,10 @@ bool tud_cdc_configure_fifo(tud_cdc_configure_fifo_t const* cfg) {
   TU_VERIFY(cfg);
   _cdcd_fifo_cfg = (*cfg);
   return true;
+}
+
+bool tud_cdc_n_ready(uint8_t itf) {
+  return tud_ready() && _cdcd_itf[itf].ep_in != 0 && _cdcd_itf[itf].ep_out != 0;
 }
 
 bool tud_cdc_n_connected(uint8_t itf) {

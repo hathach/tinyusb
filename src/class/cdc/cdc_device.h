@@ -61,6 +61,9 @@ bool tud_cdc_configure_fifo(tud_cdc_configure_fifo_t const* cfg);
 // Application API (Multiple Ports) i.e. CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
 
+// Check if interface is ready
+bool tud_cdc_n_ready(uint8_t itf);
+
 // Check if terminal is connected to this port
 bool tud_cdc_n_connected(uint8_t itf);
 
@@ -116,6 +119,11 @@ bool tud_cdc_n_write_clear(uint8_t itf);
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_ready(void) {
+  return tud_cdc_n_ready(0);
+}
+
 TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_connected(void) {
   return tud_cdc_n_connected(0);
 }

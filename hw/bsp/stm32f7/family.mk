@@ -24,6 +24,7 @@ ifeq ($(PORT), 1)
     $(info "Using OTG_HS in FullSpeed mode")
   endif
 else
+  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
   $(info "Using OTG_FS")
 endif
 
