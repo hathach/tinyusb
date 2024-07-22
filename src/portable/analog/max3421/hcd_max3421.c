@@ -203,12 +203,13 @@ typedef struct {
     uint16_t packet_size : 11;
   };
 
+  bool received_nak;
   uint16_t total_len;
   uint16_t xferred_len;
   uint8_t* buf;
 } max3421_ep_t;
 
-TU_VERIFY_STATIC(sizeof(max3421_ep_t) == 12, "size is not correct");
+TU_VERIFY_STATIC(sizeof(max3421_ep_t) == 16, "size is not correct");
 
 typedef struct {
   volatile uint16_t frame_count;
@@ -625,12 +626,17 @@ static void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_i
     reg_write(rhport, HCTL_ADDR, hctl, in_isr);
   }
 
-  uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
-  TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
-  if (xact_len) {
-    fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
+  if (!ep->received_nak){
+    // do not write to fifo or sdnbc register again if previous attempt got NAK
+    uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
+    TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
+    if (xact_len) {
+      fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
+    }
+
+    sndbc_write(rhport, xact_len, in_isr);
   }
-  sndbc_write(rhport, xact_len, in_isr);
+
   hxfr_write(rhport, ep->hxfr, in_isr);
 }
 
@@ -844,6 +850,7 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
           return;
         } else if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
           ep->state++;
+          ep->received_nak = true;
         }
       }
 
@@ -867,6 +874,7 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
 
     case HRSL_SUCCESS:
       xfer_result = XFER_RESULT_SUCCESS;
+      ep->received_nak = false;
       break;
 
     case HRSL_STALL:
