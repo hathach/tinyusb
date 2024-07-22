@@ -629,8 +629,9 @@ static void xact_out(uint8_t rhport, max3421_ep_t *ep, bool switch_ep, bool in_i
   if (!ep->received_nak){
     // do not write to fifo or sdnbc register again if previous attempt got NAK
     uint8_t const xact_len = (uint8_t) tu_min16(ep->total_len - ep->xferred_len, ep->packet_size);
-    TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
     if (xact_len) {
+      // only check SNDBAV IRQ if there is data to send
+      TU_ASSERT(_hcd_data.hirq & HIRQ_SNDBAV_IRQ,);
       fifo_write(rhport, SNDFIFO_ADDR, ep->buf, xact_len, in_isr);
     }
 
