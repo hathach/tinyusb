@@ -29,7 +29,7 @@
             ],
             "flasher": "esptool",
             "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
-            "flasher_args": "-b 1500000"
+            "flasher_args": "-b 921600"
         },
         {
             "name": "metro_m7_1011",
