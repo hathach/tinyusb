@@ -1004,7 +1004,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
     srcVal++;
   }
 
-  if (wNBytes) {
+  if (wNBytes & 0x01) {
     temp1 = (uint16_t) *srcVal;
     *pdwVal = temp1;
   }

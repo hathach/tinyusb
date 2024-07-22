@@ -8,7 +8,6 @@ set(LD_RAM_SIZE 10K)
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     SYSCLK_FREQ_144MHz_HSI=144000000
-    CH32_FLASH_ENHANCE_READ_MODE=1
     CFG_EXAMPLE_MSC_DUAL_READONLY
     )
 endfunction()
