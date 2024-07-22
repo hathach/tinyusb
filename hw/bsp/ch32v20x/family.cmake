@@ -72,6 +72,12 @@ function(add_board_target BOARD_TARGET)
 
   update_board(${BOARD_TARGET})
 
+  if (LD_FLASH_SIZE STREQUAL 224K)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CH32_FLASH_ENHANCE_READ_MODE=1
+      )
+  endif()
+
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(${BOARD_TARGET} PUBLIC
       -mcmodel=medany
