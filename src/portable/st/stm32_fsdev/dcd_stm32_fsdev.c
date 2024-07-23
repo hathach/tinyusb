@@ -426,6 +426,8 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
       dcd_read_packet_memory(userMemBuf, pcd_get_ep_rx_address(USB, EPindex), 8);
       dcd_event_setup_received(0, (uint8_t *)userMemBuf, true);
 #endif
+    } else {
+      TU_BREAKPOINT();
     }
   } else {
     // Clear RX CTR interrupt flag
@@ -941,27 +943,26 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 }
 
 #ifdef FSDEV_BUS_32BIT
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes)
-{
-  const uint8_t *srcVal = src;
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes) {
+  const uint8_t *src8 = src;
   volatile uint32_t *dst32 = (volatile uint32_t *)(USB_PMAADDR + dst);
 
   for (uint32_t n = wNBytes / 4; n > 0; --n) {
-    *dst32++ = tu_unaligned_read32(srcVal);
-    srcVal += 4;
+    *dst32++ = tu_unaligned_read32(src8);
+    src8 += 4;
   }
 
-  wNBytes = wNBytes & 0x03;
-  if (wNBytes) {
-    uint32_t wrVal = *srcVal;
-    wNBytes--;
+  uint16_t odd = wNBytes & 0x03;
+  if (odd) {
+    uint32_t wrVal = *src8;
+    odd--;
 
-    if (wNBytes) {
-      wrVal |= *++srcVal << 8;
-      wNBytes--;
+    if (odd) {
+      wrVal |= *++src8 << 8;
+      odd--;
 
-      if (wNBytes) {
-        wrVal |= *++srcVal << 16;
+      if (odd) {
+        wrVal |= *++src8 << 16;
       }
     }
 
@@ -974,39 +975,26 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
 // Packet buffer access can only be 8- or 16-bit.
 /**
  * @brief Copy a buffer from user memory area to packet memory area (PMA).
- *        This uses byte-access for user memory (so support non-aligned buffers)
- *        and 16-bit access for packet memory.
+ *        This uses un-aligned for user memory and 16-bit access for packet memory.
  * @param   dst, byte address in PMA; must be 16-bit aligned
  * @param   src pointer to user memory area.
  * @param   wPMABufAddr address into PMA.
  * @param   wNBytes no. of bytes to be copied.
  * @retval None
  */
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes)
-{
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes) {
   uint32_t n = (uint32_t)wNBytes >> 1U;
-  uint16_t temp1, temp2;
-  const uint8_t *srcVal;
-
-  // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
-  // it volatile so that it won't do that.
-  __IO uint16_t *pdwVal;
-
-  srcVal = src;
-  pdwVal = &pma[FSDEV_PMA_STRIDE * (dst >> 1)];
+  const uint8_t *src8 = src;
+  volatile uint16_t *pdw16 = &pma[FSDEV_PMA_STRIDE * (dst >> 1)];
 
   while (n--) {
-    temp1 = (uint16_t)*srcVal;
-    srcVal++;
-    temp2 = temp1 | ((uint16_t)(((uint16_t)(*srcVal)) << 8U));
-    *pdwVal = temp2;
-    pdwVal += FSDEV_PMA_STRIDE;
-    srcVal++;
+    *pdw16 = tu_unaligned_read16(src8);
+    src8 += 2;
+    pdw16 += FSDEV_PMA_STRIDE;
   }
 
   if (wNBytes & 0x01) {
-    temp1 = (uint16_t) *srcVal;
-    *pdwVal = temp1;
+    *pdw16 = (uint16_t) *src8;
   }
 
   return true;
@@ -1091,27 +1079,27 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNB
 #ifdef FSDEV_BUS_32BIT
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes)
 {
-  uint8_t *dstVal = dst;
+  uint8_t *dst8 = dst;
   volatile uint32_t *src32 = (volatile uint32_t *)(USB_PMAADDR + src);
 
   for (uint32_t n = wNBytes / 4; n > 0; --n) {
-    tu_unaligned_write32(dstVal, *src32++);
-    dstVal += 4;
+    tu_unaligned_write32(dst8, *src32++);
+    dst8 += 4;
   }
 
-  wNBytes = wNBytes & 0x03;
-  if (wNBytes) {
+  uint16_t odd = wNBytes & 0x03;
+  if (odd) {
     uint32_t rdVal = *src32;
 
-    *dstVal = tu_u32_byte0(rdVal);
-    wNBytes--;
+    *dst8 = tu_u32_byte0(rdVal);
+    odd--;
 
-    if (wNBytes) {
-      *++dstVal = tu_u32_byte1(rdVal);
-      wNBytes--;
+    if (odd) {
+      *++dst8 = tu_u32_byte1(rdVal);
+      odd--;
 
-      if (wNBytes) {
-        *++dstVal = tu_u32_byte2(rdVal);
+      if (odd) {
+        *++dst8 = tu_u32_byte2(rdVal);
       }
     }
   }
@@ -1121,33 +1109,25 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t 
 #else
 /**
  * @brief Copy a buffer from packet memory area (PMA) to user memory area.
- *        Uses byte-access of system memory and 16-bit access of packet memory
+ *        Uses unaligned for system memory and 16-bit access of packet memory
  * @param   wNBytes no. of bytes to be copied.
  * @retval None
  */
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes)
-{
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes) {
   uint32_t n = (uint32_t)wNBytes >> 1U;
-  // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
-  // it volatile so that it won't do that.
-  __IO const uint16_t *pdwVal;
-  uint32_t temp;
-
-  pdwVal = &pma[FSDEV_PMA_STRIDE * (src >> 1)];
-  uint8_t *dstVal = (uint8_t *)dst;
+  volatile const uint16_t *pdw16 = &pma[FSDEV_PMA_STRIDE * (src >> 1)];
+  uint8_t *dst8 = (uint8_t *)dst;
 
   while (n--) {
-    temp = *pdwVal;
-    pdwVal += FSDEV_PMA_STRIDE;
-    *dstVal++ = ((temp >> 0) & 0xFF);
-    *dstVal++ = ((temp >> 8) & 0xFF);
+    tu_unaligned_write16(dst8, *pdw16);
+    dst8 += 2;
+    pdw16 += FSDEV_PMA_STRIDE;
   }
 
   if (wNBytes & 0x01) {
-    temp = *pdwVal;
-    pdwVal += FSDEV_PMA_STRIDE;
-    *dstVal++ = ((temp >> 0) & 0xFF);
+    *dst8++ = tu_u16_low(*pdw16);
   }
+
   return true;
 }
 #endif

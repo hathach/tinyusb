@@ -35,14 +35,19 @@
 #include "stdint.h"
 
 // FSDEV_PMA_SIZE is PMA buffer size in bytes.
-// On 512-byte devices, access with a stride of two words (use every other 16-bit address)
-// On 1024-byte devices, access with a stride of one word (use every 16-bit address)
+// - 512-byte devices, access with a stride of two words (use every other 16-bit address)
+// - 1024-byte devices, access with a stride of one word (use every 16-bit address)
+// - 2048-byte devices, access with 32-bit address
 
 // For purposes of accessing the packet
-#if ((FSDEV_PMA_SIZE) == 512u)
+#if FSDEV_PMA_SIZE == 512
   #define FSDEV_PMA_STRIDE  (2u)
-#elif ((FSDEV_PMA_SIZE) == 1024u)
+#elif FSDEV_PMA_SIZE == 1024
   #define FSDEV_PMA_STRIDE  (1u)
+#elif FSDEV_PMA_SIZE == 2048
+  #ifndef FSDEV_BUS_32BIT
+    #warning "FSDEV_PMA_SIZE is 2048, but FSDEV_BUS_32BIT is not defined"
+  #endif
 #endif
 
 // The fsdev_bus_t type can be used for both register and PMA access necessities
