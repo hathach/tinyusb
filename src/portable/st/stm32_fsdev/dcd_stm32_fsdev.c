@@ -180,7 +180,7 @@ static uint8_t remoteWakeCountdown; // When wake is requested
 //--------------------------------------------------------------------+
 
 // into the stack.
-static void dcd_handle_bus_reset(void);
+static void handle_bus_reset(uint8_t rhport);
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix);
 static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr);
 static void dcd_ep_ctr_handler(void);
@@ -212,18 +212,12 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint32_t ep_addr)
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
-
-void dcd_init(uint8_t rhport)
-{
-  /* Clocks should already be enabled */
-  /* Use __HAL_RCC_USB_CLK_ENABLE(); to enable the clocks before calling this function */
-
-  /* The RM mentions to use a special ordering of PDWN and FRES, but this isn't done in HAL.
-   * Here, the RM is followed. */
-
+void dcd_init(uint8_t rhport) {
+  // Follow the RM mentions to use a special ordering of PDWN and FRES
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
+
   // Perform USB peripheral reset
   USB->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
@@ -238,9 +232,11 @@ void dcd_init(uint8_t rhport)
   }
   USB->CNTR = 0; // Enable USB
 
-#if !defined(STM32G0) && !defined(STM32H5) && !defined(STM32U5) // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
+#if !defined(STM32G0) && !defined(STM32H5) && !defined(STM32U5)
+  // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 #endif
+
   USB->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
@@ -250,17 +246,14 @@ void dcd_init(uint8_t rhport)
   }
 
   USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
-  dcd_handle_bus_reset();
+  handle_bus_reset(rhport);
 
   // Enable pull-up if supported
   dcd_connect(rhport);
 }
 
-
-void dcd_sof_enable(uint8_t rhport, bool en)
-{
+void dcd_sof_enable(uint8_t rhport, bool en) {
   (void)rhport;
-  (void)en;
 
   if (en) {
     USB->CNTR |= USB_CNTR_SOFM;
@@ -270,9 +263,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 }
 
 // Receive Set Address request, mcu port must also include status IN response
-void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
-{
-  (void)rhport;
+void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   (void)dev_addr;
 
   // Respond with status
@@ -282,35 +273,15 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // do it at dcd_edpt0_status_complete()
 }
 
-void dcd_remote_wakeup(uint8_t rhport)
-{
+void dcd_remote_wakeup(uint8_t rhport) {
   (void)rhport;
 
   USB->CNTR |= USB_CNTR_RESUME;
   remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
-static const tusb_desc_endpoint_t ep0OUT_desc = {
-    .bLength = sizeof(tusb_desc_endpoint_t),
-    .bDescriptorType = TUSB_DESC_ENDPOINT,
-    .bEndpointAddress = 0x00,
-    .bmAttributes = {.xfer = TUSB_XFER_CONTROL},
-    .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-    .bInterval = 0
-};
-
-static const tusb_desc_endpoint_t ep0IN_desc = {
-    .bLength = sizeof(tusb_desc_endpoint_t),
-    .bDescriptorType = TUSB_DESC_ENDPOINT,
-    .bEndpointAddress = 0x80,
-    .bmAttributes = {.xfer = TUSB_XFER_CONTROL},
-    .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-    .bInterval = 0
-};
-
-static void dcd_handle_bus_reset(void)
-{
-  USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
+static void handle_bus_reset(uint8_t rhport) {
+  USB->DADDR = 0u; // disable USB Function
 
   for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {
     // Clear EP allocation status
@@ -323,17 +294,26 @@ static void dcd_handle_bus_reset(void)
   // Reset PMA allocation
   ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX;
 
-  dcd_edpt_open(0, &ep0OUT_desc);
-  dcd_edpt_open(0, &ep0IN_desc);
+  tusb_desc_endpoint_t ep0_desc = {
+      .bLength = sizeof(tusb_desc_endpoint_t),
+      .bDescriptorType = TUSB_DESC_ENDPOINT,
+      .bEndpointAddress = 0x00,
+      .bmAttributes = {.xfer = TUSB_XFER_CONTROL},
+      .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
+      .bInterval = 0
+  };
 
-  USB->DADDR = USB_DADDR_EF; // Set enable flag, and leaving the device address as zero.
+  dcd_edpt_open(rhport, &ep0_desc);
+
+  ep0_desc.bEndpointAddress = 0x80;
+  dcd_edpt_open(rhport, &ep0_desc);
+
+  USB->DADDR = USB_DADDR_EF; // Enable USB Function
 }
 
 // Handle CTR interrupt for the TX/IN direction
-//
 // Upon call, (wIstr & USB_ISTR_DIR) == 0U
-static void dcd_ep_ctr_tx_handler(uint32_t wIstr)
-{
+static void dcd_ep_ctr_tx_handler(uint32_t wIstr) {
   uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
   uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
   uint8_t ep_addr = (wEPRegVal & USB_EPADDR_FIELD) | TUSB_DIR_IN_MASK;
@@ -406,6 +386,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   // Verify the CTR_RX bit is set. This was in the ST Micro code,
   // but I'm not sure it's actually necessary?
   if ((wEPRegVal & USB_EP_CTR_RX) == 0U) {
+    // TU_ASSERT(false, );
     return;
   }
 
@@ -504,10 +485,7 @@ static void dcd_ep_ctr_handler(void)
   }
 }
 
-void dcd_int_handler(uint8_t rhport)
-{
-  (void)rhport;
-
+void dcd_int_handler(uint8_t rhport) {
   uint32_t int_status = USB->ISTR;
   // const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
   //     | USB_ISTR_SUSP | USB_ISTR_SOF | USB_ISTR_ESOF;
@@ -526,7 +504,7 @@ void dcd_int_handler(uint8_t rhport)
   if (int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
     USB->ISTR = (fsdev_bus_t)~USB_ISTR_RESET;
-    dcd_handle_bus_reset();
+    handle_bus_reset(rhport);
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
   }
@@ -659,13 +637,12 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
 // The STM32F0 doesn't seem to like |= or &= to manipulate the EP#R registers,
 // so I'm using the #define from HAL here, instead.
 
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
-{
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   (void)rhport;
-  uint8_t const ep_addr = p_endpoint_desc->bEndpointAddress;
-  uint8_t const ep_idx = dcd_ep_alloc(ep_addr, p_endpoint_desc->bmAttributes.xfer);
+  uint8_t const ep_addr = desc_ep->bEndpointAddress;
+  uint8_t const ep_idx = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
   uint8_t const dir = tu_edpt_dir(ep_addr);
-  const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
+  const uint16_t packet_size = tu_edpt_packet_size(desc_ep);
   const uint16_t buffer_size = pcd_aligned_buffer_size(packet_size);
   uint16_t pma_addr;
   uint32_t wType;
@@ -674,7 +651,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
   TU_ASSERT(buffer_size <= 64);
 
   // Set type
-  switch (p_endpoint_desc->bmAttributes.xfer) {
+  switch (desc_ep->bmAttributes.xfer) {
     case TUSB_XFER_CONTROL:
       wType = USB_EP_CONTROL;
       break;
@@ -807,7 +784,6 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoin
 }
 
 // Currently, single-buffered, and only 64 bytes at a time (max)
-
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix)
 {
   uint16_t len = (uint16_t)(xfer->total_len - xfer->queued_len);
@@ -1007,8 +983,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
  * @param   wNBytes no. of bytes to be copied.
  * @retval None
  */
-static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes)
-{
+static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes) {
   // Since we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   tu_fifo_buffer_info_t info;
   tu_fifo_get_read_info(ff, &info);
@@ -1042,8 +1017,9 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNB
     dst += 4;
 
     // Copy rest of wrapped byte
-    if (wCnt)
+    if (wCnt) {
       dcd_write_packet_memory(dst, info.ptr_wrap, wCnt);
+    }
   }
 #else
   if ((cnt_lin & 0x01) && cnt_wrap) {
@@ -1077,8 +1053,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNB
 }
 
 #ifdef FSDEV_BUS_32BIT
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes)
-{
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes) {
   uint8_t *dst8 = dst;
   volatile uint32_t *src32 = (volatile uint32_t *)(USB_PMAADDR + src);
 
@@ -1138,8 +1113,7 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t 
  * @param   wNBytes no. of bytes to be copied.
  * @retval None
  */
-static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes)
-{
+static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) {
   // Since we copy into a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   // Check for first linear part
   tu_fifo_buffer_info_t info;
@@ -1173,8 +1147,9 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBy
     }
 
     // Copy rest of wrapped byte
-    if (wCnt)
+    if (wCnt) {
       dcd_read_packet_memory(info.ptr_wrap, src, wCnt);
+    }
   }
 #else
   if ((cnt_lin & 0x01) && cnt_wrap) {
