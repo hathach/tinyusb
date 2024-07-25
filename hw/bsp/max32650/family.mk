@@ -62,7 +62,7 @@ flash: $(DEFAULT_FLASH)
 # -----------------
 PERIPH_SRC = $(TOP)/$(MAX32_PERIPH)/Source
 SRC_C += \
-	src/portable/analog/max32/dcd_max32.c \
+	src/portable/mentor/musb/dcd_musb.c \
 	$(MAX32_CMSIS)/Device/Maxim/MAX32650/Source/heap.c \
 	$(MAX32_CMSIS)/Device/Maxim/MAX32650/Source/system_max32650.c \
 	$(MAX32_CMSIS)/Device/Maxim/MAX32650/Source/header_MAX32650.c \

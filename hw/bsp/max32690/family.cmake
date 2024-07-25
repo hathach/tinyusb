@@ -132,7 +132,7 @@ function(family_configure_example TARGET RTOS)
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_MAX32690 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
-    ${TOP}/src/portable/analog/max32/dcd_max32.c
+    ${TOP}/src/portable/mentor/musb/dcd_musb.c
     )
   target_compile_options(${TARGET} PRIVATE
     -Wno-error=strict-prototypes

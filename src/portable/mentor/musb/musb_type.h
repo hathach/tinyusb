@@ -35,9 +35,42 @@
 #ifndef _TUSB_MUSB_TYPE_H_
 #define _TUSB_MUSB_TYPE_H_
 
+#include "stdint.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+// Endpoint register mapping. Non-zero end points.
+typedef struct TU_ATTR_PACKED {
+  uint16_t TXMAXP;
+  uint8_t  TXCSRL;
+  uint8_t  TXCSRH;
+  uint16_t RXMAXP;
+  uint8_t  RXCSRL;
+  uint8_t  RXCSRH;
+  uint16_t RXCOUNT;
+} musb_dcd_epn_regs_t;
+
+// Endpoint 0 register mapping.
+typedef struct TU_ATTR_PACKED {
+  uint8_t   CSRL0;
+  uint8_t   CSRH0;
+  uint32_t  RESERVED;
+  uint8_t   COUNT0;
+} musb_dcd_ep0_regs_t;
+
+// Control register mapping
+typedef struct TU_ATTR_PACKED {
+  uint8_t   FADDR;
+  uint8_t   POWER;
+  uint16_t  TXIS;
+  uint16_t  RXIS;
+  uint16_t  TXIE;
+  uint16_t  RXIE;
+  uint8_t   IS;
+  uint8_t   IE;
+} musb_dcd_ctl_regs_t;
 
 //*****************************************************************************
 //

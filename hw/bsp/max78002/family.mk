@@ -60,7 +60,7 @@ flash-msdk: $(BUILD)/$(PROJECT).elf
 # -----------------
 PERIPH_SRC = $(TOP)/$(MAX32_PERIPH)/Source
 SRC_C += \
-	src/portable/analog/max32/dcd_max32.c \
+	src/portable/mentor/musb/dcd_musb.c \
 	$(MAX32_CMSIS)/Device/Maxim/MAX78002/Source/heap.c \
 	$(MAX32_CMSIS)/Device/Maxim/MAX78002/Source/system_max78002.c \
 	$(PERIPH_SRC)/SYS/mxc_assert.c \
