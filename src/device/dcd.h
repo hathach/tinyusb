@@ -40,19 +40,15 @@
 //--------------------------------------------------------------------+
 
 typedef enum {
-  DCD_EVENT_INVALID = 0,
-  DCD_EVENT_BUS_RESET,
-  DCD_EVENT_UNPLUGGED,
-  DCD_EVENT_SOF,
-  DCD_EVENT_SUSPEND, // TODO LPM Sleep L1 support
-  DCD_EVENT_RESUME,
-
-  DCD_EVENT_SETUP_RECEIVED,
-  DCD_EVENT_XFER_COMPLETE,
-
-  // Not an DCD event, just a convenient way to defer ISR function
-  USBD_EVENT_FUNC_CALL,
-
+  DCD_EVENT_INVALID = 0,    // 0
+  DCD_EVENT_BUS_RESET,      // 1
+  DCD_EVENT_UNPLUGGED,      // 2
+  DCD_EVENT_SOF,            // 3
+  DCD_EVENT_SUSPEND,        // 4 TODO LPM Sleep L1 support
+  DCD_EVENT_RESUME,         // 5
+  DCD_EVENT_SETUP_RECEIVED, // 6
+  DCD_EVENT_XFER_COMPLETE,  // 7
+  USBD_EVENT_FUNC_CALL,     // 8 Not an DCD event, just a convenient way to defer ISR function
   DCD_EVENT_COUNT
 } dcd_eventid_t;
 
