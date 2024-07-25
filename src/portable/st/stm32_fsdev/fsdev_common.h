@@ -69,17 +69,18 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 b
 // 16-bit or 32-bit depending on FSDEV_BUS_32BIT.
 typedef struct {
   union {
-    struct {
-      volatile pma_aligned uint16_t tx_addr;
-      volatile pma_aligned uint16_t tx_count;
-      volatile pma_aligned uint16_t rx_addr;
-      volatile pma_aligned uint16_t rx_count;
-    } ep16[FSDEV_EP_COUNT];
+    // 0: tx, 1: rx
 
+    // strictly 16-bit access (could be 32-bit aligned)
     struct {
-      volatile uint32_t tx_count_addr;
-      volatile uint32_t rx_count_addr;
-    } ep32[FSDEV_EP_COUNT];
+      volatile pma_aligned uint16_t addr;
+      volatile pma_aligned uint16_t count;
+    } ep16[FSDEV_EP_COUNT][2];
+
+    // strictly 32-bit access
+    struct {
+      volatile uint32_t count_addr;
+    } ep32[FSDEV_EP_COUNT][2];
   };
 } fsdev_btable_t;
 
@@ -204,6 +205,24 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx,
   pcd_set_endpoint(USBx, bEpIdx,regVal);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_count(uint32_t ep_id, uint8_t is_rx) {
+  uint16_t count;
+#ifdef FSDEV_BUS_32BIT
+  count = (FSDEV_BTABLE->ep32[ep_id][is_rx].count_addr >> 16);
+#else
+  count = FSDEV_BTABLE->ep16[ep_id][is_rx].count;
+#endif
+  return count & 0x3FFU;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_addr(uint32_t ep_id, uint8_t is_rx) {
+#ifdef FSDEV_BUS_32BIT
+  return FSDEV_BTABLE->ep32[ep_id][is_rx].count_addr & 0x0000FFFFu;
+#else
+  return FSDEV_BTABLE->ep16[ep_id][is_rx].addr;
+#endif
+}
+
 /**
   * @brief  gets counter of the tx buffer.
   * @param  USBx USB peripheral instance register address.
@@ -212,26 +231,12 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx,
   */
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx) {
   (void) USBx;
-  uint16_t count;
-#ifdef FSDEV_BUS_32BIT
-  count = (FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr >> 16);
-#else
-  count = FSDEV_BTABLE->ep16[bEpIdx].tx_count;
-#endif
-
-  return count & 0x3FFU;
+  return btable_get_count(bEpIdx, 0);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx) {
   (void) USBx;
-  uint16_t count;
-#ifdef FSDEV_BUS_32BIT
-  count = (FSDEV_BTABLE->ep32[bEpIdx].rx_count_addr >> 16);
-#else
-  count = FSDEV_BTABLE->ep16[bEpIdx].rx_count;
-#endif
-
-  return count & 0x3FFU;
+  return btable_get_count(bEpIdx, 1);
 }
 
 #define pcd_get_ep_dbuf0_cnt pcd_get_ep_tx_cnt
@@ -239,44 +244,46 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USB
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx) {
   (void) USBx;
-#ifdef FSDEV_BUS_32BIT
-  return FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr & 0x0000FFFFu;
-#else
-  return FSDEV_BTABLE->ep16[bEpIdx].tx_addr;
-#endif
+  return btable_get_addr(bEpIdx, 0);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_address(USB_TypeDef * USBx, uint32_t bEpIdx) {
   (void) USBx;
-#ifdef FSDEV_BUS_32BIT
-  return FSDEV_BTABLE->ep32[bEpIdx].rx_count_addr & 0x0000FFFFu;
-#else
-  return FSDEV_BTABLE->ep16[bEpIdx].rx_addr;
-#endif
+  return btable_get_addr(bEpIdx, 1);
 }
 
 #define pcd_get_ep_dbuf0_address pcd_get_ep_tx_address
 #define pcd_get_ep_dbuf1_address pcd_get_ep_rx_address
 
+
+//TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_set_addr(uint32_t ep_id, uint8_t is_rx, uint16_t addr) {
+//
+//}
+//
+//TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_set_count(uint32_t ep_id, uint8_t is_rx, uint16_t count) {
+//
+//}
+
+
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr) {
   (void) USBx;
 #ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr;
+  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx][0].count_addr;
   count_addr = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
-  FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr = count_addr;
+  FSDEV_BTABLE->ep32[bEpIdx][0].count_addr = count_addr;
 #else
-  FSDEV_BTABLE->ep16[bEpIdx].tx_addr = addr;
+  FSDEV_BTABLE->ep16[bEpIdx][0].addr = addr;
 #endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr) {
   (void) USBx;
 #ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx].rx_count_addr;
+  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx][1].count_addr;
   count_addr = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
-  FSDEV_BTABLE->ep32[bEpIdx].rx_count_addr = count_addr;
+  FSDEV_BTABLE->ep32[bEpIdx][1].count_addr = count_addr;
 #else
-  FSDEV_BTABLE->ep16[bEpIdx].rx_addr = addr;
+  FSDEV_BTABLE->ep16[bEpIdx][1].addr = addr;
 #endif
 }
 
@@ -286,13 +293,13 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USB
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
   (void) USBx;
 #ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr;
+  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx][0].count_addr;
   count_addr = (count_addr & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
-  FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr = count_addr;
+  FSDEV_BTABLE->ep32[bEpIdx][0].count_addr = count_addr;
 #else
-  uint16_t count = FSDEV_BTABLE->ep16[bEpIdx].tx_count;
+  uint16_t count = FSDEV_BTABLE->ep16[bEpIdx][0].count;
   count = (count & ~0x3FFU) | (wCount & 0x3FFU);
-  FSDEV_BTABLE->ep16[bEpIdx].tx_count = count;
+  FSDEV_BTABLE->ep16[bEpIdx][0].count = count;
 #endif
 }
 
