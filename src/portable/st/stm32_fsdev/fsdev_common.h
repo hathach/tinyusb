@@ -34,6 +34,14 @@
 
 #include "stdint.h"
 
+// If sharing with CAN, one can set this to be non-zero to give CAN space where it wants it
+// Both of these MUST be a multiple of 2, and are in byte units.
+#ifndef FSDEV_BTABLE_BASE
+#define FSDEV_BTABLE_BASE 0U
+#endif
+
+TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 bytes");
+
 // FSDEV_PMA_SIZE is PMA buffer size in bytes.
 // - 512-byte devices, access with a stride of two words (use every other 16-bit address)
 // - 1024-byte devices, access with a stride of one word (use every 16-bit address)
@@ -41,14 +49,49 @@
 
 // For purposes of accessing the packet
 #if FSDEV_PMA_SIZE == 512
-  #define FSDEV_PMA_STRIDE  (2u)
+  #define FSDEV_PMA_STRIDE  (2u) // 1x16 bit access scheme
+  #define pma_aligned TU_ATTR_ALIGNED(4)
 #elif FSDEV_PMA_SIZE == 1024
-  #define FSDEV_PMA_STRIDE  (1u)
+  #define FSDEV_PMA_STRIDE  (1u) // 2x16 bit access scheme
+  #define pma_aligned
 #elif FSDEV_PMA_SIZE == 2048
   #ifndef FSDEV_BUS_32BIT
     #warning "FSDEV_PMA_SIZE is 2048, but FSDEV_BUS_32BIT is not defined"
   #endif
+  #define FSDEV_PMA_STRIDE  (1u) // 32 bit access scheme
+  #define pma_aligned
 #endif
+
+// hardware limit endpoint
+#define FSDEV_EP_COUNT 8
+
+// Buffer Table is located in Packet Memory Area (PMA) and therefore its address access is forced to either
+// 16-bit or 32-bit depending on FSDEV_BUS_32BIT.
+typedef struct {
+  union {
+    struct {
+      volatile pma_aligned uint16_t tx_addr;
+      volatile pma_aligned uint16_t tx_count;
+      volatile pma_aligned uint16_t rx_addr;
+      volatile pma_aligned uint16_t rx_count;
+    } ep16[FSDEV_EP_COUNT];
+
+    struct {
+      volatile uint32_t tx_count_addr;
+      volatile uint32_t rx_count_addr;
+    } ep32[FSDEV_EP_COUNT];
+  };
+} fsdev_btable_t;
+
+TU_VERIFY_STATIC(sizeof(fsdev_btable_t) == FSDEV_EP_COUNT*8*FSDEV_PMA_STRIDE, "size is not correct");
+TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT*8 <= FSDEV_PMA_SIZE, "BTABLE does not fit in PMA RAM");
+
+
+#define FSDEV_BTABLE ((volatile fsdev_btable_t*) (USB_PMAADDR+FSDEV_BTABLE_BASE))
+
+//--------------------------------------------------------------------+
+// Helper
+//--------------------------------------------------------------------+
 
 // The fsdev_bus_t type can be used for both register and PMA access necessities
 // For type-safety create a new macro for the volatile address of PMAADDR
@@ -110,6 +153,21 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_endpoint(USB_TypeDef * USBx
   return *reg;
 }
 
+/**
+  * @brief  Sets address in an endpoint register.
+  * @param  USBx USB peripheral instance register address.
+  * @param  bEpIdx Endpoint Number.
+  * @param  bAddr Address.
+  * @retval None
+  */
+TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_address(USB_TypeDef * USBx,  uint32_t bEpIdx, uint32_t bAddr) {
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
+  regVal &= USB_EPREG_MASK;
+  regVal |= bAddr;
+  regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
+  pcd_set_endpoint(USBx, bEpIdx,regVal);
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_eptype(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wType) {
   uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
   regVal &= (uint32_t)USB_EP_T_MASK;
@@ -153,58 +211,47 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx,
   * @retval Counter value
   */
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx) {
-#ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  return (pma32[2*bEpIdx] & 0x03FF0000) >> 16;
+  uint16_t count;
+#ifdef FSDEV_BUS_32BIT
+  count = (FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr >> 16);
 #else
-  volatile const uint16_t *regPtr = pcd_ep_tx_cnt_ptr(USBx, bEpIdx);
-  return *regPtr & 0x3ffU;
+  count = FSDEV_BTABLE->ep16[bEpIdx].tx_count;
 #endif
+
+  return count & 0x3FFU;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx) {
-#ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  return (pma32[2*bEpIdx + 1] & 0x03FF0000) >> 16;
+  uint16_t count;
+#ifdef FSDEV_BUS_32BIT
+  count = (FSDEV_BTABLE->ep32[bEpIdx].rx_count_addr >> 16);
 #else
-  volatile const uint16_t *regPtr = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
-  return *regPtr & 0x3ffU;
+  count = FSDEV_BTABLE->ep16[bEpIdx].rx_count;
 #endif
+
+  return count & 0x3FFU;
 }
 
 #define pcd_get_ep_dbuf0_cnt pcd_get_ep_tx_cnt
 #define pcd_get_ep_dbuf1_cnt pcd_get_ep_rx_cnt
 
-/**
-  * @brief  Sets address in an endpoint register.
-  * @param  USBx USB peripheral instance register address.
-  * @param  bEpIdx Endpoint Number.
-  * @param  bAddr Address.
-  * @retval None
-  */
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_address(USB_TypeDef * USBx,  uint32_t bEpIdx, uint32_t bAddr) {
-  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-  regVal &= USB_EPREG_MASK;
-  regVal |= bAddr;
-  regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
-  pcd_set_endpoint(USBx, bEpIdx,regVal);
-}
-
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx) {
-#ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  return pma32[2*bEpIdx] & 0x0000FFFFu ;
+#ifdef FSDEV_BUS_32BIT
+  return FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr & 0x0000FFFFu;
 #else
-  return *pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 0u);
+  return FSDEV_BTABLE->ep16[bEpIdx].tx_addr;
 #endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_address(USB_TypeDef * USBx, uint32_t bEpIdx) {
-#ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  return pma32[2*bEpIdx + 1] & 0x0000FFFFu;
+#ifdef FSDEV_BUS_32BIT
+  return FSDEV_BTABLE->ep32[bEpIdx].rx_count_addr & 0x0000FFFFu;
 #else
-  return *pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 2u);
+  return FSDEV_BTABLE->ep16[bEpIdx].rx_addr;
 #endif
 }
 
@@ -212,20 +259,24 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_address(USB_TypeDef *
 #define pcd_get_ep_dbuf1_address pcd_get_ep_rx_address
 
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr) {
-#ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  pma32[2*bEpIdx] = (pma32[2*bEpIdx] & 0xFFFF0000u) | (addr & 0x0000FFFCu);
+#ifdef FSDEV_BUS_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr;
+  count_addr = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
+  FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr = count_addr;
 #else
-  *pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 0u) = addr;
+  FSDEV_BTABLE->ep16[bEpIdx].tx_addr = addr;
 #endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr) {
-#ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  pma32[2*bEpIdx + 1] = (pma32[2*bEpIdx + 1] & 0xFFFF0000u) | (addr & 0x0000FFFCu);
+#ifdef FSDEV_BUS_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx].rx_count_addr;
+  count_addr = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
+  FSDEV_BTABLE->ep32[bEpIdx].rx_count_addr = count_addr;
 #else
-  *pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 2u) = addr;
+  FSDEV_BTABLE->ep16[bEpIdx].rx_addr = addr;
 #endif
 }
 
@@ -233,12 +284,15 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USB
 #define pcd_set_ep_dbuf1_address pcd_set_ep_rx_address
 
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
-#ifdef FSDEV_BUS_32BIT
   (void) USBx;
-  pma32[2*bEpIdx] = (pma32[2*bEpIdx] & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
+#ifdef FSDEV_BUS_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr;
+  count_addr = (count_addr & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
+  FSDEV_BTABLE->ep32[bEpIdx].tx_count_addr = count_addr;
 #else
-  volatile uint16_t * reg = pcd_ep_tx_cnt_ptr(USBx, bEpIdx);
-  *reg = (uint16_t) (*reg & (uint16_t) ~0x3FFU) | (wCount & 0x3FFU);
+  uint16_t count = FSDEV_BTABLE->ep16[bEpIdx].tx_count;
+  count = (count & ~0x3FFU) | (wCount & 0x3FFU);
+  FSDEV_BTABLE->ep16[bEpIdx].tx_count = count;
 #endif
 }
 

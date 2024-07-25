@@ -129,21 +129,7 @@
 // Configuration
 //--------------------------------------------------------------------+
 
-// hardware limit endpoint
-#define FSDEV_EP_COUNT 8
 
-// If sharing with CAN, one can set this to be non-zero to give CAN space where it wants it
-// Both of these MUST be a multiple of 2, and are in byte units.
-#ifndef DCD_STM32_BTABLE_BASE
-#define DCD_STM32_BTABLE_BASE 0U
-#endif
-
-#ifndef DCD_STM32_BTABLE_SIZE
-#define DCD_STM32_BTABLE_SIZE (FSDEV_PMA_SIZE - DCD_STM32_BTABLE_BASE)
-#endif
-
-TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_SIZE)) <= (FSDEV_PMA_SIZE), "BTABLE does not fit in PMA RAM");
-TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -231,7 +217,7 @@ void dcd_init(uint8_t rhport) {
 
 #if !defined(STM32G0) && !defined(STM32H5) && !defined(STM32U5)
   // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
-  USB->BTABLE = DCD_STM32_BTABLE_BASE;
+  USB->BTABLE = FSDEV_BTABLE_BASE;
 #endif
 
   USB->ISTR = 0; // Clear pending interrupts
@@ -289,7 +275,7 @@ static void handle_bus_reset(uint8_t rhport) {
   }
 
   // Reset PMA allocation
-  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX;
+  ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT;
 
   tusb_desc_endpoint_t ep0_desc = {
       .bLength = sizeof(tusb_desc_endpoint_t),
@@ -705,7 +691,7 @@ void dcd_edpt_close_all(uint8_t rhport)
   }
 
   // Reset PMA allocation
-  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX + 2 * CFG_TUD_ENDPOINT0_SIZE;
+  ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX + 2 * CFG_TUD_ENDPOINT0_SIZE;
 }
 
 /**
