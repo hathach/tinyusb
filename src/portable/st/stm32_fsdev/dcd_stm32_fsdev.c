@@ -168,10 +168,7 @@ typedef struct {
 } ep_alloc_t;
 
 static xfer_ctl_t xfer_status[CFG_TUD_ENDPPOINT_MAX][2];
-
 static ep_alloc_t ep_alloc_status[FSDEV_EP_COUNT];
-
-static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
 static uint8_t remoteWakeCountdown; // When wake is requested
 
@@ -386,18 +383,28 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   // Verify the CTR_RX bit is set. This was in the ST Micro code,
   // but I'm not sure it's actually necessary?
   if ((wEPRegVal & USB_EP_CTR_RX) == 0U) {
-    // TU_ASSERT(false, );
     return;
   }
 
-  if ((ep_addr == 0U) && ((wEPRegVal & USB_EP_SETUP) != 0U)) {
+  if (wEPRegVal & USB_EP_SETUP) {
     /* Setup packet */
     uint32_t count = pcd_get_ep_rx_cnt(USB, EPindex);
     // Setup packet should always be 8 bytes. If not, ignore it, and try again.
     if (count == 8) {
-      // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
+      // Must reset EP to NAK (in case it had been stalling)
       pcd_set_ep_rx_status(USB, 0u, USB_EP_RX_NAK);
       pcd_set_ep_tx_status(USB, 0u, USB_EP_TX_NAK);
+
+      // set both data toggle to 1
+      uint32_t regVal = pcd_get_endpoint(USB, 0);
+      if ((regVal & USB_EP_DTOG_TX) == 0) {
+        pcd_tx_dtog(USB, 0);
+      }
+
+      if ((regVal & USB_EP_DTOG_RX) == 0) {
+        pcd_rx_dtog(USB, 0);
+      }
+
 #ifdef FSDEV_BUS_32BIT
       dcd_event_setup_received(0, (uint8_t *)(USB_PMAADDR + pcd_get_ep_rx_address(USB, EPindex)), true);
 #else
@@ -405,17 +412,14 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
       // user memory, to allow for the 32-bit access that memcpy performs.
       uint8_t userMemBuf[8];
       dcd_read_packet_memory(userMemBuf, pcd_get_ep_rx_address(USB, EPindex), 8);
-      dcd_event_setup_received(0, (uint8_t *)userMemBuf, true);
+      dcd_event_setup_received(0, (uint8_t*) userMemBuf, true);
 #endif
-    } else {
-      TU_BREAKPOINT();
     }
   } else {
     // Clear RX CTR interrupt flag
     if (ep_addr != 0u) {
       pcd_clear_rx_ep_ctr(USB, EPindex);
     }
-
     uint32_t count;
     uint16_t addr;
     /* Read from correct register when ISOCHRONOUS (double buffered) */
@@ -553,18 +557,14 @@ void dcd_int_handler(uint8_t rhport) {
 
 // Invoked when a control transfer's status stage is complete.
 // May help DCD to prepare for next control transfer, this API is optional.
-void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request)
-{
+void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *request) {
   (void)rhport;
 
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
       request->bRequest == TUSB_REQ_SET_ADDRESS) {
     uint8_t const dev_addr = (uint8_t)request->wValue;
-
-    // Setting new address after the whole request is complete
-    USB->DADDR &= ~USB_DADDR_ADD;
-    USB->DADDR |= dev_addr; // leave the enable bit set
+    USB->DADDR = (USB_DADDR_EF | dev_addr);
   }
 }
 
@@ -834,12 +834,6 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
   if (dir == TUSB_DIR_IN) {
     dcd_transmit_packet(xfer, ep_idx);
   } else {
-    // A setup token can occur immediately after an OUT STATUS packet so make sure we have a valid
-    // buffer for the control endpoint.
-    if (ep_idx == 0 && xfer->buffer == NULL) {
-      xfer->buffer = (uint8_t *)_setup_packet;
-    }
-
     uint32_t cnt = (uint32_t ) tu_min16(xfer->total_len, xfer->max_packet_size);
     uint16_t ep_reg = pcd_get_endpoint(USB, ep_idx);
 
