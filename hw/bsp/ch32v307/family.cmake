@@ -49,6 +49,7 @@ function(add_board_target BOARD_TARGET)
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
+    ${SDK_SRC_DIR}/Core
     ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )

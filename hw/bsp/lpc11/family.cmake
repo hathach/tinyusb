@@ -30,6 +30,7 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/../gcc/cr_startup_lpc${LPC_FAMILY}.c
     ${SDK_DIR}/src/chip_${LPC_FAMILY}.c
     ${SDK_DIR}/src/clock_${LPC_FAMILY}.c
+    ${SDK_DIR}/src/iap.c
     ${SDK_DIR}/src/iocon_${LPC_FAMILY}.c
     ${SDK_DIR}/src/sysinit_${LPC_FAMILY}.c
     )

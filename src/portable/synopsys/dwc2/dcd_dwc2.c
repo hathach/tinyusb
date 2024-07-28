@@ -1195,25 +1195,13 @@ void dcd_int_handler(uint8_t rhport) {
   //  }
 }
 
-#if defined(TUP_USBIP_DWC2_TEST_MODE) && CFG_TUD_TEST_MODE
-
-bool dcd_check_test_mode_support(test_mode_t test_selector) {
-  // Check if test mode selector is unsupported
-  if (TEST_FORCE_ENABLE < test_selector || TEST_J > test_selector) {
-    return false;
-  }
-
-  return true;
-}
-
-void dcd_enter_test_mode(uint8_t rhport, test_mode_t test_selector) {
-  // Get port address...
+#if CFG_TUD_TEST_MODE
+void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Enable the test mode
-  dwc2->dctl = (dwc2->dctl & ~DCTL_TCTL_Msk) | (test_selector << DCTL_TCTL_Pos);
+  dwc2->dctl = (dwc2->dctl & ~DCTL_TCTL_Msk) | (((uint8_t) test_selector) << DCTL_TCTL_Pos);
 }
-
-#endif /* TUP_USBIP_DWC2_TEST_MODE && CFG_TUD_TEST_MODE */
+#endif
 
 #endif

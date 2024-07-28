@@ -37,14 +37,20 @@
  * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
  *  covers:
  *
- * F04x, F072, F078, 070x6/B      1024 byte buffer
+ * F04x, F072, F078, F070x6/B     1024 byte buffer
  * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
+ * G0                             2048 byte buffer; 32-bit bus; host mode
+ * G4                             1024 byte buffer
+ * H5                             2048 byte buffer; 32-bit bus; host mode
  * L0x2, L0x3                     1024 byte buffer
  * L1                              512 byte buffer
  * L4x2, L4x3                     1024 byte buffer
- * G0                             2048 byte buffer
+ * L5                             1024 byte buffer
+ * U0                             1024 byte buffer; 32-bit bus
+ * U535, U545                     2048 byte buffer; 32-bit bus; host mode
+ * WB35, WB55                     1024 byte buffer
  *
  * To use this driver, you must:
  * - If you are using a device with crystal-less USB, set up the clock recovery system (CRS)
@@ -215,24 +221,24 @@ void dcd_init(uint8_t rhport)
   /* The RM mentions to use a special ordering of PDWN and FRES, but this isn't done in HAL.
    * Here, the RM is followed. */
 
-  for (uint32_t i = 0; i < 200; i++) { // should be a few us
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
   // Perform USB peripheral reset
   USB->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
-  for (uint32_t i = 0; i < 200; i++) { // should be a few us
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
 
   USB->CNTR &= ~USB_CNTR_PDWN;
 
   // Wait startup time, for F042 and F070, this is <= 1 us.
-  for (uint32_t i = 0; i < 200; i++) { // should be a few us
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
   USB->CNTR = 0; // Enable USB
 
-#if !defined(STM32G0) && !defined(STM32H5) // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
+#if !defined(STM32G0) && !defined(STM32H5) && !defined(STM32U5) // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 #endif
   USB->ISTR = 0; // Clear pending interrupts
@@ -998,7 +1004,7 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
     srcVal++;
   }
 
-  if (wNBytes) {
+  if (wNBytes & 0x01) {
     temp1 = (uint16_t) *srcVal;
     *pdwVal = temp1;
   }

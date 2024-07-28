@@ -114,11 +114,10 @@ def read_disk_file(id, fname):
 # Flashing firmware
 # -------------------------------------------------------------
 def run_cmd(cmd):
-    # print(cmd)
+    #print(cmd)
     r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    title = 'command error'
     if r.returncode != 0:
-        # print build output if failed
+        title = 'command error'
         if os.getenv('CI'):
             print(f"::group::{title}")
             print(r.stdout.decode("utf-8"))
@@ -156,23 +155,23 @@ def flash_esptool(board, firmware):
     return ret
 
 
-def doublereset_with_rpi_gpio(board):
+def doublereset_with_rpi_gpio(pin):
     # Off = 0 = Reset
-    led = gpiozero.LED(board["flasher_reset_pin"])
+    nrst = gpiozero.LED(pin)
 
-    led.off()
+    nrst.off()
     time.sleep(0.1)
-    led.on()
+    nrst.on()
     time.sleep(0.1)
-    led.off()
+    nrst.off()
     time.sleep(0.1)
-    led.on()
+    nrst.on()
 
 
 def flash_bossac(board, firmware):
     # double reset to enter bootloader
     if platform.machine() == 'aarch64':
-        doublereset_with_rpi_gpio(board)
+        doublereset_with_rpi_gpio(board["flasher_reset_pin"])
 
     port = get_serial_dev(board["uid"], board["flashser_vendor"], board["flasher_product"], 0)
     timeout = ENUM_TIMEOUT
@@ -330,13 +329,19 @@ def main():
     config_file = args.config_file
     boards = args.board
 
-    config_file = os.path.join(os.path.dirname(__file__), config_file)
+    # if config file is not found, try to find it in the same directory as this script
+    if not os.path.exists(config_file):
+        config_file = os.path.join(os.path.dirname(__file__), config_file)
     with open(config_file) as f:
         config = json.load(f)
 
-    # all possible tests
+    # all possible tests: board_test is added last to disable board's usb
     all_tests = [
-        'cdc_dual_ports', 'cdc_msc', 'dfu', 'dfu_runtime', 'hid_boot_interface',
+        'cdc_dual_ports',
+        'cdc_msc', 'cdc_msc_freertos',
+        'dfu', 'dfu_runtime',
+        'hid_boot_interface',
+        'board_test'
     ]
 
     if len(boards) == 0:
@@ -351,12 +356,9 @@ def main():
 
         # default to all tests
         if 'tests' in item:
-            test_list = item['tests']
+            test_list = item['tests'] + ['board_test']
         else:
-            test_list = all_tests
-
-        # board_test is added last to disable board's usb
-        test_list.append('board_test')
+            test_list = list(all_tests)
 
         # remove skip_tests
         if 'tests_skip' in item:
@@ -365,8 +367,15 @@ def main():
                     test_list.remove(skip)
 
         for test in test_list:
-            fw_name = f'cmake-build/cmake-build-{name}/device/{test}/{test}'
+            fw_dir = f'cmake-build/cmake-build-{name}/device/{test}'
+            if not os.path.exists(fw_dir):
+                fw_dir = f'examples/cmake-build-{name}/device/{test}'
+            fw_name = f'{fw_dir}/{test}'
             print(f'  {test} ...', end='')
+
+            if not os.path.exists(fw_dir):
+                print('Skip')
+                continue
 
             # flash firmware. It may fail randomly, retry a few times
             for i in range(3):

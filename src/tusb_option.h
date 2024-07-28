@@ -182,7 +182,7 @@
 #define OPT_MCU_CH32V307         2200 ///< WCH CH32V307
 #define OPT_MCU_CH32F20X         2210 ///< WCH CH32F20x
 #define OPT_MCU_CH32V20X         2220 ///< WCH CH32V20X
-
+#define OPT_MCU_CH32V103         2230 ///< WCH CH32V103
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
@@ -381,7 +381,7 @@
   #error "CFG_TUD_ENDPPOINT_MAX must be less than or equal to TUP_DCD_ENDPOINT_MAX"
 #endif
 
-// USB 2.0 compliance test mode support
+// USB 2.0 7.1.20: compliance test mode support
 #ifndef CFG_TUD_TEST_MODE
   #define CFG_TUD_TEST_MODE       0
 #endif

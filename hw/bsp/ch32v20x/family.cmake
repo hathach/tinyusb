@@ -1,5 +1,6 @@
 include_guard()
 
+set(UF2_FAMILY_ID 0x699b62ec)
 set(CH32_FAMILY ch32v20x)
 set(SDK_DIR ${TOP}/hw/mcu/wch/${CH32_FAMILY})
 set(SDK_SRC_DIR ${SDK_DIR}/EVT/EXAM/SRC)
@@ -40,6 +41,7 @@ function(add_board_target BOARD_TARGET)
 
   add_library(${BOARD_TARGET} STATIC
     ${SDK_SRC_DIR}/Core/core_riscv.c
+    ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_flash.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_gpio.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_misc.c
     ${SDK_SRC_DIR}/Peripheral/src/${CH32_FAMILY}_rcc.c
@@ -48,6 +50,7 @@ function(add_board_target BOARD_TARGET)
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
+    ${SDK_SRC_DIR}/Core
     ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
@@ -69,19 +72,25 @@ function(add_board_target BOARD_TARGET)
 
   update_board(${BOARD_TARGET})
 
+  if (LD_FLASH_SIZE STREQUAL 224K)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      CH32_FLASH_ENHANCE_READ_MODE=1
+      )
+  endif()
+
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(${BOARD_TARGET} PUBLIC
       -mcmodel=medany
       )
     target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -Wl,--defsym=__flash_size=${LD_FLASH_SIZE}
-      -Wl,--defsym=__ram_size=${LD_RAM_SIZE}
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
+      -Wl,--defsym=__FLASH_SIZE=${LD_FLASH_SIZE}
+      -Wl,--defsym=__RAM_SIZE=${LD_RAM_SIZE}
+      "LINKER:--script=${LD_FILE_GNU}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message(FATAL_ERROR "Clang is not supported for MSP432E4")
+    message(FATAL_ERROR "Clang is not supported for CH32v")
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--config=${LD_FILE_IAR}"
@@ -128,4 +137,8 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_openocd_wch(${TARGET})
+  family_flash_wlink_rs(${TARGET})
+
+  #family_add_uf2(${TARGET} ${UF2_FAMILY_ID})
+  #family_flash_uf2(${TARGET} ${UF2_FAMILY_ID})
 endfunction()

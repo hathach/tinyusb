@@ -89,14 +89,6 @@ typedef struct TU_ATTR_ALIGNED(4) {
   };
 } dcd_event_t;
 
-typedef enum {
-  TEST_J = 1,
-  TEST_K,
-  TEST_SE0_NAK,
-  TEST_PACKET,
-  TEST_FORCE_ENABLE,
-} test_mode_t;
-
 //TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
 
 //--------------------------------------------------------------------+
@@ -150,11 +142,8 @@ void dcd_disconnect(uint8_t rhport);
 void dcd_sof_enable(uint8_t rhport, bool en);
 
 #if CFG_TUD_TEST_MODE
-// Check if the test mode is supported, returns true is test mode selector is supported
-bool dcd_check_test_mode_support(test_mode_t test_selector) TU_ATTR_WEAK;
-
 // Put device into a test mode (needs power cycle to quit)
-void dcd_enter_test_mode(uint8_t rhport, test_mode_t test_selector) TU_ATTR_WEAK;
+void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector);
 #endif
 //--------------------------------------------------------------------+
 // Endpoint API

@@ -489,7 +489,7 @@ typedef enum
   AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT     = (uint32_t) (1 << 2),
   AUDIO_DATA_FORMAT_TYPE_I_ALAW           = (uint32_t) (1 << 3),
   AUDIO_DATA_FORMAT_TYPE_I_MULAW          = (uint32_t) (1 << 4),
-  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x80000000,
+  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x80000000u,
 } audio_data_format_type_I_t;
 
 /// All remaining definitions are taken from the descriptor descriptions in the UAC2 main specification
@@ -640,7 +640,7 @@ typedef enum
   AUDIO_CHANNEL_CONFIG_BOTTOM_CENTER              = 0x01000000,
   AUDIO_CHANNEL_CONFIG_BACK_LEFT_OF_CENTER        = 0x02000000,
   AUDIO_CHANNEL_CONFIG_BACK_RIGHT_OF_CENTER       = 0x04000000,
-  AUDIO_CHANNEL_CONFIG_RAW_DATA                   = 0x80000000,
+  AUDIO_CHANNEL_CONFIG_RAW_DATA                   = 0x80000000u,
 } audio_channel_config_t;
 
 /// AUDIO Channel Cluster Descriptor (4.1)

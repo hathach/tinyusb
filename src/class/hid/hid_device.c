@@ -46,43 +46,68 @@ typedef struct {
   uint8_t itf_protocol; // Boot mouse or keyboard
 
   uint16_t report_desc_len;
-  CFG_TUSB_MEM_ALIGN uint8_t protocol_mode; // Boot (0) or Report protocol (1)
-  CFG_TUSB_MEM_ALIGN uint8_t idle_rate;     // up to application to handle idle rate
-
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t ctrl_buf[CFG_TUD_HID_EP_BUFSIZE];
+  uint8_t protocol_mode; // Boot (0) or Report protocol (1)
+  uint8_t idle_rate;     // up to application to handle idle rate
 
   // TODO save hid descriptor since host can specifically request this after enumeration
   // Note: HID descriptor may be not available from application after enumeration
   tusb_hid_descriptor_hid_t const *hid_descriptor;
+
+  uint8_t ctrl_buf[CFG_TUD_HID_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
 } hidd_interface_t;
 
 CFG_TUD_MEM_SECTION tu_static hidd_interface_t _hidd_itf[CFG_TUD_HID];
 
 /*------------- Helpers -------------*/
-static inline uint8_t get_index_by_itfnum(uint8_t itf_num)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint8_t get_index_by_itfnum(uint8_t itf_num) {
   for (uint8_t i = 0; i < CFG_TUD_HID; i++) {
-    if (itf_num == _hidd_itf[i].itf_num)
+    if (itf_num == _hidd_itf[i].itf_num) {
       return i;
+    }
   }
-
   return 0xFF;
+}
+
+//--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol) {
+  (void) instance;
+  (void) protocol;
+}
+
+TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t instance, uint8_t idle_rate) {
+  (void) instance;
+  (void) idle_rate;
+  return true;
+}
+
+TU_ATTR_WEAK void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len) {
+  (void) instance;
+  (void) report;
+  (void) len;
+}
+
+// Invoked when a transfer wasn't successful
+TU_ATTR_WEAK void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, uint8_t const* report, uint16_t xferred_bytes) {
+  (void) instance;
+  (void) report_type;
+  (void) report;
+  (void) xferred_bytes;
 }
 
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_hid_n_ready(uint8_t instance)
-{
+bool tud_hid_n_ready(uint8_t instance) {
   uint8_t const rhport = 0;
   uint8_t const ep_in = _hidd_itf[instance].ep_in;
   return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(rhport, ep_in);
 }
 
-bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const *report, uint16_t len)
-{
+bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const *report, uint16_t len) {
   uint8_t const rhport = 0;
   hidd_interface_t *p_hid = &_hidd_itf[instance];
 
@@ -101,14 +126,16 @@ bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const *report, u
   return usbd_edpt_xfer(rhport, p_hid->ep_in, p_hid->epin_buf, len);
 }
 
-uint8_t tud_hid_n_interface_protocol(uint8_t instance) { return _hidd_itf[instance].itf_protocol; }
+uint8_t tud_hid_n_interface_protocol(uint8_t instance) {
+  return _hidd_itf[instance].itf_protocol;
+}
 
-uint8_t tud_hid_n_get_protocol(uint8_t instance) { return _hidd_itf[instance].protocol_mode; }
+uint8_t tud_hid_n_get_protocol(uint8_t instance) {
+  return _hidd_itf[instance].protocol_mode;
+}
 
-bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
-{
+bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modifier, uint8_t keycode[6]) {
   hid_keyboard_report_t report;
-
   report.modifier = modifier;
   report.reserved = 0;
 
@@ -121,8 +148,8 @@ bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modi
   return tud_hid_n_report(instance, report_id, &report, sizeof(report));
 }
 
-bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
-{
+bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id,
+                            uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal) {
   hid_mouse_report_t report = {
     .buttons = buttons,
     .x = x,
@@ -134,8 +161,8 @@ bool tud_hid_n_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons
   return tud_hid_n_report(instance, report_id, &report, sizeof(report));
 }
 
-bool tud_hid_n_abs_mouse_report(uint8_t instance, uint8_t report_id, uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal)
-{
+bool tud_hid_n_abs_mouse_report(uint8_t instance, uint8_t report_id,
+                                uint8_t buttons, int16_t x, int16_t y, int8_t vertical, int8_t horizontal) {
   hid_abs_mouse_report_t report = {
     .buttons = buttons,
     .x = x,
@@ -146,8 +173,8 @@ bool tud_hid_n_abs_mouse_report(uint8_t instance, uint8_t report_id, uint8_t but
   return tud_hid_n_report(instance, report_id, &report, sizeof(report));
 }
 
-bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons)
-{
+bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
+                              int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons) {
   hid_gamepad_report_t report = {
       .x = x,
       .y = y,
@@ -165,28 +192,25 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
-void hidd_init(void)
-{
+void hidd_init(void) {
   hidd_reset(0);
 }
 
-bool hidd_deinit(void)
-{
+bool hidd_deinit(void) {
   return true;
 }
 
-void hidd_reset(uint8_t rhport)
-{
+void hidd_reset(uint8_t rhport) {
   (void)rhport;
   tu_memclr(_hidd_itf, sizeof(_hidd_itf));
 }
 
-uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16_t max_len)
-{
+uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16_t max_len) {
   TU_VERIFY(TUSB_CLASS_HID == desc_itf->bInterfaceClass, 0);
 
   // len = interface + hid + n*endpoints
-  uint16_t const drv_len = (uint16_t)(sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
+  uint16_t const drv_len = (uint16_t) (sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) +
+                                       desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_ASSERT(max_len >= drv_len, 0);
 
   // Find available interface
@@ -211,8 +235,9 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
   p_desc = tu_desc_next(p_desc);
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in), 0);
 
-  if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT)
+  if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT) {
     p_hid->itf_protocol = desc_itf->bInterfaceProtocol;
+  }
 
   p_hid->protocol_mode = HID_PROTOCOL_REPORT; // Per Specs: default is report mode
   p_hid->itf_num = desc_itf->bInterfaceNumber;
@@ -234,8 +259,7 @@ uint16_t hidd_open(uint8_t rhport, tusb_desc_interface_t const *desc_itf, uint16
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool hidd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
-{
+bool hidd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request) {
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
 
   uint8_t const hid_itf = get_index_by_itfnum((uint8_t)request->wIndex);
@@ -262,90 +286,82 @@ bool hidd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   } else if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS) {
     //------------- Class Specific Request -------------//
     switch (request->bRequest) {
-    case HID_REQ_CONTROL_GET_REPORT:
-      if (stage == CONTROL_STAGE_SETUP) {
-        uint8_t const report_type = tu_u16_high(request->wValue);
-        uint8_t const report_id = tu_u16_low(request->wValue);
+      case HID_REQ_CONTROL_GET_REPORT:
+        if (stage == CONTROL_STAGE_SETUP) {
+          uint8_t const report_type = tu_u16_high(request->wValue);
+          uint8_t const report_id = tu_u16_low(request->wValue);
 
-        uint8_t *report_buf = p_hid->ctrl_buf;
-        uint16_t req_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
+          uint8_t* report_buf = p_hid->ctrl_buf;
+          uint16_t req_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
+          uint16_t xferlen = 0;
 
-        uint16_t xferlen = 0;
+          // If host request a specific Report ID, add ID to as 1 byte of response
+          if ((report_id != HID_REPORT_TYPE_INVALID) && (req_len > 1)) {
+            *report_buf++ = report_id;
+            req_len--;
+            xferlen++;
+          }
 
-        // If host request a specific Report ID, add ID to as 1 byte of response
-        if ((report_id != HID_REPORT_TYPE_INVALID) && (req_len > 1)) {
-          *report_buf++ = report_id;
-          req_len--;
+          xferlen += tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, report_buf, req_len);
+          TU_ASSERT(xferlen > 0);
 
-          xferlen++;
+          tud_control_xfer(rhport, request, p_hid->ctrl_buf, xferlen);
         }
+        break;
 
-        xferlen += tud_hid_get_report_cb(hid_itf, report_id, (hid_report_type_t)report_type, report_buf, req_len);
-        TU_ASSERT(xferlen > 0);
+      case HID_REQ_CONTROL_SET_REPORT:
+        if (stage == CONTROL_STAGE_SETUP) {
+          TU_VERIFY(request->wLength <= sizeof(p_hid->ctrl_buf));
+          tud_control_xfer(rhport, request, p_hid->ctrl_buf, request->wLength);
+        } else if (stage == CONTROL_STAGE_ACK) {
+          uint8_t const report_type = tu_u16_high(request->wValue);
+          uint8_t const report_id = tu_u16_low(request->wValue);
 
-        tud_control_xfer(rhport, request, p_hid->ctrl_buf, xferlen);
-      }
-      break;
+          uint8_t const* report_buf = p_hid->ctrl_buf;
+          uint16_t report_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
 
-    case HID_REQ_CONTROL_SET_REPORT:
-      if (stage == CONTROL_STAGE_SETUP) {
-        TU_VERIFY(request->wLength <= sizeof(p_hid->ctrl_buf));
-        tud_control_xfer(rhport, request, p_hid->ctrl_buf, request->wLength);
-      } else if (stage == CONTROL_STAGE_ACK) {
-        uint8_t const report_type = tu_u16_high(request->wValue);
-        uint8_t const report_id = tu_u16_low(request->wValue);
+          // If host request a specific Report ID, extract report ID in buffer before invoking callback
+          if ((report_id != HID_REPORT_TYPE_INVALID) && (report_len > 1) && (report_id == report_buf[0])) {
+            report_buf++;
+            report_len--;
+          }
 
-        uint8_t const *report_buf = p_hid->ctrl_buf;
-        uint16_t report_len = tu_min16(request->wLength, CFG_TUD_HID_EP_BUFSIZE);
-
-        // If host request a specific Report ID, extract report ID in buffer before invoking callback
-        if ((report_id != HID_REPORT_TYPE_INVALID) && (report_len > 1) && (report_id == report_buf[0])) {
-          report_buf++;
-          report_len--;
+          tud_hid_set_report_cb(hid_itf, report_id, (hid_report_type_t) report_type, report_buf, report_len);
         }
+        break;
 
-        tud_hid_set_report_cb(hid_itf, report_id, (hid_report_type_t)report_type, report_buf, report_len);
-      }
-      break;
-
-    case HID_REQ_CONTROL_SET_IDLE:
-      if (stage == CONTROL_STAGE_SETUP) {
-        p_hid->idle_rate = tu_u16_high(request->wValue);
-        if (tud_hid_set_idle_cb) {
-          // stall request if callback return false
-          TU_VERIFY(tud_hid_set_idle_cb(hid_itf, p_hid->idle_rate));
+      case HID_REQ_CONTROL_SET_IDLE:
+        if (stage == CONTROL_STAGE_SETUP) {
+          p_hid->idle_rate = tu_u16_high(request->wValue);
+          TU_VERIFY(tud_hid_set_idle_cb(hid_itf, p_hid->idle_rate)); // stall if false
+          tud_control_status(rhport, request);
         }
+        break;
 
-        tud_control_status(rhport, request);
-      }
-      break;
+      case HID_REQ_CONTROL_GET_IDLE:
+        if (stage == CONTROL_STAGE_SETUP) {
+          // TODO idle rate of report
+          tud_control_xfer(rhport, request, &p_hid->idle_rate, 1);
+        }
+        break;
 
-    case HID_REQ_CONTROL_GET_IDLE:
-      if (stage == CONTROL_STAGE_SETUP) {
-        // TODO idle rate of report
-        tud_control_xfer(rhport, request, &p_hid->idle_rate, 1);
-      }
-      break;
+      case HID_REQ_CONTROL_GET_PROTOCOL:
+        if (stage == CONTROL_STAGE_SETUP) {
+          tud_control_xfer(rhport, request, &p_hid->protocol_mode, 1);
+        }
+        break;
 
-    case HID_REQ_CONTROL_GET_PROTOCOL:
-      if (stage == CONTROL_STAGE_SETUP) {
-        tud_control_xfer(rhport, request, &p_hid->protocol_mode, 1);
-      }
-      break;
-
-    case HID_REQ_CONTROL_SET_PROTOCOL:
-      if (stage == CONTROL_STAGE_SETUP) {
-        tud_control_status(rhport, request);
-      } else if (stage == CONTROL_STAGE_ACK) {
-        p_hid->protocol_mode = (uint8_t)request->wValue;
-        if (tud_hid_set_protocol_cb) {
+      case HID_REQ_CONTROL_SET_PROTOCOL:
+        if (stage == CONTROL_STAGE_SETUP) {
+          tud_control_status(rhport, request);
+        } else if (stage == CONTROL_STAGE_ACK) {
+          p_hid->protocol_mode = (uint8_t) request->wValue;
           tud_hid_set_protocol_cb(hid_itf, p_hid->protocol_mode);
         }
-      }
-      break;
+        break;
 
-    default:
-      return false; // stall unsupported request
+      default:
+        return false; // stall unsupported request
     }
   } else {
     return false; // stall unsupported request
@@ -354,45 +370,35 @@ bool hidd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   return true;
 }
 
-bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
-  (void)result;
-
+bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   uint8_t instance = 0;
   hidd_interface_t *p_hid = _hidd_itf;
 
   // Identify which interface to use
   for (instance = 0; instance < CFG_TUD_HID; instance++) {
     p_hid = &_hidd_itf[instance];
-    if ((ep_addr == p_hid->ep_out) || (ep_addr == p_hid->ep_in))
+    if ((ep_addr == p_hid->ep_out) || (ep_addr == p_hid->ep_in)) {
       break;
+    }
   }
   TU_ASSERT(instance < CFG_TUD_HID);
 
-  // Check if there was a problem
-  if (XFER_RESULT_SUCCESS != result) { // Inform application about the issue
-    if (tud_hid_report_fail_cb) {
-      tud_hid_report_fail_cb(instance, ep_addr, (uint16_t)xferred_bytes);
-    }
-
-    // Allow a new transfer to be received if issue happened on an OUT endpoint
-    if (ep_addr == p_hid->ep_out) {
-      // Prepare the OUT endpoint to be able to receive a new transfer
-      TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
-    }
-
-    return true;
-  }
-
-  // Sent report successfully
   if (ep_addr == p_hid->ep_in) {
-    if (tud_hid_report_complete_cb) {
-      tud_hid_report_complete_cb(instance, p_hid->epin_buf, (uint16_t)xferred_bytes);
+    // Input report
+    if (XFER_RESULT_SUCCESS == result) {
+      tud_hid_report_complete_cb(instance, p_hid->epin_buf, (uint16_t) xferred_bytes);
+    } else {
+      tud_hid_report_failed_cb(instance, HID_REPORT_TYPE_INPUT, p_hid->epin_buf, (uint16_t) xferred_bytes);
     }
-  }
-  // Received report successfully
-  else if (ep_addr == p_hid->ep_out) {
-    tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, p_hid->epout_buf, (uint16_t)xferred_bytes);
+  } else {
+    // Output report
+    if (XFER_RESULT_SUCCESS == result) {
+      tud_hid_set_report_cb(instance, 0, HID_REPORT_TYPE_OUTPUT, p_hid->epout_buf, (uint16_t)xferred_bytes);
+    } else {
+      tud_hid_report_failed_cb(instance, HID_REPORT_TYPE_OUTPUT, p_hid->epout_buf, (uint16_t) xferred_bytes);
+    }
+
+    // prepare for new transfer
     TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 

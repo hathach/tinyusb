@@ -25,8 +25,21 @@
  */
 
 #include "stdio.h"
+
+// https://github.com/openwch/ch32v307/pull/90
+// https://github.com/openwch/ch32v20x/pull/12
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+#endif
+
 #include "debug_uart.h"
 #include "ch32v30x.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #include "bsp/board_api.h"
 #include "board.h"

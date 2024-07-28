@@ -51,14 +51,15 @@ jobs:
   # Build CMake
   # ---------------------------------------
   cmake:
+    # if: false
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
         toolchain:
+          # - 'arm-clang' is built by circle-ci
           - 'aarch64-gcc'
-          # - 'arm-clang' # clang is built by circle-ci
           - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
@@ -73,18 +74,19 @@ jobs:
   # Build Make
   # ---------------------------------------
   make:
-    #if: github.event_name == 'pull_request'
+    # if: false
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
         toolchain:
+          # 'arm-clang' is built by circle-ci
           - 'aarch64-gcc'
-          # - 'arm-clang' # clang is built by circle-ci
           - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
+          - 'rx-gcc'
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
@@ -112,6 +114,7 @@ jobs:
   # Build Espressif
   # ---------------------------------------
   espressif:
+    # if: false
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
@@ -131,6 +134,7 @@ jobs:
   # Build IAR on HFP self-hosted
   # ---------------------------------------
   arm-iar:
+    # if: false
     if: github.repository_owner == 'hathach'
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]

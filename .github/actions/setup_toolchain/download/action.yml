@@ -24,7 +24,13 @@ runs:
       run: |
         mkdir -p ~/cache/${{ inputs.toolchain }}
         wget --progress=dot:giga ${{ inputs.toolchain_url }} -O toolchain.tar.gz
-        tar -C ~/cache/${{ inputs.toolchain }} -xaf toolchain.tar.gz
+        if [[ ${{ inputs.toolchain }} == rx-gcc ]]; then
+          mv toolchain.tar.gz toolchain.run
+          chmod +x toolchain.run
+          ./toolchain.run -p ~/cache/${{ inputs.toolchain }}/gnurx -y
+        else
+          tar -C ~/cache/${{ inputs.toolchain }} -xaf toolchain.tar.gz
+        fi
       shell: bash
 
     - name: Set Toolchain Path

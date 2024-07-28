@@ -7,14 +7,16 @@ toolchain_list = {
     "arm-iar": "",
     "arm-gcc": "",
     "msp430-gcc": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
-    "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz"
+    "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz",
+    "rx-gcc": "http://gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run",
 }
 
 # family: [supported toolchain]
 family_list = {
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
-    "ch32v20x ch32v307 fomu gd32vf103": ["riscv-gcc"],
+    "ch32v10x ch32v20x ch32v307 fomu gd32vf103": ["riscv-gcc"],
+    "da1469x": ["arm-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
     "lpc11 lpc13 lpc15": ["arm-gcc", "arm-clang"],
@@ -27,6 +29,7 @@ family_list = {
     "nrf": ["arm-gcc", "arm-clang"],
     "ra": ["arm-gcc"],
     "rp2040": ["arm-gcc"],
+    "rx": ["rx-gcc"],
     "samd11 samd21 saml2x": ["arm-gcc", "arm-clang"],
     "samd5x_e5x samg": ["arm-gcc", "arm-clang"],
     "stm32f0 stm32f1 stm32f2 stm32f3": ["arm-gcc", "arm-clang", "arm-iar"],
@@ -34,7 +37,7 @@ family_list = {
     "stm32f7": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32g0 stm32g4 stm32h5": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32h7": ["arm-gcc", "arm-clang", "arm-iar"],
-    "stm32l4 stm32u5 stm32wb": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32l0 stm32l4 stm32u5 stm32wb": ["arm-gcc", "arm-clang", "arm-iar"],
     "xmc4000": ["arm-gcc"],
 }
 
