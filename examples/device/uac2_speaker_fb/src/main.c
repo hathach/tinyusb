@@ -31,6 +31,10 @@
 #include "usb_descriptors.h"
 #include "common_types.h"
 
+#ifdef CFG_QUIRK_OS_GUESSING
+#include "quirk_os_guessing.h"
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
@@ -383,6 +387,18 @@ bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_bytes_received, u
   fifo_count_avg = (uint32_t)(((uint64_t)fifo_count_avg * 63  + ((uint32_t)fifo_count << 16)) >> 6);
 
   return true;
+}
+#endif
+
+#if CFG_QUIRK_OS_GUESSING
+bool tud_audio_feedback_format_correction_cb(uint8_t func_id)
+{
+  (void)func_id;
+  if(tud_speed_get() == TUSB_SPEED_FULL && quirk_os_guessing_get() == QUIRK_OS_GUESSING_OSX) {
+    return true;
+  } else {
+    return false;
+  }
 }
 #endif
 //--------------------------------------------------------------------+

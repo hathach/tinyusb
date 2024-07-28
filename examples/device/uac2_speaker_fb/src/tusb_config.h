@@ -87,6 +87,14 @@ extern "C" {
 #define CFG_TUSB_MEM_ALIGN        __attribute__ ((aligned(4)))
 #endif
 
+/* (Needed for Full-Speed only)
+ * Enable host OS guessing to workaround UAC2 compatibility issues between Windows and OS X
+ * The default configuration only support Windows and Linux, enable this option for OS X
+ * support. Otherwise if you don't need Windows support you can make OS X's configuration as
+ * default.
+ */
+#define CFG_QUIRK_OS_GUESSING   1
+
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
