@@ -303,8 +303,6 @@ typedef struct
 
   bool mounted;                 // Device opened
 
-  /*------------- From this point, data is not cleared by bus reset -------------*/
-
   uint16_t desc_length;         // Length of audio function descriptor
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -369,6 +367,8 @@ typedef struct
 #endif
 #endif
 
+  /*------------- From this point, data is not cleared by bus reset -------------*/
+
   // Buffer for control requests
   uint8_t * ctrl_buf;
   uint8_t ctrl_buf_sz;
@@ -377,13 +377,9 @@ typedef struct
   uint8_t * alt_setting;   // We need to save the current alternate setting this way, because it is possible that there are AS interfaces which do not have an EP!
 
   // EP Transfer buffers and FIFOs
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT
-#if !CFG_TUD_AUDIO_ENABLE_DECODING
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
   tu_fifo_t ep_out_ff;
 #endif
-
-
-#endif // CFG_TUD_AUDIO_ENABLE_EP_OUT
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
   tu_fifo_t ep_in_ff;
@@ -393,7 +389,6 @@ typedef struct
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
   CFG_TUSB_MEM_ALIGN uint8_t ep_int_buf[6];
 #endif
-
 
   // Support FIFOs for software encoding and decoding
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
