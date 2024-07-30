@@ -616,24 +616,24 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   (void)rhport;
   uint8_t const ep_addr = desc_ep->bEndpointAddress;
-  uint8_t const ep_idx = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   const uint16_t packet_size = tu_edpt_packet_size(desc_ep);
-  uint32_t wType;
-
+  uint8_t const ep_idx = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
   TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
+
+  uint32_t ep_reg = FSDEV_REG->ep[ep_idx].reg & ~USB_EPREG_MASK;
+  ep_reg |= tu_edpt_number(ep_addr) | USB_EP_CTR_RX | USB_EP_CTR_TX;
 
   // Set type
   switch (desc_ep->bmAttributes.xfer) {
     case TUSB_XFER_CONTROL:
-      wType = USB_EP_CONTROL;
+      ep_reg |= USB_EP_CONTROL;
       break;
     case TUSB_XFER_BULK:
-      wType = USB_EP_CONTROL;
+      ep_reg |= USB_EP_CONTROL; // FIXME should it be bulk?
       break;
-
     case TUSB_XFER_INTERRUPT:
-      wType = USB_EP_INTERRUPT;
+      ep_reg |= USB_EP_INTERRUPT;
       break;
 
     default:
@@ -641,24 +641,23 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
       TU_ASSERT(false);
   }
 
-  pcd_set_eptype(USB, ep_idx, wType);
-  pcd_set_ep_address(USB, ep_idx, tu_edpt_number(ep_addr));
-
   /* Create a packet memory buffer area. */
   uint16_t pma_addr = dcd_pma_alloc(packet_size, false);
-
-  if (dir == TUSB_DIR_IN) {
-    btable_set_addr(ep_idx, BTABLE_BUF_TX, pma_addr);
-    pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_NAK);
-    pcd_clear_tx_dtog(USB, ep_idx);
-  } else {
-    btable_set_addr(ep_idx, BTABLE_BUF_RX, pma_addr);
-    pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_NAK);
-    pcd_clear_rx_dtog(USB, ep_idx);
-  }
+  btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
 
   xfer_ctl_ptr(ep_addr)->max_packet_size = packet_size;
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
+
+  if (dir == TUSB_DIR_IN) {
+    ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_NAK);
+    ep_reg = ep_add_tx_dtog(ep_reg, 0);
+    ep_reg &= ~(USB_EPRX_STAT | USB_EP_DTOG_RX);
+  } else {
+    ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
+    ep_reg = ep_add_rx_dtog(ep_reg, 0);
+    ep_reg &= ~(USB_EPTX_STAT | USB_EP_DTOG_TX);
+  }
+  pcd_set_endpoint(USB, ep_idx, ep_reg);
 
   return true;
 }
@@ -731,7 +730,8 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoin
   uint8_t const ep_addr = p_endpoint_desc->bEndpointAddress;
   uint8_t const ep_idx = xfer_ctl_ptr(ep_addr)->ep_idx;
   uint8_t const dir = tu_edpt_dir(ep_addr);
-  const uint16_t packet_size = tu_edpt_packet_size(p_endpoint_desc);
+
+  xfer_ctl_ptr(ep_addr)->max_packet_size = tu_edpt_packet_size(p_endpoint_desc);
 
   pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_DIS);
   pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_DIS);
@@ -747,7 +747,6 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoin
     pcd_tx_dtog(USB, ep_idx);
   }
 
-  xfer_ctl_ptr(ep_addr)->max_packet_size = packet_size;
 
   return true;
 }
