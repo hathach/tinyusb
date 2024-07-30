@@ -62,6 +62,11 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 b
   #define pma_aligned
 #endif
 
+enum {
+  BTABLE_BUF_TX = 0,
+  BTABLE_BUF_RX = 1
+};
+
 // hardware limit endpoint
 #define FSDEV_EP_COUNT 8
 
@@ -105,20 +110,6 @@ static volatile uint32_t * const pma32 = (volatile uint32_t*)USB_PMAADDR;
 typedef uint16_t fsdev_bus_t;
 // Volatile is also needed to prevent the optimizer from changing access to 32-bit (as 32-bit access is forbidden)
 static volatile uint16_t * const pma = (volatile uint16_t*)USB_PMAADDR;
-
-TU_ATTR_ALWAYS_INLINE static inline volatile uint16_t * pcd_btable_word_ptr(USB_TypeDef * USBx, size_t x) {
-  size_t total_word_offset = (((USBx)->BTABLE)>>1) + x;
-  total_word_offset *= FSDEV_PMA_STRIDE;
-  return &(pma[total_word_offset]);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline volatile uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpIdx) {
-  return pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 1u);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline volatile uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpIdx) {
-  return pcd_btable_word_ptr(USBx,(bEpIdx)*4u + 3u);
-}
 #endif
 
 /* Aligned buffer size according to hardware */
@@ -205,100 +196,47 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx,
   pcd_set_endpoint(USBx, bEpIdx,regVal);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_count(uint32_t ep_id, uint8_t is_rx) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_count(uint32_t ep_id, uint8_t buf_id) {
   uint16_t count;
 #ifdef FSDEV_BUS_32BIT
-  count = (FSDEV_BTABLE->ep32[ep_id][is_rx].count_addr >> 16);
+  count = (FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr >> 16);
 #else
-  count = FSDEV_BTABLE->ep16[ep_id][is_rx].count;
+  count = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
 #endif
   return count & 0x3FFU;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_addr(uint32_t ep_id, uint8_t is_rx) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_addr(uint32_t ep_id, uint8_t buf_id) {
 #ifdef FSDEV_BUS_32BIT
-  return FSDEV_BTABLE->ep32[ep_id][is_rx].count_addr & 0x0000FFFFu;
+  return FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr & 0x0000FFFFu;
 #else
-  return FSDEV_BTABLE->ep16[ep_id][is_rx].addr;
+  return FSDEV_BTABLE->ep16[ep_id][buf_id].addr;
 #endif
 }
 
-/**
-  * @brief  gets counter of the tx buffer.
-  * @param  USBx USB peripheral instance register address.
-  * @param  bEpIdx Endpoint Number.
-  * @retval Counter value
-  */
-TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx) {
-  (void) USBx;
-  return btable_get_count(bEpIdx, 0);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx) {
-  (void) USBx;
-  return btable_get_count(bEpIdx, 1);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx) {
-  (void) USBx;
-  return btable_get_addr(bEpIdx, 0);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_address(USB_TypeDef * USBx, uint32_t bEpIdx) {
-  (void) USBx;
-  return btable_get_addr(bEpIdx, 1);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void btable_set_addr(uint32_t ep_id, uint8_t is_rx, uint16_t addr) {
+TU_ATTR_ALWAYS_INLINE static inline void btable_set_addr(uint32_t ep_id, uint8_t buf_id, uint16_t addr) {
 #ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][is_rx].count_addr;
+  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
   count_addr = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
-  FSDEV_BTABLE->ep32[ep_id][is_rx].count_addr = count_addr;
+  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
 #else
-  FSDEV_BTABLE->ep16[ep_id][is_rx].addr = addr;
+  FSDEV_BTABLE->ep16[ep_id][buf_id].addr = addr;
 #endif
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void btable_set_count(uint32_t ep_id, uint8_t is_rx, uint16_t byte_count) {
+TU_ATTR_ALWAYS_INLINE static inline void btable_set_count(uint32_t ep_id, uint8_t buf_id, uint16_t byte_count) {
 #ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][is_rx].count_addr;
+  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
   count_addr = (count_addr & ~0x03FF0000u) | ((byte_count & 0x3FFu) << 16);
-  FSDEV_BTABLE->ep32[ep_id][is_rx].count_addr = count_addr;
+  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
 #else
-  uint16_t cnt = FSDEV_BTABLE->ep16[ep_id][is_rx].count;
+  uint16_t cnt = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
   cnt = (cnt & ~0x3FFU) | (byte_count & 0x3FFU);
-  FSDEV_BTABLE->ep16[ep_id][is_rx].count = cnt;
+  FSDEV_BTABLE->ep16[ep_id][buf_id].count = cnt;
 #endif
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr) {
-  (void) USBx;
-  btable_set_addr(bEpIdx, 0, addr);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t addr) {
-  (void) USBx;
-  btable_set_addr(bEpIdx, 1, addr);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
-  (void) USBx;
-  btable_set_count(bEpIdx, 0, wCount);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_blsize_num_blocks(USB_TypeDef * USBx, uint32_t rxtx_idx,
-                                                                      uint32_t blocksize, uint32_t numblocks) {
-  /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
-#ifdef FSDEV_BUS_32BIT
-  (void) USBx;
-  pma32[rxtx_idx] = (pma32[rxtx_idx] & 0x0000FFFFu) | (blocksize << 31) | ((numblocks - blocksize) << 26);
-#else
-  volatile uint16_t *pdwReg = pcd_btable_word_ptr(USBx, rxtx_idx*2u + 1u);
-  *pdwReg = (blocksize << 15) | ((numblocks - blocksize) << 10);
-#endif
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_bufsize(USB_TypeDef * USBx, uint32_t rxtx_idx, uint32_t wCount) {
+TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint32_t wCount) {
   wCount = pcd_aligned_buffer_size(wCount);
 
   /* We assume that the buffer size is already aligned to hardware requirements. */
@@ -309,18 +247,16 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_bufsize(USB_TypeDef * USBx, 
   TU_ASSERT((wCount - (numblocks * (blocksize ? 32 : 2))) == 0, /**/);
 
   /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
-  pcd_set_ep_blsize_num_blocks(USBx, rxtx_idx, blocksize, numblocks);
-}
+  uint16_t bl_nb = (blocksize << 15) | ((numblocks - blocksize) << 10);
 
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_dbuf0_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
-  pcd_set_ep_bufsize(USBx, 2*bEpIdx, wCount);
+#ifdef FSDEV_BUS_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
+  count_addr = (bl_nb << 16) | (count_addr & 0x0000FFFFu);
+  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
+#else
+  FSDEV_BTABLE->ep16[ep_id][buf_id].count = bl_nb;
+#endif
 }
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
-  pcd_set_ep_bufsize(USBx, 2*bEpIdx + 1, wCount);
-}
-
-#define pcd_set_ep_rx_dbuf1_cnt pcd_set_ep_rx_cnt
 
 /**
   * @brief  sets the status for tx transfer (bits STAT_TX[1:0]).

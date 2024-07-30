@@ -370,7 +370,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
 
   if (wEPRegVal & USB_EP_SETUP) {
     /* Setup packet */
-    uint32_t count = pcd_get_ep_rx_cnt(USB, EPindex);
+    uint32_t count = btable_get_count(EPindex, BTABLE_BUF_RX);
     // Setup packet should always be 8 bytes. If not, ignore it, and try again.
     if (count == 8) {
       // Must reset EP to NAK (in case it had been stalling)
@@ -387,13 +387,14 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
         pcd_rx_dtog(USB, 0);
       }
 
+      uint16_t rx_addr = btable_get_addr(EPindex, BTABLE_BUF_RX);
 #ifdef FSDEV_BUS_32BIT
-      dcd_event_setup_received(0, (uint8_t *)(USB_PMAADDR + pcd_get_ep_rx_address(USB, EPindex)), true);
+      dcd_event_setup_received(0, (uint8_t *)(USB_PMAADDR + rx_addr), true);
 #else
       // The setup_received function uses memcpy, so this must first copy the setup data into
       // user memory, to allow for the 32-bit access that memcpy performs.
       uint8_t userMemBuf[8];
-      dcd_read_packet_memory(userMemBuf, pcd_get_ep_rx_address(USB, EPindex), 8);
+      dcd_read_packet_memory(userMemBuf, rx_addr, 8);
       dcd_event_setup_received(0, (uint8_t*) userMemBuf, true);
 #endif
     }
@@ -434,7 +435,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
       if ((wEPRegVal & USB_EP_TYPE_MASK) != USB_EP_ISOCHRONOUS) {
         uint16_t remaining = xfer->total_len - xfer->queued_len;
         uint16_t cnt = tu_min16(remaining, xfer->max_packet_size);
-        pcd_set_ep_rx_cnt(USB, EPindex, cnt);
+        btable_set_rx_bufsize(EPindex, BTABLE_BUF_RX, cnt);
       }
       pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
     }
@@ -445,7 +446,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   // (Based on the docs, it seems SETUP will always be accepted after CTR is cleared)
   if (ep_addr == 0u) {
     // Always be prepared for a status packet...
-    pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
+    btable_set_rx_bufsize(EPindex, BTABLE_BUF_RX, CFG_TUD_ENDPOINT0_SIZE);
     pcd_clear_rx_ep_ctr(USB, EPindex);
   }
 }
@@ -651,11 +652,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   uint16_t pma_addr = dcd_pma_alloc(buffer_size, false);
 
   if (dir == TUSB_DIR_IN) {
-    pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
+    btable_set_addr(ep_idx, BTABLE_BUF_TX, pma_addr);
     pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_NAK);
     pcd_clear_tx_dtog(USB, ep_idx);
   } else {
-    pcd_set_ep_rx_address(USB, ep_idx, pma_addr);
+    btable_set_addr(ep_idx, BTABLE_BUF_RX, pma_addr);
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_NAK);
     pcd_clear_rx_dtog(USB, ep_idx);
   }
@@ -771,7 +772,7 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   if (is_iso) {
     buf_id = (ep_reg & USB_EP_DTOG_TX) ? 1 : 0;
   } else {
-    buf_id = 0;
+    buf_id = BTABLE_BUF_TX;
   }
   uint16_t addr_ptr = (uint16_t) btable_get_addr(ep_ix, buf_id);
   btable_set_count(ep_ix, buf_id, len);
@@ -806,10 +807,10 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
     uint16_t ep_reg = pcd_get_endpoint(USB, ep_idx);
 
     if ((ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
-      pcd_set_ep_rx_dbuf0_cnt(USB, ep_idx, cnt);
-      pcd_set_ep_rx_dbuf1_cnt(USB, ep_idx, cnt);
+      btable_set_rx_bufsize(ep_idx, 0, cnt);
+      btable_set_rx_bufsize(ep_idx, 1, cnt);
     } else {
-      pcd_set_ep_rx_cnt(USB, ep_idx, cnt);
+      btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
     }
 
     pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_VALID);
