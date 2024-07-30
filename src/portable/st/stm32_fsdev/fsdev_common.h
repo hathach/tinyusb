@@ -69,7 +69,7 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 b
 // 16-bit or 32-bit depending on FSDEV_BUS_32BIT.
 typedef struct {
   union {
-    // 0: tx, 1: rx
+    // 0: TX (IN), 1: RX (OUT)
 
     // strictly 16-bit access (could be 32-bit aligned)
     struct {
@@ -239,9 +239,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USB
   return btable_get_count(bEpIdx, 1);
 }
 
-#define pcd_get_ep_dbuf0_cnt pcd_get_ep_tx_cnt
-#define pcd_get_ep_dbuf1_cnt pcd_get_ep_rx_cnt
-
 TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_tx_address(USB_TypeDef * USBx, uint32_t bEpIdx) {
   (void) USBx;
   return btable_get_addr(bEpIdx, 0);
@@ -251,10 +248,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_address(USB_TypeDef *
   (void) USBx;
   return btable_get_addr(bEpIdx, 1);
 }
-
-#define pcd_get_ep_dbuf0_address pcd_get_ep_tx_address
-#define pcd_get_ep_dbuf1_address pcd_get_ep_rx_address
-
 
 TU_ATTR_ALWAYS_INLINE static inline void btable_set_addr(uint32_t ep_id, uint8_t is_rx, uint16_t addr) {
 #ifdef FSDEV_BUS_32BIT
@@ -288,24 +281,9 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_address(USB_TypeDef * USB
   btable_set_addr(bEpIdx, 1, addr);
 }
 
-#define pcd_set_ep_dbuf0_address pcd_set_ep_tx_address
-#define pcd_set_ep_dbuf1_address pcd_set_ep_rx_address
-
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
   (void) USBx;
   btable_set_count(bEpIdx, 0, wCount);
-}
-
-#define pcd_set_ep_tx_dbuf0_cnt pcd_set_ep_tx_cnt
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_tx_dbuf1_cnt(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wCount) {
-#ifdef FSDEV_BUS_32BIT
-  (void) USBx;
-  pma32[2*bEpIdx + 1] = (pma32[2*bEpIdx + 1] & ~0x03FF0000u) | ((wCount & 0x3FFu) << 16);
-#else
-  volatile uint16_t * reg = pcd_ep_rx_cnt_ptr(USBx, bEpIdx);
-  *reg = (uint16_t) (*reg & (uint16_t) ~0x3FFU) | (wCount & 0x3FFU);
-#endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_blsize_num_blocks(USB_TypeDef * USBx, uint32_t rxtx_idx,

@@ -320,12 +320,8 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr) {
       return;
     }
     xfer->iso_in_sending = false;
-
-    if (wEPRegVal & USB_EP_DTOG_TX) {
-      pcd_set_ep_tx_dbuf0_cnt(USB, EPindex, 0);
-    } else {
-      pcd_set_ep_tx_dbuf1_cnt(USB, EPindex, 0);
-    }
+    uint8_t buf_id = (wEPRegVal & USB_EP_DTOG_TX) ? 0 : 1;
+    btable_set_count(EPindex, buf_id, 0);
   }
 
   if ((xfer->total_len != xfer->queued_len)) {
@@ -406,21 +402,16 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
     if (ep_addr != 0u) {
       pcd_clear_rx_ep_ctr(USB, EPindex);
     }
-    uint32_t count;
-    uint16_t addr;
-    /* Read from correct register when ISOCHRONOUS (double buffered) */
+
+    uint8_t buf_id;
     if ((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
-      if (wEPRegVal & USB_EP_DTOG_RX) {
-        count = pcd_get_ep_dbuf0_cnt(USB, EPindex);
-        addr = pcd_get_ep_dbuf0_address(USB, EPindex);
-      } else {
-        count = pcd_get_ep_dbuf1_cnt(USB, EPindex);
-        addr = pcd_get_ep_dbuf1_address(USB, EPindex);
-      }
+      // ISO endpoints are double buffered
+      buf_id = (wEPRegVal & USB_EP_DTOG_RX) ? 0 : 1;
     } else {
-      count = pcd_get_ep_rx_cnt(USB, EPindex);
-      addr = pcd_get_ep_rx_address(USB, EPindex);
+      buf_id = 1;
     }
+    uint32_t count = btable_get_count(EPindex, buf_id);
+    uint16_t addr = (uint16_t) btable_get_addr(EPindex, buf_id);
 
     TU_ASSERT(count <= xfer->max_packet_size, /**/);
 
@@ -630,7 +621,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   uint8_t const dir = tu_edpt_dir(ep_addr);
   const uint16_t packet_size = tu_edpt_packet_size(desc_ep);
   const uint16_t buffer_size = pcd_aligned_buffer_size(packet_size);
-  uint16_t pma_addr;
   uint32_t wType;
 
   TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
@@ -658,7 +648,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   pcd_set_ep_address(USB, ep_idx, tu_edpt_number(ep_addr));
 
   /* Create a packet memory buffer area. */
-  pma_addr = dcd_pma_alloc(buffer_size, false);
+  uint16_t pma_addr = dcd_pma_alloc(buffer_size, false);
 
   if (dir == TUSB_DIR_IN) {
     pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
@@ -732,11 +722,9 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   uint32_t pma_addr = dcd_pma_alloc(buffer_size, true);
   uint16_t pma_addr2 = pma_addr;
 #endif
-  pcd_set_ep_tx_address(USB, ep_idx, pma_addr);
-  pcd_set_ep_rx_address(USB, ep_idx, pma_addr2);
-
+  btable_set_addr(ep_idx, 0, pma_addr);
+  btable_set_addr(ep_idx, 1, pma_addr2);
   pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
-
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
   return true;
@@ -770,8 +758,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoin
 }
 
 // Currently, single-buffered, and only 64 bytes at a time (max)
-static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix)
-{
+static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   uint16_t len = (uint16_t)(xfer->total_len - xfer->queued_len);
   if (len > xfer->max_packet_size) {
     len = xfer->max_packet_size;
@@ -779,20 +766,15 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix)
 
   uint16_t ep_reg = pcd_get_endpoint(USB, ep_ix);
   bool const is_iso = (ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
-  uint16_t addr_ptr;
 
+  uint8_t buf_id;
   if (is_iso) {
-    if (ep_reg & USB_EP_DTOG_TX) {
-      addr_ptr = pcd_get_ep_dbuf1_address(USB, ep_ix);
-      pcd_set_ep_tx_dbuf1_cnt(USB, ep_ix, len);
-    } else {
-      addr_ptr = pcd_get_ep_dbuf0_address(USB, ep_ix);
-      pcd_set_ep_tx_dbuf0_cnt(USB, ep_ix, len);
-    }
+    buf_id = (ep_reg & USB_EP_DTOG_TX) ? 1 : 0;
   } else {
-    addr_ptr = pcd_get_ep_tx_address(USB, ep_ix);
-    pcd_set_ep_tx_cnt(USB, ep_ix, len);
+    buf_id = 0;
   }
+  uint16_t addr_ptr = (uint16_t) btable_get_addr(ep_ix, buf_id);
+  btable_set_count(ep_ix, buf_id, len);
 
   if (xfer->ff) {
     dcd_write_packet_memory_ff(xfer->ff, addr_ptr, len);
