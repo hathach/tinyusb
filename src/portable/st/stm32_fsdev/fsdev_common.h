@@ -96,7 +96,7 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT*8 <= FSDEV_PMA_SIZE, "BTABLE
 #define FSDEV_BTABLE ((volatile fsdev_btable_t*) (USB_PMAADDR+FSDEV_BTABLE_BASE))
 
 //--------------------------------------------------------------------+
-// Helper
+// BTable
 //--------------------------------------------------------------------+
 
 // The fsdev_bus_t type can be used for both register and PMA access necessities
@@ -112,17 +112,83 @@ typedef uint16_t fsdev_bus_t;
 static volatile uint16_t * const pma = (volatile uint16_t*)USB_PMAADDR;
 #endif
 
+TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_addr(uint32_t ep_id, uint8_t buf_id) {
+#ifdef FSDEV_BUS_32BIT
+  return FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr & 0x0000FFFFu;
+#else
+  return FSDEV_BTABLE->ep16[ep_id][buf_id].addr;
+#endif
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void btable_set_addr(uint32_t ep_id, uint8_t buf_id, uint16_t addr) {
+#ifdef FSDEV_BUS_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
+  count_addr = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
+  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
+#else
+  FSDEV_BTABLE->ep16[ep_id][buf_id].addr = addr;
+#endif
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_count(uint32_t ep_id, uint8_t buf_id) {
+  uint16_t count;
+#ifdef FSDEV_BUS_32BIT
+  count = (FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr >> 16);
+#else
+  count = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
+#endif
+  return count & 0x3FFU;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void btable_set_count(uint32_t ep_id, uint8_t buf_id, uint16_t byte_count) {
+#ifdef FSDEV_BUS_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
+  count_addr = (count_addr & ~0x03FF0000u) | ((byte_count & 0x3FFu) << 16);
+  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
+#else
+  uint16_t cnt = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
+  cnt = (cnt & ~0x3FFU) | (byte_count & 0x3FFU);
+  FSDEV_BTABLE->ep16[ep_id][buf_id].count = cnt;
+#endif
+}
+
 /* Aligned buffer size according to hardware */
-TU_ATTR_ALWAYS_INLINE static inline uint16_t pcd_aligned_buffer_size(uint16_t size) {
+TU_ATTR_ALWAYS_INLINE static inline uint16_t pma_align_buffer_size(uint16_t size, uint8_t* blsize, uint8_t* num_block) {
   /* The STM32 full speed USB peripheral supports only a limited set of
    * buffer sizes given by the RX buffer entry format in the USB_BTABLE. */
-  uint16_t blocksize = (size > 62) ? 32 : 2;
+  uint16_t block_in_bytes;
+  if (size > 62) {
+    block_in_bytes = 32;
+    *blsize = 1;
+  } else {
+    block_in_bytes = 2;
+    *blsize = 0;
+  }
 
-  // Round up while dividing requested size by blocksize
-  uint16_t numblocks = (size + blocksize - 1) / blocksize ;
+  *num_block = tu_div_ceil(size, block_in_bytes);
 
-  return numblocks * blocksize;
+  return (*num_block) * block_in_bytes;
 }
+
+TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint32_t wCount) {
+  uint8_t blsize, num_block;
+  (void) pma_align_buffer_size(wCount, &blsize, &num_block);
+
+  /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
+  uint16_t bl_nb = (blsize << 15) | ((num_block - blsize) << 10);
+
+#ifdef FSDEV_BUS_32BIT
+  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
+  count_addr = (bl_nb << 16) | (count_addr & 0x0000FFFFu);
+  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
+#else
+  FSDEV_BTABLE->ep16[ep_id][buf_id].count = bl_nb;
+#endif
+}
+
+//--------------------------------------------------------------------+
+// Endpoint
+//--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_endpoint(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wRegValue) {
 #ifdef FSDEV_BUS_32BIT
@@ -194,68 +260,6 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx,
   regVal &= ~USB_EP_CTR_TX;
   regVal |= USB_EP_CTR_RX; // preserve CTR_RX (clears on writing 0)
   pcd_set_endpoint(USBx, bEpIdx,regVal);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_count(uint32_t ep_id, uint8_t buf_id) {
-  uint16_t count;
-#ifdef FSDEV_BUS_32BIT
-  count = (FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr >> 16);
-#else
-  count = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
-#endif
-  return count & 0x3FFU;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_addr(uint32_t ep_id, uint8_t buf_id) {
-#ifdef FSDEV_BUS_32BIT
-  return FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr & 0x0000FFFFu;
-#else
-  return FSDEV_BTABLE->ep16[ep_id][buf_id].addr;
-#endif
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void btable_set_addr(uint32_t ep_id, uint8_t buf_id, uint16_t addr) {
-#ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
-  count_addr = (count_addr & 0xFFFF0000u) | (addr & 0x0000FFFCu);
-  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
-#else
-  FSDEV_BTABLE->ep16[ep_id][buf_id].addr = addr;
-#endif
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void btable_set_count(uint32_t ep_id, uint8_t buf_id, uint16_t byte_count) {
-#ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
-  count_addr = (count_addr & ~0x03FF0000u) | ((byte_count & 0x3FFu) << 16);
-  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
-#else
-  uint16_t cnt = FSDEV_BTABLE->ep16[ep_id][buf_id].count;
-  cnt = (cnt & ~0x3FFU) | (byte_count & 0x3FFU);
-  FSDEV_BTABLE->ep16[ep_id][buf_id].count = cnt;
-#endif
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint32_t wCount) {
-  wCount = pcd_aligned_buffer_size(wCount);
-
-  /* We assume that the buffer size is already aligned to hardware requirements. */
-  uint16_t blocksize = (wCount > 62) ? 1 : 0;
-  uint16_t numblocks = wCount / (blocksize ? 32 : 2);
-
-  /* There should be no remainder in the above calculation */
-  TU_ASSERT((wCount - (numblocks * (blocksize ? 32 : 2))) == 0, /**/);
-
-  /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
-  uint16_t bl_nb = (blocksize << 15) | ((numblocks - blocksize) << 10);
-
-#ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
-  count_addr = (bl_nb << 16) | (count_addr & 0x0000FFFFu);
-  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
-#else
-  FSDEV_BTABLE->ep16[ep_id][buf_id].count = bl_nb;
-#endif
 }
 
 /**
