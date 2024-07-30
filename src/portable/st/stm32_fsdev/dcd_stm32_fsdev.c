@@ -178,6 +178,8 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t 
 static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes);
 static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes);
 
+TU_ATTR_UNUSED static void edpt0_open(uint8_t rhport);
+
 //--------------------------------------------------------------------+
 // Inline helper
 //--------------------------------------------------------------------+
@@ -277,19 +279,7 @@ static void handle_bus_reset(uint8_t rhport) {
   // Reset PMA allocation
   ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT;
 
-  tusb_desc_endpoint_t ep0_desc = {
-      .bLength = sizeof(tusb_desc_endpoint_t),
-      .bDescriptorType = TUSB_DESC_ENDPOINT,
-      .bEndpointAddress = 0x00,
-      .bmAttributes = {.xfer = TUSB_XFER_CONTROL},
-      .wMaxPacketSize = CFG_TUD_ENDPOINT0_SIZE,
-      .bInterval = 0
-  };
-
-  dcd_edpt_open(rhport, &ep0_desc);
-
-  ep0_desc.bEndpointAddress = 0x80;
-  dcd_edpt_open(rhport, &ep0_desc);
+  edpt0_open(rhport); // open control endpoint (both IN & OUT)
 
   USB->DADDR = USB_DADDR_EF; // Enable USB Function
 }
@@ -610,8 +600,32 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
   TU_ASSERT(0);
 }
 
-// The STM32F0 doesn't seem to like |= or &= to manipulate the EP#R registers,
-// so I'm using the #define from HAL here, instead.
+void edpt0_open(uint8_t rhport) {
+  (void) rhport;
+
+  dcd_ep_alloc(0x0, TUSB_XFER_CONTROL);
+  dcd_ep_alloc(0x80, TUSB_XFER_CONTROL);
+
+  xfer_status[0][0].max_packet_size = CFG_TUD_ENDPOINT0_SIZE;
+  xfer_status[0][0].ep_idx = 0;
+
+  xfer_status[0][1].max_packet_size = CFG_TUD_ENDPOINT0_SIZE;
+  xfer_status[0][1].ep_idx = 0;
+
+  uint16_t pma_addr0 = dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
+  uint16_t pma_addr1 = dcd_pma_alloc(CFG_TUD_ENDPOINT0_SIZE, false);
+
+  btable_set_addr(0, BTABLE_BUF_RX, pma_addr0);
+  btable_set_addr(0, BTABLE_BUF_TX, pma_addr1);
+
+  uint32_t ep_reg = FSDEV_REG->ep[0].reg & ~USB_EPREG_MASK;
+  ep_reg |= USB_EP_CONTROL | USB_EP_CTR_RX | USB_EP_CTR_TX;
+  ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_NAK);
+  ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
+  // no need to explicitly set DTOG bits since we aren't masked DTOG bit
+
+  pcd_set_endpoint(USB, 0, ep_reg);
+}
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   (void)rhport;
@@ -626,9 +640,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
 
   // Set type
   switch (desc_ep->bmAttributes.xfer) {
-    case TUSB_XFER_CONTROL:
-      ep_reg |= USB_EP_CONTROL;
-      break;
     case TUSB_XFER_BULK:
       ep_reg |= USB_EP_CONTROL; // FIXME should it be bulk?
       break;
@@ -718,35 +729,34 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
   btable_set_addr(ep_idx, 0, pma_addr);
   btable_set_addr(ep_idx, 1, pma_addr2);
-  pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
+
+  pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
 
   return true;
 }
 
-bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *p_endpoint_desc)
-{
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   (void)rhport;
-  uint8_t const ep_addr = p_endpoint_desc->bEndpointAddress;
+  uint8_t const ep_addr = desc_ep->bEndpointAddress;
   uint8_t const ep_idx = xfer_ctl_ptr(ep_addr)->ep_idx;
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  xfer_ctl_ptr(ep_addr)->max_packet_size = tu_edpt_packet_size(p_endpoint_desc);
+  xfer_ctl_ptr(ep_addr)->max_packet_size = tu_edpt_packet_size(desc_ep);
 
-  pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_DIS);
-  pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_DIS);
+  uint32_t ep_reg = FSDEV_REG->ep[0].reg & ~USB_EPREG_MASK;
+  ep_reg |= tu_edpt_number(ep_addr) | USB_EP_ISOCHRONOUS | USB_EP_CTR_RX | USB_EP_CTR_TX;
+  ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_DIS);
+  ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_DIS);
 
-  pcd_set_ep_address(USB, ep_idx, tu_edpt_number(ep_addr));
-
-  pcd_clear_tx_dtog(USB, ep_idx);
-  pcd_clear_rx_dtog(USB, ep_idx);
-
+  // no need to explicitly set DTOG bits since we aren't masked DTOG bit
   if (dir == TUSB_DIR_IN) {
-    pcd_rx_dtog(USB, ep_idx);
+    ep_reg = ep_add_rx_dtog(ep_reg, 1);
   } else {
-    pcd_tx_dtog(USB, ep_idx);
+    ep_reg = ep_add_tx_dtog(ep_reg, 1);
   }
 
+  pcd_set_endpoint(USB, ep_idx, ep_reg);
 
   return true;
 }

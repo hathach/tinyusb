@@ -180,7 +180,7 @@ void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 TU_ATTR_WEAK bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
-TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
 
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)

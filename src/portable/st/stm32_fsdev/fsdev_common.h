@@ -112,14 +112,6 @@ static volatile uint16_t * const pma = (volatile uint16_t*)USB_PMAADDR;
 #endif
 
 typedef struct {
-//  _va32 fsdev_bus_t EP0R;            // 00: USB Endpoint 0 register
-//  _va32 fsdev_bus_t EP1R;            // 04: USB Endpoint 1 register
-//  _va32 fsdev_bus_t EP2R;            // 08: USB Endpoint 2 register
-//  _va32 fsdev_bus_t EP3R;            // 0C: USB Endpoint 3 register
-//  _va32 fsdev_bus_t EP4R;            // 10: USB Endpoint 4 register
-//  _va32 fsdev_bus_t EP5R;            // 14: USB Endpoint 5 register
-//  _va32 fsdev_bus_t EP6R;            // 18: USB Endpoint 6 register
-//  _va32 fsdev_bus_t EP7R;            // 1C: USB Endpoint 7 register
   struct {
     _va32 fsdev_bus_t reg;
   }ep[FSDEV_EP_COUNT];
@@ -139,6 +131,22 @@ TU_VERIFY_STATIC(sizeof(fsdev_regs_t) == 0x5C, "Size is not correct");
 
 #define FSDEV_REG ((fsdev_regs_t*) FSDEV_REG_BASE)
 
+
+#ifndef USB_EPTX_STAT
+#define USB_EPTX_STAT 0x0030U
+#endif
+
+#ifndef USB_EPRX_STAT
+#define USB_EPRX_STAT 0x3000U
+#endif
+
+#ifndef USB_EP_DTOG_TX_Pos
+#define USB_EP_DTOG_TX_Pos                      (6U)
+#endif
+
+#ifndef USB_EP_DTOG_RX_Pos
+#define USB_EP_DTOG_RX_Pos                      (14U)
+#endif
 
 //--------------------------------------------------------------------+
 // BTable
@@ -244,7 +252,7 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_address(USB_TypeDef * USBx, 
   regVal &= USB_EPREG_MASK;
   regVal |= bAddr;
   regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
-  pcd_set_endpoint(USBx, bEpIdx,regVal);
+  pcd_set_endpoint(USBx, bEpIdx, regVal);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_eptype(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wType) {
@@ -291,11 +299,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_rx_status(uint32_t reg, uint
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_tx_dtog(uint32_t reg, uint32_t state) {
-  return reg | ((reg ^ state) & USB_EP_DTOG_TX);
+  return reg | ((reg ^ (state << USB_EP_DTOG_TX_Pos)) & USB_EP_DTOG_TX);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_rx_dtog(uint32_t reg, uint32_t state) {
-  return reg | ((reg ^ state) & USB_EP_DTOG_RX);
+  return reg | ((reg ^ (state << USB_EP_DTOG_RX_Pos)) & USB_EP_DTOG_RX);
 }
 
 /**

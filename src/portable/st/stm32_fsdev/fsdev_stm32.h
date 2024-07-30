@@ -202,14 +202,6 @@
   #error "FSDEV_REG_BASE not defined"
 #endif
 
-#ifndef USB_EPTX_STAT
-#define USB_EPTX_STAT 0x0030U
-#endif
-
-#ifndef USB_EPRX_STAT
-#define USB_EPRX_STAT 0x3000U
-#endif
-
 // This checks if the device has "LPM"
 #if defined(USB_ISTR_L1REQ)
 #define USB_ISTR_L1REQ_FORCED (USB_ISTR_L1REQ)
