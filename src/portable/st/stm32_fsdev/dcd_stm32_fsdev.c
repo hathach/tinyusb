@@ -171,8 +171,8 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir);
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
 static uint32_t dcd_pma_alloc(uint16_t len, bool dbuf);
 static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type);
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes);
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes);
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes);
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes);
 
 static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes);
 static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes);
@@ -828,10 +828,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 #ifdef FSDEV_BUS_32BIT
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes) {
   const uint8_t *src8 = src;
-  volatile uint32_t *dst32 = (volatile uint32_t *)(USB_PMAADDR + dst);
+  volatile uint32_t *pma32 = (volatile uint32_t *)(USB_PMAADDR + dst);
 
   for (uint32_t n = wNBytes / 4; n > 0; --n) {
-    *dst32++ = tu_unaligned_read32(src8);
+    *pma32++ = tu_unaligned_read32(src8);
     src8 += 4;
   }
 
@@ -849,11 +849,41 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
       }
     }
 
-    *dst32 = wrVal;
+    *pma32 = wrVal;
   }
 
   return true;
 }
+
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes) {
+  uint8_t *dst8 = dst;
+  volatile uint32_t *src32 = (volatile uint32_t *)(USB_PMAADDR + src);
+
+  for (uint32_t n = wNBytes / 4; n > 0; --n) {
+    tu_unaligned_write32(dst8, *src32++);
+    dst8 += 4;
+  }
+
+  uint16_t odd = wNBytes & 0x03;
+  if (odd) {
+    uint32_t rdVal = *src32;
+
+    *dst8 = tu_u32_byte0(rdVal);
+    odd--;
+
+    if (odd) {
+      *++dst8 = tu_u32_byte1(rdVal);
+      odd--;
+
+      if (odd) {
+        *++dst8 = tu_u32_byte2(rdVal);
+      }
+    }
+  }
+
+  return true;
+}
+
 #else
 // Packet buffer access can only be 8- or 16-bit.
 /**
@@ -862,26 +892,52 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, ui
  * @param   dst, byte address in PMA; must be 16-bit aligned
  * @param   src pointer to user memory area.
  * @param   wPMABufAddr address into PMA.
- * @param   wNBytes no. of bytes to be copied.
+ * @param   nbytes no. of bytes to be copied.
  * @retval None
  */
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes) {
-  uint32_t n = (uint32_t)wNBytes >> 1U;
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes) {
+  uint32_t n16 = (uint32_t)nbytes >> 1U;
   const uint8_t *src8 = src;
-  volatile uint16_t *pdw16 = &pma[FSDEV_PMA_STRIDE * (dst >> 1)];
+  fsdev_pma16_t* pma16 = (fsdev_pma16_t*) (USB_PMAADDR + FSDEV_PMA_STRIDE * dst);
 
-  while (n--) {
-    *pdw16 = tu_unaligned_read16(src8);
+  while (n16--) {
+    pma16->u16 = tu_unaligned_read16(src8);
     src8 += 2;
-    pdw16 += FSDEV_PMA_STRIDE;
+    pma16++;
   }
 
-  if (wNBytes & 0x01) {
-    *pdw16 = (uint16_t) *src8;
+  if (nbytes & 0x01) {
+    pma16->u16 = (uint16_t) *src8;
   }
 
   return true;
 }
+
+/**
+ * @brief Copy a buffer from packet memory area (PMA) to user memory area.
+ *        Uses unaligned for system memory and 16-bit access of packet memory
+ * @param   nbytes no. of bytes to be copied.
+ * @retval None
+ */
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes) {
+  uint32_t n16 = (uint32_t)nbytes >> 1U;
+  fsdev_pma16_t* pma16 = (fsdev_pma16_t*) (USB_PMAADDR + FSDEV_PMA_STRIDE * src);
+  uint8_t *dst8 = (uint8_t *)dst;
+
+  while (n16--) {
+    uint16_t temp16 = pma16->u16;
+    tu_unaligned_write16(dst8, temp16);
+    dst8 += 2;
+    pma16++;
+  }
+
+  if (nbytes & 0x01) {
+    *dst8++ = tu_u16_low(pma16->u16);
+  }
+
+  return true;
+}
+
 #endif
 
 /**
@@ -958,61 +1014,6 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNB
 
   return true;
 }
-
-#ifdef FSDEV_BUS_32BIT
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes) {
-  uint8_t *dst8 = dst;
-  volatile uint32_t *src32 = (volatile uint32_t *)(USB_PMAADDR + src);
-
-  for (uint32_t n = wNBytes / 4; n > 0; --n) {
-    tu_unaligned_write32(dst8, *src32++);
-    dst8 += 4;
-  }
-
-  uint16_t odd = wNBytes & 0x03;
-  if (odd) {
-    uint32_t rdVal = *src32;
-
-    *dst8 = tu_u32_byte0(rdVal);
-    odd--;
-
-    if (odd) {
-      *++dst8 = tu_u32_byte1(rdVal);
-      odd--;
-
-      if (odd) {
-        *++dst8 = tu_u32_byte2(rdVal);
-      }
-    }
-  }
-
-  return true;
-}
-#else
-/**
- * @brief Copy a buffer from packet memory area (PMA) to user memory area.
- *        Uses unaligned for system memory and 16-bit access of packet memory
- * @param   wNBytes no. of bytes to be copied.
- * @retval None
- */
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes) {
-  uint32_t n = (uint32_t)wNBytes >> 1U;
-  volatile const uint16_t *pdw16 = &pma[FSDEV_PMA_STRIDE * (src >> 1)];
-  uint8_t *dst8 = (uint8_t *)dst;
-
-  while (n--) {
-    tu_unaligned_write16(dst8, *pdw16);
-    dst8 += 2;
-    pdw16 += FSDEV_PMA_STRIDE;
-  }
-
-  if (wNBytes & 0x01) {
-    *dst8++ = tu_u16_low(*pdw16);
-  }
-
-  return true;
-}
-#endif
 
 /**
  * @brief Copy a buffer from user packet memory area (PMA) to FIFO.

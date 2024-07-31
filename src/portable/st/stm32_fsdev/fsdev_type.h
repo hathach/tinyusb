@@ -75,27 +75,29 @@ enum {
 
 // Buffer Table is located in Packet Memory Area (PMA) and therefore its address access is forced to either
 // 16-bit or 32-bit depending on FSDEV_BUS_32BIT.
-typedef struct {
-  union {
-    // 0: TX (IN), 1: RX (OUT)
+typedef union {
+  // 0: TX (IN), 1: RX (OUT)
 
-    // strictly 16-bit access (could be 32-bit aligned)
-    struct {
-      volatile pma_aligned uint16_t addr;
-      volatile pma_aligned uint16_t count;
-    } ep16[FSDEV_EP_COUNT][2];
+  // strictly 16-bit access (could be 32-bit aligned)
+  struct {
+    volatile pma_aligned uint16_t addr;
+    volatile pma_aligned uint16_t count;
+  } ep16[FSDEV_EP_COUNT][2];
 
-    // strictly 32-bit access
-    struct {
-      volatile uint32_t count_addr;
-    } ep32[FSDEV_EP_COUNT][2];
-  };
+  // strictly 32-bit access
+  struct {
+    volatile uint32_t count_addr;
+  } ep32[FSDEV_EP_COUNT][2];
 } fsdev_btable_t;
 
 TU_VERIFY_STATIC(sizeof(fsdev_btable_t) == FSDEV_EP_COUNT*8*FSDEV_PMA_STRIDE, "size is not correct");
 TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT*8 <= FSDEV_PMA_SIZE, "BTABLE does not fit in PMA RAM");
 
 #define FSDEV_BTABLE ((volatile fsdev_btable_t*) (USB_PMAADDR+FSDEV_BTABLE_BASE))
+
+typedef struct {
+  volatile pma_aligned uint16_t u16;
+} fsdev_pma16_t;
 
 //--------------------------------------------------------------------+
 // Registers Typedef
@@ -105,16 +107,10 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT*8 <= FSDEV_PMA_SIZE, "BTABLE
 #define _va32     volatile TU_ATTR_ALIGNED(4)
 
 // The fsdev_bus_t type can be used for both register and PMA access necessities
-// For type-safety create a new macro for the volatile address of PMAADDR
-// The compiler should warn us if we cast it to a non-volatile type?
 #ifdef FSDEV_BUS_32BIT
 typedef uint32_t fsdev_bus_t;
-static volatile uint32_t * const pma32 = (volatile uint32_t*)USB_PMAADDR;
-
 #else
 typedef uint16_t fsdev_bus_t;
-// Volatile is also needed to prevent the optimizer from changing access to 32-bit (as 32-bit access is forbidden)
-static volatile uint16_t * const pma = (volatile uint16_t*)USB_PMAADDR;
 #endif
 
 typedef struct {
