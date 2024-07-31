@@ -166,7 +166,6 @@ static uint8_t remoteWakeCountdown; // When wake is requested
 static void handle_bus_reset(uint8_t rhport);
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix);
 static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr);
-static void dcd_ep_ctr_handler(void);
 
 // PMA allocation/access
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
@@ -285,7 +284,7 @@ static void handle_bus_reset(uint8_t rhport) {
 }
 
 // Handle CTR interrupt for the TX/IN direction
-static void dcd_ep_ctr_tx_handler(uint32_t ep_id) {
+static void handle_ctr_tx(uint32_t ep_id) {
   uint32_t ep_reg = ep_read(ep_id) & USB_EPREG_MASK;
 
   // Verify the CTR bit is set. This was in the ST Micro code, but I'm not sure it's actually necessary?
@@ -319,7 +318,7 @@ static void dcd_ep_ctr_tx_handler(uint32_t ep_id) {
 }
 
 // Handle CTR interrupt for the RX/OUT direction
-static void dcd_ep_ctr_rx_handler(uint32_t ep_id) {
+static void handle_ctr_rx(uint32_t ep_id) {
 #ifdef FSDEV_BUS_32BIT
   /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
    * From STM32H503 errata 2.15.1: Buffer description table update completes after CTR interrupt triggers
@@ -416,19 +415,6 @@ static void dcd_ep_ctr_rx_handler(uint32_t ep_id) {
   ep_write(ep_id, ep_reg);
 }
 
-static void dcd_ep_ctr_handler(void) {
-  uint32_t wIstr;
-  /* stay in loop while pending interrupts */
-  while (((wIstr = USB->ISTR) & USB_ISTR_CTR) != 0U) {
-    uint32_t ep_id = wIstr & USB_ISTR_EP_ID;
-    if ((wIstr & USB_ISTR_DIR) == 0U) {
-      dcd_ep_ctr_tx_handler(ep_id); // TX/IN
-    } else {
-      dcd_ep_ctr_rx_handler(ep_id); // RX/OUT
-    }
-  }
-}
-
 void dcd_int_handler(uint8_t rhport) {
   uint32_t int_status = USB->ISTR;
   // const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
@@ -451,12 +437,6 @@ void dcd_int_handler(uint8_t rhport) {
     handle_bus_reset(rhport);
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
-  }
-
-  if (int_status & USB_ISTR_CTR) {
-    /* servicing of the endpoint correct transfer interrupt */
-    /* clear of the CTR flag into the sub */
-    dcd_ep_ctr_handler();
   }
 
   if (int_status & USB_ISTR_WKUP) {
@@ -488,6 +468,19 @@ void dcd_int_handler(uint8_t rhport) {
       remoteWakeCountdown--;
     }
     USB->ISTR = (fsdev_bus_t)~USB_ISTR_ESOF;
+  }
+
+  // loop to handle all pending CTR interrupts
+  while (int_status & USB_ISTR_CTR) {
+    uint32_t const ep_id = int_status & USB_ISTR_EP_ID;
+
+    if ((int_status & USB_ISTR_DIR) == 0U) {
+      handle_ctr_tx(ep_id); // TX/IN
+    } else {
+      handle_ctr_rx(ep_id); // RX/OUT or both (RX/TX !!)
+    }
+
+    int_status = USB->ISTR;
   }
 }
 

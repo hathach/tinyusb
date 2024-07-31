@@ -167,6 +167,8 @@ typedef enum {
 
 //--------------------------------------------------------------------+
 // Endpoint
+// - CTR is write 0 to clear
+// - DTOG and STAT are write 1 to toggle
 //--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value) {
