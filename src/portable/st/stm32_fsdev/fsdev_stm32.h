@@ -35,6 +35,7 @@
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0
   #include "stm32f0xx.h"
   #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_REG_BASE USB_BASE
   // F0x2 models are crystal-less
   // All have internal D+ pull-up
   // 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
@@ -191,6 +192,16 @@
 #else
   #error You are using an untested or unimplemented STM32 variant. Please update the driver.
   // This includes U0
+#endif
+
+#if defined(USB_BASE)
+  #define FSDEV_REG_BASE USB_BASE
+#elif defined(USB_DRD_BASE)
+  #define FSDEV_REG_BASE USB_DRD_BASE
+#elif defined(USB_DRD_FS_BASE)
+  #define FSDEV_REG_BASE USB_DRD_FS_BASE
+#else
+  #error "FSDEV_REG_BASE not defined"
 #endif
 
 // This checks if the device has "LPM"

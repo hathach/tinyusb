@@ -120,7 +120,6 @@ typedef struct {
   };
   volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
   uint8_t speed;
-  volatile uint8_t setup_count;
   volatile uint8_t sof_consumer;
 
   uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
@@ -131,6 +130,7 @@ typedef struct {
 }usbd_device_t;
 
 tu_static usbd_device_t _usbd_dev;
+static volatile uint8_t _usbd_queued_setup;
 
 //--------------------------------------------------------------------+
 // Class Driver
@@ -459,6 +459,7 @@ bool tud_init(uint8_t rhport) {
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_edpt_stream_t));
 
   tu_varclr(&_usbd_dev);
+  _usbd_queued_setup = 0;
 
 #if OSAL_MUTEX_REQUIRED
   // Init device mutex
@@ -594,9 +595,10 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case DCD_EVENT_SETUP_RECEIVED:
-        _usbd_dev.setup_count--;
+        TU_ASSERT(_usbd_queued_setup > 0,);
+        _usbd_queued_setup--;
         TU_LOG_BUF(CFG_TUD_LOG_LEVEL, &event.setup_received, 8);
-        if (_usbd_dev.setup_count) {
+        if (_usbd_queued_setup) {
           TU_LOG_USBD("  Skipped since there is other SETUP in queue\r\n");
           break;
         }
@@ -1199,7 +1201,8 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       break;
 
     case DCD_EVENT_SETUP_RECEIVED:
-      _usbd_dev.setup_count++;
+      // TU_ASSERT(event->setup_received.bRequest != 0,);
+      _usbd_queued_setup++;
       send = true;
       break;
 

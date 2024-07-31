@@ -137,6 +137,11 @@ def flash_jlink(board, firmware):
     return ret
 
 
+def flash_stlink(board, firmware):
+    #ret = run_cmd(f'st-flash --serial {board["flasher_sn"]} write {firmware}.bin 0x08000000')
+    ret = run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={board["flasher_sn"]} --write {firmware}.elf --go')
+    return ret
+
 def flash_openocd(board, firmware):
     ret = run_cmd(f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware}.elf reset exit"')
     return ret
@@ -338,8 +343,10 @@ def main():
     # all possible tests: board_test is added last to disable board's usb
     all_tests = [
         'cdc_dual_ports',
-        'cdc_msc', 'cdc_msc_freertos',
-        'dfu', 'dfu_runtime',
+        'cdc_msc',
+        'cdc_msc_freertos',
+        'dfu',
+        'dfu_runtime',
         'hid_boot_interface',
         'board_test'
     ]
