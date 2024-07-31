@@ -350,8 +350,6 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
   uint8_t ep_addr = wEPRegVal & USB_EPADDR_FIELD;
 
-  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
-
   // Verify the CTR_RX bit is set. This was in the ST Micro code,
   // but I'm not sure it's actually necessary?
   if ((wEPRegVal & USB_EP_CTR_RX) == 0U) {
@@ -359,40 +357,34 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   }
 
   if (wEPRegVal & USB_EP_SETUP) {
-    /* Setup packet */
     uint32_t count = btable_get_count(EPindex, BTABLE_BUF_RX);
     // Setup packet should always be 8 bytes. If not, ignore it, and try again.
     if (count == 8) {
-      // Must reset EP to NAK (in case it had been stalling)
-      pcd_set_ep_rx_status(USB, 0u, USB_EP_RX_NAK);
-      pcd_set_ep_tx_status(USB, 0u, USB_EP_TX_NAK);
-
-      // set both data toggle to 1
-      uint32_t regVal = pcd_get_endpoint(USB, 0);
-      if ((regVal & USB_EP_DTOG_TX) == 0) {
-        pcd_tx_dtog(USB, 0);
-      }
-
-      if ((regVal & USB_EP_DTOG_RX) == 0) {
-        pcd_rx_dtog(USB, 0);
-      }
-
       uint16_t rx_addr = btable_get_addr(EPindex, BTABLE_BUF_RX);
 #ifdef FSDEV_BUS_32BIT
       dcd_event_setup_received(0, (uint8_t *)(USB_PMAADDR + rx_addr), true);
 #else
       // The setup_received function uses memcpy, so this must first copy the setup data into
       // user memory, to allow for the 32-bit access that memcpy performs.
-      uint8_t userMemBuf[8];
+      uint32_t userMemBuf[2];
       dcd_read_packet_memory(userMemBuf, rx_addr, 8);
       dcd_event_setup_received(0, (uint8_t*) userMemBuf, true);
 #endif
+
+      // Reset EP to NAK (in case it had been stalling)
+      wEPRegVal = ep_add_tx_status(wEPRegVal, USB_EP_TX_NAK);
+      wEPRegVal = ep_add_rx_status(wEPRegVal, USB_EP_RX_NAK);
+      wEPRegVal = ep_add_tx_dtog(wEPRegVal, 1);
+      wEPRegVal = ep_add_rx_dtog(wEPRegVal, 1);
+      pcd_set_endpoint(USB, 0, wEPRegVal | USB_EP_CTR_RX | USB_EP_CTR_TX);
     }
   } else {
     // Clear RX CTR interrupt flag
     if (ep_addr != 0u) {
       pcd_clear_rx_ep_ctr(USB, EPindex);
     }
+
+    xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
 
     uint8_t buf_id;
     if ((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
@@ -404,13 +396,11 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
     uint32_t count = btable_get_count(EPindex, buf_id);
     uint16_t addr = (uint16_t) btable_get_addr(EPindex, buf_id);
 
-    TU_ASSERT(count <= xfer->max_packet_size, /**/);
-
     if (count != 0U) {
       if (xfer->ff) {
         dcd_read_packet_memory_ff(xfer->ff, addr, count);
       } else {
-        dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]), addr, count);
+        dcd_read_packet_memory(xfer->buffer + xfer->queued_len, addr, count);
       }
 
       xfer->queued_len = (uint16_t)(xfer->queued_len + count);

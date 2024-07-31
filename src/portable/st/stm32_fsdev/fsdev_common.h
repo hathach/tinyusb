@@ -292,18 +292,18 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx,
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_tx_status(uint32_t reg, uint32_t state) {
-  return reg | ((reg ^ state) & USB_EPTX_STAT);
+  return reg ^ state;
 }
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_rx_status(uint32_t reg, uint32_t state) {
-  return reg | ((reg ^ state) & USB_EPRX_STAT);
+  return reg ^ state;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_tx_dtog(uint32_t reg, uint32_t state) {
-  return reg | ((reg ^ (state << USB_EP_DTOG_TX_Pos)) & USB_EP_DTOG_TX);
+  return reg ^ (state << USB_EP_DTOG_TX_Pos);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_rx_dtog(uint32_t reg, uint32_t state) {
-  return reg | ((reg ^ (state << USB_EP_DTOG_RX_Pos)) & USB_EP_DTOG_RX);
+  return reg ^ (state << USB_EP_DTOG_RX_Pos);
 }
 
 /**
