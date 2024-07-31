@@ -178,7 +178,7 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t 
 static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes);
 static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes);
 
-TU_ATTR_UNUSED static void edpt0_open(uint8_t rhport);
+static void edpt0_open(uint8_t rhport);
 
 //--------------------------------------------------------------------+
 // Inline helper
@@ -285,10 +285,8 @@ static void handle_bus_reset(uint8_t rhport) {
 }
 
 // Handle CTR interrupt for the TX/IN direction
-// Upon call, (wIstr & USB_ISTR_DIR) == 0U
-static void dcd_ep_ctr_tx_handler(uint32_t wIstr) {
-  uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
-  uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
+static void dcd_ep_ctr_tx_handler(uint32_t ep_id) {
+  uint32_t wEPRegVal = pcd_get_endpoint(USB, ep_id);
   uint8_t ep_addr = (wEPRegVal & USB_EPADDR_FIELD) | TUSB_DIR_IN_MASK;
 
   // Verify the CTR_TX bit is set. This was in the ST Micro code,
@@ -298,7 +296,7 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr) {
   }
 
   /* clear int flag */
-  pcd_clear_tx_ep_ctr(USB, EPindex);
+  pcd_clear_tx_ep_ctr(USB, ep_id);
 
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
 
@@ -311,20 +309,18 @@ static void dcd_ep_ctr_tx_handler(uint32_t wIstr) {
     }
     xfer->iso_in_sending = false;
     uint8_t buf_id = (wEPRegVal & USB_EP_DTOG_TX) ? 0 : 1;
-    btable_set_count(EPindex, buf_id, 0);
+    btable_set_count(ep_id, buf_id, 0);
   }
 
   if ((xfer->total_len != xfer->queued_len)) {
-    dcd_transmit_packet(xfer, EPindex);
+    dcd_transmit_packet(xfer, ep_id);
   } else {
     dcd_event_xfer_complete(0, ep_addr, xfer->total_len, XFER_RESULT_SUCCESS, true);
   }
 }
 
 // Handle CTR interrupt for the RX/OUT direction
-// Upon call, (wIstr & USB_ISTR_DIR) == 0U
-static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
-{
+static void dcd_ep_ctr_rx_handler(uint32_t ep_id) {
 #ifdef FSDEV_BUS_32BIT
   /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
    * From STM32H503 errata 2.15.1: Buffer description table update completes after CTR interrupt triggers
@@ -346,103 +342,92 @@ static void dcd_ep_ctr_rx_handler(uint32_t wIstr)
   }
 #endif
 
-  uint32_t EPindex = wIstr & USB_ISTR_EP_ID;
-  uint32_t wEPRegVal = pcd_get_endpoint(USB, EPindex);
-  uint8_t ep_addr = wEPRegVal & USB_EPADDR_FIELD;
+  uint32_t ep_reg = pcd_get_endpoint(USB, ep_id);
+  uint8_t ep_addr = ep_reg & USB_EPADDR_FIELD;
 
   // Verify the CTR_RX bit is set. This was in the ST Micro code,
   // but I'm not sure it's actually necessary?
-  if ((wEPRegVal & USB_EP_CTR_RX) == 0U) {
+  if ((ep_reg & USB_EP_CTR_RX) == 0U) {
     return;
   }
 
-  if (wEPRegVal & USB_EP_SETUP) {
-    uint32_t count = btable_get_count(EPindex, BTABLE_BUF_RX);
+  // Clear RX CTR and reserved TX CTR
+  ep_reg = (ep_reg & ~USB_EP_CTR_RX) | USB_EP_CTR_TX;
+
+  if (ep_reg & USB_EP_SETUP) {
+    uint32_t count = btable_get_count(ep_id, BTABLE_BUF_RX);
     // Setup packet should always be 8 bytes. If not, ignore it, and try again.
     if (count == 8) {
-      uint16_t rx_addr = btable_get_addr(EPindex, BTABLE_BUF_RX);
-#ifdef FSDEV_BUS_32BIT
-      dcd_event_setup_received(0, (uint8_t *)(USB_PMAADDR + rx_addr), true);
-#else
-      // The setup_received function uses memcpy, so this must first copy the setup data into
-      // user memory, to allow for the 32-bit access that memcpy performs.
-      uint32_t userMemBuf[2];
-      dcd_read_packet_memory(userMemBuf, rx_addr, 8);
-      dcd_event_setup_received(0, (uint8_t*) userMemBuf, true);
-#endif
+      uint16_t rx_addr = btable_get_addr(ep_id, BTABLE_BUF_RX);
+      uint32_t setup_packet[2];
+      dcd_read_packet_memory(setup_packet, rx_addr, 8);
+      dcd_event_setup_received(0, (uint8_t*) setup_packet, true);
 
       // Reset EP to NAK (in case it had been stalling)
-      wEPRegVal = ep_add_tx_status(wEPRegVal, USB_EP_TX_NAK);
-      wEPRegVal = ep_add_rx_status(wEPRegVal, USB_EP_RX_NAK);
-      wEPRegVal = ep_add_tx_dtog(wEPRegVal, 1);
-      wEPRegVal = ep_add_rx_dtog(wEPRegVal, 1);
-      pcd_set_endpoint(USB, 0, wEPRegVal | USB_EP_CTR_RX | USB_EP_CTR_TX);
+      ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_NAK);
+      ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
+      ep_reg = ep_add_tx_dtog(ep_reg, 1);
+      ep_reg = ep_add_rx_dtog(ep_reg, 1);
+    } else {
+      ep_reg &= USB_EPREG_MASK; // reversed all toggle
     }
   } else {
-    // Clear RX CTR interrupt flag
-    if (ep_addr != 0u) {
-      pcd_clear_rx_ep_ctr(USB, EPindex);
-    }
+    ep_reg &= USB_EPRX_STAT | USB_EPREG_MASK; // reversed all toggle except RX Status
 
+    bool const is_iso = (ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
     xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
 
     uint8_t buf_id;
-    if ((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
-      // ISO endpoints are double buffered
-      buf_id = (wEPRegVal & USB_EP_DTOG_RX) ? 0 : 1;
+    if (is_iso) {
+      buf_id = (ep_reg & USB_EP_DTOG_RX) ? 0 : 1; // ISO are double buffered
     } else {
-      buf_id = 1;
+      buf_id = BTABLE_BUF_RX;
     }
-    uint32_t count = btable_get_count(EPindex, buf_id);
-    uint16_t addr = (uint16_t) btable_get_addr(EPindex, buf_id);
+    uint32_t rx_count = btable_get_count(ep_id, buf_id);
+    uint16_t pma_addr = (uint16_t) btable_get_addr(ep_id, buf_id);
 
-    if (count != 0U) {
+    if (rx_count != 0) {
       if (xfer->ff) {
-        dcd_read_packet_memory_ff(xfer->ff, addr, count);
+        dcd_read_packet_memory_ff(xfer->ff, pma_addr, rx_count);
       } else {
-        dcd_read_packet_memory(xfer->buffer + xfer->queued_len, addr, count);
+        dcd_read_packet_memory(xfer->buffer + xfer->queued_len, pma_addr, rx_count);
       }
 
-      xfer->queued_len = (uint16_t)(xfer->queued_len + count);
+      xfer->queued_len = (uint16_t)(xfer->queued_len + rx_count);
     }
 
-    if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len)) {
+    if ((rx_count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len)) {
       // all bytes received or short packet
       dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-    } else {
-      /* Set endpoint active again for receiving more data.
-       * Note that isochronous endpoints stay active always */
-      if ((wEPRegVal & USB_EP_TYPE_MASK) != USB_EP_ISOCHRONOUS) {
-        uint16_t remaining = xfer->total_len - xfer->queued_len;
-        uint16_t cnt = tu_min16(remaining, xfer->max_packet_size);
-        btable_set_rx_bufsize(EPindex, BTABLE_BUF_RX, cnt);
+
+      if (ep_addr == 0u) {
+        // prepared for status packet
+        btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, CFG_TUD_ENDPOINT0_SIZE);
       }
-      pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
+
+      ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
+    } else {
+      // Set endpoint active again for receiving more data. Note that isochronous endpoints stay active always
+      if (!is_iso) {
+        uint16_t const cnt = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
+        btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, cnt);
+      }
+      ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_VALID);
     }
   }
 
-  // For EP0, prepare to receive another SETUP packet.
-  // Clear CTR last so that a new packet does not overwrite the packing being read.
-  // (Based on the docs, it seems SETUP will always be accepted after CTR is cleared)
-  if (ep_addr == 0u) {
-    // Always be prepared for a status packet...
-    btable_set_rx_bufsize(EPindex, BTABLE_BUF_RX, CFG_TUD_ENDPOINT0_SIZE);
-    pcd_clear_rx_ep_ctr(USB, EPindex);
-  }
+  pcd_set_endpoint(USB, ep_id, ep_reg);
 }
 
-static void dcd_ep_ctr_handler(void)
-{
+static void dcd_ep_ctr_handler(void) {
   uint32_t wIstr;
-
   /* stay in loop while pending interrupts */
   while (((wIstr = USB->ISTR) & USB_ISTR_CTR) != 0U) {
+    uint32_t ep_id = wIstr & USB_ISTR_EP_ID;
     if ((wIstr & USB_ISTR_DIR) == 0U) {
-      /* TX/IN */
-      dcd_ep_ctr_tx_handler(wIstr);
+      dcd_ep_ctr_tx_handler(ep_id); // TX/IN
     } else {
-      /* RX/OUT*/
-      dcd_ep_ctr_rx_handler(wIstr);
+      dcd_ep_ctr_rx_handler(ep_id); // RX/OUT
     }
   }
 }
@@ -609,10 +594,13 @@ void edpt0_open(uint8_t rhport) {
   btable_set_addr(0, BTABLE_BUF_TX, pma_addr1);
 
   uint32_t ep_reg = FSDEV_REG->ep[0].reg & ~USB_EPREG_MASK;
-  ep_reg |= USB_EP_CONTROL | USB_EP_CTR_RX | USB_EP_CTR_TX;
+  ep_reg |= USB_EP_CONTROL; // | USB_EP_CTR_RX | USB_EP_CTR_TX;
   ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_NAK);
   ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
   // no need to explicitly set DTOG bits since we aren't masked DTOG bit
+
+  // prepare for setup packet
+  btable_set_rx_bufsize(0, BTABLE_BUF_RX, CFG_TUD_ENDPOINT0_SIZE);
 
   pcd_set_endpoint(USB, 0, ep_reg);
 }
