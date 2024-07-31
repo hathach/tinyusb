@@ -488,7 +488,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *req
   (void)rhport;
 
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
-
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
       request->bRequest == TUSB_REQ_SET_ADDRESS) {
     uint8_t const dev_addr = (uint8_t)request->wValue;
@@ -605,7 +604,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   // Set type
   switch (desc_ep->bmAttributes.xfer) {
     case TUSB_XFER_BULK:
-      ep_reg |= USB_EP_CONTROL; // FIXME should it be bulk?
+      ep_reg |= USB_EP_BULK;
       break;
     case TUSB_XFER_INTERRUPT:
       ep_reg |= USB_EP_INTERRUPT;
