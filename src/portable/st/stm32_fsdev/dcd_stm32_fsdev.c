@@ -165,7 +165,7 @@ static uint8_t remoteWakeCountdown; // When wake is requested
 // into the stack.
 static void handle_bus_reset(uint8_t rhport);
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix);
-static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr);
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir);
 
 // PMA allocation/access
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
@@ -183,13 +183,7 @@ static void edpt0_open(uint8_t rhport);
 // Inline helper
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint32_t ep_addr)
-{
-  uint8_t epnum = tu_edpt_number(ep_addr);
-  uint8_t dir = tu_edpt_dir(ep_addr);
-  // Fix -Werror=null-dereference
-  TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX, &xfer_status[0][0]);
-
+TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint8_t epnum, uint8_t dir) {
   return &xfer_status[epnum][dir];
 }
 
@@ -290,8 +284,9 @@ static void handle_ctr_tx(uint32_t ep_id) {
   // Verify the CTR bit is set. This was in the ST Micro code, but I'm not sure it's actually necessary?
   TU_VERIFY(ep_reg & USB_EP_CTR_TX, );
 
+  uint8_t const ep_num = ep_reg & USB_EPADDR_FIELD;
   uint8_t ep_addr = (ep_reg & USB_EPADDR_FIELD) | TUSB_DIR_IN_MASK;
-  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
+  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, TUSB_DIR_IN);
 
   if (ep_is_iso(ep_reg)) {
     // Ignore spurious interrupts that we don't schedule
@@ -344,11 +339,9 @@ static void handle_ctr_rx(uint32_t ep_id) {
 
   // Verify the CTR bit is set. This was in the ST Micro code, but I'm not sure it's actually necessary?
   TU_VERIFY(ep_reg & USB_EP_CTR_RX, );
+  ep_reg = (ep_reg & ~USB_EP_CTR_RX) | USB_EP_CTR_TX; // Clear CTR RX and reserved CTR TX
 
-  uint8_t const ep_addr = ep_reg & USB_EPADDR_FIELD;
-
-  // Clear CTR RX and reserved CTR TX
-  ep_reg = (ep_reg & ~USB_EP_CTR_RX) | USB_EP_CTR_TX;
+  uint8_t const ep_num = ep_reg & USB_EPADDR_FIELD;
 
   if (ep_reg & USB_EP_SETUP) {
     uint32_t count = btable_get_count(ep_id, BTABLE_BUF_RX);
@@ -372,7 +365,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
     ep_reg &= USB_EPRX_STAT | USB_EPREG_MASK; // reversed all toggle except RX Status
 
     bool const is_iso = ep_is_iso(ep_reg);
-    xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
+    xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, TUSB_DIR_OUT);
 
     uint8_t buf_id;
     if (is_iso) {
@@ -394,10 +387,11 @@ static void handle_ctr_rx(uint32_t ep_id) {
     }
 
     if ((rx_count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len)) {
+      uint8_t const ep_addr = ep_num;
       // all bytes received or short packet
       dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
 
-      if (ep_addr == 0u) {
+      if (ep_num == 0) {
         // prepared for status packet
         btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, CFG_TUD_ENDPOINT0_SIZE);
       }
@@ -598,6 +592,7 @@ void edpt0_open(uint8_t rhport) {
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   (void)rhport;
   uint8_t const ep_addr = desc_ep->bEndpointAddress;
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   const uint16_t packet_size = tu_edpt_packet_size(desc_ep);
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
@@ -624,8 +619,9 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   uint16_t pma_addr = dcd_pma_alloc(packet_size, false);
   btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
 
-  xfer_ctl_ptr(ep_addr)->max_packet_size = packet_size;
-  xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
+  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
+  xfer->max_packet_size = packet_size;
+  xfer->ep_idx = ep_idx;
 
   ep_reg = ep_add_status(ep_reg, dir, EP_STAT_NAK);
   ep_reg = ep_add_dtog(ep_reg, dir, 0);
@@ -663,6 +659,8 @@ void dcd_edpt_close_all(uint8_t rhport)
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void)rhport;
 
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
 
   /* Create a packet memory buffer area. Enable double buffering for devices with 2048 bytes PMA,
@@ -676,7 +674,9 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 
   btable_set_addr(ep_idx, 0, pma_addr);
   btable_set_addr(ep_idx, 1, pma_addr2);
-  xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
+
+  xfer_ctl_t* xfer = xfer_ctl_ptr(ep_num, dir);
+  xfer->ep_idx = ep_idx;
 
   return true;
 }
@@ -684,10 +684,13 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   (void)rhport;
   uint8_t const ep_addr = desc_ep->bEndpointAddress;
-  uint8_t const ep_idx = xfer_ctl_ptr(ep_addr)->ep_idx;
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
+  xfer_ctl_t* xfer = xfer_ctl_ptr(ep_num, dir);
 
-  xfer_ctl_ptr(ep_addr)->max_packet_size = tu_edpt_packet_size(desc_ep);
+  uint8_t const ep_idx = xfer->ep_idx;
+
+  xfer->max_packet_size = tu_edpt_packet_size(desc_ep);
 
   uint32_t ep_reg = FSDEV_REG->ep[0].reg & ~USB_EPREG_MASK;
   ep_reg |= tu_edpt_number(ep_addr) | USB_EP_ISOCHRONOUS | USB_EP_CTR_RX | USB_EP_CTR_TX;
@@ -735,12 +738,11 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   dcd_int_enable(0);
 }
 
-static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr) {
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
   (void) rhport;
 
-  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
+  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
   uint8_t const ep_idx = xfer->ep_idx;
-  uint8_t const dir = tu_edpt_dir(ep_addr);
 
   if (dir == TUSB_DIR_IN) {
     dcd_transmit_packet(xfer, ep_idx);
@@ -764,31 +766,37 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr) {
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
-  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
+
   xfer->buffer = buffer;
   xfer->ff = NULL;
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 
-  return edpt_xfer(rhport, ep_addr);
+  return edpt_xfer(rhport, ep_num, dir);
 }
 
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes) {
-  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  uint8_t const dir = tu_edpt_dir(ep_addr);
+  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
+
   xfer->buffer = NULL;
   xfer->ff = ff;
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 
-  return edpt_xfer(rhport, ep_addr);
+  return edpt_xfer(rhport, ep_num, dir);
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
-
-  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
-  uint8_t const ep_idx = xfer->ep_idx;
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
+  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
+  uint8_t const ep_idx = xfer->ep_idx;
 
   uint32_t ep_reg = ep_read(ep_idx);
   ep_reg |= USB_EP_CTR_RX | USB_EP_CTR_TX; // reserve CTR bits
@@ -801,11 +809,12 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
 
-  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
-  uint8_t const ep_idx = xfer->ep_idx;
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
-  uint32_t ep_reg = ep_read(ep_idx);
-  ep_reg |= USB_EP_CTR_RX | USB_EP_CTR_TX; // reserve CTR bits
+  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
+  uint8_t const ep_idx = xfer->ep_idx;
+
+  uint32_t ep_reg = ep_read(ep_idx) | EP_CTR_TXRX;
   ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir) | EP_DTOG_MASK(dir);
 
   if (!ep_is_iso(ep_reg)) {
