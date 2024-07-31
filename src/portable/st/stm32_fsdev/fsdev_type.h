@@ -25,8 +25,8 @@
  *
  */
 
-#ifndef TUSB_FSDEV_COMMON_H
-#define TUSB_FSDEV_COMMON_H
+#ifndef TUSB_FSDEV_TYPE_H
+#define TUSB_FSDEV_TYPE_H
 
 #ifdef __cplusplus
  extern "C" {
@@ -62,6 +62,9 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 b
   #define pma_aligned
 #endif
 
+//--------------------------------------------------------------------+
+// BTable Typedef
+//--------------------------------------------------------------------+
 enum {
   BTABLE_BUF_TX = 0,
   BTABLE_BUF_RX = 1
@@ -92,8 +95,11 @@ typedef struct {
 TU_VERIFY_STATIC(sizeof(fsdev_btable_t) == FSDEV_EP_COUNT*8*FSDEV_PMA_STRIDE, "size is not correct");
 TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT*8 <= FSDEV_PMA_SIZE, "BTABLE does not fit in PMA RAM");
 
-
 #define FSDEV_BTABLE ((volatile fsdev_btable_t*) (USB_PMAADDR+FSDEV_BTABLE_BASE))
+
+//--------------------------------------------------------------------+
+// Registers Typedef
+//--------------------------------------------------------------------+
 
 // volatile 32-bit aligned
 #define _va32     volatile TU_ATTR_ALIGNED(4)
@@ -166,7 +172,7 @@ typedef enum {
 #define EP_DTOG_MASK(_dir)  (1u << (USB_EP_DTOG_TX_Pos + ((_dir) == TUSB_DIR_IN ? 0 : 8)))
 
 //--------------------------------------------------------------------+
-// Endpoint
+// Endpoint Helper
 // - CTR is write 0 to clear
 // - DTOG and STAT are write 1 to toggle
 //--------------------------------------------------------------------+
@@ -174,15 +180,6 @@ typedef enum {
 TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value) {
   FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
 }
-
-// write ep register with clear CTR_RX and CTR_TX mask (0 is no clear)
-//TU_ATTR_ALWAYS_INLINE static inline void ep_write_with_clear_ctr(uint32_t ep_id, uint32_t value, uint32_t clear_ctr_mask) {
-//  value |= USB_EP_CTR_RX | USB_EP_CTR_TX;
-//  if (clear_ctr_mask) {
-//    value &= ~clear_ctr_mask;
-//  }
-//  FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
-//}
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
   return FSDEV_REG->ep[ep_id].reg;
@@ -205,7 +202,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(uint32_t reg) {
 }
 
 //--------------------------------------------------------------------+
-// BTable
+// BTable Helper
 //--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_addr(uint32_t ep_id, uint8_t buf_id) {

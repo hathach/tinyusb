@@ -123,7 +123,7 @@
   #error "Unknown USB IP"
 #endif
 
-#include "fsdev_common.h"
+#include "fsdev_type.h"
 
 //--------------------------------------------------------------------+
 // Configuration
@@ -197,25 +197,25 @@ void dcd_init(uint8_t rhport) {
   }
 
   // Perform USB peripheral reset
-  USB->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
+  FSDEV_REG->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
 
-  USB->CNTR &= ~USB_CNTR_PDWN;
+  FSDEV_REG->CNTR &= ~USB_CNTR_PDWN;
 
   // Wait startup time, for F042 and F070, this is <= 1 us.
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
   }
-  USB->CNTR = 0; // Enable USB
+  FSDEV_REG->CNTR = 0; // Enable USB
 
-#if !defined(STM32G0) && !defined(STM32H5) && !defined(STM32U5)
-  // BTABLE register does not exist any more on STM32G0, it is fixed to USB SRAM base address
-  USB->BTABLE = FSDEV_BTABLE_BASE;
+#if !defined(FSDEV_BUS_32BIT)
+  // BTABLE register does not exist any more on 32-bit bus devices
+  FSDEV_REG->BTABLE = FSDEV_BTABLE_BASE;
 #endif
 
-  USB->ISTR = 0; // Clear pending interrupts
+  FSDEV_REG->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
   for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {
@@ -223,7 +223,7 @@ void dcd_init(uint8_t rhport) {
     ep_write(i, 0u);
   }
 
-  USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
+  FSDEV_REG->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
   handle_bus_reset(rhport);
 
   // Enable pull-up if supported
@@ -234,9 +234,9 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
   (void)rhport;
 
   if (en) {
-    USB->CNTR |= USB_CNTR_SOFM;
+    FSDEV_REG->CNTR |= USB_CNTR_SOFM;
   } else {
-    USB->CNTR &= ~USB_CNTR_SOFM;
+    FSDEV_REG->CNTR &= ~USB_CNTR_SOFM;
   }
 }
 
@@ -254,12 +254,12 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
 void dcd_remote_wakeup(uint8_t rhport) {
   (void)rhport;
 
-  USB->CNTR |= USB_CNTR_RESUME;
+  FSDEV_REG->CNTR |= USB_CNTR_RESUME;
   remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
 static void handle_bus_reset(uint8_t rhport) {
-  USB->DADDR = 0u; // disable USB Function
+  FSDEV_REG->DADDR = 0u; // disable USB Function
 
   for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {
     // Clear EP allocation status
@@ -274,7 +274,7 @@ static void handle_bus_reset(uint8_t rhport) {
 
   edpt0_open(rhport); // open control endpoint (both IN & OUT)
 
-  USB->DADDR = USB_DADDR_EF; // Enable USB Function
+  FSDEV_REG->DADDR = USB_DADDR_EF; // Enable USB Function
 }
 
 // Handle CTR interrupt for the TX/IN direction
@@ -410,7 +410,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
 }
 
 void dcd_int_handler(uint8_t rhport) {
-  uint32_t int_status = USB->ISTR;
+  uint32_t int_status = FSDEV_REG->ISTR;
   // const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
   //     | USB_ISTR_SUSP | USB_ISTR_SOF | USB_ISTR_ESOF;
   //  unused IRQs: (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_L1REQ )
@@ -421,23 +421,23 @@ void dcd_int_handler(uint8_t rhport) {
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
   if (int_status & USB_ISTR_SOF) {
-    USB->ISTR = (fsdev_bus_t)~USB_ISTR_SOF;
-    dcd_event_sof(0, USB->FNR & USB_FNR_FN, true);
+    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_SOF;
+    dcd_event_sof(0, FSDEV_REG->FNR & USB_FNR_FN, true);
   }
 
   if (int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
-    USB->ISTR = (fsdev_bus_t)~USB_ISTR_RESET;
+    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_RESET;
     handle_bus_reset(rhport);
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     return; // Don't do the rest of the things here; perhaps they've been cleared?
   }
 
   if (int_status & USB_ISTR_WKUP) {
-    USB->CNTR &= ~USB_CNTR_LPMODE;
-    USB->CNTR &= ~USB_CNTR_FSUSP;
+    FSDEV_REG->CNTR &= ~USB_CNTR_LPMODE;
+    FSDEV_REG->CNTR &= ~USB_CNTR_FSUSP;
 
-    USB->ISTR = (fsdev_bus_t)~USB_ISTR_WKUP;
+    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_WKUP;
     dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
@@ -446,22 +446,22 @@ void dcd_int_handler(uint8_t rhport) {
      * these events cannot be differentiated, so we only trigger suspend. */
 
     /* Force low-power mode in the macrocell */
-    USB->CNTR |= USB_CNTR_FSUSP;
-    USB->CNTR |= USB_CNTR_LPMODE;
+    FSDEV_REG->CNTR |= USB_CNTR_FSUSP;
+    FSDEV_REG->CNTR |= USB_CNTR_LPMODE;
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
-    USB->ISTR = (fsdev_bus_t)~USB_ISTR_SUSP;
+    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_SUSP;
     dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
   if (int_status & USB_ISTR_ESOF) {
     if (remoteWakeCountdown == 1u) {
-      USB->CNTR &= ~USB_CNTR_RESUME;
+      FSDEV_REG->CNTR &= ~USB_CNTR_RESUME;
     }
     if (remoteWakeCountdown > 0u) {
       remoteWakeCountdown--;
     }
-    USB->ISTR = (fsdev_bus_t)~USB_ISTR_ESOF;
+    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_ESOF;
   }
 
   // loop to handle all pending CTR interrupts
@@ -474,7 +474,7 @@ void dcd_int_handler(uint8_t rhport) {
       handle_ctr_rx(ep_id); // RX/OUT or both (RX/TX !!)
     }
 
-    int_status = USB->ISTR;
+    int_status = FSDEV_REG->ISTR;
   }
 }
 
@@ -488,10 +488,11 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *req
   (void)rhport;
 
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
+
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
       request->bRequest == TUSB_REQ_SET_ADDRESS) {
     uint8_t const dev_addr = (uint8_t)request->wValue;
-    USB->DADDR = (USB_DADDR_EF | dev_addr);
+    FSDEV_REG->DADDR = (USB_DADDR_EF | dev_addr);
   }
 }
 

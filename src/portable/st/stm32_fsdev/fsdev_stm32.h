@@ -198,6 +198,8 @@
   #define FSDEV_REG_BASE USB_BASE
 #elif defined(USB_DRD_BASE)
   #define FSDEV_REG_BASE USB_DRD_BASE
+#elif defined(USB_DRD_FS_BASE)
+  #define FSDEV_REG_BASE USB_DRD_FS_BASE
 #else
   #error "FSDEV_REG_BASE not defined"
 #endif
