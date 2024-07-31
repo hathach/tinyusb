@@ -364,10 +364,11 @@ static void dcd_ep_ctr_rx_handler(uint32_t ep_id) {
       dcd_event_setup_received(0, (uint8_t*) setup_packet, true);
 
       // Reset EP to NAK (in case it had been stalling)
-      ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_NAK);
-      ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
-      ep_reg = ep_add_tx_dtog(ep_reg, 1);
-      ep_reg = ep_add_rx_dtog(ep_reg, 1);
+      ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_NAK);
+      ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
+
+      ep_reg = ep_add_dtog(ep_reg, TUSB_DIR_IN, 1);
+      ep_reg = ep_add_dtog(ep_reg, TUSB_DIR_OUT, 1);
     } else {
       ep_reg &= USB_EPREG_MASK; // reversed all toggle
     }
@@ -404,15 +405,14 @@ static void dcd_ep_ctr_rx_handler(uint32_t ep_id) {
         // prepared for status packet
         btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, CFG_TUD_ENDPOINT0_SIZE);
       }
-
-      ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
+      ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
     } else {
       // Set endpoint active again for receiving more data. Note that isochronous endpoints stay active always
       if (!is_iso) {
         uint16_t const cnt = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
         btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, cnt);
       }
-      ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_VALID);
+      ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_VALID);
     }
   }
 
@@ -594,9 +594,9 @@ void edpt0_open(uint8_t rhport) {
   btable_set_addr(0, BTABLE_BUF_TX, pma_addr1);
 
   uint32_t ep_reg = FSDEV_REG->ep[0].reg & ~USB_EPREG_MASK;
-  ep_reg |= USB_EP_CONTROL; // | USB_EP_CTR_RX | USB_EP_CTR_TX;
-  ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_NAK);
-  ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
+  ep_reg |= USB_EP_CONTROL;
+  ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_NAK);
+  ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
   // no need to explicitly set DTOG bits since we aren't masked DTOG bit
 
   // prepare for setup packet
@@ -637,15 +637,16 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   xfer_ctl_ptr(ep_addr)->max_packet_size = packet_size;
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
+  ep_reg = ep_add_status(ep_reg, dir, EP_STAT_NAK);
+  ep_reg = ep_add_dtog(ep_reg, dir, 0);
+
+  // reserve other direction toggle bits
   if (dir == TUSB_DIR_IN) {
-    ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_NAK);
-    ep_reg = ep_add_tx_dtog(ep_reg, 0);
     ep_reg &= ~(USB_EPRX_STAT | USB_EP_DTOG_RX);
   } else {
-    ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_NAK);
-    ep_reg = ep_add_rx_dtog(ep_reg, 0);
     ep_reg &= ~(USB_EPTX_STAT | USB_EP_DTOG_TX);
   }
+
   pcd_set_endpoint(USB, ep_idx, ep_reg);
 
   return true;
@@ -667,28 +668,6 @@ void dcd_edpt_close_all(uint8_t rhport)
 
   // Reset PMA allocation
   ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX + 2 * CFG_TUD_ENDPOINT0_SIZE;
-}
-
-/**
- * Close an endpoint.
- *
- * This function may be called with interrupts enabled or disabled.
- *
- * This also clears transfers in progress, should there be any.
- */
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
-  (void)rhport;
-
-  xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
-  uint8_t const ep_idx = xfer->ep_idx;
-  uint8_t const dir = tu_edpt_dir(ep_addr);
-
-  if (dir == TUSB_DIR_IN) {
-    pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_DIS);
-  } else {
-    pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_DIS);
-  }
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -724,15 +703,11 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
 
   uint32_t ep_reg = FSDEV_REG->ep[0].reg & ~USB_EPREG_MASK;
   ep_reg |= tu_edpt_number(ep_addr) | USB_EP_ISOCHRONOUS | USB_EP_CTR_RX | USB_EP_CTR_TX;
-  ep_reg = ep_add_tx_status(ep_reg, USB_EP_TX_DIS);
-  ep_reg = ep_add_rx_status(ep_reg, USB_EP_RX_DIS);
+  ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
+  ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
 
-  // no need to explicitly set DTOG bits since we aren't masked DTOG bit
-  if (dir == TUSB_DIR_IN) {
-    ep_reg = ep_add_rx_dtog(ep_reg, 1);
-  } else {
-    ep_reg = ep_add_tx_dtog(ep_reg, 1);
-  }
+  ep_add_dtog(ep_reg, dir, 0);
+  ep_add_dtog(ep_reg, 1-dir, 1);
 
   pcd_set_endpoint(USB, ep_idx, ep_reg);
 
@@ -838,13 +813,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   }
 }
 
-void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
-{
+void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
 
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
   uint8_t const ep_idx = xfer->ep_idx;
   uint8_t const dir = tu_edpt_dir(ep_addr);
+
+//  uint32_t ep_reg = pcd_get_endpoint(USB, ep_idx);
 
   if (dir == TUSB_DIR_IN) { // IN
     if (pcd_get_eptype(USB, ep_idx) != USB_EP_ISOCHRONOUS) {

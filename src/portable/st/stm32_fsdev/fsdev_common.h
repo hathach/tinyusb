@@ -140,6 +140,10 @@ TU_VERIFY_STATIC(sizeof(fsdev_regs_t) == 0x5C, "Size is not correct");
 #define USB_EPRX_STAT 0x3000U
 #endif
 
+#ifndef USB_EPTX_STAT_Pos
+#define USB_EPTX_STAT_Pos                       (4U)
+#endif
+
 #ifndef USB_EP_DTOG_TX_Pos
 #define USB_EP_DTOG_TX_Pos                      (6U)
 #endif
@@ -147,6 +151,13 @@ TU_VERIFY_STATIC(sizeof(fsdev_regs_t) == 0x5C, "Size is not correct");
 #ifndef USB_EP_DTOG_RX_Pos
 #define USB_EP_DTOG_RX_Pos                      (14U)
 #endif
+
+typedef enum {
+  EP_STAT_DISABLED = 0,
+  EP_STAT_STALL = 1,
+  EP_STAT_NAK = 2,
+  EP_STAT_VALID = 3
+}ep_stat_t;
 
 //--------------------------------------------------------------------+
 // BTable
@@ -291,19 +302,12 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx,
   pcd_set_endpoint(USBx, bEpIdx,regVal);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_tx_status(uint32_t reg, uint32_t state) {
-  return reg ^ state;
-}
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_rx_status(uint32_t reg, uint32_t state) {
-  return reg ^ state;
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_status(uint32_t reg, tusb_dir_t dir, ep_stat_t state) {
+  return reg ^ (state << (USB_EPTX_STAT_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_tx_dtog(uint32_t reg, uint32_t state) {
-  return reg ^ (state << USB_EP_DTOG_TX_Pos);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_rx_dtog(uint32_t reg, uint32_t state) {
-  return reg ^ (state << USB_EP_DTOG_RX_Pos);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_dtog(uint32_t reg, tusb_dir_t dir, uint8_t state) {
+  return reg ^ (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
 }
 
 /**
