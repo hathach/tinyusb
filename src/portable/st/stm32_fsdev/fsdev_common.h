@@ -159,6 +159,9 @@ typedef enum {
   EP_STAT_VALID = 3
 }ep_stat_t;
 
+#define EP_STAT_MASK(_dir)  (3u << (USB_EPTX_STAT_Pos + ((_dir) == TUSB_DIR_IN ? 0 : 8)))
+#define EP_DTOG_MASK(_dir)  (1u << (USB_EP_DTOG_TX_Pos + ((_dir) == TUSB_DIR_IN ? 0 : 8)))
+
 //--------------------------------------------------------------------+
 // BTable
 //--------------------------------------------------------------------+
@@ -274,26 +277,6 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_eptype(USB_TypeDef * USBx, uint
   pcd_set_endpoint(USBx, bEpIdx, regVal);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_eptype(USB_TypeDef * USBx, uint32_t bEpIdx) {
-  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-  regVal &= USB_EP_T_FIELD;
-  return regVal;
-}
-
-/**
-  * @brief  Clears bit CTR_RX / CTR_TX in the endpoint register.
-  * @param  USBx USB peripheral instance register address.
-  * @param  bEpIdx Endpoint Number.
-  * @retval None
-  */
-TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_rx_ep_ctr(USB_TypeDef * USBx, uint32_t bEpIdx) {
-  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-  regVal &= USB_EPREG_MASK;
-  regVal &= ~USB_EP_CTR_RX;
-  regVal |= USB_EP_CTR_TX; // preserve CTR_TX (clears on writing 0)
-  pcd_set_endpoint(USBx, bEpIdx, regVal);
-}
-
 TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx, uint32_t bEpIdx) {
   uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
   regVal &= USB_EPREG_MASK;
@@ -308,6 +291,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_status(uint32_t reg, tusb_di
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_dtog(uint32_t reg, tusb_dir_t dir, uint8_t state) {
   return reg ^ (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(uint32_t reg) {
+  return (reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
 }
 
 /**
@@ -340,54 +327,6 @@ TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_rx_status(USB_TypeDef * USBx
   regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
   pcd_set_endpoint(USBx, bEpIdx, regVal);
 }
-
-//TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_ep_rx_status(USB_TypeDef * USBx,  uint32_t bEpIdx) {
-//  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-//  return (regVal & USB_EPRX_STAT) >> (12u);
-//}
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_rx_dtog(USB_TypeDef * USBx,  uint32_t bEpIdx) {
-  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-  regVal &= USB_EPREG_MASK;
-  regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX|USB_EP_DTOG_RX;
-  pcd_set_endpoint(USBx, bEpIdx, regVal);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_tx_dtog(USB_TypeDef * USBx,  uint32_t bEpIdx) {
-  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-  regVal &= USB_EPREG_MASK;
-  regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX|USB_EP_DTOG_TX;
-  pcd_set_endpoint(USBx, bEpIdx, regVal);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_rx_dtog(USB_TypeDef * USBx,  uint32_t bEpIdx) {
-  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-  if((regVal & USB_EP_DTOG_RX) != 0) {
-    pcd_rx_dtog(USBx,bEpIdx);
-  }
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_tx_dtog(USB_TypeDef * USBx,  uint32_t bEpIdx) {
-  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-  if((regVal & USB_EP_DTOG_TX) != 0) {
-    pcd_tx_dtog(USBx,bEpIdx);
-  }
-}
-
-//TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_kind(USB_TypeDef * USBx,  uint32_t bEpIdx) {
-//  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-//  regVal |= USB_EP_KIND;
-//  regVal &= USB_EPREG_MASK;
-//  regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
-//  pcd_set_endpoint(USBx, bEpIdx, regVal);
-//}
-//
-//TU_ATTR_ALWAYS_INLINE static inline void pcd_clear_ep_kind(USB_TypeDef * USBx, uint32_t bEpIdx) {
-//  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-//  regVal &= USB_EPKIND_MASK;
-//  regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
-//  pcd_set_endpoint(USBx, bEpIdx, regVal);
-//}
 
 #ifdef __cplusplus
  }

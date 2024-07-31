@@ -375,7 +375,7 @@ static void dcd_ep_ctr_rx_handler(uint32_t ep_id) {
   } else {
     ep_reg &= USB_EPRX_STAT | USB_EPREG_MASK; // reversed all toggle except RX Status
 
-    bool const is_iso = (ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
+    bool const is_iso = ep_is_iso(ep_reg);
     xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
 
     uint8_t buf_id;
@@ -748,9 +748,8 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   dcd_int_enable(0);
 }
 
-static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
-{
-  (void)rhport;
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport;
 
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
   uint8_t const ep_idx = xfer->ep_idx;
@@ -762,7 +761,7 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
     uint32_t cnt = (uint32_t) tu_min16(xfer->total_len, xfer->max_packet_size);
     uint16_t ep_reg = pcd_get_endpoint(USB, ep_idx);
 
-    if ((ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
+    if (ep_is_iso(ep_reg)) {
       btable_set_rx_bufsize(ep_idx, 0, cnt);
       btable_set_rx_bufsize(ep_idx, 1, cnt);
     } else {
@@ -775,10 +774,8 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr)
   return true;
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
-{
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
-
   xfer->buffer = buffer;
   xfer->ff = NULL;
   xfer->total_len = total_bytes;
@@ -787,8 +784,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   return edpt_xfer(rhport, ep_addr);
 }
 
-bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes)
-{
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes) {
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
   xfer->buffer = NULL;
   xfer->ff = ff;
@@ -798,19 +794,19 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
   return edpt_xfer(rhport, ep_addr);
 }
 
-void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
-{
+void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
 
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
   uint8_t const ep_idx = xfer->ep_idx;
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  if (dir == TUSB_DIR_IN) {
-    pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_STALL);
-  } else {
-    pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_STALL);
-  }
+  uint32_t ep_reg = pcd_get_endpoint(USB, ep_idx);
+  ep_reg |= USB_EP_CTR_RX | USB_EP_CTR_TX; // reserve CTR bits
+  ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir);
+  ep_reg = ep_add_status(ep_reg, dir, EP_STAT_STALL);
+
+  pcd_set_endpoint(USB, ep_idx, ep_reg);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -819,23 +815,16 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
   uint8_t const ep_idx = xfer->ep_idx;
   uint8_t const dir = tu_edpt_dir(ep_addr);
+  uint32_t ep_reg = pcd_get_endpoint(USB, ep_idx);
+  ep_reg |= USB_EP_CTR_RX | USB_EP_CTR_TX; // reserve CTR bits
+  ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir) | EP_DTOG_MASK(dir);
 
-//  uint32_t ep_reg = pcd_get_endpoint(USB, ep_idx);
-
-  if (dir == TUSB_DIR_IN) { // IN
-    if (pcd_get_eptype(USB, ep_idx) != USB_EP_ISOCHRONOUS) {
-      pcd_set_ep_tx_status(USB, ep_idx, USB_EP_TX_NAK);
-    }
-
-    /* Reset to DATA0 if clearing stall condition. */
-    pcd_clear_tx_dtog(USB, ep_idx);
-  } else { // OUT
-    if (pcd_get_eptype(USB, ep_idx) != USB_EP_ISOCHRONOUS) {
-      pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_NAK);
-    }
-    /* Reset to DATA0 if clearing stall condition. */
-    pcd_clear_rx_dtog(USB, ep_idx);
+  if (!ep_is_iso(ep_reg)) {
+    ep_reg = ep_add_status(ep_reg, dir, EP_STAT_NAK);
   }
+  ep_reg = ep_add_dtog(ep_reg, dir, 0); // Reset to DATA0
+
+  pcd_set_endpoint(USB, ep_idx, ep_reg);
 }
 
 #ifdef FSDEV_BUS_32BIT
