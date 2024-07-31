@@ -286,21 +286,15 @@ static void handle_bus_reset(uint8_t rhport) {
 
 // Handle CTR interrupt for the TX/IN direction
 static void dcd_ep_ctr_tx_handler(uint32_t ep_id) {
-  uint32_t wEPRegVal = pcd_get_endpoint(USB, ep_id);
-  uint8_t ep_addr = (wEPRegVal & USB_EPADDR_FIELD) | TUSB_DIR_IN_MASK;
+  uint32_t ep_reg = pcd_get_endpoint(USB, ep_id) & USB_EPREG_MASK;
 
-  // Verify the CTR_TX bit is set. This was in the ST Micro code,
-  // but I'm not sure it's actually necessary?
-  if ((wEPRegVal & USB_EP_CTR_TX) == 0U) {
-    return;
-  }
+  // Verify the CTR bit is set. This was in the ST Micro code, but I'm not sure it's actually necessary?
+  TU_VERIFY(ep_reg & USB_EP_CTR_TX, );
 
-  /* clear int flag */
-  pcd_clear_tx_ep_ctr(USB, ep_id);
-
+  uint8_t ep_addr = (ep_reg & USB_EPADDR_FIELD) | TUSB_DIR_IN_MASK;
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_addr);
 
-  if ((wEPRegVal & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS) {
+  if (ep_is_iso(ep_reg)) {
     // Ignore spurious interrupts that we don't schedule
     // host can send IN token while there is no data to send, since ISO does not have NAK
     // this will result to zero length packet --> trigger interrupt (which cannot be masked)
@@ -308,14 +302,19 @@ static void dcd_ep_ctr_tx_handler(uint32_t ep_id) {
       return;
     }
     xfer->iso_in_sending = false;
-    uint8_t buf_id = (wEPRegVal & USB_EP_DTOG_TX) ? 0 : 1;
+    uint8_t buf_id = (ep_reg & USB_EP_DTOG_TX) ? 0 : 1;
     btable_set_count(ep_id, buf_id, 0);
   }
 
-  if ((xfer->total_len != xfer->queued_len)) {
-    dcd_transmit_packet(xfer, ep_id);
+  if (xfer->total_len != xfer->queued_len) {
+    dcd_transmit_packet(xfer, ep_id); // also clear CTR bit
   } else {
     dcd_event_xfer_complete(0, ep_addr, xfer->total_len, XFER_RESULT_SUCCESS, true);
+
+    // Clear CTR TX and reserved CTR RX
+    ep_reg = (ep_reg & ~USB_EP_CTR_TX) | USB_EP_CTR_RX;
+
+    pcd_set_endpoint(USB, ep_id, ep_reg);
   }
 }
 
@@ -343,15 +342,13 @@ static void dcd_ep_ctr_rx_handler(uint32_t ep_id) {
 #endif
 
   uint32_t ep_reg = pcd_get_endpoint(USB, ep_id);
-  uint8_t ep_addr = ep_reg & USB_EPADDR_FIELD;
 
-  // Verify the CTR_RX bit is set. This was in the ST Micro code,
-  // but I'm not sure it's actually necessary?
-  if ((ep_reg & USB_EP_CTR_RX) == 0U) {
-    return;
-  }
+  // Verify the CTR bit is set. This was in the ST Micro code, but I'm not sure it's actually necessary?
+  TU_VERIFY(ep_reg & USB_EP_CTR_RX, );
 
-  // Clear RX CTR and reserved TX CTR
+  uint8_t const ep_addr = ep_reg & USB_EPADDR_FIELD;
+
+  // Clear CTR RX and reserved CTR TX
   ep_reg = (ep_reg & ~USB_EP_CTR_RX) | USB_EP_CTR_TX;
 
   if (ep_reg & USB_EP_SETUP) {
@@ -688,8 +685,6 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   btable_set_addr(ep_idx, 1, pma_addr2);
   xfer_ctl_ptr(ep_addr)->ep_idx = ep_idx;
 
-  pcd_set_eptype(USB, ep_idx, USB_EP_ISOCHRONOUS);
-
   return true;
 }
 
@@ -715,13 +710,9 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
 
 // Currently, single-buffered, and only 64 bytes at a time (max)
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
-  uint16_t len = (uint16_t)(xfer->total_len - xfer->queued_len);
-  if (len > xfer->max_packet_size) {
-    len = xfer->max_packet_size;
-  }
-
-  uint16_t ep_reg = pcd_get_endpoint(USB, ep_ix);
-  bool const is_iso = (ep_reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
+  uint16_t len = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
+  uint16_t ep_reg = pcd_get_endpoint(USB, ep_ix) | EP_CTR_TXRX;
+  bool const is_iso = ep_is_iso(ep_reg);
 
   uint8_t buf_id;
   if (is_iso) {
@@ -739,8 +730,12 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   }
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
 
+  ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN);
+  ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_VALID);
+  ep_reg = ep_clear_ctr(ep_reg, TUSB_DIR_IN);
+
   dcd_int_disable(0);
-  pcd_set_ep_tx_status(USB, ep_ix, USB_EP_TX_VALID);
+  pcd_set_endpoint(USB, ep_ix, ep_reg);
   if (is_iso) {
     xfer->iso_in_sending = true;
   }
@@ -758,7 +753,9 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr) {
     dcd_transmit_packet(xfer, ep_idx);
   } else {
     uint32_t cnt = (uint32_t) tu_min16(xfer->total_len, xfer->max_packet_size);
-    uint16_t ep_reg = pcd_get_endpoint(USB, ep_idx);
+    uint16_t ep_reg = pcd_get_endpoint(USB, ep_idx) | USB_EP_CTR_TX;
+    ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir); // keep CTR TX, clear CTR RX
+    ep_reg = ep_add_status(ep_reg, dir, EP_STAT_VALID);
 
     if (ep_is_iso(ep_reg)) {
       btable_set_rx_bufsize(ep_idx, 0, cnt);
@@ -767,7 +764,7 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr) {
       btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
     }
 
-    pcd_set_ep_rx_status(USB, ep_idx, USB_EP_RX_VALID);
+    pcd_set_endpoint(USB, ep_idx, ep_reg);
   }
 
   return true;
