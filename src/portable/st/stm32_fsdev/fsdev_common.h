@@ -166,6 +166,43 @@ typedef enum {
 #define EP_DTOG_MASK(_dir)  (1u << (USB_EP_DTOG_TX_Pos + ((_dir) == TUSB_DIR_IN ? 0 : 8)))
 
 //--------------------------------------------------------------------+
+// Endpoint
+//--------------------------------------------------------------------+
+
+TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value) {
+  FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
+}
+
+// write ep register with clear CTR_RX and CTR_TX mask (0 is no clear)
+//TU_ATTR_ALWAYS_INLINE static inline void ep_write_with_clear_ctr(uint32_t ep_id, uint32_t value, uint32_t clear_ctr_mask) {
+//  value |= USB_EP_CTR_RX | USB_EP_CTR_TX;
+//  if (clear_ctr_mask) {
+//    value &= ~clear_ctr_mask;
+//  }
+//  FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
+//}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
+  return FSDEV_REG->ep[ep_id].reg;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_status(uint32_t reg, tusb_dir_t dir, ep_stat_t state) {
+  return reg ^ (state << (USB_EPTX_STAT_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_dtog(uint32_t reg, tusb_dir_t dir, uint8_t state) {
+  return reg ^ (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_clear_ctr(uint32_t reg, tusb_dir_t dir) {
+  return reg & ~(1 << (USB_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(uint32_t reg) {
+  return (reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
+}
+
+//--------------------------------------------------------------------+
 // BTable
 //--------------------------------------------------------------------+
 
@@ -241,45 +278,6 @@ TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, u
 #else
   FSDEV_BTABLE->ep16[ep_id][buf_id].count = bl_nb;
 #endif
-}
-
-//--------------------------------------------------------------------+
-// Endpoint
-//--------------------------------------------------------------------+
-
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_endpoint(USB_TypeDef * USBx, uint32_t ep_id, uint32_t value) {
-  (void) USBx;
-  FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
-}
-
-// write ep register with clear CTR_RX and CTR_TX mask (0 is no clear)
-//TU_ATTR_ALWAYS_INLINE static inline void ep_write_with_clear_ctr(uint32_t ep_id, uint32_t value, uint32_t clear_ctr_mask) {
-//  value |= USB_EP_CTR_RX | USB_EP_CTR_TX;
-//  if (clear_ctr_mask) {
-//    value &= ~clear_ctr_mask;
-//  }
-//  FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
-//}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_endpoint(USB_TypeDef * USBx, uint32_t ep_id) {
-  (void) USBx;
-  return FSDEV_REG->ep[ep_id].reg;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_status(uint32_t reg, tusb_dir_t dir, ep_stat_t state) {
-  return reg ^ (state << (USB_EPTX_STAT_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_dtog(uint32_t reg, tusb_dir_t dir, uint8_t state) {
-  return reg ^ (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_clear_ctr(uint32_t reg, tusb_dir_t dir) {
-  return reg & ~(1 << (USB_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
-}
-
-TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(uint32_t reg) {
-  return (reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
 }
 
 #ifdef __cplusplus
