@@ -705,9 +705,8 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
   ep_reg |= tu_edpt_number(ep_addr) | USB_EP_ISOCHRONOUS | USB_EP_CTR_RX | USB_EP_CTR_TX;
   ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
   ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
-
-  ep_add_dtog(ep_reg, dir, 0);
-  ep_add_dtog(ep_reg, 1-dir, 1);
+  ep_reg = ep_add_dtog(ep_reg, dir, 0);
+  ep_reg = ep_add_dtog(ep_reg, 1-dir, 1);
 
   pcd_set_endpoint(USB, ep_idx, ep_reg);
 

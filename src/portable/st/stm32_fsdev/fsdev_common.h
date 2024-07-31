@@ -254,20 +254,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t pcd_get_endpoint(USB_TypeDef * USBx
   return FSDEV_REG->ep[bEpIdx].reg;
 }
 
-/**
-  * @brief  Sets address in an endpoint register.
-  * @param  USBx USB peripheral instance register address.
-  * @param  bEpIdx Endpoint Number.
-  * @param  bAddr Address.
-  * @retval None
-  */
-TU_ATTR_ALWAYS_INLINE static inline void pcd_set_ep_address(USB_TypeDef * USBx,  uint32_t bEpIdx, uint32_t bAddr) {
-  uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
-  regVal &= USB_EPREG_MASK;
-  regVal |= bAddr;
-  regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
-  pcd_set_endpoint(USBx, bEpIdx, regVal);
-}
+//TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value) {
+//  FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
+//}
 
 TU_ATTR_ALWAYS_INLINE static inline void pcd_set_eptype(USB_TypeDef * USBx, uint32_t bEpIdx, uint32_t wType) {
   uint32_t regVal = pcd_get_endpoint(USBx, bEpIdx);
