@@ -15,7 +15,7 @@ set(CMAKE_SYSTEM_PROCESSOR cortex-m0plus CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32G0 CACHE INTERNAL "")
-
+set(OPENOCD_OPTION "-f interface/stlink.cfg -f target/stm32g0x.cfg")
 
 #------------------------------------
 # BOARD_TARGET
@@ -112,6 +112,7 @@ function(family_configure_example TARGET RTOS)
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
-  family_flash_stlink(${TARGET})
   family_flash_jlink(${TARGET})
+  family_flash_stlink(${TARGET})
+  #family_flash_openocd(${TARGET})
 endfunction()
