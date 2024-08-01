@@ -43,7 +43,7 @@ if platform.machine() == 'aarch64':
         pass
 
 
-ENUM_TIMEOUT = 10
+ENUM_TIMEOUT = 30
 
 
 # get usb serial by id
