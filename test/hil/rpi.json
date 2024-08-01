@@ -45,6 +45,13 @@
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
         },
         {
+            "name": "stm32f072disco",
+            "uid": "3A001A001357364230353532",
+            "flasher": "jlink",
+            "flasher_sn": "779541626",
+            "flasher_args": "-device stm32f072rb"
+        },
+        {
             "name": "stm32g0b1nucleo",
             "uid": "4D0038000450434E37343120",
             "flasher": "openocd",
