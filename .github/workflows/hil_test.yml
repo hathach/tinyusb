@@ -150,6 +150,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: cmake-build
+          merge-multiple: true
 
       - name: Test on actual hardware
         run: |
