@@ -75,10 +75,9 @@ enum {
 
 // Buffer Table is located in Packet Memory Area (PMA) and therefore its address access is forced to either
 // 16-bit or 32-bit depending on FSDEV_BUS_32BIT.
+// 0: TX (IN), 1: RX (OUT)
 typedef union {
-  // 0: TX (IN), 1: RX (OUT)
-
-  // strictly 16-bit access (could be 32-bit aligned)
+  // data is strictly 16-bit access (address could be 32-bit aligned)
   struct {
     volatile pma_aligned uint16_t addr;
     volatile pma_aligned uint16_t count;
@@ -181,16 +180,16 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
   return FSDEV_REG->ep[ep_id].reg;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_status(uint32_t reg, tusb_dir_t dir, ep_stat_t state) {
-  return reg ^ (state << (USB_EPTX_STAT_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+TU_ATTR_ALWAYS_INLINE static inline void ep_add_status(uint32_t* reg, tusb_dir_t dir, ep_stat_t state) {
+  *reg ^= (state << (USB_EPTX_STAT_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_add_dtog(uint32_t reg, tusb_dir_t dir, uint8_t state) {
-  return reg ^ (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+TU_ATTR_ALWAYS_INLINE static inline void ep_add_dtog(uint32_t* reg, tusb_dir_t dir, uint8_t state) {
+  *reg ^= (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_clear_ctr(uint32_t reg, tusb_dir_t dir) {
-  return reg & ~(1 << (USB_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+TU_ATTR_ALWAYS_INLINE static inline void ep_clear_ctr(uint32_t* reg, tusb_dir_t dir) {
+  *reg &= ~(1 << (USB_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(uint32_t reg) {
