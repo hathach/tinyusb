@@ -825,120 +825,75 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_write(ep_idx, ep_reg);
 }
 
-#ifdef FSDEV_BUS_32BIT
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes) {
-  const uint8_t *src8 = src;
-  volatile uint32_t *pma32 = (volatile uint32_t *)(USB_PMAADDR + dst);
-
-  for (uint32_t n = wNBytes / 4; n > 0; --n) {
-    *pma32++ = tu_unaligned_read32(src8);
-    src8 += 4;
-  }
-
-  uint16_t odd = wNBytes & 0x03;
-  if (odd) {
-    uint32_t wrVal = *src8;
-    odd--;
-
-    if (odd) {
-      wrVal |= *++src8 << 8;
-      odd--;
-
-      if (odd) {
-        wrVal |= *++src8 << 16;
-      }
-    }
-
-    *pma32 = wrVal;
-  }
-
-  return true;
-}
-
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes) {
-  uint8_t *dst8 = dst;
-  volatile uint32_t *src32 = (volatile uint32_t *)(USB_PMAADDR + src);
-
-  for (uint32_t n = wNBytes / 4; n > 0; --n) {
-    tu_unaligned_write32(dst8, *src32++);
-    dst8 += 4;
-  }
-
-  uint16_t odd = wNBytes & 0x03;
-  if (odd) {
-    uint32_t rdVal = *src32;
-
-    *dst8 = tu_u32_byte0(rdVal);
-    odd--;
-
-    if (odd) {
-      *++dst8 = tu_u32_byte1(rdVal);
-      odd--;
-
-      if (odd) {
-        *++dst8 = tu_u32_byte2(rdVal);
-      }
-    }
-  }
-
-  return true;
-}
-
-#else
-// Packet buffer access can only be 8- or 16-bit.
-/**
- * @brief Copy a buffer from user memory area to packet memory area (PMA).
- *        This uses un-aligned for user memory and 16-bit access for packet memory.
- * @param   dst, byte address in PMA; must be 16-bit aligned
- * @param   src pointer to user memory area.
- * @param   wPMABufAddr address into PMA.
- * @param   nbytes no. of bytes to be copied.
- * @retval None
- */
+// Write to packet memory area (PMA) from user memory
+// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
+// - Uses unaligned for RAM (since M0 cannot access unaligned address)
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes) {
-  uint32_t n16 = (uint32_t)nbytes >> 1U;
-  const uint8_t *src8 = src;
-  fsdev_pma16_t* pma16 = (fsdev_pma16_t*) (USB_PMAADDR + FSDEV_PMA_STRIDE * dst);
+  enum { BUS_SIZE = sizeof(fsdev_bus_t) };
+  uint32_t n_write = nbytes / BUS_SIZE;
 
-  while (n16--) {
-    pma16->u16 = tu_unaligned_read16(src8);
-    src8 += 2;
-    pma16++;
+  fsdev_pma_buf_t* pma_buf = PMA_BUF_AT(dst);
+  const uint8_t *src8 = src;
+
+  while (n_write--) {
+    #ifdef FSDEV_BUS_32BIT
+    pma_buf->value = tu_unaligned_read32(src8);
+    #else
+    pma_buf->value = tu_unaligned_read16(src8);
+    #endif
+
+    src8 += BUS_SIZE;
+    pma_buf++;
   }
 
-  if (nbytes & 0x01) {
-    pma16->u16 = (uint16_t) *src8;
+  // odd bytes e.g 1 for 16-bit or 1-3 for 32-bit
+  uint16_t odd = nbytes & (BUS_SIZE - 1);
+  if (odd) {
+    fsdev_bus_t temp = 0;
+    for(uint16_t i = 0; i < odd; i++) {
+      temp |= *src8++ << (i * 8);
+    }
+    pma_buf->value = temp;
   }
 
   return true;
 }
 
-/**
- * @brief Copy a buffer from packet memory area (PMA) to user memory area.
- *        Uses unaligned for system memory and 16-bit access of packet memory
- * @param   nbytes no. of bytes to be copied.
- * @retval None
- */
+// Read from packet memory area (PMA) to user memory.
+// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
+// - Uses unaligned for RAM (since M0 cannot access unaligned address)
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes) {
-  uint32_t n16 = (uint32_t)nbytes >> 1U;
-  fsdev_pma16_t* pma16 = (fsdev_pma16_t*) (USB_PMAADDR + FSDEV_PMA_STRIDE * src);
+  enum { BUS_SIZE = sizeof(fsdev_bus_t) };
+  uint32_t n_write = nbytes / BUS_SIZE;
+
+  fsdev_pma_buf_t* pma_buf = PMA_BUF_AT(src);
   uint8_t *dst8 = (uint8_t *)dst;
 
-  while (n16--) {
-    uint16_t temp16 = pma16->u16;
-    tu_unaligned_write16(dst8, temp16);
-    dst8 += 2;
-    pma16++;
+  while (n_write--) {
+    fsdev_bus_t temp = pma_buf->value;
+
+    #ifdef FSDEV_BUS_32BIT
+    tu_unaligned_write32(dst8, temp);
+    #else
+    tu_unaligned_write16(dst8, temp);
+    #endif
+
+    dst8 += BUS_SIZE;
+    pma_buf++;
   }
 
-  if (nbytes & 0x01) {
-    *dst8++ = tu_u16_low(pma16->u16);
+  // odd bytes e.g 1 for 16-bit or 1-3 for 32-bit
+  uint16_t odd = nbytes & (BUS_SIZE - 1);
+  if (odd) {
+    fsdev_bus_t temp = pma_buf->value;
+    while (odd--) {
+      *dst8++ = (uint8_t) (temp & 0xfful);
+      temp >>= 8;
+    }
   }
 
   return true;
 }
-
-#endif
 
 /**
  * @brief Copy from FIFO to packet memory area (PMA).

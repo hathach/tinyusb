@@ -1,9 +1,8 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright(c) 2016 STMicroelectronics
  * Copyright(c) N Conrad
- * Copyright (c) 2024, hathach (tinyusb.org)
+ * Copyright(c) 2024, hathach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +22,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
+ * This file is part of the TinyUSB stack.
  */
 
 #ifndef TUSB_FSDEV_TYPE_H
@@ -62,6 +62,13 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 b
   #define pma_aligned
 #endif
 
+// The fsdev_bus_t type can be used for both register and PMA access necessities
+#ifdef FSDEV_BUS_32BIT
+  typedef uint32_t fsdev_bus_t;
+#else
+  typedef uint16_t fsdev_bus_t;
+#endif
+
 //--------------------------------------------------------------------+
 // BTable Typedef
 //--------------------------------------------------------------------+
@@ -95,8 +102,10 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT*8 <= FSDEV_PMA_SIZE, "BTABLE
 #define FSDEV_BTABLE ((volatile fsdev_btable_t*) (USB_PMAADDR+FSDEV_BTABLE_BASE))
 
 typedef struct {
-  volatile pma_aligned uint16_t u16;
-} fsdev_pma16_t;
+  volatile pma_aligned fsdev_bus_t value;
+} fsdev_pma_buf_t;
+
+#define PMA_BUF_AT(_addr) ((fsdev_pma_buf_t*) (USB_PMAADDR + FSDEV_PMA_STRIDE*(_addr)))
 
 //--------------------------------------------------------------------+
 // Registers Typedef
@@ -104,13 +113,6 @@ typedef struct {
 
 // volatile 32-bit aligned
 #define _va32     volatile TU_ATTR_ALIGNED(4)
-
-// The fsdev_bus_t type can be used for both register and PMA access necessities
-#ifdef FSDEV_BUS_32BIT
-typedef uint32_t fsdev_bus_t;
-#else
-typedef uint16_t fsdev_bus_t;
-#endif
 
 typedef struct {
   struct {
