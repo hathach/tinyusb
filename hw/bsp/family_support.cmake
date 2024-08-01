@@ -428,6 +428,19 @@ function(family_flash_stlink TARGET)
 endfunction()
 
 
+# Add flash st-flash target
+function(family_flash_stflash TARGET)
+  if (NOT DEFINED ST_FLASH)
+    set(ST_FLASH st-flash)
+  endif ()
+
+  add_custom_target(${TARGET}-stflash
+    DEPENDS ${TARGET}
+    COMMAND ${ST_FLASH} write $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin 0x8000000
+    )
+endfunction()
+
+
 # Add flash openocd target
 function(family_flash_openocd TARGET)
   if (NOT DEFINED OPENOCD)
@@ -449,6 +462,7 @@ function(family_flash_openocd TARGET)
     )
 endfunction()
 
+
 # Add flash openocd-wch target
 # compiled from https://github.com/hathach/riscv-openocd-wch or https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
 function(family_flash_openocd_wch TARGET)
@@ -458,6 +472,7 @@ function(family_flash_openocd_wch TARGET)
 
   family_flash_openocd(${TARGET})
 endfunction()
+
 
 # Add flash with https://github.com/ch32-rs/wlink
 function(family_flash_wlink_rs TARGET)
@@ -471,6 +486,7 @@ function(family_flash_wlink_rs TARGET)
     )
 endfunction()
 
+
 # Add flash pycod target
 function(family_flash_pyocd TARGET)
   if (NOT DEFINED PYOC)
@@ -483,6 +499,7 @@ function(family_flash_pyocd TARGET)
     )
 endfunction()
 
+
 # Flash with UF2
 function(family_flash_uf2 TARGET FAMILY_ID)
   add_custom_target(${TARGET}-uf2
@@ -490,6 +507,7 @@ function(family_flash_uf2 TARGET FAMILY_ID)
     COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} --deploy $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2
     )
 endfunction()
+
 
 # Add flash teensy_cli target
 function(family_flash_teensy TARGET)
@@ -502,6 +520,7 @@ function(family_flash_teensy TARGET)
     COMMAND ${TEENSY_CLI} --mcu=${TEENSY_MCU} -w -s $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
     )
 endfunction()
+
 
 # Add flash using NXP's LinkServer (redserver)
 # https://www.nxp.com/design/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKERSERVER
