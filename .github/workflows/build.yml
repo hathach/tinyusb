@@ -120,10 +120,8 @@ jobs:
       fail-fast: false
       matrix:
         board:
-          # ESP32-S2
           - 'espressif_kaluga_1'
-          # ESP32-S3 skip since devkitm is also compiled in hil-test workflow
-          #- 'espressif_s3_devkitm'
+          - 'espressif_s3_devkitm'
     with:
       build-system: 'cmake'
       toolchain: 'esp-idf'

@@ -138,9 +138,14 @@ def flash_jlink(board, firmware):
 
 
 def flash_stlink(board, firmware):
-    #ret = run_cmd(f'st-flash --serial {board["flasher_sn"]} write {firmware}.bin 0x08000000')
     ret = run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={board["flasher_sn"]} --write {firmware}.elf --go')
     return ret
+
+
+def flash_stflash(board, firmware):
+    ret = run_cmd(f'st-flash --serial {board["flasher_sn"]} write {firmware}.bin 0x8000000')
+    return ret
+
 
 def flash_openocd(board, firmware):
     ret = run_cmd(f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware}.elf reset exit"')
@@ -378,7 +383,8 @@ def main():
             if not os.path.exists(fw_dir):
                 fw_dir = f'examples/cmake-build-{name}/device/{test}'
             fw_name = f'{fw_dir}/{test}'
-            print(f'  {test} ...', end='')
+            print(f'  {test} ... ', end='')
+            sys.stdout.flush()
 
             if not os.path.exists(fw_dir):
                 print('Skip')
