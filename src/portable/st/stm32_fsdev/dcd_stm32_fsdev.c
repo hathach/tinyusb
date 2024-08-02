@@ -114,8 +114,6 @@
 #include "device/dcd.h"
 
 #if defined(TUP_USBIP_FSDEV_STM32)
-  // Undefine to reduce the dependence on HAL
-  #undef USE_HAL_DRIVER
   #include "fsdev_stm32.h"
 #elif defined(TUP_USBIP_FSDEV_CH32)
   #include "fsdev_ch32.h"
@@ -124,12 +122,6 @@
 #endif
 
 #include "fsdev_type.h"
-
-//--------------------------------------------------------------------+
-// Configuration
-//--------------------------------------------------------------------+
-
-
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

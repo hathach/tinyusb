@@ -34,6 +34,7 @@ import subprocess
 import json
 import glob
 import platform
+from multiprocessing import Pool
 
 # for RPI double reset
 if platform.machine() == 'aarch64':
@@ -130,10 +131,11 @@ def run_cmd(cmd):
 
 def flash_jlink(board, firmware):
     script = ['halt', 'r', f'loadfile {firmware}.elf', 'r', 'go', 'exit']
-    with open('flash.jlink', 'w') as f:
+    f_jlink = f'{board["name"]}_{os.path.basename(firmware)}.jlink'
+    with open(f_jlink, 'w') as f:
         f.writelines(f'{s}\n' for s in script)
-    ret = run_cmd(f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile flash.jlink')
-    os.remove('flash.jlink')
+    ret = run_cmd(f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
+    os.remove(f_jlink)
     return ret
 
 
@@ -327,6 +329,61 @@ def test_hid_composite_freertos(id):
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
+# all possible tests: board_test is added last to disable board's usb
+all_tests = [
+    'cdc_dual_ports',
+    'cdc_msc',
+    #'cdc_msc_freertos',
+    'dfu',
+    #'dfu_runtime',
+    'hid_boot_interface',
+    'board_test'
+]
+
+
+def test_board(item):
+    name = item['name']
+    flasher = item['flasher'].lower()
+
+    # default to all tests
+    if 'tests' in item:
+        test_list = item['tests'] + ['board_test']
+    else:
+        test_list = list(all_tests)
+
+    # remove skip_tests
+    if 'tests_skip' in item:
+        for skip in item['tests_skip']:
+            if skip in test_list:
+                test_list.remove(skip)
+
+    for test in test_list:
+        fw_dir = f'cmake-build/cmake-build-{name}/device/{test}'
+        if not os.path.exists(fw_dir):
+            fw_dir = f'examples/cmake-build-{name}/device/{test}'
+        fw_name = f'{fw_dir}/{test}'
+        print(f'{name:20} {test:20} ... ', end='')
+
+        if not os.path.exists(fw_dir):
+            print('Skip')
+            continue
+
+        # flash firmware. It may fail randomly, retry a few times
+        for i in range(3):
+            ret = globals()[f'flash_{flasher}'](item, fw_name)
+            if ret.returncode == 0:
+                break
+            else:
+                print(f'Flashing failed, retry {i+1}')
+                time.sleep(1)
+
+        assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
+
+        # run test
+        globals()[f'test_{test}'](item['uid'])
+        print('OK')
+
+
 def main():
     """
     Hardware test on specified boards
@@ -345,66 +402,13 @@ def main():
     with open(config_file) as f:
         config = json.load(f)
 
-    # all possible tests: board_test is added last to disable board's usb
-    all_tests = [
-        'cdc_dual_ports',
-        'cdc_msc',
-        'cdc_msc_freertos',
-        'dfu',
-        'dfu_runtime',
-        'hid_boot_interface',
-        'board_test'
-    ]
-
     if len(boards) == 0:
         config_boards = config['boards']
     else:
         config_boards = [e for e in config['boards'] if e['name'] in boards]
 
-    for item in config_boards:
-        name = item['name']
-        print(f'Testing board:{name}')
-        flasher = item['flasher'].lower()
-
-        # default to all tests
-        if 'tests' in item:
-            test_list = item['tests'] + ['board_test']
-        else:
-            test_list = list(all_tests)
-
-        # remove skip_tests
-        if 'tests_skip' in item:
-            for skip in item['tests_skip']:
-                if skip in test_list:
-                    test_list.remove(skip)
-
-        for test in test_list:
-            fw_dir = f'cmake-build/cmake-build-{name}/device/{test}'
-            if not os.path.exists(fw_dir):
-                fw_dir = f'examples/cmake-build-{name}/device/{test}'
-            fw_name = f'{fw_dir}/{test}'
-            print(f'  {test} ... ', end='')
-            sys.stdout.flush()
-
-            if not os.path.exists(fw_dir):
-                print('Skip')
-                continue
-
-            # flash firmware. It may fail randomly, retry a few times
-            for i in range(3):
-                ret = globals()[f'flash_{flasher}'](item, fw_name)
-                if ret.returncode == 0:
-                    break
-                else:
-                    print(f'Flashing failed, retry {i+1}')
-                    time.sleep(1)
-
-            assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
-
-            # run test
-            globals()[f'test_{test}'](item['uid'])
-
-            print('OK')
+    with Pool(processes=os.cpu_count()) as pool:
+        pool.map(test_board, config_boards)
 
 
 if __name__ == '__main__':

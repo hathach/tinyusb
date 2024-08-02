@@ -49,17 +49,18 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 b
 
 // For purposes of accessing the packet
 #if FSDEV_PMA_SIZE == 512
-  #define FSDEV_PMA_STRIDE  (2u) // 1x16 bit access scheme
-  #define pma_aligned TU_ATTR_ALIGNED(4)
+  // 1x16 bit / word access scheme
+  #define FSDEV_PMA_STRIDE  2
+  #define pma_access_scheme TU_ATTR_ALIGNED(4)
 #elif FSDEV_PMA_SIZE == 1024
-  #define FSDEV_PMA_STRIDE  (1u) // 2x16 bit access scheme
-  #define pma_aligned
+  // 2x16 bit / word access scheme
+  #define FSDEV_PMA_STRIDE  1
+  #define pma_access_scheme
 #elif FSDEV_PMA_SIZE == 2048
-  #ifndef FSDEV_BUS_32BIT
-    #warning "FSDEV_PMA_SIZE is 2048, but FSDEV_BUS_32BIT is not defined"
-  #endif
-  #define FSDEV_PMA_STRIDE  (1u) // 32 bit access scheme
-  #define pma_aligned
+  // 32 bit access scheme
+  #define FSDEV_BUS_32BIT
+  #define FSDEV_PMA_STRIDE  1
+  #define pma_access_scheme
 #endif
 
 // The fsdev_bus_t type can be used for both register and PMA access necessities
@@ -86,8 +87,8 @@ enum {
 typedef union {
   // data is strictly 16-bit access (address could be 32-bit aligned)
   struct {
-    volatile pma_aligned uint16_t addr;
-    volatile pma_aligned uint16_t count;
+    volatile pma_access_scheme uint16_t addr;
+    volatile pma_access_scheme uint16_t count;
   } ep16[FSDEV_EP_COUNT][2];
 
   // strictly 32-bit access
@@ -99,13 +100,13 @@ typedef union {
 TU_VERIFY_STATIC(sizeof(fsdev_btable_t) == FSDEV_EP_COUNT*8*FSDEV_PMA_STRIDE, "size is not correct");
 TU_VERIFY_STATIC(FSDEV_BTABLE_BASE + FSDEV_EP_COUNT*8 <= FSDEV_PMA_SIZE, "BTABLE does not fit in PMA RAM");
 
-#define FSDEV_BTABLE ((volatile fsdev_btable_t*) (USB_PMAADDR+FSDEV_BTABLE_BASE))
+#define FSDEV_BTABLE ((volatile fsdev_btable_t*) (FSDEV_PMA_BASE + FSDEV_PMA_STRIDE*(FSDEV_BTABLE_BASE)))
 
 typedef struct {
-  volatile pma_aligned fsdev_bus_t value;
+  volatile pma_access_scheme fsdev_bus_t value;
 } fsdev_pma_buf_t;
 
-#define PMA_BUF_AT(_addr) ((fsdev_pma_buf_t*) (USB_PMAADDR + FSDEV_PMA_STRIDE*(_addr)))
+#define PMA_BUF_AT(_addr) ((fsdev_pma_buf_t*) (FSDEV_PMA_BASE + FSDEV_PMA_STRIDE*(_addr)))
 
 //--------------------------------------------------------------------+
 // Registers Typedef
