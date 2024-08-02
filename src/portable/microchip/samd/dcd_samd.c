@@ -183,9 +183,12 @@ void dcd_connect(uint8_t rhport)
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
   (void) rhport;
-  (void) en;
 
-  // TODO implement later
+  if (en) {
+    USB->DEVICE.INTENSET.bit.SOF = 1;
+  } else {
+    USB->DEVICE.INTENCLR.bit.SOF = 1;
+  }
 }
 
 /*------------------------------------------------------------------*/
@@ -374,7 +377,9 @@ void dcd_int_handler (uint8_t rhport)
   if ( int_status & USB_DEVICE_INTFLAG_SOF )
   {
     USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+    const uint32_t frame = USB->DEVICE.FNUM.bit.FNUM;
+    dcd_event_sof(0, frame, true);
+    //dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 
   // SAMD doesn't distinguish between Suspend and Disconnect state.

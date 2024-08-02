@@ -88,8 +88,7 @@ settings:
 sources:
 - {id: SYSCON.fro_hf.outFreq, value: 96 MHz}
 ******************************************************************/
-void BootClockFROHF96M(void)
-{
+void BootClockFROHF96M(void) {
   /*!< Set up the clock sources */
   /*!< Set up FRO */
   POWER_DisablePD(kPDRUNCFG_PD_FRO_EN); /*!< Ensure FRO is on  */
@@ -110,8 +109,7 @@ void BootClockFROHF96M(void)
   SystemCoreClock = 96000000U;
 }
 
-void board_init(void)
-{
+void board_init(void) {
   // Enable IOCON clock
   CLOCK_EnableClock(kCLOCK_Iocon);
 
@@ -198,38 +196,53 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   // active low
   return BUTTON_STATE_ACTIVE == GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  USART_WriteBlocking(UART_DEV, (uint8_t const *) buf, len);
+int board_uart_write(void const* buf, int len) {
+  USART_WriteBlocking(UART_DEV, (uint8_t const*) buf, len);
   return 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+#endif
+
+
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+
+#ifdef __clang__
+void	_exit (int __status) {
+  while (1) {}
+}
+#endif
+
 #endif

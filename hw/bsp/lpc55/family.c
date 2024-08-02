@@ -72,13 +72,11 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
+void USB0_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USB1_IRQHandler(void)
-{
+void USB1_IRQHandler(void) {
   tud_int_handler(1);
 }
 
@@ -92,8 +90,7 @@ settings:
 sources:
 - {id: SYSCON.fro_hf.outFreq, value: 96 MHz}
 ******************************************************************/
-void BootClockFROHF96M(void)
-{
+void BootClockFROHF96M(void) {
   /*!< Set up the clock sources */
   /*!< Set up FRO */
   POWER_DisablePD(kPDRUNCFG_PD_FRO192M); /*!< Ensure FRO is on  */
@@ -116,20 +113,24 @@ void BootClockFROHF96M(void)
   SystemCoreClock = 96000000U;
 }
 
-void board_init(void)
-{
+void board_init(void) {
   // Enable IOCON clock
   CLOCK_EnableClock(kCLOCK_Iocon);
 
   // Init 96 MHz clock
   BootClockFROHF96M();
 
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  SysTick->CTRL &= ~1U;
+
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
   // Init all GPIO ports
@@ -138,7 +139,7 @@ void board_init(void)
 
   // LED
   IOCON_PinMuxSet(IOCON, LED_PORT, LED_PIN, IOCON_PIO_DIG_FUNC0_EN);
-  gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 1};
+  gpio_pin_config_t const led_config = {kGPIO_DigitalOutput, 1};
   GPIO_PinInit(GPIO, LED_PORT, LED_PIN, &led_config);
 
   board_led_write(0);
@@ -157,7 +158,7 @@ void board_init(void)
 
   // Button
   IOCON_PinMuxSet(IOCON, BUTTON_PORT, BUTTON_PIN, IOCON_PIO_DIG_FUNC0_EN);
-  gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
+  gpio_pin_config_t const button_config = {kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
 #ifdef UART_DEV
@@ -170,8 +171,8 @@ void board_init(void)
   usart_config_t uart_config;
   USART_GetDefaultConfig(&uart_config);
   uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
-  uart_config.enableTx     = true;
-  uart_config.enableRx     = true;
+  uart_config.enableTx = true;
+  uart_config.enableRx = true;
   USART_Init(UART_DEV, &uart_config, 12000000);
 #endif
 
@@ -243,6 +244,10 @@ void board_init(void)
 //  phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
 //  phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
 //  USBPHY->TX = phytx;
+
+    ARM_MPU_SetMemAttr(0, 0x44); // Normal memory, non-cacheable (inner and outer)
+    ARM_MPU_SetRegion(0, ARM_MPU_RBAR(0x40100000, ARM_MPU_SH_NON, 0, 1, 1), ARM_MPU_RLAR(0x40104000, 0));
+    ARM_MPU_Enable(MPU_CTRL_PRIVDEFENA_Msk | MPU_CTRL_HFNMIENA_Msk);
 #endif
 }
 
@@ -250,9 +255,8 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-void board_led_write(bool state)
-{
-  GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
+void board_led_write(bool state) {
+  GPIO_PinWrite(GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 
 #ifdef NEOPIXEL_PIN
   if (state) {
@@ -266,33 +270,50 @@ void board_led_write(bool state)
 #endif
 }
 
-uint32_t board_button_read(void)
-{
+uint32_t board_button_read(void) {
   // active low
   return BUTTON_STATE_ACTIVE == GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
-int board_uart_read(uint8_t* buf, int len)
-{
-  (void) buf; (void) len;
+int board_uart_read(uint8_t* buf, int len) {
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-int board_uart_write(void const * buf, int len)
-{
-  USART_WriteBlocking(UART_DEV, (uint8_t const *) buf, len);
+int board_uart_write(void const* buf, int len) {
+  USART_WriteBlocking(UART_DEV, (uint8_t const*) buf, len);
   return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void)
-{
+
+void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void)
-{
+uint32_t board_millis(void) {
   return system_ticks;
 }
+#endif
+
+
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+
+#ifdef __clang__
+void	_exit (int __status) {
+  while (1) {}
+}
+#endif
+
 #endif

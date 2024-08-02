@@ -6,7 +6,7 @@ ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
-CPU_CORE ?= cortex-m7
+CPU_CORE ?= cortex-m7-fpsp
 
 # --------------
 # Compiler Flags
@@ -24,18 +24,20 @@ ifeq ($(PORT), 1)
     $(info "Using OTG_HS in FullSpeed mode")
   endif
 else
+  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
   $(info "Using OTG_FS")
 endif
 
 # GCC Flags
 CFLAGS_GCC += \
   -flto \
-  -nostdlib -nostartfiles
 
 # mcu driver cause following warnings
 CFLAGS_GCC += -Wno-error=cast-align
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 # -----------------
 # Sources & Include

@@ -1,0 +1,68 @@
+name: Reusable build util
+
+on:
+  workflow_call:
+    inputs:
+      build-system:
+        required: true
+        type: string
+      toolchain:
+        required: true
+        type: string
+      toolchain_url:
+        required: false
+        type: string
+      build-args:
+        required: true
+        type: string
+      one-per-family:
+        required: false
+        default: false
+        type: boolean
+      os:
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+
+jobs:
+  family:
+    runs-on: ${{ inputs.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arg: ${{ fromJSON(inputs.build-args) }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Toolchain
+        id: setup-toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          toolchain_url: ${{ inputs.toolchain_url }}
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: ${{ matrix.arg }}
+
+      - name: Set build one-per-family option
+        id: set-one-per-family
+        run: |
+          if [[ "${{ inputs.one-per-family }}" == "true" ]]; then
+            BUILD_OPTION="--one-per-family"
+          fi
+          echo "build_option=$BUILD_OPTION"
+          echo "build_option=$BUILD_OPTION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build
+        if: inputs.toolchain != 'esp-idf'
+        run: |
+          python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
+
+      - name: Build using ESP-IDF docker
+        if: inputs.toolchain == 'esp-idf'
+        run: |
+          docker run --rm -v $PWD:/project -w /project espressif/idf:${{ inputs.toolchain_url }} python3 tools/build.py ${{ matrix.arg }}

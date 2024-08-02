@@ -23,10 +23,6 @@
  *
  */
 
-/* This example current worked and tested with following controller
- * - Sony DualShock 4 [CUH-ZCT2x] VID = 0x054c, PID = 0x09cc
- */
-
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -34,6 +30,7 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "class/hid/hid.h"
 
 // English
 #define LANGUAGE_ID 0x0409
@@ -420,5 +417,5 @@ static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
     _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
     ((uint8_t*) temp_buf)[utf8_len] = '\0';
 
-    printf((char*)temp_buf);
+    printf("%s", (char*)temp_buf);
 }

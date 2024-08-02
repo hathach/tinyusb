@@ -34,9 +34,13 @@
 // Some MCU doesn't have enough 8KB SRAM to store the whole disk
 // We will use Flash as read-only disk with board that has
 // CFG_EXAMPLE_MSC_READONLY defined
+#if defined(CFG_EXAMPLE_MSC_READONLY) || defined(CFG_EXAMPLE_MSC_DUAL_READONLY)
+  #define MSC_CONST const
+#else
+  #define MSC_CONST
+#endif
 
-enum
-{
+enum {
   DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
   DISK_BLOCK_SIZE = 512
 };
@@ -51,10 +55,7 @@ If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
 
-#ifdef CFG_EXAMPLE_MSC_READONLY
-const
-#endif
-uint8_t msc_disk0[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
+MSC_CONST uint8_t msc_disk0[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Block0: Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
@@ -132,10 +133,7 @@ uint8_t msc_disk0[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
-#ifdef CFG_EXAMPLE_MSC_READONLY
-const
-#endif
-uint8_t msc_disk1[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
+MSC_CONST uint8_t msc_disk1[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Block0: Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
@@ -206,15 +204,13 @@ uint8_t msc_disk1[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 };
 
 // Invoked to determine max LUN
-uint8_t tud_msc_get_maxlun_cb(void)
-{
+uint8_t tud_msc_get_maxlun_cb(void) {
   return 2; // dual LUN
 }
 
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
-void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
-{
+void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
   (void) lun; // use same ID for both LUNs
 
   const char vid[] = "TinyUSB";
@@ -228,8 +224,7 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted
-bool tud_msc_test_unit_ready_cb(uint8_t lun)
-{
+bool tud_msc_test_unit_ready_cb(uint8_t lun) {
   if ( lun == 1 && board_button_read() ) return false;
 
   return true; // RAM disk is always ready
@@ -237,8 +232,7 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
 // Application update block count and block size
-void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
-{
+void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) {
   (void) lun;
 
   *block_count = DISK_BLOCK_NUM;
@@ -248,18 +242,14 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 // Invoked when received Start Stop Unit command
 // - Start = 0 : stopped power mode, if load_eject = 1 : unload disk storage
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
-bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
-{
+bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject) {
   (void) lun;
   (void) power_condition;
 
-  if ( load_eject )
-  {
-    if (start)
-    {
+  if (load_eject) {
+    if (start) {
       // load disk storage
-    }else
-    {
+    } else {
       // unload disk storage
     }
   }
@@ -269,10 +259,9 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
-int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
-{
+int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
   // out of ramdisk
-  if ( lba >= DISK_BLOCK_NUM ) return -1;
+  if (lba >= DISK_BLOCK_NUM) return -1;
 
   uint8_t const* addr = (lun ? msc_disk1[lba] : msc_disk0[lba]) + offset;
   memcpy(buffer, addr, bufsize);
@@ -280,11 +269,10 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
   return (int32_t) bufsize;
 }
 
-bool tud_msc_is_writable_cb (uint8_t lun)
-{
+bool tud_msc_is_writable_cb(uint8_t lun) {
   (void) lun;
 
-#ifdef CFG_EXAMPLE_MSC_READONLY
+#if defined(CFG_EXAMPLE_MSC_READONLY) || defined(CFG_EXAMPLE_MSC_DUAL_READONLY)
   return false;
 #else
   return true;
@@ -293,16 +281,18 @@ bool tud_msc_is_writable_cb (uint8_t lun)
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
-int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
-{
+int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
   // out of ramdisk
-  if ( lba >= DISK_BLOCK_NUM ) return -1;
+  if (lba >= DISK_BLOCK_NUM) return -1;
 
-#ifndef CFG_EXAMPLE_MSC_READONLY
+#if defined(CFG_EXAMPLE_MSC_READONLY) || defined(CFG_EXAMPLE_MSC_DUAL_READONLY)
+  (void) lun;
+  (void) lba;
+  (void) offset;
+  (void) buffer;
+#else
   uint8_t* addr = (lun ? msc_disk1[lba] : msc_disk0[lba])  + offset;
   memcpy(addr, buffer, bufsize);
-#else
-  (void) lun; (void) lba; (void) offset; (void) buffer;
 #endif
 
   return (int32_t) bufsize;
@@ -310,38 +300,30 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 
 // Callback invoked when received an SCSI command not in built-in list below
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
-// - READ10 and WRITE10 has their own callbacks
-int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
-{
-  // read10 & write10 has their own callback and MUST not be handled here
-
+// - READ10 and WRITE10 has their own callbacks (MUST not be handled here)
+int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) {
   void const* response = NULL;
   int32_t resplen = 0;
 
   // most scsi handled is input
   bool in_xfer = true;
 
-  switch (scsi_cmd[0])
-  {
+  switch (scsi_cmd[0]) {
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 
       // negative means error -> tinyusb could stall and/or response with failed status
-      resplen = -1;
-    break;
+      return -1;
   }
 
   // return resplen must not larger than bufsize
-  if ( resplen > bufsize ) resplen = bufsize;
+  if (resplen > bufsize) resplen = bufsize;
 
-  if ( response && (resplen > 0) )
-  {
-    if(in_xfer)
-    {
+  if (response && (resplen > 0)) {
+    if (in_xfer) {
       memcpy(buffer, response, (size_t) resplen);
-    }else
-    {
+    } else {
       // SCSI output
     }
   }

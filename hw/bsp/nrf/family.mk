@@ -8,24 +8,30 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
 
 CFLAGS += \
-  -flto \
   -DCFG_TUSB_MCU=OPT_MCU_NRF5X \
-  -DCONFIG_GPIO_AS_PINRESET
+  -DCONFIG_GPIO_AS_PINRESET \
+  -D__STARTUP_CLEAR_BSS
 
 #CFLAGS += -nostdlib
 #CFLAGS += -D__START=main
 
 # suppress warning caused by vendor mcu driver
-CFLAGS += \
+CFLAGS_GCC += \
+  -flto \
   -Wno-error=undef \
   -Wno-error=unused-parameter \
+  -Wno-error=unused-variable \
   -Wno-error=cast-align \
   -Wno-error=cast-qual \
-  -Wno-error=redundant-decls
+  -Wno-error=redundant-decls \
 
-LDFLAGS += \
-  -specs=nosys.specs -specs=nano.specs \
+LDFLAGS_GCC += \
+  -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs \
   -L$(TOP)/${NRFX_DIR}/mdk
+
+LDFLAGS_CLANG += \
+  -L$(TOP)/${NRFX_DIR}/mdk \
 
 SRC_C += \
   src/portable/nordic/nrf5x/dcd_nrf5x.c \
@@ -34,7 +40,8 @@ SRC_C += \
   ${NRFX_DIR}/drivers/src/nrfx_power.c \
   ${NRFX_DIR}/drivers/src/nrfx_spim.c \
   ${NRFX_DIR}/drivers/src/nrfx_uarte.c \
-  ${NRFX_DIR}/mdk/system_$(MCU_VARIANT).c
+  ${NRFX_DIR}/mdk/system_$(MCU_VARIANT).c \
+  ${NRFX_DIR}/soc/nrfx_atomic.c
 
 INC += \
   $(TOP)/$(BOARD_PATH) \

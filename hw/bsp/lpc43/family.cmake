@@ -1,6 +1,7 @@
 include_guard()
 
 set(SDK_DIR ${TOP}/hw/mcu/nxp/lpcopen/lpc43xx/lpc_chip_43xx)
+set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -23,6 +24,7 @@ function(add_board_target BOARD_TARGET)
 
   # Startup & Linker script
   set(STARTUP_FILE_GNU ${SDK_DIR}/../gcc/cr_startup_lpc43xx.c)
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
   set(STARTUP_FILE_IAR ${SDK_DIR}/../iar/iar_startup_lpc18xx43xx.s)
   set(LD_FILE_IAR ${SDK_DIR}/../iar/linker/lpc18xx_43xx_ldscript_iflash.icf)
 
@@ -43,6 +45,7 @@ function(add_board_target BOARD_TARGET)
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_DIR}/inc
     ${SDK_DIR}/inc/config_43xx
+    ${CMSIS_5}/CMSIS/Core/Include
     )
 
   update_board(${BOARD_TARGET})
@@ -51,9 +54,11 @@ function(add_board_target BOARD_TARGET)
     target_compile_options(${BOARD_TARGET} PUBLIC -nostdlib)
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      # nanolib
-      --specs=nosys.specs
-      --specs=nano.specs
+      --specs=nosys.specs --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC

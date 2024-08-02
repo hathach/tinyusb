@@ -6,12 +6,35 @@ include(CMakePrintHelpers)
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
 get_filename_component(TOP ${TOP} ABSOLUTE)
 
-# Default to gcc
+set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
+
+#-------------------------------------------------------------
+# Toolchain
+# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
+#-------------------------------------------------------------
+# Detect toolchain based on CMAKE_C_COMPILER
+if (DEFINED CMAKE_C_COMPILER)
+  string(FIND ${CMAKE_C_COMPILER} "iccarm" IS_IAR)
+  string(FIND ${CMAKE_C_COMPILER} "clang" IS_CLANG)
+  string(FIND ${CMAKE_C_COMPILER} "gcc" IS_GCC)
+
+  if (NOT IS_IAR EQUAL -1)
+    set(TOOLCHAIN iar)
+  elseif (NOT IS_CLANG EQUAL -1)
+    set(TOOLCHAIN clang)
+  elseif (NOT IS_GCC EQUAL -1)
+    set(TOOLCHAIN gcc)
+  endif ()
+endif ()
+
+# default to gcc
 if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
 
-# FAMILY not defined, try to detect it from BOARD
+#-------------------------------------------------------------
+# FAMILY and BOARD
+#-------------------------------------------------------------
 if (NOT DEFINED FAMILY)
   if (NOT DEFINED BOARD)
     message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, espressif).
@@ -46,6 +69,10 @@ if (NOT FAMILY STREQUAL rp2040)
   endif()
 endif()
 
+if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
+  set(NO_WARN_RWX_SEGMENTS_SUPPORTED 1)
+endif()
+
 set(WARNING_FLAGS_GNU
   -Wall
   -Wextra
@@ -74,6 +101,9 @@ set(WARNING_FLAGS_GNU
 
 set(WARNING_FLAGS_IAR "")
 
+#-------------------------------------------------------------
+# Functions
+#-------------------------------------------------------------
 
 # Filter example based on only.txt and skip.txt
 function(family_filter RESULT DIR)
@@ -114,7 +144,6 @@ function(family_filter RESULT DIR)
   endif()
 endfunction()
 
-
 function(family_add_subdirectory DIR)
   family_filter(SHOULD_ADD "${DIR}")
   if (SHOULD_ADD)
@@ -122,12 +151,10 @@ function(family_add_subdirectory DIR)
   endif()
 endfunction()
 
-
 function(family_get_project_name OUTPUT_NAME DIR)
   get_filename_component(SHORT_NAME ${DIR} NAME)
   set(${OUTPUT_NAME} ${TINYUSB_FAMILY_PROJECT_NAME_PREFIX}${SHORT_NAME} PARENT_SCOPE)
 endfunction()
-
 
 function(family_initialize_project PROJECT DIR)
   # set output suffix to .elf (skip espressif and rp2040)
@@ -141,7 +168,6 @@ function(family_initialize_project PROJECT DIR)
     message(FATAL_ERROR "${SHORT_NAME} is not supported on FAMILY=${FAMILY}")
   endif()
 endfunction()
-
 
 #-------------------------------------------------------------
 # Common Target Configure
@@ -168,7 +194,6 @@ function(family_add_rtos TARGET RTOS)
   endif ()
 endfunction()
 
-
 # Add common configuration to example
 function(family_configure_common TARGET RTOS)
   family_add_rtos(${TARGET} ${RTOS})
@@ -179,24 +204,22 @@ function(family_configure_common TARGET RTOS)
     BOARD_${BOARD_UPPER}
   )
 
-  # run size after build
-  find_program(SIZE_EXE ${CMAKE_SIZE})
-  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
-    add_custom_command(TARGET ${TARGET} POST_BUILD
-      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
-      )
-  endif ()
-  # Add warnings flags
+  # compile define from command line
+  if(DEFINED CFLAGS_CLI)
+    target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
+  endif()
+
   target_compile_options(${TARGET} PUBLIC ${WARNING_FLAGS_${CMAKE_C_COMPILER_ID}})
 
   # Generate linker map file
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
-  endif()
-  if (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+ elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
   endif()
 
@@ -208,19 +231,25 @@ function(family_configure_common TARGET RTOS)
   # LOGGER option
   if (DEFINED LOGGER)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
-
     # Add segger rtt to example
     if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
       if (NOT TARGET segger_rtt)
         add_library(segger_rtt STATIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
         target_include_directories(segger_rtt PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
-        #target_compile_definitions(segger_rtt PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
+#        target_compile_definitions(segger_rtt PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
       endif()
       target_link_libraries(${TARGET} PUBLIC segger_rtt)
     endif ()
   endif ()
-endfunction()
 
+  # run size after build
+  find_program(SIZE_EXE ${CMAKE_SIZE})
+  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
+      )
+  endif ()
+endfunction()
 
 # Add tinyusb to example
 function(family_add_tinyusb TARGET OPT_MCU RTOS)
@@ -262,7 +291,6 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
 
 endfunction()
 
-
 # Add bin/hex output
 function(family_add_bin_hex TARGET)
   add_custom_command(TARGET ${TARGET} POST_BUILD
@@ -271,6 +299,13 @@ function(family_add_bin_hex TARGET)
     VERBATIM)
 endfunction()
 
+# Add uf2 output
+function(family_add_uf2 TARGET FAMILY_ID)
+  set(BIN_FILE $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex)
+  add_custom_command(TARGET ${TARGET} POST_BUILD
+    COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} -c -o $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2 ${BIN_FILE}
+    VERBATIM)
+endfunction()
 
 #----------------------------------
 # Example Target Configure (Default rule)
@@ -329,7 +364,7 @@ function(family_add_default_example_warnings TARGET)
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif()
 
@@ -360,6 +395,10 @@ function(family_flash_jlink TARGET)
     set(JLINKEXE JLinkExe)
   endif ()
 
+  if (NOT DEFINED JLINK_IF)
+    set(JLINK_IF swd)
+  endif ()
+
   file(GENERATE
     OUTPUT $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     CONTENT "halt
@@ -371,7 +410,7 @@ exit"
 
   add_custom_target(${TARGET}-jlink
     DEPENDS ${TARGET}
-    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if swd -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     )
 endfunction()
 
@@ -389,21 +428,64 @@ function(family_flash_stlink TARGET)
 endfunction()
 
 
+# Add flash st-flash target
+function(family_flash_stflash TARGET)
+  if (NOT DEFINED ST_FLASH)
+    set(ST_FLASH st-flash)
+  endif ()
+
+  add_custom_target(${TARGET}-stflash
+    DEPENDS ${TARGET}
+    COMMAND ${ST_FLASH} write $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin 0x8000000
+    )
+endfunction()
+
+
 # Add flash openocd target
-function(family_flash_openocd TARGET CLI_OPTIONS)
+function(family_flash_openocd TARGET)
   if (NOT DEFINED OPENOCD)
     set(OPENOCD openocd)
   endif ()
 
-  separate_arguments(CLI_OPTIONS_LIST UNIX_COMMAND ${CLI_OPTIONS})
+  if (NOT DEFINED OPENOCD_OPTION2)
+    set(OPENOCD_OPTION2 "")
+  endif ()
+
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${OPENOCD_OPTION})
+  separate_arguments(OPTION_LIST2 UNIX_COMMAND ${OPENOCD_OPTION2})
 
   # note skip verify since it has issue with rp2040
   add_custom_target(${TARGET}-openocd
     DEPENDS ${TARGET}
-    COMMAND ${OPENOCD} ${CLI_OPTIONS_LIST} -c "program $<TARGET_FILE:${TARGET}> reset exit"
+    COMMAND ${OPENOCD} ${OPTION_LIST} -c init -c halt -c "program $<TARGET_FILE:${TARGET}> reset" ${OPTION_LIST2} -c exit
     VERBATIM
     )
 endfunction()
+
+
+# Add flash openocd-wch target
+# compiled from https://github.com/hathach/riscv-openocd-wch or https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
+function(family_flash_openocd_wch TARGET)
+  if (NOT DEFINED OPENOCD)
+    set(OPENOCD $ENV{HOME}/app/riscv-openocd-wch/src/openocd)
+  endif ()
+
+  family_flash_openocd(${TARGET})
+endfunction()
+
+
+# Add flash with https://github.com/ch32-rs/wlink
+function(family_flash_wlink_rs TARGET)
+  if (NOT DEFINED WLINK_RS)
+    set(WLINK_RS wlink)
+  endif ()
+
+  add_custom_target(${TARGET}-wlink-rs
+    DEPENDS ${TARGET}
+    COMMAND ${WLINK_RS} flash $<TARGET_FILE:${TARGET}>
+    )
+endfunction()
+
 
 # Add flash pycod target
 function(family_flash_pyocd TARGET)
@@ -414,6 +496,15 @@ function(family_flash_pyocd TARGET)
   add_custom_target(${TARGET}-pyocd
     DEPENDS ${TARGET}
     COMMAND ${PYOCD} flash -t ${PYOCD_TARGET} $<TARGET_FILE:${TARGET}>
+    )
+endfunction()
+
+
+# Flash with UF2
+function(family_flash_uf2 TARGET FAMILY_ID)
+  add_custom_target(${TARGET}-uf2
+    DEPENDS ${TARGET}
+    COMMAND python ${UF2CONV_PY} -f ${FAMILY_ID} --deploy $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.uf2
     )
 endfunction()
 
@@ -429,6 +520,7 @@ function(family_flash_teensy TARGET)
     COMMAND ${TEENSY_CLI} --mcu=${TEENSY_MCU} -w -s $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
     )
 endfunction()
+
 
 # Add flash using NXP's LinkServer (redserver)
 # https://www.nxp.com/design/software/development-software/mcuxpresso-software-and-tools-/linkserver-for-microcontrollers:LINKERSERVER
@@ -457,6 +549,21 @@ function(family_flash_dfu_util TARGET OPTION)
     DEPENDS ${TARGET}
     COMMAND ${DFU_UTIL} -R -d ${DFU_UTIL_VID_PID} -a 0 -D $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.bin
     VERBATIM
+    )
+endfunction()
+
+function(family_flash_msp430flasher TARGET)
+  if (NOT DEFINED MSP430Flasher)
+    set(MSP430FLASHER MSP430Flasher)
+  endif ()
+
+  # set LD_LIBRARY_PATH to find libmsp430.so (directory containing MSP430Flasher)
+  find_program(MSP430FLASHER_PATH MSP430Flasher)
+  get_filename_component(MSP430FLASHER_PARENT_DIR "${MSP430FLASHER_PATH}" DIRECTORY)
+  add_custom_target(${TARGET}-msp430flasher
+    DEPENDS ${TARGET}
+    COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${MSP430FLASHER_PARENT_DIR}
+            ${MSP430FLASHER} -w $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex -z [VCC]
     )
 endfunction()
 

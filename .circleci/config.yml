@@ -1,0 +1,92 @@
+version: 2.1
+
+commands:
+  setup-toolchain:
+    parameters:
+        toolchain:
+            type: string
+        toolchain_url:
+            type: string
+    steps:
+#      - run:
+#          name: Make toolchain cache key
+#          command: echo "<< parameters.toolchain >>-<< parameters.toolchain_url>>" > toolchain_key
+#      - restore_cache:
+#          name: Restore Toolchain Cache
+#          key: deps-{{ checksum "toolchain_key" }}
+#          paths:
+#            - ~/cache/<< parameters.toolchain >>
+      - run:
+          name: Install Toolchain
+          command: |
+            # Only download if folder does not exist (not cached)
+            if [ ! -d ~/cache/<< parameters.toolchain >> ]; then
+              mkdir -p ~/cache/<< parameters.toolchain >>
+              wget << parameters.toolchain_url>> -O toolchain.tar.gz
+              tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
+            fi
+#      - save_cache:
+#          name: Save Toolchain Cache
+#          key: deps-{{ checksum "toolchain_key" }}
+#          paths:
+#            - ~/cache/<< parameters.toolchain >>
+      - run:
+          name: Setup build environment
+          command: |
+            echo "export PATH=$PATH:`echo ~/cache/<< parameters.toolchain >>/*/bin`" >> $BASH_ENV
+            # Install Ninja
+            NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
+            wget $NINJA_URL -O ninja-linux.zip
+            unzip ninja-linux.zip -d ~/bin
+
+  get-deps:
+    parameters:
+      family:
+        type: string
+    steps:
+      - run:
+          name: Get Dependencies
+          command: |
+            python tools/get_deps.py << parameters.family >>
+
+jobs:
+  arm-clang:
+    parameters:
+      family:
+        type: string
+      build-system:
+        type: string
+
+    docker:
+      - image: cimg/base:current
+    resource_class: medium
+    environment:
+      TOOLCHAIN_URL: https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz
+    steps:
+      - checkout
+      - setup-toolchain:
+          toolchain: clang
+          toolchain_url: $TOOLCHAIN_URL
+      - get-deps:
+          family: << parameters.family >>
+      - run:
+          name: Build
+          command: |
+            # Only build one board per family for non PRs i.e commit to master
+            ONE_PER_FAMILY=""
+            if [ -z "$CIRCLE_PULL_REQUEST" ]; then
+              ONE_PER_FAMILY="--one-per-family"
+            fi
+            python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> --toolchain clang << parameters.family >>
+
+workflows:
+  build:
+    jobs:
+      - arm-clang:
+          matrix:
+            parameters:
+              build-system:
+                - cmake
+              #family: ['stm32f1']
+              #family: ['stm32f1', 'stm32f2']
+              family: ['imxrt', 'kinetis_k kinetis_kl kinetis_k32l2', 'lpc11 lpc13 lpc15', 'lpc17 lpc18 lpc40 lpc43', 'lpc51 lpc54 lpc55', 'nrf', 'samd11 samd21 saml2x', 'samd5x_e5x samg', 'stm32f0 stm32f1 stm32f2 stm32f3', 'stm32f4', 'stm32f7', 'stm32g0 stm32g4 stm32h5', 'stm32h7', 'stm32l4 stm32u5 stm32wb']

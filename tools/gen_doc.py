@@ -7,9 +7,9 @@ from get_deps import deps_all
 TOP = Path(__file__).parent.parent.resolve()
 
 
-###########################################
+# -----------------------------------------
 # Dependencies
-###########################################
+# -----------------------------------------
 
 def gen_deps_doc():
     deps_rst = Path(TOP) / "docs/reference/dependencies.rst"

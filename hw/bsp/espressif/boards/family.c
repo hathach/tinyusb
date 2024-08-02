@@ -30,8 +30,12 @@
 #include "esp_rom_gpio.h"
 #include "esp_mac.h"
 #include "hal/gpio_ll.h"
+
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
 #include "hal/usb_hal.h"
 #include "soc/usb_periph.h"
+static void configure_pins(usb_hal_context_t* usb);
+#endif
 
 #include "driver/gpio.h"
 #include "driver/uart.h"
@@ -56,7 +60,6 @@ static led_strip_handle_t led_strip;
 static void max3421_init(void);
 #endif
 
-static void configure_pins(usb_hal_context_t* usb);
 
 //--------------------------------------------------------------------+
 // Implementation
@@ -100,7 +103,6 @@ void board_init(void) {
   };
 
   ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
-
   led_strip_clear(led_strip); // off
 #endif
 
@@ -109,6 +111,7 @@ void board_init(void) {
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   // USB Controller Hal init
   periph_module_reset(PERIPH_USB_MODULE);
   periph_module_enable(PERIPH_USB_MODULE);
@@ -118,12 +121,14 @@ void board_init(void) {
   };
   usb_hal_init(&hal);
   configure_pins(&hal);
+#endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
   max3421_init();
 #endif
 }
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
 static void configure_pins(usb_hal_context_t* usb) {
   /* usb_periph_iopins currently configures USB_OTG as USB Device.
    * Introduce additional parameters in usb_hal_context_t when adding support
@@ -153,6 +158,7 @@ static void configure_pins(usb_hal_context_t* usb) {
     gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
   }
 }
+#endif
 
 //--------------------------------------------------------------------+
 // Board porting API
@@ -208,15 +214,12 @@ SemaphoreHandle_t max3421_intr_sem;
 
 static void IRAM_ATTR max3421_isr_handler(void* arg) {
   (void) arg; // arg is gpio num
-  gpio_set_level(13, 1);
 
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   xSemaphoreGiveFromISR(max3421_intr_sem, &xHigherPriorityTaskWoken);
   if (xHigherPriorityTaskWoken) {
     portYIELD_FROM_ISR();
   }
-
-  gpio_set_level(13, 0);
 }
 
 static void max3421_intr_task(void* param) {
@@ -250,15 +253,11 @@ static void max3421_init(void) {
 
   spi_device_interface_config_t max3421_cfg = {
       .mode = 0,
-      .clock_speed_hz = 26000000,
+      .clock_speed_hz = 20000000, // S2/S3 can work with 26 Mhz, but esp32 seems only work up to 20 Mhz
       .spics_io_num = -1, // manual control CS
       .queue_size = 1
   };
   ESP_ERROR_CHECK(spi_bus_add_device(MAX3421_SPI_HOST, &max3421_cfg, &max3421_spi));
-
-  // debug
-  gpio_set_direction(13, GPIO_MODE_OUTPUT);
-  gpio_set_level(13, 0);
 
   // Interrupt pin
   max3421_intr_sem = xSemaphoreCreateBinary();

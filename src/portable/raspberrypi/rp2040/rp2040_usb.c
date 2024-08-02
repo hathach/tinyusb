@@ -53,6 +53,14 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_host_mode(void) {
 //--------------------------------------------------------------------+
 // Implementation
 //--------------------------------------------------------------------+
+// Provide own byte by byte memcpy as not all copies are aligned
+static void unaligned_memcpy(void *dst, const void *src, size_t n) {
+  uint8_t *dst_byte = (uint8_t*)dst;
+  const uint8_t *src_byte = (const uint8_t*)src;
+  while (n--) {
+    *dst_byte++ = *src_byte++;
+  }
+}
 
 void rp2040_usb_init(void) {
   // Reset usb controller
@@ -67,7 +75,6 @@ void rp2040_usb_init(void) {
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
 #endif
 #endif
-  memset(usb_hw, 0, sizeof(*usb_hw));
   memset(usb_dpram, 0, sizeof(*usb_dpram));
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -125,7 +132,7 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint* ep, 
 
   if (!ep->rx) {
     // Copy data from user buffer to hw buffer
-    memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
+    unaligned_memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
     ep->user_buf += buflen;
 
     // Mark as full
@@ -230,7 +237,7 @@ static uint16_t __tusb_irq_path_func(sync_ep_buffer)(struct hw_endpoint* ep, uin
     // we have received AFTER we have copied it to the user buffer at the appropriate offset
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
-    memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
+    unaligned_memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
     ep->xferred_len = (uint16_t) (ep->xferred_len + xferred_bytes);
     ep->user_buf += xferred_bytes;
   }

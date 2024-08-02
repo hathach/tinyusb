@@ -35,7 +35,9 @@
 #include <f1c100s-irq.h>
 #include <device/dcd.h>
 #include "musb_def.h"
-#include "bsp/board.h"
+
+//#include "bsp/board_api.h"
+extern uint32_t board_millis(void); // TODO remove
 
 typedef uint32_t u32;
 typedef uint16_t u16;
@@ -58,7 +60,7 @@ typedef struct TU_ATTR_PACKED
 
 typedef struct
 {
-  tusb_control_request_t setup_packet;
+  CFG_TUD_MEM_ALIGN tusb_control_request_t setup_packet;
   uint16_t     remaining_ctrl; /* The number of bytes remaining in data stage of control transfer. */
   int8_t       status_out;
   pipe_state_t pipe0;
@@ -350,7 +352,7 @@ static void USBC_INT_DisableRxEp(u8 ep_index)
  * INTERNAL FUNCTION DECLARATION
  *------------------------------------------------------------------*/
 
-static dcd_data_t _dcd;
+CFG_TUD_MEM_ALIGN static dcd_data_t _dcd;
 
 static inline free_block_t *find_containing_block(free_block_t *beg, free_block_t *end, uint_fast16_t addr)
 {
@@ -560,7 +562,7 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
 
 static void process_setup_packet(uint8_t rhport)
 {
-  uint32_t *p = (uint32_t*)&_dcd.setup_packet;
+  uint32_t *p = (uint32_t*)(uintptr_t) &_dcd.setup_packet;
   p[0]        = USBC_Readl(USBC_REG_EPFIFO0(USBC0_BASE));
   p[1]        = USBC_Readl(USBC_REG_EPFIFO0(USBC0_BASE));
 
@@ -594,7 +596,7 @@ static bool handle_xfer_in(uint_fast8_t ep_addr)
   if (len) {
     volatile void* addr = (volatile void*)(USBC_REG_EPFIFO1(USBC0_BASE) + (epnum_minus1 << 2));
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1)) {
-      pipe_read_write_packet_ff((tu_fifo_t *)buf, addr, len, TUSB_DIR_IN);
+      pipe_read_write_packet_ff((tu_fifo_t *)(uintptr_t) buf, addr, len, TUSB_DIR_IN);
     } else {
       pipe_write_packet(buf, addr, len);
       pipe->buf       = buf + len;
@@ -622,7 +624,7 @@ static bool handle_xfer_out(uint_fast8_t ep_addr)
   if (len) {
     volatile void* addr = (volatile void*)(USBC_REG_EPFIFO1(USBC0_BASE) + (epnum_minus1 << 2));
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_OUT] & TU_BIT(epnum_minus1)) {
-      pipe_read_write_packet_ff((tu_fifo_t *)buf, addr, len, TUSB_DIR_OUT);
+      pipe_read_write_packet_ff((tu_fifo_t *)(uintptr_t )buf, addr, len, TUSB_DIR_OUT);
     } else {
       pipe_read_packet(buf, addr, len);
       pipe->buf       = buf + len;

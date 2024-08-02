@@ -1,0 +1,53 @@
+name: Setup Toolchain
+
+inputs:
+  toolchain:
+    description: 'Toolchain name'
+    required: true
+  toolchain_url:
+    description: 'Toolchain URL or version'
+    required: false
+
+outputs:
+  build_option:
+    description: 'Build option for the toolchain e.g --toolchain clang'
+    value: ${{ steps.set-toolchain-option.outputs.build_option }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install ARM GCC
+      if: inputs.toolchain == 'arm-gcc'
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '12.3.Rel1'
+
+    - name: Pull ESP-IDF docker
+      if: inputs.toolchain == 'esp-idf'
+      uses: ./.github/actions/setup_toolchain/espressif
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        toolchain_url: ${{ inputs.toolchain_url }}
+
+    - name: Download Toolchain
+      if: >-
+        inputs.toolchain != 'arm-gcc' &&
+        inputs.toolchain != 'arm-iar' &&
+        inputs.toolchain != 'esp-idf'
+      uses: ./.github/actions/setup_toolchain/download
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        toolchain_url: ${{ inputs.toolchain_url }}
+
+    - name: Set toolchain option
+      id: set-toolchain-option
+      run: |
+          BUILD_OPTION=""
+          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
+            BUILD_OPTION="--toolchain clang"
+          elif [[ "${{ inputs.toolchain }}" == "arm-iar" ]]; then
+            BUILD_OPTION="--toolchain iar"
+          fi
+          echo "build_option=$BUILD_OPTION"
+          echo "build_option=$BUILD_OPTION" >> $GITHUB_OUTPUT
+      shell: bash

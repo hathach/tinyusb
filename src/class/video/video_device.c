@@ -763,8 +763,8 @@ static bool _open_vs_itf(uint8_t rhport, videod_streaming_interface_t *stm, uint
     tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)(desc + ofs_ep);
     /* Only ISO endpoints needs to be closed */
     if(ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
-      usbd_edpt_close(rhport, ep->bEndpointAddress);
       stm->desc.ep[i] = 0;
+      usbd_edpt_close(rhport, ep->bEndpointAddress);
       TU_LOG_DRV("    close EP%02x\r\n", ep->bEndpointAddress);
     }
   }
@@ -1186,6 +1186,16 @@ bool tud_video_n_streaming(uint_fast8_t ctl_idx, uint_fast8_t stm_idx)
   videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
   if (!stm || !stm->desc.ep[0]) return false;
   if (stm->state == VS_STATE_PROBING) return false;
+
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
+  uint8_t const *desc = _videod_itf[stm->index_vc].beg;
+  uint_fast16_t ofs_ep = stm->desc.ep[0];
+  tusb_desc_endpoint_t const *ep = (tusb_desc_endpoint_t const*)(desc + ofs_ep);
+  if (ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
+    if (stm->state == VS_STATE_COMMITTED) return false;
+  }
+#endif
+
   return true;
 }
 

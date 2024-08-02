@@ -6,6 +6,12 @@ if (NOT BOARD)
 	set(BOARD pico_sdk)
 endif()
 
+if (TOOLCHAIN STREQUAL "clang")
+	set(PICO_COMPILER "pico_arm_clang")
+else()
+	set(PICO_COMPILER "pico_arm_gcc")
+endif()
+
 # add the SDK in case we are standalone tinyusb example (noop if already present)
 include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
 
@@ -30,13 +36,13 @@ endif()
 add_library(tinyusb_common_base INTERFACE)
 
 target_sources(tinyusb_common_base INTERFACE
-		${TOP}/src/tusb.c
-		${TOP}/src/common/tusb_fifo.c
-		)
+	${TOP}/src/tusb.c
+	${TOP}/src/common/tusb_fifo.c
+	)
 
 target_include_directories(tinyusb_common_base INTERFACE
-		${TOP}/src
-		)
+	${TOP}/src
+	)
 
 if(DEFINED LOG)
 	set(TINYUSB_DEBUG_LEVEL ${LOG})
@@ -48,9 +54,9 @@ else ()
 endif()
 
 target_compile_definitions(tinyusb_common_base INTERFACE
-		CFG_TUSB_MCU=OPT_MCU_RP2040
-		CFG_TUSB_OS=${TINYUSB_OPT_OS}
-		CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
+	CFG_TUSB_MCU=OPT_MCU_RP2040
+	CFG_TUSB_OS=${TINYUSB_OPT_OS}
+	CFG_TUSB_DEBUG=${TINYUSB_DEBUG_LEVEL}
 )
 
 target_link_libraries(tinyusb_common_base INTERFACE
@@ -127,7 +133,10 @@ target_sources(tinyusb_bsp INTERFACE
 target_include_directories(tinyusb_bsp INTERFACE
 	${TOP}/hw
 	)
-target_link_libraries(tinyusb_bsp	INTERFACE pico_unique_id)
+target_link_libraries(tinyusb_bsp INTERFACE
+	pico_unique_id
+	hardware_clocks
+	)
 
 # tinyusb_additions will hold our extra settings for examples
 add_library(tinyusb_additions INTERFACE)
@@ -169,11 +178,16 @@ function(family_configure_target TARGET RTOS)
 	# export RTOS_SUFFIX to parent scope
 	set(RTOS_SUFFIX ${RTOS_SUFFIX} PARENT_SCOPE)
 
+	# compile define from command line
+	if(DEFINED CFLAGS_CLI)
+		target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
+	endif()
+
 	pico_add_extra_outputs(${TARGET})
 	pico_enable_stdio_uart(${TARGET} 1)
 	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
 
-	family_flash_openocd(${TARGET} ${OPENOCD_OPTION})
+	family_flash_openocd(${TARGET})
 	family_flash_jlink(${TARGET})
 endfunction()
 

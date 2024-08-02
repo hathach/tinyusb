@@ -112,6 +112,17 @@ static inline uint16_t calc_grxfsiz(uint16_t max_ep_size, uint8_t ep_count) {
   return 15 + 2 * (max_ep_size / 4) + 2 * ep_count;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void fifo_flush_tx(dwc2_regs_t* dwc2, uint8_t epnum) {
+  // flush TX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_TXFFLSH | (epnum << GRSTCTL_TXFNUM_Pos);
+  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
+}
+TU_ATTR_ALWAYS_INLINE static inline void fifo_flush_rx(dwc2_regs_t* dwc2) {
+  // flush RX fifo and wait for it cleared
+  dwc2->grstctl = GRSTCTL_RXFFLSH;
+  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+}
+
 static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
@@ -120,7 +131,7 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
 
   TU_ASSERT(epnum < ep_count);
 
-  uint16_t const fifo_size = tu_div_ceil(packet_size, 4);
+  uint16_t fifo_size = tu_div_ceil(packet_size, 4);
 
   // "USB Data FIFOs" section in reference manual
   // Peripheral FIFO architecture
@@ -154,10 +165,16 @@ static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
       dwc2->grxfsiz = sz;
     }
   } else {
+    // Note if The TXFELVL is configured as half empty. In order
+    // to be able to write a packet at that point, the fifo must be twice the max_size.
+    if ((dwc2->gahbcfg & GAHBCFG_TXFELVL) == 0) {
+      fifo_size *= 2;
+    }
+
     // Check if free space is available
     TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= _dwc2_controller[rhport].ep_fifo_size / 4);
     _allocated_fifo_words_tx += fifo_size;
-    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %lu", fifo_size * 4,
+    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %" PRIu32, fifo_size * 4,
            _dwc2_controller[rhport].ep_fifo_size - _allocated_fifo_words_tx * 4);
 
     // DIEPTXF starts at FIFO #1.
@@ -185,10 +202,10 @@ static void edpt_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoin
                            (xfer->max_size << DOEPCTL_MPSIZ_Pos);
 
   if (dir == TUSB_DIR_OUT) {
-    dwc2->epout[epnum].doepctl |= dxepctl;
+    dwc2->epout[epnum].doepctl = dxepctl;
     dwc2->daintmsk |= TU_BIT(DAINTMSK_OEPM_Pos + epnum);
   } else {
-    dwc2->epin[epnum].diepctl |= dxepctl | (epnum << DIEPCTL_TXFNUM_Pos);
+    dwc2->epin[epnum].diepctl = dxepctl | (epnum << DIEPCTL_TXFNUM_Pos);
     dwc2->daintmsk |= (1 << (DAINTMSK_IEPM_Pos + epnum));
   }
 }
@@ -219,8 +236,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    dwc2->grstctl = ((epnum << GRSTCTL_TXFNUM_Pos) | GRSTCTL_TXFFLSH);
-    while ((dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) != 0) {}
+    fifo_flush_tx(dwc2, epnum);
   } else {
     dwc2_epout_t* epout = dwc2->epout;
 
@@ -264,15 +280,17 @@ static void bus_reset(uint8_t rhport) {
     dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
   }
 
-  // flush all TX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
+  // 2. Disable all IN endpoints
+  for (uint8_t n = 0; n < ep_count; n++) {
+    if (dwc2->epin[n].diepctl & DIEPCTL_EPENA) {
+      dwc2->epin[n].diepctl |= DIEPCTL_SNAK | DIEPCTL_EPDIS;
+    }
+  }
 
-  // flush RX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+  fifo_flush_tx(dwc2, 0x10); // all tx fifo
+  fifo_flush_rx(dwc2);
 
-  // 2. Set up interrupt mask
+  // 3. Set up interrupt mask
   dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
   dwc2->doepmsk = DOEPMSK_STUPM | DOEPMSK_XFRCM;
   dwc2->diepmsk = DIEPMSK_TOM | DIEPMSK_XFRCM;
@@ -408,9 +426,9 @@ void print_dwc2_info(dwc2_regs_t* dwc2) {
   volatile uint32_t const* p = (volatile uint32_t const*) &dwc2->guid;
   TU_LOG(DWC2_DEBUG, "guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4\r\n");
   for (size_t i = 0; i < 5; i++) {
-    TU_LOG(DWC2_DEBUG, "0x%08lX, ", p[i]);
+    TU_LOG(DWC2_DEBUG, "0x%08" PRIX32 ", ", p[i]);
   }
-  TU_LOG(DWC2_DEBUG, "0x%08lX\r\n", p[5]);
+  TU_LOG(DWC2_DEBUG, "0x%08" PRIX32 "\r\n", p[5]);
 }
 #endif
 
@@ -429,11 +447,15 @@ static void reset_core(dwc2_regs_t* dwc2) {
 }
 
 static bool phy_hs_supported(dwc2_regs_t* dwc2) {
-  // note: esp32 incorrect report its hs_phy_type as utmi
+  (void) dwc2;
+
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+  // note: esp32 incorrect report its hs_phy_type as utmi
+  return false;
+#elif !TUD_OPT_HIGH_SPEED
   return false;
 #else
-  return TUD_OPT_HIGH_SPEED && dwc2->ghwcfg2_bm.hs_phy_type != HS_PHY_TYPE_NONE;
+  return dwc2->ghwcfg2_bm.hs_phy_type != HS_PHY_TYPE_NONE;
 #endif
 }
 
@@ -578,13 +600,8 @@ void dcd_init(uint8_t rhport) {
   // (non zero-length packet), send STALL back and discard.
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
-  // flush all TX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_TXFFLSH | (0x10u << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
-
-  // flush RX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+  fifo_flush_tx(dwc2, 0x10); // all tx fifo
+  fifo_flush_rx(dwc2);
 
   // Clear all interrupts
   uint32_t int_mask = dwc2->gintsts;
@@ -595,6 +612,9 @@ void dcd_init(uint8_t rhport) {
   // Required as part of core initialization.
   dwc2->gintmsk = GINTMSK_OTGINT | GINTMSK_RXFLVLM |
                   GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
+
+  // Configure TX FIFO empty level for interrupt. Default is complete empty
+  dwc2->gahbcfg |= GAHBCFG_TXFELVL;
 
   // Enable global interrupt
   dwc2->gahbcfg |= GAHBCFG_GINT;
@@ -691,16 +711,25 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
   for (uint8_t n = 1; n < ep_count; n++) {
     // disable OUT endpoint
-    dwc2->epout[n].doepctl = 0;
+    if (dwc2->epout[n].doepctl & DOEPCTL_EPENA) {
+      dwc2->epout[n].doepctl |= DOEPCTL_SNAK | DOEPCTL_EPDIS;
+    }
     xfer_status[n][TUSB_DIR_OUT].max_size = 0;
 
     // disable IN endpoint
-    dwc2->epin[n].diepctl = 0;
+    if (dwc2->epin[n].diepctl & DIEPCTL_EPENA) {
+      dwc2->epin[n].diepctl |= DIEPCTL_SNAK | DIEPCTL_EPDIS;
+    }
     xfer_status[n][TUSB_DIR_IN].max_size = 0;
   }
 
+  // reset allocated fifo OUT
+  dwc2->grxfsiz = calc_grxfsiz(64, ep_count);
   // reset allocated fifo IN
   _allocated_fifo_words_tx = 16;
+
+  fifo_flush_tx(dwc2, 0x10); // all tx fifo
+  fifo_flush_rx(dwc2);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -1122,16 +1151,14 @@ void dcd_int_handler(uint8_t rhport) {
 
   if(int_status & GINTSTS_SOF) {
     dwc2->gintsts = GINTSTS_SOF;
+    const uint32_t frame = (dwc2->dsts & DSTS_FNSOF) >> DSTS_FNSOF_Pos;
 
-    if (_sof_en) {
-      uint32_t frame = (dwc2->dsts & (DSTS_FNSOF)) >> 8;
-      dcd_event_sof(rhport, frame, true);
-    } else {
-      // Disable SOF interrupt if SOF was not explicitly enabled. SOF was used for remote wakeup detection
+    // Disable SOF interrupt if SOF was not explicitly enabled since SOF was used for remote wakeup detection
+    if (!_sof_en) {
       dwc2->gintmsk &= ~GINTMSK_SOFM;
     }
 
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+    dcd_event_sof(rhport, frame, true);
   }
 
   // RxFIFO non-empty interrupt handling.
@@ -1144,7 +1171,7 @@ void dcd_int_handler(uint8_t rhport) {
     // Loop until all available packets were handled
     do {
       handle_rxflvl_irq(rhport);
-    } while (dwc2->gotgint & GINTSTS_RXFLVL);
+    } while(dwc2->gintsts & GINTSTS_RXFLVL);
 
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
   }
@@ -1167,5 +1194,14 @@ void dcd_int_handler(uint8_t rhport) {
   ////    TU_LOG(DWC2_DEBUG, "      IISOIXFR!\r\n");
   //  }
 }
+
+#if CFG_TUD_TEST_MODE
+void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Enable the test mode
+  dwc2->dctl = (dwc2->dctl & ~DCTL_TCTL_Msk) | (((uint8_t) test_selector) << DCTL_TCTL_Pos);
+}
+#endif
 
 #endif

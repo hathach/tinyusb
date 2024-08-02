@@ -59,10 +59,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install ARM GCC
-      uses: carlosperate/arm-none-eabi-gcc-action@v1
+    - name: Setup Toolchain
+      uses: ./.github/actions/setup_toolchain
       with:
-        release: '11.2-2022.02'
+        toolchain: 'arm-gcc'
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL

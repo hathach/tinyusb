@@ -1,0 +1,74 @@
+{
+    "boards": [
+        {
+            "name": "feather_nrf52840_express",
+            "uid": "1F0479CD0F764471",
+            "flasher": "jlink",
+            "flasher_sn": "000682804350",
+            "flasher_args": "-device nrf52840_xxaa"
+        },
+        {
+            "name": "itsybitsy_m4",
+            "uid": "D784B28C5338533335202020FF044726",
+            "flasher": "openocd",
+            "flasher_sn": "E6614C311B597D32",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg -c \"adapter speed 5000\""
+        },
+        {
+            "name": "metro_m7_1011",
+            "uid": "9CE8715DD71137363E00005002004200",
+            "flasher": "jlink",
+            "flasher_sn": "000611000000",
+            "flasher_args": "-device MIMXRT1011xxx5A"
+        },
+        {
+            "name": "lpcxpresso11u37",
+            "uid": "17121919",
+            "flasher": "jlink",
+            "flasher_sn": "000724441579",
+            "flasher_args": "-device LPC11U37/401"
+        },
+        {
+            "name": "ra4m1_ek",
+            "uid": "152E163038303131393346E46F26574B",
+            "tests_skip": ["cdc_msc", "cdc_msc_freertos"],
+            "comment": "MSC is slow to enumerated #2602",
+            "flasher": "jlink",
+            "flasher_sn": "000831174392",
+            "flasher_args": "-device R7FA4M1AB"
+        },
+        {
+            "name": "raspberry_pi_pico",
+            "uid": "E6614C311B764A37",
+            "flasher": "openocd",
+            "flasher_sn": "E6614103E72C1D2F",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+        },
+        {
+            "name": "stm32f072disco",
+            "uid": "3A001A001357364230353532",
+            "flasher": "jlink",
+            "flasher_sn": "779541626",
+            "flasher_args": "-device stm32f072rb"
+        },
+        {
+            "name": "stm32g0b1nucleo",
+            "uid": "4D0038000450434E37343120",
+            "flasher": "openocd",
+            "flasher_sn": "066FFF495087534867063844",
+            "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+        }
+    ],
+    "boards-skip": [
+        {
+            "name": "espressif_s3_devkitm",
+            "uid": "84F703C084E4",
+            "tests": [
+                "cdc_msc_freertos", "hid_composite_freertos"
+            ],
+            "flasher": "esptool",
+            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
+            "flasher_args": "-b 921600"
+        }
+    ]
+}

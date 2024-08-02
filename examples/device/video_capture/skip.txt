@@ -1,4 +1,5 @@
+mcu:CH32V103
+mcu:CH32V20X
 mcu:MSP430x5xx
 mcu:NUC121
 mcu:SAMD11
-family:espressif
