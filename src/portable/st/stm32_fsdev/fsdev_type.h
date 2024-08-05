@@ -156,9 +156,6 @@ TU_VERIFY_STATIC(sizeof(fsdev_regs_t) == 0x5C, "Size is not correct");
 #define USB_EP_CTR_TX_Pos    7u
 #endif
 
-
-#define EP_CTR_TXRX (USB_EP_CTR_TX | USB_EP_CTR_RX)
-
 typedef enum {
   EP_STAT_DISABLED = 0,
   EP_STAT_STALL = 1,
