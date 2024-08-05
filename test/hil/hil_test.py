@@ -36,14 +36,6 @@ import glob
 import platform
 from multiprocessing import Pool
 
-# for RPI double reset
-if platform.machine() == 'aarch64':
-    try:
-        import gpiozero
-    except ImportError:
-        pass
-
-
 ENUM_TIMEOUT = 30
 
 
@@ -154,6 +146,12 @@ def flash_openocd(board, firmware):
     return ret
 
 
+def flash_wlink_rs(board, firmware):
+    # wlink use index for probe selection and lacking usb serial support
+    ret = run_cmd(f'wlink flash {firmware}.elf')
+    return ret
+
+
 def flash_esptool(board, firmware):
     port = get_serial_dev(board["flasher_sn"], None, None, 0)
     dir = os.path.dirname(f'{firmware}.bin')
@@ -166,38 +164,6 @@ def flash_esptool(board, firmware):
     ret = subprocess.run(command, shell=True, cwd=dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return ret
 
-
-def doublereset_with_rpi_gpio(pin):
-    # Off = 0 = Reset
-    nrst = gpiozero.LED(pin)
-
-    nrst.off()
-    time.sleep(0.1)
-    nrst.on()
-    time.sleep(0.1)
-    nrst.off()
-    time.sleep(0.1)
-    nrst.on()
-
-
-def flash_bossac(board, firmware):
-    # double reset to enter bootloader
-    if platform.machine() == 'aarch64':
-        doublereset_with_rpi_gpio(board["flasher_reset_pin"])
-
-    port = get_serial_dev(board["uid"], board["flashser_vendor"], board["flasher_product"], 0)
-    timeout = ENUM_TIMEOUT
-    while timeout:
-        if os.path.exists(port):
-            break
-        else:
-            time.sleep(0.5)
-            timeout = timeout - 0.5
-    assert timeout, 'bossac bootloader is not available'
-    # sleep a bit more for bootloader to be ready
-    time.sleep(0.5)
-    ret = run_cmd(f'bossac --port {port} {board["flasher_args"]} -U -i -R -e -w {firmware}.bin')
-    return ret
 
 # -------------------------------------------------------------
 # Tests
@@ -266,29 +232,30 @@ def test_dfu(id):
 
     assert timeout, 'Device not available'
 
+    f_dfu0 = f'dfu0_{id}'
+    f_dfu1 = f'dfu1_{id}'
+
     # Test upload
     try:
-        os.remove('dfu0')
-        os.remove('dfu1')
+        os.remove(f_dfu0)
+        os.remove(f_dfu1)
     except OSError:
         pass
 
-    ret = subprocess.run(f'dfu-util -S {id} -a 0 -U dfu0',
-                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ret = run_cmd(f'dfu-util -S {id} -a 0 -U {f_dfu0}')
     assert ret.returncode == 0, 'Upload failed'
 
-    ret = subprocess.run(f'dfu-util -S {id} -a 1 -U dfu1',
-                         shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ret = run_cmd(f'dfu-util -S {id} -a 1 -U {f_dfu1}')
     assert ret.returncode == 0, 'Upload failed'
 
-    with open('dfu0') as f:
+    with open(f_dfu0) as f:
         assert 'Hello world from TinyUSB DFU! - Partition 0' in f.read(), 'Wrong uploaded data'
 
-    with open('dfu1') as f:
+    with open(f_dfu1) as f:
         assert 'Hello world from TinyUSB DFU! - Partition 1' in f.read(), 'Wrong uploaded data'
 
-    os.remove('dfu0')
-    os.remove('dfu1')
+    os.remove(f_dfu0)
+    os.remove(f_dfu1)
 
 
 def test_dfu_runtime(id):
@@ -333,9 +300,9 @@ def test_hid_composite_freertos(id):
 all_tests = [
     'cdc_dual_ports',
     'cdc_msc',
-    #'cdc_msc_freertos',
+    'cdc_msc_freertos',
     'dfu',
-    #'dfu_runtime',
+    'dfu_runtime',
     'hid_boot_interface',
     'board_test'
 ]
@@ -362,7 +329,7 @@ def test_board(item):
         if not os.path.exists(fw_dir):
             fw_dir = f'examples/cmake-build-{name}/device/{test}'
         fw_name = f'{fw_dir}/{test}'
-        print(f'{name:20} {test:20} ... ', end='')
+        print(f'{name:30} {test:20} ... ', end='')
 
         if not os.path.exists(fw_dir):
             print('Skip')
