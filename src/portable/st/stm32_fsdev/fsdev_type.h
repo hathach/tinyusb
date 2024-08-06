@@ -196,11 +196,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
   return FSDEV_REG->ep[ep_id].reg;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void ep_add_status(uint32_t* reg, tusb_dir_t dir, ep_stat_t state) {
+TU_ATTR_ALWAYS_INLINE static inline void ep_change_status(uint32_t* reg, tusb_dir_t dir, ep_stat_t state) {
   *reg ^= (state << (USB_EPTX_STAT_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void ep_add_dtog(uint32_t* reg, tusb_dir_t dir, uint8_t state) {
+TU_ATTR_ALWAYS_INLINE static inline void ep_change_dtog(uint32_t* reg, tusb_dir_t dir, uint8_t state) {
   *reg ^= (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
 }
 

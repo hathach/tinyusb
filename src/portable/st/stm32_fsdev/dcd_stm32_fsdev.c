@@ -356,7 +356,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
       uint16_t const cnt = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
       btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, cnt);
     }
-    ep_add_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_VALID);
+    ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_VALID);
     ep_write(ep_id, ep_reg, false);
   }
 }
@@ -563,8 +563,8 @@ void edpt0_open(uint8_t rhport) {
 
   uint32_t ep_reg = ep_read(0) & ~USB_EPREG_MASK; // only get toggle bits
   ep_reg |= USB_EP_CONTROL;
-  ep_add_status(&ep_reg, TUSB_DIR_IN, EP_STAT_NAK);
-  ep_add_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
+  ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_NAK);
+  ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
   // no need to explicitly set DTOG bits since we aren't masked DTOG bit
 
   edpt0_prepare_setup(); // prepare for setup packet
@@ -605,8 +605,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   xfer->max_packet_size = packet_size;
   xfer->ep_idx = ep_idx;
 
-  ep_add_status(&ep_reg, dir, EP_STAT_NAK);
-  ep_add_dtog(&ep_reg, dir, 0);
+  ep_change_status(&ep_reg, dir, EP_STAT_NAK);
+  ep_change_dtog(&ep_reg, dir, 0);
 
   // reserve other direction toggle bits
   if (dir == TUSB_DIR_IN) {
@@ -677,10 +677,10 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
 
   uint32_t ep_reg = ep_read(ep_idx) & ~USB_EPREG_MASK;
   ep_reg |= tu_edpt_number(ep_addr) | USB_EP_ISOCHRONOUS | USB_EP_CTR_TX | USB_EP_CTR_RX;
-  ep_add_status(&ep_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
-  ep_add_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
-  ep_add_dtog(&ep_reg, dir, 0);
-  ep_add_dtog(&ep_reg, 1-dir, 1);
+  ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
+  ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
+  ep_change_dtog(&ep_reg, dir, 0);
+  ep_change_dtog(&ep_reg, 1 - dir, 1);
 
   ep_write(ep_idx, ep_reg, true);
 
@@ -713,7 +713,7 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   }
 
   btable_set_count(ep_ix, buf_id, len);
-  ep_add_status(&ep_reg, TUSB_DIR_IN, EP_STAT_VALID);
+  ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_VALID);
 
   if (is_iso) {
     xfer->iso_in_sending = true;
@@ -733,7 +733,7 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
     uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
     uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // keep CTR TX
     ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir);
-    ep_add_status(&ep_reg, dir, EP_STAT_VALID);
+    ep_change_status(&ep_reg, dir, EP_STAT_VALID);
 
     if (ep_is_iso(ep_reg)) {
       btable_set_rx_bufsize(ep_idx, 0, cnt);
@@ -783,7 +783,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 
   uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR bits
   ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir);
-  ep_add_status(&ep_reg, dir, EP_STAT_STALL);
+  ep_change_status(&ep_reg, dir, EP_STAT_STALL);
 
   ep_write(ep_idx, ep_reg, true);
 }
@@ -800,9 +800,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir) | EP_DTOG_MASK(dir);
 
   if (!ep_is_iso(ep_reg)) {
-    ep_add_status(&ep_reg, dir, EP_STAT_NAK);
+    ep_change_status(&ep_reg, dir, EP_STAT_NAK);
   }
-  ep_add_dtog(&ep_reg, dir, 0); // Reset to DATA0
+  ep_change_dtog(&ep_reg, dir, 0); // Reset to DATA0
   ep_write(ep_idx, ep_reg, true);
 }
 
