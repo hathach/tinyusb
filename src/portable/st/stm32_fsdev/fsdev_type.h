@@ -172,8 +172,24 @@ typedef enum {
 // - DTOG and STAT are write 1 to toggle
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value) {
+TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value, bool need_exclusive) {
+  if (need_exclusive) {
+    dcd_int_disable(0);
+  }
+
   FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
+
+  if (need_exclusive) {
+    dcd_int_enable(0);
+  }
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void ep_write_clear_ctr(uint32_t ep_id, tusb_dir_t dir) {
+  uint32_t reg = FSDEV_REG->ep[ep_id].reg;
+  reg |= USB_EP_CTR_TX | USB_EP_CTR_RX;
+  reg &= USB_EPREG_MASK;
+  reg &= ~(1 << (USB_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
+  ep_write(ep_id, reg, false);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
@@ -186,10 +202,6 @@ TU_ATTR_ALWAYS_INLINE static inline void ep_add_status(uint32_t* reg, tusb_dir_t
 
 TU_ATTR_ALWAYS_INLINE static inline void ep_add_dtog(uint32_t* reg, tusb_dir_t dir, uint8_t state) {
   *reg ^= (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void ep_clear_ctr(uint32_t* reg, tusb_dir_t dir) {
-  *reg &= ~(1 << (USB_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(uint32_t reg) {
@@ -218,7 +230,7 @@ TU_ATTR_ALWAYS_INLINE static inline void btable_set_addr(uint32_t ep_id, uint8_t
 #endif
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t btable_get_count(uint32_t ep_id, uint8_t buf_id) {
+TU_ATTR_ALWAYS_INLINE static inline uint16_t btable_get_count(uint32_t ep_id, uint8_t buf_id) {
   uint16_t count;
 #ifdef FSDEV_BUS_32BIT
   count = (FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr >> 16);
@@ -258,7 +270,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t pma_align_buffer_size(uint16_t size
   return (*num_block) * block_in_bytes;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint32_t wCount) {
+TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount) {
   uint8_t blsize, num_block;
   (void) pma_align_buffer_size(wCount, &blsize, &num_block);
 
