@@ -217,8 +217,8 @@ void dcd_init(uint8_t rhport) {
     ep_write(i, 0u, false);
   }
 
-  FSDEV_REG->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
-      //| USB_CNTR_ERRM | USB_CNTR_PMAOVRM;
+  FSDEV_REG->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM |
+      USB_CNTR_SUSPM | USB_CNTR_WKUPM | USB_CNTR_PMAOVRM;
   handle_bus_reset(rhport);
 
   // Enable pull-up if supported
@@ -349,6 +349,10 @@ static void handle_ctr_rx(uint32_t ep_id) {
 
   if ((rx_count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len)) {
     // all bytes received or short packet
+
+    // reset rx bufsize to mps to prevent race condition to cause PMAOVR (occurs with ch32v203 with msc write10)
+    btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, xfer->max_packet_size);
+
     dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
   } else {
     // Set endpoint active again for receiving more data. Note that isochronous endpoints stay active always
@@ -412,9 +416,10 @@ void dcd_int_handler(uint8_t rhport) {
     FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_ESOF;
   }
 
-//  if (int_status & (USB_ISTR_ERR | USB_ISTR_PMAOVR)) {
-//    TU_BREAKPOINT();
-//  }
+  if (int_status & USB_ISTR_PMAOVR) {
+    TU_BREAKPOINT();
+    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_PMAOVR;
+  }
 
   // loop to handle all pending CTR interrupts
   while (FSDEV_REG->ISTR & USB_ISTR_CTR) {
@@ -446,7 +451,7 @@ void dcd_int_handler(uint8_t rhport) {
       #endif
 
       if (ep_reg & USB_EP_SETUP) {
-        handle_ctr_setup(ep_id);
+        handle_ctr_setup(ep_id); // CTR will be clear after copied setup packet
       } else {
         ep_write_clear_ctr(ep_id, TUSB_DIR_OUT);
         handle_ctr_rx(ep_id);
@@ -690,7 +695,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
 // Currently, single-buffered, and only 64 bytes at a time (max)
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   uint16_t len = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
-  uint32_t ep_reg = ep_read(ep_ix) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR RX
+  uint32_t ep_reg = ep_read(ep_ix) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR
   ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN); // only change TX Status, reserve other toggle bits
 
   bool const is_iso = ep_is_iso(ep_reg);
@@ -730,10 +735,10 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
   if (dir == TUSB_DIR_IN) {
     dcd_transmit_packet(xfer, ep_idx);
   } else {
-    uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
-    uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // keep CTR TX
+    uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR
     ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir);
-    ep_change_status(&ep_reg, dir, EP_STAT_VALID);
+
+    uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
 
     if (ep_is_iso(ep_reg)) {
       btable_set_rx_bufsize(ep_idx, 0, cnt);
@@ -742,7 +747,8 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
       btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
     }
 
-    ep_write(ep_idx, ep_reg, true);
+    ep_change_status(&ep_reg, dir, EP_STAT_VALID);
+    ep_write(ep_idx, ep_reg, false);
   }
 
   return true;

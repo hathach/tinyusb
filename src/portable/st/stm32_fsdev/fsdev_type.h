@@ -172,6 +172,10 @@ typedef enum {
 // - DTOG and STAT are write 1 to toggle
 //--------------------------------------------------------------------+
 
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
+  return FSDEV_REG->ep[ep_id].reg;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value, bool need_exclusive) {
   if (need_exclusive) {
     dcd_int_disable(0);
@@ -190,10 +194,6 @@ TU_ATTR_ALWAYS_INLINE static inline void ep_write_clear_ctr(uint32_t ep_id, tusb
   reg &= USB_EPREG_MASK;
   reg &= ~(1 << (USB_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 0 : 8)));
   ep_write(ep_id, reg, false);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
-  return FSDEV_REG->ep[ep_id].reg;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void ep_change_status(uint32_t* reg, tusb_dir_t dir, ep_stat_t state) {
@@ -260,12 +260,12 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t pma_align_buffer_size(uint16_t size
   if (size > 62) {
     block_in_bytes = 32;
     *blsize = 1;
+    *num_block = tu_div_ceil(size, 32);
   } else {
     block_in_bytes = 2;
     *blsize = 0;
+    *num_block = tu_div_ceil(size, 2);
   }
-
-  *num_block = tu_div_ceil(size, block_in_bytes);
 
   return (*num_block) * block_in_bytes;
 }
@@ -276,6 +276,10 @@ TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, u
 
   /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
   uint16_t bl_nb = (blsize << 15) | ((num_block - blsize) << 10);
+  if (bl_nb == 0) {
+    // 0 is invalid, set up blsize to 1
+    bl_nb = 1 << 15;
+  }
 
 #ifdef FSDEV_BUS_32BIT
   uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
@@ -284,6 +288,7 @@ TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, u
 #else
   FSDEV_BTABLE->ep16[ep_id][buf_id].count = bl_nb;
 #endif
+
 }
 
 #ifdef __cplusplus
