@@ -147,6 +147,7 @@ typedef struct {
 static xfer_ctl_t xfer_status[CFG_TUD_ENDPPOINT_MAX][2];
 static ep_alloc_t ep_alloc_status[FSDEV_EP_COUNT];
 static uint8_t remoteWakeCountdown; // When wake is requested
+static uint8_t _setup_dir; // for detecting status OUT
 
 //--------------------------------------------------------------------+
 // Prototypes
@@ -311,6 +312,7 @@ static void handle_ctr_setup(uint32_t ep_id) {
 
   // Setup packet should always be 8 bytes. If not, we probably missed the packet
   if (rx_count == 8) {
+    _setup_dir = (setup_packet[0] & 0x80 ? TUSB_DIR_IN : TUSB_DIR_OUT);
     dcd_event_setup_received(0, (uint8_t*) setup_packet, true);
     // Hardware should reset EP0 RX/TX to NAK and both toggle to 1
   } else {
@@ -323,8 +325,6 @@ static void handle_ctr_setup(uint32_t ep_id) {
 // Handle CTR interrupt for the RX/OUT direction
 static void handle_ctr_rx(uint32_t ep_id) {
   uint32_t ep_reg = ep_read(ep_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
-  ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_OUT); // will change RX Status, reserved other toggle bits
-
   uint8_t const ep_num = ep_reg & USB_EPADDR_FIELD;
   bool const is_iso = ep_is_iso(ep_reg);
   xfer_ctl_t* xfer = xfer_ctl_ptr(ep_num, TUSB_DIR_OUT);
@@ -345,6 +345,13 @@ static void handle_ctr_rx(uint32_t ep_id) {
       dcd_read_packet_memory(xfer->buffer + xfer->queued_len, pma_addr, rx_count);
     }
     xfer->queued_len += rx_count;
+  } else {
+    // ZLP Status OUT
+    if (ep_num == 0 && (ep_reg & USB_EP_KIND) ) {
+      ep_reg &= USB_EPREG_MASK;
+      ep_reg &= ~USB_EP_KIND; // clear kind bit
+      ep_write(ep_id, ep_reg, false);
+    }
   }
 
   if ((rx_count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len)) {
@@ -360,6 +367,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
       uint16_t const cnt = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
       btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, cnt);
     }
+    ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_OUT); // will change RX Status, reserved other toggle bits
     ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_VALID);
     ep_write(ep_id, ep_reg, false);
   }
@@ -367,9 +375,6 @@ static void handle_ctr_rx(uint32_t ep_id) {
 
 void dcd_int_handler(uint8_t rhport) {
   uint32_t int_status = FSDEV_REG->ISTR;
-  // const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
-  //     | USB_ISTR_SUSP | USB_ISTR_SOF | USB_ISTR_ESOF;
-  //  unused IRQs: (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_L1REQ )
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
   if (int_status & USB_ISTR_SOF) {
@@ -738,17 +743,22 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
     uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR
     ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir);
 
-    uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
-
-    if (ep_is_iso(ep_reg)) {
-      btable_set_rx_bufsize(ep_idx, 0, cnt);
-      btable_set_rx_bufsize(ep_idx, 1, cnt);
+    if ( ep_num == 0 && dir == TUSB_DIR_OUT && _setup_dir == TUSB_DIR_IN ) {
+      // use EP0 OUT status stage, otherwise OUT packet right after SETUP will be accepted without
+      // the usbd (software) consent
+      ep_reg |= USB_EP_KIND;
     } else {
-      btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
-    }
+      uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
 
+      if (ep_is_iso(ep_reg)) {
+        btable_set_rx_bufsize(ep_idx, 0, cnt);
+        btable_set_rx_bufsize(ep_idx, 1, cnt);
+      } else {
+        btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
+      }
+    }
     ep_change_status(&ep_reg, dir, EP_STAT_VALID);
-    ep_write(ep_idx, ep_reg, false);
+    ep_write(ep_idx, ep_reg, true);
   }
 
   return true;
