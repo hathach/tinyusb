@@ -57,6 +57,13 @@
             "flasher": "openocd",
             "flasher_sn": "066FFF495087534867063844",
             "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+        },
+        {
+            "name": "nanoch32v203",
+            "uid": "CDAB277B0FBC03E339E339E3",
+            "flasher": "openocd_wch",
+            "flasher_sn": "EBCA8F0670AF",
+            "flasher_args": ""
         }
     ],
     "boards-skip": [

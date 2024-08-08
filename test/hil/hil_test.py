@@ -146,6 +146,36 @@ def flash_openocd(board, firmware):
     return ret
 
 
+def flash_openocd_wch(board, firmware):
+    # Content of the wch-riscv.cfg file
+    cfg_content = """
+adapter driver wlinke
+adapter speed 6000
+transport select sdi
+
+wlink_set_address 0x00000000
+set _CHIPNAME wch_riscv
+sdi newtap $_CHIPNAME cpu -irlen 5 -expected-id 0x00001
+
+set _TARGETNAME $_CHIPNAME.cpu
+
+target create $_TARGETNAME.0 wch_riscv -chain-position $_TARGETNAME
+$_TARGETNAME.0 configure  -work-area-phys 0x20000000 -work-area-size 10000 -work-area-backup 1
+set _FLASHNAME $_CHIPNAME.flash
+
+flash bank $_FLASHNAME wch_riscv 0x00000000 0 0 0 $_TARGETNAME.0
+
+echo "Ready for Remote Connections"
+"""
+    f_wch = f"wch-riscv_{board['uid']}.cfg"
+    if not os.path.exists(f_wch):
+        with open(f_wch, 'w') as file:
+            file.write(cfg_content)
+
+    ret = run_cmd(f'openocd_wch -c "adapter serial {board["flasher_sn"]}" -f {f_wch} -c "program {firmware}.elf reset exit"')
+    return ret
+
+
 def flash_wlink_rs(board, firmware):
     # wlink use index for probe selection and lacking usb serial support
     ret = run_cmd(f'wlink flash {firmware}.elf')
