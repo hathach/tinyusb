@@ -147,7 +147,6 @@ typedef struct {
 static xfer_ctl_t xfer_status[CFG_TUD_ENDPPOINT_MAX][2];
 static ep_alloc_t ep_alloc_status[FSDEV_EP_COUNT];
 static uint8_t remoteWakeCountdown; // When wake is requested
-static uint8_t _setup_dir; // for detecting status OUT
 
 //--------------------------------------------------------------------+
 // Prototypes
@@ -312,7 +311,6 @@ static void handle_ctr_setup(uint32_t ep_id) {
 
   // Setup packet should always be 8 bytes. If not, we probably missed the packet
   if (rx_count == 8) {
-    _setup_dir = (setup_packet[0] & 0x80 ? TUSB_DIR_IN : TUSB_DIR_OUT);
     dcd_event_setup_received(0, (uint8_t*) setup_packet, true);
     // Hardware should reset EP0 RX/TX to NAK and both toggle to 1
   } else {
@@ -345,22 +343,17 @@ static void handle_ctr_rx(uint32_t ep_id) {
       dcd_read_packet_memory(xfer->buffer + xfer->queued_len, pma_addr, rx_count);
     }
     xfer->queued_len += rx_count;
-  } else {
-    // ZLP Status OUT
-    if (ep_num == 0 && (ep_reg & USB_EP_KIND) ) {
-      ep_reg &= USB_EPREG_MASK;
-      ep_reg &= ~USB_EP_KIND; // clear kind bit
-      ep_write(ep_id, ep_reg, false);
-    }
   }
 
-  if ((rx_count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len)) {
+  if ((rx_count < xfer->max_packet_size) || (xfer->queued_len >= xfer->total_len)) {
     // all bytes received or short packet
-
-    // reset rx bufsize to mps to prevent race condition to cause PMAOVR (occurs with ch32v203 with msc write10)
-    btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, xfer->max_packet_size);
-
     dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+
+    // For ch32v203: reset rx bufsize to mps to prevent race condition to cause PMAOVR (occurs with msc write10)
+    // also ch32 seems to unconditionally accept ZLP on EP0 OUT, which can incorrectly use queued_len of previous
+    // transfer. So reset total_len and queued_len to 0.
+    btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, xfer->max_packet_size);
+    xfer->total_len = xfer->queued_len = 0;
   } else {
     // Set endpoint active again for receiving more data. Note that isochronous endpoints stay active always
     if (!is_iso) {
@@ -743,20 +736,15 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
     uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR
     ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir);
 
-    if ( ep_num == 0 && dir == TUSB_DIR_OUT && _setup_dir == TUSB_DIR_IN ) {
-      // use EP0 OUT status stage, otherwise OUT packet right after SETUP will be accepted without
-      // the usbd (software) consent
-      ep_reg |= USB_EP_KIND;
-    } else {
-      uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
+    uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
 
-      if (ep_is_iso(ep_reg)) {
-        btable_set_rx_bufsize(ep_idx, 0, cnt);
-        btable_set_rx_bufsize(ep_idx, 1, cnt);
-      } else {
-        btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
-      }
+    if (ep_is_iso(ep_reg)) {
+      btable_set_rx_bufsize(ep_idx, 0, cnt);
+      btable_set_rx_bufsize(ep_idx, 1, cnt);
+    } else {
+      btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
     }
+
     ep_change_status(&ep_reg, dir, EP_STAT_VALID);
     ep_write(ep_idx, ep_reg, true);
   }
