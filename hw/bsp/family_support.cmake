@@ -399,6 +399,11 @@ function(family_flash_jlink TARGET)
     set(JLINK_IF swd)
   endif ()
 
+  if (NOT DEFINED JLINK_OPTION)
+    set(JLINK_OPTION "")
+  endif ()
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${JLINK_OPTION})
+
   file(GENERATE
     OUTPUT $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     CONTENT "halt
@@ -410,7 +415,8 @@ exit"
 
   add_custom_target(${TARGET}-jlink
     DEPENDS ${TARGET}
-    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} ${OPTION_LIST} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
+    VERBATIM
     )
 endfunction()
 

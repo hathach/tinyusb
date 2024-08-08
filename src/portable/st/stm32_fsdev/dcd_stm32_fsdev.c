@@ -4,7 +4,6 @@
  * Copyright (c) 2019 Nathan Conrad
  *
  * Portions:
- * Copyright (c) 2016 STMicroelectronics
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
  * Copyright (c) 2022 Simon Küppers (skuep)
  * Copyright (c) 2022 HiFiPhile
@@ -114,8 +113,6 @@
 #include "device/dcd.h"
 
 #if defined(TUP_USBIP_FSDEV_STM32)
-  // Undefine to reduce the dependence on HAL
-  #undef USE_HAL_DRIVER
   #include "fsdev_stm32.h"
 #elif defined(TUP_USBIP_FSDEV_CH32)
   #include "fsdev_ch32.h"
@@ -124,12 +121,6 @@
 #endif
 
 #include "fsdev_type.h"
-
-//--------------------------------------------------------------------+
-// Configuration
-//--------------------------------------------------------------------+
-
-
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -155,7 +146,6 @@ typedef struct {
 
 static xfer_ctl_t xfer_status[CFG_TUD_ENDPPOINT_MAX][2];
 static ep_alloc_t ep_alloc_status[FSDEV_EP_COUNT];
-
 static uint8_t remoteWakeCountdown; // When wake is requested
 
 //--------------------------------------------------------------------+
@@ -178,6 +168,10 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNB
 static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes);
 
 static void edpt0_open(uint8_t rhport);
+
+TU_ATTR_ALWAYS_INLINE static inline void edpt0_prepare_setup(void) {
+   btable_set_rx_bufsize(0, BTABLE_BUF_RX, 8);
+}
 
 //--------------------------------------------------------------------+
 // Inline helper
@@ -220,10 +214,11 @@ void dcd_init(uint8_t rhport) {
   // Reset endpoints to disabled
   for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {
     // This doesn't clear all bits since some bits are "toggle", but does set the type to DISABLED.
-    ep_write(i, 0u);
+    ep_write(i, 0u, false);
   }
 
-  FSDEV_REG->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
+  FSDEV_REG->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM |
+      USB_CNTR_SUSPM | USB_CNTR_WKUPM | USB_CNTR_PMAOVRM;
   handle_bus_reset(rhport);
 
   // Enable pull-up if supported
@@ -279,13 +274,10 @@ static void handle_bus_reset(uint8_t rhport) {
 
 // Handle CTR interrupt for the TX/IN direction
 static void handle_ctr_tx(uint32_t ep_id) {
-  uint32_t ep_reg = ep_read(ep_id) & USB_EPREG_MASK;
-
-  // Verify the CTR bit is set. This was in the ST Micro code, but I'm not sure it's actually necessary?
-  TU_VERIFY(ep_reg & USB_EP_CTR_TX, );
+  uint32_t ep_reg = ep_read(ep_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
+  ep_reg &= USB_EPREG_MASK;
 
   uint8_t const ep_num = ep_reg & USB_EPADDR_FIELD;
-  uint8_t ep_addr = (ep_reg & USB_EPADDR_FIELD) | TUSB_DIR_IN_MASK;
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, TUSB_DIR_IN);
 
   if (ep_is_iso(ep_reg)) {
@@ -301,123 +293,79 @@ static void handle_ctr_tx(uint32_t ep_id) {
   }
 
   if (xfer->total_len != xfer->queued_len) {
-    dcd_transmit_packet(xfer, ep_id); // also clear CTR bit
+    dcd_transmit_packet(xfer, ep_id);
   } else {
-    dcd_event_xfer_complete(0, ep_addr, xfer->total_len, XFER_RESULT_SUCCESS, true);
+    dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+  }
+}
 
-    // Clear CTR TX and reserved CTR RX
-    ep_reg = (ep_reg & ~USB_EP_CTR_TX) | USB_EP_CTR_RX;
+static void handle_ctr_setup(uint32_t ep_id) {
+  uint16_t rx_count = btable_get_count(ep_id, BTABLE_BUF_RX);
+  uint16_t rx_addr = btable_get_addr(ep_id, BTABLE_BUF_RX);
+  uint8_t setup_packet[8] TU_ATTR_ALIGNED(4);
 
-    ep_write(ep_id, ep_reg);
+  dcd_read_packet_memory(setup_packet, rx_addr, rx_count);
+
+  // Clear CTR RX if another setup packet arrived before this, it will be discarded
+  ep_write_clear_ctr(ep_id, TUSB_DIR_OUT);
+
+  // Setup packet should always be 8 bytes. If not, we probably missed the packet
+  if (rx_count == 8) {
+    dcd_event_setup_received(0, (uint8_t*) setup_packet, true);
+    // Hardware should reset EP0 RX/TX to NAK and both toggle to 1
+  } else {
+    // Missed setup packet !!!
+    TU_BREAKPOINT();
+    edpt0_prepare_setup();
   }
 }
 
 // Handle CTR interrupt for the RX/OUT direction
 static void handle_ctr_rx(uint32_t ep_id) {
-#ifdef FSDEV_BUS_32BIT
-  /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
-   * From STM32H503 errata 2.15.1: Buffer description table update completes after CTR interrupt triggers
-   * Description:
-   * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM accesses
-   * have completed. If the software responds quickly to the interrupt, the full buffer contents may not be correct.
-   * Workaround:
-   * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
-   * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
-   * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
-   * also takes time, so we'll wait 60 cycles (count = 20).
-   * - Since Low Speed mode is not supported/popular, we will ignore it for now.
-   *
-   * Note: this errata also seems to apply to G0, U5, H5 etc.
-   */
-  volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
-  while (cycle_count > 0U) {
-    cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
-  }
-#endif
-
-  uint32_t ep_reg = ep_read(ep_id);
-
-  // Verify the CTR bit is set. This was in the ST Micro code, but I'm not sure it's actually necessary?
-  TU_VERIFY(ep_reg & USB_EP_CTR_RX, );
-  ep_reg = (ep_reg & ~USB_EP_CTR_RX) | USB_EP_CTR_TX; // Clear CTR RX and reserved CTR TX
-
+  uint32_t ep_reg = ep_read(ep_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
   uint8_t const ep_num = ep_reg & USB_EPADDR_FIELD;
+  bool const is_iso = ep_is_iso(ep_reg);
+  xfer_ctl_t* xfer = xfer_ctl_ptr(ep_num, TUSB_DIR_OUT);
 
-  if (ep_reg & USB_EP_SETUP) {
-    uint32_t count = btable_get_count(ep_id, BTABLE_BUF_RX);
-    // Setup packet should always be 8 bytes. If not, ignore it, and try again.
-    if (count == 8) {
-      uint16_t rx_addr = btable_get_addr(ep_id, BTABLE_BUF_RX);
-      uint32_t setup_packet[2];
-      dcd_read_packet_memory(setup_packet, rx_addr, 8);
-      dcd_event_setup_received(0, (uint8_t*) setup_packet, true);
-
-      // Reset EP to NAK (in case it had been stalling)
-      ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_NAK);
-      ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
-
-      ep_reg = ep_add_dtog(ep_reg, TUSB_DIR_IN, 1);
-      ep_reg = ep_add_dtog(ep_reg, TUSB_DIR_OUT, 1);
-    } else {
-      ep_reg &= USB_EPREG_MASK; // reversed all toggle
-    }
+  uint8_t buf_id;
+  if (is_iso) {
+    buf_id = (ep_reg & USB_EP_DTOG_RX) ? 0 : 1; // ISO are double buffered
   } else {
-    ep_reg &= USB_EPRX_STAT | USB_EPREG_MASK; // reversed all toggle except RX Status
-
-    bool const is_iso = ep_is_iso(ep_reg);
-    xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, TUSB_DIR_OUT);
-
-    uint8_t buf_id;
-    if (is_iso) {
-      buf_id = (ep_reg & USB_EP_DTOG_RX) ? 0 : 1; // ISO are double buffered
-    } else {
-      buf_id = BTABLE_BUF_RX;
-    }
-    uint32_t rx_count = btable_get_count(ep_id, buf_id);
-    uint16_t pma_addr = (uint16_t) btable_get_addr(ep_id, buf_id);
-
-    if (rx_count != 0) {
-      if (xfer->ff) {
-        dcd_read_packet_memory_ff(xfer->ff, pma_addr, rx_count);
-      } else {
-        dcd_read_packet_memory(xfer->buffer + xfer->queued_len, pma_addr, rx_count);
-      }
-
-      xfer->queued_len = (uint16_t)(xfer->queued_len + rx_count);
-    }
-
-    if ((rx_count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len)) {
-      uint8_t const ep_addr = ep_num;
-      // all bytes received or short packet
-      dcd_event_xfer_complete(0, ep_addr, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-
-      if (ep_num == 0) {
-        // prepared for status packet
-        btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, CFG_TUD_ENDPOINT0_SIZE);
-      }
-      ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
-    } else {
-      // Set endpoint active again for receiving more data. Note that isochronous endpoints stay active always
-      if (!is_iso) {
-        uint16_t const cnt = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
-        btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, cnt);
-      }
-      ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_VALID);
-    }
+    buf_id = BTABLE_BUF_RX;
   }
+  uint16_t const rx_count = btable_get_count(ep_id, buf_id);
+  uint16_t pma_addr = (uint16_t) btable_get_addr(ep_id, buf_id);
 
-  ep_write(ep_id, ep_reg);
+  if (xfer->ff) {
+    dcd_read_packet_memory_ff(xfer->ff, pma_addr, rx_count);
+  } else {
+    dcd_read_packet_memory(xfer->buffer + xfer->queued_len, pma_addr, rx_count);
+  }
+  xfer->queued_len += rx_count;
+
+  if ((rx_count < xfer->max_packet_size) || (xfer->queued_len >= xfer->total_len)) {
+    // all bytes received or short packet
+    dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+
+    // For ch32v203: reset rx bufsize to mps to prevent race condition to cause PMAOVR (occurs with msc write10)
+    // also ch32 seems to unconditionally accept ZLP on EP0 OUT, which can incorrectly use queued_len of previous
+    // transfer. So reset total_len and queued_len to 0.
+    btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, xfer->max_packet_size);
+    xfer->total_len = xfer->queued_len = 0;
+  } else {
+    // Set endpoint active again for receiving more data. Note that isochronous endpoints stay active always
+    if (!is_iso) {
+      uint16_t const cnt = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
+      btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, cnt);
+    }
+    ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_OUT); // will change RX Status, reserved other toggle bits
+    ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_VALID);
+    ep_write(ep_id, ep_reg, false);
+  }
 }
 
 void dcd_int_handler(uint8_t rhport) {
   uint32_t int_status = FSDEV_REG->ISTR;
-  // const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
-  //     | USB_ISTR_SUSP | USB_ISTR_SOF | USB_ISTR_ESOF;
-  //  unused IRQs: (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_L1REQ )
-
-  // The ST driver loops here on the CTR bit, but that loop has been moved into the
-  // dcd_ep_ctr_handler(), so less need to loop here. The other interrupts shouldn't
-  // be triggered repeatedly.
 
   /* Put SOF flag at the beginning of ISR in case to get least amount of jitter if it is used for timing purposes */
   if (int_status & USB_ISTR_SOF) {
@@ -464,17 +412,52 @@ void dcd_int_handler(uint8_t rhport) {
     FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_ESOF;
   }
 
-  // loop to handle all pending CTR interrupts
-  while (int_status & USB_ISTR_CTR) {
-    uint32_t const ep_id = int_status & USB_ISTR_EP_ID;
+  if (int_status & USB_ISTR_PMAOVR) {
+    TU_BREAKPOINT();
+    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_PMAOVR;
+  }
 
-    if ((int_status & USB_ISTR_DIR) == 0U) {
-      handle_ctr_tx(ep_id); // TX/IN
-    } else {
-      handle_ctr_rx(ep_id); // RX/OUT or both (RX/TX !!)
+  // loop to handle all pending CTR interrupts
+  while (FSDEV_REG->ISTR & USB_ISTR_CTR) {
+    // skip DIR bit, and use CTR TX/RX instead, since there is chance we have both TX/RX completed in one interrupt
+    uint32_t const ep_id = FSDEV_REG->ISTR & USB_ISTR_EP_ID;
+    uint32_t const ep_reg = ep_read(ep_id);
+
+    if (ep_reg & USB_EP_CTR_RX) {
+      #ifdef FSDEV_BUS_32BIT
+      /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
+       * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
+       * From H503/U535 errata: Buffer description table update completes after CTR interrupt triggers
+       * Description:
+       * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM accesses
+       * have completed. If the software responds quickly to the interrupt, the full buffer contents may not be correct.
+       * Workaround:
+       * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
+       * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
+       * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
+       * also takes time, so we'll wait 60 cycles (count = 20).
+       * - Since Low Speed mode is not supported/popular, we will ignore it for now.
+       *
+       * Note: this errata may also apply to G0, U5, H5 etc.
+       */
+      volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
+      while (cycle_count > 0U) {
+        cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
+      }
+      #endif
+
+      if (ep_reg & USB_EP_SETUP) {
+        handle_ctr_setup(ep_id); // CTR will be clear after copied setup packet
+      } else {
+        ep_write_clear_ctr(ep_id, TUSB_DIR_OUT);
+        handle_ctr_rx(ep_id);
+      }
     }
 
-    int_status = FSDEV_REG->ISTR;
+    if (ep_reg & USB_EP_CTR_TX) {
+      ep_write_clear_ctr(ep_id, TUSB_DIR_IN);
+      handle_ctr_tx(ep_id);
+    }
   }
 }
 
@@ -493,6 +476,8 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const *req
     uint8_t const dev_addr = (uint8_t)request->wValue;
     FSDEV_REG->DADDR = (USB_DADDR_EF | dev_addr);
   }
+
+  edpt0_prepare_setup();
 }
 
 /***
@@ -577,16 +562,14 @@ void edpt0_open(uint8_t rhport) {
   btable_set_addr(0, BTABLE_BUF_RX, pma_addr0);
   btable_set_addr(0, BTABLE_BUF_TX, pma_addr1);
 
-  uint32_t ep_reg = FSDEV_REG->ep[0].reg & ~USB_EPREG_MASK;
+  uint32_t ep_reg = ep_read(0) & ~USB_EPREG_MASK; // only get toggle bits
   ep_reg |= USB_EP_CONTROL;
-  ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_NAK);
-  ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
+  ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_NAK);
+  ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_NAK);
   // no need to explicitly set DTOG bits since we aren't masked DTOG bit
 
-  // prepare for setup packet
-  btable_set_rx_bufsize(0, BTABLE_BUF_RX, CFG_TUD_ENDPOINT0_SIZE);
-
-  ep_write(0, ep_reg);
+  edpt0_prepare_setup(); // prepare for setup packet
+  ep_write(0, ep_reg, false);
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
@@ -598,8 +581,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
   TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
 
-  uint32_t ep_reg = FSDEV_REG->ep[ep_idx].reg & ~USB_EPREG_MASK;
-  ep_reg |= tu_edpt_number(ep_addr) | USB_EP_CTR_RX | USB_EP_CTR_TX;
+  uint32_t ep_reg = ep_read(ep_idx) & ~USB_EPREG_MASK;
+  ep_reg |= tu_edpt_number(ep_addr) | USB_EP_CTR_TX | USB_EP_CTR_RX;
 
   // Set type
   switch (desc_ep->bmAttributes.xfer) {
@@ -623,8 +606,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   xfer->max_packet_size = packet_size;
   xfer->ep_idx = ep_idx;
 
-  ep_reg = ep_add_status(ep_reg, dir, EP_STAT_NAK);
-  ep_reg = ep_add_dtog(ep_reg, dir, 0);
+  ep_change_status(&ep_reg, dir, EP_STAT_NAK);
+  ep_change_dtog(&ep_reg, dir, 0);
 
   // reserve other direction toggle bits
   if (dir == TUSB_DIR_IN) {
@@ -633,24 +616,25 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
     ep_reg &= ~(USB_EPTX_STAT | USB_EP_DTOG_TX);
   }
 
-  ep_write(ep_idx, ep_reg);
+  ep_write(ep_idx, ep_reg, true);
 
   return true;
 }
 
-void dcd_edpt_close_all(uint8_t rhport)
-{
-  (void)rhport;
+void dcd_edpt_close_all(uint8_t rhport) {
+  dcd_int_disable(rhport);
 
   for (uint32_t i = 1; i < FSDEV_EP_COUNT; i++) {
     // Reset endpoint
-    ep_write(i, 0);
+    ep_write(i, 0, false);
     // Clear EP allocation status
     ep_alloc_status[i].ep_num = 0xFF;
     ep_alloc_status[i].ep_type = 0xFF;
     ep_alloc_status[i].allocated[0] = false;
     ep_alloc_status[i].allocated[1] = false;
   }
+
+  dcd_int_enable(rhport);
 
   // Reset PMA allocation
   ep_buf_ptr = FSDEV_BTABLE_BASE + 8 * CFG_TUD_ENDPPOINT_MAX + 2 * CFG_TUD_ENDPOINT0_SIZE;
@@ -692,14 +676,14 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
 
   xfer->max_packet_size = tu_edpt_packet_size(desc_ep);
 
-  uint32_t ep_reg = FSDEV_REG->ep[0].reg & ~USB_EPREG_MASK;
-  ep_reg |= tu_edpt_number(ep_addr) | USB_EP_ISOCHRONOUS | USB_EP_CTR_RX | USB_EP_CTR_TX;
-  ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
-  ep_reg = ep_add_status(ep_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
-  ep_reg = ep_add_dtog(ep_reg, dir, 0);
-  ep_reg = ep_add_dtog(ep_reg, 1-dir, 1);
+  uint32_t ep_reg = ep_read(ep_idx) & ~USB_EPREG_MASK;
+  ep_reg |= tu_edpt_number(ep_addr) | USB_EP_ISOCHRONOUS | USB_EP_CTR_TX | USB_EP_CTR_RX;
+  ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
+  ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
+  ep_change_dtog(&ep_reg, dir, 0);
+  ep_change_dtog(&ep_reg, 1 - dir, 1);
 
-  ep_write(ep_idx, ep_reg);
+  ep_write(ep_idx, ep_reg, true);
 
   return true;
 }
@@ -707,7 +691,9 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
 // Currently, single-buffered, and only 64 bytes at a time (max)
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   uint16_t len = tu_min16(xfer->total_len - xfer->queued_len, xfer->max_packet_size);
-  uint16_t ep_reg = ep_read(ep_ix) | EP_CTR_TXRX;
+  uint32_t ep_reg = ep_read(ep_ix) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR
+  ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN); // only change TX Status, reserve other toggle bits
+
   bool const is_iso = ep_is_iso(ep_reg);
 
   uint8_t buf_id;
@@ -717,25 +703,21 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
     buf_id = BTABLE_BUF_TX;
   }
   uint16_t addr_ptr = (uint16_t) btable_get_addr(ep_ix, buf_id);
-  btable_set_count(ep_ix, buf_id, len);
 
   if (xfer->ff) {
     dcd_write_packet_memory_ff(xfer->ff, addr_ptr, len);
   } else {
     dcd_write_packet_memory(addr_ptr, &(xfer->buffer[xfer->queued_len]), len);
   }
-  xfer->queued_len = (uint16_t)(xfer->queued_len + len);
+  xfer->queued_len += len;
 
-  ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(TUSB_DIR_IN);
-  ep_reg = ep_add_status(ep_reg, TUSB_DIR_IN, EP_STAT_VALID);
-  ep_reg = ep_clear_ctr(ep_reg, TUSB_DIR_IN);
+  btable_set_count(ep_ix, buf_id, len);
+  ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_VALID);
 
-  dcd_int_disable(0);
-  ep_write(ep_ix, ep_reg);
   if (is_iso) {
     xfer->iso_in_sending = true;
   }
-  dcd_int_enable(0);
+  ep_write(ep_ix, ep_reg, true);
 }
 
 static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
@@ -747,10 +729,10 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
   if (dir == TUSB_DIR_IN) {
     dcd_transmit_packet(xfer, ep_idx);
   } else {
-    uint32_t cnt = (uint32_t) tu_min16(xfer->total_len, xfer->max_packet_size);
-    uint16_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX;
-    ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir); // keep CTR TX, clear CTR RX
-    ep_reg = ep_add_status(ep_reg, dir, EP_STAT_VALID);
+    uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR
+    ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir);
+
+    uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
 
     if (ep_is_iso(ep_reg)) {
       btable_set_rx_bufsize(ep_idx, 0, cnt);
@@ -759,7 +741,8 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
       btable_set_rx_bufsize(ep_idx, BTABLE_BUF_RX, cnt);
     }
 
-    ep_write(ep_idx, ep_reg);
+    ep_change_status(&ep_reg, dir, EP_STAT_VALID);
+    ep_write(ep_idx, ep_reg, true);
   }
 
   return true;
@@ -798,12 +781,11 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
   uint8_t const ep_idx = xfer->ep_idx;
 
-  uint32_t ep_reg = ep_read(ep_idx);
-  ep_reg |= USB_EP_CTR_RX | USB_EP_CTR_TX; // reserve CTR bits
+  uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR bits
   ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir);
-  ep_reg = ep_add_status(ep_reg, dir, EP_STAT_STALL);
+  ep_change_status(&ep_reg, dir, EP_STAT_STALL);
 
-  ep_write(ep_idx, ep_reg);
+  ep_write(ep_idx, ep_reg, true);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -814,282 +796,173 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
   uint8_t const ep_idx = xfer->ep_idx;
 
-  uint32_t ep_reg = ep_read(ep_idx) | EP_CTR_TXRX;
+  uint32_t ep_reg = ep_read(ep_idx) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR bits
   ep_reg &= USB_EPREG_MASK | EP_STAT_MASK(dir) | EP_DTOG_MASK(dir);
 
   if (!ep_is_iso(ep_reg)) {
-    ep_reg = ep_add_status(ep_reg, dir, EP_STAT_NAK);
+    ep_change_status(&ep_reg, dir, EP_STAT_NAK);
   }
-  ep_reg = ep_add_dtog(ep_reg, dir, 0); // Reset to DATA0
-
-  ep_write(ep_idx, ep_reg);
+  ep_change_dtog(&ep_reg, dir, 0); // Reset to DATA0
+  ep_write(ep_idx, ep_reg, true);
 }
 
-#ifdef FSDEV_BUS_32BIT
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t wNBytes) {
-  const uint8_t *src8 = src;
-  volatile uint32_t *pma32 = (volatile uint32_t *)(USB_PMAADDR + dst);
-
-  for (uint32_t n = wNBytes / 4; n > 0; --n) {
-    *pma32++ = tu_unaligned_read32(src8);
-    src8 += 4;
-  }
-
-  uint16_t odd = wNBytes & 0x03;
-  if (odd) {
-    uint32_t wrVal = *src8;
-    odd--;
-
-    if (odd) {
-      wrVal |= *++src8 << 8;
-      odd--;
-
-      if (odd) {
-        wrVal |= *++src8 << 16;
-      }
-    }
-
-    *pma32 = wrVal;
-  }
-
-  return true;
-}
-
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t wNBytes) {
-  uint8_t *dst8 = dst;
-  volatile uint32_t *src32 = (volatile uint32_t *)(USB_PMAADDR + src);
-
-  for (uint32_t n = wNBytes / 4; n > 0; --n) {
-    tu_unaligned_write32(dst8, *src32++);
-    dst8 += 4;
-  }
-
-  uint16_t odd = wNBytes & 0x03;
-  if (odd) {
-    uint32_t rdVal = *src32;
-
-    *dst8 = tu_u32_byte0(rdVal);
-    odd--;
-
-    if (odd) {
-      *++dst8 = tu_u32_byte1(rdVal);
-      odd--;
-
-      if (odd) {
-        *++dst8 = tu_u32_byte2(rdVal);
-      }
-    }
-  }
-
-  return true;
-}
-
-#else
-// Packet buffer access can only be 8- or 16-bit.
-/**
- * @brief Copy a buffer from user memory area to packet memory area (PMA).
- *        This uses un-aligned for user memory and 16-bit access for packet memory.
- * @param   dst, byte address in PMA; must be 16-bit aligned
- * @param   src pointer to user memory area.
- * @param   wPMABufAddr address into PMA.
- * @param   nbytes no. of bytes to be copied.
- * @retval None
- */
+// Write to packet memory area (PMA) from user memory
+// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
+// - Uses unaligned for RAM (since M0 cannot access unaligned address)
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes) {
-  uint32_t n16 = (uint32_t)nbytes >> 1U;
-  const uint8_t *src8 = src;
-  fsdev_pma16_t* pma16 = (fsdev_pma16_t*) (USB_PMAADDR + FSDEV_PMA_STRIDE * dst);
+  if (nbytes == 0) return true;
+  uint32_t n_write = nbytes / FSDEV_BUS_SIZE;
 
-  while (n16--) {
-    pma16->u16 = tu_unaligned_read16(src8);
-    src8 += 2;
-    pma16++;
+  fsdev_pma_buf_t* pma_buf = PMA_BUF_AT(dst);
+  const uint8_t *src8 = src;
+
+  while (n_write--) {
+    pma_buf->value = fsdevbus_unaligned_read(src8);
+    src8 += FSDEV_BUS_SIZE;
+    pma_buf++;
   }
 
-  if (nbytes & 0x01) {
-    pma16->u16 = (uint16_t) *src8;
+  // odd bytes e.g 1 for 16-bit or 1-3 for 32-bit
+  uint16_t odd = nbytes & (FSDEV_BUS_SIZE - 1);
+  if (odd) {
+    fsdev_bus_t temp = 0;
+    for(uint16_t i = 0; i < odd; i++) {
+      temp |= *src8++ << (i * 8);
+    }
+    pma_buf->value = temp;
   }
 
   return true;
 }
 
-/**
- * @brief Copy a buffer from packet memory area (PMA) to user memory area.
- *        Uses unaligned for system memory and 16-bit access of packet memory
- * @param   nbytes no. of bytes to be copied.
- * @retval None
- */
+// Read from packet memory area (PMA) to user memory.
+// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
+// - Uses unaligned for RAM (since M0 cannot access unaligned address)
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes) {
-  uint32_t n16 = (uint32_t)nbytes >> 1U;
-  fsdev_pma16_t* pma16 = (fsdev_pma16_t*) (USB_PMAADDR + FSDEV_PMA_STRIDE * src);
+  if (nbytes == 0) return true;
+  uint32_t n_read = nbytes / FSDEV_BUS_SIZE;
+
+  fsdev_pma_buf_t* pma_buf = PMA_BUF_AT(src);
   uint8_t *dst8 = (uint8_t *)dst;
 
-  while (n16--) {
-    uint16_t temp16 = pma16->u16;
-    tu_unaligned_write16(dst8, temp16);
-    dst8 += 2;
-    pma16++;
+  while (n_read--) {
+    fsdevbus_unaligned_write(dst8, (fsdev_bus_t ) pma_buf->value);
+    dst8 += FSDEV_BUS_SIZE;
+    pma_buf++;
   }
 
-  if (nbytes & 0x01) {
-    *dst8++ = tu_u16_low(pma16->u16);
+  // odd bytes e.g 1 for 16-bit or 1-3 for 32-bit
+  uint16_t odd = nbytes & (FSDEV_BUS_SIZE - 1);
+  if (odd) {
+    fsdev_bus_t temp = pma_buf->value;
+    while (odd--) {
+      *dst8++ = (uint8_t) (temp & 0xfful);
+      temp >>= 8;
+    }
   }
 
   return true;
 }
 
-#endif
-
-/**
- * @brief Copy from FIFO to packet memory area (PMA).
- *        Uses byte-access of system memory and 16-bit access of packet memory
- * @param   wNBytes no. of bytes to be copied.
- * @retval None
- */
+// Write to PMA from FIFO
 static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes) {
+  if (wNBytes == 0) return true;
+
   // Since we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   tu_fifo_buffer_info_t info;
   tu_fifo_get_read_info(ff, &info);
 
-  uint16_t cnt_lin = TU_MIN(wNBytes, info.len_lin);
-  uint16_t cnt_wrap = TU_MIN(wNBytes - cnt_lin, info.len_wrap);
+  uint16_t cnt_lin = tu_min16(wNBytes, info.len_lin);
+  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.len_wrap);
+  uint16_t const cnt_total = cnt_lin + cnt_wrap;
 
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
-  // last lin byte will be combined with wrapped part
-  // To ensure PMA is always access aligned (dst aligned to 16 or 32 bit)
-#ifdef FSDEV_BUS_32BIT
-  if ((cnt_lin & 0x03) && cnt_wrap) {
-    // Copy first linear part
-    dcd_write_packet_memory(dst, info.ptr_lin, cnt_lin & ~0x03);
-    dst += cnt_lin & ~0x03;
+  // last lin byte will be combined with wrapped part To ensure PMA is always access aligned
+  uint16_t lin_even = cnt_lin & ~(FSDEV_BUS_SIZE - 1);
+  uint16_t lin_odd = cnt_lin & (FSDEV_BUS_SIZE - 1);
+  uint8_t const *src8 = (uint8_t const*) info.ptr_lin;
 
-    // Copy last linear bytes & first wrapped bytes to buffer
-    uint32_t i;
-    uint8_t tmp[4];
-    for (i = 0; i < (cnt_lin & 0x03); i++) {
-      tmp[i] = ((uint8_t *)info.ptr_lin)[(cnt_lin & ~0x03) + i];
+  // write even linear part
+  dcd_write_packet_memory(dst, src8, lin_even);
+  dst += lin_even;
+  src8 += lin_even;
+
+  if (lin_odd == 0) {
+    src8 = (uint8_t const*) info.ptr_wrap;
+  } else {
+    // Combine last linear bytes + first wrapped bytes to form fsdev bus width data
+    fsdev_bus_t temp = 0;
+    uint16_t i;
+    for(i = 0; i < lin_odd; i++) {
+      temp |= *src8++ << (i * 8);
     }
-    uint32_t wCnt = cnt_wrap;
-    for (; i < 4 && wCnt > 0; i++, wCnt--) {
-      tmp[i] = *(uint8_t *)info.ptr_wrap;
-      info.ptr_wrap = (uint8_t *)info.ptr_wrap + 1;
+
+    src8 = (uint8_t const*) info.ptr_wrap;
+    for(; i < FSDEV_BUS_SIZE && cnt_wrap > 0; i++, cnt_wrap--) {
+      temp |= *src8++ << (i * 8);
     }
 
-    // Write unaligned buffer
-    dcd_write_packet_memory(dst, &tmp, 4);
-    dst += 4;
-
-    // Copy rest of wrapped byte
-    if (wCnt) {
-      dcd_write_packet_memory(dst, info.ptr_wrap, wCnt);
-    }
-  }
-#else
-  if ((cnt_lin & 0x01) && cnt_wrap) {
-    // Copy first linear part
-    dcd_write_packet_memory(dst, info.ptr_lin, cnt_lin & ~0x01);
-    dst += cnt_lin & ~0x01;
-
-    // Copy last linear byte & first wrapped byte
-    uint16_t tmp = ((uint8_t *)info.ptr_lin)[cnt_lin - 1] | ((uint16_t)(((uint8_t *)info.ptr_wrap)[0]) << 8U);
-    dcd_write_packet_memory(dst, &tmp, 2);
-    dst += 2;
-
-    // Copy rest of wrapped byte
-    dcd_write_packet_memory(dst, ((uint8_t *)info.ptr_wrap) + 1, cnt_wrap - 1);
-  }
-#endif
-  else {
-    // Copy linear part
-    dcd_write_packet_memory(dst, info.ptr_lin, cnt_lin);
-    dst += info.len_lin;
-
-    if (info.len_wrap) {
-      // Copy wrapped byte
-      dcd_write_packet_memory(dst, info.ptr_wrap, cnt_wrap);
-    }
+    dcd_write_packet_memory(dst, &temp, FSDEV_BUS_SIZE);
+    dst += FSDEV_BUS_SIZE;
   }
 
-  tu_fifo_advance_read_pointer(ff, cnt_lin + cnt_wrap);
+  // write the rest of the wrapped part
+  dcd_write_packet_memory(dst, src8, cnt_wrap);
 
+  tu_fifo_advance_read_pointer(ff, cnt_total);
   return true;
 }
 
-/**
- * @brief Copy a buffer from user packet memory area (PMA) to FIFO.
- *        Uses byte-access of system memory and 16-bit access of packet memory
- * @param   wNBytes no. of bytes to be copied.
- * @retval None
- */
+// Read from PMA to FIFO
 static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) {
+  if (wNBytes == 0) return true;
+
   // Since we copy into a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   // Check for first linear part
   tu_fifo_buffer_info_t info;
   tu_fifo_get_write_info(ff, &info); // We want to read from the FIFO
 
-  uint16_t cnt_lin = TU_MIN(wNBytes, info.len_lin);
-  uint16_t cnt_wrap = TU_MIN(wNBytes - cnt_lin, info.len_wrap);
+  uint16_t cnt_lin = tu_min16(wNBytes, info.len_lin);
+  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.len_wrap);
+  uint16_t cnt_total = cnt_lin + cnt_wrap;
 
-  // We want to read from PMA and write it into the FIFO, if LIN part is ODD and has WRAPPED part,
-  // last lin byte will be combined with wrapped part
-  // To ensure PMA is always access aligned (src aligned to 16 or 32 bit)
-#ifdef FSDEV_BUS_32BIT
-  if ((cnt_lin & 0x03) && cnt_wrap) {
-    // Copy first linear part
-    dcd_read_packet_memory(info.ptr_lin, src, cnt_lin & ~0x03);
-    src += cnt_lin & ~0x03;
+  // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
+  // last lin byte will be combined with wrapped part To ensure PMA is always access aligned
 
-    // Copy last linear bytes & first wrapped bytes
-    uint8_t tmp[4];
-    dcd_read_packet_memory(tmp, src, 4);
-    src += 4;
+  uint16_t lin_even = cnt_lin & ~(FSDEV_BUS_SIZE - 1);
+  uint16_t lin_odd = cnt_lin & (FSDEV_BUS_SIZE - 1);
+  uint8_t *dst8 = (uint8_t *) info.ptr_lin;
 
-    uint32_t i;
-    for (i = 0; i < (cnt_lin & 0x03); i++) {
-      ((uint8_t *)info.ptr_lin)[(cnt_lin & ~0x03) + i] = tmp[i];
+  // read even linear part
+  dcd_read_packet_memory(dst8, src, lin_even);
+  dst8 += lin_even;
+  src += lin_even;
+
+  if (lin_odd == 0) {
+    dst8 = (uint8_t *) info.ptr_wrap;
+  } else {
+    // Combine last linear bytes + first wrapped bytes to form fsdev bus width data
+    fsdev_bus_t temp;
+    dcd_read_packet_memory(&temp, src, FSDEV_BUS_SIZE);
+    src += FSDEV_BUS_SIZE;
+
+    uint16_t i;
+    for (i = 0; i < lin_odd; i++) {
+      *dst8++ = (uint8_t) (temp & 0xfful);
+      temp >>= 8;
     }
-    uint32_t wCnt = cnt_wrap;
-    for (; i < 4 && wCnt > 0; i++, wCnt--) {
-      *(uint8_t *)info.ptr_wrap = tmp[i];
-      info.ptr_wrap = (uint8_t *)info.ptr_wrap + 1;
-    }
 
-    // Copy rest of wrapped byte
-    if (wCnt) {
-      dcd_read_packet_memory(info.ptr_wrap, src, wCnt);
-    }
-  }
-#else
-  if ((cnt_lin & 0x01) && cnt_wrap) {
-    // Copy first linear part
-    dcd_read_packet_memory(info.ptr_lin, src, cnt_lin & ~0x01);
-    src += cnt_lin & ~0x01;
-
-    // Copy last linear byte & first wrapped byte
-    uint8_t tmp[2];
-    dcd_read_packet_memory(tmp, src, 2);
-    src += 2;
-
-    ((uint8_t *)info.ptr_lin)[cnt_lin - 1] = tmp[0];
-    ((uint8_t *)info.ptr_wrap)[0] = tmp[1];
-
-    // Copy rest of wrapped byte
-    dcd_read_packet_memory(((uint8_t *)info.ptr_wrap) + 1, src, cnt_wrap - 1);
-  }
-#endif
-  else {
-    // Copy linear part
-    dcd_read_packet_memory(info.ptr_lin, src, cnt_lin);
-    src += cnt_lin;
-
-    if (info.len_wrap) {
-      // Copy wrapped byte
-      dcd_read_packet_memory(info.ptr_wrap, src, cnt_wrap);
+    dst8 = (uint8_t *) info.ptr_wrap;
+    for (; i < FSDEV_BUS_SIZE && cnt_wrap > 0; i++, cnt_wrap--) {
+      *dst8++ = (uint8_t) (temp & 0xfful);
+      temp >>= 8;
     }
   }
 
-  tu_fifo_advance_write_pointer(ff, cnt_lin + cnt_wrap);
+  // read the rest of the wrapped part
+  dcd_read_packet_memory(dst8, src, cnt_wrap);
 
+  tu_fifo_advance_write_pointer(ff, cnt_total);
   return true;
 }
 

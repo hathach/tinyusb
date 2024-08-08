@@ -1201,7 +1201,6 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       break;
 
     case DCD_EVENT_SETUP_RECEIVED:
-      // TU_ASSERT(event->setup_received.bRequest != 0,); // for catching issue with ch32v203 and windows with -O0/-Og
       _usbd_queued_setup++;
       send = true;
       break;

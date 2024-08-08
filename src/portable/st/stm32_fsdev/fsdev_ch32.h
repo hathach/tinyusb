@@ -54,22 +54,8 @@
 #endif
 
 #define FSDEV_PMA_SIZE (512u)
-#define FSDEV_REG_BASE  0x40005C00UL
-
-#define USB_BASE            (APB1PERIPH_BASE + 0x00005C00UL) /*!< USB_IP Peripheral Registers base address */
-#define USB_PMAADDR         (APB1PERIPH_BASE + 0x00006000UL) /*!< USB_IP Packet Memory Area base address */
-#define USB                 ((USB_TypeDef *)USB_BASE)
-
-/******************************************************************************/
-/*                                                                            */
-/*                         USB Device General registers                       */
-/*                                                                            */
-/******************************************************************************/
-#define USB_CNTR                             (USB_BASE + 0x40U)             /*!< Control register */
-#define USB_ISTR                             (USB_BASE + 0x44U)             /*!< Interrupt status register */
-#define USB_FNR                              (USB_BASE + 0x48U)             /*!< Frame number register */
-#define USB_DADDR                            (USB_BASE + 0x4CU)             /*!< Device address register */
-#define USB_BTABLE                           (USB_BASE + 0x50U)             /*!< Buffer Table address register */
+#define FSDEV_REG_BASE  (APB1PERIPH_BASE + 0x00005C00UL)
+#define FSDEV_PMA_BASE  (APB1PERIPH_BASE + 0x00006000UL)
 
 /****************************  ISTR interrupt events  *************************/
 #define USB_ISTR_CTR                         ((uint16_t)0x8000U)               /*!< Correct TRansfer (clear-only bit) */
