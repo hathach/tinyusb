@@ -66,9 +66,17 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 b
 // The fsdev_bus_t type can be used for both register and PMA access necessities
 #ifdef FSDEV_BUS_32BIT
   typedef uint32_t fsdev_bus_t;
+  #define fsdevbus_unaligned_read(_addr)           tu_unaligned_read32(_addr)
+  #define fsdevbus_unaligned_write(_addr, _value)  tu_unaligned_write32(_addr, _value)
 #else
   typedef uint16_t fsdev_bus_t;
+  #define fsdevbus_unaligned_read(_addr)           tu_unaligned_read16(_addr)
+  #define fsdevbus_unaligned_write(_addr, _value)  tu_unaligned_write16(_addr, _value)
 #endif
+
+enum {
+  FSDEV_BUS_SIZE = sizeof(fsdev_bus_t),
+};
 
 //--------------------------------------------------------------------+
 // BTable Typedef
