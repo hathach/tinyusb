@@ -120,6 +120,18 @@ enum
   #define EPNUM_CDC_1_OUT     0x05
   #define EPNUM_CDC_1_IN      0x86
 
+#elif CFG_TUSB_MCU == OPT_MCU_MAX32690 || CFG_TUSB_MCU == OPT_MCU_MAX32650 || \
+      CFG_TUSB_MCU == OPT_MCU_MAX32666 || CFG_TUSB_MCU == OPT_MCU_MAX78002
+  // MAX32 doesn't support a same endpoint number with different direction IN and OUT
+  //    e.g EP1 OUT & EP1 IN cannot exist together
+  #define EPNUM_CDC_0_NOTIF   0x81
+  #define EPNUM_CDC_0_OUT     0x02
+  #define EPNUM_CDC_0_IN      0x83
+
+  #define EPNUM_CDC_1_NOTIF   0x84
+  #define EPNUM_CDC_1_OUT     0x05
+  #define EPNUM_CDC_1_IN      0x86
+
 #else
   #define EPNUM_CDC_0_NOTIF   0x81
   #define EPNUM_CDC_0_OUT     0x02

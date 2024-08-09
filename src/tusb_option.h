@@ -188,6 +188,12 @@
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series
 #define OPT_MCU_MCXA15           2301  ///< NXP MCX A15 Series
 
+// Analog Devices
+#define OPT_MCU_MAX32690         2400  ///< ADI MAX32690
+#define OPT_MCU_MAX32666         2401  ///< ADI MAX32666/5
+#define OPT_MCU_MAX32650         2402  ///< ADI MAX32650/1/2
+#define OPT_MCU_MAX78002         2403  ///< ADI MAX78002
+
 // Check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
 #define _TU_CHECK_MCU(_m)    (CFG_TUSB_MCU == _m)

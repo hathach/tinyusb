@@ -90,6 +90,11 @@ enum
   // On Bridgetek FT9xx endpoint numbers must be unique...
   #define EPNUM_MIDI_OUT   0x02
   #define EPNUM_MIDI_IN   0x03
+#elif CFG_TUSB_MCU == OPT_MCU_MAX32690 || CFG_TUSB_MCU == OPT_MCU_MAX32650 || \
+      CFG_TUSB_MCU == OPT_MCU_MAX32666 || CFG_TUSB_MCU == OPT_MCU_MAX78002
+  // On MAX32 endpoint numbers must be unique...
+  #define EPNUM_MIDI_OUT   0x02
+  #define EPNUM_MIDI_IN   0x03
 #else
   #define EPNUM_MIDI_OUT   0x01
   #define EPNUM_MIDI_IN   0x01
