@@ -60,7 +60,7 @@ jobs:
         toolchain:
           # - 'arm-clang' is built by circle-ci
           - 'aarch64-gcc'
-          #- 'arm-gcc'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -73,7 +73,7 @@ jobs:
   # Build Make
   # ---------------------------------------
   make:
-    if: false
+    # if: false
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
