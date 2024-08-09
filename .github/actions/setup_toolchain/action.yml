@@ -5,7 +5,7 @@ inputs:
     description: 'Toolchain name'
     required: true
   toolchain_url:
-    description: 'Toolchain URL or version'
+    description: 'Toolchain version'
     required: false
 
 outputs:
@@ -45,7 +45,7 @@ runs:
           "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz",
           "rx-gcc": "http://gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run"
         }'
-        TOOLCHAIN_URL=$(echo $TOOLCHAIN_JSON | jq -r '.${{ inputs.toolchain }}')
+        TOOLCHAIN_URL=$(echo $TOOLCHAIN_JSON | jq -r '.["${{ inputs.toolchain }}"]')
         echo "toolchain_url=$TOOLCHAIN_URL"
         echo "toolchain_url=$TOOLCHAIN_URL" >> $GITHUB_OUTPUT
       shell: bash

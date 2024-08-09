@@ -53,7 +53,6 @@ jobs:
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: 'riscv-gcc'
-          toolchain_url: 'https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz'
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
