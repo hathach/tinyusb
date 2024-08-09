@@ -65,7 +65,7 @@ bool tud_hid_n_report(uint8_t instance, uint8_t report_id, void const* report, u
 
 // KEYBOARD: convenient helper to send keyboard report if application
 // use template layout report as defined by hid_keyboard_report_t
-bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
+bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modifier, const uint8_t keycode[6]);
 
 // MOUSE: convenient helper to send mouse report if application
 // use template layout report as defined by hid_mouse_report_t
@@ -98,7 +98,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_report(uint8_t report_id, void 
   return tud_hid_n_report(0, report_id, report, len);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]) {
+TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, const uint8_t keycode[6]) {
   return tud_hid_n_keyboard_report(0, report_id, modifier, keycode);
 }
 
