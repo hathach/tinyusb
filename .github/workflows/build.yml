@@ -66,7 +66,6 @@ jobs:
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
       one-per-family: ${{ github.event_name != 'pull_request' }}
 
@@ -90,7 +89,6 @@ jobs:
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
-      toolchain_url: ${{ fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].toolchain_url }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
       one-per-family: ${{ github.event_name != 'pull_request' }}
 
@@ -125,7 +123,7 @@ jobs:
     with:
       build-system: 'cmake'
       toolchain: 'esp-idf'
-      toolchain_url: 'v5.1.1'
+      toolchain_version: 'v5.1.1'
       build-args: '["-b${{ matrix.board }}"]'
 
   # ---------------------------------------
