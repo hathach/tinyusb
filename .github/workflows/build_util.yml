@@ -9,7 +9,7 @@ on:
       toolchain:
         required: true
         type: string
-      toolchain_url:
+      toolchain_version:
         required: false
         type: string
       build-args:
@@ -40,7 +40,7 @@ jobs:
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: ${{ inputs.toolchain }}
-          toolchain_url: ${{ inputs.toolchain_url }}
+          toolchain_version: ${{ inputs.toolchain_version }}
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
@@ -65,4 +65,4 @@ jobs:
       - name: Build using ESP-IDF docker
         if: inputs.toolchain == 'esp-idf'
         run: |
-          docker run --rm -v $PWD:/project -w /project espressif/idf:${{ inputs.toolchain_url }} python3 tools/build.py ${{ matrix.arg }}
+          docker run --rm -v $PWD:/project -w /project espressif/idf:${{ inputs.toolchain_version }} python3 tools/build.py ${{ matrix.arg }}
