@@ -452,6 +452,22 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
   dump_str_line(buf8 - nback, nback);
 }
 
+int tu_printf_r(const char *format, ...)
+{
+  // Simple re-entrancy lock, not safe for multi-core MCU
+  static volatile bool lock = false;
+  if (lock) {
+    return -1;
+  }
+  lock = true;
+  va_list args;
+  va_start(args, format);
+  int ret = vprintf(format, args);
+  va_end(args);
+  lock = false;
+  return ret;
+}
+
 #endif
 
 #endif // host or device enabled
