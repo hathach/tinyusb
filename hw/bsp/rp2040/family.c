@@ -275,7 +275,15 @@ static void max3421_init(void) {
   gpio_set_function(MAX3421_SCK_PIN, GPIO_FUNC_SPI);
   gpio_set_function(MAX3421_MOSI_PIN, GPIO_FUNC_SPI);
   gpio_set_function(MAX3421_MISO_PIN, GPIO_FUNC_SPI);
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
   spi_set_format(MAX3421_SPI, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 }
 
 //// API to enable/disable MAX3421 INTR pin interrupt
