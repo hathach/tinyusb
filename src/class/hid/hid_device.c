@@ -134,7 +134,7 @@ uint8_t tud_hid_n_get_protocol(uint8_t instance) {
   return _hidd_itf[instance].protocol_mode;
 }
 
-bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modifier, uint8_t keycode[6]) {
+bool tud_hid_n_keyboard_report(uint8_t instance, uint8_t report_id, uint8_t modifier, const uint8_t keycode[6]) {
   hid_keyboard_report_t report;
   report.modifier = modifier;
   report.reserved = 0;
