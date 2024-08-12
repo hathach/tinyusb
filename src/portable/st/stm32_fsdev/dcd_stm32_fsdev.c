@@ -345,12 +345,14 @@ static void handle_ctr_rx(uint32_t ep_id) {
 
   if ((rx_count < xfer->max_packet_size) || (xfer->queued_len >= xfer->total_len)) {
     // all bytes received or short packet
-    dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
 
     // For ch32v203: reset rx bufsize to mps to prevent race condition to cause PMAOVR (occurs with msc write10)
-    // also ch32 seems to unconditionally accept ZLP on EP0 OUT, which can incorrectly use queued_len of previous
-    // transfer. So reset total_len and queued_len to 0.
     btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, xfer->max_packet_size);
+
+    dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+
+    // ch32 seems to unconditionally accept ZLP on EP0 OUT, which can incorrectly use queued_len of previous
+    // transfer. So reset total_len and queued_len to 0.
     xfer->total_len = xfer->queued_len = 0;
   } else {
     // Set endpoint active again for receiving more data. Note that isochronous endpoints stay active always
@@ -412,11 +414,6 @@ void dcd_int_handler(uint8_t rhport) {
     FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_ESOF;
   }
 
-  if (int_status & USB_ISTR_PMAOVR) {
-    TU_BREAKPOINT();
-    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_PMAOVR;
-  }
-
   // loop to handle all pending CTR interrupts
   while (FSDEV_REG->ISTR & USB_ISTR_CTR) {
     // skip DIR bit, and use CTR TX/RX instead, since there is chance we have both TX/RX completed in one interrupt
@@ -458,6 +455,11 @@ void dcd_int_handler(uint8_t rhport) {
       ep_write_clear_ctr(ep_id, TUSB_DIR_IN);
       handle_ctr_tx(ep_id);
     }
+  }
+
+  if (int_status & USB_ISTR_PMAOVR) {
+    TU_BREAKPOINT();
+    FSDEV_REG->ISTR = (fsdev_bus_t)~USB_ISTR_PMAOVR;
   }
 }
 
@@ -805,6 +807,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_change_dtog(&ep_reg, dir, 0); // Reset to DATA0
   ep_write(ep_idx, ep_reg, true);
 }
+
+//--------------------------------------------------------------------+
+// PMA read/write
+//--------------------------------------------------------------------+
 
 // Write to packet memory area (PMA) from user memory
 // - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT

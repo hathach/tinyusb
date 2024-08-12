@@ -36,7 +36,7 @@ import glob
 import platform
 from multiprocessing import Pool
 
-ENUM_TIMEOUT = 30
+ENUM_TIMEOUT = 20
 
 
 # get usb serial by id
@@ -110,7 +110,8 @@ def run_cmd(cmd):
     #print(cmd)
     r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if r.returncode != 0:
-        title = 'command error'
+        title = f'COMMAND FAILED: {cmd}'
+        print()
         if os.getenv('CI'):
             print(f"::group::{title}")
             print(r.stdout.decode("utf-8"))
@@ -198,14 +199,15 @@ def flash_esptool(board, firmware):
 # -------------------------------------------------------------
 # Tests
 # -------------------------------------------------------------
-def test_board_test(id):
+def test_board_test(board):
     # Dummy test
     pass
 
 
-def test_cdc_dual_ports(id):
-    port1 = get_serial_dev(id, 'TinyUSB', "TinyUSB_Device", 0)
-    port2 = get_serial_dev(id, 'TinyUSB', "TinyUSB_Device", 2)
+def test_cdc_dual_ports(board):
+    uid = board['uid']
+    port1 = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
+    port2 = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 2)
 
     ser1 = open_serial_dev(port1)
     ser2 = open_serial_dev(port2)
@@ -224,9 +226,10 @@ def test_cdc_dual_ports(id):
     assert ser2.read(100) == str2.upper(), 'Port2 wrong data'
 
 
-def test_cdc_msc(id):
+def test_cdc_msc(board):
+    uid = board['uid']
     # Echo test
-    port = get_serial_dev(id, 'TinyUSB', "TinyUSB_Device", 0)
+    port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
 
     str = b"test_str"
@@ -235,7 +238,7 @@ def test_cdc_msc(id):
     assert ser.read(100) == str, 'CDC wrong data'
 
     # Block test
-    data = read_disk_file(id, 'README.TXT')
+    data = read_disk_file(uid, 'README.TXT')
     readme = \
     b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
 If you find any bugs or get any questions, feel free to file an\r\n\
@@ -244,26 +247,28 @@ issue at github.com/hathach/tinyusb"
     assert data == readme, 'MSC wrong data'
 
 
-def test_cdc_msc_freertos(id):
-    test_cdc_msc(id)
+def test_cdc_msc_freertos(board):
+    test_cdc_msc(board)
 
 
-def test_dfu(id):
+def test_dfu(board):
+    uid = board['uid']
+
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout:
         ret = subprocess.run(f'dfu-util -l',
                              shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stdout = ret.stdout.decode()
-        if f'serial="{id}"' in stdout and 'Found DFU: [cafe:4000]' in stdout:
+        if f'serial="{uid}"' in stdout and 'Found DFU: [cafe:4000]' in stdout:
             break
         time.sleep(1)
         timeout = timeout - 1
 
     assert timeout, 'Device not available'
 
-    f_dfu0 = f'dfu0_{id}'
-    f_dfu1 = f'dfu1_{id}'
+    f_dfu0 = f'dfu0_{uid}'
+    f_dfu1 = f'dfu1_{uid}'
 
     # Test upload
     try:
@@ -272,10 +277,10 @@ def test_dfu(id):
     except OSError:
         pass
 
-    ret = run_cmd(f'dfu-util -S {id} -a 0 -U {f_dfu0}')
+    ret = run_cmd(f'dfu-util -S {uid} -a 0 -U {f_dfu0}')
     assert ret.returncode == 0, 'Upload failed'
 
-    ret = run_cmd(f'dfu-util -S {id} -a 1 -U {f_dfu1}')
+    ret = run_cmd(f'dfu-util -S {uid} -a 1 -U {f_dfu1}')
     assert ret.returncode == 0, 'Upload failed'
 
     with open(f_dfu0) as f:
@@ -288,14 +293,16 @@ def test_dfu(id):
     os.remove(f_dfu1)
 
 
-def test_dfu_runtime(id):
+def test_dfu_runtime(board):
+    uid = board['uid']
+
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout:
         ret = subprocess.run(f'dfu-util -l',
                              shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stdout = ret.stdout.decode()
-        if f'serial="{id}"' in stdout and 'Found Runtime: [cafe:4000]' in stdout:
+        if f'serial="{uid}"' in stdout and 'Found Runtime: [cafe:4000]' in stdout:
             break
         time.sleep(1)
         timeout = timeout - 1
@@ -303,10 +310,11 @@ def test_dfu_runtime(id):
     assert timeout, 'Device not available'
 
 
-def test_hid_boot_interface(id):
-    kbd = get_hid_dev(id, 'TinyUSB', 'TinyUSB_Device', 'event-kbd')
-    mouse1 = get_hid_dev(id, 'TinyUSB', 'TinyUSB_Device', 'if01-event-mouse')
-    mouse2 = get_hid_dev(id, 'TinyUSB', 'TinyUSB_Device', 'if01-mouse')
+def test_hid_boot_interface(board):
+    uid = board['uid']
+    kbd = get_hid_dev(uid, 'TinyUSB', 'TinyUSB_Device', 'event-kbd')
+    mouse1 = get_hid_dev(uid, 'TinyUSB', 'TinyUSB_Device', 'if01-event-mouse')
+    mouse2 = get_hid_dev(uid, 'TinyUSB', 'TinyUSB_Device', 'if01-mouse')
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout:
@@ -338,22 +346,23 @@ all_tests = [
 ]
 
 
-def test_board(item):
-    name = item['name']
-    flasher = item['flasher'].lower()
+def test_board(board):
+    name = board['name']
+    flasher = board['flasher'].lower()
 
     # default to all tests
-    if 'tests' in item:
-        test_list = item['tests'] + ['board_test']
+    if 'tests' in board:
+        test_list = board['tests'] + ['board_test']
     else:
         test_list = list(all_tests)
 
     # remove skip_tests
-    if 'tests_skip' in item:
-        for skip in item['tests_skip']:
+    if 'tests_skip' in board:
+        for skip in board['tests_skip']:
             if skip in test_list:
                 test_list.remove(skip)
 
+    err_count = 0
     for test in test_list:
         fw_dir = f'cmake-build/cmake-build-{name}/device/{test}'
         if not os.path.exists(fw_dir):
@@ -367,19 +376,26 @@ def test_board(item):
 
         # flash firmware. It may fail randomly, retry a few times
         for i in range(3):
-            ret = globals()[f'flash_{flasher}'](item, fw_name)
+            ret = globals()[f'flash_{flasher}'](board, fw_name)
             if ret.returncode == 0:
                 break
             else:
                 print(f'Flashing failed, retry {i+1}')
                 time.sleep(1)
 
-        assert ret.returncode == 0, 'Flash failed\n' + ret.stdout.decode()
+        if ret.returncode == 0:
+            try:
+                ret = globals()[f'test_{test}'](board)
+                print('OK')
+            except AssertionError as e:
+                err_count += 1
+                print('Failed')
+                print(f'  {e}')
+        else:
+            err_count += 1
+            print('Flash failed')
 
-        # run test
-        globals()[f'test_{test}'](item['uid'])
-        print('OK')
-
+    return err_count
 
 def main():
     """
@@ -404,8 +420,11 @@ def main():
     else:
         config_boards = [e for e in config['boards'] if e['name'] in boards]
 
+    err_count_list = 0
     with Pool(processes=os.cpu_count()) as pool:
-        pool.map(test_board, config_boards)
+        err_count_list = pool.map(test_board, config_boards)
+
+    sys.exit(sum(err_count_list))
 
 
 if __name__ == '__main__':
