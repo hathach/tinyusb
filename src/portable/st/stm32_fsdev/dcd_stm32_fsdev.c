@@ -155,7 +155,7 @@ static uint8_t remoteWakeCountdown; // When wake is requested
 // into the stack.
 static void handle_bus_reset(uint8_t rhport);
 static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix);
-static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir);
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir);
 
 // PMA allocation/access
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
@@ -578,7 +578,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
   (void)rhport;
   uint8_t const ep_addr = desc_ep->bEndpointAddress;
   uint8_t const ep_num = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
+  tusb_dir_t const dir = tu_edpt_dir(ep_addr);
   const uint16_t packet_size = tu_edpt_packet_size(desc_ep);
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, desc_ep->bmAttributes.xfer);
   TU_ASSERT(ep_idx < FSDEV_EP_COUNT);
@@ -671,7 +671,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
   (void)rhport;
   uint8_t const ep_addr = desc_ep->bEndpointAddress;
   uint8_t const ep_num = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
+  tusb_dir_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t* xfer = xfer_ctl_ptr(ep_num, dir);
 
   uint8_t const ep_idx = xfer->ep_idx;
@@ -683,7 +683,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
   ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
   ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
   ep_change_dtog(&ep_reg, dir, 0);
-  ep_change_dtog(&ep_reg, 1 - dir, 1);
+  ep_change_dtog(&ep_reg, (tusb_dir_t)(1 - dir), 1);
 
   ep_write(ep_idx, ep_reg, true);
 
@@ -722,7 +722,7 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   ep_write(ep_ix, ep_reg, true);
 }
 
-static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
   (void) rhport;
 
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
@@ -752,7 +752,7 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, uint8_t dir) {
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
   uint8_t const ep_num = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
+  tusb_dir_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
 
   xfer->buffer = buffer;
@@ -765,7 +765,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes) {
   uint8_t const ep_num = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
+  tusb_dir_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
 
   xfer->buffer = NULL;
@@ -779,7 +779,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
   uint8_t const ep_num = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
+  tusb_dir_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
   uint8_t const ep_idx = xfer->ep_idx;
 
@@ -794,7 +794,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
 
   uint8_t const ep_num = tu_edpt_number(ep_addr);
-  uint8_t const dir = tu_edpt_dir(ep_addr);
+  tusb_dir_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
   uint8_t const ep_idx = xfer->ep_idx;
 
