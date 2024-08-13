@@ -70,9 +70,9 @@ jobs:
 
   # ---------------------------------------
   # Build CMake arm-gcc
+  # only build with push, for PR: all board is built by circle-ci
   # ---------------------------------------
   cmake-arm-gcc:
-    # only build with push, for PR: all board is built by circle-ci
     if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml

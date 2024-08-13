@@ -96,9 +96,3 @@ workflows:
 #              toolchain: ['arm-clang']
 #              build-system: ['cmake']
 #              family: ['imxrt']
-#      - build:
-#          matrix:
-#            parameters:
-#              toolchain: ['arm-gcc']
-#              build-system: ['cmake']
-#              family: ['stm32f1']

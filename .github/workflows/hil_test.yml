@@ -25,8 +25,7 @@ jobs:
   # Build Non Espressif
   # ---------------------------------------
   build:
-    #if: github.repository_owner == 'hathach'
-    if: false
+    if: github.repository_owner == 'hathach'
     runs-on: ubuntu-latest
     outputs:
       BOARDS_LIST: ${{ steps.parse_hil_json.outputs.BOARDS_LIST }}
