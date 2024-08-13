@@ -71,7 +71,7 @@ def open_serial_dev(port):
                 # slight delay since kernel may occupy the port briefly
                 time.sleep(0.5)
                 timeout = timeout - 0.5
-                ser = serial.Serial(port, timeout=2)
+                ser = serial.Serial(port, timeout=5)
                 break
             except serial.SerialException:
                 pass
