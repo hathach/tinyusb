@@ -33,6 +33,12 @@ commands:
           command: |
             python tools/get_deps.py << parameters.family >>
 
+            # Install Pico SDK
+            if [ << parameters.family >> == "rp2040" ]; then
+              git clone --depth 1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk
+              echo "export PICO_SDK_PATH=~/pico-sdk" >> $BASH_ENV
+            fi
+
 jobs:
   build:
     parameters:
