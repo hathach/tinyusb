@@ -19,7 +19,7 @@ jobs:
             echo "MATRIX_JSON=$MATRIX_JSON"
             ARMCLANG_FAMILY=$(echo $MATRIX_JSON | jq '.["arm-clang"].family')
             echo "ARMCLANG_FAMILY=$ARMCLANG_FAMILY"
-            echo "              build-system: ['cmake']" >> .circleci/config2.yml
+            echo "              build-system: ['cmake', 'make']" >> .circleci/config2.yml
             echo "              family: $ARMCLANG_FAMILY" >> .circleci/config2.yml
 
       - continuation/continue:
