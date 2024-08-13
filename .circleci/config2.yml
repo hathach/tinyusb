@@ -67,7 +67,7 @@ jobs:
             fi
 
             # Toolchain option default is gcc
-            if [ "<< parameters.toolchain >>" == "aarm-clang" ]; then
+            if [ "<< parameters.toolchain >>" == "arm-clang" ]; then
               TOOLCHAIN_OPTION="--toolchain clang"
             else
               TOOLCHAIN_OPTION="--toolchain gcc"
