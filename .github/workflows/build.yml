@@ -33,7 +33,6 @@ concurrency:
 
 jobs:
   set-matrix:
-    if: false
     runs-on: ubuntu-latest
     outputs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
@@ -74,7 +73,7 @@ jobs:
   # ---------------------------------------
   cmake-arm-gcc:
     # only build with push, for PR: all board is built by circle-ci
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     with:
