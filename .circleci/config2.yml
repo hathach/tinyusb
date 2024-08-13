@@ -68,12 +68,12 @@ jobs:
 
             # Toolchain option default is gcc
             if [ "<< parameters.toolchain >>" == "aarm-clang" ]; then
-              TOOLCHAAIN_OPTION="--toolchain clang"
+              TOOLCHAIN_OPTION="--toolchain clang"
             else
-              TOOLCHAAIN_OPTION="--toolchain gcc"
+              TOOLCHAIN_OPTION="--toolchain gcc"
             fi
 
-            python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> --toolchain clang << parameters.family >>
+            python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
 
 workflows:
   build:
