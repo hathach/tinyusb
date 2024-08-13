@@ -15,6 +15,7 @@ commands:
             }'
             toolchain_url=$(echo $TOOLCHAIN_JSON | jq -r '.["<< parameters.toolchain >>"]')
             echo "toolchain_url=$toolchain_url"
+
             # download and extract toolchain
             mkdir -p ~/cache/<< parameters.toolchain >>
             wget $toolchain_url -O toolchain.tar.gz
@@ -78,9 +79,10 @@ jobs:
             fi
 
             # Toolchain option default is gcc
-            TOOLCHAIN_OPTION=""
             if [ "<< parameters.toolchain >>" == "arm-clang" ]; then
               TOOLCHAIN_OPTION="--toolchain clang"
+            elif [ "<< parameters.toolchain >>" == "arm-gcc" ]; then
+              TOOLCHAIN_OPTION="--toolchain gcc"
             fi
 
             python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
