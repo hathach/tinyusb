@@ -8,14 +8,14 @@ commands:
         toolchain_url:
             type: string
     steps:
-      - run:
-          name: Make toolchain cache key
-          command: echo "<< parameters.toolchain >>-<< parameters.toolchain_url>>" > toolchain_key
-      - restore_cache:
-          name: Restore Toolchain Cache
-          key: deps-{{ checksum "toolchain_key" }}
-          paths:
-            - ~/cache/<< parameters.toolchain >>
+#      - run:
+#          name: Make toolchain cache key
+#          command: echo "<< parameters.toolchain >>-<< parameters.toolchain_url>>" > toolchain_key
+#      - restore_cache:
+#          name: Restore Toolchain Cache
+#          key: deps-{{ checksum "toolchain_key" }}
+#          paths:
+#            - ~/cache/<< parameters.toolchain >>
       - run:
           name: Install Toolchain
           command: |
@@ -25,11 +25,11 @@ commands:
               wget << parameters.toolchain_url>> -O toolchain.tar.gz
               tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
             fi
-      - save_cache:
-          name: Save Toolchain Cache
-          key: deps-{{ checksum "toolchain_key" }}
-          paths:
-            - ~/cache/<< parameters.toolchain >>
+#      - save_cache:
+#          name: Save Toolchain Cache
+#          key: deps-{{ checksum "toolchain_key" }}
+#          paths:
+#            - ~/cache/<< parameters.toolchain >>
       - run:
           name: Setup build environment
           command: |
@@ -45,29 +45,9 @@ commands:
         type: string
     steps:
       - run:
-          name: Make deps cache key
-          command: |
-            python tools/get_deps.py --print > deps_key
-      - restore_cache:
-          name: Restore Dependencies Cache
-          key: deps-{{ checksum "deps_key" }}
-          paths:
-            - lib/CMSIS_5
-            - lib/FreeRTOS-Kernel
-            - lib/lwip
-            - tools/uf2
-      - run:
           name: Get Dependencies
           command: |
             python tools/get_deps.py << parameters.family >>
-      - save_cache:
-          name: Save Dependencies Cache
-          key: deps-{{ checksum "deps_key" }}
-          paths:
-            - lib/CMSIS_5
-            - lib/FreeRTOS-Kernel
-            - lib/lwip
-            - tools/uf2
 
 jobs:
   arm-clang:
@@ -91,7 +71,13 @@ jobs:
           family: << parameters.family >>
       - run:
           name: Build
-          command: python tools/build.py -s << parameters.build-system >> --toolchain clang --one-per-family << parameters.family >>
+          command: |
+            # Only build one board per family for non PRs i.e commit to master
+            ONE_PER_FAMILY=""
+            if [ -z "$CIRCLE_PULL_REQUEST" ]; then
+              ONE_PER_FAMILY="--one-per-family"
+            fi
+            python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> --toolchain clang << parameters.family >>
 
 workflows:
   build:
