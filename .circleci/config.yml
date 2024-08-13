@@ -24,8 +24,8 @@ jobs:
             echo "      - build:" >> .circleci/config2.yml
             echo "          matrix:" >> .circleci/config2.yml
             echo "            parameters:" >> .circleci/config2.yml
+            echo "              toolchain: ['arm-clang']" >> .circleci/config2.yml
             echo "              build-system: ['cmake']" >> .circleci/config2.yml
-            echo "              toolchain: ['cmake']" >> .circleci/config2.yml
             echo "              family: $ARMCLANG_FAMILY" >> .circleci/config2.yml
 
             # arm-gcc
@@ -34,6 +34,7 @@ jobs:
             echo "      - build:" >> .circleci/config2.yml
             echo "          matrix:" >> .circleci/config2.yml
             echo "            parameters:" >> .circleci/config2.yml
+            echo "              toolchain: ['arm-gcc']" >> .circleci/config2.yml
             echo "              build-system: ['make']" >> .circleci/config2.yml
             echo "              family: $ARMGCC_FAMILY" >> .circleci/config2.yml
 
