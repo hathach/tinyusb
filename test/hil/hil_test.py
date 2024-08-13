@@ -88,15 +88,16 @@ def read_disk_file(uid, lun, fname):
     timeout = ENUM_TIMEOUT
     while timeout:
         if os.path.exists(dev):
-            fat = fs.open_fs(f'fat://{dev}')
+            fat = fs.open_fs(f'fat://{dev}?read_only=true')
             try:
-                assert fat.exists(fname), f'File {fname} not found in {dev}'
                 with fat.open(fname, 'rb') as f:
-                    return f.read()
+                    data = f.read()
             finally:
                 fat.close()
+            assert data, f'Cannot read file {fname} from {dev}'
+            return data
         time.sleep(1)
-        timeout = timeout - 1
+        timeout -= 1
 
     assert timeout, f'Storage {dev} not existed'
     return None
@@ -322,7 +323,7 @@ def test_hid_boot_interface(board):
         time.sleep(1)
         timeout = timeout - 1
 
-    assert timeout, 'Device not available'
+    assert timeout, 'HID device not available'
 
 
 def test_hid_composite_freertos(id):

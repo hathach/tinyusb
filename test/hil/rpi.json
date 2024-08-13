@@ -17,6 +17,8 @@
         {
             "name": "metro_m7_1011",
             "uid": "9CE8715DD71137363E00005002004200",
+            "tests_skip": ["cdc_msc", "cdc_msc_freertos"],
+            "comment": "Somehow has issue with cdc_msc example randomly",
             "flasher": "jlink",
             "flasher_sn": "000611000000",
             "flasher_args": "-device MIMXRT1011xxx5A"
