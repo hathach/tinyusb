@@ -10,4 +10,5 @@ if (FAMILY STREQUAL "rp2040" AND NOT TARGET tinyusb_pico_pio_usb)
 else ()
   # family_add_subdirectory will filter what to actually add based on selected FAMILY
   family_add_subdirectory(host_hid_to_device_cdc)
+  family_add_subdirectory(host_info_to_device_cdc)
 endif ()

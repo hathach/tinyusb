@@ -214,6 +214,15 @@ enum {
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 
+// USB 2.0 Spec Table 9-7: Test Mode Selectors
+typedef enum {
+  TUSB_FEATURE_TEST_J = 1,
+  TUSB_FEATURE_TEST_K,
+  TUSB_FEATURE_TEST_SE0_NAK,
+  TUSB_FEATURE_TEST_PACKET,
+  TUSB_FEATURE_TEST_FORCE_ENABLE,
+} tusb_feature_test_mode_t;
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+

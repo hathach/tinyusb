@@ -907,9 +907,9 @@ void tusb_hal_nrf_power_event(uint32_t event) {
     USB_EVT_READY = 2
   };
 
-#if CFG_TUSB_DEBUG >= 2
+#if CFG_TUSB_DEBUG >= 3
   const char* const power_evt_str[] = {"Detected", "Removed", "Ready"};
-  TU_LOG(2, "Power USB event: %s\r\n", power_evt_str[event]);
+  TU_LOG(3, "Power USB event: %s\r\n", power_evt_str[event]);
 #endif
 
   switch (event) {

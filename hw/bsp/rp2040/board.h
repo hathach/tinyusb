@@ -78,7 +78,12 @@
 // USB Host MAX3421E
 //--------------------------------------------------------------------
 
-#define MAX3421_SPI      PICO_DEFAULT_SPI_INSTANCE
+#ifdef PICO_DEFAULT_SPI
+#define MAX3421_SPI      PICO_DEFAULT_SPI // sdk v2
+#else
+#define MAX3421_SPI      PICO_DEFAULT_SPI_INSTANCE // sdk v1
+#endif
+
 #define MAX3421_SCK_PIN  PICO_DEFAULT_SPI_SCK_PIN
 #define MAX3421_MOSI_PIN PICO_DEFAULT_SPI_TX_PIN
 #define MAX3421_MISO_PIN PICO_DEFAULT_SPI_RX_PIN

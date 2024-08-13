@@ -24,6 +24,9 @@ CFLAGS += \
 	-DCH32V20x_${MCU_VARIANT} \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V20X
 
+# https://github.com/openwch/ch32v20x/pull/12
+CFLAGS += -Wno-error=strict-prototypes
+
 ifeq ($(PORT),0)
   $(info "Using FSDEV driver")
   CFLAGS += -DCFG_TUD_WCH_USBIP_FSDEV=1
@@ -42,18 +45,20 @@ SRC_C += \
 	src/portable/wch/dcd_ch32_usbfs.c \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
 	$(SDK_SRC_DIR)/Core/core_riscv.c \
-	$(SDK_SRC_DIR)/Peripheral/src/ch32v20x_gpio.c \
-	$(SDK_SRC_DIR)/Peripheral/src/ch32v20x_misc.c \
-	$(SDK_SRC_DIR)/Peripheral/src/ch32v20x_rcc.c \
-	$(SDK_SRC_DIR)/Peripheral/src/ch32v20x_usart.c \
+	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_gpio.c \
+	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_misc.c \
+	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_rcc.c \
+	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_usart.c \
 
-SRC_S += $(SDK_SRC_DIR)/Startup/startup_ch32v20x_${MCU_VARIANT}.S
+SRC_S += $(SDK_SRC_DIR)/Startup/startup_${CH32_FAMILY}_${MCU_VARIANT}.S
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
+	$(TOP)/$(SDK_SRC_DIR)/Core \
 	$(TOP)/$(SDK_SRC_DIR)/Peripheral/inc \
 
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 
 OPENOCD_WCH_OPTION=-f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg
-flash: flash-openocd-wch
+flash: flash-wlink-rs
+#flash: flash-openocd-wch

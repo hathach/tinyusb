@@ -5,7 +5,14 @@ include(${CMAKE_CURRENT_LIST_DIR}/../../../hw/bsp/family_support.cmake)
 # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
 family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
+# Prefer the tinyusb lwip
 set(LWIP ${TOP}/lib/lwip)
+
+# If we can't find one from tinyusb then check cmake var before giving up
+if (NOT EXISTS ${LWIP}/src)
+  set(LWIP ${TINYUSB_LWIP_PATH})
+endif()
+
 if (NOT EXISTS ${LWIP}/src)
   family_example_missing_dependency(${PROJECT} "lib/lwip")
   return()

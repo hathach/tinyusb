@@ -17,6 +17,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  HIL_JSON: test/hil/rpi.json
+
 jobs:
   # ---------------------------------------
   # Build Non Espressif
@@ -36,15 +39,20 @@ jobs:
           sudo apt install -y jq
 
           # Non-Espresif boards
-          BOARDS_LIST=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
+          BOARDS_LIST=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' ${{ env.HIL_JSON }} | tr '\n' ' ')
           echo "BOARDS_LIST=$BOARDS_LIST"
           echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
           echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
 
-      - name: Setup Toolchain
+      - name: Setup arm-gcc toolchain
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: 'arm-gcc'
+
+      - name: Setup risv-gcc toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'riscv-gcc'
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
@@ -57,71 +65,22 @@ jobs:
       - name: Upload Artifacts for Hardware Testing
         uses: actions/upload-artifact@v4
         with:
-          name: hil_pi4
+          name: hil_rpi
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
             cmake-build/cmake-build-*/*/*/*.bin
 
   # ---------------------------------------
-  # Build Espressif
-  # ---------------------------------------
-  build-esp:
-    runs-on: ubuntu-latest
-    outputs:
-      BOARDS_LIST: ${{ steps.parse_hil_json.outputs.BOARDS_LIST }}
-    steps:
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
-
-      - name: Parse HIL json
-        id: parse_hil_json
-        run: |
-          sudo apt install -y jq
-          # Espressif boards
-          BOARDS_LIST=$(jq -r '.boards[] | select(.flasher == "esptool") | "-b " + .name' test/hil/pi4.json | tr '\n' ' ')
-          echo "BOARDS_LIST=$BOARDS_LIST"
-          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
-          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
-
-      - name: Setup ESP-IDF
-        if: env.BOARDS_LIST != ''
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain: 'esp-idf'
-          toolchain_url: 'v5.1.1'
-
-      - name: Get Dependencies
-        uses: ./.github/actions/get_deps
-        with:
-          arg: ${{ env.BOARDS_LIST }}
-
-      - name: Build Espressif
-        if: env.BOARDS_LIST != ''
-        run: docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py $BOARDS_LIST
-
-      - name: Upload Artifacts for Hardware Testing
-        uses: actions/upload-artifact@v4
-        with:
-          name: hil_pi4_esp
-          path: |
-            cmake-build/cmake-build-*/*/*/*.bin
-            cmake-build/cmake-build-*/*/*/bootloader/bootloader.bin
-            cmake-build/cmake-build-*/*/*/partition_table/partition-table.bin
-            cmake-build/cmake-build-*/*/*/config.env
-            cmake-build/cmake-build-*/*/*/flash_args
-
-  # ---------------------------------------
   # Hardware in the loop (HIL)
-  # Current self-hosted instance is running on an RPI4. For attached hardware checkout test/hil/pi4.json
+  # self-hosted running on an RPI. For attached hardware checkout test/hil/rpi.json
   # ---------------------------------------
-  hil-pi4:
+  hil-rpi:
     if: github.repository_owner == 'hathach'
     needs:
       - build
-      - build-esp
-    runs-on: [self-hosted, rp2040, nrf52840, esp32s3, hardware-in-the-loop]
+    runs-on: [self-hosted, ARM64, rpi, hardware-in-the-loop]
     env:
-      BOARDS_LIST: "${{ needs.build.outputs.BOARDS_LIST }} ${{ needs.build-esp.outputs.BOARDS_LIST }}"
+      BOARDS_LIST: "${{ needs.build-esp.outputs.BOARDS_LIST }} ${{ needs.build.outputs.BOARDS_LIST }}"
     steps:
       - name: Clean workspace
         run: |
@@ -129,12 +88,12 @@ jobs:
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
-        # USB bus on rpi4 is not stable, reset it before testing
-      - name: Reset USB bus
-        run: |
-          # lsusb -t
-          # reset VIA Labs 2.0 hub
-          sudo usbreset 001/002
+        # USB bus on rpi is not stable, reset it before testing
+#      - name: Reset USB bus
+#        run: |
+#          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/unbind
+#          sleep 5
+#          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/bind
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -144,14 +103,8 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: hil_pi4
           path: cmake-build
-
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: hil_pi4_esp
-          path: cmake-build
+          merge-multiple: true
 
       - name: Test on actual hardware
         run: |
@@ -159,4 +112,4 @@ jobs:
           echo "::group::{cmake-build contents}"
           tree cmake-build
           echo "::endgroup::"
-          python3 test/hil/hil_test.py $BOARDS_LIST pi4.json
+          python3 test/hil/hil_test.py $BOARDS_LIST ${{ env.HIL_JSON }}

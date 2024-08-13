@@ -1,7 +1,11 @@
 MCU_VARIANT = D6
 
-CFLAGS += -DCFG_EXAMPLE_MSC_DUAL_READONLY
+CFLAGS += \
+  -DSYSCLK_FREQ_144MHz_HSE=144000000 \
+	-DCH32_FLASH_ENHANCE_READ_MODE=1 \
+  -DCFG_EXAMPLE_MSC_DUAL_READONLY \
 
+# 64KB zero-wait , 224KB total flash
 LDFLAGS += \
-  -Wl,--defsym=__flash_size=64K \
-  -Wl,--defsym=__ram_size=20K \
+  -Wl,--defsym=__FLASH_SIZE=224K \
+  -Wl,--defsym=__RAM_SIZE=20K \

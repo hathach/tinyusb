@@ -40,19 +40,15 @@
 //--------------------------------------------------------------------+
 
 typedef enum {
-  DCD_EVENT_INVALID = 0,
-  DCD_EVENT_BUS_RESET,
-  DCD_EVENT_UNPLUGGED,
-  DCD_EVENT_SOF,
-  DCD_EVENT_SUSPEND, // TODO LPM Sleep L1 support
-  DCD_EVENT_RESUME,
-
-  DCD_EVENT_SETUP_RECEIVED,
-  DCD_EVENT_XFER_COMPLETE,
-
-  // Not an DCD event, just a convenient way to defer ISR function
-  USBD_EVENT_FUNC_CALL,
-
+  DCD_EVENT_INVALID = 0,    // 0
+  DCD_EVENT_BUS_RESET,      // 1
+  DCD_EVENT_UNPLUGGED,      // 2
+  DCD_EVENT_SOF,            // 3
+  DCD_EVENT_SUSPEND,        // 4 TODO LPM Sleep L1 support
+  DCD_EVENT_RESUME,         // 5
+  DCD_EVENT_SETUP_RECEIVED, // 6
+  DCD_EVENT_XFER_COMPLETE,  // 7
+  USBD_EVENT_FUNC_CALL,     // 8 Not an DCD event, just a convenient way to defer ISR function
   DCD_EVENT_COUNT
 } dcd_eventid_t;
 
@@ -88,14 +84,6 @@ typedef struct TU_ATTR_ALIGNED(4) {
     }func_call;
   };
 } dcd_event_t;
-
-typedef enum {
-  TEST_J = 1,
-  TEST_K,
-  TEST_SE0_NAK,
-  TEST_PACKET,
-  TEST_FORCE_ENABLE,
-} test_mode_t;
 
 //TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
 
@@ -150,11 +138,8 @@ void dcd_disconnect(uint8_t rhport);
 void dcd_sof_enable(uint8_t rhport, bool en);
 
 #if CFG_TUD_TEST_MODE
-// Check if the test mode is supported, returns true is test mode selector is supported
-bool dcd_check_test_mode_support(test_mode_t test_selector) TU_ATTR_WEAK;
-
 // Put device into a test mode (needs power cycle to quit)
-void dcd_enter_test_mode(uint8_t rhport, test_mode_t test_selector) TU_ATTR_WEAK;
+void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector);
 #endif
 //--------------------------------------------------------------------+
 // Endpoint API
@@ -195,7 +180,7 @@ void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 TU_ATTR_WEAK bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
-TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
 
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)

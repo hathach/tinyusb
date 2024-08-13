@@ -72,7 +72,9 @@ void board_init(void) {
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
+#ifdef GPIOF
   __HAL_RCC_GPIOF_CLK_ENABLE();
+#endif
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
 
@@ -140,6 +142,17 @@ void board_init(void) {
   GPIO_InitStruct.Alternate = GPIO_AF10_USB;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+#ifdef USB_DRD_FS
+  // STM32U535/STM32U545
+
+  /* Enable USB power on Pwrctrl CR2 register */
+  HAL_PWREx_EnableVddUSB();
+
+  /* USB clock enable */
+  __HAL_RCC_USB_FS_CLK_ENABLE();
+
+#endif
+
 #ifdef USB_OTG_FS
   #if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -170,7 +183,9 @@ void board_init(void) {
   /* USB clock enable */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
-#else
+#endif
+
+#ifdef USB_OTG_HS
   // STM59x/Ax/Fx/Gx only have 1 USB HS port
 
   #if CFG_TUSB_OS == OPT_OS_FREERTOS

@@ -1113,7 +1113,7 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
   TU_LOG_USBH("Set Interface %u Alternate %u\r\n", itf_num, itf_alt);
   tusb_control_request_t const request = {
       .bmRequestType_bit = {
-          .recipient = TUSB_REQ_RCPT_DEVICE,
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
           .type      = TUSB_REQ_TYPE_STANDARD,
           .direction = TUSB_DIR_OUT
       },
@@ -1421,6 +1421,9 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       break;
 
     case ENUM_GET_DEVICE_DESC: {
+      // Allow 2ms for address recovery time, Ref USB Spec 9.2.6.3
+      osal_task_delay(2);
+
       uint8_t const new_addr = (uint8_t) tu_le16toh(xfer->setup->wValue);
 
       usbh_device_t* new_dev = get_device(new_addr);
