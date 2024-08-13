@@ -19,14 +19,9 @@ commands:
             mkdir -p ~/cache/<< parameters.toolchain >>
             wget $toolchain_url -O toolchain.tar.gz
             tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
-      - run:
-          name: Setup build environment
-          command: |
+
+            # Add toolchain to PATH
             echo "export PATH=$PATH:`echo ~/cache/<< parameters.toolchain >>/*/bin`" >> $BASH_ENV
-            # Install Ninja
-            NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
-            wget $NINJA_URL -O ninja-linux.zip
-            unzip ninja-linux.zip -d ~/bin
 
   get-deps:
     parameters:
@@ -50,9 +45,19 @@ jobs:
 
     docker:
       - image: cimg/base:current
-    resource_class: medium
+    resource_class: medium+
     steps:
       - checkout
+      - when:
+          condition: << parameters.build-system >> == 'cmake'
+          steps:
+            - run:
+                name: Install Ninja
+                command: |
+                  # Install Ninja
+                  NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
+                  wget $NINJA_URL -O ninja-linux.zip
+                  unzip ninja-linux.zip -d ~/bin
       - setup-toolchain:
           toolchain: << parameters.toolchain >>
       - get-deps:
