@@ -65,6 +65,14 @@ jobs:
             if [ -z "$CIRCLE_PULL_REQUEST" ]; then
               ONE_PER_FAMILY="--one-per-family"
             fi
+
+            # Toolchain option default is gcc
+            if [ "<< parameters.toolchain >>" == "aarm-clang" ]; then
+              TOOLCHAAIN_OPTION="--toolchain clang"
+            else
+              TOOLCHAAIN_OPTION="--toolchain gcc"
+            fi
+
             python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> --toolchain clang << parameters.family >>
 
 workflows:

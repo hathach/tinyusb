@@ -42,6 +42,6 @@ jobs:
           configuration_path: .circleci/config2.yml
 
 workflows:
-  set-matrix-workflow:
+  set-matrix:
     jobs:
       - set-matrix
