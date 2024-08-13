@@ -78,10 +78,9 @@ jobs:
             fi
 
             # Toolchain option default is gcc
+            TOOLCHAIN_OPTION=""
             if [ "<< parameters.toolchain >>" == "arm-clang" ]; then
               TOOLCHAIN_OPTION="--toolchain clang"
-            else
-              TOOLCHAIN_OPTION="--toolchain gcc"
             fi
 
             python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
