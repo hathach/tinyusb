@@ -17,10 +17,25 @@ jobs:
           command: |
             MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
             echo "MATRIX_JSON=$MATRIX_JSON"
+
+            # arm-clang
             ARMCLANG_FAMILY=$(echo $MATRIX_JSON | jq '.["arm-clang"].family')
             echo "ARMCLANG_FAMILY=$ARMCLANG_FAMILY"
-            echo "              build-system: ['cmake', 'make']" >> .circleci/config2.yml
+            echo "      - build:" > .circleci/config2.yml
+            echo "          matrix:" >> .circleci/config2.yml
+            echo "            parameters:" >> .circleci/config2.yml
+            echo "              build-system: ['cmake']" >> .circleci/config2.yml
+            echo "              toolchain: ['cmake']" >> .circleci/config2.yml
             echo "              family: $ARMCLANG_FAMILY" >> .circleci/config2.yml
+
+            # arm-gcc
+            ARMGCC_FAMILY=$(echo $MATRIX_JSON | jq '.["arm-gcc"].family')
+            echo "ARMGCC_FAMILY=$ARMGCC_FAMILY"
+            echo "      - build:" > .circleci/config2.yml
+            echo "          matrix:" >> .circleci/config2.yml
+            echo "            parameters:" >> .circleci/config2.yml
+            echo "              build-system: ['make']" >> .circleci/config2.yml
+            echo "              family: $ARMGCC_FAMILY" >> .circleci/config2.yml
 
       - continuation/continue:
           configuration_path: .circleci/config2.yml
