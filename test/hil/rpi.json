@@ -66,7 +66,7 @@
             "flasher": "jlink",
             "flasher_sn": "000611000000",
             "flasher_args": "-device MIMXRT1011xxx5A",
-            "comment": "sometime it is not enumerated/not reset, maybe need an bsp explicit disconnect/reconnect"
+            "comment": "not running reliably in bulk with other boards, probably power, flashing etc .."
         },
         {
             "name": "espressif_s3_devkitm",

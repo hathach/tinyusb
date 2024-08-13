@@ -338,8 +338,8 @@ def test_hid_composite_freertos(id):
 all_tests = [
     'cdc_dual_ports',
     'cdc_msc',
-    'cdc_msc_freertos',
     'dfu',
+    'cdc_msc_freertos',  # dont test 2 cdc_msc next to each other, since they have same vid/pid. Can be confused by host
     'dfu_runtime',
     'hid_boot_interface',
     'board_test'
