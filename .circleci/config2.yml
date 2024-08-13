@@ -51,7 +51,7 @@ jobs:
 
     docker:
       - image: cimg/base:current
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - when:
