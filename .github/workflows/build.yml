@@ -33,6 +33,7 @@ concurrency:
 
 jobs:
   set-matrix:
+    if: false
     runs-on: ubuntu-latest
     outputs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
