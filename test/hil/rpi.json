@@ -15,15 +15,6 @@
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg -c \"adapter speed 5000\""
         },
         {
-            "name": "metro_m7_1011",
-            "uid": "9CE8715DD71137363E00005002004200",
-            "tests_skip": ["cdc_msc", "cdc_msc_freertos"],
-            "comment": "Somehow has issue with cdc_msc example randomly",
-            "flasher": "jlink",
-            "flasher_sn": "000611000000",
-            "flasher_args": "-device MIMXRT1011xxx5A"
-        },
-        {
             "name": "lpcxpresso11u37",
             "uid": "17121919",
             "flasher": "jlink",
@@ -69,6 +60,14 @@
         }
     ],
     "boards-skip": [
+        {
+            "name": "metro_m7_1011",
+            "uid": "9CE8715DD71137363E00005002004200",
+            "flasher": "jlink",
+            "flasher_sn": "000611000000",
+            "flasher_args": "-device MIMXRT1011xxx5A",
+            "comment": "sometime it is not enumerated/not reset, maybe need an bsp explicit disconnect/reconnect"
+        },
         {
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",

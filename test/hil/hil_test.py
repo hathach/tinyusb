@@ -387,7 +387,7 @@ def test_board(board):
             try:
                 ret = globals()[f'test_{test}'](board)
                 print('OK')
-            except AssertionError as e:
+            except Exception as e:
                 err_count += 1
                 print('Failed')
                 print(f'  {e}')
