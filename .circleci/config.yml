@@ -21,7 +21,7 @@ jobs:
             # arm-clang
             ARMCLANG_FAMILY=$(echo $MATRIX_JSON | jq '.["arm-clang"].family')
             echo "ARMCLANG_FAMILY=$ARMCLANG_FAMILY"
-            echo "      - build:" > .circleci/config2.yml
+            echo "      - build:" >> .circleci/config2.yml
             echo "          matrix:" >> .circleci/config2.yml
             echo "            parameters:" >> .circleci/config2.yml
             echo "              build-system: ['cmake']" >> .circleci/config2.yml
@@ -31,7 +31,7 @@ jobs:
             # arm-gcc
             ARMGCC_FAMILY=$(echo $MATRIX_JSON | jq '.["arm-gcc"].family')
             echo "ARMGCC_FAMILY=$ARMGCC_FAMILY"
-            echo "      - build:" > .circleci/config2.yml
+            echo "      - build:" >> .circleci/config2.yml
             echo "          matrix:" >> .circleci/config2.yml
             echo "            parameters:" >> .circleci/config2.yml
             echo "              build-system: ['make']" >> .circleci/config2.yml
