@@ -93,5 +93,5 @@ workflows:
 #          matrix:
 #            parameters:
 #              toolchain: ['arm-gcc']
-#              build-system: ['make']
+#              build-system: ['cmake']
 #              family: ['stm32f1']

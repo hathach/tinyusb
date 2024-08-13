@@ -35,7 +35,7 @@ jobs:
             echo "          matrix:" >> .circleci/config2.yml
             echo "            parameters:" >> .circleci/config2.yml
             echo "              toolchain: ['arm-gcc']" >> .circleci/config2.yml
-            echo "              build-system: ['make']" >> .circleci/config2.yml
+            echo "              build-system: ['cmake']" >> .circleci/config2.yml
             echo "              family: $ARMGCC_FAMILY" >> .circleci/config2.yml
 
       - continuation/continue:
