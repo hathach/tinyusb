@@ -36,7 +36,7 @@ import glob
 import platform
 from multiprocessing import Pool
 
-ENUM_TIMEOUT = 20
+ENUM_TIMEOUT = 30
 
 
 # get usb serial by id
