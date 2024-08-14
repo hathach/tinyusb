@@ -43,7 +43,7 @@
 #endif
 
 
-// Header supports both device and host modes. Only include whats necessary
+// Header supports both device and host modes. Only include what's necessary
 #if CFG_TUD_ENABLED
 
 // Mapping of peripheral instances to port. Currently just 1.
