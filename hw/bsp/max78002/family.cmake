@@ -72,7 +72,6 @@ function(add_board_target BOARD_TARGET)
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-    ${CMSIS_5}/CMSIS/Core/Include
     ${MAX32_CMSIS}/Include
     ${MAX32_CMSIS}/Device/Maxim/MAX78002/Include
     ${MAX32_PERIPH}/Include/MAX78002

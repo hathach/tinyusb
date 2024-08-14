@@ -31,13 +31,8 @@
  extern "C" {
 #endif
 
-#if TU_CHECK_MCU(OPT_MCU_MAX32690, OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX78002)
-  #include "mxc_device.h"
-  #include "usbhs_regs.h"
-#else
-  #error "Unsupported MCUs"
-#endif
-
+#include "mxc_device.h"
+#include "usbhs_regs.h"
 
 #if CFG_TUD_ENABLED
 #define USBHS_M31_CLOCK_RECOVERY
@@ -48,39 +43,39 @@ static mxc_usbhs_regs_t* const musb_periph_inst[] = {
 };
 
 // Mapping of IRQ numbers to port. Currently just 1.
-static const IRQn_Type  musb_irqs[] = {
+static const IRQn_Type musb_irqs[] = {
     USB_IRQn
 };
 
 TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_enable(uint8_t rhport)
-{
+static inline void musb_dcd_int_enable(uint8_t rhport) {
   NVIC_EnableIRQ(musb_irqs[rhport]);
 }
 
 TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_disable(uint8_t rhport)
-{
+static inline void musb_dcd_int_disable(uint8_t rhport) {
   NVIC_DisableIRQ(musb_irqs[rhport]);
 }
 
 TU_ATTR_ALWAYS_INLINE
-static inline unsigned musb_dcd_get_int_enable(uint8_t rhport)
-{
+static inline unsigned musb_dcd_get_int_enable(uint8_t rhport) {
+  #ifdef NVIC_GetEnableIRQ // only defined in CMSIS 5
   return NVIC_GetEnableIRQ(musb_irqs[rhport]);
+  #else
+  uint32_t IRQn = (uint32_t) musb_irqs[rhport];
+  return ((NVIC->ISER[IRQn >> 5UL] & (1UL << (IRQn & 0x1FUL))) != 0UL) ? 1UL : 0UL;
+  #endif
 }
 
 TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_clear(uint8_t rhport)
-{
-    NVIC_ClearPendingIRQ(musb_irqs[rhport]);
+static inline void musb_dcd_int_clear(uint8_t rhport) {
+  NVIC_ClearPendingIRQ(musb_irqs[rhport]);
 }
 
 //Used to save and restore user's register map when interrupt occurs
 static volatile unsigned isr_saved_index = 0;
 
-static inline void musb_dcd_int_handler_enter(uint8_t rhport)
-{
+static inline void musb_dcd_int_handler_enter(uint8_t rhport) {
   uint32_t mxm_int, mxm_int_en, mxm_is;
 
   //save current register index

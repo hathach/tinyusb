@@ -82,7 +82,6 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(MAX32_CMSIS)/Include \
 	$(TOP)/$(MAX32_CMSIS)/Device/Maxim/MAX32665/Include \
 	$(TOP)/$(MAX32_PERIPH)/Include/MAX32665 \

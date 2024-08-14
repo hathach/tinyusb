@@ -82,14 +82,13 @@ SRC_C += \
 	$(PERIPH_SRC)/ICC/icc_reva.c \
 	$(PERIPH_SRC)/ICC/icc_common.c \
 	$(PERIPH_SRC)/TPU/tpu_me10.c \
-    $(PERIPH_SRC)/TPU/tpu_reva.c \
+	$(PERIPH_SRC)/TPU/tpu_reva.c \
 	$(PERIPH_SRC)/UART/uart_common.c \
 	$(PERIPH_SRC)/UART/uart_me10.c \
 	$(PERIPH_SRC)/UART/uart_reva.c \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(MAX32_CMSIS)/Include \
 	$(TOP)/$(MAX32_CMSIS)/Device/Maxim/MAX32650/Include \
 	$(TOP)/$(MAX32_PERIPH)/Include/MAX32650 \

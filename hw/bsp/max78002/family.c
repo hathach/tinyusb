@@ -24,12 +24,23 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "board.h"
-#include "bsp/board_api.h"
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-prototypes" // _mxc_crit_get_state()
+#endif
+
 #include "gpio.h"
+#include "mxc_sys.h"
 #include "mcr_regs.h"
 #include "mxc_device.h"
 #include "uart.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#include "board.h"
+#include "bsp/board_api.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
