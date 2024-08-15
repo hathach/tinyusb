@@ -97,135 +97,93 @@ typedef struct TU_ATTR_PACKED {
   __IO uint8_t  rx_csrl;       // 0x06: RX CSRL
   __IO uint8_t  rx_csrh;       // 0x07: RX CSRH
   __IO uint16_t rx_count;      // 0x08: RX COUNT
-  __IO uint8_t tx_type;        // 0x0A: TX TYPE
+  union {
+    __IO uint8_t type0;        // 0x0A: TYPE0 (host only)
+    __IO uint8_t tx_type;      // 0x0A: TX TYPE
+  };
   __IO uint8_t tx_interval;    // 0x0B: TX INTERVAL
   __IO uint8_t rx_type;        // 0x0C: RX TYPE
   __IO uint8_t rx_interval;    // 0x0D: RX INTERVAL
   __IO uint8_t reserved_0x0e;  // 0x0E: Reserved
-  __IO uint8_t fifo_size;      // 0x0F: FIFO_SIZE
+  union {
+    __IO uint8_t config_data;  // 0x0F: CONFIG DATA
+    __IO uint8_t fifo_size;    // 0x0F: FIFO_SIZE
+  };
 } musb_ep_csr_t;
 
 TU_VERIFY_STATIC(sizeof(musb_ep_csr_t) == 16, "size is not correct");
 
 typedef struct {
   //------------- Common -------------//
-  __IO uint8_t  faddr;                             // 0x00: FADDR
-  __IO uint8_t  power;                             // 0x01: POWER
+  __IO uint8_t  faddr;             // 0x00: FADDR
+  __IO uint8_t  power;             // 0x01: POWER
 
-  __IO uint16_t intr_tx;                           // 0x02: INTR_TX
-  __IO uint16_t intr_rx;                           // 0x04: INTR_RX
+  __IO uint16_t intr_tx;           // 0x02: INTR_TX
+  __IO uint16_t intr_rx;           // 0x04: INTR_RX
 
-  __IO uint16_t intr_txen;                         // 0x06: INTR_TXEN
-  __IO uint16_t intr_rxen;                         // 0x08: INTR_RXEN
+  __IO uint16_t intr_txen;         // 0x06: INTR_TXEN
+  __IO uint16_t intr_rxen;         // 0x08: INTR_RXEN
 
-  __IO uint8_t  intrusb;                           // 0x0A: INTRUSB
-  __IO uint8_t  intrusben;                         // 0x0B: INTRUSBEN
+  __IO uint8_t  intrusb;           // 0x0A: INTRUSB
+  __IO uint8_t  intrusben;         // 0x0B: INTRUSBEN
 
-  __IO uint16_t frame;                             // 0x0C: FRAME
-  __IO uint8_t  index;                             // 0x0E: INDEX
-  __IO uint8_t  testmode;                          // 0x0F: TESTMODE
+  __IO uint16_t frame;             // 0x0C: FRAME
+  __IO uint8_t  index;             // 0x0E: INDEX
+  __IO uint8_t  testmode;          // 0x0F: TESTMODE
 
-  //------------- Indexed CSR -------------//
-  musb_ep_csr_t indexed_csr;                       // 0x10-0x1F: Indexed CSR 0-15
+  //------------- CSR (indexed) -------------//
+  musb_ep_csr_t indexed_csr;       // 0x10-0x1F: Indexed CSR 0-15
 
   //------------- FIFOs -------------//
-  __IO uint32_t fifo[16];                          // 0x20-0x5C: FIFO 0-15
+  __IO uint32_t fifo[16];          // 0x20-0x5C: FIFO 0-15
 
   // Common (2)
-  __IO uint8_t  devctl;                            // 0x60: DEVCTL
-  __IO uint8_t  misc;                              // 0x61: MISC
+  __IO uint8_t  devctl;            // 0x60: DEVCTL
+  __IO uint8_t  misc;              // 0x61: MISC
 
-  //------------- Dynammic FIFO -------------//
-  __IO uint8_t  txfifo_sz;                         // 0x62: TXFIFO_SZ
-  __IO uint8_t  rxfifo_sz;                         // 0x63: RXFIFO_SZ
-  __IO uint16_t txfifo_addr;                       // 0x64: TXFIFO_ADDR
-  __IO uint16_t rxfifo_addr;                       // 0x66: RXFIFO_ADDR
+  //------------- Dynammic FIFO (indexed) -------------//
+  __IO uint8_t  txfifo_sz;         // 0x62: TXFIFO_SZ
+  __IO uint8_t  rxfifo_sz;         // 0x63: RXFIFO_SZ
+  __IO uint16_t txfifo_addr;       // 0x64: TXFIFO_ADDR
+  __IO uint16_t rxfifo_addr;       // 0x66: RXFIFO_ADDR
 
   //------------- Additional Control/Status -------------//
   union {
-    __O  uint32_t vcontrol;                        // 0x68: VCONTROL
-    __IO uint32_t vstatus;                         // 0x68: VSTATUS
+    __O  uint32_t vcontrol;        // 0x68: VCONTROL
+    __IO uint32_t vstatus;         // 0x68: VSTATUS
   };
-  __IO uint16_t hwvers;                            // 0x6c: HWVERS
-  __R  uint16_t rsv_0x6e_0x77[5];
+  __IO uint16_t hwvers;            // 0x6c: HWVERS
+  __R  uint16_t rsv_0x6e_0x77[5];  // 0x6E-0x77: Reserved
 
-  //------------- Additional Configuration -------------//
-  __IO uint8_t  epinfo;                            // 0x78: EPINFO
-  __IO uint8_t  raminfo;                           // 0x79: RAMINFO
-  __IO uint8_t  softreset;                         // 0x7A: SOFTRESET (Analog), Link info
-  __IO uint8_t  vplen;                             // 0x7B: VPLEN
-  __IO uint8_t  hs_eof1;                           // 0x7C: HS_EOF1
-  __IO uint8_t  fs_eof1;                           // 0x7D: FS_EOF1
-  __IO uint8_t  ls_eof1;                           // 0x7E: LS_EOF1
-  __IO uint8_t  soft_rst;                          // 0x7F: SOFT_RST
+   //------------- Additional Configuration -------------//
+  __IO uint8_t  epinfo;            // 0x78: EPINFO
+   __IO uint8_t  raminfo;          // 0x79: RAMINFO
+  __IO uint8_t  softreset;         // 0x7A: SOFTRESET (Analog), Link info
+  __IO uint8_t  vplen;             // 0x7B: VPLEN
+  __IO uint8_t  hs_eof1;           // 0x7C: HS_EOF1
+  __IO uint8_t  fs_eof1;           // 0x7D: FS_EOF1
+  __IO uint8_t  ls_eof1;           // 0x7E: LS_EOF1
+  __IO uint8_t  soft_rst;          // 0x7F: SOFT_RST
 
   //------------- Extended -------------//
-  __IO uint16_t ctuch;                             // 0x80: CTUCH
-  __IO uint16_t cthsrtn;                           // 0x82: CTHSRTN
-  __R  uint32_t rsv_0x84_0xff[31];                 // 0x84-0xFF: Reserved
+  __IO uint16_t ctuch;             // 0x80: CTUCH
+  __IO uint16_t cthsrtn;           // 0x82: CTHSRTN
+  __R  uint32_t rsv_0x84_0xff[31]; // 0x84-0xFF: Reserved
 
   //------------- Absolute CSR (used index to remap to Indexed above) -------------//
   // TI tm4c can access this directly, but should use indexed_csr for portability
-  musb_ep_csr_t ep_csr[16];                        // 0x100-0x1FF: EP0-15 CSR
-
-  __R  uint32_t rsv_0x200_0x3ff[128];              // 0x200-0x3FF: Reserved
-
-  //------------- Analog PHY -------------//
-  __IO uint32_t mxm_usb_reg_00;                    // 0x400: MXM_USB_REG_00
-  __IO uint32_t m31_phy_utmi_reset;                // 0x404: M31_PHY_UTMI_RESET
-  __IO uint32_t m31_phy_utmi_vcontrol;             // 0x408: M31_PHY_UTMI_VCONTROL
-  __IO uint32_t m31_phy_clk_en;                    // 0x40C: M31_PHY_CLK_EN
-  __IO uint32_t m31_phy_ponrst;                    // 0x410: M31_PHY_PONRST
-  __IO uint32_t m31_phy_noncry_rstb;               // 0x414: M31_PHY_NONCRY_RSTB
-  __IO uint32_t m31_phy_noncry_en;                 // 0x418: M31_PHY_NONCRY_EN
-  __R  uint32_t rsv_0x41c;
-  __IO uint32_t m31_phy_u2_compliance_en;          // 0x420: M31_PHY_U2_COMPLIANCE_EN
-  __IO uint32_t m31_phy_u2_compliance_dac_adj;     // 0x424: M31_PHY_U2_COMPLIANCE_DAC_ADJ
-  __IO uint32_t m31_phy_u2_compliance_dac_adj_en;  // 0x428: M31_PHY_U2_COMPLIANCE_DAC_ADJ_EN
-  __IO uint32_t m31_phy_clk_rdy;                   // 0x42C: M31_PHY_CLK_RDY
-  __IO uint32_t m31_phy_pll_en;                    // 0x430: M31_PHY_PLL_EN
-  __IO uint32_t m31_phy_bist_ok;                   // 0x434: M31_PHY_BIST_OK
-  __IO uint32_t m31_phy_data_oe;                   // 0x438: M31_PHY_DATA_OE
-  __IO uint32_t m31_phy_oscouten;                  // 0x43C: M31_PHY_OSCOUTEN
-  __IO uint32_t m31_phy_lpm_alive;                 // 0x440: M31_PHY_LPM_ALIVE
-  __IO uint32_t m31_phy_hs_bist_mode;              // 0x444: M31_PHY_HS_BIST_MODE
-  __IO uint32_t m31_phy_coreclkin;                 // 0x448: M31_PHY_CORECLKIN
-  __IO uint32_t m31_phy_xtlsel;                    // 0x44C: M31_PHY_XTLSEL
-  __IO uint32_t m31_phy_ls_en;                     // 0x450: M31_PHY_LS_EN
-  __IO uint32_t m31_phy_debug_sel;                 // 0x454: M31_PHY_DEBUG_SEL
-  __IO uint32_t m31_phy_debug_out;                 // 0x458: M31_PHY_DEBUG_OUT
-  __IO uint32_t m31_phy_outclksel;                 // 0x45C: M31_PHY_OUTCLKSEL
-  __IO uint32_t m31_phy_xcfgi_31_0;                // 0x460: M31_PHY_XCFGI_31_0
-  __IO uint32_t m31_phy_xcfgi_63_32;               // 0x464: M31_PHY_XCFGI_63_32
-  __IO uint32_t m31_phy_xcfgi_95_64;               // 0x468: M31_PHY_XCFGI_95_64
-  __IO uint32_t m31_phy_xcfgi_127_96;              // 0x46C: M31_PHY_XCFGI_127_96
-  __IO uint32_t m31_phy_xcfgi_137_128;             // 0x470: M31_PHY_XCFGI_137_128
-  __IO uint32_t m31_phy_xcfg_hs_coarse_tune_num;   // 0x474: M31_PHY_XCFG_HS_COARSE_TUNE_NUM
-  __IO uint32_t m31_phy_xcfg_hs_fine_tune_num;     // 0x478: M31_PHY_XCFG_HS_FINE_TUNE_NUM
-  __IO uint32_t m31_phy_xcfg_fs_coarse_tune_num;   // 0x47C: M31_PHY_XCFG_FS_COARSE_TUNE_NUM
-  __IO uint32_t m31_phy_xcfg_fs_fine_tune_num;     // 0x480: M31_PHY_XCFG_FS_FINE_TUNE_NUM
-  __IO uint32_t m31_phy_xcfg_lock_range_max;       // 0x484: M31_PHY_XCFG_LOCK_RANGE_MAX
-  __IO uint32_t m31_phy_xcfgi_lock_range_min;      // 0x488: M31_PHY_XCFGI_LOCK_RANGE_MIN
-  __IO uint32_t m31_phy_xcfg_ob_rsel;              // 0x48C: M31_PHY_XCFG_OB_RSEL
-  __IO uint32_t m31_phy_xcfg_oc_rsel;              // 0x490: M31_PHY_XCFG_OC_RSEL
-  __IO uint32_t m31_phy_xcfgo;                     // 0x494: M31_PHY_XCFGO
-  __IO uint32_t mxm_int;                           // 0x498: MXM_INT
-  __IO uint32_t mxm_int_en;                        // 0x49C: MXM_INT_EN
-  __IO uint32_t mxm_suspend;                       // 0x4A0: MXM_SUSPEND
-  __IO uint32_t mxm_reg_a4;                        // 0x4A4: MXM_REG_A4
+  musb_ep_csr_t ep_csr[16];        // 0x100-0x1FF: EP0-15 CSR
 } musb_regs_t;
 
-TU_VERIFY_STATIC(sizeof(musb_regs_t) == 0x4A8, "size is not correct");
+TU_VERIFY_STATIC(sizeof(musb_regs_t) == 0x200, "size is not correct");
 
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
-
 TU_ATTR_ALWAYS_INLINE static inline musb_ep_csr_t* get_ep_csr(musb_regs_t* musb_regs, unsigned epnum) {
   musb_regs->index = epnum;
   return &musb_regs->indexed_csr;
 }
-
 
 //*****************************************************************************
 //
