@@ -285,8 +285,9 @@ TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, u
   /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
   uint16_t bl_nb = (blsize << 15) | ((num_block - blsize) << 10);
   if (bl_nb == 0) {
-    // zlp but 0 is invalid value, set num_block to 1 (2 bytes)
-    bl_nb = 1 << 10;
+    // zlp but 0 is invalid value, set blsize to 1 (32 bytes)
+    // Note: lower value can cause PMAOVR on setup with ch32v203
+    bl_nb = 1 << 15;
   }
 
 #ifdef FSDEV_BUS_32BIT
