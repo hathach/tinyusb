@@ -97,22 +97,6 @@ static inline void musb_dcd_int_handler_exit(uint8_t rhport){
   //Nothing to do for this part
 }
 
-static inline volatile musb_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum)
-{
-  uintptr_t baseptr = (uintptr_t)&(musb_periph_inst[rhport]->TXMAXP1);
-
-  //On the TI parts, the epn registers are 16-bytes apart. The core regs defined
-  //by musb_dcd_epn_regs and 6 reserved/other use bytes
-  volatile musb_epn_regs_t *regs = (volatile musb_epn_regs_t*)(baseptr + ((epnum - 1) * 16));
-  return regs;
-}
-
-static inline volatile musb_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport)
-{
-  volatile musb_ep0_regs_t *regs = (volatile musb_ep0_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->CSRL0));
-  return regs;
-}
-
 typedef struct {
   uint_fast16_t beg; /* offset of including first element */
   uint_fast16_t end; /* offset of excluding the last element */

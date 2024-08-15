@@ -1,3 +1,29 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ * This file is part of the TinyUSB stack.
+ */
+
 /******************************************************************************
 *
 * Copyright (C) 2018 Texas Instruments Incorporated - http://www.ti.com/
@@ -57,24 +83,29 @@
   #define __R  volatile const
 #endif
 
-// Endpoint register mapping. Non-zero end points.
 typedef struct TU_ATTR_PACKED {
-  uint16_t TXMAXP;
-  uint8_t  TXCSRL;
-  uint8_t  TXCSRH;
-  uint16_t RXMAXP;
-  uint8_t  RXCSRL;
-  uint8_t  RXCSRH;
-  uint16_t RXCOUNT;
-} musb_epn_regs_t;
+  __IO uint16_t tx_maxp;       // 0x00: TXMAXP
+  union {
+    __IO uint8_t csr0l;        // 0x02: CSR0
+    __IO uint8_t tx_csrl;      // 0x02: TX CSRL
+  };
+  union {
+    __IO uint8_t csr0h;        // 0x03: CSR0H
+    __IO uint8_t tx_csrh;      // 0x03: TX CSRH
+  };
+  __IO uint16_t rx_maxp;       // 0x04: RX MAXP
+  __IO uint8_t  rx_csrl;       // 0x06: RX CSRL
+  __IO uint8_t  rx_csrh;       // 0x07: RX CSRH
+  __IO uint16_t rx_count;      // 0x08: RX COUNT
+  __IO uint8_t tx_type;        // 0x0A: TX TYPE
+  __IO uint8_t tx_interval;    // 0x0B: TX INTERVAL
+  __IO uint8_t rx_type;        // 0x0C: RX TYPE
+  __IO uint8_t rx_interval;    // 0x0D: RX INTERVAL
+  __IO uint8_t reserved_0x0e;  // 0x0E: Reserved
+  __IO uint8_t fifo_size;      // 0x0F: FIFO_SIZE
+} musb_ep_csr_t;
 
-// Endpoint 0 register mapping.
-typedef struct TU_ATTR_PACKED {
-  uint8_t   CSRL0;
-  uint8_t   CSRH0;
-  uint32_t  RESERVED;
-  uint8_t   COUNT0;
-} musb_ep0_regs_t;
+TU_VERIFY_STATIC(sizeof(musb_ep_csr_t) == 16, "size is not correct");
 
 typedef struct {
   //------------- Common -------------//
@@ -93,21 +124,14 @@ typedef struct {
   __IO uint16_t frame;                             // 0x0C: FRAME
   __IO uint8_t  index;                             // 0x0E: INDEX
   __IO uint8_t  testmode;                          // 0x0F: TESTMODE
-  __IO uint16_t inmaxp;                            // 0x10: INMAXP
-  union {
-    __IO uint8_t  csr0;                            // 0x12: CSR0
-    __IO uint8_t  incsrl;                          // 0x12: INCSRL
-  };
-  __IO uint8_t  incsru;                            // 0x13: INCSRU
-  __IO uint16_t outmaxp;                           // 0x14: OUTMAXP
-  __IO uint8_t  outcsrl;                           // 0x16: OUTCSRL
-  __IO uint8_t  outcsru;                           // 0x17: OUTCSRU
-  union {
-    __IO uint16_t count0;                          // 0x18: COUNT0
-    __IO uint16_t outcount;                        // 0x18: OUTCOUNT
-  };
-  __R  uint16_t rsv_0x1a_0x1f[3];
+
+  //------------- Indexed CSR -------------//
+  musb_ep_csr_t indexed_csr;                       // 0x10-0x1F: Indexed CSR 0-15
+
+  //------------- FIFOs -------------//
   __IO uint32_t fifo[16];                          // 0x20-0x5C: FIFO 0-15
+
+  // Common (2)
   __IO uint8_t  devctl;                            // 0x60: DEVCTL
   __IO uint8_t  misc;                              // 0x61: MISC
 
@@ -138,7 +162,13 @@ typedef struct {
   //------------- Extended -------------//
   __IO uint16_t ctuch;                             // 0x80: CTUCH
   __IO uint16_t cthsrtn;                           // 0x82: CTHSRTN
-  __R  uint32_t rsv_0x84_0x3ff[223];
+  __R  uint32_t rsv_0x84_0xff[31];                 // 0x84-0xFF: Reserved
+
+  //------------- Absolute CSR (used index to remap to Indexed above) -------------//
+  // TI tm4c can access this directly, but should use indexed_csr for portability
+  musb_ep_csr_t ep_csr[16];                        // 0x100-0x1FF: EP0-15 CSR
+
+  __R  uint32_t rsv_0x200_0x3ff[128];              // 0x200-0x3FF: Reserved
 
   //------------- Analog PHY -------------//
   __IO uint32_t mxm_usb_reg_00;                    // 0x400: MXM_USB_REG_00
@@ -186,6 +216,16 @@ typedef struct {
 } musb_regs_t;
 
 TU_VERIFY_STATIC(sizeof(musb_regs_t) == 0x4A8, "size is not correct");
+
+//--------------------------------------------------------------------+
+// Helper
+//--------------------------------------------------------------------+
+
+TU_ATTR_ALWAYS_INLINE static inline musb_ep_csr_t* get_ep_csr(musb_regs_t* musb_regs, unsigned epnum) {
+  musb_regs->index = epnum;
+  return &musb_regs->indexed_csr;
+}
+
 
 //*****************************************************************************
 //

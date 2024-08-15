@@ -136,20 +136,6 @@ static inline void musb_dcd_phy_init(uint8_t rhport) {
   musb_periph_inst[rhport]->m31_phy_ponrst = 1;
 }
 
-static inline volatile musb_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum) {
-  //Need to set index to map EP registers
-  musb_periph_inst[rhport]->index = epnum;
-  volatile musb_epn_regs_t* regs = (volatile musb_epn_regs_t*) ((uintptr_t) &(musb_periph_inst[rhport]->inmaxp));
-  return regs;
-}
-
-static inline volatile musb_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport) {
-  //Need to set index to map EP0 registers
-  musb_periph_inst[rhport]->index = 0;
-  volatile musb_ep0_regs_t* regs = (volatile musb_ep0_regs_t*) ((uintptr_t) &(musb_periph_inst[rhport]->csr0));
-  return regs;
-}
-
 static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in, unsigned mps) {
   (void) mps;
 
