@@ -113,16 +113,6 @@ static inline volatile musb_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport)
   return regs;
 }
 
-static volatile void *musb_dcd_ep_get_fifo_ptr(uint8_t rhport, unsigned epnum)
-{
-  if(epnum){
-    return (volatile void *)(&(musb_periph_inst[rhport]->FIFO1_WORD) + (epnum - 1));
-  } else {
-    return (volatile void *)&(musb_periph_inst[rhport]->FIFO0_WORD);
-  }
-}
-
-
 typedef struct {
   uint_fast16_t beg; /* offset of including first element */
   uint_fast16_t end; /* offset of excluding the last element */

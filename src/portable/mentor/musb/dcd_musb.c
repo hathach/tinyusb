@@ -153,10 +153,10 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
   ops[dir].tu_fifo_advance(f, total_len - rem);
 }
 
-static void process_setup_packet(uint8_t rhport)
-{
+static void process_setup_packet(uint8_t rhport) {
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   uint32_t *p = (void*)&_dcd.setup_packet;
-  volatile uint32_t *fifo_ptr = musb_dcd_ep_get_fifo_ptr(rhport, 0);
+  volatile uint32_t *fifo_ptr = &musb_regs->fifo[0];
   volatile musb_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
   p[0]        = *fifo_ptr;
   p[1]        = *fifo_ptr;
@@ -185,11 +185,12 @@ static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr)
     return true;
   }
 
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epnum);
   const unsigned mps = regs->TXMAXP;
   const unsigned len = TU_MIN(mps, rem);
   void          *buf = pipe->buf;
-  volatile void *fifo_ptr = musb_dcd_ep_get_fifo_ptr(rhport, epnum);
+  volatile void *fifo_ptr = &musb_regs->fifo[epnum];
   // TU_LOG1("   %p mps %d len %d rem %d\r\n", buf, mps, len, rem);
   if (len) {
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1)) {
@@ -210,6 +211,7 @@ static bool handle_xfer_out(uint8_t rhport, uint_fast8_t ep_addr)
   unsigned epnum = tu_edpt_number(ep_addr);
   unsigned epnum_minus1 = epnum - 1;
   pipe_state_t  *pipe = &_dcd.pipe[tu_edpt_dir(ep_addr)][epnum_minus1];
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epnum);
   // TU_LOG1(" RXCSRL%d = %x\r\n", epnum_minus1 + 1, regs->RXCSRL);
 
@@ -220,7 +222,7 @@ static bool handle_xfer_out(uint8_t rhport, uint_fast8_t ep_addr)
   const unsigned vld = regs->RXCOUNT;
   const unsigned len = TU_MIN(TU_MIN(rem, mps), vld);
   void          *buf = pipe->buf;
-  volatile void *fifo_ptr = musb_dcd_ep_get_fifo_ptr(rhport, epnum);
+  volatile void *fifo_ptr = &musb_regs->fifo[epnum];
   if (len) {
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_OUT] & TU_BIT(epnum_minus1)) {
       pipe_read_write_packet_ff(buf, fifo_ptr, len, TUSB_DIR_OUT);
@@ -262,6 +264,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
 {
   (void)rhport;
   TU_ASSERT(total_bytes <= 64); /* Current implementation supports for only up to 64 bytes. */
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   volatile musb_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
   const unsigned req = _dcd.setup_packet.bmRequestType;
   TU_ASSERT(req != REQUEST_TYPE_INVALID || total_bytes == 0);
@@ -289,7 +292,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
     TU_ASSERT(total_bytes <= _dcd.remaining_ctrl);
     const unsigned rem = _dcd.remaining_ctrl;
     const unsigned len = TU_MIN(TU_MIN(rem, 64), total_bytes);
-    volatile void *fifo_ptr = musb_dcd_ep_get_fifo_ptr(rhport, 0);
+    volatile void *fifo_ptr = &musb_regs->fifo[0];
     if (dir_in) {
       pipe_write_packet(buffer, fifo_ptr, len);
 
@@ -327,6 +330,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
 
 static void process_ep0(uint8_t rhport)
 {
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   volatile musb_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
   uint_fast8_t csrl = ep0_regs->CSRL0;
 
@@ -368,7 +372,7 @@ static void process_ep0(uint8_t rhport)
       const unsigned vld = ep0_regs->COUNT0;
       const unsigned rem = _dcd.pipe0.remaining;
       const unsigned len = TU_MIN(TU_MIN(rem, 64), vld);
-      volatile void *fifo_ptr = musb_dcd_ep_get_fifo_ptr(rhport, 0);
+      volatile void *fifo_ptr = &musb_regs->fifo[0];
       pipe_read_packet(_dcd.pipe0.buf, fifo_ptr, len);
 
       _dcd.pipe0.remaining = rem - len;
@@ -382,8 +386,6 @@ static void process_ep0(uint8_t rhport)
     }
     return;
   }
-
-  musb_regs_t* musb_regs = MUSB_REGS(rhport);
 
   /* When CSRL0 is zero, it means that completion of sending a any length packet
    * or receiving a zero length packet. */

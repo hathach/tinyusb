@@ -150,16 +150,6 @@ static inline volatile musb_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport) {
   return regs;
 }
 
-static volatile void* musb_dcd_ep_get_fifo_ptr(uint8_t rhport, unsigned epnum) {
-  volatile uint32_t* ptr;
-
-  ptr = &(musb_periph_inst[rhport]->fifo0);
-  ptr += epnum;
-
-  return (volatile void*) ptr;
-}
-
-
 static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in, unsigned mps) {
   (void) mps;
 

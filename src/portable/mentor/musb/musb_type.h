@@ -107,22 +107,7 @@ typedef struct {
     __IO uint16_t outcount;                        // 0x18: OUTCOUNT
   };
   __R  uint16_t rsv_0x1a_0x1f[3];
-  __IO uint32_t fifo0;                             // 0x20: FIFO0
-  __IO uint32_t fifo1;                             // 0x24: FIFO1
-  __IO uint32_t fifo2;                             // 0x28: FIFO2
-  __IO uint32_t fifo3;                             // 0x2c: FIFO3
-  __IO uint32_t fifo4;                             // 0x30: FIFO4
-  __IO uint32_t fifo5;                             // 0x34: FIFO5
-  __IO uint32_t fifo6;                             // 0x38: FIFO6
-  __IO uint32_t fifo7;                             // 0x3c: FIFO7
-  __IO uint32_t fifo8;                             // 0x40: FIFO8
-  __IO uint32_t fifo9;                             // 0x44: FIFO9
-  __IO uint32_t fifo10;                            // 0x48: FIFO10
-  __IO uint32_t fifo11;                            // 0x4c: FIFO11
-  __IO uint32_t fifo12;                            // 0x50: FIFO12
-  __IO uint32_t fifo13;                            // 0x54: FIFO13
-  __IO uint32_t fifo14;                            // 0x58: FIFO14
-  __IO uint32_t fifo15;                            // 0x5c: FIFO15
+  __IO uint32_t fifo[16];                          // 0x20-0x5C: FIFO 0-15
   __IO uint8_t  devctl;                            // 0x60: DEVCTL
   __IO uint8_t  misc;                              // 0x61: MISC
 
