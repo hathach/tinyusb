@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MUSB_MAX32_H_
-#define _TUSB_MUSB_MAX32_H_
+#ifndef TUSB_MUSB_MAX32_H_
+#define TUSB_MUSB_MAX32_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -136,25 +136,25 @@ static inline void musb_dcd_phy_init(uint8_t rhport)
   musb_periph_inst[rhport]->m31_phy_ponrst = 1;
 }
 
-static inline volatile musb_dcd_ctl_regs_t* musb_dcd_ctl_regs(uint8_t rhport)
+static inline volatile musb_ctl_regs_t* musb_dcd_ctl_regs(uint8_t rhport)
 {
-  volatile musb_dcd_ctl_regs_t *regs = (volatile musb_dcd_ctl_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->faddr));
+  volatile musb_ctl_regs_t *regs = (volatile musb_ctl_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->faddr));
   return regs;
 }
 
-static inline volatile musb_dcd_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum)
+static inline volatile musb_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum)
 {
   //Need to set index to map EP registers
   musb_periph_inst[rhport]->index = epnum;
-  volatile musb_dcd_epn_regs_t *regs = (volatile musb_dcd_epn_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->inmaxp));
+  volatile musb_epn_regs_t *regs = (volatile musb_epn_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->inmaxp));
   return regs;
 }
 
-static inline volatile musb_dcd_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport)
+static inline volatile musb_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport)
 {
   //Need to set index to map EP0 registers
   musb_periph_inst[rhport]->index = 0;
-  volatile musb_dcd_ep0_regs_t *regs = (volatile musb_dcd_ep0_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->csr0));
+  volatile musb_ep0_regs_t *regs = (volatile musb_ep0_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->csr0));
   return regs;
 }
 
@@ -213,4 +213,4 @@ static inline void musb_dcd_reset_fifo(uint8_t rhport, unsigned epnum, unsigned 
  }
 #endif
 
-#endif // _TUSB_MUSB_MAX32_H_
+#endif // TUSB_MUSB_MAX32_H_

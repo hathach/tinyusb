@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MUSB_TI_H_
-#define _TUSB_MUSB_TI_H_
+#ifndef TUSB_MUSB_TI_H_
+#define TUSB_MUSB_TI_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -95,25 +95,25 @@ static inline void musb_dcd_int_handler_exit(uint8_t rhport){
   //Nothing to do for this part
 }
 
-static inline volatile musb_dcd_ctl_regs_t* musb_dcd_ctl_regs(uint8_t rhport)
+static inline volatile musb_ctl_regs_t* musb_dcd_ctl_regs(uint8_t rhport)
 {
-  volatile musb_dcd_ctl_regs_t *regs = (volatile musb_dcd_ctl_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->FADDR));
+  volatile musb_ctl_regs_t *regs = (volatile musb_ctl_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->FADDR));
   return regs;
 }
 
-static inline volatile musb_dcd_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum)
+static inline volatile musb_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum)
 {
   uintptr_t baseptr = (uintptr_t)&(musb_periph_inst[rhport]->TXMAXP1);
 
   //On the TI parts, the epn registers are 16-bytes apart. The core regs defined
   //by musb_dcd_epn_regs and 6 reserved/other use bytes
-  volatile musb_dcd_epn_regs_t *regs = (volatile musb_dcd_epn_regs_t*)(baseptr + ((epnum - 1)*16));
+  volatile musb_epn_regs_t *regs = (volatile musb_epn_regs_t*)(baseptr + ((epnum - 1) * 16));
   return regs;
 }
 
-static inline volatile musb_dcd_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport)
+static inline volatile musb_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport)
 {
-  volatile musb_dcd_ep0_regs_t *regs = (volatile musb_dcd_ep0_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->CSRL0));
+  volatile musb_ep0_regs_t *regs = (volatile musb_ep0_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->CSRL0));
   return regs;
 }
 
@@ -282,4 +282,4 @@ static inline void musb_dcd_reset_fifo(uint8_t rhport, unsigned epnum, unsigned 
  }
 #endif
 
-#endif // _TUSB_MUSB_TI_H_
+#endif // TUSB_MUSB_TI_H_

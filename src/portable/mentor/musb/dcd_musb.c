@@ -27,7 +27,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_MUSB)
 
 #if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
 /* GCC warns that an address may be unaligned, even though
@@ -155,7 +155,7 @@ static void process_setup_packet(uint8_t rhport)
 {
   uint32_t *p = (void*)&_dcd.setup_packet;
   volatile uint32_t *fifo_ptr = musb_dcd_ep_get_fifo_ptr(rhport, 0);
-  volatile musb_dcd_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
+  volatile musb_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
   p[0]        = *fifo_ptr;
   p[1]        = *fifo_ptr;
 
@@ -183,7 +183,7 @@ static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr)
     return true;
   }
 
-  volatile musb_dcd_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epnum);
+  volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epnum);
   const unsigned mps = regs->TXMAXP;
   const unsigned len = TU_MIN(mps, rem);
   void          *buf = pipe->buf;
@@ -208,7 +208,7 @@ static bool handle_xfer_out(uint8_t rhport, uint_fast8_t ep_addr)
   unsigned epnum = tu_edpt_number(ep_addr);
   unsigned epnum_minus1 = epnum - 1;
   pipe_state_t  *pipe = &_dcd.pipe[tu_edpt_dir(ep_addr)][epnum_minus1];
-  volatile musb_dcd_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epnum);
+  volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epnum);
   // TU_LOG1(" RXCSRL%d = %x\r\n", epnum_minus1 + 1, regs->RXCSRL);
 
   TU_ASSERT(regs->RXCSRL & USB_RXCSRL1_RXRDY);
@@ -250,7 +250,7 @@ static bool edpt_n_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16
   if (dir_in) {
     handle_xfer_in(rhport, ep_addr);
   } else {
-    volatile musb_dcd_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epnum);
+    volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epnum);
     if (regs->RXCSRL & USB_RXCSRL1_RXRDY) regs->RXCSRL = 0;
   }
   return true;
@@ -260,7 +260,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
 {
   (void)rhport;
   TU_ASSERT(total_bytes <= 64); /* Current implementation supports for only up to 64 bytes. */
-  volatile musb_dcd_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
+  volatile musb_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
   const unsigned req = _dcd.setup_packet.bmRequestType;
   TU_ASSERT(req != REQUEST_TYPE_INVALID || total_bytes == 0);
 
@@ -325,7 +325,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
 
 static void process_ep0(uint8_t rhport)
 {
-  volatile musb_dcd_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
+  volatile musb_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
   uint_fast8_t csrl = ep0_regs->CSRL0;
 
   // TU_LOG1(" EP0 ep0_regs->CSRL0 = %x\r\n", csrl);
@@ -381,7 +381,7 @@ static void process_ep0(uint8_t rhport)
     return;
   }
 
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
 
   /* When CSRL0 is zero, it means that completion of sending a any length packet
    * or receiving a zero length packet. */
@@ -415,7 +415,7 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
   const unsigned epn = tu_edpt_number(ep_addr);
   const unsigned epn_minus1 = epn - 1;
 
-  volatile musb_dcd_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
+  volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
   if (dir_in) {
     // TU_LOG1(" TXCSRL%d = %x\r\n", epn, regs->TXCSRL);
     if (regs->TXCSRL & USB_TXCSRL1_STALLED) {
@@ -442,7 +442,7 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
 
 static void process_bus_reset(uint8_t rhport)
 {
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
   /* When bmRequestType is REQUEST_TYPE_INVALID(0xFF),
    * a control transfer state is SETUP or STATUS stage. */
   _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID;
@@ -467,7 +467,7 @@ static void process_bus_reset(uint8_t rhport)
 
 void dcd_init(uint8_t rhport)
 {
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
   ctrl_regs->IE |= USB_IE_SUSPND;
   musb_dcd_int_clear(rhport);
   musb_dcd_phy_init(rhport);
@@ -488,7 +488,7 @@ void dcd_int_disable(uint8_t rhport)
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   (void)dev_addr;
-  volatile musb_dcd_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
+  volatile musb_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
   _dcd.pipe0.buf       = NULL;
   _dcd.pipe0.length    = 0;
   _dcd.pipe0.remaining = 0;
@@ -499,7 +499,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 // Wake up host
 void dcd_remote_wakeup(uint8_t rhport)
 {
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
   ctrl_regs->POWER |= USB_POWER_RESUME;
 
   unsigned cnt = SystemCoreClock / 1000;
@@ -511,7 +511,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 // Connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport)
 {
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
   ctrl_regs->POWER |= TUD_OPT_HIGH_SPEED ? USB_POWER_HSENAB : 0;
   ctrl_regs->POWER |= USB_POWER_SOFTCONN;
 }
@@ -519,7 +519,7 @@ void dcd_connect(uint8_t rhport)
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport)
 {
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
   ctrl_regs->POWER &= ~USB_POWER_SOFTCONN;
 }
 
@@ -551,8 +551,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   pipe->length    = 0;
   pipe->remaining = 0;
 
-  volatile musb_dcd_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
   if (dir_in) {
     regs->TXMAXP = mps;
     regs->TXCSRH = (xfer == TUSB_XFER_ISOCHRONOUS) ? USB_TXCSRH1_ISO : 0;
@@ -579,8 +579,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
 void dcd_edpt_close_all(uint8_t rhport)
 {
-  volatile musb_dcd_epn_regs_t *regs;
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_epn_regs_t *regs;
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
   ctrl_regs->TXIE = 1; /* Enable only EP0 */
@@ -613,8 +613,8 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   unsigned const epn    = tu_edpt_number(ep_addr);
   unsigned const dir_in = tu_edpt_dir(ep_addr);
 
-  volatile musb_dcd_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
-  volatile musb_dcd_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
+  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
   if (dir_in) {
@@ -679,14 +679,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
   if (0 == epn) {
-    volatile musb_dcd_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
+    volatile musb_ep0_regs_t* ep0_regs = musb_dcd_ep0_regs(rhport);
     if (!ep_addr) { /* Ignore EP80 */
       _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID;
       _dcd.pipe0.buf = NULL;
       ep0_regs->CSRL0 = USB_CSRL0_STALL;
     }
   } else {
-    volatile musb_dcd_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
+    volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
     if (tu_edpt_dir(ep_addr)) { /* IN */
       regs->TXCSRL = USB_TXCSRL1_STALL;
     } else { /* OUT */
@@ -702,7 +702,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
   unsigned const epn = tu_edpt_number(ep_addr);
-  musb_dcd_epn_regs_t volatile *regs = musb_dcd_epn_regs(rhport, epn);
+  musb_epn_regs_t volatile *regs = musb_dcd_epn_regs(rhport, epn);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
   if (tu_edpt_dir(ep_addr)) { /* IN */
@@ -719,7 +719,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 void dcd_int_handler(uint8_t rhport)
 {
   uint_fast8_t is, txis, rxis;
-  volatile musb_dcd_ctl_regs_t *ctrl_regs;
+  volatile musb_ctl_regs_t *ctrl_regs;
 
   //Part specific ISR setup/entry
   musb_dcd_int_handler_enter(rhport);

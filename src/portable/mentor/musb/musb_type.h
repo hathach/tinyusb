@@ -50,7 +50,7 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  RXCSRL;
   uint8_t  RXCSRH;
   uint16_t RXCOUNT;
-} musb_dcd_epn_regs_t;
+} musb_epn_regs_t;
 
 // Endpoint 0 register mapping.
 typedef struct TU_ATTR_PACKED {
@@ -58,7 +58,7 @@ typedef struct TU_ATTR_PACKED {
   uint8_t   CSRH0;
   uint32_t  RESERVED;
   uint8_t   COUNT0;
-} musb_dcd_ep0_regs_t;
+} musb_ep0_regs_t;
 
 // Control register mapping
 typedef struct TU_ATTR_PACKED {
@@ -70,7 +70,7 @@ typedef struct TU_ATTR_PACKED {
   uint16_t  RXIE;
   uint8_t   IS;
   uint8_t   IE;
-} musb_dcd_ctl_regs_t;
+} musb_ctl_regs_t;
 
 //*****************************************************************************
 //
