@@ -42,6 +42,8 @@
   #error "Unsupported MCUs"
 #endif
 
+const uintptr_t MUSB_BASES[] = { USB0_BASE };
+
 
 // Header supports both device and host modes. Only include what's necessary
 #if CFG_TUD_ENABLED
@@ -93,12 +95,6 @@ static inline void musb_dcd_int_handler_enter(uint8_t rhport){
 static inline void musb_dcd_int_handler_exit(uint8_t rhport){
   (void)rhport;
   //Nothing to do for this part
-}
-
-static inline volatile musb_ctl_regs_t* musb_dcd_ctl_regs(uint8_t rhport)
-{
-  volatile musb_ctl_regs_t *regs = (volatile musb_ctl_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->FADDR));
-  return regs;
 }
 
 static inline volatile musb_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum)

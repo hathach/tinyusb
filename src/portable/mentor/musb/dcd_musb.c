@@ -54,6 +54,8 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
   #error "Unsupported MCU"
 #endif
 
+#define MUSB_REGS(rhport)   ((musb_regs_t*) MUSB_BASES[rhport])
+
 /*------------------------------------------------------------------
  * MACRO TYPEDEF CONSTANT ENUM DECLARATION
  *------------------------------------------------------------------*/
@@ -381,7 +383,7 @@ static void process_ep0(uint8_t rhport)
     return;
   }
 
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
 
   /* When CSRL0 is zero, it means that completion of sending a any length packet
    * or receiving a zero length packet. */
@@ -389,7 +391,7 @@ static void process_ep0(uint8_t rhport)
     /* STATUS IN */
     if (*(const uint16_t*)(uintptr_t)&_dcd.setup_packet == 0x0500) {
       /* The address must be changed on completion of the control transfer. */
-      ctrl_regs->FADDR = (uint8_t)_dcd.setup_packet.wValue;
+      musb_regs->faddr = (uint8_t)_dcd.setup_packet.wValue;
     }
     _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID;
     dcd_event_xfer_complete(rhport,
@@ -442,7 +444,7 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
 
 static void process_bus_reset(uint8_t rhport)
 {
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   /* When bmRequestType is REQUEST_TYPE_INVALID(0xFF),
    * a control transfer state is SETUP or STATUS stage. */
   _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID;
@@ -450,15 +452,15 @@ static void process_bus_reset(uint8_t rhport)
   /* When pipe0.buf has not NULL, DATA stage works in progress. */
   _dcd.pipe0.buf = NULL;
 
-  ctrl_regs->TXIE = 1; /* Enable only EP0 */
-  ctrl_regs->RXIE = 0;
+  musb_regs->intr_txen = 1; /* Enable only EP0 */
+  musb_regs->intr_rxen = 0;
 
   /* Clear FIFO settings */
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     musb_dcd_reset_fifo(rhport, i, 0);
     musb_dcd_reset_fifo(rhport, i, 1);
   }
-  dcd_event_bus_reset(rhport, (ctrl_regs->POWER & USB_POWER_HSMODE) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
+  dcd_event_bus_reset(rhport, (musb_regs->power & USB_POWER_HSMODE) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
 }
 
 /*------------------------------------------------------------------
@@ -467,8 +469,8 @@ static void process_bus_reset(uint8_t rhport)
 
 void dcd_init(uint8_t rhport)
 {
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
-  ctrl_regs->IE |= USB_IE_SUSPND;
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
+  musb_regs->intrusben |= USB_IE_SUSPND;
   musb_dcd_int_clear(rhport);
   musb_dcd_phy_init(rhport);
   dcd_connect(rhport);
@@ -497,30 +499,29 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 }
 
 // Wake up host
-void dcd_remote_wakeup(uint8_t rhport)
-{
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
-  ctrl_regs->POWER |= USB_POWER_RESUME;
+void dcd_remote_wakeup(uint8_t rhport) {
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
+  musb_regs->power |= USB_POWER_RESUME;
 
   unsigned cnt = SystemCoreClock / 1000;
   while (cnt--) __NOP();
 
-  ctrl_regs->POWER &= ~USB_POWER_RESUME;
+  musb_regs->power &= ~USB_POWER_RESUME;
 }
 
 // Connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport)
 {
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
-  ctrl_regs->POWER |= TUD_OPT_HIGH_SPEED ? USB_POWER_HSENAB : 0;
-  ctrl_regs->POWER |= USB_POWER_SOFTCONN;
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
+  musb_regs->power |= TUD_OPT_HIGH_SPEED ? USB_POWER_HSENAB : 0;
+  musb_regs->power |= USB_POWER_SOFTCONN;
 }
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport)
 {
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
-  ctrl_regs->POWER &= ~USB_POWER_SOFTCONN;
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
+  musb_regs->power &= ~USB_POWER_SOFTCONN;
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en)
@@ -552,23 +553,25 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   pipe->remaining = 0;
 
   volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   if (dir_in) {
     regs->TXMAXP = mps;
     regs->TXCSRH = (xfer == TUSB_XFER_ISOCHRONOUS) ? USB_TXCSRH1_ISO : 0;
-    if (regs->TXCSRL & USB_TXCSRL1_TXRDY)
+    if (regs->TXCSRL & USB_TXCSRL1_TXRDY) {
       regs->TXCSRL = USB_TXCSRL1_CLRDT | USB_TXCSRL1_FLUSH;
-    else
+    } else {
       regs->TXCSRL = USB_TXCSRL1_CLRDT;
-    ctrl_regs->TXIE |= TU_BIT(epn);
+    }
+    musb_regs->intr_txen |= TU_BIT(epn);
   } else {
     regs->RXMAXP = mps;
     regs->RXCSRH = (xfer == TUSB_XFER_ISOCHRONOUS) ? USB_RXCSRH1_ISO : 0;
-    if (regs->RXCSRL & USB_RXCSRL1_RXRDY)
+    if (regs->RXCSRL & USB_RXCSRL1_RXRDY) {
       regs->RXCSRL = USB_RXCSRL1_CLRDT | USB_RXCSRL1_FLUSH;
-    else
+    } else {
       regs->RXCSRL = USB_RXCSRL1_CLRDT;
-    ctrl_regs->RXIE |= TU_BIT(epn);
+    }
+    musb_regs->intr_rxen |= TU_BIT(epn);
   }
 
   /* Setup FIFO */
@@ -580,11 +583,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 void dcd_edpt_close_all(uint8_t rhport)
 {
   volatile musb_epn_regs_t *regs;
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
-  ctrl_regs->TXIE = 1; /* Enable only EP0 */
-  ctrl_regs->RXIE = 0;
+  musb_regs->intr_txen = 1; /* Enable only EP0 */
+  musb_regs->intr_rxen = 0;
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     regs = musb_dcd_epn_regs(rhport, i);
     regs->TXMAXP = 0;
@@ -596,10 +599,11 @@ void dcd_edpt_close_all(uint8_t rhport)
 
     regs->RXMAXP = 0;
     regs->RXCSRH = 0;
-    if (regs->RXCSRL & USB_RXCSRL1_RXRDY)
+    if (regs->RXCSRL & USB_RXCSRL1_RXRDY) {
       regs->RXCSRL = USB_RXCSRL1_CLRDT | USB_RXCSRL1_FLUSH;
-    else
+    } else {
       regs->RXCSRL = USB_RXCSRL1_CLRDT;
+    }
 
     musb_dcd_reset_fifo(rhport, i, 0);
     musb_dcd_reset_fifo(rhport, i, 1);
@@ -614,25 +618,27 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   unsigned const dir_in = tu_edpt_dir(ep_addr);
 
   volatile musb_epn_regs_t *regs = musb_dcd_epn_regs(rhport, epn);
-  volatile musb_ctl_regs_t *ctrl_regs = musb_dcd_ctl_regs(rhport);
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
   if (dir_in) {
-    ctrl_regs->TXIE  &= ~TU_BIT(epn);
+    musb_regs->intr_txen  &= ~TU_BIT(epn);
     regs->TXMAXP = 0;
     regs->TXCSRH = 0;
-    if (regs->TXCSRL & USB_TXCSRL1_TXRDY)
+    if (regs->TXCSRL & USB_TXCSRL1_TXRDY) {
       regs->TXCSRL = USB_TXCSRL1_CLRDT | USB_TXCSRL1_FLUSH;
-    else
+    } else {
       regs->TXCSRL = USB_TXCSRL1_CLRDT;
+    }
   } else {
-    ctrl_regs->RXIE  &= ~TU_BIT(epn);
+    musb_regs->intr_rxen  &= ~TU_BIT(epn);
     regs->RXMAXP = 0;
     regs->RXCSRH = 0;
-    if (regs->RXCSRL & USB_RXCSRL1_RXRDY)
+    if (regs->RXCSRL & USB_RXCSRL1_RXRDY) {
       regs->RXCSRL = USB_RXCSRL1_CLRDT | USB_RXCSRL1_FLUSH;
-    else
+    } else {
       regs->RXCSRL = USB_RXCSRL1_CLRDT;
+    }
   }
   musb_dcd_reset_fifo(rhport, epn, dir_in);
   if (ie) musb_dcd_int_enable(rhport);
@@ -650,8 +656,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   if (epnum) {
     _dcd.pipe_buf_is_fifo[tu_edpt_dir(ep_addr)] &= ~TU_BIT(epnum - 1);
     ret = edpt_n_xfer(rhport, ep_addr, buffer, total_bytes);
-  } else
+  } else {
     ret = edpt0_xfer(rhport, ep_addr, buffer, total_bytes);
+  }
   if (ie) musb_dcd_int_enable(rhport);
   return ret;
 }
@@ -719,18 +726,18 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 void dcd_int_handler(uint8_t rhport)
 {
   uint_fast8_t is, txis, rxis;
-  volatile musb_ctl_regs_t *ctrl_regs;
 
   //Part specific ISR setup/entry
   musb_dcd_int_handler_enter(rhport);
 
-  ctrl_regs = musb_dcd_ctl_regs(rhport);
-  is   = ctrl_regs->IS;   /* read and clear interrupt status */
-  txis = ctrl_regs->TXIS; /* read and clear interrupt status */
-  rxis = ctrl_regs->RXIS; /* read and clear interrupt status */
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
+
+  is   = musb_regs->intrusb;   /* read and clear interrupt status */
+  txis = musb_regs->intr_tx; /* read and clear interrupt status */
+  rxis = musb_regs->intr_rx; /* read and clear interrupt status */
   // TU_LOG1("D%2x T%2x R%2x\r\n", is, txis, rxis);
 
-  is &= ctrl_regs->IE; /* Clear disabled interrupts */
+  is &= musb_regs->intrusben; /* Clear disabled interrupts */
   if (is & USB_IS_DISCON) {
   }
   if (is & USB_IS_SOF) {
@@ -746,7 +753,7 @@ void dcd_int_handler(uint8_t rhport)
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
-  txis &= ctrl_regs->TXIE; /* Clear disabled interrupts */
+  txis &= musb_regs->intr_txen; /* Clear disabled interrupts */
   if (txis & USB_TXIE_EP0) {
     process_ep0(rhport);
     txis &= ~TU_BIT(0);
@@ -756,7 +763,7 @@ void dcd_int_handler(uint8_t rhport)
     process_edpt_n(rhport, tu_edpt_addr(num, TUSB_DIR_IN));
     txis &= ~TU_BIT(num);
   }
-  rxis &= ctrl_regs->RXIE; /* Clear disabled interrupts */
+  rxis &= musb_regs->intr_rxen; /* Clear disabled interrupts */
   while (rxis) {
     unsigned const num = __builtin_ctz(rxis);
     process_edpt_n(rhport, tu_edpt_addr(num, TUSB_DIR_OUT));

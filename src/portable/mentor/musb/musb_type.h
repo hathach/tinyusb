@@ -32,13 +32,29 @@
 *
 *******************************************************************************/
 
-#ifndef _TUSB_MUSB_TYPE_H_
-#define _TUSB_MUSB_TYPE_H_
+#ifndef TUSB_MUSB_TYPE_H_
+#define TUSB_MUSB_TYPE_H_
 
 #include "stdint.h"
 
 #ifdef __cplusplus
  extern "C" {
+#endif
+
+#ifndef __IO
+  #define __IO volatile
+#endif
+
+#ifndef __I
+  #define __I  volatile const
+#endif
+
+#ifndef __O
+  #define __O  volatile
+#endif
+
+#ifndef __R
+  #define __R  volatile const
 #endif
 
 // Endpoint register mapping. Non-zero end points.
@@ -60,17 +76,131 @@ typedef struct TU_ATTR_PACKED {
   uint8_t   COUNT0;
 } musb_ep0_regs_t;
 
-// Control register mapping
-typedef struct TU_ATTR_PACKED {
-  uint8_t   FADDR;
-  uint8_t   POWER;
-  uint16_t  TXIS;
-  uint16_t  RXIS;
-  uint16_t  TXIE;
-  uint16_t  RXIE;
-  uint8_t   IS;
-  uint8_t   IE;
-} musb_ctl_regs_t;
+typedef struct {
+  //------------- Common -------------//
+  __IO uint8_t  faddr;                             // 0x00: FADDR
+  __IO uint8_t  power;                             // 0x01: POWER
+
+  __IO uint16_t intr_tx;                           // 0x02: INTR_TX
+  __IO uint16_t intr_rx;                           // 0x04: INTR_RX
+
+  __IO uint16_t intr_txen;                         // 0x06: INTR_TXEN
+  __IO uint16_t intr_rxen;                         // 0x08: INTR_RXEN
+
+  __IO uint8_t  intrusb;                           // 0x0A: INTRUSB
+  __IO uint8_t  intrusben;                         // 0x0B: INTRUSBEN
+
+  __IO uint16_t frame;                             // 0x0C: FRAME
+  __IO uint8_t  index;                             // 0x0E: INDEX
+  __IO uint8_t  testmode;                          // 0x0F: TESTMODE
+  __IO uint16_t inmaxp;                            // 0x10: INMAXP
+  union {
+    __IO uint8_t  csr0;                            // 0x12: CSR0
+    __IO uint8_t  incsrl;                          // 0x12: INCSRL
+  };
+  __IO uint8_t  incsru;                            // 0x13: INCSRU
+  __IO uint16_t outmaxp;                           // 0x14: OUTMAXP
+  __IO uint8_t  outcsrl;                           // 0x16: OUTCSRL
+  __IO uint8_t  outcsru;                           // 0x17: OUTCSRU
+  union {
+    __IO uint16_t count0;                          // 0x18: COUNT0
+    __IO uint16_t outcount;                        // 0x18: OUTCOUNT
+  };
+  __R  uint16_t rsv_0x1a_0x1f[3];
+  __IO uint32_t fifo0;                             // 0x20: FIFO0
+  __IO uint32_t fifo1;                             // 0x24: FIFO1
+  __IO uint32_t fifo2;                             // 0x28: FIFO2
+  __IO uint32_t fifo3;                             // 0x2c: FIFO3
+  __IO uint32_t fifo4;                             // 0x30: FIFO4
+  __IO uint32_t fifo5;                             // 0x34: FIFO5
+  __IO uint32_t fifo6;                             // 0x38: FIFO6
+  __IO uint32_t fifo7;                             // 0x3c: FIFO7
+  __IO uint32_t fifo8;                             // 0x40: FIFO8
+  __IO uint32_t fifo9;                             // 0x44: FIFO9
+  __IO uint32_t fifo10;                            // 0x48: FIFO10
+  __IO uint32_t fifo11;                            // 0x4c: FIFO11
+  __IO uint32_t fifo12;                            // 0x50: FIFO12
+  __IO uint32_t fifo13;                            // 0x54: FIFO13
+  __IO uint32_t fifo14;                            // 0x58: FIFO14
+  __IO uint32_t fifo15;                            // 0x5c: FIFO15
+  __IO uint8_t  devctl;                            // 0x60: DEVCTL
+  __IO uint8_t  misc;                              // 0x61: MISC
+
+  //------------- Dynammic FIFO -------------//
+  __IO uint8_t  txfifo_sz;                         // 0x62: TXFIFO_SZ
+  __IO uint8_t  rxfifo_sz;                         // 0x63: RXFIFO_SZ
+  __IO uint16_t txfifo_addr;                       // 0x64: TXFIFO_ADDR
+  __IO uint16_t rxfifo_addr;                       // 0x66: RXFIFO_ADDR
+
+  //------------- Additional Control/Status -------------//
+  union {
+    __O  uint32_t vcontrol;                        // 0x68: VCONTROL
+    __IO uint32_t vstatus;                         // 0x68: VSTATUS
+  };
+  __IO uint16_t hwvers;                            // 0x6c: HWVERS
+  __R  uint16_t rsv_0x6e_0x77[5];
+
+  //------------- Additional Configuration -------------//
+  __IO uint8_t  epinfo;                            // 0x78: EPINFO
+  __IO uint8_t  raminfo;                           // 0x79: RAMINFO
+  __IO uint8_t  softreset;                         // 0x7A: SOFTRESET (Analog), Link info
+  __IO uint8_t  vplen;                             // 0x7B: VPLEN
+  __IO uint8_t  hs_eof1;                           // 0x7C: HS_EOF1
+  __IO uint8_t  fs_eof1;                           // 0x7D: FS_EOF1
+  __IO uint8_t  ls_eof1;                           // 0x7E: LS_EOF1
+  __IO uint8_t  soft_rst;                          // 0x7F: SOFT_RST
+
+  //------------- Extended -------------//
+  __IO uint16_t ctuch;                             // 0x80: CTUCH
+  __IO uint16_t cthsrtn;                           // 0x82: CTHSRTN
+  __R  uint32_t rsv_0x84_0x3ff[223];
+
+  //------------- Analog PHY -------------//
+  __IO uint32_t mxm_usb_reg_00;                    // 0x400: MXM_USB_REG_00
+  __IO uint32_t m31_phy_utmi_reset;                // 0x404: M31_PHY_UTMI_RESET
+  __IO uint32_t m31_phy_utmi_vcontrol;             // 0x408: M31_PHY_UTMI_VCONTROL
+  __IO uint32_t m31_phy_clk_en;                    // 0x40C: M31_PHY_CLK_EN
+  __IO uint32_t m31_phy_ponrst;                    // 0x410: M31_PHY_PONRST
+  __IO uint32_t m31_phy_noncry_rstb;               // 0x414: M31_PHY_NONCRY_RSTB
+  __IO uint32_t m31_phy_noncry_en;                 // 0x418: M31_PHY_NONCRY_EN
+  __R  uint32_t rsv_0x41c;
+  __IO uint32_t m31_phy_u2_compliance_en;          // 0x420: M31_PHY_U2_COMPLIANCE_EN
+  __IO uint32_t m31_phy_u2_compliance_dac_adj;     // 0x424: M31_PHY_U2_COMPLIANCE_DAC_ADJ
+  __IO uint32_t m31_phy_u2_compliance_dac_adj_en;  // 0x428: M31_PHY_U2_COMPLIANCE_DAC_ADJ_EN
+  __IO uint32_t m31_phy_clk_rdy;                   // 0x42C: M31_PHY_CLK_RDY
+  __IO uint32_t m31_phy_pll_en;                    // 0x430: M31_PHY_PLL_EN
+  __IO uint32_t m31_phy_bist_ok;                   // 0x434: M31_PHY_BIST_OK
+  __IO uint32_t m31_phy_data_oe;                   // 0x438: M31_PHY_DATA_OE
+  __IO uint32_t m31_phy_oscouten;                  // 0x43C: M31_PHY_OSCOUTEN
+  __IO uint32_t m31_phy_lpm_alive;                 // 0x440: M31_PHY_LPM_ALIVE
+  __IO uint32_t m31_phy_hs_bist_mode;              // 0x444: M31_PHY_HS_BIST_MODE
+  __IO uint32_t m31_phy_coreclkin;                 // 0x448: M31_PHY_CORECLKIN
+  __IO uint32_t m31_phy_xtlsel;                    // 0x44C: M31_PHY_XTLSEL
+  __IO uint32_t m31_phy_ls_en;                     // 0x450: M31_PHY_LS_EN
+  __IO uint32_t m31_phy_debug_sel;                 // 0x454: M31_PHY_DEBUG_SEL
+  __IO uint32_t m31_phy_debug_out;                 // 0x458: M31_PHY_DEBUG_OUT
+  __IO uint32_t m31_phy_outclksel;                 // 0x45C: M31_PHY_OUTCLKSEL
+  __IO uint32_t m31_phy_xcfgi_31_0;                // 0x460: M31_PHY_XCFGI_31_0
+  __IO uint32_t m31_phy_xcfgi_63_32;               // 0x464: M31_PHY_XCFGI_63_32
+  __IO uint32_t m31_phy_xcfgi_95_64;               // 0x468: M31_PHY_XCFGI_95_64
+  __IO uint32_t m31_phy_xcfgi_127_96;              // 0x46C: M31_PHY_XCFGI_127_96
+  __IO uint32_t m31_phy_xcfgi_137_128;             // 0x470: M31_PHY_XCFGI_137_128
+  __IO uint32_t m31_phy_xcfg_hs_coarse_tune_num;   // 0x474: M31_PHY_XCFG_HS_COARSE_TUNE_NUM
+  __IO uint32_t m31_phy_xcfg_hs_fine_tune_num;     // 0x478: M31_PHY_XCFG_HS_FINE_TUNE_NUM
+  __IO uint32_t m31_phy_xcfg_fs_coarse_tune_num;   // 0x47C: M31_PHY_XCFG_FS_COARSE_TUNE_NUM
+  __IO uint32_t m31_phy_xcfg_fs_fine_tune_num;     // 0x480: M31_PHY_XCFG_FS_FINE_TUNE_NUM
+  __IO uint32_t m31_phy_xcfg_lock_range_max;       // 0x484: M31_PHY_XCFG_LOCK_RANGE_MAX
+  __IO uint32_t m31_phy_xcfgi_lock_range_min;      // 0x488: M31_PHY_XCFGI_LOCK_RANGE_MIN
+  __IO uint32_t m31_phy_xcfg_ob_rsel;              // 0x48C: M31_PHY_XCFG_OB_RSEL
+  __IO uint32_t m31_phy_xcfg_oc_rsel;              // 0x490: M31_PHY_XCFG_OC_RSEL
+  __IO uint32_t m31_phy_xcfgo;                     // 0x494: M31_PHY_XCFGO
+  __IO uint32_t mxm_int;                           // 0x498: MXM_INT
+  __IO uint32_t mxm_int_en;                        // 0x49C: MXM_INT_EN
+  __IO uint32_t mxm_suspend;                       // 0x4A0: MXM_SUSPEND
+  __IO uint32_t mxm_reg_a4;                        // 0x4A4: MXM_REG_A4
+} musb_regs_t;
+
+TU_VERIFY_STATIC(sizeof(musb_regs_t) == 0x4A8, "size is not correct");
 
 //*****************************************************************************
 //

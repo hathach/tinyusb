@@ -28,11 +28,13 @@
 #define TUSB_MUSB_MAX32_H_
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 #include "mxc_device.h"
 #include "usbhs_regs.h"
+
+const uintptr_t MUSB_BASES[] = { MXC_BASE_USBHS };
 
 #if CFG_TUD_ENABLED
 #define USBHS_M31_CLOCK_RECOVERY
@@ -92,14 +94,12 @@ static inline void musb_dcd_int_handler_enter(uint8_t rhport) {
   }
 }
 
-static inline void musb_dcd_int_handler_exit(uint8_t rhport)
-{
+static inline void musb_dcd_int_handler_exit(uint8_t rhport) {
   //restore register index
   musb_periph_inst[rhport]->index = isr_saved_index;
 }
 
-static inline void musb_dcd_phy_init(uint8_t rhport)
-{
+static inline void musb_dcd_phy_init(uint8_t rhport) {
   //Interrupt for VBUS disconnect
   musb_periph_inst[rhport]->mxm_int_en |= MXC_F_USBHS_MXM_INT_EN_NOVBUS;
 
@@ -136,42 +136,32 @@ static inline void musb_dcd_phy_init(uint8_t rhport)
   musb_periph_inst[rhport]->m31_phy_ponrst = 1;
 }
 
-static inline volatile musb_ctl_regs_t* musb_dcd_ctl_regs(uint8_t rhport)
-{
-  volatile musb_ctl_regs_t *regs = (volatile musb_ctl_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->faddr));
-  return regs;
-}
-
-static inline volatile musb_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum)
-{
+static inline volatile musb_epn_regs_t* musb_dcd_epn_regs(uint8_t rhport, unsigned epnum) {
   //Need to set index to map EP registers
   musb_periph_inst[rhport]->index = epnum;
-  volatile musb_epn_regs_t *regs = (volatile musb_epn_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->inmaxp));
+  volatile musb_epn_regs_t* regs = (volatile musb_epn_regs_t*) ((uintptr_t) &(musb_periph_inst[rhport]->inmaxp));
   return regs;
 }
 
-static inline volatile musb_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport)
-{
+static inline volatile musb_ep0_regs_t* musb_dcd_ep0_regs(uint8_t rhport) {
   //Need to set index to map EP0 registers
   musb_periph_inst[rhport]->index = 0;
-  volatile musb_ep0_regs_t *regs = (volatile musb_ep0_regs_t*)((uintptr_t)&(musb_periph_inst[rhport]->csr0));
+  volatile musb_ep0_regs_t* regs = (volatile musb_ep0_regs_t*) ((uintptr_t) &(musb_periph_inst[rhport]->csr0));
   return regs;
 }
 
-static volatile void *musb_dcd_ep_get_fifo_ptr(uint8_t rhport, unsigned epnum)
-{
-  volatile uint32_t *ptr;
+static volatile void* musb_dcd_ep_get_fifo_ptr(uint8_t rhport, unsigned epnum) {
+  volatile uint32_t* ptr;
 
   ptr = &(musb_periph_inst[rhport]->fifo0);
   ptr += epnum;
 
-  return (volatile void *) ptr;
+  return (volatile void*) ptr;
 }
 
 
-static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in, unsigned mps)
-{
-  (void)mps;
+static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in, unsigned mps) {
+  (void) mps;
 
   //Most likely the caller has already grabbed the right register block. But
   //as a precaution save and restore the register bank anyways
@@ -180,7 +170,7 @@ static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned 
   musb_periph_inst[rhport]->index = epnum;
 
   //Disable double buffering
-  if(dir_in) {
+  if (dir_in) {
     musb_periph_inst[rhport]->incsru |= (MXC_F_USBHS_INCSRU_DPKTBUFDIS | MXC_F_USBHS_INCSRU_MODE);
   } else {
     musb_periph_inst[rhport]->outcsru |= (MXC_F_USBHS_OUTCSRU_DPKTBUFDIS);
@@ -189,8 +179,7 @@ static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned 
   musb_periph_inst[rhport]->index = saved_index;
 }
 
-static inline void musb_dcd_reset_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in)
-{
+static inline void musb_dcd_reset_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in) {
   //Most likely the caller has already grabbed the right register block. But
   //as a precaution save and restore the register bank anyways
   unsigned saved_index = musb_periph_inst[rhport]->index;
@@ -198,7 +187,7 @@ static inline void musb_dcd_reset_fifo(uint8_t rhport, unsigned epnum, unsigned 
   musb_periph_inst[rhport]->index = epnum;
 
   //Disable double buffering
-  if(dir_in) {
+  if (dir_in) {
     musb_periph_inst[rhport]->incsru |= (MXC_F_USBHS_INCSRU_DPKTBUFDIS);
   } else {
     musb_periph_inst[rhport]->outcsru |= (MXC_F_USBHS_OUTCSRU_DPKTBUFDIS);
@@ -210,7 +199,7 @@ static inline void musb_dcd_reset_fifo(uint8_t rhport, unsigned epnum, unsigned 
 #endif // CFG_TUD_ENABLED
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif // TUSB_MUSB_MAX32_H_
