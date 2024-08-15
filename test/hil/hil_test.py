@@ -196,6 +196,11 @@ def flash_esptool(board, firmware):
     return ret
 
 
+def flash_uniflash(board, firmware):
+    ret = run_cmd(f'dslite.sh {board["flasher_args"]} -f {firmware}.hex')
+    return ret
+
+
 # -------------------------------------------------------------
 # Tests
 # -------------------------------------------------------------

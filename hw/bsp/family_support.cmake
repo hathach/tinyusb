@@ -573,6 +573,21 @@ function(family_flash_msp430flasher TARGET)
     )
 endfunction()
 
+
+function(family_flash_uniflash TARGET)
+  if (NOT DEFINED DSLITE)
+    set(DSLITE dslite.sh)
+  endif ()
+
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${UNIFLASH_OPTION})
+
+  add_custom_target(${TARGET}-uniflash
+    DEPENDS ${TARGET}
+    COMMAND ${DSLITE} ${UNIFLASH_OPTION} -f $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
+    VERBATIM
+    )
+endfunction()
+
 #----------------------------------
 # Family specific
 #----------------------------------

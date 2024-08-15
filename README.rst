@@ -1,4 +1,4 @@
-|Build Status| |Documentation Status| |Fuzzing Status| |License|
+|Build Status| |CircleCI Status| |Documentation Status| |Fuzzing Status| |License|
 
 Sponsors
 ========
@@ -197,6 +197,8 @@ Docs
 
 .. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/cmake_arm.yml/badge.svg
    :target: https://github.com/hathach/tinyusb/actions
+.. |CircleCI Status| image:: https://dl.circleci.com/status-badge/img/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master.svg?style=svg
+   :target: https://dl.circleci.com/status-badge/redirect/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
    :target: https://docs.tinyusb.org/en/latest/?badge=latest
 .. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
