@@ -261,7 +261,7 @@ typedef struct TU_ATTR_PACKED {
 
   //------------- Non-Indexed Endpoint CSRs -------------//
   // TI tm4c can access this directly, but should use indexed_csr for portability
-  musb_ep_csr_t ep_csr[16];        // 0x100-0x1FF: EP0-15 CSR
+  musb_ep_csr_t abs_csr[16];        // 0x100-0x1FF: EP0-15 CSR
 } musb_regs_t;
 
 TU_VERIFY_STATIC(sizeof(musb_regs_t) == 0x200, "size is not correct");
@@ -307,6 +307,7 @@ TU_ATTR_ALWAYS_INLINE static inline musb_ep_csr_t* get_ep_csr(musb_regs_t* musb_
 
 // 0x13, 0x17: TX/RX CSRH
 #define MUSB_CSRH_DISABLE_DOUBLE_PACKET(_rx) (1u << 1)
+#define MUSB_CSRH_TX_MODE                    (1u << 5) // 1 = TX, 0 = RX. only relevant for SHARED FIFO
 
 
 //*****************************************************************************

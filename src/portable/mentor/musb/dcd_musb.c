@@ -41,7 +41,6 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
 // Following symbols must be defined by port header
 // - musb_dcd_int_enable/disable/clear/get_enable
 // - musb_dcd_int_handler_enter/exit
-// - musb_dcd_setup_fifo: Configuration of the EP's FIFO
 #if defined(TUP_USBIP_MUSB_TI)
   #include "musb_ti.h"
 #elif defined(TUP_USBIP_MUSB_ADI)
@@ -88,18 +87,77 @@ typedef struct
  *------------------------------------------------------------------*/
 static dcd_data_t _dcd;
 
-TU_ATTR_ALWAYS_INLINE static inline void fifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
-  musb->index = epnum;
-  const uint8_t is_rx = 1 - dir_in;
-
 #if MUSB_CFG_DYNAMIC_FIFO
+
+// musb is configured to use dynamic FIFO sizing.
+// FF Size is encodded: 1 << (fifo_size[3:0] + 3) = 8 << fifo_size[3:0]
+// FF Address is 8*ff_addr[12:0]
+// First 64 bytes are reserved for EP0
+static uint32_t alloced_fifo_bytes;
+
+TU_ATTR_ALWAYS_INLINE static inline void fifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
+  const uint8_t is_rx = 1 - dir_in;
+  musb->index = epnum;
   musb->fifo_size[is_rx] = 0;
   musb->fifo_addr[is_rx] = 0;
-#elif defined(TUP_USBIP_MUSB_ADI)
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool fifo_configure(musb_regs_t* musb, unsigned epnum, unsigned dir_in, unsigned mps) {
+  // ffsize is log2(mps) - 3 (round up)
+  uint8_t ffsize = 28 - tu_min8(28, __builtin_clz(mps));
+  // round up to the next power of 2
+  if ((8u << ffsize) < mps) {
+    ++ffsize;
+    mps = 8 << ffsize;
+  }
+
+  TU_ASSERT(alloced_fifo_bytes + mps <= MUSB_CFG_DYNAMIC_FIFO_SIZE);
+  const uint8_t is_rx = 1 - dir_in;
+  musb->index = epnum;
+  musb->fifo_addr[is_rx] = alloced_fifo_bytes / 8;
+  musb->fifo_size[is_rx] = ffsize;
+
+  alloced_fifo_bytes += mps;
+
+  return true;
+}
+
+#else
+TU_ATTR_ALWAYS_INLINE static inline void fifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
+  const uint8_t is_rx = 1 - dir_in;
+  musb->index = epnum;
+
+  #if defined(TUP_USBIP_MUSB_ADI)
   // Analog have custom double buffered in csrh register, disable it
   musb->indexed_csr.maxp_csr[is_rx].csrh |= MUSB_CSRH_DISABLE_DOUBLE_PACKET(is_rx);
-#endif
+  #else
+  // disable double bufeffered in extended register
+  #endif
 }
+
+TU_ATTR_ALWAYS_INLINE static inline bool fifo_configure(musb_regs_t* musb, unsigned epnum, unsigned dir_in, unsigned mps) {
+  (void) mps;
+  const uint8_t is_rx = 1 - dir_in;
+  musb->index = epnum;
+
+  uint8_t csrh = 0;
+
+#if defined(TUP_USBIP_MUSB_ADI)
+  csrh = MUSB_CSRH_DISABLE_DOUBLE_PACKET(is_rx);
+#endif
+
+#if MUSB_CFG_SHARED_FIFO
+  if (dir_in) {
+    csrh |= MUSB_CSRH_TX_MODE;
+  }
+#endif
+
+  musb->indexed_csr.maxp_csr[is_rx].csrh |= csrh;
+
+  return true;
+}
+
+#endif
 
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 {
@@ -463,6 +521,11 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
 // faddr = 0, index = 0, flushes all ep fifos, clears all ep csr, enabled all ep interrupts
 static void process_bus_reset(uint8_t rhport) {
   musb_regs_t* musb = MUSB_REGS(rhport);
+
+#if MUSB_CFG_DYNAMIC_FIFO
+  alloced_fifo_bytes = CFG_TUD_ENDPOINT0_SIZE;
+#endif
+
   /* When bmRequestType is REQUEST_TYPE_INVALID(0xFF), a control transfer state is SETUP or STATUS stage. */
   _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID;
   _dcd.status_out = 0;
@@ -594,8 +657,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   pipe->length    = 0;
   pipe->remaining = 0;
 
-  musb_regs_t* musb_regs = MUSB_REGS(rhport);
-  musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epn);
+  musb_regs_t* musb = MUSB_REGS(rhport);
+  musb_ep_csr_t* ep_csr = get_ep_csr(musb, epn);
 
   const uint8_t is_rx = 1 - dir_in;
   ep_csr->maxp_csr[is_rx].maxp = mps;
@@ -606,10 +669,10 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     csrl |= MUSB_CSRL_FLUSH_FIFO(is_rx);
   }
   ep_csr->maxp_csr[is_rx].csrl = csrl;
-  musb_regs->intren_ep[is_rx] |= TU_BIT(epn);
+  musb->intren_ep[is_rx] |= TU_BIT(epn);
 
   /* Setup FIFO */
-  musb_dcd_setup_fifo(rhport, epn, dir_in, mps);
+  fifo_configure(musb, epn, dir_in, mps);
 
   return true;
 }
@@ -619,6 +682,7 @@ void dcd_edpt_close_all(uint8_t rhport)
   musb_regs_t* musb = MUSB_REGS(rhport);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
+
   musb->intr_txen = 1; /* Enable only EP0 */
   musb->intr_rxen = 0;
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
@@ -640,13 +704,15 @@ void dcd_edpt_close_all(uint8_t rhport)
 
     fifo_reset(musb, i, 0);
     fifo_reset(musb, i, 1);
-
   }
+  alloced_fifo_bytes = CFG_TUD_ENDPOINT0_SIZE;
+
   if (ie) musb_dcd_int_enable(rhport);
 }
 
 void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
+  // FIXME: we should implement iso_alloc() and iso_activate()
   unsigned const epn    = tu_edpt_number(ep_addr);
   unsigned const dir_in = tu_edpt_dir(ep_addr);
   musb_regs_t* musb = MUSB_REGS(rhport);

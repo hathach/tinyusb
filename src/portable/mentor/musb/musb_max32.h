@@ -34,7 +34,8 @@ extern "C" {
 #include "mxc_device.h"
 #include "usbhs_regs.h"
 
-#define MUSB_CFG_DYNAMIC_FIFO  0
+#define MUSB_CFG_SHARED_FIFO   1 // shared FIFO for TX and RX endpoints
+#define MUSB_CFG_DYNAMIC_FIFO  0 // dynamic EP FIFO sizing
 
 const uintptr_t MUSB_BASES[] = { MXC_BASE_USBHS };
 
@@ -141,24 +142,24 @@ static inline void musb_dcd_phy_init(uint8_t rhport) {
   hs_phy->m31_phy_ponrst = 1;
 }
 
-static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in, unsigned mps) {
-  (void) mps;
-
-  //Most likely the caller has already grabbed the right register block. But
-  //as a precaution save and restore the register bank anyways
-  unsigned saved_index = musb_periph_inst[rhport]->index;
-
-  musb_periph_inst[rhport]->index = epnum;
-
-  //Disable double buffering
-  if (dir_in) {
-    musb_periph_inst[rhport]->incsru |= (MXC_F_USBHS_INCSRU_DPKTBUFDIS | MXC_F_USBHS_INCSRU_MODE);
-  } else {
-    musb_periph_inst[rhport]->outcsru |= (MXC_F_USBHS_OUTCSRU_DPKTBUFDIS);
-  }
-
-  musb_periph_inst[rhport]->index = saved_index;
-}
+// static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in, unsigned mps) {
+//   (void) mps;
+//
+//   //Most likely the caller has already grabbed the right register block. But
+//   //as a precaution save and restore the register bank anyways
+//   unsigned saved_index = musb_periph_inst[rhport]->index;
+//
+//   musb_periph_inst[rhport]->index = epnum;
+//
+//   //Disable double buffering
+//   if (dir_in) {
+//     musb_periph_inst[rhport]->incsru |= (MXC_F_USBHS_INCSRU_DPKTBUFDIS | MXC_F_USBHS_INCSRU_MODE);
+//   } else {
+//     musb_periph_inst[rhport]->outcsru |= (MXC_F_USBHS_OUTCSRU_DPKTBUFDIS);
+//   }
+//
+//   musb_periph_inst[rhport]->index = saved_index;
+// }
 
 #endif // CFG_TUD_ENABLED
 

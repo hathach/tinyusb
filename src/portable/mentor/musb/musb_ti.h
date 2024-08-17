@@ -42,6 +42,7 @@
   #error "Unsupported MCUs"
 #endif
 
+#define MUSB_CFG_SHARED_FIFO 0
 #define MUSB_CFG_DYNAMIC_FIFO  1
 #define MUSB_CFG_DYNAMIC_FIFO_SIZE 4096
 
@@ -91,6 +92,7 @@ static inline void musb_dcd_int_handler_exit(uint8_t rhport) {
   //Nothing to do for this part
 }
 
+#if 0
 typedef struct {
   uint_fast16_t beg; /* offset of including first element */
   uint_fast16_t end; /* offset of excluding the last element */
@@ -224,6 +226,7 @@ static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned 
     musb_periph_inst[rhport]->RXFIFOSZ  = size_in_log2_minus3;
   }
 }
+#endif
 
 #endif // CFG_TUD_ENABLED
 
