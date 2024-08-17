@@ -309,6 +309,7 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
   #define TUP_USBIP_MUSB
+  #define TUP_USBIP_MUSB_TI
   #define TUP_DCD_ENDPOINT_MAX    8
 
 //--------------------------------------------------------------------+
@@ -474,6 +475,7 @@
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
   #define TUP_USBIP_MUSB
+  #define TUP_USBIP_MUSB_ADI
   #define TUP_DCD_ENDPOINT_MAX    12
   #define TUP_RHPORT_HIGHSPEED    1
 

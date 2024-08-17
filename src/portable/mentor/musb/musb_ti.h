@@ -42,8 +42,10 @@
   #error "Unsupported MCUs"
 #endif
 
-const uintptr_t MUSB_BASES[] = { USB0_BASE };
+#define MUSB_CFG_DYNAMIC_FIFO  1
+#define MUSB_CFG_DYNAMIC_FIFO_SIZE 4096
 
+const uintptr_t MUSB_BASES[] = { USB0_BASE };
 
 // Header supports both device and host modes. Only include what's necessary
 #if CFG_TUD_ENABLED
@@ -63,36 +65,28 @@ static inline void musb_dcd_phy_init(uint8_t rhport){
   //Nothing to do for this part
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_enable(uint8_t rhport)
-{
+TU_ATTR_ALWAYS_INLINE static inline void musb_dcd_int_enable(uint8_t rhport) {
   NVIC_EnableIRQ(musb_irqs[rhport]);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_disable(uint8_t rhport)
-{
+TU_ATTR_ALWAYS_INLINE static inline void musb_dcd_int_disable(uint8_t rhport) {
   NVIC_DisableIRQ(musb_irqs[rhport]);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline unsigned musb_dcd_get_int_enable(uint8_t rhport)
-{
+TU_ATTR_ALWAYS_INLINE static inline unsigned musb_dcd_get_int_enable(uint8_t rhport) {
   return NVIC_GetEnableIRQ(musb_irqs[rhport]);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_clear(uint8_t rhport)
-{
-    NVIC_ClearPendingIRQ(musb_irqs[rhport]);
+TU_ATTR_ALWAYS_INLINE static inline void musb_dcd_int_clear(uint8_t rhport) {
+  NVIC_ClearPendingIRQ(musb_irqs[rhport]);
 }
 
-static inline void musb_dcd_int_handler_enter(uint8_t rhport){
+static inline void musb_dcd_int_handler_enter(uint8_t rhport) {
   (void)rhport;
   //Nothing to do for this part
 }
 
-static inline void musb_dcd_int_handler_exit(uint8_t rhport){
+static inline void musb_dcd_int_handler_exit(uint8_t rhport) {
   (void)rhport;
   //Nothing to do for this part
 }
@@ -102,15 +96,13 @@ typedef struct {
   uint_fast16_t end; /* offset of excluding the last element */
 } free_block_t;
 
-static inline free_block_t *find_containing_block(free_block_t *beg, free_block_t *end, uint_fast16_t addr)
-{
+static inline free_block_t *find_containing_block(free_block_t *beg, free_block_t *end, uint_fast16_t addr) {
   free_block_t *cur = beg;
   for (; cur < end && ((addr < cur->beg) || (cur->end <= addr)); ++cur) ;
   return cur;
 }
 
-static inline int update_free_block_list(free_block_t *blks, unsigned num, uint_fast16_t addr, uint_fast16_t size)
-{
+static inline int update_free_block_list(free_block_t *blks, unsigned num, uint_fast16_t addr, uint_fast16_t size) {
   free_block_t *p = find_containing_block(blks, blks + num, addr);
   TU_ASSERT(p != blks + num, -2);
   if (p->beg == addr) {
@@ -150,8 +142,7 @@ static inline int update_free_block_list(free_block_t *blks, unsigned num, uint_
   }
 }
 
-static inline unsigned free_block_size(free_block_t const *blk)
-{
+static inline unsigned free_block_size(free_block_t const *blk) {
   return blk->end - blk->beg;
 }
 
@@ -231,18 +222,6 @@ static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned 
   } else {
     musb_periph_inst[rhport]->RXFIFOADD = addr;
     musb_periph_inst[rhport]->RXFIFOSZ  = size_in_log2_minus3;
-  }
-}
-
-static inline void musb_dcd_reset_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in)
-{
-  musb_periph_inst[rhport]->EPIDX = epnum;
-  if (dir_in) {
-    musb_periph_inst[rhport]->TXFIFOADD = 0;
-    musb_periph_inst[rhport]->TXFIFOSZ  = 0;
-  } else {
-    musb_periph_inst[rhport]->RXFIFOADD = 0;
-    musb_periph_inst[rhport]->RXFIFOSZ  = 0;
   }
 }
 

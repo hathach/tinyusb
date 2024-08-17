@@ -34,6 +34,8 @@ extern "C" {
 #include "mxc_device.h"
 #include "usbhs_regs.h"
 
+#define MUSB_CFG_DYNAMIC_FIFO  0
+
 const uintptr_t MUSB_BASES[] = { MXC_BASE_USBHS };
 
 #if CFG_TUD_ENABLED
@@ -100,40 +102,43 @@ static inline void musb_dcd_int_handler_exit(uint8_t rhport) {
 }
 
 static inline void musb_dcd_phy_init(uint8_t rhport) {
-  //Interrupt for VBUS disconnect
-  musb_periph_inst[rhport]->mxm_int_en |= MXC_F_USBHS_MXM_INT_EN_NOVBUS;
+  (void) rhport;
+  mxc_usbhs_regs_t* hs_phy = MXC_USBHS;
+
+  // Interrupt for VBUS disconnect
+  hs_phy->mxm_int_en |= MXC_F_USBHS_MXM_INT_EN_NOVBUS;
 
   musb_dcd_int_clear(rhport);
 
-  //Unsuspend the MAC
-  musb_periph_inst[rhport]->mxm_suspend = 0;
+  // Unsuspend the MAC
+  hs_phy->mxm_suspend = 0;
 
   // Configure PHY
-  musb_periph_inst[rhport]->m31_phy_xcfgi_31_0 = (0x1 << 3) | (0x1 << 11);
-  musb_periph_inst[rhport]->m31_phy_xcfgi_63_32 = 0;
-  musb_periph_inst[rhport]->m31_phy_xcfgi_95_64 = 0x1 << (72 - 64);
-  musb_periph_inst[rhport]->m31_phy_xcfgi_127_96 = 0;
+  hs_phy->m31_phy_xcfgi_31_0 = (0x1 << 3) | (0x1 << 11);
+  hs_phy->m31_phy_xcfgi_63_32 = 0;
+  hs_phy->m31_phy_xcfgi_95_64 = 0x1 << (72 - 64);
+  hs_phy->m31_phy_xcfgi_127_96 = 0;
 
 
   #ifdef USBHS_M31_CLOCK_RECOVERY
-  musb_periph_inst[rhport]->m31_phy_noncry_rstb = 1;
-  musb_periph_inst[rhport]->m31_phy_noncry_en = 1;
-  musb_periph_inst[rhport]->m31_phy_outclksel = 0;
-  musb_periph_inst[rhport]->m31_phy_coreclkin = 0;
-  musb_periph_inst[rhport]->m31_phy_xtlsel = 2; /* Select 25 MHz clock */
+  hs_phy->m31_phy_noncry_rstb = 1;
+  hs_phy->m31_phy_noncry_en = 1;
+  hs_phy->m31_phy_outclksel = 0;
+  hs_phy->m31_phy_coreclkin = 0;
+  hs_phy->m31_phy_xtlsel = 2; /* Select 25 MHz clock */
   #else
-  musb_periph_inst[rhport]->m31_phy_noncry_rstb = 0;
-  musb_periph_inst[rhport]->m31_phy_noncry_en = 0;
-  musb_periph_inst[rhport]->m31_phy_outclksel = 1;
-  musb_periph_inst[rhport]->m31_phy_coreclkin = 1;
-  musb_periph_inst[rhport]->m31_phy_xtlsel = 3; /* Select 30 MHz clock */
+  hs_phy->m31_phy_noncry_rstb = 0;
+  hs_phy->m31_phy_noncry_en = 0;
+  hs_phy->m31_phy_outclksel = 1;
+  hs_phy->m31_phy_coreclkin = 1;
+  hs_phy->m31_phy_xtlsel = 3; /* Select 30 MHz clock */
   #endif
-  musb_periph_inst[rhport]->m31_phy_pll_en = 1;
-  musb_periph_inst[rhport]->m31_phy_oscouten = 1;
+  hs_phy->m31_phy_pll_en = 1;
+  hs_phy->m31_phy_oscouten = 1;
 
   /* Reset PHY */
-  musb_periph_inst[rhport]->m31_phy_ponrst = 0;
-  musb_periph_inst[rhport]->m31_phy_ponrst = 1;
+  hs_phy->m31_phy_ponrst = 0;
+  hs_phy->m31_phy_ponrst = 1;
 }
 
 static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in, unsigned mps) {
@@ -148,23 +153,6 @@ static inline void musb_dcd_setup_fifo(uint8_t rhport, unsigned epnum, unsigned 
   //Disable double buffering
   if (dir_in) {
     musb_periph_inst[rhport]->incsru |= (MXC_F_USBHS_INCSRU_DPKTBUFDIS | MXC_F_USBHS_INCSRU_MODE);
-  } else {
-    musb_periph_inst[rhport]->outcsru |= (MXC_F_USBHS_OUTCSRU_DPKTBUFDIS);
-  }
-
-  musb_periph_inst[rhport]->index = saved_index;
-}
-
-static inline void musb_dcd_reset_fifo(uint8_t rhport, unsigned epnum, unsigned dir_in) {
-  //Most likely the caller has already grabbed the right register block. But
-  //as a precaution save and restore the register bank anyways
-  unsigned saved_index = musb_periph_inst[rhport]->index;
-
-  musb_periph_inst[rhport]->index = epnum;
-
-  //Disable double buffering
-  if (dir_in) {
-    musb_periph_inst[rhport]->incsru |= (MXC_F_USBHS_INCSRU_DPKTBUFDIS);
   } else {
     musb_periph_inst[rhport]->outcsru |= (MXC_F_USBHS_OUTCSRU_DPKTBUFDIS);
   }

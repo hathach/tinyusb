@@ -41,16 +41,18 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
 // Following symbols must be defined by port header
 // - musb_dcd_int_enable/disable/clear/get_enable
 // - musb_dcd_int_handler_enter/exit
-// - musb_dcd_setup_fifo/reset_fifo: Configuration of the EP's FIFO
-#if TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+// - musb_dcd_setup_fifo: Configuration of the EP's FIFO
+#if defined(TUP_USBIP_MUSB_TI)
   #include "musb_ti.h"
-#elif TU_CHECK_MCU(OPT_MCU_MAX32690, OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX78002)
+#elif defined(TUP_USBIP_MUSB_ADI)
   #include "musb_max32.h"
 #else
   #error "Unsupported MCU"
 #endif
 
 #define MUSB_REGS(rhport)   ((musb_regs_t*) MUSB_BASES[rhport])
+
+#define MUSB_DEBUG 2
 
 /*------------------------------------------------------------------
  * MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -86,6 +88,18 @@ typedef struct
  *------------------------------------------------------------------*/
 static dcd_data_t _dcd;
 
+TU_ATTR_ALWAYS_INLINE static inline void fifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
+  musb->index = epnum;
+  const uint8_t is_rx = 1 - dir_in;
+
+#if MUSB_CFG_DYNAMIC_FIFO
+  musb->fifo_size[is_rx] = 0;
+  musb->fifo_addr[is_rx] = 0;
+#elif defined(TUP_USBIP_MUSB_ADI)
+  // Analog have custom double buffered in csrh register, disable it
+  musb->indexed_csr.maxp_csr[is_rx].csrh |= MUSB_CSRH_DISABLE_DOUBLE_PACKET(is_rx);
+#endif
+}
 
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 {
@@ -363,13 +377,13 @@ static void process_ep0(uint8_t rhport)
     /* Received SETUP or DATA OUT packet */
     if (req == REQUEST_TYPE_INVALID) {
       /* SETUP */
-      TU_ASSERT(sizeof(tusb_control_request_t) == ep_csr->rx_count,);
+      TU_ASSERT(sizeof(tusb_control_request_t) == ep_csr->count0,);
       process_setup_packet(rhport);
       return;
     }
     if (_dcd.pipe0.buf) {
       /* DATA OUT */
-      const unsigned vld = ep_csr->rx_count;
+      const unsigned vld = ep_csr->count0;
       const unsigned rem = _dcd.pipe0.remaining;
       const unsigned len = TU_MIN(TU_MIN(rem, 64), vld);
       volatile void *fifo_ptr = &musb_regs->fifo[0];
@@ -445,47 +459,70 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
   }
 }
 
-static void process_bus_reset(uint8_t rhport)
-{
-  musb_regs_t* musb_regs = MUSB_REGS(rhport);
-  /* When bmRequestType is REQUEST_TYPE_INVALID(0xFF),
-   * a control transfer state is SETUP or STATUS stage. */
+// Upon BUS RESET is detected, hardware havs already done:
+// faddr = 0, index = 0, flushes all ep fifos, clears all ep csr, enabled all ep interrupts
+static void process_bus_reset(uint8_t rhport) {
+  musb_regs_t* musb = MUSB_REGS(rhport);
+  /* When bmRequestType is REQUEST_TYPE_INVALID(0xFF), a control transfer state is SETUP or STATUS stage. */
   _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID;
   _dcd.status_out = 0;
   /* When pipe0.buf has not NULL, DATA stage works in progress. */
   _dcd.pipe0.buf = NULL;
 
-  musb_regs->intr_txen = 1; /* Enable only EP0 */
-  musb_regs->intr_rxen = 0;
+  musb->intr_txen = 1; /* Enable only EP0 */
+  musb->intr_rxen = 0;
 
   /* Clear FIFO settings */
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
-    musb_dcd_reset_fifo(rhport, i, 0);
-    musb_dcd_reset_fifo(rhport, i, 1);
+    fifo_reset(musb, i, 0);
+    fifo_reset(musb, i, 1);
   }
-  dcd_event_bus_reset(rhport, (musb_regs->power & USB_POWER_HSMODE) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
+  dcd_event_bus_reset(rhport, (musb->power & USB_POWER_HSMODE) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
 }
 
 /*------------------------------------------------------------------
  * Device API
  *------------------------------------------------------------------*/
 
-void dcd_init(uint8_t rhport)
-{
+#if CFG_TUSB_DEBUG >= MUSB_DEBUG
+void print_musb_info(musb_regs_t* musb_regs) {
+  // print version, epinfo, raminfo, config_data0, fifo_size
+  TU_LOG1("musb version = %u.%u\r\n", musb_regs->hwvers_bit.major, musb_regs->hwvers_bit.minor);
+  TU_LOG1("Number of endpoints: %u TX, %u RX\r\n", musb_regs->epinfo_bit.tx_ep_num, musb_regs->epinfo_bit.rx_ep_num);
+  TU_LOG1("RAM Info: %u DMA Channel, %u RAM address width\r\n", musb_regs->raminfo_bit.dma_channel, musb_regs->raminfo_bit.ram_bits);
+
+  musb_regs->index = 0;
+  TU_LOG1("config_data0 = 0x%x\r\n", musb_regs->indexed_csr.config_data0);
+
+#if MUSB_CFG_DYNAMIC_FIFO
+  TU_LOG1("Dynamic FIFO configuration\r\n");
+#else
+  for (uint8_t i=1; i <= musb_regs->epinfo_bit.tx_ep_num; i++) {
+    musb_regs->index = i;
+    TU_LOG1("FIFO %u Size: TX %u RX %u\r\n", i, musb_regs->indexed_csr.fifo_size_bit.tx, musb_regs->indexed_csr.fifo_size_bit.rx);
+  }
+#endif
+}
+#endif
+
+void dcd_init(uint8_t rhport) {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
-  musb_regs->intrusben |= USB_IE_SUSPND;
+
+#if CFG_TUSB_DEBUG >= MUSB_DEBUG
+  print_musb_info(musb_regs);
+#endif
+
+  musb_regs->intr_usben |= USB_IE_SUSPND;
   musb_dcd_int_clear(rhport);
   musb_dcd_phy_init(rhport);
   dcd_connect(rhport);
 }
 
-void dcd_int_enable(uint8_t rhport)
-{
+void dcd_int_enable(uint8_t rhport) {
   musb_dcd_int_enable(rhport);
 }
 
-void dcd_int_disable(uint8_t rhport)
-{
+void dcd_int_disable(uint8_t rhport) {
   musb_dcd_int_disable(rhport);
 }
 
@@ -559,25 +596,17 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epn);
-  if (dir_in) {
-    ep_csr->tx_maxp = mps;
-    ep_csr->tx_csrh = (xfer == TUSB_XFER_ISOCHRONOUS) ? USB_TXCSRH1_ISO : 0;
-    if (ep_csr->tx_csrl & USB_TXCSRL1_TXRDY) {
-      ep_csr->tx_csrl = USB_TXCSRL1_CLRDT | USB_TXCSRL1_FLUSH;
-    } else {
-      ep_csr->tx_csrl = USB_TXCSRL1_CLRDT;
-    }
-    musb_regs->intr_txen |= TU_BIT(epn);
-  } else {
-    ep_csr->rx_maxp = mps;
-    ep_csr->rx_csrh = (xfer == TUSB_XFER_ISOCHRONOUS) ? USB_RXCSRH1_ISO : 0;
-    if (ep_csr->rx_csrl & USB_RXCSRL1_RXRDY) {
-      ep_csr->rx_csrl = USB_RXCSRL1_CLRDT | USB_RXCSRL1_FLUSH;
-    } else {
-      ep_csr->rx_csrl = USB_RXCSRL1_CLRDT;
-    }
-    musb_regs->intr_rxen |= TU_BIT(epn);
+
+  const uint8_t is_rx = 1 - dir_in;
+  ep_csr->maxp_csr[is_rx].maxp = mps;
+  ep_csr->maxp_csr[is_rx].csrh = (xfer == TUSB_XFER_ISOCHRONOUS) ? USB_RXCSRH1_ISO : 0;
+
+  uint8_t csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
+  if (ep_csr->maxp_csr[is_rx].csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
+    csrl |= MUSB_CSRL_FLUSH_FIFO(is_rx);
   }
+  ep_csr->maxp_csr[is_rx].csrl = csrl;
+  musb_regs->intren_ep[is_rx] |= TU_BIT(epn);
 
   /* Setup FIFO */
   musb_dcd_setup_fifo(rhport, epn, dir_in, mps);
@@ -587,13 +616,13 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
 void dcd_edpt_close_all(uint8_t rhport)
 {
-  musb_regs_t* musb_regs = MUSB_REGS(rhport);
+  musb_regs_t* musb = MUSB_REGS(rhport);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
-  musb_regs->intr_txen = 1; /* Enable only EP0 */
-  musb_regs->intr_rxen = 0;
+  musb->intr_txen = 1; /* Enable only EP0 */
+  musb->intr_rxen = 0;
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
-    musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, i);
+    musb_ep_csr_t* ep_csr = get_ep_csr(musb, i);
     ep_csr->tx_maxp = 0;
     ep_csr->tx_csrh = 0;
     if (ep_csr->tx_csrl & USB_TXCSRL1_TXRDY)
@@ -609,8 +638,8 @@ void dcd_edpt_close_all(uint8_t rhport)
       ep_csr->rx_csrl = USB_RXCSRL1_CLRDT;
     }
 
-    musb_dcd_reset_fifo(rhport, i, 0);
-    musb_dcd_reset_fifo(rhport, i, 1);
+    fifo_reset(musb, i, 0);
+    fifo_reset(musb, i, 1);
 
   }
   if (ie) musb_dcd_int_enable(rhport);
@@ -620,12 +649,12 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
 {
   unsigned const epn    = tu_edpt_number(ep_addr);
   unsigned const dir_in = tu_edpt_dir(ep_addr);
-  musb_regs_t* musb_regs = MUSB_REGS(rhport);
-  musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epn);
+  musb_regs_t* musb = MUSB_REGS(rhport);
+  musb_ep_csr_t* ep_csr = get_ep_csr(musb, epn);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
   if (dir_in) {
-    musb_regs->intr_txen  &= ~TU_BIT(epn);
+    musb->intr_txen  &= ~TU_BIT(epn);
     ep_csr->tx_maxp = 0;
     ep_csr->tx_csrh = 0;
     if (ep_csr->tx_csrl & USB_TXCSRL1_TXRDY) {
@@ -634,7 +663,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
       ep_csr->tx_csrl = USB_TXCSRL1_CLRDT;
     }
   } else {
-    musb_regs->intr_rxen  &= ~TU_BIT(epn);
+    musb->intr_rxen  &= ~TU_BIT(epn);
     ep_csr->rx_maxp = 0;
     ep_csr->rx_csrh = 0;
     if (ep_csr->rx_csrl & USB_RXCSRL1_RXRDY) {
@@ -643,7 +672,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
       ep_csr->rx_csrl = USB_RXCSRL1_CLRDT;
     }
   }
-  musb_dcd_reset_fifo(rhport, epn, dir_in);
+  fifo_reset(musb, epn, dir_in);
   if (ie) musb_dcd_int_enable(rhport);
 }
 
@@ -726,51 +755,48 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 /*-------------------------------------------------------------------
  * ISR
  *-------------------------------------------------------------------*/
-void dcd_int_handler(uint8_t rhport)
-{
-  uint_fast8_t is, txis, rxis;
-
+void dcd_int_handler(uint8_t rhport) {
   //Part specific ISR setup/entry
   musb_dcd_int_handler_enter(rhport);
 
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
-
-  is   = musb_regs->intrusb;   /* read and clear interrupt status */
-  txis = musb_regs->intr_tx; /* read and clear interrupt status */
-  rxis = musb_regs->intr_rx; /* read and clear interrupt status */
+  uint_fast8_t intr_usb = musb_regs->intr_usb; // a read will clear this interrupt status
+  uint_fast8_t intr_tx = musb_regs->intr_tx; // a read will clear this interrupt status
+  uint_fast8_t intr_rx = musb_regs->intr_rx; // a read will clear this interrupt status
   // TU_LOG1("D%2x T%2x R%2x\r\n", is, txis, rxis);
 
-  is &= musb_regs->intrusben; /* Clear disabled interrupts */
-  if (is & USB_IS_DISCON) {
+  intr_usb &= musb_regs->intr_usben; /* Clear disabled interrupts */
+  if (intr_usb & USB_IS_DISCON) {
   }
-  if (is & USB_IS_SOF) {
+  if (intr_usb & USB_IS_SOF) {
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
-  if (is & USB_IS_RESET) {
+  if (intr_usb & USB_IS_RESET) {
     process_bus_reset(rhport);
   }
-  if (is & USB_IS_RESUME) {
+  if (intr_usb & USB_IS_RESUME) {
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
-  if (is & USB_IS_SUSPEND) {
+  if (intr_usb & USB_IS_SUSPEND) {
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
-  txis &= musb_regs->intr_txen; /* Clear disabled interrupts */
-  if (txis & USB_TXIE_EP0) {
+  intr_tx &= musb_regs->intr_txen; /* Clear disabled interrupts */
+  if (intr_tx & TU_BIT(0)) {
     process_ep0(rhport);
-    txis &= ~TU_BIT(0);
+    intr_tx &= ~TU_BIT(0);
   }
-  while (txis) {
-    unsigned const num = __builtin_ctz(txis);
+  while (intr_tx) {
+    unsigned const num = __builtin_ctz(intr_tx);
     process_edpt_n(rhport, tu_edpt_addr(num, TUSB_DIR_IN));
-    txis &= ~TU_BIT(num);
+    intr_tx &= ~TU_BIT(num);
   }
-  rxis &= musb_regs->intr_rxen; /* Clear disabled interrupts */
-  while (rxis) {
-    unsigned const num = __builtin_ctz(rxis);
+
+  intr_rx &= musb_regs->intr_rxen; /* Clear disabled interrupts */
+  while (intr_rx) {
+    unsigned const num = __builtin_ctz(intr_rx);
     process_edpt_n(rhport, tu_edpt_addr(num, TUSB_DIR_OUT));
-    rxis &= ~TU_BIT(num);
+    intr_rx &= ~TU_BIT(num);
   }
 
   //Part specific ISR exit
