@@ -240,7 +240,7 @@ static void process_setup_packet(uint8_t rhport) {
   /* Clear RX FIFO and reverse the transaction direction */
   if (len && dir_in) {
     musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, 0);
-    ep_csr->csr0l = USB_CSRL0_RXRDYC;
+    ep_csr->csr0l = MUSB_CSRL0_RXRDYC;
   }
 }
 
@@ -272,7 +272,7 @@ static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr)
     }
     pipe->remaining = rem - len;
   }
-  ep_csr->tx_csrl = USB_TXCSRL1_TXRDY;
+  ep_csr->tx_csrl = MUSB_TXCSRL1_TXRDY;
   // TU_LOG1(" TXCSRL%d = %x %d\r\n", epnum, ep_csr->tx_csrl, rem - len);
   return false;
 }
@@ -286,7 +286,7 @@ static bool handle_xfer_out(uint8_t rhport, uint_fast8_t ep_addr)
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epnum);
   // TU_LOG1(" RXCSRL%d = %x\r\n", epnum_minus1 + 1, ep_csr->rx_csrl);
 
-  TU_ASSERT(ep_csr->rx_csrl & USB_RXCSRL1_RXRDY);
+  TU_ASSERT(ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY);
 
   const unsigned mps = ep_csr->rx_maxp;
   const unsigned rem = pipe->remaining;
@@ -327,7 +327,7 @@ static bool edpt_n_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16
   } else {
     musb_regs_t* musb_regs = MUSB_REGS(rhport);
     musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epnum);
-    if (ep_csr->rx_csrl & USB_RXCSRL1_RXRDY) ep_csr->rx_csrl = 0;
+    if (ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY) ep_csr->rx_csrl = 0;
   }
   return true;
 }
@@ -377,9 +377,9 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
         _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID; /* Change to STATUS/SETUP stage */
         _dcd.status_out = 1;
         /* Flush TX FIFO and reverse the transaction direction. */
-        ep_csr->csr0l = USB_CSRL0_TXRDY | USB_CSRL0_DATAEND;
+        ep_csr->csr0l = MUSB_CSRL0_TXRDY | MUSB_CSRL0_DATAEND;
       } else {
-        ep_csr->csr0l = USB_CSRL0_TXRDY; /* Flush TX FIFO to return ACK. */
+        ep_csr->csr0l = MUSB_CSRL0_TXRDY; /* Flush TX FIFO to return ACK. */
       }
       // TU_LOG1(" IN ep_csr->csr0l = %x\r\n", ep_csr->csr0l);
     } else {
@@ -387,7 +387,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
       _dcd.pipe0.buf       = buffer;
       _dcd.pipe0.length    = len;
       _dcd.pipe0.remaining = len;
-      ep_csr->csr0l = USB_CSRL0_RXRDYC; /* Clear RX FIFO to return ACK. */
+      ep_csr->csr0l = MUSB_CSRL0_RXRDYC; /* Clear RX FIFO to return ACK. */
     }
   } else if (dir_in) {
     // TU_LOG1(" STATUS IN ep_csr->csr0l  = %x\r\n", ep_csr->csr0l);
@@ -395,7 +395,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
     _dcd.pipe0.length    = 0;
     _dcd.pipe0.remaining = 0;
     /* Clear RX FIFO and reverse the transaction direction */
-    ep_csr->csr0l = USB_CSRL0_RXRDYC | USB_CSRL0_DATAEND;
+    ep_csr->csr0l = MUSB_CSRL0_RXRDYC | MUSB_CSRL0_DATAEND;
   }
   return true;
 }
@@ -409,16 +409,16 @@ static void process_ep0(uint8_t rhport)
   // TU_LOG1(" EP0 ep_csr->csr0l = %x\r\n", csrl);
   // 21.1.5: endpoint 0 service routine as peripheral
 
-  if (csrl & USB_CSRL0_STALLED) {
+  if (csrl & MUSB_CSRL0_STALLED) {
     /* Returned STALL packet to HOST. */
     ep_csr->csr0l = 0; /* Clear STALL */
     return;
   }
 
   unsigned req = _dcd.setup_packet.bmRequestType;
-  if (csrl & USB_CSRL0_SETEND) {
+  if (csrl & MUSB_CSRL0_SETEND) {
     TU_LOG1("   ABORT by the next packets\r\n");
-    ep_csr->csr0l = USB_CSRL0_SETENDC;
+    ep_csr->csr0l = MUSB_CSRL0_SETENDC;
     if (req != REQUEST_TYPE_INVALID && _dcd.pipe0.buf) {
       /* DATA stage was aborted by receiving STATUS or SETUP packet. */
       _dcd.pipe0.buf = NULL;
@@ -429,10 +429,10 @@ static void process_ep0(uint8_t rhport)
                               XFER_RESULT_SUCCESS, true);
     }
     req = REQUEST_TYPE_INVALID;
-    if (!(csrl & USB_CSRL0_RXRDY)) return; /* Received SETUP packet */
+    if (!(csrl & MUSB_CSRL0_RXRDY)) return; /* Received SETUP packet */
   }
 
-  if (csrl & USB_CSRL0_RXRDY) {
+  if (csrl & MUSB_CSRL0_RXRDY) {
     /* Received SETUP or DATA OUT packet */
     if (req == REQUEST_TYPE_INVALID) {
       /* SETUP */
@@ -496,15 +496,15 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epn);
   if (dir_in) {
     // TU_LOG1(" TX CSRL%d = %x\r\n", epn, ep_csr->tx_csrl);
-    if (ep_csr->tx_csrl & USB_TXCSRL1_STALLED) {
-      ep_csr->tx_csrl &= ~(USB_TXCSRL1_STALLED | USB_TXCSRL1_UNDRN);
+    if (ep_csr->tx_csrl & MUSB_TXCSRL1_STALLED) {
+      ep_csr->tx_csrl &= ~(MUSB_TXCSRL1_STALLED | MUSB_TXCSRL1_UNDRN);
       return;
     }
     completed = handle_xfer_in(rhport, ep_addr);
   } else {
     // TU_LOG1(" RX CSRL%d = %x\r\n", epn, ep_csr->rx_csrl);
-    if (ep_csr->rx_csrl & USB_RXCSRL1_STALLED) {
-      ep_csr->rx_csrl &= ~(USB_RXCSRL1_STALLED | USB_RXCSRL1_OVER);
+    if (ep_csr->rx_csrl & MUSB_RXCSRL1_STALLED) {
+      ep_csr->rx_csrl &= ~(MUSB_RXCSRL1_STALLED | MUSB_RXCSRL1_OVER);
       return;
     }
     completed = handle_xfer_out(rhport, ep_addr);
@@ -541,7 +541,7 @@ static void process_bus_reset(uint8_t rhport) {
     fifo_reset(musb, i, 0);
     fifo_reset(musb, i, 1);
   }
-  dcd_event_bus_reset(rhport, (musb->power & USB_POWER_HSMODE) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
+  dcd_event_bus_reset(rhport, (musb->power & MUSB_POWER_HSMODE) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
 }
 
 /*------------------------------------------------------------------
@@ -576,7 +576,7 @@ void dcd_init(uint8_t rhport) {
   print_musb_info(musb_regs);
 #endif
 
-  musb_regs->intr_usben |= USB_IE_SUSPND;
+  musb_regs->intr_usben |= MUSB_IE_SUSPND;
   musb_dcd_int_clear(rhport);
   musb_dcd_phy_init(rhport);
   dcd_connect(rhport);
@@ -601,33 +601,33 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   _dcd.pipe0.length    = 0;
   _dcd.pipe0.remaining = 0;
   /* Clear RX FIFO to return ACK. */
-  ep_csr->csr0l = USB_CSRL0_RXRDYC | USB_CSRL0_DATAEND;
+  ep_csr->csr0l = MUSB_CSRL0_RXRDYC | MUSB_CSRL0_DATAEND;
 }
 
 // Wake up host
 void dcd_remote_wakeup(uint8_t rhport) {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
-  musb_regs->power |= USB_POWER_RESUME;
+  musb_regs->power |= MUSB_POWER_RESUME;
 
   unsigned cnt = SystemCoreClock / 1000;
   while (cnt--) __NOP();
 
-  musb_regs->power &= ~USB_POWER_RESUME;
+  musb_regs->power &= ~MUSB_POWER_RESUME;
 }
 
 // Connect by enabling internal pull-up resistor on D+/D-
 void dcd_connect(uint8_t rhport)
 {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
-  musb_regs->power |= TUD_OPT_HIGH_SPEED ? USB_POWER_HSENAB : 0;
-  musb_regs->power |= USB_POWER_SOFTCONN;
+  musb_regs->power |= TUD_OPT_HIGH_SPEED ? MUSB_POWER_HSENAB : 0;
+  musb_regs->power |= MUSB_POWER_SOFTCONN;
 }
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
 void dcd_disconnect(uint8_t rhport)
 {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
-  musb_regs->power &= ~USB_POWER_SOFTCONN;
+  musb_regs->power &= ~MUSB_POWER_SOFTCONN;
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en)
@@ -663,7 +663,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
 
   const uint8_t is_rx = 1 - dir_in;
   ep_csr->maxp_csr[is_rx].maxp = mps;
-  ep_csr->maxp_csr[is_rx].csrh = (xfer == TUSB_XFER_ISOCHRONOUS) ? USB_RXCSRH1_ISO : 0;
+  ep_csr->maxp_csr[is_rx].csrh = (xfer == TUSB_XFER_ISOCHRONOUS) ? MUSB_RXCSRH1_ISO : 0;
 
   uint8_t csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
   if (ep_csr->maxp_csr[is_rx].csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
@@ -690,17 +690,17 @@ void dcd_edpt_close_all(uint8_t rhport)
     musb_ep_csr_t* ep_csr = get_ep_csr(musb, i);
     ep_csr->tx_maxp = 0;
     ep_csr->tx_csrh = 0;
-    if (ep_csr->tx_csrl & USB_TXCSRL1_TXRDY)
-      ep_csr->tx_csrl = USB_TXCSRL1_CLRDT | USB_TXCSRL1_FLUSH;
+    if (ep_csr->tx_csrl & MUSB_TXCSRL1_TXRDY)
+      ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT | MUSB_TXCSRL1_FLUSH;
     else
-      ep_csr->tx_csrl = USB_TXCSRL1_CLRDT;
+      ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT;
 
     ep_csr->rx_maxp = 0;
     ep_csr->rx_csrh = 0;
-    if (ep_csr->rx_csrl & USB_RXCSRL1_RXRDY) {
-      ep_csr->rx_csrl = USB_RXCSRL1_CLRDT | USB_RXCSRL1_FLUSH;
+    if (ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY) {
+      ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT | MUSB_RXCSRL1_FLUSH;
     } else {
-      ep_csr->rx_csrl = USB_RXCSRL1_CLRDT;
+      ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT;
     }
 
     fifo_reset(musb, i, 0);
@@ -727,19 +727,19 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
     musb->intr_txen  &= ~TU_BIT(epn);
     ep_csr->tx_maxp = 0;
     ep_csr->tx_csrh = 0;
-    if (ep_csr->tx_csrl & USB_TXCSRL1_TXRDY) {
-      ep_csr->tx_csrl = USB_TXCSRL1_CLRDT | USB_TXCSRL1_FLUSH;
+    if (ep_csr->tx_csrl & MUSB_TXCSRL1_TXRDY) {
+      ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT | MUSB_TXCSRL1_FLUSH;
     } else {
-      ep_csr->tx_csrl = USB_TXCSRL1_CLRDT;
+      ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT;
     }
   } else {
     musb->intr_rxen  &= ~TU_BIT(epn);
     ep_csr->rx_maxp = 0;
     ep_csr->rx_csrh = 0;
-    if (ep_csr->rx_csrl & USB_RXCSRL1_RXRDY) {
-      ep_csr->rx_csrl = USB_RXCSRL1_CLRDT | USB_RXCSRL1_FLUSH;
+    if (ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY) {
+      ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT | MUSB_RXCSRL1_FLUSH;
     } else {
-      ep_csr->rx_csrl = USB_RXCSRL1_CLRDT;
+      ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT;
     }
   }
   fifo_reset(musb, epn, dir_in);
@@ -792,14 +792,14 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
     if (!ep_addr) { /* Ignore EP80 */
       _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID;
       _dcd.pipe0.buf = NULL;
-      ep_csr->csr0l = USB_CSRL0_STALL;
+      ep_csr->csr0l = MUSB_CSRL0_STALL;
     }
   } else {
     if (tu_edpt_dir(ep_addr)) { /* IN */
-      ep_csr->tx_csrl = USB_TXCSRL1_STALL;
+      ep_csr->tx_csrl = MUSB_TXCSRL1_STALL;
     } else { /* OUT */
-      TU_ASSERT(!(ep_csr->rx_csrl & USB_RXCSRL1_RXRDY),);
-      ep_csr->rx_csrl = USB_RXCSRL1_STALL;
+      TU_ASSERT(!(ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY),);
+      ep_csr->rx_csrl = MUSB_RXCSRL1_STALL;
     }
   }
   if (ie) musb_dcd_int_enable(rhport);
@@ -815,9 +815,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
   if (tu_edpt_dir(ep_addr)) { /* IN */
-    ep_csr->tx_csrl = USB_TXCSRL1_CLRDT;
+    ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT;
   } else { /* OUT */
-    ep_csr->rx_csrl = USB_RXCSRL1_CLRDT;
+    ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT;
   }
   if (ie) musb_dcd_int_enable(rhport);
 }
@@ -838,18 +838,18 @@ void dcd_int_handler(uint8_t rhport) {
   // TU_LOG1("D%2x T%2x R%2x\r\n", is, txis, rxis);
 
   intr_usb &= musb_regs->intr_usben; /* Clear disabled interrupts */
-  if (intr_usb & USB_IS_DISCON) {
+  if (intr_usb & MUSB_IS_DISCON) {
   }
-  if (intr_usb & USB_IS_SOF) {
+  if (intr_usb & MUSB_IS_SOF) {
     dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
-  if (intr_usb & USB_IS_RESET) {
+  if (intr_usb & MUSB_IS_RESET) {
     process_bus_reset(rhport);
   }
-  if (intr_usb & USB_IS_RESUME) {
+  if (intr_usb & MUSB_IS_RESUME) {
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
-  if (intr_usb & USB_IS_SUSPEND) {
+  if (intr_usb & MUSB_IS_SUSPEND) {
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
