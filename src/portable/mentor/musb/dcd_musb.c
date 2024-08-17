@@ -29,6 +29,9 @@
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_MUSB)
 
+#define MUSB_DEBUG 2
+#define MUSB_REGS(rhport)   ((musb_regs_t*) MUSB_BASES[rhport])
+
 #if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
 /* GCC warns that an address may be unaligned, even though
  * the target CPU has the capability for unaligned memory access. */
@@ -49,10 +52,6 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
   #error "Unsupported MCU"
 #endif
 
-#define MUSB_REGS(rhport)   ((musb_regs_t*) MUSB_BASES[rhport])
-
-#define MUSB_DEBUG 2
-
 /*------------------------------------------------------------------
  * MACRO TYPEDEF CONSTANT ENUM DECLARATION
  *------------------------------------------------------------------*/
@@ -60,9 +59,9 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
 #define REQUEST_TYPE_INVALID  (0xFFu)
 
 typedef union {
-  uint8_t   u8;
-  uint16_t  u16;
-  uint32_t  u32;
+  volatile uint8_t   u8;
+  volatile uint16_t  u16;
+  volatile uint32_t  u32;
 } hw_fifo_t;
 
 typedef struct TU_ATTR_PACKED
@@ -223,11 +222,12 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
 
 static void process_setup_packet(uint8_t rhport) {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
+
+  // Read setup packet
   uint32_t *p = (void*)&_dcd.setup_packet;
   volatile uint32_t *fifo_ptr = &musb_regs->fifo[0];
-
-  p[0]        = *fifo_ptr;
-  p[1]        = *fifo_ptr;
+  p[0] = *fifo_ptr;
+  p[1] = *fifo_ptr;
 
   _dcd.pipe0.buf       = NULL;
   _dcd.pipe0.length    = 0;
@@ -407,6 +407,7 @@ static void process_ep0(uint8_t rhport)
   uint_fast8_t csrl = ep_csr->csr0l;
 
   // TU_LOG1(" EP0 ep_csr->csr0l = %x\r\n", csrl);
+  // 21.1.5: endpoint 0 service routine as peripheral
 
   if (csrl & USB_CSRL0_STALLED) {
     /* Returned STALL packet to HOST. */
@@ -705,7 +706,10 @@ void dcd_edpt_close_all(uint8_t rhport)
     fifo_reset(musb, i, 0);
     fifo_reset(musb, i, 1);
   }
+
+#if MUSB_CFG_DYNAMIC_FIFO
   alloced_fifo_bytes = CFG_TUD_ENDPOINT0_SIZE;
+#endif
 
   if (ie) musb_dcd_int_enable(rhport);
 }
@@ -822,10 +826,12 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
  * ISR
  *-------------------------------------------------------------------*/
 void dcd_int_handler(uint8_t rhport) {
+  musb_regs_t* musb_regs = MUSB_REGS(rhport);
+  const uint8_t saved_index = musb_regs->index; // save endpoint index
+
   //Part specific ISR setup/entry
   musb_dcd_int_handler_enter(rhport);
 
-  musb_regs_t* musb_regs = MUSB_REGS(rhport);
   uint_fast8_t intr_usb = musb_regs->intr_usb; // a read will clear this interrupt status
   uint_fast8_t intr_tx = musb_regs->intr_tx; // a read will clear this interrupt status
   uint_fast8_t intr_rx = musb_regs->intr_rx; // a read will clear this interrupt status
@@ -865,8 +871,7 @@ void dcd_int_handler(uint8_t rhport) {
     intr_rx &= ~TU_BIT(num);
   }
 
-  //Part specific ISR exit
-  musb_dcd_int_handler_exit(rhport);
+  musb_regs->index = saved_index; // restore endpoint index
 }
 
 #endif

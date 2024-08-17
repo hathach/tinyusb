@@ -42,11 +42,6 @@ const uintptr_t MUSB_BASES[] = { MXC_BASE_USBHS };
 #if CFG_TUD_ENABLED
 #define USBHS_M31_CLOCK_RECOVERY
 
-// Mapping of peripheral instances to port. Currently just 1.
-static mxc_usbhs_regs_t* const musb_periph_inst[] = {
-    MXC_USBHS
-};
-
 // Mapping of IRQ numbers to port. Currently just 1.
 static const IRQn_Type musb_irqs[] = {
     USB_IRQn
@@ -77,29 +72,19 @@ static inline void musb_dcd_int_clear(uint8_t rhport) {
   NVIC_ClearPendingIRQ(musb_irqs[rhport]);
 }
 
-//Used to save and restore user's register map when interrupt occurs
-static volatile unsigned isr_saved_index = 0;
-
 static inline void musb_dcd_int_handler_enter(uint8_t rhport) {
+  mxc_usbhs_regs_t* hs_phy = MXC_USBHS;
   uint32_t mxm_int, mxm_int_en, mxm_is;
 
-  //save current register index
-  isr_saved_index = musb_periph_inst[rhport]->index;
-
   //Handle PHY specific events
-  mxm_int = musb_periph_inst[rhport]->mxm_int;
-  mxm_int_en = musb_periph_inst[rhport]->mxm_int_en;
+  mxm_int = hs_phy->mxm_int;
+  mxm_int_en = hs_phy->mxm_int_en;
   mxm_is = mxm_int & mxm_int_en;
-  musb_periph_inst[rhport]->mxm_int = mxm_is;
+  hs_phy->mxm_int = mxm_is;
 
   if (mxm_is & MXC_F_USBHS_MXM_INT_NOVBUS) {
     dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
   }
-}
-
-static inline void musb_dcd_int_handler_exit(uint8_t rhport) {
-  //restore register index
-  musb_periph_inst[rhport]->index = isr_saved_index;
 }
 
 static inline void musb_dcd_phy_init(uint8_t rhport) {
@@ -119,7 +104,6 @@ static inline void musb_dcd_phy_init(uint8_t rhport) {
   hs_phy->m31_phy_xcfgi_63_32 = 0;
   hs_phy->m31_phy_xcfgi_95_64 = 0x1 << (72 - 64);
   hs_phy->m31_phy_xcfgi_127_96 = 0;
-
 
   #ifdef USBHS_M31_CLOCK_RECOVERY
   hs_phy->m31_phy_noncry_rstb = 1;

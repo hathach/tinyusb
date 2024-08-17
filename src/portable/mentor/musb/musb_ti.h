@@ -87,11 +87,6 @@ static inline void musb_dcd_int_handler_enter(uint8_t rhport) {
   //Nothing to do for this part
 }
 
-static inline void musb_dcd_int_handler_exit(uint8_t rhport) {
-  (void)rhport;
-  //Nothing to do for this part
-}
-
 #if 0
 typedef struct {
   uint_fast16_t beg; /* offset of including first element */
