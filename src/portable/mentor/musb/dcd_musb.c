@@ -643,8 +643,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 //--------------------------------------------------------------------+
 
 // Configure endpoint's registers according to descriptor
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
-{
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
   const unsigned ep_addr = ep_desc->bEndpointAddress;
   const unsigned epn     = tu_edpt_number(ep_addr);
   const unsigned dir_in  = tu_edpt_dir(ep_addr);
@@ -662,21 +661,29 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   musb_ep_csr_t* ep_csr = get_ep_csr(musb, epn);
 
   const uint8_t is_rx = 1 - dir_in;
-  ep_csr->maxp_csr[is_rx].maxp = mps;
-  ep_csr->maxp_csr[is_rx].csrh = (xfer == TUSB_XFER_ISOCHRONOUS) ? MUSB_RXCSRH1_ISO : 0;
+  musb_ep_maxp_csr_t* maxp_csr = &ep_csr->maxp_csr[is_rx];
+  maxp_csr->maxp = mps;
+  maxp_csr->csrh = (xfer == TUSB_XFER_ISOCHRONOUS) ? MUSB_RXCSRH1_ISO : 0;
 
+  // flush and reset data toggle
   uint8_t csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
-  if (ep_csr->maxp_csr[is_rx].csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
+  if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
     csrl |= MUSB_CSRL_FLUSH_FIFO(is_rx);
   }
-  ep_csr->maxp_csr[is_rx].csrl = csrl;
+  maxp_csr->csrl = csrl;
+
   musb->intren_ep[is_rx] |= TU_BIT(epn);
 
-  /* Setup FIFO */
   fifo_configure(musb, epn, dir_in, mps);
 
   return true;
 }
+
+// bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+// }
+//
+// bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
+// }
 
 void dcd_edpt_close_all(uint8_t rhport)
 {
@@ -688,23 +695,20 @@ void dcd_edpt_close_all(uint8_t rhport)
   musb->intr_rxen = 0;
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
     musb_ep_csr_t* ep_csr = get_ep_csr(musb, i);
-    ep_csr->tx_maxp = 0;
-    ep_csr->tx_csrh = 0;
-    if (ep_csr->tx_csrl & MUSB_TXCSRL1_TXRDY)
-      ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT | MUSB_TXCSRL1_FLUSH;
-    else
-      ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT;
+    for (unsigned d = 0; d < 2; d++) {
+      musb_ep_maxp_csr_t* maxp_csr = &ep_csr->maxp_csr[d];
+      maxp_csr->maxp = 0;
+      maxp_csr->csrh = 0;
 
-    ep_csr->rx_maxp = 0;
-    ep_csr->rx_csrh = 0;
-    if (ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY) {
-      ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT | MUSB_RXCSRL1_FLUSH;
-    } else {
-      ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT;
+      // flush and reset data toggle
+      uint8_t csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(d);
+      if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
+        csrl |= MUSB_CSRL_FLUSH_FIFO(d);
+      }
+      maxp_csr->csrl = csrl;
+
+      fifo_reset(musb, i, 1-d);
     }
-
-    fifo_reset(musb, i, 0);
-    fifo_reset(musb, i, 1);
   }
 
 #if MUSB_CFG_DYNAMIC_FIFO
@@ -755,12 +759,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   unsigned const epnum = tu_edpt_number(ep_addr);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
   musb_dcd_int_disable(rhport);
+
   if (epnum) {
     _dcd.pipe_buf_is_fifo[tu_edpt_dir(ep_addr)] &= ~TU_BIT(epnum - 1);
     ret = edpt_n_xfer(rhport, ep_addr, buffer, total_bytes);
   } else {
     ret = edpt0_xfer(rhport, ep_addr, buffer, total_bytes);
   }
+
   if (ie) musb_dcd_int_enable(rhport);
   return ret;
 }
@@ -783,11 +789,13 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
 
 // Stall endpoint
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
-  unsigned const epn = tu_edpt_number(ep_addr);
   unsigned const ie = musb_dcd_get_int_enable(rhport);
+  musb_dcd_int_disable(rhport);
+
+  unsigned const epn = tu_edpt_number(ep_addr);
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epn);
-  musb_dcd_int_disable(rhport);
+
   if (0 == epn) {
     if (!ep_addr) { /* Ignore EP80 */
       _dcd.setup_packet.bmRequestType = REQUEST_TYPE_INVALID;
@@ -795,13 +803,10 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       ep_csr->csr0l = MUSB_CSRL0_STALL;
     }
   } else {
-    if (tu_edpt_dir(ep_addr)) { /* IN */
-      ep_csr->tx_csrl = MUSB_TXCSRL1_STALL;
-    } else { /* OUT */
-      TU_ASSERT(!(ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY),);
-      ep_csr->rx_csrl = MUSB_RXCSRL1_STALL;
-    }
+    const uint8_t is_rx = 1 - tu_edpt_dir(ep_addr);
+    ep_csr->maxp_csr[is_rx].csrl = MUSB_CSRL_SEND_STALL(is_rx);
   }
+
   if (ie) musb_dcd_int_enable(rhport);
 }
 
@@ -809,16 +814,16 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
+  unsigned const ie = musb_dcd_get_int_enable(rhport);
+  musb_dcd_int_disable(rhport);
+
   unsigned const epn = tu_edpt_number(ep_addr);
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
   musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epn);
-  unsigned const ie = musb_dcd_get_int_enable(rhport);
-  musb_dcd_int_disable(rhport);
-  if (tu_edpt_dir(ep_addr)) { /* IN */
-    ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT;
-  } else { /* OUT */
-    ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT;
-  }
+  const uint8_t is_rx = 1 - tu_edpt_dir(ep_addr);
+
+  ep_csr->maxp_csr[is_rx].csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
+
   if (ie) musb_dcd_int_enable(rhport);
 }
 

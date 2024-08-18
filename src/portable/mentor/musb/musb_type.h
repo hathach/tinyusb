@@ -83,6 +83,12 @@
   #define __R  volatile const
 #endif
 
+typedef struct TU_ATTR_PACKED {
+  __IO uint16_t maxp;          // 0x00, 0x04: MAXP
+  __IO uint8_t  csrl;          // 0x02, 0x06: CSRL
+  __IO uint8_t  csrh;          // 0x03, 0x07: CSRH
+}musb_ep_maxp_csr_t;
+
 // 0: TX (device IN, host OUT)
 // 1: RX (device OUT, host IN)
 typedef struct TU_ATTR_PACKED {
@@ -103,11 +109,7 @@ typedef struct TU_ATTR_PACKED {
       __IO uint8_t  rx_csrh;       // 0x07: RX CSRH
     };
 
-    struct {
-      __IO uint16_t maxp;          // 0x00: MAXP
-      __IO uint8_t  csrl;          // 0x02: CSRL
-      __IO uint8_t  csrh;          // 0x03: CSRH
-    }maxp_csr[2];
+    musb_ep_maxp_csr_t maxp_csr[2];
   };
 
   union {
@@ -330,7 +332,7 @@ TU_ATTR_ALWAYS_INLINE static inline musb_ep_csr_t* get_ep_csr(musb_regs_t* musb_
 #define MUSB_CSRL_PACKET_READY(_rx)      (1u << 0)
 #define MUSB_CSRL_FLUSH_FIFO(_rx)        (1u << ((_rx) ? 4 : 3))
 #define MUSB_CSRL_SEND_STALL(_rx)        (1u << ((_rx) ? 5 : 4))
-#define MUSB_CSRL_SENT_STALL(_rx)        (1u << ((_rx) ? 6 : 5))
+#define MUSB_CSRL_STALLED(_rx)           (1u << ((_rx) ? 6 : 5))
 #define MUSB_CSRL_CLEAR_DATA_TOGGLE(_rx) (1u << ((_rx) ? 7 : 6))
 
 // 0x13, 0x17: TX/RX CSRH

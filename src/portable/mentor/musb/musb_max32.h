@@ -47,18 +47,15 @@ static const IRQn_Type musb_irqs[] = {
     USB_IRQn
 };
 
-TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_enable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void musb_dcd_int_enable(uint8_t rhport) {
   NVIC_EnableIRQ(musb_irqs[rhport]);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_disable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void musb_dcd_int_disable(uint8_t rhport) {
   NVIC_DisableIRQ(musb_irqs[rhport]);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline unsigned musb_dcd_get_int_enable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline unsigned musb_dcd_get_int_enable(uint8_t rhport) {
   #ifdef NVIC_GetEnableIRQ // only defined in CMSIS 5
   return NVIC_GetEnableIRQ(musb_irqs[rhport]);
   #else
@@ -67,8 +64,7 @@ static inline unsigned musb_dcd_get_int_enable(uint8_t rhport) {
   #endif
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void musb_dcd_int_clear(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void musb_dcd_int_clear(uint8_t rhport) {
   NVIC_ClearPendingIRQ(musb_irqs[rhport]);
 }
 
