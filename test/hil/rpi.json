@@ -15,6 +15,13 @@
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg -c \"adapter speed 5000\""
         },
         {
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
+            "flasher": "openocd_adi",
+            "flasher_sn": "040917023bffc88100000000000000000000000097969906",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
+        },
+        {
             "name": "lpcxpresso11u37",
             "uid": "17121919",
             "flasher": "jlink",

@@ -480,6 +480,25 @@ function(family_flash_openocd_wch TARGET)
 endfunction()
 
 
+# Add flash openocd adi (Analog Devices) target
+# included with msdk or compiled from release branch of https://github.com/analogdevicesinc/openocd
+function(family_flash_openocd_adi TARGET)
+  if (DEFINED $ENV{MAXIM_PATH})
+    # use openocd from msdk
+    set(OPENOCD ENV{MAXIM_PATH}/Tools/OpenOCD/openocd)
+    set(OPENOCD_OPTION2 "-s ENV{MAXIM_PATH}/Tools/OpenOCD/scripts")
+  else()
+    # compiled from source
+    if (NOT DEFINED OPENOCD_ADI_PATH)
+      set(OPENOCD_ADI_PATH $ENV{HOME}/app/openocd_adi)
+    endif ()
+    set(OPENOCD ${OPENOCD_ADI_PATH}/src/openocd)
+    set(OPENOCD_OPTION2 "-s ${OPENOCD_ADI_PATH}/tcl")
+  endif ()
+
+  family_flash_openocd(${TARGET})
+endfunction()
+
 # Add flash with https://github.com/ch32-rs/wlink
 function(family_flash_wlink_rs TARGET)
   if (NOT DEFINED WLINK_RS)

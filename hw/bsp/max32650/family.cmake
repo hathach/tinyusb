@@ -14,6 +14,7 @@ set(LD_FILE_Clang ${LD_FILE_GNU})
 set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 set(JLINK_DEVICE max32650)
+set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -f target/max32650.cfg")
 
 set(FAMILY_MCUS MAX32650 CACHE INTERNAL "")
 
@@ -150,6 +151,7 @@ function(family_configure_example TARGET RTOS)
 
   # Add the optional MSDK OpenOCD flashing
   family_flash_msdk(${TARGET})
+  family_flash_openocd_adi(${TARGET})
 endfunction()
 
 function(family_flash_msdk TARGET)

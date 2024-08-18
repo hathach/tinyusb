@@ -173,9 +173,19 @@ echo "Ready for Remote Connections"
         with open(f_wch, 'w') as file:
             file.write(cfg_content)
 
-    ret = run_cmd(f'openocd_wch -c "adapter serial {board["flasher_sn"]}" -f {f_wch} -c "program {firmware}.elf reset exit"')
+    ret = run_cmd(f'openocd_wch -c "adapter serial {board["flasher_sn"]}" -f {f_wch} '
+                  f'-c "program {firmware}.elf reset exit"')
     return ret
 
+
+def flash_openocd_adi(board, firmware):
+    openocd_adi_script_path = f'{os.getenv("HOME")}/app/openocd_adi/tcl'
+    if not os.path.exists(openocd_adi_script_path):
+        openocd_adi_script_path = '/home/pi/openocd_adi/tcl'
+
+    ret = run_cmd(f'openocd_adi -c "adapter serial {board["flasher_sn"]}" -s {openocd_adi_script_path} '
+                  f'{board["flasher_args"]} -c "program {firmware}.elf reset exit"')
+    return ret
 
 def flash_wlink_rs(board, firmware):
     # wlink use index for probe selection and lacking usb serial support
