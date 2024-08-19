@@ -138,21 +138,21 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMG)
   #define TUP_DCD_ENDPOINT_MAX    6
-  #define TUD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMX7X)
   #define TUP_DCD_ENDPOINT_MAX    10
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MZ)
   #define TUP_DCD_ENDPOINT_MAX    8
-  #define TUD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MX, OPT_MCU_PIC32MM, OPT_MCU_PIC32MK) || \
       TU_CHECK_MCU(OPT_MCU_PIC24, OPT_MCU_DSPIC33)
   #define TUP_DCD_ENDPOINT_MAX    16
-  #define TUD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // ST
@@ -299,7 +299,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_CXD56)
   #define TUP_DCD_ENDPOINT_MAX    7
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // TI
@@ -400,12 +400,12 @@
 #elif TU_CHECK_MCU(OPT_MCU_FT90X)
   #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_FT93X)
   #define TUP_DCD_ENDPOINT_MAX    16
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // Allwinner
@@ -480,7 +480,7 @@
   #define TUP_USBIP_MUSB_ADI
   #define TUP_DCD_ENDPOINT_MAX    12
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #endif
 

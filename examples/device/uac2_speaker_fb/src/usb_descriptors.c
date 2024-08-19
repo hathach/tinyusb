@@ -131,7 +131,7 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
   #define EPNUM_AUDIO_OUT   0x08
   #define EPNUM_DEBUG       0x01
 
-#elif defined(TUD_ENDPOINT_EXCLUSIVE_NUMBER)
+#elif defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
   // MCUs that don't support a same endpoint number with different direction IN and OUT defined in tusb_mcu.h
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_AUDIO_FB    0x01

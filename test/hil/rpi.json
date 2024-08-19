@@ -61,12 +61,11 @@
     ],
     "boards-skip": [
         {
-            "name": "metro_m7_1011",
-            "uid": "9CE8715DD71137363E00005002004200",
+            "name": "mimxrt1015_evk",
+            "uid": "DC28F865D2111D228D00B0543A70463C",
             "flasher": "jlink",
-            "flasher_sn": "000611000000",
-            "flasher_args": "-device MIMXRT1011xxx5A",
-            "comment": "not running reliably in bulk with other boards, probably power, flashing etc .."
+            "flasher_sn": "000726284213",
+            "flasher_args": "-device MIMXRT1015DAF5A"
         },
         {
             "name": "nanoch32v203",

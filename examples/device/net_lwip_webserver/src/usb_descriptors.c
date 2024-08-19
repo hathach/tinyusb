@@ -120,7 +120,7 @@ uint8_t const * tud_descriptor_device_cb(void)
   #define EPNUM_NET_OUT     0x02
   #define EPNUM_NET_IN      0x81
 
-#elif defined(TUD_ENDPOINT_EXCLUSIVE_NUMBER)
+#elif defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
   // MCUs that don't support a same endpoint number with different direction IN and OUT defined in tusb_mcu.h
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_NET_NOTIF   0x81
