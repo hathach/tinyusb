@@ -157,10 +157,6 @@ bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * desc
 // required for multiple configuration support.
 void dcd_edpt_close_all       (uint8_t rhport);
 
-// Close an endpoint.
-// Since it is weak, caller must TU_ASSERT this function's existence before calling it.
-void dcd_edpt_close           (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
-
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer            (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
@@ -175,12 +171,19 @@ void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
 // This API never calls with control endpoints, since it is auto cleared when receiving setup packet
 void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
 // Allocate packet buffer used by ISO endpoints
 // Some MCU need manual packet buffer allocation, we allocate the largest size to avoid clustering
-TU_ATTR_WEAK bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
-TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
+
+#else
+// Close an endpoint.
+void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr);
+
+#endif
 
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)

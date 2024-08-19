@@ -518,7 +518,8 @@
   #define TU_ATTR_FAST_FUNC
 #endif
 
-#if defined(TUP_USBIP_DWC2) || defined(TUP_USBIP_FSDEV)
+// USBIP that support ISO alloc & activate API
+#if defined(TUP_USBIP_DWC2) || defined(TUP_USBIP_FSDEV) || defined(TUP_USBIP_MUSB)
   #define TUP_DCD_EDPT_ISO_ALLOC
 #endif
 

@@ -338,6 +338,10 @@ TU_ATTR_ALWAYS_INLINE static inline musb_ep_csr_t* get_ep_csr(musb_regs_t* musb_
 // 0x13, 0x17: TX/RX CSRH
 #define MUSB_CSRH_DISABLE_DOUBLE_PACKET(_rx) (1u << 1)
 #define MUSB_CSRH_TX_MODE                    (1u << 5) // 1 = TX, 0 = RX. only relevant for SHARED FIFO
+#define MUSB_CSRH_ISO                        (1u << 6)
+
+// 0x62, 0x63: TXFIFO_SZ, RXFIFO_SZ
+#define MUSB_FIFOSZ_DOUBLE_PACKET            (1u << 4)
 
 
 //*****************************************************************************
@@ -416,58 +420,6 @@ TU_ATTR_ALWAYS_INLINE static inline musb_ep_csr_t* get_ep_csr(musb_regs_t* musb_
 //*****************************************************************************
 #define MUSB_CCONF_TXEDMA        0x0002  // TX Early DMA Enable
 #define MUSB_CCONF_RXEDMA        0x0001  // TX Early DMA Enable
-
-//*****************************************************************************
-//
-// The following are defines for the bit fields in the MUSB_O_TXFIFOSZ register.
-//
-//*****************************************************************************
-#define MUSB_TXFIFOSZ_DPB        0x0010  // Double Packet Buffer Support
-#define MUSB_TXFIFOSZ_SIZE_M     0x000F  // Max Packet Size
-#define MUSB_TXFIFOSZ_SIZE_8     0x0000  // 8
-#define MUSB_TXFIFOSZ_SIZE_16    0x0001  // 16
-#define MUSB_TXFIFOSZ_SIZE_32    0x0002  // 32
-#define MUSB_TXFIFOSZ_SIZE_64    0x0003  // 64
-#define MUSB_TXFIFOSZ_SIZE_128   0x0004  // 128
-#define MUSB_TXFIFOSZ_SIZE_256   0x0005  // 256
-#define MUSB_TXFIFOSZ_SIZE_512   0x0006  // 512
-#define MUSB_TXFIFOSZ_SIZE_1024  0x0007  // 1024
-#define MUSB_TXFIFOSZ_SIZE_2048  0x0008  // 2048
-
-//*****************************************************************************
-//
-// The following are defines for the bit fields in the MUSB_O_RXFIFOSZ register.
-//
-//*****************************************************************************
-#define MUSB_RXFIFOSZ_DPB        0x0010  // Double Packet Buffer Support
-#define MUSB_RXFIFOSZ_SIZE_M     0x000F  // Max Packet Size
-#define MUSB_RXFIFOSZ_SIZE_8     0x0000  // 8
-#define MUSB_RXFIFOSZ_SIZE_16    0x0001  // 16
-#define MUSB_RXFIFOSZ_SIZE_32    0x0002  // 32
-#define MUSB_RXFIFOSZ_SIZE_64    0x0003  // 64
-#define MUSB_RXFIFOSZ_SIZE_128   0x0004  // 128
-#define MUSB_RXFIFOSZ_SIZE_256   0x0005  // 256
-#define MUSB_RXFIFOSZ_SIZE_512   0x0006  // 512
-#define MUSB_RXFIFOSZ_SIZE_1024  0x0007  // 1024
-#define MUSB_RXFIFOSZ_SIZE_2048  0x0008  // 2048
-
-//*****************************************************************************
-//
-// The following are defines for the bit fields in the MUSB_O_TXFIFOADD
-// register.
-//
-//*****************************************************************************
-#define MUSB_TXFIFOADD_ADDR_M    0x01FF  // Transmit/Receive Start Address
-#define MUSB_TXFIFOADD_ADDR_S    0
-
-//*****************************************************************************
-//
-// The following are defines for the bit fields in the MUSB_O_RXFIFOADD
-// register.
-//
-//*****************************************************************************
-#define MUSB_RXFIFOADD_ADDR_M    0x01FF  // Transmit/Receive Start Address
-#define MUSB_RXFIFOADD_ADDR_S    0
 
 //*****************************************************************************
 //

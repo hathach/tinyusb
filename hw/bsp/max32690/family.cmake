@@ -15,6 +15,7 @@ set(LD_FILE_Clang ${LD_FILE_GNU})
 set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 set(JLINK_DEVICE max32690)
+set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -f target/max32690.cfg")
 
 set(FAMILY_MCUS MAX32690 CACHE INTERNAL "")
 

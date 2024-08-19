@@ -94,64 +94,71 @@ static dcd_data_t _dcd;
 // First 64 bytes are reserved for EP0
 static uint32_t alloced_fifo_bytes;
 
-TU_ATTR_ALWAYS_INLINE static inline void fifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
+// ffsize is log2(mps) - 3 (round up)
+TU_ATTR_ALWAYS_INLINE static inline uint8_t hwfifo_byte2size(uint16_t nbytes) {
+  uint8_t ffsize = 28 - tu_min8(28, __builtin_clz(nbytes));
+  // round up to the next power of 2
+  if ((8u << ffsize) < nbytes) {
+    ++ffsize;
+  }
+
+  return ffsize;
+}
+
+// index register is already set
+TU_ATTR_ALWAYS_INLINE static inline void hwfifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
+  (void) epnum;
   const uint8_t is_rx = 1 - dir_in;
-  musb->index = epnum;
   musb->fifo_size[is_rx] = 0;
   musb->fifo_addr[is_rx] = 0;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool fifo_configure(musb_regs_t* musb, unsigned epnum, unsigned dir_in, unsigned mps) {
-  // ffsize is log2(mps) - 3 (round up)
-  uint8_t ffsize = 28 - tu_min8(28, __builtin_clz(mps));
-  // round up to the next power of 2
-  if ((8u << ffsize) < mps) {
-    ++ffsize;
-    mps = 8 << ffsize;
+// index register is already set
+TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsigned epnum, unsigned dir_in, unsigned mps, bool double_packet) {
+  (void) epnum;
+  uint8_t ffsize = hwfifo_byte2size(mps);
+  mps = 8 << ffsize; // round up to the next power of 2
+
+  if (double_packet) {
+    ffsize |= MUSB_FIFOSZ_DOUBLE_PACKET;
+    mps <<= 1;
   }
 
   TU_ASSERT(alloced_fifo_bytes + mps <= MUSB_CFG_DYNAMIC_FIFO_SIZE);
   const uint8_t is_rx = 1 - dir_in;
-  musb->index = epnum;
+
   musb->fifo_addr[is_rx] = alloced_fifo_bytes / 8;
   musb->fifo_size[is_rx] = ffsize;
 
   alloced_fifo_bytes += mps;
-
   return true;
 }
 
 #else
-TU_ATTR_ALWAYS_INLINE static inline void fifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
-  const uint8_t is_rx = 1 - dir_in;
-  musb->index = epnum;
 
-  #if defined(TUP_USBIP_MUSB_ADI)
-  // Analog have custom double buffered in csrh register, disable it
-  musb->indexed_csr.maxp_csr[is_rx].csrh |= MUSB_CSRH_DISABLE_DOUBLE_PACKET(is_rx);
-  #else
-  // disable double bufeffered in extended register
-  #endif
+// index register is already set
+TU_ATTR_ALWAYS_INLINE static inline void hwfifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
+  (void) musb; (void) epnum; (void) dir_in;
+  // nothing to do for static FIFO
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool fifo_configure(musb_regs_t* musb, unsigned epnum, unsigned dir_in, unsigned mps) {
-  (void) mps;
-  const uint8_t is_rx = 1 - dir_in;
-  musb->index = epnum;
+// index register is already set
+TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsigned epnum, unsigned dir_in, unsigned mps,
+                                                       bool double_packet) {
+  (void) epnum; (void) dir_in; (void) mps;
 
-  uint8_t csrh = 0;
-
-#if defined(TUP_USBIP_MUSB_ADI)
-  csrh = MUSB_CSRH_DISABLE_DOUBLE_PACKET(is_rx);
-#endif
-
-#if MUSB_CFG_SHARED_FIFO
-  if (dir_in) {
-    csrh |= MUSB_CSRH_TX_MODE;
+  if (!double_packet) {
+    #if defined(TUP_USBIP_MUSB_ADI)
+    const uint8_t is_rx = 1 - dir_in;
+    musb->indexed_csr.maxp_csr[is_rx].csrh |= MUSB_CSRH_DISABLE_DOUBLE_PACKET(is_rx);
+    #else
+    if (is_rx) {
+      musb->rx_doulbe_packet_disable |= 1u << epnum;
+    } else {
+      musb->tx_double_packet_disable |= 1u << epnum;
+    }
+    #endif
   }
-#endif
-
-  musb->indexed_csr.maxp_csr[is_rx].csrh |= csrh;
 
   return true;
 }
@@ -538,8 +545,9 @@ static void process_bus_reset(uint8_t rhport) {
 
   /* Clear FIFO settings */
   for (unsigned i = 1; i < TUP_DCD_ENDPOINT_MAX; ++i) {
-    fifo_reset(musb, i, 0);
-    fifo_reset(musb, i, 1);
+    musb->index = i;
+    hwfifo_reset(musb, i, 0);
+    hwfifo_reset(musb, i, 1);
   }
   dcd_event_bus_reset(rhport, (musb->power & MUSB_POWER_HSMODE) ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL, true);
 }
@@ -641,16 +649,17 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
+// static void edpt_setup(musb_regs_t* musb, uint8_t ep_addr, uint8_t ep_type, uint16_t ep_size){
+//   const unsigned epn     = tu_edpt_number(ep_addr);
+//   const unsigned dir_in  = tu_edpt_dir(ep_addr);
+// }
 
 // Configure endpoint's registers according to descriptor
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
   const unsigned ep_addr = ep_desc->bEndpointAddress;
   const unsigned epn     = tu_edpt_number(ep_addr);
   const unsigned dir_in  = tu_edpt_dir(ep_addr);
-  const unsigned xfer    = ep_desc->bmAttributes.xfer;
   const unsigned mps     = tu_edpt_packet_size(ep_desc);
-
-  TU_ASSERT(epn < TUP_DCD_ENDPOINT_MAX);
 
   pipe_state_t *pipe = &_dcd.pipe[dir_in][epn - 1];
   pipe->buf       = NULL;
@@ -659,11 +668,16 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
 
   musb_regs_t* musb = MUSB_REGS(rhport);
   musb_ep_csr_t* ep_csr = get_ep_csr(musb, epn);
-
   const uint8_t is_rx = 1 - dir_in;
   musb_ep_maxp_csr_t* maxp_csr = &ep_csr->maxp_csr[is_rx];
+
   maxp_csr->maxp = mps;
-  maxp_csr->csrh = (xfer == TUSB_XFER_ISOCHRONOUS) ? MUSB_RXCSRH1_ISO : 0;
+  maxp_csr->csrh = 0;
+#if MUSB_CFG_SHARED_FIFO
+  if (dir_in) {
+    maxp_csr->csrh |= MUSB_CSRH_TX_MODE;
+  }
+#endif
 
   // flush and reset data toggle
   uint8_t csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
@@ -672,18 +686,65 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
   }
   maxp_csr->csrl = csrl;
 
+  TU_ASSERT(hwfifo_config(musb, epn, dir_in, mps, false));
   musb->intren_ep[is_rx] |= TU_BIT(epn);
-
-  fifo_configure(musb, epn, dir_in, mps);
 
   return true;
 }
 
-// bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-// }
-//
-// bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
-// }
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  const unsigned epn    = tu_edpt_number(ep_addr);
+  const unsigned dir_in = tu_edpt_dir(ep_addr);
+  musb_regs_t* musb = MUSB_REGS(rhport);
+  musb_ep_csr_t* ep_csr = get_ep_csr(musb, epn);
+  const uint8_t is_rx = 1 - dir_in;
+  ep_csr->maxp_csr[is_rx].csrh = 0;
+  return hwfifo_config(musb, epn, dir_in, largest_packet_size, true);
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc ) {
+  const unsigned ep_addr = ep_desc->bEndpointAddress;
+  const unsigned epn     = tu_edpt_number(ep_addr);
+  const unsigned dir_in  = tu_edpt_dir(ep_addr);
+  const unsigned mps     = tu_edpt_packet_size(ep_desc);
+
+  unsigned const ie = musb_dcd_get_int_enable(rhport);
+  musb_dcd_int_disable(rhport);
+
+  pipe_state_t *pipe = &_dcd.pipe[dir_in][epn - 1];
+  pipe->buf       = NULL;
+  pipe->length    = 0;
+  pipe->remaining = 0;
+
+  musb_regs_t* musb = MUSB_REGS(rhport);
+  musb_ep_csr_t* ep_csr = get_ep_csr(musb, epn);
+  const uint8_t is_rx = 1 - dir_in;
+  musb_ep_maxp_csr_t* maxp_csr = &ep_csr->maxp_csr[is_rx];
+
+  maxp_csr->maxp = mps;
+  maxp_csr->csrh |= MUSB_CSRH_ISO;
+#if MUSB_CFG_SHARED_FIFO
+  if (dir_in) {
+    maxp_csr->csrh |= MUSB_CSRH_TX_MODE;
+  }
+#endif
+
+  // flush fifo
+  if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
+    maxp_csr->csrl = MUSB_CSRL_FLUSH_FIFO(is_rx);
+  }
+
+#if MUSB_CFG_DYNAMIC_FIFO
+  // fifo space is already allocated, keep the address and just change packet size
+  musb->fifo_size[is_rx] = hwfifo_byte2size(mps) | MUSB_FIFOSZ_DOUBLE_PACKET;
+#endif
+
+  musb->intren_ep[is_rx] |= TU_BIT(epn);
+
+  if (ie) musb_dcd_int_enable(rhport);
+
+  return true;
+}
 
 void dcd_edpt_close_all(uint8_t rhport)
 {
@@ -707,7 +768,7 @@ void dcd_edpt_close_all(uint8_t rhport)
       }
       maxp_csr->csrl = csrl;
 
-      fifo_reset(musb, i, 1-d);
+      hwfifo_reset(musb, i, 1-d);
     }
   }
 
@@ -715,38 +776,6 @@ void dcd_edpt_close_all(uint8_t rhport)
   alloced_fifo_bytes = CFG_TUD_ENDPOINT0_SIZE;
 #endif
 
-  if (ie) musb_dcd_int_enable(rhport);
-}
-
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
-  // FIXME: we should implement iso_alloc() and iso_activate()
-  unsigned const epn    = tu_edpt_number(ep_addr);
-  unsigned const dir_in = tu_edpt_dir(ep_addr);
-  musb_regs_t* musb = MUSB_REGS(rhport);
-  musb_ep_csr_t* ep_csr = get_ep_csr(musb, epn);
-  unsigned const ie = musb_dcd_get_int_enable(rhport);
-  musb_dcd_int_disable(rhport);
-  if (dir_in) {
-    musb->intr_txen  &= ~TU_BIT(epn);
-    ep_csr->tx_maxp = 0;
-    ep_csr->tx_csrh = 0;
-    if (ep_csr->tx_csrl & MUSB_TXCSRL1_TXRDY) {
-      ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT | MUSB_TXCSRL1_FLUSH;
-    } else {
-      ep_csr->tx_csrl = MUSB_TXCSRL1_CLRDT;
-    }
-  } else {
-    musb->intr_rxen  &= ~TU_BIT(epn);
-    ep_csr->rx_maxp = 0;
-    ep_csr->rx_csrh = 0;
-    if (ep_csr->rx_csrl & MUSB_RXCSRL1_RXRDY) {
-      ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT | MUSB_RXCSRL1_FLUSH;
-    } else {
-      ep_csr->rx_csrl = MUSB_RXCSRL1_CLRDT;
-    }
-  }
-  fifo_reset(musb, epn, dir_in);
   if (ie) musb_dcd_int_enable(rhport);
 }
 
@@ -771,7 +800,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   return ret;
 }
 
-// Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
+// Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack
+// - optional, however, must be listed in usbd.c
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
   (void)rhport;
