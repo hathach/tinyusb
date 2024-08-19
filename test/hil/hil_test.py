@@ -436,11 +436,11 @@ def main():
     else:
         config_boards = [e for e in config['boards'] if e['name'] in boards]
 
-    err_count_list = 0
+    err_count_list = []
     with Pool(processes=os.cpu_count()) as pool:
         err_count_list = pool.map(test_board, config_boards)
-
-    sys.exit(sum(err_count_list))
+    err_count = sum(err_count_list)
+    sys.exit(err_count)
 
 
 if __name__ == '__main__':
