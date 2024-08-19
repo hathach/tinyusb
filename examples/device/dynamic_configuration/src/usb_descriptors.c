@@ -132,7 +132,7 @@ enum
   #define EPNUM_1_MSC_OUT     0x02
   #define EPNUM_1_MSC_IN      0x82
 
-#elif defined(TUD_ENDPOINT_EXCLUSIVE_NUMBER)
+#elif defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
   // MCUs that don't support a same endpoint number with different direction IN and OUT defined in tusb_mcu.h
   //    e.g EP1 OUT & EP1 IN cannot exist together
   #define EPNUM_0_CDC_NOTIF   0x81
