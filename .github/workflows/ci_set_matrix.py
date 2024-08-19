@@ -22,6 +22,7 @@ family_list = {
     "lpc11 lpc13 lpc15": ["arm-gcc", "arm-clang"],
     "lpc17 lpc18 lpc40 lpc43": ["arm-gcc", "arm-clang"],
     "lpc51 lpc54 lpc55": ["arm-gcc", "arm-clang"],
+    "max32650 max32666 max32690 max78002": ["arm-gcc"],
     "mcx": ["arm-gcc"],
     "mm32": ["arm-gcc"],
     "msp430": ["msp430-gcc"],
