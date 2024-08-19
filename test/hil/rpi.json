@@ -15,6 +15,13 @@
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg -c \"adapter speed 5000\""
         },
         {
+            "name": "metro_m7_1011",
+            "uid": "9CE8715DD71137363E00005002004200",
+            "flasher": "jlink",
+            "flasher_sn": "000611000000",
+            "flasher_args": "-device MIMXRT1011xxx5A"
+        },
+        {
             "name": "max32666fthr",
             "uid": "0C81464124010B20FF0A08CC2C",
             "flasher": "openocd_adi",
@@ -60,14 +67,6 @@
         }
     ],
     "boards-skip": [
-        {
-            "name": "metro_m7_1011",
-            "uid": "9CE8715DD71137363E00005002004200",
-            "flasher": "jlink",
-            "flasher_sn": "000611000000",
-            "flasher_args": "-device MIMXRT1011xxx5A",
-            "comment": "not running reliably in bulk with other boards, probably power, flashing etc .."
-        },
         {
             "name": "nanoch32v203",
             "uid": "CDAB277B0FBC03E339E339E3",
