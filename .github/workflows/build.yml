@@ -66,7 +66,7 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
-      one-per-family: ${{ github.event_name != 'pull_request' }}
+      one-per-family: ${{ github.event_name == 'push' }}
 
   # ---------------------------------------
   # Build CMake arm-gcc
@@ -103,12 +103,13 @@ jobs:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
-      one-per-family: ${{ github.event_name != 'pull_request' }}
+      one-per-family: ${{ github.event_name == 'push' }}
 
   # ---------------------------------------
   # Build Make on Windows/MacOS
   # ---------------------------------------
   make-os:
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false

@@ -138,21 +138,21 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMG)
   #define TUP_DCD_ENDPOINT_MAX    6
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMX7X)
   #define TUP_DCD_ENDPOINT_MAX    10
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MZ)
   #define TUP_DCD_ENDPOINT_MAX    8
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MX, OPT_MCU_PIC32MM, OPT_MCU_PIC32MK) || \
       TU_CHECK_MCU(OPT_MCU_PIC24, OPT_MCU_DSPIC33)
   #define TUP_DCD_ENDPOINT_MAX    16
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // ST
@@ -299,7 +299,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_CXD56)
   #define TUP_DCD_ENDPOINT_MAX    7
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // TI
@@ -308,6 +308,8 @@
   #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+  #define TUP_USBIP_MUSB
+  #define TUP_USBIP_MUSB_TI
   #define TUP_DCD_ENDPOINT_MAX    8
 
 //--------------------------------------------------------------------+
@@ -398,10 +400,12 @@
 #elif TU_CHECK_MCU(OPT_MCU_FT90X)
   #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_RHPORT_HIGHSPEED    1
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_FT93X)
   #define TUP_DCD_ENDPOINT_MAX    16
   #define TUP_RHPORT_HIGHSPEED    1
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // Allwinner
@@ -468,6 +472,16 @@
   #define TUP_RHPORT_HIGHSPEED    CFG_TUD_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX    (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
 
+//--------------------------------------------------------------------+
+// Analog Devices
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
+  #define TUP_USBIP_MUSB
+  #define TUP_USBIP_MUSB_ADI
+  #define TUP_DCD_ENDPOINT_MAX    12
+  #define TUP_RHPORT_HIGHSPEED    1
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
+
 #endif
 
 //--------------------------------------------------------------------+
@@ -504,7 +518,8 @@
   #define TU_ATTR_FAST_FUNC
 #endif
 
-#if defined(TUP_USBIP_DWC2) || defined(TUP_USBIP_FSDEV)
+// USBIP that support ISO alloc & activate API
+#if defined(TUP_USBIP_DWC2) || defined(TUP_USBIP_FSDEV) || defined(TUP_USBIP_MUSB)
   #define TUP_DCD_EDPT_ISO_ALLOC
 #endif
 

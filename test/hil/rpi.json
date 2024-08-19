@@ -15,6 +15,13 @@
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg -c \"adapter speed 5000\""
         },
         {
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
+            "flasher": "openocd_adi",
+            "flasher_sn": "042217023bffc88100000000000000000000000097969906",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
+        },
+        {
             "name": "lpcxpresso11u37",
             "uid": "17121919",
             "flasher": "jlink",
@@ -50,6 +57,15 @@
             "flasher": "openocd",
             "flasher_sn": "066FFF495087534867063844",
             "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+        }
+    ],
+    "boards-skip": [
+        {
+            "name": "mimxrt1015_evk",
+            "uid": "DC28F865D2111D228D00B0543A70463C",
+            "flasher": "jlink",
+            "flasher_sn": "000726284213",
+            "flasher_args": "-device MIMXRT1015DAF5A"
         },
         {
             "name": "nanoch32v203",
@@ -57,16 +73,6 @@
             "flasher": "openocd_wch",
             "flasher_sn": "EBCA8F0670AF",
             "flasher_args": ""
-        }
-    ],
-    "boards-skip": [
-        {
-            "name": "metro_m7_1011",
-            "uid": "9CE8715DD71137363E00005002004200",
-            "flasher": "jlink",
-            "flasher_sn": "000611000000",
-            "flasher_args": "-device MIMXRT1011xxx5A",
-            "comment": "not running reliably in bulk with other boards, probably power, flashing etc .."
         },
         {
             "name": "espressif_s3_devkitm",
