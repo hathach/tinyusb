@@ -81,10 +81,12 @@ typedef struct
   uint16_t     pipe_buf_is_fifo[2]; /* Bitmap. Each bit means whether 1:TU_FIFO or 0:POD. */
 } dcd_data_t;
 
-/*------------------------------------------------------------------
- * INTERNAL OBJECT & FUNCTION DECLARATION
- *------------------------------------------------------------------*/
 static dcd_data_t _dcd;
+
+//--------------------------------------------------------------------
+// HW FIFO Helper
+// Note: Index register is already set by caller
+//--------------------------------------------------------------------
 
 #if MUSB_CFG_DYNAMIC_FIFO
 
@@ -97,24 +99,20 @@ static uint32_t alloced_fifo_bytes;
 // ffsize is log2(mps) - 3 (round up)
 TU_ATTR_ALWAYS_INLINE static inline uint8_t hwfifo_byte2size(uint16_t nbytes) {
   uint8_t ffsize = 28 - tu_min8(28, __builtin_clz(nbytes));
-  // round up to the next power of 2
   if ((8u << ffsize) < nbytes) {
     ++ffsize;
   }
-
   return ffsize;
 }
 
-// index register is already set
-TU_ATTR_ALWAYS_INLINE static inline void hwfifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
+TU_ATTR_ALWAYS_INLINE static inline void hwfifo_reset(musb_regs_t* musb, unsigned epnum, unsigned is_rx) {
   (void) epnum;
-  const uint8_t is_rx = 1 - dir_in;
   musb->fifo_size[is_rx] = 0;
   musb->fifo_addr[is_rx] = 0;
 }
 
-// index register is already set
-TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsigned epnum, unsigned dir_in, unsigned mps, bool double_packet) {
+TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsigned epnum, unsigned is_rx, unsigned mps,
+                                                       bool double_packet) {
   (void) epnum;
   uint8_t ffsize = hwfifo_byte2size(mps);
   mps = 8 << ffsize; // round up to the next power of 2
@@ -125,8 +123,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsign
   }
 
   TU_ASSERT(alloced_fifo_bytes + mps <= MUSB_CFG_DYNAMIC_FIFO_SIZE);
-  const uint8_t is_rx = 1 - dir_in;
-
   musb->fifo_addr[is_rx] = alloced_fifo_bytes / 8;
   musb->fifo_size[is_rx] = ffsize;
 
@@ -136,20 +132,16 @@ TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsign
 
 #else
 
-// index register is already set
-TU_ATTR_ALWAYS_INLINE static inline void hwfifo_reset(musb_regs_t* musb, unsigned epnum, unsigned dir_in) {
-  (void) musb; (void) epnum; (void) dir_in;
+TU_ATTR_ALWAYS_INLINE static inline void hwfifo_reset(musb_regs_t* musb, unsigned epnum, unsigned is_rx) {
+  (void) musb; (void) epnum; (void) is_rx;
   // nothing to do for static FIFO
 }
 
-// index register is already set
-TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsigned epnum, unsigned dir_in, unsigned mps,
+TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsigned epnum, unsigned is_rx, unsigned mps,
                                                        bool double_packet) {
-  (void) epnum; (void) dir_in; (void) mps;
-
+  (void) epnum; (void) mps;
   if (!double_packet) {
     #if defined(TUP_USBIP_MUSB_ADI)
-    const uint8_t is_rx = 1 - dir_in;
     musb->indexed_csr.maxp_csr[is_rx].csrh |= MUSB_CSRH_DISABLE_DOUBLE_PACKET(is_rx);
     #else
     if (is_rx) {
@@ -164,6 +156,19 @@ TU_ATTR_ALWAYS_INLINE static inline bool hwfifo_config(musb_regs_t* musb, unsign
 }
 
 #endif
+
+// Flush FIFO and clear data toggle
+TU_ATTR_ALWAYS_INLINE static inline void hwfifo_flush(musb_regs_t* musb, unsigned epnum, unsigned is_rx, bool clear_dtog) {
+  (void) epnum;
+  const uint8_t csrl_dtog = clear_dtog ? MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx) : 0;
+  musb_ep_maxp_csr_t* maxp_csr = &musb->indexed_csr.maxp_csr[is_rx];
+  // may need to flush twice for double packet
+  for (unsigned i=0; i<2; i++) {
+    if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
+      maxp_csr->csrl = MUSB_CSRL_FLUSH_FIFO(is_rx) | csrl_dtog;
+    }
+  }
+}
 
 static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len)
 {
@@ -679,14 +684,9 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
   }
 #endif
 
-  // flush and reset data toggle
-  uint8_t csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx);
-  if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
-    csrl |= MUSB_CSRL_FLUSH_FIFO(is_rx);
-  }
-  maxp_csr->csrl = csrl;
+  hwfifo_flush(musb, epn, is_rx, true);
 
-  TU_ASSERT(hwfifo_config(musb, epn, dir_in, mps, false));
+  TU_ASSERT(hwfifo_config(musb, epn, is_rx, mps, false));
   musb->intren_ep[is_rx] |= TU_BIT(epn);
 
   return true;
@@ -699,7 +699,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   musb_ep_csr_t* ep_csr = get_ep_csr(musb, epn);
   const uint8_t is_rx = 1 - dir_in;
   ep_csr->maxp_csr[is_rx].csrh = 0;
-  return hwfifo_config(musb, epn, dir_in, largest_packet_size, true);
+  return hwfifo_config(musb, epn, is_rx, largest_packet_size, true);
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc ) {
@@ -729,10 +729,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *ep_desc )
   }
 #endif
 
-  // flush fifo
-  if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
-    maxp_csr->csrl = MUSB_CSRL_FLUSH_FIFO(is_rx);
-  }
+  hwfifo_flush(musb, epn, is_rx, true);
 
 #if MUSB_CFG_DYNAMIC_FIFO
   // fifo space is already allocated, keep the address and just change packet size
@@ -758,17 +755,10 @@ void dcd_edpt_close_all(uint8_t rhport)
     musb_ep_csr_t* ep_csr = get_ep_csr(musb, i);
     for (unsigned d = 0; d < 2; d++) {
       musb_ep_maxp_csr_t* maxp_csr = &ep_csr->maxp_csr[d];
+      hwfifo_flush(musb, i, d, true);
+      hwfifo_reset(musb, i, d);
       maxp_csr->maxp = 0;
       maxp_csr->csrh = 0;
-
-      // flush and reset data toggle
-      uint8_t csrl = MUSB_CSRL_CLEAR_DATA_TOGGLE(d);
-      if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
-        csrl |= MUSB_CSRL_FLUSH_FIFO(d);
-      }
-      maxp_csr->csrl = csrl;
-
-      hwfifo_reset(musb, i, 1-d);
     }
   }
 
