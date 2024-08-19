@@ -1424,7 +1424,6 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 #else
   rhport = _usbd_rhport;
 
-  TU_ASSERT(dcd_edpt_close, /**/);
   TU_LOG_USBD("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);

@@ -181,7 +181,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
 
 #else
 // Close an endpoint.
-void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr);
+void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
 
 #endif
 
