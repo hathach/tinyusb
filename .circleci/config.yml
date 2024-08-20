@@ -18,7 +18,8 @@ jobs:
             MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
             echo "MATRIX_JSON=$MATRIX_JSON"
 
-            TOOLCHAIN_LIST=("arm-clang" "arm-gcc")
+            #TOOLCHAIN_LIST=("arm-clang" "arm-gcc")
+            TOOLCHAIN_LIST=("arm-gcc")
             for toolchain in "${TOOLCHAIN_LIST[@]}"; do
               FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\".family")
               echo "${toolchain}_FAMILY=$FAMILY"
@@ -26,7 +27,7 @@ jobs:
               echo "          matrix:" >> .circleci/config2.yml
               echo "            parameters:" >> .circleci/config2.yml
               echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
-              echo "              build-system: ['cmake']" >> .circleci/config2.yml
+              echo "              build-system: ['make']" >> .circleci/config2.yml
               echo "              family: $FAMILY" >> .circleci/config2.yml
             done
 
