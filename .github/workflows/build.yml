@@ -60,6 +60,7 @@ jobs:
         toolchain:
           # - 'arm-clang' is built by circle-ci in PR
           - 'aarch64-gcc'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -67,20 +68,6 @@ jobs:
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
       one-per-family: ${{ github.event_name == 'push' }}
-
-  # ---------------------------------------
-  # Build CMake arm-gcc
-  # only build with push, for PR: all board is built by circle-ci
-  # ---------------------------------------
-  cmake-arm-gcc:
-    if: github.event_name == 'push'
-    needs: set-matrix
-    uses: ./.github/workflows/build_util.yml
-    with:
-      build-system: 'cmake'
-      toolchain: 'arm-gcc'
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-gcc'].family) }}
-      one-per-family: true
 
   # ---------------------------------------
   # Build Make
@@ -94,10 +81,10 @@ jobs:
       matrix:
         toolchain:
           # 'arm-clang' would be built by circle-ci
+          #- 'arm-gcc' is built by circle-ci in PR
           - 'aarch64-gcc'
-          - 'arm-gcc'
           - 'msp430-gcc'
-          - 'riscv-gcc'
+          #- 'riscv-gcc' is built by circle-ci in PR
           - 'rx-gcc'
     with:
       build-system: 'make'
