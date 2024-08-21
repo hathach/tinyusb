@@ -24,7 +24,7 @@ jobs:
               "make arm-gcc"
               "make msp430-gcc"
               "make riscv-gcc"
-              "make rx-gcc"
+              # "make rx-gcc" llvm-gcc-renesas.com seems to be down
             )
 
             for e in "${BUILDSYSTEM_TOOLCHAIN[@]}"; do

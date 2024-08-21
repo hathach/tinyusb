@@ -51,7 +51,6 @@ jobs:
   # Build CMake
   # ---------------------------------------
   cmake:
-    # if: false
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
@@ -70,27 +69,27 @@ jobs:
       one-per-family: ${{ github.event_name == 'push' }}
 
   # ---------------------------------------
-  # Build Make
+  # Build Make (built by circle-ci in PR, only build on push here)
   # ---------------------------------------
   make:
-    # if: false
+    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
         toolchain:
-          # 'arm-clang' would be built by circle-ci
-          #- 'arm-gcc' is built by circle-ci in PR
+          # 'arm-clang'
+          - 'arm-gcc'
           - 'aarch64-gcc'
           - 'msp430-gcc'
-          #- 'riscv-gcc' is built by circle-ci in PR
+          - 'riscv-gcc'
           - 'rx-gcc'
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
-      one-per-family: ${{ github.event_name == 'push' }}
+      one-per-family: true
 
   # ---------------------------------------
   # Build Make on Windows/MacOS
@@ -113,7 +112,6 @@ jobs:
   # Build Espressif
   # ---------------------------------------
   espressif:
-    # if: false
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
@@ -131,7 +129,6 @@ jobs:
   # Build IAR on HFP self-hosted
   # ---------------------------------------
   arm-iar:
-    # if: false
     if: github.repository_owner == 'hathach'
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]

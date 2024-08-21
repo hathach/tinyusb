@@ -7,7 +7,7 @@ commands:
             type: string
     steps:
       - run:
-          name: Install Toolchain
+          name: Set toolchain url and key
           command: |
             TOOLCHAIN_JSON='{
               "aarch64-gcc": "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz",
@@ -18,38 +18,43 @@ commands:
               "rx-gcc": "https://llvm-gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run"
             }'
             toolchain_url=$(echo $TOOLCHAIN_JSON | jq -r '.["<< parameters.toolchain >>"]')
-            echo "toolchain_url=$toolchain_url"
+            #echo "toolchain_url=$toolchain_url"
+            # only cache if not a github link
+            if [[ $toolchain_url != "https://github.com"* ]]; then
+              echo "<< parameters.toolchain >>-$toolchain_url" > toolchain_key
+            fi
+            echo "export toolchain_url=$toolchain_url" >> $BASH_ENV
 
-            # download and extract toolchain
-            mkdir -p ~/cache/<< parameters.toolchain >>
-            wget $toolchain_url -O toolchain.tar.gz
+      - restore_cache:
+          name: Restore Toolchain Cache
+          key: deps-{{ checksum "toolchain_key" }}
+          paths:
+            - ~/cache/<< parameters.toolchain >>
 
-            if [[ << parameters.toolchain >> == rx-gcc ]]; then
-              mv toolchain.tar.gz toolchain.run
-              chmod +x toolchain.run
-              ./toolchain.run -p ~/cache/<< parameters.toolchain >>/gnurx -y
-            else
-              tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
+      - run:
+          name: Install Toolchain
+          command: |
+            # download if folder does not exist (not cached)
+            if [ ! -d ~/cache/<< parameters.toolchain >> ]; then
+              mkdir -p ~/cache/<< parameters.toolchain >>
+              wget --progress=dot:giga $toolchain_url -O toolchain.tar.gz
+              if [[ << parameters.toolchain >> == rx-gcc ]]; then
+                mv toolchain.tar.gz toolchain.run
+                chmod +x toolchain.run
+                ./toolchain.run -p ~/cache/<< parameters.toolchain >>/gnurx -y
+              else
+                tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
+              fi
             fi
 
             # Add toolchain to PATH
             echo "export PATH=$PATH:`echo ~/cache/<< parameters.toolchain >>/*/bin`" >> $BASH_ENV
 
-  get-deps:
-    parameters:
-      family:
-        type: string
-    steps:
-      - run:
-          name: Get Dependencies
-          command: |
-            python tools/get_deps.py << parameters.family >>
-
-            # Install Pico SDK
-            if [ << parameters.family >> == "rp2040" ]; then
-              git clone --depth 1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk
-              echo "export PICO_SDK_PATH=~/pico-sdk" >> $BASH_ENV
-            fi
+      - save_cache:
+          name: Save Toolchain Cache
+          key: deps-{{ checksum "toolchain_key" }}
+          paths:
+            - ~/cache/<< parameters.toolchain >>
 
 jobs:
   build:
@@ -66,20 +71,27 @@ jobs:
     resource_class: medium+
     steps:
       - checkout
-      - when:
-          condition: << parameters.build-system >> == 'cmake'
-          steps:
-            - run:
-                name: Install Ninja
-                command: |
-                  # Install Ninja
-                  NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
-                  wget $NINJA_URL -O ninja-linux.zip
-                  unzip ninja-linux.zip -d ~/bin
       - setup-toolchain:
           toolchain: << parameters.toolchain >>
-      - get-deps:
-          family: << parameters.family >>
+
+      - run:
+          name: Get Dependencies
+          command: |
+            python tools/get_deps.py << parameters.family >>
+
+            # Install ninja  if cmake build system
+            if [ << parameters.build-system >> == "cmake" ]; then
+              NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
+              wget $NINJA_URL -O ninja-linux.zip
+              unzip ninja-linux.zip -d ~/bin
+            fi
+
+            # Install Pico SDK
+            if [ << parameters.family >> == "rp2040" ]; then
+              git clone --depth 1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk
+              echo "export PICO_SDK_PATH=~/pico-sdk" >> $BASH_ENV
+            fi
+
       - run:
           name: Build
           command: |
