@@ -92,38 +92,3 @@ def build_size(make_cmd):
             return (flash_size, sram_size)
 
     return (0, 0)
-
-
-def build_example(example, board, make_option):
-    start_time = time.monotonic()
-    flash_size = "-"
-    sram_size = "-"
-
-    # succeeded, failed, skipped
-    ret = [0, 0, 0]
-
-    make_cmd = f"make -j -C examples/{example} BOARD={board} {make_option}"
-
-    # Check if board is skipped
-    if skip_example(example, board):
-        status = SKIPPED
-        ret[2] = 1
-        print(build_format.format(example, board, status, '-', flash_size, sram_size))
-    else:
-        build_result = subprocess.run(f"{make_cmd} all", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-        if build_result.returncode == 0:
-            status = SUCCEEDED
-            ret[0] = 1
-            (flash_size, sram_size) = build_size(make_cmd)
-        else:
-            status = FAILED
-            ret[1] = 1
-
-        build_duration = time.monotonic() - start_time
-        print(build_format.format(example, board, status, "{:.2f}s".format(build_duration), flash_size, sram_size))
-
-        if build_result.returncode != 0:
-            print(build_result.stdout.decode("utf-8"))
-
-    return ret
