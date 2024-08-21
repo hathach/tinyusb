@@ -124,16 +124,16 @@ def make_board(board, toolchain):
     all_examples = get_examples(find_family(board))
     start_time = time.monotonic()
     ret = [0, 0, 0]
-    with Pool(processes=os.cpu_count()) as pool:
-        pool_args = list((map(lambda e, b=board, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_examples)))
-        r = pool.starmap(make_one_example, pool_args)
-        # sum all element of same index (column sum)
-        ret = list(map(sum, list(zip(*r))))
-    # for example in all_examples:
-    #     r = make_one_example(example, board, f"TOOLCHAIN={toolchain}")
-    #     ret[0] += r[0]
-    #     ret[1] += r[1]
-    #     ret[2] += r[2]
+    # with Pool(processes=os.cpu_count()) as pool:
+    #     pool_args = list((map(lambda e, b=board, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_examples)))
+    #     r = pool.starmap(make_one_example, pool_args)
+    #     # sum all element of same index (column sum)
+    #     ret = list(map(sum, list(zip(*r))))
+    for example in all_examples:
+        r = make_one_example(example, board, f"TOOLCHAIN={toolchain}")
+        ret[0] += r[0]
+        ret[1] += r[1]
+        ret[2] += r[2]
     example = 'all'
     print_build_result(board, example, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
     return ret
