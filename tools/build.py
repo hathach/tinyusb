@@ -31,7 +31,7 @@ def run_cmd(cmd):
     title = f'Command Error: {cmd}'
     if r.returncode != 0:
         # print build output if failed
-        if os.getenv('CI'):
+        if os.getenv('GITHUB_ACTIONS'):
             print(f"::group::{title}")
             print(r.stdout.decode("utf-8"))
             print(f"::endgroup::")
@@ -109,9 +109,7 @@ def make_one_example(example, board, make_option):
         r = 2
     else:
         start_time = time.monotonic()
-
-        # make -j can cause issue with circleci
-        make_cmd = f"make -C examples/{example} BOARD={board} {make_option}"
+        make_cmd = f"make -j -C examples/{example} BOARD={board} {make_option}"
         build_result = run_cmd(f"{make_cmd} all")
         r = 0 if build_result.returncode == 0 else 1
         print_build_result(board, example, r, time.monotonic() - start_time)
@@ -125,11 +123,17 @@ def make_board(board, toolchain):
     print(build_separator)
     all_examples = get_examples(find_family(board))
     start_time = time.monotonic()
+    ret = [0, 0, 0]
     with Pool(processes=os.cpu_count()) as pool:
         pool_args = list((map(lambda e, b=board, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_examples)))
         r = pool.starmap(make_one_example, pool_args)
         # sum all element of same index (column sum)
         ret = list(map(sum, list(zip(*r))))
+    # for example in all_examples:
+    #     r = make_one_example(example, board, f"TOOLCHAIN={toolchain}")
+    #     ret[0] += r[0]
+    #     ret[1] += r[1]
+    #     ret[2] += r[2]
     example = 'all'
     print_build_result(board, example, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
     return ret
@@ -138,6 +142,20 @@ def make_board(board, toolchain):
 # -----------------------------
 # Build Family
 # -----------------------------
+def build_boards_list(boards, toolchain, build_system):
+    ret = [0, 0, 0]
+    for b in boards:
+        r = [0, 0, 0]
+        if build_system == 'cmake':
+            r = cmake_board(b, toolchain)
+        elif build_system == 'make':
+            r = make_board(b, toolchain)
+        ret[0] += r[0]
+        ret[1] += r[1]
+        ret[2] += r[2]
+    return ret
+
+
 def build_family(family, toolchain, build_system, one_per_family, boards):
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
@@ -146,7 +164,6 @@ def build_family(family, toolchain, build_system, one_per_family, boards):
     all_boards.sort()
 
     ret = [0, 0, 0]
-
     # If only-one flag is set, select one random board
     if one_per_family:
         for b in boards:
@@ -155,16 +172,7 @@ def build_family(family, toolchain, build_system, one_per_family, boards):
                 return ret
         all_boards = [random.choice(all_boards)]
 
-    for board in all_boards:
-        r = [0, 0, 0]
-        if build_system == 'cmake':
-            r = cmake_board(board, toolchain)
-        elif build_system == 'make':
-            r = make_board(board, toolchain)
-        ret[0] += r[0]
-        ret[1] += r[1]
-        ret[2] += r[2]
-
+    ret = build_boards_list(all_boards, toolchain, build_system)
     return ret
 
 
@@ -207,21 +215,16 @@ def main():
 
     # succeeded, failed, skipped
     for f in all_families:
-        fret = build_family(f, toolchain, build_system, one_per_family, boards)
-        result[0] += fret[0]
-        result[1] += fret[1]
-        result[2] += fret[2]
-
-    # build boards
-    for b in boards:
-        r = [0, 0, 0]
-        if build_system == 'cmake':
-            r = cmake_board(b, toolchain)
-        elif build_system == 'make':
-            r = make_board(b, toolchain)
+        r = build_family(f, toolchain, build_system, one_per_family, boards)
         result[0] += r[0]
         result[1] += r[1]
         result[2] += r[2]
+
+    # build boards
+    r = build_boards_list(boards, toolchain, build_system)
+    result[0] += r[0]
+    result[1] += r[1]
+    result[2] += r[2]
 
     total_time = time.monotonic() - total_time
     print(build_separator)
