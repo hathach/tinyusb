@@ -57,6 +57,16 @@ commands:
           paths:
             - ~/cache/<< parameters.toolchain >>
 
+#  build:
+#    parameters:
+#      build-system:
+#        type: string
+#      toolchain:
+#        type: string
+#      family:
+#        type: string
+
+
 jobs:
   build:
     parameters:
@@ -67,13 +77,13 @@ jobs:
       family:
         type: string
 
-    machine:
-      image: ubuntu-2004:current
-
-    resource_class: medium
 #    docker:
 #      - image: cimg/base:current
 #    resource_class: medium+
+
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large
 
     steps:
       - checkout
@@ -84,11 +94,6 @@ jobs:
           steps:
             - setup-toolchain:
                 toolchain: << parameters.toolchain >>
-#      - when:
-#          condition:
-#              equal: [esp-idf, << parameters.toolchain >>]
-#          steps:
-#            - setup_remote_docker
 
       - run:
           name: Get Dependencies
@@ -133,9 +138,9 @@ jobs:
 workflows:
   build:
     jobs:
-      - build:
-          matrix:
-            parameters:
-              toolchain: ['esp-idf']
-              build-system: ['cmake']
-              family: ['-bespressif_kaluga_1']
+#      - build:
+#          matrix:
+#            parameters:
+#              toolchain: ['esp-idf']
+#              build-system: ['cmake']
+#              family: ['-bespressif_kaluga_1']
