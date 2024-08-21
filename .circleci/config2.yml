@@ -67,9 +67,14 @@ jobs:
       family:
         type: string
 
-    docker:
-      - image: cimg/base:current
-    resource_class: medium+
+    machine:
+      image: ubuntu-2004:current
+
+    resource_class: medium
+#    docker:
+#      - image: cimg/base:current
+#    resource_class: medium+
+
     steps:
       - checkout
       - when:
@@ -79,11 +84,11 @@ jobs:
           steps:
             - setup-toolchain:
                 toolchain: << parameters.toolchain >>
-      - when:
-          condition:
-              equal: [esp-idf, << parameters.toolchain >>]
-          steps:
-            - setup_remote_docker
+#      - when:
+#          condition:
+#              equal: [esp-idf, << parameters.toolchain >>]
+#          steps:
+#            - setup_remote_docker
 
       - run:
           name: Get Dependencies
@@ -107,7 +112,7 @@ jobs:
           name: Build
           command: |
             if [ << parameters.toolchain >> == esp-idf ]; then
-              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python3 tools/build.py << parameters.family >>
+              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python tools/build.py << parameters.family >>
             else
               # Only build one board per family for non PRs i.e commit to master
               ONE_PER_FAMILY=""
@@ -128,9 +133,9 @@ jobs:
 workflows:
   build:
     jobs:
-#      - build:
-#          matrix:
-#            parameters:
-#              toolchain: ['arm-clang']
-#              build-system: ['cmake']
-#              family: ['imxrt']
+      - build:
+          matrix:
+            parameters:
+              toolchain: ['esp-idf']
+              build-system: ['cmake']
+              family: ['-bespressif_kaluga_1']
