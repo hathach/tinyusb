@@ -109,7 +109,10 @@ def make_one_example(example, board, make_option):
         r = 2
     else:
         start_time = time.monotonic()
-        make_cmd = f"make -j -C examples/{example} BOARD={board} {make_option}"
+        # skip -j for circleci
+        if not os.getenv('CIRCLECI'):
+            make_option += '-j'
+        make_cmd = f"make -C examples/{example} BOARD={board} {make_option}"
         build_result = run_cmd(f"{make_cmd} all")
         r = 0 if build_result.returncode == 0 else 1
         print_build_result(board, example, r, time.monotonic() - start_time)
@@ -124,16 +127,11 @@ def make_board(board, toolchain):
     all_examples = get_examples(find_family(board))
     start_time = time.monotonic()
     ret = [0, 0, 0]
-    # with Pool(processes=os.cpu_count()) as pool:
-    #     pool_args = list((map(lambda e, b=board, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_examples)))
-    #     r = pool.starmap(make_one_example, pool_args)
-    #     # sum all element of same index (column sum)
-    #     ret = list(map(sum, list(zip(*r))))
-    for example in all_examples:
-        r = make_one_example(example, board, f"TOOLCHAIN={toolchain}")
-        ret[0] += r[0]
-        ret[1] += r[1]
-        ret[2] += r[2]
+    with Pool(processes=os.cpu_count()) as pool:
+        pool_args = list((map(lambda e, b=board, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_examples)))
+        r = pool.starmap(make_one_example, pool_args)
+        # sum all element of same index (column sum)
+        ret = list(map(sum, list(zip(*r))))
     example = 'all'
     print_build_result(board, example, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
     return ret
