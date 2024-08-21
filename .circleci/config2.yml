@@ -57,17 +57,6 @@ commands:
           paths:
             - ~/cache/<< parameters.toolchain >>
 
-#  build:
-#    parameters:
-#      build-system:
-#        type: string
-#      toolchain:
-#        type: string
-#      family:
-#        type: string
-
-
-jobs:
   build:
     parameters:
       build-system:
@@ -76,14 +65,6 @@ jobs:
         type: string
       family:
         type: string
-
-#    docker:
-#      - image: cimg/base:current
-#    resource_class: medium+
-
-    machine:
-      image: ubuntu-2404:current
-    resource_class: large
 
     steps:
       - checkout
@@ -135,10 +116,57 @@ jobs:
               python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
             fi
 
+jobs:
+  # Build using docker
+  build:
+    parameters:
+      build-system:
+        type: string
+      toolchain:
+        type: string
+      family:
+        type: string
+
+    docker:
+      - image: cimg/base:current
+    resource_class: medium+
+
+    steps:
+      - build:
+          build-system: << parameters.build-system >>
+          toolchain: << parameters.toolchain >>
+          family: << parameters.family >>
+
+  # Build using VM
+  build-vm:
+    parameters:
+      build-system:
+        type: string
+      toolchain:
+        type: string
+      family:
+        type: string
+
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large
+
+    steps:
+      - build:
+          build-system: << parameters.build-system >>
+          toolchain: << parameters.toolchain >>
+          family: << parameters.family >>
+
 workflows:
   build:
     jobs:
 #      - build:
+#          matrix:
+#            parameters:
+#              toolchain: [ 'arm-gcc' ]
+#              build-system: [ 'cmake' ]
+#              family: [ 'nrf' ]
+#      - build-vm:
 #          matrix:
 #            parameters:
 #              toolchain: ['esp-idf']
