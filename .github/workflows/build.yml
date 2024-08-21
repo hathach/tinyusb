@@ -85,6 +85,7 @@ jobs:
           - 'msp430-gcc'
           - 'riscv-gcc'
           - 'rx-gcc'
+          - 'esp-idf' # buid-system is ignored
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
@@ -107,23 +108,6 @@ jobs:
       toolchain: 'arm-gcc'
       build-args: '["stm32h7"]'
       one-per-family: true
-
-  # ---------------------------------------
-  # Build Espressif
-  # ---------------------------------------
-  espressif:
-    uses: ./.github/workflows/build_util.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        board:
-          - 'espressif_kaluga_1'
-          - 'espressif_s3_devkitm'
-    with:
-      build-system: 'cmake'
-      toolchain: 'esp-idf'
-      toolchain_version: 'v5.1.1'
-      build-args: '["-b${{ matrix.board }}"]'
 
   # ---------------------------------------
   # Build IAR on HFP self-hosted

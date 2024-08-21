@@ -25,8 +25,7 @@ jobs:
               "make msp430-gcc"
               "make riscv-gcc"
               # "make rx-gcc" llvm-gcc-renesas.com seems to be down
-              "cmake -bespressif_kaluga_1"
-              "cmake -bespressif_s3_devkitm"
+              "cmake esp-idf"
             )
 
             for e in "${BUILDSYSTEM_TOOLCHAIN[@]}"; do

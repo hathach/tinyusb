@@ -6,6 +6,7 @@ toolchain_list = [
     "arm-clang",
     "arm-iar",
     "arm-gcc",
+    "esp-idf",
     "msp430-gcc",
     "riscv-gcc",
     "rx-gcc"
@@ -42,6 +43,7 @@ family_list = {
     "stm32l0 stm32l4": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32u5 stm32wb": ["arm-gcc", "arm-clang", "arm-iar"],
     "xmc4000": ["arm-gcc"],
+    "-bespressif_kaluga_1 -bespressif_s3_devkitm": ["esp-idf"],
 }
 
 
