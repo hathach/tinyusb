@@ -79,6 +79,11 @@ jobs:
           steps:
             - setup-toolchain:
                 toolchain: << parameters.toolchain >>
+      - when:
+          condition:
+              equal: [esp-idf, << parameters.toolchain >>]
+          steps:
+            - setup_remote_docker
 
       - run:
           name: Get Dependencies
