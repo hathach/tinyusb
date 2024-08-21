@@ -111,8 +111,9 @@ def make_one_example(example, board, make_option):
         start_time = time.monotonic()
         # skip -j for circleci
         if not os.getenv('CIRCLECI'):
-            make_option += '-j'
+            make_option += ' -j'
         make_cmd = f"make -C examples/{example} BOARD={board} {make_option}"
+        # run_cmd(f"{make_cmd} clean")
         build_result = run_cmd(f"{make_cmd} all")
         r = 0 if build_result.returncode == 0 else 1
         print_build_result(board, example, r, time.monotonic() - start_time)
