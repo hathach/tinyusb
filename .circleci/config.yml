@@ -28,6 +28,8 @@ jobs:
               "cmake esp-idf"
             )
 
+            RESOURCE_LARGE=("nrf" "imxrt")
+
             for e in "${BUILDSYSTEM_TOOLCHAIN[@]}"; do
               e_arr=($e)
               build_system="${e_arr[0]}"
@@ -35,7 +37,7 @@ jobs:
               FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\".family")
               echo "FAMILY_${toolchain}=$FAMILY"
 
-              if [ "$toolchain" == "esp-idf" ]; then
+              if [[ $toolchain == esp-idf ]]; then
                 echo "      - build-vm:" >> .circleci/config2.yml
               else
                 echo "      - build:" >> .circleci/config2.yml
@@ -45,6 +47,9 @@ jobs:
               echo "              build-system: ['$build_system']" >> .circleci/config2.yml
               echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
               echo "              family: $FAMILY" >> .circleci/config2.yml
+              if [[ " ${RESOURCE_LARGE[@]} " =~ " ${FAMILY} " ]]; then
+                echo "              resource_class: ['large']" >> .circleci/config2.yml
+              fi
             done
 
       - continuation/continue:

@@ -120,6 +120,9 @@ jobs:
   # Build using docker
   build:
     parameters:
+      resource_class:
+        type: string
+        default: medium+
       build-system:
         type: string
       toolchain:
@@ -129,7 +132,7 @@ jobs:
 
     docker:
       - image: cimg/base:current
-    resource_class: medium+
+    resource_class: << parameters.resource_class >>
 
     steps:
       - build:
@@ -140,6 +143,9 @@ jobs:
   # Build using VM
   build-vm:
     parameters:
+      resource_class:
+        type: string
+        default: large
       build-system:
         type: string
       toolchain:
@@ -149,7 +155,7 @@ jobs:
 
     machine:
       image: ubuntu-2404:current
-    resource_class: large
+    resource_class: << parameters.resource_class >>
 
     steps:
       - build:
@@ -166,9 +172,11 @@ workflows:
 #              toolchain: [ 'arm-gcc' ]
 #              build-system: [ 'cmake' ]
 #              family: [ 'nrf' ]
+#              resource_class: ['large']
 #      - build-vm:
 #          matrix:
 #            parameters:
 #              toolchain: ['esp-idf']
 #              build-system: ['cmake']
 #              family: ['-bespressif_kaluga_1']
+#              resource_class: ['large']
