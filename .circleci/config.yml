@@ -28,7 +28,7 @@ jobs:
               "cmake esp-idf"
             )
 
-            RESOURCE_LARGE=("nrf" "imxrt")
+            RESOURCE_LARGE='["nrf", "imxrt"]'
 
             for e in "${BUILDSYSTEM_TOOLCHAIN[@]}"; do
               e_arr=($e)
@@ -37,18 +37,32 @@ jobs:
               FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\".family")
               echo "FAMILY_${toolchain}=$FAMILY"
 
+              # FAMILY_LARGE = FAMILY - RESOURCE_LARGE
+              # Separate large from medium+ resources
+              FAMILY_LARGE=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[])))')
+              FAMILY=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[]) | not))')
+
               if [[ $toolchain == esp-idf ]]; then
-                echo "      - build-vm:" >> .circleci/config2.yml
+                echo "      - build-vm:"
               else
-                echo "      - build:" >> .circleci/config2.yml
+                echo "      - build:"
               fi
-              echo "          matrix:" >> .circleci/config2.yml
-              echo "            parameters:" >> .circleci/config2.yml
-              echo "              build-system: ['$build_system']" >> .circleci/config2.yml
-              echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
-              echo "              family: $FAMILY" >> .circleci/config2.yml
-              if [[ " ${RESOURCE_LARGE[@]} " =~ " ${FAMILY} " ]]; then
-                echo "              resource_class: ['large']" >> .circleci/config2.yml
+              echo "          matrix:"
+              echo "            parameters:"
+              echo "              build-system: ['$build_system']"
+              echo "              toolchain: ['$toolchain']"
+              echo "              family: $FAMILY"
+              #echo "              resource_class: ['medium+']"
+
+              # large resources
+              if [ "$(echo $FAMILY_LARGE | jq 'length')" -gt 0 ]; then
+                echo "      - build:"
+                echo "          matrix:"
+                echo "            parameters:"
+                echo "              build-system: ['$build_system']"
+                echo "              toolchain: ['$toolchain']"
+                echo "              family: $FAMILY_LARGE"
+                echo "              resource_class: ['large']"
               fi
             done
 
