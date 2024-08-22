@@ -149,17 +149,5 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_flash_jlink(${TARGET})
   family_flash_msdk(${TARGET})
-endfunction()
-
-# Add flash msdk target
-function(family_flash_msdk TARGET)
-  set(MAXIM_PATH "$ENV{MAXIM_PATH}")
-
-  add_custom_target(${TARGET}-msdk
-    DEPENDS ${TARGET}
-    COMMAND ${MAXIM_PATH}/Tools/OpenOCD/openocd -s ${MAXIM_PATH}/Tools/OpenOCD/scripts
-		        -f interface/cmsis-dap.cfg -f target/max32690.cfg
-		        -c "program $<TARGET_FILE:${TARGET}> verify; init; reset; exit"
-    VERBATIM
-    )
+  family_flash_openocd_adi(${TARGET})
 endfunction()
