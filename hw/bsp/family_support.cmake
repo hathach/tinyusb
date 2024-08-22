@@ -463,7 +463,7 @@ function(family_flash_openocd TARGET)
   # note skip verify since it has issue with rp2040
   add_custom_target(${TARGET}-openocd
     DEPENDS ${TARGET}
-    COMMAND ${OPENOCD} ${OPTION_LIST} -c init -c halt -c "program $<TARGET_FILE:${TARGET}> reset" ${OPTION_LIST2} -c exit
+    COMMAND ${OPENOCD} -c "tcl_port disabled" -c "gdb_port disabled" ${OPTION_LIST} -c init -c halt -c "program $<TARGET_FILE:${TARGET}>" -c reset ${OPTION_LIST2} -c exit
     VERBATIM
     )
 endfunction()
