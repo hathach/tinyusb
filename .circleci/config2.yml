@@ -100,12 +100,6 @@ commands:
             if [ << parameters.toolchain >> == esp-idf ]; then
               docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python tools/build.py << parameters.family >>
             else
-              # Only build one board per family for non PRs i.e commit to master
-              ONE_PER_FAMILY=""
-              if [ -z "$CIRCLE_PULL_REQUEST" ]; then
-                ONE_PER_FAMILY="--one-per-family"
-              fi
-
               # Toolchain option default is gcc
               if [ << parameters.toolchain >> == arm-clang ]; then
                 TOOLCHAIN_OPTION="--toolchain clang"
@@ -113,7 +107,7 @@ commands:
                 TOOLCHAIN_OPTION="--toolchain gcc"
               fi
 
-              python tools/build.py $ONE_PER_FAMILY -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
+              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
             fi
 
 jobs:
