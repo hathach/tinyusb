@@ -116,7 +116,7 @@ jobs:
     parameters:
       resource_class:
         type: string
-        default: medium+
+        default: medium
       build-system:
         type: string
       toolchain:
