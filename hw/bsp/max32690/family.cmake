@@ -148,6 +148,5 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
-  family_flash_msdk(${TARGET})
   family_flash_openocd_adi(${TARGET})
 endfunction()
