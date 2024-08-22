@@ -14,11 +14,7 @@
             "flasher_sn": "E6633861A3978538",
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg",
             "tests": {
-                "dual_attached": [
-                    {
-                        "vid_pid": "1a86_55d4", "serial": "52D2002130"
-                    }
-                ]
+                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
             }
         },
         {
@@ -51,7 +47,10 @@
             "uid": "E6614C311B764A37",
             "flasher": "openocd",
             "flasher_sn": "E6614103E72C1D2F",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
+            "tests": {
+                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002470"}]
+            }
         },
         {
             "name": "stm32f072disco",

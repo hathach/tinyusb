@@ -42,7 +42,7 @@
 static uart_inst_t *uart_inst;
 #endif
 
-#if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
+#if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
 #include "pio_usb.h"
 #endif
 
@@ -126,7 +126,7 @@ void stdio_rtt_init(void) {
 
 void board_init(void)
 {
-#if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
+#if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
   // Set the system clock to a multiple of 120mhz for bitbanging USB with pico-usb
   set_sys_clock_khz(120000, true);
 
