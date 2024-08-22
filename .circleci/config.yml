@@ -71,5 +71,9 @@ jobs:
 
 workflows:
   set-matrix:
+    # Only build PR here, Push will be built by github action.
+    when:
+      and:
+        - not: << pipeline.git.branch.is_default >>
     jobs:
       - set-matrix
