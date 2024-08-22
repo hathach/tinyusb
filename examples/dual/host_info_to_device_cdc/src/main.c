@@ -24,7 +24,7 @@
  */
 
 /* Host example will get device descriptors of attached devices and print it out via device cdc as follows:
- *    Device 1: ID 046d:c52f
+ *    Device 1: ID 046d:c52f SN 11223344
       Device Descriptor:
         bLength             18
         bDescriptorType     1
@@ -147,7 +147,21 @@ void print_device_info(uint8_t daddr) {
     return;
   }
 
-  cdc_printf("Device %u: ID %04x:%04x\r\n", daddr, desc_device.idVendor, desc_device.idProduct);
+  // Get String descriptor using Sync API
+  uint16_t serial[64];
+  uint16_t buf[128];
+
+  cdc_printf("Device %u: ID %04x:%04x SN ", daddr, desc_device.idVendor, desc_device.idProduct);
+  xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, serial, sizeof(serial));
+  if (XFER_RESULT_SUCCESS != xfer_result) {
+    serial[0] = 'n';
+    serial[1] = '/';
+    serial[2] = 'a';
+    serial[3] = 0;
+  }
+  print_utf16(serial, TU_ARRAY_SIZE(serial));
+  tud_cdc_write_str("\r\n");
+
   cdc_printf("Device Descriptor:\r\n");
   cdc_printf("  bLength             %u\r\n"     , desc_device.bLength);
   cdc_printf("  bDescriptorType     %u\r\n"     , desc_device.bDescriptorType);
@@ -159,9 +173,6 @@ void print_device_info(uint8_t daddr) {
   cdc_printf("  idVendor            0x%04x\r\n" , desc_device.idVendor);
   cdc_printf("  idProduct           0x%04x\r\n" , desc_device.idProduct);
   cdc_printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
-
-  // Get String descriptor using Sync API
-  uint16_t buf[128];
 
   cdc_printf("  iManufacturer       %u     "     , desc_device.iManufacturer);
   xfer_result = tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, buf, sizeof(buf));
@@ -178,10 +189,7 @@ void print_device_info(uint8_t daddr) {
   tud_cdc_write_str("\r\n");
 
   cdc_printf("  iSerialNumber       %u     "     , desc_device.iSerialNumber);
-  xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, buf, sizeof(buf));
-  if (XFER_RESULT_SUCCESS == xfer_result) {
-    print_utf16(buf, TU_ARRAY_SIZE(buf));
-  }
+  tud_cdc_write_str((char*)serial); // serial is already to UTF-8
   tud_cdc_write_str("\r\n");
 
   cdc_printf("  bNumConfigurations  %u\r\n"     , desc_device.bNumConfigurations);

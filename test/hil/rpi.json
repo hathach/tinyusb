@@ -8,11 +8,18 @@
             "flasher_args": "-device nrf52840_xxaa"
         },
         {
-            "name": "itsybitsy_m4",
-            "uid": "D784B28C5338533335202020FF044726",
+            "name": "metro_m4_express",
+            "uid": "9995AD485337433231202020FF100A34",
             "flasher": "openocd",
-            "flasher_sn": "E6614C311B597D32",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg -c \"adapter speed 5000\""
+            "flasher_sn": "E6633861A3978538",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg",
+            "tests": {
+                "dual_attached": [
+                    {
+                        "vid_pid": "1a86_55d4", "serial": "52D2002130"
+                    }
+                ]
+            }
         },
         {
             "name": "max32666fthr",
@@ -31,7 +38,9 @@
         {
             "name": "ra4m1_ek",
             "uid": "152E163038303131393346E46F26574B",
-            "tests_skip": ["cdc_msc", "cdc_msc_freertos"],
+            "tests": {
+                "skip": ["device/cdc_msc", "device/cdc_msc_freertos"]
+            },
             "comment": "MSC is slow to enumerated #2602",
             "flasher": "jlink",
             "flasher_sn": "000831174392",
@@ -77,9 +86,9 @@
         {
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
-            "tests": [
-                "cdc_msc_freertos", "hid_composite_freertos"
-            ],
+            "tests": {
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+            },
             "flasher": "esptool",
             "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
             "flasher_args": "-b 921600"
