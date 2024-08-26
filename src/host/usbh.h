@@ -81,7 +81,7 @@ enum {
 };
 
 typedef struct {
-  uint8_t max_nak; // max NAK per endpoint per frame
+  uint8_t max_nak; // max NAK per endpoint per frame to save CPU/SPI bus usage
   uint8_t cpuctl; // R16: CPU Control Register
   uint8_t pinctl; // R17: Pin Control Register. FDUPSPI bit is ignored
 } tuh_configure_max3421_t;

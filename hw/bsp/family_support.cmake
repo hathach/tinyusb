@@ -418,6 +418,12 @@ exit"
     COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} ${OPTION_LIST} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
     VERBATIM
     )
+
+  # optional flash post build
+#  add_custom_command(TARGET ${TARGET} POST_BUILD
+#    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} ${OPTION_LIST} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
+#    VERBATIM
+#    )
 endfunction()
 
 
