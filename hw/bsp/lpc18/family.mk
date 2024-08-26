@@ -14,7 +14,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes -Wno-error=cast-qual
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/chipidea/ci_hs/dcd_ci_hs.c \
@@ -30,4 +30,5 @@ SRC_C += \
 INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(MCU_DIR)/inc \
-	$(TOP)/$(MCU_DIR)/inc/config_18xx
+	$(TOP)/$(MCU_DIR)/inc/config_18xx \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \

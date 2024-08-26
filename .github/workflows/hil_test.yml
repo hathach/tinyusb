@@ -1,0 +1,115 @@
+name: Hardware Test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'test/hil/**'
+      - 'tools/get_deps.py'
+      - '.github/actions/**'
+      - '.github/workflows/hil_test.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HIL_JSON: test/hil/rpi.json
+
+jobs:
+  # ---------------------------------------
+  # Build Non Espressif
+  # ---------------------------------------
+  build:
+    if: github.repository_owner == 'hathach'
+    runs-on: ubuntu-latest
+    outputs:
+      BOARDS_LIST: ${{ steps.parse_hil_json.outputs.BOARDS_LIST }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Parse HIL json
+        id: parse_hil_json
+        run: |
+          sudo apt install -y jq
+
+          # Non-Espresif boards
+          BOARDS_LIST=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' ${{ env.HIL_JSON }} | tr '\n' ' ')
+          echo "BOARDS_LIST=$BOARDS_LIST"
+          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
+          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
+
+      - name: Setup arm-gcc toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'arm-gcc'
+
+      - name: Setup risv-gcc toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'riscv-gcc'
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: ${{ env.BOARDS_LIST }}
+
+      - name: Build
+        run: python tools/build.py $BOARDS_LIST
+
+      - name: Upload Artifacts for Hardware Testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: hil_rpi
+          path: |
+            cmake-build/cmake-build-*/*/*/*.elf
+            cmake-build/cmake-build-*/*/*/*.bin
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # self-hosted running on an RPI. For attached hardware checkout test/hil/rpi.json
+  # ---------------------------------------
+  hil-rpi:
+    if: github.repository_owner == 'hathach'
+    needs:
+      - build
+    runs-on: [self-hosted, ARM64, rpi, hardware-in-the-loop]
+    env:
+      BOARDS_LIST: "${{ needs.build-esp.outputs.BOARDS_LIST }} ${{ needs.build.outputs.BOARDS_LIST }}"
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+        # USB bus on rpi is not stable, reset it before testing
+#      - name: Reset USB bus
+#        run: |
+#          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/unbind
+#          sleep 5
+#          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/bind
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: test/hil
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: cmake-build
+          merge-multiple: true
+
+      - name: Test on actual hardware
+        run: |
+          echo "BOARDS_LIST=$BOARDS_LIST"
+          echo "::group::{cmake-build contents}"
+          tree cmake-build
+          echo "::endgroup::"
+          python3 test/hil/hil_test.py $BOARDS_LIST ${{ env.HIL_JSON }}

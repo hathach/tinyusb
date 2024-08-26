@@ -20,12 +20,13 @@ CFLAGS += \
 # GCC Flags
 CFLAGS_GCC += \
   -flto \
-  -nostdlib -nostartfiles
 
 # suppress warning caused by vendor mcu driver
 CFLAGS_GCC += -Wno-error=cast-align
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 # -----------------
 # Sources & Include

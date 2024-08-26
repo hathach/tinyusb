@@ -489,7 +489,7 @@ typedef enum
   AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT     = (uint32_t) (1 << 2),
   AUDIO_DATA_FORMAT_TYPE_I_ALAW           = (uint32_t) (1 << 3),
   AUDIO_DATA_FORMAT_TYPE_I_MULAW          = (uint32_t) (1 << 4),
-  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x80000000,
+  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x80000000u,
 } audio_data_format_type_I_t;
 
 /// All remaining definitions are taken from the descriptor descriptions in the UAC2 main specification
@@ -640,7 +640,7 @@ typedef enum
   AUDIO_CHANNEL_CONFIG_BOTTOM_CENTER              = 0x01000000,
   AUDIO_CHANNEL_CONFIG_BACK_LEFT_OF_CENTER        = 0x02000000,
   AUDIO_CHANNEL_CONFIG_BACK_RIGHT_OF_CENTER       = 0x04000000,
-  AUDIO_CHANNEL_CONFIG_RAW_DATA                   = 0x80000000,
+  AUDIO_CHANNEL_CONFIG_RAW_DATA                   = 0x80000000u,
 } audio_channel_config_t;
 
 /// AUDIO Channel Cluster Descriptor (4.1)
@@ -923,6 +923,31 @@ typedef struct TU_ATTR_PACKED {
     uint32_t bRes           ; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
     } subrange[numSubRanges];                   \
 }
+
+// 6.1 Interrupt Data Message Format
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bInfo;
+  uint8_t bAttribute;
+  union
+  {
+    uint16_t wValue;
+    struct
+    {
+      uint8_t wValue_cn_or_mcn;
+      uint8_t wValue_cs;
+    };
+  };
+  union
+  {
+    uint16_t wIndex;
+    struct
+    {
+      uint8_t wIndex_ep_or_int;
+      uint8_t wIndex_entity_id;
+    };
+  };
+} audio_interrupt_data_t;
 
 /** @} */
 

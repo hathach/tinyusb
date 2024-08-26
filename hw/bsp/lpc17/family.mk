@@ -18,12 +18,12 @@ CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
 # caused by freeRTOS port !!
 CFLAGS += -Wno-error=maybe-uninitialized
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/nxp/lpc17_40/dcd_lpc17_40.c \
-	src/portable/ohci/ohci.c \
 	src/portable/nxp/lpc17_40/hcd_lpc17_40.c \
+	src/portable/ohci/ohci.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc175x_6x.c \
 	$(MCU_DIR)/src/chip_17xx_40xx.c \
 	$(MCU_DIR)/src/clock_17xx_40xx.c \
@@ -36,3 +36,4 @@ SRC_C += \
 INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/$(MCU_DIR)/inc \
+	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \

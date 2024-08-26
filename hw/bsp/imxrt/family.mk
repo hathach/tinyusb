@@ -11,6 +11,7 @@ MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 CFLAGS += \
   -D__ARMVFP__=0 \
   -D__ARMFPV5__=0 \
+  -D__STARTUP_CLEAR_BSS \
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1 \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT1XXX
@@ -26,7 +27,9 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=implicit-fallthrough -Wno-error=redundant-decls
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 # All source paths should be relative to the top level.
 LD_FILE ?= $(MCU_DIR)/gcc/$(MCU_VARIANT)xxxxx${MCU_CORE}_flexspi_nor.ld
@@ -47,7 +50,8 @@ SRC_C += \
 	$(SDK_DIR)/drivers/common/fsl_common.c \
 	$(SDK_DIR)/drivers/common/fsl_common_arm.c \
 	$(SDK_DIR)/drivers/igpio/fsl_gpio.c \
-	$(SDK_DIR)/drivers/lpuart/fsl_lpuart.c
+	$(SDK_DIR)/drivers/lpuart/fsl_lpuart.c \
+	$(SDK_DIR)/drivers/ocotp/fsl_ocotp.c \
 
 # Optional drivers: only available for some mcus: rt1160, rt1170
 ifneq (,$(wildcard ${TOP}/${MCU_DIR}/drivers/fsl_dcdc.c))
@@ -65,7 +69,8 @@ INC += \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(SDK_DIR)/drivers/common \
 	$(TOP)/$(SDK_DIR)/drivers/igpio \
-	$(TOP)/$(SDK_DIR)/drivers/lpuart
+	$(TOP)/$(SDK_DIR)/drivers/lpuart \
+	$(TOP)/$(SDK_DIR)/drivers/ocotp \
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_VARIANT_WITH_CORE).S
 

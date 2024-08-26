@@ -7,6 +7,7 @@ MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 CFLAGS += \
   -flto \
+  -D__STARTUP_CLEAR_BSS \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
 
@@ -23,7 +24,9 @@ endif
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+LDFLAGS_GCC += \
+  -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \

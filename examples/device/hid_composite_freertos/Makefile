@@ -3,7 +3,7 @@ DEPS_SUBMODULES += lib/FreeRTOS-Kernel
 include ../../build_system/make/make.mk
 
 FREERTOS_SRC = lib/FreeRTOS-Kernel
-FREERTOS_PORTABLE_PATH= $(FREERTOS_SRC)/portable/$(if $(USE_IAR),IAR,GCC)
+FREERTOS_PORTABLE_PATH= $(FREERTOS_SRC)/portable/$(if $(findstring iar,$(TOOLCHAIN)),IAR,GCC)
 
 INC += \
 	src \

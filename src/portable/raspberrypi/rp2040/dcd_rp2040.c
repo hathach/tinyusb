@@ -407,6 +407,19 @@ void dcd_init(uint8_t rhport) {
   dcd_connect(rhport);
 }
 
+bool dcd_deinit(uint8_t rhport) {
+  (void) rhport;
+
+  reset_non_control_endpoints();
+  irq_remove_handler(USBCTRL_IRQ, dcd_rp2040_irq);
+
+  // reset usb hardware into initial state
+  reset_block(RESETS_RESET_USBCTRL_BITS);
+  unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+
+  return true;
+}
+
 void dcd_int_enable(__unused uint8_t rhport) {
   assert(rhport == 0);
   irq_set_enabled(USBCTRL_IRQ, true);

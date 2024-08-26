@@ -27,7 +27,7 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+#if TUP_MCU_ESPRESSIF
 // ESP-IDF need "freertos/" prefix in include path.
 // CFG_TUSB_OS_INC_PATH should be defined accordingly.
   #include "freertos/FreeRTOS.h"
@@ -117,7 +117,7 @@ void tuh_cdc_rx_cb(uint8_t idx) {
   uint32_t count = tuh_cdc_read(idx, buf, bufsize);
   buf[count] = 0;
 
-  printf((char *) buf);
+  printf("%s", (char *) buf);
 }
 
 void tuh_cdc_mount_cb(uint8_t idx) {
@@ -131,7 +131,7 @@ void tuh_cdc_mount_cb(uint8_t idx) {
   // otherwise you need to call tuh_cdc_set_line_coding() first
   cdc_line_coding_t line_coding = { 0 };
   if (tuh_cdc_get_local_line_coding(idx, &line_coding)) {
-    printf("  Baudrate: %lu, Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
+    printf("  Baudrate: %" PRIu32 ", Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
     printf("  Parity  : %u, Data Width: %u\r\n", line_coding.parity, line_coding.data_bits);
   }
 #endif

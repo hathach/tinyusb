@@ -9,8 +9,11 @@ extern "C" {
 /* ISR prototypes */
 void usbfs_interrupt_handler(void);
 void usbfs_resume_handler(void);
+
+#ifndef BSP_MCU_GROUP_RA2A1
 void usbfs_d0fifo_handler(void);
 void usbfs_d1fifo_handler(void);
+#endif
 
 #ifdef BOARD_HAS_USB_HIGHSPEED
 void usbhs_interrupt_handler(void);

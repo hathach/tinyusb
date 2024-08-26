@@ -1,0 +1,140 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'tools/get_deps.py'
+      - 'tools/build.py'
+      - '.github/actions/**'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/build_util.yml'
+      - '.github/workflows/ci_set_matrix.py'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'tools/get_deps.py'
+      - 'tools/build.py'
+      - '.github/actions/**'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/build_util.yml'
+      - '.github/workflows/ci_set_matrix.py'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  set-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.set-matrix-json.outputs.matrix }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Generate matrix json
+        id: set-matrix-json
+        run: |
+          MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
+          echo "matrix=$MATRIX_JSON"
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+
+  # ---------------------------------------
+  # Build CMake
+  # ---------------------------------------
+  cmake:
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          # - 'arm-clang' is built by circle-ci in PR
+          - 'aarch64-gcc'
+          - 'arm-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
+    with:
+      build-system: 'cmake'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      one-per-family: ${{ github.event_name == 'push' }}
+
+  # ---------------------------------------
+  # Build Make (built by circle-ci in PR, only build on push here)
+  # ---------------------------------------
+  make:
+    if: github.event_name == 'push'
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          # 'arm-clang'
+          - 'arm-gcc'
+          - 'aarch64-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
+          - 'rx-gcc'
+          - 'esp-idf' # buid-system is ignored
+    with:
+      build-system: 'make'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      one-per-family: true
+
+  # ---------------------------------------
+  # Build Make on Windows/MacOS
+  # ---------------------------------------
+  make-os:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    with:
+      os: ${{ matrix.os }}
+      build-system: 'make'
+      toolchain: 'arm-gcc'
+      build-args: '["stm32h7"]'
+      one-per-family: true
+
+  # ---------------------------------------
+  # Build IAR on HFP self-hosted
+  # ---------------------------------------
+  arm-iar:
+    if: github.repository_owner == 'hathach'
+    needs: set-matrix
+    runs-on: [self-hosted, Linux, X64, hifiphile]
+    env:
+      BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family, ' ') }}
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get Dependencies
+        run: python3 tools/get_deps.py $BUILD_ARGS
+
+      - name: Build
+        run: python3 tools/build.py --one-per-family --toolchain iar $BUILD_ARGS
+
+      - name: Test on actual hardware (hardware in the loop)
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 test/hil/hil_test.py hfp.json

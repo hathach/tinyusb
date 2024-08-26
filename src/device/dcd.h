@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DCD_H_
-#define _TUSB_DCD_H_
+#ifndef TUSB_DCD_H_
+#define TUSB_DCD_H_
 
 #include "common/tusb_common.h"
 #include "osal/osal.h"
@@ -36,31 +36,19 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Configuration
-//--------------------------------------------------------------------+
-
-#ifndef CFG_TUD_ENDPPOINT_MAX
-  #define CFG_TUD_ENDPPOINT_MAX   TUP_DCD_ENDPOINT_MAX
-#endif
-
-//--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
 typedef enum {
-  DCD_EVENT_INVALID = 0,
-  DCD_EVENT_BUS_RESET,
-  DCD_EVENT_UNPLUGGED,
-  DCD_EVENT_SOF,
-  DCD_EVENT_SUSPEND, // TODO LPM Sleep L1 support
-  DCD_EVENT_RESUME,
-
-  DCD_EVENT_SETUP_RECEIVED,
-  DCD_EVENT_XFER_COMPLETE,
-
-  // Not an DCD event, just a convenient way to defer ISR function
-  USBD_EVENT_FUNC_CALL,
-
+  DCD_EVENT_INVALID = 0,    // 0
+  DCD_EVENT_BUS_RESET,      // 1
+  DCD_EVENT_UNPLUGGED,      // 2
+  DCD_EVENT_SOF,            // 3
+  DCD_EVENT_SUSPEND,        // 4 TODO LPM Sleep L1 support
+  DCD_EVENT_RESUME,         // 5
+  DCD_EVENT_SETUP_RECEIVED, // 6
+  DCD_EVENT_XFER_COMPLETE,  // 7
+  USBD_EVENT_FUNC_CALL,     // 8 Not an DCD event, just a convenient way to defer ISR function
   DCD_EVENT_COUNT
 } dcd_eventid_t;
 
@@ -122,6 +110,9 @@ void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) TU_ATTR_W
 // Initialize controller to device mode
 void dcd_init(uint8_t rhport);
 
+// Deinitialize controller, unset device mode.
+bool dcd_deinit(uint8_t rhport);
+
 // Interrupt Handler
 void dcd_int_handler(uint8_t rhport);
 
@@ -138,14 +129,18 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 void dcd_remote_wakeup(uint8_t rhport);
 
 // Connect by enabling internal pull-up resistor on D+/D-
-void dcd_connect(uint8_t rhport) TU_ATTR_WEAK;
+void dcd_connect(uint8_t rhport);
 
 // Disconnect by disabling internal pull-up resistor on D+/D-
-void dcd_disconnect(uint8_t rhport) TU_ATTR_WEAK;
+void dcd_disconnect(uint8_t rhport);
 
 // Enable/Disable Start-of-frame interrupt. Default is disabled
 void dcd_sof_enable(uint8_t rhport, bool en);
 
+#if CFG_TUD_TEST_MODE
+// Put device into a test mode (needs power cycle to quit)
+void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector);
+#endif
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
@@ -162,10 +157,6 @@ bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * desc
 // required for multiple configuration support.
 void dcd_edpt_close_all       (uint8_t rhport);
 
-// Close an endpoint.
-// Since it is weak, caller must TU_ASSERT this function's existence before calling it.
-void dcd_edpt_close           (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
-
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer            (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
@@ -180,12 +171,19 @@ void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
 // This API never calls with control endpoints, since it is auto cleared when receiving setup packet
 void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
 // Allocate packet buffer used by ISO endpoints
 // Some MCU need manual packet buffer allocation, we allocate the largest size to avoid clustering
-TU_ATTR_WEAK bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
-TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
+
+#else
+// Close an endpoint.
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr);
+
+#endif
 
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)
@@ -236,4 +234,4 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_event_sof(uint8_t rhport, uint32_t 
  }
 #endif
 
-#endif /* _TUSB_DCD_H_ */
+#endif

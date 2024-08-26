@@ -22,48 +22,53 @@ set(FAMILY_MCUS KINETIS_K CACHE INTERNAL "")
 #------------------------------------
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
-  if (NOT TARGET ${BOARD_TARGET})
-    add_library(${BOARD_TARGET} STATIC
-      # driver
-      ${SDK_DIR}/drivers/gpio/fsl_gpio.c
-      ${SDK_DIR}/drivers/uart/fsl_uart.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
-      ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
-      )
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      )
-    target_include_directories(${BOARD_TARGET} PUBLIC
-      ${CMSIS_DIR}/CMSIS/Core/Include
-      ${SDK_DIR}/devices/${MCU_VARIANT}
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
-      ${SDK_DIR}/drivers/common
-      ${SDK_DIR}/drivers/gpio
-      ${SDK_DIR}/drivers/port
-      ${SDK_DIR}/drivers/smc
-      ${SDK_DIR}/drivers/sysmpu
-      ${SDK_DIR}/drivers/uart
-      )
+  if (TARGET ${BOARD_TARGET})
+    return()
+  endif ()
 
-    update_board(${BOARD_TARGET})
+  # LD_FILE and STARTUP_FILE can be defined in board.cmake
+  set(LD_FILE_Clang ${LD_FILE_GNU})
+  set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S)
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
-    # LD_FILE and STARTUP_FILE can be defined in board.cmake
-    set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT}.S)
+  add_library(${BOARD_TARGET} STATIC
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    ${SDK_DIR}/drivers/gpio/fsl_gpio.c
+    ${SDK_DIR}/drivers/uart/fsl_uart.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
+    )
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    __STARTUP_CLEAR_BSS
+    )
+  target_include_directories(${BOARD_TARGET} PUBLIC
+    ${CMSIS_DIR}/CMSIS/Core/Include
+    ${SDK_DIR}/devices/${MCU_VARIANT}
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+    ${SDK_DIR}/drivers/common
+    ${SDK_DIR}/drivers/gpio
+    ${SDK_DIR}/drivers/port
+    ${SDK_DIR}/drivers/smc
+    ${SDK_DIR}/drivers/sysmpu
+    ${SDK_DIR}/drivers/uart
+    )
 
-    target_sources(${BOARD_TARGET} PUBLIC
-      ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+  update_board(${BOARD_TARGET})
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      --specs=nosys.specs --specs=nano.specs
+      -nostartfiles
       )
-
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--script=${LD_FILE_GNU}"
-        # nanolib
-        --specs=nosys.specs --specs=nano.specs
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-      target_link_options(${BOARD_TARGET} PUBLIC
-        "LINKER:--config=${LD_FILE_IAR}"
-        )
-    endif ()
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
   endif ()
 endfunction()
 

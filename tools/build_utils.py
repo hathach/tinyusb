@@ -64,57 +64,21 @@ def skip_example(example, board):
     skip_file = ex_dir / "skip.txt"
     only_file = ex_dir / "only.txt"
 
-    if skip_file.exists() and only_file.exists():
-        raise RuntimeError("Only have a skip or only file. Not both.")
-    elif skip_file.exists():
+    if skip_file.exists():
         skips = skip_file.read_text().split()
-        return ("mcu:" + mcu in skips or
-                "board:" + board in skips or
-                "family:" + family in skips)
-    elif only_file.exists():
+        if ("mcu:" + mcu in skips or
+            "board:" + board in skips or
+            "family:" + family in skips):
+            return True
+
+    if only_file.exists():
         onlys = only_file.read_text().split()
-        return not ("mcu:" + mcu in onlys or
-                    "board:" + board in onlys or
-                    "family:" + family in onlys)
+        if not ("mcu:" + mcu in onlys or
+                "board:" + board in onlys or
+                "family:" + family in onlys):
+            return True
 
     return False
-
-
-def build_example(example, board, make_option):
-    start_time = time.monotonic()
-    flash_size = "-"
-    sram_size = "-"
-
-    # succeeded, failed, skipped
-    ret = [0, 0, 0]
-
-    make_cmd = "make -j -C examples/{} BOARD={} {}".format(example, board, make_option)
-
-    # Check if board is skipped
-    if skip_example(example, board):
-        status = SKIPPED
-        ret[2] = 1
-        print(build_format.format(example, board, status, '-', flash_size, sram_size))
-    else:
-        #subprocess.run(make_cmd + " clean", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        build_result = subprocess.run(make_cmd + " all", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-        if build_result.returncode == 0:
-            status = SUCCEEDED
-            ret[0] = 1
-            (flash_size, sram_size) = build_size(make_cmd)
-            #subprocess.run(make_cmd + " copy-artifact", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        else:
-            status = FAILED
-            ret[1] = 1
-
-        build_duration = time.monotonic() - start_time
-        print(build_format.format(example, board, status, "{:.2f}s".format(build_duration), flash_size, sram_size))
-
-        if build_result.returncode != 0:
-            print(build_result.stdout.decode("utf-8"))
-
-    return ret
 
 
 def build_size(make_cmd):

@@ -52,6 +52,13 @@ TU_ATTR_WEAK bool hcd_deinit(uint8_t rhport) {
   return false;
 }
 
+TU_ATTR_WEAK bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
+  (void) rhport;
+  (void) cfg_id;
+  (void) cfg_param;
+  return false;
+}
+
 TU_ATTR_WEAK void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
   (void) rhport;
   (void) eventid;
@@ -281,9 +288,9 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec) {
 #endif
 
 TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, bool in_isr) {
-  bool ret = osal_queue_send(_usbh_q, event, in_isr);
+  TU_ASSERT(osal_queue_send(_usbh_q, event, in_isr));
   tuh_event_hook_cb(event->rhport, event->event_id, in_isr);
-  return ret;
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -341,11 +348,7 @@ void tuh_devtree_get_info(uint8_t dev_addr, tuh_devtree_info_t* devtree_info) {
 //--------------------------------------------------------------------+
 
 bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void *cfg_param) {
-  if ( hcd_configure ) {
-    return hcd_configure(rhport, cfg_id, cfg_param);
-  } else {
-    return false;
-  }
+  return hcd_configure(rhport, cfg_id, cfg_param);
 }
 
 static void clear_device(usbh_device_t* dev) {
@@ -431,7 +434,7 @@ bool tuh_deinit(uint8_t rhport) {
     // Class drivers
     for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
       usbh_class_driver_t const* driver = get_driver(drv_id);
-      if (driver) {
+      if (driver && driver->deinit) {
         TU_LOG_USBH("%s deinit\r\n", driver->name);
         driver->deinit();
       }
@@ -710,7 +713,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
   tusb_control_request_t const * request = &_ctrl_xfer.request;
 
   if (XFER_RESULT_SUCCESS != result) {
-    TU_LOG_USBH("[%u:%u] Control %s, xferred_bytes = %lu\r\n", rhport, daddr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
+    TU_LOG_USBH("[%u:%u] Control %s, xferred_bytes = %" PRIu32 "\r\n", rhport, daddr, result == XFER_RESULT_STALLED ? "STALLED" : "FAILED", xferred_bytes);
     TU_LOG_BUF_USBH(request, 8);
 
     // terminate transfer if any stage failed
@@ -1119,7 +1122,7 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
   TU_LOG_USBH("Set Interface %u Alternate %u\r\n", itf_num, itf_alt);
   tusb_control_request_t const request = {
       .bmRequestType_bit = {
-          .recipient = TUSB_REQ_RCPT_DEVICE,
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
           .type      = TUSB_REQ_TYPE_STANDARD,
           .direction = TUSB_DIR_OUT
       },
@@ -1427,6 +1430,9 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       break;
 
     case ENUM_GET_DEVICE_DESC: {
+      // Allow 2ms for address recovery time, Ref USB Spec 9.2.6.3
+      osal_task_delay(2);
+
       uint8_t const new_addr = (uint8_t) tu_le16toh(xfer->setup->wValue);
 
       usbh_device_t* new_dev = get_device(new_addr);

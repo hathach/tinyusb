@@ -72,7 +72,7 @@ void tuh_cdc_rx_cb(uint8_t idx) {
   uint32_t count = tuh_cdc_read(idx, buf, bufsize);
   buf[count] = 0;
 
-  printf((char*) buf);
+  printf("%s", (char*) buf);
 }
 
 // Invoked when a device with CDC interface is mounted
@@ -89,7 +89,7 @@ void tuh_cdc_mount_cb(uint8_t idx) {
   // while eneumerating new cdc device
   cdc_line_coding_t line_coding = {0};
   if (tuh_cdc_get_local_line_coding(idx, &line_coding)) {
-    printf("  Baudrate: %lu, Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
+    printf("  Baudrate: %" PRIu32 ", Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
     printf("  Parity  : %u, Data Width: %u\r\n", line_coding.parity, line_coding.data_bits);
   }
 #else

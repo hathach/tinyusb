@@ -56,8 +56,8 @@ char const* string_desc_arr[] = {
     "TinyUSB",                     // 1: Manufacturer
     "TinyUSB Device",              // 2: Product
     NULL,                          // 3: Serials will use unique ID if possible
-    "TinyUSB UVC Control",         // 4: UVC Interface
-    "TinyUSB UVC Streaming",       // 5: UVC Interface
+    "UVC Control",                 // 4: UVC Interface
+    "UVC Streaming",               // 5: UVC Interface
 };
 
 //--------------------------------------------------------------------+
@@ -118,6 +118,8 @@ enum {
 #elif TU_CHECK_MCU(OPT_MCU_NRF5X)
   // nRF5x ISO can only be endpoint 8
   #define EPNUM_VIDEO_IN    (CFG_TUD_VIDEO_STREAMING_BULK ? 0x81 : 0x88)
+#elif TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
+  #define EPNUM_VIDEO_IN    0x81
 #else
   #define EPNUM_VIDEO_IN    0x81
 #endif

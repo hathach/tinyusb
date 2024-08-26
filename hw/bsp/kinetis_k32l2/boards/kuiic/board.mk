@@ -6,7 +6,7 @@ CFLAGS += -DCPU_K32L2B31VLH0A
 CFLAGS += -Wno-error=unused-parameter -Wno-error=redundant-decls
 
 # All source paths should be relative to the top level.
-LD_FILE = $(BOARD_PATH)/K32L2B31xxxxA_flash.ld
+LD_FILE = $(BOARD_PATH)/kuiic.ld
 
 # For flash-jlink target
 JLINK_DEVICE = K32L2B31xxxxA
