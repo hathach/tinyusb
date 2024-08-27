@@ -8,18 +8,21 @@
             "flasher_args": "-device nrf52840_xxaa"
         },
         {
-            "name": "itsybitsy_m4",
-            "uid": "D784B28C5338533335202020FF044726",
+            "name": "metro_m4_express",
+            "uid": "9995AD485337433231202020FF100A34",
             "flasher": "openocd",
-            "flasher_sn": "E6614C311B597D32",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg -c \"adapter speed 5000\""
+            "flasher_sn": "E6633861A3978538",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/atsame5x.cfg",
+            "tests": {
+                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
+            }
         },
         {
-            "name": "metro_m7_1011",
-            "uid": "9CE8715DD71137363E00005002004200",
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
             "flasher": "jlink",
-            "flasher_sn": "000611000000",
-            "flasher_args": "-device MIMXRT1011xxx5A"
+            "flasher_sn": "000801011822",
+            "flasher_args": "-device max32666"
         },
         {
             "name": "lpcxpresso11u37",
@@ -31,7 +34,9 @@
         {
             "name": "ra4m1_ek",
             "uid": "152E163038303131393346E46F26574B",
-            "tests_skip": ["cdc_msc", "cdc_msc_freertos"],
+            "tests": {
+                "skip": ["device/cdc_msc", "device/cdc_msc_freertos"]
+            },
             "comment": "MSC is slow to enumerated #2602",
             "flasher": "jlink",
             "flasher_sn": "000831174392",
@@ -42,7 +47,11 @@
             "uid": "E6614C311B764A37",
             "flasher": "openocd",
             "flasher_sn": "E6614103E72C1D2F",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
+            "tests": {
+                "skip": ["dual/host_info_to_device_cdc"],
+                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002470"}]
+            }
         },
         {
             "name": "stm32f072disco",
@@ -61,14 +70,35 @@
     ],
     "boards-skip": [
         {
+            "name": "mimxrt1015_evk",
+            "uid": "DC28F865D2111D228D00B0543A70463C",
+            "flasher": "jlink",
+            "flasher_sn": "000726284213",
+            "flasher_args": "-device MIMXRT1015DAF5A"
+        },
+        {
+            "name": "nanoch32v203",
+            "uid": "CDAB277B0FBC03E339E339E3",
+            "flasher": "openocd_wch",
+            "flasher_sn": "EBCA8F0670AF",
+            "flasher_args": ""
+        },
+        {
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
-            "tests": [
-                "cdc_msc_freertos", "hid_composite_freertos"
-            ],
+            "tests": {
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+            },
             "flasher": "esptool",
             "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
             "flasher_args": "-b 921600"
+        },
+        {
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
+            "flasher": "openocd_adi",
+            "flasher_sn": "042217023bffc88100000000000000000000000097969906",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
         }
     ]
 }

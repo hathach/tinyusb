@@ -166,6 +166,11 @@ flash-bmp: $(BUILD)/$(PROJECT).elf
 debug-bmp: $(BUILD)/$(PROJECT).elf
 	$(GDB) -ex 'target extended-remote $(BMP)' -ex 'monitor swdp_scan' -ex 'attach 1' $<
 
+# --------------- TI Uniflash -----------------
+DSLITE ?= dslite.sh
+flash-uniflash: $(BUILD)/$(PROJECT).hex
+	${DSLITE} ${UNIFLASH_OPTION} -f $<
+
 #-------------- Artifacts --------------
 
 # Create binary directory

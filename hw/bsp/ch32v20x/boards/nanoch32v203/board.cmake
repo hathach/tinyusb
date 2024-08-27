@@ -1,8 +1,8 @@
 set(MCU_VARIANT D6)
 
 # 64KB zero-wait, 224KB total flash
-#set(LD_FLASH_SIZE 64K)
-set(LD_FLASH_SIZE 224K)
+set(LD_FLASH_SIZE 64K)
+#set(LD_FLASH_SIZE 224K)
 set(LD_RAM_SIZE 20K)
 
 function(update_board TARGET)
