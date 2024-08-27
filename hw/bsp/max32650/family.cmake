@@ -148,10 +148,10 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
+  family_flash_openocd_adi(${TARGET})
 
   # Add the optional MSDK OpenOCD flashing
   family_flash_msdk(${TARGET})
-  family_flash_openocd_adi(${TARGET})
 endfunction()
 
 function(family_flash_msdk TARGET)
