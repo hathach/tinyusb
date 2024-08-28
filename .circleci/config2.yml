@@ -42,10 +42,6 @@ commands:
               if [[ << parameters.toolchain >> == rx-gcc ]]; then
                 mv toolchain.tar.gz toolchain.run
                 chmod +x toolchain.run
-                # rx-gcc is i386 binary
-                sudo dpkg --add-architecture i386
-                sudo apt update
-                sudo apt install libc6:i386 libncurses5:i386 libstdc++6:i386
                 ./toolchain.run -p ~/cache/<< parameters.toolchain >>/gnurx -y
               else
                 tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
@@ -90,6 +86,13 @@ commands:
               NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
               wget $NINJA_URL -O ninja-linux.zip
               unzip ninja-linux.zip -d ~/bin
+            fi
+
+            # rx-gcc is 32-bit binary
+            if [[ << parameters.toolchain >> == rx-gcc ]]; then
+              sudo dpkg --add-architecture i386
+              sudo apt update
+              sudo apt install libc6:i386 libstdc++6:i386 zlib1g:i386
             fi
 
             # Install Pico SDK
