@@ -88,6 +88,13 @@ commands:
               unzip ninja-linux.zip -d ~/bin
             fi
 
+            # rx-gcc is 32-bit binary
+            if [[ << parameters.toolchain >> == rx-gcc ]]; then
+              sudo dpkg --add-architecture i386
+              sudo apt update
+              sudo apt install libc6:i386 libstdc++6:i386 zlib1g:i386
+            fi
+
             # Install Pico SDK
             if [ << parameters.family >> == "rp2040" ]; then
               git clone --depth 1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk
