@@ -39,6 +39,9 @@ import fs
 
 ENUM_TIMEOUT = 30
 
+STATUS_OK = "\033[32mOK\033[0m"
+STATUS_FAILED = "\033[31mFailed\033[0m"
+STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
 # get usb serial by id
 def get_serial_dev(id, vendor_str, product_str, ifnum):
@@ -411,7 +414,7 @@ def test_board(board):
         if not os.path.exists(fw_dir):
             fw_dir = f'examples/cmake-build-{name}/{test}'
         fw_name = f'{fw_dir}/{os.path.basename(test)}'
-        print(f'{name:30} {test:20} ... ', end='')
+        print(f'{name:25} {test:30} ... ', end='')
 
         if not os.path.exists(fw_dir):
             print('Skip')
@@ -432,11 +435,11 @@ def test_board(board):
                 print('OK')
             except Exception as e:
                 err_count += 1
-                print('Failed')
+                print(STATUS_FAILED)
                 print(f'  {e}')
         else:
             err_count += 1
-            print('Flash failed')
+            print(f'Flash {STATUS_FAILED}')
     return err_count
 
 
@@ -463,10 +466,13 @@ def main():
     else:
         config_boards = [e for e in config['boards'] if e['name'] in boards]
 
-    err_count_list = []
     with Pool(processes=os.cpu_count()) as pool:
-        err_count_list = pool.map(test_board, config_boards)
-    err_count = sum(err_count_list)
+        err_count = sum(pool.map(test_board, config_boards))
+
+    print()
+    print("-" * 30)
+    print(f'Total failed: {err_count}')
+    print("-" * 30)
     sys.exit(err_count)
 
 
