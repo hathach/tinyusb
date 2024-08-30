@@ -197,7 +197,7 @@ Docs
   - `Structure`_
   - `Porting`_
 
-.. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/cmake_arm.yml/badge.svg
+.. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/build.yml/badge.svg
    :target: https://github.com/hathach/tinyusb/actions
 .. |CircleCI Status| image:: https://dl.circleci.com/status-badge/img/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master.svg?style=svg
    :target: https://dl.circleci.com/status-badge/redirect/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master
