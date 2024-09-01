@@ -1755,13 +1755,13 @@ void UnityPrintF(const UNITY_LINE_TYPE line, const char* format, ...)
  *-----------------------------------------------*/
 
 /*-----------------------------------------------*/
-void UnityFail(const char* message, const UNITY_LINE_TYPE line)
+void UnityFail(const char* msg, const UNITY_LINE_TYPE line)
 {
     RETURN_IF_FAIL_OR_IGNORE;
 
     UnityTestResultsBegin(Unity.TestFile, line);
     UnityPrint(UnityStrFail);
-    if (message != NULL)
+    if (msg != NULL)
     {
         UNITY_OUTPUT_CHAR(':');
 
@@ -1781,42 +1781,42 @@ void UnityFail(const char* message, const UNITY_LINE_TYPE line)
             UnityPrint(UnityStrSpacer);
         }
 #endif
-        if (message[0] != ' ')
+        if (msg[0] != ' ')
         {
             UNITY_OUTPUT_CHAR(' ');
         }
-        UnityPrint(message);
+        UnityPrint(msg);
     }
 
     UNITY_FAIL_AND_BAIL;
 }
 
 /*-----------------------------------------------*/
-void UnityIgnore(const char* message, const UNITY_LINE_TYPE line)
+void UnityIgnore(const char* msg, const UNITY_LINE_TYPE line)
 {
     RETURN_IF_FAIL_OR_IGNORE;
 
     UnityTestResultsBegin(Unity.TestFile, line);
     UnityPrint(UnityStrIgnore);
-    if (message != NULL)
+    if (msg != NULL)
     {
         UNITY_OUTPUT_CHAR(':');
         UNITY_OUTPUT_CHAR(' ');
-        UnityPrint(message);
+        UnityPrint(msg);
     }
     UNITY_IGNORE_AND_BAIL;
 }
 
 /*-----------------------------------------------*/
-void UnityMessage(const char* message, const UNITY_LINE_TYPE line)
+void UnityMessage(const char* msg, const UNITY_LINE_TYPE line)
 {
     UnityTestResultsBegin(Unity.TestFile, line);
     UnityPrint("INFO");
-    if (message != NULL)
+    if (msg != NULL)
     {
       UNITY_OUTPUT_CHAR(':');
       UNITY_OUTPUT_CHAR(' ');
-      UnityPrint(message);
+      UnityPrint(msg);
     }
     UNITY_PRINT_EOL();
 }

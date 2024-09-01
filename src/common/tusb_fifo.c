@@ -690,19 +690,19 @@ void tu_fifo_correct_read_pointer(tu_fifo_t* f)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  p_buffer
+    @param[in]  buffer
                 Pointer to the place holder for data read from the buffer
 
     @returns TRUE if the queue is not empty
  */
 /******************************************************************************/
-bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
+bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 {
   _ff_lock(f->mutex_rd);
 
   // Peek the data
   // f->rd_idx might get modified in case of an overflow so we can not use a local variable
-  bool ret = _tu_fifo_peek(f, p_buffer, f->wr_idx, f->rd_idx);
+  bool ret = _tu_fifo_peek(f, buffer, f->wr_idx, f->rd_idx);
 
   // Advance pointer
   f->rd_idx = advance_index(f->depth, f->rd_idx, ret);
@@ -719,7 +719,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  p_buffer
+    @param[in]  buffer
                 The pointer to data location
     @param[in]  n
                 Number of element that buffer can afford
@@ -727,9 +727,9 @@ bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
     @returns number of items read from the FIFO
  */
 /******************************************************************************/
-uint16_t tu_fifo_read_n(tu_fifo_t* f, void * p_buffer, uint16_t n)
+uint16_t tu_fifo_read_n(tu_fifo_t* f, void * buffer, uint16_t n)
 {
-  return _tu_fifo_read_n(f, p_buffer, n, TU_FIFO_COPY_INC);
+  return _tu_fifo_read_n(f, buffer, n, TU_FIFO_COPY_INC);
 }
 
 #ifdef TUP_MEM_CONST_ADDR
@@ -809,14 +809,14 @@ uint16_t tu_fifo_peek_n(tu_fifo_t* f, void * p_buffer, uint16_t n)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  p_data
+    @param[in]  data
                 The byte to add to the FIFO
 
     @returns TRUE if the data was written to the FIFO (overwrittable
              FIFO will always return TRUE)
  */
 /******************************************************************************/
-bool tu_fifo_write(tu_fifo_t* f, const void * p_data)
+bool tu_fifo_write(tu_fifo_t* f, const void * data)
 {
   _ff_lock(f->mutex_wr);
 
@@ -831,7 +831,7 @@ bool tu_fifo_write(tu_fifo_t* f, const void * p_data)
     uint16_t wr_ptr = idx2ptr(f->depth, wr_idx);
 
     // Write data
-    _ff_push(f, p_data, wr_ptr);
+    _ff_push(f, data, wr_ptr);
 
     // Advance pointer
     f->wr_idx = advance_index(f->depth, wr_idx, 1);
@@ -851,16 +851,16 @@ bool tu_fifo_write(tu_fifo_t* f, const void * p_data)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  p_data
+    @param[in]  data
                 The pointer to data to add to the FIFO
     @param[in]  count
                 Number of element
     @return Number of written elements
  */
 /******************************************************************************/
-uint16_t tu_fifo_write_n(tu_fifo_t* f, const void * p_data, uint16_t n)
+uint16_t tu_fifo_write_n(tu_fifo_t* f, const void * data, uint16_t n)
 {
-  return _tu_fifo_write_n(f, p_data, n, TU_FIFO_COPY_INC);
+  return _tu_fifo_write_n(f, data, n, TU_FIFO_COPY_INC);
 }
 
 #ifdef TUP_MEM_CONST_ADDR
