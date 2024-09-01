@@ -207,6 +207,7 @@ void dcd_init(uint8_t rhport)
                  USB_USBRSTMSK_M   |
                  USB_ENUMDONEMSK_M |
                  USB_RESETDETMSK_M |
+                 USB_WKUPINT_M |
                  USB_DISCONNINTMSK_M; // host most only
 
   dcd_connect(rhport);

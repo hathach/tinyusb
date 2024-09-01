@@ -21,51 +21,53 @@ env:
   HIL_JSON: test/hil/rpi.json
 
 jobs:
-  # ---------------------------------------
-  # Build Non Espressif
-  # ---------------------------------------
-  build:
-    if: github.repository_owner == 'hathach'
+  set-matrix:
     runs-on: ubuntu-latest
     outputs:
-      BOARDS_LIST: ${{ steps.parse_hil_json.outputs.BOARDS_LIST }}
+      json: ${{ steps.set-matrix-json.outputs.matrix }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
-      - name: Parse HIL json
-        id: parse_hil_json
+      - name: Generate matrix json
+        id: set-matrix-json
         run: |
-          sudo apt install -y jq
+          MATRIX_JSON=$(jq -c '{ "arm-gcc": [.boards[] | select(.flasher != "esptool" and .flasher != "openocd_wch") | .name] }' ${{ env.HIL_JSON }})
+          echo "matrix=$MATRIX_JSON"
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
-          # Non-Espresif boards
-          BOARDS_LIST=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' ${{ env.HIL_JSON }} | tr '\n' ' ')
-          echo "BOARDS_LIST=$BOARDS_LIST"
-          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
-          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
+  # ---------------------------------------
+  # Build arm-gcc
+  # ---------------------------------------
+  build:
+    if: github.repository_owner == 'hathach'
+    needs: set-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: ${{ fromJSON(needs.set-matrix.outputs.json)['arm-gcc'] }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
 
       - name: Setup arm-gcc toolchain
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: 'arm-gcc'
 
-      - name: Setup risv-gcc toolchain
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain: 'riscv-gcc'
-
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
         with:
-          arg: ${{ env.BOARDS_LIST }}
+          arg: -b${{ matrix.board }}
 
       - name: Build
-        run: python tools/build.py $BOARDS_LIST
+        run: python tools/build.py -b${{ matrix.board }}
 
       - name: Upload Artifacts for Hardware Testing
         uses: actions/upload-artifact@v4
         with:
-          name: hil_rpi
+          name: ${{ matrix.board }}
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
             cmake-build/cmake-build-*/*/*/*.bin
@@ -76,11 +78,8 @@ jobs:
   # ---------------------------------------
   hil-rpi:
     if: github.repository_owner == 'hathach'
-    needs:
-      - build
+    needs: build
     runs-on: [self-hosted, ARM64, rpi, hardware-in-the-loop]
-    env:
-      BOARDS_LIST: "${{ needs.build-esp.outputs.BOARDS_LIST }} ${{ needs.build.outputs.BOARDS_LIST }}"
     steps:
       - name: Clean workspace
         run: |
@@ -107,9 +106,4 @@ jobs:
           merge-multiple: true
 
       - name: Test on actual hardware
-        run: |
-          echo "BOARDS_LIST=$BOARDS_LIST"
-          echo "::group::{cmake-build contents}"
-          tree cmake-build
-          echo "::endgroup::"
-          python3 test/hil/hil_test.py $BOARDS_LIST ${{ env.HIL_JSON }}
+        run: python3 test/hil/hil_test.py ${{ env.HIL_JSON }}

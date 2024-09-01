@@ -51,7 +51,6 @@ jobs:
   # Build CMake
   # ---------------------------------------
   cmake:
-    # if: false
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
@@ -60,6 +59,7 @@ jobs:
         toolchain:
           # - 'arm-clang' is built by circle-ci in PR
           - 'aarch64-gcc'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -69,41 +69,28 @@ jobs:
       one-per-family: ${{ github.event_name == 'push' }}
 
   # ---------------------------------------
-  # Build CMake arm-gcc
-  # only build with push, for PR: all board is built by circle-ci
-  # ---------------------------------------
-  cmake-arm-gcc:
-    if: github.event_name == 'push'
-    needs: set-matrix
-    uses: ./.github/workflows/build_util.yml
-    with:
-      build-system: 'cmake'
-      toolchain: 'arm-gcc'
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-gcc'].family) }}
-      one-per-family: true
-
-  # ---------------------------------------
-  # Build Make
+  # Build Make (built by circle-ci in PR, only build on push here)
   # ---------------------------------------
   make:
-    # if: false
+    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
         toolchain:
-          # 'arm-clang' would be built by circle-ci
-          - 'aarch64-gcc'
+          # 'arm-clang'
           - 'arm-gcc'
+          - 'aarch64-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
           - 'rx-gcc'
+          - 'esp-idf' # buid-system is ignored
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
-      one-per-family: ${{ github.event_name == 'push' }}
+      one-per-family: true
 
   # ---------------------------------------
   # Build Make on Windows/MacOS
@@ -123,28 +110,9 @@ jobs:
       one-per-family: true
 
   # ---------------------------------------
-  # Build Espressif
-  # ---------------------------------------
-  espressif:
-    # if: false
-    uses: ./.github/workflows/build_util.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        board:
-          - 'espressif_kaluga_1'
-          - 'espressif_s3_devkitm'
-    with:
-      build-system: 'cmake'
-      toolchain: 'esp-idf'
-      toolchain_version: 'v5.1.1'
-      build-args: '["-b${{ matrix.board }}"]'
-
-  # ---------------------------------------
   # Build IAR on HFP self-hosted
   # ---------------------------------------
   arm-iar:
-    # if: false
     if: github.repository_owner == 'hathach'
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
