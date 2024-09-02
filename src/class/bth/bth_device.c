@@ -42,9 +42,13 @@ typedef struct
   uint8_t itf_num;
   uint8_t ep_ev;
   uint8_t ep_acl_in;
+  uint16_t ep_acl_in_pkt_sz;
   uint8_t ep_acl_out;
   uint8_t ep_voice[2];  // Not used yet
   uint8_t ep_voice_size[2][CFG_TUD_BTH_ISO_ALT_COUNT];
+
+  // Previous amount of bytes sent when issuing ZLP
+  uint32_t prev_xferred_bytes;
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN bt_hci_cmd_t hci_cmd;
@@ -127,11 +131,25 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
   TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
   _btd_itf.ep_ev = desc_ep->bEndpointAddress;
 
-  // Open endpoint pair
-  TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(desc_ep), 2, TUSB_XFER_BULK, &_btd_itf.ep_acl_out,
-                                &_btd_itf.ep_acl_in), 0);
+  desc_ep = (tusb_desc_endpoint_t const *)tu_desc_next(desc_ep);
 
-  itf_desc = (tusb_desc_interface_t const *)tu_desc_next(tu_desc_next(tu_desc_next(desc_ep)));
+  // Open endpoint pair
+  TU_ASSERT(usbd_open_edpt_pair(rhport, (uint8_t const *)desc_ep, 2,
+                                TUSB_XFER_BULK, &_btd_itf.ep_acl_out,
+                                &_btd_itf.ep_acl_in),
+            0);
+
+  // Save acl in endpoint max packet size
+  tusb_desc_endpoint_t const *desc_ep_acl_in = desc_ep;
+  for (size_t p = 0; p < 2; p++) {
+    if (tu_edpt_dir(desc_ep_acl_in->bEndpointAddress) == TUSB_DIR_IN) {
+      _btd_itf.ep_acl_in_pkt_sz = tu_edpt_packet_size(desc_ep_acl_in);
+      break;
+    }
+    desc_ep_acl_in = (tusb_desc_endpoint_t const *)tu_desc_next(desc_ep_acl_in);
+  }
+
+  itf_desc = (tusb_desc_interface_t const *)tu_desc_next(tu_desc_next(desc_ep));
 
   // Prepare for incoming data from host
   TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_itf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE), 0);
@@ -238,10 +256,8 @@ bool btd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t c
   return true;
 }
 
-bool btd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
-  (void)result;
-
+bool btd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
+                 uint32_t xferred_bytes) {
   // received new data from host
   if (ep_addr == _btd_itf.ep_acl_out)
   {
@@ -256,7 +272,20 @@ bool btd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t
   }
   else if (ep_addr == _btd_itf.ep_acl_in)
   {
-    if (tud_bt_acl_data_sent_cb) tud_bt_acl_data_sent_cb((uint16_t)xferred_bytes);
+    if ((result == XFER_RESULT_SUCCESS) && (xferred_bytes > 0) &&
+        ((xferred_bytes & (_btd_itf.ep_acl_in_pkt_sz - 1)) == 0)) {
+      // Save number of transferred bytes
+      _btd_itf.prev_xferred_bytes = xferred_bytes;
+
+      // Send zero-length packet
+      tud_bt_acl_data_send(NULL, 0);
+    } else if (tud_bt_acl_data_sent_cb) {
+      if (xferred_bytes == 0) {
+        xferred_bytes = _btd_itf.prev_xferred_bytes;
+        _btd_itf.prev_xferred_bytes = 0;
+      }
+      tud_bt_acl_data_sent_cb((uint16_t)xferred_bytes);
+    }
   }
 
   return true;
