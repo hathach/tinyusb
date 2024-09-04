@@ -32,60 +32,52 @@
  extern "C" {
 #endif
 
+#include "freertos/task.h"
+
 #include "esp_intr_alloc.h"
 #include "soc/periph_defs.h"
-//#include "soc/usb_periph.h"
-#include "freertos/task.h"
+#include "soc/usb_wrap_struct.h"
 
 #define DWC2_REG_BASE       0x60080000UL
 #define DWC2_EP_MAX         6             // USB_OUT_EP_NUM. TODO ESP32Sx only has 5 tx fifo (5 endpoint IN)
 
-static const dwc2_controller_t _dwc2_controller[] =
-{
+static const dwc2_controller_t _dwc2_controller[] = {
   { .reg_base = DWC2_REG_BASE, .irqnum = 0, .ep_count = DWC2_EP_MAX, .ep_fifo_size = 1024 }
 };
 
 static intr_handle_t usb_ih;
 
-static void dcd_int_handler_wrap(void* arg)
-{
-  (void) arg;
+static void dcd_int_handler_wrap(void* arg) {
+  (void)arg;
   dcd_int_handler(0);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void dwc2_dcd_int_enable (uint8_t rhport)
-{
-  (void) rhport;
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_enable(uint8_t rhport) {
+  (void)rhport;
   esp_intr_alloc(ETS_USB_INTR_SOURCE, ESP_INTR_FLAG_LOWMED, dcd_int_handler_wrap, NULL, &usb_ih);
 }
 
-TU_ATTR_ALWAYS_INLINE
-static inline void dwc2_dcd_int_disable (uint8_t rhport)
-{
-  (void) rhport;
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_disable(uint8_t rhport) {
+  (void)rhport;
   esp_intr_free(usb_ih);
 }
 
-static inline void dwc2_remote_wakeup_delay(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   vTaskDelay(pdMS_TO_TICKS(1));
 }
 
 // MCU specific PHY init, called BEFORE core reset
-static inline void dwc2_phy_init(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
-{
-  (void) dwc2;
-  (void) hs_phy_type;
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+  (void)dwc2;
+  (void)hs_phy_type;
 
   // nothing to do
 }
 
 // MCU specific PHY update, it is called AFTER init() and core reset
-static inline void dwc2_phy_update(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
-{
-  (void) dwc2;
-  (void) hs_phy_type;
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+  (void)dwc2;
+  (void)hs_phy_type;
 
   // nothing to do
 }
@@ -94,4 +86,4 @@ static inline void dwc2_phy_update(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
 }
 #endif
 
-#endif /* _DWC2_ESP32_H_ */
+#endif
