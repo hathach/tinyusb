@@ -5,7 +5,7 @@ inputs:
     description: 'Toolchain name'
     required: true
   toolchain_version:
-    description: 'Toolchain URL or version'
+    description: 'Toolchain version'
     required: true
 
 runs:
