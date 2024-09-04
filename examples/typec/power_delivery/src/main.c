@@ -98,7 +98,7 @@ bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t 
             pd_pdo_fixed_t const* fixed = (pd_pdo_fixed_t const*) &pdo;
             uint32_t const voltage_mv = fixed->voltage_50mv*50;
             uint32_t const current_ma = fixed->current_max_10ma*10;
-            printf("[Fixed] %lu mV %lu mA\r\n", voltage_mv, current_ma);
+            printf("[Fixed] %"PRIu32" mV %"PRIu32" mA\r\n", voltage_mv, current_ma);
 
             if (voltage_mv <= VOLTAGE_MAX_MV && current_ma >= CURRENT_MAX_MA) {
               // Found a suitable PDO

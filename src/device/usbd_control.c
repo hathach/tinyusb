@@ -137,7 +137,7 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const* request, voi
 void usbd_control_reset(void);
 void usbd_control_set_request(tusb_control_request_t const* request);
 void usbd_control_set_complete_callback(usbd_control_xfer_cb_t fp);
-bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 
 void usbd_control_reset(void) {
   tu_varclr(&_ctrl_xfer);
