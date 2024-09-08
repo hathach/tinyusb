@@ -7,7 +7,7 @@ extern "C" {
 
 #define LED_PORT       GPIOA
 #define LED_PIN        GPIO_Pin_0
-#define LED_STATE_ON   1
+#define LED_STATE_ON   0
 
 #define UART_DEV        USART2
 #define UART_CLOCK_EN() RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE)

@@ -44,6 +44,7 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/drivers/igpio/fsl_gpio.c
     ${SDK_DIR}/drivers/lpspi/fsl_lpspi.c
     ${SDK_DIR}/drivers/lpuart/fsl_lpuart.c
+    ${SDK_DIR}/drivers/ocotp/fsl_ocotp.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT_WITH_CORE}.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/xip/fsl_flexspi_nor_boot.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
@@ -75,6 +76,7 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/drivers/igpio
     ${SDK_DIR}/drivers/lpspi
     ${SDK_DIR}/drivers/lpuart
+    ${SDK_DIR}/drivers/ocotp
     )
 
   update_board(${BOARD_TARGET})

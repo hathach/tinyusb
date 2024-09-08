@@ -9,9 +9,6 @@ on:
       toolchain:
         required: true
         type: string
-      toolchain_url:
-        required: false
-        type: string
       build-args:
         required: true
         type: string
@@ -40,7 +37,7 @@ jobs:
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: ${{ inputs.toolchain }}
-          toolchain_url: ${{ inputs.toolchain_url }}
+          toolchain_version: 'v5.1.1'
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
@@ -58,11 +55,10 @@ jobs:
         shell: bash
 
       - name: Build
-        if: inputs.toolchain != 'esp-idf'
         run: |
-          python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
-
-      - name: Build using ESP-IDF docker
-        if: inputs.toolchain == 'esp-idf'
-        run: |
-          docker run --rm -v $PWD:/project -w /project espressif/idf:${{ inputs.toolchain_url }} python3 tools/build.py ${{ matrix.arg }}
+          if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
+            docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python tools/build.py ${{ matrix.arg }}
+          else
+            python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
+          fi
+        shell: bash

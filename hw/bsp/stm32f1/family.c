@@ -57,6 +57,19 @@ void board_init(void) {
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
+#ifdef __HAL_RCC_GPIOE_CLK_ENABLE
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+#endif
+
+#ifdef __HAL_RCC_GPIOF_CLK_ENABLE
+  __HAL_RCC_GPIOF_CLK_ENABLE();
+#endif
+
+#ifdef __HAL_RCC_GPIOG_CLK_ENABLE
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+#endif
+
+
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -107,10 +120,18 @@ void board_init(void) {
   HAL_UART_Init(&UartHandle);
 #endif
 
+#ifdef USB_CONNECT_PIN
+  GPIO_InitStruct.Pin = USB_CONNECT_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(USB_CONNECT_PORT, &GPIO_InitStruct);
+#endif
+
   // USB Pins
   // Configure USB DM and DP pins.
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -118,6 +139,18 @@ void board_init(void) {
   // USB Clock enable
   __HAL_RCC_USB_CLK_ENABLE();
 }
+
+#ifdef USB_CONNECT_PIN
+void dcd_disconnect(uint8_t rhport) {
+  (void)rhport;
+  HAL_GPIO_WritePin(USB_CONNECT_PORT, USB_CONNECT_PIN, 1-USB_CONNECT_STATE);
+}
+
+void dcd_connect(uint8_t rhport) {
+  (void)rhport;
+  HAL_GPIO_WritePin(USB_CONNECT_PORT, USB_CONNECT_PIN, USB_CONNECT_STATE);
+}
+#endif
 
 //--------------------------------------------------------------------+
 // Board porting API

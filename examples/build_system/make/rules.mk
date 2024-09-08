@@ -145,6 +145,12 @@ OPENOCD_WCH_OPTION ?=
 flash-openocd-wch: $(BUILD)/$(PROJECT).elf
 	$(OPENOCD_WCH) $(OPENOCD_WCH_OPTION) -c init -c halt -c "flash write_image $<" -c reset -c exit
 
+# --------------- wlink-rs -----------------
+# flash with https://github.com/ch32-rs/wlink
+WLINK_RS ?= wlink
+flash-wlink-rs: $(BUILD)/$(PROJECT).elf
+	$(WLINK_RS) flash $<
+
 # --------------- dfu-util -----------------
 DFU_UTIL_OPTION ?= -a 0
 flash-dfu-util: $(BUILD)/$(PROJECT).bin
@@ -159,6 +165,11 @@ flash-bmp: $(BUILD)/$(PROJECT).elf
 
 debug-bmp: $(BUILD)/$(PROJECT).elf
 	$(GDB) -ex 'target extended-remote $(BMP)' -ex 'monitor swdp_scan' -ex 'attach 1' $<
+
+# --------------- TI Uniflash -----------------
+DSLITE ?= dslite.sh
+flash-uniflash: $(BUILD)/$(PROJECT).hex
+	${DSLITE} ${UNIFLASH_OPTION} -f $<
 
 #-------------- Artifacts --------------
 

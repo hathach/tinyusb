@@ -1,6 +1,8 @@
 set(MCU_VARIANT D6)
 
-set(LD_FLASH_SIZE 64K)
+# 64KB zero-wait, 224KB total flash
+#set(LD_FLASH_SIZE 64K)
+set(LD_FLASH_SIZE 224K)
 set(LD_RAM_SIZE 20K)
 
 # set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/../../linker/${CH32_FAMILY}_tinyuf2.ld)

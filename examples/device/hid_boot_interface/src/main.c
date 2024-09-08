@@ -161,8 +161,8 @@ void hid_task(void)
       {
         uint8_t const report_id   = 0;
         uint8_t const button_mask = 0;
-        uint8_t const vertical    = 0;
-        uint8_t const horizontal  = 0;
+        int8_t  const vertical    = 0;
+        int8_t  const horizontal  = 0;
         int8_t  const delta       = 5;
 
         tud_hid_n_mouse_report(ITF_NUM_MOUSE, report_id, button_mask, delta, delta, vertical, horizontal);

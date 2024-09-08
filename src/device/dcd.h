@@ -40,19 +40,15 @@
 //--------------------------------------------------------------------+
 
 typedef enum {
-  DCD_EVENT_INVALID = 0,
-  DCD_EVENT_BUS_RESET,
-  DCD_EVENT_UNPLUGGED,
-  DCD_EVENT_SOF,
-  DCD_EVENT_SUSPEND, // TODO LPM Sleep L1 support
-  DCD_EVENT_RESUME,
-
-  DCD_EVENT_SETUP_RECEIVED,
-  DCD_EVENT_XFER_COMPLETE,
-
-  // Not an DCD event, just a convenient way to defer ISR function
-  USBD_EVENT_FUNC_CALL,
-
+  DCD_EVENT_INVALID = 0,    // 0
+  DCD_EVENT_BUS_RESET,      // 1
+  DCD_EVENT_UNPLUGGED,      // 2
+  DCD_EVENT_SOF,            // 3
+  DCD_EVENT_SUSPEND,        // 4 TODO LPM Sleep L1 support
+  DCD_EVENT_RESUME,         // 5
+  DCD_EVENT_SETUP_RECEIVED, // 6
+  DCD_EVENT_XFER_COMPLETE,  // 7
+  USBD_EVENT_FUNC_CALL,     // 8 Not an DCD event, just a convenient way to defer ISR function
   DCD_EVENT_COUNT
 } dcd_eventid_t;
 
@@ -88,14 +84,6 @@ typedef struct TU_ATTR_ALIGNED(4) {
     }func_call;
   };
 } dcd_event_t;
-
-typedef enum {
-  TEST_J = 1,
-  TEST_K,
-  TEST_SE0_NAK,
-  TEST_PACKET,
-  TEST_FORCE_ENABLE,
-} test_mode_t;
 
 //TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
 
@@ -150,11 +138,8 @@ void dcd_disconnect(uint8_t rhport);
 void dcd_sof_enable(uint8_t rhport, bool en);
 
 #if CFG_TUD_TEST_MODE
-// Check if the test mode is supported, returns true is test mode selector is supported
-bool dcd_check_test_mode_support(test_mode_t test_selector) TU_ATTR_WEAK;
-
 // Put device into a test mode (needs power cycle to quit)
-void dcd_enter_test_mode(uint8_t rhport, test_mode_t test_selector) TU_ATTR_WEAK;
+void dcd_enter_test_mode(uint8_t rhport, tusb_feature_test_mode_t test_selector);
 #endif
 //--------------------------------------------------------------------+
 // Endpoint API
@@ -172,10 +157,6 @@ bool dcd_edpt_open            (uint8_t rhport, tusb_desc_endpoint_t const * desc
 // required for multiple configuration support.
 void dcd_edpt_close_all       (uint8_t rhport);
 
-// Close an endpoint.
-// Since it is weak, caller must TU_ASSERT this function's existence before calling it.
-void dcd_edpt_close           (uint8_t rhport, uint8_t ep_addr) TU_ATTR_WEAK;
-
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer            (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
@@ -190,12 +171,19 @@ void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
 // This API never calls with control endpoints, since it is auto cleared when receiving setup packet
 void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
 // Allocate packet buffer used by ISO endpoints
 // Some MCU need manual packet buffer allocation, we allocate the largest size to avoid clustering
-TU_ATTR_WEAK bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
-TU_ATTR_WEAK bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
+
+#else
+// Close an endpoint.
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr);
+
+#endif
 
 //--------------------------------------------------------------------+
 // Event API (implemented by stack)

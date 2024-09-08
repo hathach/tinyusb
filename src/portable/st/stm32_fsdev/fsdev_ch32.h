@@ -54,44 +54,8 @@
 #endif
 
 #define FSDEV_PMA_SIZE (512u)
-
-// volatile 32-bit aligned
-#define _va32     volatile TU_ATTR_ALIGNED(4)
-
-typedef struct {
-  _va32 uint16_t EP0R;            // 00: USB Endpoint 0 register
-  _va32 uint16_t EP1R;            // 04: USB Endpoint 1 register
-  _va32 uint16_t EP2R;            // 08: USB Endpoint 2 register
-  _va32 uint16_t EP3R;            // 0C: USB Endpoint 3 register
-  _va32 uint16_t EP4R;            // 10: USB Endpoint 4 register
-  _va32 uint16_t EP5R;            // 14: USB Endpoint 5 register
-  _va32 uint16_t EP6R;            // 18: USB Endpoint 6 register
-  _va32 uint16_t EP7R;            // 1C: USB Endpoint 7 register
-  _va32 uint16_t RESERVED7[16];   // Reserved
-  _va32 uint16_t CNTR;            // 40: Control register
-  _va32 uint16_t ISTR;            // 44: Interrupt status register
-  _va32 uint16_t FNR;             // 48: Frame number register
-  _va32 uint16_t DADDR;           // 4C: Device address register
-  _va32 uint16_t BTABLE;          // 50: Buffer Table address register
-} USB_TypeDef;
-
-TU_VERIFY_STATIC(sizeof(USB_TypeDef) == 0x54, "Size is not correct");
-TU_VERIFY_STATIC(offsetof(USB_TypeDef, CNTR) == 0x40, "Wrong offset");
-
-#define USB_BASE            (APB1PERIPH_BASE + 0x00005C00UL) /*!< USB_IP Peripheral Registers base address */
-#define USB_PMAADDR         (APB1PERIPH_BASE + 0x00006000UL) /*!< USB_IP Packet Memory Area base address */
-#define USB                 ((USB_TypeDef *)USB_BASE)
-
-/******************************************************************************/
-/*                                                                            */
-/*                         USB Device General registers                       */
-/*                                                                            */
-/******************************************************************************/
-#define USB_CNTR                             (USB_BASE + 0x40U)             /*!< Control register */
-#define USB_ISTR                             (USB_BASE + 0x44U)             /*!< Interrupt status register */
-#define USB_FNR                              (USB_BASE + 0x48U)             /*!< Frame number register */
-#define USB_DADDR                            (USB_BASE + 0x4CU)             /*!< Device address register */
-#define USB_BTABLE                           (USB_BASE + 0x50U)             /*!< Buffer Table address register */
+#define FSDEV_REG_BASE  (APB1PERIPH_BASE + 0x00005C00UL)
+#define FSDEV_PMA_BASE  (APB1PERIPH_BASE + 0x00006000UL)
 
 /****************************  ISTR interrupt events  *************************/
 #define USB_ISTR_CTR                         ((uint16_t)0x8000U)               /*!< Correct TRansfer (clear-only bit) */

@@ -335,6 +335,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   return true;
 }
 
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport; (void) ep_addr;
+  // TODO implement dcd_edpt_close()
+}
+
 void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;

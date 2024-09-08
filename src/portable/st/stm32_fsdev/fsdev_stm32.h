@@ -35,6 +35,7 @@
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0
   #include "stm32f0xx.h"
   #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_REG_BASE USB_BASE
   // F0x2 models are crystal-less
   // All have internal D+ pull-up
   // 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
@@ -81,12 +82,9 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
   #include "stm32g0xx.h"
-  #define FSDEV_BUS_32BIT
   #define FSDEV_PMA_SIZE (2048u)
-  #undef USB_PMAADDR
-  #define USB_PMAADDR USB_DRD_PMAADDR
-  #define USB_TypeDef USB_DRD_TypeDef
-  #define EP0R CHEP0R
+  #define USB USB_DRD_FS
+
   #define USB_EP_CTR_RX USB_EP_VTRX
   #define USB_EP_CTR_TX USB_EP_VTTX
   #define USB_EP_T_FIELD USB_CHEP_UTYPE
@@ -99,7 +97,6 @@
   #define USB_EPRX_DTOG2 USB_CHEP_RX_DTOG2
   #define USB_EPRX_STAT USB_CH_RX_VALID
   #define USB_EPKIND_MASK USB_EP_KIND_MASK
-  #define USB USB_DRD_FS
   #define USB_CNTR_FRES USB_CNTR_USBRST
   #define USB_CNTR_RESUME USB_CNTR_L2RES
   #define USB_ISTR_EP_ID USB_ISTR_IDN
@@ -109,17 +106,9 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H5
   #include "stm32h5xx.h"
-  #define FSDEV_BUS_32BIT
-
-  #if !defined(USB_DRD_BASE) && defined(USB_DRD_FS_BASE)
-  #define USB_DRD_BASE USB_DRD_FS_BASE
-  #endif
-
   #define FSDEV_PMA_SIZE (2048u)
-  #undef USB_PMAADDR
-  #define USB_PMAADDR USB_DRD_PMAADDR
-  #define USB_TypeDef USB_DRD_TypeDef
-  #define EP0R CHEP0R
+  #define USB USB_DRD_FS
+
   #define USB_EP_CTR_RX USB_EP_VTRX
   #define USB_EP_CTR_TX USB_EP_VTTX
   #define USB_EP_T_FIELD USB_CHEP_UTYPE
@@ -132,7 +121,6 @@
   #define USB_EPRX_DTOG2 USB_CHEP_RX_DTOG2
   #define USB_EPRX_STAT USB_CH_RX_VALID
   #define USB_EPKIND_MASK USB_EP_KIND_MASK
-  #define USB USB_DRD_FS
   #define USB_CNTR_FRES USB_CNTR_USBRST
   #define USB_CNTR_RESUME USB_CNTR_L2RES
   #define USB_ISTR_EP_ID USB_ISTR_IDN
@@ -143,9 +131,8 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   #include "stm32wbxx.h"
   #define FSDEV_PMA_SIZE (1024u)
-  /* ST provided header has incorrect value */
-  #undef USB_PMAADDR
-  #define USB_PMAADDR USB1_PMAADDR
+  /* ST provided header has incorrect value of USB_PMAADDR */
+  #define FSDEV_PMA_BASE USB1_PMAADDR
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L4
   #include "stm32l4xx.h"
@@ -161,13 +148,9 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
   #include "stm32u5xx.h"
-  #define FSDEV_BUS_32BIT
-
   #define FSDEV_PMA_SIZE (2048u)
-  #undef USB_PMAADDR
-  #define USB_PMAADDR USB_DRD_PMAADDR
-  #define USB_TypeDef USB_DRD_TypeDef
-  #define EP0R CHEP0R
+  #define USB USB_DRD_FS
+
   #define USB_EP_CTR_RX USB_EP_VTRX
   #define USB_EP_CTR_TX USB_EP_VTTX
   #define USB_EP_T_FIELD USB_CHEP_UTYPE
@@ -180,7 +163,6 @@
   #define USB_EPRX_DTOG2 USB_CHEP_RX_DTOG2
   #define USB_EPRX_STAT USB_CH_RX_VALID
   #define USB_EPKIND_MASK USB_EP_KIND_MASK
-  #define USB USB_DRD_FS
   #define USB_CNTR_FRES USB_CNTR_USBRST
   #define USB_CNTR_RESUME USB_CNTR_L2RES
   #define USB_ISTR_EP_ID USB_ISTR_IDN
@@ -191,6 +173,31 @@
 #else
   #error You are using an untested or unimplemented STM32 variant. Please update the driver.
   // This includes U0
+#endif
+
+//--------------------------------------------------------------------+
+// Register and PMA Base Address
+//--------------------------------------------------------------------+
+#ifndef FSDEV_REG_BASE
+#if defined(USB_BASE)
+  #define FSDEV_REG_BASE USB_BASE
+#elif defined(USB_DRD_BASE)
+  #define FSDEV_REG_BASE USB_DRD_BASE
+#elif defined(USB_DRD_FS_BASE)
+  #define FSDEV_REG_BASE USB_DRD_FS_BASE
+#else
+  #error "FSDEV_REG_BASE not defined"
+#endif
+#endif
+
+#ifndef FSDEV_PMA_BASE
+#if defined(USB_PMAADDR)
+  #define FSDEV_PMA_BASE USB_PMAADDR
+#elif defined(USB_DRD_PMAADDR)
+  #define FSDEV_PMA_BASE USB_DRD_PMAADDR
+#else
+  #error "FSDEV_PMA_BASE not defined"
+#endif
 #endif
 
 // This checks if the device has "LPM"

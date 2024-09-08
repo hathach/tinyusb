@@ -133,7 +133,10 @@ target_sources(tinyusb_bsp INTERFACE
 target_include_directories(tinyusb_bsp INTERFACE
 	${TOP}/hw
 	)
-target_link_libraries(tinyusb_bsp	INTERFACE pico_unique_id)
+target_link_libraries(tinyusb_bsp INTERFACE
+	pico_unique_id
+	hardware_clocks
+	)
 
 # tinyusb_additions will hold our extra settings for examples
 add_library(tinyusb_additions INTERFACE)

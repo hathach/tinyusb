@@ -81,51 +81,85 @@ void USB1_IRQHandler(void) {
 }
 
 /****************************************************************
-name: BOARD_BootClockFROHF96M
+name: BOARD_BootClockPLL100M
 outputs:
-- {id: SYSTICK_clock.outFreq, value: 96 MHz}
-- {id: System_clock.outFreq, value: 96 MHz}
+- {id: System_clock.outFreq, value: 100 MHz}
 settings:
-- {id: SYSCON.MAINCLKSELA.sel, value: SYSCON.fro_hf}
+- {id: PLL0_Mode, value: Normal}
+- {id: ANALOG_CONTROL_FRO192M_CTRL_ENDI_FRO_96M_CFG, value: Enable}
+- {id: ENABLE_CLKIN_ENA, value: Enabled}
+- {id: ENABLE_SYSTEM_CLK_OUT, value: Enabled}
+- {id: SYSCON.MAINCLKSELB.sel, value: SYSCON.PLL0_BYPASS}
+- {id: SYSCON.PLL0CLKSEL.sel, value: SYSCON.CLK_IN_EN}
+- {id: SYSCON.PLL0M_MULT.scale, value: '100', locked: true}
+- {id: SYSCON.PLL0N_DIV.scale, value: '4', locked: true}
+- {id: SYSCON.PLL0_PDEC.scale, value: '4', locked: true}
 sources:
-- {id: SYSCON.fro_hf.outFreq, value: 96 MHz}
+- {id: ANACTRL.fro_hf.outFreq, value: 96 MHz}
+- {id: SYSCON.XTAL32M.outFreq, value: 16 MHz, enabled: true}
 ******************************************************************/
-void BootClockFROHF96M(void) {
-  /*!< Set up the clock sources */
-  /*!< Set up FRO */
-  POWER_DisablePD(kPDRUNCFG_PD_FRO192M); /*!< Ensure FRO is on  */
-  CLOCK_SetupFROClocking(12000000U);     /*!< Set up FRO to the 12 MHz, just for sure */
-  CLOCK_AttachClk(kFRO12M_to_MAIN_CLK); /*!< Switch to FRO 12MHz first to ensure we can change voltage without
-                                             accidentally being below the voltage for current speed */
+void BOARD_BootClockPLL100M(void)
+{
+    /*!< Set up the clock sources */
+    /*!< Configure FRO192M */
+    POWER_DisablePD(kPDRUNCFG_PD_FRO192M);               /*!< Ensure FRO is on  */
+    CLOCK_SetupFROClocking(12000000U);                   /*!< Set up FRO to the 12 MHz, just for sure */
+    CLOCK_AttachClk(kFRO12M_to_MAIN_CLK);                /*!< Switch to FRO 12MHz first to ensure we can change the clock setting */
 
-  CLOCK_SetupFROClocking(96000000U); /*!< Set up high frequency FRO output to selected frequency */
+    CLOCK_SetupFROClocking(96000000U);                   /* Enable FRO HF(96MHz) output */
 
-  POWER_SetVoltageForFreq(96000000U); /*!< Set voltage for the one of the fastest clock outputs: System clock output */
-  CLOCK_SetFLASHAccessCyclesForFreq(96000000U); /*!< Set FLASH wait states for core */
+    /*!< Configure XTAL32M */
+    POWER_DisablePD(kPDRUNCFG_PD_XTAL32M);                        /* Ensure XTAL32M is powered */
+    POWER_DisablePD(kPDRUNCFG_PD_LDOXO32M);                       /* Ensure XTAL32M is powered */
+    CLOCK_SetupExtClocking(16000000U);                            /* Enable clk_in clock */
+    SYSCON->CLOCK_CTRL |= SYSCON_CLOCK_CTRL_CLKIN_ENA_MASK;       /* Enable clk_in from XTAL32M clock  */
+    ANACTRL->XO32M_CTRL |= ANACTRL_XO32M_CTRL_ENABLE_SYSTEM_CLK_OUT_MASK;    /* Enable clk_in to system  */
 
-  /*!< Set up dividers */
-  CLOCK_SetClkDiv(kCLOCK_DivAhbClk, 1U, false);     /*!< Set AHBCLKDIV divider to value 1 */
+    POWER_SetVoltageForFreq(100000000U);                  /*!< Set voltage for the one of the fastest clock outputs: System clock output */
+    CLOCK_SetFLASHAccessCyclesForFreq(100000000U);          /*!< Set FLASH wait states for core */
 
-  /*!< Set up clock selectors - Attach clocks to the peripheries */
-  CLOCK_AttachClk(kFRO_HF_to_MAIN_CLK); /*!< Switch MAIN_CLK to FRO_HF */
+    /*!< Set up PLL */
+    CLOCK_AttachClk(kEXT_CLK_to_PLL0);                    /*!< Switch PLL0CLKSEL to EXT_CLK */
+    POWER_DisablePD(kPDRUNCFG_PD_PLL0);                  /* Ensure PLL is on  */
+    POWER_DisablePD(kPDRUNCFG_PD_PLL0_SSCG);
+    const pll_setup_t pll0Setup = {
+        .pllctrl = SYSCON_PLL0CTRL_CLKEN_MASK | SYSCON_PLL0CTRL_SELI(53U) | SYSCON_PLL0CTRL_SELP(26U),
+        .pllndec = SYSCON_PLL0NDEC_NDIV(4U),
+        .pllpdec = SYSCON_PLL0PDEC_PDIV(2U),
+        .pllsscg = {0x0U,(SYSCON_PLL0SSCG1_MDIV_EXT(100U) | SYSCON_PLL0SSCG1_SEL_EXT_MASK)},
+        .pllRate = 100000000U,
+        .flags =  PLL_SETUPFLAG_WAITLOCK
+    };
+    CLOCK_SetPLL0Freq(&pll0Setup);                       /*!< Configure PLL0 to the desired values */
 
-  /*!< Set SystemCoreClock variable. */
-  SystemCoreClock = 96000000U;
+    /*!< Set up dividers */
+    CLOCK_SetClkDiv(kCLOCK_DivAhbClk, 1U, false);         /*!< Set AHBCLKDIV divider to value 1 */
+
+    /*!< Set up clock selectors - Attach clocks to the peripheries */
+    CLOCK_AttachClk(kPLL0_to_MAIN_CLK);                 /*!< Switch MAIN_CLK to PLL0 */
+
+    /*< Set SystemCoreClock variable. */
+    SystemCoreClock = 100000000U;
 }
 
 void board_init(void) {
   // Enable IOCON clock
   CLOCK_EnableClock(kCLOCK_Iocon);
 
-  // Init 96 MHz clock
-  BootClockFROHF96M();
+  // Init 100 MHz clock
+  BOARD_BootClockPLL100M();
 
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  SysTick->CTRL &= ~1U;
+
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
   // Init all GPIO ports
@@ -239,6 +273,10 @@ void board_init(void) {
 //  phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
 //  phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
 //  USBPHY->TX = phytx;
+
+    ARM_MPU_SetMemAttr(0, 0x44); // Normal memory, non-cacheable (inner and outer)
+    ARM_MPU_SetRegion(0, ARM_MPU_RBAR(0x40100000, ARM_MPU_SH_NON, 0, 1, 1), ARM_MPU_RLAR(0x40104000, 0));
+    ARM_MPU_Enable(MPU_CTRL_PRIVDEFENA_Msk | MPU_CTRL_HFNMIENA_Msk);
 #endif
 }
 

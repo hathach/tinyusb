@@ -31,6 +31,7 @@
 #include "hardware/gpio.h"
 #include "hardware/sync.h"
 #include "hardware/resets.h"
+#include "hardware/clocks.h"
 #include "hardware/structs/ioqspi.h"
 #include "hardware/structs/sio.h"
 
@@ -41,7 +42,7 @@
 static uart_inst_t *uart_inst;
 #endif
 
-#if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
+#if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
 #include "pio_usb.h"
 #endif
 
@@ -125,7 +126,7 @@ void stdio_rtt_init(void) {
 
 void board_init(void)
 {
-#if CFG_TUH_RPI_PIO_USB || CFG_TUD_RPI_PIO_USB
+#if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
   // Set the system clock to a multiple of 120mhz for bitbanging USB with pico-usb
   set_sys_clock_khz(120000, true);
 
@@ -274,7 +275,15 @@ static void max3421_init(void) {
   gpio_set_function(MAX3421_SCK_PIN, GPIO_FUNC_SPI);
   gpio_set_function(MAX3421_MOSI_PIN, GPIO_FUNC_SPI);
   gpio_set_function(MAX3421_MISO_PIN, GPIO_FUNC_SPI);
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
   spi_set_format(MAX3421_SPI, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 }
 
 //// API to enable/disable MAX3421 INTR pin interrupt
