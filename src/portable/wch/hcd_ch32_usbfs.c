@@ -405,9 +405,28 @@ void hcd_int_handler(uint8_t rhport, bool in_isr)
                 case USB_PID_SETUP:
                 case USB_PID_OUT:
                     {
-                        uint16_t xferred_len = edpt_info->current_xfer_bufferlen;
-                        hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, XFER_RESULT_SUCCESS, true);
-                        return;
+                        uint16_t tx_len = USBOTG_H_FS->HOST_TX_LEN;
+                        edpt_info->current_xfer_bufferlen -= tx_len;
+                        edpt_info->current_xfer_xferred_len += tx_len;
+                        if (edpt_info->current_xfer_bufferlen == 0)
+                        {
+                            LOG_CH32_USBFSH("USB_PID_OUT completed %d bytes\r\n", edpt_info->current_xfer_xferred_len);
+                            hcd_event_xfer_complete(dev_addr, ep_addr, edpt_info->current_xfer_xferred_len, XFER_RESULT_SUCCESS, true);
+                            return;
+                        }
+                        else
+                        {
+                            LOG_CH32_USBFSH("USB_PID_OUT continue...\r\n");
+                            edpt_info->current_xfer_buffer += tx_len;
+                            uint16_t copylen = USBFS_TX_BUF_LEN;
+                            if (copylen > edpt_info->current_xfer_bufferlen)
+                            {
+                                copylen = edpt_info->current_xfer_bufferlen;
+                            }
+                            memcpy(USBFS_TX_Buf, edpt_info->current_xfer_buffer, copylen);
+                            hardware_start_xfer(USB_PID_OUT, ep_addr, edpt_info->data_toggle);
+                            return;
+                        }
                     }
                 case USB_PID_IN:
                     {
@@ -541,8 +560,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     else
     {
         LOG_CH32_USBFSH("hcd_edpt_xfer(): WRITE, ep_addr=0x%02x, len=%d\r\n", ep_addr, buflen);
-        USBOTG_H_FS->HOST_TX_LEN = buflen;
-        memcpy(USBFS_TX_Buf, buffer, buflen);
+        uint16_t copylen = USBFS_TX_BUF_LEN;
+        if (copylen > buflen)
+        {
+            copylen = buflen;
+        }
+        USBOTG_H_FS->HOST_TX_LEN = copylen;
+        memcpy(USBFS_TX_Buf, buffer, copylen);
         return hardware_start_xfer(USB_PID_OUT, ep_addr, edpt_info->data_toggle);
     }
 }
