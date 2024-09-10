@@ -34,29 +34,24 @@
  extern "C" {
 #endif
 
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   volatile uint8_t busy    : 1;
   volatile uint8_t stalled : 1;
   volatile uint8_t claimed : 1;
 }tu_edpt_state_t;
 
 typedef struct {
-  struct {
-      uint8_t is_host : 1;       // host or device
-      uint8_t is_highspeed: 1;       // is highspeed
-  };
+  uint8_t is_host; // 1: host, 0: device
   uint8_t ep_addr;
 
   uint16_t ep_packetsize;
   uint16_t ep_bufsize;
 
-  // TODO xfer_fifo can skip this buffer
-  uint8_t* ep_buf;
+  uint8_t* ep_buf; // TODO xfer_fifo can skip this buffer
 
   tu_fifo_t ff;
 
-  // mutex: read if ep rx, write if e tx
+  // mutex: read if rx, otherwise write
   OSAL_MUTEX_DEF(ff_mutexdef);
 
 }tu_edpt_stream_t;
@@ -92,7 +87,6 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
 bool tu_edpt_stream_deinit(tu_edpt_stream_t* s);
 
 // Open an stream for an endpoint
-// hwid is either device address (host mode) or rhport (device mode)
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_open(tu_edpt_stream_t* s, tusb_desc_endpoint_t const *desc_ep) {
   tu_fifo_clear(&s->ff);
