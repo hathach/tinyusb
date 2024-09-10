@@ -46,7 +46,6 @@ typedef struct {
 
   uint16_t ep_packetsize;
   uint16_t ep_bufsize;
-
   uint8_t* ep_buf; // TODO xfer_fifo can skip this buffer
 
   tu_fifo_t ff;

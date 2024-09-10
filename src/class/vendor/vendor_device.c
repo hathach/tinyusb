@@ -36,12 +36,8 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define BULK_PACKET_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
-
 typedef struct {
   uint8_t itf_num;
-  uint8_t ep_in;
-  uint8_t ep_out;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
   // Endpoint Transfer buffer
@@ -66,20 +62,22 @@ typedef struct {
 
 CFG_TUD_MEM_SECTION static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 
-#define ITF_MEM_RESET_SIZE   offsetof(vendord_interface_t, ep_out) + sizeof(((vendord_interface_t *)0)->ep_out)
+#define ITF_MEM_RESET_SIZE   (offsetof(vendord_interface_t, itf_num) + sizeof(((vendord_interface_t *)0)->itf_num))
 
 //--------------------------------------------------------------------
 // Application API
 //--------------------------------------------------------------------
 
-bool tud_vendor_n_mounted (uint8_t itf) {
-  return _vendord_itf[itf].ep_in && _vendord_itf[itf].ep_out;
+bool tud_vendor_n_mounted(uint8_t itf) {
+  TU_VERIFY(itf < CFG_TUD_VENDOR);
+  vendord_interface_t* p_itf = &_vendord_itf[itf];
+  return p_itf->rx.stream.ep_addr || p_itf->tx.stream.ep_addr;
 }
 
 //--------------------------------------------------------------------+
 // Read API
 //--------------------------------------------------------------------+
-uint32_t tud_vendor_n_available (uint8_t itf) {
+uint32_t tud_vendor_n_available(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_VENDOR, 0);
   vendord_interface_t* p_itf = &_vendord_itf[itf];
 
@@ -87,7 +85,7 @@ uint32_t tud_vendor_n_available (uint8_t itf) {
 }
 
 bool tud_vendor_n_peek(uint8_t itf, uint8_t* u8) {
-  TU_VERIFY(itf < CFG_TUD_VENDOR, 0);
+  TU_VERIFY(itf < CFG_TUD_VENDOR);
   vendord_interface_t* p_itf = &_vendord_itf[itf];
 
   return tu_edpt_stream_peek(&p_itf->rx.stream, u8);
@@ -198,7 +196,7 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
   // Find available interface
   vendord_interface_t* p_vendor = NULL;
   for(uint8_t i=0; i<CFG_TUD_VENDOR; i++) {
-    if ( _vendord_itf[i].ep_in == 0 && _vendord_itf[i].ep_out == 0 ) {
+    if (!tud_vendor_n_mounted(i)) {
       p_vendor = &_vendord_itf[i];
       break;
     }
@@ -221,11 +219,9 @@ uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, ui
     found_ep++;
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      p_vendor->ep_in = desc_ep->bEndpointAddress;
       tu_edpt_stream_open(&p_vendor->tx.stream, desc_ep);
       tud_vendor_n_write_flush((uint8_t)(p_vendor - _vendord_itf));
     } else {
-      p_vendor->ep_out = desc_ep->bEndpointAddress;
       tu_edpt_stream_open(&p_vendor->rx.stream, desc_ep);
       TU_ASSERT(tu_edpt_stream_read_xfer(rhport, &p_vendor->rx.stream) > 0, 0); // prepare for incoming data
     }
