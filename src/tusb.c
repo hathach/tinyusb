@@ -216,13 +216,17 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 
 bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
                          void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize) {
-  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
-  (void) new_mutex;
   (void) is_tx;
 
   s->is_host = is_host;
   tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);
-  tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
+
+  #if OSAL_MUTEX_REQUIRED
+  if (ff_buf && ff_bufsize) {
+    osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
+    tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
+  }
+  #endif
 
   s->ep_buf = ep_buf;
   s->ep_bufsize = ep_bufsize;
