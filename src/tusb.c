@@ -315,7 +315,7 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s) {
 
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const* buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize); // TODO support ZLP
-  uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
+  const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
 
   // flush if fifo has more than packet size or
   // in rare case: fifo depth is configured too small (which never reach packet size)

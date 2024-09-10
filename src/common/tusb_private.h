@@ -42,10 +42,10 @@ typedef struct TU_ATTR_PACKED
 }tu_edpt_state_t;
 
 typedef struct {
-  bool is_host; // host or device most
+  bool is_host;       // host or device
   union {
-      uint8_t daddr;
-      uint8_t rhport;
+      uint8_t daddr;  // host mode
+      uint8_t rhport; // device mode
       uint8_t hwid;
   };
   uint8_t ep_addr;
