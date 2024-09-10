@@ -341,14 +341,14 @@ uint32_t tuh_cdc_write(uint8_t idx, void const* buffer, uint32_t bufsize) {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
-  return tu_edpt_stream_write(&p_cdc->stream.tx, buffer, bufsize);
+  return tu_edpt_stream_write(p_cdc->daddr, &p_cdc->stream.tx, buffer, bufsize);
 }
 
 uint32_t tuh_cdc_write_flush(uint8_t idx) {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
-  return tu_edpt_stream_write_xfer(&p_cdc->stream.tx);
+  return tu_edpt_stream_write_xfer(p_cdc->daddr, &p_cdc->stream.tx);
 }
 
 bool tuh_cdc_write_clear(uint8_t idx) {
@@ -362,7 +362,7 @@ uint32_t tuh_cdc_write_available(uint8_t idx) {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
-  return tu_edpt_stream_write_available(&p_cdc->stream.tx);
+  return tu_edpt_stream_write_available(p_cdc->daddr, &p_cdc->stream.tx);
 }
 
 //--------------------------------------------------------------------+
@@ -373,7 +373,7 @@ uint32_t tuh_cdc_read (uint8_t idx, void* buffer, uint32_t bufsize) {
   cdch_interface_t* p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
-  return tu_edpt_stream_read(&p_cdc->stream.rx, buffer, bufsize);
+  return tu_edpt_stream_read(p_cdc->daddr, &p_cdc->stream.rx, buffer, bufsize);
 }
 
 uint32_t tuh_cdc_read_available(uint8_t idx) {
@@ -395,7 +395,7 @@ bool tuh_cdc_read_clear (uint8_t idx) {
   TU_VERIFY(p_cdc);
 
   bool ret = tu_edpt_stream_clear(&p_cdc->stream.rx);
-  tu_edpt_stream_read_xfer(&p_cdc->stream.rx);
+  tu_edpt_stream_read_xfer(p_cdc->daddr, &p_cdc->stream.rx);
   return ret;
 }
 
@@ -677,10 +677,10 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
     // invoke tx complete callback to possibly refill tx fifo
     if (tuh_cdc_tx_complete_cb) tuh_cdc_tx_complete_cb(idx);
 
-    if ( 0 == tu_edpt_stream_write_xfer(&p_cdc->stream.tx) ) {
+    if ( 0 == tu_edpt_stream_write_xfer(daddr, &p_cdc->stream.tx) ) {
       // If there is no data left, a ZLP should be sent if:
       // - xferred_bytes is multiple of EP Packet size and not zero
-      tu_edpt_stream_write_zlp_if_needed(&p_cdc->stream.tx, xferred_bytes);
+      tu_edpt_stream_write_zlp_if_needed(daddr, &p_cdc->stream.tx, xferred_bytes);
     }
   } else if ( ep_addr == p_cdc->stream.rx.ep_addr ) {
     #if CFG_TUH_CDC_FTDI
@@ -698,7 +698,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
     if (tuh_cdc_rx_cb) tuh_cdc_rx_cb(idx);
 
     // prepare for next transfer if needed
-    tu_edpt_stream_read_xfer(&p_cdc->stream.rx);
+    tu_edpt_stream_read_xfer(daddr, &p_cdc->stream.rx);
   }else if ( ep_addr == p_cdc->ep_notif ) {
     // TODO handle notification endpoint
   }else {
@@ -719,9 +719,9 @@ static bool open_ep_stream_pair(cdch_interface_t* p_cdc, tusb_desc_endpoint_t co
     TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
 
     if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      tu_edpt_stream_open(&p_cdc->stream.rx, p_cdc->daddr, desc_ep);
+      tu_edpt_stream_open(&p_cdc->stream.rx, desc_ep);
     } else {
-      tu_edpt_stream_open(&p_cdc->stream.tx, p_cdc->daddr, desc_ep);
+      tu_edpt_stream_open(&p_cdc->stream.tx, desc_ep);
     }
 
     desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
@@ -763,7 +763,7 @@ static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t i
   if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(idx);
 
   // Prepare for incoming data
-  tu_edpt_stream_read_xfer(&p_cdc->stream.rx);
+  tu_edpt_stream_read_xfer(p_cdc->daddr, &p_cdc->stream.rx);
 
   // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(p_cdc->daddr, itf_num);
