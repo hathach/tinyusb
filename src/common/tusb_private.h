@@ -129,11 +129,9 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s);
 // Start an zero-length packet if needed
 bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferred_bytes);
 
-// Get the number of bytes available for writing
-TU_ATTR_ALWAYS_INLINE static inline
-uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t* s) {
-  return (uint32_t) tu_fifo_remaining(&s->ff);
-}
+// Get the number of bytes available for writing to FIFO
+// Note: if no fifo, return endpoint size if not busy, 0 otherwise
+uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t* s);
 
 //--------------------------------------------------------------------+
 // Stream Read
@@ -148,13 +146,15 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s);
 // Must be called in the transfer complete callback
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_bytes) {
-  tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t) xferred_bytes);
+  if (tu_fifo_depth(&s->ff)) {
+    tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t) xferred_bytes);
+  }
 }
 
 // Same as tu_edpt_stream_read_xfer_complete but skip the first n bytes
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete_offset(tu_edpt_stream_t* s, uint32_t xferred_bytes, uint32_t skip_offset) {
-  if (skip_offset < xferred_bytes) {
+  if (tu_fifo_depth(&s->ff) && (skip_offset < xferred_bytes)) {
     tu_fifo_write_n(&s->ff, s->ep_buf + skip_offset, (uint16_t) (xferred_bytes - skip_offset));
   }
 }
