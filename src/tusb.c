@@ -318,7 +318,7 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t* s, void const* buf
     TU_VERIFY(stream_claim(hwid, s), 0);
     const uint32_t xact_len = tu_min32(bufsize, s->ep_bufsize);
     memcpy(s->ep_buf, buffer, xact_len);
-    TU_ASSERT(stream_xfer(hwid, s, xact_len), 0);
+    TU_ASSERT(stream_xfer(hwid, s, (uint16_t) xact_len), 0);
     return xact_len;
   } else {
     const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
