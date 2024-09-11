@@ -32,7 +32,7 @@ void USBHD_IRQHandler(void) {
   #if CFG_TUD_WCH_USBIP_USBFS
   tud_int_handler(0);
   #endif
-  #if CFG_TUH_WCH_USBIP_USBFS
+  #if defined(CFG_TUH_WCH_USBIP_USBFS) && CFG_TUH_WCH_USBIP_USBFS
   tuh_int_handler(0);
   #endif
 }
