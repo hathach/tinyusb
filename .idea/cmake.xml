@@ -2,8 +2,8 @@
 <project version="4">
   <component name="CMakeSharedSettings">
     <configurations>
-      <configuration PROFILE_NAME="pico" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1" />
-      <configuration PROFILE_NAME="pico pio-host" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" />
+      <configuration PROFILE_NAME="raspberry_pi_pico" ENABLED="false" CONFIG_NAME="MinSizeRel" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1" />
+      <configuration PROFILE_NAME="raspberry_pi_pico-pio_host" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" />
       <configuration PROFILE_NAME="feather_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_feather_rp2040 -DLOG=1" />
       <configuration PROFILE_NAME="feather_rp2040_max3421" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_rp2040_max3421 -DLOG=1" />
       <configuration PROFILE_NAME="metro_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_metro_rp2040 -DLOG=1 -DMAX3421_HOST=1" />
@@ -35,7 +35,7 @@
           </envs>
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
-      <configuration PROFILE_NAME="espressif_s3_devkitc" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_s3_devkitc -DMAX3421_HOST=1 -DLOG=1">
+      <configuration PROFILE_NAME="espressif_s3_devkitc" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_s3_devkitc -DLOG=1">
         <ADDITIONAL_GENERATION_ENVIRONMENT>
           <envs>
             <env name="ESPBAUD" value="1500000" />
@@ -66,7 +66,7 @@
       <configuration PROFILE_NAME="feather_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m0_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="metro_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m0_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="feather_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m4_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
-      <configuration PROFILE_NAME="metro_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express" />
+      <configuration PROFILE_NAME="metro_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="itsybitsy_m4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=itsybitsy_m4" />
       <configuration PROFILE_NAME="same54_xplained" ENABLED="false" GENERATION_OPTIONS="-DBOARD=same54_xplained -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="feather_nrf52840_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_nrf52840_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
@@ -140,8 +140,8 @@
       <configuration PROFILE_NAME="ch32v307v_r1_1v0" ENABLED="false" GENERATION_OPTIONS="-DBOARD=ch32v307v_r1_1v0 -DLOG=1" />
       <configuration PROFILE_NAME="ch32v307v_r1_1v0 USBFS" ENABLED="false" GENERATION_OPTIONS="-DBOARD=ch32v307v_r1_1v0 -DSPEED=full" />
       <configuration PROFILE_NAME="da14695_dk_usb" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=da14695_dk_usb" />
-      <configuration PROFILE_NAME="max32650fthr" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=max32650fthr -DLOG=1 -DLOGGER=RTT" />
-      <configuration PROFILE_NAME="max32666fthr" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=max32666fthr -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="max32650fthr" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=max32650fthr -DLOG=0 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="max32666fthr" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=max32666fthr -DLOG=0 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="max32690evkit" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=max32690evkit -DLOG=1 -DLOGGER=RTT" />
     </configurations>
   </component>

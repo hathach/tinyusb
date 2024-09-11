@@ -34,32 +34,24 @@
  extern "C" {
 #endif
 
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   volatile uint8_t busy    : 1;
   volatile uint8_t stalled : 1;
   volatile uint8_t claimed : 1;
 }tu_edpt_state_t;
 
 typedef struct {
-  bool is_host; // host or device most
-  union {
-      uint8_t daddr;
-      uint8_t rhport;
-      uint8_t hwid;
+  struct TU_ATTR_PACKED  {
+    uint8_t is_host   : 1; // 1: host, 0: device
+    uint8_t is_mps512 : 1; // 1: 512, 0: 64 since stream is used for Bulk only
   };
   uint8_t ep_addr;
-  uint8_t ep_speed;
-
-  uint16_t ep_packetsize;
   uint16_t ep_bufsize;
 
-  // TODO xfer_fifo can skip this buffer
-  uint8_t* ep_buf;
-
+  uint8_t* ep_buf; // TODO xfer_fifo can skip this buffer
   tu_fifo_t ff;
 
-  // mutex: read if ep rx, write if e tx
+  // mutex: read if rx, otherwise write
   OSAL_MUTEX_DEF(ff_mutexdef);
 
 }tu_edpt_stream_t;
@@ -95,18 +87,15 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
 bool tu_edpt_stream_deinit(tu_edpt_stream_t* s);
 
 // Open an stream for an endpoint
-// hwid is either device address (host mode) or rhport (device mode)
 TU_ATTR_ALWAYS_INLINE static inline
-void tu_edpt_stream_open(tu_edpt_stream_t* s, uint8_t hwid, tusb_desc_endpoint_t const *desc_ep) {
+void tu_edpt_stream_open(tu_edpt_stream_t* s, tusb_desc_endpoint_t const *desc_ep) {
   tu_fifo_clear(&s->ff);
-  s->hwid = hwid;
   s->ep_addr = desc_ep->bEndpointAddress;
-  s->ep_packetsize = tu_edpt_packet_size(desc_ep);
+  s->is_mps512 = (tu_edpt_packet_size(desc_ep) == 512) ? 1 : 0;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_close(tu_edpt_stream_t* s) {
-  s->hwid = 0;
   s->ep_addr = 0;
 }
 
@@ -121,40 +110,40 @@ bool tu_edpt_stream_clear(tu_edpt_stream_t* s) {
 //--------------------------------------------------------------------+
 
 // Write to stream
-uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const *buffer, uint32_t bufsize);
+uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t* s, void const *buffer, uint32_t bufsize);
 
 // Start an usb transfer if endpoint is not busy
-uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s);
+uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s);
 
 // Start an zero-length packet if needed
-bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferred_bytes);
+bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint32_t last_xferred_bytes);
 
-// Get the number of bytes available for writing
-TU_ATTR_ALWAYS_INLINE static inline
-uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t* s) {
-  return (uint32_t) tu_fifo_remaining(&s->ff);
-}
+// Get the number of bytes available for writing to FIFO
+// Note: if no fifo, return endpoint size if not busy, 0 otherwise
+uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s);
 
 //--------------------------------------------------------------------+
 // Stream Read
 //--------------------------------------------------------------------+
 
 // Read from stream
-uint32_t tu_edpt_stream_read(tu_edpt_stream_t* s, void* buffer, uint32_t bufsize);
+uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, uint32_t bufsize);
 
 // Start an usb transfer if endpoint is not busy
-uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s);
+uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s);
 
 // Must be called in the transfer complete callback
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_bytes) {
-  tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t) xferred_bytes);
+  if (tu_fifo_depth(&s->ff)) {
+    tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t) xferred_bytes);
+  }
 }
 
 // Same as tu_edpt_stream_read_xfer_complete but skip the first n bytes
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete_offset(tu_edpt_stream_t* s, uint32_t xferred_bytes, uint32_t skip_offset) {
-  if (skip_offset < xferred_bytes) {
+  if (tu_fifo_depth(&s->ff) && (skip_offset < xferred_bytes)) {
     tu_fifo_write_n(&s->ff, s->ep_buf + skip_offset, (uint16_t) (xferred_bytes - skip_offset));
   }
 }
