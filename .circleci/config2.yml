@@ -68,14 +68,6 @@ commands:
 
     steps:
       - checkout
-      - when:
-          condition:
-            not:
-              equal: [esp-idf, << parameters.toolchain >>]
-          steps:
-            - setup-toolchain:
-                toolchain: << parameters.toolchain >>
-
       - run:
           name: Get Dependencies
           command: |
@@ -100,6 +92,14 @@ commands:
               git clone --depth 1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk
               echo "export PICO_SDK_PATH=~/pico-sdk" >> $BASH_ENV
             fi
+
+      - when:
+          condition:
+            not:
+              equal: [esp-idf, << parameters.toolchain >>]
+          steps:
+            - setup-toolchain:
+                toolchain: << parameters.toolchain >>
 
       - run:
           name: Build
