@@ -186,7 +186,7 @@ static void hardware_init_host(bool enabled)
 
 static bool hardware_start_xfer(uint8_t pid, uint8_t ep_addr, uint8_t data_toggle)
 {
-    LOG_CH32_USBFSH("hardware_start_xfer(pid=%s(0x%02x), ep_addr=0x%02x, toggle=%d)\r\n", 
+    LOG_CH32_USBFSH("hardware_start_xfer(pid=%s(0x%02x), ep_addr=0x%02x, toggle=%d)\r\n",
         pid == USB_PID_IN ? "IN" : pid == USB_PID_OUT ? "OUT" : pid == USB_PID_SETUP ? "SETUP" : "(other)",
         pid, ep_addr, data_toggle);
 
@@ -342,7 +342,7 @@ void hcd_int_disable(uint8_t rhport)
 {
     (void)rhport;
     NVIC_DisableIRQ(USBFS_IRQn);
-    
+
     return;
 }
 
@@ -492,7 +492,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr)
             }
             else
             {
-                LOG_CH32_USBFSH("\r\nIn USBHD_IRQHandler, unexpected response PID: 0x%02x\r\n", response_pid);
+                LOG_CH32_USBFSH("In USBHD_IRQHandler, unexpected response PID: 0x%02x\r\n", response_pid);
                 hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_FAILED, true);
                 return;
             }
@@ -616,7 +616,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
     (void) rhport;
     (void) dev_addr;
     LOG_CH32_USBFSH("hcd_edpt_clear_stall(rhport=%d, dev_addr=0x%02x, ep_addr=0x%02x)\r\n", rhport, dev_addr, ep_addr);
-    // PANIC("\r\nstall\r\n");
+    // PANIC("\r\install\r\n");
     uint8_t edpt_num = tu_edpt_number(ep_addr);
     uint8_t setup_request_clear_stall[8] = {
         0x02, 0x01, 0x00, 0x00, edpt_num, 0x00, 0x00, 0x00
