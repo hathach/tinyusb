@@ -77,7 +77,7 @@ Host Stack
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
 - Communication Device Class: CDC-ACM
-- Vendor serial over USB: FTDI, CP210x
+- Vendor serial over USB: FTDI, CP210x, CH34x
 - Hub with multiple-level support
 
 Similar to the Device Stack, if you have a special requirement, `usbh_app_driver_get_cb()` can be used to write your own class driver without modifying the stack.
@@ -111,7 +111,7 @@ Following CPUs are supported, check out `Supported Devices`_ for comprehensive l
 +--------------+------------------------------------------------------------+
 | Analog       | max32: 650, 666, 690. max78002                             |
 |              |                                                            |
-|              | max3421e (host)                                            |
+|              | max3421e (spi host)                                        |
 +--------------+------------------------------------------------------------+
 | Brigetek     | FT90x                                                      |
 +--------------+------------------------------------------------------------+
@@ -143,7 +143,7 @@ Following CPUs are supported, check out `Supported Devices`_ for comprehensive l
 |              |                                                            |
 |              | MCX: A15, N9                                               |
 +--------------+------------------------------------------------------------+
-| Raspberry Pi | RP2040                                                     |
+| Raspberry Pi | RP2040, RP2350                                             |
 +--------------+-----+------------------------------------------------------+
 | Renesas      | RA: 4M1, 4M3, 6M1, 6M5                                     |
 |              |                                                            |

@@ -2,71 +2,165 @@
 Changelog
 *********
 
-0.17.0 (WIP)
-============
+0.17.0
+======
 
 General
 -------
 
-- Improved continuous integration: build both cmake and make. Make use of circleci to build arm-clang
-
+- Improved CI: build both cmake and make. Make use of CircleCI for part of build process to speed up CI
+- Add CodeQL Workflow for Code Security Analysis
+- Add Clang compiler support
+- Add default implementation for weak callbacks functions for better Keil compatibility
+- Upgrade hardware-in-the-loop (HIL) testing with more boards and examples: including dual stack example
 
 Controller Driver (DCD & HCD)
 -----------------------------
+
+- Chipidea
+
+  - Support MCXA
+
+- DWC2
+
+  - Fix tickless issue with stm32f7: disable ULPI clock during sleep when using internal phy
+  - Fix SOF interrupt handling
+  - Fix fifo level half/empty issue
+  - Add DWC2 Test Mode support.
+  - for esp32 force disconnect/connect using USB_WRAP otg pad override
+
+- FSDEV
+
+  - Rewrite and Generalize driver to support non-stm32 mcu such as wch
+  - Simplify PMA, HW FIFO access and bit manipulation for different access scheme 1x16, 2x16 and 32 bit
+  - Add support for ch32 usbd e.g ch32v203
+  - Add support for STM32G4 and STM32U5 microcontrollers.
+  - Fix h5 (32-bit) errata 2.15.1: Buffer description table update completes after CTR interrupt triggers
+  - ISO EP buffer allocation improvements, implement dcd_edpt_close_all()
+
+  - Fix ch32v203 race condition and stability issue with
+
+    - fix ch32v203 seems to unconditionally accept ZLP on EP0 OUT.
+    - fix v203 race condition between rx bufsize and RX_STAT which cause PMAOVR, occurs with WRITE10
+    - correctly handle setup prepare at dcd_edpt0_status_complete(), which fixes the race condition with windows where we could miss setup packet (setup bit set, but count = 0)
+
+- MAX3421E
+
+  - Add support for rp2040, esp32 (c3, c6, h2, etc..)
+  - Add hcd_deinit() for max3421
+  - Retry NAK handling next frame to reduce CPU and SPI bus usage
+  - add cpuctl and pinctl to tuh_configure() option for max3421
+  - Implement hcd abort transfer for Max3421
+  - Properly Handle NAK Response in MAX3421E driver: correctly switch and skip writing to 2 FIFOs when NAK received. Otherwise, the driver may hang in certain conditions.
+
+- MSP430: support non-bus-powered
+
+- MUSB
+
+  - Add support for Analoog devices: max32650, max32666, max32690, max3278002
+
+- nRF
+
+  - Fix dcd_edpt_open for iso endpoint
+  - Handle ISOOUT CRC errors
+  - Add compile support with old nordic sdk
+  - Fix a few race conditions
+
+- OHCI
+
+  - Allow more than 16 devices
+
+- RP2040
+
+  - Correctly abort control transfer when new setup arrived. Due to RP2040-E2 only able to fix B2 or later
+  - Implement hcd abort transfer for rp2040
+  - Add support for rp2350
+
+- RUSB2
+
+  - Support ra2a1 pipe number scheme
 
 - WCH CH32
 
   - Added support for USB OTG/FS and FSDev Driver. Update CH32V307 to allow manual select FS or HS driver.
   - Fixed various bugs in CH32v307 usbhs driver: endpoint handling and data transfer management.
 
-- Fixed race conditions and other bugs in dcd_nrf5x and other drivers.
-- Implemented hcd abort transfer for Max3421 and rp2040
-- Added DWC2 Test Mode support.
-- stm32 fsdev: ISO EP buffer allocation improvements, implement dcd_edpt_close_all()
-- Added support for STM32G4 and STM32U5 microcontrollers.
-
 Device Stack
 ------------
 
-- Added tud_deinit() to deinitialize TinyUSB device stack.
-- Added support for generic SOF callback.
+- Add tud_deinit() and class driver deinit() to deinitialize TinyUSB device stack.
+- Add support for generic SOF callback.
+- Add set address recovery time 2ms per USB spec.
 
 - Audio
 
   - Add audio_test_freertos & audio_4_channel_mic_freertos
   - Improved support for Audio Class 2.0 (UAC2) with various bug fixes.
+  - Add feedback by fifo counting.
+
+- Bluetooth HCI
+
+  - Issue ZLP on ACL IN ep when transfer is multiple of endpoint max packet size
+
+- CDC
+
+  - Add tud_cdc_configure_fifo() to make RX/TX buffer persistent (not clear when disconnected)
+  - Add missing capability bit for CDC ACM serial break support
+  - Enhanced CDC class with better handling of large data transmissions.
+  - Add missing capability bit for CDC ACM serial break support
 
 - HID
 
   - Added missing key codes for keypad
   - Added HID Lighting and Illumination functionality
+  - Fixed issues in the HID class for more reliable device enumeration.
+  - Support HID Mouse with absolute positioning
+  - Use separate buffer for control SET_REPORT, fix conflict with interrupt endpoint out
 
-- Vendor: Added empty transfers for tud_vendor_n_write()
 - MSC: Added support for SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL
-
-- CDC
-
-  - Add option to make CDC TX buffer persistent
-  - Add missing capability bit for CDC ACM serial break support
 
 - Net
 
-  - Rewrite of NCM device driver
+  - Rewrite of NCM device driver to improve throughput
   - removed obsolete tud_network_link_state_cb()
 
-- Enhanced CDC class with better handling of large data transmissions.
-- Fixed issues in the HID class for more reliable device enumeration.
-- Video Added support for USB Video Class (UVC) with MJPEG.
 - USBTMC Added notification support
+
+- Vendor
+
+  - Migrate to new endpoint stream API, support non-buffered TX/RX
+  - Add ZLP for write() when needed
+
+- Video
+
+  - Enhance UVC descriptors and example
+  - Video Added support for USB Video Class (UVC) with MJPEG.
+  - Fix multiple interfaces, add an example of 2ch video capture.
+  - Fix race for tud_video_n_streaming check
 
 Host Stack
 ----------
 
-- Added tuh_deinit() to deinitialize TinyUSB host stack.
+- Added tuh_deinit() to de-initialize TinyUSB host stack.
 - Added support for new USB mass storage class APIs.
-- Enhanced stability of CDC-ACM devices during enumeration.
 - Improved error handling and retry mechanisms for unstable devices.
-- Added support for multiple interfaces in UVC.
+
+- CDC Serial
+
+  - Add support for ch34x
+  - Allow to overwrite CFG_TUH_CDC_FTDI/CP210X/CH32X_VID_PID_LIST
+  - Enhanced stability of CDC-ACM devices during enumeration.
+
+- HID
+
+  - Add tuh_hid_receive_abort()
+  - Add tuh_hid_get_report()
+
+- Hub
+
+  - Prevent status request to invalid ep_num
+  - Fix double status xfer
+  - unroll hub removal
 
 0.16.0
 ======

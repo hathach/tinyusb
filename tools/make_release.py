@@ -1,7 +1,7 @@
 import re
 import gen_doc
 
-version = '0.16.0'
+version = '0.17.0'
 
 print('version {}'.format(version))
 ver_id = version.split('.')
