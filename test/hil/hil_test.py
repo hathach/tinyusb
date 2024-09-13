@@ -43,6 +43,8 @@ STATUS_OK = "\033[32mOK\033[0m"
 STATUS_FAILED = "\033[31mFailed\033[0m"
 STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
+verbose = False
+
 # get usb serial by id
 def get_serial_dev(id, vendor_str, product_str, ifnum):
     if vendor_str and product_str:
@@ -111,7 +113,6 @@ def read_disk_file(uid, lun, fname):
 # Flashing firmware
 # -------------------------------------------------------------
 def run_cmd(cmd):
-    #print(cmd)
     r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if r.returncode != 0:
         title = f'COMMAND FAILED: {cmd}'
@@ -123,6 +124,9 @@ def run_cmd(cmd):
         else:
             print(title)
             print(r.stdout.decode("utf-8"))
+    elif verbose:
+        print(cmd)
+        print(r.stdout.decode("utf-8"))
     return r
 
 
@@ -260,14 +264,14 @@ def test_device_cdc_dual_ports(board):
     str1 = b"test_no1"
     ser1.write(str1)
     ser1.flush()
-    assert ser1.read(100) == str1.lower(), 'Port1 wrong data'
-    assert ser2.read(100) == str1.upper(), 'Port2 wrong data'
+    assert ser1.read(len(str1)) == str1.lower(), 'Port1 wrong data'
+    assert ser2.read(len(str1)) == str1.upper(), 'Port2 wrong data'
 
     str2 = b"test_no2"
     ser2.write(str2)
     ser2.flush()
-    assert ser1.read(100) == str2.lower(), 'Port1 wrong data'
-    assert ser2.read(100) == str2.upper(), 'Port2 wrong data'
+    assert ser1.read(len(str2)) == str2.lower(), 'Port1 wrong data'
+    assert ser2.read(len(str2)) == str2.upper(), 'Port2 wrong data'
 
 
 def test_device_cdc_msc(board):
@@ -279,7 +283,7 @@ def test_device_cdc_msc(board):
     str = b"test_str"
     ser.write(str)
     ser.flush()
-    assert ser.read(100) == str, 'CDC wrong data'
+    assert ser.read(len(str)) == str, 'CDC wrong data'
 
     # Block test
     data = read_disk_file(uid,0,'README.TXT')
@@ -447,13 +451,17 @@ def main():
     """
     Hardware test on specified boards
     """
+    global verbose
+
     parser = argparse.ArgumentParser()
     parser.add_argument('config_file', help='Configuration JSON file')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
     config_file = args.config_file
     boards = args.board
+    verbose = args.verbose
 
     # if config file is not found, try to find it in the same directory as this script
     if not os.path.exists(config_file):
