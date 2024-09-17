@@ -1,4 +1,4 @@
-#! python3
+#!/usr/bin/env python3
 # ==========================================
 #   Unity Project - A Test Framework for C
 #   Copyright (c) 2015 Alexander Mueller / XelaRellum@web.de
