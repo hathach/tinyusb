@@ -8,6 +8,7 @@ MCU low-level peripheral driver and external libraries for building TinyUSB exam
 Local Path                                Repo                                                            Commit                                    Required by
 ========================================  ==============================================================  ========================================  ==========================================================================================================================================================================================================================================================================================================================
 hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                 8e5e89e8e132c0fd90e72d5422e5d3d68232b756  fc100s
+hw/mcu/analog/max32                       https://github.com/analogdevicesinc/msdk.git                    b20b398d3e5e2007594e54a74ba3d2a2e50ddd75  max32650 max32666 max32690 max78002
 hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                     91060164afe239fcb394122e8bf9eb24d3194eb1  brtmm90x
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git            08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git               7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103
@@ -16,9 +17,9 @@ hw/mcu/microchip                          https://github.com/hathach/microchip_d
 hw/mcu/mindmotion/mm32sdk                 https://github.com/hathach/mm32sdk.git                          b93e856211060ae825216c6a1d6aa347ec758843  mm32
 hw/mcu/nordic/nrfx                        https://github.com/NordicSemiconductor/nrfx.git                 7c47cc0a56ce44658e6da2458e86cd8783ccc4a2  nrf
 hw/mcu/nuvoton                            https://github.com/majbthrd/nuc_driver.git                      2204191ec76283371419fbcec207da02e1bc22fa  nuc
-hw/mcu/nxp/lpcopen                        https://github.com/hathach/nxp_lpcopen.git                      04bfe7a5f6ee74a89a28ad618d3367dcfcfb7d83  lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43
+hw/mcu/nxp/lpcopen                        https://github.com/hathach/nxp_lpcopen.git                      b41cf930e65c734d8ec6de04f1d57d46787c76ae  lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43
 hw/mcu/nxp/mcux-sdk                       https://github.com/hathach/mcux-sdk.git                         144f1eb7ea8c06512e12f12b27383601c0272410  kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt
-hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git              0f747aaa0c16f750bdfa2ba37ec25d6c8e1bc117  rp2040
+hw/mcu/raspberry_pi/Pico-PIO-USB          https://github.com/sekigon-gonnoc/Pico-PIO-USB.git              fe9133fc513b82cc3dc62c67cb51f2339cf29ef7  rp2040
 hw/mcu/renesas/fsp                        https://github.com/renesas/fsp.git                              d52e5a6a59b7c638da860c2bb309b6e78e752ff8  ra
 hw/mcu/renesas/rx                         https://github.com/kkitayam/rx_device.git                       706b4e0cf485605c32351e2f90f5698267996023  rx
 hw/mcu/silabs/cmsis-dfp-efm32gg12b        https://github.com/cmsis-packs/cmsis-dfp-efm32gg12b.git         f1c31b7887669cb230b3ea63f9b56769078960bc  efm32
@@ -57,11 +58,12 @@ hw/mcu/st/stm32u5xx_hal_driver            https://github.com/STMicroelectronics/
 hw/mcu/st/stm32wbxx_hal_driver            https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git  2c5f06638be516c1b772f768456ba637f077bac8  stm32wb
 hw/mcu/ti                                 https://github.com/hathach/ti_driver.git                        143ed6cc20a7615d042b03b21e070197d473e6e5  msp430 msp432e4 tm4c
 hw/mcu/wch/ch32f20x                       https://github.com/openwch/ch32f20x.git                         77c4095087e5ed2c548ec9058e655d0b8757663b  ch32f20x
-hw/mcu/wch/ch32v20x                       https://github.com/openwch/ch32v20x.git                         de6d68c654340d7f27b00cebbfc9aa2740a1abc2  ch32v20x
-hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                         17761f5cf9dbbf2dcf665b7c04934188add20082  ch32v307
+hw/mcu/wch/ch32v103                       https://github.com/openwch/ch32v103.git                         7578cae0b21f86dd053a1f781b2fc6ab99d0ec17  ch32v10x
+hw/mcu/wch/ch32v20x                       https://github.com/openwch/ch32v20x.git                         c4c38f507e258a4e69b059ccc2dc27dde33cea1b  ch32v20x
+hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                         184f21b852cb95eed58e86e901837bc9fff68775  ch32v307
 lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                     20285262657d1b482d132d20d755c8c330d55c1f  imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2xlpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wbsam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samgtm4c
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                 cc0e0707c0c748713485b870bb980852b210877f  all
 lib/lwip                                  https://github.com/lwip-tcpip/lwip.git                          159e31b689577dbf69cf0683bbaffbd71fa5ee10  all
 lib/sct_neopixel                          https://github.com/gsteiert/sct_neopixel.git                    e73e04ca63495672d955f9268e003cffe168fcd8  lpc55
-tools/uf2                                 https://github.com/microsoft/uf2.git                            19615407727073e36d81bf239c52108ba92e7660  all
+tools/uf2                                 https://github.com/microsoft/uf2.git                            c594542b2faa01cc33a2b97c9fbebc38549df80a  all
 ========================================  ==============================================================  ========================================  ==========================================================================================================================================================================================================================================================================================================================
