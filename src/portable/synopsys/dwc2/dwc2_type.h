@@ -101,13 +101,15 @@ enum {
 };
 
 enum {
-  GHWCFG2_ARCH_SLAVE_ONLY = 0,
-  GHWCFG2_ARCH_EXTERNAL_DMA, // 1
-  GHWCFG2_ARCH_INTERNAL_DMA, // 2
+ GHWCFG2_ARCH_SLAVE_ONLY = 0,
+ GHWCFG2_ARCH_EXTERNAL_DMA, // 1
+ GHWCFG2_ARCH_INTERNAL_DMA, // 2
 };
 
-typedef struct TU_ATTR_PACKED
-{
+//--------------------------------------------------------------------
+// Register bitfield definitions
+//--------------------------------------------------------------------
+typedef struct TU_ATTR_PACKED {
   uint32_t op_mode                  : 3; // 0: HNP and SRP | 1: SRP | 2: non-HNP, non-SRP
   uint32_t arch                     : 2; // 0: slave-only | 1: External DMA | 2: Internal DMA | 3: others
   uint32_t point2point              : 1; // 0: support hub and split | 1: no hub, no split
@@ -124,11 +126,9 @@ typedef struct TU_ATTR_PACKED
   uint32_t dev_token_q_depth        : 5; // Device IN token sequence learning queue depth: 0-30
   uint32_t otg_enable_ic_usb        : 1; // IC_USB mode specified for mode of operation
 } dwc2_ghwcfg2_t;
-
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg2_t) == 4, "incorrect size");
 
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint32_t xfer_size_width          : 4;  // Transfer size counter in bits = 11 + n (max 19 bits)
   uint32_t packet_size_width        : 3;  // Packet size counter in bits = 4 + n (max 10 bits)
   uint32_t otg_enable               : 1;  // 1 is OTG capable
@@ -142,11 +142,9 @@ typedef struct TU_ATTR_PACKED
   uint32_t lpm_mode                 : 1;  // LPC mode
   uint32_t dfifo_depth              : 16; // DFIFO depth - EP_LOC_CNT in terms of 32-bit words
 }dwc2_ghwcfg3_t;
-
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg3_t) == 4, "incorrect size");
 
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint32_t num_dev_period_in_ep       : 4; // Number of Device Periodic IN Endpoints
   uint32_t power_optimized            : 1; // Partial Power Down Enabled
   uint32_t ahb_freq_min               : 1; // 1: minimum of AHB frequency is less than 60 MHz
@@ -167,12 +165,110 @@ typedef struct TU_ATTR_PACKED
   uint32_t dma_desc_enable            : 1; // scatter/gather DMA configuration
   uint32_t dma_dynamic                : 1; // Dynamic scatter/gather DMA
 }dwc2_ghwcfg4_t;
-
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg4_t) == 4, "incorrect size");
 
+typedef struct TU_ATTR_PACKED {
+  uint32_t ses_req_scs           : 1; //  0: Session request success
+  uint32_t ses_req               : 1; //  1: Session request
+  uint32_t vbval_ov_en           : 1; //  2: VBUS valid override enable
+  uint32_t vbval_ov_val          : 1; //  3: VBUS valid override value
+  uint32_t aval_ov_en            : 1; //  4: A-peripheral session valid override enable
+  uint32_t aval_ov_al            : 1; //  5: A-peripheral session valid override value
+  uint32_t bval_ov_en            : 1; //  6: B-peripheral session valid override enable
+  uint32_t bval_ov_val           : 1; //  7: B-peripheral session valid override value
+  uint32_t hng_scs               : 1; //  8: Host negotiation success
+  uint32_t hnp_rq                : 1; //  9: HNP (host negotiation protocol) request
+  uint32_t host_set_hnp_en       : 1; // 10: Host set HNP enable
+  uint32_t dev_hnp_en            : 1; // 11: Device HNP enabled
+  uint32_t embedded_host_en      : 1; // 12: Embedded host enable
+  uint32_t rsv13_14              : 2; // 13..14: Reserved
+  uint32_t dbnc_filter_bypass    : 1; // 15: Debounce filter bypass
+  uint32_t cid_status            : 1; // 16: Connector ID status
+  uint32_t dbnc_done             : 1; // 17: Debounce done
+  uint32_t ases_valid            : 1; // 18: A-session valid
+  uint32_t bses_valid            : 1; // 19: B-session valid
+  uint32_t otg_ver               : 1; // 20: OTG version 0: v1.3, 1: v2.0
+  uint32_t current_mode          : 1; // 21: Current mode of operation 0: device, 1: host
+  uint32_t mult_val_id_bc        : 5; // 22..26: Multi-valued input pin ID battery charger
+  uint32_t chirp_en              : 1; // 27: Chirp detection enable
+  uint32_t rsv28_30              : 3; // 28..30: Reserved
+  uint32_t test_mode_corr_eusb2  : 1; // 31: Test mode control for eUSB2 PHY
+} dwc2_gotgctl_t;
+TU_VERIFY_STATIC(sizeof(dwc2_gotgctl_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t rsv0_1                : 2; //  0..1  : Reserved
+  uint32_t ses_end_det           : 1; //  2     : Session end detected
+  uint32_t rsv3_7                : 5; //  3..7  : Reserved
+  uint32_t srs_status_change     : 1; //  8     : Session request success status change
+  uint32_t hns_status_change     : 1; //  9     : Host negotiation success status change
+  uint32_t rsv10_16              : 7; // 10..16 : Reserved
+  uint32_t hng_det               : 1; // 17     : Host negotiation detected
+  uint32_t adev_timeout_change   : 1; // 18     : A-device timeout change
+  uint32_t dbnc_done             : 1; // 19     : Debounce done
+  uint32_t mult_val_lp_change    : 1; // 20     : Multi-valued input pin change
+  uint32_t rsv21_31              :11; // 21..31 : Reserved
+} dwc2_gotgint_t;
+TU_VERIFY_STATIC(sizeof(dwc2_gotgint_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t gintmask              :  1; //  0: Global interrupt mask
+  uint32_t hbst_len              :  4; //  1..4: Burst length/type
+  uint32_t dma_en                :  1; //  5: DMA enable
+  uint32_t rsv6                  :  1; //  6: Reserved
+  uint32_t nptxf_empty_lvl       :  1; //  7: Non-periodic Tx FIFO empty level
+  uint32_t ptxf_empty_lvl        :  1; //  8: Periodic Tx FIFO empty level
+  uint32_t rsv9_20               : 12; //  9..20: Reserved
+  uint32_t remote_mem_support    :  1; // 21: Remote memory support
+  uint32_t notify_all_dma_write  :  1; // 22: Notify all DMA writes
+  uint32_t ahb_single            :  1; // 23: AHB single
+  uint32_t inv_desc_endian       :  1; // 24: Inverse descriptor endian
+  uint32_t rsv25_31              :  7; // 25..31: Reserved
+} dwc2_gahbcfg_t;
+TU_VERIFY_STATIC(sizeof(dwc2_gahbcfg_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t timeout_cal     :  3; /* 0..2: Timeout calibration.
+    The USB standard timeout value for high-speed operation is 736 to 816 (inclusive) bit times. The USB standard
+    timeout value for full- speed operation is 16 to 18 (inclusive) bit times. The application must program this field
+    based on the speed of enumeration. The number of bit times added per PHY clock are as follows:
+    - High-speed: PHY clock One 30-MHz = 16 bit times, One 60-MHz = 8 bit times
+    - Full-speed: PHY clock One 30-MHz = 0.4 bit times, One 60-MHz = 0.2 bit times, One 48-MHz = 0.25 bit times */
+  uint32_t phy_if          : 1; // 3: PHY interface. 0: 8 bits, 1: 16 bits
+  uint32_t ulpi_utmi_sel   : 1; // 4: ULPI/UTMI select. 0: UTMI+, 1: ULPI
+  uint32_t fs_intf_sel     : 1; // 5: Fullspeed serial interface select. 0: 6-pin, 1: 3-pin
+  uint32_t phy_sel         : 1; // 6: HS/FS PHY selection. 0: HS UTMI+ or ULPI, 1: FS serial transceiver
+  uint32_t ddr_sel         : 1; // 7 ULPI DDR select. 0: Single data rate 8-bit, 1: Double data rate 4-bit
+  uint32_t srp_capable     : 1; // 8: SRP-capable
+  uint32_t hnp_capable     : 1; // 9: HNP-capable
+  uint32_t turnaround_time : 4; // 10..13 Turnaround time. 9: 8-bit UTMI+, 5: 16-bit UTMI+
+  uint32_t rsv14           : 1; // 14: Reserved
+  uint32_t phy_low_power_clk_sel : 1; /* 15: PHY low-power clock select either 480-MHz or 48-MHz (low-power) PHY mode.
+    In FS/LS modes, the PHY can usually operate on a 48-MHz clock to save power. This bit is valid only for UTMI+ PHYs.
+    - 0: 480 Mhz internal PLL: the UTMI interface operates at either 60 MHz (8 bit) or 30 MHz (16-bit)
+    - 1 48 Mhz external clock: the UTMI interface operates at 48 MHz in FS mode and at either 48 or 6 MHz in LS mode */
+  uint32_t otg_i2c_sel    : 1; // 16: OTG I2C interface select. 0: UTMI-FS, 1: I2C for OTG signals
+  uint32_t ulpi_fsls      : 1; /* 17: ULPI FS/LS select. 0: ULPI, 1: ULPI FS/LS.
+                                      valid only when the FS serial transceiver is selected on the ULPI PHY. */
+  uint32_t ulpi_auto_resume : 1; // 18: ULPI Auto-resume
+  uint32_t ulpi_clk_sus_m   : 1; // 19: ULPI Clock SuspendM
+  uint32_t ulpi_ext_vbus_drv : 1; // 20: ULPI External VBUS Drive
+  uint32_t ulpi_int_vbus_indicator : 1; // 21: ULPI Internal VBUS Indicator
+  uint32_t term_sel_dl_pulse : 1; // 22: TermSel DLine pulsing
+  uint32_t indicator_complement : 1; // 23: Indicator complement
+  uint32_t indicator_pass_through : 1; // 24: Indicator pass through
+  uint32_t ulpi_if_protect_disable : 1; // 25: ULPI interface protect disable
+  uint32_t ic_usb_capable : 1; // 26: IC_USB Capable
+  uint32_t ic_usb_traf_ctl : 1; // 27: IC_USB Traffic Control
+  uint32_t tx_end_delay : 1; // 28: TX end delay
+  uint32_t force_host_mode : 1; // 29: Force host mode
+  uint32_t force_dev_mode : 1; // 30: Force device mode
+  uint32_t corrupt_tx_pkt : 1; // 31: Corrupt Tx packet. 0: normal, 1: debug
+} dwc2_gusbcfg_t;
+TU_VERIFY_STATIC(sizeof(dwc2_gusbcfg_t) == 4, "incorrect size");
+
 // Host Channel
-typedef struct
-{
+typedef struct {
   volatile uint32_t hcchar;           // 500 + 20*ch Host Channel Characteristics
   volatile uint32_t hcsplt;           // 504 + 20*ch Host Channel Split Control
   volatile uint32_t hcint;            // 508 + 20*ch Host Channel Interrupt
@@ -184,8 +280,7 @@ typedef struct
 } dwc2_channel_t;
 
 // Endpoint IN
-typedef struct
-{
+typedef struct {
   volatile uint32_t diepctl;          // 900 + 20*ep Device IN Endpoint Control
            uint32_t reserved04;       // 904
   volatile uint32_t diepint;          // 908 + 20*ep Device IN Endpoint Interrupt
@@ -197,8 +292,7 @@ typedef struct
 } dwc2_epin_t;
 
 // Endpoint OUT
-typedef struct
-{
+typedef struct {
   volatile uint32_t doepctl;          // B00 + 20*ep Device OUT Endpoint Control
            uint32_t reserved04;       // B04
   volatile uint32_t doepint;          // B08 + 20*ep Device OUT Endpoint Interrupt
@@ -208,8 +302,10 @@ typedef struct
            uint32_t reserved18[2];    // B18..B1C
 } dwc2_epout_t;
 
-typedef struct
-{
+//--------------------------------------------------------------------
+// CSR Register Map
+//--------------------------------------------------------------------
+typedef struct {
   //------------- Core Global -------------//
   volatile uint32_t gotgctl;          // 000 OTG Control and Status
   volatile uint32_t gotgint;          // 004 OTG Interrupt

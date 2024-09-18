@@ -459,6 +459,8 @@ def main():
     """
     global verbose
 
+    duration = time.time()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('config_file', help='Configuration JSON file')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
@@ -483,9 +485,10 @@ def main():
     with Pool(processes=os.cpu_count()) as pool:
         err_count = sum(pool.map(test_board, config_boards))
 
+    duration = time.time() - duration
     print()
     print("-" * 30)
-    print(f'Total failed: {err_count}')
+    print(f'Total failed: {err_count} in {duration:.1f}s')
     print("-" * 30)
     sys.exit(err_count)
 
