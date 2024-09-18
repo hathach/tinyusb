@@ -411,6 +411,7 @@ def test_board(board):
             for skip in board_tests['skip']:
                 if skip in test_list:
                     test_list.remove(skip)
+                    print(f'{name:25} {skip:30} ... Skip')
 
     err_count = 0
     for test in test_list:
