@@ -31,7 +31,7 @@
 
 #include <stdlib.h>
 #include "rp2040_usb.h"
-
+#include "pico/sync.h"
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPE
 //--------------------------------------------------------------------+
@@ -164,13 +164,12 @@ void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep)
   // Also, Host mode "interrupt" endpoint hardware is only single buffered,
   // NOTE2: Currently Host bulk is implemented using "interrupt" endpoint
   bool const is_host = is_host_mode();
-  bool const force_single = (!is_host && !tu_edpt_dir(ep->ep_addr)) ||
-                            (is_host && tu_edpt_number(ep->ep_addr) != 0);
+  bool const force_single = (!is_host && !tu_edpt_dir(ep->ep_addr));// ||
+                            //(is_host && tu_edpt_number(ep->ep_addr) != 0);
 
   if (ep->remaining_len && !force_single) {
     // Use buffer 1 (double buffered) if there is still data
     // TODO: Isochronous for buffer1 bit-field is different than CBI (control bulk, interrupt)
-
     buf_ctrl |= prepare_ep_buffer(ep, 1);
 
     // Set endpoint control double buffered bit if needed
@@ -295,6 +294,38 @@ static void __tusb_irq_path_func(_hw_endpoint_xfer_sync)(struct hw_endpoint* ep)
       TU_LOG(3, "  BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 #endif
     }
+  }
+}
+
+void __tusb_irq_path_func(hw_endpoint_lock_update)(struct hw_endpoint* ep, int delta)
+{
+  static uint32_t saved_irqs=0;
+  static struct hw_endpoint* owner = NULL;
+  static int lock_count = 0;
+  assert(ep);
+  assert(delta == 1 || delta == -1);
+  assert(lock_count == 0 || (lock_count > 0 && owner != NULL));
+  if (delta == 1 && ((lock_count == 0) || (owner == ep)))
+  {
+    if (lock_count == 0)
+    {
+      saved_irqs = save_and_disable_interrupts();
+      owner = ep;
+    }
+    ++lock_count;
+  }
+  else if (owner == ep && delta == -1 && lock_count > 0)
+  {
+    --lock_count;
+    if (lock_count == 0)
+    {
+      owner = NULL;
+      restore_interrupts(saved_irqs);
+    }
+  }
+  else
+  {
+    panic("owner=%p lock_count=%d ep=%p delta=%d\r\n", owner, lock_count, ep, delta);
   }
 }
 
