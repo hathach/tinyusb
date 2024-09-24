@@ -252,6 +252,55 @@ static void dfifo_init(uint8_t rhport) {
   dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE);
 }
 
+// Read a single data packet from receive FIFO
+static void dfifo_read_packet(uint8_t rhport, uint8_t* dst, uint16_t len) {
+  (void) rhport;
+
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  volatile const uint32_t* rx_fifo = dwc2->fifo[0];
+
+  // Reading full available 32 bit words from fifo
+  uint16_t full_words = len >> 2;
+  while (full_words--) {
+    tu_unaligned_write32(dst, *rx_fifo);
+    dst += 4;
+  }
+
+  // Read the remaining 1-3 bytes from fifo
+  uint8_t const bytes_rem = len & 0x03;
+  if (bytes_rem != 0) {
+    uint32_t const tmp = *rx_fifo;
+    dst[0] = tu_u32_byte0(tmp);
+    if (bytes_rem > 1) dst[1] = tu_u32_byte1(tmp);
+    if (bytes_rem > 2) dst[2] = tu_u32_byte2(tmp);
+  }
+}
+
+// Write a single data packet to EPIN FIFO
+static void dfifo_write_packet(uint8_t rhport, uint8_t fifo_num, uint8_t const* src, uint16_t len) {
+  (void) rhport;
+
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  volatile uint32_t* tx_fifo = dwc2->fifo[fifo_num];
+
+  // Pushing full available 32 bit words to fifo
+  uint16_t full_words = len >> 2;
+  while (full_words--) {
+    *tx_fifo = tu_unaligned_read32(src);
+    src += 4;
+  }
+
+  // Write the remaining 1-3 bytes into fifo
+  uint8_t const bytes_rem = len & 0x03;
+  if (bytes_rem) {
+    uint32_t tmp_word = src[0];
+    if (bytes_rem > 1) tmp_word |= (src[1] << 8);
+    if (bytes_rem > 2) tmp_word |= (src[2] << 16);
+
+    *tx_fifo = tmp_word;
+  }
+}
+
 //--------------------------------------------------------------------
 // Endpoint
 //--------------------------------------------------------------------
@@ -899,56 +948,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 }
 
-/*------------------------------------------------------------------*/
-
-// Read a single data packet from receive FIFO
-static void read_fifo_packet(uint8_t rhport, uint8_t* dst, uint16_t len) {
-  (void) rhport;
-
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  volatile const uint32_t* rx_fifo = dwc2->fifo[0];
-
-  // Reading full available 32 bit words from fifo
-  uint16_t full_words = len >> 2;
-  while (full_words--) {
-    tu_unaligned_write32(dst, *rx_fifo);
-    dst += 4;
-  }
-
-  // Read the remaining 1-3 bytes from fifo
-  uint8_t const bytes_rem = len & 0x03;
-  if (bytes_rem != 0) {
-    uint32_t const tmp = *rx_fifo;
-    dst[0] = tu_u32_byte0(tmp);
-    if (bytes_rem > 1) dst[1] = tu_u32_byte1(tmp);
-    if (bytes_rem > 2) dst[2] = tu_u32_byte2(tmp);
-  }
-}
-
-// Write a single data packet to EPIN FIFO
-static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t const* src, uint16_t len) {
-  (void) rhport;
-
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  volatile uint32_t* tx_fifo = dwc2->fifo[fifo_num];
-
-  // Pushing full available 32 bit words to fifo
-  uint16_t full_words = len >> 2;
-  while (full_words--) {
-    *tx_fifo = tu_unaligned_read32(src);
-    src += 4;
-  }
-
-  // Write the remaining 1-3 bytes into fifo
-  uint8_t const bytes_rem = len & 0x03;
-  if (bytes_rem) {
-    uint32_t tmp_word = src[0];
-    if (bytes_rem > 1) tmp_word |= (src[1] << 8);
-    if (bytes_rem > 2) tmp_word |= (src[2] << 16);
-
-    *tx_fifo = tmp_word;
-  }
-}
+//--------------------------------------------------------------------
+// Interrupt Handler
+//--------------------------------------------------------------------
 
 static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -1002,7 +1004,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
         tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, bcnt);
       } else {
         // Linear buffer
-        read_fifo_packet(rhport, xfer->buffer, bcnt);
+        dfifo_read_packet(rhport, xfer->buffer, bcnt);
 
         // Increment pointer to xfer data
         xfer->buffer += bcnt;
@@ -1171,7 +1173,7 @@ static void handle_epin_irq(uint8_t rhport) {
             volatile uint32_t* tx_fifo = dwc2->fifo[n];
             tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*) (uintptr_t) tx_fifo, packet_size);
           } else {
-            write_fifo_packet(rhport, n, xfer->buffer, packet_size);
+            dfifo_write_packet(rhport, n, xfer->buffer, packet_size);
 
             // Increment pointer to xfer data
             xfer->buffer += packet_size;

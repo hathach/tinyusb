@@ -244,7 +244,7 @@
 
 // DWC2 controller: use DMA for data transfer
 #ifndef CFG_TUD_DWC2_DMA
-  #define CFG_TUD_DWC2_DMA 1
+  #define CFG_TUD_DWC2_DMA 0
 #endif
 
 // Enable PIO-USB software host controller
