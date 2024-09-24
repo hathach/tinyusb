@@ -95,16 +95,13 @@ static bool _sof_en;
 //--------------------------------------------------------------------
 
 TU_ATTR_ALWAYS_INLINE static inline bool dma_enabled(const dwc2_regs_t* dwc2) {
+  #if !CFG_TUD_DWC2_DMA
   (void) dwc2;
-  // DMA doesn't support fifo transfer
-#ifdef TUD_AUDIO_PREFER_RING_BUFFER
-#if TUD_AUDIO_PREFER_RING_BUFFER
   return false;
-#endif
-#endif
+  #else
   // Internal DMA only
   return (dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA);
-  // return false;
+  #endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t dma_cal_epfifo_base(uint8_t rhport) {
