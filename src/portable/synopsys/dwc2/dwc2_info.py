@@ -47,9 +47,9 @@ class GHWCFG2(ctypes.LittleEndianStructure):
         ("enable_dynamic_fifo", ctypes.c_uint32, 1),
         ("mul_cpu_int", ctypes.c_uint32, 1),
         ("reserved21", ctypes.c_uint32, 1),
-        ("nperiod_tx_q_depth", ctypes.c_uint32, 2),
-        ("host_period_tx_q_depth", ctypes.c_uint32, 2),
-        ("dev_token_q_depth", ctypes.c_uint32, 5),
+        ("nptx_q_depth", ctypes.c_uint32, 2),
+        ("ptx_q_depth", ctypes.c_uint32, 2),
+        ("token_q_depth", ctypes.c_uint32, 5),
         ("otg_enable_ic_usb", ctypes.c_uint32, 1)
     ]
 
@@ -67,31 +67,34 @@ class GHWCFG3(ctypes.LittleEndianStructure):
         ("otg_enable_hsic", ctypes.c_uint32, 1),
         ("battery_charger_support", ctypes.c_uint32, 1),
         ("lpm_mode", ctypes.c_uint32, 1),
-        ("total_fifo_size", ctypes.c_uint32, 16)
+        ("dfifo_depth", ctypes.c_uint32, 16)
     ]
 
 
 class GHWCFG4(ctypes.LittleEndianStructure):
     _fields_ = [
         ("num_dev_period_in_ep", ctypes.c_uint32, 4),
-        ("power_optimized", ctypes.c_uint32, 1),
+        ("partial_powerdown", ctypes.c_uint32, 1),
         ("ahb_freq_min", ctypes.c_uint32, 1),
         ("hibernation", ctypes.c_uint32, 1),
-        ("reserved7", ctypes.c_uint32, 3),
-        ("service_interval_mode", ctypes.c_uint32, 1),
-        ("ipg_isoc_en", ctypes.c_uint32, 1),
-        ("acg_enable", ctypes.c_uint32, 1),
-        ("reserved13", ctypes.c_uint32, 1),
-        ("utmi_phy_data_width", ctypes.c_uint32, 2),
-        ("dev_ctrl_ep_num", ctypes.c_uint32, 4),
-        ("iddg_filter_enabled", ctypes.c_uint32, 1),
-        ("vbus_valid_filter_enabled", ctypes.c_uint32, 1),
-        ("a_valid_filter_enabled", ctypes.c_uint32, 1),
-        ("b_valid_filter_enabled", ctypes.c_uint32, 1),
+        ("extended_hibernation", ctypes.c_uint32, 1),
+        ("reserved8", ctypes.c_uint32, 1),
+        ("enhanced_lpm_support1", ctypes.c_uint32, 1),
+        ("service_interval_flow", ctypes.c_uint32, 1),
+        ("ipg_isoc_support", ctypes.c_uint32, 1),
+        ("acg_support", ctypes.c_uint32, 1),
+        ("enhanced_lpm_support", ctypes.c_uint32, 1),
+        ("phy_data_width", ctypes.c_uint32, 2),
+        ("ctrl_ep_num", ctypes.c_uint32, 4),
+        ("iddg_filter", ctypes.c_uint32, 1),
+        ("vbus_valid_filter", ctypes.c_uint32, 1),
+        ("a_valid_filter", ctypes.c_uint32, 1),
+        ("b_valid_filter", ctypes.c_uint32, 1),
+        ("session_end_filter", ctypes.c_uint32, 1),
         ("dedicated_fifos", ctypes.c_uint32, 1),
         ("num_dev_in_eps", ctypes.c_uint32, 4),
         ("dma_desc_enable", ctypes.c_uint32, 1),
-        ("dma_dynamic", ctypes.c_uint32, 1)
+        ("dma_desc_dynamic", ctypes.c_uint32, 1)
     ]
 
 

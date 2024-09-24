@@ -142,7 +142,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 // - dwc2 3.30a (H5) use USB_HS_PHYC
 // - dwc2 4.11a (U5) use femtoPHY
 static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
-  if (hs_phy_type == HS_PHY_TYPE_NONE) {
+  if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
     // Enable on-chip FS PHY
     dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
 
@@ -175,7 +175,7 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 #endif
 
     // Enable on-chip HS PHY
-    if (hs_phy_type == HS_PHY_TYPE_UTMI || hs_phy_type == HS_PHY_TYPE_UTMI_ULPI) {
+    if (hs_phy_type == GHWCFG2_HSPHY_UTMI || hs_phy_type == GHWCFG2_HSPHY_UTMI_ULPI) {
       #ifdef USB_HS_PHYC
       // Enable UTMI HS PHY
       dwc2->stm32_gccfg |= STM32_GCCFG_PHYHSEN;
@@ -218,7 +218,7 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 // MCU specific PHY update, it is called AFTER init() and core reset
 static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   // used to set turnaround time for fullspeed, nothing to do in highspeed mode
-  if (hs_phy_type == HS_PHY_TYPE_NONE) {
+  if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
     // Turnaround timeout depends on the AHB clock dictated by STM32 Reference Manual
     uint32_t turnaround;
 
