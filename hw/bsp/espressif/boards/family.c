@@ -31,20 +31,9 @@
 #include "esp_mac.h"
 #include "hal/gpio_ll.h"
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-#include "hal/usb_hal.h"
-#include "soc/usb_periph.h"
-static void configure_pins(usb_hal_context_t* usb);
-#endif
-
 #include "driver/gpio.h"
 #include "driver/uart.h"
-
-#if ESP_IDF_VERSION_MAJOR > 4
-  #include "esp_private/periph_ctrl.h"
-#else
-  #include "driver/periph_ctrl.h"
-#endif
+#include "esp_private/periph_ctrl.h"
 
 // Note; current code use UART0 can cause device to reset while monitoring
 #define USE_UART  0
@@ -60,6 +49,7 @@ static led_strip_handle_t led_strip;
 static void max3421_init(void);
 #endif
 
+static bool usb_init(void);
 
 //--------------------------------------------------------------------+
 // Implementation
@@ -111,16 +101,8 @@ void board_init(void) {
   gpio_set_direction(BUTTON_PIN, GPIO_MODE_INPUT);
   gpio_set_pull_mode(BUTTON_PIN, BUTTON_STATE_ACTIVE ? GPIO_PULLDOWN_ONLY : GPIO_PULLUP_ONLY);
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-  // USB Controller Hal init
-  periph_module_reset(PERIPH_USB_MODULE);
-  periph_module_enable(PERIPH_USB_MODULE);
-
-  usb_hal_context_t hal = {
-      .use_external_phy = false // use built-in PHY
-  };
-  usb_hal_init(&hal);
-  configure_pins(&hal);
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32P4)
+  usb_init();
 #endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
@@ -129,35 +111,7 @@ void board_init(void) {
 }
 
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-static void configure_pins(usb_hal_context_t* usb) {
-  /* usb_periph_iopins currently configures USB_OTG as USB Device.
-   * Introduce additional parameters in usb_hal_context_t when adding support
-   * for USB Host. */
-  for (const usb_iopin_dsc_t* iopin = usb_periph_iopins; iopin->pin != -1; ++iopin) {
-    if ((usb->use_external_phy) || (iopin->ext_phy_only == 0)) {
-      esp_rom_gpio_pad_select_gpio(iopin->pin);
-      if (iopin->is_output) {
-        esp_rom_gpio_connect_out_signal(iopin->pin, iopin->func, false, false);
-      } else {
-        esp_rom_gpio_connect_in_signal(iopin->pin, iopin->func, false);
-#if ESP_IDF_VERSION_MAJOR > 4
-        if ((iopin->pin != GPIO_MATRIX_CONST_ZERO_INPUT) && (iopin->pin != GPIO_MATRIX_CONST_ONE_INPUT))
-#else
-        if ((iopin->pin != GPIO_FUNC_IN_LOW) && (iopin->pin != GPIO_FUNC_IN_HIGH))
-#endif
-        {
-          gpio_ll_input_enable(&GPIO, iopin->pin);
-        }
-      }
-      esp_rom_gpio_pad_unhold(iopin->pin);
-    }
-  }
 
-  if (!usb->use_external_phy) {
-    gpio_set_drive_capability(USBPHY_DM_NUM, GPIO_DRIVE_CAP_3);
-    gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
-  }
-}
 #endif
 
 //--------------------------------------------------------------------+
@@ -203,6 +157,87 @@ int board_getchar(void) {
   uint8_t c = 0;
   return board_uart_read(&c, 1) > 0 ? (int) c : (-1);
 }
+
+//--------------------------------------------------------------------
+// PHY Init
+//--------------------------------------------------------------------
+
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32P4)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+
+#include "esp_private/usb_phy.h"
+#include "soc/usb_pins.h"
+
+static usb_phy_handle_t phy_hdl;
+
+bool usb_init(void) {
+  // Configure USB PHY
+  usb_phy_config_t phy_conf = {
+    .controller = USB_PHY_CTRL_OTG,
+    .target = USB_PHY_TARGET_INT,
+    .otg_mode = USB_OTG_MODE_DEVICE,
+  };
+
+  // OTG IOs config
+  // const usb_phy_otg_io_conf_t otg_io_conf = USB_PHY_SELF_POWERED_DEVICE(config->vbus_monitor_io);
+  // if (config->self_powered) {
+  //   phy_conf.otg_io_conf = &otg_io_conf;
+  // }
+  // ESP_RETURN_ON_ERROR(usb_new_phy(&phy_conf, &phy_hdl), TAG, "Install USB PHY failed");
+
+  usb_new_phy(&phy_conf, &phy_hdl);
+
+  return true;
+}
+
+#else
+
+#include "esp_private/usb_phy.h"
+#include "hal/usb_hal.h"
+#include "soc/usb_periph.h"
+
+static void configure_pins(usb_hal_context_t* usb) {
+  /* usb_periph_iopins currently configures USB_OTG as USB Device.
+   * Introduce additional parameters in usb_hal_context_t when adding support
+   * for USB Host. */
+  for (const usb_iopin_dsc_t* iopin = usb_periph_iopins; iopin->pin != -1; ++iopin) {
+    if ((usb->use_external_phy) || (iopin->ext_phy_only == 0)) {
+      esp_rom_gpio_pad_select_gpio(iopin->pin);
+      if (iopin->is_output) {
+        esp_rom_gpio_connect_out_signal(iopin->pin, iopin->func, false, false);
+      } else {
+        esp_rom_gpio_connect_in_signal(iopin->pin, iopin->func, false);
+        if ((iopin->pin != GPIO_MATRIX_CONST_ZERO_INPUT) && (iopin->pin != GPIO_MATRIX_CONST_ONE_INPUT)) {
+          gpio_ll_input_enable(&GPIO, iopin->pin);
+        }
+      }
+      esp_rom_gpio_pad_unhold(iopin->pin);
+    }
+  }
+
+  if (!usb->use_external_phy) {
+    gpio_set_drive_capability(USBPHY_DM_NUM, GPIO_DRIVE_CAP_3);
+    gpio_set_drive_capability(USBPHY_DP_NUM, GPIO_DRIVE_CAP_3);
+  }
+}
+
+bool usb_init(void) {
+  // USB Controller Hal init
+  periph_module_reset(PERIPH_USB_MODULE);
+  periph_module_enable(PERIPH_USB_MODULE);
+
+  usb_hal_context_t hal = {
+    .use_external_phy = false // use built-in PHY
+  };
+
+  usb_hal_init(&hal);
+  configure_pins(&hal);
+
+  return true;
+}
+
+#endif
+#endif
 
 //--------------------------------------------------------------------+
 // API: SPI transfer with MAX3421E, must be implemented by application
