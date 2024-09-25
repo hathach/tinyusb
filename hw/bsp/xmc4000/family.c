@@ -103,6 +103,12 @@ uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == XMC_GPIO_GetInput(BUTTON_PIN);
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  uint8_t const len = tu_min8(16, max_len);
+  memcpy(id, g_chipid, len);
+  return len;
+}
+
 int board_uart_read(uint8_t* buf, int len) {
 #ifdef UART_DEV
   for(int i=0;i<len;i++) {

@@ -46,6 +46,7 @@ typedef struct
   uintptr_t reg_base;
   uint32_t  irqnum;
   uint8_t   ep_count;
+  uint8_t   ep_in_count;
   uint32_t  ep_fifo_size;
 }dwc2_controller_t;
 
@@ -99,6 +100,12 @@ enum {
   FS_PHY_TYPE_ULPI,
 };
 
+enum {
+  GHWCFG2_ARCH_SLAVE_ONLY = 0,
+  GHWCFG2_ARCH_EXTERNAL_DMA, // 1
+  GHWCFG2_ARCH_INTERNAL_DMA, // 2
+};
+
 typedef struct TU_ATTR_PACKED
 {
   uint32_t op_mode                  : 3; // 0: HNP and SRP | 1: SRP | 2: non-HNP, non-SRP
@@ -133,7 +140,7 @@ typedef struct TU_ATTR_PACKED
   uint32_t otg_enable_hsic          : 1;  // 1: HSIC-capable with shared UTMI PHY interface | 0: non-HSIC
   uint32_t battery_charger_support  : 1;  // support battery charger
   uint32_t lpm_mode                 : 1;  // LPC mode
-  uint32_t total_fifo_size          : 16; // DFIFO depth value in terms of 32-bit words
+  uint32_t dfifo_depth              : 16; // DFIFO depth - EP_LOC_CNT in terms of 32-bit words
 }dwc2_ghwcfg3_t;
 
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg3_t) == 4, "incorrect size");
@@ -230,15 +237,15 @@ union {
   volatile uint32_t ghwcfg1;          // 044 User Hardware Configuration1: endpoint dir (2 bit per ep)
 union {
   volatile uint32_t ghwcfg2;          // 048 User Hardware Configuration2
-  dwc2_ghwcfg2_t    ghwcfg2_bm;
+  volatile dwc2_ghwcfg2_t ghwcfg2_bm;
 };
 union {
   volatile uint32_t ghwcfg3;          // 04C User Hardware Configuration3
-  dwc2_ghwcfg3_t    ghwcfg3_bm;
+  volatile dwc2_ghwcfg3_t ghwcfg3_bm;
 };
 union {
   volatile uint32_t ghwcfg4;          // 050 User Hardware Configuration4
-  dwc2_ghwcfg4_t    ghwcfg4_bm;
+  volatile dwc2_ghwcfg4_t ghwcfg4_bm;
 };
   volatile uint32_t glpmcfg;          // 054 Core LPM Configuration
   volatile uint32_t gpwrdn;           // 058 Power Down
@@ -1238,6 +1245,12 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GLPMCFG_ENBESL_Pos               (28U)
 #define GLPMCFG_ENBESL_Msk               (0x1UL << GLPMCFG_ENBESL_Pos)            // 0x10000000
 #define GLPMCFG_ENBESL                   GLPMCFG_ENBESL_Msk                       // Enable best effort service latency
+
+// GDFIFOCFG
+#define GDFIFOCFG_EPINFOBASE_MASK   (0xffff << 16)
+#define GDFIFOCFG_EPINFOBASE_SHIFT  16
+#define GDFIFOCFG_GDFIFOCFG_MASK    (0xffff << 0)
+#define GDFIFOCFG_GDFIFOCFG_SHIFT   0
 
 /********************  Bit definition for DIEPEACHMSK1 register  ********************/
 #define DIEPEACHMSK1_XFRCM_Pos           (0U)

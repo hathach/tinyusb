@@ -228,7 +228,7 @@
 #define OPT_MODE_SPEED_MASK     0xff00
 
 //--------------------------------------------------------------------+
-// Include tusb_config.h and tusb_mcu.h
+// Include tusb_config.h
 //--------------------------------------------------------------------+
 
 // Allow to use command line to change the config name/location
@@ -236,6 +236,33 @@
   #include CFG_TUSB_CONFIG_FILE
 #else
   #include "tusb_config.h"
+#endif
+
+//--------------------------------------------------------------------+
+// USBIP
+//--------------------------------------------------------------------+
+
+// DWC2 controller: use DMA for data transfer
+// For processors with data cache enabled, USB endpoint buffer region
+// (defined by CFG_TUSB_MEM_SECTION) must be declared as non-cacheable.
+// For example, on Cortex-M7 the MPU region can be configured as normal
+// non-cacheable, with RASR register value: TEX=1 C=0 B=0 S=0.
+#ifndef CFG_TUD_DWC2_DMA
+  #define CFG_TUD_DWC2_DMA 0
+#endif
+
+// Enable PIO-USB software host controller
+#ifndef CFG_TUH_RPI_PIO_USB
+  #define CFG_TUH_RPI_PIO_USB 0
+#endif
+
+#ifndef CFG_TUD_RPI_PIO_USB
+  #define CFG_TUD_RPI_PIO_USB 0
+#endif
+
+// MAX3421 Host controller option
+#ifndef CFG_TUH_MAX3421
+  #define CFG_TUH_MAX3421  0
 #endif
 
 #include "common/tusb_mcu.h"
@@ -546,20 +573,6 @@
 
 #ifndef CFG_TUH_API_EDPT_XFER
   #define CFG_TUH_API_EDPT_XFER 0
-#endif
-
-// Enable PIO-USB software host controller
-#ifndef CFG_TUH_RPI_PIO_USB
-  #define CFG_TUH_RPI_PIO_USB 0
-#endif
-
-#ifndef CFG_TUD_RPI_PIO_USB
-  #define CFG_TUD_RPI_PIO_USB 0
-#endif
-
-// MAX3421 Host controller option
-#ifndef CFG_TUH_MAX3421
-  #define CFG_TUH_MAX3421  0
 #endif
 
 //--------------------------------------------------------------------+
