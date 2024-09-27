@@ -2,8 +2,16 @@ cmake_minimum_required(VERSION 3.5)
 
 # Apply board specific content i.e IDF_TARGET must be set before project.cmake is included
 include("${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake")
-
 string(TOUPPER ${IDF_TARGET} FAMILY_MCUS)
+
+# Device port default to Port1 for P4 (highspeed), Port0 for others (fullspeed)
+if (NOT DEFINED TUD_PORT)
+  if (IDF_TARGET STREQUAL "esp32p4")
+    set(TUD_PORT 1)
+  else ()
+    set(TUD_PORT 0)
+  endif ()
+endif()
 
 # Add example src and bsp directories
 set(EXTRA_COMPONENT_DIRS "src" "${CMAKE_CURRENT_LIST_DIR}/boards" "${CMAKE_CURRENT_LIST_DIR}/components")

@@ -31,6 +31,9 @@
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_DWC2)
 
+// Debug level for DWC2
+#define DWC2_DEBUG    2
+
 #include "device/dcd.h"
 #include "dwc2_type.h"
 
@@ -57,15 +60,24 @@
   #error "Unsupported MCUs"
 #endif
 
+enum {
+  DWC2_CONTROLLER_COUNT = TU_ARRAY_SIZE(_dwc2_controller)
+};
+
+// DWC2 registers
+//#define DWC2_REG(_port)       ((dwc2_regs_t*) _dwc2_controller[_port].reg_base)
+
+TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
+  if (rhport >= DWC2_CONTROLLER_COUNT) {
+    // user mis-configured, ignore and use first controller
+    rhport = 0;
+  }
+  return (dwc2_regs_t*) _dwc2_controller[rhport].reg_base;
+}
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-
-// DWC2 registers
-#define DWC2_REG(_port)       ((dwc2_regs_t*) _dwc2_controller[_port].reg_base)
-
-// Debug level for DWC2
-#define DWC2_DEBUG    2
 
 static CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
@@ -584,7 +596,9 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
     gusbcfg &= ~(GUSBCFG_ULPI_UTMI_SEL | GUSBCFG_PHYIF16);
 
     // Set 16-bit interface if supported
-    if (dwc2->ghwcfg4_bm.phy_data_width) gusbcfg |= GUSBCFG_PHYIF16;
+    if (dwc2->ghwcfg4_bm.phy_data_width) {
+      gusbcfg |= GUSBCFG_PHYIF16;
+    }
   }
 
   // Apply config
@@ -621,7 +635,7 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
 }
 
 static bool check_dwc2(dwc2_regs_t* dwc2) {
-#if CFG_TUSB_DEBUG >= DWC2_DEBUG || 1
+#if CFG_TUSB_DEBUG >= DWC2_DEBUG
   // print guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4
   // Run 'dwc2_info.py render-md' and check dwc2_info.md for bit-field value and comparison with other ports
   volatile uint32_t const* p = (volatile uint32_t const*) &dwc2->guid;
