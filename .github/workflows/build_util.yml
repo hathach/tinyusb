@@ -41,7 +41,7 @@ jobs:
         uses: ./.github/actions/setup_toolchain
         with:
           toolchain: ${{ inputs.toolchain }}
-          toolchain_version: 'v5.1.1'
+          toolchain_version: 'v5.3.1'
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
@@ -61,7 +61,7 @@ jobs:
       - name: Build
         run: |
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
-            docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python tools/build.py ${{ matrix.arg }}
+            docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.1 python tools/build.py ${{ matrix.arg }}
           else
             python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
           fi

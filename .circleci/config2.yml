@@ -105,7 +105,7 @@ commands:
           name: Build
           command: |
             if [ << parameters.toolchain >> == esp-idf ]; then
-              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.1.1 python tools/build.py << parameters.family >>
+              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.1 python tools/build.py << parameters.family >>
             else
               # Toolchain option default is gcc
               if [ << parameters.toolchain >> == arm-clang ]; then
