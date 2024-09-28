@@ -111,7 +111,7 @@ jobs:
   hil-tinyusb:
     if: github.repository_owner == 'hathach'
     needs: build
-    runs-on: [self-hosted, ARM64, hathach, hardware-in-the-loop]
+    runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
     steps:
       - name: Clean workspace
         run: |
