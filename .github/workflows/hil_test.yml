@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HIL_JSON: test/hil/rpi.json
+  HIL_JSON: test/hil/tinyusb.json
 
 jobs:
   set-matrix:
@@ -74,40 +74,8 @@ jobs:
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # self-hosted running on an RPI. For attached hardware checkout test/hil/rpi.json
+  # self-hosted running on an VM. For attached hardware checkout test/hil/tinyusb.json
   # ---------------------------------------
-#  hil-rpi:
-#    if: github.repository_owner == 'hathach'
-#    needs: build
-#    runs-on: [self-hosted, ARM64, rpi, hardware-in-the-loop]
-#    steps:
-#      - name: Clean workspace
-#        run: |
-#          echo "Cleaning up previous run"
-#          rm -rf "${{ github.workspace }}"
-#          mkdir -p "${{ github.workspace }}"
-#
-#        # USB bus on rpi is not stable, reset it before testing
-##      - name: Reset USB bus
-##        run: |
-##          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/unbind
-##          sleep 5
-##          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/bind
-#
-#      - name: Checkout TinyUSB
-#        uses: actions/checkout@v4
-#        with:
-#          sparse-checkout: test/hil
-#
-#      - name: Download Artifacts
-#        uses: actions/download-artifact@v4
-#        with:
-#          path: cmake-build
-#          merge-multiple: true
-#
-#      - name: Test on actual hardware
-#        run: python3 test/hil/hil_test.py ${{ env.HIL_JSON }}
-
   hil-tinyusb:
     if: github.repository_owner == 'hathach'
     needs: build
