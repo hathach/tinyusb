@@ -34,9 +34,8 @@ jobs:
         run: |
           MATRIX_ARMGCC=$(jq -c '{ "arm-gcc": { "family": [.boards[] | select(.flasher != "esptool" and .flasher != "openocd_wch") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
           MATRIX_ESP=$(jq -c '{ "esp-idf": { "family": [.boards[] | select(.flasher == "esptool") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
-          MATRIX_WCH=$(jq -c '{ "wch": { "family": [.boards[] | select(.flasher == "openocd_wch") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
-
-          MATRIX_JSON=$(jq -n --argjson arm "$MATRIX_ARMGCC" --argjson esp "$MATRIX_ESP" '$arm + $esp')
+          MATRIX_RISCV=$(jq -c '{ "riscv-gcc": { "family": [.boards[] | select(.flasher == "openocd_wch") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
+          MATRIX_JSON=$(jq -nc --argjson arm "$MATRIX_ARMGCC" --argjson esp "$MATRIX_ESP" --argjson riscv "$MATRIX_RISCV" '$arm + $esp + $riscv')
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
