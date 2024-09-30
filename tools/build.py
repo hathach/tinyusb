@@ -84,10 +84,13 @@ def cmake_board(board, toolchain):
         # for espressif, we have to build example individually
         all_examples = get_examples(family)
         for example in all_examples:
-            rcmd = run_cmd(f'cmake examples/{example} -B {build_dir}/{example} -G "Ninja" -DBOARD={board} -DMAX3421_HOST=1')
-            if rcmd.returncode == 0:
-                rcmd = run_cmd(f'cmake --build {build_dir}/{example}')
-            ret[0 if rcmd.returncode == 0 else 1] += 1
+            if build_utils.skip_example(example, board):
+                ret[2] += 1
+            else:
+                rcmd = run_cmd(f'cmake examples/{example} -B {build_dir}/{example} -G "Ninja" -DBOARD={board}')
+                if rcmd.returncode == 0:
+                    rcmd = run_cmd(f'cmake --build {build_dir}/{example}')
+                ret[0 if rcmd.returncode == 0 else 1] += 1
     else:
         rcmd = run_cmd(f'cmake examples -B {build_dir} -G "Ninja" -DBOARD={board} -DCMAKE_BUILD_TYPE=MinSizeRel -DTOOLCHAIN={toolchain}')
         if rcmd.returncode == 0:
