@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HIL_JSON: test/hil/rpi.json
+  HIL_JSON: test/hil/tinyusb.json
 
 jobs:
   set-matrix:
@@ -32,7 +32,10 @@ jobs:
       - name: Generate matrix json
         id: set-matrix-json
         run: |
-          MATRIX_JSON=$(jq -c '{ "arm-gcc": [.boards[] | select(.flasher != "esptool" and .flasher != "openocd_wch") | .name] }' ${{ env.HIL_JSON }})
+          MATRIX_ARMGCC=$(jq -c '{ "arm-gcc": { "family": [.boards[] | select(.flasher != "esptool" and .flasher != "openocd_wch") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
+          MATRIX_ESP=$(jq -c '{ "esp-idf": { "family": [.boards[] | select(.flasher == "esptool") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
+          MATRIX_RISCV=$(jq -c '{ "riscv-gcc": { "family": [.boards[] | select(.flasher == "openocd_wch") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
+          MATRIX_JSON=$(jq -nc --argjson arm "$MATRIX_ARMGCC" --argjson esp "$MATRIX_ESP" --argjson riscv "$MATRIX_RISCV" '$arm + $esp + $riscv')
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -42,57 +45,34 @@ jobs:
   build:
     if: github.repository_owner == 'hathach'
     needs: set-matrix
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
-        board: ${{ fromJSON(needs.set-matrix.outputs.json)['arm-gcc'] }}
-    steps:
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
-
-      - name: Setup arm-gcc toolchain
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain: 'arm-gcc'
-
-      - name: Get Dependencies
-        uses: ./.github/actions/get_deps
-        with:
-          arg: -b${{ matrix.board }}
-
-      - name: Build
-        run: python tools/build.py -b${{ matrix.board }}
-
-      - name: Upload Artifacts for Hardware Testing
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.board }}
-          path: |
-            cmake-build/cmake-build-*/*/*/*.elf
-            cmake-build/cmake-build-*/*/*/*.bin
+        toolchain:
+          - 'arm-gcc'
+          - 'esp-idf'
+    with:
+      build-system: 'cmake'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      one-per-family: true
+      upload-artifacts: true
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # self-hosted running on an RPI. For attached hardware checkout test/hil/rpi.json
+  # self-hosted running on an VM. For attached hardware checkout test/hil/tinyusb.json
   # ---------------------------------------
-  hil-rpi:
+  hil-tinyusb:
     if: github.repository_owner == 'hathach'
     needs: build
-    runs-on: [self-hosted, ARM64, rpi, hardware-in-the-loop]
+    runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
     steps:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
-
-        # USB bus on rpi is not stable, reset it before testing
-#      - name: Reset USB bus
-#        run: |
-#          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/unbind
-#          sleep 5
-#          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/bind
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4

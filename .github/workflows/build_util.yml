@@ -16,6 +16,10 @@ on:
         required: false
         default: false
         type: boolean
+      upload-artifacts:
+        required: false
+        default: false
+        type: boolean
       os:
         required: false
         type: string
@@ -62,3 +66,17 @@ jobs:
             python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
           fi
         shell: bash
+
+      - name: Upload Artifacts for Hardware Testing
+        if: ${{ inputs.upload-artifacts }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arg }}
+          path: |
+            cmake-build/cmake-build-*/*/*/*.elf
+            cmake-build/cmake-build-*/*/*/*.bin
+            cmake-build/cmake-build-*/*/*/*.bin
+            cmake-build/cmake-build-*/*/*/bootloader/bootloader.bin
+            cmake-build/cmake-build-*/*/*/partition_table/partition-table.bin
+            cmake-build/cmake-build-*/*/*/config.env
+            cmake-build/cmake-build-*/*/*/flash_args

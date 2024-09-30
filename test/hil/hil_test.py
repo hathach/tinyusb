@@ -45,6 +45,11 @@ STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
 verbose = False
 
+# -------------------------------------------------------------
+# Path
+# -------------------------------------------------------------
+OPENCOD_ADI_PATH = f'{os.getenv("HOME")}/app/openocd_adi'
+
 # get usb serial by id
 def get_serial_dev(id, vendor_str, product_str, ifnum):
     if vendor_str and product_str:
@@ -112,8 +117,8 @@ def read_disk_file(uid, lun, fname):
 # -------------------------------------------------------------
 # Flashing firmware
 # -------------------------------------------------------------
-def run_cmd(cmd):
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+def run_cmd(cmd, cwd=None):
+    r = subprocess.run(cmd, cwd=cwd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if r.returncode != 0:
         title = f'COMMAND FAILED: {cmd}'
         print()
@@ -187,11 +192,7 @@ echo "Ready for Remote Connections"
 
 
 def flash_openocd_adi(board, firmware):
-    openocd_adi_script_path = f'{os.getenv("HOME")}/app/openocd_adi/tcl'
-    if not os.path.exists(openocd_adi_script_path):
-        openocd_adi_script_path = '/home/pi/openocd_adi/tcl'
-
-    ret = run_cmd(f'openocd_adi -c "adapter serial {board["flasher_sn"]}" -s {openocd_adi_script_path} '
+    ret = run_cmd(f'{OPENCOD_ADI_PATH}/src/openocd -c "adapter serial {board["flasher_sn"]}" -s {OPENCOD_ADI_PATH}/tcl '
                   f'{board["flasher_args"]} -c "program {firmware}.elf reset exit"')
     return ret
 
@@ -203,14 +204,14 @@ def flash_wlink_rs(board, firmware):
 
 def flash_esptool(board, firmware):
     port = get_serial_dev(board["flasher_sn"], None, None, 0)
-    dir = os.path.dirname(f'{firmware}.bin')
-    with open(f'{dir}/config.env') as f:
-        IDF_TARGET = json.load(f)['IDF_TARGET']
-    with open(f'{dir}/flash_args') as f:
+    fw_dir = os.path.dirname(f'{firmware}.bin')
+    with open(f'{fw_dir}/config.env') as f:
+        idf_target = json.load(f)['IDF_TARGET']
+    with open(f'{fw_dir}/flash_args') as f:
         flash_args = f.read().strip().replace('\n', ' ')
-    command = (f'esptool.py --chip {IDF_TARGET} -p {port} {board["flasher_args"]} '
+    command = (f'esptool.py --chip {idf_target} -p {port} {board["flasher_args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
-    ret = subprocess.run(command, shell=True, cwd=dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ret = run_cmd(command, cwd=fw_dir)
     return ret
 
 
@@ -305,8 +306,7 @@ def test_device_dfu(board):
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout:
-        ret = subprocess.run(f'dfu-util -l',
-                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ret = run_cmd(f'dfu-util -l')
         stdout = ret.stdout.decode()
         if f'serial="{uid}"' in stdout and 'Found DFU: [cafe:4000]' in stdout:
             break
@@ -347,8 +347,7 @@ def test_device_dfu_runtime(board):
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout:
-        ret = subprocess.run(f'dfu-util -l',
-                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ret = run_cmd(f'dfu-util -l')
         stdout = ret.stdout.decode()
         if f'serial="{uid}"' in stdout and 'Found Runtime: [cafe:4000]' in stdout:
             break
@@ -382,17 +381,18 @@ def test_device_hid_composite_freertos(id):
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
-# all possible tests: board_test is added last to disable board's usb
-all_tests = [
+# device tests
+device_tests = [
     'device/cdc_dual_ports',
     'device/cdc_msc',
     'device/dfu',
     'device/cdc_msc_freertos',  # don't test 2 cdc_msc next to each other
     'device/dfu_runtime',
     'device/hid_boot_interface',
+]
 
+dual_tests = [
     'dual/host_info_to_device_cdc',
-    'device/board_test'
 ]
 
 
@@ -401,17 +401,22 @@ def test_board(board):
     flasher = board['flasher'].lower()
 
     # default to all tests
-    test_list = list(all_tests)
+    test_list = list(device_tests)
 
     if 'tests' in board:
         board_tests = board['tests']
         if 'only' in board_tests:
-            test_list = board_tests['only'] + ['device/board_test']
+            test_list = board_tests['only']
         if 'skip' in board_tests:
             for skip in board_tests['skip']:
                 if skip in test_list:
                     test_list.remove(skip)
                     print(f'{name:25} {skip:30} ... Skip')
+        if 'dual_attached' in board_tests:
+            test_list += dual_tests
+
+    # board_test is added last to disable board's usb
+    test_list.append('device/board_test')
 
     err_count = 0
     for test in test_list:
@@ -422,7 +427,7 @@ def test_board(board):
         print(f'{name:25} {test:30} ... ', end='')
 
         if not os.path.exists(fw_dir):
-            print('Skip')
+            print('Skip (no binary)')
             continue
 
         # flash firmware. It may fail randomly, retry a few times
