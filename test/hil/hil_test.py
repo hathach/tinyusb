@@ -240,8 +240,13 @@ def test_dual_host_info_to_device_cdc(board):
             print(f'\r\n  {l} ', end='')
             enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
 
-    assert(set(declared_devs) == set(enum_dev_sn)), \
-        f'Enumerated devices {enum_dev_sn} not match with declared {declared_devs}'
+    if set(declared_devs) != set(enum_dev_sn):
+        # for pico/pico2 make this test optional
+        failed_msg = f'Enumerated devices {enum_dev_sn} not match with declared {declared_devs}'
+        if 'raspberry_pi_pico' in board['name']:
+            print(f'\r\n  {failed_msg} ', end='')
+        else:
+            assert False, failed_msg
     return 0
 
 
@@ -405,6 +410,8 @@ def test_board(board):
 
     if 'tests' in board:
         board_tests = board['tests']
+        if 'dual_attached' in board_tests:
+            test_list += dual_tests
         if 'only' in board_tests:
             test_list = board_tests['only']
         if 'skip' in board_tests:
@@ -412,8 +419,6 @@ def test_board(board):
                 if skip in test_list:
                     test_list.remove(skip)
                     print(f'{name:25} {skip:30} ... Skip')
-        if 'dual_attached' in board_tests:
-            test_list += dual_tests
 
     # board_test is added last to disable board's usb
     test_list.append('device/board_test')

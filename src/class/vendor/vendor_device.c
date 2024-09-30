@@ -185,6 +185,8 @@ void vendord_reset(uint8_t rhport) {
     tu_memclr(p_itf, ITF_MEM_RESET_SIZE);
     tu_edpt_stream_clear(&p_itf->rx.stream);
     tu_edpt_stream_clear(&p_itf->tx.stream);
+    tu_edpt_stream_close(&p_itf->rx.stream);
+    tu_edpt_stream_close(&p_itf->tx.stream);
   }
 }
 
