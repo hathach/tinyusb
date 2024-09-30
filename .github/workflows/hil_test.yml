@@ -59,37 +59,6 @@ jobs:
       one-per-family: true
       upload-artifacts: true
 
-#    needs: set-matrix
-#    runs-on: ubuntu-latest
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        board: ${{ fromJSON(needs.set-matrix.outputs.json)['arm-gcc'] }}
-#    steps:
-#      - name: Checkout TinyUSB
-#        uses: actions/checkout@v4
-#
-#      - name: Setup arm-gcc toolchain
-#        uses: ./.github/actions/setup_toolchain
-#        with:
-#          toolchain: 'arm-gcc'
-#
-#      - name: Get Dependencies
-#        uses: ./.github/actions/get_deps
-#        with:
-#          arg: -b${{ matrix.board }}
-#
-#      - name: Build
-#        run: python tools/build.py -b${{ matrix.board }}
-#
-#      - name: Upload Artifacts for Hardware Testing
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: ${{ matrix.board }}
-#          path: |
-#            cmake-build/cmake-build-*/*/*/*.elf
-#            cmake-build/cmake-build-*/*/*/*.bin
-
   # ---------------------------------------
   # Hardware in the loop (HIL)
   # self-hosted running on an VM. For attached hardware checkout test/hil/tinyusb.json

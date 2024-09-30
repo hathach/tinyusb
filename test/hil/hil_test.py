@@ -117,8 +117,8 @@ def read_disk_file(uid, lun, fname):
 # -------------------------------------------------------------
 # Flashing firmware
 # -------------------------------------------------------------
-def run_cmd(cmd):
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+def run_cmd(cmd, cwd=None):
+    r = subprocess.run(cmd, cwd=cwd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if r.returncode != 0:
         title = f'COMMAND FAILED: {cmd}'
         print()
@@ -204,14 +204,14 @@ def flash_wlink_rs(board, firmware):
 
 def flash_esptool(board, firmware):
     port = get_serial_dev(board["flasher_sn"], None, None, 0)
-    dir = os.path.dirname(f'{firmware}.bin')
-    with open(f'{dir}/config.env') as f:
-        IDF_TARGET = json.load(f)['IDF_TARGET']
-    with open(f'{dir}/flash_args') as f:
+    fw_dir = os.path.dirname(f'{firmware}.bin')
+    with open(f'{fw_dir}/config.env') as f:
+        idf_target = json.load(f)['IDF_TARGET']
+    with open(f'{fw_dir}/flash_args') as f:
         flash_args = f.read().strip().replace('\n', ' ')
-    command = (f'esptool.py --chip {IDF_TARGET} -p {port} {board["flasher_args"]} '
+    command = (f'esptool.py --chip {idf_target} -p {port} {board["flasher_args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
-    ret = subprocess.run(command, shell=True, cwd=dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ret = run_cmd(command, cwd=fw_dir)
     return ret
 
 
@@ -306,8 +306,7 @@ def test_device_dfu(board):
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout:
-        ret = subprocess.run(f'dfu-util -l',
-                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ret = run_cmd(f'dfu-util -l')
         stdout = ret.stdout.decode()
         if f'serial="{uid}"' in stdout and 'Found DFU: [cafe:4000]' in stdout:
             break
@@ -348,8 +347,7 @@ def test_device_dfu_runtime(board):
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout:
-        ret = subprocess.run(f'dfu-util -l',
-                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ret = run_cmd(f'dfu-util -l')
         stdout = ret.stdout.decode()
         if f'serial="{uid}"' in stdout and 'Found Runtime: [cafe:4000]' in stdout:
             break
