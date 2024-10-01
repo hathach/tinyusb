@@ -65,6 +65,13 @@
           </envs>
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
+      <configuration PROFILE_NAME="espressif_p4_function_ev" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_p4_function_ev -DLOG=1">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
       <configuration PROFILE_NAME="feather_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m0_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="metro_m0_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m0_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
       <configuration PROFILE_NAME="feather_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m4_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />

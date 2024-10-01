@@ -9,6 +9,9 @@ string(TOUPPER OPT_MCU_${target} tusb_mcu)
 list(APPEND compile_definitions
   CFG_TUSB_MCU=${tusb_mcu}
   CFG_TUSB_OS=OPT_OS_FREERTOS
+  # EXAMPLE port selection: port0 is fullspeed, port1 is highspeed
+  BOARD_TUD_RHPORT=${TUD_PORT}
+  BOARD_TUD_MAX_SPEED=$<IF:${TUD_PORT},OPT_MODE_HIGH_SPEED,OPT_MODE_FULL_SPEED>
   )
 
 list(APPEND srcs

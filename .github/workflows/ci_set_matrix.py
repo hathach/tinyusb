@@ -45,6 +45,7 @@ family_list = {
     "xmc4000": ["arm-gcc"],
     "-bespressif_kaluga_1": ["esp-idf"],
     "-bespressif_s3_devkitm": ["esp-idf"],
+    "-bespressif_p4_function_ev": ["esp-idf"],
 }
 
 

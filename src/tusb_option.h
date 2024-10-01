@@ -123,6 +123,7 @@
 #define OPT_MCU_ESP32C6           904 ///< Espressif ESP32-C6
 #define OPT_MCU_ESP32C2           905 ///< Espressif ESP32-C2
 #define OPT_MCU_ESP32H2           906 ///< Espressif ESP32-H2
+#define OPT_MCU_ESP32P4           907 ///< Espressif ESP32-P4
 #define TUP_MCU_ESPRESSIF         (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
 
 // Dialog
