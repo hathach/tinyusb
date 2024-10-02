@@ -85,7 +85,7 @@ jobs:
           - 'msp430-gcc'
           - 'riscv-gcc'
           - 'rx-gcc'
-          - 'esp-idf' # buid-system is ignored
+          - 'esp-idf' # build-system is ignored
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}

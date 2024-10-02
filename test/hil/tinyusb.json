@@ -75,6 +75,16 @@
             "flasher": "openocd",
             "flasher_sn": "066FFF495087534867063844",
             "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+        },
+        {
+            "name": "espressif_s3_devkitm",
+            "uid": "84F703C084E4",
+            "tests": {
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+            },
+            "flasher": "esptool",
+            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
+            "flasher_args": "-b 921600"
         }
     ],
     "boards-skip": [
@@ -91,16 +101,6 @@
             "flasher": "openocd_wch",
             "flasher_sn": "EBCA8F0670AF",
             "flasher_args": ""
-        },
-        {
-            "name": "espressif_s3_devkitm",
-            "uid": "84F703C084E4",
-            "tests": {
-                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
-            },
-            "flasher": "esptool",
-            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
-            "flasher_args": "-b 921600"
         }
     ]
 }

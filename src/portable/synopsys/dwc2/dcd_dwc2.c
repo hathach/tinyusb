@@ -31,6 +31,9 @@
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_DWC2)
 
+// Debug level for DWC2
+#define DWC2_DEBUG    2
+
 #include "device/dcd.h"
 #include "dwc2_type.h"
 
@@ -57,29 +60,26 @@
   #error "Unsupported MCUs"
 #endif
 
+enum {
+  DWC2_CONTROLLER_COUNT = TU_ARRAY_SIZE(_dwc2_controller)
+};
+
+// DWC2 registers
+//#define DWC2_REG(_port)       ((dwc2_regs_t*) _dwc2_controller[_port].reg_base)
+
+TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
+  if (rhport >= DWC2_CONTROLLER_COUNT) {
+    // user mis-configured, ignore and use first controller
+    rhport = 0;
+  }
+  return (dwc2_regs_t*) _dwc2_controller[rhport].reg_base;
+}
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-// DWC2 registers
-#define DWC2_REG(_port)       ((dwc2_regs_t*) _dwc2_controller[_port].reg_base)
-
-// Debug level for DWC2
-#define DWC2_DEBUG    2
-
-#ifndef dcache_clean
-#define dcache_clean(_addr, _size)
-#endif
-
-#ifndef dcache_invalidate
-#define dcache_invalidate(_addr, _size)
-#endif
-
-#ifndef dcache_clean_invalidate
-#define dcache_clean_invalidate(_addr, _size)
-#endif
-
-static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
+static CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
 
 typedef struct {
   uint8_t* buffer;
@@ -93,98 +93,229 @@ static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
-static uint16_t ep0_pending[2];               // Index determines direction as tusb_dir_t type
+static uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
+static uint16_t _dfifo_top;      // top free location in FIFO RAM
 
-// TX FIFO RAM allocation so far in words - RX FIFO size is readily available from dwc2->grxfsiz
-static uint16_t _allocated_fifo_words_tx;     // TX FIFO size in words (IN EPs)
+// Number of IN endpoints active
+static uint8_t _allocated_ep_in_count;
 
 // SOF enabling flag - required for SOF to not get disabled in ISR when SOF was enabled by
 static bool _sof_en;
 
-// Calculate the RX FIFO size according to minimum recommendations from reference manual
-// RxFIFO = (5 * number of control endpoints + 8) +
-//          ((largest USB packet used / 4) + 1 for status information) +
-//          (2 * number of OUT endpoints) + 1 for Global NAK
-// with number of control endpoints = 1 we have
-// RxFIFO = 15 + (largest USB packet used / 4) + 2 * number of OUT endpoints
-// we double the largest USB packet size to be able to hold up to 2 packets
-static inline uint16_t calc_grxfsiz(uint16_t max_ep_size, uint8_t ep_count) {
-  return 15 + 2 * (max_ep_size / 4) + 2 * ep_count;
+//--------------------------------------------------------------------
+// DMA
+//--------------------------------------------------------------------
+
+TU_ATTR_ALWAYS_INLINE static inline bool dma_enabled(const dwc2_regs_t* dwc2) {
+  #if !CFG_TUD_DWC2_DMA
+  (void) dwc2;
+  return false;
+  #else
+  // Internal DMA only
+  return (dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA);
+  #endif
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void fifo_flush_tx(dwc2_regs_t* dwc2, uint8_t epnum) {
+TU_ATTR_ALWAYS_INLINE static inline uint16_t dma_cal_epfifo_base(uint8_t rhport) {
+  // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per endpoint direction
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
+  return dwc2_controller->ep_fifo_size/4 - 2*dwc2_controller->ep_count;
+}
+
+static void dma_setup_prepare(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  if (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a) {
+    if(dwc2->epout[0].doepctl & DOEPCTL_EPENA) {
+      return;
+    }
+  }
+
+  // Receive only 1 packet
+  dwc2->epout[0].doeptsiz = (1 << DOEPTSIZ_STUPCNT_Pos) | (1 << DOEPTSIZ_PKTCNT_Pos) | (8 << DOEPTSIZ_XFRSIZ_Pos);
+  dwc2->epout[0].doepdma = (uintptr_t)_setup_packet;
+  dwc2->epout[0].doepctl |= DOEPCTL_EPENA | DOEPCTL_USBAEP;
+}
+
+//--------------------------------------------------------------------+
+// Data FIFO
+//--------------------------------------------------------------------+
+
+TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_tx(dwc2_regs_t* dwc2, uint8_t epnum) {
   // flush TX fifo and wait for it cleared
   dwc2->grstctl = GRSTCTL_TXFFLSH | (epnum << GRSTCTL_TXFNUM_Pos);
   while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
 }
-TU_ATTR_ALWAYS_INLINE static inline void fifo_flush_rx(dwc2_regs_t* dwc2) {
+TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_rx(dwc2_regs_t* dwc2) {
   // flush RX fifo and wait for it cleared
   dwc2->grstctl = GRSTCTL_RXFFLSH;
   while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
 }
 
-static bool fifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
+/* USB Data FIFO Layout
+
+  The FIFO is split up into
+  - EPInfo: for storing DMA metadata, only required when use DMA. Maximum size is called
+    EP_LOC_CNT = ep_fifo_size - ghwcfg3.dfifo_depth. For value less than EP_LOC_CNT, gdfifocfg must be configured before
+    gahbcfg.dmaen is set
+      - Buffer mode: 1 word per endpoint direction
+      - Scatter/Gather DMA: 4 words per endpoint direction
+  - TX FIFO: one fifo for each IN endpoint. Size is dynamic depending on packet size, starting from top with EP0 IN.
+  - Shared RX FIFO: a shared fifo for all OUT endpoints. Typically, can hold up to 2 packets of the largest EP size.
+
+  We allocated TX FIFO from top to bottom (using top pointer), this to allow the RX FIFO to grow dynamically which is
+  possible since the free space is located between the RX and TX FIFOs.
+
+   ---------------- ep_fifo_size
+  |   EPInfo    |
+  |   for DMA   |
+  |-------------|-- gdfifocfg.EPINFOBASE (max is ghwcfg3.dfifo_depth)
+  | IN FIFO 0   |
+  |  control    |
+  |-------------|
+  | IN FIFO 1   |
+  |-------------|
+  |   . . . .   |
+  |-------------|
+  | IN FIFO n   |
+  |-------------|
+  |    FREE     |
+  |-------------|-- GRXFSIZ (expandable)
+  |  OUT FIFO   |
+  | ( Shared )  |
+  --------------- 0
+
+  According to "FIFO RAM allocation" section in RM, FIFO RAM are allocated as follows (each word 32-bits):
+  - Each EP IN needs at least max packet size
+  - All EP OUT shared a unique OUT FIFO which uses (for Slave or Buffer DMA, Scatt/Gather DMA use different formula):
+    - 13 for setup packets + control words (up to 3 setup packets).
+    - 1 for global NAK (not required/used here).
+    - Largest-EPsize / 4 + 1. ( FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4) + 1"
+    - 2 for each used OUT endpoint
+
+    Therefore GRXFSIZ = 13 + 1 + 2 x (Largest-EPsize/4 + 1) + 2 x EPOUTnum
+*/
+
+TU_ATTR_ALWAYS_INLINE static inline uint16_t calc_grxfsiz(uint16_t largest_ep_size, uint8_t ep_count) {
+  return 13 + 1 + 2 * ((largest_ep_size / 4) + 1) + 2 * ep_count;
+}
+
+static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
+  uint8_t const ep_count = dwc2_controller->ep_count;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   TU_ASSERT(epnum < ep_count);
 
   uint16_t fifo_size = tu_div_ceil(packet_size, 4);
-
-  // "USB Data FIFOs" section in reference manual
-  // Peripheral FIFO architecture
-  //
-  // --------------- 320 or 1024 ( 1280 or 4096 bytes )
-  // | IN FIFO 0   |
-  // --------------- (320 or 1024) - 16
-  // | IN FIFO 1   |
-  // --------------- (320 or 1024) - 16 - x
-  // |   . . . .   |
-  // --------------- (320 or 1024) - 16 - x - y - ... - z
-  // | IN FIFO MAX |
-  // ---------------
-  // |    FREE     |
-  // --------------- GRXFSIZ
-  // | OUT FIFO    |
-  // | ( Shared )  |
-  // --------------- 0
-  //
-  // In FIFO is allocated by following rules:
-  // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
   if (dir == TUSB_DIR_OUT) {
     // Calculate required size of RX FIFO
-    uint16_t const sz = calc_grxfsiz(4 * fifo_size, ep_count);
+    uint16_t const new_sz = calc_grxfsiz(4 * fifo_size, ep_count);
 
-    // If size_rx needs to be extended check if possible and if so enlarge it
-    if (dwc2->grxfsiz < sz) {
-      TU_ASSERT(sz + _allocated_fifo_words_tx <= _dwc2_controller[rhport].ep_fifo_size / 4);
-
-      // Enlarge RX FIFO
-      dwc2->grxfsiz = sz;
+    // If size_rx needs to be extended check if there is enough free space
+    if (dwc2->grxfsiz < new_sz) {
+      TU_ASSERT(new_sz <= _dfifo_top);
+      dwc2->grxfsiz = new_sz; // Enlarge RX FIFO
     }
   } else {
-    // Note if The TXFELVL is configured as half empty. In order
-    // to be able to write a packet at that point, the fifo must be twice the max_size.
+    // Check IN endpoints concurrently active limit
+    if(_dwc2_controller->ep_in_count) {
+      TU_ASSERT(_allocated_ep_in_count < _dwc2_controller->ep_in_count);
+      _allocated_ep_in_count++;
+    }
+
+    // If The TXFELVL is configured as half empty, the fifo must be twice the max_size.
     if ((dwc2->gahbcfg & GAHBCFG_TXFELVL) == 0) {
       fifo_size *= 2;
     }
 
     // Check if free space is available
-    TU_ASSERT(_allocated_fifo_words_tx + fifo_size + dwc2->grxfsiz <= _dwc2_controller[rhport].ep_fifo_size / 4);
-    _allocated_fifo_words_tx += fifo_size;
-    TU_LOG(DWC2_DEBUG, "    Allocated %u bytes at offset %" PRIu32, fifo_size * 4,
-           _dwc2_controller[rhport].ep_fifo_size - _allocated_fifo_words_tx * 4);
+    TU_ASSERT(_dfifo_top >= fifo_size + dwc2->grxfsiz);
+    _dfifo_top -= fifo_size;
+    TU_LOG(DWC2_DEBUG, "    TX FIFO %u: allocated %u words at offset %u\r\n", epnum, fifo_size, _dfifo_top);
 
-    // DIEPTXF starts at FIFO #1.
     // Both TXFD and TXSA are in unit of 32-bit words.
-    dwc2->dieptxf[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) |
-                               (_dwc2_controller[rhport].ep_fifo_size / 4 - _allocated_fifo_words_tx);
+    if (epnum == 0) {
+      dwc2->dieptxf0 = (fifo_size << DIEPTXF0_TX0FD_Pos) | _dfifo_top;
+    } else {
+      // DIEPTXF starts at FIFO #1.
+      dwc2->dieptxf[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | _dfifo_top;
+    }
   }
 
   return true;
 }
+
+static void dfifo_init(uint8_t rhport) {
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2->grxfsiz = calc_grxfsiz(CFG_TUD_ENDPOINT0_SIZE, dwc2_controller->ep_count);
+
+  if(dma_enabled(dwc2)) {
+    // DMA use last DFIFO to store metadata
+    _dfifo_top = dma_cal_epfifo_base(rhport);
+  }else {
+    _dfifo_top = dwc2_controller->ep_fifo_size / 4;
+  }
+
+  // Allocate FIFO for EP0 IN
+  dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE);
+}
+
+// Read a single data packet from receive FIFO
+static void dfifo_read_packet(uint8_t rhport, uint8_t* dst, uint16_t len) {
+  (void) rhport;
+
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  volatile const uint32_t* rx_fifo = dwc2->fifo[0];
+
+  // Reading full available 32 bit words from fifo
+  uint16_t full_words = len >> 2;
+  while (full_words--) {
+    tu_unaligned_write32(dst, *rx_fifo);
+    dst += 4;
+  }
+
+  // Read the remaining 1-3 bytes from fifo
+  uint8_t const bytes_rem = len & 0x03;
+  if (bytes_rem != 0) {
+    uint32_t const tmp = *rx_fifo;
+    dst[0] = tu_u32_byte0(tmp);
+    if (bytes_rem > 1) dst[1] = tu_u32_byte1(tmp);
+    if (bytes_rem > 2) dst[2] = tu_u32_byte2(tmp);
+  }
+}
+
+// Write a single data packet to EPIN FIFO
+static void dfifo_write_packet(uint8_t rhport, uint8_t fifo_num, uint8_t const* src, uint16_t len) {
+  (void) rhport;
+
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  volatile uint32_t* tx_fifo = dwc2->fifo[fifo_num];
+
+  // Pushing full available 32 bit words to fifo
+  uint16_t full_words = len >> 2;
+  while (full_words--) {
+    *tx_fifo = tu_unaligned_read32(src);
+    src += 4;
+  }
+
+  // Write the remaining 1-3 bytes into fifo
+  uint8_t const bytes_rem = len & 0x03;
+  if (bytes_rem) {
+    uint32_t tmp_word = src[0];
+    if (bytes_rem > 1) tmp_word |= (src[1] << 8);
+    if (bytes_rem > 2) tmp_word |= (src[2] << 16);
+
+    *tx_fifo = tmp_word;
+  }
+}
+
+//--------------------------------------------------------------------
+// Endpoint
+//--------------------------------------------------------------------
 
 static void edpt_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -206,7 +337,7 @@ static void edpt_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoin
     dwc2->daintmsk |= TU_BIT(DAINTMSK_OEPM_Pos + epnum);
   } else {
     dwc2->epin[epnum].diepctl = dxepctl | (epnum << DIEPCTL_TXFNUM_Pos);
-    dwc2->daintmsk |= (1 << (DAINTMSK_IEPM_Pos + epnum));
+    dwc2->daintmsk |= TU_BIT(DAINTMSK_IEPM_Pos + epnum);
   }
 }
 
@@ -236,7 +367,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    fifo_flush_tx(dwc2, epnum);
+    dfifo_flush_tx(dwc2, epnum);
   } else {
     dwc2_epout_t* epout = dwc2->epout;
 
@@ -272,6 +403,8 @@ static void bus_reset(uint8_t rhport) {
 
   _sof_en = false;
 
+  _allocated_ep_in_count = 1;
+
   // clear device address
   dwc2->dcfg &= ~DCFG_DAD_Msk;
 
@@ -287,79 +420,28 @@ static void bus_reset(uint8_t rhport) {
     }
   }
 
-  fifo_flush_tx(dwc2, 0x10); // all tx fifo
-  fifo_flush_rx(dwc2);
+  dfifo_flush_tx(dwc2, 0x10); // all tx fifo
+  dfifo_flush_rx(dwc2);
 
   // 3. Set up interrupt mask
   dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
   dwc2->doepmsk = DOEPMSK_STUPM | DOEPMSK_XFRCM;
   dwc2->diepmsk = DIEPMSK_TOM | DIEPMSK_XFRCM;
 
-  // "USB Data FIFOs" section in reference manual
-  // Peripheral FIFO architecture
-  //
-  // The FIFO is split up in a lower part where the RX FIFO is located and an upper part where the TX FIFOs start.
-  // We do this to allow the RX FIFO to grow dynamically which is possible since the free space is located
-  // between the RX and TX FIFOs. This is required by ISO OUT EPs which need a bigger FIFO than the standard
-  // configuration done below.
-  //
-  // Dynamically FIFO sizes are of interest only for ISO EPs since all others are usually not opened and closed.
-  // All EPs other than ISO are opened as soon as the driver starts up i.e. when the host sends a
-  // configure interface command. Hence, all IN EPs other the ISO will be located at the top. IN ISO EPs are usually
-  // opened when the host sends an additional command: setInterface. At this point in time
-  // the ISO EP will be located next to the free space and can change its size. In case more IN EPs change its size
-  // an additional memory
-  //
-  // --------------- 320 or 1024 ( 1280 or 4096 bytes )
-  // | IN FIFO 0   |
-  // --------------- (320 or 1024) - 16
-  // | IN FIFO 1   |
-  // --------------- (320 or 1024) - 16 - x
-  // |   . . . .   |
-  // --------------- (320 or 1024) - 16 - x - y - ... - z
-  // | IN FIFO MAX |
-  // ---------------
-  // |    FREE     |
-  // --------------- GRXFSIZ
-  // | OUT FIFO    |
-  // | ( Shared )  |
-  // --------------- 0
-  //
-  // According to "FIFO RAM allocation" section in RM, FIFO RAM are allocated as follows (each word 32-bits):
-  // - Each EP IN needs at least max packet size, 16 words is sufficient for EP0 IN
-  //
-  // - All EP OUT shared a unique OUT FIFO which uses
-  //   - 13 for setup packets + control words (up to 3 setup packets).
-  //   - 1 for global NAK (not required/used here).
-  //   - Largest-EPsize / 4 + 1. ( FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4) + 1"
-  //   - 2 for each used OUT endpoint
-  //
-  //   Therefore GRXFSIZ = 13 + 1 + 1 + 2 x (Largest-EPsize/4) + 2 x EPOUTnum
-  //   - FullSpeed (64 Bytes ): GRXFSIZ = 15 + 2 x  16 + 2 x ep_count = 47  + 2 x ep_count
-  //   - Highspeed (512 bytes): GRXFSIZ = 15 + 2 x 128 + 2 x ep_count = 271 + 2 x ep_count
-  //
-  //   NOTE: Largest-EPsize & EPOUTnum is actual used endpoints in configuration. Since DCD has no knowledge
-  //   of the overall picture yet. We will use the worst scenario: largest possible + ep_count
-  //
-  //   For Isochronous, largest EP size can be 1023/1024 for FS/HS respectively. In addition if multiple ISO
-  //   are enabled at least "2 x (Largest-EPsize/4) + 1" are recommended.  Maybe provide a macro for application to
-  //   overwrite this.
-
-  // EP0 out max is 64
-  dwc2->grxfsiz = calc_grxfsiz(64, ep_count);
-
-  // Setup the control endpoint 0
-  _allocated_fifo_words_tx = 16;
-
-  // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  dwc2->dieptxf0 = (16 << DIEPTXF0_TX0FD_Pos) | (_dwc2_controller[rhport].ep_fifo_size / 4 - _allocated_fifo_words_tx);
+  dfifo_init(rhport);
 
   // Fixed control EP0 size to 64 bytes
   dwc2->epin[0].diepctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
+  dwc2->epout[0].doepctl &= ~(0x03 << DOEPCTL_MPSIZ_Pos);
+
   xfer_status[0][TUSB_DIR_OUT].max_size = 64;
   xfer_status[0][TUSB_DIR_IN].max_size = 64;
 
-  dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
+  if(dma_enabled(dwc2)) {
+    dma_setup_prepare(rhport);
+  } else {
+    dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
+  }
 
   dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
 }
@@ -369,11 +451,11 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
   (void) rhport;
 
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
 
   // EP0 is limited to one packet each xfer
   // We use multiple transaction of xfer->max_size length to get a whole transfer done
   if (epnum == 0) {
-    xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
     total_bytes = tu_min16(ep0_pending[dir], xfer->max_size);
     ep0_pending[dir] -= total_bytes;
   }
@@ -386,17 +468,31 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     epin[epnum].dieptsiz = (num_packets << DIEPTSIZ_PKTCNT_Pos) |
                            ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
 
-    epin[epnum].diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
+    if(dma_enabled(dwc2)) {
+      epin[epnum].diepdma = (uintptr_t)xfer->buffer;
 
-    // For ISO endpoint set correct odd/even bit for next frame.
-    if ((epin[epnum].diepctl & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1) {
-      // Take odd/even bit from frame counter.
-      uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
-      epin[epnum].diepctl |= (odd_frame_now ? DIEPCTL_SD0PID_SEVNFRM_Msk : DIEPCTL_SODDFRM_Msk);
-    }
-    // Enable fifo empty interrupt only if there are something to put in the fifo.
-    if (total_bytes != 0) {
-      dwc2->diepempmsk |= (1 << epnum);
+      // For ISO endpoint set correct odd/even bit for next frame.
+      if ((epin[epnum].diepctl & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1) {
+        // Take odd/even bit from frame counter.
+        uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
+        epin[epnum].diepctl |= (odd_frame_now ? DIEPCTL_SD0PID_SEVNFRM_Msk : DIEPCTL_SODDFRM_Msk);
+      }
+
+      epin[epnum].diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
+    } else {
+
+      epin[epnum].diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
+
+      // For ISO endpoint set correct odd/even bit for next frame.
+      if ((epin[epnum].diepctl & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1) {
+        // Take odd/even bit from frame counter.
+        uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
+        epin[epnum].diepctl |= (odd_frame_now ? DIEPCTL_SD0PID_SEVNFRM_Msk : DIEPCTL_SODDFRM_Msk);
+      }
+      // Enable fifo empty interrupt only if there are something to put in the fifo.
+      if (total_bytes != 0) {
+        dwc2->diepempmsk |= (1 << epnum);
+      }
     }
   } else {
     dwc2_epout_t* epout = dwc2->epout;
@@ -406,31 +502,24 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     epout[epnum].doeptsiz |= (num_packets << DOEPTSIZ_PKTCNT_Pos) |
                              ((total_bytes << DOEPTSIZ_XFRSIZ_Pos) & DOEPTSIZ_XFRSIZ_Msk);
 
-    epout[epnum].doepctl |= DOEPCTL_EPENA | DOEPCTL_CNAK;
     if ((epout[epnum].doepctl & DOEPCTL_EPTYP) == DOEPCTL_EPTYP_0 &&
         XFER_CTL_BASE(epnum, dir)->interval == 1) {
       // Take odd/even bit from frame counter.
       uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
       epout[epnum].doepctl |= (odd_frame_now ? DOEPCTL_SD0PID_SEVNFRM_Msk : DOEPCTL_SODDFRM_Msk);
     }
+
+    if(dma_enabled(dwc2)) {
+      epout[epnum].doepdma = (uintptr_t)xfer->buffer;
+    }
+
+    epout[epnum].doepctl |= DOEPCTL_EPENA | DOEPCTL_CNAK;
   }
 }
 
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-#if CFG_TUSB_DEBUG >= DWC2_DEBUG
-void print_dwc2_info(dwc2_regs_t* dwc2) {
-  // print guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4
-  // use dwc2_info.py/md for bit-field value and comparison with other ports
-  volatile uint32_t const* p = (volatile uint32_t const*) &dwc2->guid;
-  TU_LOG(DWC2_DEBUG, "guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4\r\n");
-  for (size_t i = 0; i < 5; i++) {
-    TU_LOG(DWC2_DEBUG, "0x%08" PRIX32 ", ", p[i]);
-  }
-  TU_LOG(DWC2_DEBUG, "0x%08" PRIX32 "\r\n", p[5]);
-}
-#endif
 
 static void reset_core(dwc2_regs_t* dwc2) {
   // reset core
@@ -449,13 +538,10 @@ static void reset_core(dwc2_regs_t* dwc2) {
 static bool phy_hs_supported(dwc2_regs_t* dwc2) {
   (void) dwc2;
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-  // note: esp32 incorrect report its hs_phy_type as utmi
-  return false;
-#elif !TUD_OPT_HIGH_SPEED
+#if !TUD_OPT_HIGH_SPEED
   return false;
 #else
-  return dwc2->ghwcfg2_bm.hs_phy_type != HS_PHY_TYPE_NONE;
+  return dwc2->ghwcfg2_bm.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
 #endif
 }
 
@@ -466,7 +552,7 @@ static void phy_fs_init(dwc2_regs_t* dwc2) {
   dwc2->gusbcfg |= GUSBCFG_PHYSEL;
 
   // MCU specific PHY init before reset
-  dwc2_phy_init(dwc2, HS_PHY_TYPE_NONE);
+  dwc2_phy_init(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
 
   // Reset core after selecting PHY
   reset_core(dwc2);
@@ -477,7 +563,7 @@ static void phy_fs_init(dwc2_regs_t* dwc2) {
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_TRDT_Msk) | (5u << GUSBCFG_TRDT_Pos);
 
   // MCU specific PHY update post reset
-  dwc2_phy_update(dwc2, HS_PHY_TYPE_NONE);
+  dwc2_phy_update(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
 
   // set max speed
   dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_FS << DCFG_DSPD_Pos);
@@ -489,7 +575,7 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
   // De-select FS PHY
   gusbcfg &= ~GUSBCFG_PHYSEL;
 
-  if (dwc2->ghwcfg2_bm.hs_phy_type == HS_PHY_TYPE_ULPI) {
+  if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
     TU_LOG(DWC2_DEBUG, "Highspeed ULPI PHY init\r\n");
 
     // Select ULPI
@@ -510,7 +596,9 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
     gusbcfg &= ~(GUSBCFG_ULPI_UTMI_SEL | GUSBCFG_PHYIF16);
 
     // Set 16-bit interface if supported
-    if (dwc2->ghwcfg4_bm.utmi_phy_data_width) gusbcfg |= GUSBCFG_PHYIF16;
+    if (dwc2->ghwcfg4_bm.phy_data_width) {
+      gusbcfg |= GUSBCFG_PHYIF16;
+    }
   }
 
   // Apply config
@@ -526,7 +614,7 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
   // - 9 if using 8-bit PHY interface
   // - 5 if using 16-bit PHY interface
   gusbcfg &= ~GUSBCFG_TRDT_Msk;
-  gusbcfg |= (dwc2->ghwcfg4_bm.utmi_phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
+  gusbcfg |= (dwc2->ghwcfg4_bm.phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
   dwc2->gusbcfg = gusbcfg;
 
   // MCU specific PHY update post reset
@@ -539,17 +627,26 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
 
   // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
   // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
-  if (dwc2->ghwcfg2_bm.hs_phy_type == HS_PHY_TYPE_ULPI) dcfg |= DCFG_XCVRDLY;
+  if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
+    dcfg |= DCFG_XCVRDLY;
+  }
 
   dwc2->dcfg = dcfg;
 }
 
 static bool check_dwc2(dwc2_regs_t* dwc2) {
 #if CFG_TUSB_DEBUG >= DWC2_DEBUG
-  print_dwc2_info(dwc2);
+  // print guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4
+  // Run 'dwc2_info.py render-md' and check dwc2_info.md for bit-field value and comparison with other ports
+  volatile uint32_t const* p = (volatile uint32_t const*) &dwc2->guid;
+  TU_LOG1("guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4\r\n");
+  for (size_t i = 0; i < 5; i++) {
+    TU_LOG1("0x%08" PRIX32 ", ", p[i]);
+  }
+  TU_LOG1("0x%08" PRIX32 "\r\n", p[5]);
 #endif
 
-  // For some reasons: GD32VF103 snpsid and all hwcfg register are always zero (skip it)
+  // For some reason: GD32VF103 snpsid and all hwcfg register are always zero (skip it)
   (void) dwc2;
 #if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
   uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
@@ -565,11 +662,8 @@ void dcd_init(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled
-  if (!check_dwc2(dwc2)) return;
+  TU_ASSERT(check_dwc2(dwc2), );
   dcd_disconnect(rhport);
-
-  // max number of endpoints & total_fifo_size are:
-  // hw_cfg2->num_dev_ep, hw_cfg2->total_fifo_size
 
   if (phy_hs_supported(dwc2)) {
     phy_hs_init(dwc2); // Highspeed
@@ -600,8 +694,8 @@ void dcd_init(uint8_t rhport) {
   // (non zero-length packet), send STALL back and discard.
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
-  fifo_flush_tx(dwc2, 0x10); // all tx fifo
-  fifo_flush_rx(dwc2);
+  dfifo_flush_tx(dwc2, 0x10); // all tx fifo
+  dfifo_flush_rx(dwc2);
 
   // Clear all interrupts
   uint32_t int_mask = dwc2->gintsts;
@@ -610,11 +704,20 @@ void dcd_init(uint8_t rhport) {
   dwc2->gotgint |= int_mask;
 
   // Required as part of core initialization.
-  dwc2->gintmsk = GINTMSK_OTGINT | GINTMSK_RXFLVLM |
-                  GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
+  dwc2->gintmsk = GINTMSK_OTGINT | GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
   // Configure TX FIFO empty level for interrupt. Default is complete empty
   dwc2->gahbcfg |= GAHBCFG_TXFELVL;
+
+  if (dma_enabled(dwc2)) {
+    const uint16_t epinfo_base = dma_cal_epfifo_base(rhport);
+    dwc2->gdfifocfg = (epinfo_base << GDFIFOCFG_EPINFOBASE_SHIFT) | epinfo_base;
+
+    // DMA seems to be only settable after a core reset
+    dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
+  }else {
+    dwc2->gintmsk |= GINTMSK_RXFLVLM;
+  }
 
   // Enable global interrupt
   dwc2->gahbcfg |= GAHBCFG_GINT;
@@ -718,7 +821,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
  *------------------------------------------------------------------*/
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
-  TU_ASSERT(fifo_alloc(rhport, desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt)));
+  TU_ASSERT(dfifo_alloc(rhport, desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt)));
   edpt_activate(rhport, desc_edpt);
   return true;
 }
@@ -727,6 +830,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
 void dcd_edpt_close_all(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
+
+  _allocated_ep_in_count = 1;
 
   // Disable non-control interrupt
   dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
@@ -745,26 +850,21 @@ void dcd_edpt_close_all(uint8_t rhport) {
     xfer_status[n][TUSB_DIR_IN].max_size = 0;
   }
 
-  // reset allocated fifo OUT
-  dwc2->grxfsiz = calc_grxfsiz(64, ep_count);
-  // reset allocated fifo IN
-  _allocated_fifo_words_tx = 16;
+  dfifo_flush_tx(dwc2, 0x10); // all tx fifo
+  dfifo_flush_rx(dwc2);
 
-  fifo_flush_tx(dwc2, 0x10); // all tx fifo
-  fifo_flush_rx(dwc2);
+  dfifo_init(rhport); // re-init dfifo
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-  TU_ASSERT(fifo_alloc(rhport, ep_addr, largest_packet_size));
+  TU_ASSERT(dfifo_alloc(rhport, ep_addr, largest_packet_size));
   return true;
 }
 
 bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpoint_desc) {
   // Disable EP to clear potential incomplete transfers
   edpt_disable(rhport, p_endpoint_desc->bEndpointAddress, false);
-
   edpt_activate(rhport, p_endpoint_desc);
-
   return true;
 }
 
@@ -831,6 +931,9 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   edpt_disable(rhport, ep_addr, true);
+  if((tu_edpt_number(ep_addr) == 0) && dma_enabled(DWC2_REG(rhport))) {
+    dma_setup_prepare(rhport);
+  }
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -851,56 +954,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 }
 
-/*------------------------------------------------------------------*/
-
-// Read a single data packet from receive FIFO
-static void read_fifo_packet(uint8_t rhport, uint8_t* dst, uint16_t len) {
-  (void) rhport;
-
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  volatile const uint32_t* rx_fifo = dwc2->fifo[0];
-
-  // Reading full available 32 bit words from fifo
-  uint16_t full_words = len >> 2;
-  while (full_words--) {
-    tu_unaligned_write32(dst, *rx_fifo);
-    dst += 4;
-  }
-
-  // Read the remaining 1-3 bytes from fifo
-  uint8_t const bytes_rem = len & 0x03;
-  if (bytes_rem != 0) {
-    uint32_t const tmp = *rx_fifo;
-    dst[0] = tu_u32_byte0(tmp);
-    if (bytes_rem > 1) dst[1] = tu_u32_byte1(tmp);
-    if (bytes_rem > 2) dst[2] = tu_u32_byte2(tmp);
-  }
-}
-
-// Write a single data packet to EPIN FIFO
-static void write_fifo_packet(uint8_t rhport, uint8_t fifo_num, uint8_t const* src, uint16_t len) {
-  (void) rhport;
-
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  volatile uint32_t* tx_fifo = dwc2->fifo[fifo_num];
-
-  // Pushing full available 32 bit words to fifo
-  uint16_t full_words = len >> 2;
-  while (full_words--) {
-    *tx_fifo = tu_unaligned_read32(src);
-    src += 4;
-  }
-
-  // Write the remaining 1-3 bytes into fifo
-  uint8_t const bytes_rem = len & 0x03;
-  if (bytes_rem) {
-    uint32_t tmp_word = src[0];
-    if (bytes_rem > 1) tmp_word |= (src[1] << 8);
-    if (bytes_rem > 2) tmp_word |= (src[2] << 16);
-
-    *tx_fifo = tmp_word;
-  }
-}
+//--------------------------------------------------------------------
+// Interrupt Handler
+//--------------------------------------------------------------------
 
 static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -954,7 +1010,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
         tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, bcnt);
       } else {
         // Linear buffer
-        read_fifo_packet(rhport, xfer->buffer, bcnt);
+        dfifo_read_packet(rhport, xfer->buffer, bcnt);
 
         // Increment pointer to xfer data
         xfer->buffer += bcnt;
@@ -978,21 +1034,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // XFRC complete is additionally generated when
       // - setup packet is received
       // - complete the data stage of control write is complete
-      if ((epnum == 0) && (bcnt == 0) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
-        uint32_t doepint = epout->doepint;
-
-        if (doepint & (DOEPINT_STPKTRX | DOEPINT_OTEPSPR)) {
-          // skip this "no-data" transfer complete event
-          // Note: STPKTRX will be clear later by setup received handler
-          uint32_t clear_flags = DOEPINT_XFRC;
-
-          if (doepint & DOEPINT_OTEPSPR) clear_flags |= DOEPINT_OTEPSPR;
-
-          epout->doepint = clear_flags;
-
-          // TU_LOG(DWC2_DEBUG, "  FIX extra transfer complete on setup/data compete\r\n");
-        }
-      }
+      // It will be handled in handle_epout_irq()
       break;
 
     default:    // Invalid
@@ -1013,18 +1055,7 @@ static void handle_epout_irq(uint8_t rhport) {
 
       uint32_t const doepint = epout->doepint;
 
-      // SETUP packet Setup Phase done.
-      if (doepint & DOEPINT_STUP) {
-        uint32_t clear_flag = DOEPINT_STUP;
-
-        // STPKTRX is only available for version from 3_00a
-        if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a)) {
-          clear_flag |= DOEPINT_STPKTRX;
-        }
-
-        epout->doepint = clear_flag;
-        dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
-      }
+      TU_ASSERT((epout->doepint & DOEPINT_AHBERR) == 0, );
 
       // OUT XFER complete
       if (epout->doepint & DOEPINT_XFRC) {
@@ -1032,13 +1063,65 @@ static void handle_epout_irq(uint8_t rhport) {
 
         xfer_ctl_t* xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
 
-        // EP0 can only handle one packet
-        if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
-          // Schedule another packet to be received.
-          edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+        if(dma_enabled(dwc2)) {
+          if (doepint & DOEPINT_STUP) {
+            // STPKTRX is only available for version from 3_00a
+            if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
+              epout->doepint = DOEPINT_STPKTRX;
+            }
+          } else if (doepint & DOEPINT_OTEPSPR) {
+            epout->doepint = DOEPINT_OTEPSPR;
+          } else {
+            if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
+              epout->doepint = DOEPINT_STPKTRX;
+            } else {
+              // EP0 can only handle one packet
+              if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
+                // Schedule another packet to be received.
+                edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+              } else {
+                // Fix packet length
+                uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
+                xfer->total_len -= remain;
+                // this is ZLP, so prepare EP0 for next setup
+                if(n == 0 && xfer->total_len == 0) {
+                  dma_setup_prepare(rhport);
+                }
+
+                dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+              }
+            }
+          }
         } else {
-          dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+          if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid == DWC2_CORE_REV_3_10a)) {
+            epout->doepint = DOEPINT_STPKTRX;
+          } else {
+            if ((doepint & DOEPINT_OTEPSPR) && (dwc2->gsnpsid == DWC2_CORE_REV_3_10a)) {
+              epout->doepint = DOEPINT_OTEPSPR;
+            }
+
+            // EP0 can only handle one packet
+            if ((n == 0) && ep0_pending[TUSB_DIR_OUT]) {
+              // Schedule another packet to be received.
+              edpt_schedule_packets(rhport, n, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+            } else {
+              dcd_event_xfer_complete(rhport, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+            }
+          }
         }
+      }
+
+      // SETUP packet Setup Phase done.
+      if (doepint & DOEPINT_STUP) {
+        epout->doepint = DOEPINT_STUP;
+        if ((doepint & DOEPINT_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
+          epout->doepint = DOEPINT_STPKTRX;
+        }
+        if(dma_enabled(dwc2) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
+          dma_setup_prepare(rhport);
+        }
+
+        dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
       }
     }
   }
@@ -1064,6 +1147,9 @@ static void handle_epin_irq(uint8_t rhport) {
           // Schedule another packet to be transmitted.
           edpt_schedule_packets(rhport, n, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
         } else {
+          if((n == 0) && dma_enabled(dwc2)) {
+            dma_setup_prepare(rhport);
+          }
           dcd_event_xfer_complete(rhport, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
       }
@@ -1093,7 +1179,7 @@ static void handle_epin_irq(uint8_t rhport) {
             volatile uint32_t* tx_fifo = dwc2->fifo[n];
             tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*) (uintptr_t) tx_fifo, packet_size);
           } else {
-            write_fifo_packet(rhport, n, xfer->buffer, packet_size);
+            dfifo_write_packet(rhport, n, xfer->buffer, packet_size);
 
             // Increment pointer to xfer data
             xfer->buffer += packet_size;

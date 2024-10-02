@@ -4,6 +4,7 @@ mcu:CH32V307
 mcu:CXD56
 mcu:F1C100S
 mcu:GD32VF103
+mcu:MCXA15
 mcu:MKL25ZXX
 mcu:MSP430x5xx
 mcu:RP2040
