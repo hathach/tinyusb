@@ -63,7 +63,7 @@ extern "C" {
 // It's recommended to disable debug unless for control requests debugging,
 // as the extra time needed will impact data stream !
 #ifndef CFG_TUSB_DEBUG
-#define CFG_TUSB_DEBUG        0
+#define CFG_TUSB_DEBUG        3
 #endif
 
 // Enable Device stack

@@ -327,8 +327,8 @@ typedef struct
       struct {
         uint32_t nom_value;     // In 16.16 format
         uint32_t fifo_lvl_avg;  // In 16.16 format
-        uint16_t fifo_lvl_thr;  // fifo level threshold
-        uint16_t rate_const[2]; // pre-computed feedback/fifo_depth rate
+        uint32_t fifo_lvl_thr;  // fifo level threshold
+        uint32_t rate_const[2]; // pre-computed feedback/fifo_depth rate
       }fifo_count;
     }compute;
 
@@ -2376,11 +2376,11 @@ static bool audiod_set_fb_params_freq(audiod_function_t* audio, uint32_t sample_
   if ((mclk_freq % sample_freq) == 0 && tu_is_power_of_two(mclk_freq / sample_freq))
   {
     audio->feedback.compute_method     = AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2;
-    audio->feedback.compute.power_of_2 = 16 - (audio->feedback.frame_shift - 1) - tu_log2(mclk_freq / sample_freq);
+    audio->feedback.compute.power_of_2 = (uint8_t) (16 - (audio->feedback.frame_shift - 1) - tu_log2(mclk_freq / sample_freq));
   }
   else if ( audio->feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT)
   {
-    audio->feedback.compute.float_const = (float)sample_freq / mclk_freq * (1UL << (16 - (audio->feedback.frame_shift - 1)));
+    audio->feedback.compute.float_const = (float)(sample_freq / mclk_freq * (1UL << (16 - (audio->feedback.frame_shift - 1))));
   }
   else
   {
@@ -2399,8 +2399,8 @@ static void audiod_fb_fifo_count_update(audiod_function_t* audio, uint16_t lvl_n
   audio->feedback.compute.fifo_count.fifo_lvl_avg = lvl;
 
   uint32_t const ff_lvl = lvl >> 16;
-  uint16_t const ff_thr = audio->feedback.compute.fifo_count.fifo_lvl_thr;
-  uint16_t const *rate   = audio->feedback.compute.fifo_count.rate_const;
+  uint32_t const ff_thr = audio->feedback.compute.fifo_count.fifo_lvl_thr;
+  uint32_t const *rate   = audio->feedback.compute.fifo_count.rate_const;
 
   uint32_t feedback;
 
