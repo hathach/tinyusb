@@ -32,7 +32,7 @@ jobs:
       - name: Generate matrix json
         id: set-matrix-json
         run: |
-          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py)
+          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${{ env.HIL_JSON }})
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
