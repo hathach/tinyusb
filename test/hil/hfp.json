@@ -10,7 +10,6 @@
         {
             "name": "stm32f746disco",
             "uid": "210041000C51343237303334",
-            "build_flags_on": ["", "CFG_TUD_DWC2_DMA"],
             "flasher": "jlink",
             "flasher_sn": "770935966",
             "flasher_args": "-device STM32F746NG"
