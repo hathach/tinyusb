@@ -58,7 +58,7 @@ jobs:
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # self-hosted running on an VM. For attached hardware checkout test/hil/tinyusb.json
+  # self-hosted running on an VM. For attached hardware checkout HIL_JSON
   # ---------------------------------------
   hil-tinyusb:
     if: github.repository_owner == 'hathach'

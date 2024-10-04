@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config_file', help='Configuration JSON file')
@@ -31,7 +32,7 @@ def main():
                 if f == '':
                     matrix[toolchain].append(f'-b {name}')
                 else:
-                    matrix[toolchain].append(f'-b {name}-{f.replace(" ", "_")}')
+                    matrix[toolchain].append(f'-b {name} -f1 {f.replace(" ", " -f1 ")}')
         else:
             matrix[toolchain].append(f'-b {name}')
 
