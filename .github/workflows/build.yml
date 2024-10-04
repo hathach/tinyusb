@@ -65,7 +65,7 @@ jobs:
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       one-per-family: ${{ github.event_name == 'push' }}
 
   # ---------------------------------------
@@ -89,7 +89,7 @@ jobs:
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       one-per-family: true
 
   # ---------------------------------------
@@ -117,7 +117,7 @@ jobs:
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
-      BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family, ' ') }}
+      BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'], ' ') }}
     steps:
       - name: Clean workspace
         run: |

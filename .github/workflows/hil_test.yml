@@ -32,10 +32,7 @@ jobs:
       - name: Generate matrix json
         id: set-matrix-json
         run: |
-          MATRIX_ARMGCC=$(jq -c '{ "arm-gcc": { "family": [.boards[] | select(.flasher != "esptool" and .flasher != "openocd_wch") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
-          MATRIX_ESP=$(jq -c '{ "esp-idf": { "family": [.boards[] | select(.flasher == "esptool") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
-          MATRIX_RISCV=$(jq -c '{ "riscv-gcc": { "family": [.boards[] | select(.flasher == "openocd_wch") | "-b \(.name)"] } }' "${{ env.HIL_JSON }}")
-          MATRIX_JSON=$(jq -nc --argjson arm "$MATRIX_ARMGCC" --argjson esp "$MATRIX_ESP" --argjson riscv "$MATRIX_RISCV" '$arm + $esp + $riscv')
+          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
@@ -55,7 +52,7 @@ jobs:
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       one-per-family: true
       upload-artifacts: true
 
