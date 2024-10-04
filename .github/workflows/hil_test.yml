@@ -83,4 +83,6 @@ jobs:
           merge-multiple: true
 
       - name: Test on actual hardware
-        run: python3 test/hil/hil_test.py ${{ env.HIL_JSON }}
+        run: |
+          ls cmake-build/
+          python3 test/hil/hil_test.py ${{ env.HIL_JSON }}

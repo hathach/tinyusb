@@ -424,20 +424,20 @@ def test_board(board):
     test_list.append('device/board_test')
 
     err_count = 0
-    flags_opt_list = [""]
-    if 'build_flags_on' in board:
-        flags_opt_list = board['build_flags_on']
+    flags_on_list = [""]
+    if 'build' in board and 'flags_on' in board['build']:
+        flags_on_list = board['build']['flags_on']
 
-    for flags_opt in flags_opt_list:
-        flags_opt_str = ""
-        if flags_opt != "":
-            flags_opt_str = '-' + flags_opt.replace(' ', '-')
+    for f1 in flags_on_list:
+        f1_str = ""
+        if f1 != "":
+            f1_str = '-' + f1.replace(' ', '-')
         for test in test_list:
-            fw_dir = f'cmake-build/cmake-build-{name}{flags_opt_str}/{test}'
+            fw_dir = f'cmake-build/cmake-build-{name}{f1_str}/{test}'
             if not os.path.exists(fw_dir):
-                fw_dir = f'examples/cmake-build-{name}{flags_opt_str}/{test}'
+                fw_dir = f'examples/cmake-build-{name}{f1_str}/{test}'
             fw_name = f'{fw_dir}/{os.path.basename(test)}'
-            print(f'{name+flags_opt_str:40} {test:30} ... ', end='')
+            print(f'{name+f1_str:40} {test:30} ... ', end='')
 
             if not os.path.exists(fw_dir):
                 print('Skip (no binary)')
