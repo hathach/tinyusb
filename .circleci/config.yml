@@ -34,7 +34,7 @@ jobs:
               e_arr=($e)
               build_system="${e_arr[0]}"
               toolchain="${e_arr[1]}"
-              FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\".family")
+              FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\"")
               echo "FAMILY_${toolchain}=$FAMILY"
 
               # FAMILY_LARGE = FAMILY - RESOURCE_LARGE

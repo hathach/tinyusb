@@ -424,37 +424,45 @@ def test_board(board):
     test_list.append('device/board_test')
 
     err_count = 0
-    for test in test_list:
-        fw_dir = f'cmake-build/cmake-build-{name}/{test}'
-        if not os.path.exists(fw_dir):
-            fw_dir = f'examples/cmake-build-{name}/{test}'
-        fw_name = f'{fw_dir}/{os.path.basename(test)}'
-        print(f'{name:25} {test:30} ... ', end='')
+    flags_on_list = [""]
+    if 'build' in board and 'flags_on' in board['build']:
+        flags_on_list = board['build']['flags_on']
 
-        if not os.path.exists(fw_dir):
-            print('Skip (no binary)')
-            continue
+    for f1 in flags_on_list:
+        f1_str = ""
+        if f1 != "":
+            f1_str = '-' + f1.replace(' ', '-')
+        for test in test_list:
+            fw_dir = f'cmake-build/cmake-build-{name}{f1_str}/{test}'
+            if not os.path.exists(fw_dir):
+                fw_dir = f'examples/cmake-build-{name}{f1_str}/{test}'
+            fw_name = f'{fw_dir}/{os.path.basename(test)}'
+            print(f'{name+f1_str:40} {test:30} ... ', end='')
 
-        # flash firmware. It may fail randomly, retry a few times
-        for i in range(3):
-            ret = globals()[f'flash_{flasher}'](board, fw_name)
+            if not os.path.exists(fw_dir):
+                print('Skip (no binary)')
+                continue
+
+            # flash firmware. It may fail randomly, retry a few times
+            for i in range(3):
+                ret = globals()[f'flash_{flasher}'](board, fw_name)
+                if ret.returncode == 0:
+                    break
+                else:
+                    print(f'Flashing failed, retry {i+1}')
+                    time.sleep(1)
+
             if ret.returncode == 0:
-                break
+                try:
+                    ret = globals()[f'test_{test.replace("/", "_")}'](board)
+                    print('OK')
+                except Exception as e:
+                    err_count += 1
+                    print(STATUS_FAILED)
+                    print(f'  {e}')
             else:
-                print(f'Flashing failed, retry {i+1}')
-                time.sleep(1)
-
-        if ret.returncode == 0:
-            try:
-                ret = globals()[f'test_{test.replace("/", "_")}'](board)
-                print('OK')
-            except Exception as e:
                 err_count += 1
-                print(STATUS_FAILED)
-                print(f'  {e}')
-        else:
-            err_count += 1
-            print(f'Flash {STATUS_FAILED}')
+                print(f'Flash {STATUS_FAILED}')
     return err_count
 
 

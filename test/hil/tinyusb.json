@@ -79,6 +79,9 @@
         {
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
             },
