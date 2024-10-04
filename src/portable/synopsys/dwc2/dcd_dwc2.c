@@ -637,7 +637,7 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
 static bool check_dwc2(dwc2_regs_t* dwc2) {
 #if CFG_TUSB_DEBUG >= DWC2_DEBUG
   // print guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4
-  // Run 'dwc2_info.py render-md' and check dwc2_info.md for bit-field value and comparison with other ports
+  // Run 'python dwc2_info.py' and check dwc2_info.md for bit-field value and comparison with other ports
   volatile uint32_t const* p = (volatile uint32_t const*) &dwc2->guid;
   TU_LOG1("guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4\r\n");
   for (size_t i = 0; i < 5; i++) {
