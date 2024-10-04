@@ -50,7 +50,7 @@ class GHWCFG2(ctypes.LittleEndianStructure):
         ("num_host_ch", ctypes.c_uint32, 4),
         ("period_channel_support", ctypes.c_uint32, 1),
         ("enable_dynamic_fifo", ctypes.c_uint32, 1),
-        ("mul_cpu_int", ctypes.c_uint32, 1),
+        ("mul_proc_intrpt", ctypes.c_uint32, 1),
         ("reserved21", ctypes.c_uint32, 1),
         ("nptx_q_depth", ctypes.c_uint32, 2),
         ("ptx_q_depth", ctypes.c_uint32, 2),
@@ -119,13 +119,13 @@ GHWCFG2_field = {
         2: "DMA internal"
     },
     'hs_phy_type': {
-        0: "N/A",
+        0: "n/a",
         1: "UTMI+",
         2: "ULPI",
         3: "UTMI+/ULPI"
     },
     'fs_phy_type': {
-        0: "N/A",
+        0: "n/a",
         1: "Dedicated",
         2: "Shared UTMI+",
         3: "Shared ULPI"

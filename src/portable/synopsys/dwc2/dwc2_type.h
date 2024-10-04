@@ -250,7 +250,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t num_host_ch            : 4; // 14..17 Number of host channel (excluding control)
   uint32_t period_channel_support : 1; // 18 Support Periodic OUT Host Channel
   uint32_t enable_dynamic_fifo    : 1; // 19 Dynamic FIFO Sizing Enabled
-  uint32_t mul_cpu_int            : 1; // 20 Multi-Processor Interrupt Enabled
+  uint32_t mul_proc_intrpt        : 1; // 20 Multi-Processor Interrupt enabled (OTG_MULTI_PROC_INTRPT)
   uint32_t reserved21             : 1; // 21 reserved
   uint32_t nptx_q_depth           : 2; // 22..23 Non-periodic request queue depth: 0 = 2.  1 = 4, 2 = 8
   uint32_t ptx_q_depth            : 2; // 24..25 Host periodic request queue depth: 0 = 2.  1 = 4, 2 = 8
@@ -336,6 +336,32 @@ typedef struct {
            uint32_t reserved18[2];    // B18..B1C
 } dwc2_epout_t;
 
+typedef struct {
+  union {
+    volatile uint32_t diepctl;
+    volatile uint32_t doepctl;
+    volatile uint32_t ctl;
+  };
+  uint32_t rsv04;
+  union {
+    volatile uint32_t diepint;
+    volatile uint32_t doepint;
+  };
+  uint32_t rsv0c;
+  union {
+    volatile uint32_t dieptsiz;
+    volatile uint32_t doeptsiz;
+  };
+  union {
+    volatile uint32_t diepdma;
+    volatile uint32_t doepdma;
+  };
+  volatile uint32_t dtxfsts;
+  uint32_t rsv1c;
+}dwc2_dep_t;
+
+TU_VERIFY_STATIC(sizeof(dwc2_dep_t) == 0x20, "incorrect size");
+
 //--------------------------------------------------------------------
 // CSR Register Map
 //--------------------------------------------------------------------
@@ -418,16 +444,24 @@ typedef struct {
     volatile uint32_t dvbuspulse;       // 82C Device VBUS Pulsing Time
     volatile uint32_t dthrctl;          // 830 Device threshold Control
     volatile uint32_t diepempmsk;       // 834 Device IN Endpoint FIFO Empty Interrupt Mask
+
+    // Device Each Endpoint (IN/OUT) Interrupt/Mask for generating dedicated EP interrupt line
+    // require OTG_MULTI_PROC_INTRPT=1
     volatile uint32_t deachint;         // 838 Device Each Endpoint Interrupt
-    volatile uint32_t deachmsk;         // 83C Device Each Endpoint Interrupt msk
+    volatile uint32_t deachmsk;         // 83C Device Each Endpoint Interrupt mask
     volatile uint32_t diepeachmsk[16];  // 840..87C Device Each IN Endpoint mask
     volatile uint32_t doepeachmsk[16];  // 880..8BF Device Each OUT Endpoint mask
              uint32_t reserved8c0[16];  // 8C0..8FF
 
     //------------- Device Endpoint -------------//
-    dwc2_epin_t       epin[16];         // 900..AFF  IN Endpoints
-    dwc2_epout_t      epout[16];        // B00..CFF  OUT Endpoints
-             uint32_t reservedd00[64];  // D00..DFF
+    union {
+      dwc2_dep_t ep[2][16];            // 0: IN, 1 OUT
+      struct {
+        dwc2_epin_t  epin[16];         // 900..AFF  IN Endpoints
+        dwc2_epout_t epout[16];        // B00..CFF  OUT Endpoints
+      };
+    };
+    uint32_t reservedd00[64];  // D00..DFF
 
     //------------- Power Clock -------------//
     volatile uint32_t pcgctl;           // E00 Power and Clock Gating Control
@@ -1093,6 +1127,8 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DAINTMSK_OEPM_Pos                (16U)
 #define DAINTMSK_OEPM_Msk                (0xFFFFUL << DAINTMSK_OEPM_Pos)          // 0xFFFF0000
 #define DAINTMSK_OEPM                    DAINTMSK_OEPM_Msk                        // OUT EP interrupt mask bits
+
+#define DAINT_SHIFT(_dir)            ((_dir == TUSB_DIR_IN) ? 0 : 16)
 
 #if 0
 /********************  Bit definition for OTG register  ********************/
@@ -1803,6 +1839,45 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DIEPTXF_INEPTXFD_Msk             (0xFFFFUL << DIEPTXF_INEPTXFD_Pos)       // 0xFFFF0000
 #define DIEPTXF_INEPTXFD                 DIEPTXF_INEPTXFD_Msk                     // IN endpoint TxFIFO depth
 
+
+/********************  Bit definition for Common EPCTL register  ********************/
+#define EPCTL_MPSIZ_Pos                (0U)
+#define EPCTL_MPSIZ_Msk                (0x7FFUL << EPCTL_MPSIZ_Pos)           // 0x000007FF
+#define EPCTL_MPSIZ                    EPCTL_MPSIZ_Msk                        // Maximum packet size          //Bit 1
+#define EPCTL_USBAEP_Pos               (15U)
+#define EPCTL_USBAEP_Msk               (0x1UL << EPCTL_USBAEP_Pos)            // 0x00008000
+#define EPCTL_USBAEP                   EPCTL_USBAEP_Msk                       // USB active endpoint
+#define EPCTL_NAKSTS_Pos               (17U)
+#define EPCTL_NAKSTS_Msk               (0x1UL << EPCTL_NAKSTS_Pos)            // 0x00020000
+#define EPCTL_NAKSTS                   EPCTL_NAKSTS_Msk                       // NAK status
+#define EPCTL_EPTYP_Pos                (18U)
+#define EPCTL_EPTYP_Msk                (0x3UL << EPCTL_EPTYP_Pos)             // 0x000C0000
+#define EPCTL_EPTYP                    EPCTL_EPTYP_Msk                        // Endpoint type
+#define EPCTL_EPTYP_0                  (0x1UL << EPCTL_EPTYP_Pos)             // 0x00040000
+#define EPCTL_EPTYP_1                  (0x2UL << EPCTL_EPTYP_Pos)             // 0x00080000
+#define EPCTL_SNPM                     EPCTL_SNPM_Msk                         // Snoop mode
+#define EPCTL_STALL_Pos                (21U)
+#define EPCTL_STALL_Msk                (0x1UL << EPCTL_STALL_Pos)             // 0x00200000
+#define EPCTL_STALL                    EPCTL_STALL_Msk                        // STALL handshake
+#define EPCTL_CNAK_Pos                 (26U)
+#define EPCTL_CNAK_Msk                 (0x1UL << EPCTL_CNAK_Pos)              // 0x04000000
+#define EPCTL_CNAK                     EPCTL_CNAK_Msk                         // Clear NAK
+#define EPCTL_SNAK_Pos                 (27U)
+#define EPCTL_SNAK_Msk                 (0x1UL << EPCTL_SNAK_Pos)              // 0x08000000
+#define EPCTL_SNAK                     EPCTL_SNAK_Msk                         // Set NAK
+#define EPCTL_SD0PID_SEVNFRM_Pos       (28U)
+#define EPCTL_SD0PID_SEVNFRM_Msk       (0x1UL << EPCTL_SD0PID_SEVNFRM_Pos)    // 0x10000000
+#define EPCTL_SD0PID_SEVNFRM           EPCTL_SD0PID_SEVNFRM_Msk               // Set DATA0 PID
+#define EPCTL_SODDFRM_Pos              (29U)
+#define EPCTL_SODDFRM_Msk              (0x1UL << EPCTL_SODDFRM_Pos)           // 0x20000000
+#define EPCTL_SODDFRM                  EPCTL_SODDFRM_Msk                      // Set odd frame
+#define EPCTL_EPDIS_Pos                (30U)
+#define EPCTL_EPDIS_Msk                (0x1UL << EPCTL_EPDIS_Pos)             // 0x40000000
+#define EPCTL_EPDIS                    EPCTL_EPDIS_Msk                        // Endpoint disable
+#define EPCTL_EPENA_Pos                (31U)
+#define EPCTL_EPENA_Msk                (0x1UL << EPCTL_EPENA_Pos)             // 0x80000000
+#define EPCTL_EPENA                    EPCTL_EPENA_Msk                        // Endpoint enable
+
 /********************  Bit definition for DOEPCTL register  ********************/
 #define DOEPCTL_MPSIZ_Pos                (0U)
 #define DOEPCTL_MPSIZ_Msk                (0x7FFUL << DOEPCTL_MPSIZ_Pos)           // 0x000007FF
@@ -1853,15 +1928,19 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DOEPINT_AHBERR_Pos               (2U)
 #define DOEPINT_AHBERR_Msk               (0x1UL << DOEPINT_AHBERR_Pos)            // 0x00000004
 #define DOEPINT_AHBERR                   DOEPINT_AHBERR_Msk                       // AHB Error (AHBErr) during an OUT transaction
-#define DOEPINT_STUP_Pos                 (3U)
-#define DOEPINT_STUP_Msk                 (0x1UL << DOEPINT_STUP_Pos)              // 0x00000008
-#define DOEPINT_STUP                     DOEPINT_STUP_Msk                         // SETUP phase done
+
+#define DOEPINT_SETUP_Pos                (3U)
+#define DOEPINT_SETUP_Msk                (0x1UL << DOEPINT_SETUP_Pos)             // 0x00000008
+#define DOEPINT_SETUP                    DOEPINT_SETUP_Msk                        // SETUP phase done
+
 #define DOEPINT_OTEPDIS_Pos              (4U)
 #define DOEPINT_OTEPDIS_Msk              (0x1UL << DOEPINT_OTEPDIS_Pos)           // 0x00000010
 #define DOEPINT_OTEPDIS                  DOEPINT_OTEPDIS_Msk                      // OUT token received when endpoint disabled
-#define DOEPINT_OTEPSPR_Pos              (5U)
-#define DOEPINT_OTEPSPR_Msk              (0x1UL << DOEPINT_OTEPSPR_Pos)           // 0x00000020
-#define DOEPINT_OTEPSPR                  DOEPINT_OTEPSPR_Msk                      // Status Phase Received For Control Write
+
+#define DOEPINT_STSPHSRX_Pos             (5U)
+#define DOEPINT_STSPHSRX_Msk             (0x1UL << DOEPINT_STSPHSRX_Pos)          // 0x00000020
+#define DOEPINT_STSPHSRX                  DOEPINT_STSPHSRX_Msk                    // Status Phase Received For Control Write
+
 #define DOEPINT_B2BSTUP_Pos              (6U)
 #define DOEPINT_B2BSTUP_Msk              (0x1UL << DOEPINT_B2BSTUP_Pos)           // 0x00000040
 #define DOEPINT_B2BSTUP                  DOEPINT_B2BSTUP_Msk                      // Back-to-back SETUP packets received
@@ -1874,9 +1953,10 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DOEPINT_NYET_Pos                 (14U)
 #define DOEPINT_NYET_Msk                 (0x1UL << DOEPINT_NYET_Pos)              // 0x00004000
 #define DOEPINT_NYET                     DOEPINT_NYET_Msk                         // NYET interrupt
-#define DOEPINT_STPKTRX_Pos              (15U)
-#define DOEPINT_STPKTRX_Msk              (0x1UL << DOEPINT_STPKTRX_Pos)           // 0x00008000
-#define DOEPINT_STPKTRX                  DOEPINT_STPKTRX_Msk                      // Setup Packet Received
+
+#define DOEPINT_DMA_STPKTRX_Pos          (15U)
+#define DOEPINT_DMA_STPKTRX_Msk          (0x1UL << DOEPINT_DMA_STPKTRX_Pos)       // 0x00008000
+#define DOEPINT_DMA_STPKTRX              DOEPINT_DMA_STPKTRX_Msk                  // Setup Packet Received in Buffer DMA Mode
 
 /********************  Bit definition for DOEPTSIZ register  ********************/
 #define DOEPTSIZ_XFRSIZ_Pos              (0U)
