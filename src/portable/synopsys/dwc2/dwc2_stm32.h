@@ -94,13 +94,6 @@ extern "C" {
     #define EP_MAX_HS                 9
     #define EP_FIFO_SIZE_HS           4096
   #endif
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32U0
-  #include "stm32u0xx.h"
-    #define USB_OTG_FS_PERIPH_BASE    USB_OTG_FS_BASE
-    #define EP_MAX_FS                 6
-    #define EP_FIFO_SIZE_FS           1280
-
 #else
   #error "Unsupported MCUs"
 #endif
