@@ -27,8 +27,8 @@ def main():
         else:
             toolchain = 'arm-gcc'
 
-        if 'build_flags_on' in board:
-            for f in board['build_flags_on']:
+        if 'build' in board and 'flags_on' in board['build']:
+            for f in board['build']['flags_on']:
                 if f == '':
                     matrix[toolchain].append(f'-b {name}')
                 else:
