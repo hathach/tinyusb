@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import pandas as pd
 from tabulate import tabulate
 from pathlib import Path

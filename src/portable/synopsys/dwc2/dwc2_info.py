@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import click
 import ctypes
 import pandas as pd
