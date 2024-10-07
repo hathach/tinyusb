@@ -110,8 +110,12 @@ typedef struct {
     NOTIFICATION_SPEED,
     NOTIFICATION_CONNECTED,
     NOTIFICATION_DONE
-  } notification_xmit_state;            // state of notification transmission
-  bool notification_xmit_is_running;    // notification is currently transmitted
+  } notification_xmit_state;                            // state of notification transmission
+  bool notification_xmit_is_running;                    // notification is currently transmitted
+
+  // misc
+  bool tud_network_recv_renew_active;                   // tud_network_recv_renew() is active (avoid recursive invocations)
+  bool tud_network_recv_renew_process_again;            // tud_network_recv_renew() should process again
 } ncm_interface_t;
 
 CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN tu_static ncm_interface_t ncm_interface;
@@ -689,11 +693,29 @@ void tud_network_xmit(void *ref, uint16_t arg) {
 
 /**
  * Keep the receive logic busy and transfer pending packets to the glue logic.
+ * Avoid recursive calls due to wrong expectations of the net glue logic,
+ * see https://github.com/hathach/tinyusb/issues/2711
  */
 void tud_network_recv_renew(void) {
   TU_LOG_DRV("tud_network_recv_renew()\n");
 
-  recv_transfer_datagram_to_glue_logic();
+  ncm_interface.tud_network_recv_renew_process_again = true;
+
+  if (ncm_interface.tud_network_recv_renew_active) {
+    TU_LOG_DRV("Re-entrant into tud_network_recv_renew, will process later\n");
+    return;
+  }
+
+  while (ncm_interface.tud_network_recv_renew_process_again) {
+    ncm_interface.tud_network_recv_renew_process_again = false;
+
+    // If the current function is called within recv_transfer_datagram_to_glue_logic,
+    // tud_network_recv_renew_process_again will become true, and the loop will run again
+    // Otherwise the loop will not run again
+    ncm_interface.tud_network_recv_renew_active = true;
+    recv_transfer_datagram_to_glue_logic();
+    ncm_interface.tud_network_recv_renew_active = false;
+  }
   recv_try_to_start_new_reception(ncm_interface.rhport);
 } // tud_network_recv_renew
 
