@@ -21,6 +21,13 @@
             "flasher_args": "-device nrf52840_xxaa"
         },
         {
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
+            "flasher": "openocd_adi",
+            "flasher_sn": "E6614C311B597D32",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
+        },
+        {
             "name": "metro_m4_express",
             "uid": "9995AD485337433231202020FF100A34",
             "flasher": "jlink",
@@ -29,13 +36,6 @@
             "tests": {
                 "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
             }
-        },
-        {
-            "name": "max32666fthr",
-            "uid": "0C81464124010B20FF0A08CC2C",
-            "flasher": "openocd_adi",
-            "flasher_sn": "E6614C311B597D32",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
         },
         {
             "name": "lpcxpresso11u37",
@@ -81,6 +81,16 @@
             "flasher": "jlink",
             "flasher_sn": "779541626",
             "flasher_args": "-device stm32f072rb"
+        },
+        {
+            "name": "stm32f407disco",
+            "uid": "30001A000647313332353735",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "flasher": "jlink",
+            "flasher_sn": "000773661813",
+            "flasher_args": "-device stm32f407vg"
         },
         {
             "name": "stm32f769disco",
