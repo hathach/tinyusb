@@ -93,6 +93,15 @@
             "flasher_args": "-device stm32f407vg"
         },
         {
+            "name": "stm32g0b1nucleo",
+            "uid": "4D0038000450434E37343120",
+            "flasher": "openocd",
+            "flasher_sn": "066FFF495087534867063844",
+            "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+        }
+    ],
+    "boards-skip": [
+        {
             "name": "stm32f769disco",
             "uid": "21002F000F51363531383437",
             "build" : {
@@ -102,15 +111,6 @@
             "flasher_sn": "000778170924",
             "flasher_args": "-device stm32f769ni"
         },
-        {
-            "name": "stm32g0b1nucleo",
-            "uid": "4D0038000450434E37343120",
-            "flasher": "openocd",
-            "flasher_sn": "066FFF495087534867063844",
-            "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
-        }
-    ],
-    "boards-skip": [
         {
             "name": "mimxrt1015_evk",
             "uid": "DC28F865D2111D228D00B0543A70463C",
