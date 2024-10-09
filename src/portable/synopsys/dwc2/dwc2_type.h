@@ -1954,9 +1954,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DOEPINT_NYET_Msk                 (0x1UL << DOEPINT_NYET_Pos)              // 0x00004000
 #define DOEPINT_NYET                     DOEPINT_NYET_Msk                         // NYET interrupt
 
-#define DOEPINT_DMA_STPKTRX_Pos          (15U)
-#define DOEPINT_DMA_STPKTRX_Msk          (0x1UL << DOEPINT_DMA_STPKTRX_Pos)       // 0x00008000
-#define DOEPINT_DMA_STPKTRX              DOEPINT_DMA_STPKTRX_Msk                  // Setup Packet Received in Buffer DMA Mode
+#define DOEPINT_STPKTRX_Pos              (15U)
+#define DOEPINT_STPKTRX_Msk              (0x1UL << DOEPINT_STPKTRX_Pos)           // 0x00008000
+#define DOEPINT_STPKTRX                  DOEPINT_STPKTRX_Msk                      // Setup Packet Received
 
 /********************  Bit definition for DOEPTSIZ register  ********************/
 #define DOEPTSIZ_XFRSIZ_Pos              (0U)

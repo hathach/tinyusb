@@ -398,11 +398,7 @@ static void bus_reset(uint8_t rhport) {
   tu_memclr(xfer_status, sizeof(xfer_status));
 
   _sof_en = false;
-
   _allocated_ep_in_count = 1;
-
-  // clear device address
-  dwc2->dcfg &= ~DCFG_DAD_Msk;
 
   // 1. NAK for all OUT endpoints
   for (uint8_t n = 0; n < ep_count; n++) {
@@ -419,12 +415,16 @@ static void bus_reset(uint8_t rhport) {
   dfifo_flush_tx(dwc2, 0x10); // all tx fifo
   dfifo_flush_rx(dwc2);
 
-  // 3. Set up interrupt mask
+  // 3. Set up interrupt mask for EP0
   dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
   dwc2->doepmsk = DOEPMSK_STUPM | DOEPMSK_XFRCM;
   dwc2->diepmsk = DIEPMSK_TOM | DIEPMSK_XFRCM;
 
+  // 4. Set up DFIFO
   dfifo_init(rhport);
+
+  // 5. Reset device address
+  dwc2->dcfg &= ~DCFG_DAD_Msk;
 
   // Fixed both control EP0 size to 64 bytes
   dwc2->epin[0].diepctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
@@ -907,7 +907,9 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   uint16_t const short_packet_size = total_bytes % xfer->max_size;
 
   // Zero-size packet is special case.
-  if (short_packet_size > 0 || (total_bytes == 0)) num_packets++;
+  if (short_packet_size > 0 || (total_bytes == 0)) {
+    num_packets++;
+  }
 
   // Schedule packets to be sent within interrupt
   edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
@@ -941,6 +943,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 // Interrupt Handler
 //--------------------------------------------------------------------
 
+// Process shared receive FIFO, this interrupt is only used in Slave mode
 static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   volatile uint32_t const* rx_fifo = dwc2->fifo[0];
@@ -950,19 +953,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
   uint8_t const pktsts = (grxstsp & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
   uint8_t const epnum = (grxstsp & GRXSTSP_EPNUM_Msk) >> GRXSTSP_EPNUM_Pos;
   uint16_t const bcnt = (grxstsp & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
-
   dwc2_epout_t* epout = &dwc2->epout[epnum];
-
-//#if CFG_TUSB_DEBUG >= DWC2_DEBUG
-//  const char * pktsts_str[] =
-//  {
-//    "ASSERT", "Global NAK (ISR)", "Out Data Received", "Out Transfer Complete (ISR)",
-//    "Setup Complete (ISR)", "ASSERT", "Setup Data Received"
-//  };
-//  TU_LOG_LOCATION();
-//  TU_LOG(DWC2_DEBUG, "  EP %02X, Byte Count %u, %s\r\n", epnum, bcnt, pktsts_str[pktsts]);
-//  TU_LOG(DWC2_DEBUG, "  daint = %08lX, doepint = %04X\r\n", (unsigned long) dwc2->daint, (unsigned int) epout->doepint);
-//#endif
 
   switch (pktsts) {
     // Global OUT NAK: do nothing
@@ -971,15 +962,14 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
     case GRXSTS_PKTSTS_SETUPRX:
       // Setup packet received
-
-      // We can receive up to three setup packets in succession, but
-      // only the last one is valid.
+      // We can receive up to three setup packets in succession, but  only the last one is valid.
       _setup_packet[0] = (*rx_fifo);
       _setup_packet[1] = (*rx_fifo);
       break;
 
     case GRXSTS_PKTSTS_SETUPDONE:
-      // Setup packet done (Interrupt)
+      // Setup packet done:
+      // After popping this out, dwc2 asserts a DOEPINT_SETUP interrupt which is handled by handle_epout_irq()
       epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
       break;
 
@@ -1011,8 +1001,8 @@ static void handle_rxflvl_irq(uint8_t rhport) {
     }
 
     case GRXSTS_PKTSTS_OUTDONE:
-      /* Out packet done (Interrupt)
-         After this entry is popped from the receive FIFO, the controller asserts a Transfer Completed interrupt on
+      /* Out packet done
+         After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed interrupt on
          the specified OUT endpoint which will be handled by handle_epout_irq() */
       break;
 
@@ -1034,51 +1024,56 @@ static void handle_epout_irq(uint8_t rhport) {
       const uint32_t doepint = epout->doepint;
       TU_ASSERT((epout->doepint & DOEPINT_AHBERR) == 0, );
 
+      TU_LOG1_HEX(doepint);
+
+      // Setup and/or STPKTRX/STSPHSRX (from 3.00a) can be set along with XFRC, and also set independently.
+      if (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a) {
+        if (doepint & DOEPINT_STSPHSRX) {
+          // Status phase received for control write: In token received from Host
+          epout->doepint = DOEPINT_STSPHSRX;
+        }
+
+        if (doepint & DOEPINT_STPKTRX) {
+          // New setup packet received, but wait for Setup done, since we can receive up to 3 setup consecutively
+          epout->doepint = DOEPINT_STPKTRX;
+        }
+      }
+
+      if (doepint & DOEPINT_SETUP) {
+        epout->doepint = DOEPINT_SETUP;
+
+        if(dma_enabled(dwc2)) {
+          dma_setup_prepare(rhport);
+        }
+
+        dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
+      }
+
       // OUT XFER complete
       if (doepint & DOEPINT_XFRC) {
         epout->doepint = DOEPINT_XFRC;
 
-        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+        // only handle data skip if it is setup or status related
+        // Normal OUT transfer complete
+        if (!(doepint & (DOEPINT_SETUP | DOEPINT_STPKTRX | DOEPINT_STSPHSRX))) {
+          xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
-        if(dma_enabled(dwc2)) {
-          if (doepint & DOEPINT_SETUP) {
-            // STPKTRX is only available for version from 3_00a
-            if ((doepint & DOEPINT_DMA_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
-              epout->doepint = DOEPINT_DMA_STPKTRX;
-            }
-          } else if (doepint & DOEPINT_STSPHSRX) {
-            epout->doepint = DOEPINT_STSPHSRX;
-          } else {
-            if ((doepint & DOEPINT_DMA_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
-              epout->doepint = DOEPINT_DMA_STPKTRX;
+          if(dma_enabled(dwc2)) {
+            if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
+              // EP0 can only handle one packet Schedule another packet to be received.
+              edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
             } else {
-              // EP0 can only handle one packet
-              if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
-                // Schedule another packet to be received.
-                edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
-              } else {
-                // Fix packet length
-                uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
-                xfer->total_len -= remain;
-                // this is ZLP, so prepare EP0 for next setup
-                if(epnum == 0 && xfer->total_len == 0) {
-                  dma_setup_prepare(rhport);
-                }
-
-                dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
+              // Fix packet length
+              uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
+              xfer->total_len -= remain;
+              // this is ZLP, so prepare EP0 for next setup
+              if(epnum == 0 && xfer->total_len == 0) {
+                dma_setup_prepare(rhport);
               }
-            }
-          }
-        } else {
-          // DMA_STPKTRX should only be set in Buffer DMA Mode. However, STM32L476 (slave-only) with v3.10a
-          // incorrectly set this along with SETUP bit. This may (or not) be STM32L476 or 3.10a specific bug
-          if ((doepint & DOEPINT_DMA_STPKTRX) && (dwc2->gsnpsid == DWC2_CORE_REV_3_10a)) {
-            epout->doepint = DOEPINT_DMA_STPKTRX;
-          } else {
-            if ((doepint & DOEPINT_STSPHSRX) && (dwc2->gsnpsid == DWC2_CORE_REV_3_10a)) {
-              epout->doepint = DOEPINT_STSPHSRX;
-            }
 
+              dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
+            }
+          } else {
             // EP0 can only handle one packet
             if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
               // Schedule another packet to be received.
@@ -1088,19 +1083,6 @@ static void handle_epout_irq(uint8_t rhport) {
             }
           }
         }
-      }
-
-      // SETUP packet Setup Phase done.
-      if (doepint & DOEPINT_SETUP) {
-        epout->doepint = DOEPINT_SETUP;
-        if ((doepint & DOEPINT_DMA_STPKTRX) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
-          epout->doepint = DOEPINT_DMA_STPKTRX;
-        }
-        if(dma_enabled(dwc2) && (dwc2->gsnpsid > DWC2_CORE_REV_3_00a)) {
-          dma_setup_prepare(rhport);
-        }
-
-        dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
       }
     }
   }
@@ -1274,13 +1256,10 @@ void dcd_int_handler(uint8_t rhport) {
   // RxFIFO non-empty interrupt handling.
   if (int_status & GINTSTS_RXFLVL) {
     // RXFLVL bit is read-only
-
-    // Mask out RXFLVL while reading data from FIFO
-    dwc2->gintmsk &= ~GINTMSK_RXFLVLM;
+    dwc2->gintmsk &= ~GINTMSK_RXFLVLM; // disable RXFLVL interrupt while reading
 
     do {
-      // Loop until all available packets were handled
-      handle_rxflvl_irq(rhport);
+      handle_rxflvl_irq(rhport); // read all packets
     } while(dwc2->gintsts & GINTSTS_RXFLVL);
 
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
