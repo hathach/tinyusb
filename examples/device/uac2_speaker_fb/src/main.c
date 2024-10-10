@@ -31,6 +31,10 @@
 #include "usb_descriptors.h"
 #include "common_types.h"
 
+#ifndef MIN
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
 #ifdef CFG_QUIRK_OS_GUESSING
 #include "quirk_os_guessing.h"
 #endif
@@ -414,7 +418,7 @@ void audio_task(void)
   if ( start_ms == curr_ms ) return; // not enough time
   start_ms = curr_ms;
 
-  uint16_t length = current_sample_rate/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
+  uint32_t length = current_sample_rate/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
 
   if (current_sample_rate == 44100 && (curr_ms % 10 == 0))
   {
@@ -428,8 +432,8 @@ void audio_task(void)
     // This correction is not needed in real world cases
     length += CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
   }
-
-  tud_audio_read(i2s_dummy_buffer, length);
+  uint16_t length16 = (uint16_t) MIN(length, 65535u);
+  tud_audio_read(i2s_dummy_buffer, length16);
 }
 
 //--------------------------------------------------------------------+

@@ -28,6 +28,7 @@ cov-int
 # cppcheck build directories
 *-build-dir
 /_bin/
+build/
 __pycache__
 cmake-build-*
 sdkconfig
