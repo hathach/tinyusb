@@ -92,6 +92,15 @@ typedef union {
   tuh_configure_max3421_t max3421;
 } tuh_configure_param_t;
 
+// Return data for tuh_devtree_get_info()
+typedef struct
+{
+  uint8_t rhport;
+  uint8_t hub_addr;
+  uint8_t hub_port;
+  uint8_t speed;
+} tuh_devtree_info_t;
+
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
@@ -161,6 +170,9 @@ bool tuh_rhport_is_active(uint8_t rhport);
 
 // Assert/de-assert Bus Reset signal to roothub port. USB specs: it should last 10-50ms
 bool tuh_rhport_reset_bus(uint8_t rhport, bool active);
+
+// Retrieve devtree info like port of hub a device is connected to and speed.
+void tuh_devtree_get_info(uint8_t dev_addr, tuh_devtree_info_t* devtree_info);
 
 //--------------------------------------------------------------------+
 // Device API
