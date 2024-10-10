@@ -28,39 +28,15 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
-#ifdef BOARD_TUD_RHPORT
-  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_DEVICE(_n)  0
-#endif
-
-#ifdef BOARD_TUH_RHPORT
-  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_HOST(_n)    0
-#endif
-
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void) {
-  #if PORT_SUPPORT_DEVICE(0)
-  tud_int_handler(0);
-  #endif
-
-  #if PORT_SUPPORT_HOST(0)
-  tuh_int_handler(0, true);
-  #endif
+  tusb_int_handler(0, true);
 }
 
 void USB1_IRQHandler(void) {
-  #if PORT_SUPPORT_DEVICE(1)
-  tud_int_handler(1);
-  #endif
-
-  #if PORT_SUPPORT_HOST(1)
-  tuh_int_handler(1, true);
-  #endif
+  tusb_int_handler(1, true);
 }
 
 //--------------------------------------------------------------------+
@@ -118,13 +94,8 @@ void board_init(void) {
   Chip_UART_TXEnable(UART_DEV);
 
   //------------- USB -------------//
-#if PORT_SUPPORT_DEVICE(0) || PORT_SUPPORT_HOST(0)
   Chip_USB0_Init();
-#endif
-
-#if PORT_SUPPORT_DEVICE(1) || PORT_SUPPORT_HOST(1)
   Chip_USB1_Init();
-#endif
 }
 
 //--------------------------------------------------------------------+

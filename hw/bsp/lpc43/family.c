@@ -39,18 +39,6 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
-#ifdef BOARD_TUD_RHPORT
-  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_DEVICE(_n)  0
-#endif
-
-#ifdef BOARD_TUH_RHPORT
-  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_HOST(_n)    0
-#endif
-
 /* System configuration variables used by chip driver */
 const uint32_t OscRateIn = 12000000;
 const uint32_t ExtRateIn = 0;
@@ -161,9 +149,7 @@ void board_init(void)
    * - Insert jumpers in position 2-3 in JP17/JP18/JP19
    * - Insert jumpers in JP31 (OTG)
    */
-#if PORT_SUPPORT_DEVICE(0) || PORT_SUPPORT_HOST(0)
   Chip_USB0_Init();
-#endif
 
   /* From EA4357 user manual
    *
@@ -186,17 +172,15 @@ void board_init(void)
    * - LED34 lights green when +5V is available on J20.
    * - JP15 shall not be inserted. JP16 has no effect
    */
-#if PORT_SUPPORT_DEVICE(1) || PORT_SUPPORT_HOST(1)
   Chip_USB1_Init();
-#endif
 
   // USB0 Vbus Power: P2_3 on EA4357 channel B U20 GPIO26 active low (base board)
   Chip_SCU_PinMuxSet(2, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC7);
 
-  #if PORT_SUPPORT_DEVICE(0)
-  // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
-  Chip_SCU_PinMuxSet(9, 5, SCU_MODE_PULLDOWN | SCU_MODE_FUNC4);
-  Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 18);
+  #if defined(BOARD_TUD_RHPORT) &&  BOARD_TUD_RHPORT == 0
+    // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
+    Chip_SCU_PinMuxSet(9, 5, SCU_MODE_PULLDOWN | SCU_MODE_FUNC4);
+    Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 18);
   #endif
 
   // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
@@ -206,26 +190,12 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
-void USB0_IRQHandler(void)
-{
-  #if PORT_SUPPORT_DEVICE(0)
-    tud_int_handler(0);
-  #endif
-
-  #if PORT_SUPPORT_HOST(0)
-    tuh_int_handler(0, true);
-  #endif
+void USB0_IRQHandler(void) {
+  tusb_int_handler(0, true);
 }
 
-void USB1_IRQHandler(void)
-{
-  #if PORT_SUPPORT_DEVICE(1)
-    tud_int_handler(1);
-  #endif
-
-  #if PORT_SUPPORT_HOST(1)
-    tuh_int_handler(1, true);
-  #endif
+void USB1_IRQHandler(void) {
+  tusb_int_handler(1, true);
 }
 
 //--------------------------------------------------------------------+

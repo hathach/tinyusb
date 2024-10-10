@@ -128,7 +128,7 @@ void setUp(void)
   {
     mscd_init_Expect();
     dcd_init_Expect(rhport);
-    tusb_init();
+    tusb_init(0, TUSB_ROLE_DEVICE);
   }
 }
 
