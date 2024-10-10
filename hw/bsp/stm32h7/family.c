@@ -102,9 +102,6 @@ void board_init(void) {
 
   trace_etm_init();
 
-  // Enable UART Clock
-  UART_CLK_EN();
-
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -136,7 +133,10 @@ void board_init(void) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
+#ifdef UART_DEV
   // Uart
+  UART_CLK_EN();
+
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -153,6 +153,7 @@ void board_init(void) {
   UartHandle.Init.Mode = UART_MODE_TX_RX;
   UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
+#endif
 
 #if BOARD_TUD_RHPORT == 0
   // Despite being call USB2_OTG
@@ -280,8 +281,13 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
+#ifdef UART_DEV
   HAL_UART_Transmit(&UartHandle, (uint8_t * )(uintptr_t)
   buf, len, 0xffff);
+#else
+  (void) buf;
+#endif
+
   return len;
 }
 

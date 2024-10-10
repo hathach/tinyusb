@@ -1,36 +1,41 @@
-import click
+#!/usr/bin/env python3
+
 import ctypes
+import argparse
+import click
 import pandas as pd
 
 # hex value for register: guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4
 # Note: FS is FullSpeed, HS is HighSpeed
-dwc2_reg_list = ['guid', 'gsnpsid', 'ghwcfg1', 'ghwcfg2', 'ghwcfg3', 'ghwcfg4']
+dwc2_reg_list = ['GUID', 'GSNPSID', 'GHWCFG1', 'GHWCFG2', 'GHWCFG3', 'GHWCFG4']
 dwc2_reg_value = {
     'BCM2711 (Pi4)': [0x2708A000, 0x4F54280A, 0, 0x228DDD50, 0xFF000E8, 0x1FF00020],
-    'EFM32GG FS': [0, 0x4F54330A, 0, 0x228F5910, 0x1F204E8, 0x1BF08030],
-    'ESP32-S2/S3': [0, 0x4F54400A, 0, 0x224DD930, 0xC804B5, 0xD3F0A030],
+    'EFM32GG': [0, 0x4F54330A, 0, 0x228F5910, 0x01F204E8, 0x1BF08030],
+    'ESP32-S2/S3': [0, 0x4F54400A, 0, 0x224DD930, 0x0C804B5, 0xD3F0A030],
     'ESP32-P4': [0, 0x4F54400A, 0, 0x215FFFD0, 0x03805EB5, 0xDFF1A030],
-    'STM32F 407/411/429 FS': [0x1200, 0x4F54281A, 0, 0x229DCD20, 0x20001E8, 0xFF08030],
-    'STM32F 407/429 HS': [0x1100, 0x4F54281A, 0, 0x229ED590, 0x3F403E8, 0x17F00030],
-    'STM32F 412/767 FS': [0x2000, 0x4F54320A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
-    'STM32F723 FS': [0x3000, 0x4F54330A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
-    'STM32F723 HS': [0x3100, 0x4F54330A, 0, 0x229FE1D0, 0x3EED2E8, 0x23F00030],
-    'STM32H743 HS': [0x2300, 0x4F54330A, 0, 0x229FE190, 0x3B8D2E8, 0xE3F00030], # both HS cores
-    'STM32L476 FS': [0x2000, 0x4F54310A, 0, 0x229ED520, 0x200D1E8, 0x17F08030],
-    'STM32U5A5 HS': [0x5000, 0x4F54411A, 0, 0x228FE052, 0x03B882E8, 0xE2103E30],
-    'GD32VF103 FS': [0x1000, 0, 0, 0, 0, 0],
-    'XMC4500': [0xAEC000, 0x4F54292A, 0, 0x228F5930, 0x27A01E5, 0xDBF08030]
+    'ST F207/F407/411/429 FS': [0x1200, 0x4F54281A, 0, 0x229DCD20, 0x020001E8, 0x0FF08030],
+    'ST F407/429 HS': [0x1100, 0x4F54281A, 0, 0x229ED590, 0x03F403E8, 0x17F00030],
+    'ST F412/767 FS': [0x2000, 0x4F54320A, 0, 0x229ED520, 0x0200D1E8, 0x17F08030],
+    'ST F723/L4P5 FS': [0x3000, 0x4F54330A, 0, 0x229ED520, 0x0200D1E8, 0x17F08030],
+    'ST F723 HS': [0x3100, 0x4F54330A, 0, 0x229FE1D0, 0x03EED2E8, 0x23F00030],
+    'ST F769': [0x2100, 0x4F54320A, 0, 0x229FE190, 0x03EED2E8, 0x23F00030],
+    'ST H743/H750': [0x2300, 0x4F54330A, 0, 0x229FE190, 0x03B8D2E8, 0xE3F00030],
+    'ST L476 FS': [0x2000, 0x4F54310A, 0, 0x229ED520, 0x0200D1E8, 0x17F08030],
+    'ST U5A5 HS': [0x5000, 0x4F54411A, 0, 0x228FE052, 0x03B882E8, 0xE2103E30],
+    'GD32VF103': [0x1000, 0, 0, 0, 0, 0],
+    'XMC4500': [0xAEC000, 0x4F54292A, 0, 0x228F5930, 0x027A01E5, 0xDBF08030]
+
 }
 
 # Combine dwc2_info with dwc2_reg_list
 # dwc2_info = {
 #     'BCM2711 (Pi4)': {
-#         'guid': 0x2708A000,
-#         'gsnpsid': 0x4F54280A,
-#         'ghwcfg1': 0,
-#         'ghwcfg2': 0x228DDD50,
-#         'ghwcfg3': 0xFF000E8,
-#         'ghwcfg4': 0x1FF00020
+#         'GUID': 0x2708A000,
+#         'GSNPSID': 0x4F54280A,
+#         'GHWCFG1': 0,
+#         'GHWCFG2': 0x228DDD50,
+#         'GHWCFG3': 0xFF000E8,
+#         'GHWCFG4': 0x1FF00020
 #     },
 dwc2_info = {key: {field: value for field, value in zip(dwc2_reg_list, values)} for key, values in dwc2_reg_value.items()}
 
@@ -39,14 +44,14 @@ class GHWCFG2(ctypes.LittleEndianStructure):
     _fields_ = [
         ("op_mode", ctypes.c_uint32, 3),
         ("arch", ctypes.c_uint32, 2),
-        ("point2point", ctypes.c_uint32, 1),
+        ("p2p (hub support)", ctypes.c_uint32, 1),
         ("hs_phy_type", ctypes.c_uint32, 2),
         ("fs_phy_type", ctypes.c_uint32, 2),
         ("num_dev_ep", ctypes.c_uint32, 4),
         ("num_host_ch", ctypes.c_uint32, 4),
         ("period_channel_support", ctypes.c_uint32, 1),
         ("enable_dynamic_fifo", ctypes.c_uint32, 1),
-        ("mul_cpu_int", ctypes.c_uint32, 1),
+        ("mul_proc_intrpt", ctypes.c_uint32, 1),
         ("reserved21", ctypes.c_uint32, 1),
         ("nptx_q_depth", ctypes.c_uint32, 2),
         ("ptx_q_depth", ctypes.c_uint32, 2),
@@ -98,63 +103,84 @@ class GHWCFG4(ctypes.LittleEndianStructure):
         ("dma_desc_dynamic", ctypes.c_uint32, 1)
     ]
 
+# mapping for specific fields in GHWCFG2
+GHWCFG2_field = {
+    'op_mode': {
+        0: "HNP SRP",
+        1: "SRP",
+        2: "noHNP noSRP",
+        3: "SRP Device",
+        4: "noOTG Device",
+        5: "SRP Host",
+        6: "noOTG Host"
+    },
+    'arch': {
+        0: "Slave only",
+        1: "DMA external",
+        2: "DMA internal"
+    },
+    'hs_phy_type': {
+        0: "n/a",
+        1: "UTMI+",
+        2: "ULPI",
+        3: "UTMI+/ULPI"
+    },
+    'fs_phy_type': {
+        0: "n/a",
+        1: "Dedicated",
+        2: "Shared UTMI+",
+        3: "Shared ULPI"
+    }
+}
 
-@click.group()
-def cli():
-    pass
+# mapping for specific fields in GHWCFG4
+GHWCFG4_field = {
+    'phy_data_width': {
+        0: "8 bit",
+        1: "16 bit",
+        2: "8/16 bit",
+        3: "Reserved"
+    },
+    }
 
-
-@cli.command()
-@click.argument('mcus', nargs=-1)
-@click.option('-a', '--all', is_flag=True, help='Print all bit-field values')
-def info(mcus, all):
-    """Print DWC2 register values for given MCU(s)"""
-    if len(mcus) == 0:
-        mcus = dwc2_info
-
-    for mcu in mcus:
-        for entry in dwc2_info:
-            if mcu.lower() in entry.lower():
-                print(f"## {entry}")
-                for r_name, r_value in dwc2_info[entry].items():
-                    print(f"{r_name} = 0x{r_value:08X}")
-                    # Print bit-field values
-                    if all and r_name.upper() in globals():
-                        class_name = globals()[r_name.upper()]
-                        ghwcfg = class_name.from_buffer_copy(r_value.to_bytes(4, byteorder='little'))
-                        for field_name, field_type, _ in class_name._fields_:
-                            print(f"  {field_name} = {getattr(ghwcfg, field_name)}")
-
-
-@cli.command()
-def render_md():
+def main():
     """Render dwc2_info to Markdown table"""
+
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
+
     # Create an empty list to hold the dictionaries
-    dwc2_info_list = []
+    md_table = []
 
     # Iterate over the dwc2_info dictionary and extract fields
     for device, reg_values in dwc2_info.items():
-        entry_dict = {"Device": device}
+        md_item = {"Device": device}
         for r_name, r_value in reg_values.items():
-            entry_dict[r_name] = f"0x{r_value:08X}"
+            md_item[r_name] = f"0x{r_value:08X}"
 
-            if r_name == 'gsnpsid':
+            if r_name == 'GSNPSID':
                 # Get dwc2 specs version
                 major = ((r_value >> 8) >> 4) & 0x0F
                 minor = (r_value >> 4) & 0xFF
                 patch = chr((r_value & 0x0F) + ord('a') - 0xA)
-                entry_dict[f' - specs version'] = f"{major:X}.{minor:02X}{patch}"
-            elif r_name.upper() in globals():
+                md_item[f' - specs version'] = f"{major:X}.{minor:02X}{patch}"
+            elif r_name in globals():
                 # Get bit-field values which exist as ctypes structures
-                class_name = globals()[r_name.upper()]
-                ghwcfg = class_name.from_buffer_copy(r_value.to_bytes(4, byteorder='little'))
-                for field_name, field_type, _ in class_name._fields_:
-                    entry_dict[f' - {field_name}'] = getattr(ghwcfg, field_name)
+                class_hdl = globals()[r_name]
+                ghwcfg = class_hdl.from_buffer_copy(r_value.to_bytes(4, byteorder='little'))
+                for field_name, field_type, _ in class_hdl._fields_:
+                    field_value = getattr(ghwcfg, field_name)
+                    if class_hdl == GHWCFG2 and field_name in GHWCFG2_field:
+                        field_value = GHWCFG2_field[field_name].get(field_value, f"Unknown ({field_value})")
+                    if class_hdl == GHWCFG4 and field_name in GHWCFG4_field:
+                        field_value = GHWCFG4_field[field_name].get(field_value, f"Unknown ({field_value})")
 
-        dwc2_info_list.append(entry_dict)
+                    md_item[f' - {field_name}'] = field_value
+
+        md_table.append(md_item)
 
     # Create a Pandas DataFrame from the list of dictionaries
-    df = pd.DataFrame(dwc2_info_list).set_index('Device')
+    df = pd.DataFrame(md_table).set_index('Device')
 
     # Transpose the DataFrame to switch rows and columns
     df = df.T
@@ -167,4 +193,4 @@ def render_md():
 
 
 if __name__ == '__main__':
-    cli()
+    main()

@@ -1,11 +1,31 @@
 {
     "boards": [
         {
+            "name": "espressif_s3_devkitm",
+            "uid": "84F703C084E4",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "tests": {
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+            },
+            "flasher": "esptool",
+            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
+            "flasher_args": "-b 1500000"
+        },
+        {
             "name": "feather_nrf52840_express",
             "uid": "1F0479CD0F764471",
             "flasher": "jlink",
             "flasher_sn": "000682804350",
             "flasher_args": "-device nrf52840_xxaa"
+        },
+        {
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
+            "flasher": "openocd_adi",
+            "flasher_sn": "E6614C311B597D32",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
         },
         {
             "name": "metro_m4_express",
@@ -16,13 +36,6 @@
             "tests": {
                 "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
             }
-        },
-        {
-            "name": "max32666fthr",
-            "uid": "0C81464124010B20FF0A08CC2C",
-            "flasher": "openocd_adi",
-            "flasher_sn": "E6614C311B597D32",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
         },
         {
             "name": "lpcxpresso11u37",
@@ -70,24 +83,34 @@
             "flasher_args": "-device stm32f072rb"
         },
         {
+            "name": "stm32f407disco",
+            "uid": "30001A000647313332353735",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "flasher": "jlink",
+            "flasher_sn": "000773661813",
+            "flasher_args": "-device stm32f407vg"
+        },
+        {
             "name": "stm32g0b1nucleo",
             "uid": "4D0038000450434E37343120",
             "flasher": "openocd",
             "flasher_sn": "066FFF495087534867063844",
             "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
-        },
-        {
-            "name": "espressif_s3_devkitm",
-            "uid": "84F703C084E4",
-            "tests": {
-                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
-            },
-            "flasher": "esptool",
-            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
-            "flasher_args": "-b 921600"
         }
     ],
     "boards-skip": [
+        {
+            "name": "stm32f769disco",
+            "uid": "21002F000F51363531383437",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "flasher": "jlink",
+            "flasher_sn": "000778170924",
+            "flasher_args": "-device stm32f769ni"
+        },
         {
             "name": "mimxrt1015_evk",
             "uid": "DC28F865D2111D228D00B0543A70463C",

@@ -1,5 +1,6 @@
 set(MCU_VARIANT stm32h743xx)
 set(JLINK_DEVICE stm32h743xi)
+# set(JLINK_OPTION "-USB jtrace")
 
 set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/../../linker/${MCU_VARIANT}_flash.ld)
 

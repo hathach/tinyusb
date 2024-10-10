@@ -398,7 +398,7 @@ static inline void const *_find_desc_format(void const *beg, void const *end, ui
     if ((fmt == VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED ||
          fmt == VIDEO_CS_ITF_VS_FORMAT_MJPEG ||
          fmt == VIDEO_CS_ITF_VS_FORMAT_DV ||
-         fmt == VIDEO_CS_ITF_VS_FRAME_FRAME_BASED) &&
+         fmt == VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED) &&
         fmtnum == p[3]) {
       return cur;
     }
