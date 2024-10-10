@@ -245,7 +245,7 @@ def test_dual_host_info_to_device_cdc(board):
         # for pico/pico2 make this test optional
         failed_msg = f'Enumerated devices {enum_dev_sn} not match with declared {declared_devs}'
         if 'raspberry_pi_pico' in board['name']:
-            print(f'\r\n  {failed_msg} ', end='')
+            print(f'\r\n  {failed_msg} {STATUS_FAILED} ', end='')
         else:
             assert False, failed_msg
     return 0
