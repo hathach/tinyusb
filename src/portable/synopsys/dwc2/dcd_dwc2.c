@@ -1024,8 +1024,6 @@ static void handle_epout_irq(uint8_t rhport) {
       const uint32_t doepint = epout->doepint;
       TU_ASSERT((epout->doepint & DOEPINT_AHBERR) == 0, );
 
-      TU_LOG1_HEX(doepint);
-
       // Setup and/or STPKTRX/STSPHSRX (from 3.00a) can be set along with XFRC, and also set independently.
       if (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a) {
         if (doepint & DOEPINT_STSPHSRX) {
