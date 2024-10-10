@@ -101,7 +101,7 @@ extern "C" {
 
 // Expose audio class debug information via HID interface
 #ifndef CFG_AUDIO_DEBUG
-#define CFG_AUDIO_DEBUG           1
+#define CFG_AUDIO_DEBUG           0
 #endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
@@ -131,7 +131,7 @@ extern "C" {
 #define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                                TUD_AUDIO_SPEAKER_STEREO_FB_DESC_LEN
 
 // Enable if Full-Speed on OSX, also set feedback EP size to 3
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION              1
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION              0
 
 // Audio format type I specifications
 #if defined(__RX__)
