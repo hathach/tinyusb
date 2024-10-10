@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
  * Copyright (c) 2021 Ha Thach (tinyusb.org) for Double Buffered
+ * Copyright (c) 2024 rppicomidi for EPx-only operation (fix Data Sequence error chip bug)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,9 +53,124 @@
 #endif
 static_assert(PICO_USB_HOST_INTERRUPT_ENDPOINTS <= USB_MAX_ENDPOINTS, "");
 
-// Host mode uses one shared endpoint register for non-interrupt endpoint
-static struct hw_endpoint ep_pool[1 + PICO_USB_HOST_INTERRUPT_ENDPOINTS];
+#define EP_POOL_NELEMENTS (1 + PICO_USB_HOST_INTERRUPT_ENDPOINTS)
+static struct hw_endpoint ep_pool[EP_POOL_NELEMENTS];
 #define epx (ep_pool[0])
+
+// If the root hub is connected, this device defines
+// a variable pre such that pre is true if the device
+// speed does not match the root hub speed (a low speed
+// device on a full speed hub). If the root hub is disconnected,
+// then this macro causes the current function to return.
+// The macro replaces the need_pre() function from the previous
+// version of the code that panics if the root hub is disconnected.
+#define COMPUTE_PRE(daddr) \
+  uint8_t speed = dev_speed(); \
+  tusb_speed_t speed_val; \
+  switch(speed) \
+  { \
+    case 1: \
+      speed_val = TUSB_SPEED_LOW; \
+      break; \
+    case 2: \
+      speed_val = TUSB_SPEED_FULL; \
+      break; \
+    default: \
+      return; /* device disconnected*/ \
+  } \
+  bool pre = speed_val != tuh_speed_get(daddr)
+
+// The driver keeps track of pending transfers in simple arrays
+// The scheduler chooses which transfer next gets access to the EPx hardware
+// based on the position in the FIFO, what % of the bus bandwidth has
+// been used by control transfers, and whether scheduled transfers are
+// higher priority.
+typedef struct
+{
+  volatile uint8_t pending[EP_POOL_NELEMENTS]; // pending[i] is an index into the ep_pool of pending transfers
+  volatile uint8_t n_pending; // number of pending items
+  volatile int8_t idx; // the index into the pending list of the last item checked for pending
+} pending_host_transfer_t;
+
+typedef struct
+{
+  volatile pending_host_transfer_t* pht;
+  volatile int8_t idx;
+} active_host_transfert_t;
+
+typedef struct
+{
+  uint8_t setup[8];
+  uint8_t* user_buffer;
+  uint16_t total_len;
+  uint8_t daddr; // the device address
+  uint8_t edpt; // the endpoint number (0 or 0x80)
+  uint16_t wMaxPacketSize;
+  volatile bool setup_pending;  // true if this is a pending transfer
+  volatile bool data_pending;
+} _control_xfer_t;
+
+static _control_xfer_t control_xfers[CFG_TUH_DEVICE_MAX+2]; // one for each device + the hub + dev adr 0
+static pending_host_transfer_t interrupt_xfers;
+static pending_host_transfer_t bulk_xfers;
+static active_host_transfert_t active_xfer = {NULL, -1};
+
+static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type);
+static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type, uint8_t bmInterval);
+
+// The highest dev_addr is CFG_TUH_DEVICE_MAX; hub address is CFG_TUH_DEVICE_MAX+1.
+// Let i be 0-15 for OUT endpoint and 16-31 for IN endpoints
+// Bit i in nak_mask[dev_addr - 1] is set if endpoint with index i
+// in device with dev_addr has sent NAK since the last SOF interrupt.
+static uint32_t nak_mask[CFG_TUH_DEVICE_MAX+1]; // +1 for hubs
+
+static uint32_t get_nak_mask_val(uint8_t edpt)
+{
+  return 1 << (tu_edpt_number(edpt) + (tu_edpt_dir(edpt)*16));
+}
+
+static bool is_nak_mask_set(uint8_t daddr, uint8_t edpt)
+{
+  return (nak_mask[daddr-1] & get_nak_mask_val(edpt)) != 0;
+}
+static bool __tusb_irq_path_func(hw_add_pending_xfer)(pending_host_transfer_t* pht, uint8_t ep_pool_idx)
+{
+  // make sure args are valid and there is space in the list
+  if (pht == NULL || ep_pool_idx > EP_POOL_NELEMENTS || pht->n_pending >=  EP_POOL_NELEMENTS)
+    return false;
+  // Disable the USB Host interrupt sources
+  struct hw_endpoint* ep = ep_pool+ep_pool_idx;
+  hw_endpoint_lock_update(ep, 1);
+  // add to the list
+  pht->pending[pht->n_pending++] = ep_pool_idx;
+  // Enable the USB Host interrupt
+  hw_endpoint_lock_update(ep, -1);
+  return true;
+}
+
+static bool __tusb_irq_path_func(hw_del_pending_xfer)(volatile pending_host_transfer_t* pht, uint8_t ep_pool_idx)
+{
+  struct hw_endpoint* ep = ep_pool+ep_pool_idx;
+  hw_endpoint_lock_update(ep, 1);
+  // make sure args are valid and there is space in the list
+  assert(pht != NULL && ep_pool_idx < EP_POOL_NELEMENTS && pht->n_pending <= EP_POOL_NELEMENTS && pht->n_pending > 0);
+  for (int8_t idx = 0; idx < pht->n_pending; idx++)
+  {
+    if (pht->pending[idx] == ep_pool_idx)
+    {
+      pht->pending[idx] = pht->pending[pht->n_pending - 1];
+      pht->n_pending--;
+      if (pht->idx >= pht->n_pending)
+      {
+        pht->idx = 0;
+      }
+      hw_endpoint_lock_update(ep, -1);
+      return true;
+    }
+  }
+  hw_endpoint_lock_update(ep, -1);
+  return false;
+}
 
 // Flags we set by default in sie_ctrl (we add other bits on top)
 enum {
@@ -62,6 +178,14 @@ enum {
                   USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
+static struct
+{
+  absolute_time_t timestamp;
+  uint32_t frame_num;
+} frame_time_info;
+
+#if 0
+// TODO: Do we need this function?
 static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint8_t num = tu_edpt_number(ep_addr);
@@ -75,17 +199,26 @@ static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
 
   return NULL;
 }
+#endif
+
+int8_t get_dev_ep_idx(uint8_t dev_addr, uint8_t ep_addr)
+{
+  uint8_t num = tu_edpt_number(ep_addr);
+  if ( num == 0 ) return 0;
+
+  for ( int8_t idx = 1; idx < (int8_t)TU_ARRAY_SIZE(ep_pool); idx++ )
+  {
+    struct hw_endpoint *ep = &ep_pool[idx];
+    if ( ep->configured && (ep->dev_addr == dev_addr) && (ep->ep_addr == ep_addr) )
+      return idx;
+  }
+
+  return -1;
+}
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t dev_speed(void)
 {
   return (usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS) >> USB_SIE_STATUS_SPEED_LSB;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline bool need_pre(uint8_t dev_addr)
-{
-  // If this device is different to the speed of the root device
-  // (i.e. is a low speed device on a full speed hub) then need pre
-  return hcd_port_speed_get(0) != tuh_speed_get(dev_addr);
 }
 
 static void __tusb_irq_path_func(hw_xfer_complete)(struct hw_endpoint *ep, xfer_result_t xfer_result)
@@ -94,6 +227,15 @@ static void __tusb_irq_path_func(hw_xfer_complete)(struct hw_endpoint *ep, xfer_
   uint8_t dev_addr = ep->dev_addr;
   uint8_t ep_addr = ep->ep_addr;
   uint xferred_len = ep->xferred_len;
+#if 0
+  uint8_t ep_num = tu_edpt_number(ep_addr);
+  if (ep_num != 0)
+  {
+    // copy the buffer control data back to the endpoint
+    struct hw_endpoint* og_ep = get_dev_ep(dev_addr, ep_addr);
+    *og_ep->buffer_control = *ep->buffer_control;
+  }
+#endif
   hw_endpoint_reset_transfer(ep);
   hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
@@ -135,7 +277,7 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
 
     _handle_buff_status_bit(bit, ep);
   }
-
+#if 0
   // Check "interrupt" (asynchronous) endpoints for both IN and OUT
   for ( uint i = 1; i <= USB_HOST_INTERRUPT_ENDPOINTS && remaining_buffers; i++ )
   {
@@ -157,6 +299,7 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
       }
     }
   }
+#endif
 
   if ( remaining_buffers )
   {
@@ -182,10 +325,202 @@ static void __tusb_irq_path_func(hw_trans_complete)(void)
   }
 }
 
+static void __tusb_irq_path_func(_hw_setup_epx_from_ep)(struct hw_endpoint* ep) {
+  // Fill in endpoint control register with buffer offset
+  uint dpram_offset = hw_data_offset(ep->hw_data_buf);
+  // Bits 0-5 should be 0
+  assert(!(dpram_offset & 0b111111));
+  // set up epx to do an interrupt transfer; the polling interval does not matter
+  uint32_t ep_reg = EP_CTRL_ENABLE_BITS
+              | EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER
+              | (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB)
+              | dpram_offset;
+  *epx.endpoint_control = ep_reg;
+  *epx.buffer_control = *ep->buffer_control;
+  epx.remaining_len = ep->remaining_len;
+  epx.user_buf = ep->user_buf;
+  epx.wMaxPacketSize = ep->wMaxPacketSize;
+  epx.hw_data_buf = ep->hw_data_buf;
+  epx.next_pid = ep->next_pid;
+  epx.rx = ep->rx;
+  epx.xferred_len = 0;
+  epx.dev_addr = ep->dev_addr;
+  epx.ep_addr = ep->ep_addr;
+  epx.transfer_type = ep->transfer_type;
+}
+
+void __tusb_irq_path_func(_hw_epx_xfer_start)(uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
+{
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
+  // Control endpoint can change direction
+  if ( ep_num == 0  && ep_addr != epx.ep_addr )
+  {
+    // Direction has flipped on endpoint so re-init it
+    _hw_endpoint_init(&epx, dev_addr, ep_addr, control_xfers[dev_addr].wMaxPacketSize, TUSB_XFER_CONTROL, 0);
+  }
+  hw_endpoint_xfer_start(&epx, buffer, buflen);
+
+  // That has set up buffer control, endpoint control etc
+  // for host we have to initiate the transfer
+  usb_hw->dev_addr_ctrl = (uint32_t) (dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
+
+  COMPUTE_PRE(dev_addr);
+  uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | SIE_CTRL_BASE |
+                     (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
+                     (pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
+  // START_TRANS bit on SIE_CTRL seems to exhibit the same behavior as the AVAILABLE bit
+  // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".
+  // We write everything except the START_TRANS bit first, then wait some cycles.
+  usb_hw->sie_ctrl = flags & ~USB_SIE_CTRL_START_TRANS_BITS;
+  busy_wait_at_least_cycles(12);
+  usb_hw->sie_ctrl = flags;
+  epx.active = true;
+}
+
+// Scheduling algorithm:
+// Isochronous transfers are not supported. Encountering one will cause
+// an assert.
+//
+// Both BULK and INTERRUPT transfers are handled by epx. The epx
+// endpoint will trigger the irq with transfer complete with NAK
+// if epx is set up for interrupt transfer and the device responds
+// with NAK. The SIE_STATUS register NAK_REC bit will be set.
+//
+// If there are any pending control transfers, do them first.
+// Control transfers operate until completion. NAK on the bus
+// causes auto-retry.
+//
+// Every SOF interrupt, all endpoints will be polled. BULK and INTERRUPT
+// endpoints that respond with NAK will not be polled again until the
+// next SOF at the soonest. If there is not enough time in the frame to
+// poll all endpoints, then INTERRUPT endpoints have priority over BULK
+// endpoints.
+//
+// If the epx endpoint is in the middle of a transfer, then scheduling
+// is postponed
+static void __tusb_irq_path_func(hcd_schedule_next_transfer)()
+{
+  if (epx.active)
+    return; // The last transfer is still ongoing
+
+  absolute_time_t now = get_absolute_time();
+  // Must be at least 100us left in the 1000us frame
+  if (absolute_time_diff_us(frame_time_info.timestamp, now) > 900)
+    return; // not enough time left in the frame to do any more transfers
+  // First check for setup transfers
+  // TODO: This loop grants time starting with the lowest number device address
+  for (size_t idx = 0; idx < TU_ARRAY_SIZE(control_xfers); idx++)
+  {
+    if (control_xfers[idx].setup_pending)
+    {
+      // set up epx to do a control transfer
+      // Copy data into setup packet buffer
+      for ( uint8_t jdx = 0; jdx < 8; jdx++ )
+      {
+        usbh_dpram->setup_packet[jdx] = control_xfers[idx].setup[jdx];
+      }
+      // Configure EP0 struct with setup info for the trans complete
+      struct hw_endpoint * ep = _hw_endpoint_allocate(0);
+      assert(ep);
+
+      // EPX should be inactive
+      assert(!ep->active);
+      ep->wMaxPacketSize = control_xfers[idx].wMaxPacketSize;
+      // EP0 out
+      _hw_endpoint_init(ep, control_xfers[idx].daddr, 0x00, ep->wMaxPacketSize, 0, 0);
+      assert(ep->configured);
+
+      // Set device address
+      usb_hw->dev_addr_ctrl = control_xfers[idx].daddr;
+      ep->dev_addr = control_xfers[idx].daddr;
+      ep->ep_addr = 0;
+      // Set pre if we are a low speed device on full speed hub
+      COMPUTE_PRE(ep->dev_addr);
+      ep->remaining_len = 8;
+      ep->active = true;
+      uint32_t const flags = SIE_CTRL_BASE | USB_SIE_CTRL_SEND_SETUP_BITS | USB_SIE_CTRL_START_TRANS_BITS |
+                         (pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
+
+      // START_TRANS bit on SIE_CTRL seems to exhibit the same behavior as the AVAILABLE bit
+      // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".
+      // We write everything except the START_TRANS bit first, then wait some cycles.
+      usb_hw->sie_ctrl = flags & ~USB_SIE_CTRL_START_TRANS_BITS;
+      busy_wait_at_least_cycles(12);
+      usb_hw->sie_ctrl = flags;
+      control_xfers[idx].setup_pending = false;
+      active_xfer.pht = NULL;
+      return;
+    }
+    else if (control_xfers[idx].data_pending)
+    {
+      epx.dev_addr = control_xfers[idx].daddr;
+      _hw_epx_xfer_start(control_xfers[idx].daddr, control_xfers[idx].edpt, control_xfers[idx].user_buffer, control_xfers[idx].total_len);
+      control_xfers[idx].data_pending = false;
+      active_xfer.pht = NULL;
+      return;
+    }
+  }
+  // If there are any pending Interrupt transactions, start one
+  // if its polling interval is exceeded
+  if (interrupt_xfers.n_pending > 0)
+  {
+    // see if it is time to start an interrupt transfer for any in the list
+    int8_t old_idx = interrupt_xfers.idx;
+    do
+    {
+      int8_t pool_idx = (int8_t)interrupt_xfers.pending[interrupt_xfers.idx];
+      struct hw_endpoint* ep = ep_pool + pool_idx;
+      interrupt_xfers.idx = (int8_t)((interrupt_xfers.idx+1) % interrupt_xfers.n_pending);
+      if (is_nak_mask_set(ep->dev_addr, ep->ep_addr))
+      {
+        continue; // you only get to poll it once per frame
+      }
+      if (absolute_time_diff_us(ep->scheduled_time, now) > 0)
+      {
+        // This is the endpoint to set up
+        ep->scheduled_time = delayed_by_ms(now, ep->polling_interval);
+        _hw_setup_epx_from_ep(ep);
+        active_xfer.pht = &interrupt_xfers;
+        active_xfer.idx = pool_idx;
+        _hw_epx_xfer_start(ep->dev_addr, ep->ep_addr, ep->user_buf, ep->remaining_len);
+        return;
+      }
+    } while (interrupt_xfers.idx != old_idx);
+  }
+
+  // No control transfers pending. Check for bulk transfers
+  if (bulk_xfers.n_pending > 0)
+  {
+    int old_idx = bulk_xfers.idx;
+    do
+    {
+      int8_t pool_idx = (int8_t)bulk_xfers.pending[bulk_xfers.idx];
+      struct hw_endpoint* ep = ep_pool + pool_idx;
+      bulk_xfers.idx = (int8_t)((bulk_xfers.idx+1) % bulk_xfers.n_pending);
+      if (is_nak_mask_set(ep->dev_addr, ep->ep_addr))
+      {
+        continue; // you only get to poll it once per frame
+      }
+      _hw_setup_epx_from_ep(ep);
+      active_xfer.pht = &bulk_xfers;
+      active_xfer.idx = pool_idx;
+      // start the transfer
+      _hw_epx_xfer_start(ep->dev_addr, ep->ep_addr, ep->user_buf, ep->remaining_len);
+      return;
+    } while (bulk_xfers.idx != old_idx);
+  }
+}
+
 static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
 {
   uint32_t status = usb_hw->ints;
   uint32_t handled = 0;
+  uint8_t current_edpt = (usb_hw->dev_addr_ctrl & USB_ADDR_ENDP_ENDPOINT_BITS) >> USB_ADDR_ENDP_ENDPOINT_LSB;
+  current_edpt |= (uint8_t)((usb_hw->sie_ctrl & USB_SIE_CTRL_RECEIVE_DATA_BITS) ? 0x80 : 0);
+  uint8_t current_daddr = (usb_hw->dev_addr_ctrl & USB_ADDR_ENDP_ADDRESS_BITS) >> USB_ADDR_ENDP_ADDRESS_LSB;
+  bool is_control_xfer = tu_edpt_number(current_edpt) == 0;
+  bool attached = true;
 
   if ( status & USB_INTS_HOST_CONN_DIS_BITS )
   {
@@ -193,42 +528,115 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
 
     if ( dev_speed() )
     {
+      tu_memclr(nak_mask, sizeof(nak_mask));
       hcd_event_device_attach(RHPORT_NATIVE, true);
     }
     else
     {
+      attached = false;
       hcd_event_device_remove(RHPORT_NATIVE, true);
     }
 
     // Clear speed change interrupt
     usb_hw_clear->sie_status = USB_SIE_STATUS_SPEED_BITS;
   }
+  if ( status & USB_INTS_HOST_SOF_BITS )
+  {
+    handled |= USB_INTS_HOST_SOF_BITS;
+    // Clear NAK record for this frame
+    tu_memclr(nak_mask, sizeof(nak_mask));
+    // Record new frame number for scheduler and clear the interrupt
+    frame_time_info.frame_num = usb_hw->sof_rd;
+    frame_time_info.timestamp = get_absolute_time();
+  }
 
   if ( status & USB_INTS_STALL_BITS )
   {
-    // We have rx'd a stall from the device
-    // NOTE THIS SHOULD HAVE PRIORITY OVER BUFF_STATUS
-    // AND TRANS_COMPLETE as the stall is an alternative response
-    // to one of those events
-    pico_trace("Stall REC\n");
-    handled |= USB_INTS_STALL_BITS;
-    usb_hw_clear->sie_status = USB_SIE_STATUS_STALL_REC_BITS;
-    hw_xfer_complete(&epx, XFER_RESULT_STALLED);
+    if (usb_hw->sie_status & USB_SIE_STATUS_STALL_REC_BITS)
+    {
+      // We have rx'd a stall from the device
+      // NOTE THIS SHOULD HAVE PRIORITY OVER BUFF_STATUS
+      // AND TRANS_COMPLETE as the stall is an alternative response
+      // to one of those events
+      pico_trace("Stall REC\n");
+      handled |= USB_INTS_STALL_BITS;
+      usb_hw_clear->sie_status = USB_SIE_STATUS_STALL_REC_BITS;
+      hw_xfer_complete(&epx, XFER_RESULT_STALLED);
+    }
+  }
+  bool drop_data = false;
+  if ( status & USB_INTS_ERROR_DATA_SEQ_BITS )
+  {
+    handled |= USB_INTS_ERROR_DATA_SEQ_BITS;
+    usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
+    TU_LOG(1, "  Seq Error: %08lx, [0] = 0x%04u  [1] = 0x%04x\r\n", *epx.buffer_control,
+           tu_u32_low16(*epx.buffer_control),
+           tu_u32_high16(*epx.buffer_control));
+    // For control transfers, this is bad. For other transfers, just drop the data
+    if (is_control_xfer)
+      panic("Data Seq Error \n");
+    else
+    {
+      drop_data = true;
+      // put the next_pid value back where it should be
+      epx.next_pid ^= 1u;
+    }
   }
 
+  if ( usb_hw->sie_status & USB_SIE_STATUS_NAK_REC_BITS )
+  {
+    // control transfers auto-retry on NAK
+    // Bulk and Interrupt transfers do not
+    if (!is_control_xfer)
+    {
+      drop_data = true;
+      nak_mask[current_daddr-1] = get_nak_mask_val(current_edpt);
+    }
+    usb_hw_clear->sie_status = USB_SIE_STATUS_NAK_REC_BITS;
+  }
+  if (usb_hw->sie_status & USB_SIE_STATUS_RX_TIMEOUT_BITS)
+  {
+    usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
+    drop_data = true;
+  }
   if ( status & USB_INTS_BUFF_STATUS_BITS )
   {
     handled |= USB_INTS_BUFF_STATUS_BITS;
-    TU_LOG(2, "Buffer complete\r\n");
-    hw_handle_buff_status();
+    if (drop_data)
+    {
+      usb_hw_clear->buf_status = 0x01;
+    }
+    else
+      hw_handle_buff_status();
   }
 
   if ( status & USB_INTS_TRANS_COMPLETE_BITS )
   {
     handled |= USB_INTS_TRANS_COMPLETE_BITS;
     usb_hw_clear->sie_status = USB_SIE_STATUS_TRANS_COMPLETE_BITS;
-    TU_LOG(2, "Transfer complete\r\n");
-    hw_trans_complete();
+
+    if (drop_data)
+    {
+      TU_LOG(3, "complete: buffer dropped %02x/%02x\r\n", current_daddr, current_edpt);
+      hw_endpoint_reset_transfer(&epx);
+      if (active_xfer.pht != NULL)
+      {
+        ep_pool[active_xfer.idx].active = false;
+      }
+    }
+    else
+    {
+      TU_LOG(2, "\r\nTransfer complete dev=%02x ep=%02x\r\n", current_daddr, current_edpt);
+      // If the transfer completed, remove if from the pending list
+      if (active_xfer.pht != NULL)
+      {
+        *ep_pool[active_xfer.idx].buffer_control = *epx.buffer_control;
+        ep_pool[active_xfer.idx].next_pid = epx.next_pid;
+        hw_del_pending_xfer(active_xfer.pht, (uint8_t)active_xfer.idx);
+      }
+      hw_trans_complete();
+    }
+    active_xfer.pht = NULL;
   }
 
   if ( status & USB_INTS_ERROR_RX_TIMEOUT_BITS )
@@ -237,19 +645,12 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
     usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
   }
 
-  if ( status & USB_INTS_ERROR_DATA_SEQ_BITS )
-  {
-    usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-    TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n",
-           tu_u32_low16(*epx.buffer_control),
-           tu_u32_high16(*epx.buffer_control));
-    panic("Data Seq Error \n");
-  }
-
   if ( status ^ handled )
   {
     panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
   }
+  if (attached)
+    hcd_schedule_next_transfer();
 }
 
 void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
@@ -304,7 +705,7 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
   return ep;
 }
 
-static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type, uint8_t bmInterval)
+static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type, uint8_t bInterval)
 {
   // Already has data buffer, endpoint control, and buffer control allocated at this point
   assert(ep->endpoint_control);
@@ -324,6 +725,8 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
   ep->next_pid = (num == 0 ? 1u : 0u);
   ep->wMaxPacketSize = wMaxPacketSize;
   ep->transfer_type = transfer_type;
+  if (num == 0)
+    control_xfers[dev_addr].wMaxPacketSize = wMaxPacketSize;
 
   pico_trace("hw_endpoint_init dev %d ep %02X xfer %d\n", ep->dev_addr, ep->ep_addr, ep->transfer_type);
   pico_trace("dev %d ep %02X setup buffer @ 0x%p\n", ep->dev_addr, ep->ep_addr, ep->hw_data_buf);
@@ -336,9 +739,10 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
                     | EP_CTRL_INTERRUPT_PER_BUFFER
                     | (ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB)
                     | dpram_offset;
-  if ( bmInterval )
+  if ( bInterval )
   {
-    ep_reg |= (uint32_t) ((bmInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
+    ep_reg |= (uint32_t) ((bInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
+    ep->polling_interval = bInterval;
   }
   *ep->endpoint_control = ep_reg;
   pico_trace("endpoint control (0x%p) <- 0x%lx\n", ep->endpoint_control, ep_reg);
@@ -357,18 +761,15 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     {
       reg |= USB_ADDR_ENDP1_INTEP_DIR_BITS;
     }
-
-    if ( need_pre(dev_addr) )
+    COMPUTE_PRE(dev_addr);
+    if ( pre )
     {
       reg |= USB_ADDR_ENDP1_INTEP_PREAMBLE_BITS;
     }
     usb_hw->int_ep_addr_ctrl[ep->interrupt_num] = reg;
 
-    // Finally, enable interrupt that endpoint
-    usb_hw_set->int_ep_ctrl = 1 << (ep->interrupt_num + 1);
-
-    // If it's an interrupt endpoint we need to set up the buffer control
-    // register
+    // We are just setting up the registers; going to poll the endpoint ourselves,
+    // so no need to enable the endpoint now.
   }
 }
 
@@ -404,8 +805,13 @@ bool hcd_init(uint8_t rhport)
                  USB_INTE_STALL_BITS            |
                  USB_INTE_TRANS_COMPLETE_BITS   |
                  USB_INTE_ERROR_RX_TIMEOUT_BITS |
+                 USB_INTE_HOST_SOF_BITS         |
                  USB_INTE_ERROR_DATA_SEQ_BITS   ;
-
+  tu_memclr(nak_mask, sizeof(nak_mask));
+  control_xfers[0].daddr = 0;
+  control_xfers[0].wMaxPacketSize = 8;
+  control_xfers[0].data_pending = false;
+  control_xfers[0].setup_pending = false;
   return true;
 }
 
@@ -458,6 +864,22 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport)
   }
 }
 
+static void close_pending_host_transfers(pending_host_transfer_t* pht, uint8_t dev_addr)
+{
+  for (int8_t idx = 0; idx < pht->n_pending;)
+  {
+    uint8_t pending_idx = pht->pending[idx];
+    if (ep_pool[pending_idx].dev_addr == dev_addr)
+    {
+      hw_del_pending_xfer(pht, pending_idx);
+    }
+    else
+    {
+      ++idx;
+    }
+  }
+}
+
 // Close all opened endpoint belong to this device
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
@@ -465,8 +887,22 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   (void) rhport;
 
   if (dev_addr == 0) return;
+  uint32_t saved_irqs = save_and_disable_interrupts();
+  // clean up scheduling buffers on close
+  if (active_xfer.pht != NULL && ep_pool[active_xfer.idx].dev_addr == dev_addr) {
+    if (epx.active)
+    {
+      epx.active = false;
+    }
+    active_xfer.pht = NULL;
+  }
+  close_pending_host_transfers(&interrupt_xfers, dev_addr);
+  close_pending_host_transfers(&bulk_xfers, dev_addr);
+  control_xfers[dev_addr].setup_pending = false;
+  control_xfers[dev_addr].data_pending = false;
 
-  for (size_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++)
+
+  for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++)
   {
     hw_endpoint_t* ep = &ep_pool[i];
 
@@ -483,12 +919,13 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
       hw_endpoint_reset_transfer(ep);
     }
   }
+  restore_interrupts(saved_irqs);
 }
 
 uint32_t hcd_frame_number(uint8_t rhport)
 {
   (void) rhport;
-  return usb_hw->sof_rd;
+  return frame_time_info.frame_num;
 }
 
 void hcd_int_enable(uint8_t rhport)
@@ -536,51 +973,54 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
   pico_trace("hcd_edpt_xfer dev_addr %d, ep_addr 0x%x, len %d\n", dev_addr, ep_addr, buflen);
 
-  uint8_t const ep_num = tu_edpt_number(ep_addr);
-  tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
 
-  // Get appropriate ep. Either EPX or interrupt endpoint
-  struct hw_endpoint *ep = get_dev_ep(dev_addr, ep_addr);
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+
+  // Get appropriate ep.
+  int8_t ep_idx = get_dev_ep_idx(dev_addr, ep_addr);
+  TU_ASSERT(ep_idx != -1);
+  struct hw_endpoint *ep = ep_pool+ep_idx;
 
   TU_ASSERT(ep);
 
-  // EP should be inactive
-  assert(!ep->active);
-
-  // Control endpoint can change direction 0x00 <-> 0x80
-  if ( ep_addr != ep->ep_addr )
+  if (ep_num == 0)
   {
-    assert(ep_num == 0);
-
-    // Direction has flipped on endpoint control so re init it but with same properties
-    _hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, ep->transfer_type, 0);
+    TU_ASSERT(dev_addr < CFG_TUH_DEVICE_MAX+2);
+    TU_ASSERT(control_xfers[dev_addr].data_pending == false);
+    TU_ASSERT(control_xfers[dev_addr].setup_pending == false);
+    // Disable the USB Host interrupt sources
+    hw_endpoint_lock_update(ep, 1);
+    control_xfers[dev_addr].daddr = dev_addr;
+    control_xfers[dev_addr].edpt = ep_addr;
+    control_xfers[dev_addr].total_len = buflen;
+    control_xfers[dev_addr].user_buffer = buffer;
+    control_xfers[dev_addr].data_pending = true;
+    hw_endpoint_lock_update(ep, -1);
   }
-
-  // If a normal transfer (non-interrupt) then initiate using
-  // sie ctrl registers. Otherwise interrupt ep registers should
-  // already be configured
-  if ( ep == &epx )
+  else
   {
-    hw_endpoint_xfer_start(ep, buffer, buflen);
-
-    // That has set up buffer control, endpoint control etc
-    // for host we have to initiate the transfer
-    usb_hw->dev_addr_ctrl = (uint32_t) (dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
-
-    uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | SIE_CTRL_BASE |
-                     (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
-                     (need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
-    // START_TRANS bit on SIE_CTRL seems to exhibit the same behavior as the AVAILABLE bit
-    // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".
-    // We write everything except the START_TRANS bit first, then wait some cycles.
-    usb_hw->sie_ctrl = flags & ~USB_SIE_CTRL_START_TRANS_BITS;
-    busy_wait_at_least_cycles(12);
-    usb_hw->sie_ctrl = flags;
-  }else
-  {
-    hw_endpoint_xfer_start(ep, buffer, buflen);
+    struct hw_endpoint *ep = ep_pool+ep_idx;
+    ep->remaining_len = buflen;
+    ep->user_buf = buffer;
+    TU_ASSERT(ep);
+    pending_host_transfer_t* next_list;
+    if (ep->polling_interval != 0)
+    {
+      next_list = &interrupt_xfers;
+      ep->scheduled_time = delayed_by_ms(get_absolute_time(), ep->polling_interval); // now + polling interval
+      TU_LOG(2,"scheduling new interrupt xfer %d:%02x/%02x\r\n", ep_idx, ep->dev_addr, ep->ep_addr);
+    }
+    else
+    {
+      next_list = &bulk_xfers;
+      TU_LOG(2,"scheduling new bulk xfer %d:%02x/%02x\r\n", ep_idx, ep->dev_addr, ep->ep_addr);
+    }
+    // Add the transfer to the appropriate pending transfer list
+    if (!hw_add_pending_xfer(next_list, (uint8_t)ep_idx))
+      panic("Cannot schedule new xfer\r\n");
   }
-
+  // next call schedule_next_transfer() will start the transfer
+  // if no other higher priority transfer is pending
   return true;
 }
 
@@ -595,41 +1035,23 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
   (void) rhport;
-
-  // Copy data into setup packet buffer
-  for ( uint8_t i = 0; i < 8; i++ )
+  TU_ASSERT(dev_addr < CFG_TUH_DEVICE_MAX+2);
+  TU_ASSERT(control_xfers[dev_addr].data_pending == false);
+  TU_ASSERT(control_xfers[dev_addr].setup_pending == false);
+  // Disable the USB Host interrupt sources
+  hw_endpoint_lock_update(&epx, 1);
+  control_xfers[dev_addr].daddr = dev_addr;
+  control_xfers[dev_addr].edpt = 0;
+  control_xfers[dev_addr].total_len = 8;
+  for (int idx=0; idx < 8; idx++)
   {
-    usbh_dpram->setup_packet[i] = setup_packet[i];
+    control_xfers[dev_addr].setup[idx] = setup_packet[idx];
   }
-
-  // Configure EP0 struct with setup info for the trans complete
-  struct hw_endpoint * ep = _hw_endpoint_allocate(0);
-  TU_ASSERT(ep);
-
-  // EPX should be inactive
-  assert(!ep->active);
-
-  // EP0 out
-  _hw_endpoint_init(ep, dev_addr, 0x00, ep->wMaxPacketSize, 0, 0);
-  assert(ep->configured);
-
-  ep->remaining_len = 8;
-  ep->active = true;
-
-  // Set device address
-  usb_hw->dev_addr_ctrl = dev_addr;
-
-  // Set pre if we are a low speed device on full speed hub
-  uint32_t const flags = SIE_CTRL_BASE | USB_SIE_CTRL_SEND_SETUP_BITS | USB_SIE_CTRL_START_TRANS_BITS |
-                         (need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
-
-  // START_TRANS bit on SIE_CTRL seems to exhibit the same behavior as the AVAILABLE bit
-  // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".
-  // We write everything except the START_TRANS bit first, then wait some cycles.
-  usb_hw->sie_ctrl = flags & ~USB_SIE_CTRL_START_TRANS_BITS;
-  busy_wait_at_least_cycles(12);
-  usb_hw->sie_ctrl = flags;
-
+  control_xfers[dev_addr].setup_pending = true;
+  // Enable the USB Host interrupt
+  hw_endpoint_lock_update(&epx, -1);
+  // next call schedule_next_transfer() will start the transfer
+  // if no other higher priority control transfer is pending
   return true;
 }
 
@@ -642,4 +1064,4 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   // return true;
 }
 
-#endif
+#endif //CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUH_RPI_PIO_USB && !CFG_TUH_MAX3421
