@@ -129,17 +129,37 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
+#if CFG_TUH_ENABLED || CFG_TUD_ENABLED
 
-// Initialize device/host stack
+// Internal helper for backward compatible with tusb_init(void)
+bool _tusb_rhport_init(uint8_t rhport, tusb_role_t role);
+
+// Initialize roothub port with device/host role
 // Note: when using with RTOS, this should be called after scheduler/kernel is started.
-// Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-bool tusb_init(void);
+// Otherwise, it could cause kernel issue since USB IRQ handler does use RTOS queue API.
+// Note2: defined as macro for backward compatible with tusb_init(void), can be changed to function in the future.
+#define _tusb_init_0arg()                 _tusb_rhport_init(0xff, TUSB_ROLE_INVALID)
+#define _tusb_init_1arg(_rhport)          _tusb_rhport_init(_rhport, TUSB_ROLE_INVALID)
+#define _tusb_init_2arg(_rhport, _role)   _tusb_rhport_init(_rhport, _role)
+#define tusb_init(...)   TU_GET_3RD_ARG(__VA_ARGS__, _tusb_init_2arg, _tusb_init_1arg, _tusb_init_0arg)(__VA_ARGS__)
 
 // Check if stack is initialized
 bool tusb_inited(void);
 
+// Called to handle usb interrupt/event. tusb_init(rhport, role) must be called before
+void tusb_int_handler(uint8_t rhport, bool in_isr);
+
 // TODO
 // bool tusb_teardown(void);
+
+#else
+
+#define tusb_init(...)  (false)
+#define tusb_int_handler(...)  do {}while(0)
+#define tusb_inited()  (false)
+
+#endif
+
 
 #ifdef __cplusplus
  }

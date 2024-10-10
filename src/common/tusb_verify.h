@@ -94,7 +94,7 @@
 #endif
 
 // Helper to implement optional parameter for TU_VERIFY Macro family
-#define _GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
+#define TU_GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
 
 /*------------------------------------------------------------------*/
 /* TU_VERIFY
@@ -109,7 +109,7 @@
 #define TU_VERIFY_1ARGS(_cond)         TU_VERIFY_DEFINE(_cond, false)
 #define TU_VERIFY_2ARGS(_cond, _ret)   TU_VERIFY_DEFINE(_cond, _ret)
 
-#define TU_VERIFY(...)                 _GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_2ARGS, TU_VERIFY_1ARGS, _dummy)(__VA_ARGS__)
+#define TU_VERIFY(...)                 TU_GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_2ARGS, TU_VERIFY_1ARGS, _dummy)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* ASSERT
@@ -126,7 +126,7 @@
 #define TU_ASSERT_2ARGS(_cond, _ret)   TU_ASSERT_DEFINE(_cond, _ret)
 
 #ifndef TU_ASSERT
-#define TU_ASSERT(...)                 _GET_3RD_ARG(__VA_ARGS__, TU_ASSERT_2ARGS, TU_ASSERT_1ARGS, _dummy)(__VA_ARGS__)
+#define TU_ASSERT(...)                 TU_GET_3RD_ARG(__VA_ARGS__, TU_ASSERT_2ARGS, TU_ASSERT_1ARGS, _dummy)(__VA_ARGS__)
 #endif
 
 #ifdef __cplusplus

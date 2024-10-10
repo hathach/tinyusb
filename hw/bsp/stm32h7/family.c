@@ -36,31 +36,26 @@ TU_ATTR_UNUSED static void Error_Handler(void) {
 #include "board.h"
 
 //--------------------------------------------------------------------+
-// Forward USB interrupt events to TinyUSB IRQ Handler
-//--------------------------------------------------------------------+
-
-// Despite being call USB2_OTG_FS on some MCUs
-// OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
-void OTG_FS_IRQHandler(void) {
-  tud_int_handler(0);
-}
-
-// Despite being call USB1_OTG_HS on some MCUs
-// OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
-void OTG_HS_IRQHandler(void) {
-  tud_int_handler(1);
-}
-
-
-//--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
 UART_HandleTypeDef UartHandle;
 
 //--------------------------------------------------------------------+
-//
+// Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
+
+// Despite being call USB2_OTG_FS on some MCUs
+// OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
+void OTG_FS_IRQHandler(void) {
+  tusb_int_handler(0, true);
+}
+
+// Despite being call USB1_OTG_HS on some MCUs
+// OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
+void OTG_HS_IRQHandler(void) {
+  tusb_int_handler(1, true);
+}
 
 #ifdef TRACE_ETM
 void trace_etm_init(void) {
@@ -111,9 +106,10 @@ void board_init(void) {
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-#ifdef USB_OTG_FS_PERIPH_BASE
+  #ifdef USB_OTG_FS_PERIPH_BASE
   NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
-#endif
+  #endif
+
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
@@ -206,13 +202,11 @@ void board_init(void) {
   struct {
     GPIO_TypeDef* port;
     uint32_t pin;
-  } const ulpi_pins[] =
-  {
+  } const ulpi_pins[] = {
     ULPI_PINS
   };
 
-  for (uint8_t i=0; i < sizeof(ulpi_pins)/sizeof(ulpi_pins[0]); i++)
-  {
+  for (uint8_t i=0; i < sizeof(ulpi_pins)/sizeof(ulpi_pins[0]); i++) {
     GPIO_InitStruct.Pin       = ulpi_pins[i].pin;
     GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull      = GPIO_NOPULL;

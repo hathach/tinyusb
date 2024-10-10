@@ -91,7 +91,7 @@ int main(void) {
   board_init();
 
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_init(BOARD_TUD_RHPORT, TUSB_ROLE_DEVICE);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();

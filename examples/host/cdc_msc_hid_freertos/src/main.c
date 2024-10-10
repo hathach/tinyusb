@@ -126,7 +126,7 @@ static void usb_host_task(void *param) {
   (void) param;
 
   // init host stack on configured roothub port
-  if (!tuh_init(BOARD_TUH_RHPORT)) {
+  if (!tusb_init(BOARD_TUH_RHPORT, TUSB_ROLE_HOST)) {
     printf("Failed to init USB Host Stack\r\n");
     vTaskSuspend(NULL);
   }

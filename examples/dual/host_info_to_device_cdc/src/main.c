@@ -82,8 +82,8 @@ int main(void) {
   printf("TinyUSB Host Information -> Device CDC Example\r\n");
 
   // init device and host stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
-  tuh_init(BOARD_TUH_RHPORT);
+  tusb_init(BOARD_TUD_RHPORT, TUSB_ROLE_DEVICE);
+  tusb_init(BOARD_TUH_RHPORT, TUSB_ROLE_HOST);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();

@@ -205,7 +205,9 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   pico_get_unique_board_id(&pico_id);
 
   size_t len = PICO_UNIQUE_BOARD_ID_SIZE_BYTES;
-  if (len > max_len) len = max_len;
+  if (len > max_len) {
+    len = max_len;
+  }
 
   memcpy(id, pico_id.id, len);
   return len;
