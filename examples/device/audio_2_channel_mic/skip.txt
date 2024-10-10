@@ -1,0 +1,5 @@
+mcu:SAMD11
+mcu:SAME5X
+mcu:SAMG
+family:broadcom_64bit
+family:espressif

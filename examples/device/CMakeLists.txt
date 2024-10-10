@@ -7,6 +7,7 @@ family_initialize_project(tinyusb_device_examples ${CMAKE_CURRENT_LIST_DIR})
 
 # family_add_subdirectory will filter what to actually add based on selected FAMILY
 family_add_subdirectory(audio_4_channel_mic)
+family_add_subdirectory(audio_2_channel_mic)
 family_add_subdirectory(audio_test)
 family_add_subdirectory(audio_4_channel_mic_freertos)
 family_add_subdirectory(audio_test_freertos)
