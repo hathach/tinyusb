@@ -405,7 +405,7 @@ bool tuh_rhport_init(const tusb_rhport_init_t* rh_init) {
 
   // Init host controller
   _usbh_controller = rh_init->rhport;
-  TU_ASSERT(hcd_init(rh_init->rhport));
+  TU_ASSERT(hcd_init(rh_init));
   hcd_int_enable(rh_init->rhport);
 
   return true;

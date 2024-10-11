@@ -556,9 +556,8 @@ static void process_pipe_rx(uint8_t rhport, uint_fast8_t pipenum)
  * Host API
  *------------------------------------------------------------------*/
 
-bool hcd_init(uint8_t rhport)
-{
-  (void)rhport;
+bool hcd_init(const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
 
   NVIC_ClearPendingIRQ(USB0_IRQn);
   _hcd.bmRequestType = REQUEST_TYPE_INVALID;

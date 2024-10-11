@@ -178,8 +178,8 @@ TU_ATTR_ALWAYS_INLINE static inline void *_virt_addr(void *physical_address)
 }
 
 // Initialization according to 5.1.1.4
-bool hcd_init(uint8_t rhport)
-{
+bool hcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   (void) rhport;
 
   //------------- Data Structure init -------------//

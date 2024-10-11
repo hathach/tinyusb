@@ -70,7 +70,8 @@ bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
 // Controller API
 //--------------------------------------------------------------------+
 
-bool hcd_init(uint8_t rhport) {
+bool hcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   ci_hs_regs_t *hcd_reg = CI_HS_REG(rhport);
 
   // Reset controller
