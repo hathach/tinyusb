@@ -78,9 +78,8 @@ static void bus_reset(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init (uint8_t rhport)
-{
-  (void) rhport;
+void dcd_init(const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
 
   // Reset to get in a clean state.
   USB->DEVICE.CTRLA.bit.SWRST = true;
