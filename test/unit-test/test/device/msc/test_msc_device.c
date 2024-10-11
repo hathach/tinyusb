@@ -200,7 +200,13 @@ void setUp(void)
   if ( !tud_inited() )
   {
     dcd_init_Expect(rhport);
-    tusb_init(0, TUSB_ROLE_DEVICE);
+
+    tusb_rhport_init_t dev_init = {
+      .rhport = 0,
+      .role = TUSB_ROLE_DEVICE,
+      .speed = TUSB_SPEED_AUTO
+    };
+    tusb_init(&dev_init);
   }
 
   dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);

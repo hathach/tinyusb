@@ -209,7 +209,12 @@ void usb_device_task(void* param)
   // init device stack on configured roothub port
   // This should be called after scheduler/kernel is started.
   // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-  tusb_init(BOARD_TUD_RHPORT, TUSB_ROLE_DEVICE);
+  tusb_rhport_init_t dev_init = {
+    .rhport = BOARD_TUD_RHPORT,
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(&dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
