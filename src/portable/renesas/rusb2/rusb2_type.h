@@ -48,6 +48,7 @@ extern "C" {
 /* Start of definition of packed structs (used by the CCRX toolchain) */
 TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
+#pragma pack(2)
 
 // TODO same as RUSB2_PIPE_TR_t
 typedef struct TU_ATTR_PACKED _ccrx_evenaccess {
