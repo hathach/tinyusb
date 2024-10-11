@@ -209,8 +209,8 @@ enum {
   NUC121/NUC125/NUC126 TinyUSB API driver implementation
 */
 
-void dcd_init(uint8_t rhport)
-{
+void dcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   (void) rhport;
 
 #ifdef SUPPORT_LPM

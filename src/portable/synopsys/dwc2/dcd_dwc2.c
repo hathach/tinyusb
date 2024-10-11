@@ -650,9 +650,10 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
   return true;
 }
 
-void dcd_init(uint8_t rhport) {
+void dcd_init(const tusb_rhport_init_t* rh_init) {
   // Programming model begins in the last section of the chapter on the USB
   // peripheral in each Reference Manual.
+  const uint8_t rhport = rh_init->rhport;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled

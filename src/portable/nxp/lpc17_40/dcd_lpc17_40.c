@@ -167,8 +167,8 @@ static void bus_reset(void)
   tu_memclr(&_dcd, sizeof(dcd_data_t));
 }
 
-void dcd_init(uint8_t rhport)
-{
+void dcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   (void) rhport;
 
   //------------- user manual 11.13 usb device controller initialization -------------//

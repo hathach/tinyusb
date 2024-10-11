@@ -245,8 +245,8 @@ static void process_bus_active(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+void dcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   (void) rhport;
 
   tu_memclr(&_dcd, sizeof(_dcd));

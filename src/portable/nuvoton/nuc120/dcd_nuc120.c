@@ -201,8 +201,8 @@ static const uint32_t enabled_irqs = USBD_INTSTS_FLDET_STS_Msk | USBD_INTSTS_BUS
   NUC100/NUC120 TinyUSB API driver implementation
 */
 
-void dcd_init(uint8_t rhport)
-{
+void dcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   (void) rhport;
 
   USBD->ATTR = 0x7D0;

@@ -234,8 +234,8 @@ static void bus_reset(uint8_t rhport)
   dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 }
 
-void dcd_init(uint8_t rhport)
-{
+void dcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);

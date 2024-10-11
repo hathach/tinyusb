@@ -582,7 +582,8 @@ void print_musb_info(musb_regs_t* musb_regs) {
 }
 #endif
 
-void dcd_init(uint8_t rhport) {
+void dcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
 
 #if CFG_TUSB_DEBUG >= MUSB_DEBUG

@@ -804,8 +804,8 @@ static void handle_ep0_nak(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+void dcd_init(const tusb_rhport_init_t* rh_init) {
+  const uint8_t rhport = rh_init->rhport;
   (void) rhport;
 
   _dcd.init_called = true;

@@ -490,7 +490,7 @@ bool tud_rhport_init(const tusb_rhport_init_t* rh_init) {
   _usbd_rhport = rh_init->rhport;
 
   // Init device controller driver
-  dcd_init(rh_init->rhport);
+  dcd_init(rh_init);
   dcd_int_enable(rh_init->rhport);
 
   return true;

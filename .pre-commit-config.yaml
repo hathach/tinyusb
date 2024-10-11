@@ -42,3 +42,18 @@ repos:
     pass_filenames: false
     types_or: [c, header]
     language: system
+
+  - id: build-fuzzer
+    name: build-fuzzer
+    files: ^(src/|test/fuzz/)
+    language: system
+    types_or: [c, header]
+    entry: |
+      export CC=clang
+      export CXX=clang++
+      fuzz_harness=$(ls -d test/fuzz/device/*/)
+      for h in $fuzz_harness
+      do
+        make -C $h get-deps
+        make -C $h all
+      done

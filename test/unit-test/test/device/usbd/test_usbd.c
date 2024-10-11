@@ -124,16 +124,16 @@ void setUp(void)
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
 
-  if ( !tud_inited() )
-  {
-    mscd_init_Expect();
-    dcd_init_Expect(rhport);
-
+  if ( !tud_inited() ) {
     tusb_rhport_init_t dev_init = {
       .rhport = 0,
       .role = TUSB_ROLE_DEVICE,
       .speed = TUSB_SPEED_AUTO
     };
+
+    mscd_init_Expect();
+    dcd_init_Expect(&dev_init);
+
     tusb_init(&dev_init);
   }
 }
