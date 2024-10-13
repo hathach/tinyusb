@@ -529,6 +529,13 @@
   #define TUP_RHPORT_HIGHSPEED    1
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
+//--------------------------------------------------------------------+
+// Artery
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F4)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
 #endif
 
 //--------------------------------------------------------------------+
