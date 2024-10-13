@@ -459,7 +459,7 @@ bool tuh_task_event_ready(void) {
     int main(void)
     {
       application_init();
-      tusb_init();
+      tusb_init(0, TUSB_ROLE_HOST);
 
       while(1) // the mainloop
       {

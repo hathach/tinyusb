@@ -39,21 +39,50 @@
 #include "host/usbh_pvt.h"
 #endif
 
+#define TUP_USBIP_CONTROLLER_NUM 2
+
+static tusb_role_t _rhport_role[TUP_USBIP_CONTROLLER_NUM] = { 0 };
+
 //--------------------------------------------------------------------+
 // Public API
 //--------------------------------------------------------------------+
 
-bool tusb_init(void) {
-  #if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
-  // init device stack CFG_TUSB_RHPORTx_MODE must be defined
-  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) );
+bool _tusb_rhport_init(uint8_t rhport, tusb_role_t role) {
+  //  backward compatible called with tusb_init(void)
+  #if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
+  if (rhport == 0xff || role == TUSB_ROLE_INVALID) {
+    #if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
+    // init device stack CFG_TUSB_RHPORTx_MODE must be defined
+    TU_ASSERT ( tud_init(TUD_OPT_RHPORT) );
+    _rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
+    #endif
+
+    #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
+    // init host stack CFG_TUSB_RHPORTx_MODE must be defined
+    TU_ASSERT( tuh_init(TUH_OPT_RHPORT) );
+    _rhport_role[TUH_OPT_RHPORT] = TUSB_ROLE_HOST;
+    #endif
+
+    return true;
+  }
   #endif
 
-  #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
-  // init host stack CFG_TUSB_RHPORTx_MODE must be defined
-  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) );
+  // new API with explicit rhport and role
+  TU_ASSERT(rhport < TUP_USBIP_CONTROLLER_NUM && role != TUSB_ROLE_INVALID);
+
+  #if CFG_TUD_ENABLED
+  if (role == TUSB_ROLE_DEVICE) {
+    TU_ASSERT( tud_init(rhport) );
+  }
   #endif
 
+  #if CFG_TUH_ENABLED
+  if (role == TUSB_ROLE_HOST) {
+    TU_ASSERT( tuh_init(rhport) );
+  }
+  #endif
+
+  _rhport_role[rhport] = role;
   return true;
 }
 
@@ -69,6 +98,23 @@ bool tusb_inited(void) {
   #endif
 
   return ret;
+}
+
+void tusb_int_handler(uint8_t rhport, bool in_isr) {
+  TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
+
+  #if CFG_TUD_ENABLED
+  if (_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
+    (void) in_isr;
+    tud_int_handler(rhport);
+  }
+  #endif
+
+  #if CFG_TUH_ENABLED
+  if (_rhport_role[rhport] == TUSB_ROLE_HOST) {
+    tuh_int_handler(rhport, in_isr);
+  }
+  #endif
 }
 
 //--------------------------------------------------------------------+

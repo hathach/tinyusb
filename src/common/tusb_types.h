@@ -39,6 +39,12 @@
 /* CONSTANTS
  *------------------------------------------------------------------*/
 
+typedef enum {
+  TUSB_ROLE_INVALID = 0,
+  TUSB_ROLE_DEVICE,
+  TUSB_ROLE_HOST,
+} tusb_role_t;
+
 /// defined base on EHCI specs value for Endpoint Speed
 typedef enum {
   TUSB_SPEED_FULL = 0,

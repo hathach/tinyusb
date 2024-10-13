@@ -52,7 +52,7 @@ int main(void)
   printf("Note: Events only displayed for explicit supported controllers\r\n");
 
   // init host stack on configured roothub port
-  tuh_init(BOARD_TUH_RHPORT);
+  tusb_init(BOARD_TUH_RHPORT, TUSB_ROLE_HOST);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();

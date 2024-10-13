@@ -37,18 +37,6 @@
 #include "sct_neopixel.h"
 #endif
 
-#ifdef BOARD_TUD_RHPORT
-  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_DEVICE(_n)  0
-#endif
-
-#ifdef BOARD_TUH_RHPORT
-  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_HOST(_n)    0
-#endif
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -73,11 +61,11 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB0_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
 
 void USB1_IRQHandler(void) {
-  tud_int_handler(1);
+  tusb_int_handler(1, true);
 }
 
 /****************************************************************
@@ -209,7 +197,7 @@ void board_init(void) {
   /* PORT0 PIN22 configured as USB0_VBUS */
   IOCON_PinMuxSet(IOCON, 0U, 22U, IOCON_PIO_DIG_FUNC7_EN);
 
-#if PORT_SUPPORT_DEVICE(0)
+#if defined(BOARD_TUD_RHPORT)  && BOARD_TUD_RHPORT == 0
   // Port0 is Full Speed
 
   /* Turn on USB0 Phy */
@@ -234,7 +222,7 @@ void board_init(void) {
   CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf));
 #endif
 
-#if PORT_SUPPORT_DEVICE(1)
+#if defined(BOARD_TUD_RHPORT)  && BOARD_TUD_RHPORT == 1
   // Port1 is High Speed
 
   /* Turn on USB1 Phy */
