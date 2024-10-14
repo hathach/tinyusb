@@ -93,9 +93,6 @@
   #define TU_BREAKPOINT() do {} while (0)
 #endif
 
-// Helper to implement optional parameter for TU_VERIFY Macro family
-#define TU_GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
-
 /*------------------------------------------------------------------*/
 /* TU_VERIFY
  * - TU_VERIFY_1ARGS : return false if failed

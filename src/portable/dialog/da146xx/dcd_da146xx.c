@@ -804,15 +804,16 @@ static void handle_ep0_nak(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   _dcd.init_called = true;
-  if (_dcd.vbus_present)
-  {
+  if (_dcd.vbus_present) {
     dcd_connect(rhport);
   }
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

@@ -53,26 +53,21 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef enum
-{
+typedef enum {
   HCD_EVENT_DEVICE_ATTACH,
   HCD_EVENT_DEVICE_REMOVE,
   HCD_EVENT_XFER_COMPLETE,
 
-  // Not an HCD event, just a convenient way to defer ISR function
-  USBH_EVENT_FUNC_CALL,
-
+  USBH_EVENT_FUNC_CALL, // Not an HCD event
   HCD_EVENT_COUNT
 } hcd_eventid_t;
 
-typedef struct
-{
+typedef struct {
   uint8_t rhport;
   uint8_t event_id;
   uint8_t dev_addr;
 
-  union
-  {
+  union {
     // Attach, Remove
     struct {
       uint8_t hub_addr;
@@ -93,11 +88,9 @@ typedef struct
       void* param;
     }func_call;
   };
-
 } hcd_event_t;
 
-typedef struct
-{
+typedef struct {
   uint8_t rhport;
   uint8_t hub_addr;
   uint8_t hub_port;
@@ -128,7 +121,7 @@ bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) TU_ATTR_W
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 
 // Initialize controller to host mode
-bool hcd_init(uint8_t rhport);
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // De-initialize controller
 bool hcd_deinit(uint8_t rhport);

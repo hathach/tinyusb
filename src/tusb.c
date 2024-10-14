@@ -47,19 +47,27 @@ static tusb_role_t _rhport_role[TUP_USBIP_CONTROLLER_NUM] = { 0 };
 // Public API
 //--------------------------------------------------------------------+
 
-bool _tusb_rhport_init(uint8_t rhport, tusb_role_t role) {
+bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   //  backward compatible called with tusb_init(void)
   #if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
-  if (rhport == 0xff || role == TUSB_ROLE_INVALID) {
+  if (rh_init == NULL) {
     #if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
     // init device stack CFG_TUSB_RHPORTx_MODE must be defined
-    TU_ASSERT ( tud_init(TUD_OPT_RHPORT) );
+    const tusb_rhport_init_t dev_init = {
+      .role = TUSB_ROLE_DEVICE,
+      .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
+    };
+    TU_ASSERT ( tud_rhport_init(rhport, &dev_init) );
     _rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
     #endif
 
     #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
     // init host stack CFG_TUSB_RHPORTx_MODE must be defined
-    TU_ASSERT( tuh_init(TUH_OPT_RHPORT) );
+    const tusb_rhport_init_t host_init = {
+      .role = TUSB_ROLE_HOST,
+      .speed = TUH_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
+    };
+    TU_ASSERT( tuh_rhport_init(TUH_OPT_RHPORT, &host_init) );
     _rhport_role[TUH_OPT_RHPORT] = TUSB_ROLE_HOST;
     #endif
 
@@ -68,21 +76,21 @@ bool _tusb_rhport_init(uint8_t rhport, tusb_role_t role) {
   #endif
 
   // new API with explicit rhport and role
-  TU_ASSERT(rhport < TUP_USBIP_CONTROLLER_NUM && role != TUSB_ROLE_INVALID);
+  TU_ASSERT(rhport < TUP_USBIP_CONTROLLER_NUM && rh_init->role != TUSB_ROLE_INVALID);
 
   #if CFG_TUD_ENABLED
-  if (role == TUSB_ROLE_DEVICE) {
-    TU_ASSERT( tud_init(rhport) );
+  if (rh_init->role == TUSB_ROLE_DEVICE) {
+    TU_ASSERT(tud_rhport_init(rhport, rh_init));
   }
   #endif
 
   #if CFG_TUH_ENABLED
-  if (role == TUSB_ROLE_HOST) {
-    TU_ASSERT( tuh_init(rhport) );
+  if (rh_init->role == TUSB_ROLE_HOST) {
+    TU_ASSERT(tuh_rhport_init(rhport, rh_init));
   }
   #endif
 
-  _rhport_role[rhport] = role;
+  _rhport_role[rhport] = rh_init->role;
   return true;
 }
 
@@ -106,13 +114,13 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
   #if CFG_TUD_ENABLED
   if (_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
     (void) in_isr;
-    tud_int_handler(rhport);
+    dcd_int_handler(rhport);
   }
   #endif
 
   #if CFG_TUH_ENABLED
   if (_rhport_role[rhport] == TUSB_ROLE_HOST) {
-    tuh_int_handler(rhport, in_isr);
+    hcd_int_handler(rhport, in_isr);
   }
   #endif
 }

@@ -517,8 +517,8 @@ static uint16_t _ft9xx_dusb_out(uint8_t ep_number, uint8_t *buffer, uint16_t len
  *------------------------------------------------------------------*/
 
 // Initialize controller to device mode
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   TU_LOG2("FT9xx initialisation\r\n");
 
   _dcd_ft9xx_attach();
@@ -526,6 +526,7 @@ void dcd_init(uint8_t rhport)
   interrupt_attach(interrupt_usb_device, (int8_t)interrupt_usb_device, _ft9xx_usbd_ISR);
 
   dcd_connect(rhport);
+  return true;
 }
 
 // Enable device interrupt
