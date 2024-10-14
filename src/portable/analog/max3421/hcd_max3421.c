@@ -494,8 +494,8 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 }
 
 // Initialize controller to host mode
-bool hcd_init(uint8_t rhport) {
-  (void) rhport;
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
 
   tuh_max3421_int_api(rhport, false);
 

@@ -352,11 +352,13 @@ bool tuh_inited(void) {
   return _usbh_controller != TUSB_INDEX_INVALID_8;
 }
 
-bool tuh_init(uint8_t rhport) {
-  // skip if already initialized
-  if (tuh_rhport_is_active(rhport)) return true;
+bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  if (tuh_rhport_is_active(rhport)) {
+    return true; // skip if already initialized
+  }
 
-  TU_LOG_USBH("USBH init on controller %u\r\n", rhport);
+  TU_LOG_USBH("USBH init on controller %u, speed = %s\r\n", rhport,
+    rh_init->speed == TUSB_SPEED_HIGH ? "High" : "Full");
 
   // Init host stack if not already
   if (!tuh_inited()) {
@@ -402,8 +404,8 @@ bool tuh_init(uint8_t rhport) {
   }
 
   // Init host controller
-  _usbh_controller = rhport;;
-  TU_ASSERT(hcd_init(rhport));
+  _usbh_controller = rhport;
+  TU_ASSERT(hcd_init(rhport, rh_init));
   hcd_int_enable(rhport);
 
   return true;

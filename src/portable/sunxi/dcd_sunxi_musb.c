@@ -867,8 +867,9 @@ static void usb_isr_handler(void) {
 	dcd_int_handler(0);
 }
 
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
+
   dcd_disconnect(rhport);
   USBC_HardwareReset();
   USBC_PhyConfig();
@@ -895,6 +896,8 @@ void dcd_init(uint8_t rhport)
   f1c100s_intc_set_isr(F1C100S_IRQ_USBOTG, usb_isr_handler);
 
   dcd_connect(rhport);
+
+  return true;
 }
 
 // Connect by enabling internal pull-up resistor on D+/D-

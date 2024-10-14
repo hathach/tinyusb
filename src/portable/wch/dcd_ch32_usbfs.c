@@ -123,7 +123,8 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
 }
 
 /* public functions */
-void dcd_init(uint8_t rhport) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   // init registers
   USBOTG_FS->BASE_CTRL = USBFS_CTRL_SYS_CTRL | USBFS_CTRL_INT_BUSY | USBFS_CTRL_DMA_EN;
   USBOTG_FS->UDEV_CTRL = USBFS_UDEV_CTRL_PD_DIS | USBFS_UDEV_CTRL_PORT_EN;
@@ -153,6 +154,8 @@ void dcd_init(uint8_t rhport) {
   EP_DMA(3) = (uint32_t) &data.ep3_buffer.out[0];
 
   dcd_connect(rhport);
+
+  return true;
 }
 
 void dcd_int_handler(uint8_t rhport) {

@@ -129,19 +129,26 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
+
+
 #if CFG_TUH_ENABLED || CFG_TUD_ENABLED
 
 // Internal helper for backward compatible with tusb_init(void)
-bool _tusb_rhport_init(uint8_t rhport, tusb_role_t role);
+bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Initialize roothub port with device/host role
 // Note: when using with RTOS, this should be called after scheduler/kernel is started.
 // Otherwise, it could cause kernel issue since USB IRQ handler does use RTOS queue API.
 // Note2: defined as macro for backward compatible with tusb_init(void), can be changed to function in the future.
-#define _tusb_init_0arg()                 _tusb_rhport_init(0xff, TUSB_ROLE_INVALID)
-#define _tusb_init_1arg(_rhport)          _tusb_rhport_init(_rhport, TUSB_ROLE_INVALID)
-#define _tusb_init_2arg(_rhport, _role)   _tusb_rhport_init(_rhport, _role)
-#define tusb_init(...)   TU_GET_3RD_ARG(__VA_ARGS__, _tusb_init_2arg, _tusb_init_1arg, _tusb_init_0arg)(__VA_ARGS__)
+#if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
+  #define _tusb_init_arg0()        tusb_rhport_init(0, NULL)
+#else
+  #define _tusb_init_arg0()        TU_VERIFY_STATIC(false, "CFG_TUSB_RHPORT0_MODE/CFG_TUSB_RHPORT1_MODE must be defined")
+#endif
+
+#define _tusb_init_arg1(_rhport)             _tusb_init_arg0()
+#define _tusb_init_arg2(_rhport, _rh_init)   tusb_rhport_init(_rhport, _rh_init)
+#define tusb_init(...)                       TU_FUNC_OPTIONAL_ARG(_tusb_init, __VA_ARGS__)
 
 // Check if stack is initialized
 bool tusb_inited(void);
