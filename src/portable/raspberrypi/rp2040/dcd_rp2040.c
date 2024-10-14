@@ -43,12 +43,15 @@
 // Note: won't work if change to 0 (for now)
 #define FORCE_VBUS_DETECT   1
 
+
 /*------------------------------------------------------------------*/
 /* Low level controller
  *------------------------------------------------------------------*/
+static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type);
+static void hw_set_endpoint_control_reg(struct hw_endpoint* ep, uint dpram_offset);
 
 // Init these in dcd_init
-static uint8_t* next_buffer_ptr;
+static uint8_t* next_buffer_ptr = NULL;
 
 // USB_MAX_ENDPOINTS Endpoints, direction TUSB_DIR_OUT for out and TUSB_DIR_IN for in.
 static struct hw_endpoint hw_endpoints[USB_MAX_ENDPOINTS][2];
@@ -66,31 +69,83 @@ TU_ATTR_ALWAYS_INLINE static inline struct hw_endpoint* hw_endpoint_get_by_addr(
   return hw_endpoint_get_by_num(num, dir);
 }
 
-static void _hw_endpoint_alloc(struct hw_endpoint* ep, uint8_t transfer_type) {
+// Allocate from the USB buffer space (max 3840 bytes)
+static void hw_endpoint_alloc(struct hw_endpoint* ep, size_t size) {
+    static uint8_t *end;
+    // determine buffer end
+    if (end == NULL){
+      end = &usb_dpram->epx_data[0] + 0xF00;
+    }
+    // determine first next_buffer_ptr if necessary
+    if (next_buffer_ptr == NULL){
+        next_buffer_ptr = &usb_dpram->epx_data[0];
+    }
+    // assign buffer
+    ep->hw_data_buf = next_buffer_ptr;
+    next_buffer_ptr += size;
+
+    hard_assert(next_buffer_ptr < end);
+
+    pico_info("  Allocated %d bytes (0x%p)\r\n", size,  ep->hw_data_buf);
+}
+
+// allocate endpoint and fill endpoint control registers
+static void hw_endpoint_alloc_and_control(struct hw_endpoint* ep, uint8_t transfer_type) {
   // size must be multiple of 64
   uint size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
-
   // double buffered Bulk endpoint
   if (transfer_type == TUSB_XFER_BULK) {
     size *= 2u;
   }
-
-  ep->hw_data_buf = next_buffer_ptr;
-  next_buffer_ptr += size;
-
-  assert(((uintptr_t) next_buffer_ptr & 0b111111u) == 0);
+  ep->transfer_type = transfer_type;
+  hw_endpoint_alloc(ep, size);
+  
   uint dpram_offset = hw_data_offset(ep->hw_data_buf);
-  hard_assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
-
   pico_info("  Allocated %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
 
-  // Fill in endpoint control register with buffer offset
-  uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint) transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
+  hw_set_endpoint_control_reg(ep, dpram_offset);
+}
 
+static void hw_set_endpoint_control_reg(struct hw_endpoint* ep, uint dpram_offset) {
+  // Fill in endpoint control register with buffer offset
+  uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint) ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
   *ep->endpoint_control = reg;
 }
 
-static void _hw_endpoint_close(struct hw_endpoint* ep) {
+
+// New API: Allocate packet buffer used by ISO endpoints
+// Some MCU need manual packet buffer allocation, we allocate the largest size to avoid clustering
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void) rhport;
+  assert(rhport == 0);
+  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
+  // size must be multiple of 64
+  uint16_t size = (uint16_t)tu_div_ceil(largest_packet_size, 64) * 64u;
+  ep->wMaxPacketSize = size;
+  hw_endpoint_alloc(ep, size);
+  return true;
+}
+
+// New API: Configure and enable an ISO endpoint according to descriptor
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
+  (void) rhport;
+  assert(rhport == 0);
+  const uint8_t ep_addr = ep_desc->bEndpointAddress;
+  const uint16_t mps    = ep_desc->wMaxPacketSize;
+  uint16_t size = (uint16_t)tu_div_ceil(mps, 64) * 64u;
+
+  // init w/o allocate
+  hw_endpoint_init(ep_addr, size, TUSB_XFER_ISOCHRONOUS);
+
+  // Fill in endpoint control register with buffer offset
+  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
+  uint dpram_offset = hw_data_offset(ep->hw_data_buf);
+  hw_set_endpoint_control_reg(ep, dpram_offset);
+  return true;
+}
+
+static void hw_endpoint_close(uint8_t ep_addr) {
+  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
   // Clear hardware registers and then zero the struct
   // Clears endpoint enable
   *ep->endpoint_control = 0;
@@ -113,14 +168,22 @@ static void _hw_endpoint_close(struct hw_endpoint* ep) {
   }
 }
 
-static void hw_endpoint_close(uint8_t ep_addr) {
+// Legacy init called by dcd_init (which does allocation)
+static void hw_endpoint_init_and_alloc(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
   struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
-  _hw_endpoint_close(ep);
+  uint16_t size = (uint16_t) tu_div_ceil(wMaxPacketSize, 64) * 64u;
+  // size must be multiple of 64
+  hw_endpoint_init(ep_addr, size, transfer_type);
+  const uint8_t num = tu_edpt_number(ep_addr);
+  if (num != 0) {
+    // alloc a buffer and fill in endpoint control register
+    hw_endpoint_alloc_and_control(ep, transfer_type);
+  }
 }
 
+// main processing for dcd_edpt_iso_activate
 static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
   struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
-
   const uint8_t num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir = tu_edpt_dir(ep_addr);
 
@@ -156,9 +219,6 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
     } else {
       ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].out;
     }
-
-    // alloc a buffer and fill in endpoint control register
-    _hw_endpoint_alloc(ep, transfer_type);
   }
 }
 
@@ -369,8 +429,8 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
 #define PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY 0xff
 #endif
 
-bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
+
+void dcd_init(uint8_t rhport) {
   assert(rhport == 0);
 
   TU_LOG(2, "Chip Version B%u\r\n", rp2040_chip_version());
@@ -387,8 +447,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // Init control endpoints
   tu_memclr(hw_endpoints[0], 2 * sizeof(hw_endpoint_t));
-  hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
-  hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
+  hw_endpoint_init_and_alloc(0x0, 64, TUSB_XFER_CONTROL);
+  hw_endpoint_init_and_alloc(0x80, 64, TUSB_XFER_CONTROL);
 
   // Init non-control endpoints
   reset_non_control_endpoints();
@@ -406,7 +466,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                  (FORCE_VBUS_DETECT ? 0 : USB_INTS_DEV_CONN_DIS_BITS);
 
   dcd_connect(rhport);
-  return true;
 }
 
 bool dcd_deinit(uint8_t rhport) {
@@ -483,6 +542,8 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
 
+
+
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* request) {
   (void) rhport;
 
@@ -495,7 +556,7 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* req
 
 bool dcd_edpt_open(__unused uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
   assert(rhport == 0);
-  hw_endpoint_init(desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt), desc_edpt->bmAttributes.xfer);
+  hw_endpoint_init_and_alloc(desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt), desc_edpt->bmAttributes.xfer);
   return true;
 }
 
