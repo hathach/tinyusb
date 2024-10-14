@@ -867,8 +867,8 @@ static void usb_isr_handler(void) {
 	dcd_int_handler(0);
 }
 
-void dcd_init(const tusb_rhport_init_t* rh_init) {
-  const uint8_t rhport = rh_init->rhport;
+void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   dcd_disconnect(rhport);
   USBC_HardwareReset();
   USBC_PhyConfig();

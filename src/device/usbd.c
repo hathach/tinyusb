@@ -448,7 +448,7 @@ bool tud_inited(void) {
   return _usbd_rhport != RHPORT_INVALID;
 }
 
-bool tud_rhport_init(const tusb_rhport_init_t* rh_init) {
+bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   if (tud_inited()) {
     return true; // skip if already initialized
   }
@@ -487,11 +487,11 @@ bool tud_rhport_init(const tusb_rhport_init_t* rh_init) {
     driver->init();
   }
 
-  _usbd_rhport = rh_init->rhport;
+  _usbd_rhport = rhport;
 
   // Init device controller driver
-  dcd_init(rh_init);
-  dcd_int_enable(rh_init->rhport);
+  dcd_init(rhport, rh_init);
+  dcd_int_enable(rhport);
 
   return true;
 }

@@ -38,19 +38,18 @@ extern "C" {
 //--------------------------------------------------------------------+
 
 // New API to replace tud_init() to init device stack on specific roothub port
-bool tud_rhport_init(const tusb_rhport_init_t* rh_init);
+bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Init device stack on roothub port
 #if TUSB_VERSION_NUMBER > 2000  // 0.20.0
-TU_ATTR_DEPRECATED("Please use tusb_init(tusb_rhport_init_t*) instead")
+TU_ATTR_DEPRECATED("Please use tusb_init(rhport, rh_init) instead")
 #endif
 TU_ATTR_ALWAYS_INLINE static inline bool tud_init (uint8_t rhport) {
   const tusb_rhport_init_t rh_init = {
-    .rhport = rhport,
     .role = TUSB_ROLE_DEVICE,
     .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
   };
-  return tud_rhport_init(&rh_init);
+  return tud_rhport_init(rhport, &rh_init);
 }
 
 // Deinit device stack on roothub port

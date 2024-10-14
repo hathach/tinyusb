@@ -70,8 +70,8 @@ bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
 // Controller API
 //--------------------------------------------------------------------+
 
-bool hcd_init(const tusb_rhport_init_t* rh_init) {
-  const uint8_t rhport = rh_init->rhport;
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   ci_hs_regs_t *hcd_reg = CI_HS_REG(rhport);
 
   // Reset controller
@@ -83,7 +83,9 @@ bool hcd_init(const tusb_rhport_init_t* rh_init) {
   // LPC18XX/43XX need to set VBUS Power Select to HIGH
   // RHPORT1 is fullspeed only (need external PHY for Highspeed)
   hcd_reg->USBMODE = USBMODE_CM_HOST | USBMODE_VBUS_POWER_SELECT;
-  if ( rhport == 1 ) hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
+  if (rhport == 1) {
+    hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
+  }
 #else
   hcd_reg->USBMODE = USBMODE_CM_HOST;
 #endif

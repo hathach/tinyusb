@@ -40,8 +40,8 @@
  *------------------------------------------------------------------*/
 
 // Initialize controller to device mode
-void dcd_init(const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
+void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rhport; (void) rh_init;
 }
 
 // Enable device interrupt

@@ -230,10 +230,10 @@ static void xact_in_dma(uint8_t epnum) {
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
-void dcd_init(const tusb_rhport_init_t* rh_init) {
-  const uint8_t rhport = rh_init->rhport;
-  TU_LOG2("dcd init\r\n");
+void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
+  TU_LOG2("dcd init\r\n");
 }
 
 void dcd_int_enable(uint8_t rhport) {

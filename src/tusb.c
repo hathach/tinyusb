@@ -47,29 +47,27 @@ static tusb_role_t _rhport_role[TUP_USBIP_CONTROLLER_NUM] = { 0 };
 // Public API
 //--------------------------------------------------------------------+
 
-bool tusb_rhport_init(const tusb_rhport_init_t* rh_init) {
+bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   //  backward compatible called with tusb_init(void)
   #if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
   if (rh_init == NULL) {
     #if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
     // init device stack CFG_TUSB_RHPORTx_MODE must be defined
     const tusb_rhport_init_t dev_init = {
-      .rhport = TUD_OPT_RHPORT,
       .role = TUSB_ROLE_DEVICE,
       .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
     };
-    TU_ASSERT ( tud_rhport_init(&dev_init) );
+    TU_ASSERT ( tud_rhport_init(rhport, &dev_init) );
     _rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
     #endif
 
     #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
     // init host stack CFG_TUSB_RHPORTx_MODE must be defined
     const tusb_rhport_init_t host_init = {
-      .rhport = TUH_OPT_RHPORT,
       .role = TUSB_ROLE_HOST,
       .speed = TUH_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
     };
-    TU_ASSERT( tuh_rhport_init(&host_init) );
+    TU_ASSERT( tuh_rhport_init(TUH_OPT_RHPORT, &host_init) );
     _rhport_role[TUH_OPT_RHPORT] = TUSB_ROLE_HOST;
     #endif
 
@@ -78,21 +76,21 @@ bool tusb_rhport_init(const tusb_rhport_init_t* rh_init) {
   #endif
 
   // new API with explicit rhport and role
-  TU_ASSERT(rh_init->rhport < TUP_USBIP_CONTROLLER_NUM && rh_init->role != TUSB_ROLE_INVALID);
+  TU_ASSERT(rhport < TUP_USBIP_CONTROLLER_NUM && rh_init->role != TUSB_ROLE_INVALID);
 
   #if CFG_TUD_ENABLED
   if (rh_init->role == TUSB_ROLE_DEVICE) {
-    TU_ASSERT( tud_rhport_init(rh_init) );
+    TU_ASSERT(tud_rhport_init(rhport, rh_init));
   }
   #endif
 
   #if CFG_TUH_ENABLED
   if (rh_init->role == TUSB_ROLE_HOST) {
-    TU_ASSERT( tuh_rhport_init(rh_init) );
+    TU_ASSERT(tuh_rhport_init(rhport, rh_init));
   }
   #endif
 
-  _rhport_role[rh_init->rhport] = rh_init->role;
+  _rhport_role[rhport] = rh_init->role;
   return true;
 }
 

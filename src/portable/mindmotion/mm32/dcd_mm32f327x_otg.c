@@ -245,9 +245,9 @@ static void process_bus_active(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-void dcd_init(const tusb_rhport_init_t* rh_init) {
-  const uint8_t rhport = rh_init->rhport;
+void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   tu_memclr(&_dcd, sizeof(_dcd));
   USB_OTG_FS->BDT_PAGE_01 = (uint8_t)((uintptr_t)_dcd.bdt >>  8);

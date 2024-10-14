@@ -336,9 +336,9 @@ static void dcd_reset(void)
 }
 
 // Initializes the USB peripheral for device mode and enables it.
-void dcd_init(const tusb_rhport_init_t* rh_init) {
-  const uint8_t rhport = rh_init->rhport;
+void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   usb_pullup_out_write(0);
 

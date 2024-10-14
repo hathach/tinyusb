@@ -120,8 +120,8 @@ static ep0_stage_t ep0_get_stage(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init(const tusb_rhport_init_t* rh_init) {
-  const uint8_t rhport = rh_init->rhport;
+void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   // Disable endpoint interrupts for now
   USB_REGS->INTRRXEbits.w = 0;
   USB_REGS->INTRTXEbits.w = 0;

@@ -121,19 +121,18 @@ void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 
 // New API to replace tuh_init() to init host stack on specific roothub port
-bool tuh_rhport_init(const tusb_rhport_init_t* rh_init);
+bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Init host stack
 #if TUSB_VERSION_NUMBER > 2000  // 0.20.0
-TU_ATTR_DEPRECATED("Please use tusb_init(tusb_rhport_init_t*) instead")
+TU_ATTR_DEPRECATED("Please use tusb_init(rhport, rh_init) instead")
 #endif
 TU_ATTR_ALWAYS_INLINE static inline bool tuh_init(uint8_t rhport) {
   const tusb_rhport_init_t rh_init = {
-    .rhport = rhport,
     .role = TUSB_ROLE_HOST,
     .speed = TUH_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL,
   };
-  return tuh_rhport_init(&rh_init);
+  return tuh_rhport_init(rhport, &rh_init);
 }
 
 // Deinit host stack on rhport

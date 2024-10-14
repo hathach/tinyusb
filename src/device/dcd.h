@@ -108,7 +108,7 @@ void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) TU_ATTR_W
 //--------------------------------------------------------------------+
 
 // Initialize controller to device mode
-void dcd_init(const tusb_rhport_init_t* rh_init);
+void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Deinitialize controller, unset device mode.
 bool dcd_deinit(uint8_t rhport);

@@ -278,7 +278,6 @@ enum {
 //
 //--------------------------------------------------------------------+
 typedef struct {
-  uint8_t rhport;
   tusb_role_t role;
   tusb_speed_t speed;
 } tusb_rhport_init_t;

@@ -265,9 +265,9 @@ static void process_bus_resume(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-void dcd_init(const tusb_rhport_init_t* rh_init) {
-  const uint8_t rhport = rh_init->rhport;
+void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   // save crystal-less setting (if available)
   #if defined(FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED) && FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED == 1
