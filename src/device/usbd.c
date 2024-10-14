@@ -623,6 +623,10 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case DCD_EVENT_XFER_COMPLETE: {
+        if(!_usbd_dev.connected) {
+           TU_LOG_USBD("Skipped unexpected transfer\r\n");
+           break;
+        }
         // Invoke the class callback associated with the endpoint address
         uint8_t const ep_addr = event.xfer_complete.ep_addr;
         uint8_t const epnum = tu_edpt_number(ep_addr);
