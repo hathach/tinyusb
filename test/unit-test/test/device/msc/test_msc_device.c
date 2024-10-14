@@ -203,7 +203,7 @@ void setUp(void)
       .speed = TUSB_SPEED_AUTO
     };
 
-    dcd_init_Expect(0, &dev_init);
+    dcd_init_ExpectAndReturn(0, &dev_init, true);
     tusb_init(0, &dev_init);
   }
 

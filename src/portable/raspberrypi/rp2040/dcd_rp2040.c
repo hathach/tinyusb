@@ -369,7 +369,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
 #define PICO_SHARED_IRQ_HANDLER_HIGHEST_ORDER_PRIORITY 0xff
 #endif
 
-void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
   assert(rhport == 0);
 
@@ -406,6 +406,7 @@ void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                  (FORCE_VBUS_DETECT ? 0 : USB_INTS_DEV_CONN_DIS_BITS);
 
   dcd_connect(rhport);
+  return true;
 }
 
 bool dcd_deinit(uint8_t rhport) {

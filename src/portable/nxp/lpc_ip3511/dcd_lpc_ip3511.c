@@ -289,7 +289,7 @@ static void edpt_reset_all(uint8_t rhport)
   }
   prepare_setup_packet(rhport);
 }
-void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
   edpt_reset_all(rhport);
 
@@ -303,6 +303,8 @@ void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                            DEVCMDSTAT_RESET_CHANGE_MASK | DEVCMDSTAT_CONNECT_CHANGE_MASK | DEVCMDSTAT_SUSPEND_CHANGE_MASK;
 
   NVIC_ClearPendingIRQ(_dcd_controller[rhport].irqnum);
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

@@ -209,7 +209,7 @@ enum {
   NUC121/NUC125/NUC126 TinyUSB API driver implementation
 */
 
-void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
   (void) rh_init;
 
@@ -227,6 +227,8 @@ void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   USBD->INTSTS = ENABLED_IRQS;
   USBD->INTEN  = ENABLED_IRQS;
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

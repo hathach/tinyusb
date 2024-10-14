@@ -265,7 +265,7 @@ static void process_bus_resume(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
   (void) rh_init;
 
@@ -294,6 +294,8 @@ void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   dcd_connect(rhport);
   NVIC_ClearPendingIRQ(USB0_IRQn);
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

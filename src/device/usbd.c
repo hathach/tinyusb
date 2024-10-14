@@ -454,7 +454,7 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
   TU_ASSERT(rh_init);
 
-  TU_LOG_USBD("USBD init on controller %u, speed = %s\r\n", rh_init->rhport,
+  TU_LOG_USBD("USBD init on controller %u, speed = %s\r\n", rhport,
     rh_init->speed == TUSB_SPEED_HIGH ? "High" : "Full");
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(usbd_device_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(dcd_event_t));
@@ -490,15 +490,16 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   _usbd_rhport = rhport;
 
   // Init device controller driver
-  dcd_init(rhport, rh_init);
+  TU_ASSERT(dcd_init(rhport, rh_init));
   dcd_int_enable(rhport);
 
   return true;
 }
 
 bool tud_deinit(uint8_t rhport) {
-  // skip if not initialized
-  if (!tud_inited()) return true;
+  if (!tud_inited()) {
+    return true; // skip if not initialized
+  }
 
   TU_LOG_USBD("USBD deinit on controller %u\r\n", rhport);
 

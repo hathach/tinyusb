@@ -130,7 +130,7 @@ static void enable_functional_reset(const bool enable)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport; (void) rh_init;
 
   USBKEYPID = USBKEY;
@@ -163,6 +163,8 @@ void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
 
   USBKEYPID = 0;
+
+  return true;
 }
 
 // There is no "USB peripheral interrupt disable" bit on MSP430, so we have

@@ -201,7 +201,7 @@ static void _dcd_resume(FAR struct usbdevclass_driver_s *driver, FAR struct usbd
   dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
 }
 
-void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
   (void) rh_init;
 
@@ -211,6 +211,8 @@ void dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   usbdcd_driver.setup_queue = osal_queue_create(&_setup_queue_def);
 
   usbdev_register(&usbdcd_driver.usbdevclass_driver);
+
+  return true;
 }
 
 // Enable device interrupt

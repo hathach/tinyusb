@@ -127,7 +127,7 @@ void setUp(void) {
     };
 
     mscd_init_Expect();
-    dcd_init_Expect(0, &dev_init);
+    dcd_init_ExpectAndReturn(0, &dev_init, true);
 
     tusb_init(0, &dev_init);
   }
