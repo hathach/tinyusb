@@ -151,7 +151,10 @@ As before with ``dcd_event_bus_signal`` the first argument is the USB peripheral
 Endpoints
 ~~~~~~~~~
 
-Endpoints are the core of the USB data transfer process. They come in a few forms such as control, isochronous, bulk, and interrupt. We won't cover the details here except with some caveats in open below. In general, data is transferred by setting up a buffer of a given length to be transferred on a given endpoint address and then waiting for an interrupt to signal that the transfer is finished. Further details below.
+Endpoints are the core of the USB data transfer process. The data transfer process involves several modes, including control, isochronous, bulk, and interrupt. 
+While we will not delve into the specifics of each mode here, it's important to note certain exceptions detailed in the open section below. 
+Generally, data transfer is accomplished by establishing a buffer of a specified length for transfer to a designated endpoint address, followed by an interruption signal indicating the completion of the transfer.
+Further details below.
 
 Endpoints within USB have an address which encodes both the number and direction of an endpoint. TinyUSB provides ``tu_edpt_number`` and ``tu_edpt_dir`` to unpack this data from the address. Here is a snippet that does it.
 
@@ -228,10 +231,190 @@ dcd_edpt_stall / dcd_edpt_clear_stall
 
 Stalling is one way an endpoint can indicate failure such as when an unsupported command is transmitted. The pair of ``dcd_edpt_stall``\ , ``dcd_edpt_clear_stall`` help manage the stall state of all endpoints.
 
+
+Host API
+^^^^^^^^^^
+
+After the host is set up, the USB Host code works by processing events on the main thread (by calling ``tuh_task``\ ). These events are queued by the USB interrupt handler. So, there are three parts to the device low-level API: host setup, endpoint setup and interrupt processing.
+
+All of the code for the low-level host API is in ``src/portable/<vendor>/<chip family>/hcd_<chip family>.c``.
+There are a few functions that have to be implemented for a TinyUSB host stack to work. These are hcd_edpt_xfer, hcd_setup_send, hcd_edpt_open, hcd_int_handler and hcd_init.
+Implement these functions to get the basics working. A description of every implementable function is written below. Take a look at an example HCD or the "hcd.h" found in "tinyusb/src/host/hcd.h".
+
+Host Setup
+~~~~~~~~~~~~
+
+hcd_init
+""""""""
+
+Initialize the USB peripheral as Host by initiating the Host instance for your hardware.
+This function gets called at the initialization from TinyUSB. Use it to also setup other configurations.
+
+hcd_int_enable / hcd_int_disable
+""""""""""""""""""""""""""""""""
+These functions have to enable or disable the USB Host interrupt(s). It may be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
+
+hcd_frame_number
+""""""""""""""""
+This function has to return the current frame number of the USB Host stack. 
+
+hcd_port_connect_status
+""""""""""""""""""""""""
+This function has to return the status of the connection for the given port. This has to be returned as a boolean. True if it is connected, false if it is disconnected.
+
+hcd_port_reset
+""""""""""""""
+This function has to reset the given port of the USB Host stack.
+
+hcd_port_reset_end
+""""""""""""""""""
+This function gets called when it is time to complete the bus reset sequence. This can be required by some controllers.
+
+hcd_port_speed_get
+""""""""""""""""""
+This function returns the current USB speed for the rhport in 3 levels: TUSB_SPEED_HIGH, TUSB_SPEED_FULL and TUSB_SPEED_INVALID of the tusb_speed_t type. Return the current speed in this function.
+
+hcd_device_close
+""""""""""""""""
+This function has to close all opened endpoints of a device connected to it.
+
+Special events
+~~~~~~~~~~~~~~
+You must let TinyUSB know when certain events occur so that it can continue its operation. There are a few methods you can call to queue events for TinyUSB to process.
+
+hcd_event_device_attach
+""""""""""""""""""""""""
+Call this function to let TinyUSB know that a connection to a device has been detected. Most of the controllers will throw a callback when a device attaches. 
+
+Calls to this look like:
+
+.. code-block::
+
+   hcd_event_device_attach(TUH_RHPORT, true);
+
+
+TUH_RHPORT is the port number where the device attach has been detected.
+The ``true`` indicates the call is from an interrupt handler and will always be the case when porting in this way.
+
+hcd_event_device_remove
+""""""""""""""""""""""""
+
+Call this function when the connection to a device has been lost. 
+
+.. code-block::
+
+   hcd_event_device_remove(TUH_RHPORT, true);
+
+
+As before, the ``true`` indicates the call is from an interrupt handler and will always be the case when porting in this way.
+
+
+Endpoints
+~~~~~~~~~
+
+As explained at the Device API, endpoints are the core of the USB data transfer process. 
+
+The data transfer process involves several modes, including control, isochronous, bulk, and interrupt. 
+While we will not delve into the specifics of each mode here, it's important to note certain exceptions detailed in the open section below. 
+Generally, data transfer is accomplished by establishing a buffer of a specified length for transfer to a designated endpoint address, followed by an interruption signal indicating the completion of the transfer.
+Further details below.
+
+Endpoints within USB have an address which encodes both the number and direction of an endpoint. TinyUSB provides ``tu_edpt_number`` and ``tu_edpt_dir`` to unpack this data from the address. Here is a snippet that does it.
+
+.. code-block::
+
+   uint8_t epnum = tu_edpt_number(ep_addr);
+   uint8_t dir   = tu_edpt_dir(ep_addr);
+
+
+hcd_edpt_open
+"""""""""""""
+
+Opening an endpoint must be done every time a new device is connected. 
+
+Before opening endpoints, it is smart to save data about the endpoints you are creating. For example save the device address, endpoint number, endpoint address, endpoint direction and endpoint type. 
+These can all be gathered from the ep_desc that is given with this function. Example code:
+
+.. code-block::
+
+   pipes[i].dev_addr = dev_addr;
+	pipes[i].ep_addr = ep_desc->bEndpointAddress;
+	pipes[i].ep_num = tu_edpt_number(pipes[i].ep_addr);
+	pipes[i].ep_dir = tu_edpt_dir(pipes[i].ep_addr);
+	pipes[i].ep_type = ep_desc->bmAttributes.xfer;
+
+You have to use these variables in other functions.
+After saving the info about the created endpoint, initialize it in your controllers Host stack. 
+
+**IMPORTANT**: Control endpoints will also be called to open in this function. Check the type of the endpoint descriptor and make sure to initiate the control in and out pipes separately.
+
+hcd_setup_send
+""""""""""""""
+
+This function has to submit a special transfer to send an 8-byte packet to the connecting device. When completed do not forget to invoke a hcd_event_xfer_complete. 
+Be sure to write an implementation that sends out the given 8 byte packet with a SETUP packet ID on your controller. 
+
+hcd_edpt_xfer
+"""""""""""""
+
+``hcd_edpt_xfer`` is responsible for configuring the peripheral to send or receive data from any device. "xfer" is short for "transfer". **This is one of the core methods you must implement for TinyUSB to work**  Data from the host is the OUT direction and data to the host is IN. It  is used for all endpoints including the control endpoint 0.
+
+Transactions are relatively straight-forward. The endpoint address provides the endpoint
+number and direction which usually determines where to write the buffer info. The buffer and its length are usually
+written to a specific location in memory and the peripheral is told the data is valid.
+
+The transmit buffer alignment is determined by the ``CFG_TUSB_MEM_ALIGN`` define.
+
+One potential pitfall is that the buffer may be longer than the maximum endpoint size of one USB
+packet (this differs per device speed). Make sure to chop the data into pieces and make a message queue if you cannot handle transmitting multiple USB packets.
+Some peripherals can handle transmitting multiple USB packets for a provided buffer (like the SAMD21).
+To manage this, you, as the developer, need to keep track of the state of the data transfer.
+
+Once the transaction is ongoing, the interrupt handler has to notify TinyUSB of transfer completion.
+During transmission, the IN data buffer is guaranteed to remain unchanged in memory until the ``hcd_event_xfer_complete`` function is called.
+If the transmission fails it is possible to let TinyUSB know that it failed through the ``hcd_event_xfer_complete`` function. At this moment TinyUSB will not handle the error. 
+Make sure to implement a retransmission or handle the error gracefully.
+
+
+hcd_event_xfer_complete
+""""""""""""""""""""""""
+When transferring data this function has to be called to let TinyUSB know that a transaction has been completed. This **MUST** be done for the Host stack to work properly. 
+You will most probably use this function in your interrupt handler of the USB Host stack (hcd_int_handler). Here is an example usage of the function:
+
+
+.. code-block::
+
+   hcd_event_xfer_complete(dev_addr, ep_addr, xfer_count, XFER_RESULT_SUCCESS, true);
+
+Input the device address, endpoint address and transferred bytes from the transfer in this function. This way TinyUSB knows how to complete which transfer.
+The XFER_RESULT_SUCCESS is one of the options out of the xfer_result_t type:
+
+.. code-block::
+
+   typedef enum
+   {
+      XFER_RESULT_SUCCESS = 0,
+      XFER_RESULT_FAILED,
+      XFER_RESULT_STALLED,
+      XFER_RESULT_TIMEOUT,
+      XFER_RESULT_INVALID
+   }xfer_result_t;
+
+As before, the ``true`` indicates the call is from an interrupt handler and will always be the case when porting in this way.
+
+
+At the moment, only a single buffer can be transmitted at once. There is no provision for double-buffering. new hcd_edpt_xfer() will not
+be called again on the same endpoint address until the driver calls hcd_xfer_complete() (except in cases of USB resets).
+
+hcd_edpt_clear_stall
+"""""""""""""""""""""
+
+Stalling is one way an endpoint can indicate failure such as when an unsupported command is transmitted. The function  ``dcd_edpt_clear_stall`` helps manage the stall state of all endpoints.
+
 Woohoo!
 -------
 
-At this point you should have everything working! ;-) Of course, you may not write perfect code. Here are some tips and tricks for debugging.
+At this point you should have everything working! ;-) Of course, you may not write perfect code. Here are some tips and tricks for debugging
 
 Use `WireShark <https://www.wireshark.org/>`_ or `a Beagle <https://www.totalphase.com/protocols/usb/>`_ to sniff the USB traffic. When things aren't working its likely very early in the USB enumeration process. Figuring out where can help clue in where the issue is. For example:
 
