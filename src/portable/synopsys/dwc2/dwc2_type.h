@@ -464,8 +464,8 @@ typedef struct {
     uint32_t reservedd00[64];  // D00..DFF
 
     //------------- Power Clock -------------//
-    volatile uint32_t pcgctl;           // E00 Power and Clock Gating Control
-    volatile uint32_t pcgctl1;          // E04
+    volatile uint32_t pcgcctl;          // E00 Power and Clock Gating Characteristic Control
+    volatile uint32_t pcgcctl1;         // E04 Power and Clock Gating Characteristic Control 1
              uint32_t reservede08[126]; // E08..FFF
 
     //------------- FIFOs -------------//
@@ -478,7 +478,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, channel) == 0x0500, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, dcfg   ) == 0x0800, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epin   ) == 0x0900, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epout  ) == 0x0B00, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, pcgctl ) == 0x0E00, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, pcgcctl) == 0x0E00, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 
 //--------------------------------------------------------------------+
@@ -720,7 +720,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 /********************  Bit definition for GUSBCFG register  ********************/
 #define GUSBCFG_TOCAL_Pos                (0U)
 #define GUSBCFG_TOCAL_Msk                (0x7UL << GUSBCFG_TOCAL_Pos)             // 0x00000007
-#define GUSBCFG_TOCAL                    GUSBCFG_TOCAL_Msk                        // FS timeout calibration
+#define GUSBCFG_TOCAL                    GUSBCFG_TOCAL_Msk                        // HS/FS timeout calibration
 #define GUSBCFG_PHYIF16_Pos              (3U)
 #define GUSBCFG_PHYIF16_Msk              (0x1UL << GUSBCFG_PHYIF16_Pos)           // 0x00000008
 #define GUSBCFG_PHYIF16                  GUSBCFG_PHYIF16_Msk                      // PHY Interface (PHYIf)
@@ -1973,32 +1973,32 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DOEPTSIZ_STUPCNT_1               (0x2UL << DOEPTSIZ_STUPCNT_Pos)          // 0x40000000
 
 /********************  Bit definition for PCGCTL register  ********************/
-#define PCGCTL_IF_DEV_MODE              TU_BIT(31)
-#define PCGCTL_P2HD_PRT_SPD_MASK        (0x3ul << 29)
-#define PCGCTL_P2HD_PRT_SPD_SHIFT       29
-#define PCGCTL_P2HD_DEV_ENUM_SPD_MASK   (0x3ul << 27)
-#define PCGCTL_P2HD_DEV_ENUM_SPD_SHIFT  27
-#define PCGCTL_MAC_DEV_ADDR_MASK        (0x7ful << 20)
-#define PCGCTL_MAC_DEV_ADDR_SHIFT       20
-#define PCGCTL_MAX_TERMSEL              TU_BIT(19)
-#define PCGCTL_MAX_XCVRSELECT_MASK      (0x3ul << 17)
-#define PCGCTL_MAX_XCVRSELECT_SHIFT     17
-#define PCGCTL_PORT_POWER               TU_BIT(16)
-#define PCGCTL_PRT_CLK_SEL_MASK         (0x3ul << 14)
-#define PCGCTL_PRT_CLK_SEL_SHIFT        14
-#define PCGCTL_ESS_REG_RESTORED         TU_BIT(13)
-#define PCGCTL_EXTND_HIBER_SWITCH       TU_BIT(12)
-#define PCGCTL_EXTND_HIBER_PWRCLMP      TU_BIT(11)
-#define PCGCTL_ENBL_EXTND_HIBER         TU_BIT(10)
-#define PCGCTL_RESTOREMODE              TU_BIT(9)
-#define PCGCTL_RESETAFTSUSP             TU_BIT(8)
-#define PCGCTL_DEEP_SLEEP               TU_BIT(7)
-#define PCGCTL_PHY_IN_SLEEP             TU_BIT(6)
-#define PCGCTL_ENBL_SLEEP_GATING        TU_BIT(5)
-#define PCGCTL_RSTPDWNMODULE            TU_BIT(3)
-#define PCGCTL_PWRCLMP                  TU_BIT(2)
-#define PCGCTL_GATEHCLK                 TU_BIT(1)
-#define PCGCTL_STOPPCLK                 TU_BIT(0)
+#define PCGCCTL_IF_DEV_MODE              TU_BIT(31)
+#define PCGCCTL_P2HD_PRT_SPD_MASK        (0x3ul << 29)
+#define PCGCCTL_P2HD_PRT_SPD_SHIFT       29
+#define PCGCCTL_P2HD_DEV_ENUM_SPD_MASK   (0x3ul << 27)
+#define PCGCCTL_P2HD_DEV_ENUM_SPD_SHIFT  27
+#define PCGCCTL_MAC_DEV_ADDR_MASK        (0x7ful << 20)
+#define PCGCCTL_MAC_DEV_ADDR_SHIFT       20
+#define PCGCCTL_MAX_TERMSEL              TU_BIT(19)
+#define PCGCCTL_MAX_XCVRSELECT_MASK      (0x3ul << 17)
+#define PCGCCTL_MAX_XCVRSELECT_SHIFT     17
+#define PCGCCTL_PORT_POWER               TU_BIT(16)
+#define PCGCCTL_PRT_CLK_SEL_MASK         (0x3ul << 14)
+#define PCGCCTL_PRT_CLK_SEL_SHIFT        14
+#define PCGCCTL_ESS_REG_RESTORED         TU_BIT(13)
+#define PCGCCTL_EXTND_HIBER_SWITCH       TU_BIT(12)
+#define PCGCCTL_EXTND_HIBER_PWRCLMP      TU_BIT(11)
+#define PCGCCTL_ENBL_EXTND_HIBER         TU_BIT(10)
+#define PCGCCTL_RESTOREMODE              TU_BIT(9)
+#define PCGCCTL_RESETAFTSUSP             TU_BIT(8)
+#define PCGCCTL_DEEP_SLEEP               TU_BIT(7)
+#define PCGCCTL_PHY_IN_SLEEP             TU_BIT(6)
+#define PCGCCTL_ENBL_SLEEP_GATING        TU_BIT(5)
+#define PCGCCTL_RSTPDWNMODULE            TU_BIT(3)
+#define PCGCCTL_PWRCLMP                  TU_BIT(2)
+#define PCGCCTL_GATEHCLK                 TU_BIT(1)
+#define PCGCCTL_STOPPCLK                 TU_BIT(0)
 
 #define PCGCTL1_TIMER                   (0x3ul << 1)
 #define PCGCTL1_GATEEN                  TU_BIT(0)

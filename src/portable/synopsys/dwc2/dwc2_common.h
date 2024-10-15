@@ -27,6 +27,7 @@
 #ifndef TUSB_DWC2_COMMON_H
 #define TUSB_DWC2_COMMON_H
 
+#include "common/tusb_common.h"
 #include "dwc2_type.h"
 
 // Following symbols must be defined by port header
@@ -64,7 +65,7 @@ TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
   return (dwc2_regs_t*)_dwc2_controller[rhport].reg_base;
 }
 
-
-bool dwc2_controller_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
+bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init);
+bool dwc2_core_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 #endif

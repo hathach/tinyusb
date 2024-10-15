@@ -25,13 +25,14 @@
  */
 
 
-#ifndef _DWC2_ESP32_H_
-#define _DWC2_ESP32_H_
+#ifndef TUSB_DWC2_ESP32_H_
+#define TUSB_DWC2_ESP32_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
+#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #include "esp_intr_alloc.h"

@@ -480,21 +480,28 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
-  TU_ASSERT(dwc2_controller_init(rhport, rh_init));
+  TU_ASSERT(dwc2_core_init(rhport, rh_init));
+
+  // Device Initialization
   dcd_disconnect(rhport);
 
-  // Restart PHY clock
-  dwc2->pcgctl &= ~(PCGCTL_STOPPCLK | PCGCTL_GATEHCLK | PCGCTL_PWRCLMP | PCGCTL_RSTPDWNMODULE);
+  // Set device max speed
+  uint32_t dcfg = dwc2->dcfg & ~DCFG_DSPD_Msk;
+  if (dwc2_core_is_highspeed(dwc2, rh_init)) {
+    dcfg |= DCFG_DSPD_HS << DCFG_DSPD_Pos;
 
-  /* Set HS/FS Timeout Calibration to 7 (max available value).
-   * The number of PHY clocks that the application programs in
-   * this field is added to the high/full speed interpacket timeout
-   * duration in the core to account for any additional delays
-   * introduced by the PHY. This can be required, because the delay
-   * introduced by the PHY in generating the linestate condition
-   * can vary from one PHY to another.
-   */
-  dwc2->gusbcfg |= (7ul << GUSBCFG_TOCAL_Pos);
+    // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
+    // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
+    if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
+      dcfg |= DCFG_XCVRDLY;
+    }
+  }else {
+    dcfg |= DCFG_DSPD_FS << DCFG_DSPD_Pos;
+  }
+  dwc2->dcfg = dcfg;
+
+  // Enable PHY clock TODO stop/gate clock when suspended mode
+  dwc2->pcgcctl &= ~(PCGCCTL_STOPPCLK | PCGCCTL_GATEHCLK | PCGCCTL_PWRCLMP | PCGCCTL_RSTPDWNMODULE);
 
   // Force device mode
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
@@ -502,8 +509,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Clear A override, force B Valid
   dwc2->gotgctl = (dwc2->gotgctl & ~GOTGCTL_AVALOEN) | GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
 
-  // If USB host misbehaves during status portion of control xfer
-  // (non zero-length packet), send STALL back and discard.
+  // If USB host misbehaves during status portion of control xfer (non zero-length packet), send STALL back and discard
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
   dfifo_flush_tx(dwc2, 0x10); // all tx fifo

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import subprocess
 import pathlib
-import time
+import re
 
 build_format = '| {:29} | {:30} | {:18} | {:7} | {:6} | {:6} |'
 
@@ -36,18 +36,21 @@ def skip_example(example, board):
         mk_contents = board_mk.read_text()
 
     mcu = "NONE"
-    for token in mk_contents.split():
-        if "CFG_TUSB_MCU=OPT_MCU_" in token:
-            # Strip " because cmake files has them.
-            token = token.strip("\"")
-            _, opt_mcu = token.split("=")
-            mcu = opt_mcu[len("OPT_MCU_"):]
-        if "esp32s2" in token:
-            mcu = "ESP32S2"
-        if "esp32s3" in token:
-            mcu = "ESP32S3"
-        if mcu != "NONE":
-            break
+    if family == "espressif":
+        for line in mk_contents.splitlines():
+            match = re.search(r'set\(IDF_TARGET\s+"([^"]+)"\)', line)
+            if match:
+                mcu = match.group(1)
+                break
+    else:
+        for token in mk_contents.split():
+            if "CFG_TUSB_MCU=OPT_MCU_" in token:
+                # Strip " because cmake files has them.
+                token = token.strip("\"")
+                _, opt_mcu = token.split("=")
+                mcu = opt_mcu[len("OPT_MCU_"):]
+            if mcu != "NONE":
+                break
 
     # Skip all OPT_MCU_NONE these are WIP port
     if mcu == "NONE":

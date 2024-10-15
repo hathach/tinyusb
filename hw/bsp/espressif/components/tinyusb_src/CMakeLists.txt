@@ -34,6 +34,8 @@ list(APPEND srcs
   ${tusb_src}/class/vendor/vendor_device.c
   ${tusb_src}/class/video/video_device.c
   ${tusb_src}/portable/synopsys/dwc2/dcd_dwc2.c
+  ${tusb_src}/portable/synopsys/dwc2/hcd_dwc2.c
+  ${tusb_src}/portable/synopsys/dwc2/dwc2_common.c
   # host
   ${tusb_src}/host/usbh.c
   ${tusb_src}/host/hub.c

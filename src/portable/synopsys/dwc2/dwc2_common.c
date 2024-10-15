@@ -30,7 +30,14 @@
 
 #if defined(TUP_USBIP_DWC2) && (CFG_TUH_ENABLED || CFG_TUD_ENABLED)
 
-#include "common/tusb_common.h"
+#if CFG_TUD_ENABLED
+#include "device/dcd.h"
+#endif
+
+#if CFG_TUH_ENABLED
+#include "host/hcd.h"
+#endif
+
 #include "dwc2_common.h"
 
 static void reset_core(dwc2_regs_t* dwc2) {
@@ -47,18 +54,24 @@ static void reset_core(dwc2_regs_t* dwc2) {
   // wait for device mode ?
 }
 
-static bool phy_hs_supported(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init) {
+bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init) {
   (void) dwc2;
 
-
-#if !TUD_OPT_HIGH_SPEED
-  return false;
-#else
-  return dwc2->ghwcfg2_bm.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
+#if CFG_TUD_ENABLED
+  if (rh_init->role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
+    return false;
+  }
 #endif
+#if CFG_TUH_ENABLED
+  if (rh_init->role == TUSB_ROLE_DEVICE && !TUH_OPT_HIGH_SPEED) {
+    return false;
+  }
+#endif
+
+  return dwc2->ghwcfg2_bm.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
 }
 
-static void phy_fs_init(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init) {
+static void phy_fs_init(dwc2_regs_t* dwc2) {
   TU_LOG(DWC2_COMMON_DEBUG, "Fullspeed PHY init\r\n");
 
   // Select FS PHY
@@ -77,12 +90,9 @@ static void phy_fs_init(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init) {
 
   // MCU specific PHY update post reset
   dwc2_phy_update(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
-
-  // set max speed
-  dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_FS << DCFG_DSPD_Pos);
 }
 
-static void phy_hs_init(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init) {
+static void phy_hs_init(dwc2_regs_t* dwc2) {
   uint32_t gusbcfg = dwc2->gusbcfg;
 
   // De-select FS PHY
@@ -137,19 +147,6 @@ static void phy_hs_init(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init) {
 
   // MCU specific PHY update post reset
   dwc2_phy_update(dwc2, dwc2->ghwcfg2_bm.hs_phy_type);
-
-  // Set max speed
-  uint32_t dcfg = dwc2->dcfg;
-  dcfg &= ~DCFG_DSPD_Msk;
-  dcfg |= DCFG_DSPD_HS << DCFG_DSPD_Pos;
-
-  // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
-  // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
-  if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
-    dcfg |= DCFG_XCVRDLY;
-  }
-
-  dwc2->dcfg = dcfg;
 }
 
 static bool check_dwc2(dwc2_regs_t* dwc2) {
@@ -177,18 +174,28 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
-bool dwc2_controller_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+bool dwc2_core_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled
   TU_ASSERT(check_dwc2(dwc2));
 
-  if (phy_hs_supported(dwc2, rh_init)) {
-    phy_hs_init(dwc2, rh_init); // Highspeed
+  if (dwc2_core_is_highspeed(dwc2, rh_init)) {
+    phy_hs_init(dwc2); // Highspeed
   } else {
-    phy_fs_init(dwc2, rh_init); // core does not support highspeed or hs phy is not present
+    phy_fs_init(dwc2); // core does not support highspeed or hs phy is not present
   }
+
+  /* Set HS/FS Timeout Calibration to 7 (max available value).
+   * The number of PHY clocks that the application programs in
+   * this field is added to the high/full speed interpacket timeout
+   * duration in the core to account for any additional delays
+   * introduced by the PHY. This can be required, because the delay
+   * introduced by the PHY in generating the linestate condition
+   * can vary from one PHY to another.
+   */
+  dwc2->gusbcfg |= (7ul << GUSBCFG_TOCAL_Pos);
 
   return true;
 }
