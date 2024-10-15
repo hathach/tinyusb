@@ -40,6 +40,7 @@
  * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
+ * C0                             2048 byte buffer; 32-bit bus; host mode
  * G0                             2048 byte buffer; 32-bit bus; host mode
  * G4                             1024 byte buffer
  * H5                             2048 byte buffer; 32-bit bus; host mode
