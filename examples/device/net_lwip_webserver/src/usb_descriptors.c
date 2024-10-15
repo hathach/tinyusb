@@ -196,6 +196,9 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 // BOS Descriptor
 //--------------------------------------------------------------------+
 
+/* Used to automatically load the NCM driver on Windows 10, otherwise manual driver install is needed.
+   Associate NCM interface with WINNCM driver. */
+
 /* Microsoft OS 2.0 registry property descriptor
 Per MS requirements https://msdn.microsoft.com/en-us/library/windows/hardware/hh450799(v=vs.85).aspx
 device should create DeviceInterfaceGUIDs. It can be done by driver and
