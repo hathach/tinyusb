@@ -2066,8 +2066,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const * 
             // Avoid 64bit division
             uint32_t nominal = ((fb_param.sample_freq / 100) << 16) / (frame_div / 100);
             audio->feedback.compute.fifo_count.nom_value = nominal;
-            audio->feedback.compute.fifo_count.rate_const[0] = (audio->feedback.max_value - nominal) / fifo_lvl_thr;
-            audio->feedback.compute.fifo_count.rate_const[1] = (nominal - audio->feedback.min_value) / fifo_lvl_thr;
+            audio->feedback.compute.fifo_count.rate_const[0] = (uint16_t) ((audio->feedback.max_value - nominal) / fifo_lvl_thr);
+            audio->feedback.compute.fifo_count.rate_const[1] = (uint16_t) ((nominal - audio->feedback.min_value) / fifo_lvl_thr);
             // On HS feedback is more sensitive since packet size can vary every MSOF, could cause instability
             if(tud_speed_get() == TUSB_SPEED_HIGH) {
               audio->feedback.compute.fifo_count.rate_const[0] /= 8;
@@ -2376,11 +2376,11 @@ static bool audiod_set_fb_params_freq(audiod_function_t* audio, uint32_t sample_
   if ((mclk_freq % sample_freq) == 0 && tu_is_power_of_two(mclk_freq / sample_freq))
   {
     audio->feedback.compute_method     = AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2;
-    audio->feedback.compute.power_of_2 = 16 - (audio->feedback.frame_shift - 1) - tu_log2(mclk_freq / sample_freq);
+    audio->feedback.compute.power_of_2 = (uint8_t) (16 - (audio->feedback.frame_shift - 1) - tu_log2(mclk_freq / sample_freq));
   }
   else if ( audio->feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT)
   {
-    audio->feedback.compute.float_const = (float)sample_freq / mclk_freq * (1UL << (16 - (audio->feedback.frame_shift - 1)));
+    audio->feedback.compute.float_const = (float)sample_freq / (float) mclk_freq * (1UL << (16 - (audio->feedback.frame_shift - 1)));
   }
   else
   {
