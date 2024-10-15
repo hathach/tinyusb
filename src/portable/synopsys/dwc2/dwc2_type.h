@@ -31,8 +31,8 @@
   *                        opensource.org/licenses/BSD-3-Clause
   */
 
-#ifndef _TUSB_DWC2_TYPES_H_
-#define _TUSB_DWC2_TYPES_H_
+#ifndef TUSB_DWC2_TYPES_H_
+#define TUSB_DWC2_TYPES_H_
 
 #include "stdint.h"
 

@@ -35,45 +35,7 @@
 #define DWC2_DEBUG    2
 
 #include "device/dcd.h"
-#include "dwc2_type.h"
-
-// Following symbols must be defined by port header
-// - _dwc2_controller[]: array of controllers
-// - DWC2_EP_MAX: largest EP counts of all controllers
-// - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
-// - dwc2_dcd_int_enable/dwc2_dcd_int_disable
-// - dwc2_remote_wakeup_delay
-
-#if defined(TUP_USBIP_DWC2_STM32)
-  #include "dwc2_stm32.h"
-#elif defined(TUP_USBIP_DWC2_ESP32)
-  #include "dwc2_esp32.h"
-#elif TU_CHECK_MCU(OPT_MCU_GD32VF103)
-  #include "dwc2_gd32.h"
-#elif TU_CHECK_MCU(OPT_MCU_BCM2711, OPT_MCU_BCM2835, OPT_MCU_BCM2837)
-  #include "dwc2_bcm.h"
-#elif TU_CHECK_MCU(OPT_MCU_EFM32GG)
-  #include "dwc2_efm32.h"
-#elif TU_CHECK_MCU(OPT_MCU_XMC4000)
-  #include "dwc2_xmc.h"
-#else
-  #error "Unsupported MCUs"
-#endif
-
-enum {
-  DWC2_CONTROLLER_COUNT = TU_ARRAY_SIZE(_dwc2_controller)
-};
-
-// DWC2 registers
-//#define DWC2_REG(_port)       ((dwc2_regs_t*) _dwc2_controller[_port].reg_base)
-
-TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
-  if (rhport >= DWC2_CONTROLLER_COUNT) {
-    // user mis-configured, ignore and use first controller
-    rhport = 0;
-  }
-  return (dwc2_regs_t*) _dwc2_controller[rhport].reg_base;
-}
+#include "dwc2_common.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -511,161 +473,15 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
   }
 }
 
-/*------------------------------------------------------------------*/
-/* Controller API
- *------------------------------------------------------------------*/
-
-static void reset_core(dwc2_regs_t* dwc2) {
-  // reset core
-  dwc2->grstctl |= GRSTCTL_CSRST;
-
-  // wait for reset bit is cleared
-  // TODO version 4.20a should wait for RESET DONE mask
-  while (dwc2->grstctl & GRSTCTL_CSRST) {}
-
-  // wait for AHB master IDLE
-  while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {}
-
-  // wait for device mode ?
-}
-
-static bool phy_hs_supported(dwc2_regs_t* dwc2) {
-  (void) dwc2;
-
-#if !TUD_OPT_HIGH_SPEED
-  return false;
-#else
-  return dwc2->ghwcfg2_bm.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
-#endif
-}
-
-static void phy_fs_init(dwc2_regs_t* dwc2) {
-  TU_LOG(DWC2_DEBUG, "Fullspeed PHY init\r\n");
-
-  // Select FS PHY
-  dwc2->gusbcfg |= GUSBCFG_PHYSEL;
-
-  // MCU specific PHY init before reset
-  dwc2_phy_init(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
-
-  // Reset core after selecting PHY
-  reset_core(dwc2);
-
-  // USB turnaround time is critical for certification where long cables and 5-Hubs are used.
-  // So if you need the AHB to run at less than 30 MHz, and if USB turnaround time is not critical,
-  // these bits can be programmed to a larger value. Default is 5
-  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_TRDT_Msk) | (5u << GUSBCFG_TRDT_Pos);
-
-  // MCU specific PHY update post reset
-  dwc2_phy_update(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
-
-  // set max speed
-  dwc2->dcfg = (dwc2->dcfg & ~DCFG_DSPD_Msk) | (DCFG_DSPD_FS << DCFG_DSPD_Pos);
-}
-
-static void phy_hs_init(dwc2_regs_t* dwc2) {
-  uint32_t gusbcfg = dwc2->gusbcfg;
-
-  // De-select FS PHY
-  gusbcfg &= ~GUSBCFG_PHYSEL;
-
-  if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
-    TU_LOG(DWC2_DEBUG, "Highspeed ULPI PHY init\r\n");
-
-    // Select ULPI
-    gusbcfg |= GUSBCFG_ULPI_UTMI_SEL;
-
-    // ULPI 8-bit interface, single data rate
-    gusbcfg &= ~(GUSBCFG_PHYIF16 | GUSBCFG_DDRSEL);
-
-    // default internal VBUS Indicator and Drive
-    gusbcfg &= ~(GUSBCFG_ULPIEVBUSD | GUSBCFG_ULPIEVBUSI);
-
-    // Disable FS/LS ULPI
-    gusbcfg &= ~(GUSBCFG_ULPIFSLS | GUSBCFG_ULPICSM);
-  } else {
-    TU_LOG(DWC2_DEBUG, "Highspeed UTMI+ PHY init\r\n");
-
-    // Select UTMI+ with 8-bit interface
-    gusbcfg &= ~(GUSBCFG_ULPI_UTMI_SEL | GUSBCFG_PHYIF16);
-
-    // Set 16-bit interface if supported
-    if (dwc2->ghwcfg4_bm.phy_data_width) {
-      gusbcfg |= GUSBCFG_PHYIF16;
-    }
-  }
-
-  // Apply config
-  dwc2->gusbcfg = gusbcfg;
-
-  // mcu specific phy init
-  dwc2_phy_init(dwc2, dwc2->ghwcfg2_bm.hs_phy_type);
-
-  // Reset core after selecting PHY
-  reset_core(dwc2);
-
-  // Set turn-around, must after core reset otherwise it will be clear
-  // - 9 if using 8-bit PHY interface
-  // - 5 if using 16-bit PHY interface
-  gusbcfg &= ~GUSBCFG_TRDT_Msk;
-  gusbcfg |= (dwc2->ghwcfg4_bm.phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
-  dwc2->gusbcfg = gusbcfg;
-
-  // MCU specific PHY update post reset
-  dwc2_phy_update(dwc2, dwc2->ghwcfg2_bm.hs_phy_type);
-
-  // Set max speed
-  uint32_t dcfg = dwc2->dcfg;
-  dcfg &= ~DCFG_DSPD_Msk;
-  dcfg |= DCFG_DSPD_HS << DCFG_DSPD_Pos;
-
-  // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
-  // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
-  if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
-    dcfg |= DCFG_XCVRDLY;
-  }
-
-  dwc2->dcfg = dcfg;
-}
-
-static bool check_dwc2(dwc2_regs_t* dwc2) {
-#if CFG_TUSB_DEBUG >= DWC2_DEBUG
-  // print guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4
-  // Run 'python dwc2_info.py' and check dwc2_info.md for bit-field value and comparison with other ports
-  volatile uint32_t const* p = (volatile uint32_t const*) &dwc2->guid;
-  TU_LOG1("guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4\r\n");
-  for (size_t i = 0; i < 5; i++) {
-    TU_LOG1("0x%08" PRIX32 ", ", p[i]);
-  }
-  TU_LOG1("0x%08" PRIX32 "\r\n", p[5]);
-#endif
-
-  // For some reason: GD32VF103 snpsid and all hwcfg register are always zero (skip it)
-  (void) dwc2;
-#if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
-  uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
-  TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID);
-#endif
-
-  return true;
-}
-
+//--------------------------------------------------------------------
+// Controller API
+//--------------------------------------------------------------------
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rhport;
   (void) rh_init;
-  // Programming model begins in the last section of the chapter on the USB
-  // peripheral in each Reference Manual.
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
-  // Check Synopsys ID register, failed if controller clock/power is not enabled
-  TU_ASSERT(check_dwc2(dwc2));
+  TU_ASSERT(dwc2_controller_init(rhport, rh_init));
   dcd_disconnect(rhport);
-
-  if (phy_hs_supported(dwc2)) {
-    phy_hs_init(dwc2); // Highspeed
-  } else {
-    phy_fs_init(dwc2); // core does not support highspeed or hs phy is not present
-  }
 
   // Restart PHY clock
   dwc2->pcgctl &= ~(PCGCTL_STOPPCLK | PCGCTL_GATEHCLK | PCGCTL_PWRCLMP | PCGCTL_RSTPDWNMODULE);

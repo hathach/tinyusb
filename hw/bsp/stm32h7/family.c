@@ -151,7 +151,7 @@ void board_init(void) {
   HAL_UART_Init(&UartHandle);
 #endif
 
-#if BOARD_TUD_RHPORT == 0
+  //------------- USB FS -------------//
   // Despite being call USB2_OTG
   // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
   // PA9 VUSB, PA10 ID, PA11 DM, PA12 DP
@@ -195,10 +195,9 @@ void board_init(void) {
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif // vbus sense
 
-#elif BOARD_TUD_RHPORT == 1
+  //------------- USB HS -------------//
   // Despite being call USB2_OTG
   // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
-
   struct {
     GPIO_TypeDef* port;
     uint32_t pin;
@@ -238,8 +237,6 @@ void board_init(void) {
 
   // For waveshare openh743 ULPI PHY reset walkaround
   board_stm32h7_post_init();
-#endif // rhport = 1
-
 }
 
 //--------------------------------------------------------------------+
