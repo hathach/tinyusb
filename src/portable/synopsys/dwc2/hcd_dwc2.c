@@ -49,15 +49,29 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rhport;
-  (void) rh_init;
-  return false;
-}
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
-// Interrupt Handler
-void hcd_int_handler(uint8_t rhport, bool in_isr) {
-  (void) rhport;
-  (void) in_isr;
+  // Core Initialization
+  TU_ASSERT(dwc2_core_init(rhport, rh_init));
+
+  // force host mode
+  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
+
+  //------------- 3.1 Host Initialization -------------//
+  // Enable required interrupts
+  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_PRTIM | GINTMSK_WUIM;
+
+  // max speed
+  if (dwc2_core_is_highspeed(dwc2, rh_init)) {
+    dwc2->hcfg &= ~HCFG_FSLSS;
+  } else {
+    dwc2->hcfg |= HCFG_FSLSS;
+  }
+
+  // port power on -> drive VBUS
+  dwc2->hprt = HPRT_POWER;
+
+  return true;
 }
 
 // Enable USB interrupt
@@ -162,6 +176,40 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) ep_addr;
 
   return false;
+}
+
+//--------------------------------------------------------------------
+// HCD Event Handler
+//--------------------------------------------------------------------
+
+/* Interrupt Hierarchy
+
+   HCINTn.XferCompl     HCINTMSKn.XferComplMsk
+         |                       |
+         +---------- AND --------+
+                      |
+     HAINT.CHn            HAINTMSK.CHn
+         |                       |
+         +---------- AND --------+
+                      |
+    GINTSTS.PrtInt         GINTMSK.PrtInt
+         |                       |
+         +---------- AND --------+
+                      |
+             GAHBCFG.GblIntrMsk
+                      |
+                    IRQn
+ */
+void hcd_int_handler(uint8_t rhport, bool in_isr) {
+  (void) in_isr;
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  const uint32_t int_mask = dwc2->gintmsk;
+  const uint32_t int_status = dwc2->gintsts & int_mask;
+
+  if (int_status & GINTSTS_HPRTINT) {
+    TU_LOG1_HEX(dwc2->hprt);
+  }
 }
 
 #endif

@@ -63,7 +63,7 @@ bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init
   }
 #endif
 #if CFG_TUH_ENABLED
-  if (rh_init->role == TUSB_ROLE_DEVICE && !TUH_OPT_HIGH_SPEED) {
+  if (rh_init->role == TUSB_ROLE_HOST && !TUH_OPT_HIGH_SPEED) {
     return false;
   }
 #endif
@@ -193,9 +193,38 @@ bool dwc2_core_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
    * duration in the core to account for any additional delays
    * introduced by the PHY. This can be required, because the delay
    * introduced by the PHY in generating the linestate condition
-   * can vary from one PHY to another.
-   */
+   * can vary from one PHY to another. */
   dwc2->gusbcfg |= (7ul << GUSBCFG_TOCAL_Pos);
+
+  // Enable PHY clock TODO stop/gate clock when suspended mode
+  dwc2->pcgcctl &= ~(PCGCCTL_STOPPCLK | PCGCCTL_GATEHCLK | PCGCCTL_PWRCLMP | PCGCCTL_RSTPDWNMODULE);
+
+  dfifo_flush_tx(dwc2, 0x10); // all tx fifo
+  dfifo_flush_rx(dwc2);
+
+  // Clear all pending interrupts
+  uint32_t int_mask;
+
+  int_mask = dwc2->gintsts;
+  dwc2->gintsts |= int_mask;
+
+  int_mask = dwc2->gotgint;
+  dwc2->gotgint |= int_mask;
+
+  dwc2->gintmsk = GINTMSK_OTGINT;
+
+  if (dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
+    const uint16_t epinfo_base = dma_cal_epfifo_base(rhport);
+    dwc2->gdfifocfg = (epinfo_base << GDFIFOCFG_EPINFOBASE_SHIFT) | epinfo_base;
+
+    // DMA seems to be only settable after a core reset, and not possible to switch on-the-fly
+    dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
+  }else {
+    dwc2->gintmsk |= GINTMSK_RXFLVLM;
+  }
+
+  // Enable global interrupt
+  dwc2->gahbcfg |= GAHBCFG_GINT;
 
   return true;
 }

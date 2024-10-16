@@ -254,6 +254,10 @@
   #define CFG_TUD_DWC2_DMA 0
 #endif
 
+#ifndef CFG_TUH_DWC2_DMA
+  #define CFG_TUH_DWC2_DMA 0
+#endif
+
 // Enable PIO-USB software host controller
 #ifndef CFG_TUH_RPI_PIO_USB
   #define CFG_TUH_RPI_PIO_USB 0

@@ -122,6 +122,12 @@ enum {
   GHWCFFG4_PHY_DATA_WIDTH_8_16 = 2, // software selectable
 };
 
+enum {
+  HPRT_SPEED_HIGH = 0,
+  HPRT_SPEED_FULL = 1,
+  HPRT_SPEED_LOW  = 2
+};
+
 //--------------------------------------------------------------------
 // Register bitfield definitions
 //--------------------------------------------------------------------
@@ -300,6 +306,24 @@ typedef struct TU_ATTR_PACKED {
   uint32_t dma_desc_dynamic         : 1; // Dynamic scatter/gather DMA
 }dwc2_ghwcfg4_t;
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg4_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t conn_status         : 1; // 0 Port connect status
+  uint32_t conn_detected       : 1; // 1 Port connect detected
+  uint32_t enable              : 1; // 2 Port enable status
+  uint32_t enable_change       : 1; // 3 Port enable change
+  uint32_t over_current_active : 1; // 4 Port Over-current active
+  uint32_t over_current_change : 1; // 5 Port Over-current change
+  uint32_t resume              : 1; // 6 Port resume
+  uint32_t suspend             : 1; // 7 Port suspend
+  uint32_t reset               : 1; // 8 Port reset
+  uint32_t rsv9                : 1; // 9 Reserved
+  uint32_t line_status         : 2; // 10..11 Line status
+  uint32_t power               : 1; // 12 Port power
+  uint32_t test_control        : 4; // 13..16 Port Test control
+  uint32_t speed               : 2; // 17..18 Port speed
+  uint32_t rsv19_31            :13; // 19..31 Reserved
+}dwc2_hprt_t;
 
 // Host Channel
 typedef struct {
@@ -1448,56 +1472,53 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DIEPEACHMSK1_NAKM                DIEPEACHMSK1_NAKM_Msk                    // NAK interrupt mask
 
 /********************  Bit definition for HPRT register  ********************/
-#define HPRT_PCSTS_Pos                   (0U)
-#define HPRT_PCSTS_Msk                   (0x1UL << HPRT_PCSTS_Pos)                // 0x00000001
-#define HPRT_PCSTS                       HPRT_PCSTS_Msk                           // Port connect status
-#define HPRT_PCDET_Pos                   (1U)
-#define HPRT_PCDET_Msk                   (0x1UL << HPRT_PCDET_Pos)                // 0x00000002
-#define HPRT_PCDET                       HPRT_PCDET_Msk                           // Port connect detected
-#define HPRT_PENA_Pos                    (2U)
-#define HPRT_PENA_Msk                    (0x1UL << HPRT_PENA_Pos)                 // 0x00000004
-#define HPRT_PENA                        HPRT_PENA_Msk                            // Port enable
-#define HPRT_PENCHNG_Pos                 (3U)
-#define HPRT_PENCHNG_Msk                 (0x1UL << HPRT_PENCHNG_Pos)              // 0x00000008
-#define HPRT_PENCHNG                     HPRT_PENCHNG_Msk                         // Port enable/disable change
-#define HPRT_POCA_Pos                    (4U)
-#define HPRT_POCA_Msk                    (0x1UL << HPRT_POCA_Pos)                 // 0x00000010
-#define HPRT_POCA                        HPRT_POCA_Msk                            // Port overcurrent active
-#define HPRT_POCCHNG_Pos                 (5U)
-#define HPRT_POCCHNG_Msk                 (0x1UL << HPRT_POCCHNG_Pos)              // 0x00000020
-#define HPRT_POCCHNG                     HPRT_POCCHNG_Msk                         // Port overcurrent change
-#define HPRT_PRES_Pos                    (6U)
-#define HPRT_PRES_Msk                    (0x1UL << HPRT_PRES_Pos)                 // 0x00000040
-#define HPRT_PRES                        HPRT_PRES_Msk                            // Port resume
-#define HPRT_PSUSP_Pos                   (7U)
-#define HPRT_PSUSP_Msk                   (0x1UL << HPRT_PSUSP_Pos)                // 0x00000080
-#define HPRT_PSUSP                       HPRT_PSUSP_Msk                           // Port suspend
-#define HPRT_PRST_Pos                    (8U)
-#define HPRT_PRST_Msk                    (0x1UL << HPRT_PRST_Pos)                 // 0x00000100
-#define HPRT_PRST                        HPRT_PRST_Msk                            // Port reset
-
-#define HPRT_PLSTS_Pos                   (10U)
-#define HPRT_PLSTS_Msk                   (0x3UL << HPRT_PLSTS_Pos)                // 0x00000C00
-#define HPRT_PLSTS                       HPRT_PLSTS_Msk                           // Port line status
-#define HPRT_PLSTS_0                     (0x1UL << HPRT_PLSTS_Pos)                // 0x00000400
-#define HPRT_PLSTS_1                     (0x2UL << HPRT_PLSTS_Pos)                // 0x00000800
-#define HPRT_PPWR_Pos                    (12U)
-#define HPRT_PPWR_Msk                    (0x1UL << HPRT_PPWR_Pos)                 // 0x00001000
-#define HPRT_PPWR                        HPRT_PPWR_Msk                            // Port power
-
-#define HPRT_PTCTL_Pos                   (13U)
-#define HPRT_PTCTL_Msk                   (0xFUL << HPRT_PTCTL_Pos)                // 0x0001E000
-#define HPRT_PTCTL                       HPRT_PTCTL_Msk                           // Port test control
-#define HPRT_PTCTL_0                     (0x1UL << HPRT_PTCTL_Pos)                // 0x00002000
-#define HPRT_PTCTL_1                     (0x2UL << HPRT_PTCTL_Pos)                // 0x00004000
-#define HPRT_PTCTL_2                     (0x4UL << HPRT_PTCTL_Pos)                // 0x00008000
-#define HPRT_PTCTL_3                     (0x8UL << HPRT_PTCTL_Pos)                // 0x00010000
-
-#define HPRT_PSPD_Pos                    (17U)
-#define HPRT_PSPD_Msk                    (0x3UL << HPRT_PSPD_Pos)                 // 0x00060000
-#define HPRT_PSPD                        HPRT_PSPD_Msk                            // Port speed
-#define HPRT_PSPD_0                      (0x1UL << HPRT_PSPD_Pos)                 // 0x00020000
-#define HPRT_PSPD_1                      (0x2UL << HPRT_PSPD_Pos)                 // 0x00040000
+#define HPRT_CONN_STATUS_Pos           (0U)
+#define HPRT_CONN_STATUS_Msk           (0x1UL << HPRT_CONN_STATUS_Pos)         // 0x00000001
+#define HPRT_CONN_STATUS               HPRT_CONN_STATUS_Msk                    // Port connect status
+#define HPRT_CONN_DETECTEDT_Pos        (1U)
+#define HPRT_CONN_DETECTEDT_Msk        (0x1UL << HPRT_CONN_DETECTEDT_Pos)      // 0x00000002
+#define HPRT_CONN_DETECTEDT            HPRT_CONN_DETECTEDT_Msk                 // Port connect detected
+#define HPRT_ENABLE_Pos                (2U)
+#define HPRT_ENABLE_Msk                (0x1UL << HPRT_ENABLE_Pos)              // 0x00000004
+#define HPRT_ENABLE                    HPRT_ENABLE_Msk                         // Port enable
+#define HPRT_EN_CHANGE_Pos             (3U)
+#define HPRT_EN_CHANGE_Msk             (0x1UL << HPRT_EN_CHANGE_Pos)           // 0x00000008
+#define HPRT_EN_CHANGE                 HPRT_EN_CHANGE_Msk                      // Port enable/disable change
+#define HPRT_OVER_CURRENT_ACTIVE_Pos   (4U)
+#define HPRT_OVER_CURRENT_ACTIVE_Msk   (0x1UL << HPRT_OVER_CURRENT_ACTIVE_Pos) // 0x00000010
+#define HPRT_OVER_CURRENT_ACTIVE       HPRT_OVER_CURRENT_ACTIVE_Msk            // Port overcurrent active
+#define HPRT_OVER_CURRENT_CHANGE_Pos   (5U)
+#define HPRT_OVER_CURRENT_CHANGE_Msk   (0x1UL << HPRT_OVER_CURRENT_CHANGE_Pos) // 0x00000020
+#define HPRT_OVER_CURRENT_CHANGE       HPRT_OVER_CURRENT_CHANGE_Msk            // Port overcurrent change
+#define HPRT_RESUME_Pos                (6U)
+#define HPRT_RESUME_Msk                (0x1UL << HPRT_RESUME_Pos)              // 0x00000040
+#define HPRT_RESUME                    HPRT_RESUME_Msk                         // Port resume
+#define HPRT_SUSPEND_Pos               (7U)
+#define HPRT_SUSPEND_Msk               (0x1UL << HPRT_SUSPEND_Pos)             // 0x00000080
+#define HPRT_SUSPEND                   HPRT_SUSPEND_Msk                        // Port suspend
+#define HPRT_RESET_Pos                 (8U)
+#define HPRT_RESET_Msk                 (0x1UL << HPRT_RESET_Pos)               // 0x00000100
+#define HPRT_RESET                     HPRT_RESET_Msk                          // Port reset
+#define HPRT_LINE_STATUS_Pos           (10U)
+#define HPRT_LINE_STATUS_Msk           (0x3UL << HPRT_LINE_STATUS_Pos)         // 0x00000C00
+#define HPRT_LINE_STATUS               HPRT_LINE_STATUS_Msk                    // Port line status
+#define HPRT_LINE_STATUS_0             (0x1UL << HPRT_LINE_STATUS_Pos)         // 0x00000400
+#define HPRT_LINE_STATUS_1             (0x2UL << HPRT_LINE_STATUS_Pos)         // 0x00000800
+#define HPRT_POWER_Pos                 (12U)
+#define HPRT_POWER_Msk                 (0x1UL << HPRT_POWER_Pos)               // 0x00001000
+#define HPRT_POWER                     HPRT_POWER_Msk                          // Port power
+#define HPRT_TEST_CONTROL_Pos          (13U)
+#define HPRT_TEST_CONTROL_Msk          (0xFUL << HPRT_TEST_CONTROL_Pos)        // 0x0001E000
+#define HPRT_TEST_CONTROL              HPRT_TEST_CONTROL_Msk                   // Port test control
+#define HPRT_TEST_CONTROL_0            (0x1UL << HPRT_TEST_CONTROL_Pos)        // 0x00002000
+#define HPRT_TEST_CONTROL_1            (0x2UL << HPRT_TEST_CONTROL_Pos)        // 0x00004000
+#define HPRT_TEST_CONTROL_2            (0x4UL << HPRT_TEST_CONTROL_Pos)        // 0x00008000
+#define HPRT_TEST_CONTROL_3            (0x8UL << HPRT_TEST_CONTROL_Pos)        // 0x00010000
+#define HPRT_SPEED_Pos                 (17U)
+#define HPRT_SPEED_Msk                 (0x3UL << HPRT_SPEED_Pos)               // 0x00060000
+#define HPRT_SPEED                     HPRT_SPEED_Msk                          // Port speed
+#define HPRT_SPEED_0                   (0x1UL << HPRT_SPEED_Pos)               // 0x00020000
+#define HPRT_SPEED_1                   (0x2UL << HPRT_SPEED_Pos)               // 0x00040000
 
 /********************  Bit definition for DOEPEACHMSK1 register  ********************/
 #define DOEPEACHMSK1_XFRCM_Pos           (0U)

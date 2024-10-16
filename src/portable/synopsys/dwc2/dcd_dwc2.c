@@ -68,22 +68,6 @@ static bool _sof_en;
 // DMA
 //--------------------------------------------------------------------
 
-TU_ATTR_ALWAYS_INLINE static inline bool dma_enabled(const dwc2_regs_t* dwc2) {
-  #if !CFG_TUD_DWC2_DMA
-  (void) dwc2;
-  return false;
-  #else
-  // Internal DMA only
-  return (dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA);
-  #endif
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint16_t dma_cal_epfifo_base(uint8_t rhport) {
-  // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per endpoint direction
-  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
-  return dwc2_controller->ep_fifo_size/4 - 2*dwc2_controller->ep_count;
-}
-
 static void dma_setup_prepare(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
@@ -103,16 +87,6 @@ static void dma_setup_prepare(uint8_t rhport) {
 // Data FIFO
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_tx(dwc2_regs_t* dwc2, uint8_t epnum) {
-  // flush TX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_TXFFLSH | (epnum << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
-}
-TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_rx(dwc2_regs_t* dwc2) {
-  // flush RX fifo and wait for it cleared
-  dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
-}
 
 /* USB Data FIFO Layout
 
@@ -215,7 +189,7 @@ static void dfifo_init(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   dwc2->grxfsiz = calc_grxfsiz(CFG_TUD_ENDPOINT0_SIZE, dwc2_controller->ep_count);
 
-  if(dma_enabled(dwc2)) {
+  if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
     // DMA use last DFIFO to store metadata
     _dfifo_top = dma_cal_epfifo_base(rhport);
   }else {
@@ -395,7 +369,7 @@ static void bus_reset(uint8_t rhport) {
   xfer_status[0][TUSB_DIR_OUT].max_size = 64;
   xfer_status[0][TUSB_DIR_IN].max_size = 64;
 
-  if(dma_enabled(dwc2)) {
+  if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
     dma_setup_prepare(rhport);
   } else {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
@@ -427,7 +401,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     dep->dieptsiz = (num_packets << DIEPTSIZ_PKTCNT_Pos) |
                            ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
 
-    if(dma_enabled(dwc2)) {
+    if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
       dep->diepdma = (uintptr_t)xfer->buffer;
 
       // For ISO endpoint set correct odd/even bit for next frame.
@@ -465,7 +439,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
       dep->doepctl |= (odd_frame_now ? DOEPCTL_SD0PID_SEVNFRM_Msk : DOEPCTL_SODDFRM_Msk);
     }
 
-    if(dma_enabled(dwc2)) {
+    if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
       dep->doepdma = (uintptr_t)xfer->buffer;
     }
 
@@ -477,9 +451,9 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 // Controller API
 //--------------------------------------------------------------------
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
+  // Core Initialization
   TU_ASSERT(dwc2_core_init(rhport, rh_init));
 
   // Device Initialization
@@ -500,9 +474,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
   dwc2->dcfg = dcfg;
 
-  // Enable PHY clock TODO stop/gate clock when suspended mode
-  dwc2->pcgcctl &= ~(PCGCCTL_STOPPCLK | PCGCCTL_GATEHCLK | PCGCCTL_PWRCLMP | PCGCCTL_RSTPDWNMODULE);
-
   // Force device mode
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
 
@@ -512,44 +483,13 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // If USB host misbehaves during status portion of control xfer (non zero-length packet), send STALL back and discard
   dwc2->dcfg |= DCFG_NZLSOHSK;
 
-  dfifo_flush_tx(dwc2, 0x10); // all tx fifo
-  dfifo_flush_rx(dwc2);
-
-  // Clear all interrupts
-  uint32_t int_mask = dwc2->gintsts;
-  dwc2->gintsts |= int_mask;
-  int_mask = dwc2->gotgint;
-  dwc2->gotgint |= int_mask;
-
-  // Required as part of core initialization.
-  dwc2->gintmsk = GINTMSK_OTGINT | GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
+  // Enable required interrupts
+  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
   // Configure TX FIFO empty level for interrupt. Default is complete empty
   dwc2->gahbcfg |= GAHBCFG_TXFELVL;
 
-  if (dma_enabled(dwc2)) {
-    const uint16_t epinfo_base = dma_cal_epfifo_base(rhport);
-    dwc2->gdfifocfg = (epinfo_base << GDFIFOCFG_EPINFOBASE_SHIFT) | epinfo_base;
-
-    // DMA seems to be only settable after a core reset
-    dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
-  }else {
-    dwc2->gintmsk |= GINTMSK_RXFLVLM;
-  }
-
-  // Enable global interrupt
-  dwc2->gahbcfg |= GAHBCFG_GINT;
-
-  // make sure we are in device mode
-//  TU_ASSERT(!(dwc2->gintsts & GINTSTS_CMOD), );
-
-//  TU_LOG_HEX(DWC2_DEBUG, dwc2->gotgctl);
-//  TU_LOG_HEX(DWC2_DEBUG, dwc2->gusbcfg);
-//  TU_LOG_HEX(DWC2_DEBUG, dwc2->dcfg);
-//  TU_LOG_HEX(DWC2_DEBUG, dwc2->gahbcfg);
-
   dcd_connect(rhport);
-
   return true;
 }
 
@@ -749,7 +689,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   edpt_disable(rhport, ep_addr, true);
-  if((tu_edpt_number(ep_addr) == 0) && dma_enabled(DWC2_REG(rhport))) {
+  if((tu_edpt_number(ep_addr) == 0) && dwc2_dma_enabled(DWC2_REG(rhport), TUSB_ROLE_DEVICE)) {
     dma_setup_prepare(rhport);
   }
 }
@@ -866,7 +806,7 @@ static void handle_epout_irq(uint8_t rhport) {
       if (doepint & DOEPINT_SETUP) {
         epout->doepint = DOEPINT_SETUP;
 
-        if(dma_enabled(dwc2)) {
+        if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
           dma_setup_prepare(rhport);
         }
 
@@ -882,7 +822,7 @@ static void handle_epout_irq(uint8_t rhport) {
         if (!(doepint & (DOEPINT_SETUP | DOEPINT_STPKTRX | DOEPINT_STSPHSRX))) {
           xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
-          if(dma_enabled(dwc2)) {
+          if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
             if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
               // EP0 can only handle one packet Schedule another packet to be received.
               edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
@@ -932,7 +872,7 @@ static void handle_epin_irq(uint8_t rhport) {
           // Schedule another packet to be transmitted.
           edpt_schedule_packets(rhport, n, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
         } else {
-          if((n == 0) && dma_enabled(dwc2)) {
+          if((n == 0) && dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
             dma_setup_prepare(rhport);
           }
           dcd_event_xfer_complete(rhport, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
@@ -982,7 +922,7 @@ static void handle_epin_irq(uint8_t rhport) {
 
 /* Interrupt Hierarchy
 
-   DxEPMSK.XferComplMsk     DxEPINTn.XferCompl
+  DxEPINTn.XferCompl    DxEPMSK.XferComplMsk
          |                       |
          +---------- AND --------+
                       |
