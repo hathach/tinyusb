@@ -77,6 +77,7 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // new API with explicit rhport and role
   TU_ASSERT(rhport < TUP_USBIP_CONTROLLER_NUM && rh_init->role != TUSB_ROLE_INVALID);
+  _rhport_role[rhport] = rh_init->role;
 
   #if CFG_TUD_ENABLED
   if (rh_init->role == TUSB_ROLE_DEVICE) {
@@ -90,7 +91,6 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
   #endif
 
-  _rhport_role[rhport] = rh_init->role;
   return true;
 }
 

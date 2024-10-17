@@ -44,18 +44,21 @@ static void reset_core(dwc2_regs_t* dwc2) {
   // reset core
   dwc2->grstctl |= GRSTCTL_CSRST;
 
-  // wait for reset bit is cleared
-  // TODO version 4.20a should wait for RESET DONE mask
-  while (dwc2->grstctl & GRSTCTL_CSRST) {}
+  if ((dwc2->gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
+    // prior v42.0 CSRST is self-clearing
+    while (dwc2->grstctl & GRSTCTL_CSRST) {}
+  } else {
+    // From v4.20a CSRST bit is write only, CSRT_DONE (w1c) is introduced for checking.
+    // CSRST must also be explicitly cleared
+    while (!(dwc2->grstctl & GRSTCTL_CSRST_DONE)) {}
+    dwc2->grstctl =  (dwc2->grstctl & ~GRSTCTL_CSRST) | GRSTCTL_CSRST_DONE;
+  }
 
-  // wait for AHB master IDLE
-  while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {}
-
-  // wait for device mode ?
+  while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {} // wait for AHB master IDLE
 }
 
 bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init) {
-  (void) dwc2;
+  (void)dwc2;
 
 #if CFG_TUD_ENABLED
   if (rh_init->role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
@@ -71,11 +74,14 @@ bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init
   return dwc2->ghwcfg2_bm.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
 }
 
-static void phy_fs_init(dwc2_regs_t* dwc2) {
+static void phy_fs_init(dwc2_regs_t* dwc2, tusb_role_t role) {
   TU_LOG(DWC2_COMMON_DEBUG, "Fullspeed PHY init\r\n");
 
+  uint32_t gusbcfg = dwc2->gusbcfg;
+
   // Select FS PHY
-  dwc2->gusbcfg |= GUSBCFG_PHYSEL;
+  gusbcfg |= GUSBCFG_PHYSEL;
+  dwc2->gusbcfg = gusbcfg;
 
   // MCU specific PHY init before reset
   dwc2_phy_init(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
@@ -86,13 +92,33 @@ static void phy_fs_init(dwc2_regs_t* dwc2) {
   // USB turnaround time is critical for certification where long cables and 5-Hubs are used.
   // So if you need the AHB to run at less than 30 MHz, and if USB turnaround time is not critical,
   // these bits can be programmed to a larger value. Default is 5
-  dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_TRDT_Msk) | (5u << GUSBCFG_TRDT_Pos);
+  gusbcfg &= ~GUSBCFG_TRDT_Msk;
+  gusbcfg |= 5u << GUSBCFG_TRDT_Pos;
+  dwc2->gusbcfg = gusbcfg;
+
+  // FS/LS PHY Clock Select
+  if (role == TUSB_ROLE_HOST) {
+    uint32_t hcfg = dwc2->hcfg;
+    hcfg |= HCFG_FSLS_ONLY;
+    hcfg &= ~HCFG_FSLS_PHYCLK_SEL;
+
+    if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI &&
+        dwc2->ghwcfg2_bm.fs_phy_type == GHWCFG2_FSPHY_DEDICATED) {
+      // dedicated FS PHY with 48 mhz
+      hcfg |= HCFG_FSLS_PHYCLK_SEL_48MHZ;
+    } else {
+      // shared HS PHY running at full speed
+      hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
+    }
+    dwc2->hcfg = hcfg;
+  }
 
   // MCU specific PHY update post reset
   dwc2_phy_update(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
 }
 
-static void phy_hs_init(dwc2_regs_t* dwc2) {
+static void phy_hs_init(dwc2_regs_t* dwc2, tusb_role_t role) {
+  (void) role;
   uint32_t gusbcfg = dwc2->gusbcfg;
 
   // De-select FS PHY
@@ -123,8 +149,8 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
 
     // Set 16-bit interface if supported
     if (dwc2->ghwcfg4_bm.phy_data_width) {
-      gusbcfg |= GUSBCFG_PHYIF16;  // 16 bit
-    }else {
+      gusbcfg |= GUSBCFG_PHYIF16; // 16 bit
+    } else {
       gusbcfg &= ~GUSBCFG_PHYIF16; // 8 bit
     }
   }
@@ -137,6 +163,10 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
 
   // Reset core after selecting PHY
   reset_core(dwc2);
+
+  if (role == TUSB_ROLE_HOST) {
+    dwc2->hcfg &= ~HCFG_FSLS_ONLY;
+  }
 
   // Set turn-around, must after core reset otherwise it will be clear
   // - 9 if using 8-bit PHY interface
@@ -162,7 +192,7 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 #endif
 
   // For some reason: GD32VF103 gsnpsid and all hwcfg register are always zero (skip it)
-  (void) dwc2;
+  (void)dwc2;
 #if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
   uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
   TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID);
@@ -175,16 +205,16 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 //
 //--------------------------------------------------------------------
 bool dwc2_core_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
+  (void)rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled
   TU_ASSERT(check_dwc2(dwc2));
 
   if (dwc2_core_is_highspeed(dwc2, rh_init)) {
-    phy_hs_init(dwc2); // Highspeed
+    phy_hs_init(dwc2, rh_init->role);
   } else {
-    phy_fs_init(dwc2); // core does not support highspeed or hs phy is not present
+    phy_fs_init(dwc2, rh_init->role);
   }
 
   /* Set HS/FS Timeout Calibration to 7 (max available value).
@@ -211,20 +241,20 @@ bool dwc2_core_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   int_mask = dwc2->gotgint;
   dwc2->gotgint |= int_mask;
 
-  dwc2->gintmsk = GINTMSK_OTGINT;
+  dwc2->gintmsk = 0;
 
-  if (dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
+  if (dwc2_dma_enabled(dwc2, rh_init->role)) {
     const uint16_t epinfo_base = dma_cal_epfifo_base(rhport);
     dwc2->gdfifocfg = (epinfo_base << GDFIFOCFG_EPINFOBASE_SHIFT) | epinfo_base;
 
     // DMA seems to be only settable after a core reset, and not possible to switch on-the-fly
     dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
-  }else {
+  } else {
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
   }
 
-  // Enable global interrupt
-  dwc2->gahbcfg |= GAHBCFG_GINT;
+  // Configure TX FIFO empty level for interrupt. Default is complete empty
+  dwc2->gahbcfg |= GAHBCFG_TXFELVL;
 
   return true;
 }

@@ -34,6 +34,10 @@
 #include "host/hcd.h"
 #include "dwc2_common.h"
 
+enum {
+  HPRT_W1C_MASK = HPRT_CONN_DETECT | HPRT_ENABLE | HPRT_EN_CHANGE | HPRT_OVER_CURRENT_CHANGE
+};
+
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
@@ -54,40 +58,41 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Core Initialization
   TU_ASSERT(dwc2_core_init(rhport, rh_init));
 
+  //------------- 3.1 Host Initialization -------------//
+
+  // max speed
+  // if (dwc2_core_is_highspeed(dwc2, rh_init)) {
+  //   dwc2->hcfg &= ~HCFG_FSLS_ONLY;
+  // } else {
+  //   dwc2->hcfg |= HCFG_FSLS_ONLY;
+  // }
+
   // force host mode
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
 
-  //------------- 3.1 Host Initialization -------------//
+  dwc2->hprt = HPRT_W1C_MASK; // clear all write-1-clear bits
+  dwc2->hprt = HPRT_POWER; // port power on -> drive VBUS
+
   // Enable required interrupts
   dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_PRTIM | GINTMSK_WUIM;
-
-  // max speed
-  if (dwc2_core_is_highspeed(dwc2, rh_init)) {
-    dwc2->hcfg &= ~HCFG_FSLSS;
-  } else {
-    dwc2->hcfg |= HCFG_FSLSS;
-  }
-
-  // port power on -> drive VBUS
-  dwc2->hprt = HPRT_POWER;
+  dwc2->gahbcfg |= GAHBCFG_GINT;   // Enable global interrupt
 
   return true;
 }
 
 // Enable USB interrupt
 void hcd_int_enable (uint8_t rhport) {
-  (void) rhport;
+  dwc2_int_set(rhport, TUSB_ROLE_HOST, true);
 }
 
 // Disable USB interrupt
 void hcd_int_disable(uint8_t rhport) {
-  (void) rhport;
+  dwc2_int_set(rhport, TUSB_ROLE_HOST, false);
 }
 
 // Get frame number (1ms)
 uint32_t hcd_frame_number(uint8_t rhport) {
   (void) rhport;
-
   return 0;
 }
 
@@ -97,20 +102,23 @@ uint32_t hcd_frame_number(uint8_t rhport) {
 
 // Get the current connect status of roothub port
 bool hcd_port_connect_status(uint8_t rhport) {
-  (void) rhport;
-
-  return false;
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  return dwc2->hprt & HPRT_CONN_STATUS;
 }
 
 // Reset USB bus on the port. Return immediately, bus reset sequence may not be complete.
 // Some port would require hcd_port_reset_end() to be invoked after 10ms to complete the reset sequence.
 void hcd_port_reset(uint8_t rhport) {
-  (void) rhport;
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2->hprt = HPRT_RESET;
 }
 
 // Complete bus reset sequence, may be required by some controllers
 void hcd_port_reset_end(uint8_t rhport) {
-  (void) rhport;
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  uint32_t hprt = dwc2->hprt & ~HPRT_W1C_MASK; // skip w1c bits
+  hprt &= ~HPRT_RESET;
+  dwc2->hprt = hprt;
 }
 
 // Get port link speed
@@ -182,6 +190,101 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 // HCD Event Handler
 //--------------------------------------------------------------------
 
+#if 1
+static void handle_rxflvl_irq(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  volatile uint32_t const* rx_fifo = dwc2->fifo[0];
+
+  // Pop control word off FIFO
+  uint32_t const grxstsp = dwc2->grxstsp;
+  uint8_t const pktsts = (grxstsp & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
+  uint8_t const epnum = (grxstsp & GRXSTSP_EPNUM_Msk) >> GRXSTSP_EPNUM_Pos;
+  uint16_t const bcnt = (grxstsp & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
+  // dwc2_epout_t* epout = &dwc2->epout[epnum];
+
+  (void) epnum; (void) bcnt; (void) rx_fifo;
+
+  TU_LOG1_INT(pktsts);
+
+  // switch (pktsts) {
+  //   // Global OUT NAK: do nothing
+  //   case GRXSTS_PKTSTS_GLOBALOUTNAK:
+  //     break;
+  //
+  //   case GRXSTS_PKTSTS_SETUPRX:
+  //     // Setup packet received
+  //     // We can receive up to three setup packets in succession, but  only the last one is valid.
+  //     _setup_packet[0] = (*rx_fifo);
+  //     _setup_packet[1] = (*rx_fifo);
+  //     break;
+  //
+  //   case GRXSTS_PKTSTS_SETUPDONE:
+  //     // Setup packet done:
+  //     // After popping this out, dwc2 asserts a DOEPINT_SETUP interrupt which is handled by handle_epout_irq()
+  //     epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
+  //     break;
+  //
+  //   case GRXSTS_PKTSTS_OUTRX: {
+  //     // Out packet received
+  //     xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+  //
+  //     // Read packet off RxFIFO
+  //     if (xfer->ff) {
+  //       // Ring buffer
+  //       tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, bcnt);
+  //     } else {
+  //       // Linear buffer
+  //       dfifo_read_packet(rhport, xfer->buffer, bcnt);
+  //
+  //       // Increment pointer to xfer data
+  //       xfer->buffer += bcnt;
+  //     }
+  //
+  //     // Truncate transfer length in case of short packet
+  //     if (bcnt < xfer->max_size) {
+  //       xfer->total_len -= (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
+  //       if (epnum == 0) {
+  //         xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
+  //         ep0_pending[TUSB_DIR_OUT] = 0;
+  //       }
+  //     }
+  //     break;
+  //   }
+  //
+  //   case GRXSTS_PKTSTS_OUTDONE:
+  //     /* Out packet done
+  //        After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed interrupt on
+  //        the specified OUT endpoint which will be handled by handle_epout_irq() */
+  //     break;
+  //
+  //   default:
+  //     TU_BREAKPOINT();
+  //     break;
+  // }
+}
+#endif
+
+/* Handle Host Port interrupt, possible source are:
+   - Connection Detection
+   - Enable Change
+   - Over Current Change
+*/
+TU_ATTR_ALWAYS_INLINE static inline void handle_hprt_irq(uint8_t rhport, bool in_isr) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  uint32_t hprt = dwc2->hprt;
+
+  if (hprt & HPRT_CONN_DETECT) {
+    // Port Connect Detect
+    dwc2->hprt = HPRT_CONN_DETECT; // clear
+
+    if (hprt & HPRT_CONN_STATUS) {
+      hcd_event_device_attach(rhport, in_isr);
+    } else {
+      hcd_event_device_remove(rhport, in_isr);
+    }
+  }
+}
+
 /* Interrupt Hierarchy
 
    HCINTn.XferCompl     HCINTMSKn.XferComplMsk
@@ -201,7 +304,6 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
                     IRQn
  */
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
-  (void) in_isr;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   const uint32_t int_mask = dwc2->gintmsk;
@@ -209,7 +311,21 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (int_status & GINTSTS_HPRTINT) {
     TU_LOG1_HEX(dwc2->hprt);
+    handle_hprt_irq(rhport, in_isr);
   }
+
+  // RxFIFO non-empty interrupt handling.
+  if (int_status & GINTSTS_RXFLVL) {
+    // RXFLVL bit is read-only
+    dwc2->gintmsk &= ~GINTMSK_RXFLVLM; // disable RXFLVL interrupt while reading
+
+    do {
+      handle_rxflvl_irq(rhport); // read all packets
+    } while(dwc2->gintsts & GINTSTS_RXFLVL);
+
+    dwc2->gintmsk |= GINTMSK_RXFLVLM;
+  }
+
 }
 
 #endif

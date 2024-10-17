@@ -566,14 +566,15 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GOTGCTL_OTGVER                   GOTGCTL_OTGVER_Msk                       // OTG version
 
 /********************  Bit definition for HCFG register  ********************/
-#define HCFG_FSLSPCS_Pos                 (0U)
-#define HCFG_FSLSPCS_Msk                 (0x3UL << HCFG_FSLSPCS_Pos)              // 0x00000003
-#define HCFG_FSLSPCS                     HCFG_FSLSPCS_Msk                         // FS/LS PHY clock select
-#define HCFG_FSLSPCS_0                   (0x1UL << HCFG_FSLSPCS_Pos)              // 0x00000001
-#define HCFG_FSLSPCS_1                   (0x2UL << HCFG_FSLSPCS_Pos)              // 0x00000002
-#define HCFG_FSLSS_Pos                   (2U)
-#define HCFG_FSLSS_Msk                   (0x1UL << HCFG_FSLSS_Pos)                // 0x00000004
-#define HCFG_FSLSS                       HCFG_FSLSS_Msk                           // FS- and LS-only support
+#define HCFG_FSLS_PHYCLK_SEL_Pos         (0U)
+#define HCFG_FSLS_PHYCLK_SEL_Msk         (0x3UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000003
+#define HCFG_FSLS_PHYCLK_SEL             HCFG_FSLS_PHYCLK_SEL_Msk                 // FS/LS PHY clock select
+#define HCFG_FSLS_PHYCLK_SEL_30_60MHZ    (0x0UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000000
+#define HCFG_FSLS_PHYCLK_SEL_48MHZ       (0x1UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000001
+
+#define HCFG_FSLS_ONLY_Pos               (2U)
+#define HCFG_FSLS_ONLY_Msk               (0x1UL << HCFG_FSLS_ONLY_Pos)            // 0x00000004
+#define HCFG_FSLS_ONLY                   HCFG_FSLS_ONLY_Msk                       // FS- and LS-only support
 
 /********************  Bit definition for PCGCR register  ********************/
 #define PCGCR_STPPCLK_Pos                (0U)
@@ -828,8 +829,8 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GRSTCTL_TXFNUM_2                 (0x04UL << GRSTCTL_TXFNUM_Pos)           // 0x00000100
 #define GRSTCTL_TXFNUM_3                 (0x08UL << GRSTCTL_TXFNUM_Pos)           // 0x00000200
 #define GRSTCTL_TXFNUM_4                 (0x10UL << GRSTCTL_TXFNUM_Pos)           // 0x00000400
-#define GRSTCTL_CSFTRST_DONE_Pos       (29)
-#define GRSTCTL_CSFTRST_DONE           (1u << GRSTCTL_CSFTRST_DONE_Pos)         // Reset Done, only available from v4.20a
+#define GRSTCTL_CSRST_DONE_Pos           (29)
+#define GRSTCTL_CSRST_DONE               (1u << GRSTCTL_CSRST_DONE_Pos)         // Reset Done, only available from v4.20a
 #define GRSTCTL_DMAREQ_Pos               (30U)
 #define GRSTCTL_DMAREQ_Msk               (0x1UL << GRSTCTL_DMAREQ_Pos)            // 0x40000000
 #define GRSTCTL_DMAREQ                   GRSTCTL_DMAREQ_Msk                       // DMA request signal
@@ -1475,9 +1476,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HPRT_CONN_STATUS_Pos           (0U)
 #define HPRT_CONN_STATUS_Msk           (0x1UL << HPRT_CONN_STATUS_Pos)         // 0x00000001
 #define HPRT_CONN_STATUS               HPRT_CONN_STATUS_Msk                    // Port connect status
-#define HPRT_CONN_DETECTEDT_Pos        (1U)
-#define HPRT_CONN_DETECTEDT_Msk        (0x1UL << HPRT_CONN_DETECTEDT_Pos)      // 0x00000002
-#define HPRT_CONN_DETECTEDT            HPRT_CONN_DETECTEDT_Msk                 // Port connect detected
+#define HPRT_CONN_DETECT_Pos           (1U)
+#define HPRT_CONN_DETECT_Msk           (0x1UL << HPRT_CONN_DETECT_Pos)      // 0x00000002
+#define HPRT_CONN_DETECT               HPRT_CONN_DETECT_Msk                 // Port connect detected
 #define HPRT_ENABLE_Pos                (2U)
 #define HPRT_ENABLE_Msk                (0x1UL << HPRT_ENABLE_Pos)              // 0x00000004
 #define HPRT_ENABLE                    HPRT_ENABLE_Msk                         // Port enable

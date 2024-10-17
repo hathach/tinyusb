@@ -486,8 +486,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Enable required interrupts
   dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
-  // Configure TX FIFO empty level for interrupt. Default is complete empty
-  dwc2->gahbcfg |= GAHBCFG_TXFELVL;
+  // Enable global interrupt
+  dwc2->gahbcfg |= GAHBCFG_GINT;
 
   dcd_connect(rhport);
   return true;
