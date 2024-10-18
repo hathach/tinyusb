@@ -1,0 +1,25 @@
+name: Push TinyUSB to Espressif Component Service
+
+# If the commit is tagged, it will be uploaded. Other scenario silently fail.
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  upload_components:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove unneeded files
+        shell: bash
+        run: rm -rf docs tools lib/embedded-cli lib/fatfs lib/SEGGER_RTT
+
+      - name: Upload components to component service
+        uses: espressif/upload-components-ci-action@v1
+        with:
+          name: "tinyusb"
+          version: ${{ github.ref_name }}
+          namespace: "espressif"
+          api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}
