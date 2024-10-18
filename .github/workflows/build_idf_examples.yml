@@ -1,0 +1,28 @@
+name: Build ESP-IDF USB examples
+
+on:
+  schedule:
+    - cron: '0 0 * * SAT' # Saturday midnight
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        idf_ver: ["release-v5.0", "release-v5.1", "release-v5.2", "release-v5.3", "release-v5.4", "latest"]
+    runs-on: ubuntu-20.04
+    container: espressif/idf:${{ matrix.idf_ver }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Build ESP-IDF USB Device examples
+        shell: bash
+        run: |
+          . ${IDF_PATH}/export.sh
+          pip install idf-component-manager==1.5.2 idf-build-apps --upgrade
+          python .github/ci/override_managed_component.py tinyusb . ${IDF_PATH}/examples/peripherals/usb/device/tusb_*
+          cd ${IDF_PATH}
+          idf-build-apps find --path examples/peripherals/usb/device/ --recursive --target all --manifest-file examples/peripherals/.build-test-rules.yml
+          idf-build-apps build --path examples/peripherals/usb/device/ --recursive --target all --manifest-file examples/peripherals/.build-test-rules.yml
