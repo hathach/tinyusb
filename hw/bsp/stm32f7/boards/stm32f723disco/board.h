@@ -56,8 +56,7 @@
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void board_clock_init(void)
-{
+static inline void board_clock_init(void) {
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
 
@@ -74,7 +73,7 @@ static inline void board_clock_init(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = HSE_VALUE/1000000;
+  RCC_OscInitStruct.PLL.PLLM = HSE_VALUE / 1000000;
   RCC_OscInitStruct.PLL.PLLN = 432;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 9;
@@ -97,6 +96,42 @@ static inline void board_clock_init(void)
 //{
 //
 //}
+
+typedef struct {
+  GPIO_TypeDef* port;
+  GPIO_InitTypeDef pin_init;
+  bool active_state;
+} board_pindef_t;
+
+static board_pindef_t vbus_pindef[] = {
+{
+    .port = GPIOG,
+    .pin_init = {
+      .Pin = GPIO_PIN_8, .Mode = GPIO_MODE_OUTPUT_OD, .Pull = GPIO_NOPULL,
+      .Speed = GPIO_SPEED_HIGH, .Alternate = 0
+    },
+    .active_state = false
+  },
+{
+    .port = GPIOH,
+    .pin_init = {
+      .Pin = GPIO_PIN_12, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_NOPULL,
+      .Speed = GPIO_SPEED_HIGH, .Alternate = 0
+    },
+    .active_state = true
+  },
+};
+
+static inline void board_vbus_set(uint8_t rhport, bool state) {
+  static bool pin_inited[2] = { false, false };
+  board_pindef_t* pindef = &vbus_pindef[rhport];
+  if (!pin_inited[rhport]) {
+    HAL_GPIO_Init(pindef->port, &pindef->pin_init);
+    pin_inited[rhport] = true;
+  }
+
+  HAL_GPIO_WritePin(pindef->port, pindef->pin_init.Pin, state == pindef->active_state ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
 
 #ifdef __cplusplus
  }

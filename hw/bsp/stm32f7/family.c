@@ -34,13 +34,13 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void OTG_FS_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
 
 // Despite being call USB2_OTG
 // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
 void OTG_HS_IRQHandler(void) {
-  tud_int_handler(1);
+  tusb_int_handler(1, true);
 }
 
 //--------------------------------------------------------------------+
@@ -65,7 +65,7 @@ void board_init(void) {
   __HAL_RCC_GPIOJ_CLK_ENABLE();
 #endif
 
-      UART_CLK_EN();
+  UART_CLK_EN();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -122,9 +122,7 @@ void board_init(void) {
   UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
 
-#if BOARD_TUD_RHPORT == 0
-  // OTG_FS
-
+  //------------- rhport0: OTG_FS -------------//
   /* Configure DM DP Pins */
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -171,9 +169,7 @@ void board_init(void) {
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif // vbus sense
 
-#else
-  // OTG_HS
-
+  //------------- rhport1: OTG_HS -------------//
   #ifdef USB_HS_PHYC
   // MCU with built-in HS PHY such as F723, F733, F730
 
@@ -261,12 +257,10 @@ void board_init(void) {
   USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif
 
-  // Force device mode
-  USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
-  USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
-
-#endif // BOARD_TUD_RHPORT
-
+  // Turn on host vbus
+#if CFG_TUH_ENABLED
+  board_vbus_set(BOARD_TUH_RHPORT, true);
+#endif
 }
 
 //--------------------------------------------------------------------+
