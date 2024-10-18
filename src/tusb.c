@@ -255,6 +255,10 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
           ((tusb_desc_interface_t const*) p_desc)->bAlternateSetting == 0) {
         break;
       }
+      if (tu_desc_len(p_desc) == 0) {
+        // Escape infinite loop
+        break;
+      }
 
       len += tu_desc_len(p_desc);
       p_desc = tu_desc_next(p_desc);
