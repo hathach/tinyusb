@@ -127,7 +127,7 @@ static inline void SystemClock_Config(void)
   HAL_EnableCompensationCell();
 }
 
-static inline void board_stm32h7_post_init(void)
+static inline void board_init2(void)
 {
   // For this board does nothing
 }

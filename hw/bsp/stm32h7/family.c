@@ -236,7 +236,12 @@ void board_init(void) {
   HAL_PWREx_EnableUSBVoltageDetector();
 
   // For waveshare openh743 ULPI PHY reset walkaround
-  board_stm32h7_post_init();
+  board_init2();
+
+#if CFG_TUH_ENABLED && defined(BOARD_VBUS_DRIVE)
+  BOARD_VBUS_DRIVE(BOARD_TUH_RHPORT, 1);
+#endif
+
 }
 
 //--------------------------------------------------------------------+

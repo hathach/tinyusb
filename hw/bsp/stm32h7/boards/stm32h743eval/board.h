@@ -31,6 +31,8 @@
  extern "C" {
 #endif
 
+#include "mfxstm32l152.h"
+
 #define LED_PORT              GPIOA
 #define LED_PIN               GPIO_PIN_4
 #define LED_STATE_ON          1
@@ -57,6 +59,22 @@
   {GPIOA, GPIO_PIN_3 }, {GPIOA, GPIO_PIN_5 }, {GPIOB, GPIO_PIN_0 }, {GPIOB, GPIO_PIN_1 }, \
   {GPIOB, GPIO_PIN_5 }, {GPIOB, GPIO_PIN_10}, {GPIOB, GPIO_PIN_11}, {GPIOB, GPIO_PIN_12}, \
   {GPIOB, GPIO_PIN_13}, {GPIOC, GPIO_PIN_0 }, {GPIOH, GPIO_PIN_4 }, {GPIOI, GPIO_PIN_11}
+
+// vbus drive
+#define BOARD_VBUS_DRIVE(_rhport, _on) do { \
+    if ( mfx_io_drv ) { \
+      uint32_t io_pin = (_rhport) ? MFXSTM32L152_GPIO_PIN_9 : MFXSTM32L152_GPIO_PIN_7; \
+      mfx_io_drv->IO_WritePin(&Io_CompObj, io_pin, _on); \
+    }\
+  } while(0)
+
+/* Definition for I2C1 Pins */
+#define BUS_I2C1_SCL_PIN                       GPIO_PIN_6
+#define BUS_I2C1_SDA_PIN                       GPIO_PIN_7
+#define BUS_I2C1_SCL_GPIO_PORT                 GPIOB
+#define BUS_I2C1_SDA_GPIO_PORT                 GPIOB
+#define BUS_I2C1_SCL_AF                        GPIO_AF4_I2C1
+#define BUS_I2C1_SDA_AF                        GPIO_AF4_I2C1
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -132,10 +150,139 @@ static inline void SystemClock_Config(void) {
   HAL_EnableCompensationCell();
 }
 
-static inline void board_stm32h7_post_init(void)
-{
-  // For this board does nothing
+//--------------------------------------------------------------------+
+// MFX
+//--------------------------------------------------------------------+
+I2C_HandleTypeDef hbus_i2c1 = { .Instance = I2C1};
+static MFXSTM32L152_Object_t  mfx_obj = { 0 };
+static MFXSTM32L152_IO_Mode_t* mfx_io_drv = NULL;
+
+HAL_StatusTypeDef MX_I2C1_Init(I2C_HandleTypeDef* hI2c, uint32_t timing) {
+  hI2c->Init.Timing = timing;
+  hI2c->Init.OwnAddress1 = 0;
+  hI2c->Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hI2c->Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hI2c->Init.OwnAddress2 = 0;
+  hI2c->Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hI2c->Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hI2c->Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+
+  if (HAL_I2C_Init(hI2c) != HAL_OK) {
+    return HAL_ERROR;
+  }
+  if (HAL_I2CEx_ConfigAnalogFilter(hI2c, I2C_ANALOGFILTER_ENABLE) != HAL_OK) {
+    return HAL_ERROR;
+  }
+  if (HAL_I2CEx_ConfigDigitalFilter(hI2c, 0) != HAL_OK) {
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
 }
+
+int32_t BSP_I2C1_Init(void) {
+  // Init I2C
+  GPIO_InitTypeDef  gpio_init_structure;
+  gpio_init_structure.Pin       = BUS_I2C1_SCL_PIN;
+  gpio_init_structure.Mode      = GPIO_MODE_AF_OD;
+  gpio_init_structure.Pull      = GPIO_NOPULL;
+  gpio_init_structure.Speed     = GPIO_SPEED_FREQ_HIGH;
+  gpio_init_structure.Alternate = BUS_I2C1_SCL_AF;
+  HAL_GPIO_Init(BUS_I2C1_SCL_GPIO_PORT, &gpio_init_structure);
+
+  gpio_init_structure.Pin       = BUS_I2C1_SDA_PIN;
+  gpio_init_structure.Mode      = GPIO_MODE_AF_OD;
+  gpio_init_structure.Pull      = GPIO_NOPULL;
+  gpio_init_structure.Speed     = GPIO_SPEED_FREQ_HIGH;
+  gpio_init_structure.Alternate = BUS_I2C1_SDA_AF;
+  HAL_GPIO_Init(BUS_I2C1_SDA_GPIO_PORT, &gpio_init_structure);
+
+  __HAL_RCC_I2C1_CLK_ENABLE();
+  __HAL_RCC_I2C1_FORCE_RESET();
+  __HAL_RCC_I2C1_RELEASE_RESET();
+
+  if (MX_I2C1_Init(&hbus_i2c1, /*0x10C0ECFF*/ 1890596921) != HAL_OK) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t BSP_I2C1_DeInit(void) {
+  return 0;
+}
+
+int32_t BSP_I2C1_ReadReg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+  if (HAL_OK != HAL_I2C_Mem_Read(&hbus_i2c1, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000)) {
+    return -1;
+  }
+  return 0;
+}
+
+int32_t BSP_I2C1_WriteReg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+  if(HAL_OK != HAL_I2C_Mem_Write(&hbus_i2c1, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000)) {
+    return -1;
+  }
+  return 0;
+}
+
+
+static inline void board_init2(void) {
+  // Init MFX IO expanding for vbus drive
+  BSP_I2C1_Init();
+
+  /* Configure the audio driver */
+  MFXSTM32L152_IO_t IOCtx;
+  IOCtx.Init        = BSP_I2C1_DeInit;
+  IOCtx.DeInit      = BSP_I2C1_DeInit;
+  IOCtx.ReadReg     = BSP_I2C1_ReadReg;
+  IOCtx.WriteReg    = BSP_I2C1_WriteReg;
+  IOCtx.GetTick     = (MFXSTM32L152_GetTick_Func) HAL_GetTick;
+
+  uint8_t i2c_address[] = {0x84, 0x86};
+  for(uint8_t i = 0U; i < 2U; i++) {
+    uint32_t mfx_id;
+    IOCtx.Address = (uint16_t)i2c_address[i];
+    if (MFXSTM32L152_RegisterBusIO(&mfx_obj, &IOCtx) != MFXSTM32L152_OK) {
+      return;
+    }
+    if (MFXSTM32L152_ReadID(&mfx_obj, &mfx_id) != MFXSTM32L152_OK) {
+      return;
+    }
+
+    if ((mfx_id == MFXSTM32L152_ID) || (mfx_id == MFXSTM32L152_ID_2)) {
+      if (MFXSTM32L152_Init(&mfx_obj) != MFXSTM32L152_OK) {
+        return;
+      }
+      break;
+    }
+  }
+
+  mfx_io_drv = &MFXSTM32L152_IO_Driver;
+
+  static MFXSTM32L152_IO_Init_t io_init = { 0 };
+  mfx_io_drv->Init(&mfx_obj, &io_init);
+
+  io_init.Pin = MFXSTM32L152_GPIO_PIN_7;
+  io_init.Mode = MFXSTM32L152_GPIO_MODE_OUTPUT_PP;
+  io_init.Pull = MFXSTM32L152_GPIO_PULLUP;
+  mfx_io_drv->Init(&mfx_obj, &io_init); // VBUS[0]
+
+  io_init.Pin = MFXSTM32L152_GPIO_PIN_9;
+  mfx_io_drv->Init(&mfx_obj, &io_init); // VBUS[1]
+
+#if 1 // write then read IO7 but it does not seems to change value
+  int32_t pin_value;
+  pin_value = mfx_io_drv->IO_ReadPin(&mfx_obj, MFXSTM32L152_GPIO_PIN_7);
+  TU_LOG1_INT(pin_value);
+
+  mfx_io_drv->IO_WritePin(&mfx_obj, MFXSTM32L152_GPIO_PIN_7, 1);
+
+  pin_value = mfx_io_drv->IO_ReadPin(&mfx_obj, MFXSTM32L152_GPIO_PIN_7);
+  TU_LOG1_INT(pin_value);
+#endif
+}
+
 
 #ifdef __cplusplus
  }

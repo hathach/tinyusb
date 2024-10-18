@@ -5,6 +5,7 @@ set(ST_PREFIX stm32${ST_FAMILY}xx)
 
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
 set(ST_CMSIS ${TOP}/hw/mcu/st/cmsis_device_${ST_FAMILY})
+set(MFXSTM32L152 ${TOP}/hw/mcu/st/stm32-mfxstm32l152)
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
 # include board specific
@@ -42,6 +43,8 @@ function(add_board_target BOARD_TARGET)
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_i2c.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_i2c_ex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
@@ -49,12 +52,16 @@ function(add_board_target BOARD_TARGET)
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart_ex.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    # MFXSTM32L152
+    ${MFXSTM32L152}/mfxstm32l152.c
+    ${MFXSTM32L152}/mfxstm32l152_reg.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMSIS_5}/CMSIS/Core/Include
     ${ST_CMSIS}/Include
     ${ST_HAL_DRIVER}/Inc
+    ${MFXSTM32L152}
     )
   #target_compile_options(${BOARD_TARGET} PUBLIC)
   #target_compile_definitions(${BOARD_TARGET} PUBLIC)
