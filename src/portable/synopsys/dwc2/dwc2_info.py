@@ -44,7 +44,7 @@ class GHWCFG2(ctypes.LittleEndianStructure):
     _fields_ = [
         ("op_mode", ctypes.c_uint32, 3),
         ("arch", ctypes.c_uint32, 2),
-        ("p2p (hub support)", ctypes.c_uint32, 1),
+        ("single_point", ctypes.c_uint32, 1),
         ("hs_phy_type", ctypes.c_uint32, 2),
         ("fs_phy_type", ctypes.c_uint32, 2),
         ("num_dev_ep", ctypes.c_uint32, 4),
@@ -118,6 +118,10 @@ GHWCFG2_field = {
         0: "Slave only",
         1: "DMA external",
         2: "DMA internal"
+    },
+    'single_point': {
+        0: "hub",
+        1: "n/a"
     },
     'hs_phy_type': {
         0: "n/a",

@@ -208,7 +208,7 @@ typedef struct TU_ATTR_PACKED {
     based on the speed of enumeration. The number of bit times added per PHY clock are as follows:
     - High-speed: PHY clock One 30-MHz = 16 bit times, One 60-MHz = 8 bit times
     - Full-speed: PHY clock One 30-MHz = 0.4 bit times, One 60-MHz = 0.2 bit times, One 48-MHz = 0.25 bit times */
-  uint32_t phy_if                  : 1; // 3 PHY interface. 0: 8 bits, 1: 16 bits
+  uint32_t phy_if16                : 1; // 3 PHY interface. 0: 8 bits, 1: 16 bits
   uint32_t ulpi_utmi_sel           : 1; // 4 ULPI/UTMI select. 0: UTMI+, 1: ULPI
   uint32_t fs_intf_sel             : 1; // 5 Fullspeed serial interface select. 0: 6-pin, 1: 3-pin
   uint32_t phy_sel                 : 1; // 6 HS/FS PHY selection. 0: HS UTMI+ or ULPI, 1: FS serial transceiver
@@ -259,7 +259,7 @@ TU_VERIFY_STATIC(sizeof(dwc2_grstctl_t) == 4, "incorrect size");
 typedef struct TU_ATTR_PACKED {
   uint32_t op_mode                : 3; // 0..2 HNP/SRP Host/Device/OTG mode
   uint32_t arch                   : 2; // 3..4 Slave/External/Internal DMA
-  uint32_t point2point            : 1; // 5 0: support hub and split | 1: no hub, no split
+  uint32_t single_point           : 1; // 5 0: support hub and split | 1: no hub, no split
   uint32_t hs_phy_type            : 2; // 6..7 0: not supported | 1: UTMI+ | 2: ULPI | 3: UTMI+ and ULPI
   uint32_t fs_phy_type            : 2; // 8..9 0: not supported | 1: dedicated | 2: UTMI+ | 3: ULPI
   uint32_t num_dev_ep             : 4; // 10..13 Number of device endpoints (excluding EP0)
@@ -407,7 +407,10 @@ typedef struct {
   };
     volatile uint32_t gotgint;          // 004 OTG Interrupt
     volatile uint32_t gahbcfg;          // 008 AHB Configuration
+  union {
     volatile uint32_t gusbcfg;          // 00c USB Configuration
+    volatile dwc2_gusbcfg_t gusbcfg_bm;
+  };
     volatile uint32_t grstctl;          // 010 Reset
     volatile uint32_t gintsts;          // 014 Interrupt
     volatile uint32_t gintmsk;          // 018 Interrupt Mask
@@ -459,7 +462,10 @@ typedef struct {
     volatile uint32_t haintmsk;         // 418 Host All Channels Interrupt Mask
     volatile uint32_t hflbaddr;         // 41C Host Frame List Base Address
              uint32_t reserved420[8];   // 420..43F
+  union {
     volatile uint32_t hprt;             // 440 Host Port Control and Status
+    volatile dwc2_hprt_t hprt_bm;
+  };
              uint32_t reserved444[47];  // 444..4FF
 
     //------------- Host Channel -------------//
@@ -1490,14 +1496,14 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HPRT_CONN_STATUS_Msk           (0x1UL << HPRT_CONN_STATUS_Pos)         // 0x00000001
 #define HPRT_CONN_STATUS               HPRT_CONN_STATUS_Msk                    // Port connect status
 #define HPRT_CONN_DETECT_Pos           (1U)
-#define HPRT_CONN_DETECT_Msk           (0x1UL << HPRT_CONN_DETECT_Pos)      // 0x00000002
-#define HPRT_CONN_DETECT               HPRT_CONN_DETECT_Msk                 // Port connect detected
+#define HPRT_CONN_DETECT_Msk           (0x1UL << HPRT_CONN_DETECT_Pos)         // 0x00000002
+#define HPRT_CONN_DETECT               HPRT_CONN_DETECT_Msk                    // Port connect detected
 #define HPRT_ENABLE_Pos                (2U)
 #define HPRT_ENABLE_Msk                (0x1UL << HPRT_ENABLE_Pos)              // 0x00000004
 #define HPRT_ENABLE                    HPRT_ENABLE_Msk                         // Port enable
-#define HPRT_EN_CHANGE_Pos             (3U)
-#define HPRT_EN_CHANGE_Msk             (0x1UL << HPRT_EN_CHANGE_Pos)           // 0x00000008
-#define HPRT_EN_CHANGE                 HPRT_EN_CHANGE_Msk                      // Port enable/disable change
+#define HPRT_ENABLE_CHANGE_Pos         (3U)
+#define HPRT_ENABLE_CHANGE_Msk         (0x1UL << HPRT_ENABLE_CHANGE_Pos)       // 0x00000008
+#define HPRT_ENABLE_CHANGE             HPRT_ENABLE_CHANGE_Msk                  // Port enable/disable change
 #define HPRT_OVER_CURRENT_ACTIVE_Pos   (4U)
 #define HPRT_OVER_CURRENT_ACTIVE_Msk   (0x1UL << HPRT_OVER_CURRENT_ACTIVE_Pos) // 0x00000010
 #define HPRT_OVER_CURRENT_ACTIVE       HPRT_OVER_CURRENT_ACTIVE_Msk            // Port overcurrent active

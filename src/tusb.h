@@ -127,10 +127,8 @@
 
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// User API
 //--------------------------------------------------------------------+
-
-
 #if CFG_TUH_ENABLED || CFG_TUD_ENABLED
 
 // Internal helper for backward compatible with tusb_init(void)
@@ -167,6 +165,12 @@ void tusb_int_handler(uint8_t rhport, bool in_isr);
 
 #endif
 
+//--------------------------------------------------------------------+
+// API Implemented by user
+//--------------------------------------------------------------------+
+
+// Get current milliseconds, maybe required by some port with no RTOS
+uint32_t tusb_time_millis(void);
 
 #ifdef __cplusplus
  }

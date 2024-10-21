@@ -447,9 +447,9 @@ bool tuh_deinit(uint8_t rhport) {
 }
 
 bool tuh_task_event_ready(void) {
-  // Skip if stack is not initialized
-  if ( !tuh_inited() ) return false;
-
+  if (!tuh_inited()) {
+    return false; // Skip if stack is not initialized
+  }
   return !osal_queue_empty(_usbh_q);
 }
 
@@ -1520,10 +1520,17 @@ static bool enum_new_device(hcd_event_t* event) {
   _dev0.hub_port = event->connection.hub_port;
 
   if (_dev0.hub_addr == 0) {
-    // connected/disconnected directly with roothub
+    // connected directly to roothub
     hcd_port_reset(_dev0.rhport);
-    osal_task_delay(ENUM_RESET_DELAY); // TODO may not work for no-OS on MCU that require reset_end() since
-    // sof of controller may not running while resetting
+#if CFG_TUSB_OS == OPT_OS_NONE
+    // Since we are in middle of rhport reset, frame number is not available for time delay
+    // need to depend on tusb_time_millis() instead
+    const uint32_t start_reset = tusb_time_millis();
+    while ((tusb_time_millis() - start_reset) < ENUM_RESET_DELAY) {}
+#else
+    osal_task_delay(ENUM_RESET_DELAY);
+#endif
+
     hcd_port_reset_end(_dev0.rhport);
 
     // wait until device connection is stable TODO non blocking
@@ -1548,7 +1555,7 @@ static bool enum_new_device(hcd_event_t* event) {
   }
 #if CFG_TUH_HUB
   else {
-    // connected/disconnected via external hub
+    // connected via external hub
     // wait until device connection is stable TODO non blocking
     osal_task_delay(ENUM_CONTACT_DEBOUNCING_DELAY);
 

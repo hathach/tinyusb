@@ -134,3 +134,8 @@ int board_getchar(void) {
   char c;
   return (sys_read(0, &c, 1) > 0) ? (int) c : (-1);
 }
+
+
+uint32_t tusb_time_millis(void) {
+  return board_millis();
+}

@@ -35,8 +35,19 @@
 #include "dwc2_common.h"
 
 enum {
-  HPRT_W1C_MASK = HPRT_CONN_DETECT | HPRT_ENABLE | HPRT_EN_CHANGE | HPRT_OVER_CURRENT_CHANGE
+  HPRT_W1C_MASK = HPRT_CONN_DETECT | HPRT_ENABLE | HPRT_ENABLE_CHANGE | HPRT_OVER_CURRENT_CHANGE
 };
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_speed_t convert_hprt_speed(uint32_t hprt_speed) {
+  tusb_speed_t speed;
+  switch(hprt_speed) {
+    case HPRT_SPEED_HIGH: speed = TUSB_SPEED_HIGH; break;
+    case HPRT_SPEED_FULL: speed = TUSB_SPEED_FULL; break;
+    case HPRT_SPEED_LOW : speed = TUSB_SPEED_LOW ; break;
+    default: TU_BREAKPOINT(); break;
+  }
+  return speed;
+}
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -81,6 +92,8 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
   dwc2->hcfg = hcfg;
 
+  // Enable HFIR reload
+
   // force host mode and wait for mode switch
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
   while( (dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
@@ -107,8 +120,8 @@ void hcd_int_disable(uint8_t rhport) {
 
 // Get frame number (1ms)
 uint32_t hcd_frame_number(uint8_t rhport) {
-  (void) rhport;
-  return 0;
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  return dwc2->hfnum & HFNUM_FRNUM_Msk;
 }
 
 //--------------------------------------------------------------------+
@@ -125,7 +138,9 @@ bool hcd_port_connect_status(uint8_t rhport) {
 // Some port would require hcd_port_reset_end() to be invoked after 10ms to complete the reset sequence.
 void hcd_port_reset(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  dwc2->hprt = HPRT_RESET;
+  uint32_t hprt = dwc2->hprt & ~HPRT_W1C_MASK;
+  hprt |= HPRT_RESET;
+  dwc2->hprt = hprt;
 }
 
 // Complete bus reset sequence, may be required by some controllers
@@ -138,9 +153,9 @@ void hcd_port_reset_end(uint8_t rhport) {
 
 // Get port link speed
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
-  (void) rhport;
-
-  return TUSB_SPEED_FULL;
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  const tusb_speed_t speed = convert_hprt_speed(dwc2->hprt_bm.speed);
+  return speed;
 }
 
 // HCD closes all opened endpoints belong to this device
@@ -227,18 +242,62 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 */
 TU_ATTR_ALWAYS_INLINE static inline void handle_hprt_irq(uint8_t rhport, bool in_isr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint32_t hprt = dwc2->hprt;
+  uint32_t hprt = dwc2->hprt & ~HPRT_W1C_MASK;
+  const dwc2_hprt_t hprt_bm = dwc2->hprt_bm;
 
-  if (hprt & HPRT_CONN_DETECT) {
+  if (dwc2->hprt & HPRT_CONN_DETECT) {
     // Port Connect Detect
-    dwc2->hprt = HPRT_CONN_DETECT; // clear
+    hprt |= HPRT_CONN_DETECT;
 
-    if (hprt & HPRT_CONN_STATUS) {
+    if (hprt_bm.conn_status) {
       hcd_event_device_attach(rhport, in_isr);
     } else {
       hcd_event_device_remove(rhport, in_isr);
     }
   }
+
+  if (dwc2->hprt & HPRT_ENABLE_CHANGE) {
+    // Port enable change
+    hprt |= HPRT_ENABLE_CHANGE;
+
+    if (hprt_bm.enable) {
+      // Port enable
+      // Config HCFG FS/LS clock and HFIR for SOF interval according to link speed (value is in PHY clock unit)
+      const tusb_speed_t speed = convert_hprt_speed(hprt_bm.speed);
+      uint32_t hcfg = dwc2->hcfg & ~HCFG_FSLS_PHYCLK_SEL;
+
+      const dwc2_gusbcfg_t gusbcfg_bm = dwc2->gusbcfg_bm;
+      uint32_t clock = 60;
+      if (gusbcfg_bm.phy_sel) {
+        // dedicated FS is 48Mhz
+        clock = 48;
+        hcfg |= HCFG_FSLS_PHYCLK_SEL_48MHZ;
+      } else {
+        // UTMI+ or ULPI
+        if (gusbcfg_bm.ulpi_utmi_sel) {
+          clock = 60; // ULPI 8-bit is  60Mhz
+        } else if (gusbcfg_bm.phy_if16) {
+          clock = 30; // UTMI+ 16-bit is 30Mhz
+        } else {
+          clock = 60; // UTMI+ 8-bit is 60Mhz
+        }
+        hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
+      }
+
+      dwc2->hcfg = hcfg;
+
+      uint32_t hfir = dwc2->hfir & ~HFIR_FRIVL_Msk;
+      if (speed == TUSB_SPEED_HIGH) {
+        hfir |= 125*clock;
+      } else {
+        hfir |= 1000*clock;
+      }
+
+      dwc2->hfir = hfir;
+    }
+  }
+
+  dwc2->hprt = hprt; // clear interrupt
 }
 
 /* Interrupt Hierarchy
