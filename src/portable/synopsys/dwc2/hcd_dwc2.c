@@ -56,25 +56,40 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Core Initialization
-  TU_ASSERT(dwc2_core_init(rhport, rh_init));
+  const bool is_highspeed = dwc2_core_is_highspeed(dwc2, rh_init);
+  const bool is_dma = dwc2_dma_enabled(dwc2, TUSB_ROLE_HOST);
+  TU_ASSERT(dwc2_core_init(rhport, is_highspeed, is_dma));
 
   //------------- 3.1 Host Initialization -------------//
 
-  // max speed
-  // if (dwc2_core_is_highspeed(dwc2, rh_init)) {
-  //   dwc2->hcfg &= ~HCFG_FSLS_ONLY;
-  // } else {
-  //   dwc2->hcfg |= HCFG_FSLS_ONLY;
-  // }
+  // FS/LS PHY Clock Select
+  uint32_t hcfg = dwc2->hcfg;
+  if (is_highspeed) {
+    hcfg &= ~HCFG_FSLS_ONLY;
+  } else {
+    hcfg &= ~HCFG_FSLS_ONLY; // since we are using FS PHY
+    hcfg &= ~HCFG_FSLS_PHYCLK_SEL;
 
-  // force host mode
+    if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI &&
+        dwc2->ghwcfg2_bm.fs_phy_type == GHWCFG2_FSPHY_DEDICATED) {
+      // dedicated FS PHY with 48 mhz
+      hcfg |= HCFG_FSLS_PHYCLK_SEL_48MHZ;
+    } else {
+      // shared HS PHY running at full speed
+      hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
+    }
+  }
+  dwc2->hcfg = hcfg;
+
+  // force host mode and wait for mode switch
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
+  while( (dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
 
   dwc2->hprt = HPRT_W1C_MASK; // clear all write-1-clear bits
-  dwc2->hprt = HPRT_POWER; // port power on -> drive VBUS
+  dwc2->hprt = HPRT_POWER; // turn on VBUS
 
   // Enable required interrupts
-  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_PRTIM | GINTMSK_WUIM;
+  dwc2->gintmsk |= GINTMSK_OTGINT | GINTSTS_CONIDSTSCHNG | GINTMSK_PRTIM; // | GINTMSK_WUIM;
   dwc2->gahbcfg |= GAHBCFG_GINT;   // Enable global interrupt
 
   return true;
@@ -193,74 +208,15 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 #if 1
 static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  volatile uint32_t const* rx_fifo = dwc2->fifo[0];
+  // volatile uint32_t const* rx_fifo = dwc2->fifo[0];
 
   // Pop control word off FIFO
   uint32_t const grxstsp = dwc2->grxstsp;
-  uint8_t const pktsts = (grxstsp & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
-  uint8_t const epnum = (grxstsp & GRXSTSP_EPNUM_Msk) >> GRXSTSP_EPNUM_Pos;
-  uint16_t const bcnt = (grxstsp & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
+  (void) grxstsp;
+  // uint8_t const pktsts = (grxstsp & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
+  // uint8_t const epnum = (grxstsp & GRXSTSP_EPNUM_Msk) >> GRXSTSP_EPNUM_Pos;
+  // uint16_t const bcnt = (grxstsp & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
   // dwc2_epout_t* epout = &dwc2->epout[epnum];
-
-  (void) epnum; (void) bcnt; (void) rx_fifo;
-
-  TU_LOG1_INT(pktsts);
-
-  // switch (pktsts) {
-  //   // Global OUT NAK: do nothing
-  //   case GRXSTS_PKTSTS_GLOBALOUTNAK:
-  //     break;
-  //
-  //   case GRXSTS_PKTSTS_SETUPRX:
-  //     // Setup packet received
-  //     // We can receive up to three setup packets in succession, but  only the last one is valid.
-  //     _setup_packet[0] = (*rx_fifo);
-  //     _setup_packet[1] = (*rx_fifo);
-  //     break;
-  //
-  //   case GRXSTS_PKTSTS_SETUPDONE:
-  //     // Setup packet done:
-  //     // After popping this out, dwc2 asserts a DOEPINT_SETUP interrupt which is handled by handle_epout_irq()
-  //     epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
-  //     break;
-  //
-  //   case GRXSTS_PKTSTS_OUTRX: {
-  //     // Out packet received
-  //     xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-  //
-  //     // Read packet off RxFIFO
-  //     if (xfer->ff) {
-  //       // Ring buffer
-  //       tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, bcnt);
-  //     } else {
-  //       // Linear buffer
-  //       dfifo_read_packet(rhport, xfer->buffer, bcnt);
-  //
-  //       // Increment pointer to xfer data
-  //       xfer->buffer += bcnt;
-  //     }
-  //
-  //     // Truncate transfer length in case of short packet
-  //     if (bcnt < xfer->max_size) {
-  //       xfer->total_len -= (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
-  //       if (epnum == 0) {
-  //         xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
-  //         ep0_pending[TUSB_DIR_OUT] = 0;
-  //       }
-  //     }
-  //     break;
-  //   }
-  //
-  //   case GRXSTS_PKTSTS_OUTDONE:
-  //     /* Out packet done
-  //        After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed interrupt on
-  //        the specified OUT endpoint which will be handled by handle_epout_irq() */
-  //     break;
-  //
-  //   default:
-  //     TU_BREAKPOINT();
-  //     break;
-  // }
 }
 #endif
 
@@ -305,9 +261,20 @@ TU_ATTR_ALWAYS_INLINE static inline void handle_hprt_irq(uint8_t rhport, bool in
  */
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
   const uint32_t int_mask = dwc2->gintmsk;
   const uint32_t int_status = dwc2->gintsts & int_mask;
+
+  TU_LOG1_HEX(int_status);
+
+  if (int_status & GINTSTS_CONIDSTSCHNG) {
+    // Connector ID status change
+    dwc2->gintsts = GINTSTS_CONIDSTSCHNG;
+
+    //if (dwc2->gotgctl)
+    // dwc2->hprt = HPRT_POWER; // power on port to turn on VBUS
+    //dwc2->gintmsk |= GINTMSK_PRTIM;
+    // TODO wait for SRP if OTG
+  }
 
   if (int_status & GINTSTS_HPRTINT) {
     TU_LOG1_HEX(dwc2->hprt);

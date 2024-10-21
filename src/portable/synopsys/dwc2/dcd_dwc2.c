@@ -454,7 +454,9 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Core Initialization
-  TU_ASSERT(dwc2_core_init(rhport, rh_init));
+  const bool is_highspeed = dwc2_core_is_highspeed(dwc2, rh_init);
+  const bool is_dma = dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE);
+  TU_ASSERT(dwc2_core_init(rhport, is_highspeed, is_dma));
 
   // Device Initialization
   dcd_disconnect(rhport);

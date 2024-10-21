@@ -87,6 +87,11 @@ typedef struct
 #endif
 
 enum {
+  GOTGCTL_OTG_VERSION_1_3 = 0,
+  GOTGCTL_OTG_VERSION_2_0 = 1,
+};
+
+enum {
   GHWCFG2_OPMODE_HNP_SRP         = 0,
   GHWCFG2_OPMODE_SRP             = 1,
   GHWCFG2_OPMODE_NON_HNP_NON_SRP = 2,
@@ -128,6 +133,11 @@ enum {
   HPRT_SPEED_LOW  = 2
 };
 
+enum {
+  GINTSTS_CMODE_DEVICE = 0,
+  GINTSTS_CMODE_HOST   = 1,
+};
+
 //--------------------------------------------------------------------
 // Register bitfield definitions
 //--------------------------------------------------------------------
@@ -152,7 +162,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t ases_valid            : 1; // 18 A-session valid
   uint32_t bses_valid            : 1; // 19 B-session valid
   uint32_t otg_ver               : 1; // 20 OTG version 0: v1.3, 1: v2.0
-  uint32_t current_mode          : 1; // 21 Current mode of operation 0: device, 1: host
+  uint32_t current_mode          : 1; // 21 Current mode of operation. Only from v3.00a
   uint32_t mult_val_id_bc        : 5; // 22..26 Multi-valued input pin ID battery charger
   uint32_t chirp_en              : 1; // 27 Chirp detection enable
   uint32_t rsv28_30              : 3; // 28.30: Reserved
@@ -391,7 +401,10 @@ TU_VERIFY_STATIC(sizeof(dwc2_dep_t) == 0x20, "incorrect size");
 //--------------------------------------------------------------------
 typedef struct {
     //------------- Core Global -------------//
+  union {
     volatile uint32_t gotgctl;          // 000 OTG Control and Status
+    volatile dwc2_gotgctl_t gotgctl_bm;
+  };
     volatile uint32_t gotgint;          // 004 OTG Interrupt
     volatile uint32_t gahbcfg;          // 008 AHB Configuration
     volatile uint32_t gusbcfg;          // 00c USB Configuration
@@ -1008,9 +1021,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GINTSTS_LPMINT_Pos               (27U)
 #define GINTSTS_LPMINT_Msk               (0x1UL << GINTSTS_LPMINT_Pos)            // 0x08000000
 #define GINTSTS_LPMINT                   GINTSTS_LPMINT_Msk                       // LPM interrupt
-#define GINTSTS_CIDSCHG_Pos              (28U)
-#define GINTSTS_CIDSCHG_Msk              (0x1UL << GINTSTS_CIDSCHG_Pos)           // 0x10000000
-#define GINTSTS_CIDSCHG                  GINTSTS_CIDSCHG_Msk                      // Connector ID status change
+#define GINTSTS_CONIDSTSCHNG_Pos         (28U)
+#define GINTSTS_CONIDSTSCHNG_Msk         (0x1UL << GINTSTS_CONIDSTSCHNG_Pos)           // 0x10000000
+#define GINTSTS_CONIDSTSCHNG             GINTSTS_CONIDSTSCHNG_Msk                      // Connector ID status change
 #define GINTSTS_DISCINT_Pos              (29U)
 #define GINTSTS_DISCINT_Msk              (0x1UL << GINTSTS_DISCINT_Pos)           // 0x20000000
 #define GINTSTS_DISCINT                  GINTSTS_DISCINT_Msk                      // Disconnect detected interrupt
@@ -1094,9 +1107,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GINTMSK_LPMINTM_Pos              (27U)
 #define GINTMSK_LPMINTM_Msk              (0x1UL << GINTMSK_LPMINTM_Pos)           // 0x08000000
 #define GINTMSK_LPMINTM                  GINTMSK_LPMINTM_Msk                      // LPM interrupt Mask
-#define GINTMSK_CIDSCHGM_Pos             (28U)
-#define GINTMSK_CIDSCHGM_Msk             (0x1UL << GINTMSK_CIDSCHGM_Pos)          // 0x10000000
-#define GINTMSK_CIDSCHGM                 GINTMSK_CIDSCHGM_Msk                     // Connector ID status change mask
+#define GINTMSK_CONIDSTSCHNGM_Pos        (28U)
+#define GINTMSK_CONIDSTSCHNGM_Msk        (0x1UL << GINTMSK_CONIDSTSCHNGM_Pos)     // 0x10000000
+#define GINTMSK_CONIDSTSCHNGM            GINTMSK_CONIDSTSCHNGM_Msk                // Connector ID status change mask
 #define GINTMSK_DISCINT_Pos              (29U)
 #define GINTMSK_DISCINT_Msk              (0x1UL << GINTMSK_DISCINT_Pos)           // 0x20000000
 #define GINTMSK_DISCINT                  GINTMSK_DISCINT_Msk                      // Disconnect detected interrupt mask
