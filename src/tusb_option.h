@@ -199,6 +199,9 @@
 #define OPT_MCU_MAX32650         2402  ///< ADI MAX32650/1/2
 #define OPT_MCU_MAX78002         2403  ///< ADI MAX78002
 
+// Artery
+#define OPT_MCU_AT32F4           2500  ///< Artery AT32F403A
+
 // Check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
 #define _TU_CHECK_MCU(_m)    (CFG_TUSB_MCU == _m)
