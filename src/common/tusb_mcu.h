@@ -216,6 +216,7 @@
   #define TUP_USBIP_DWC2_STM32
 
   #define TUP_DCD_ENDPOINT_MAX    9
+  #define TUP_RHPORT_HIGHSPEED  1 // Port0: FS, Port1: HS
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H5)
   #define TUP_USBIP_FSDEV
