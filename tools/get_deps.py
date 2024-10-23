@@ -193,6 +193,9 @@ deps_optional = {
     'hw/mcu/wch/ch32f20x': ['https://github.com/openwch/ch32f20x.git',
                             '77c4095087e5ed2c548ec9058e655d0b8757663b',
                             'ch32f20x'],
+    'hw/mcu/artery/at32f403a_407': ['https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git',
+                                    'f2cb360c3d28fada76b374308b8c4c61d37a090b',
+                                    'at32f403a_407'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x '
