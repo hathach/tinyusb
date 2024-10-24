@@ -39,10 +39,17 @@ void USBFS_L_CAN1_RX0_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void USBFSWakeUp_IRQHandler(void) {
+void USBFS_MAPH_IRQHandler(void) {
   tud_int_handler(0);
 }
 
+void USBFS_MAPL_IRQHandler(void) {
+  tud_int_handler(0);
+}
+
+void USBFSWakeUp_IRQHandler(void) {
+  tud_int_handler(0);
+}
 
 /**
   * @brief  usb 48M clock select

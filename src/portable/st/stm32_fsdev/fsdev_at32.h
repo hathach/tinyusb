@@ -59,15 +59,39 @@ enum { FSDEV_IRQ_NUM = TU_ARRAY_SIZE(fsdev_irq) };
 
 void dcd_int_enable(uint8_t rhport) {
   (void)rhport;
-  for(uint8_t i=0; i < FSDEV_IRQ_NUM; i++) {
-    NVIC_EnableIRQ(fsdev_irq[i]);
+  #if CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
+  // AT32F403A/407 devices allow to remap the USB interrupt vectors from
+  // shared USB/CAN IRQs to separate CAN and USB IRQs.
+  // This dynamically checks if this remap is active to enable the right IRQs.
+  if (CRM->intmap_bit.usbintmap) {
+    NVIC_DisableIRQ(USBFS_MAPH_IRQn);
+    NVIC_DisableIRQ(USBFS_MAPL_IRQn);
+    NVIC_DisableIRQ(USBFSWakeUp_IRQn);
+  } else
+  #endif
+  {
+    for(uint8_t i=0; i < FSDEV_IRQ_NUM; i++) {
+      NVIC_EnableIRQ(fsdev_irq[i]);
+    }
   }
 }
 
 void dcd_int_disable(uint8_t rhport) {
   (void)rhport;
-  for(uint8_t i=0; i < FSDEV_IRQ_NUM; i++) {
-    NVIC_DisableIRQ(fsdev_irq[i]);
+  #if CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
+  // AT32F403A/407 devices allow to remap the USB interrupt vectors from
+  // shared USB/CAN IRQs to separate CAN and USB IRQs.
+  // This dynamically checks if this remap is active to enable the right IRQs.
+  if (CRM->intmap_bit.usbintmap) {
+    NVIC_DisableIRQ(USBFS_MAPH_IRQn);
+    NVIC_DisableIRQ(USBFS_MAPL_IRQn);
+    NVIC_DisableIRQ(USBFSWakeUp_IRQn);
+  } else
+  #endif
+  {
+    for(uint8_t i=0; i < FSDEV_IRQ_NUM; i++) {
+      NVIC_DisableIRQ(fsdev_irq[i]);
+    }
   }
 }
 
