@@ -56,7 +56,7 @@ static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 
 // EP0 transfers are limited to 1 packet - larger sizes has to be split
 static uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
-static uint16_t _dfifo_top;      // top free location in FIFO RAM
+static uint16_t _dfifo_top;      // top free location in DFIFO in words
 
 // Number of IN endpoints active
 static uint8_t _allocated_ep_in_count;
@@ -67,6 +67,12 @@ static bool _sof_en;
 //--------------------------------------------------------------------
 // DMA
 //--------------------------------------------------------------------
+
+TU_ATTR_ALWAYS_INLINE static inline bool dma_device_enabled(const dwc2_regs_t* dwc2) {
+  (void) dwc2;
+  // Internal DMA only
+  return CFG_TUD_DWC2_DMA && dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA;
+}
 
 static void dma_setup_prepare(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -103,11 +109,9 @@ static void dma_setup_prepare(uint8_t rhport) {
   possible since the free space is located between the RX and TX FIFOs.
 
    ---------------- ep_fifo_size
-  |   EPInfo    |
-  |   for DMA   |
+  | EPInfo DMA  |
   |-------------|-- gdfifocfg.EPINFOBASE (max is ghwcfg3.dfifo_depth)
-  | IN FIFO 0   |
-  |  control    |
+  | IN FIFO 0   |       control EP
   |-------------|
   | IN FIFO 1   |
   |-------------|
@@ -126,13 +130,13 @@ static void dma_setup_prepare(uint8_t rhport) {
   - All EP OUT shared a unique OUT FIFO which uses (for Slave or Buffer DMA, Scatt/Gather DMA use different formula):
     - 13 for setup packets + control words (up to 3 setup packets).
     - 1 for global NAK (not required/used here).
-    - Largest-EPsize / 4 + 1. ( FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4) + 1"
+    - Largest-EPsize/4 + 1. ( FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4 + 1)"
     - 2 for each used OUT endpoint
 
     Therefore GRXFSIZ = 13 + 1 + 2 x (Largest-EPsize/4 + 1) + 2 x EPOUTnum
 */
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t calc_grxfsiz(uint16_t largest_ep_size, uint8_t ep_count) {
+TU_ATTR_ALWAYS_INLINE static inline uint16_t calc_device_grxfsiz(uint16_t largest_ep_size, uint8_t ep_count) {
   return 13 + 1 + 2 * ((largest_ep_size / 4) + 1) + 2 * ep_count;
 }
 
@@ -148,7 +152,7 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   uint16_t fifo_size = tu_div_ceil(packet_size, 4);
   if (dir == TUSB_DIR_OUT) {
     // Calculate required size of RX FIFO
-    uint16_t const new_sz = calc_grxfsiz(4 * fifo_size, ep_count);
+    uint16_t const new_sz = calc_device_grxfsiz(4 * fifo_size, ep_count);
 
     // If size_rx needs to be extended check if there is enough free space
     if (dwc2->grxfsiz < new_sz) {
@@ -184,17 +188,18 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
   return true;
 }
 
-static void dfifo_init(uint8_t rhport) {
+static void dfifo_device_init(uint8_t rhport) {
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  dwc2->grxfsiz = calc_grxfsiz(CFG_TUD_ENDPOINT0_SIZE, dwc2_controller->ep_count);
+  dwc2->grxfsiz = calc_device_grxfsiz(CFG_TUD_ENDPOINT0_SIZE, dwc2_controller->ep_count);
 
-  if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
-    // DMA use last DFIFO to store metadata
-    _dfifo_top = dma_cal_epfifo_base(rhport);
-  }else {
-    _dfifo_top = dwc2_controller->ep_fifo_size / 4;
+  // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per endpoint direction
+  const bool is_dma = dma_device_enabled(dwc2);
+  _dfifo_top = dwc2_controller->ep_fifo_size/4;
+  if (is_dma) {
+    _dfifo_top -= 2 * dwc2_controller->ep_count;
   }
+  dwc2->gdfifocfg = (_dfifo_top << GDFIFOCFG_EPINFOBASE_SHIFT) | _dfifo_top;
 
   // Allocate FIFO for EP0 IN
   dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE);
@@ -357,7 +362,7 @@ static void bus_reset(uint8_t rhport) {
   dwc2->diepmsk = DIEPMSK_TOM | DIEPMSK_XFRCM;
 
   // 4. Set up DFIFO
-  dfifo_init(rhport);
+  dfifo_device_init(rhport);
 
   // 5. Reset device address
   dwc2->dcfg &= ~DCFG_DAD_Msk;
@@ -369,7 +374,7 @@ static void bus_reset(uint8_t rhport) {
   xfer_status[0][TUSB_DIR_OUT].max_size = 64;
   xfer_status[0][TUSB_DIR_IN].max_size = 64;
 
-  if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
+  if(dma_device_enabled(dwc2)) {
     dma_setup_prepare(rhport);
   } else {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
@@ -401,7 +406,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     dep->dieptsiz = (num_packets << DIEPTSIZ_PKTCNT_Pos) |
                            ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
 
-    if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
+    if(dma_device_enabled(dwc2)) {
       dep->diepdma = (uintptr_t)xfer->buffer;
 
       // For ISO endpoint set correct odd/even bit for next frame.
@@ -439,7 +444,7 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
       dep->doepctl |= (odd_frame_now ? DOEPCTL_SD0PID_SEVNFRM_Msk : DOEPCTL_SODDFRM_Msk);
     }
 
-    if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
+    if(dma_device_enabled(dwc2)) {
       dep->doepdma = (uintptr_t)xfer->buffer;
     }
 
@@ -451,11 +456,12 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
 // Controller API
 //--------------------------------------------------------------------
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Core Initialization
-  const bool is_highspeed = dwc2_core_is_highspeed(dwc2, rh_init);
-  const bool is_dma = dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE);
+  const bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_DEVICE);
+  const bool is_dma = dma_device_enabled(dwc2);
   TU_ASSERT(dwc2_core_init(rhport, is_highspeed, is_dma));
 
   // Device Initialization
@@ -463,7 +469,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // Set device max speed
   uint32_t dcfg = dwc2->dcfg & ~DCFG_DSPD_Msk;
-  if (dwc2_core_is_highspeed(dwc2, rh_init)) {
+  if (is_highspeed) {
     dcfg |= DCFG_DSPD_HS << DCFG_DSPD_Pos;
 
     // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
@@ -611,7 +617,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dfifo_flush_tx(dwc2, 0x10); // all tx fifo
   dfifo_flush_rx(dwc2);
 
-  dfifo_init(rhport); // re-init dfifo
+  dfifo_device_init(rhport); // re-init dfifo
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -690,8 +696,9 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   edpt_disable(rhport, ep_addr, true);
-  if((tu_edpt_number(ep_addr) == 0) && dwc2_dma_enabled(DWC2_REG(rhport), TUSB_ROLE_DEVICE)) {
+  if((tu_edpt_number(ep_addr) == 0) && dma_device_enabled(dwc2)) {
     dma_setup_prepare(rhport);
   }
 }
@@ -808,7 +815,7 @@ static void handle_epout_irq(uint8_t rhport) {
       if (doepint & DOEPINT_SETUP) {
         epout->doepint = DOEPINT_SETUP;
 
-        if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
+        if(dma_device_enabled(dwc2)) {
           dma_setup_prepare(rhport);
         }
 
@@ -824,7 +831,7 @@ static void handle_epout_irq(uint8_t rhport) {
         if (!(doepint & (DOEPINT_SETUP | DOEPINT_STPKTRX | DOEPINT_STSPHSRX))) {
           xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
-          if(dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
+          if(dma_device_enabled(dwc2)) {
             if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
               // EP0 can only handle one packet Schedule another packet to be received.
               edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
@@ -874,7 +881,7 @@ static void handle_epin_irq(uint8_t rhport) {
           // Schedule another packet to be transmitted.
           edpt_schedule_packets(rhport, n, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
         } else {
-          if((n == 0) && dwc2_dma_enabled(dwc2, TUSB_ROLE_DEVICE)) {
+          if((n == 0) && dma_device_enabled(dwc2)) {
             dma_setup_prepare(rhport);
           }
           dcd_event_xfer_complete(rhport, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);

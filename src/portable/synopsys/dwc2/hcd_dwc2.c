@@ -34,10 +34,37 @@
 #include "host/hcd.h"
 #include "dwc2_common.h"
 
+// DWC2 has limit number of channel, in order to support all endpoints we can store channel char/split to swap later on
+#ifndef CFG_TUH_DWC2_CHANNEL_MAX
+#define CFG_TUH_DWC2_CHANNEL_MAX (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX + CFG_TUH_HUB)
+#endif
+
 enum {
   HPRT_W1C_MASK = HPRT_CONN_DETECT | HPRT_ENABLE | HPRT_ENABLE_CHANGE | HPRT_OVER_CURRENT_CHANGE
 };
 
+typedef struct {
+  union {
+    uint32_t hcchar;
+    dwc2_channel_char_t hcchar_bm;
+  };
+  union {
+    uint32_t hcsplt;
+    dwc2_channel_split_t hcsplt_bm;
+  };
+
+  uint8_t next_data_toggle;
+} hcd_pipe_t;
+
+typedef struct {
+  hcd_pipe_t pipe[CFG_TUH_DWC2_CHANNEL_MAX];
+} dwc2_hcd_t;
+
+dwc2_hcd_t _hcd_data;
+
+//--------------------------------------------------------------------
+//
+//--------------------------------------------------------------------
 TU_ATTR_ALWAYS_INLINE static inline tusb_speed_t convert_hprt_speed(uint32_t hprt_speed) {
   tusb_speed_t speed;
   switch(hprt_speed) {
@@ -47,6 +74,85 @@ TU_ATTR_ALWAYS_INLINE static inline tusb_speed_t convert_hprt_speed(uint32_t hpr
     default: TU_BREAKPOINT(); break;
   }
   return speed;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dma_host_enabled(const dwc2_regs_t* dwc2) {
+  (void) dwc2;
+  // Internal DMA only
+  return CFG_TUH_DWC2_DMA && dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA;
+}
+
+/* USB Data FIFO Layout
+
+  The FIFO is split up into
+  - EPInfo: for storing DMA metadata (check dcd_dwc2.c for more details)
+  - 1 RX FIFO: for receiving data
+  - 1 TX FIFO for non-periodic (NPTX)
+  - 1 TX FIFO for periodic (PTX)
+
+  We allocated TX FIFO from top to bottom (using top pointer), this to allow the RX FIFO to grow dynamically which is
+  possible since the free space is located between the RX and TX FIFOs.
+
+   ----------------- ep_fifo_size
+  | EPInfo DMA   |
+  |--------------|-- gdfifocfg.EPINFOBASE (max is ghwcfg3.dfifo_depth)
+  | Non-Periodic |
+  |   TX FIFO    |
+  |--------------|--- GNPTXFSIZ.addr (fixed size)
+  |   Periodic   |
+  |   TX FIFO    |
+  |--------------|--- HPTXFSIZ.addr (expandable downward)
+  |    FREE      |
+  |              |
+  |--------------|-- GRXFSIZ (expandable upward)
+  |  RX FIFO     |
+  ---------------- 0
+*/
+
+/* Programming Guide 2.1.2 FIFO RAM allocation
+ * RX
+ * - Largest-EPsize/4 + 2 (status info). recommended x2 if high bandwidth or multiple ISO are used.
+ * - 2 for transfer complete and channel halted status
+ * - 1 for each Control/Bulk out endpoint to Handle NAK/NYET (i.e max is number of host channel)
+ *
+ * TX non-periodic (NPTX)
+ * - At least largest-EPsize/4, recommended x2
+ *
+ * TX periodic (PTX)
+ * - At least largest-EPsize*MulCount/4 (MulCount up to 3 for high-bandwidth ISO/interrupt)
+*/
+static void dfifo_host_init(uint8_t rhport) {
+  const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Scatter/Gather DMA mode is not yet supported. Buffer DMA only need 1 words per channel
+  const bool is_dma = dma_host_enabled(dwc2);
+  uint16_t dfifo_top = dwc2_controller->ep_fifo_size/4;
+  if (is_dma) {
+    dfifo_top -= dwc2->ghwcfg2_bm.num_host_ch;
+  }
+
+  // fixed allocation for now, improve later:
+    // - ptx_largest is limited to 256 for FS since most FS core only has 1024 bytes total
+  bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_HOST);
+  uint32_t nptx_largest = is_highspeed ? TUSB_EPSIZE_BULK_HS/4 : TUSB_EPSIZE_BULK_FS/4;
+  uint32_t ptx_largest = is_highspeed ? TUSB_EPSIZE_ISO_HS_MAX/4 : 256/4;
+
+  uint16_t nptxfsiz = 2 * nptx_largest;
+  uint16_t rxfsiz = 2 * (ptx_largest + 2) + dwc2->ghwcfg2_bm.num_host_ch;
+  TU_ASSERT(dfifo_top >= (nptxfsiz + rxfsiz),);
+  uint16_t ptxfsiz = dfifo_top - (nptxfsiz + rxfsiz);
+
+  dwc2->gdfifocfg = (dfifo_top << GDFIFOCFG_EPINFOBASE_SHIFT) | dfifo_top;
+
+  dfifo_top -= rxfsiz;
+  dwc2->grxfsiz = rxfsiz;
+
+  dfifo_top -= nptxfsiz;
+  dwc2->gnptxfsiz = tu_u32_from_u16(nptxfsiz, dfifo_top);
+
+  dfifo_top -= ptxfsiz;
+  dwc2->hptxfsiz = tu_u32_from_u16(ptxfsiz, dfifo_top);
 }
 
 //--------------------------------------------------------------------+
@@ -64,11 +170,14 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
+  tu_memclr(&_hcd_data, sizeof(_hcd_data));
+
   // Core Initialization
-  const bool is_highspeed = dwc2_core_is_highspeed(dwc2, rh_init);
-  const bool is_dma = dwc2_dma_enabled(dwc2, TUSB_ROLE_HOST);
+  const bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_HOST);
+  const bool is_dma = dma_host_enabled(dwc2);
   TU_ASSERT(dwc2_core_init(rhport, is_highspeed, is_dma));
 
   //------------- 3.1 Host Initialization -------------//
@@ -97,6 +206,9 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // force host mode and wait for mode switch
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
   while( (dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
+
+  // configure fixed-allocated fifo scheme
+  dfifo_host_init(rhport);
 
   dwc2->hprt = HPRT_W1C_MASK; // clear all write-1-clear bits
   dwc2->hprt = HPRT_POWER; // turn on VBUS
@@ -169,23 +281,108 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 //--------------------------------------------------------------------+
 
 // Open an endpoint
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc) {
+// channel0 is reserved for dev0 control endpoint
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep) {
   (void) rhport;
-  (void) dev_addr;
-  (void) ep_desc;
+  //dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  hcd_devtree_info_t devtree_info;
+  hcd_devtree_get_info(dev_addr, &devtree_info);
+
+  // find a free pipe
+  for (uint32_t i = 0; i < CFG_TUH_DWC2_CHANNEL_MAX; i++) {
+    hcd_pipe_t* pipe = &_hcd_data.pipe[i];
+    dwc2_channel_char_t* hcchar_bm = &pipe->hcchar_bm;
+    dwc2_channel_split_t* hcsplt_bm = &pipe->hcsplt_bm;
+
+    if (hcchar_bm->enable == 0) {
+      hcchar_bm->ep_size = tu_edpt_packet_size(desc_ep);
+      hcchar_bm->ep_num = tu_edpt_number(desc_ep->bEndpointAddress);
+      hcchar_bm->ep_dir = tu_edpt_dir(desc_ep->bEndpointAddress);
+      hcchar_bm->low_speed_dev = (devtree_info.speed == TUSB_SPEED_LOW) ? 1 : 0;
+      hcchar_bm->ep_type = desc_ep->bmAttributes.xfer;
+      hcchar_bm->err_multi_count = 0;
+      hcchar_bm->dev_addr = dev_addr;
+      hcchar_bm->odd_frame = 0;
+      hcchar_bm->disable = 0;
+      hcchar_bm->enable = 1;
+
+      hcsplt_bm->hub_port = devtree_info.hub_port;
+      hcsplt_bm->hub_addr = devtree_info.hub_addr;
+      // TODO not support split transaction yet
+      hcsplt_bm->xact_pos = 0;
+      hcsplt_bm->split_compl = 0;
+      hcsplt_bm->split_en = 0;
+
+      pipe->next_data_toggle = HCTSIZ_PID_DATA0;
+
+      return true;
+    }
+  }
 
   return false;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint8_t find_free_channel(dwc2_regs_t* dwc2) {
+  const uint8_t max_channel = tu_min8(dwc2->ghwcfg2_bm.num_host_ch, 16);
+  for (uint8_t i=0; i<max_channel; i++) {
+    // haintmsk bit enabled means channel is currently in use
+    if (!tu_bit_test(dwc2->haintmsk, i)) {
+      return i;
+    }
+  }
+  return TUSB_INDEX_INVALID_8;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t find_opened_pipe(uint8_t dev_addr, uint8_t ep_addr) {
+  for (uint32_t i = 0; i < CFG_TUH_DWC2_CHANNEL_MAX; i++) {
+    const dwc2_channel_char_t* hcchar_bm = &_hcd_data.pipe[i].hcchar_bm;
+    if (hcchar_bm->enable && hcchar_bm->dev_addr == dev_addr &&
+        ep_addr == tu_edpt_addr(hcchar_bm->ep_num, hcchar_bm->ep_dir)) {
+      return i;
+    }
+  }
+  return TUSB_INDEX_INVALID_8;
+}
+
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
-  (void) rhport;
-  (void) dev_addr;
-  (void) ep_addr;
-  (void) buffer;
-  (void) buflen;
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
-  return false;
+  uint8_t pipe_id = find_opened_pipe(dev_addr, ep_addr);
+  TU_ASSERT(pipe_id < CFG_TUH_DWC2_CHANNEL_MAX); // no opened pipe
+  hcd_pipe_t* pipe = &_hcd_data.pipe[pipe_id];
+  const dwc2_channel_char_t* hcchar_bm = &pipe->hcchar_bm;
+
+  uint8_t ch_id = find_free_channel(dwc2);
+  TU_ASSERT(ch_id < 16); // all channel are in use
+  dwc2->haintmsk |= TU_BIT(ch_id);
+
+  dwc2_channel_t* channel = &dwc2->channel[ch_id];
+  channel->hcintmsk = HCINT_XFER_COMPLETE | HCINT_CHANNEL_HALTED | HCINT_STALL |
+    HCINT_AHB_ERR | HCINT_XACT_ERR | HCINT_BABBLE_ERR | HCINT_DATATOGGLE_ERR;
+
+  const uint16_t packet_count = tu_div_ceil(buflen, hcchar_bm->ep_size);
+  channel->hctsiz = (pipe->next_data_toggle << HCTSIZ_PID_Pos) | (packet_count << HCTSIZ_PKTCNT_Pos) | buflen;
+
+  // Control transfer always start with DATA1 for data and status stage. May has issue with ZLP
+  if (pipe->next_data_toggle == HCTSIZ_PID_DATA0 || tu_edpt_number(ep_addr) == 0) {
+    pipe->next_data_toggle = HCTSIZ_PID_DATA1;
+  } else {
+    pipe->next_data_toggle = HCTSIZ_PID_DATA0;
+  }
+
+  if (dma_host_enabled(dwc2)) {
+    channel->hcdma = (uint32_t) buffer;
+  } else {
+    TU_ASSERT(false); // not yet support
+  }
+
+  // TODO support split transaction
+  channel->hcsplt = pipe->hcsplt;
+  channel->hcchar = pipe->hcchar; // kick-off transfer
+
+  return true;
 }
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
@@ -199,12 +396,13 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 }
 
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
-bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]) {
-  (void) rhport;
-  (void) dev_addr;
-  (void) setup_packet;
+bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet[8]) {
+  uint8_t pipe_id = find_opened_pipe(dev_addr, 0);
+  TU_ASSERT(pipe_id < CFG_TUH_DWC2_CHANNEL_MAX); // no opened pipe
+  hcd_pipe_t* pipe = &_hcd_data.pipe[pipe_id];
+  pipe->next_data_toggle = HCTSIZ_PID_SETUP;
 
-  return false;
+  return hcd_edpt_xfer(rhport, dev_addr, 0, (uint8_t*)(uintptr_t) setup_packet, 8);
 }
 
 // clear stall, data toggle is also reset to DATA0
@@ -300,23 +498,55 @@ TU_ATTR_ALWAYS_INLINE static inline void handle_hprt_irq(uint8_t rhport, bool in
   dwc2->hprt = hprt; // clear interrupt
 }
 
-/* Interrupt Hierarchy
+void handle_channel_irq(uint8_t rhport, bool in_isr) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  for(uint8_t ch_id=0; ch_id<32; ch_id++) {
+    if (tu_bit_test(dwc2->haint, ch_id)) {
+      dwc2_channel_t* channel = &dwc2->channel[ch_id];
+      uint32_t hcint = channel->hcint;
+      hcint &= channel->hcintmsk;
 
-   HCINTn.XferCompl     HCINTMSKn.XferComplMsk
-         |                       |
-         +---------- AND --------+
-                      |
-     HAINT.CHn            HAINTMSK.CHn
-         |                       |
-         +---------- AND --------+
-                      |
-    GINTSTS.PrtInt         GINTMSK.PrtInt
-         |                       |
-         +---------- AND --------+
-                      |
-             GAHBCFG.GblIntrMsk
-                      |
-                    IRQn
+      xfer_result_t result = XFER_RESULT_FAILED;
+      if (hcint & HCINT_XFER_COMPLETE) {
+        result = XFER_RESULT_SUCCESS;
+      }
+      if (hcint & HCINT_STALL) {
+        result = XFER_RESULT_STALLED;
+      }
+      if (hcint & (HCINT_CHANNEL_HALTED | HCINT_AHB_ERR | HCINT_XACT_ERR | HCINT_BABBLE_ERR | HCINT_DATATOGGLE_ERR |
+                   HCINT_BUFFER_NAK | HCINT_XCS_XACT_ERR | HCINT_DESC_ROLLOVER)) {
+        result = XFER_RESULT_FAILED;
+      }
+
+      const uint8_t ep_addr = tu_edpt_addr(channel->hcchar_bm.ep_num, channel->hcchar_bm.ep_dir);
+      hcd_event_xfer_complete(channel->hcchar_bm.dev_addr, ep_addr, 0, result, in_isr);
+
+      channel->hcint = hcint;  // clear all interrupt flags
+
+      // de-allocate channel by clearing haintmsk
+      dwc2->haintmsk &= ~TU_BIT(ch_id);
+    }
+  }
+}
+
+/* Interrupt Hierarchy
+   HCINTn.XferCompl     HCINTMSKn.XferComplMsk     HPRT ConnDetect    PrtEnChng    OverCurChng
+         |                       |                          |             |             |
+         +---------- AND --------+                          +------------ OR -----------+
+                      |                                                   |
+      HAINT.CHn            HAINTMSK.CHn                                   |
+         |                       |                                        |
+         +---------- AND --------+                                        |
+                      |                                                   |
+    GINTSTS.HCInt           GINTMSK.HCInt             GINTSTS.PrtInt            GINTMSK.PrtInt
+         |                        |                          |                         |
+         +---------- AND ---------+                          +---------- AND ---------+
+                      |                                                   |
+                      +-------------------- OR ---------------------------+
+                                            |
+                                   GAHBCFG.GblIntrMsk
+                                            |
+                                          IRQn
  */
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -336,8 +566,15 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   }
 
   if (int_status & GINTSTS_HPRTINT) {
+    // Host port interrupt: source is cleared in HPRT register
     TU_LOG1_HEX(dwc2->hprt);
     handle_hprt_irq(rhport, in_isr);
+  }
+
+  if (int_status & GINTSTS_HCINT) {
+    // Host Channel interrupt: source is cleared in HCINT register
+    TU_LOG1_HEX(dwc2->hprt);
+    handle_channel_irq(rhport, in_isr);
   }
 
   // RxFIFO non-empty interrupt handling.

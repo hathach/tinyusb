@@ -168,16 +168,16 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
-bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, const tusb_rhport_init_t* rh_init) {
+bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
   (void)dwc2;
 
 #if CFG_TUD_ENABLED
-  if (rh_init->role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
+  if (role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
     return false;
   }
 #endif
 #if CFG_TUH_ENABLED
-  if (rh_init->role == TUSB_ROLE_HOST && !TUH_OPT_HIGH_SPEED) {
+  if (role == TUSB_ROLE_HOST && !TUH_OPT_HIGH_SPEED) {
     return false;
   }
 #endif
@@ -234,15 +234,7 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
 
   dwc2->gintmsk = 0;
 
-  // TODO can be enabled with device as well but tested with host for now
-  // if (rh_init->role == TUSB_ROLE_HOST) {
-  //   dwc2->gintmsk |= OTG_INT_COMMON;
-  // }
-
   if (is_dma) {
-    const uint16_t epinfo_base = dma_cal_epfifo_base(rhport);
-    dwc2->gdfifocfg = (epinfo_base << GDFIFOCFG_EPINFOBASE_SHIFT) | epinfo_base;
-
     // DMA seems to be only settable after a core reset, and not possible to switch on-the-fly
     dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
   } else {

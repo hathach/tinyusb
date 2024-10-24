@@ -138,6 +138,13 @@ enum {
   GINTSTS_CMODE_HOST   = 1,
 };
 
+enum {
+  HCTSIZ_PID_DATA0 = 0,
+  HCTSIZ_PID_DATA2 = 1,
+  HCTSIZ_PID_DATA1 = 2,
+  HCTSIZ_PID_SETUP = 3,
+};
+
 //--------------------------------------------------------------------
 // Register bitfield definitions
 //--------------------------------------------------------------------
@@ -334,17 +341,49 @@ typedef struct TU_ATTR_PACKED {
   uint32_t speed               : 2; // 17..18 Port speed
   uint32_t rsv19_31            :13; // 19..31 Reserved
 }dwc2_hprt_t;
+TU_VERIFY_STATIC(sizeof(dwc2_hprt_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t ep_size         : 11; // 0..10 Maximum packet size
+  uint32_t ep_num          :  4; // 11..14 Endpoint number
+  uint32_t ep_dir          :  1; // 15 Endpoint direction
+  uint32_t rsv16           :  1; // 16 Reserved
+  uint32_t low_speed_dev   :  1; // 17 Low-speed device
+  uint32_t ep_type         :  2; // 18..19 Endpoint type
+  uint32_t err_multi_count :  2; // 20..21 Error (splitEn = 1) / Multi (SplitEn = 0)  count
+  uint32_t dev_addr        :  7; // 22..28 Device address
+  uint32_t odd_frame       :  1; // 29 Odd frame
+  uint32_t disable         :  1; // 30 Channel disable
+  uint32_t enable          :  1; // 31 Channel enable
+} dwc2_channel_char_t;
+TU_VERIFY_STATIC(sizeof(dwc2_channel_char_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t hub_port        :  7; // 0..6 Hub port number
+  uint32_t hub_addr        :  7; // 7..13 Hub address
+  uint32_t xact_pos        :  2; // 14..15 Transaction position
+  uint32_t split_compl     :  1; // 16 Split completion
+  uint32_t rsv17_30        : 14; // 17..30 Reserved
+  uint32_t split_en        :  1; // 31 Split enable
+} dwc2_channel_split_t;
+TU_VERIFY_STATIC(sizeof(dwc2_channel_split_t) == 4, "incorrect size");
 
 // Host Channel
 typedef struct {
-  volatile uint32_t hcchar;           // 500 + 20*ch Host Channel Characteristics
-  volatile uint32_t hcsplt;           // 504 + 20*ch Host Channel Split Control
-  volatile uint32_t hcint;            // 508 + 20*ch Host Channel Interrupt
-  volatile uint32_t hcintmsk;         // 50C + 20*ch Host Channel Interrupt Mask
-  volatile uint32_t hctsiz;           // 510 + 20*ch Host Channel Transfer Size
-  volatile uint32_t hcdma;            // 514 + 20*ch Host Channel DMA Address
-           uint32_t reserved518;      // 518 + 20*ch
-  volatile uint32_t hcdmab;           // 51C + 20*ch Host Channel DMA Address
+  union {
+    volatile uint32_t hcchar;           // 500 + 20*ch Host Channel Characteristics
+    volatile dwc2_channel_char_t hcchar_bm;
+  };
+  union {
+    volatile uint32_t hcsplt;           // 504 + 20*ch Host Channel Split Control
+    volatile dwc2_channel_split_t hcsplt_bm;
+  };
+    volatile uint32_t hcint;            // 508 + 20*ch Host Channel Interrupt
+    volatile uint32_t hcintmsk;         // 50C + 20*ch Host Channel Interrupt Mask
+    volatile uint32_t hctsiz;           // 510 + 20*ch Host Channel Transfer Size
+    volatile uint32_t hcdma;            // 514 + 20*ch Host Channel DMA Address
+             uint32_t reserved518;      // 518 + 20*ch
+    volatile uint32_t hcdmab;           // 51C + 20*ch Host Channel DMA Address
 } dwc2_channel_t;
 
 // Endpoint IN
@@ -1720,15 +1759,15 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCSPLT_SPLITEN                   HCSPLT_SPLITEN_Msk                       // Split enable
 
 /********************  Bit definition for HCINT register  ********************/
-#define HCINT_XFRC_Pos                   (0U)
-#define HCINT_XFRC_Msk                   (0x1UL << HCINT_XFRC_Pos)                // 0x00000001
-#define HCINT_XFRC                       HCINT_XFRC_Msk                           // Transfer completed
-#define HCINT_CHH_Pos                    (1U)
-#define HCINT_CHH_Msk                    (0x1UL << HCINT_CHH_Pos)                 // 0x00000002
-#define HCINT_CHH                        HCINT_CHH_Msk                            // Channel halted
-#define HCINT_AHBERR_Pos                 (2U)
-#define HCINT_AHBERR_Msk                 (0x1UL << HCINT_AHBERR_Pos)              // 0x00000004
-#define HCINT_AHBERR                     HCINT_AHBERR_Msk                         // AHB error
+#define HCINT_XFER_COMPLETE_Pos          (0U)
+#define HCINT_XFER_COMPLETE_Msk          (0x1UL << HCINT_XFER_COMPLETE_Pos)       // 0x00000001
+#define HCINT_XFER_COMPLETE              HCINT_XFER_COMPLETE_Msk                  // Transfer completed
+#define HCINT_CHANNEL_HALTED_Pos         (1U)
+#define HCINT_CHANNEL_HALTED_Msk         (0x1UL << HCINT_CHANNEL_HALTED_Pos)      // 0x00000002
+#define HCINT_CHANNEL_HALTED             HCINT_CHANNEL_HALTED_Msk                 // Channel halted
+#define HCINT_AHB_ERR_Pos                (2U)
+#define HCINT_AHB_ERR_Msk                (0x1UL << HCINT_AHB_ERR_Pos)              // 0x00000004
+#define HCINT_AHB_ERR                     HCINT_AHB_ERR_Msk                         // AHB error
 #define HCINT_STALL_Pos                  (3U)
 #define HCINT_STALL_Msk                  (0x1UL << HCINT_STALL_Pos)               // 0x00000008
 #define HCINT_STALL                      HCINT_STALL_Msk                          // STALL response received interrupt
@@ -1741,18 +1780,27 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCINT_NYET_Pos                   (6U)
 #define HCINT_NYET_Msk                   (0x1UL << HCINT_NYET_Pos)                // 0x00000040
 #define HCINT_NYET                       HCINT_NYET_Msk                           // Response received interrupt
-#define HCINT_TXERR_Pos                  (7U)
-#define HCINT_TXERR_Msk                  (0x1UL << HCINT_TXERR_Pos)               // 0x00000080
-#define HCINT_TXERR                      HCINT_TXERR_Msk                          // Transaction error
-#define HCINT_BBERR_Pos                  (8U)
-#define HCINT_BBERR_Msk                  (0x1UL << HCINT_BBERR_Pos)               // 0x00000100
-#define HCINT_BBERR                      HCINT_BBERR_Msk                          // Babble error
-#define HCINT_FRMOR_Pos                  (9U)
-#define HCINT_FRMOR_Msk                  (0x1UL << HCINT_FRMOR_Pos)               // 0x00000200
-#define HCINT_FRMOR                      HCINT_FRMOR_Msk                          // Frame overrun
-#define HCINT_DTERR_Pos                  (10U)
-#define HCINT_DTERR_Msk                  (0x1UL << HCINT_DTERR_Pos)               // 0x00000400
-#define HCINT_DTERR                      HCINT_DTERR_Msk                          // Data toggle error
+#define HCINT_XACT_ERR_Pos               (7U)
+#define HCINT_XACT_ERR_Msk               (0x1UL << HCINT_XACT_ERR_Pos)            // 0x00000080
+#define HCINT_XACT_ERR                   HCINT_XACT_ERR_Msk                       // Transaction error
+#define HCINT_BABBLE_ERR_Pos             (8U)
+#define HCINT_BABBLE_ERR_Msk             (0x1UL << HCINT_BABBLE_ERR_Pos)          // 0x00000100
+#define HCINT_BABBLE_ERR                 HCINT_BABBLE_ERR_Msk                     // Babble error
+#define HCINT_FARME_OVERRUN_Pos          (9U)
+#define HCINT_FARME_OVERRUN_Msk          (0x1UL << HCINT_FARME_OVERRUN_Pos)       // 0x00000200
+#define HCINT_FARME_OVERRUN              HCINT_FARME_OVERRUN_Msk                  // Frame overrun
+#define HCINT_DATATOGGLE_ERR_Pos         (10U)
+#define HCINT_DATATOGGLE_ERR_Msk         (0x1UL << HCINT_DATATOGGLE_ERR_Pos)      // 0x00000400
+#define HCINT_DATATOGGLE_ERR             HCINT_DATATOGGLE_ERR_Msk                 // Data toggle error
+#define HCINT_BUFFER_NAK_Pos             (11U)
+#define HCINT_BUFFER_NAK_Msk             (0x1UL << HCINT_BUFFER_NAK_Pos)          // 0x00000800
+#define HCINT_BUFFER_NAK                 HCINT_BUFFER_NAK_Msk                     // Buffer not available interrupt
+#define HCINT_XCS_XACT_ERR_Pos           (12U)
+#define HCINT_XCS_XACT_ERR_Msk           (0x1UL << HCINT_XCS_XACT_ERR_Pos)        // 0x00001000
+#define HCINT_XCS_XACT_ERR               HCINT_XCS_XACT_ERR_Msk                   // Excessive transaction error
+#define HCINT_DESC_ROLLOVER_Pos          (13U)
+#define HCINT_DESC_ROLLOVER_Msk          (0x1UL << HCINT_DESC_ROLLOVER_Pos)       // 0x00002000
+#define HCINT_DESC_ROLLOVER              HCINT_DESC_ROLLOVER_Msk                  // Descriptor rollover
 
 /********************  Bit definition for DIEPINT register  ********************/
 #define DIEPINT_XFRC_Pos                 (0U)
@@ -1795,41 +1843,6 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DIEPINT_NAK_Msk                  (0x1UL << DIEPINT_NAK_Pos)               // 0x00002000
 #define DIEPINT_NAK                      DIEPINT_NAK_Msk                          // NAK interrupt
 
-/********************  Bit definition for HCINTMSK register  ********************/
-#define HCINTMSK_XFRCM_Pos               (0U)
-#define HCINTMSK_XFRCM_Msk               (0x1UL << HCINTMSK_XFRCM_Pos)            // 0x00000001
-#define HCINTMSK_XFRCM                   HCINTMSK_XFRCM_Msk                       // Transfer completed mask
-#define HCINTMSK_CHHM_Pos                (1U)
-#define HCINTMSK_CHHM_Msk                (0x1UL << HCINTMSK_CHHM_Pos)             // 0x00000002
-#define HCINTMSK_CHHM                    HCINTMSK_CHHM_Msk                        // Channel halted mask
-#define HCINTMSK_AHBERR_Pos              (2U)
-#define HCINTMSK_AHBERR_Msk              (0x1UL << HCINTMSK_AHBERR_Pos)           // 0x00000004
-#define HCINTMSK_AHBERR                  HCINTMSK_AHBERR_Msk                      // AHB error
-#define HCINTMSK_STALLM_Pos              (3U)
-#define HCINTMSK_STALLM_Msk              (0x1UL << HCINTMSK_STALLM_Pos)           // 0x00000008
-#define HCINTMSK_STALLM                  HCINTMSK_STALLM_Msk                      // STALL response received interrupt mask
-#define HCINTMSK_NAKM_Pos                (4U)
-#define HCINTMSK_NAKM_Msk                (0x1UL << HCINTMSK_NAKM_Pos)             // 0x00000010
-#define HCINTMSK_NAKM                    HCINTMSK_NAKM_Msk                        // NAK response received interrupt mask
-#define HCINTMSK_ACKM_Pos                (5U)
-#define HCINTMSK_ACKM_Msk                (0x1UL << HCINTMSK_ACKM_Pos)             // 0x00000020
-#define HCINTMSK_ACKM                    HCINTMSK_ACKM_Msk                        // ACK response received/transmitted interrupt mask
-#define HCINTMSK_NYET_Pos                (6U)
-#define HCINTMSK_NYET_Msk                (0x1UL << HCINTMSK_NYET_Pos)             // 0x00000040
-#define HCINTMSK_NYET                    HCINTMSK_NYET_Msk                        // response received interrupt mask
-#define HCINTMSK_TXERRM_Pos              (7U)
-#define HCINTMSK_TXERRM_Msk              (0x1UL << HCINTMSK_TXERRM_Pos)           // 0x00000080
-#define HCINTMSK_TXERRM                  HCINTMSK_TXERRM_Msk                      // Transaction error mask
-#define HCINTMSK_BBERRM_Pos              (8U)
-#define HCINTMSK_BBERRM_Msk              (0x1UL << HCINTMSK_BBERRM_Pos)           // 0x00000100
-#define HCINTMSK_BBERRM                  HCINTMSK_BBERRM_Msk                      // Babble error mask
-#define HCINTMSK_FRMORM_Pos              (9U)
-#define HCINTMSK_FRMORM_Msk              (0x1UL << HCINTMSK_FRMORM_Pos)           // 0x00000200
-#define HCINTMSK_FRMORM                  HCINTMSK_FRMORM_Msk                      // Frame overrun mask
-#define HCINTMSK_DTERRM_Pos              (10U)
-#define HCINTMSK_DTERRM_Msk              (0x1UL << HCINTMSK_DTERRM_Pos)           // 0x00000400
-#define HCINTMSK_DTERRM                  HCINTMSK_DTERRM_Msk                      // Data toggle error mask
-
 /********************  Bit definition for DIEPTSIZ register  ********************/
 
 #define DIEPTSIZ_XFRSIZ_Pos              (0U)
@@ -1851,11 +1864,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCTSIZ_DOPING_Pos                (31U)
 #define HCTSIZ_DOPING_Msk                (0x1UL << HCTSIZ_DOPING_Pos)             // 0x80000000
 #define HCTSIZ_DOPING                    HCTSIZ_DOPING_Msk                        // Do PING
-#define HCTSIZ_DPID_Pos                  (29U)
-#define HCTSIZ_DPID_Msk                  (0x3UL << HCTSIZ_DPID_Pos)               // 0x60000000
-#define HCTSIZ_DPID                      HCTSIZ_DPID_Msk                          // Data PID
-#define HCTSIZ_DPID_0                    (0x1UL << HCTSIZ_DPID_Pos)               // 0x20000000
-#define HCTSIZ_DPID_1                    (0x2UL << HCTSIZ_DPID_Pos)               // 0x40000000
+#define HCTSIZ_PID_Pos                  (29U)
+#define HCTSIZ_PID_Msk                  (0x3UL << HCTSIZ_PID_Pos)               // 0x60000000
+#define HCTSIZ_PID                      HCTSIZ_PID_Msk                          // Data PID
 
 /********************  Bit definition for DIEPDMA register  ********************/
 #define DIEPDMA_DMAADDR_Pos              (0U)

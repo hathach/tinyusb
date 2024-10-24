@@ -24,7 +24,6 @@ dwc2_reg_value = {
     'ST U5A5 HS': [0x5000, 0x4F54411A, 0, 0x228FE052, 0x03B882E8, 0xE2103E30],
     'GD32VF103': [0x1000, 0, 0, 0, 0, 0],
     'XMC4500': [0xAEC000, 0x4F54292A, 0, 0x228F5930, 0x027A01E5, 0xDBF08030]
-
 }
 
 # Combine dwc2_info with dwc2_reg_list
