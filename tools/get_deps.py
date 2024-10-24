@@ -196,6 +196,9 @@ deps_optional = {
     'hw/mcu/artery/at32f403a_407': ['https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git',
                                     'f2cb360c3d28fada76b374308b8c4c61d37a090b',
                                     'at32f403a_407'],
+    'hw/mcu/artery/at32f415': ['https://github.com/ArteryTek/AT32F415_Firmware_Library.git',
+                                    '716f545aa1290ff144ccf023a8e797b951e1bc8e',
+                                    'at32f415'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '20285262657d1b482d132d20d755c8c330d55c1f',
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x '

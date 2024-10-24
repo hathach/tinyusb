@@ -9,6 +9,8 @@ Local Path                                Repo                                  
 ========================================  ==============================================================  ========================================  ==========================================================================================================================================================================================================================================================================================================================
 hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                 8e5e89e8e132c0fd90e72d5422e5d3d68232b756  fc100s
 hw/mcu/analog/max32                       https://github.com/analogdevicesinc/msdk.git                    b20b398d3e5e2007594e54a74ba3d2a2e50ddd75  max32650 max32666 max32690 max78002
+hw/mcu/artery/at32f403a_407               https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git f2cb360c3d28fada76b374308b8c4c61d37a090b  at32f403a_407
+hw/mcu/artery/at32f415                    https://github.com/ArteryTek/AT32F415_Firmware_Library.git      716f545aa1290ff144ccf023a8e797b951e1bc8e  at32f415
 hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                     91060164afe239fcb394122e8bf9eb24d3194eb1  brtmm90x
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git            08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git               7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103

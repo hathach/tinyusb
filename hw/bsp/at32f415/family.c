@@ -24,25 +24,17 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "at32f403a_407_clock.h"
+#include "at32f415_clock.h"
 #include "bsp/board_api.h"
 #include "board.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USBFS_H_CAN1_TX_IRQHandler(void) {
+
+void OTGFS1_IRQHandler(void) {
   tud_int_handler(0);
 }
-
-void USBFS_L_CAN1_RX0_IRQHandler(void) {
-  tud_int_handler(0);
-}
-
-void USBFSWakeUp_IRQHandler(void) {
-  tud_int_handler(0);
-}
-
 
 /**
   * @brief  usb 48M clock select
@@ -51,23 +43,7 @@ void USBFSWakeUp_IRQHandler(void) {
   */
 void usb_clock48m_select(usb_clk48_s clk_s)
 {
-  if(clk_s == USB_CLK_HICK)
-  {
-    crm_usb_clock_source_select(CRM_USB_CLOCK_SOURCE_HICK);
-
-    /* enable the acc calibration ready interrupt */
-    crm_periph_clock_enable(CRM_ACC_PERIPH_CLOCK, TRUE);
-
-    /* update the c1\c2\c3 value */
-    acc_write_c1(7980);
-    acc_write_c2(8000);
-    acc_write_c3(8020);
-
-    /* open acc calibration */
-    acc_calibration_mode_enable(ACC_CAL_HICKTRIM, TRUE);
-  }
-  else
-  {
+    (void) clk_s;
     switch(system_core_clock)
     {
       /* 48MHz */
@@ -94,22 +70,29 @@ void usb_clock48m_select(usb_clk48_s clk_s)
       case 144000000:
         crm_usb_clock_div_set(CRM_USB_DIV_3);
         break;
-
-      /* 168MHz */
-      case 168000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_3_5);
-        break;
-
-      /* 192MHz */
-      case 192000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_4);
-        break;
-
+      
       default:
         break;
-
     }
-  }
+}
+
+void led_init(void) {
+  /* LED */
+  gpio_init_type gpio_led_init_struct;
+
+  /* enable the led clock */
+  LED_GPIO_CLK_EN();
+
+  /* set default parameter */
+  gpio_default_para_init(&gpio_led_init_struct);
+
+  /* configure the led gpio */
+  gpio_led_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
+  gpio_led_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
+  gpio_led_init_struct.gpio_mode = GPIO_MODE_OUTPUT;
+  gpio_led_init_struct.gpio_pins = LED_PIN;
+  gpio_led_init_struct.gpio_pull = GPIO_PULL_NONE;
+  gpio_init(LED_PORT, &gpio_led_init_struct);
 }
 
 void board_init(void) {
@@ -123,16 +106,14 @@ void board_init(void) {
 
   /* configure systick */
   systick_clock_source_config(SYSTICK_CLOCK_SOURCE_AHBCLK_NODIV);
-  
+
   /* enable usb clock */
-  crm_periph_clock_enable(CRM_USB_PERIPH_CLOCK, TRUE);
+  crm_periph_clock_enable(CRM_OTGFS1_PERIPH_CLOCK, TRUE);
 
   SysTick_Config(SystemCoreClock / 1000);
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(USBFS_H_CAN1_TX_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_L_CAN1_RX0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFSWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(OTGFS1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   /* LED */

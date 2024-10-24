@@ -36,7 +36,7 @@
 
 #include "common/tusb_compiler.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_AT32F4
+#if CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
   #include <at32f403a_407.h>
 #endif
 
@@ -46,7 +46,7 @@
 //
 //--------------------------------------------------------------------+
 
-#if CFG_TUSB_MCU == OPT_MCU_AT32F4
+#if CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
 static const IRQn_Type fsdev_irq[] = {
   USBFS_H_CAN1_TX_IRQn,
   USBFS_L_CAN1_RX0_IRQn,

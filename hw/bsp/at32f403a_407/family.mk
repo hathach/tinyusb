@@ -13,7 +13,7 @@ CFLAGS_GCC += \
   -flto
 
 CFLAGS += \
-	-DCFG_TUSB_MCU=OPT_MCU_AT32F4
+	-DCFG_TUSB_MCU=OPT_MCU_AT32F403A_407
 
 LDFLAGS_GCC += \
 	-flto --specs=nosys.specs
