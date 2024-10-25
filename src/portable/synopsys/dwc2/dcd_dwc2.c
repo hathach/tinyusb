@@ -234,7 +234,7 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
     // Check if free space is available
     TU_ASSERT(_dfifo_top >= fifo_size + dwc2->grxfsiz);
     _dfifo_top -= fifo_size;
-    TU_LOG(DWC2_DEBUG, "    TX FIFO %u: allocated %u words at offset %u\r\n", epnum, fifo_size, _dfifo_top);
+    // TU_LOG(DWC2_DEBUG, "    TX FIFO %u: allocated %u words at offset %u\r\n", epnum, fifo_size, _dfifo_top);
 
     // Both TXFD and TXSA are in unit of 32-bit words.
     if (epnum == 0) {
