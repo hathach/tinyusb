@@ -84,11 +84,15 @@ TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_tx(dwc2_regs_t* dwc2, uint8
   dwc2->grstctl = GRSTCTL_TXFFLSH | (fnum << GRSTCTL_TXFNUM_Pos);
   while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
 }
+
 TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_rx(dwc2_regs_t* dwc2) {
   // flush RX fifo and wait for it cleared
   dwc2->grstctl = GRSTCTL_RXFFLSH;
   while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
 }
+
+void dfifo_read_packet(dwc2_regs_t* dwc2, uint8_t* dst, uint16_t len);
+void dfifo_write_packet(dwc2_regs_t* dwc2, uint8_t fifo_num, uint8_t const* src, uint16_t len);
 
 //--------------------------------------------------------------------+
 // DMA

@@ -35,14 +35,15 @@
 #include "dwc2_common.h"
 
 // DWC2 has limit number of channel, in order to support all endpoints we can store channel char/split to swap later on
-#ifndef CFG_TUH_DWC2_CHANNEL_MAX
-#define CFG_TUH_DWC2_CHANNEL_MAX (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX + CFG_TUH_HUB)
+#ifndef CFG_TUH_DWC2_ENDPOINT_MAX
+#define CFG_TUH_DWC2_ENDPOINT_MAX (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX + CFG_TUH_HUB)
 #endif
 
 enum {
   HPRT_W1C_MASK = HPRT_CONN_DETECT | HPRT_ENABLE | HPRT_ENABLE_CHANGE | HPRT_OVER_CURRENT_CHANGE
 };
 
+// Host driver for each opened endpoint
 typedef struct {
   union {
     uint32_t hcchar;
@@ -53,11 +54,14 @@ typedef struct {
     dwc2_channel_split_t hcsplt_bm;
   };
 
+  uint8_t* buf;
+  uint16_t total_len;
   uint8_t next_data_toggle;
+  bool pending_tx;
 } hcd_pipe_t;
 
 typedef struct {
-  hcd_pipe_t pipe[CFG_TUH_DWC2_CHANNEL_MAX];
+  hcd_pipe_t pipe[CFG_TUH_DWC2_ENDPOINT_MAX];
 } dwc2_hcd_t;
 
 dwc2_hcd_t _hcd_data;
@@ -94,7 +98,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool dma_host_enabled(const dwc2_regs_t* dwc
   possible since the free space is located between the RX and TX FIFOs.
 
    ----------------- ep_fifo_size
-  | EPInfo DMA   |
+  |    HCDMAn    |
   |--------------|-- gdfifocfg.EPINFOBASE (max is ghwcfg3.dfifo_depth)
   | Non-Periodic |
   |   TX FIFO    |
@@ -214,8 +218,12 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2->hprt = HPRT_POWER; // turn on VBUS
 
   // Enable required interrupts
-  dwc2->gintmsk |= GINTMSK_OTGINT | GINTSTS_CONIDSTSCHNG | GINTMSK_PRTIM; // | GINTMSK_WUIM;
-  dwc2->gahbcfg |= GAHBCFG_GINT;   // Enable global interrupt
+  dwc2->gintmsk |= GINTMSK_OTGINT | GINTSTS_CONIDSTSCHNG | GINTMSK_PRTIM ; // | GINTMSK_WUIM;
+
+  // NPTX can hold at least 2 packet, change interrupt level to half-empty
+  uint32_t gahbcfg = dwc2->gahbcfg & ~GAHBCFG_TX_FIFO_EPMTY_LVL;
+  gahbcfg |= GAHBCFG_GINT;   // Enable global interrupt
+  dwc2->gahbcfg = gahbcfg;
 
   return true;
 }
@@ -290,7 +298,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   hcd_devtree_get_info(dev_addr, &devtree_info);
 
   // find a free pipe
-  for (uint32_t i = 0; i < CFG_TUH_DWC2_CHANNEL_MAX; i++) {
+  for (uint32_t i = 0; i < CFG_TUH_DWC2_ENDPOINT_MAX; i++) {
     hcd_pipe_t* pipe = &_hcd_data.pipe[i];
     dwc2_channel_char_t* hcchar_bm = &pipe->hcchar_bm;
     dwc2_channel_split_t* hcsplt_bm = &pipe->hcsplt_bm;
@@ -334,25 +342,40 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t find_free_channel(dwc2_regs_t* dwc2)
   return TUSB_INDEX_INVALID_8;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint8_t find_opened_pipe(uint8_t dev_addr, uint8_t ep_addr) {
-  for (uint32_t i = 0; i < CFG_TUH_DWC2_CHANNEL_MAX; i++) {
+TU_ATTR_ALWAYS_INLINE static inline uint8_t find_opened_pipe(uint8_t dev_addr, uint8_t ep_num, uint8_t ep_dir) {
+  for (uint8_t i = 0; i < (uint8_t) CFG_TUH_DWC2_ENDPOINT_MAX; i++) {
     const dwc2_channel_char_t* hcchar_bm = &_hcd_data.pipe[i].hcchar_bm;
+    // find enabled pipe: note EP0 is bidirectional
     if (hcchar_bm->enable && hcchar_bm->dev_addr == dev_addr &&
-        ep_addr == tu_edpt_addr(hcchar_bm->ep_num, hcchar_bm->ep_dir)) {
+        hcchar_bm->ep_num == ep_num && (ep_num == 0 || hcchar_bm->ep_dir == ep_dir)) {
       return i;
     }
   }
   return TUSB_INDEX_INVALID_8;
 }
 
+void schedule_out_packet(dwc2_regs_t* dwc2, uint8_t pipe_id, uint8_t ch_id) {
+  // To prevent conflict with other channel, we will enable periodic/non-periodic FIFO empty interrupt accordingly.
+  // And write packet in the interrupt handler
+  hcd_pipe_t* pipe = &_hcd_data.pipe[pipe_id];
+  dwc2_channel_t* channel = &dwc2->channel[ch_id];
+  (void) channel;
+  const uint8_t ep_type = pipe->hcchar_bm.ep_type;
+  const bool is_periodic = ep_type == TUSB_XFER_INTERRUPT || ep_type == TUSB_XFER_ISOCHRONOUS;
+  pipe->pending_tx = true;
+  dwc2->gintmsk |= (is_periodic ? GINTSTS_PTX_FIFO_EMPTY : GINTSTS_NPTX_FIFO_EMPTY);
+}
+
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
-  uint8_t pipe_id = find_opened_pipe(dev_addr, ep_addr);
-  TU_ASSERT(pipe_id < CFG_TUH_DWC2_CHANNEL_MAX); // no opened pipe
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+  const uint8_t ep_dir = tu_edpt_dir(ep_addr);
+  uint8_t pipe_id = find_opened_pipe(dev_addr, ep_num, ep_dir);
+  TU_ASSERT(pipe_id < CFG_TUH_DWC2_ENDPOINT_MAX); // no opened pipe
   hcd_pipe_t* pipe = &_hcd_data.pipe[pipe_id];
-  const dwc2_channel_char_t* hcchar_bm = &pipe->hcchar_bm;
+  dwc2_channel_char_t* hcchar_bm = &pipe->hcchar_bm;
 
   uint8_t ch_id = find_free_channel(dwc2);
   TU_ASSERT(ch_id < 16); // all channel are in use
@@ -362,25 +385,44 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   channel->hcintmsk = HCINT_XFER_COMPLETE | HCINT_CHANNEL_HALTED | HCINT_STALL |
     HCINT_AHB_ERR | HCINT_XACT_ERR | HCINT_BABBLE_ERR | HCINT_DATATOGGLE_ERR;
 
-  const uint16_t packet_count = tu_div_ceil(buflen, hcchar_bm->ep_size);
+  uint16_t packet_count = tu_div_ceil(buflen, hcchar_bm->ep_size);
+  if (packet_count == 0) {
+    packet_count = 1; // zero length packet still count as 1
+  }
   channel->hctsiz = (pipe->next_data_toggle << HCTSIZ_PID_Pos) | (packet_count << HCTSIZ_PKTCNT_Pos) | buflen;
 
   // Control transfer always start with DATA1 for data and status stage. May has issue with ZLP
-  if (pipe->next_data_toggle == HCTSIZ_PID_DATA0 || tu_edpt_number(ep_addr) == 0) {
+  if (pipe->next_data_toggle == HCTSIZ_PID_DATA0 || ep_num == 0) {
     pipe->next_data_toggle = HCTSIZ_PID_DATA1;
   } else {
     pipe->next_data_toggle = HCTSIZ_PID_DATA0;
   }
 
+  // TODO support split transaction
+  channel->hcsplt = pipe->hcsplt;
+
+  hcchar_bm->odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
+  hcchar_bm->ep_dir = ep_dir;                   // control endpoint can switch direction
+  channel->hcchar = pipe->hcchar & ~HCCHAR_CHENA;    // restore hcchar but don't enable yet
+
   if (dma_host_enabled(dwc2)) {
     channel->hcdma = (uint32_t) buffer;
   } else {
-    TU_ASSERT(false); // not yet support
-  }
+    if (ep_dir == TUSB_DIR_IN) {
+      TU_ASSERT(false); // not yet support
+    } else {
+      pipe->buf = buffer;
+      pipe->total_len = buflen;
 
-  // TODO support split transaction
-  channel->hcsplt = pipe->hcsplt;
-  channel->hcchar = pipe->hcchar; // kick-off transfer
+      channel->hcchar |= HCCHAR_CHENA; // enable channel before writing to FIFO
+
+      if (ep_dir == TUSB_DIR_OUT && buflen > 0) {
+        schedule_out_packet(dwc2, pipe_id, ch_id);
+      } else {
+        TU_ASSERT(false); // not yet support
+      }
+    }
+  }
 
   return true;
 }
@@ -397,8 +439,8 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet[8]) {
-  uint8_t pipe_id = find_opened_pipe(dev_addr, 0);
-  TU_ASSERT(pipe_id < CFG_TUH_DWC2_CHANNEL_MAX); // no opened pipe
+  uint8_t pipe_id = find_opened_pipe(dev_addr, 0, TUSB_DIR_OUT);
+  TU_ASSERT(pipe_id < CFG_TUH_DWC2_ENDPOINT_MAX); // no opened pipe
   hcd_pipe_t* pipe = &_hcd_data.pipe[pipe_id];
   pipe->next_data_toggle = HCTSIZ_PID_SETUP;
 
@@ -529,25 +571,57 @@ void handle_channel_irq(uint8_t rhport, bool in_isr) {
   }
 }
 
+bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
+  bool ff_written = false;
+  volatile uint32_t* tx_sts = is_periodic ? &dwc2->hptxsts : &dwc2->hnptxsts;
+
+  // find which channel have pending packet
+  for (uint8_t ch_id = 0; ch_id < 32; ch_id++) {
+    if (tu_bit_test(dwc2->haintmsk, ch_id)) {
+      dwc2_channel_t* channel = &dwc2->channel[ch_id];
+      const dwc2_channel_char_t hcchar_bm = channel->hcchar_bm;
+      if (hcchar_bm.ep_dir == TUSB_DIR_OUT) {
+        uint8_t pipe_id = find_opened_pipe(hcchar_bm.dev_addr, hcchar_bm.ep_num, TUSB_DIR_OUT);
+        if (pipe_id < CFG_TUH_DWC2_ENDPOINT_MAX) {
+          hcd_pipe_t* pipe = &_hcd_data.pipe[pipe_id];
+          if (pipe->pending_tx) {
+            const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
+            for (uint16_t i = 0; i < remain_packets; i++) {
+              const uint16_t remain_bytes = channel->hctsiz_bm.xfer_size;
+              const uint16_t packet_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
+
+              // check if there is enough space in FIFO
+              if (packet_bytes > (*tx_sts & HPTXSTS_PTXQSAV)) {
+                break;
+              }
+
+              dfifo_write_packet(dwc2, ch_id, pipe->buf, packet_bytes);
+              pipe->buf += packet_bytes;
+
+              if (channel->hctsiz_bm.xfer_size == 0) {
+                pipe->pending_tx = false; // all data has been written
+              }
+
+              ff_written = true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return ff_written;
+}
+
 /* Interrupt Hierarchy
-   HCINTn.XferCompl     HCINTMSKn.XferComplMsk     HPRT ConnDetect    PrtEnChng    OverCurChng
-         |                       |                          |             |             |
-         +---------- AND --------+                          +------------ OR -----------+
-                      |                                                   |
-      HAINT.CHn            HAINTMSK.CHn                                   |
-         |                       |                                        |
-         +---------- AND --------+                                        |
-                      |                                                   |
-    GINTSTS.HCInt           GINTMSK.HCInt             GINTSTS.PrtInt            GINTMSK.PrtInt
-         |                        |                          |                         |
-         +---------- AND ---------+                          +---------- AND ---------+
-                      |                                                   |
-                      +-------------------- OR ---------------------------+
-                                            |
-                                   GAHBCFG.GblIntrMsk
-                                            |
-                                          IRQn
- */
+             HCINTn         HPRT
+               |             |
+             HAINT.CHn       |
+               |             |
+    GINTSTS  HCInt        PrtInt      NPTxFEmp PTxFEmpp RXFLVL
+
+
+*/
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint32_t int_mask = dwc2->gintmsk;
@@ -575,6 +649,15 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     // Host Channel interrupt: source is cleared in HCINT register
     TU_LOG1_HEX(dwc2->hprt);
     handle_channel_irq(rhport, in_isr);
+  }
+
+  if (int_status & GINTSTS_NPTX_FIFO_EMPTY) {
+    // NPTX FIFO empty interrupt, this is read-only and cleared by hardware when FIFO is written
+    const bool ff_written = handle_txfifo_empty(dwc2, false);
+    if (!ff_written) {
+      // no more pending packet, disable interrupt
+      dwc2->gintmsk &= ~GINTSTS_NPTX_FIFO_EMPTY;
+    }
   }
 
   // RxFIFO non-empty interrupt handling.

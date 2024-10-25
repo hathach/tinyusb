@@ -158,7 +158,8 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
   // For some reason: GD32VF103 gsnpsid and all hwcfg register are always zero (skip it)
   (void)dwc2;
 #if !TU_CHECK_MCU(OPT_MCU_GD32VF103)
-  uint32_t const gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
+  enum { GSNPSID_ID_MASK = TU_GENMASK(31, 16) };
+  const uint32_t gsnpsid = dwc2->gsnpsid & GSNPSID_ID_MASK;
   TU_ASSERT(gsnpsid == DWC2_OTG_ID || gsnpsid == DWC2_FS_IOT_ID || gsnpsid == DWC2_HS_IOT_ID);
 #endif
 
@@ -200,7 +201,7 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
   TU_ASSERT(check_dwc2(dwc2));
 
   // disable global interrupt
-  // dwc2->gahbcfg &= ~GAHBCFG_GINT;
+  dwc2->gahbcfg &= ~GAHBCFG_GINT;
 
   if (is_highspeed) {
     phy_hs_init(dwc2);
@@ -241,8 +242,8 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
   }
 
-  // Configure TX FIFO empty level for interrupt. Default is complete empty
-  dwc2->gahbcfg |= GAHBCFG_TXFELVL;
+  // (non-periodic) TX FIFO empty level for interrupt is complete empty
+  dwc2->gahbcfg |= GAHBCFG_TX_FIFO_EPMTY_LVL;
 
   return true;
 }
@@ -259,5 +260,59 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
 //   }
 //
 // }
+
+//--------------------------------------------------------------------
+// DFIFO
+//--------------------------------------------------------------------
+// Read a single data packet from receive DFIFO
+void dfifo_read_packet(dwc2_regs_t* dwc2, uint8_t* dst, uint16_t len) {
+  const volatile uint32_t* rx_fifo = dwc2->fifo[0];
+
+  // Reading full available 32 bit words from fifo
+  uint16_t word_count = len >> 2;
+  while (word_count--) {
+    tu_unaligned_write32(dst, *rx_fifo);
+    dst += 4;
+  }
+
+  // Read the remaining 1-3 bytes from fifo
+  const uint8_t bytes_rem = len & 0x03;
+  if (bytes_rem != 0) {
+    const uint32_t tmp = *rx_fifo;
+    dst[0] = tu_u32_byte0(tmp);
+    if (bytes_rem > 1) {
+      dst[1] = tu_u32_byte1(tmp);
+    }
+    if (bytes_rem > 2) {
+      dst[2] = tu_u32_byte2(tmp);
+    }
+  }
+}
+
+// Write a single data packet to DFIFO
+void dfifo_write_packet(dwc2_regs_t* dwc2, uint8_t fifo_num, const uint8_t* src, uint16_t len) {
+  volatile uint32_t* tx_fifo = dwc2->fifo[fifo_num];
+
+  // Pushing full available 32 bit words to fifo
+  uint16_t word_count = len >> 2;
+  while (word_count--) {
+    *tx_fifo = tu_unaligned_read32(src);
+    src += 4;
+  }
+
+  // Write the remaining 1-3 bytes into fifo
+  const uint8_t bytes_rem = len & 0x03;
+  if (bytes_rem) {
+    uint32_t tmp_word = src[0];
+    if (bytes_rem > 1) {
+      tmp_word |= (src[1] << 8);
+    }
+    if (bytes_rem > 2) {
+      tmp_word |= (src[2] << 16);
+    }
+
+    *tx_fifo = tmp_word;
+  }
+}
 
 #endif

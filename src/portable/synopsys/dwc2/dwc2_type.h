@@ -146,7 +146,7 @@ enum {
 };
 
 //--------------------------------------------------------------------
-// Register bitfield definitions
+// Common Register Bitfield
 //--------------------------------------------------------------------
 typedef struct TU_ATTR_PACKED {
   uint32_t ses_req_scs           : 1; //  0 Session request success
@@ -324,6 +324,20 @@ typedef struct TU_ATTR_PACKED {
 }dwc2_ghwcfg4_t;
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg4_t) == 4, "incorrect size");
 
+//--------------------------------------------------------------------
+// Host Register Bitfield
+//--------------------------------------------------------------------
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t fifo_available  : 16; // 0..15 Number of words available in the Tx FIFO
+  uint32_t queue_available :  8; // 16..23 Number of spaces available in the NPT transmit request queue for both IN and OUT
+  // 24..31 is top entry in the request queue that is currently being processed by the MAC
+  uint32_t qtop_terminate  :  1; // 24 Last entry for selected channel
+  uint32_t qtop_token      :  2; // 25..26 Token 0: In/Out 1: ZLP, 2: Ping/cspit, 3: Channel halt command
+  uint32_t qtop_ch_num     :  4; // 27..30 Channel number
+} dwc2_hnptxsts_t;
+TU_VERIFY_STATIC(sizeof(dwc2_hnptxsts_t) == 4, "incorrect size");
+
 typedef struct TU_ATTR_PACKED {
   uint32_t conn_status         : 1; // 0 Port connect status
   uint32_t conn_detected       : 1; // 1 Port connect detected
@@ -368,6 +382,13 @@ typedef struct TU_ATTR_PACKED {
 } dwc2_channel_split_t;
 TU_VERIFY_STATIC(sizeof(dwc2_channel_split_t) == 4, "incorrect size");
 
+typedef struct TU_ATTR_PACKED {
+  uint32_t xfer_size      : 19; // 0..18 Transfer size in bytes
+  uint32_t packet_count   : 10; // 19..28 Number of packets
+  uint32_t pid            :  2; // 29..30 Packet ID
+} dwc2_channel_tsize_t;
+TU_VERIFY_STATIC(sizeof(dwc2_channel_tsize_t) == 4, "incorrect size");
+
 // Host Channel
 typedef struct {
   union {
@@ -380,35 +401,55 @@ typedef struct {
   };
     volatile uint32_t hcint;            // 508 + 20*ch Host Channel Interrupt
     volatile uint32_t hcintmsk;         // 50C + 20*ch Host Channel Interrupt Mask
+  union {
     volatile uint32_t hctsiz;           // 510 + 20*ch Host Channel Transfer Size
+    volatile dwc2_channel_tsize_t hctsiz_bm;
+  };
     volatile uint32_t hcdma;            // 514 + 20*ch Host Channel DMA Address
              uint32_t reserved518;      // 518 + 20*ch
     volatile uint32_t hcdmab;           // 51C + 20*ch Host Channel DMA Address
 } dwc2_channel_t;
 
+//--------------------------------------------------------------------
+// Device Register Bitfield
+//--------------------------------------------------------------------
+typedef struct TU_ATTR_PACKED {
+ uint32_t xfer_size    : 19; // 0..18 Transfer size in bytes
+ uint32_t packet_count : 10; // 19..28 Number of packets
+ uint32_t mc_pid       :  2; // 29..30 IN: Multi Count, OUT: PID
+} dwc2_ep_tsize_t;
+TU_VERIFY_STATIC(sizeof(dwc2_ep_tsize_t) == 4, "incorrect size");
+
 // Endpoint IN
 typedef struct {
-  volatile uint32_t diepctl;          // 900 + 20*ep Device IN Endpoint Control
-           uint32_t reserved04;       // 904
-  volatile uint32_t diepint;          // 908 + 20*ep Device IN Endpoint Interrupt
-           uint32_t reserved0c;       // 90C
-  volatile uint32_t dieptsiz;         // 910 + 20*ep Device IN Endpoint Transfer Size
-  volatile uint32_t diepdma;          // 914 + 20*ep Device IN Endpoint DMA Address
-  volatile uint32_t dtxfsts;          // 918 + 20*ep Device IN Endpoint Tx FIFO Status
-           uint32_t reserved1c;       // 91C
+    volatile uint32_t diepctl;          // 900 + 20*ep Device IN Endpoint Control
+             uint32_t reserved04;       // 904
+    volatile uint32_t diepint;          // 908 + 20*ep Device IN Endpoint Interrupt
+             uint32_t reserved0c;       // 90C
+  union {
+    volatile uint32_t dieptsiz;         // 910 + 20*ep Device IN Endpoint Transfer Size
+    volatile dwc2_ep_tsize_t dieptsiz_bm;
+  };
+    volatile uint32_t diepdma;          // 914 + 20*ep Device IN Endpoint DMA Address
+    volatile uint32_t dtxfsts;          // 918 + 20*ep Device IN Endpoint Tx FIFO Status
+             uint32_t reserved1c;       // 91C
 } dwc2_epin_t;
 
 // Endpoint OUT
 typedef struct {
-  volatile uint32_t doepctl;          // B00 + 20*ep Device OUT Endpoint Control
-           uint32_t reserved04;       // B04
-  volatile uint32_t doepint;          // B08 + 20*ep Device OUT Endpoint Interrupt
-           uint32_t reserved0c;       // B0C
-  volatile uint32_t doeptsiz;         // B10 + 20*ep Device OUT Endpoint Transfer Size
-  volatile uint32_t doepdma;          // B14 + 20*ep Device OUT Endpoint DMA Address
-           uint32_t reserved18[2];    // B18..B1C
+    volatile uint32_t doepctl;          // B00 + 20*ep Device OUT Endpoint Control
+             uint32_t reserved04;       // B04
+    volatile uint32_t doepint;          // B08 + 20*ep Device OUT Endpoint Interrupt
+             uint32_t reserved0c;       // B0C
+  union {
+    volatile uint32_t doeptsiz;         // B10 + 20*ep Device OUT Endpoint Transfer Size
+    volatile dwc2_ep_tsize_t doeptsiz_bm;
+  };
+    volatile uint32_t doepdma;          // B14 + 20*ep Device OUT Endpoint DMA Address
+             uint32_t reserved18[2];    // B18..B1C
 } dwc2_epout_t;
 
+// Universal Endpoint
 typedef struct {
   union {
     volatile uint32_t diepctl;
@@ -424,6 +465,7 @@ typedef struct {
   union {
     volatile uint32_t dieptsiz;
     volatile uint32_t doeptsiz;
+    volatile dwc2_ep_tsize_t deptsiz_bm;
   };
   union {
     volatile uint32_t diepdma;
@@ -460,7 +502,11 @@ typedef struct {
     volatile uint32_t dieptxf0;         // 028 EP0 Tx FIFO Size
     volatile uint32_t gnptxfsiz;        // 028 Non-periodic Transmit FIFO Size
   };
-    volatile uint32_t gnptxsts;         // 02c Non-periodic Transmit FIFO/Queue Status
+  union {
+    volatile uint32_t hnptxsts;         // 02c Non-periodic Transmit FIFO/Queue Status
+    volatile dwc2_hnptxsts_t hnptxsts_bm;
+    volatile uint32_t gnptxsts;
+  };
     volatile uint32_t gi2cctl;          // 030 I2C Address
     volatile uint32_t gpvndctl;         // 034 PHY Vendor Control
   union {
@@ -791,14 +837,12 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GAHBCFG_DMAEN_Pos                (5U)
 #define GAHBCFG_DMAEN_Msk                (0x1UL << GAHBCFG_DMAEN_Pos)             // 0x00000020
 #define GAHBCFG_DMAEN                    GAHBCFG_DMAEN_Msk                        // DMA enable
-#define GAHBCFG_TXFELVL_Pos              (7U)
-#define GAHBCFG_TXFELVL_Msk              (0x1UL << GAHBCFG_TXFELVL_Pos)           // 0x00000080
-#define GAHBCFG_TXFELVL                  GAHBCFG_TXFELVL_Msk                      // TxFIFO empty level
-#define GAHBCFG_PTXFELVL_Pos             (8U)
-#define GAHBCFG_PTXFELVL_Msk             (0x1UL << GAHBCFG_PTXFELVL_Pos)          // 0x00000100
-#define GAHBCFG_PTXFELVL                 GAHBCFG_PTXFELVL_Msk                     // Periodic TxFIFO empty level
-
-#define GSNPSID_ID_MASK                 TU_GENMASK(31, 16)
+#define GAHBCFG_TX_FIFO_EPMTY_LVL_Pos    (7U)
+#define GAHBCFG_TX_FIFO_EPMTY_LVL_Msk    (0x1UL << GAHBCFG_TX_FIFO_EPMTY_LVL_Pos) // 0x00000080
+#define GAHBCFG_TX_FIFO_EPMTY_LVL        GAHBCFG_TX_FIFO_EPMTY_LVL_Msk            // TxFIFO empty level
+#define GAHBCFG_PTX_FIFO_EPMTY_LVL_Pos   (8U)
+#define GAHBCFG_PTX_FIFO_EPMTY_LVL_Msk   (0x1UL << GAHBCFG_PTX_FIFO_EPMTY_LVL_Pos) // 0x00000100
+#define GAHBCFG_PTX_FIFO_EPMTY_LVL       GAHBCFG_PTX_FIFO_EPMTY_LVL_Msk            // Periodic TxFIFO empty level
 
 /********************  Bit definition for GUSBCFG register  ********************/
 #define GUSBCFG_TOCAL_Pos                (0U)
@@ -1009,9 +1053,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GINTSTS_RXFLVL_Pos               (4U)
 #define GINTSTS_RXFLVL_Msk               (0x1UL << GINTSTS_RXFLVL_Pos)            // 0x00000010
 #define GINTSTS_RXFLVL                   GINTSTS_RXFLVL_Msk                       // RxFIFO nonempty
-#define GINTSTS_NPTXFE_Pos               (5U)
-#define GINTSTS_NPTXFE_Msk               (0x1UL << GINTSTS_NPTXFE_Pos)            // 0x00000020
-#define GINTSTS_NPTXFE                   GINTSTS_NPTXFE_Msk                       // Nonperiodic TxFIFO empty
+#define GINTSTS_NPTX_FIFO_EMPTY_Pos      (5U)
+#define GINTSTS_NPTX_FIFO_EMPTY_Msk      (0x1UL << GINTSTS_NPTX_FIFO_EMPTY_Pos)   // 0x00000020
+#define GINTSTS_NPTX_FIFO_EMPTY          GINTSTS_NPTX_FIFO_EMPTY_Msk              // Nonperiodic TxFIFO empty
 #define GINTSTS_GINAKEFF_Pos             (6U)
 #define GINTSTS_GINAKEFF_Msk             (0x1UL << GINTSTS_GINAKEFF_Pos)          // 0x00000040
 #define GINTSTS_GINAKEFF                 GINTSTS_GINAKEFF_Msk                     // Global IN nonperiodic NAK effective
@@ -1060,15 +1104,15 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GINTSTS_HCINT_Pos                (25U)
 #define GINTSTS_HCINT_Msk                (0x1UL << GINTSTS_HCINT_Pos)             // 0x02000000
 #define GINTSTS_HCINT                    GINTSTS_HCINT_Msk                        // Host channels interrupt
-#define GINTSTS_PTXFE_Pos                (26U)
-#define GINTSTS_PTXFE_Msk                (0x1UL << GINTSTS_PTXFE_Pos)             // 0x04000000
-#define GINTSTS_PTXFE                    GINTSTS_PTXFE_Msk                        // Periodic TxFIFO empty
+#define GINTSTS_PTX_FIFO_EMPTY_Pos       (26U)
+#define GINTSTS_PTX_FIFO_EMPTY_Msk       (0x1UL << GINTSTS_PTX_FIFO_EMPTY_Pos)    // 0x04000000
+#define GINTSTS_PTX_FIFO_EMPTY           GINTSTS_PTX_FIFO_EMPTY_Msk               // Periodic TxFIFO empty
 #define GINTSTS_LPMINT_Pos               (27U)
 #define GINTSTS_LPMINT_Msk               (0x1UL << GINTSTS_LPMINT_Pos)            // 0x08000000
 #define GINTSTS_LPMINT                   GINTSTS_LPMINT_Msk                       // LPM interrupt
 #define GINTSTS_CONIDSTSCHNG_Pos         (28U)
-#define GINTSTS_CONIDSTSCHNG_Msk         (0x1UL << GINTSTS_CONIDSTSCHNG_Pos)           // 0x10000000
-#define GINTSTS_CONIDSTSCHNG             GINTSTS_CONIDSTSCHNG_Msk                      // Connector ID status change
+#define GINTSTS_CONIDSTSCHNG_Msk         (0x1UL << GINTSTS_CONIDSTSCHNG_Pos)      // 0x10000000
+#define GINTSTS_CONIDSTSCHNG             GINTSTS_CONIDSTSCHNG_Msk                 // Connector ID status change
 #define GINTSTS_DISCINT_Pos              (29U)
 #define GINTSTS_DISCINT_Msk              (0x1UL << GINTSTS_DISCINT_Pos)           // 0x20000000
 #define GINTSTS_DISCINT                  GINTSTS_DISCINT_Msk                      // Disconnect detected interrupt
