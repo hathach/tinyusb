@@ -445,8 +445,11 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Enable required interrupts
   dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
-  // Enable global interrupt
-  dwc2->gahbcfg |= GAHBCFG_GINT;
+  // TX FIFO empty level for interrupt is complete empty
+  uint32_t gahbcfg = dwc2->gahbcfg;
+  gahbcfg |= GAHBCFG_TX_FIFO_EPMTY_LVL;
+  gahbcfg |= GAHBCFG_GINT; // Enable global interrupt
+  dwc2->gahbcfg = gahbcfg;
 
   dcd_connect(rhport);
   return true;
@@ -671,16 +674,15 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 // Process shared receive FIFO, this interrupt is only used in Slave mode
 static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  volatile uint32_t const* rx_fifo = dwc2->fifo[0];
+  const volatile uint32_t* rx_fifo = dwc2->fifo[0];
 
   // Pop control word off FIFO
-  uint32_t const grxstsp = dwc2->grxstsp;
-  uint8_t const pktsts = (grxstsp & GRXSTSP_PKTSTS_Msk) >> GRXSTSP_PKTSTS_Pos;
-  uint8_t const epnum = (grxstsp & GRXSTSP_EPNUM_Msk) >> GRXSTSP_EPNUM_Pos;
-  uint16_t const bcnt = (grxstsp & GRXSTSP_BCNT_Msk) >> GRXSTSP_BCNT_Pos;
+  const dwc2_grxstsp_t grxstsp_bm = dwc2->grxstsp_bm;
+  const uint8_t epnum = grxstsp_bm.ep_ch_num;
+  const uint16_t byte_count = grxstsp_bm.byte_count;
   dwc2_epout_t* epout = &dwc2->epout[epnum];
 
-  switch (pktsts) {
+  switch (grxstsp_bm.packet_status) {
     // Global OUT NAK: do nothing
     case GRXSTS_PKTSTS_GLOBALOUTNAK:
       break;
@@ -705,18 +707,18 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // Read packet off RxFIFO
       if (xfer->ff) {
         // Ring buffer
-        tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, bcnt);
+        tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, byte_count);
       } else {
         // Linear buffer
-        dfifo_read_packet(dwc2, xfer->buffer, bcnt);
+        dfifo_read_packet(dwc2, xfer->buffer, byte_count);
 
         // Increment pointer to xfer data
-        xfer->buffer += bcnt;
+        xfer->buffer += byte_count;
       }
 
-      // Truncate transfer length in case of short packet
-      if (bcnt < xfer->max_size) {
-        xfer->total_len -= (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
+      // short packet, minus remaining bytes (xfer_size)
+      if (byte_count < xfer->max_size) {
+        xfer->total_len -= epout->doeptsiz_bm.xfer_size;
         if (epnum == 0) {
           xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
           ep0_pending[TUSB_DIR_OUT] = 0;

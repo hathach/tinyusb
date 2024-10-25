@@ -145,6 +145,21 @@ enum {
   HCTSIZ_PID_SETUP = 3,
 };
 
+enum {
+  GRXSTS_PKTSTS_GLOBALOUTNAK = 1,
+  GRXSTS_PKTSTS_OUTRX        = 2,
+  GRXSTS_PKTSTS_OUTDONE      = 3,
+  GRXSTS_PKTSTS_SETUPDONE    = 4,
+  GRXSTS_PKTSTS_SETUPRX      = 6
+};
+
+enum {
+  GRXSTS_PKTSTS_HOST_IN_RECEIVED    = 2,
+  GRXSTS_PKTSTS_HOST_IN_XFER_COMPL  = 3,
+  GRXSTS_PKTSTS_HOST_DATATOGGLE_ERR = 5,
+  GRXSTS_PKTSTS_HOST_CHANNEL_HALTED = 7
+};
+
 //--------------------------------------------------------------------
 // Common Register Bitfield
 //--------------------------------------------------------------------
@@ -263,6 +278,17 @@ typedef struct TU_ATTR_PACKED {
 } dwc2_grstctl_t;
 TU_VERIFY_STATIC(sizeof(dwc2_grstctl_t) == 4, "incorrect size");
 
+typedef struct TU_ATTR_PACKED {
+  uint32_t ep_ch_num             : 4; // 0..3 Endpoint/Channel Number
+  uint32_t byte_count            :11; // 4..14 Byte Count
+  uint32_t dpid                  : 2; // 15..16 Data PID
+  uint32_t packet_status         : 4; // 17..20 Packet Status
+  uint32_t frame_number          : 4; // 21..24 Frame Number
+  uint32_t rsv25_31              : 7; // 25..31 Reserved
+} dwc2_grxstsp_t;
+TU_VERIFY_STATIC(sizeof(dwc2_grxstsp_t) == 4, "incorrect size");
+
+// Hardware Configuration
 typedef struct TU_ATTR_PACKED {
   uint32_t op_mode                : 3; // 0..2 HNP/SRP Host/Device/OTG mode
   uint32_t arch                   : 2; // 3..4 Slave/External/Internal DMA
@@ -496,7 +522,10 @@ typedef struct {
     volatile uint32_t gintsts;          // 014 Interrupt
     volatile uint32_t gintmsk;          // 018 Interrupt Mask
     volatile uint32_t grxstsr;          // 01c Receive Status Debug Read
+  union {
     volatile uint32_t grxstsp;          // 020 Receive Status Read/Pop
+    volatile dwc2_grxstsp_t grxstsp_bm;
+  };
     volatile uint32_t grxfsiz;          // 024 Receive FIFO Size
   union {
     volatile uint32_t dieptxf0;         // 028 EP0 Tx FIFO Size
@@ -1235,17 +1264,6 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GRXSTSP_PKTSTS_Pos               (17U)
 #define GRXSTSP_PKTSTS_Msk               (0xFUL << GRXSTSP_PKTSTS_Pos)            // 0x001E0000
 #define GRXSTSP_PKTSTS                   GRXSTSP_PKTSTS_Msk                       // OUT EP interrupt mask bits
-
-#define GRXSTS_PKTSTS_GLOBALOUTNAK       1
-#define GRXSTS_PKTSTS_OUTRX              2
-#define GRXSTS_PKTSTS_HCHIN              2
-#define GRXSTS_PKTSTS_OUTDONE            3
-#define GRXSTS_PKTSTS_HCHIN_XFER_COMP    3
-#define GRXSTS_PKTSTS_SETUPDONE          4
-#define GRXSTS_PKTSTS_DATATOGGLEERR      5
-#define GRXSTS_PKTSTS_SETUPRX            6
-#define GRXSTS_PKTSTS_HCHHALTED          7
-
 
 /********************  Bit definition for DAINTMSK register  ********************/
 #define DAINTMSK_IEPM_Pos                (0U)

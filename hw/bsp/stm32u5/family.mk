@@ -48,7 +48,7 @@ else
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	src/portable/synopsys/dwc2/hcd_dwc2.c \
-	src/portable/synopsys/dwc2/dwc2_common.c \
+	src/portable/synopsys/dwc2/dwc2_common.c
 endif
 
 INC += \

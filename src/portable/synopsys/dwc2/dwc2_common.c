@@ -242,9 +242,6 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
   }
 
-  // (non-periodic) TX FIFO empty level for interrupt is complete empty
-  dwc2->gahbcfg |= GAHBCFG_TX_FIFO_EPMTY_LVL;
-
   return true;
 }
 
