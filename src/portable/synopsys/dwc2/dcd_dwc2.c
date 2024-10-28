@@ -882,21 +882,11 @@ static void handle_epin_irq(uint8_t rhport) {
 
 /* Interrupt Hierarchy
 
-  DxEPINTn.XferCompl    DxEPMSK.XferComplMsk
-         |                       |
-         +---------- AND --------+
-                      |
-     DAINT.xEPnInt            DAINTMSK.xEPnMsk
-         |                       |
-         +---------- AND --------+
-                      |
-    GINTSTS.xEPInt         GINTMSK.xEPIntMsk
-         |                       |
-         +---------- AND --------+
-                      |
-             GAHBCFG.GblIntrMsk
-                      |
-                    IRQn
+                DxEPINTn
+                   |
+                DAINT.xEPn
+                   |
+     GINTSTS:    xEPInt
 
   Note: when OTG_MULTI_PROC_INTRPT = 1, Device Each endpoint interrupt deachint/deachmsk/diepeachmsk/doepeachmsk
   are combined to generate dedicated interrupt line for each endpoint.

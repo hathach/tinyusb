@@ -133,7 +133,18 @@ GHWCFG2_field = {
         1: "Dedicated",
         2: "Shared UTMI+",
         3: "Shared ULPI"
-    }
+    },
+    'nptx_q_depth': {
+        0: "2",
+        1: "4",
+        2: "8",
+    },
+    'ptx_q_depth': {
+        0: "2",
+        1: "4",
+        2: "8",
+        3: "16"
+    },
 }
 
 # mapping for specific fields in GHWCFG4

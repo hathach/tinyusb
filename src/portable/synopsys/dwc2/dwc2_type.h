@@ -160,6 +160,14 @@ enum {
   GRXSTS_PKTSTS_HOST_CHANNEL_HALTED = 7
 };
 
+// Same as TUSB_XFER_*
+enum {
+  HCCHAR_EPTYPE_CONTROL     = 0,
+  HCCHAR_EPTYPE_ISOCHRONOUS = 1,
+  HCCHAR_EPTYPE_BULK        = 2,
+  HCCHAR_EPTYPE_INTERRUPT   = 3
+};
+
 //--------------------------------------------------------------------
 // Common Register Bitfield
 //--------------------------------------------------------------------
@@ -355,14 +363,25 @@ TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg4_t) == 4, "incorrect size");
 //--------------------------------------------------------------------
 
 typedef struct TU_ATTR_PACKED {
-  uint32_t fifo_available  : 16; // 0..15 Number of words available in the Tx FIFO
-  uint32_t queue_available :  8; // 16..23 Number of spaces available in the NPT transmit request queue for both IN and OUT
+  uint32_t fifo_available      : 16; // 0..15 Number of words available in the Tx FIFO
+  uint32_t req_queue_available :  8; // 16..23 Number of spaces available in the NPT transmit request queue for both IN and OU
   // 24..31 is top entry in the request queue that is currently being processed by the MAC
-  uint32_t qtop_terminate  :  1; // 24 Last entry for selected channel
-  uint32_t qtop_token      :  2; // 25..26 Token 0: In/Out 1: ZLP, 2: Ping/cspit, 3: Channel halt command
-  uint32_t qtop_ch_num     :  4; // 27..30 Channel number
+  uint32_t qtop_terminate      :  1; // 24 Last entry for selected channel
+  uint32_t qtop_type           :  2; // 25..26 Token (0) In/Out (1) ZLP, (2) Ping/cspit, (3) Channel halt command
+  uint32_t qtop_ch_num         :  4; // 27..30 Channel number
 } dwc2_hnptxsts_t;
 TU_VERIFY_STATIC(sizeof(dwc2_hnptxsts_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t fifo_available      : 16; // 0..15 Number of words available in the Tx FIFO
+  uint32_t req_queue_available : 7; // 16..22 Number of spaces available in the PTX transmit request queue
+  uint32_t qtop_terminate      : 1; // 23 Last entry for selected channel
+  uint32_t qtop_last_period    : 1; // 24 Last entry for selected channel is a periodic entry
+  uint32_t qtop_type           : 2; // 25..26 Token (0) In/Out (1) ZLP, (2) Ping/cspit, (3) Channel halt command
+  uint32_t qtop_ch_num         : 4; // 27..30 Channel number
+  uint32_t qtop_odd_frame      : 1; // 31 Send in odd frame
+} dwc2_hptxsts_t;
+TU_VERIFY_STATIC(sizeof(dwc2_hptxsts_t) == 4, "incorrect size");
 
 typedef struct TU_ATTR_PACKED {
   uint32_t conn_status         : 1; // 0 Port connect status
@@ -571,7 +590,10 @@ typedef struct {
     volatile uint32_t hfir;             // 404 Host Frame Interval
     volatile uint32_t hfnum;            // 408 Host Frame Number / Frame Remaining
              uint32_t reserved40c;      // 40C
+  union {
     volatile uint32_t hptxsts;          // 410 Host Periodic TX FIFO / Queue Status
+    volatile dwc2_hptxsts_t hptxsts_bm;
+  };
     volatile uint32_t haint;            // 414 Host All Channels Interrupt
     volatile uint32_t haintmsk;         // 418 Host All Channels Interrupt Mask
     volatile uint32_t hflbaddr;         // 41C Host Frame List Base Address
@@ -1854,9 +1876,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCINT_DATATOGGLE_ERR_Pos         (10U)
 #define HCINT_DATATOGGLE_ERR_Msk         (0x1UL << HCINT_DATATOGGLE_ERR_Pos)      // 0x00000400
 #define HCINT_DATATOGGLE_ERR             HCINT_DATATOGGLE_ERR_Msk                 // Data toggle error
-#define HCINT_BUFFER_NAK_Pos             (11U)
-#define HCINT_BUFFER_NAK_Msk             (0x1UL << HCINT_BUFFER_NAK_Pos)          // 0x00000800
-#define HCINT_BUFFER_NAK                 HCINT_BUFFER_NAK_Msk                     // Buffer not available interrupt
+#define HCINT_BUFFER_NA_Pos             (11U)
+#define HCINT_BUFFER_NA_Msk             (0x1UL << HCINT_BUFFER_NA_Pos)          // 0x00000800
+#define HCINT_BUFFER_NA                 HCINT_BUFFER_NA_Msk                     // Buffer not available interrupt
 #define HCINT_XCS_XACT_ERR_Pos           (12U)
 #define HCINT_XCS_XACT_ERR_Msk           (0x1UL << HCINT_XCS_XACT_ERR_Pos)        // 0x00001000
 #define HCINT_XCS_XACT_ERR               HCINT_XCS_XACT_ERR_Msk                   // Excessive transaction error
