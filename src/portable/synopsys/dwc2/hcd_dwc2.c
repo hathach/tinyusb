@@ -59,9 +59,9 @@ typedef struct {
   };
 
   uint8_t* buffer;
-  uint16_t total_len;
+  uint16_t total_bytes;
   uint8_t next_data_toggle;
-  bool pending_data;
+  volatile bool pending_data;
 } hcd_pipe_t;
 
 typedef struct {
@@ -69,6 +69,8 @@ typedef struct {
 } hcd_data_t;
 
 hcd_data_t _hcd_data;
+
+#define DWC2_CHANNEL_MAX(_dwc2) tu_min8((_dwc2)->ghwcfg2_bm.num_host_ch + 1, 16)
 
 //--------------------------------------------------------------------
 //
@@ -108,8 +110,8 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t request_queue_avail(const dwc2_regs_
 
 // Find a free channel for new transfer
 TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_find_free(dwc2_regs_t* dwc2) {
-  const uint8_t max_channel = tu_min8(dwc2->ghwcfg2_bm.num_host_ch, 16);
-  for (uint8_t ch_id=0; ch_id<max_channel; ch_id++) {
+  const uint8_t max_channel = DWC2_CHANNEL_MAX(dwc2);
+  for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     // haintmsk bit enabled means channel is currently in use
     if (!tu_bit_test(dwc2->haintmsk, ch_id)) {
       return ch_id;
@@ -120,7 +122,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_find_free(dwc2_regs_t* dwc2)
 
 // Find currently enabled/active channel associated with a pipe
 TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_find_enabled_by_pipe(dwc2_regs_t* dwc2, const hcd_pipe_t* pipe) {
-  const uint8_t max_channel = tu_min8(dwc2->ghwcfg2_bm.num_host_ch, 16);
+  const uint8_t max_channel = DWC2_CHANNEL_MAX(dwc2);
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     if (tu_bit_test(dwc2->haintmsk, ch_id)) {
       const dwc2_channel_char_t hcchar_bm = dwc2->channel[ch_id].hcchar_bm;
@@ -366,7 +368,6 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 //--------------------------------------------------------------------+
 
 // Open an endpoint
-// channel0 is reserved for dev0 control endpoint
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * desc_ep) {
   (void) rhport;
   //dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -452,7 +453,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   channel->hcchar = pipe->hcchar & ~HCCHAR_CHENA;    // restore hcchar but don't enable yet
 
   pipe->buffer = buffer;
-  pipe->total_len = buflen;
+  pipe->total_bytes = buflen;
 
   if (dma_host_enabled(dwc2)) {
     channel->hcdma = (uint32_t) buffer;
@@ -542,7 +543,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
 
   switch (grxstsp_bm.packet_status) {
-    case GRXSTS_PKTSTS_HOST_IN_RECEIVED: {
+    case GRXSTS_PKTSTS_RX_DATA: {
       // In packet received
       const uint16_t byte_count = grxstsp_bm.byte_count;
       const uint8_t pipe_id = pipe_find_opened_by_channel(channel);
@@ -554,13 +555,13 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
       // short packet, minus remaining bytes (xfer_size)
       if (byte_count < channel->hctsiz_bm.xfer_size) {
-        pipe->total_len -= channel->hctsiz_bm.xfer_size;
+        pipe->total_bytes -= channel->hctsiz_bm.xfer_size;
       }
 
       break;
     }
 
-    case GRXSTS_PKTSTS_HOST_IN_XFER_COMPL:
+    case GRXSTS_PKTSTS_RX_COMPLETE:
       // In transfer complete: After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed
       // interrupt --> handle_channel_irq()
       break;
@@ -645,14 +646,13 @@ TU_ATTR_ALWAYS_INLINE static inline void handle_hprt_irq(uint8_t rhport, bool in
 
 void handle_channel_irq(uint8_t rhport, bool in_isr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  for(uint8_t ch_id=0; ch_id<32; ch_id++) {
+  for (uint8_t ch_id = 0; ch_id < 32; ch_id++) {
     if (tu_bit_test(dwc2->haint, ch_id)) {
       dwc2_channel_t* channel = &dwc2->channel[ch_id];
       uint32_t hcint = channel->hcint;
       hcint &= channel->hcintmsk;
 
       dwc2_channel_char_t hcchar_bm = channel->hcchar_bm;
-
       xfer_result_t result = XFER_RESULT_INVALID; // invalid means transfer is not complete
 
       if (hcint & HCINT_XFER_COMPLETE) {
@@ -686,12 +686,11 @@ void handle_channel_irq(uint8_t rhport, bool in_isr) {
       // Transfer is complete (success, stalled, failed) or channel is disabled
       if (result != XFER_RESULT_INVALID || (hcint & HCINT_CHANNEL_HALTED)) {
         uint8_t pipe_id = pipe_find_opened_by_channel(channel);
-        if (pipe_id < CFG_TUH_DWC2_ENDPOINT_MAX) {
-          hcd_pipe_t* pipe = &_hcd_data.pipe[pipe_id];
-          pipe->pending_data = false;
-        }
+        TU_ASSERT(pipe_id < CFG_TUH_DWC2_ENDPOINT_MAX, );
+        hcd_pipe_t* pipe = &_hcd_data.pipe[pipe_id];
         const uint8_t ep_addr = tu_edpt_addr(hcchar_bm.ep_num, hcchar_bm.ep_dir);
 
+        pipe->pending_data = false;
         dwc2->haintmsk &= ~TU_BIT(ch_id); // de-allocate channel
 
         // notify usbh if transfer is complete (skip if channel is disabled)
@@ -709,8 +708,9 @@ bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
   // Use period txsts for both p/np to get request queue space available (1-bit difference, it is small enough)
   volatile dwc2_hptxsts_t* txsts_bm = (volatile dwc2_hptxsts_t*) (is_periodic ? &dwc2->hptxsts : &dwc2->hnptxsts);
 
-  // find which channel have pending packet
+  // find OUT channel with pending data
   bool ff_written = false;
+  //const uint8_t max_channel = DWC2_CHANNEL_MAX(dwc2);
   for (uint8_t ch_id = 0; ch_id < 32; ch_id++) {
     if (tu_bit_test(dwc2->haintmsk, ch_id)) {
       dwc2_channel_t* channel = &dwc2->channel[ch_id];
@@ -723,16 +723,16 @@ bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
             const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
             for (uint16_t i = 0; i < remain_packets; i++) {
               const uint16_t remain_bytes = channel->hctsiz_bm.xfer_size;
-              const uint16_t packet_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
+              const uint16_t xact_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
 
               // check if there is enough space in FIFO and request queue.
               // the last dword written to FIFO will trigger dwc2 controller to write to RequestQueue
-              if ((packet_bytes > txsts_bm->fifo_available) && (txsts_bm->req_queue_available > 0)) {
+              if ((xact_bytes > txsts_bm->fifo_available) && (txsts_bm->req_queue_available > 0)) {
                 break;
               }
 
-              dfifo_write_packet(dwc2, ch_id, pipe->buffer, packet_bytes);
-              pipe->buffer += packet_bytes;
+              dfifo_write_packet(dwc2, ch_id, pipe->buffer, xact_bytes);
+              pipe->buffer += xact_bytes;
 
               if (channel->hctsiz_bm.xfer_size == 0) {
                 pipe->pending_data = false; // all data has been written
