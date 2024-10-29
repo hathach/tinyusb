@@ -224,10 +224,10 @@ enum {
 // USB 2.0 Spec Table 9-7: Test Mode Selectors
 typedef enum {
   TUSB_FEATURE_TEST_J = 1,
-  TUSB_FEATURE_TEST_K,
-  TUSB_FEATURE_TEST_SE0_NAK,
-  TUSB_FEATURE_TEST_PACKET,
-  TUSB_FEATURE_TEST_FORCE_ENABLE,
+  TUSB_FEATURE_TEST_K = 2,
+  TUSB_FEATURE_TEST_SE0_NAK = 3,
+  TUSB_FEATURE_TEST_PACKET = 4,
+  TUSB_FEATURE_TEST_FORCE_ENABLE = 5,
 } tusb_feature_test_mode_t;
 
 //--------------------------------------------------------------------+
