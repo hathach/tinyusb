@@ -1846,9 +1846,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCINT_XFER_COMPLETE_Pos          (0U)
 #define HCINT_XFER_COMPLETE_Msk          (0x1UL << HCINT_XFER_COMPLETE_Pos)       // 0x00000001
 #define HCINT_XFER_COMPLETE              HCINT_XFER_COMPLETE_Msk                  // Transfer completed
-#define HCINT_CHANNEL_HALTED_Pos         (1U)
-#define HCINT_CHANNEL_HALTED_Msk         (0x1UL << HCINT_CHANNEL_HALTED_Pos)      // 0x00000002
-#define HCINT_CHANNEL_HALTED             HCINT_CHANNEL_HALTED_Msk                 // Channel halted
+#define HCINT_HALTED_Pos                 (1U)
+#define HCINT_HALTED_Msk                 (0x1UL << HCINT_HALTED_Pos)              // 0x00000002
+#define HCINT_HALTED                     HCINT_HALTED_Msk                         // Channel halted
 #define HCINT_AHB_ERR_Pos                (2U)
 #define HCINT_AHB_ERR_Msk                (0x1UL << HCINT_AHB_ERR_Pos)              // 0x00000004
 #define HCINT_AHB_ERR                     HCINT_AHB_ERR_Msk                         // AHB error
