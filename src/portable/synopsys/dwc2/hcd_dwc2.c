@@ -80,7 +80,6 @@ typedef struct {
 // Additional info for each channel when it is active
 typedef struct {
   volatile uint8_t state;
-  volatile bool pending_data;
   uint8_t err_count;
   uint8_t* buffer;
   uint16_t total_bytes;
@@ -441,9 +440,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   uint8_t ch_id = channel_alloc(dwc2);
   TU_ASSERT(ch_id < 16); // all channel are in used
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-
-  dwc2->haintmsk |= TU_BIT(ch_id);
-
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
 
   uint32_t hcintmsk = HCINT_NAK | HCINT_XACT_ERR | HCINT_STALL | HCINT_XFER_COMPLETE | HCINT_DATATOGGLE_ERR;
@@ -456,8 +452,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
       hcintmsk |= HCINT_BABBLE_ERR | HCINT_DATATOGGLE_ERR;
     }
   }
-
-  channel->hcintmsk = hcintmsk;
 
   uint16_t packet_count = tu_div_ceil(buflen, hcchar_bm->ep_size);
   if (packet_count == 0) {
@@ -477,7 +471,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
   hcchar_bm->odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
   hcchar_bm->ep_dir = ep_dir;                   // control endpoint can switch direction
-  channel->hcchar = edpt->hcchar & ~HCCHAR_CHENA;    // restore hcchar but don't enable yet
+  channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);    // restore hcchar but don't enable yet
 
   xfer->buffer = buffer;
   xfer->total_bytes = buflen;
@@ -493,7 +487,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     // IN Token. If we got NAK, we have to re-enable the channel again in the interrupt. Due to the way usbh stack only
     // call hcd_edpt_xfer() once, we will need to manage de-allocate/re-allocate IN channel dynamically.
     if (ep_dir == TUSB_DIR_IN) {
-      xfer->pending_data = true;
       TU_ASSERT(request_queue_avail(dwc2, is_period));
       channel->hcchar |= HCCHAR_CHENA;
     } else {
@@ -501,11 +494,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
       if (buflen > 0) {
         // To prevent conflict with other channel, we will enable periodic/non-periodic FIFO empty interrupt accordingly
         // And write packet in the interrupt handler
-        xfer->pending_data = true;
         dwc2->gintmsk |= (is_period ? GINTSTS_PTX_FIFO_EMPTY : GINTSTS_NPTX_FIFO_EMPTY);
       }
     }
   }
+
+  channel->hcintmsk = hcintmsk;
+  dwc2->haintmsk |= TU_BIT(ch_id);
 
   return true;
 }
@@ -745,7 +740,6 @@ void handle_channel_irq(uint8_t rhport, bool in_isr) {
 
         // Transfer is complete (success, stalled, failed) or channel is disabled
         if (result != XFER_RESULT_INVALID || (hcint & HCINT_CHANNEL_HALTED)) {
-          xfer->pending_data = false;
           dwc2->haintmsk &= ~TU_BIT(ch_id); // de-allocate channel
 
           // notify usbh if transfer is complete (skip if channel is disabled)
@@ -761,46 +755,37 @@ void handle_channel_irq(uint8_t rhport, bool in_isr) {
   }
 }
 
+// return true if there is still pending data and need more ISR
 bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
   // Use period txsts for both p/np to get request queue space available (1-bit difference, it is small enough)
   volatile dwc2_hptxsts_t* txsts_bm = (volatile dwc2_hptxsts_t*) (is_periodic ? &dwc2->hptxsts : &dwc2->hnptxsts);
 
-  // find OUT channel with pending data
-  bool ff_written = false;
-  //const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
-  for (uint8_t ch_id = 0; ch_id < 32 /* 16 */ ; ch_id++) {
-    if (tu_bit_test(dwc2->haintmsk, ch_id)) {
+  const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
+  for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
+    hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+    if (xfer->state == HCD_XFER_STATE_ACTIVE) {
       dwc2_channel_t* channel = &dwc2->channel[ch_id];
       const dwc2_channel_char_t hcchar_bm = channel->hcchar_bm;
-      hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
       if (hcchar_bm.ep_dir == TUSB_DIR_OUT) {
-        if (xfer->pending_data) {
-          const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
-          for (uint16_t i = 0; i < remain_packets; i++) {
-            const uint16_t remain_bytes = channel->hctsiz_bm.xfer_size;
-            const uint16_t xact_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
+        const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
+        for (uint16_t i = 0; i < remain_packets; i++) {
+          const uint16_t remain_bytes = channel->hctsiz_bm.xfer_size;
+          const uint16_t xact_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
 
-            // check if there is enough space in FIFO and request queue.
-            // the last dword written to FIFO will trigger dwc2 controller to write to RequestQueue
-            if ((xact_bytes > txsts_bm->fifo_available) && (txsts_bm->req_queue_available > 0)) {
-              break;
-            }
-
-            dfifo_write_packet(dwc2, ch_id, xfer->buffer, xact_bytes);
-            xfer->buffer += xact_bytes;
-
-            if (channel->hctsiz_bm.xfer_size == 0) {
-              xfer->pending_data = false; // all data has been written
-            }
-
-            ff_written = true;
+          // check if there is enough space in FIFO and RequestQueue.
+          // Packet's last word written to FIFO will trigger a request queue
+          if ((xact_bytes > txsts_bm->fifo_available) && (txsts_bm->req_queue_available > 0)) {
+            return true;
           }
+
+          dfifo_write_packet(dwc2, ch_id, xfer->buffer, xact_bytes);
+          xfer->buffer += xact_bytes;
         }
       }
     }
   }
 
-  return ff_written;
+  return false; // all data written
 }
 
 /* Interrupt Hierarchy
@@ -842,8 +827,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (int_status & GINTSTS_NPTX_FIFO_EMPTY) {
     // NPTX FIFO empty interrupt, this is read-only and cleared by hardware when FIFO is written
-    const bool ff_written = handle_txfifo_empty(dwc2, false);
-    if (!ff_written) {
+    const bool more_isr = handle_txfifo_empty(dwc2, false);
+    if (!more_isr) {
       // no more pending packet, disable interrupt
       dwc2->gintmsk &= ~GINTSTS_NPTX_FIFO_EMPTY;
     }
