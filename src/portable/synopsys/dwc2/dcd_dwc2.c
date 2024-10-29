@@ -853,21 +853,21 @@ static void handle_epin_irq(uint8_t rhport) {
           const uint16_t remain_bytes = epin->dieptsiz_bm.xfer_size;
 
           // Packet can not be larger than ep max size
-          const uint16_t packet_size = tu_min16(remain_bytes, xfer->max_size);
+          const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
 
           // It's only possible to write full packets into FIFO. Therefore DTXFSTS register of current
           // EP has to be checked if the buffer can take another WHOLE packet
-          if (packet_size > ((epin->dtxfsts & DTXFSTS_INEPTFSAV_Msk) << 2)) {
+          if (xact_bytes > ((epin->dtxfsts & DTXFSTS_INEPTFSAV_Msk) << 2)) {
             break;
           }
 
           // Push packet to Tx-FIFO
           if (xfer->ff) {
             volatile uint32_t* tx_fifo = dwc2->fifo[n];
-            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*) (uintptr_t) tx_fifo, packet_size);
+            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*) (uintptr_t) tx_fifo, xact_bytes);
           } else {
-            dfifo_write_packet(dwc2, n, xfer->buffer, packet_size);
-            xfer->buffer += packet_size;
+            dfifo_write_packet(dwc2, n, xfer->buffer, xact_bytes);
+            xfer->buffer += xact_bytes;
           }
         }
 

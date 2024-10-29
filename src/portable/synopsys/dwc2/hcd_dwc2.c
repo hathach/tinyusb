@@ -463,6 +463,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
   dwc2_channel_char_t* hcchar_bm = &edpt->hcchar_bm;
+  bool const is_period = edpt_is_periodic(hcchar_bm->ep_type);
 
   uint8_t ch_id = channel_alloc(dwc2);
   TU_ASSERT(ch_id < 16); // all channel are in used
@@ -487,7 +488,9 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   // TODO support split transaction
   channel->hcsplt = edpt->hcsplt;
 
-  hcchar_bm->odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
+  if (is_period) {
+    hcchar_bm->odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
+  }
   hcchar_bm->ep_dir = ep_dir;                   // control endpoint can switch direction
   channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);    // restore hcchar but don't enable yet
 
@@ -507,8 +510,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     }
     channel->hcintmsk = hcintmsk;
     dwc2->haintmsk |= TU_BIT(ch_id);
-
-    bool const is_period = edpt_is_periodic(hcchar_bm->ep_type);
 
     // enable channel for slave mode:
     // - OUT: it will enable corresponding FIFO channel
@@ -771,7 +772,8 @@ bool handle_channel_slave_out(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, 
       xfer->result = XFER_RESULT_FAILED;
       is_notify = true;
     } else {
-      // Re-initialize Channel (Do ping protocol for HS)
+      // Got here due to NAK probably, retry channel (Do ping protocol for HS)
+
     }
   } else if (hcint & HCINT_ACK) {
     xfer->err_count = 0;
@@ -827,24 +829,22 @@ bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
   const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-    if (xfer->allocated) {
-      dwc2_channel_t* channel = &dwc2->channel[ch_id];
-      const dwc2_channel_char_t hcchar_bm = channel->hcchar_bm;
-      if (hcchar_bm.ep_dir == TUSB_DIR_OUT) {
-        const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
-        for (uint16_t i = 0; i < remain_packets; i++) {
-          const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
-          const uint16_t xact_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
+    dwc2_channel_t* channel = &dwc2->channel[ch_id];
+    const dwc2_channel_char_t hcchar_bm = channel->hcchar_bm;
+    if (hcchar_bm.ep_dir == TUSB_DIR_OUT) {
+      const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
+      for (uint16_t i = 0; i < remain_packets; i++) {
+        const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
+        const uint16_t xact_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
 
-          // check if there is enough space in FIFO and RequestQueue.
-          // Packet's last word written to FIFO will trigger a request queue
-          if ((xact_bytes > txsts_bm->fifo_available) && (txsts_bm->req_queue_available > 0)) {
-            return true;
-          }
-
-          dfifo_write_packet(dwc2, ch_id, xfer->buffer, xact_bytes);
-          xfer->buffer += xact_bytes;
+        // check if there is enough space in FIFO and RequestQueue.
+        // Packet's last word written to FIFO will trigger a request queue
+        if ((xact_bytes > (txsts_bm->fifo_available << 2)) && (txsts_bm->req_queue_available > 0)) {
+          return true;
         }
+
+        dfifo_write_packet(dwc2, ch_id, xfer->buffer, xact_bytes);
+        xfer->buffer += xact_bytes;
       }
     }
   }
