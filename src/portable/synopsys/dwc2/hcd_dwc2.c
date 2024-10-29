@@ -67,13 +67,14 @@ typedef struct {
     dwc2_channel_split_t hcsplt_bm;
   };
 
-  uint8_t next_data_toggle;
+  uint8_t next_pid;
   // uint8_t resv[3];
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
 typedef struct {
   volatile bool allocated;
+  uint8_t ep_id; // associated edpt
   uint8_t result;
   uint8_t err_count;
   uint8_t* buffer;
@@ -125,7 +126,8 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_alloc(dwc2_regs_t* dwc2) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void channel_dealloc(dwc2_regs_t* dwc2, uint8_t ch_id) {
-  _hcd_data.xfer[ch_id].allocated = false;
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  xfer->allocated = false;
   dwc2->haintmsk &= ~TU_BIT(ch_id);
 }
 
@@ -193,6 +195,14 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t edpt_find_opened(uint8_t dev_addr, u
     }
   }
   return TUSB_INDEX_INVALID_8;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t cal_next_pid(uint8_t pid, uint8_t packet_count) {
+  if (packet_count & 0x01) {
+    return pid ^ 0x02; // toggle DATA0 and DATA1
+  } else {
+    return pid;
+  }
 }
 
 //--------------------------------------------------------------------
@@ -322,7 +332,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // force host mode and wait for mode switch
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
-  while( (dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
+  while ((dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
 
   // configure fixed-allocated fifo scheme
   dfifo_host_init(rhport);
@@ -438,7 +448,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   hcsplt_bm->split_compl     = 0;
   hcsplt_bm->split_en        = 0;
 
-  edpt->next_data_toggle     = HCTSIZ_PID_DATA0;
+  edpt->next_pid = HCTSIZ_PID_DATA0;
 
   return true;
 }
@@ -448,6 +458,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t ep_num = tu_edpt_number(ep_addr);
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
+
   uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
   TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
@@ -456,19 +467,21 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   uint8_t ch_id = channel_alloc(dwc2);
   TU_ASSERT(ch_id < 16); // all channel are in used
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  xfer->ep_id = ep_id;
+
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
 
   uint16_t packet_count = tu_div_ceil(buflen, hcchar_bm->ep_size);
   if (packet_count == 0) {
     packet_count = 1; // zero length packet still count as 1
   }
-  channel->hctsiz = (edpt->next_data_toggle << HCTSIZ_PID_Pos) | (packet_count << HCTSIZ_PKTCNT_Pos) | buflen;
+  channel->hctsiz = (edpt->next_pid << HCTSIZ_PID_Pos) | (packet_count << HCTSIZ_PKTCNT_Pos) | buflen;
 
-  // Control transfer always start with DATA1 for data and status stage. May has issue with ZLP
-  if (edpt->next_data_toggle == HCTSIZ_PID_DATA0 || ep_num == 0) {
-    edpt->next_data_toggle = HCTSIZ_PID_DATA1;
+  // pre-calculate next PID based on packet count, adjusted in transfer complete interrupt if short packet
+  if (ep_num == 0) {
+    edpt->next_pid = HCTSIZ_PID_DATA1; // control data and status stage always start with DATA1
   } else {
-    edpt->next_data_toggle = HCTSIZ_PID_DATA0;
+    edpt->next_pid = cal_next_pid(edpt->next_pid, packet_count);
   }
 
   // TODO support split transaction
@@ -546,7 +559,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
   uint8_t ep_id = edpt_find_opened(dev_addr, 0, TUSB_DIR_OUT);
   TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX); // no opened endpoint
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
-  edpt->next_data_toggle = HCTSIZ_PID_SETUP;
+  edpt->next_pid = HCTSIZ_PID_SETUP;
 
   return hcd_edpt_xfer(rhport, dev_addr, 0, (uint8_t*)(uintptr_t) setup_packet, 8);
 }
@@ -554,10 +567,15 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
 // clear stall, data toggle is also reset to DATA0
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
-  (void) dev_addr;
-  (void) ep_addr;
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+  const uint8_t ep_dir = tu_edpt_dir(ep_addr);
+  const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
+  TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
+  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
 
-  return false;
+  edpt->next_pid = HCTSIZ_PID_DATA0;
+
+  return true;
 }
 
 //--------------------------------------------------------------------
@@ -581,24 +599,28 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       dfifo_read_packet(dwc2, xfer->buffer, byte_count);
       xfer->buffer += byte_count;
 
+      const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
+      const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
       if (byte_count < channel->hcchar_bm.ep_size) {
         // short packet, minus remaining bytes
-        const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
         xfer->total_bytes -= remain_bytes;
+
+        // update PID since we got short packet
+        TU_ASSERT(xfer->ep_id < CFG_TUH_DWC2_ENDPOINT_MAX,);
+        hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id]; // update PID
+        edpt->next_pid = cal_next_pid(edpt->next_pid, remain_packets);
       } else {
-        // still more packet to send
-        const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
         if (remain_packets) {
+          // still more packet to send
           bool const is_period = edpt_is_periodic(channel->hcchar_bm.ep_type);
           channel_send_in_token(dwc2, channel, is_period);
         }
       }
-
       break;
     }
 
     case GRXSTS_PKTSTS_RX_COMPLETE:
-      // In transfer complete: After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed
+      // In transfer complete: After this entry is popped from the rx FIFO, dwc2 asserts a Transfer Completed
       // interrupt --> handle_channel_irq()
       break;
 

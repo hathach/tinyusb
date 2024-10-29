@@ -139,10 +139,13 @@ enum {
 };
 
 enum {
-  HCTSIZ_PID_DATA0 = 0,
-  HCTSIZ_PID_DATA2 = 1,
-  HCTSIZ_PID_DATA1 = 2,
-  HCTSIZ_PID_SETUP = 3,
+  HCTSIZ_PID_DATA0 = 0, // 00b
+  HCTSIZ_PID_DATA2 = 1, // 01b
+  HCTSIZ_PID_DATA1 = 2, // 10b
+  HCTSIZ_PID_SETUP = 3, // 11b
+};
+enum {
+  HCTSIZ_PID_MDATA = 3,
 };
 
 enum {
