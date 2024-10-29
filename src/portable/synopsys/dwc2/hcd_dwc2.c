@@ -110,14 +110,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool dma_host_enabled(const dwc2_regs_t* dwc
   return CFG_TUH_DWC2_DMA && dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint8_t request_queue_avail(const dwc2_regs_t* dwc2, bool is_period) {
-  if (is_period) {
-    return dwc2->hptxsts_bm.req_queue_available;
-  } else {
-    return dwc2->hnptxsts_bm.req_queue_available;
-  }
-}
-
 // Find a free channel for new transfer
 TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_alloc(dwc2_regs_t* dwc2) {
   const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
@@ -138,8 +130,25 @@ TU_ATTR_ALWAYS_INLINE static inline void channel_dealloc(dwc2_regs_t* dwc2, uint
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void channel_disable(dwc2_channel_t* channel) {
+  // disable also require request queue
+  // request_queue_avail();
   channel->hcintmsk |= HCINT_HALTED;
   channel->hcchar |= HCCHAR_CHDIS | HCCHAR_CHENA; // must set both CHDIS and CHENA
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t request_queue_avail(const dwc2_regs_t* dwc2, bool is_period) {
+  if (is_period) {
+    return dwc2->hptxsts_bm.req_queue_available;
+  } else {
+    return dwc2->hnptxsts_bm.req_queue_available;
+  }
+}
+
+// attempt to send IN token to receive data
+TU_ATTR_ALWAYS_INLINE static inline bool channel_send_in_token(const dwc2_regs_t* dwc2, dwc2_channel_t* channel, bool is_period) {
+  TU_ASSERT(request_queue_avail(dwc2, is_period));
+  channel->hcchar_bm.enable = 1;
+  return true;
 }
 
 // Find currently enabled channel. Note: EP0 is bidirectional
@@ -494,8 +503,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     // IN Token. If we got NAK, we have to re-enable the channel again in the interrupt. Due to the way usbh stack only
     // call hcd_edpt_xfer() once, we will need to manage de-allocate/re-allocate IN channel dynamically.
     if (ep_dir == TUSB_DIR_IN) {
-      TU_ASSERT(request_queue_avail(dwc2, is_period));
-      channel->hcchar |= HCCHAR_CHENA;
+      channel_send_in_token(dwc2, channel, is_period);
     } else {
       channel->hcchar |= HCCHAR_CHENA;
       if (buflen > 0) {
@@ -517,7 +525,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   const uint8_t ep_dir = tu_edpt_dir(ep_addr);
   const uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
   TU_VERIFY(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
-  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+  //hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
 
   // hcd_int_disable(rhport);
 
@@ -525,12 +533,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
   if (ch_id < 16) {
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
-    // disable also require request queue
-    if (request_queue_avail(dwc2, edpt_is_periodic(edpt->hcchar_bm.ep_type))) {
-      channel_disable(channel);
-    } else {
-      TU_BREAKPOINT();
-    }
+    channel_disable(channel);
   }
 
   // hcd_int_enable(rhport);
@@ -578,9 +581,17 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       dfifo_read_packet(dwc2, xfer->buffer, byte_count);
       xfer->buffer += byte_count;
 
-      // short packet, minus remaining bytes (xfer_size)
-      if (byte_count < channel->hctsiz_bm.xfer_size) {
-        xfer->total_bytes -= channel->hctsiz_bm.xfer_size;
+      if (byte_count < channel->hcchar_bm.ep_size) {
+        // short packet, minus remaining bytes
+        const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
+        xfer->total_bytes -= remain_bytes;
+      } else {
+        // still more packet to send
+        const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
+        if (remain_packets) {
+          bool const is_period = edpt_is_periodic(channel->hcchar_bm.ep_type);
+          channel_send_in_token(dwc2, channel, is_period);
+        }
       }
 
       break;
@@ -702,8 +713,7 @@ bool handle_channel_slave_in(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, u
     xfer->err_count = 0;
   } else if (hcint & HCINT_NAK) {
     // NAK received, re-enable channel if request queue is available
-    TU_ASSERT(request_queue_avail(dwc2, is_period));
-    channel->hcchar |= HCCHAR_CHENA;
+    channel_send_in_token(dwc2, channel, is_period);
   }
 
   return is_done;
@@ -775,11 +785,9 @@ void handle_channel_irq(uint8_t rhport, bool in_isr) {
           is_done = handle_channel_slave_in(dwc2, ch_id, is_period, hcint);
         }
 
-        // notify usbh if done
         if (is_done) {
           const uint8_t ep_addr = tu_edpt_addr(hcchar_bm.ep_num, hcchar_bm.ep_dir);
           hcd_event_xfer_complete(hcchar_bm.dev_addr, ep_addr, xfer->total_bytes, xfer->result, in_isr);
-
           channel_dealloc(dwc2, ch_id);
         }
       }
@@ -803,7 +811,7 @@ bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
       if (hcchar_bm.ep_dir == TUSB_DIR_OUT) {
         const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
         for (uint16_t i = 0; i < remain_packets; i++) {
-          const uint16_t remain_bytes = channel->hctsiz_bm.xfer_size;
+          const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
           const uint16_t xact_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
 
           // check if there is enough space in FIFO and RequestQueue.
