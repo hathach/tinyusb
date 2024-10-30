@@ -75,10 +75,13 @@ typedef struct {
 typedef struct {
   volatile bool allocated;
   uint8_t ep_id; // associated edpt
-  uint8_t result;
   uint8_t err_count;
-  uint8_t* buffer;
-  uint16_t total_bytes;
+  uint8_t result;
+  uint16_t xferred_bytes;  // bytes that accumulate transferred though USB bus for the whole hcd_edpt_xfer(), which can
+                           // be composed of multiple channel_start_xfer() (retry with NAK/NYET)
+  uint8_t* buf_start;
+  uint16_t buf_len;
+  uint16_t out_fifo_bytes; // bytes written to TX FIFO (may not be transferred on USB bus).
 } hcd_xfer_t;
 
 typedef struct {
@@ -125,20 +128,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_alloc(dwc2_regs_t* dwc2) {
   return TUSB_INDEX_INVALID_8;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void channel_dealloc(dwc2_regs_t* dwc2, uint8_t ch_id) {
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  xfer->allocated = false;
-  dwc2->haintmsk &= ~TU_BIT(ch_id);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline void channel_disable(dwc2_channel_t* channel) {
-  // disable also require request queue
-  // request_queue_avail();
-  channel->hcintmsk |= HCINT_HALTED;
-  channel->hcchar |= HCCHAR_CHDIS | HCCHAR_CHENA; // must set both CHDIS and CHENA
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint8_t request_queue_avail(const dwc2_regs_t* dwc2, bool is_period) {
+TU_ATTR_ALWAYS_INLINE static inline uint8_t req_queue_avail(const dwc2_regs_t* dwc2, bool is_period) {
   if (is_period) {
     return dwc2->hptxsts_bm.req_queue_available;
   } else {
@@ -146,9 +136,22 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t request_queue_avail(const dwc2_regs_
   }
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void channel_dealloc(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  xfer->allocated = false;
+  dwc2->haintmsk &= ~TU_BIT(ch_id);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void channel_disable(const dwc2_regs_t* dwc2, dwc2_channel_t* channel, bool is_period) {
+  // disable also require request queue
+  TU_ASSERT(req_queue_avail(dwc2, is_period), );
+  channel->hcintmsk |= HCINT_HALTED;
+  channel->hcchar |= HCCHAR_CHDIS | HCCHAR_CHENA; // must set both CHDIS and CHENA
+}
+
 // attempt to send IN token to receive data
 TU_ATTR_ALWAYS_INLINE static inline bool channel_send_in_token(const dwc2_regs_t* dwc2, dwc2_channel_t* channel, bool is_period) {
-  TU_ASSERT(request_queue_avail(dwc2, is_period));
+  TU_ASSERT(req_queue_avail(dwc2, is_period));
   channel->hcchar_bm.enable = 1;
   return true;
 }
@@ -195,6 +198,14 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t edpt_find_opened(uint8_t dev_addr, u
     }
   }
   return TUSB_INDEX_INVALID_8;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint16_t cal_packet_count(uint16_t len, uint16_t ep_size) {
+  if (len == 0) {
+    return 1;
+  } else {
+    return tu_div_ceil(len, ep_size);
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t cal_next_pid(uint8_t pid, uint8_t packet_count) {
@@ -453,57 +464,42 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   return true;
 }
 
-// Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  const uint8_t ep_num = tu_edpt_number(ep_addr);
-  const uint8_t ep_dir = tu_edpt_dir(ep_addr);
-
-  uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
-  TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
-  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+bool channel_start_xfer(dwc2_regs_t* dwc2, uint8_t ch_id) {
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
   dwc2_channel_char_t* hcchar_bm = &edpt->hcchar_bm;
+  dwc2_channel_t* channel = &dwc2->channel[ch_id];
   bool const is_period = edpt_is_periodic(hcchar_bm->ep_type);
 
-  uint8_t ch_id = channel_alloc(dwc2);
-  TU_ASSERT(ch_id < 16); // all channel are in used
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  xfer->ep_id = ep_id;
+  // clear previous state
+  xfer->out_fifo_bytes = 0;
 
-  dwc2_channel_t* channel = &dwc2->channel[ch_id];
-
-  uint16_t packet_count = tu_div_ceil(buflen, hcchar_bm->ep_size);
-  if (packet_count == 0) {
-    packet_count = 1; // zero length packet still count as 1
+  // hchar: restore but don't enable yet
+  if (is_period) {
+    hcchar_bm->odd_frame = 1 - (dwc2->hfnum & 1);   // transfer on next frame
   }
-  channel->hctsiz = (edpt->next_pid << HCTSIZ_PID_Pos) | (packet_count << HCTSIZ_PKTCNT_Pos) | buflen;
+  channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);
+
+  // hctsiz: zero length packet still count as 1
+  const uint16_t packet_count = cal_packet_count(xfer->buf_len, hcchar_bm->ep_size);
+  channel->hctsiz = (edpt->next_pid << HCTSIZ_PID_Pos) | (packet_count << HCTSIZ_PKTCNT_Pos) | xfer->buf_len;
 
   // pre-calculate next PID based on packet count, adjusted in transfer complete interrupt if short packet
-  if (ep_num == 0) {
+  if (hcchar_bm->ep_num == 0) {
     edpt->next_pid = HCTSIZ_PID_DATA1; // control data and status stage always start with DATA1
   } else {
     edpt->next_pid = cal_next_pid(edpt->next_pid, packet_count);
   }
 
-  // TODO support split transaction
+  // split: TODO support later
   channel->hcsplt = edpt->hcsplt;
 
-  if (is_period) {
-    hcchar_bm->odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
-  }
-  hcchar_bm->ep_dir = ep_dir;                   // control endpoint can switch direction
-  channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);    // restore hcchar but don't enable yet
-
-  xfer->buffer = buffer;
-  xfer->total_bytes = buflen;
-  xfer->result = XFER_RESULT_INVALID;
-
   if (dma_host_enabled(dwc2)) {
-    channel->hcdma = (uint32_t) buffer;
+    // channel->hcdma = (uint32_t) buffer;
     TU_ASSERT(false); // not yet supported
   } else {
     uint32_t hcintmsk = HCINT_NAK | HCINT_XACT_ERR | HCINT_STALL | HCINT_XFER_COMPLETE | HCINT_DATATOGGLE_ERR;
-    if (ep_dir == TUSB_DIR_IN) {
+    if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
       hcintmsk |= HCINT_BABBLE_ERR | HCINT_DATATOGGLE_ERR;
     } else {
       hcintmsk |= HCINT_NYET;
@@ -516,11 +512,11 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     // - IN : it will write an IN request to the Non-periodic Request Queue, this will have dwc2 trying to send
     // IN Token. If we got NAK, we have to re-enable the channel again in the interrupt. Due to the way usbh stack only
     // call hcd_edpt_xfer() once, we will need to manage de-allocate/re-allocate IN channel dynamically.
-    if (ep_dir == TUSB_DIR_IN) {
+    if (hcchar_bm->ep_dir == TUSB_DIR_IN) {
       channel_send_in_token(dwc2, channel, is_period);
     } else {
-      channel->hcchar |= HCCHAR_CHENA;
-      if (buflen > 0) {
+      channel->hcchar_bm.enable = 1;
+      if (xfer->buf_len > 0) {
         // To prevent conflict with other channel, we will enable periodic/non-periodic FIFO empty interrupt accordingly
         // And write packet in the interrupt handler
         dwc2->gintmsk |= (is_period ? GINTSTS_PTX_FIFO_EMPTY : GINTSTS_NPTX_FIFO_EMPTY);
@@ -529,6 +525,29 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
 
   return true;
+}
+
+// Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  const uint8_t ep_num = tu_edpt_number(ep_addr);
+  const uint8_t ep_dir = tu_edpt_dir(ep_addr);
+
+  uint8_t ep_id = edpt_find_opened(dev_addr, ep_num, ep_dir);
+  TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
+  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+
+  uint8_t ch_id = channel_alloc(dwc2);
+  TU_ASSERT(ch_id < 16); // all channel are in used
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  xfer->ep_id = ep_id;
+
+  edpt->hcchar_bm.ep_dir = ep_dir; // control endpoint can switch direction
+  xfer->buf_start = buffer;
+  xfer->buf_len = buflen;
+  xfer->result = XFER_RESULT_INVALID;
+
+  return channel_start_xfer(dwc2, ch_id);
 }
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
@@ -547,7 +566,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   const uint8_t ch_id = channel_find_enabled(dwc2, dev_addr, ep_num, ep_dir);
   if (ch_id < 16) {
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
-    channel_disable(channel);
+    channel_disable(dwc2, channel, edpt_is_periodic(channel->hcchar_bm.ep_type));
   }
 
   // hcd_int_enable(rhport);
@@ -597,16 +616,16 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       const uint16_t byte_count = grxstsp_bm.byte_count;
       hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
 
-      dfifo_read_packet(dwc2, xfer->buffer, byte_count);
-      xfer->buffer += byte_count;
+      dfifo_read_packet(dwc2, xfer->buf_start + xfer->xferred_bytes, byte_count);
+      xfer->xferred_bytes += byte_count;
 
       const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
       const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
       if (byte_count < channel->hcchar_bm.ep_size) {
         // short packet, minus remaining bytes
-        xfer->total_bytes -= remain_bytes;
+        xfer->xferred_bytes -= remain_bytes;
 
-        // update PID since we got short packet
+        // update PID based on remain packets count
         TU_ASSERT(xfer->ep_id < CFG_TUH_DWC2_ENDPOINT_MAX,);
         hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id]; // update PID
         edpt->next_pid = cal_next_pid(edpt->next_pid, remain_packets);
@@ -703,7 +722,7 @@ TU_ATTR_ALWAYS_INLINE static inline void handle_hprt_irq(uint8_t rhport, bool in
   dwc2->hprt = hprt; // clear interrupt
 }
 
-bool handle_channel_slave_in(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, uint32_t hcint) {
+bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, uint32_t hcint) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
 
@@ -711,10 +730,10 @@ bool handle_channel_slave_in(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, u
 
   if (hcint & HCINT_XFER_COMPLETE) {
     xfer->result = XFER_RESULT_SUCCESS;
-    channel_disable(channel);
+    channel_disable(dwc2, channel, is_period);
     channel->hcintmsk &= ~HCINT_ACK;
   } else if (hcint & (HCINT_XACT_ERR | HCINT_BABBLE_ERR | HCINT_STALL)) {
-    channel_disable(channel);
+    channel_disable(dwc2, channel, is_period);
     if (hcint & HCINT_XACT_ERR) {
       xfer->err_count++;
       channel->hcintmsk |= HCINT_ACK;
@@ -742,45 +761,73 @@ bool handle_channel_slave_in(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, u
   return is_done;
 }
 
-bool handle_channel_slave_out(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, uint32_t hcint) {
+bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, uint32_t hcint) {
   (void) is_period;
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
 
-  bool is_notify = false;
+  bool is_done = false;
 
   if (hcint & HCINT_XFER_COMPLETE) {
-    is_notify = true;
+    is_done = true;
     xfer->result = XFER_RESULT_SUCCESS;
     channel->hcintmsk &= ~HCINT_ACK;
+    TU_LOG1("xferred = %u, remain = %u, out_fifo = %u\n",
+            xfer->xferred_bytes, xfer->buf_len, xfer->out_fifo_bytes);
   } else if (hcint & HCINT_STALL) {
     xfer->result = XFER_RESULT_STALLED;
-    channel_disable(channel);
+    channel_disable(dwc2, channel, is_period);
   } else if (hcint & (HCINT_NAK | HCINT_XACT_ERR | HCINT_NYET)) {
-    channel_disable(channel);
+    TU_ASSERT(xfer->ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
+    hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
+    edpt->next_pid = channel->hctsiz_bm.pid; // save PID
+
+    /* Rewind buffer pointer and total bytes to retry later
+     * Must use the hctsiz.pktcnt field to determine how much data has been transferred. This field reflects the number
+     * of packets that have been transferred via the USB. This is always an integral number of packets if the transfer
+     * was halted before its normal completion. (Can't use the hctsiz.xfersize field because that reflects the number of
+     * bytes transferred via the AHB, not the USB).
+     */
+    const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
+    const uint16_t total_packets = cal_packet_count(xfer->buf_len, channel->hcchar_bm.ep_size);
+    const uint16_t actual_bytes = (total_packets - remain_packets) * channel->hcchar_bm.ep_size;
+    xfer->xferred_bytes += actual_bytes;
+    xfer->buf_start += actual_bytes;
+    xfer->buf_len -= actual_bytes;
+    xfer->out_fifo_bytes = 0;
+    TU_LOG1("xferred = %u, remain = %u, out_fifo = %u, this actual = %u\n",
+          xfer->xferred_bytes, xfer->buf_len, xfer->out_fifo_bytes, actual_bytes);
+
+    channel_disable(dwc2, channel, is_period);
     if (hcint & HCINT_XACT_ERR) {
       xfer->err_count++;
       channel->hcintmsk |= HCINT_ACK;
     } else {
+      // NAK/NYET disable channel to flush all posted request and try again
       xfer->err_count = 0;
     }
   } else if (hcint & HCINT_HALTED) {
     channel->hcintmsk &= ~HCINT_HALTED;
     if (xfer->result != XFER_RESULT_INVALID) {
-      is_notify = true;
+      is_done = true;
     } else if (channel->hcchar_bm.err_multi_count == HCD_XFER_ERROR_MAX) {
       xfer->result = XFER_RESULT_FAILED;
-      is_notify = true;
+      is_done = true;
     } else {
-      // Got here due to NAK probably, retry channel (Do ping protocol for HS)
-
+      // Got here due to NAK or NYET (need to do PING for HS) -> Retry transfer
+      TU_ASSERT(channel_start_xfer(dwc2, ch_id));
     }
   } else if (hcint & HCINT_ACK) {
     xfer->err_count = 0;
     channel->hcintmsk &= ~HCINT_ACK;
   }
 
-  return is_notify;
+  if (is_done) {
+    xfer->xferred_bytes += xfer->out_fifo_bytes;
+    xfer->out_fifo_bytes = 0;
+  }
+
+  return is_done;
 }
 
 void handle_channel_irq(uint8_t rhport, bool in_isr) {
@@ -798,25 +845,26 @@ void handle_channel_irq(uint8_t rhport, bool in_isr) {
       uint32_t hcint = channel->hcint;
       hcint &= channel->hcintmsk;
 
-      if (is_dma) {
+      channel->hcint = hcint;  // clear all interrupt flags
 
+      if (is_dma) {
+        // NOTE For DMA This is flow for core with OUT NAK enhancement from v2.71a
       } else {
         bool is_done;
 
         if (hcchar_bm.ep_dir == TUSB_DIR_OUT) {
-          is_done = handle_channel_slave_out(dwc2, ch_id, is_period, hcint);
+          is_done = handle_channel_out_slave(dwc2, ch_id, is_period, hcint);
         } else {
-          is_done = handle_channel_slave_in(dwc2, ch_id, is_period, hcint);
+          is_done = handle_channel_in_slave(dwc2, ch_id, is_period, hcint);
         }
 
         if (is_done) {
           const uint8_t ep_addr = tu_edpt_addr(hcchar_bm.ep_num, hcchar_bm.ep_dir);
-          hcd_event_xfer_complete(hcchar_bm.dev_addr, ep_addr, xfer->total_bytes, xfer->result, in_isr);
+          hcd_event_xfer_complete(hcchar_bm.dev_addr, ep_addr, xfer->xferred_bytes, xfer->result, in_isr);
           channel_dealloc(dwc2, ch_id);
         }
       }
 
-      channel->hcint = hcint;  // clear all interrupt flags
     }
   }
 }
@@ -828,14 +876,14 @@ bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
 
   const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
-    hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
-    const dwc2_channel_char_t hcchar_bm = channel->hcchar_bm;
-    if (hcchar_bm.ep_dir == TUSB_DIR_OUT) {
+    // skip writing to FIFO if channel is expecting halted.
+    if (!(channel->hcintmsk & HCINT_HALTED) && (channel->hcchar_bm.ep_dir == TUSB_DIR_OUT)) {
+      hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
       const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
       for (uint16_t i = 0; i < remain_packets; i++) {
         const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
-        const uint16_t xact_bytes = tu_min16(remain_bytes, hcchar_bm.ep_size);
+        const uint16_t xact_bytes = tu_min16(remain_bytes, channel->hcchar_bm.ep_size);
 
         // check if there is enough space in FIFO and RequestQueue.
         // Packet's last word written to FIFO will trigger a request queue
@@ -843,8 +891,8 @@ bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
           return true;
         }
 
-        dfifo_write_packet(dwc2, ch_id, xfer->buffer, xact_bytes);
-        xfer->buffer += xact_bytes;
+        dfifo_write_packet(dwc2, ch_id, xfer->buf_start + xfer->out_fifo_bytes, xact_bytes);
+        xfer->out_fifo_bytes += xact_bytes;
       }
     }
   }
@@ -896,11 +944,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
   }
 
-  if (int_status & GINTSTS_HCINT) {
-    // Host Channel interrupt: source is cleared in HCINT register
-    handle_channel_irq(rhport, in_isr);
-  }
-
   if (int_status & GINTSTS_NPTX_FIFO_EMPTY) {
     // NPTX FIFO empty interrupt, this is read-only and cleared by hardware when FIFO is written
     const bool more_isr = handle_txfifo_empty(dwc2, false);
@@ -908,6 +951,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
       // no more pending packet, disable interrupt
       dwc2->gintmsk &= ~GINTSTS_NPTX_FIFO_EMPTY;
     }
+  }
+
+  if (int_status & GINTSTS_HCINT) {
+    // Host Channel interrupt: source is cleared in HCINT register
+    // must bee handled after TX FIFO empty
+    handle_channel_irq(rhport, in_isr);
   }
 }
 
