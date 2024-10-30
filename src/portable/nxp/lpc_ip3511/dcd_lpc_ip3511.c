@@ -42,7 +42,18 @@
 
 #if TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
   // LPCOpen
+  #ifdef __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wunused-parameter"
+  #pragma GCC diagnostic ignored "-Wstrict-prototypes"
+  #endif
+
   #include "chip.h"
+
+  #ifdef __GNUC__
+  #pragma GCC diagnostic pop
+  #endif
+
 #else
   // SDK
   #include "fsl_device_registers.h"
@@ -278,8 +289,8 @@ static void edpt_reset_all(uint8_t rhport)
   }
   prepare_setup_packet(rhport);
 }
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   edpt_reset_all(rhport);
 
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
@@ -292,6 +303,8 @@ void dcd_init(uint8_t rhport)
                            DEVCMDSTAT_RESET_CHANGE_MASK | DEVCMDSTAT_CONNECT_CHANGE_MASK | DEVCMDSTAT_SUSPEND_CHANGE_MASK;
 
   NVIC_ClearPendingIRQ(_dcd_controller[rhport].irqnum);
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

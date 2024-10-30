@@ -1,0 +1,72 @@
+name: Setup Toolchain
+
+inputs:
+  toolchain:
+    description: 'Toolchain name'
+    required: true
+  toolchain_version:
+    description: 'Toolchain version'
+    required: false
+
+outputs:
+  build_option:
+    description: 'Build option for the toolchain e.g --toolchain clang'
+    value: ${{ steps.set-toolchain-option.outputs.build_option }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install ARM GCC
+      if: inputs.toolchain == 'arm-gcc'
+      uses: carlosperate/arm-none-eabi-gcc-action@v1
+      with:
+        release: '12.3.Rel1'
+
+    - name: Pull ESP-IDF docker
+      if: inputs.toolchain == 'esp-idf'
+      uses: ./.github/actions/setup_toolchain/espressif
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        toolchain_version: ${{ inputs.toolchain_version }}
+
+    - name: Get Toolchain URL
+      if: >-
+        inputs.toolchain != 'arm-gcc' &&
+        inputs.toolchain != 'arm-iar' &&
+        inputs.toolchain != 'esp-idf'
+      id: set-toolchain-url
+      run: |
+        TOOLCHAIN_JSON='{
+          "aarch64-gcc": "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz",
+          "arm-clang": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-x86_64.tar.xz",
+          "msp430-gcc": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
+          "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz",
+          "rx-gcc": "http://gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run"
+        }'
+        TOOLCHAIN_URL=$(echo $TOOLCHAIN_JSON | jq -r '.["${{ inputs.toolchain }}"]')
+        echo "toolchain_url=$TOOLCHAIN_URL"
+        echo "toolchain_url=$TOOLCHAIN_URL" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Download Toolchain
+      if: >-
+        inputs.toolchain != 'arm-gcc' &&
+        inputs.toolchain != 'arm-iar' &&
+        inputs.toolchain != 'esp-idf'
+      uses: ./.github/actions/setup_toolchain/download
+      with:
+        toolchain: ${{ inputs.toolchain }}
+        toolchain_url: ${{ steps.set-toolchain-url.outputs.toolchain_url }}
+
+    - name: Set toolchain option
+      id: set-toolchain-option
+      run: |
+          BUILD_OPTION=""
+          if [[ "${{ inputs.toolchain }}" == *"clang"* ]]; then
+            BUILD_OPTION="--toolchain clang"
+          elif [[ "${{ inputs.toolchain }}" == "arm-iar" ]]; then
+            BUILD_OPTION="--toolchain iar"
+          fi
+          echo "build_option=$BUILD_OPTION"
+          echo "build_option=$BUILD_OPTION" >> $GITHUB_OUTPUT
+      shell: bash

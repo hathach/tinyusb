@@ -147,6 +147,13 @@ uint32_t board_button_read(void) {
   return lvl == BUTTON_STATE_ACTIVE;
 }
 
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  max_len = tu_min32(max_len, sizeof(bsp_unique_id_t));
+  bsp_unique_id_t const *uid = R_BSP_UniqueIdGet();
+  memcpy(id, uid->unique_id_bytes, max_len);
+  return max_len;
+}
+
 int board_uart_read(uint8_t *buf, int len) {
   (void) buf;
   (void) len;
@@ -169,50 +176,25 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
-
 #endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
-#if CFG_TUD_ENABLED && defined(BOARD_TUD_RHPORT)
-  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_DEVICE(_n)  0
-#endif
-
-#if CFG_TUH_ENABLED && defined(BOARD_TUH_RHPORT)
-  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_HOST(_n)    0
-#endif
-
 //------------- USB0 FullSpeed -------------//
 void usbfs_interrupt_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-  #if PORT_SUPPORT_HOST(0)
-  tuh_int_handler(0, true);
-  #endif
-
-  #if PORT_SUPPORT_DEVICE(0)
-  tud_int_handler(0);
-  #endif
+  tusb_int_handler(0, true);
 }
 
 void usbfs_resume_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-  #if PORT_SUPPORT_HOST(0)
-  tuh_int_handler(0, true);
-  #endif
-
-  #if PORT_SUPPORT_DEVICE(0)
-  tud_int_handler(0);
-  #endif
+  tusb_int_handler(0, true);
 }
 
 void usbfs_d0fifo_handler(void) {
@@ -234,13 +216,7 @@ void usbhs_interrupt_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-  #if PORT_SUPPORT_HOST(1)
-  tuh_int_handler(1, true);
-  #endif
-
-  #if PORT_SUPPORT_DEVICE(1)
-  tud_int_handler(1);
-  #endif
+  tusb_int_handler(1, true);
 }
 
 void usbhs_d0fifo_handler(void) {

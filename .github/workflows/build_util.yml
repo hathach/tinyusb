@@ -1,0 +1,82 @@
+name: Reusable build util
+
+on:
+  workflow_call:
+    inputs:
+      build-system:
+        required: true
+        type: string
+      toolchain:
+        required: true
+        type: string
+      build-args:
+        required: true
+        type: string
+      one-per-family:
+        required: false
+        default: false
+        type: boolean
+      upload-artifacts:
+        required: false
+        default: false
+        type: boolean
+      os:
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+
+jobs:
+  family:
+    runs-on: ${{ inputs.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arg: ${{ fromJSON(inputs.build-args) }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Toolchain
+        id: setup-toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          toolchain_version: 'v5.3.1'
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: ${{ matrix.arg }}
+
+      - name: Set build one-per-family option
+        id: set-one-per-family
+        run: |
+          if [[ "${{ inputs.one-per-family }}" == "true" ]]; then
+            BUILD_OPTION="--one-per-family"
+          fi
+          echo "build_option=$BUILD_OPTION"
+          echo "build_option=$BUILD_OPTION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build
+        run: |
+          if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
+            docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.1 python tools/build.py ${{ matrix.arg }}
+          else
+            python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
+          fi
+        shell: bash
+
+      - name: Upload Artifacts for Hardware Testing
+        if: ${{ inputs.upload-artifacts }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arg }}
+          path: |
+            cmake-build/cmake-build-*/*/*/*.elf
+            cmake-build/cmake-build-*/*/*/*.bin
+            cmake-build/cmake-build-*/*/*/*.bin
+            cmake-build/cmake-build-*/*/*/bootloader/bootloader.bin
+            cmake-build/cmake-build-*/*/*/partition_table/partition-table.bin
+            cmake-build/cmake-build-*/*/*/config.env
+            cmake-build/cmake-build-*/*/*/flash_args

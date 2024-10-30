@@ -15,7 +15,7 @@ SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_stm32h750xx.s
 LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/stm32h750xx_flash.icf
 
 # For flash-jlink target
-JLINK_DEVICE = stm32h750xb_m7
+JLINK_DEVICE = stm32h750xb
 
 # flash target using on-board stlink
 flash: flash-stlink

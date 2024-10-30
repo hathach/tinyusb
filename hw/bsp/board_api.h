@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _BOARD_API_H_
-#define _BOARD_API_H_
+#ifndef BOARD_API_H_
+#define BOARD_API_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,7 +39,7 @@ extern "C" {
 #include "tusb.h"
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+#if TUP_MCU_ESPRESSIF
   // ESP-IDF need "freertos/" prefix in include path.
   // CFG_TUSB_OS_INC_PATH should be defined accordingly.
   #include "freertos/FreeRTOS.h"
@@ -71,6 +71,9 @@ void board_init(void);
 
 // Init board after tinyusb is initialized
 void board_init_after_tusb(void) TU_ATTR_WEAK;
+
+// Jump to bootloader
+void board_reset_to_bootloader(void) TU_ATTR_WEAK;
 
 // Turn LED on or off
 void board_led_write(bool state);

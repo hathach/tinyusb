@@ -29,10 +29,6 @@
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_RUSB2)
 
-// Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
-// We disable SOF for now until needed later on
-#define USE_SOF     0
-
 #include "device/dcd.h"
 #include "rusb2_type.h"
 
@@ -74,6 +70,8 @@ typedef struct
 {
   pipe_state_t pipe[PIPE_COUNT];
   uint8_t ep[2][16];   /* a lookup table for a pipe index from an endpoint address */
+  // Track whether sof has been manually enabled
+  bool sof_enabled;
 } dcd_data_t;
 
 static dcd_data_t _dcd;
@@ -659,10 +657,14 @@ static void enable_interrupt(uint32_t pswi)
 }
 #endif
 
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   rusb2_module_start(rhport, true);
+
+  // We disable SOF for now until needed later on.
+  // Since TinyUSB doesn't use SOF for now, and this interrupt often (1ms interval)
+  _dcd.sof_enabled = false;
 
 #ifdef RUSB2_SUPPORT_HIGHSPEED
   if ( rusb2_is_highspeed_rhport(rhport) ) {
@@ -708,7 +710,7 @@ void dcd_init(uint8_t rhport)
 
   rusb->INTSTS0 = 0;
   rusb->INTENB0 = RUSB2_INTSTS0_VBINT_Msk | RUSB2_INTSTS0_BRDY_Msk | RUSB2_INTSTS0_BEMP_Msk |
-                  RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_CTRT_Msk | (USE_SOF ? RUSB2_INTSTS0_SOFR_Msk : 0) |
+                  RUSB2_INTSTS0_DVST_Msk | RUSB2_INTSTS0_CTRT_Msk | (_dcd.sof_enabled ? RUSB2_INTSTS0_SOFR_Msk : 0) |
                   RUSB2_INTSTS0_RESM_Msk;
   rusb->BEMPENB = 1;
   rusb->BRDYENB = 1;
@@ -717,6 +719,8 @@ void dcd_init(uint8_t rhport)
   if (rusb->INTSTS0_b.VBSTS) {
     dcd_connect(rhport);
   }
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport) {
@@ -756,10 +760,9 @@ void dcd_disconnect(uint8_t rhport)
 
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
-  (void) rhport;
-  (void) en;
-
-  // TODO implement later
+  rusb2_reg_t* rusb = RUSB2_REG(rhport);
+  _dcd.sof_enabled = en;
+  rusb->INTENB0_b.SOFE = en ? 1: 0;
 }
 
 //--------------------------------------------------------------------+
@@ -949,18 +952,19 @@ void dcd_int_handler(uint8_t rhport)
   // Resumed
   if ( is0 & RUSB2_INTSTS0_RESM_Msk ) {
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
-#if (0 == USE_SOF)
-    rusb->INTENB0_b.SOFE = 0;
-#endif
+    if (!_dcd.sof_enabled) {
+      rusb->INTENB0_b.SOFE = 0;
+    }
   }
 
   // SOF received
   if ( (is0 & RUSB2_INTSTS0_SOFR_Msk) && rusb->INTENB0_b.SOFE ) {
     // USBD will exit suspended mode when SOF event is received
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
-#if (0 == USE_SOF)
-    rusb->INTENB0_b.SOFE = 0;
-#endif
+    const uint32_t frame = rusb->FRMNUM_b.FRNM;
+    dcd_event_sof(rhport, frame, true);
+    if (!_dcd.sof_enabled) {
+      rusb->INTENB0_b.SOFE = 0;
+    }
   }
 
   // Device state changes
@@ -979,9 +983,9 @@ void dcd_int_handler(uint8_t rhport)
       case RUSB2_INTSTS0_DVSQ_STATE_SUSP2:
       case RUSB2_INTSTS0_DVSQ_STATE_SUSP3:
         dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
-#if (0 == USE_SOF)
-        rusb->INTENB0_b.SOFE = 1;
-#endif
+        if (!_dcd.sof_enabled) {
+          rusb->INTENB0_b.SOFE = 1;
+        }
 
       default: break;
     }

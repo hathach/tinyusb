@@ -336,9 +336,9 @@ static void dcd_reset(void)
 }
 
 // Initializes the USB peripheral for device mode and enables it.
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   usb_pullup_out_write(0);
 
@@ -352,6 +352,8 @@ void dcd_init(uint8_t rhport)
 
   // Turn on the external pullup
   usb_pullup_out_write(1);
+
+  return true;
 }
 
 // Enables or disables the USB device interrupt(s). May be used to
@@ -434,6 +436,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   }
 
   return true;
+}
+
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport; (void) ep_addr;
+  // TODO implement dcd_edpt_close()
 }
 
 void dcd_edpt_close_all (uint8_t rhport)

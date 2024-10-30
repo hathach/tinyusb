@@ -37,16 +37,10 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
 
 #include "host/hcd.h"
 
-#if TU_CHECK_MCU(OPT_MCU_MSP432E4)
-  #include "musb_msp432e.h"
+#include "musb_type.h"
 
-#elif TU_CHECK_MCU(OPT_MCU_TM4C123, OPT_MCU_TM4C129)
-  #include "musb_tm4c.h"
-
-  // HACK generalize later
-  #include "musb_type.h"
-  #define FIFO0_WORD FIFO0
-
+#if TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+  #include "musb_ti.h"
 #else
   #error "Unsupported MCUs"
 #endif
@@ -562,9 +556,9 @@ static void process_pipe_rx(uint8_t rhport, uint_fast8_t pipenum)
  * Host API
  *------------------------------------------------------------------*/
 
-bool hcd_init(uint8_t rhport)
-{
-  (void)rhport;
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rhport;
+  (void) rh_init;
 
   NVIC_ClearPendingIRQ(USB0_IRQn);
   _hcd.bmRequestType = REQUEST_TYPE_INVALID;

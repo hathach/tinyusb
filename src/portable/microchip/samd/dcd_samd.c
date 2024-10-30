@@ -78,9 +78,9 @@ static void bus_reset(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init (uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   // Reset to get in a clean state.
   USB->DEVICE.CTRLA.bit.SWRST = true;
@@ -102,6 +102,8 @@ void dcd_init (uint8_t rhport)
 
   USB->DEVICE.INTFLAG.reg |= USB->DEVICE.INTFLAG.reg; // clear pending
   USB->DEVICE.INTENSET.reg = /* USB_DEVICE_INTENSET_SOF | */ USB_DEVICE_INTENSET_EORST;
+
+  return true;
 }
 
 #if CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X
@@ -183,9 +185,12 @@ void dcd_connect(uint8_t rhport)
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
   (void) rhport;
-  (void) en;
 
-  // TODO implement later
+  if (en) {
+    USB->DEVICE.INTENSET.bit.SOF = 1;
+  } else {
+    USB->DEVICE.INTENCLR.bit.SOF = 1;
+  }
 }
 
 /*------------------------------------------------------------------*/
@@ -374,7 +379,9 @@ void dcd_int_handler (uint8_t rhport)
   if ( int_status & USB_DEVICE_INTFLAG_SOF )
   {
     USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+    const uint32_t frame = USB->DEVICE.FNUM.bit.FNUM;
+    dcd_event_sof(0, frame, true);
+    //dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 
   // SAMD doesn't distinguish between Suspend and Disconnect state.

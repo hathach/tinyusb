@@ -39,11 +39,18 @@
 /* CONSTANTS
  *------------------------------------------------------------------*/
 
+typedef enum {
+  TUSB_ROLE_INVALID = 0,
+  TUSB_ROLE_DEVICE,
+  TUSB_ROLE_HOST,
+} tusb_role_t;
+
 /// defined base on EHCI specs value for Endpoint Speed
 typedef enum {
   TUSB_SPEED_FULL = 0,
   TUSB_SPEED_LOW  = 1,
   TUSB_SPEED_HIGH = 2,
+  TUSB_SPEED_AUTO = 0xaa,
   TUSB_SPEED_INVALID = 0xff,
 } tusb_speed_t;
 
@@ -214,6 +221,15 @@ enum {
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 
+// USB 2.0 Spec Table 9-7: Test Mode Selectors
+typedef enum {
+  TUSB_FEATURE_TEST_J = 1,
+  TUSB_FEATURE_TEST_K,
+  TUSB_FEATURE_TEST_SE0_NAK,
+  TUSB_FEATURE_TEST_PACKET,
+  TUSB_FEATURE_TEST_FORCE_ENABLE,
+} tusb_feature_test_mode_t;
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
@@ -257,6 +273,14 @@ enum {
 enum {
   TUSB_INDEX_INVALID_8 = 0xFFu
 };
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+typedef struct {
+  tusb_role_t role;
+  tusb_speed_t speed;
+} tusb_rhport_init_t;
 
 //--------------------------------------------------------------------+
 // USB Descriptors

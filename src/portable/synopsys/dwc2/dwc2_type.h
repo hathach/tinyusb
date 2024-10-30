@@ -1,17 +1,34 @@
-/**
-  * @author  MCD Application Team
-  *          Ha Thach (tinyusb.org)
-  *
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2024, hathach (tinyusb.org)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ */
+/** <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
   * the "License"; You may not use this file except in compliance with the
   * License. You may obtain a copy of the License at:
   *                        opensource.org/licenses/BSD-3-Clause
-  *
   */
 
 #ifndef _TUSB_DWC2_TYPES_H_
@@ -29,6 +46,7 @@ typedef struct
   uintptr_t reg_base;
   uint32_t  irqnum;
   uint8_t   ep_count;
+  uint8_t   ep_in_count;
   uint32_t  ep_fifo_size;
 }dwc2_controller_t;
 
@@ -69,86 +87,222 @@ typedef struct
 #endif
 
 enum {
-  HS_PHY_TYPE_NONE = 0  , // not supported
-  HS_PHY_TYPE_UTMI      , // internal PHY (mostly)
-  HS_PHY_TYPE_ULPI      , // external PHY
-  HS_PHY_TYPE_UTMI_ULPI ,
+  GHWCFG2_OPMODE_HNP_SRP         = 0,
+  GHWCFG2_OPMODE_SRP             = 1,
+  GHWCFG2_OPMODE_NON_HNP_NON_SRP = 2,
+  GHWCFG2_OPMODE_SRP_DEVICE      = 3,
+  GHWCFFG2_OPMODE_NON_OTG_DEVICE = 4,
+  GHWCFG2_OPMODE_SRP_HOST        = 5,
+  GHWCFG2_OPMODE_NON_OTG_HOST    = 6,
+};
+enum {
+  GHWCFG2_ARCH_SLAVE_ONLY   = 0,
+  GHWCFG2_ARCH_EXTERNAL_DMA = 1,
+  GHWCFG2_ARCH_INTERNAL_DMA = 2,
 };
 
 enum {
-  FS_PHY_TYPE_NONE = 0,  // not supported
-  FS_PHY_TYPE_DEDICATED,
-  FS_PHY_TYPE_UTMI,
-  FS_PHY_TYPE_ULPI,
+  GHWCFG2_HSPHY_NOT_SUPPORTED = 0,
+  GHWCFG2_HSPHY_UTMI          = 1, // internal PHY (mostly)
+  GHWCFG2_HSPHY_ULPI          = 2, // external PHY (mostly)
+  GHWCFG2_HSPHY_UTMI_ULPI     = 3, // both
+
 };
 
-typedef struct TU_ATTR_PACKED
-{
-  uint32_t op_mode                  : 3; // 0: HNP and SRP | 1: SRP | 2: non-HNP, non-SRP
-  uint32_t arch                     : 2; // 0: slave-only | 1: External DMA | 2: Internal DMA | 3: others
-  uint32_t point2point              : 1; // 0: support hub and split | 1: no hub, no split
-  uint32_t hs_phy_type              : 2; // 0: not supported | 1: UTMI+ | 2: ULPI | 3: UTMI+ and ULPI
-  uint32_t fs_phy_type              : 2; // 0: not supported | 1: dedicated | 2: UTMI+ | 3: ULPI
-  uint32_t num_dev_ep               : 4; // Number of device endpoints (not including EP0)
-  uint32_t num_host_ch              : 4; // Number of host channel
-  uint32_t period_channel_support   : 1; // Support Periodic OUT Host Channel
-  uint32_t enable_dynamic_fifo      : 1; // Dynamic FIFO Sizing Enabled
-  uint32_t mul_cpu_int              : 1; // Multi-Processor Interrupt Enabled
-  uint32_t reserved21               : 1;
-  uint32_t nperiod_tx_q_depth       : 2; // Non-periodic request queue depth: 0 = 2.  1 = 4, 2 = 8
-  uint32_t host_period_tx_q_depth   : 2; // Host periodic request queue depth: 0 = 2.  1 = 4, 2 = 8
-  uint32_t dev_token_q_depth        : 5; // Device IN token sequence learning queue depth: 0-30
-  uint32_t otg_enable_ic_usb        : 1; // IC_USB mode specified for mode of operation
-} dwc2_ghwcfg2_t;
+enum {
+  GHWCFG2_FSPHY_NOT_SUPPORTED = 0,
+  GHWCFG2_FSPHY_DEDICATED     = 1, // have dedicated FS PHY
+  GHWCFG2_FSPHY_UTMI          = 2, // shared with UTMI+
+  GHWCFG2_FSPHY_ULPI          = 3, // shared with ULPI
+};
 
+enum {
+  GHWCFFG4_PHY_DATA_WIDTH_8    = 0,
+  GHWCFFG4_PHY_DATA_WIDTH_16   = 1,
+  GHWCFFG4_PHY_DATA_WIDTH_8_16 = 2, // software selectable
+};
+
+//--------------------------------------------------------------------
+// Register bitfield definitions
+//--------------------------------------------------------------------
+typedef struct TU_ATTR_PACKED {
+  uint32_t ses_req_scs           : 1; //  0 Session request success
+  uint32_t ses_req               : 1; //  1 Session request
+  uint32_t vbval_ov_en           : 1; //  2 VBUS valid override enable
+  uint32_t vbval_ov_val          : 1; //  3 VBUS valid override value
+  uint32_t aval_ov_en            : 1; //  4 A-peripheral session valid override enable
+  uint32_t aval_ov_al            : 1; //  5 A-peripheral session valid override value
+  uint32_t bval_ov_en            : 1; //  6 B-peripheral session valid override enable
+  uint32_t bval_ov_val           : 1; //  7 B-peripheral session valid override value
+  uint32_t hng_scs               : 1; //  8 Host negotiation success
+  uint32_t hnp_rq                : 1; //  9 HNP (host negotiation protocol) request
+  uint32_t host_set_hnp_en       : 1; // 10 Host set HNP enable
+  uint32_t dev_hnp_en            : 1; // 11 Device HNP enabled
+  uint32_t embedded_host_en      : 1; // 12 Embedded host enable
+  uint32_t rsv13_14              : 2; // 13.14 Reserved
+  uint32_t dbnc_filter_bypass    : 1; // 15 Debounce filter bypass
+  uint32_t cid_status            : 1; // 16 Connector ID status
+  uint32_t dbnc_done             : 1; // 17 Debounce done
+  uint32_t ases_valid            : 1; // 18 A-session valid
+  uint32_t bses_valid            : 1; // 19 B-session valid
+  uint32_t otg_ver               : 1; // 20 OTG version 0: v1.3, 1: v2.0
+  uint32_t current_mode          : 1; // 21 Current mode of operation 0: device, 1: host
+  uint32_t mult_val_id_bc        : 5; // 22..26 Multi-valued input pin ID battery charger
+  uint32_t chirp_en              : 1; // 27 Chirp detection enable
+  uint32_t rsv28_30              : 3; // 28.30: Reserved
+  uint32_t test_mode_corr_eusb2  : 1; // 31 Test mode control for eUSB2 PHY
+} dwc2_gotgctl_t;
+TU_VERIFY_STATIC(sizeof(dwc2_gotgctl_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t rsv0_1                : 2; //  0..1  Reserved
+  uint32_t ses_end_det           : 1; //  2     Session end detected
+  uint32_t rsv3_7                : 5; //  3..7  Reserved
+  uint32_t srs_status_change     : 1; //  8     Session request success status change
+  uint32_t hns_status_change     : 1; //  9     Host negotiation success status change
+  uint32_t rsv10_16              : 7; // 10..16 Reserved
+  uint32_t hng_det               : 1; // 17     Host negotiation detected
+  uint32_t adev_timeout_change   : 1; // 18     A-device timeout change
+  uint32_t dbnc_done             : 1; // 19     Debounce done
+  uint32_t mult_val_lp_change    : 1; // 20     Multi-valued input pin change
+  uint32_t rsv21_31              :11; // 21..31 Reserved
+} dwc2_gotgint_t;
+TU_VERIFY_STATIC(sizeof(dwc2_gotgint_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t gintmask              :  1; //  0 Global interrupt mask
+  uint32_t hbst_len              :  4; //  1..4 Burst length/type
+  uint32_t dma_en                :  1; //  5 DMA enable
+  uint32_t rsv6                  :  1; //  6 Reserved
+  uint32_t nptxf_empty_lvl       :  1; //  7 Non-periodic Tx FIFO empty level
+  uint32_t ptxf_empty_lvl        :  1; //  8 Periodic Tx FIFO empty level
+  uint32_t rsv9_20               : 12; //  9.20: Reserved
+  uint32_t remote_mem_support    :  1; // 21 Remote memory support
+  uint32_t notify_all_dma_write  :  1; // 22 Notify all DMA writes
+  uint32_t ahb_single            :  1; // 23 AHB single
+  uint32_t inv_desc_endian       :  1; // 24 Inverse descriptor endian
+  uint32_t rsv25_31              :  7; // 25..31 Reserved
+} dwc2_gahbcfg_t;
+TU_VERIFY_STATIC(sizeof(dwc2_gahbcfg_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t timeout_cal             :  3; /* 0..2 Timeout calibration.
+    The USB standard timeout value for high-speed operation is 736 to 816 (inclusive) bit times. The USB standard
+    timeout value for full- speed operation is 16 to 18 (inclusive) bit times. The application must program this field
+    based on the speed of enumeration. The number of bit times added per PHY clock are as follows:
+    - High-speed: PHY clock One 30-MHz = 16 bit times, One 60-MHz = 8 bit times
+    - Full-speed: PHY clock One 30-MHz = 0.4 bit times, One 60-MHz = 0.2 bit times, One 48-MHz = 0.25 bit times */
+  uint32_t phy_if                  : 1; // 3 PHY interface. 0: 8 bits, 1: 16 bits
+  uint32_t ulpi_utmi_sel           : 1; // 4 ULPI/UTMI select. 0: UTMI+, 1: ULPI
+  uint32_t fs_intf_sel             : 1; // 5 Fullspeed serial interface select. 0: 6-pin, 1: 3-pin
+  uint32_t phy_sel                 : 1; // 6 HS/FS PHY selection. 0: HS UTMI+ or ULPI, 1: FS serial transceiver
+  uint32_t ddr_sel                 : 1; // 7 ULPI DDR select. 0: Single data rate 8-bit, 1: Double data rate 4-bit
+  uint32_t srp_capable             : 1; // 8 SRP-capable
+  uint32_t hnp_capable             : 1; // 9 HNP-capable
+  uint32_t turnaround_time         : 4; // 10..13 Turnaround time. 9: 8-bit UTMI+, 5: 16-bit UTMI+
+  uint32_t rsv14                   : 1; // 14 Reserved
+  uint32_t phy_low_power_clk_sel   : 1; /* 15 PHY low-power clock select either 480-MHz or 48-MHz (low-power) PHY mode.
+    In FS/LS modes, the PHY can usually operate on a 48-MHz clock to save power. This bit is valid only for UTMI+ PHYs.
+    - 0: 480 Mhz internal PLL: the UTMI interface operates at either 60 MHz (8 bit) or 30 MHz (16-bit)
+    - 1 48 Mhz external clock: the UTMI interface operates at 48 MHz in FS mode and at either 48 or 6 MHz in LS mode */
+  uint32_t otg_i2c_sel             : 1; // 16 OTG I2C interface select. 0: UTMI-FS, 1: I2C for OTG signals
+  uint32_t ulpi_fsls               : 1; /* 17 ULPI FS/LS select. 0: ULPI, 1: ULPI FS/LS.
+                                             valid only when the FS serial transceiver is selected on the ULPI PHY. */
+  uint32_t ulpi_auto_resume        : 1; // 18 ULPI Auto-resume
+  uint32_t ulpi_clk_sus_m          : 1; // 19 ULPI Clock SuspendM
+  uint32_t ulpi_ext_vbus_drv       : 1; // 20 ULPI External VBUS Drive
+  uint32_t ulpi_int_vbus_indicator : 1; // 21 ULPI Internal VBUS Indicator
+  uint32_t term_sel_dl_pulse       : 1; // 22 TermSel DLine pulsing
+  uint32_t indicator_complement    : 1; // 23 Indicator complement
+  uint32_t indicator_pass_through  : 1; // 24 Indicator pass through
+  uint32_t ulpi_if_protect_disable : 1; // 25 ULPI interface protect disable
+  uint32_t ic_usb_capable          : 1; // 26 IC_USB Capable
+  uint32_t ic_usb_traf_ctl         : 1; // 27 IC_USB Traffic Control
+  uint32_t tx_end_delay            : 1; // 28 TX end delay
+  uint32_t force_host_mode         : 1; // 29 Force host mode
+  uint32_t force_dev_mode          : 1; // 30 Force device mode
+  uint32_t corrupt_tx_pkt          : 1; // 31 Corrupt Tx packet. 0: normal, 1: debug
+} dwc2_gusbcfg_t;
+TU_VERIFY_STATIC(sizeof(dwc2_gusbcfg_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t core_soft_rst          : 1; // 0 Core Soft Reset
+  uint32_t piufs_soft_rst         : 1; // 1 PIU FS Dedicated Controller Soft Reset
+  uint32_t frame_counter_rst      : 1; // 2 Frame Counter Reset (host)
+  uint32_t intoken_q_flush        : 1; // 3 IN Token Queue Flush
+  uint32_t rx_fifo_flush          : 1; // 4 RX FIFO Flush
+  uint32_t tx_fifo_flush          : 1; // 5 TX FIFO Flush
+  uint32_t tx_fifo_num            : 5; // 6..10 TX FIFO Number
+  uint32_t rsv11_28               :18; // 11..28 Reserved
+  uint32_t core_soft_rst_done     : 1; // 29 Core Soft Reset Done, from v4.20a
+  uint32_t dma_req                : 1; // 30 DMA Request
+  uint32_t ahb_idle               : 1; // 31 AHB Idle
+} dwc2_grstctl_t;
+TU_VERIFY_STATIC(sizeof(dwc2_grstctl_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t op_mode                : 3; // 0..2 HNP/SRP Host/Device/OTG mode
+  uint32_t arch                   : 2; // 3..4 Slave/External/Internal DMA
+  uint32_t point2point            : 1; // 5 0: support hub and split | 1: no hub, no split
+  uint32_t hs_phy_type            : 2; // 6..7 0: not supported | 1: UTMI+ | 2: ULPI | 3: UTMI+ and ULPI
+  uint32_t fs_phy_type            : 2; // 8..9 0: not supported | 1: dedicated | 2: UTMI+ | 3: ULPI
+  uint32_t num_dev_ep             : 4; // 10..13 Number of device endpoints (excluding EP0)
+  uint32_t num_host_ch            : 4; // 14..17 Number of host channel (excluding control)
+  uint32_t period_channel_support : 1; // 18 Support Periodic OUT Host Channel
+  uint32_t enable_dynamic_fifo    : 1; // 19 Dynamic FIFO Sizing Enabled
+  uint32_t mul_proc_intrpt        : 1; // 20 Multi-Processor Interrupt enabled (OTG_MULTI_PROC_INTRPT)
+  uint32_t reserved21             : 1; // 21 reserved
+  uint32_t nptx_q_depth           : 2; // 22..23 Non-periodic request queue depth: 0 = 2.  1 = 4, 2 = 8
+  uint32_t ptx_q_depth            : 2; // 24..25 Host periodic request queue depth: 0 = 2.  1 = 4, 2 = 8
+  uint32_t token_q_depth          : 5; // 26..30 Device IN token sequence learning queue depth: 0-30
+  uint32_t otg_enable_ic_usb      : 1; // 31 IC_USB mode specified for mode of operation
+} dwc2_ghwcfg2_t;
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg2_t) == 4, "incorrect size");
 
-typedef struct TU_ATTR_PACKED
-{
-  uint32_t xfer_size_width          : 4;  // Transfer size counter in bits = 11 + n (max 19 bits)
-  uint32_t packet_size_width        : 3;  // Packet size counter in bits = 4 + n (max 10 bits)
-  uint32_t otg_enable               : 1;  // 1 is OTG capable
-  uint32_t i2c_enable               : 1;  // I2C interface is available
-  uint32_t vendor_ctrl_itf          : 1;  // Vendor control interface is available
-  uint32_t optional_feature_removed : 1;  // remove User ID, GPIO, SOF toggle & counter
-  uint32_t synch_reset              : 1;  // 0: async reset | 1: synch reset
-  uint32_t otg_adp_support          : 1;  // ADP logic is present along with HSOTG controller
-  uint32_t otg_enable_hsic          : 1;  // 1: HSIC-capable with shared UTMI PHY interface | 0: non-HSIC
-  uint32_t battery_charger_support  : 1;  // support battery charger
-  uint32_t lpm_mode                 : 1;  // LPC mode
-  uint32_t total_fifo_size          : 16; // DFIFO depth value in terms of 32-bit words
+typedef struct TU_ATTR_PACKED {
+  uint32_t xfer_size_width          : 4;  // 0..3 Transfer size counter in bits = 11 + n (max 19 bits)
+  uint32_t packet_size_width        : 3;  // 4..6 Packet size counter in bits = 4 + n (max 10 bits)
+  uint32_t otg_enable               : 1;  // 7 OTG capable
+  uint32_t i2c_enable               : 1;  // 8 I2C interface is available
+  uint32_t vendor_ctrl_itf          : 1;  // 9 Vendor control interface is available
+  uint32_t optional_feature_removed : 1;  // 10 remove User ID, GPIO, SOF toggle & counter to save gate count
+  uint32_t synch_reset              : 1;  // 11 0: async reset | 1: synch reset
+  uint32_t otg_adp_support          : 1;  // 12 ADP logic is present along with HSOTG controller
+  uint32_t otg_enable_hsic          : 1;  // 13 1: HSIC-capable with shared UTMI PHY interface | 0: non-HSIC
+  uint32_t battery_charger_support  : 1;  // s14 upport battery charger
+  uint32_t lpm_mode                 : 1;  // 15 LPM mode
+  uint32_t dfifo_depth              : 16; // DFIFO depth - EP_LOC_CNT in terms of 32-bit words
 }dwc2_ghwcfg3_t;
-
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg3_t) == 4, "incorrect size");
 
-typedef struct TU_ATTR_PACKED
-{
-  uint32_t num_dev_period_in_ep       : 4; // Number of Device Periodic IN Endpoints
-  uint32_t power_optimized            : 1; // Partial Power Down Enabled
-  uint32_t ahb_freq_min               : 1; // 1: minimum of AHB frequency is less than 60 MHz
-  uint32_t hibernation                : 1; // Hibernation feature is enabled
-  uint32_t reserved7                  : 3;
-  uint32_t service_interval_mode      : 1; // Service Interval supported
-  uint32_t ipg_isoc_en                : 1; // IPG ISOC supported
-  uint32_t acg_enable                 : 1; // ACG enabled
-  uint32_t reserved13                 : 1;
-  uint32_t utmi_phy_data_width        : 2; // 0: 8 bits | 1: 16 bits | 2: 8/16 software selectable
-  uint32_t dev_ctrl_ep_num            : 4; // Number of Device control endpoints in addition to EP0
-  uint32_t iddg_filter_enabled        : 1;
-  uint32_t vbus_valid_filter_enabled  : 1;
-  uint32_t a_valid_filter_enabled     : 1;
-  uint32_t b_valid_filter_enabled     : 1;
-  uint32_t dedicated_fifos            : 1; // Dedicated tx fifo for device IN Endpoint is enabled
-  uint32_t num_dev_in_eps             : 4; // Number of Device IN Endpoints including EP0
-  uint32_t dma_desc_enable            : 1; // scatter/gather DMA configuration
-  uint32_t dma_dynamic                : 1; // Dynamic scatter/gather DMA
+typedef struct TU_ATTR_PACKED {
+  uint32_t num_dev_period_in_ep     : 4; // 0..3 Number of Device Periodic IN Endpoints
+  uint32_t partial_powerdown        : 1; // 4 Partial Power Down Enabled
+  uint32_t ahb_freq_min             : 1; // 5 1: minimum of AHB frequency is less than 60 MHz
+  uint32_t hibernation              : 1; // 6 Hibernation feature is enabled
+  uint32_t extended_hibernation     : 1; // 7 Extended Hibernation feature is enabled
+  uint32_t reserved8                : 1; // 8 Reserved
+  uint32_t enhanced_lpm_support1    : 1; // 9 Enhanced LPM Support1
+  uint32_t service_interval_flow    : 1; // 10 Service Interval flow is supported
+  uint32_t ipg_isoc_support         : 1; // 11 Interpacket GAP ISO OUT worst-case is supported
+  uint32_t acg_support              : 1; // 12 Active clock gating is supported
+  uint32_t enhanced_lpm_support     : 1; // 13 Enhanced LPM Support
+  uint32_t phy_data_width           : 2; // 14..15 0: 8 bits | 1: 16 bits | 2: 8/16 software selectable
+  uint32_t ctrl_ep_num              : 4; // 16..19 Number of Device control endpoints in addition to EP0
+  uint32_t iddg_filter              : 1; // 20 IDDG Filter Enabled
+  uint32_t vbus_valid_filter        : 1; // 21 VBUS Valid Filter Enabled
+  uint32_t a_valid_filter           : 1; // 22 A Valid Filter Enabled
+  uint32_t b_valid_filter           : 1; // 23 B Valid Filter Enabled
+  uint32_t session_end_filter       : 1; // 24 Session End Filter Enabled
+  uint32_t dedicated_fifos          : 1; // 25 Dedicated tx fifo for device IN Endpoint
+  uint32_t num_dev_in_eps           : 4; // 26..29 Number of Device IN Endpoints including EP0
+  uint32_t dma_desc_enabled         : 1; // scatter/gather DMA configuration enabled
+  uint32_t dma_desc_dynamic         : 1; // Dynamic scatter/gather DMA
 }dwc2_ghwcfg4_t;
-
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg4_t) == 4, "incorrect size");
 
 // Host Channel
-typedef struct
-{
+typedef struct {
   volatile uint32_t hcchar;           // 500 + 20*ch Host Channel Characteristics
   volatile uint32_t hcsplt;           // 504 + 20*ch Host Channel Split Control
   volatile uint32_t hcint;            // 508 + 20*ch Host Channel Interrupt
@@ -160,8 +314,7 @@ typedef struct
 } dwc2_channel_t;
 
 // Endpoint IN
-typedef struct
-{
+typedef struct {
   volatile uint32_t diepctl;          // 900 + 20*ep Device IN Endpoint Control
            uint32_t reserved04;       // 904
   volatile uint32_t diepint;          // 908 + 20*ep Device IN Endpoint Interrupt
@@ -173,8 +326,7 @@ typedef struct
 } dwc2_epin_t;
 
 // Endpoint OUT
-typedef struct
-{
+typedef struct {
   volatile uint32_t doepctl;          // B00 + 20*ep Device OUT Endpoint Control
            uint32_t reserved04;       // B04
   volatile uint32_t doepint;          // B08 + 20*ep Device OUT Endpoint Interrupt
@@ -184,105 +336,141 @@ typedef struct
            uint32_t reserved18[2];    // B18..B1C
 } dwc2_epout_t;
 
-typedef struct
-{
-  //------------- Core Global -------------//
-  volatile uint32_t gotgctl;          // 000 OTG Control and Status
-  volatile uint32_t gotgint;          // 004 OTG Interrupt
-  volatile uint32_t gahbcfg;          // 008 AHB Configuration
-  volatile uint32_t gusbcfg;          // 00c USB Configuration
-  volatile uint32_t grstctl;          // 010 Reset
-  volatile uint32_t gintsts;          // 014 Interrupt
-  volatile uint32_t gintmsk;          // 018 Interrupt Mask
-  volatile uint32_t grxstsr;          // 01c Receive Status Debug Read
-  volatile uint32_t grxstsp;          // 020 Receive Status Read/Pop
-  volatile uint32_t grxfsiz;          // 024 Receive FIFO Size
-union {
-  volatile uint32_t dieptxf0;         // 028 EP0 Tx FIFO Size
-  volatile uint32_t gnptxfsiz;        // 028 Non-periodic Transmit FIFO Size
-};
-  volatile uint32_t gnptxsts;         // 02c Non-periodic Transmit FIFO/Queue Status
-  volatile uint32_t gi2cctl;          // 030 I2C Address
-  volatile uint32_t gpvndctl;         // 034 PHY Vendor Control
-union {
-  volatile uint32_t ggpio;            // 038 General Purpose IO
-  volatile uint32_t stm32_gccfg;      // 038 STM32 General Core Configuration
-};
-  volatile uint32_t guid;             // 03C User (Application programmable) ID
-  volatile uint32_t gsnpsid;          // 040 Synopsys ID + Release version
-  volatile uint32_t ghwcfg1;          // 044 User Hardware Configuration1: endpoint dir (2 bit per ep)
-union {
-  volatile uint32_t ghwcfg2;          // 048 User Hardware Configuration2
-  dwc2_ghwcfg2_t    ghwcfg2_bm;
-};
-union {
-  volatile uint32_t ghwcfg3;          // 04C User Hardware Configuration3
-  dwc2_ghwcfg3_t    ghwcfg3_bm;
-};
-union {
-  volatile uint32_t ghwcfg4;          // 050 User Hardware Configuration4
-  dwc2_ghwcfg4_t    ghwcfg4_bm;
-};
-  volatile uint32_t glpmcfg;          // 054 Core LPM Configuration
-  volatile uint32_t gpwrdn;           // 058 Power Down
-  volatile uint32_t gdfifocfg;        // 05C DFIFO Software Configuration
-  volatile uint32_t gadpctl;          // 060 ADP Timer, Control and Status
-           uint32_t reserved64[39];   // 064..0FF
-  volatile uint32_t hptxfsiz;         // 100 Host Periodic Tx FIFO Size
-  volatile uint32_t dieptxf[15];      // 104..13C Device Periodic Transmit FIFO Size
-           uint32_t reserved140[176]; // 140..3FF
+typedef struct {
+  union {
+    volatile uint32_t diepctl;
+    volatile uint32_t doepctl;
+    volatile uint32_t ctl;
+  };
+  uint32_t rsv04;
+  union {
+    volatile uint32_t diepint;
+    volatile uint32_t doepint;
+  };
+  uint32_t rsv0c;
+  union {
+    volatile uint32_t dieptsiz;
+    volatile uint32_t doeptsiz;
+  };
+  union {
+    volatile uint32_t diepdma;
+    volatile uint32_t doepdma;
+  };
+  volatile uint32_t dtxfsts;
+  uint32_t rsv1c;
+}dwc2_dep_t;
 
-  //------------- Host -------------//
-  volatile uint32_t hcfg;             // 400 Host Configuration
-  volatile uint32_t hfir;             // 404 Host Frame Interval
-  volatile uint32_t hfnum;            // 408 Host Frame Number / Frame Remaining
-           uint32_t reserved40c;      // 40C
-  volatile uint32_t hptxsts;          // 410 Host Periodic TX FIFO / Queue Status
-  volatile uint32_t haint;            // 414 Host All Channels Interrupt
-  volatile uint32_t haintmsk;         // 418 Host All Channels Interrupt Mask
-  volatile uint32_t hflbaddr;         // 41C Host Frame List Base Address
-           uint32_t reserved420[8];   // 420..43F
-  volatile uint32_t hprt;             // 440 Host Port Control and Status
-           uint32_t reserved444[47];  // 444..4FF
+TU_VERIFY_STATIC(sizeof(dwc2_dep_t) == 0x20, "incorrect size");
 
-  //------------- Host Channel -------------//
-  dwc2_channel_t    channel[16];      // 500..6FF Host Channels 0-15
-           uint32_t reserved700[64];  // 700..7FF
+//--------------------------------------------------------------------
+// CSR Register Map
+//--------------------------------------------------------------------
+typedef struct {
+    //------------- Core Global -------------//
+    volatile uint32_t gotgctl;          // 000 OTG Control and Status
+    volatile uint32_t gotgint;          // 004 OTG Interrupt
+    volatile uint32_t gahbcfg;          // 008 AHB Configuration
+    volatile uint32_t gusbcfg;          // 00c USB Configuration
+    volatile uint32_t grstctl;          // 010 Reset
+    volatile uint32_t gintsts;          // 014 Interrupt
+    volatile uint32_t gintmsk;          // 018 Interrupt Mask
+    volatile uint32_t grxstsr;          // 01c Receive Status Debug Read
+    volatile uint32_t grxstsp;          // 020 Receive Status Read/Pop
+    volatile uint32_t grxfsiz;          // 024 Receive FIFO Size
+  union {
+    volatile uint32_t dieptxf0;         // 028 EP0 Tx FIFO Size
+    volatile uint32_t gnptxfsiz;        // 028 Non-periodic Transmit FIFO Size
+  };
+    volatile uint32_t gnptxsts;         // 02c Non-periodic Transmit FIFO/Queue Status
+    volatile uint32_t gi2cctl;          // 030 I2C Address
+    volatile uint32_t gpvndctl;         // 034 PHY Vendor Control
+  union {
+    volatile uint32_t ggpio;            // 038 General Purpose IO
+    volatile uint32_t stm32_gccfg;      // 038 STM32 General Core Configuration
+  };
+    volatile uint32_t guid;             // 03C User (Application programmable) ID
+    volatile uint32_t gsnpsid;          // 040 Synopsys ID + Release version
+    volatile uint32_t ghwcfg1;          // 044 User Hardware Configuration1: endpoint dir (2 bit per ep)
+  union {
+    volatile uint32_t ghwcfg2;          // 048 User Hardware Configuration2
+    volatile dwc2_ghwcfg2_t ghwcfg2_bm;
+  };
+  union {
+    volatile uint32_t ghwcfg3;          // 04C User Hardware Configuration3
+    volatile dwc2_ghwcfg3_t ghwcfg3_bm;
+  };
+  union {
+    volatile uint32_t ghwcfg4;          // 050 User Hardware Configuration4
+    volatile dwc2_ghwcfg4_t ghwcfg4_bm;
+  };
+    volatile uint32_t glpmcfg;          // 054 Core LPM Configuration
+    volatile uint32_t gpwrdn;           // 058 Power Down
+    volatile uint32_t gdfifocfg;        // 05C DFIFO Software Configuration
+    volatile uint32_t gadpctl;          // 060 ADP Timer, Control and Status
+             uint32_t reserved64[39];   // 064..0FF
+    volatile uint32_t hptxfsiz;         // 100 Host Periodic Tx FIFO Size
+    volatile uint32_t dieptxf[15];      // 104..13C Device Periodic Transmit FIFO Size
+             uint32_t reserved140[176]; // 140..3FF
 
- //------------- Device -------------//
-  volatile uint32_t dcfg;             // 800 Device Configuration
-  volatile uint32_t dctl;             // 804 Device Control
-  volatile uint32_t dsts;             // 808 Device Status (RO)
-           uint32_t reserved80c;      // 80C
-  volatile uint32_t diepmsk;          // 810 Device IN Endpoint Interrupt Mask
-  volatile uint32_t doepmsk;          // 814 Device OUT Endpoint Interrupt Mask
-  volatile uint32_t daint;            // 818 Device All Endpoints Interrupt
-  volatile uint32_t daintmsk;         // 81C Device All Endpoints Interrupt Mask
-  volatile uint32_t dtknqr1;          // 820 Device IN token sequence learning queue read1
-  volatile uint32_t dtknqr2;          // 824 Device IN token sequence learning queue read2
-  volatile uint32_t dvbusdis;         // 828 Device VBUS Discharge Time
-  volatile uint32_t dvbuspulse;       // 82C Device VBUS Pulsing Time
-  volatile uint32_t dthrctl;          // 830 Device threshold Control
-  volatile uint32_t diepempmsk;       // 834 Device IN Endpoint FIFO Empty Interrupt Mask
-  volatile uint32_t deachint;         // 838 Device Each Endpoint Interrupt
-  volatile uint32_t deachmsk;         // 83C Device Each Endpoint Interrupt msk
-  volatile uint32_t diepeachmsk[16];  // 840..87C Device Each IN Endpoint mask
-  volatile uint32_t doepeachmsk[16];  // 880..8BF Device Each OUT Endpoint mask
-           uint32_t reserved8c0[16];  // 8C0..8FF
+    //------------ Host -------------//
+    volatile uint32_t hcfg;             // 400 Host Configuration
+    volatile uint32_t hfir;             // 404 Host Frame Interval
+    volatile uint32_t hfnum;            // 408 Host Frame Number / Frame Remaining
+             uint32_t reserved40c;      // 40C
+    volatile uint32_t hptxsts;          // 410 Host Periodic TX FIFO / Queue Status
+    volatile uint32_t haint;            // 414 Host All Channels Interrupt
+    volatile uint32_t haintmsk;         // 418 Host All Channels Interrupt Mask
+    volatile uint32_t hflbaddr;         // 41C Host Frame List Base Address
+             uint32_t reserved420[8];   // 420..43F
+    volatile uint32_t hprt;             // 440 Host Port Control and Status
+             uint32_t reserved444[47];  // 444..4FF
 
-  //------------- Device Endpoint -------------//
-  dwc2_epin_t       epin[16];         // 900..AFF  IN Endpoints
-  dwc2_epout_t      epout[16];        // B00..CFF  OUT Endpoints
-           uint32_t reservedd00[64];  // D00..DFF
+    //------------- Host Channel -------------//
+    dwc2_channel_t    channel[16];      // 500..6FF Host Channels 0-15
+             uint32_t reserved700[64];  // 700..7FF
 
-  //------------- Power Clock -------------//
-  volatile uint32_t pcgctl;           // E00 Power and Clock Gating Control
-  volatile uint32_t pcgctl1;          // E04
-           uint32_t reservede08[126]; // E08..FFF
+    //------------- Device -----------//
+    volatile uint32_t dcfg;             // 800 Device Configuration
+    volatile uint32_t dctl;             // 804 Device Control
+    volatile uint32_t dsts;             // 808 Device Status (RO)
+             uint32_t reserved80c;      // 80C
+    volatile uint32_t diepmsk;          // 810 Device IN Endpoint Interrupt Mask
+    volatile uint32_t doepmsk;          // 814 Device OUT Endpoint Interrupt Mask
+    volatile uint32_t daint;            // 818 Device All Endpoints Interrupt
+    volatile uint32_t daintmsk;         // 81C Device All Endpoints Interrupt Mask
+    volatile uint32_t dtknqr1;          // 820 Device IN token sequence learning queue read1
+    volatile uint32_t dtknqr2;          // 824 Device IN token sequence learning queue read2
+    volatile uint32_t dvbusdis;         // 828 Device VBUS Discharge Time
+    volatile uint32_t dvbuspulse;       // 82C Device VBUS Pulsing Time
+    volatile uint32_t dthrctl;          // 830 Device threshold Control
+    volatile uint32_t diepempmsk;       // 834 Device IN Endpoint FIFO Empty Interrupt Mask
 
-  //------------- FIFOs -------------//
-  // Word-accessed only using first pointer since it auto shift
-  volatile uint32_t fifo[16][0x400];  // 1000..FFFF Endpoint FIFO
+    // Device Each Endpoint (IN/OUT) Interrupt/Mask for generating dedicated EP interrupt line
+    // require OTG_MULTI_PROC_INTRPT=1
+    volatile uint32_t deachint;         // 838 Device Each Endpoint Interrupt
+    volatile uint32_t deachmsk;         // 83C Device Each Endpoint Interrupt mask
+    volatile uint32_t diepeachmsk[16];  // 840..87C Device Each IN Endpoint mask
+    volatile uint32_t doepeachmsk[16];  // 880..8BF Device Each OUT Endpoint mask
+             uint32_t reserved8c0[16];  // 8C0..8FF
+
+    //------------- Device Endpoint -------------//
+    union {
+      dwc2_dep_t ep[2][16];            // 0: IN, 1 OUT
+      struct {
+        dwc2_epin_t  epin[16];         // 900..AFF  IN Endpoints
+        dwc2_epout_t epout[16];        // B00..CFF  OUT Endpoints
+      };
+    };
+    uint32_t reservedd00[64];  // D00..DFF
+
+    //------------- Power Clock -------------//
+    volatile uint32_t pcgctl;           // E00 Power and Clock Gating Control
+    volatile uint32_t pcgctl1;          // E04
+             uint32_t reservede08[126]; // E08..FFF
+
+    //------------- FIFOs -------------//
+    // Word-accessed only using first pointer since it auto shift
+    volatile uint32_t fifo[16][0x400];  // 1000..FFFF Endpoint FIFO
 } dwc2_regs_t;
 
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, hcfg   ) == 0x0400, "incorrect size");
@@ -940,6 +1128,8 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DAINTMSK_OEPM_Msk                (0xFFFFUL << DAINTMSK_OEPM_Pos)          // 0xFFFF0000
 #define DAINTMSK_OEPM                    DAINTMSK_OEPM_Msk                        // OUT EP interrupt mask bits
 
+#define DAINT_SHIFT(_dir)            ((_dir == TUSB_DIR_IN) ? 0 : 16)
+
 #if 0
 /********************  Bit definition for OTG register  ********************/
 #define CHNUM_Pos                        (0U)
@@ -1221,6 +1411,12 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GLPMCFG_ENBESL_Pos               (28U)
 #define GLPMCFG_ENBESL_Msk               (0x1UL << GLPMCFG_ENBESL_Pos)            // 0x10000000
 #define GLPMCFG_ENBESL                   GLPMCFG_ENBESL_Msk                       // Enable best effort service latency
+
+// GDFIFOCFG
+#define GDFIFOCFG_EPINFOBASE_MASK   (0xffff << 16)
+#define GDFIFOCFG_EPINFOBASE_SHIFT  16
+#define GDFIFOCFG_GDFIFOCFG_MASK    (0xffff << 0)
+#define GDFIFOCFG_GDFIFOCFG_SHIFT   0
 
 /********************  Bit definition for DIEPEACHMSK1 register  ********************/
 #define DIEPEACHMSK1_XFRCM_Pos           (0U)
@@ -1643,6 +1839,45 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DIEPTXF_INEPTXFD_Msk             (0xFFFFUL << DIEPTXF_INEPTXFD_Pos)       // 0xFFFF0000
 #define DIEPTXF_INEPTXFD                 DIEPTXF_INEPTXFD_Msk                     // IN endpoint TxFIFO depth
 
+
+/********************  Bit definition for Common EPCTL register  ********************/
+#define EPCTL_MPSIZ_Pos                (0U)
+#define EPCTL_MPSIZ_Msk                (0x7FFUL << EPCTL_MPSIZ_Pos)           // 0x000007FF
+#define EPCTL_MPSIZ                    EPCTL_MPSIZ_Msk                        // Maximum packet size          //Bit 1
+#define EPCTL_USBAEP_Pos               (15U)
+#define EPCTL_USBAEP_Msk               (0x1UL << EPCTL_USBAEP_Pos)            // 0x00008000
+#define EPCTL_USBAEP                   EPCTL_USBAEP_Msk                       // USB active endpoint
+#define EPCTL_NAKSTS_Pos               (17U)
+#define EPCTL_NAKSTS_Msk               (0x1UL << EPCTL_NAKSTS_Pos)            // 0x00020000
+#define EPCTL_NAKSTS                   EPCTL_NAKSTS_Msk                       // NAK status
+#define EPCTL_EPTYP_Pos                (18U)
+#define EPCTL_EPTYP_Msk                (0x3UL << EPCTL_EPTYP_Pos)             // 0x000C0000
+#define EPCTL_EPTYP                    EPCTL_EPTYP_Msk                        // Endpoint type
+#define EPCTL_EPTYP_0                  (0x1UL << EPCTL_EPTYP_Pos)             // 0x00040000
+#define EPCTL_EPTYP_1                  (0x2UL << EPCTL_EPTYP_Pos)             // 0x00080000
+#define EPCTL_SNPM                     EPCTL_SNPM_Msk                         // Snoop mode
+#define EPCTL_STALL_Pos                (21U)
+#define EPCTL_STALL_Msk                (0x1UL << EPCTL_STALL_Pos)             // 0x00200000
+#define EPCTL_STALL                    EPCTL_STALL_Msk                        // STALL handshake
+#define EPCTL_CNAK_Pos                 (26U)
+#define EPCTL_CNAK_Msk                 (0x1UL << EPCTL_CNAK_Pos)              // 0x04000000
+#define EPCTL_CNAK                     EPCTL_CNAK_Msk                         // Clear NAK
+#define EPCTL_SNAK_Pos                 (27U)
+#define EPCTL_SNAK_Msk                 (0x1UL << EPCTL_SNAK_Pos)              // 0x08000000
+#define EPCTL_SNAK                     EPCTL_SNAK_Msk                         // Set NAK
+#define EPCTL_SD0PID_SEVNFRM_Pos       (28U)
+#define EPCTL_SD0PID_SEVNFRM_Msk       (0x1UL << EPCTL_SD0PID_SEVNFRM_Pos)    // 0x10000000
+#define EPCTL_SD0PID_SEVNFRM           EPCTL_SD0PID_SEVNFRM_Msk               // Set DATA0 PID
+#define EPCTL_SODDFRM_Pos              (29U)
+#define EPCTL_SODDFRM_Msk              (0x1UL << EPCTL_SODDFRM_Pos)           // 0x20000000
+#define EPCTL_SODDFRM                  EPCTL_SODDFRM_Msk                      // Set odd frame
+#define EPCTL_EPDIS_Pos                (30U)
+#define EPCTL_EPDIS_Msk                (0x1UL << EPCTL_EPDIS_Pos)             // 0x40000000
+#define EPCTL_EPDIS                    EPCTL_EPDIS_Msk                        // Endpoint disable
+#define EPCTL_EPENA_Pos                (31U)
+#define EPCTL_EPENA_Msk                (0x1UL << EPCTL_EPENA_Pos)             // 0x80000000
+#define EPCTL_EPENA                    EPCTL_EPENA_Msk                        // Endpoint enable
+
 /********************  Bit definition for DOEPCTL register  ********************/
 #define DOEPCTL_MPSIZ_Pos                (0U)
 #define DOEPCTL_MPSIZ_Msk                (0x7FFUL << DOEPCTL_MPSIZ_Pos)           // 0x000007FF
@@ -1693,15 +1928,19 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DOEPINT_AHBERR_Pos               (2U)
 #define DOEPINT_AHBERR_Msk               (0x1UL << DOEPINT_AHBERR_Pos)            // 0x00000004
 #define DOEPINT_AHBERR                   DOEPINT_AHBERR_Msk                       // AHB Error (AHBErr) during an OUT transaction
-#define DOEPINT_STUP_Pos                 (3U)
-#define DOEPINT_STUP_Msk                 (0x1UL << DOEPINT_STUP_Pos)              // 0x00000008
-#define DOEPINT_STUP                     DOEPINT_STUP_Msk                         // SETUP phase done
+
+#define DOEPINT_SETUP_Pos                (3U)
+#define DOEPINT_SETUP_Msk                (0x1UL << DOEPINT_SETUP_Pos)             // 0x00000008
+#define DOEPINT_SETUP                    DOEPINT_SETUP_Msk                        // SETUP phase done
+
 #define DOEPINT_OTEPDIS_Pos              (4U)
 #define DOEPINT_OTEPDIS_Msk              (0x1UL << DOEPINT_OTEPDIS_Pos)           // 0x00000010
 #define DOEPINT_OTEPDIS                  DOEPINT_OTEPDIS_Msk                      // OUT token received when endpoint disabled
-#define DOEPINT_OTEPSPR_Pos              (5U)
-#define DOEPINT_OTEPSPR_Msk              (0x1UL << DOEPINT_OTEPSPR_Pos)           // 0x00000020
-#define DOEPINT_OTEPSPR                  DOEPINT_OTEPSPR_Msk                      // Status Phase Received For Control Write
+
+#define DOEPINT_STSPHSRX_Pos             (5U)
+#define DOEPINT_STSPHSRX_Msk             (0x1UL << DOEPINT_STSPHSRX_Pos)          // 0x00000020
+#define DOEPINT_STSPHSRX                  DOEPINT_STSPHSRX_Msk                    // Status Phase Received For Control Write
+
 #define DOEPINT_B2BSTUP_Pos              (6U)
 #define DOEPINT_B2BSTUP_Msk              (0x1UL << DOEPINT_B2BSTUP_Pos)           // 0x00000040
 #define DOEPINT_B2BSTUP                  DOEPINT_B2BSTUP_Msk                      // Back-to-back SETUP packets received
@@ -1714,6 +1953,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DOEPINT_NYET_Pos                 (14U)
 #define DOEPINT_NYET_Msk                 (0x1UL << DOEPINT_NYET_Pos)              // 0x00004000
 #define DOEPINT_NYET                     DOEPINT_NYET_Msk                         // NYET interrupt
+
 #define DOEPINT_STPKTRX_Pos              (15U)
 #define DOEPINT_STPKTRX_Msk              (0x1UL << DOEPINT_STPKTRX_Pos)           // 0x00008000
 #define DOEPINT_STPKTRX                  DOEPINT_STPKTRX_Msk                      // Setup Packet Received

@@ -31,7 +31,8 @@
 #if (((CFG_TUSB_MCU == OPT_MCU_ESP32S2) ||  (CFG_TUSB_MCU == OPT_MCU_ESP32S3)) && CFG_TUD_ENABLED)
 
 // Espressif
-#include "xtensa_api.h"
+#include "xtensa/xtensa_api.h"
+
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
 #include "soc/dport_reg.h"
@@ -171,8 +172,8 @@ static void enum_done_processing(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   ESP_LOGV(TAG, "DCD init - Start");
 
   // A. Disconnect
@@ -206,9 +207,11 @@ void dcd_init(uint8_t rhport)
                  USB_USBRSTMSK_M   |
                  USB_ENUMDONEMSK_M |
                  USB_RESETDETMSK_M |
+                 USB_WKUPINT_M |
                  USB_DISCONNINTMSK_M; // host most only
 
   dcd_connect(rhport);
+  return true;
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)

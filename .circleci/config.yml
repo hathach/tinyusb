@@ -1,0 +1,79 @@
+version: 2.1
+
+setup: true
+orbs:
+  continuation: circleci/continuation@1
+
+jobs:
+  set-matrix:
+    executor: continuation/default
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - checkout
+      - run:
+          name: Set matrix
+          command: |
+            MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
+            echo "MATRIX_JSON=$MATRIX_JSON"
+
+            BUILDSYSTEM_TOOLCHAIN=(
+              "cmake arm-clang"
+              "make aarch64-gcc"
+              "make arm-gcc"
+              "make msp430-gcc"
+              "make riscv-gcc"
+              "make rx-gcc"
+              "cmake esp-idf"
+            )
+
+            RESOURCE_LARGE='["nrf", "imxrt"]'
+
+            for e in "${BUILDSYSTEM_TOOLCHAIN[@]}"; do
+              e_arr=($e)
+              build_system="${e_arr[0]}"
+              toolchain="${e_arr[1]}"
+              FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\"")
+              echo "FAMILY_${toolchain}=$FAMILY"
+
+              # FAMILY_LARGE = FAMILY - RESOURCE_LARGE
+              # Separate large from medium+ resources
+              FAMILY_LARGE=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[])))')
+              FAMILY=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[]) | not))')
+
+              if [[ $toolchain == esp-idf ]]; then
+                echo "      - build-vm:" >> .circleci/config2.yml
+              else
+                echo "      - build:" >> .circleci/config2.yml
+              fi
+              echo "          matrix:" >> .circleci/config2.yml
+              echo "            parameters:" >> .circleci/config2.yml
+              echo "              build-system: ['$build_system']" >> .circleci/config2.yml
+              echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
+              echo "              family: $FAMILY" >> .circleci/config2.yml
+              #echo "              resource_class: ['medium+']" >> .circleci/config2.yml
+
+              # add large resources
+              if [ "$(echo $FAMILY_LARGE | jq 'length')" -gt 0 ]; then
+                echo "      - build:" >> .circleci/config2.yml
+                echo "          matrix:" >> .circleci/config2.yml
+                echo "            parameters:" >> .circleci/config2.yml
+                echo "              build-system: ['$build_system']" >> .circleci/config2.yml
+                echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
+                echo "              family: $FAMILY_LARGE" >> .circleci/config2.yml
+                echo "              resource_class: ['large']" >> .circleci/config2.yml
+              fi
+            done
+
+      - continuation/continue:
+          configuration_path: .circleci/config2.yml
+
+workflows:
+  set-matrix:
+    # Only build PR here, Push will be built by github action.
+    when:
+      and:
+        - not: << pipeline.git.branch.is_default >>
+    jobs:
+      - set-matrix

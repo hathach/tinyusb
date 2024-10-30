@@ -155,10 +155,13 @@ static void bus_reset(void)
 }
 
 // Initialize controller to device mode
-void dcd_init (uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rhport;
+  (void) rh_init;
+
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
   dcd_connect(rhport);
+  return true;
 }
 
 // Enable device interrupt
@@ -275,6 +278,11 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   if (dir == TUSB_DIR_IN) UDP->UDP_IER |= (1 << epnum);
 
   return true;
+}
+
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport; (void) ep_addr;
+  // TODO implement dcd_edpt_close()
 }
 
 void dcd_edpt_close_all (uint8_t rhport)

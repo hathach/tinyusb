@@ -33,15 +33,24 @@
 #define CFG_TUD_VENDOR_EPSIZE     64
 #endif
 
+// RX FIFO can be disabled by setting this value to 0
+#ifndef CFG_TUD_VENDOR_RX_BUFSIZE
+#define CFG_TUD_VENDOR_RX_BUFSIZE    64
+#endif
+
+// TX FIFO can be disabled by setting this value to 0
+#ifndef CFG_TUD_VENDOR_TX_BUFSIZE
+#define CFG_TUD_VENDOR_TX_BUFSIZE    64
+#endif
+
 #ifdef __cplusplus
  extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
-// Application API (Multiple Interfaces)
+// Application API (Multiple Interfaces) i.e CFG_TUD_VENDOR > 1
 //--------------------------------------------------------------------+
 bool     tud_vendor_n_mounted         (uint8_t itf);
-
 uint32_t tud_vendor_n_available       (uint8_t itf);
 uint32_t tud_vendor_n_read            (uint8_t itf, void* buffer, uint32_t bufsize);
 bool     tud_vendor_n_peek            (uint8_t itf, uint8_t* ui8);
@@ -51,23 +60,56 @@ uint32_t tud_vendor_n_write           (uint8_t itf, void const* buffer, uint32_t
 uint32_t tud_vendor_n_write_flush     (uint8_t itf);
 uint32_t tud_vendor_n_write_available (uint8_t itf);
 
-static inline uint32_t tud_vendor_n_write_str (uint8_t itf, char const* str);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_n_write_str (uint8_t itf, char const* str);
 
 // backward compatible
 #define tud_vendor_n_flush(itf) tud_vendor_n_write_flush(itf)
 
 //--------------------------------------------------------------------+
-// Application API (Single Port)
+// Application API (Single Port) i.e CFG_TUD_VENDOR = 1
 //--------------------------------------------------------------------+
-static inline bool     tud_vendor_mounted         (void);
-static inline uint32_t tud_vendor_available       (void);
-static inline uint32_t tud_vendor_read            (void* buffer, uint32_t bufsize);
-static inline bool     tud_vendor_peek            (uint8_t* ui8);
-static inline void     tud_vendor_read_flush      (void);
-static inline uint32_t tud_vendor_write           (void const* buffer, uint32_t bufsize);
-static inline uint32_t tud_vendor_write_str       (char const* str);
-static inline uint32_t tud_vendor_write_available (void);
-static inline uint32_t tud_vendor_write_flush     (void);
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_n_write_str(uint8_t itf, char const* str) {
+ return tud_vendor_n_write(itf, str, strlen(str));
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_mounted(void) {
+ return tud_vendor_n_mounted(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_available(void) {
+ return tud_vendor_n_available(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_read(void* buffer, uint32_t bufsize) {
+ return tud_vendor_n_read(0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_peek(uint8_t* ui8) {
+ return tud_vendor_n_peek(0, ui8);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void tud_vendor_read_flush(void) {
+ tud_vendor_n_read_flush(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write(void const* buffer, uint32_t bufsize) {
+ return tud_vendor_n_write(0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_str(char const* str) {
+ return tud_vendor_n_write_str(0, str);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_flush(void) {
+ return tud_vendor_n_write_flush(0);
+}
+
+#if CFG_TUD_VENDOR_TX_BUFSIZE > 0
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
+ return tud_vendor_n_write_available(0);
+}
+#endif
 
 // backward compatible
 #define tud_vendor_flush() tud_vendor_write_flush()
@@ -77,7 +119,7 @@ static inline uint32_t tud_vendor_write_flush     (void);
 //--------------------------------------------------------------------+
 
 // Invoked when received new data
-TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t itf);
+TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
 // Invoked when last rx transfer finished
 TU_ATTR_WEAK void tud_vendor_tx_cb(uint8_t itf, uint32_t sent_bytes);
 
@@ -85,55 +127,6 @@ TU_ATTR_WEAK void tud_vendor_tx_cb(uint8_t itf, uint32_t sent_bytes);
 // Inline Functions
 //--------------------------------------------------------------------+
 
-static inline uint32_t tud_vendor_n_write_str (uint8_t itf, char const* str)
-{
-  return tud_vendor_n_write(itf, str, strlen(str));
-}
-
-static inline bool tud_vendor_mounted (void)
-{
-  return tud_vendor_n_mounted(0);
-}
-
-static inline uint32_t tud_vendor_available (void)
-{
-  return tud_vendor_n_available(0);
-}
-
-static inline uint32_t tud_vendor_read (void* buffer, uint32_t bufsize)
-{
-  return tud_vendor_n_read(0, buffer, bufsize);
-}
-
-static inline bool tud_vendor_peek (uint8_t* ui8)
-{
-  return tud_vendor_n_peek(0, ui8);
-}
-
-static inline void tud_vendor_read_flush(void)
-{
-    tud_vendor_n_read_flush(0);
-}
-
-static inline uint32_t tud_vendor_write (void const* buffer, uint32_t bufsize)
-{
-  return tud_vendor_n_write(0, buffer, bufsize);
-}
-
-static inline uint32_t tud_vendor_write_flush (void)
-{
-  return tud_vendor_n_write_flush(0);
-}
-
-static inline uint32_t tud_vendor_write_str (char const* str)
-{
-  return tud_vendor_n_write_str(0, str);
-}
-
-static inline uint32_t tud_vendor_write_available (void)
-{
-  return tud_vendor_n_write_available(0);
-}
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

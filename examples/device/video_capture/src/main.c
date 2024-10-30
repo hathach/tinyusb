@@ -68,7 +68,11 @@ int main(void) {
   freertos_init_task();
 #else
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
@@ -288,7 +292,7 @@ void led_blinking_task(void* param) {
 #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
 #define VIDEO_STACK_SIZE    (configMINIMAL_STACK_SIZE*4)
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+#if TUP_MCU_ESPRESSIF
   #define USBD_STACK_SIZE     4096
   int main(void);
   void app_main(void) {
@@ -319,7 +323,11 @@ void usb_device_task(void *param) {
   // init device stack on configured roothub port
   // This should be called after scheduler/kernel is started.
   // Otherwise, it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
@@ -344,7 +352,7 @@ void freertos_init_task(void) {
   #endif
 
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
-  #if !TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+  #if !TUP_MCU_ESPRESSIF
   vTaskStartScheduler();
   #endif
 }

@@ -120,6 +120,9 @@ static struct {
 
   // nRF can only carry one DMA at a time, this is used to guard the access to EasyDMA
   atomic_flag dma_running;
+
+  // Track whether sof has been manually enabled
+  bool sof_enabled;
 } _dcd;
 
 /*------------------------------------------------------------------*/
@@ -147,7 +150,7 @@ static void start_dma(volatile uint32_t* reg_startep) {
 
 static void edpt_dma_start(volatile uint32_t* reg_startep) {
   if (atomic_flag_test_and_set(&_dcd.dma_running)) {
-    usbd_defer_func((osal_task_func_t)(uintptr_t ) edpt_dma_start, (void*) (uintptr_t) reg_startep, true);
+    usbd_defer_func((osal_task_func_t)(uintptr_t ) edpt_dma_start, (void*) (uintptr_t) reg_startep, is_in_isr());
   } else {
     start_dma(reg_startep);
   }
@@ -227,9 +230,11 @@ static void xact_in_dma(uint8_t epnum) {
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
-void dcd_init(uint8_t rhport) {
-  TU_LOG2("dcd init\r\n");
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
+  TU_LOG2("dcd init\r\n");
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport) {
@@ -283,9 +288,13 @@ void dcd_connect(uint8_t rhport) {
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
   (void) rhport;
-  (void) en;
-
-  // TODO implement later
+  if (en) {
+    _dcd.sof_enabled = true;
+    NRF_USBD->INTENSET = USBD_INTENSET_SOF_Msk;
+  } else {
+    _dcd.sof_enabled = false;
+    NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk;
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -434,11 +443,11 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
 
   if (control_status) {
-    // Status Phase also requires EasyDMA has to be available as well !!!!
-    edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
-
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
     dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, is_in_isr());
+
+    // Status Phase also requires EasyDMA has to be available as well !!!!
+    edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
   } else if (dir == TUSB_DIR_OUT) {
     xfer->started = true;
     if (epnum == 0) {
@@ -607,13 +616,16 @@ void dcd_int_handler(uint8_t rhport) {
       }
     }
 
-    if (!iso_enabled) {
-      // ISO endpoint is not used, SOF is only enabled one-time for remote wakeup
-      // so we disable it now
-      NRF_USBD->INTENCLR = USBD_INTENSET_SOF_Msk;
+    if (!iso_enabled && !_dcd.sof_enabled) {
+      // SOF interrupt not manually enabled and ISO endpoint is not used,
+      // SOF is only enabled one-time for remote wakeup so we disable it now
+
+      NRF_USBD->INTENCLR = USBD_INTENCLR_SOF_Msk;
     }
 
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+    const uint32_t frame = NRF_USBD->FRAMECNTR;
+    dcd_event_sof(0, frame, true);
+    //dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 
   if (int_status & USBD_INTEN_USBEVENT_Msk) {
@@ -897,9 +909,9 @@ void tusb_hal_nrf_power_event(uint32_t event) {
     USB_EVT_READY = 2
   };
 
-#if CFG_TUSB_DEBUG >= 2
+#if CFG_TUSB_DEBUG >= 3
   const char* const power_evt_str[] = {"Detected", "Removed", "Ready"};
-  TU_LOG(2, "Power USB event: %s\r\n", power_evt_str[event]);
+  TU_LOG(3, "Power USB event: %s\r\n", power_evt_str[event]);
 #endif
 
   switch (event) {

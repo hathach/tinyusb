@@ -31,6 +31,8 @@ OUTPUT_FORMAT("elf32-littlearm", "elf32-littlearm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
 SEARCH_DIR(.)
 
+ENTRY(Reset_Handler)
+
 /* Memory Spaces Definitions */
 MEMORY
 {

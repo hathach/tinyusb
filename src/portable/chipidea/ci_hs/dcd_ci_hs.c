@@ -234,13 +234,13 @@ static void bus_reset(uint8_t rhport)
   dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 }
 
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
-  TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX, );
+  TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX);
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
@@ -268,6 +268,8 @@ void dcd_init(uint8_t rhport)
   usbcmd |= USBCMD_RUN_STOP; // run
 
   dcd_reg->USBCMD = usbcmd;
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -309,10 +311,12 @@ void dcd_disconnect(uint8_t rhport)
 
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
-  (void) rhport;
-  (void) en;
-
-  // TODO implement later
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
+  if (en) {
+      dcd_reg->USBINTR |= INTR_SOF;
+  } else {
+      dcd_reg->USBINTR &= ~INTR_SOF;
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -679,7 +683,8 @@ void dcd_int_handler(uint8_t rhport)
 
   if (int_status & INTR_SOF)
   {
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+    const uint32_t frame = dcd_reg->FRINDEX;
+    dcd_event_sof(rhport, frame, true);
   }
 }
 

@@ -398,7 +398,7 @@ static inline void const *_find_desc_format(void const *beg, void const *end, ui
     if ((fmt == VIDEO_CS_ITF_VS_FORMAT_UNCOMPRESSED ||
          fmt == VIDEO_CS_ITF_VS_FORMAT_MJPEG ||
          fmt == VIDEO_CS_ITF_VS_FORMAT_DV ||
-         fmt == VIDEO_CS_ITF_VS_FRAME_FRAME_BASED) &&
+         fmt == VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED) &&
         fmtnum == p[3]) {
       return cur;
     }
@@ -707,7 +707,7 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
 
   /* The first descriptor is a video control interface descriptor. */
   uint8_t const *cur = _find_desc_itf(beg, end, _desc_itfnum(beg), altnum);
-  TU_LOG_DRV("    cur %d\r\n", cur - beg);
+  TU_LOG_DRV("    cur %" PRId32 "\r\n", (int32_t) (cur - beg));
   TU_VERIFY(cur < end);
 
   tusb_desc_vc_itf_t const *vc = (tusb_desc_vc_itf_t const *)cur;

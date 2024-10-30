@@ -38,8 +38,6 @@
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
 
-#include "class/hid/hid.h"
-
 //------------- TypeC -------------//
 #if CFG_TUC_ENABLED
   #include "typec/usbc.h"
@@ -132,16 +130,43 @@
 // APPLICATION API
 //--------------------------------------------------------------------+
 
-// Initialize device/host stack
+
+#if CFG_TUH_ENABLED || CFG_TUD_ENABLED
+
+// Internal helper for backward compatible with tusb_init(void)
+bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
+
+// Initialize roothub port with device/host role
 // Note: when using with RTOS, this should be called after scheduler/kernel is started.
-// Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-bool tusb_init(void);
+// Otherwise, it could cause kernel issue since USB IRQ handler does use RTOS queue API.
+// Note2: defined as macro for backward compatible with tusb_init(void), can be changed to function in the future.
+#if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
+  #define _tusb_init_arg0()        tusb_rhport_init(0, NULL)
+#else
+  #define _tusb_init_arg0()        TU_VERIFY_STATIC(false, "CFG_TUSB_RHPORT0_MODE/CFG_TUSB_RHPORT1_MODE must be defined")
+#endif
+
+#define _tusb_init_arg1(_rhport)             _tusb_init_arg0()
+#define _tusb_init_arg2(_rhport, _rh_init)   tusb_rhport_init(_rhport, _rh_init)
+#define tusb_init(...)                       TU_FUNC_OPTIONAL_ARG(_tusb_init, __VA_ARGS__)
 
 // Check if stack is initialized
 bool tusb_inited(void);
 
+// Called to handle usb interrupt/event. tusb_init(rhport, role) must be called before
+void tusb_int_handler(uint8_t rhport, bool in_isr);
+
 // TODO
 // bool tusb_teardown(void);
+
+#else
+
+#define tusb_init(...)  (false)
+#define tusb_int_handler(...)  do {}while(0)
+#define tusb_inited()  (false)
+
+#endif
+
 
 #ifdef __cplusplus
  }

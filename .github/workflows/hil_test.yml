@@ -1,0 +1,88 @@
+name: Hardware Test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'test/hil/**'
+      - 'tools/get_deps.py'
+      - '.github/actions/**'
+      - '.github/workflows/hil_test.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HIL_JSON: test/hil/tinyusb.json
+
+jobs:
+  set-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.set-matrix-json.outputs.matrix }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Generate matrix json
+        id: set-matrix-json
+        run: |
+          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${{ env.HIL_JSON }})
+          echo "matrix=$MATRIX_JSON"
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+
+  # ---------------------------------------
+  # Build arm-gcc
+  # ---------------------------------------
+  build:
+    if: github.repository_owner == 'hathach'
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - 'arm-gcc'
+          - 'esp-idf'
+    with:
+      build-system: 'cmake'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
+      one-per-family: true
+      upload-artifacts: true
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # self-hosted running on an VM. For attached hardware checkout HIL_JSON
+  # ---------------------------------------
+  hil-tinyusb:
+    if: github.repository_owner == 'hathach'
+    needs: build
+    runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: test/hil
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: cmake-build
+          merge-multiple: true
+
+      - name: Test on actual hardware
+        run: |
+          ls cmake-build/
+          python3 test/hil/hil_test.py ${{ env.HIL_JSON }}

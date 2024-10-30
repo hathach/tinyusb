@@ -119,6 +119,14 @@
 #define _TU_ARGS_APPLY_8(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1) _s _TU_ARGS_APPLY_7(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
 
 //--------------------------------------------------------------------+
+// Macro for function default arguments
+//--------------------------------------------------------------------+
+#define TU_GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
+
+// function expand with number of arguments
+#define TU_FUNC_OPTIONAL_ARG(func, ...)   TU_XSTRCAT(func##_arg, TU_ARGS_NUM(__VA_ARGS__))(__VA_ARGS__)
+
+//--------------------------------------------------------------------+
 // Compiler porting with Attribute and Endian
 //--------------------------------------------------------------------+
 
@@ -128,6 +136,7 @@
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
   #define TU_ATTR_PACKED                __attribute__ ((packed))
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
+  // #define TU_ATTR_WEAK_ALIAS(f)         __attribute__ ((weak, alias(#f))
   #ifndef TU_ATTR_ALWAYS_INLINE // allow to override for debug
     #define TU_ATTR_ALWAYS_INLINE       __attribute__ ((always_inline))
   #endif

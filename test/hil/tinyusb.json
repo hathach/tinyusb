@@ -1,0 +1,129 @@
+{
+    "boards": [
+        {
+            "name": "espressif_s3_devkitm",
+            "uid": "84F703C084E4",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "tests": {
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+            },
+            "flasher": "esptool",
+            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
+            "flasher_args": "-b 1500000"
+        },
+        {
+            "name": "feather_nrf52840_express",
+            "uid": "1F0479CD0F764471",
+            "flasher": "jlink",
+            "flasher_sn": "000682804350",
+            "flasher_args": "-device nrf52840_xxaa"
+        },
+        {
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
+            "flasher": "openocd_adi",
+            "flasher_sn": "E6614C311B597D32",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
+        },
+        {
+            "name": "metro_m4_express",
+            "uid": "9995AD485337433231202020FF100A34",
+            "flasher": "jlink",
+            "flasher_sn": "123456",
+            "flasher_args": "-device ATSAMD51J19",
+            "tests": {
+                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
+            }
+        },
+        {
+            "name": "lpcxpresso11u37",
+            "uid": "17121919",
+            "flasher": "jlink",
+            "flasher_sn": "000724441579",
+            "flasher_args": "-device LPC11U37/401"
+        },
+        {
+            "name": "ra4m1_ek",
+            "uid": "152E163038303131393346E46F26574B",
+            "tests": {
+                "skip": ["device/cdc_msc", "device/cdc_msc_freertos"]
+            },
+            "comment": "MSC is slow to enumerated #2602",
+            "flasher": "jlink",
+            "flasher_sn": "000831174392",
+            "flasher_args": "-device R7FA4M1AB"
+        },
+        {
+            "name": "raspberry_pi_pico",
+            "uid": "E6614C311B764A37",
+            "flasher": "openocd",
+            "flasher_sn": "E6614103E72C1D2F",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
+            "tests": {
+                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002470"}]
+            }
+        },
+        {
+            "name": "raspberry_pi_pico2",
+            "uid": "560AE75E1C7152C9",
+            "flasher": "openocd",
+            "flasher_sn": "E6633861A3978538",
+            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\"",
+            "tests": {
+                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "533D004242"}]
+            }
+        },
+        {
+            "name": "stm32f072disco",
+            "uid": "3A001A001357364230353532",
+            "flasher": "jlink",
+            "flasher_sn": "779541626",
+            "flasher_args": "-device stm32f072rb"
+        },
+        {
+            "name": "stm32f407disco",
+            "uid": "30001A000647313332353735",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "flasher": "jlink",
+            "flasher_sn": "000773661813",
+            "flasher_args": "-device stm32f407vg"
+        },
+        {
+            "name": "stm32g0b1nucleo",
+            "uid": "4D0038000450434E37343120",
+            "flasher": "openocd",
+            "flasher_sn": "066FFF495087534867063844",
+            "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+        }
+    ],
+    "boards-skip": [
+        {
+            "name": "stm32f769disco",
+            "uid": "21002F000F51363531383437",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "flasher": "jlink",
+            "flasher_sn": "000778170924",
+            "flasher_args": "-device stm32f769ni"
+        },
+        {
+            "name": "mimxrt1015_evk",
+            "uid": "DC28F865D2111D228D00B0543A70463C",
+            "flasher": "jlink",
+            "flasher_sn": "000726284213",
+            "flasher_args": "-device MIMXRT1015DAF5A"
+        },
+        {
+            "name": "nanoch32v203",
+            "uid": "CDAB277B0FBC03E339E339E3",
+            "flasher": "openocd_wch",
+            "flasher_sn": "EBCA8F0670AF",
+            "flasher_args": ""
+        }
+    ]
+}

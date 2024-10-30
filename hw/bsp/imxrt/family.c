@@ -40,21 +40,10 @@
 #include "fsl_iomuxc.h"
 #include "fsl_clock.h"
 #include "fsl_lpuart.h"
+#include "fsl_ocotp.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
-#endif
-
-#if defined(BOARD_TUD_RHPORT) && CFG_TUD_ENABLED
-  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_DEVICE(_n)  0
-#endif
-
-#if defined(BOARD_TUH_RHPORT) && CFG_TUH_ENABLED
-  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_HOST(_n)    0
 #endif
 
 // needed by fsl_flexspi_nor_boot
@@ -155,23 +144,11 @@ void board_init(void)
 // USB Interrupt Handler
 //--------------------------------------------------------------------+
 void USB_OTG1_IRQHandler(void) {
-  #if PORT_SUPPORT_DEVICE(0)
-  tud_int_handler(0);
-  #endif
-
-  #if PORT_SUPPORT_HOST(0)
-  tuh_int_handler(0, true);
-  #endif
+  tusb_int_handler(0, true);
 }
 
 void USB_OTG2_IRQHandler(void) {
-  #if PORT_SUPPORT_DEVICE(1)
-  tud_int_handler(1);
-  #endif
-
-  #if PORT_SUPPORT_HOST(1)
-  tuh_int_handler(1, true);
-  #endif
+  tusb_int_handler(1, true);
 }
 
 //--------------------------------------------------------------------+
@@ -184,6 +161,29 @@ void board_led_write(bool state) {
 
 uint32_t board_button_read(void) {
   return BUTTON_STATE_ACTIVE == GPIO_PinRead(BUTTON_PORT, BUTTON_PIN);
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+
+  #if FSL_FEATURE_OCOTP_HAS_TIMING_CTRL
+  OCOTP_Init(OCOTP, CLOCK_GetFreq(kCLOCK_IpgClk));
+  #else
+  OCOTP_Init(OCOTP, 0u);
+  #endif
+
+  // Reads shadow registers 0x01 - 0x04 (Configuration and Manufacturing Info)
+  // into 8 bit wide destination, avoiding punning.
+  for (int i = 0; i < 4; ++i) {
+    uint32_t wr = OCOTP_ReadFuseShadowRegister(OCOTP, i + 1);
+    for (int j = 0; j < 4; j++) {
+      id[i*4+j] = wr & 0xff;
+      wr >>= 8;
+    }
+  }
+  OCOTP_Deinit(OCOTP);
+
+  return 16;
 }
 
 int board_uart_read(uint8_t* buf, int len) {

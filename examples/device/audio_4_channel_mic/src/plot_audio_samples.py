@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sounddevice as sd
 import matplotlib.pyplot as plt
 import numpy as np
