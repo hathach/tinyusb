@@ -140,8 +140,16 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 // Note: when using with RTOS, this should be called after scheduler/kernel is started.
 // Otherwise, it could cause kernel issue since USB IRQ handler does use RTOS queue API.
 // Note2: defined as macro for backward compatible with tusb_init(void), can be changed to function in the future.
-#if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
-  #define _tusb_init_arg0()        tusb_rhport_init(0, NULL)
+#if defined(TUD_OPT_RHPORT)
+  #define TUx_OPT_RHPORT   TUD_OPT_RHPORT
+#endif //
+#if defined(TUH_OPT_RHPORT)
+  #define TUx_OPT_RHPORT   TUH_OPT_RHPORT
+#endif //
+
+#if defined(TUx_OPT_RHPORT)
+  // _tusb_init_arg0() get the port number from TUD_OPT_RHPORT or TUH_OPT_RHPORT option
+  #define _tusb_init_arg0()        tusb_rhport_init(TUx_OPT_RHPORT, NULL)
 #else
   #define _tusb_init_arg0()        TU_VERIFY_STATIC(false, "CFG_TUSB_RHPORT0_MODE/CFG_TUSB_RHPORT1_MODE must be defined")
 #endif
