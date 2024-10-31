@@ -882,12 +882,12 @@ bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
       hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
       const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
       for (uint16_t i = 0; i < remain_packets; i++) {
-        const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
+        const uint16_t remain_bytes = xfer->buf_len - xfer->out_fifo_bytes;
         const uint16_t xact_bytes = tu_min16(remain_bytes, channel->hcchar_bm.ep_size);
 
-        // check if there is enough space in FIFO and RequestQueue.
+        // skip if there is not enough space in FIFO and RequestQueue.
         // Packet's last word written to FIFO will trigger a request queue
-        if ((xact_bytes > (txsts_bm->fifo_available << 2)) && (txsts_bm->req_queue_available > 0)) {
+        if ((xact_bytes > (txsts_bm->fifo_available << 2)) || (txsts_bm->req_queue_available == 0)) {
           return true;
         }
 
