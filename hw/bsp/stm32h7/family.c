@@ -30,8 +30,8 @@
 #include "stm32h7xx_hal.h"
 #include "bsp/board_api.h"
 
-TU_ATTR_UNUSED static void Error_Handler(void) {
-}
+TU_ATTR_UNUSED static void Error_Handler(void) { }
+void board_vbus_set(uint8_t rhport, bool state) TU_ATTR_WEAK;
 
 #include "board.h"
 
@@ -196,6 +196,7 @@ void board_init(void) {
 #endif // vbus sense
 
   //------------- USB HS -------------//
+#if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 1)
   // Despite being call USB2_OTG
   // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
   struct {
@@ -232,14 +233,15 @@ void board_init(void) {
   // Force device mode
   USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
   USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
+#endif
 
   HAL_PWREx_EnableUSBVoltageDetector();
 
   // For waveshare openh743 ULPI PHY reset walkaround
   board_init2();
 
-#if CFG_TUH_ENABLED && defined(BOARD_VBUS_DRIVE)
-  BOARD_VBUS_DRIVE(BOARD_TUH_RHPORT, 1);
+#if CFG_TUH_ENABLED
+  board_vbus_set(BOARD_TUH_RHPORT, 1);
 #endif
 
 }

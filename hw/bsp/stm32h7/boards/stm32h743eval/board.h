@@ -60,14 +60,6 @@
   {GPIOB, GPIO_PIN_5 }, {GPIOB, GPIO_PIN_10}, {GPIOB, GPIO_PIN_11}, {GPIOB, GPIO_PIN_12}, \
   {GPIOB, GPIO_PIN_13}, {GPIOC, GPIO_PIN_0 }, {GPIOH, GPIO_PIN_4 }, {GPIOI, GPIO_PIN_11}
 
-// vbus drive
-#define BOARD_VBUS_DRIVE(_rhport, _on) do { \
-    if ( mfx_io_drv ) { \
-      uint32_t io_pin = (_rhport) ? MFXSTM32L152_GPIO_PIN_9 : MFXSTM32L152_GPIO_PIN_7; \
-      mfx_io_drv->IO_WritePin(&Io_CompObj, io_pin, _on); \
-    }\
-  } while(0)
-
 /* Definition for I2C1 Pins */
 #define BUS_I2C1_SCL_PIN                       GPIO_PIN_6
 #define BUS_I2C1_SDA_PIN                       GPIO_PIN_7
@@ -283,6 +275,13 @@ static inline void board_init2(void) {
 #endif
 }
 
+// vbus drive
+void board_vbus_set(uint8_t rhport, bool state) {
+  if ( mfx_io_drv ) {
+    uint32_t io_pin = (_rhport) ? MFXSTM32L152_GPIO_PIN_9 : MFXSTM32L152_GPIO_PIN_7;
+    mfx_io_drv->IO_WritePin(&Io_CompObj, io_pin, _on);
+  }
+}
 
 #ifdef __cplusplus
  }

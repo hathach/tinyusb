@@ -122,7 +122,7 @@ static board_pindef_t vbus_pindef[] = {
   },
 };
 
-static inline void board_vbus_set(uint8_t rhport, bool state) {
+void board_vbus_set(uint8_t rhport, bool state) {
   static bool pin_inited[2] = { false, false };
   board_pindef_t* pindef = &vbus_pindef[rhport];
   if (!pin_inited[rhport]) {

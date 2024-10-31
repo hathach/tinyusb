@@ -28,6 +28,9 @@
 
 #include "stm32f7xx_hal.h"
 #include "bsp/board_api.h"
+
+void board_vbus_set(uint8_t rhport, bool state) TU_ATTR_WEAK;
+
 #include "board.h"
 
 //--------------------------------------------------------------------+
