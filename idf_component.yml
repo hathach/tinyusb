@@ -2,6 +2,7 @@ description: TinyUSB ported to Espressif's SoCs
 url: https://docs.tinyusb.org/en/latest/
 documentation: "https://docs.tinyusb.org/en/latest/"
 repository: "https://github.com/espressif/tinyusb.git"
+issues: "https://github.com/hathach/tinyusb/issues"
 dependencies:
   idf: '>=5.0' # IDF 4.x contains TinyUSB as submodule
 targets:

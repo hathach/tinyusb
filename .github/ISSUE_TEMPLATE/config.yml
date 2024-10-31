@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: TinyUSB Discussion
-    url: https://github.com/hathach/tinyusb/discussions
-    about: If you have other questions or need help, post it here.
-  - name: TinyUSB Docs
-    url: https://docs.tinyusb.org/
-    about: Online documentation
