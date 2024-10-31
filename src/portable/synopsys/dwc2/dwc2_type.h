@@ -434,6 +434,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t xfer_size      : 19; // 0..18 Transfer size in bytes
   uint32_t packet_count   : 10; // 19..28 Number of packets
   uint32_t pid            :  2; // 29..30 Packet ID
+  uint32_t do_ping        :  1; // 31 Do PING
 } dwc2_channel_tsize_t;
 TU_VERIFY_STATIC(sizeof(dwc2_channel_tsize_t) == 4, "incorrect size");
 

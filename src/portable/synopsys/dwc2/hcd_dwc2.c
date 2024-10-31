@@ -67,16 +67,21 @@ typedef struct {
     dwc2_channel_split_t hcsplt_bm;
   };
 
+  uint8_t is_hs_dev;
   uint8_t next_pid;
-  // uint8_t resv[3];
+  // uint8_t resv[2];
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
 typedef struct {
   volatile bool allocated;
   uint8_t ep_id; // associated edpt
-  uint8_t err_count;
+  union TU_ATTR_PACKED {
+    uint8_t err_count : 7;
+    uint8_t do_ping : 1;
+  };
   uint8_t result;
+
   uint16_t xferred_bytes;  // bytes that accumulate transferred though USB bus for the whole hcd_edpt_xfer(), which can
                            // be composed of multiple channel_start_xfer() (retry with NAK/NYET)
   uint8_t* buf_start;
@@ -180,6 +185,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t edpt_alloc(void) {
   for (uint32_t i = 0; i < CFG_TUH_DWC2_ENDPOINT_MAX; i++) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[i];
     if (edpt->hcchar_bm.enable == 0) {
+      tu_memclr(edpt, sizeof(hcd_endpoint_t));
       edpt->hcchar_bm.enable = 1;
       return i;
     }
@@ -460,6 +466,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   hcsplt_bm->split_en        = 0;
 
   edpt->next_pid = HCTSIZ_PID_DATA0;
+  edpt->is_hs_dev = (devtree_info.speed == TUSB_SPEED_HIGH) ? 1 : 0;
 
   return true;
 }
@@ -482,7 +489,12 @@ bool channel_start_xfer(dwc2_regs_t* dwc2, uint8_t ch_id) {
 
   // hctsiz: zero length packet still count as 1
   const uint16_t packet_count = cal_packet_count(xfer->buf_len, hcchar_bm->ep_size);
-  channel->hctsiz = (edpt->next_pid << HCTSIZ_PID_Pos) | (packet_count << HCTSIZ_PKTCNT_Pos) | xfer->buf_len;
+  uint32_t hctsiz = (edpt->next_pid << HCTSIZ_PID_Pos) | (packet_count << HCTSIZ_PKTCNT_Pos) | xfer->buf_len;
+  if (xfer->do_ping && edpt->is_hs_dev && edpt->next_pid != HCTSIZ_PID_SETUP && hcchar_bm->ep_dir == TUSB_DIR_OUT) {
+    hctsiz |= HCTSIZ_DOPING;
+    xfer->do_ping = 0;
+  }
+  channel->hctsiz = hctsiz;
 
   // pre-calculate next PID based on packet count, adjusted in transfer complete interrupt if short packet
   if (hcchar_bm->ep_num == 0) {
@@ -822,7 +834,8 @@ bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, 
       xfer->result = XFER_RESULT_FAILED;
       is_done = true;
     } else {
-      // Got here due to NAK or NYET (need to do PING for HS) -> Retry transfer
+      // Got here due to NAK or NYET -> Retry transfer with  do PING (for highspeed)
+      xfer->do_ping = 1;
       TU_ASSERT(channel_start_xfer(dwc2, ch_id));
     }
   } else if (hcint & HCINT_ACK) {
