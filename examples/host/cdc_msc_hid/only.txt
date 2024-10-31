@@ -12,3 +12,4 @@ mcu:MSP432E4
 mcu:RX65X
 mcu:RAXXX
 mcu:MAX3421
+mcu:STM32F7
