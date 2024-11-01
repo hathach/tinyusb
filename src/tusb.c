@@ -41,7 +41,7 @@
 
 #define TUP_USBIP_CONTROLLER_NUM 2
 
-static tusb_role_t _rhport_role[TUP_USBIP_CONTROLLER_NUM] = { 0 };
+static tusb_role_t _rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 
 //--------------------------------------------------------------------+
 // Public API
