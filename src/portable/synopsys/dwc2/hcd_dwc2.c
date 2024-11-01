@@ -69,7 +69,7 @@ typedef struct {
 
   uint8_t next_pid;
   uint16_t frame_interval;
-  uint16_t frame_countdown;
+  uint16_t frame_countdown; // count down to make a transfer for periodic endpoint (from interval)
 
   uint8_t* buffer;
   uint16_t buflen;
@@ -592,6 +592,17 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
   return true;
 }
 
+// kick-off transfer with an endpoint
+static bool edpt_xfer_kickoff(dwc2_regs_t* dwc2, uint8_t ep_id) {
+  uint8_t ch_id = channel_alloc(dwc2);
+  TU_ASSERT(ch_id < 16); // all channel are in used
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  xfer->ep_id = ep_id;
+  xfer->result = XFER_RESULT_INVALID;
+
+  return channel_xfer_start(dwc2, ch_id);
+}
+
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -602,11 +613,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   TU_ASSERT(ep_id < CFG_TUH_DWC2_ENDPOINT_MAX);
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
 
-  uint8_t ch_id = channel_alloc(dwc2);
-  TU_ASSERT(ch_id < 16); // all channel are in used
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  xfer->ep_id = ep_id;
-  xfer->result = XFER_RESULT_INVALID;
   edpt->buffer = buffer;
   edpt->buflen = buflen;
 
@@ -615,7 +621,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     edpt->hcchar_bm.ep_dir = ep_dir;
   }
 
-  return channel_xfer_start(dwc2, ch_id);
+  return edpt_xfer_kickoff(dwc2, ep_id);
 }
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
@@ -880,7 +886,6 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       channel->hcintmsk &= ~(HCINT_ACK | HCINT_NAK | HCINT_DATATOGGLE_ERR);
       if ((hcint & (HCINT_NAK | HCINT_DATATOGGLE_ERR))) {
         edpt->next_pid = channel->hctsiz_bm.pid; // save PID
-
         if (edpt_is_periodic(channel->hcchar_bm.ep_type)){
           // for periodic, de-allocate channel, enable SOF set frame counter for later transfer
           channel_dealloc(dwc2, ch_id);
@@ -987,20 +992,27 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
 }
 
 // SOF is enabled for scheduled periodic transfer
-static void handle_sof_irq(uint8_t rhport, bool in_isr) {
+static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
   (void) in_isr;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  (void) dwc2;
-  // for(uint8_t ep_id; ep_id < CFG_TUH_DWC2_ENDPOINT_MAX; ep_id++) {
-  //   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
-  //   if (edpt->hcchar_bm.enable && edpt_is_periodic(edpt->hcchar_bm.ep_type) && edpt->frame_countdown > 0) {
-  //
-  //     edpt->frame_countdown--;
-  //     if (edpt->frame_countdown == 0) {
-  //       channel_xfer_start(dwc2, ep_id);
-  //     }
-  //   }
-  // }
+
+  bool more_isr = false;
+
+  for(uint8_t ep_id = 0; ep_id < CFG_TUH_DWC2_ENDPOINT_MAX; ep_id++) {
+    hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+    if (edpt->hcchar_bm.enable && edpt_is_periodic(edpt->hcchar_bm.ep_type) && edpt->frame_countdown > 0) {
+      edpt->frame_countdown--;
+      if (edpt->frame_countdown == 0) {
+        if (!edpt_xfer_kickoff(dwc2, ep_id)) {
+          edpt->frame_countdown = 1; // failed to start (out of channel), try again next frame
+        }
+      }
+
+      more_isr = true;
+    }
+  }
+
+  return more_isr;
 }
 
 /* Handle Host Port interrupt, possible source are:
@@ -1093,7 +1105,10 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   }
 
   if (gintsts & GINTSTS_SOF) {
-    handle_sof_irq(rhport, in_isr);
+    const bool more_sof = handle_sof_irq(rhport, in_isr);
+    if (!more_sof) {
+      dwc2->gintmsk &= ~GINTSTS_SOF;
+    }
   }
 
   if (gintsts & GINTSTS_HPRTINT) {
@@ -1117,8 +1132,8 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (gintsts & GINTSTS_NPTX_FIFO_EMPTY) {
     // NPTX FIFO empty interrupt, this is read-only and cleared by hardware when FIFO is written
-    const bool more_isr = handle_txfifo_empty(dwc2, false);
-    if (!more_isr) {
+    const bool more_nptxfe = handle_txfifo_empty(dwc2, false);
+    if (!more_nptxfe) {
       // no more pending packet, disable interrupt
       dwc2->gintmsk &= ~GINTSTS_NPTX_FIFO_EMPTY;
     }
