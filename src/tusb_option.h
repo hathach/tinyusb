@@ -254,8 +254,14 @@
   #define CFG_TUD_DWC2_DMA 0
 #endif
 
-#ifndef CFG_TUH_DWC2_DMA
-  #define CFG_TUH_DWC2_DMA 1
+// Enable DWC2 Slave mode for host
+#ifndef CFG_TUH_DWC2_SLAVE_ENABLE
+  #define CFG_TUH_DWC2_SLAVE_ENABLE 1
+#endif
+
+// Enable DWC2 DMA for host
+#ifndef CFG_TUH_DWC2_DMA_ENABLE
+  #define CFG_TUH_DWC2_DMA_ENABLE 1
 #endif
 
 // Enable PIO-USB software host controller

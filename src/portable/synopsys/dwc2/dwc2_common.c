@@ -194,7 +194,7 @@ bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
  * In addition, UTMI+/ULPI can be shared to run at fullspeed mode with 48Mhz
  *
 */
-bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
+bool dwc2_core_init(uint8_t rhport, bool is_highspeed) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled
@@ -234,13 +234,6 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
   dwc2->gotgint |= int_mask;
 
   dwc2->gintmsk = 0;
-
-  if (is_dma) {
-    // DMA seems to be only settable after a core reset, and not possible to switch on-the-fly
-    dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
-  } else {
-    dwc2->gintmsk |= GINTMSK_RXFLVLM;
-  }
 
   return true;
 }
