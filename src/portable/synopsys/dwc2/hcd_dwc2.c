@@ -861,6 +861,8 @@ bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, uin
     if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL | HCINT_BABBLE_ERR)) {
       is_done = true;
       xfer->err_count = 0;
+      const uint16_t remain_bytes = (uint16_t) channel->hctsiz_bm.xfer_size;
+      xfer->xferred_bytes += (xfer->buf_len - remain_bytes);
       if (hcint & HCINT_STALL) {
         xfer->result = XFER_RESULT_STALLED;
       } else if (hcint & HCINT_BABBLE_ERR) {
@@ -897,8 +899,19 @@ bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, bool is_period, ui
   if (hcint & HCINT_HALTED) {
     if (hcint & (HCINT_XFER_COMPLETE | HCINT_STALL)) {
       is_done = true;
-      xfer->result = (hcint & HCINT_STALL) ? XFER_RESULT_STALLED : XFER_RESULT_SUCCESS;
       xfer->err_count = 0;
+      if (hcint & HCINT_XFER_COMPLETE) {
+        xfer->result = XFER_RESULT_SUCCESS;
+        xfer->xferred_bytes += xfer->buf_len;
+      } else {
+        xfer->result = XFER_RESULT_STALLED;
+        const uint16_t remain_packets = channel->hctsiz_bm.packet_count;
+        const uint16_t total_packets = cal_packet_count(xfer->buf_len, channel->hcchar_bm.ep_size);
+        const uint16_t actual_bytes = (total_packets - remain_packets) * channel->hcchar_bm.ep_size;
+        xfer->xferred_bytes += actual_bytes;
+        xfer->buf_start += actual_bytes;
+        xfer->buf_len -= actual_bytes;
+      }
       channel->hcintmsk &= ~HCINT_ACK;
     } else if (hcint & HCINT_XACT_ERR) {
      if (hcint & (HCINT_NAK | HCINT_NYET | HCINT_ACK)) {
