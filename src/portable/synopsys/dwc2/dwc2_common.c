@@ -224,15 +224,9 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed) {
   dfifo_flush_tx(dwc2, 0x10); // all tx fifo
   dfifo_flush_rx(dwc2);
 
-  // Clear all pending interrupts
-  uint32_t int_mask;
-
-  int_mask = dwc2->gintsts;
-  dwc2->gintsts |= int_mask;
-
-  int_mask = dwc2->gotgint;
-  dwc2->gotgint |= int_mask;
-
+  // Clear pending and disable all interrupts
+  dwc2->gintsts = 0xFFFFFFFFU;
+  dwc2->gotgint = 0xFFFFFFFFU;
   dwc2->gintmsk = 0;
 
   return true;
