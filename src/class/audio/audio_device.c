@@ -1810,7 +1810,8 @@ static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * 
   uint8_t const *dummy;
 
   TU_VERIFY(audiod_get_AS_interface_index_global(itf, &func_id, &idxItf, &dummy));
-  TU_VERIFY(tud_control_xfer(rhport, p_request, &_audiod_fct[func_id].alt_setting[idxItf], 1));
+  _audiod_fct[func_id].ctrl_buf[0] = _audiod_fct[func_id].alt_setting[idxItf];
+  TU_VERIFY(tud_control_xfer(rhport, p_request, _audiod_fct[func_id].ctrl_buf, 1));
 
   TU_LOG2("  Get itf: %u - current alt: %u\r\n", itf, _audiod_fct[func_id].alt_setting[idxItf]);
 
