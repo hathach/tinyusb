@@ -56,46 +56,11 @@ static const ci_hs_controller_t _ci_controller[] =
 #define CI_HS_REG(_port)        ((ci_hs_regs_t*) _ci_controller[_port].reg_base)
 
 //------------- DCD -------------//
-#define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
-#define CI_DCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
+#define CI_DCD_INT_ENABLE(_p)   NVIC_EnableIRQ ((IRQn_Type)_ci_controller[_p].irqnum)
+#define CI_DCD_INT_DISABLE(_p)  NVIC_DisableIRQ((IRQn_Type)_ci_controller[_p].irqnum)
 
 //------------- HCD -------------//
-#define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ (_ci_controller[_p].irqnum)
-#define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ(_ci_controller[_p].irqnum)
-
-//------------- DCache -------------//
-TU_ATTR_ALWAYS_INLINE static inline bool imxrt_is_cache_mem(uintptr_t addr) {
-  return !(0x20000000 <= addr && addr < 0x20100000);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline bool imxrt_dcache_clean(void const* addr, uint32_t data_size) {
-  const uintptr_t addr32 = (uintptr_t) addr;
-  if (imxrt_is_cache_mem(addr32)) {
-    TU_ASSERT(tu_is_aligned32(addr32));
-    SCB_CleanDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
-  }
-  return true;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline bool imxrt_dcache_invalidate(void const* addr, uint32_t data_size) {
-  const uintptr_t addr32 = (uintptr_t) addr;
-  if (imxrt_is_cache_mem(addr32)) {
-    // Invalidating does not push cached changes back to RAM so we need to be
-    // *very* careful when we do it. If we're not aligned, then we risk resetting
-    // values back to their RAM state.
-    TU_ASSERT(tu_is_aligned32(addr32));
-    SCB_InvalidateDCache_by_Addr((void*) addr32, (int32_t) data_size);
-  }
-  return true;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline bool imxrt_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-  const uintptr_t addr32 = (uintptr_t) addr;
-  if (imxrt_is_cache_mem(addr32)) {
-    TU_ASSERT(tu_is_aligned32(addr32));
-    SCB_CleanInvalidateDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
-  }
-  return true;
-}
+#define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ ((IRQn_Type)_ci_controller[_p].irqnum)
+#define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ((IRQn_Type)_ci_controller[_p].irqnum)
 
 #endif

@@ -64,6 +64,7 @@ function(add_board_target BOARD_TARGET)
     XIP_EXTERNAL_FLASH=1
     XIP_BOOT_HEADER_ENABLE=1
     __STARTUP_CLEAR_BSS
+    CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}

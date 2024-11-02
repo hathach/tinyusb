@@ -33,19 +33,6 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "ci_hs_imxrt.h"
-
-  void dcd_dcache_clean(void const* addr, uint32_t data_size) {
-    imxrt_dcache_clean(addr, data_size);
-  }
-
-  void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
-    imxrt_dcache_invalidate(addr, data_size);
-  }
-
-  void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-    imxrt_dcache_clean_invalidate(addr, data_size);
-  }
-
 #else
 
 #if TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
@@ -57,18 +44,6 @@
 #else
   #error "Unsupported MCUs"
 #endif
-
-  TU_ATTR_WEAK void dcd_dcache_clean(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
-
-  TU_ATTR_WEAK void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
-
-  TU_ATTR_WEAK void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
 #endif
 
 //--------------------------------------------------------------------+
@@ -230,8 +205,6 @@ static void bus_reset(uint8_t rhport)
   _dcd_data.qhd[0][0].qtd_overlay.next = _dcd_data.qhd[0][1].qtd_overlay.next = QTD_NEXT_INVALID;
 
   _dcd_data.qhd[0][0].int_on_setup = 1; // OUT only
-
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 }
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
@@ -256,8 +229,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #if !TUD_OPT_HIGH_SPEED
   dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
 #endif
-
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   dcd_reg->ENDPTLISTADDR = (uint32_t) _dcd_data.qhd; // Endpoint List Address has to be 2K alignment
   dcd_reg->USBSTS  = dcd_reg->USBSTS;
@@ -325,10 +296,6 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 
 static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
-  // Force the CPU to flush the buffer. We increase the size by 31 because the call aligns the
-  // address to 32-byte boundaries. Buffer must be word aligned
-  dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes + 31);
-
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
   p_qtd->next            = QTD_NEXT_INVALID;
@@ -402,8 +369,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
-
   // Enable EP Control
   uint32_t const epctrl = (p_endpoint_desc->bmAttributes.xfer << ENDPTCTRL_TYPE_POS) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
 
@@ -460,9 +425,6 @@ static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir)
 
   p_qhd->qtd_overlay.halted = false;            // clear any previous error
   p_qhd->qtd_overlay.next   = (uint32_t) p_qtd; // link qtd to qhd
-
-  // flush cache
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 
   if ( epnum == 0 )
   {
@@ -539,8 +501,6 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
           page++;
         }
       }
-
-      dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), total_bytes - fifo_info.len_wrap + 31);
     }
     else
     {
@@ -652,9 +612,6 @@ void dcd_int_handler(uint8_t rhport)
 
   if (int_status & INTR_USB)
   {
-    // Make sure we read the latest version of _dcd_data.
-    dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
-
     uint32_t const edpt_complete = dcd_reg->ENDPTCOMPLETE;
     dcd_reg->ENDPTCOMPLETE = edpt_complete; // acknowledge
 
