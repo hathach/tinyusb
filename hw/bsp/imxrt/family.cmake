@@ -8,7 +8,9 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(MCU_VARIANT_WITH_CORE ${MCU_VARIANT}${MCU_CORE})
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
+if (NOT DEFINED CMAKE_SYSTEM_PROCESSOR)
+  set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
+endif ()
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS MIMXRT1XXX CACHE INTERNAL "")
@@ -58,14 +60,21 @@ function(add_board_target BOARD_TARGET)
     endif()
   endforeach()
 
+
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    __ARMVFP__=0
-    __ARMFPV5__=0
-    XIP_EXTERNAL_FLASH=1
-    XIP_BOOT_HEADER_ENABLE=1
     __STARTUP_CLEAR_BSS
-    CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))
+    CFG_TUSB_MEM_SECTION=__attribute__\(\(section\(\"NonCacheable\"\)\)\)
     )
+
+  if (NOT M4 STREQUAL "1")
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      __ARMVFP__=0
+      __ARMFPV5__=0
+      XIP_EXTERNAL_FLASH=1
+      XIP_BOOT_HEADER_ENABLE=1
+      )
+  endif ()
+
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board
@@ -139,6 +148,8 @@ function(family_configure_example TARGET RTOS)
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
+  family_add_bin_hex(${TARGET})
 
   # Flashing
   family_flash_jlink(${TARGET})
