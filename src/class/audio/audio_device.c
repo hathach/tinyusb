@@ -2138,6 +2138,13 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
           // Check if entity is present and get corresponding driver index
           TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &func_id));
 
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+          uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
+          if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO_CS_REQ_CUR) {
+            _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(_audiod_fct[func_id].ctrl_buf);
+          }
+#endif
+
           // Invoke callback
           return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
         }
