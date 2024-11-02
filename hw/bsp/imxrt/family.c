@@ -47,7 +47,7 @@
 #endif
 
 /* --- Note about USB buffer RAM ---
-For M7 core it's recommanded to put USB buffer in DTCM for better performance (flexspi_nor linker default)
+For M7 core it's recommended to put USB buffer in DTCM for better performance (flexspi_nor linker default)
 Otherwise you have to put the buffer in a non-cacheable section by configurate MPU manually or using BOARD_ConfigMPU():
 - Define CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))
 - (IAR only) Change __NCACHE_REGION_SIZE in linker script to cover the size of non-cacheable section, multiple of 2^N
@@ -266,7 +266,7 @@ static void BOARD_ConfigMPU(void) {
   MPU->RBAR = ARM_MPU_RBAR(6, 0x20200000U);
   MPU->RASR = ARM_MPU_RASR(0, ARM_MPU_AP_FULL, 0, 0, 1, 0, 0, ARM_MPU_REGION_SIZE_1MB);
 
-  /* Region 7 setting: Memory with Normal type, not shareable, write trough */
+  /* Region 7 setting: Memory with Normal type, not shareable, write through */
   MPU->RBAR = ARM_MPU_RBAR(7, 0x20300000U);
   MPU->RASR = ARM_MPU_RASR(0, ARM_MPU_AP_FULL, 0, 0, 1, 0, 0, ARM_MPU_REGION_SIZE_512KB);
   #else
@@ -287,7 +287,7 @@ static void BOARD_ConfigMPU(void) {
 
   #ifdef USE_SDRAM
     #if defined(CACHE_MODE_WRITE_THROUGH) && CACHE_MODE_WRITE_THROUGH
-  /* Region 9 setting: Memory with Normal type, not shareable, write trough */
+  /* Region 9 setting: Memory with Normal type, not shareable, write through */
   MPU->RBAR = ARM_MPU_RBAR(9, 0x80000000U);
   MPU->RASR = ARM_MPU_RASR(0, ARM_MPU_AP_FULL, 0, 0, 1, 0, 0, ARM_MPU_REGION_SIZE_64MB);
     #else
@@ -418,7 +418,7 @@ void BOARD_ConfigMPU(void) {
   ARM_MPU_Disable();
 
   #if defined(CACHE_MODE_WRITE_THROUGH) && CACHE_MODE_WRITE_THROUGH
-  /* Region 0 setting: Memory with Normal type, not shareable, write trough */
+  /* Region 0 setting: Memory with Normal type, not shareable, write through */
   MPU->RBAR = ARM_MPU_RBAR(0, 0x20200000U);
   MPU->RASR = ARM_MPU_RASR(0, ARM_MPU_AP_FULL, 0, 0, 1, 0, 0, ARM_MPU_REGION_SIZE_1MB);
 
