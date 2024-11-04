@@ -136,6 +136,6 @@ int board_getchar(void) {
 }
 
 
-uint32_t tusb_time_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return board_millis();
 }

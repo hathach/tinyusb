@@ -173,7 +173,7 @@ void board_init(void) {
 #endif // vbus sense
 
   //------------- rhport1: OTG_HS -------------//
-  #ifdef USB_HS_PHYC
+#ifdef USB_HS_PHYC
   // MCU with built-in HS PHY such as F723, F733, F730
 
   /* Configure DM DP Pins */
@@ -197,7 +197,7 @@ void board_init(void) {
   /* Enable PHYC Clocks */
   __HAL_RCC_OTGPHYC_CLK_ENABLE();
 
-  #else
+#else
   // MCU with external ULPI PHY
 
   /* ULPI CLK */
@@ -243,7 +243,7 @@ void board_init(void) {
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
-  #endif // USB_HS_PHYC
+#endif // USB_HS_PHYC
 
   // Enable USB HS & ULPI Clocks
   __HAL_RCC_USB_OTG_HS_ULPI_CLK_ENABLE();
