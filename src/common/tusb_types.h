@@ -264,7 +264,7 @@ typedef enum {
 } microsoft_os_20_type_t;
 
 enum {
-  CONTROL_STAGE_IDLE,
+  CONTROL_STAGE_IDLE = 0,
   CONTROL_STAGE_SETUP,
   CONTROL_STAGE_DATA,
   CONTROL_STAGE_ACK
