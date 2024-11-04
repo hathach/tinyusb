@@ -730,6 +730,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCFG_FSLS_PHYCLK_SEL             HCFG_FSLS_PHYCLK_SEL_Msk                 // FS/LS PHY clock select
 #define HCFG_FSLS_PHYCLK_SEL_30_60MHZ    (0x0UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000000
 #define HCFG_FSLS_PHYCLK_SEL_48MHZ       (0x1UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000001
+#define HCFG_FSLS_PHYCLK_SEL_6MHZ        (0x2UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000002
 
 #define HCFG_FSLS_ONLY_Pos               (2U)
 #define HCFG_FSLS_ONLY_Msk               (0x1UL << HCFG_FSLS_ONLY_Pos)            // 0x00000004
@@ -848,6 +849,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HFIR_FRIVL_Pos                   (0U)
 #define HFIR_FRIVL_Msk                   (0xFFFFUL << HFIR_FRIVL_Pos)             // 0x0000FFFF
 #define HFIR_FRIVL                       HFIR_FRIVL_Msk                           // Frame interval
+#define HFIR_RELOAD_CTRL_Pos             (16U)                                    // available since v2.92a
+#define HFIR_RELOAD_CTRL_Msk             (0x1UL << HFIR_RELOAD_CTRL_Pos)
+#define HFIR_RELOAD_CTRL                  HFIR_RELOAD_CTRL_Msk
 
 /********************  Bit definition for HFNUM register  ********************/
 #define HFNUM_FRNUM_Pos                  (0U)

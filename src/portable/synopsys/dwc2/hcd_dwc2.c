@@ -45,7 +45,7 @@
 TU_VERIFY_STATIC(CFG_TUH_DWC2_ENDPOINT_MAX <= 255, "currently only use 8-bit for index");
 
 enum {
-  HPRT_W1C_MASK = HPRT_CONN_DETECT | HPRT_ENABLE | HPRT_ENABLE_CHANGE | HPRT_OVER_CURRENT_CHANGE
+  HPRT_W1_MASK = HPRT_CONN_DETECT | HPRT_ENABLE | HPRT_ENABLE_CHANGE | HPRT_OVER_CURRENT_CHANGE | HPRT_SUSPEND
 };
 
 enum {
@@ -79,7 +79,7 @@ typedef struct {
 typedef struct {
   volatile bool allocated;
   uint8_t ep_id;
-  union TU_ATTR_PACKED {
+  struct TU_ATTR_PACKED {
     uint8_t err_count : 6;
     uint8_t do_ping : 1;
     uint8_t sof_schedule : 1;
@@ -336,26 +336,13 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   //------------- 3.1 Host Initialization -------------//
 
-  // FS/LS PHY Clock Select
-  uint32_t hcfg = dwc2->hcfg;
-  if (is_highspeed) {
-    hcfg &= ~HCFG_FSLS_ONLY;
-  } else {
-    hcfg &= ~HCFG_FSLS_ONLY; // since we are using FS PHY
-    hcfg &= ~HCFG_FSLS_PHYCLK_SEL;
-
-    if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI &&
-        dwc2->ghwcfg2_bm.fs_phy_type == GHWCFG2_FSPHY_DEDICATED) {
-      // dedicated FS PHY with 48 mhz
-      hcfg |= HCFG_FSLS_PHYCLK_SEL_48MHZ;
-    } else {
-      // shared HS PHY running at full speed
-      hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
-    }
-  }
-  dwc2->hcfg = hcfg;
+  // work at max supported speed
+  dwc2->hcfg &= ~HCFG_FSLS_ONLY;
 
   // Enable HFIR reload
+  if (dwc2->gsnpsid >= DWC2_CORE_REV_2_92a) {
+    dwc2->hfir |= HFIR_RELOAD_CTRL;
+  }
 
   // force host mode and wait for mode switch
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
@@ -364,7 +351,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // configure fixed-allocated fifo scheme
   dfifo_host_init(rhport);
 
-  dwc2->hprt = HPRT_W1C_MASK; // clear all write-1-clear bits
+  dwc2->hprt = HPRT_W1_MASK; // clear all write-1-clear bits
   dwc2->hprt = HPRT_POWER; // turn on VBUS
 
   // Enable required interrupts
@@ -408,7 +395,7 @@ bool hcd_port_connect_status(uint8_t rhport) {
 // Some port would require hcd_port_reset_end() to be invoked after 10ms to complete the reset sequence.
 void hcd_port_reset(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint32_t hprt = dwc2->hprt & ~HPRT_W1C_MASK;
+  uint32_t hprt = dwc2->hprt & ~HPRT_W1_MASK;
   hprt |= HPRT_RESET;
   dwc2->hprt = hprt;
 }
@@ -416,7 +403,7 @@ void hcd_port_reset(uint8_t rhport) {
 // Complete bus reset sequence, may be required by some controllers
 void hcd_port_reset_end(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint32_t hprt = dwc2->hprt & ~HPRT_W1C_MASK; // skip w1c bits
+  uint32_t hprt = dwc2->hprt & ~HPRT_W1_MASK; // skip w1c bits
   hprt &= ~HPRT_RESET;
   dwc2->hprt = hprt;
 }
@@ -1044,6 +1031,50 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
   return more_isr;
 }
 
+// Config HCFG FS/LS clock and HFIR for SOF interval according to link speed (value is in PHY clock unit)
+static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
+  uint32_t hcfg = dwc2->hcfg & ~HCFG_FSLS_PHYCLK_SEL;
+
+  const dwc2_gusbcfg_t gusbcfg_bm = dwc2->gusbcfg_bm;
+  uint32_t phy_clock;
+
+  if (gusbcfg_bm.phy_sel) {
+    phy_clock = 48; // dedicated FS is 48Mhz
+    if (speed == TUSB_SPEED_LOW) {
+      hcfg |= HCFG_FSLS_PHYCLK_SEL_6MHZ;
+    } else {
+      hcfg |= HCFG_FSLS_PHYCLK_SEL_48MHZ;
+    }
+  } else {
+    if (gusbcfg_bm.ulpi_utmi_sel) {
+      phy_clock = 60; // ULPI 8-bit is 60Mhz
+    } else {
+      // UTMI+ 16-bit is 30Mhz, 8-bit is 60Mhz
+      phy_clock = gusbcfg_bm.phy_if16 ? 30 : 60;
+
+      // Enable UTMI+ low power mode 48Mhz external clock if not highspeed
+      if (speed == TUSB_SPEED_HIGH) {
+        dwc2->gusbcfg &= ~GUSBCFG_PHYLPCS;
+      } else {
+        dwc2->gusbcfg |= GUSBCFG_PHYLPCS;
+        // may need to reset port
+      }
+    }
+    hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
+  }
+
+  dwc2->hcfg = hcfg;
+
+  uint32_t hfir = dwc2->hfir & ~HFIR_FRIVL_Msk;
+  if (speed == TUSB_SPEED_HIGH) {
+    hfir |= 125*phy_clock;
+  } else {
+    hfir |= 1000*phy_clock;
+  }
+
+  dwc2->hfir = hfir;
+}
+
 /* Handle Host Port interrupt, possible source are:
    - Connection Detection
    - Enable Change
@@ -1051,7 +1082,7 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 */
 static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint32_t hprt = dwc2->hprt & ~HPRT_W1C_MASK;
+  uint32_t hprt = dwc2->hprt & ~HPRT_W1_MASK;
   const dwc2_hprt_t hprt_bm = dwc2->hprt_bm;
 
   if (dwc2->hprt & HPRT_CONN_DETECT) {
@@ -1071,38 +1102,10 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
 
     if (hprt_bm.enable) {
       // Port enable
-      // Config HCFG FS/LS clock and HFIR for SOF interval according to link speed (value is in PHY clock unit)
       const tusb_speed_t speed = convert_hprt_speed(hprt_bm.speed);
-      uint32_t hcfg = dwc2->hcfg & ~HCFG_FSLS_PHYCLK_SEL;
-
-      const dwc2_gusbcfg_t gusbcfg_bm = dwc2->gusbcfg_bm;
-      uint32_t clock = 60;
-      if (gusbcfg_bm.phy_sel) {
-        // dedicated FS is 48Mhz
-        clock = 48;
-        hcfg |= HCFG_FSLS_PHYCLK_SEL_48MHZ;
-      } else {
-        // UTMI+ or ULPI
-        if (gusbcfg_bm.ulpi_utmi_sel) {
-          clock = 60; // ULPI 8-bit is  60Mhz
-        } else if (gusbcfg_bm.phy_if16) {
-          clock = 30; // UTMI+ 16-bit is 30Mhz
-        } else {
-          clock = 60; // UTMI+ 8-bit is 60Mhz
-        }
-        hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
-      }
-
-      dwc2->hcfg = hcfg;
-
-      uint32_t hfir = dwc2->hfir & ~HFIR_FRIVL_Msk;
-      if (speed == TUSB_SPEED_HIGH) {
-        hfir |= 125*clock;
-      } else {
-        hfir |= 1000*clock;
-      }
-
-      dwc2->hfir = hfir;
+      port0_enable(dwc2, speed);
+    } else {
+      // TU_ASSERT(false, );
     }
   }
 
@@ -1121,7 +1124,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   const uint32_t gintmsk = dwc2->gintmsk;
   const uint32_t gintsts = dwc2->gintsts & gintmsk;
 
-  // TU_LOG1_HEX(int_status);
+  // TU_LOG1_HEX(gintsts);
 
   if (gintsts & GINTSTS_CONIDSTSCHNG) {
     // Connector ID status change
