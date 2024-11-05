@@ -52,6 +52,10 @@ enum {
   HCD_XFER_ERROR_MAX = 3
 };
 
+enum {
+  HCD_XFER_PERIOD_SPLIT_NYET_MAX = 3
+};
+
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
@@ -67,9 +71,12 @@ typedef struct {
     dwc2_channel_split_t hcsplt_bm;
   };
 
-  uint8_t next_pid;
-  uint16_t frame_interval;
-  uint16_t frame_countdown; // count down to make a transfer for periodic endpoint (from interval)
+  struct TU_ATTR_PACKED {
+    uint32_t uframe_interval : 18; // micro-frame interval
+    uint32_t next_pid : 2;
+  };
+
+  uint32_t uframe_countdown; // micro-frame count down to transfer for periodic, only need 18-bit
 
   uint8_t* buffer;
   uint16_t buflen;
@@ -80,7 +87,8 @@ typedef struct {
   volatile bool allocated;
   uint8_t ep_id;
   struct TU_ATTR_PACKED {
-    uint8_t err_count : 6;
+    uint8_t err_count : 3;
+    uint8_t period_split_nyet_count : 3;
     uint8_t do_ping : 1;
     uint8_t sof_schedule : 1;
   };
@@ -101,9 +109,9 @@ hcd_data_t _hcd_data;
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
-TU_ATTR_ALWAYS_INLINE static inline tusb_speed_t convert_hprt_speed(uint32_t hprt_speed) {
+TU_ATTR_ALWAYS_INLINE static inline tusb_speed_t hprt_speed_get(dwc2_regs_t* dwc2) {
   tusb_speed_t speed;
-  switch(hprt_speed) {
+  switch(dwc2->hprt_bm.speed) {
     case HPRT_SPEED_HIGH: speed = TUSB_SPEED_HIGH; break;
     case HPRT_SPEED_FULL: speed = TUSB_SPEED_FULL; break;
     case HPRT_SPEED_LOW : speed = TUSB_SPEED_LOW ; break;
@@ -411,7 +419,7 @@ void hcd_port_reset_end(uint8_t rhport) {
 // Get port link speed
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  const tusb_speed_t speed = convert_hprt_speed(dwc2->hprt_bm.speed);
+  const tusb_speed_t speed = hprt_speed_get(dwc2);
   return speed;
 }
 
@@ -433,7 +441,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 // Open an endpoint
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t* desc_ep) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  const tusb_speed_t rh_speed = convert_hprt_speed(dwc2->hprt_bm.speed);
+  const tusb_speed_t rh_speed = hprt_speed_get(dwc2);
 
   hcd_devtree_info_t devtree_info;
   hcd_devtree_get_info(dev_addr, &devtree_info);
@@ -464,12 +472,15 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
 
   edpt->next_pid = HCTSIZ_PID_DATA0;
   if (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
-    edpt->frame_interval = 1 << (desc_ep->bInterval - 1);
+    edpt->uframe_interval = 1 << (desc_ep->bInterval - 1);
+    if (devtree_info.speed == TUSB_SPEED_FULL) {
+      edpt->uframe_interval <<= 3;
+    }
   } else if (desc_ep->bmAttributes.xfer == TUSB_XFER_INTERRUPT) {
     if (devtree_info.speed == TUSB_SPEED_HIGH) {
-      edpt->frame_interval = 1 << (desc_ep->bInterval - 1);
+      edpt->uframe_interval = 1 << (desc_ep->bInterval - 1);
     } else {
-      edpt->frame_interval  = desc_ep->bInterval;
+      edpt->uframe_interval = desc_ep->bInterval << 3;
     }
   }
 
@@ -669,9 +680,22 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
 
   if (edpt_is_periodic(channel->hcchar_bm.ep_type)){
+    // retry immediately for periodic split nyet if haven't reach max retry
+    if (channel->hcsplt_bm.split_en && channel->hcsplt_bm.split_compl && (hcint & HCINT_NYET)) {
+      xfer->period_split_nyet_count++;
+      if (xfer->period_split_nyet_count < HCD_XFER_PERIOD_SPLIT_NYET_MAX) {
+        channel->hcchar_bm.odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
+        channel_send_in_token(dwc2, channel);
+        return;
+      } else {
+        // too many NYET, de-allocate channel with below code
+        xfer->period_split_nyet_count = 0;
+      }
+    }
+
     // for periodic, de-allocate channel, enable SOF set frame counter for later transfer
     edpt->next_pid = channel->hctsiz_bm.pid; // save PID
-    edpt->frame_countdown = edpt->frame_interval;
+    edpt->uframe_countdown = edpt->uframe_interval;
     dwc2->gintmsk |= GINTSTS_SOF;
 
     if (hcint & HCINT_HALTED) {
@@ -683,10 +707,7 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       channel_disable(dwc2, channel);
     }
   } else {
-    // for control/bulk: try again immediately
-    if (channel->hcsplt_bm.split_en) {
-      channel->hcsplt_bm.split_compl = 0; // retry with start split
-    }
+    // for control/bulk: retry immediately
     channel_send_in_token(dwc2, channel);
   }
 }
@@ -901,6 +922,7 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
         edpt->buffer += actual_len;
         edpt->buflen -= actual_len;
 
+        channel->hcsplt_bm.split_compl = 0;
         channel_xfer_in_retry(dwc2, ch_id, hcint);
       } else {
         xfer->result = XFER_RESULT_SUCCESS;
@@ -915,29 +937,37 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
         xfer->result = XFER_RESULT_FAILED;
       } else {
         channel->hcintmsk |= HCINT_ACK | HCINT_NAK | HCINT_DATATOGGLE_ERR;
+        channel->hcsplt_bm.split_compl = 0;
         channel_xfer_in_retry(dwc2, ch_id, hcint);
       }
-    } else if (hcint & (HCINT_NAK | HCINT_DATATOGGLE_ERR)) {
-      xfer->err_count = 0;
-      channel->hcintmsk &= ~(HCINT_NAK | HCINT_DATATOGGLE_ERR);
-      if ((hcint & (HCINT_NAK | HCINT_DATATOGGLE_ERR))) {
+    } else if (hcint & HCINT_NYET) {
+      // Must handle nyet before nak or ack. Could get a nyet at the same time as either of those on a BULK/CONTROL
+      // OUT that started with a PING. The nyet takes precedence.
+      if (channel->hcsplt_bm.split_en) {
+        // split not yet mean hub has no data, retry complete split
+        channel->hcsplt_bm.split_compl = 1;
         channel_xfer_in_retry(dwc2, ch_id, hcint);
       }
     } else if (hcint & HCINT_ACK) {
       xfer->err_count = 0;
       channel->hcintmsk &= ~HCINT_ACK;
-
-      if (channel->hcsplt_bm.split_en && !channel->hcsplt_bm.split_compl) {
+      if (channel->hcsplt_bm.split_en) {
         // start split is ACK --> do complete split
+        // TODO: for ISO must use xact_pos to plan complete split based on microframe (up to 187.5 bytes/uframe)
         channel->hcsplt_bm.split_compl = 1;
+        if (edpt_is_periodic(channel->hcchar_bm.ep_type)) {
+          channel->hcchar_bm.odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
+        }
         channel_send_in_token(dwc2, channel);
       }
-    } else if (hcint & HCINT_NYET) {
-      if (channel->hcsplt_bm.split_en && channel->hcsplt_bm.split_compl) {
-        // split not yet mean hub has no data, retry complete split
-        channel->hcsplt_bm.split_compl = 1;
-        channel_send_in_token(dwc2, channel);
-      }
+    } else if (hcint & (HCINT_NAK | HCINT_DATATOGGLE_ERR)) {
+      xfer->err_count = 0;
+      channel->hcintmsk &= ~(HCINT_NAK | HCINT_DATATOGGLE_ERR);
+      channel->hcsplt_bm.split_compl = 0; // restart with start-split
+      channel_xfer_in_retry(dwc2, ch_id, hcint);
+    } else if (hcint & HCINT_FARME_OVERRUN) {
+      // retry start-split in next binterval
+      channel_xfer_in_retry(dwc2, ch_id, hcint);
     }
   }
 
@@ -982,16 +1012,16 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
          channel_xfer_start(dwc2, ch_id);
        }
      }
+    } else if (hcint & HCINT_NYET) {
+      if (channel->hcsplt_bm.split_en && channel->hcsplt_bm.split_compl) {
+        // split not yet mean hub has no data, retry complete split
+        channel->hcsplt_bm.split_compl = 1;
+        channel->hcchar |= HCCHAR_CHENA;
+      }
     } else if (hcint & HCINT_ACK) {
       xfer->err_count = 0;
       if (channel->hcsplt_bm.split_en && !channel->hcsplt_bm.split_compl) {
         // start split is ACK --> do complete split
-        channel->hcsplt_bm.split_compl = 1;
-        channel->hcchar |= HCCHAR_CHENA;
-      }
-    } else if (hcint & HCINT_NYET) {
-      if (channel->hcsplt_bm.split_en && channel->hcsplt_bm.split_compl) {
-        // split not yet mean hub has no data, retry complete split
         channel->hcsplt_bm.split_compl = 1;
         channel->hcchar |= HCCHAR_CHENA;
       }
@@ -1055,13 +1085,16 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 
   bool more_isr = false;
 
+  // If highspeed then SOF is 125us, else 1ms
+  const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH ? 1 : 8);
+
   for(uint8_t ep_id = 0; ep_id < CFG_TUH_DWC2_ENDPOINT_MAX; ep_id++) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
-    if (edpt->hcchar_bm.enable && edpt_is_periodic(edpt->hcchar_bm.ep_type) && edpt->frame_countdown > 0) {
-      edpt->frame_countdown--;
-      if (edpt->frame_countdown == 0) {
+    if (edpt->hcchar_bm.enable && edpt_is_periodic(edpt->hcchar_bm.ep_type) && edpt->uframe_countdown > 0) {
+      edpt->uframe_countdown -= tu_min32(ucount, edpt->uframe_countdown);
+      if (edpt->uframe_countdown == 0) {
         if (!edpt_xfer_kickoff(dwc2, ep_id)) {
-          edpt->frame_countdown = 1; // failed to start (out of channel), try again next frame
+          edpt->uframe_countdown = ucount; // failed to start, try again next frame
         }
       }
 
@@ -1073,7 +1106,8 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 }
 
 // Config HCFG FS/LS clock and HFIR for SOF interval according to link speed (value is in PHY clock unit)
-static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
+static void port0_enable(dwc2_regs_t* dwc2) {
+  const tusb_speed_t speed = hprt_speed_get(dwc2);
   uint32_t hcfg = dwc2->hcfg & ~HCFG_FSLS_PHYCLK_SEL;
 
   const dwc2_gusbcfg_t gusbcfg_bm = dwc2->gusbcfg_bm;
@@ -1143,8 +1177,7 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
 
     if (hprt_bm.enable) {
       // Port enable
-      const tusb_speed_t speed = convert_hprt_speed(hprt_bm.speed);
-      port0_enable(dwc2, speed);
+      port0_enable(dwc2);
     } else {
       // TU_ASSERT(false, );
     }
