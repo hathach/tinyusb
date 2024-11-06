@@ -8,6 +8,27 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m7-fpsp
 
+# Default RHPORT_SPEED if not defined
+RHPORT_SPEED ?= OPT_MODE_FULL_SPEED OPT_MODE_FULL_SPEED
+
+# Determine RHPORT_DEVICE_SPEED if not defined
+ifndef RHPORT_DEVICE_SPEED
+ifeq ($(RHPORT_DEVICE), 0)
+  RHPORT_DEVICE_SPEED = $(firstword $(RHPORT_SPEED))
+else
+  RHPORT_DEVICE_SPEED = $(lastword $(RHPORT_SPEED))
+endif
+endif
+
+# Determine RHPORT_HOST_SPEED if not defined
+ifndef RHPORT_HOST_SPEED
+ifeq ($(RHPORT_HOST), 0)
+  RHPORT_HOST_SPEED = $(firstword $(RHPORT_SPEED))
+else
+  RHPORT_HOST_SPEED = $(lastword $(RHPORT_SPEED))
+endif
+endif
+
 # --------------
 # Compiler Flags
 # --------------
