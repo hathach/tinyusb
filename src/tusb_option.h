@@ -261,7 +261,7 @@
 
 // Enable DWC2 DMA for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
-  #define CFG_TUH_DWC2_DMA_ENABLE 1
+  #define CFG_TUH_DWC2_DMA_ENABLE 0
 #endif
 
 // Enable PIO-USB software host controller

@@ -438,6 +438,12 @@ typedef struct TU_ATTR_PACKED {
 } dwc2_channel_tsize_t;
 TU_VERIFY_STATIC(sizeof(dwc2_channel_tsize_t) == 4, "incorrect size");
 
+typedef struct TU_ATTR_PACKED {
+  uint32_t num        : 16; // 0..15 Frame number
+  uint32_t remainning : 16; // 16..31 Frame remaining
+} dwc2_hfnum_t;
+TU_VERIFY_STATIC(sizeof(dwc2_hfnum_t) == 4, "incorrect size");
+
 // Host Channel
 typedef struct {
   union {
@@ -592,7 +598,10 @@ typedef struct {
     //------------ Host -------------//
     volatile uint32_t hcfg;             // 400 Host Configuration
     volatile uint32_t hfir;             // 404 Host Frame Interval
+  union {
     volatile uint32_t hfnum;            // 408 Host Frame Number / Frame Remaining
+    volatile dwc2_hfnum_t hfnum_bm;
+  };
              uint32_t reserved40c;      // 40C
   union {
     volatile uint32_t hptxsts;          // 410 Host Periodic TX FIFO / Queue Status
