@@ -175,7 +175,13 @@ bool usb_init(void) {
   usb_phy_config_t phy_conf = {
     .controller = USB_PHY_CTRL_OTG,
     .target = USB_PHY_TARGET_INT,
+
+    // maybe we can use USB_OTG_MODE_DEFAULT and switch using dwc2 driver
+#if CFG_TUD_ENABLED
     .otg_mode = USB_OTG_MODE_DEVICE,
+#elif CFG_TUH_ENABLED
+    .otg_mode = USB_OTG_MODE_HOST,
+#endif
   };
 
   // OTG IOs config
