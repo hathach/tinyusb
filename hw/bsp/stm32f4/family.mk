@@ -8,14 +8,40 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
 
-PORT ?= 0
+# ----------------------
+# Port & Speed Selection
+# ----------------------
+RHPORT_SPEED ?= OPT_MODE_FULL_SPEED OPT_MODE_FULL_SPEED
+RHPORT_DEVICE ?= 0
+RHPORT_HOST ?= 0
+
+# Determine RHPORT_DEVICE_SPEED if not defined
+ifndef RHPORT_DEVICE_SPEED
+ifeq ($(RHPORT_DEVICE), 0)
+  RHPORT_DEVICE_SPEED = $(firstword $(RHPORT_SPEED))
+else
+  RHPORT_DEVICE_SPEED = $(lastword $(RHPORT_SPEED))
+endif
+endif
+
+# Determine RHPORT_HOST_SPEED if not defined
+ifndef RHPORT_HOST_SPEED
+ifeq ($(RHPORT_HOST), 0)
+  RHPORT_HOST_SPEED = $(firstword $(RHPORT_SPEED))
+else
+  RHPORT_HOST_SPEED = $(lastword $(RHPORT_SPEED))
+endif
+endif
 
 # --------------
 # Compiler Flags
 # --------------
 CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F4 \
-  -DBOARD_TUD_RHPORT=$(PORT)
+	-DBOARD_TUD_RHPORT=${RHPORT_DEVICE} \
+	-DBOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED} \
+	-DBOARD_TUH_RHPORT=${RHPORT_HOST} \
+	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
 
 # GCC Flags
 CFLAGS_GCC += \

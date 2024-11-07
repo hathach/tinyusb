@@ -16,6 +16,16 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 
 set(FAMILY_MCUS STM32F7 CACHE INTERNAL "")
 
+# ----------------------
+# Port & Speed Selection
+# ----------------------
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 0)
+endif ()
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 0)
+endif ()
+
 if (NOT DEFINED RHPORT_SPEED)
   # Most F7 does not has built-in HS PHY
   set(RHPORT_SPEED OPT_MODE_FULL_SPEED OPT_MODE_FULL_SPEED)

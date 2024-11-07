@@ -8,8 +8,12 @@ ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m7-fpsp
 
-# Default RHPORT_SPEED if not defined
+# ----------------------
+# Port & Speed Selection
+# ----------------------
 RHPORT_SPEED ?= OPT_MODE_FULL_SPEED OPT_MODE_FULL_SPEED
+RHPORT_DEVICE ?= 0
+RHPORT_HOST ?= 0
 
 # Determine RHPORT_DEVICE_SPEED if not defined
 ifndef RHPORT_DEVICE_SPEED
@@ -34,20 +38,23 @@ endif
 # --------------
 CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7 \
-  -DBOARD_TUD_RHPORT=$(PORT)
+	-DBOARD_TUD_RHPORT=${RHPORT_DEVICE} \
+	-DBOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED} \
+	-DBOARD_TUH_RHPORT=${RHPORT_HOST} \
+	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
 
-ifeq ($(PORT), 1)
-  ifeq ($(SPEED), high)
-    CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
-    $(info "Using OTG_HS in HighSpeed mode")
-  else
-    CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
-    $(info "Using OTG_HS in FullSpeed mode")
-  endif
-else
-  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
-  $(info "Using OTG_FS")
-endif
+#ifeq ($(PORT), 1)
+#  ifeq ($(SPEED), high)
+#    CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+#    $(info "Using OTG_HS in HighSpeed mode")
+#  else
+#    CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+#    $(info "Using OTG_HS in FullSpeed mode")
+#  endif
+#else
+#  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+#  $(info "Using OTG_FS")
+#endif
 
 # GCC Flags
 CFLAGS_GCC += \
