@@ -14,3 +14,6 @@ mcu:RX65X
 mcu:RAXXX
 mcu:STM32H7
 mcu:STM32F7
+mcu:STM32F4
+mcu:STM32F7
+mcu:STM32H7
