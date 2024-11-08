@@ -41,7 +41,7 @@
 static board_pindef_t board_pindef[] = {
   { // LED
     .port = GPIOC,
-    .pin_init = { .Pin = GPIO_PIN_4, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .pin_init = { .Pin = GPIO_PIN_1, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
     .active_state = 1
   },
   { // BUTTON

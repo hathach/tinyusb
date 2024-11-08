@@ -31,16 +31,6 @@
  extern "C" {
 #endif
 
-// LED
-#define LED_PORT              GPIOE
-#define LED_PIN               GPIO_PIN_2
-#define LED_STATE_ON          0
-
-// Button
-#define BUTTON_PORT           GPIOA
-#define BUTTON_PIN            GPIO_PIN_0
-#define BUTTON_STATE_ACTIVE   1
-
 // UART Enable PA2 as the debug log UART
 #define UART_DEV              USART2
 

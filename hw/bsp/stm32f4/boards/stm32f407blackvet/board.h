@@ -47,8 +47,8 @@ static board_pindef_t board_pindef[] = {
   },
   { // BUTTON
     .port = GPIOE,
-    .pin_init = { .Pin = GPIO_PIN_4, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
-    .active_state = 1
+    .pin_init = { .Pin = GPIO_PIN_4, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 0
   },
   { // UART TX
     .port = GPIOA,

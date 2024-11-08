@@ -37,6 +37,8 @@ if (NOT DEFINED RHPORT_HOST_SPEED)
   list(GET RHPORT_SPEED ${RHPORT_HOST} RHPORT_HOST_SPEED)
 endif ()
 
+cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
+
 #------------------------------------
 # BOARD_TARGET
 #------------------------------------
