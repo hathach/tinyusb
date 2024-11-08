@@ -100,14 +100,15 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   (void)dwc2;
   (void)hs_phy_type;
-  // nothing to do
+  // maybe usb_utmi_hal_init()
+
 }
 
 // MCU specific PHY update, it is called AFTER init() and core reset
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   (void)dwc2;
   (void)hs_phy_type;
-  // nothing to do
+  // maybe usb_utmi_hal_disable()
 }
 
 #ifdef __cplusplus

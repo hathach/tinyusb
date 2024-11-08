@@ -541,13 +541,22 @@ typedef struct {
     volatile uint32_t gotgctl;          // 000 OTG Control and Status
     volatile dwc2_gotgctl_t gotgctl_bm;
   };
+  union {
     volatile uint32_t gotgint;          // 004 OTG Interrupt
+    volatile dwc2_gotgint_t gotgint_bm;
+  };
+  union {
     volatile uint32_t gahbcfg;          // 008 AHB Configuration
+    volatile dwc2_gahbcfg_t gahbcfg_bm;
+  };
   union {
     volatile uint32_t gusbcfg;          // 00c USB Configuration
     volatile dwc2_gusbcfg_t gusbcfg_bm;
   };
+  union {
     volatile uint32_t grstctl;          // 010 Reset
+    volatile dwc2_grstctl_t grstctl_bm;
+  };
     volatile uint32_t gintsts;          // 014 Interrupt
     volatile uint32_t gintmsk;          // 018 Interrupt Mask
     volatile uint32_t grxstsr;          // 01c Receive Status Debug Read

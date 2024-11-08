@@ -179,8 +179,10 @@ bool usb_init(void) {
     // maybe we can use USB_OTG_MODE_DEFAULT and switch using dwc2 driver
 #if CFG_TUD_ENABLED
     .otg_mode = USB_OTG_MODE_DEVICE,
+    .otg_speed = BOARD_TUD_RHPORT ? USB_PHY_SPEED_HIGH : USB_PHY_SPEED_FULL,
 #elif CFG_TUH_ENABLED
     .otg_mode = USB_OTG_MODE_HOST,
+    .otg_speed= BOARD_TUH_RHPORT ? USB_PHY_SPEED_HIGH : USB_PHY_SPEED_FULL,
 #endif
   };
 
