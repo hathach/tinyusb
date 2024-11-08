@@ -9,9 +9,10 @@ string(TOUPPER OPT_MCU_${target} tusb_mcu)
 list(APPEND compile_definitions
   CFG_TUSB_MCU=${tusb_mcu}
   CFG_TUSB_OS=OPT_OS_FREERTOS
-  # EXAMPLE port selection: port0 is fullspeed, port1 is highspeed
-  BOARD_TUD_RHPORT=${TUD_PORT}
-  BOARD_TUD_MAX_SPEED=$<IF:${TUD_PORT},OPT_MODE_HIGH_SPEED,OPT_MODE_FULL_SPEED>
+  BOARD_TUD_RHPORT=${RHPORT_DEVICE}
+  BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
+  BOARD_TUH_RHPORT=${RHPORT_HOST}
+  BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
   )
 
 list(APPEND srcs
@@ -34,6 +35,8 @@ list(APPEND srcs
   ${tusb_src}/class/vendor/vendor_device.c
   ${tusb_src}/class/video/video_device.c
   ${tusb_src}/portable/synopsys/dwc2/dcd_dwc2.c
+  ${tusb_src}/portable/synopsys/dwc2/hcd_dwc2.c
+  ${tusb_src}/portable/synopsys/dwc2/dwc2_common.c
   # host
   ${tusb_src}/host/usbh.c
   ${tusb_src}/host/hub.c

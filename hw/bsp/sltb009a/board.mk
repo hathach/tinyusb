@@ -26,7 +26,9 @@ LD_FILE = $(SILABS_CMSIS)/Source/GCC/$(SILABS_FAMILY).ld
 
 SRC_C += \
   $(SILABS_CMSIS)/Source/system_$(SILABS_FAMILY).c \
-	src/portable/synopsys/dwc2/dcd_dwc2.c
+	src/portable/synopsys/dwc2/dcd_dwc2.c \
+	src/portable/synopsys/dwc2/hcd_dwc2.c \
+	src/portable/synopsys/dwc2/dwc2_common.c \
 
 SRC_S += \
   $(SILABS_CMSIS)/Source/GCC/startup_$(SILABS_FAMILY).S

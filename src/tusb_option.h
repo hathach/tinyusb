@@ -125,7 +125,8 @@
 #define OPT_MCU_ESP32C2           905 ///< Espressif ESP32-C2
 #define OPT_MCU_ESP32H2           906 ///< Espressif ESP32-H2
 #define OPT_MCU_ESP32P4           907 ///< Espressif ESP32-P4
-#define TUP_MCU_ESPRESSIF         (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
+#define TUSB_MCU_VENDOR_ESPRESSIF (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
+#define TUP_MCU_ESPRESSIF        TUSB_MCU_VENDOR_ESPRESSIF //  for backward compatibility
 
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
@@ -240,6 +241,8 @@
   #include "tusb_config.h"
 #endif
 
+#include "common/tusb_mcu.h"
+
 //--------------------------------------------------------------------+
 // USBIP
 //--------------------------------------------------------------------+
@@ -251,6 +254,22 @@
 // non-cacheable, with RASR register value: TEX=1 C=0 B=0 S=0.
 #ifndef CFG_TUD_DWC2_DMA
   #define CFG_TUD_DWC2_DMA 0
+#endif
+
+// Enable DWC2 Slave mode for host
+#ifndef CFG_TUH_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT 1
+  #endif
+  #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+#endif
+
+// Enable DWC2 DMA for host
+#ifndef CFG_TUH_DWC2_DMA_ENABLE
+  #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 1
+  #endif
+  #define CFG_TUH_DWC2_DMA_ENABLE   CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
 // Enable PIO-USB software host controller
@@ -267,7 +286,6 @@
   #define CFG_TUH_MAX3421  0
 #endif
 
-#include "common/tusb_mcu.h"
 
 //--------------------------------------------------------------------
 // RootHub Mode detection

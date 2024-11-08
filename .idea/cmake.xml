@@ -92,13 +92,17 @@
       <configuration PROFILE_NAME="stm32f303disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f303disco -DLOG=0 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32f411disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f411disco -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32f412disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f412disco -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="stm32f723disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f723disco -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="stm32f723disco-CFG_TUD_DWC2_DMA" ENABLED="false" GENERATION_DIR="cmake-build-stm32f723disco-CFG_TUD_DWC2_DMA" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f723disco -DLOG=1 -DLOGGER=RTT -DCFLAGS_CLI=&quot;-DCFG_TUD_DWC2_DMA=1&quot;" />
+      <configuration PROFILE_NAME="stm32f723disco_host1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f723disco -DLOG=1 -DRHPORT_HOST=1" />
       <configuration PROFILE_NAME="stm32f769disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f769disco -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32g0b1nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32g0b1nucleo" />
       <configuration PROFILE_NAME="stm32g474nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32g474nucleo" />
       <configuration PROFILE_NAME="b_g474e_dpow1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=b_g474e_dpow1 -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32h563nucleo" ENABLED="false" GENERATION_OPTIONS="-DBOARD=stm32h563nucleo -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="stm32h743eval" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
-      <configuration PROFILE_NAME="stm32h743eval_dma" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1 -DCFLAGS_CLI=&quot;-DCFG_TUD_DWC2_DMA=1&quot;" />
+      <configuration PROFILE_NAME="stm32h743eval-CFG_TUD_DWC2_DMA" ENABLED="false" GENERATION_DIR="cmake-build-stm32h743eval-CFG_TUD_DWC2_DMA" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1 -DCFLAGS_CLI=&quot;-DCFG_TUD_DWC2_DMA=1&quot;" />
+      <configuration PROFILE_NAME="stm32h743eval_host1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DRHPORT_HOST=1 -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="stm32h743nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743nucleo -DLOG=1" />
       <configuration PROFILE_NAME="stm32l0538disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32l0538disco -DLOG=0 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32l476disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32l476disco -DLOG=1 -DLOGGER=RTT" />

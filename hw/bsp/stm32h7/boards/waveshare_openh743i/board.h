@@ -70,22 +70,9 @@
  extern "C" {
 #endif
 
-#define LED_PORT              GPIOB
-#define LED_PIN               GPIO_PIN_6
-#define LED_STATE_ON          1
-
-// Tamper push-button
-#define BUTTON_PORT           GPIOA
-#define BUTTON_PIN            GPIO_PIN_0
-#define BUTTON_STATE_ACTIVE   1
-
 // Need to change jumper setting J7 and J8 from RS-232 to STLink
 #define UART_DEV              USART3
 #define UART_CLK_EN           __HAL_RCC_USART3_CLK_ENABLE
-#define UART_GPIO_PORT        GPIOD
-#define UART_GPIO_AF          GPIO_AF7_USART3
-#define UART_TX_PIN           GPIO_PIN_8
-#define UART_RX_PIN           GPIO_PIN_9
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     1
@@ -100,6 +87,45 @@
 // ULPI PHY reset pin used by walkaround
 #define ULPI_RST_PORT GPIOD
 #define ULPI_RST_PIN GPIO_PIN_14
+
+#define PINID_LED      0
+#define PINID_BUTTON   1
+#define PINID_UART_TX  2
+#define PINID_UART_RX  3
+
+static board_pindef_t board_pindef[] = {
+  { // LED
+    .port = GPIOB,
+    .pin_init = { .Pin = GPIO_PIN_6, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+  { // Button
+    .port = GPIOA,
+    .pin_init = { .Pin = GPIO_PIN_0, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+  { // UART TX
+    .port = GPIOD,
+    .pin_init = { .Pin = GPIO_PIN_8, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF7_USART3 },
+    .active_state = 0
+  },
+  { // UART RX
+    .port = GPIOD,
+    .pin_init = { .Pin = GPIO_PIN_9, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF7_USART3 },
+    .active_state = 0
+  },
+
+  { // I2C SCL for MFX VBUS
+    .port = GPIOB,
+    .pin_init = { .Pin = GPIO_PIN_6, .Mode = GPIO_MODE_AF_OD, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF4_I2C1 },
+    .active_state = 0
+  },
+  { // I2C SDA for MFX VBUS
+    .port = GPIOB,
+    .pin_init = { .Pin = GPIO_PIN_7, .Mode = GPIO_MODE_AF_OD, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF4_I2C1 },
+    .active_state = 1
+  },
+};
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -178,13 +204,12 @@ static inline void SystemClock_Config(void)
 static inline void timer_board_delay(TIM_HandleTypeDef* tim_hdl, uint32_t ms)
 {
   uint32_t startMs = __HAL_TIM_GET_COUNTER(tim_hdl);
-  while ((__HAL_TIM_GET_COUNTER(tim_hdl) - startMs) < ms)
-  {
+  while ((__HAL_TIM_GET_COUNTER(tim_hdl) - startMs) < ms) {
     asm("nop"); //do nothing
   }
 }
 
-static inline void board_stm32h7_post_init(void)
+static inline void board_init2(void)
 {
   // walkaround for resetting the ULPI PHY using Timer since systick is not
   // available when RTOS is used.
@@ -228,6 +253,11 @@ static inline void board_stm32h7_post_init(void)
   //Disable the timer used for delays
   HAL_TIM_Base_Stop(&tim2Handle);
   __HAL_RCC_TIM2_CLK_DISABLE();
+}
+
+// need to short a jumper
+void board_vbus_set(uint8_t rhport, bool state) {
+  (void) rhport; (void) state;
 }
 
 #ifdef __cplusplus
