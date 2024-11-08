@@ -69,6 +69,14 @@ extern "C" {
     #define OTG_FS_IRQn             OTG_HS_IRQn
   #endif
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7RS
+  #include "stm32h7rsxx.h"
+  #define EP_MAX_FS       6
+  #define EP_FIFO_SIZE_FS 1280
+
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
   #define EP_MAX_FS       6
