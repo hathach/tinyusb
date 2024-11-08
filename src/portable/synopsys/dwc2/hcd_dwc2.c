@@ -742,7 +742,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
   // Pop control word off FIFO
   const dwc2_grxstsp_t grxstsp_bm = dwc2->grxstsp_bm;
   const uint8_t ch_id = grxstsp_bm.ep_ch_num;
-  // dwc2_channel_t* channel = &dwc2->channel[ch_id];
 
   switch (grxstsp_bm.packet_status) {
     case GRXSTS_PKTSTS_RX_DATA: {

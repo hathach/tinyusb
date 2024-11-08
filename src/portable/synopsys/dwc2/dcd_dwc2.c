@@ -856,7 +856,7 @@ static void handle_epin_irq(uint8_t rhport) {
 
         // Process every single packet (only whole packets can be written to fifo)
         for (uint16_t i = 0; i < remain_packets; i++) {
-          const uint16_t remain_bytes = epin->dieptsiz_bm.xfer_size;
+          const uint16_t remain_bytes = (uint16_t) epin->dieptsiz_bm.xfer_size;
 
           // Packet can not be larger than ep max size
           const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
