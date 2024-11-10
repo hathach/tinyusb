@@ -69,7 +69,7 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
       .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
     };
     TU_ASSERT ( tud_rhport_init(TUD_OPT_RHPORT, &dev_init) );
-    _rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
+    _tusb_rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
     #endif
 
     #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
