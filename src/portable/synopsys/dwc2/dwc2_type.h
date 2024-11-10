@@ -31,8 +31,8 @@
   *                        opensource.org/licenses/BSD-3-Clause
   */
 
-#ifndef _TUSB_DWC2_TYPES_H_
-#define _TUSB_DWC2_TYPES_H_
+#ifndef TUSB_DWC2_TYPES_H_
+#define TUSB_DWC2_TYPES_H_
 
 #include "stdint.h"
 
@@ -87,6 +87,11 @@ typedef struct
 #endif
 
 enum {
+  GOTGCTL_OTG_VERSION_1_3 = 0,
+  GOTGCTL_OTG_VERSION_2_0 = 1,
+};
+
+enum {
   GHWCFG2_OPMODE_HNP_SRP         = 0,
   GHWCFG2_OPMODE_SRP             = 1,
   GHWCFG2_OPMODE_NON_HNP_NON_SRP = 2,
@@ -122,8 +127,52 @@ enum {
   GHWCFFG4_PHY_DATA_WIDTH_8_16 = 2, // software selectable
 };
 
+enum {
+  HPRT_SPEED_HIGH = 0,
+  HPRT_SPEED_FULL = 1,
+  HPRT_SPEED_LOW  = 2
+};
+
+enum {
+  GINTSTS_CMODE_DEVICE = 0,
+  GINTSTS_CMODE_HOST   = 1,
+};
+
+enum {
+  HCTSIZ_PID_DATA0 = 0, // 00b
+  HCTSIZ_PID_DATA2 = 1, // 01b
+  HCTSIZ_PID_DATA1 = 2, // 10b
+  HCTSIZ_PID_SETUP = 3, // 11b
+};
+enum {
+  HCTSIZ_PID_MDATA = 3,
+};
+
+enum {
+  GRXSTS_PKTSTS_GLOBALOUTNAK = 1,
+  GRXSTS_PKTSTS_OUTRX        = 2,
+  GRXSTS_PKTSTS_OUTDONE      = 3,
+  GRXSTS_PKTSTS_SETUPDONE    = 4,
+  GRXSTS_PKTSTS_SETUPRX      = 6
+};
+
+enum {
+  GRXSTS_PKTSTS_RX_DATA    = 2,
+  GRXSTS_PKTSTS_RX_COMPLETE  = 3,
+  GRXSTS_PKTSTS_HOST_DATATOGGLE_ERR = 5,
+  GRXSTS_PKTSTS_HOST_CHANNEL_HALTED = 7
+};
+
+// Same as TUSB_XFER_*
+enum {
+  HCCHAR_EPTYPE_CONTROL     = 0,
+  HCCHAR_EPTYPE_ISOCHRONOUS = 1,
+  HCCHAR_EPTYPE_BULK        = 2,
+  HCCHAR_EPTYPE_INTERRUPT   = 3
+};
+
 //--------------------------------------------------------------------
-// Register bitfield definitions
+// Common Register Bitfield
 //--------------------------------------------------------------------
 typedef struct TU_ATTR_PACKED {
   uint32_t ses_req_scs           : 1; //  0 Session request success
@@ -146,7 +195,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t ases_valid            : 1; // 18 A-session valid
   uint32_t bses_valid            : 1; // 19 B-session valid
   uint32_t otg_ver               : 1; // 20 OTG version 0: v1.3, 1: v2.0
-  uint32_t current_mode          : 1; // 21 Current mode of operation 0: device, 1: host
+  uint32_t current_mode          : 1; // 21 Current mode of operation. Only from v3.00a
   uint32_t mult_val_id_bc        : 5; // 22..26 Multi-valued input pin ID battery charger
   uint32_t chirp_en              : 1; // 27 Chirp detection enable
   uint32_t rsv28_30              : 3; // 28.30: Reserved
@@ -192,7 +241,7 @@ typedef struct TU_ATTR_PACKED {
     based on the speed of enumeration. The number of bit times added per PHY clock are as follows:
     - High-speed: PHY clock One 30-MHz = 16 bit times, One 60-MHz = 8 bit times
     - Full-speed: PHY clock One 30-MHz = 0.4 bit times, One 60-MHz = 0.2 bit times, One 48-MHz = 0.25 bit times */
-  uint32_t phy_if                  : 1; // 3 PHY interface. 0: 8 bits, 1: 16 bits
+  uint32_t phy_if16                : 1; // 3 PHY interface. 0: 8 bits, 1: 16 bits
   uint32_t ulpi_utmi_sel           : 1; // 4 ULPI/UTMI select. 0: UTMI+, 1: ULPI
   uint32_t fs_intf_sel             : 1; // 5 Fullspeed serial interface select. 0: 6-pin, 1: 3-pin
   uint32_t phy_sel                 : 1; // 6 HS/FS PHY selection. 0: HS UTMI+ or ULPI, 1: FS serial transceiver
@@ -241,9 +290,20 @@ typedef struct TU_ATTR_PACKED {
 TU_VERIFY_STATIC(sizeof(dwc2_grstctl_t) == 4, "incorrect size");
 
 typedef struct TU_ATTR_PACKED {
+  uint32_t ep_ch_num             : 4; // 0..3 Endpoint/Channel Number
+  uint32_t byte_count            :11; // 4..14 Byte Count
+  uint32_t dpid                  : 2; // 15..16 Data PID
+  uint32_t packet_status         : 4; // 17..20 Packet Status
+  uint32_t frame_number          : 4; // 21..24 Frame Number
+  uint32_t rsv25_31              : 7; // 25..31 Reserved
+} dwc2_grxstsp_t;
+TU_VERIFY_STATIC(sizeof(dwc2_grxstsp_t) == 4, "incorrect size");
+
+// Hardware Configuration
+typedef struct TU_ATTR_PACKED {
   uint32_t op_mode                : 3; // 0..2 HNP/SRP Host/Device/OTG mode
   uint32_t arch                   : 2; // 3..4 Slave/External/Internal DMA
-  uint32_t point2point            : 1; // 5 0: support hub and split | 1: no hub, no split
+  uint32_t single_point           : 1; // 5 0: support hub and split | 1: no hub, no split
   uint32_t hs_phy_type            : 2; // 6..7 0: not supported | 1: UTMI+ | 2: ULPI | 3: UTMI+ and ULPI
   uint32_t fs_phy_type            : 2; // 8..9 0: not supported | 1: dedicated | 2: UTMI+ | 3: ULPI
   uint32_t num_dev_ep             : 4; // 10..13 Number of device endpoints (excluding EP0)
@@ -301,41 +361,150 @@ typedef struct TU_ATTR_PACKED {
 }dwc2_ghwcfg4_t;
 TU_VERIFY_STATIC(sizeof(dwc2_ghwcfg4_t) == 4, "incorrect size");
 
+//--------------------------------------------------------------------
+// Host Register Bitfield
+//--------------------------------------------------------------------
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t fifo_available      : 16; // 0..15 Number of words available in the Tx FIFO
+  uint32_t req_queue_available :  8; // 16..23 Number of spaces available in the NPT transmit request queue for both IN and OU
+  // 24..31 is top entry in the request queue that is currently being processed by the MAC
+  uint32_t qtop_terminate      :  1; // 24 Last entry for selected channel
+  uint32_t qtop_type           :  2; // 25..26 Token (0) In/Out (1) ZLP, (2) Ping/cspit, (3) Channel halt command
+  uint32_t qtop_ch_num         :  4; // 27..30 Channel number
+} dwc2_hnptxsts_t;
+TU_VERIFY_STATIC(sizeof(dwc2_hnptxsts_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t fifo_available      : 16; // 0..15 Number of words available in the Tx FIFO
+  uint32_t req_queue_available : 7; // 16..22 Number of spaces available in the PTX transmit request queue
+  uint32_t qtop_terminate      : 1; // 23 Last entry for selected channel
+  uint32_t qtop_last_period    : 1; // 24 Last entry for selected channel is a periodic entry
+  uint32_t qtop_type           : 2; // 25..26 Token (0) In/Out (1) ZLP, (2) Ping/cspit, (3) Channel halt command
+  uint32_t qtop_ch_num         : 4; // 27..30 Channel number
+  uint32_t qtop_odd_frame      : 1; // 31 Send in odd frame
+} dwc2_hptxsts_t;
+TU_VERIFY_STATIC(sizeof(dwc2_hptxsts_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t conn_status         : 1; // 0 Port connect status
+  uint32_t conn_detected       : 1; // 1 Port connect detected
+  uint32_t enable              : 1; // 2 Port enable status
+  uint32_t enable_change       : 1; // 3 Port enable change
+  uint32_t over_current_active : 1; // 4 Port Over-current active
+  uint32_t over_current_change : 1; // 5 Port Over-current change
+  uint32_t resume              : 1; // 6 Port resume
+  uint32_t suspend             : 1; // 7 Port suspend
+  uint32_t reset               : 1; // 8 Port reset
+  uint32_t rsv9                : 1; // 9 Reserved
+  uint32_t line_status         : 2; // 10..11 Line status
+  uint32_t power               : 1; // 12 Port power
+  uint32_t test_control        : 4; // 13..16 Port Test control
+  uint32_t speed               : 2; // 17..18 Port speed
+  uint32_t rsv19_31            :13; // 19..31 Reserved
+}dwc2_hprt_t;
+TU_VERIFY_STATIC(sizeof(dwc2_hprt_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t ep_size         : 11; // 0..10 Maximum packet size
+  uint32_t ep_num          :  4; // 11..14 Endpoint number
+  uint32_t ep_dir          :  1; // 15 Endpoint direction
+  uint32_t rsv16           :  1; // 16 Reserved
+  uint32_t low_speed_dev   :  1; // 17 Low-speed device
+  uint32_t ep_type         :  2; // 18..19 Endpoint type
+  uint32_t err_multi_count :  2; // 20..21 Error (splitEn = 1) / Multi (SplitEn = 0)  count
+  uint32_t dev_addr        :  7; // 22..28 Device address
+  uint32_t odd_frame       :  1; // 29 Odd frame
+  uint32_t disable         :  1; // 30 Channel disable
+  uint32_t enable          :  1; // 31 Channel enable
+} dwc2_channel_char_t;
+TU_VERIFY_STATIC(sizeof(dwc2_channel_char_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t hub_port        :  7; // 0..6 Hub port number
+  uint32_t hub_addr        :  7; // 7..13 Hub address
+  uint32_t xact_pos        :  2; // 14..15 Transaction position
+  uint32_t split_compl     :  1; // 16 Split completion
+  uint32_t rsv17_30        : 14; // 17..30 Reserved
+  uint32_t split_en        :  1; // 31 Split enable
+} dwc2_channel_split_t;
+TU_VERIFY_STATIC(sizeof(dwc2_channel_split_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t xfer_size      : 19; // 0..18 Transfer size in bytes
+  uint32_t packet_count   : 10; // 19..28 Number of packets
+  uint32_t pid            :  2; // 29..30 Packet ID
+  uint32_t do_ping        :  1; // 31 Do PING
+} dwc2_channel_tsize_t;
+TU_VERIFY_STATIC(sizeof(dwc2_channel_tsize_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t num        : 16; // 0..15 Frame number
+  uint32_t remainning : 16; // 16..31 Frame remaining
+} dwc2_hfnum_t;
+TU_VERIFY_STATIC(sizeof(dwc2_hfnum_t) == 4, "incorrect size");
+
 // Host Channel
 typedef struct {
-  volatile uint32_t hcchar;           // 500 + 20*ch Host Channel Characteristics
-  volatile uint32_t hcsplt;           // 504 + 20*ch Host Channel Split Control
-  volatile uint32_t hcint;            // 508 + 20*ch Host Channel Interrupt
-  volatile uint32_t hcintmsk;         // 50C + 20*ch Host Channel Interrupt Mask
-  volatile uint32_t hctsiz;           // 510 + 20*ch Host Channel Transfer Size
-  volatile uint32_t hcdma;            // 514 + 20*ch Host Channel DMA Address
-           uint32_t reserved518;      // 518 + 20*ch
-  volatile uint32_t hcdmab;           // 51C + 20*ch Host Channel DMA Address
+  union {
+    volatile uint32_t hcchar;           // 500 + 20*ch Host Channel Characteristics
+    volatile dwc2_channel_char_t hcchar_bm;
+  };
+  union {
+    volatile uint32_t hcsplt;           // 504 + 20*ch Host Channel Split Control
+    volatile dwc2_channel_split_t hcsplt_bm;
+  };
+    volatile uint32_t hcint;            // 508 + 20*ch Host Channel Interrupt
+    volatile uint32_t hcintmsk;         // 50C + 20*ch Host Channel Interrupt Mask
+  union {
+    volatile uint32_t hctsiz;           // 510 + 20*ch Host Channel Transfer Size
+    volatile dwc2_channel_tsize_t hctsiz_bm;
+  };
+    volatile uint32_t hcdma;            // 514 + 20*ch Host Channel DMA Address
+             uint32_t reserved518;      // 518 + 20*ch
+    volatile uint32_t hcdmab;           // 51C + 20*ch Host Channel DMA Address
 } dwc2_channel_t;
+
+//--------------------------------------------------------------------
+// Device Register Bitfield
+//--------------------------------------------------------------------
+typedef struct TU_ATTR_PACKED {
+ uint32_t xfer_size    : 19; // 0..18 Transfer size in bytes
+ uint32_t packet_count : 10; // 19..28 Number of packets
+ uint32_t mc_pid       :  2; // 29..30 IN: Multi Count, OUT: PID
+} dwc2_ep_tsize_t;
+TU_VERIFY_STATIC(sizeof(dwc2_ep_tsize_t) == 4, "incorrect size");
 
 // Endpoint IN
 typedef struct {
-  volatile uint32_t diepctl;          // 900 + 20*ep Device IN Endpoint Control
-           uint32_t reserved04;       // 904
-  volatile uint32_t diepint;          // 908 + 20*ep Device IN Endpoint Interrupt
-           uint32_t reserved0c;       // 90C
-  volatile uint32_t dieptsiz;         // 910 + 20*ep Device IN Endpoint Transfer Size
-  volatile uint32_t diepdma;          // 914 + 20*ep Device IN Endpoint DMA Address
-  volatile uint32_t dtxfsts;          // 918 + 20*ep Device IN Endpoint Tx FIFO Status
-           uint32_t reserved1c;       // 91C
+    volatile uint32_t diepctl;          // 900 + 20*ep Device IN Endpoint Control
+             uint32_t reserved04;       // 904
+    volatile uint32_t diepint;          // 908 + 20*ep Device IN Endpoint Interrupt
+             uint32_t reserved0c;       // 90C
+  union {
+    volatile uint32_t dieptsiz;         // 910 + 20*ep Device IN Endpoint Transfer Size
+    volatile dwc2_ep_tsize_t dieptsiz_bm;
+  };
+    volatile uint32_t diepdma;          // 914 + 20*ep Device IN Endpoint DMA Address
+    volatile uint32_t dtxfsts;          // 918 + 20*ep Device IN Endpoint Tx FIFO Status
+             uint32_t reserved1c;       // 91C
 } dwc2_epin_t;
 
 // Endpoint OUT
 typedef struct {
-  volatile uint32_t doepctl;          // B00 + 20*ep Device OUT Endpoint Control
-           uint32_t reserved04;       // B04
-  volatile uint32_t doepint;          // B08 + 20*ep Device OUT Endpoint Interrupt
-           uint32_t reserved0c;       // B0C
-  volatile uint32_t doeptsiz;         // B10 + 20*ep Device OUT Endpoint Transfer Size
-  volatile uint32_t doepdma;          // B14 + 20*ep Device OUT Endpoint DMA Address
-           uint32_t reserved18[2];    // B18..B1C
+    volatile uint32_t doepctl;          // B00 + 20*ep Device OUT Endpoint Control
+             uint32_t reserved04;       // B04
+    volatile uint32_t doepint;          // B08 + 20*ep Device OUT Endpoint Interrupt
+             uint32_t reserved0c;       // B0C
+  union {
+    volatile uint32_t doeptsiz;         // B10 + 20*ep Device OUT Endpoint Transfer Size
+    volatile dwc2_ep_tsize_t doeptsiz_bm;
+  };
+    volatile uint32_t doepdma;          // B14 + 20*ep Device OUT Endpoint DMA Address
+             uint32_t reserved18[2];    // B18..B1C
 } dwc2_epout_t;
 
+// Universal Endpoint
 typedef struct {
   union {
     volatile uint32_t diepctl;
@@ -351,6 +520,7 @@ typedef struct {
   union {
     volatile uint32_t dieptsiz;
     volatile uint32_t doeptsiz;
+    volatile dwc2_ep_tsize_t deptsiz_bm;
   };
   union {
     volatile uint32_t diepdma;
@@ -367,21 +537,43 @@ TU_VERIFY_STATIC(sizeof(dwc2_dep_t) == 0x20, "incorrect size");
 //--------------------------------------------------------------------
 typedef struct {
     //------------- Core Global -------------//
+  union {
     volatile uint32_t gotgctl;          // 000 OTG Control and Status
+    volatile dwc2_gotgctl_t gotgctl_bm;
+  };
+  union {
     volatile uint32_t gotgint;          // 004 OTG Interrupt
+    volatile dwc2_gotgint_t gotgint_bm;
+  };
+  union {
     volatile uint32_t gahbcfg;          // 008 AHB Configuration
+    volatile dwc2_gahbcfg_t gahbcfg_bm;
+  };
+  union {
     volatile uint32_t gusbcfg;          // 00c USB Configuration
+    volatile dwc2_gusbcfg_t gusbcfg_bm;
+  };
+  union {
     volatile uint32_t grstctl;          // 010 Reset
+    volatile dwc2_grstctl_t grstctl_bm;
+  };
     volatile uint32_t gintsts;          // 014 Interrupt
     volatile uint32_t gintmsk;          // 018 Interrupt Mask
     volatile uint32_t grxstsr;          // 01c Receive Status Debug Read
+  union {
     volatile uint32_t grxstsp;          // 020 Receive Status Read/Pop
+    volatile dwc2_grxstsp_t grxstsp_bm;
+  };
     volatile uint32_t grxfsiz;          // 024 Receive FIFO Size
   union {
     volatile uint32_t dieptxf0;         // 028 EP0 Tx FIFO Size
     volatile uint32_t gnptxfsiz;        // 028 Non-periodic Transmit FIFO Size
   };
-    volatile uint32_t gnptxsts;         // 02c Non-periodic Transmit FIFO/Queue Status
+  union {
+    volatile uint32_t hnptxsts;         // 02c Non-periodic Transmit FIFO/Queue Status
+    volatile dwc2_hnptxsts_t hnptxsts_bm;
+    volatile uint32_t gnptxsts;
+  };
     volatile uint32_t gi2cctl;          // 030 I2C Address
     volatile uint32_t gpvndctl;         // 034 PHY Vendor Control
   union {
@@ -415,14 +607,23 @@ typedef struct {
     //------------ Host -------------//
     volatile uint32_t hcfg;             // 400 Host Configuration
     volatile uint32_t hfir;             // 404 Host Frame Interval
+  union {
     volatile uint32_t hfnum;            // 408 Host Frame Number / Frame Remaining
+    volatile dwc2_hfnum_t hfnum_bm;
+  };
              uint32_t reserved40c;      // 40C
+  union {
     volatile uint32_t hptxsts;          // 410 Host Periodic TX FIFO / Queue Status
+    volatile dwc2_hptxsts_t hptxsts_bm;
+  };
     volatile uint32_t haint;            // 414 Host All Channels Interrupt
     volatile uint32_t haintmsk;         // 418 Host All Channels Interrupt Mask
     volatile uint32_t hflbaddr;         // 41C Host Frame List Base Address
              uint32_t reserved420[8];   // 420..43F
+  union {
     volatile uint32_t hprt;             // 440 Host Port Control and Status
+    volatile dwc2_hprt_t hprt_bm;
+  };
              uint32_t reserved444[47];  // 444..4FF
 
     //------------- Host Channel -------------//
@@ -464,8 +665,8 @@ typedef struct {
     uint32_t reservedd00[64];  // D00..DFF
 
     //------------- Power Clock -------------//
-    volatile uint32_t pcgctl;           // E00 Power and Clock Gating Control
-    volatile uint32_t pcgctl1;          // E04
+    volatile uint32_t pcgcctl;          // E00 Power and Clock Gating Characteristic Control
+    volatile uint32_t pcgcctl1;         // E04 Power and Clock Gating Characteristic Control 1
              uint32_t reservede08[126]; // E08..FFF
 
     //------------- FIFOs -------------//
@@ -478,7 +679,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, channel) == 0x0500, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, dcfg   ) == 0x0800, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epin   ) == 0x0900, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, epout  ) == 0x0B00, "incorrect size");
-TU_VERIFY_STATIC(offsetof(dwc2_regs_t, pcgctl ) == 0x0E00, "incorrect size");
+TU_VERIFY_STATIC(offsetof(dwc2_regs_t, pcgcctl) == 0x0E00, "incorrect size");
 TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 
 //--------------------------------------------------------------------+
@@ -542,14 +743,16 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GOTGCTL_OTGVER                   GOTGCTL_OTGVER_Msk                       // OTG version
 
 /********************  Bit definition for HCFG register  ********************/
-#define HCFG_FSLSPCS_Pos                 (0U)
-#define HCFG_FSLSPCS_Msk                 (0x3UL << HCFG_FSLSPCS_Pos)              // 0x00000003
-#define HCFG_FSLSPCS                     HCFG_FSLSPCS_Msk                         // FS/LS PHY clock select
-#define HCFG_FSLSPCS_0                   (0x1UL << HCFG_FSLSPCS_Pos)              // 0x00000001
-#define HCFG_FSLSPCS_1                   (0x2UL << HCFG_FSLSPCS_Pos)              // 0x00000002
-#define HCFG_FSLSS_Pos                   (2U)
-#define HCFG_FSLSS_Msk                   (0x1UL << HCFG_FSLSS_Pos)                // 0x00000004
-#define HCFG_FSLSS                       HCFG_FSLSS_Msk                           // FS- and LS-only support
+#define HCFG_FSLS_PHYCLK_SEL_Pos         (0U)
+#define HCFG_FSLS_PHYCLK_SEL_Msk         (0x3UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000003
+#define HCFG_FSLS_PHYCLK_SEL             HCFG_FSLS_PHYCLK_SEL_Msk                 // FS/LS PHY clock select
+#define HCFG_FSLS_PHYCLK_SEL_30_60MHZ    (0x0UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000000
+#define HCFG_FSLS_PHYCLK_SEL_48MHZ       (0x1UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000001
+#define HCFG_FSLS_PHYCLK_SEL_6MHZ        (0x2UL << HCFG_FSLS_PHYCLK_SEL_Pos)      // 0x00000002
+
+#define HCFG_FSLS_ONLY_Pos               (2U)
+#define HCFG_FSLS_ONLY_Msk               (0x1UL << HCFG_FSLS_ONLY_Pos)            // 0x00000004
+#define HCFG_FSLS_ONLY                   HCFG_FSLS_ONLY_Msk                       // FS- and LS-only support
 
 /********************  Bit definition for PCGCR register  ********************/
 #define PCGCR_STPPCLK_Pos                (0U)
@@ -664,6 +867,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HFIR_FRIVL_Pos                   (0U)
 #define HFIR_FRIVL_Msk                   (0xFFFFUL << HFIR_FRIVL_Pos)             // 0x0000FFFF
 #define HFIR_FRIVL                       HFIR_FRIVL_Msk                           // Frame interval
+#define HFIR_RELOAD_CTRL_Pos             (16U)                                    // available since v2.92a
+#define HFIR_RELOAD_CTRL_Msk             (0x1UL << HFIR_RELOAD_CTRL_Pos)
+#define HFIR_RELOAD_CTRL                  HFIR_RELOAD_CTRL_Msk
 
 /********************  Bit definition for HFNUM register  ********************/
 #define HFNUM_FRNUM_Pos                  (0U)
@@ -708,19 +914,17 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GAHBCFG_DMAEN_Pos                (5U)
 #define GAHBCFG_DMAEN_Msk                (0x1UL << GAHBCFG_DMAEN_Pos)             // 0x00000020
 #define GAHBCFG_DMAEN                    GAHBCFG_DMAEN_Msk                        // DMA enable
-#define GAHBCFG_TXFELVL_Pos              (7U)
-#define GAHBCFG_TXFELVL_Msk              (0x1UL << GAHBCFG_TXFELVL_Pos)           // 0x00000080
-#define GAHBCFG_TXFELVL                  GAHBCFG_TXFELVL_Msk                      // TxFIFO empty level
-#define GAHBCFG_PTXFELVL_Pos             (8U)
-#define GAHBCFG_PTXFELVL_Msk             (0x1UL << GAHBCFG_PTXFELVL_Pos)          // 0x00000100
-#define GAHBCFG_PTXFELVL                 GAHBCFG_PTXFELVL_Msk                     // Periodic TxFIFO empty level
-
-#define GSNPSID_ID_MASK                 TU_GENMASK(31, 16)
+#define GAHBCFG_TX_FIFO_EPMTY_LVL_Pos    (7U)
+#define GAHBCFG_TX_FIFO_EPMTY_LVL_Msk    (0x1UL << GAHBCFG_TX_FIFO_EPMTY_LVL_Pos) // 0x00000080
+#define GAHBCFG_TX_FIFO_EPMTY_LVL        GAHBCFG_TX_FIFO_EPMTY_LVL_Msk            // TxFIFO empty level
+#define GAHBCFG_PTX_FIFO_EPMTY_LVL_Pos   (8U)
+#define GAHBCFG_PTX_FIFO_EPMTY_LVL_Msk   (0x1UL << GAHBCFG_PTX_FIFO_EPMTY_LVL_Pos) // 0x00000100
+#define GAHBCFG_PTX_FIFO_EPMTY_LVL       GAHBCFG_PTX_FIFO_EPMTY_LVL_Msk            // Periodic TxFIFO empty level
 
 /********************  Bit definition for GUSBCFG register  ********************/
 #define GUSBCFG_TOCAL_Pos                (0U)
 #define GUSBCFG_TOCAL_Msk                (0x7UL << GUSBCFG_TOCAL_Pos)             // 0x00000007
-#define GUSBCFG_TOCAL                    GUSBCFG_TOCAL_Msk                        // FS timeout calibration
+#define GUSBCFG_TOCAL                    GUSBCFG_TOCAL_Msk                        // HS/FS timeout calibration
 #define GUSBCFG_PHYIF16_Pos              (3U)
 #define GUSBCFG_PHYIF16_Msk              (0x1UL << GUSBCFG_PHYIF16_Pos)           // 0x00000008
 #define GUSBCFG_PHYIF16                  GUSBCFG_PHYIF16_Msk                      // PHY Interface (PHYIf)
@@ -804,8 +1008,8 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GRSTCTL_TXFNUM_2                 (0x04UL << GRSTCTL_TXFNUM_Pos)           // 0x00000100
 #define GRSTCTL_TXFNUM_3                 (0x08UL << GRSTCTL_TXFNUM_Pos)           // 0x00000200
 #define GRSTCTL_TXFNUM_4                 (0x10UL << GRSTCTL_TXFNUM_Pos)           // 0x00000400
-#define GRSTCTL_CSFTRST_DONE_Pos       (29)
-#define GRSTCTL_CSFTRST_DONE           (1u << GRSTCTL_CSFTRST_DONE_Pos)         // Reset Done, only available from v4.20a
+#define GRSTCTL_CSRST_DONE_Pos           (29)
+#define GRSTCTL_CSRST_DONE               (1u << GRSTCTL_CSRST_DONE_Pos)         // Reset Done, only available from v4.20a
 #define GRSTCTL_DMAREQ_Pos               (30U)
 #define GRSTCTL_DMAREQ_Msk               (0x1UL << GRSTCTL_DMAREQ_Pos)            // 0x40000000
 #define GRSTCTL_DMAREQ                   GRSTCTL_DMAREQ_Msk                       // DMA request signal
@@ -926,9 +1130,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GINTSTS_RXFLVL_Pos               (4U)
 #define GINTSTS_RXFLVL_Msk               (0x1UL << GINTSTS_RXFLVL_Pos)            // 0x00000010
 #define GINTSTS_RXFLVL                   GINTSTS_RXFLVL_Msk                       // RxFIFO nonempty
-#define GINTSTS_NPTXFE_Pos               (5U)
-#define GINTSTS_NPTXFE_Msk               (0x1UL << GINTSTS_NPTXFE_Pos)            // 0x00000020
-#define GINTSTS_NPTXFE                   GINTSTS_NPTXFE_Msk                       // Nonperiodic TxFIFO empty
+#define GINTSTS_NPTX_FIFO_EMPTY_Pos      (5U)
+#define GINTSTS_NPTX_FIFO_EMPTY_Msk      (0x1UL << GINTSTS_NPTX_FIFO_EMPTY_Pos)   // 0x00000020
+#define GINTSTS_NPTX_FIFO_EMPTY          GINTSTS_NPTX_FIFO_EMPTY_Msk              // Nonperiodic TxFIFO empty
 #define GINTSTS_GINAKEFF_Pos             (6U)
 #define GINTSTS_GINAKEFF_Msk             (0x1UL << GINTSTS_GINAKEFF_Pos)          // 0x00000040
 #define GINTSTS_GINAKEFF                 GINTSTS_GINAKEFF_Msk                     // Global IN nonperiodic NAK effective
@@ -977,15 +1181,15 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GINTSTS_HCINT_Pos                (25U)
 #define GINTSTS_HCINT_Msk                (0x1UL << GINTSTS_HCINT_Pos)             // 0x02000000
 #define GINTSTS_HCINT                    GINTSTS_HCINT_Msk                        // Host channels interrupt
-#define GINTSTS_PTXFE_Pos                (26U)
-#define GINTSTS_PTXFE_Msk                (0x1UL << GINTSTS_PTXFE_Pos)             // 0x04000000
-#define GINTSTS_PTXFE                    GINTSTS_PTXFE_Msk                        // Periodic TxFIFO empty
+#define GINTSTS_PTX_FIFO_EMPTY_Pos       (26U)
+#define GINTSTS_PTX_FIFO_EMPTY_Msk       (0x1UL << GINTSTS_PTX_FIFO_EMPTY_Pos)    // 0x04000000
+#define GINTSTS_PTX_FIFO_EMPTY           GINTSTS_PTX_FIFO_EMPTY_Msk               // Periodic TxFIFO empty
 #define GINTSTS_LPMINT_Pos               (27U)
 #define GINTSTS_LPMINT_Msk               (0x1UL << GINTSTS_LPMINT_Pos)            // 0x08000000
 #define GINTSTS_LPMINT                   GINTSTS_LPMINT_Msk                       // LPM interrupt
-#define GINTSTS_CIDSCHG_Pos              (28U)
-#define GINTSTS_CIDSCHG_Msk              (0x1UL << GINTSTS_CIDSCHG_Pos)           // 0x10000000
-#define GINTSTS_CIDSCHG                  GINTSTS_CIDSCHG_Msk                      // Connector ID status change
+#define GINTSTS_CONIDSTSCHNG_Pos         (28U)
+#define GINTSTS_CONIDSTSCHNG_Msk         (0x1UL << GINTSTS_CONIDSTSCHNG_Pos)      // 0x10000000
+#define GINTSTS_CONIDSTSCHNG             GINTSTS_CONIDSTSCHNG_Msk                 // Connector ID status change
 #define GINTSTS_DISCINT_Pos              (29U)
 #define GINTSTS_DISCINT_Msk              (0x1UL << GINTSTS_DISCINT_Pos)           // 0x20000000
 #define GINTSTS_DISCINT                  GINTSTS_DISCINT_Msk                      // Disconnect detected interrupt
@@ -1069,9 +1273,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GINTMSK_LPMINTM_Pos              (27U)
 #define GINTMSK_LPMINTM_Msk              (0x1UL << GINTMSK_LPMINTM_Pos)           // 0x08000000
 #define GINTMSK_LPMINTM                  GINTMSK_LPMINTM_Msk                      // LPM interrupt Mask
-#define GINTMSK_CIDSCHGM_Pos             (28U)
-#define GINTMSK_CIDSCHGM_Msk             (0x1UL << GINTMSK_CIDSCHGM_Pos)          // 0x10000000
-#define GINTMSK_CIDSCHGM                 GINTMSK_CIDSCHGM_Msk                     // Connector ID status change mask
+#define GINTMSK_CONIDSTSCHNGM_Pos        (28U)
+#define GINTMSK_CONIDSTSCHNGM_Msk        (0x1UL << GINTMSK_CONIDSTSCHNGM_Pos)     // 0x10000000
+#define GINTMSK_CONIDSTSCHNGM            GINTMSK_CONIDSTSCHNGM_Msk                // Connector ID status change mask
 #define GINTMSK_DISCINT_Pos              (29U)
 #define GINTMSK_DISCINT_Msk              (0x1UL << GINTMSK_DISCINT_Pos)           // 0x20000000
 #define GINTMSK_DISCINT                  GINTMSK_DISCINT_Msk                      // Disconnect detected interrupt mask
@@ -1108,17 +1312,6 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define GRXSTSP_PKTSTS_Pos               (17U)
 #define GRXSTSP_PKTSTS_Msk               (0xFUL << GRXSTSP_PKTSTS_Pos)            // 0x001E0000
 #define GRXSTSP_PKTSTS                   GRXSTSP_PKTSTS_Msk                       // OUT EP interrupt mask bits
-
-#define GRXSTS_PKTSTS_GLOBALOUTNAK       1
-#define GRXSTS_PKTSTS_OUTRX              2
-#define GRXSTS_PKTSTS_HCHIN              2
-#define GRXSTS_PKTSTS_OUTDONE            3
-#define GRXSTS_PKTSTS_HCHIN_XFER_COMP    3
-#define GRXSTS_PKTSTS_SETUPDONE          4
-#define GRXSTS_PKTSTS_DATATOGGLEERR      5
-#define GRXSTS_PKTSTS_SETUPRX            6
-#define GRXSTS_PKTSTS_HCHHALTED          7
-
 
 /********************  Bit definition for DAINTMSK register  ********************/
 #define DAINTMSK_IEPM_Pos                (0U)
@@ -1448,56 +1641,53 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DIEPEACHMSK1_NAKM                DIEPEACHMSK1_NAKM_Msk                    // NAK interrupt mask
 
 /********************  Bit definition for HPRT register  ********************/
-#define HPRT_PCSTS_Pos                   (0U)
-#define HPRT_PCSTS_Msk                   (0x1UL << HPRT_PCSTS_Pos)                // 0x00000001
-#define HPRT_PCSTS                       HPRT_PCSTS_Msk                           // Port connect status
-#define HPRT_PCDET_Pos                   (1U)
-#define HPRT_PCDET_Msk                   (0x1UL << HPRT_PCDET_Pos)                // 0x00000002
-#define HPRT_PCDET                       HPRT_PCDET_Msk                           // Port connect detected
-#define HPRT_PENA_Pos                    (2U)
-#define HPRT_PENA_Msk                    (0x1UL << HPRT_PENA_Pos)                 // 0x00000004
-#define HPRT_PENA                        HPRT_PENA_Msk                            // Port enable
-#define HPRT_PENCHNG_Pos                 (3U)
-#define HPRT_PENCHNG_Msk                 (0x1UL << HPRT_PENCHNG_Pos)              // 0x00000008
-#define HPRT_PENCHNG                     HPRT_PENCHNG_Msk                         // Port enable/disable change
-#define HPRT_POCA_Pos                    (4U)
-#define HPRT_POCA_Msk                    (0x1UL << HPRT_POCA_Pos)                 // 0x00000010
-#define HPRT_POCA                        HPRT_POCA_Msk                            // Port overcurrent active
-#define HPRT_POCCHNG_Pos                 (5U)
-#define HPRT_POCCHNG_Msk                 (0x1UL << HPRT_POCCHNG_Pos)              // 0x00000020
-#define HPRT_POCCHNG                     HPRT_POCCHNG_Msk                         // Port overcurrent change
-#define HPRT_PRES_Pos                    (6U)
-#define HPRT_PRES_Msk                    (0x1UL << HPRT_PRES_Pos)                 // 0x00000040
-#define HPRT_PRES                        HPRT_PRES_Msk                            // Port resume
-#define HPRT_PSUSP_Pos                   (7U)
-#define HPRT_PSUSP_Msk                   (0x1UL << HPRT_PSUSP_Pos)                // 0x00000080
-#define HPRT_PSUSP                       HPRT_PSUSP_Msk                           // Port suspend
-#define HPRT_PRST_Pos                    (8U)
-#define HPRT_PRST_Msk                    (0x1UL << HPRT_PRST_Pos)                 // 0x00000100
-#define HPRT_PRST                        HPRT_PRST_Msk                            // Port reset
-
-#define HPRT_PLSTS_Pos                   (10U)
-#define HPRT_PLSTS_Msk                   (0x3UL << HPRT_PLSTS_Pos)                // 0x00000C00
-#define HPRT_PLSTS                       HPRT_PLSTS_Msk                           // Port line status
-#define HPRT_PLSTS_0                     (0x1UL << HPRT_PLSTS_Pos)                // 0x00000400
-#define HPRT_PLSTS_1                     (0x2UL << HPRT_PLSTS_Pos)                // 0x00000800
-#define HPRT_PPWR_Pos                    (12U)
-#define HPRT_PPWR_Msk                    (0x1UL << HPRT_PPWR_Pos)                 // 0x00001000
-#define HPRT_PPWR                        HPRT_PPWR_Msk                            // Port power
-
-#define HPRT_PTCTL_Pos                   (13U)
-#define HPRT_PTCTL_Msk                   (0xFUL << HPRT_PTCTL_Pos)                // 0x0001E000
-#define HPRT_PTCTL                       HPRT_PTCTL_Msk                           // Port test control
-#define HPRT_PTCTL_0                     (0x1UL << HPRT_PTCTL_Pos)                // 0x00002000
-#define HPRT_PTCTL_1                     (0x2UL << HPRT_PTCTL_Pos)                // 0x00004000
-#define HPRT_PTCTL_2                     (0x4UL << HPRT_PTCTL_Pos)                // 0x00008000
-#define HPRT_PTCTL_3                     (0x8UL << HPRT_PTCTL_Pos)                // 0x00010000
-
-#define HPRT_PSPD_Pos                    (17U)
-#define HPRT_PSPD_Msk                    (0x3UL << HPRT_PSPD_Pos)                 // 0x00060000
-#define HPRT_PSPD                        HPRT_PSPD_Msk                            // Port speed
-#define HPRT_PSPD_0                      (0x1UL << HPRT_PSPD_Pos)                 // 0x00020000
-#define HPRT_PSPD_1                      (0x2UL << HPRT_PSPD_Pos)                 // 0x00040000
+#define HPRT_CONN_STATUS_Pos           (0U)
+#define HPRT_CONN_STATUS_Msk           (0x1UL << HPRT_CONN_STATUS_Pos)         // 0x00000001
+#define HPRT_CONN_STATUS               HPRT_CONN_STATUS_Msk                    // Port connect status
+#define HPRT_CONN_DETECT_Pos           (1U)
+#define HPRT_CONN_DETECT_Msk           (0x1UL << HPRT_CONN_DETECT_Pos)         // 0x00000002
+#define HPRT_CONN_DETECT               HPRT_CONN_DETECT_Msk                    // Port connect detected
+#define HPRT_ENABLE_Pos                (2U)
+#define HPRT_ENABLE_Msk                (0x1UL << HPRT_ENABLE_Pos)              // 0x00000004
+#define HPRT_ENABLE                    HPRT_ENABLE_Msk                         // Port enable
+#define HPRT_ENABLE_CHANGE_Pos         (3U)
+#define HPRT_ENABLE_CHANGE_Msk         (0x1UL << HPRT_ENABLE_CHANGE_Pos)       // 0x00000008
+#define HPRT_ENABLE_CHANGE             HPRT_ENABLE_CHANGE_Msk                  // Port enable/disable change
+#define HPRT_OVER_CURRENT_ACTIVE_Pos   (4U)
+#define HPRT_OVER_CURRENT_ACTIVE_Msk   (0x1UL << HPRT_OVER_CURRENT_ACTIVE_Pos) // 0x00000010
+#define HPRT_OVER_CURRENT_ACTIVE       HPRT_OVER_CURRENT_ACTIVE_Msk            // Port overcurrent active
+#define HPRT_OVER_CURRENT_CHANGE_Pos   (5U)
+#define HPRT_OVER_CURRENT_CHANGE_Msk   (0x1UL << HPRT_OVER_CURRENT_CHANGE_Pos) // 0x00000020
+#define HPRT_OVER_CURRENT_CHANGE       HPRT_OVER_CURRENT_CHANGE_Msk            // Port overcurrent change
+#define HPRT_RESUME_Pos                (6U)
+#define HPRT_RESUME_Msk                (0x1UL << HPRT_RESUME_Pos)              // 0x00000040
+#define HPRT_RESUME                    HPRT_RESUME_Msk                         // Port resume
+#define HPRT_SUSPEND_Pos               (7U)
+#define HPRT_SUSPEND_Msk               (0x1UL << HPRT_SUSPEND_Pos)             // 0x00000080
+#define HPRT_SUSPEND                   HPRT_SUSPEND_Msk                        // Port suspend
+#define HPRT_RESET_Pos                 (8U)
+#define HPRT_RESET_Msk                 (0x1UL << HPRT_RESET_Pos)               // 0x00000100
+#define HPRT_RESET                     HPRT_RESET_Msk                          // Port reset
+#define HPRT_LINE_STATUS_Pos           (10U)
+#define HPRT_LINE_STATUS_Msk           (0x3UL << HPRT_LINE_STATUS_Pos)         // 0x00000C00
+#define HPRT_LINE_STATUS               HPRT_LINE_STATUS_Msk                    // Port line status
+#define HPRT_LINE_STATUS_0             (0x1UL << HPRT_LINE_STATUS_Pos)         // 0x00000400
+#define HPRT_LINE_STATUS_1             (0x2UL << HPRT_LINE_STATUS_Pos)         // 0x00000800
+#define HPRT_POWER_Pos                 (12U)
+#define HPRT_POWER_Msk                 (0x1UL << HPRT_POWER_Pos)               // 0x00001000
+#define HPRT_POWER                     HPRT_POWER_Msk                          // Port power
+#define HPRT_TEST_CONTROL_Pos          (13U)
+#define HPRT_TEST_CONTROL_Msk          (0xFUL << HPRT_TEST_CONTROL_Pos)        // 0x0001E000
+#define HPRT_TEST_CONTROL              HPRT_TEST_CONTROL_Msk                   // Port test control
+#define HPRT_TEST_CONTROL_0            (0x1UL << HPRT_TEST_CONTROL_Pos)        // 0x00002000
+#define HPRT_TEST_CONTROL_1            (0x2UL << HPRT_TEST_CONTROL_Pos)        // 0x00004000
+#define HPRT_TEST_CONTROL_2            (0x4UL << HPRT_TEST_CONTROL_Pos)        // 0x00008000
+#define HPRT_TEST_CONTROL_3            (0x8UL << HPRT_TEST_CONTROL_Pos)        // 0x00010000
+#define HPRT_SPEED_Pos                 (17U)
+#define HPRT_SPEED_Msk                 (0x3UL << HPRT_SPEED_Pos)               // 0x00060000
+#define HPRT_SPEED                     HPRT_SPEED_Msk                          // Port speed
+#define HPRT_SPEED_0                   (0x1UL << HPRT_SPEED_Pos)               // 0x00020000
+#define HPRT_SPEED_1                   (0x2UL << HPRT_SPEED_Pos)               // 0x00040000
 
 /********************  Bit definition for DOEPEACHMSK1 register  ********************/
 #define DOEPEACHMSK1_XFRCM_Pos           (0U)
@@ -1679,15 +1869,15 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCSPLT_SPLITEN                   HCSPLT_SPLITEN_Msk                       // Split enable
 
 /********************  Bit definition for HCINT register  ********************/
-#define HCINT_XFRC_Pos                   (0U)
-#define HCINT_XFRC_Msk                   (0x1UL << HCINT_XFRC_Pos)                // 0x00000001
-#define HCINT_XFRC                       HCINT_XFRC_Msk                           // Transfer completed
-#define HCINT_CHH_Pos                    (1U)
-#define HCINT_CHH_Msk                    (0x1UL << HCINT_CHH_Pos)                 // 0x00000002
-#define HCINT_CHH                        HCINT_CHH_Msk                            // Channel halted
-#define HCINT_AHBERR_Pos                 (2U)
-#define HCINT_AHBERR_Msk                 (0x1UL << HCINT_AHBERR_Pos)              // 0x00000004
-#define HCINT_AHBERR                     HCINT_AHBERR_Msk                         // AHB error
+#define HCINT_XFER_COMPLETE_Pos          (0U)
+#define HCINT_XFER_COMPLETE_Msk          (0x1UL << HCINT_XFER_COMPLETE_Pos)       // 0x00000001
+#define HCINT_XFER_COMPLETE              HCINT_XFER_COMPLETE_Msk                  // Transfer completed
+#define HCINT_HALTED_Pos                 (1U)
+#define HCINT_HALTED_Msk                 (0x1UL << HCINT_HALTED_Pos)              // 0x00000002
+#define HCINT_HALTED                     HCINT_HALTED_Msk                         // Channel halted
+#define HCINT_AHB_ERR_Pos                (2U)
+#define HCINT_AHB_ERR_Msk                (0x1UL << HCINT_AHB_ERR_Pos)              // 0x00000004
+#define HCINT_AHB_ERR                     HCINT_AHB_ERR_Msk                         // AHB error
 #define HCINT_STALL_Pos                  (3U)
 #define HCINT_STALL_Msk                  (0x1UL << HCINT_STALL_Pos)               // 0x00000008
 #define HCINT_STALL                      HCINT_STALL_Msk                          // STALL response received interrupt
@@ -1700,18 +1890,27 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCINT_NYET_Pos                   (6U)
 #define HCINT_NYET_Msk                   (0x1UL << HCINT_NYET_Pos)                // 0x00000040
 #define HCINT_NYET                       HCINT_NYET_Msk                           // Response received interrupt
-#define HCINT_TXERR_Pos                  (7U)
-#define HCINT_TXERR_Msk                  (0x1UL << HCINT_TXERR_Pos)               // 0x00000080
-#define HCINT_TXERR                      HCINT_TXERR_Msk                          // Transaction error
-#define HCINT_BBERR_Pos                  (8U)
-#define HCINT_BBERR_Msk                  (0x1UL << HCINT_BBERR_Pos)               // 0x00000100
-#define HCINT_BBERR                      HCINT_BBERR_Msk                          // Babble error
-#define HCINT_FRMOR_Pos                  (9U)
-#define HCINT_FRMOR_Msk                  (0x1UL << HCINT_FRMOR_Pos)               // 0x00000200
-#define HCINT_FRMOR                      HCINT_FRMOR_Msk                          // Frame overrun
-#define HCINT_DTERR_Pos                  (10U)
-#define HCINT_DTERR_Msk                  (0x1UL << HCINT_DTERR_Pos)               // 0x00000400
-#define HCINT_DTERR                      HCINT_DTERR_Msk                          // Data toggle error
+#define HCINT_XACT_ERR_Pos               (7U)
+#define HCINT_XACT_ERR_Msk               (0x1UL << HCINT_XACT_ERR_Pos)            // 0x00000080
+#define HCINT_XACT_ERR                   HCINT_XACT_ERR_Msk                       // Transaction error
+#define HCINT_BABBLE_ERR_Pos             (8U)
+#define HCINT_BABBLE_ERR_Msk             (0x1UL << HCINT_BABBLE_ERR_Pos)          // 0x00000100
+#define HCINT_BABBLE_ERR                 HCINT_BABBLE_ERR_Msk                     // Babble error
+#define HCINT_FARME_OVERRUN_Pos          (9U)
+#define HCINT_FARME_OVERRUN_Msk          (0x1UL << HCINT_FARME_OVERRUN_Pos)       // 0x00000200
+#define HCINT_FARME_OVERRUN              HCINT_FARME_OVERRUN_Msk                  // Frame overrun
+#define HCINT_DATATOGGLE_ERR_Pos         (10U)
+#define HCINT_DATATOGGLE_ERR_Msk         (0x1UL << HCINT_DATATOGGLE_ERR_Pos)      // 0x00000400
+#define HCINT_DATATOGGLE_ERR             HCINT_DATATOGGLE_ERR_Msk                 // Data toggle error
+#define HCINT_BUFFER_NA_Pos             (11U)
+#define HCINT_BUFFER_NA_Msk             (0x1UL << HCINT_BUFFER_NA_Pos)          // 0x00000800
+#define HCINT_BUFFER_NA                 HCINT_BUFFER_NA_Msk                     // Buffer not available interrupt
+#define HCINT_XCS_XACT_ERR_Pos           (12U)
+#define HCINT_XCS_XACT_ERR_Msk           (0x1UL << HCINT_XCS_XACT_ERR_Pos)        // 0x00001000
+#define HCINT_XCS_XACT_ERR               HCINT_XCS_XACT_ERR_Msk                   // Excessive transaction error
+#define HCINT_DESC_ROLLOVER_Pos          (13U)
+#define HCINT_DESC_ROLLOVER_Msk          (0x1UL << HCINT_DESC_ROLLOVER_Pos)       // 0x00002000
+#define HCINT_DESC_ROLLOVER              HCINT_DESC_ROLLOVER_Msk                  // Descriptor rollover
 
 /********************  Bit definition for DIEPINT register  ********************/
 #define DIEPINT_XFRC_Pos                 (0U)
@@ -1754,41 +1953,6 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DIEPINT_NAK_Msk                  (0x1UL << DIEPINT_NAK_Pos)               // 0x00002000
 #define DIEPINT_NAK                      DIEPINT_NAK_Msk                          // NAK interrupt
 
-/********************  Bit definition for HCINTMSK register  ********************/
-#define HCINTMSK_XFRCM_Pos               (0U)
-#define HCINTMSK_XFRCM_Msk               (0x1UL << HCINTMSK_XFRCM_Pos)            // 0x00000001
-#define HCINTMSK_XFRCM                   HCINTMSK_XFRCM_Msk                       // Transfer completed mask
-#define HCINTMSK_CHHM_Pos                (1U)
-#define HCINTMSK_CHHM_Msk                (0x1UL << HCINTMSK_CHHM_Pos)             // 0x00000002
-#define HCINTMSK_CHHM                    HCINTMSK_CHHM_Msk                        // Channel halted mask
-#define HCINTMSK_AHBERR_Pos              (2U)
-#define HCINTMSK_AHBERR_Msk              (0x1UL << HCINTMSK_AHBERR_Pos)           // 0x00000004
-#define HCINTMSK_AHBERR                  HCINTMSK_AHBERR_Msk                      // AHB error
-#define HCINTMSK_STALLM_Pos              (3U)
-#define HCINTMSK_STALLM_Msk              (0x1UL << HCINTMSK_STALLM_Pos)           // 0x00000008
-#define HCINTMSK_STALLM                  HCINTMSK_STALLM_Msk                      // STALL response received interrupt mask
-#define HCINTMSK_NAKM_Pos                (4U)
-#define HCINTMSK_NAKM_Msk                (0x1UL << HCINTMSK_NAKM_Pos)             // 0x00000010
-#define HCINTMSK_NAKM                    HCINTMSK_NAKM_Msk                        // NAK response received interrupt mask
-#define HCINTMSK_ACKM_Pos                (5U)
-#define HCINTMSK_ACKM_Msk                (0x1UL << HCINTMSK_ACKM_Pos)             // 0x00000020
-#define HCINTMSK_ACKM                    HCINTMSK_ACKM_Msk                        // ACK response received/transmitted interrupt mask
-#define HCINTMSK_NYET_Pos                (6U)
-#define HCINTMSK_NYET_Msk                (0x1UL << HCINTMSK_NYET_Pos)             // 0x00000040
-#define HCINTMSK_NYET                    HCINTMSK_NYET_Msk                        // response received interrupt mask
-#define HCINTMSK_TXERRM_Pos              (7U)
-#define HCINTMSK_TXERRM_Msk              (0x1UL << HCINTMSK_TXERRM_Pos)           // 0x00000080
-#define HCINTMSK_TXERRM                  HCINTMSK_TXERRM_Msk                      // Transaction error mask
-#define HCINTMSK_BBERRM_Pos              (8U)
-#define HCINTMSK_BBERRM_Msk              (0x1UL << HCINTMSK_BBERRM_Pos)           // 0x00000100
-#define HCINTMSK_BBERRM                  HCINTMSK_BBERRM_Msk                      // Babble error mask
-#define HCINTMSK_FRMORM_Pos              (9U)
-#define HCINTMSK_FRMORM_Msk              (0x1UL << HCINTMSK_FRMORM_Pos)           // 0x00000200
-#define HCINTMSK_FRMORM                  HCINTMSK_FRMORM_Msk                      // Frame overrun mask
-#define HCINTMSK_DTERRM_Pos              (10U)
-#define HCINTMSK_DTERRM_Msk              (0x1UL << HCINTMSK_DTERRM_Pos)           // 0x00000400
-#define HCINTMSK_DTERRM                  HCINTMSK_DTERRM_Msk                      // Data toggle error mask
-
 /********************  Bit definition for DIEPTSIZ register  ********************/
 
 #define DIEPTSIZ_XFRSIZ_Pos              (0U)
@@ -1810,11 +1974,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCTSIZ_DOPING_Pos                (31U)
 #define HCTSIZ_DOPING_Msk                (0x1UL << HCTSIZ_DOPING_Pos)             // 0x80000000
 #define HCTSIZ_DOPING                    HCTSIZ_DOPING_Msk                        // Do PING
-#define HCTSIZ_DPID_Pos                  (29U)
-#define HCTSIZ_DPID_Msk                  (0x3UL << HCTSIZ_DPID_Pos)               // 0x60000000
-#define HCTSIZ_DPID                      HCTSIZ_DPID_Msk                          // Data PID
-#define HCTSIZ_DPID_0                    (0x1UL << HCTSIZ_DPID_Pos)               // 0x20000000
-#define HCTSIZ_DPID_1                    (0x2UL << HCTSIZ_DPID_Pos)               // 0x40000000
+#define HCTSIZ_PID_Pos                  (29U)
+#define HCTSIZ_PID_Msk                  (0x3UL << HCTSIZ_PID_Pos)               // 0x60000000
+#define HCTSIZ_PID                      HCTSIZ_PID_Msk                          // Data PID
 
 /********************  Bit definition for DIEPDMA register  ********************/
 #define DIEPDMA_DMAADDR_Pos              (0U)
@@ -1973,32 +2135,32 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DOEPTSIZ_STUPCNT_1               (0x2UL << DOEPTSIZ_STUPCNT_Pos)          // 0x40000000
 
 /********************  Bit definition for PCGCTL register  ********************/
-#define PCGCTL_IF_DEV_MODE              TU_BIT(31)
-#define PCGCTL_P2HD_PRT_SPD_MASK        (0x3ul << 29)
-#define PCGCTL_P2HD_PRT_SPD_SHIFT       29
-#define PCGCTL_P2HD_DEV_ENUM_SPD_MASK   (0x3ul << 27)
-#define PCGCTL_P2HD_DEV_ENUM_SPD_SHIFT  27
-#define PCGCTL_MAC_DEV_ADDR_MASK        (0x7ful << 20)
-#define PCGCTL_MAC_DEV_ADDR_SHIFT       20
-#define PCGCTL_MAX_TERMSEL              TU_BIT(19)
-#define PCGCTL_MAX_XCVRSELECT_MASK      (0x3ul << 17)
-#define PCGCTL_MAX_XCVRSELECT_SHIFT     17
-#define PCGCTL_PORT_POWER               TU_BIT(16)
-#define PCGCTL_PRT_CLK_SEL_MASK         (0x3ul << 14)
-#define PCGCTL_PRT_CLK_SEL_SHIFT        14
-#define PCGCTL_ESS_REG_RESTORED         TU_BIT(13)
-#define PCGCTL_EXTND_HIBER_SWITCH       TU_BIT(12)
-#define PCGCTL_EXTND_HIBER_PWRCLMP      TU_BIT(11)
-#define PCGCTL_ENBL_EXTND_HIBER         TU_BIT(10)
-#define PCGCTL_RESTOREMODE              TU_BIT(9)
-#define PCGCTL_RESETAFTSUSP             TU_BIT(8)
-#define PCGCTL_DEEP_SLEEP               TU_BIT(7)
-#define PCGCTL_PHY_IN_SLEEP             TU_BIT(6)
-#define PCGCTL_ENBL_SLEEP_GATING        TU_BIT(5)
-#define PCGCTL_RSTPDWNMODULE            TU_BIT(3)
-#define PCGCTL_PWRCLMP                  TU_BIT(2)
-#define PCGCTL_GATEHCLK                 TU_BIT(1)
-#define PCGCTL_STOPPCLK                 TU_BIT(0)
+#define PCGCCTL_IF_DEV_MODE              TU_BIT(31)
+#define PCGCCTL_P2HD_PRT_SPD_MASK        (0x3ul << 29)
+#define PCGCCTL_P2HD_PRT_SPD_SHIFT       29
+#define PCGCCTL_P2HD_DEV_ENUM_SPD_MASK   (0x3ul << 27)
+#define PCGCCTL_P2HD_DEV_ENUM_SPD_SHIFT  27
+#define PCGCCTL_MAC_DEV_ADDR_MASK        (0x7ful << 20)
+#define PCGCCTL_MAC_DEV_ADDR_SHIFT       20
+#define PCGCCTL_MAX_TERMSEL              TU_BIT(19)
+#define PCGCCTL_MAX_XCVRSELECT_MASK      (0x3ul << 17)
+#define PCGCCTL_MAX_XCVRSELECT_SHIFT     17
+#define PCGCCTL_PORT_POWER               TU_BIT(16)
+#define PCGCCTL_PRT_CLK_SEL_MASK         (0x3ul << 14)
+#define PCGCCTL_PRT_CLK_SEL_SHIFT        14
+#define PCGCCTL_ESS_REG_RESTORED         TU_BIT(13)
+#define PCGCCTL_EXTND_HIBER_SWITCH       TU_BIT(12)
+#define PCGCCTL_EXTND_HIBER_PWRCLMP      TU_BIT(11)
+#define PCGCCTL_ENBL_EXTND_HIBER         TU_BIT(10)
+#define PCGCCTL_RESTOREMODE              TU_BIT(9)
+#define PCGCCTL_RESETAFTSUSP             TU_BIT(8)
+#define PCGCCTL_DEEP_SLEEP               TU_BIT(7)
+#define PCGCCTL_PHY_IN_SLEEP             TU_BIT(6)
+#define PCGCCTL_ENBL_SLEEP_GATING        TU_BIT(5)
+#define PCGCCTL_RSTPDWNMODULE            TU_BIT(3)
+#define PCGCCTL_PWRCLMP                  TU_BIT(2)
+#define PCGCCTL_GATEHCLK                 TU_BIT(1)
+#define PCGCCTL_STOPPCLK                 TU_BIT(0)
 
 #define PCGCTL1_TIMER                   (0x3ul << 1)
 #define PCGCTL1_GATEEN                  TU_BIT(0)

@@ -25,13 +25,14 @@
  */
 
 
-#ifndef _DWC2_ESP32_H_
-#define _DWC2_ESP32_H_
+#ifndef TUSB_DWC2_ESP32_H_
+#define TUSB_DWC2_ESP32_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
+#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #include "esp_intr_alloc.h"
@@ -59,21 +60,37 @@ static const dwc2_controller_t _dwc2_controller[] = {
 };
 #endif
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 static intr_handle_t usb_ih[TU_ARRAY_SIZE(_dwc2_controller)];
 
-static void dcd_int_handler_wrap(void* arg) {
-  const uint8_t rhport = (uint8_t)(uintptr_t) arg;
-  dcd_int_handler(rhport);
+static void dwc2_int_handler_wrap(void* arg) {
+  const uint8_t rhport = tu_u16_low((uint16_t)(uintptr_t)arg);
+  const tusb_role_t role = (tusb_role_t) tu_u16_high((uint16_t)(uintptr_t)arg);
+#if CFG_TUD_ENABLED
+  if (role == TUSB_ROLE_DEVICE) {
+    dcd_int_handler(rhport);
+  }
+#endif
+#if CFG_TUH_ENABLED
+  if (role == TUSB_ROLE_HOST) {
+    hcd_int_handler(rhport, true);
+  }
+#endif
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_enable(uint8_t rhport) {
-  esp_intr_alloc(_dwc2_controller[rhport].irqnum, ESP_INTR_FLAG_LOWMED,
-                 dcd_int_handler_wrap, (void*)(uintptr_t) rhport, &usb_ih[rhport]);
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
+  if (enabled) {
+    esp_intr_alloc(_dwc2_controller[rhport].irqnum, ESP_INTR_FLAG_LOWMED,
+                   dwc2_int_handler_wrap, (void*)(uintptr_t)tu_u16(role, rhport), &usb_ih[rhport]);
+  } else {
+    esp_intr_free(usb_ih[rhport]);
+  }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_disable(uint8_t rhport) {
-  esp_intr_free(usb_ih[rhport]);
-}
+#define dwc2_dcd_int_enable(_rhport)  dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, true)
+#define dwc2_dcd_int_disable(_rhport) dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, false)
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   vTaskDelay(pdMS_TO_TICKS(1));
@@ -83,14 +100,15 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   (void)dwc2;
   (void)hs_phy_type;
-  // nothing to do
+  // maybe usb_utmi_hal_init()
+
 }
 
 // MCU specific PHY update, it is called AFTER init() and core reset
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   (void)dwc2;
   (void)hs_phy_type;
-  // nothing to do
+  // maybe usb_utmi_hal_disable()
 }
 
 #ifdef __cplusplus

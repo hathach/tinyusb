@@ -204,6 +204,9 @@ TU_ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 TU_ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
 
 // Invoked when received send break
+// \param[in]  itf  interface for which send break was received.
+// \param[in]  duration_ms  the length of time, in milliseconds, of the break signal. If a value of FFFFh, then the
+//                          device will send a break until another SendBreak request is received with value 0000h.
 TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms);
 
 //--------------------------------------------------------------------+

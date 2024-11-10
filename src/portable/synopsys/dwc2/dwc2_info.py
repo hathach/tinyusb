@@ -24,7 +24,6 @@ dwc2_reg_value = {
     'ST U5A5 HS': [0x5000, 0x4F54411A, 0, 0x228FE052, 0x03B882E8, 0xE2103E30],
     'GD32VF103': [0x1000, 0, 0, 0, 0, 0],
     'XMC4500': [0xAEC000, 0x4F54292A, 0, 0x228F5930, 0x027A01E5, 0xDBF08030]
-
 }
 
 # Combine dwc2_info with dwc2_reg_list
@@ -44,7 +43,7 @@ class GHWCFG2(ctypes.LittleEndianStructure):
     _fields_ = [
         ("op_mode", ctypes.c_uint32, 3),
         ("arch", ctypes.c_uint32, 2),
-        ("p2p (hub support)", ctypes.c_uint32, 1),
+        ("single_point", ctypes.c_uint32, 1),
         ("hs_phy_type", ctypes.c_uint32, 2),
         ("fs_phy_type", ctypes.c_uint32, 2),
         ("num_dev_ep", ctypes.c_uint32, 4),
@@ -119,6 +118,10 @@ GHWCFG2_field = {
         1: "DMA external",
         2: "DMA internal"
     },
+    'single_point': {
+        0: "hub",
+        1: "n/a"
+    },
     'hs_phy_type': {
         0: "n/a",
         1: "UTMI+",
@@ -130,7 +133,18 @@ GHWCFG2_field = {
         1: "Dedicated",
         2: "Shared UTMI+",
         3: "Shared ULPI"
-    }
+    },
+    'nptx_q_depth': {
+        0: "2",
+        1: "4",
+        2: "8",
+    },
+    'ptx_q_depth': {
+        0: "2",
+        1: "4",
+        2: "8",
+        3: "16"
+    },
 }
 
 # mapping for specific fields in GHWCFG4

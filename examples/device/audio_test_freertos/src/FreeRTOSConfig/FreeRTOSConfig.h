@@ -48,7 +48,7 @@
 // Include MCU header
 #include "bsp/board_mcu.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
+#if TUSB_MCU_VENDOR_ESPRESSIF
   #error "ESP32-Sx should use IDF's FreeRTOSConfig.h"
 #endif
 

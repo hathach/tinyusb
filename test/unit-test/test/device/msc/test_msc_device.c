@@ -42,6 +42,10 @@ TEST_FILE("msc_device.c")
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+uint32_t tusb_time_millis_api(void) {
+  return 0;
+}
+
 enum
 {
   EDPT_CTRL_OUT = 0x00,
