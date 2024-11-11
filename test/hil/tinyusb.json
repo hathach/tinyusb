@@ -4,7 +4,7 @@
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
             "tests": {
-                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/cdc_msc_hid_freertos"]
             },
             "flasher": "esptool",
             "flasher_sn": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
@@ -44,7 +44,7 @@
             "flasher_sn": "123456",
             "flasher_args": "-device ATSAMD51J19",
             "tests": {
-                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
             }
         },
         {
@@ -72,7 +72,7 @@
             "flasher_sn": "E6614103E72C1D2F",
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\"",
             "tests": {
-                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002470"}]
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002470"}]
             }
         },
         {
@@ -82,7 +82,7 @@
             "flasher_sn": "E6633861A3978538",
             "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\"",
             "tests": {
-                "dual_attached": [{"vid_pid": "1a86_55d4", "serial": "533D004242"}]
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "533D004242"}]
             }
         },
         {

@@ -224,14 +224,13 @@ def flash_uniflash(board, firmware):
 # -------------------------------------------------------------
 # Tests: dual
 # -------------------------------------------------------------
-
 def test_dual_host_info_to_device_cdc(board):
     uid = board['uid']
-    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dual_attached']]
+    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
 
-    port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
+    port = get_serial_dev(board["flasher_sn"], None, None, 0)
     ser = open_serial_dev(port)
-    # read from cdc, first line should contain vid/pid and serial
+    # read from serial, first line should contain vid/pid and serial
     data = ser.read(1000)
     lines = data.decode('utf-8').splitlines()
     enum_dev_sn = []
@@ -249,6 +248,39 @@ def test_dual_host_info_to_device_cdc(board):
         else:
             assert False, failed_msg
     return 0
+
+
+# -------------------------------------------------------------
+# Tests: host
+# -------------------------------------------------------------
+def test_host_cdc_msc_hid(board):
+    uid = board['uid']
+    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
+
+    port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
+    ser = open_serial_dev(port)
+    # read from serial, first line should contain vid/pid and serial
+    data = ser.read(1000)
+    lines = data.decode('utf-8').splitlines()
+    enum_dev_sn = []
+    for l in lines:
+        vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+        if vid_pid_sn:
+            print(f'\r\n  {l} ', end='')
+            enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
+
+    if set(declared_devs) != set(enum_dev_sn):
+        # for pico/pico2 make this test optional
+        failed_msg = f'Enumerated devices {enum_dev_sn} not match with declared {declared_devs}'
+        if 'raspberry_pi_pico' in board['name']:
+            print(f'\r\n  {failed_msg} {STATUS_FAILED} ', end='')
+        else:
+            assert False, failed_msg
+    return 0
+
+
+def test_host_cdc_msc_hid_freertos(board):
+    test_host_cdc_msc_hid(board)
 
 
 # -------------------------------------------------------------
@@ -397,7 +429,7 @@ device_tests = [
     'device/hid_boot_interface',
 ]
 
-dual_tests = [
+host_tests = [
     'dual/host_info_to_device_cdc',
 ]
 
@@ -411,8 +443,8 @@ def test_board(board):
 
     if 'tests' in board:
         board_tests = board['tests']
-        if 'dual_attached' in board_tests:
-            test_list += dual_tests
+        if 'dev_attached' in board_tests:
+            test_list += host_tests
         if 'only' in board_tests:
             test_list = board_tests['only']
         if 'skip' in board_tests:
