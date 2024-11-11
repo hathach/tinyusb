@@ -93,11 +93,14 @@
             "flasher_args": "-device stm32f072rb"
         },
         {
-            "name": "stm32f407disco",
-            "uid": "30001A000647313332353735",
-            "flasher": "jlink",
-            "flasher_sn": "000773661813",
-            "flasher_args": "-device stm32f407vg"
+            "name": "stm32h743nucleo",
+            "uid": "110018000951383432343236",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "flasher": "stlink",
+            "flasher_sn": "004C00343137510F39383538",
+            "flasher_args": ""
         },
         {
             "name": "stm32g0b1nucleo",
@@ -131,6 +134,13 @@
             "flasher": "openocd_wch",
             "flasher_sn": "EBCA8F0670AF",
             "flasher_args": ""
+        },
+        {
+            "name": "stm32f407disco",
+            "uid": "30001A000647313332353735",
+            "flasher": "jlink",
+            "flasher_sn": "000773661813",
+            "flasher_args": "-device stm32f407vg"
         }
     ]
 }
