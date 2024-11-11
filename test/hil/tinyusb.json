@@ -1,6 +1,19 @@
 {
     "boards": [
         {
+            "name": "espressif_p4_function_ev",
+            "uid": "6055F9F98715",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
+            },
+            "tests": {
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+            },
+            "flasher": "esptool",
+            "flasher_sn": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
+            "flasher_args": "-b 1500000"
+        },
+        {
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
             "build" : {
