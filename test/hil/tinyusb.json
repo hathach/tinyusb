@@ -3,9 +3,6 @@
         {
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
-            "build" : {
-                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
-            },
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
             },
@@ -98,9 +95,6 @@
         {
             "name": "stm32f407disco",
             "uid": "30001A000647313332353735",
-            "build" : {
-                "flags_on": ["", "CFG_TUD_DWC2_DMA"]
-            },
             "flasher": "jlink",
             "flasher_sn": "000773661813",
             "flasher_args": "-device stm32f407vg"
