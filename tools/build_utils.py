@@ -40,7 +40,7 @@ def skip_example(example, board):
         for line in mk_contents.splitlines():
             match = re.search(r'set\(IDF_TARGET\s+"([^"]+)"\)', line)
             if match:
-                mcu = match.group(1)
+                mcu = match.group(1).upper()
                 break
     else:
         for token in mk_contents.split():
