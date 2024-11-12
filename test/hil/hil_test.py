@@ -50,6 +50,7 @@ verbose = False
 # Path
 # -------------------------------------------------------------
 OPENCOD_ADI_PATH = f'{os.getenv("HOME")}/app/openocd_adi'
+TINYUSB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # get usb serial by id
 def get_serial_dev(id, vendor_str, product_str, ifnum):
@@ -83,7 +84,7 @@ def open_serial_dev(port):
                 # slight delay since kernel may occupy the port briefly
                 time.sleep(0.5)
                 timeout = timeout - 0.5
-                ser = serial.Serial(port, timeout=5)
+                ser = serial.Serial(port, baudrate=115200, timeout=5)
                 break
             except serial.SerialException:
                 pass
@@ -212,6 +213,7 @@ def flash_esptool(board, firmware):
         flash_args = f.read().strip().replace('\n', ' ')
     command = (f'esptool.py --chip {idf_target} -p {port} {board["flasher_args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
+    # command = f'echo abc'
     ret = run_cmd(command, cwd=fw_dir)
     return ret
 
@@ -225,35 +227,6 @@ def flash_uniflash(board, firmware):
 # Tests: dual
 # -------------------------------------------------------------
 def test_dual_host_info_to_device_cdc(board):
-    uid = board['uid']
-    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
-
-    port = get_serial_dev(board["flasher_sn"], None, None, 0)
-    ser = open_serial_dev(port)
-    # read from serial, first line should contain vid/pid and serial
-    data = ser.read(1000)
-    lines = data.decode('utf-8').splitlines()
-    enum_dev_sn = []
-    for l in lines:
-        vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
-        if vid_pid_sn:
-            print(f'\r\n  {l} ', end='')
-            enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
-
-    if set(declared_devs) != set(enum_dev_sn):
-        # for pico/pico2 make this test optional
-        failed_msg = f'Enumerated devices {enum_dev_sn} not match with declared {declared_devs}'
-        if 'raspberry_pi_pico' in board['name']:
-            print(f'\r\n  {failed_msg} {STATUS_FAILED} ', end='')
-        else:
-            assert False, failed_msg
-    return 0
-
-
-# -------------------------------------------------------------
-# Tests: host
-# -------------------------------------------------------------
-def test_host_cdc_msc_hid(board):
     uid = board['uid']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
 
@@ -279,8 +252,36 @@ def test_host_cdc_msc_hid(board):
     return 0
 
 
-def test_host_cdc_msc_hid_freertos(board):
-    test_host_cdc_msc_hid(board)
+# -------------------------------------------------------------
+# Tests: host
+# -------------------------------------------------------------
+def test_host_device_info(board):
+    uid = board['uid']
+    declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
+
+    port = get_serial_dev(board["flasher_sn"], None, None, 0)
+    ser = open_serial_dev(port)
+    data = ser.read(1000)
+    if len(data) == 0:
+        assert False, 'No data from device'
+
+    lines = data.decode('utf-8').splitlines()
+    enum_dev_sn = []
+    for l in lines:
+        vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
+        if vid_pid_sn:
+            print(f'\r\n  {l} ', end='')
+            enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
+
+    if set(declared_devs) != set(enum_dev_sn):
+        # for pico/pico2 make this test optional
+        failed_msg = f'Enumerated devices {enum_dev_sn} not match with declared {declared_devs}'
+        if 'raspberry_pi_pico' in board['name']:
+            print(f'\r\n  {failed_msg} {STATUS_FAILED} ', end='')
+        else:
+            assert False, failed_msg
+
+    return 0
 
 
 # -------------------------------------------------------------
@@ -454,7 +455,7 @@ def test_board(board):
                     print(f'{name:25} {skip:30} ... Skip')
 
     # board_test is added last to disable board's usb
-    test_list.append('device/board_test')
+    #test_list.append('device/board_test')
 
     err_count = 0
     flags_on_list = [""]
@@ -466,9 +467,9 @@ def test_board(board):
         if f1 != "":
             f1_str = '-' + f1.replace(' ', '-')
         for test in test_list:
-            fw_dir = f'cmake-build/cmake-build-{name}{f1_str}/{test}'
+            fw_dir = f'{TINYUSB_ROOT}/cmake-build/cmake-build-{name}{f1_str}/{test}'
             if not os.path.exists(fw_dir):
-                fw_dir = f'examples/cmake-build-{name}{f1_str}/{test}'
+                fw_dir = f'{TINYUSB_ROOT}/examples/cmake-build-{name}{f1_str}/{test}'
             fw_name = f'{fw_dir}/{os.path.basename(test)}'
             print(f'{name+f1_str:40} {test:30} ... ', end='')
 

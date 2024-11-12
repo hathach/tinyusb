@@ -4,7 +4,8 @@
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
             "tests": {
-                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/cdc_msc_hid_freertos"]
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002427"}]
             },
             "flasher": "esptool",
             "flasher_sn": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
