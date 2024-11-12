@@ -92,7 +92,7 @@ int main(void) {
   init_tinyusb();
   while (1) {
     tuh_task();     // tinyusb host task
-    led_blinking_task();
+    led_blinking_task(NULL);
   }
   return 0;
 #endif
