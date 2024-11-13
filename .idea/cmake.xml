@@ -54,7 +54,14 @@
           </envs>
         </ADDITIONAL_GENERATION_ENVIRONMENT>
       </configuration>
-      <configuration PROFILE_NAME="espressif_p4_function_ev" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_p4_function_ev">
+      <configuration PROFILE_NAME="espressif_p4_function_ev" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_p4_function_ev -DLOG=1">
+        <ADDITIONAL_GENERATION_ENVIRONMENT>
+          <envs>
+            <env name="ESPBAUD" value="1500000" />
+          </envs>
+        </ADDITIONAL_GENERATION_ENVIRONMENT>
+      </configuration>
+      <configuration PROFILE_NAME="espressif_p4_function_ev-CFG_TUD_DWC2_DMA" ENABLED="false" GENERATION_DIR="cmake-build-espressif_p4_function_ev-CFG_TUD_DWC2_DMA" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=espressif_p4_function_ev -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUD_DWC2_DMA=1&quot;">
         <ADDITIONAL_GENERATION_ENVIRONMENT>
           <envs>
             <env name="ESPBAUD" value="1500000" />
@@ -92,9 +99,9 @@
       <configuration PROFILE_NAME="stm32f303disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f303disco -DLOG=0 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32f411disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f411disco -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32f412disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f412disco -DLOG=1 -DLOGGER=RTT" />
-      <configuration PROFILE_NAME="stm32f723disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f723disco -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="stm32f723disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f723disco -DLOG=0" />
       <configuration PROFILE_NAME="stm32f723disco-CFG_TUD_DWC2_DMA" ENABLED="false" GENERATION_DIR="cmake-build-stm32f723disco-CFG_TUD_DWC2_DMA" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f723disco -DLOG=1 -DLOGGER=RTT -DCFLAGS_CLI=&quot;-DCFG_TUD_DWC2_DMA=1&quot;" />
-      <configuration PROFILE_NAME="stm32f723disco_host1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f723disco -DLOG=1 -DRHPORT_HOST=1" />
+      <configuration PROFILE_NAME="stm32f723disco_device1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f723disco -DLOG=0 -DRHPORT_DEVICE=1" />
       <configuration PROFILE_NAME="stm32f769disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f769disco -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32g0b1nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32g0b1nucleo" />
       <configuration PROFILE_NAME="stm32g474nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32g474nucleo" />

@@ -38,6 +38,25 @@ typedef struct {
 #include "board.h"
 
 //--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
+
+#ifdef UART_DEV
+UART_HandleTypeDef UartHandle = {
+  .Instance = UART_DEV,
+  .Init = {
+    .BaudRate = CFG_BOARD_UART_BAUDRATE,
+    .WordLength = UART_WORDLENGTH_8B,
+    .StopBits = UART_STOPBITS_1,
+    .Parity = UART_PARITY_NONE,
+    .HwFlowCtl = UART_HWCONTROL_NONE,
+    .Mode = UART_MODE_TX_RX,
+    .OverSampling = UART_OVERSAMPLING_16,
+  }
+};
+#endif
+
+//--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void OTG_FS_IRQHandler(void) {
@@ -53,8 +72,6 @@ void OTG_HS_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-
-UART_HandleTypeDef UartHandle;
 
 void board_init(void) {
   board_clock_init();
@@ -89,14 +106,6 @@ void board_init(void) {
 #endif
 
 #ifdef UART_DEV
-  UartHandle.Instance = UART_DEV;
-  UartHandle.Init.BaudRate = CFG_BOARD_UART_BAUDRATE;
-  UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
-  UartHandle.Init.StopBits = UART_STOPBITS_1;
-  UartHandle.Init.Parity = UART_PARITY_NONE;
-  UartHandle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  UartHandle.Init.Mode = UART_MODE_TX_RX;
-  UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
   HAL_UART_Init(&UartHandle);
 #endif
 

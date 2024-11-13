@@ -60,6 +60,11 @@ if (DEFINED LOG)
   endif ()
 endif()
 
+if(DEFINED CFLAGS_CLI)
+  list(APPEND compile_definitions ${CFLAGS_CLI})
+endif()
+
+
 idf_component_register(SRCS ${srcs}
   INCLUDE_DIRS ${tusb_src}
   REQUIRES src

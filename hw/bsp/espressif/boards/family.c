@@ -105,6 +105,12 @@ void board_init(void) {
   usb_init();
 #endif
 
+#ifdef HIL_DEVICE_HOST_MUX_PIN
+  gpio_reset_pin(HIL_DEVICE_HOST_MUX_PIN);
+  gpio_set_direction(HIL_DEVICE_HOST_MUX_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_level(HIL_DEVICE_HOST_MUX_PIN, CFG_TUD_ENABLED ? HIL_DEVICE_STATE : (1-HIL_DEVICE_STATE));
+#endif
+
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
   max3421_init();
 #endif
