@@ -1181,8 +1181,7 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 }
 
 // Config HCFG FS/LS clock and HFIR for SOF interval according to link speed (value is in PHY clock unit)
-static void port0_enable(dwc2_regs_t* dwc2) {
-  const tusb_speed_t speed = hprt_speed_get(dwc2);
+static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
   uint32_t hcfg = dwc2->hcfg & ~HCFG_FSLS_PHYCLK_SEL;
 
   const dwc2_gusbcfg_t gusbcfg_bm = dwc2->gusbcfg_bm;
@@ -1252,7 +1251,8 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
 
     if (hprt_bm.enable) {
       // Port enable
-      port0_enable(dwc2);
+      const tusb_speed_t speed = hprt_speed_get(dwc2);
+      port0_enable(dwc2, speed);
     } else {
       // TU_ASSERT(false, );
     }

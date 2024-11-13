@@ -5,12 +5,12 @@ set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/STM32F723xE_FLASH.ld)
 
 set(RHPORT_SPEED OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED)
 
-# device default to PORT 1 High Speed
+# For Hardware test: device default to PORT 0, Host to port 1
 if (NOT DEFINED RHPORT_DEVICE)
-  set(RHPORT_DEVICE 1)
+  set(RHPORT_DEVICE 0)
 endif()
 if (NOT DEFINED RHPORT_HOST)
-  set(RHPORT_HOST 0)
+  set(RHPORT_HOST 1)
 endif()
 
 function(update_board TARGET)

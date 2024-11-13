@@ -46,6 +46,26 @@ STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
 verbose = False
 
+WCH_RISCV_CONTENT = """
+adapter driver wlinke
+adapter speed 6000
+transport select sdi
+
+wlink_set_address 0x00000000
+set _CHIPNAME wch_riscv
+sdi newtap $_CHIPNAME cpu -irlen 5 -expected-id 0x00001
+
+set _TARGETNAME $_CHIPNAME.cpu
+
+target create $_TARGETNAME.0 wch_riscv -chain-position $_TARGETNAME
+$_TARGETNAME.0 configure  -work-area-phys 0x20000000 -work-area-size 10000 -work-area-backup 1
+set _FLASHNAME $_CHIPNAME.flash
+
+flash bank $_FLASHNAME wch_riscv 0x00000000 0 0 0 $_TARGETNAME.0
+
+echo "Ready for Remote Connections"
+"""
+
 # -------------------------------------------------------------
 # Path
 # -------------------------------------------------------------
@@ -147,14 +167,30 @@ def flash_jlink(board, firmware):
     return ret
 
 
-def flash_stlink(board, firmware):
-    ret = run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={board["flasher_sn"]} --write {firmware}.elf --go')
+def reset_jlink(board):
+    script = ['halt', 'r', 'go', 'exit']
+    f_jlink = f'{board["name"]}_reset.jlink'
+    if not os.path.exists(f_jlink):
+        with open(f_jlink, 'w') as f:
+            f.writelines(f'{s}\n' for s in script)
+    ret = run_cmd(f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
     return ret
 
+
+def flash_stlink(board, firmware):
+    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={board["flasher_sn"]} --write {firmware}.elf --go')
+
+
+def reset_stlink(board):
+    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={board["flasher_sn"]} --rst --go')
 
 def flash_stflash(board, firmware):
     ret = run_cmd(f'st-flash --serial {board["flasher_sn"]} write {firmware}.bin 0x8000000')
     return ret
+
+
+def reset_stflash(board):
+    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
 def flash_openocd(board, firmware):
@@ -162,34 +198,29 @@ def flash_openocd(board, firmware):
     return ret
 
 
+def reset_openocd(board):
+    ret = run_cmd(f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "reset exit"')
+    return ret
+
+
 def flash_openocd_wch(board, firmware):
-    # Content of the wch-riscv.cfg file
-    cfg_content = """
-adapter driver wlinke
-adapter speed 6000
-transport select sdi
-
-wlink_set_address 0x00000000
-set _CHIPNAME wch_riscv
-sdi newtap $_CHIPNAME cpu -irlen 5 -expected-id 0x00001
-
-set _TARGETNAME $_CHIPNAME.cpu
-
-target create $_TARGETNAME.0 wch_riscv -chain-position $_TARGETNAME
-$_TARGETNAME.0 configure  -work-area-phys 0x20000000 -work-area-size 10000 -work-area-backup 1
-set _FLASHNAME $_CHIPNAME.flash
-
-flash bank $_FLASHNAME wch_riscv 0x00000000 0 0 0 $_TARGETNAME.0
-
-echo "Ready for Remote Connections"
-"""
     f_wch = f"wch-riscv_{board['uid']}.cfg"
     if not os.path.exists(f_wch):
         with open(f_wch, 'w') as file:
-            file.write(cfg_content)
+            file.write(WCH_RISCV_CONTENT)
 
     ret = run_cmd(f'openocd_wch -c "adapter serial {board["flasher_sn"]}" -f {f_wch} '
                   f'-c "program {firmware}.elf reset exit"')
+    return ret
+
+
+def reset_openocd_wch(board):
+    f_wch = f"wch-riscv_{board['uid']}.cfg"
+    if not os.path.exists(f_wch):
+        with open(f_wch, 'w') as file:
+            file.write(WCH_RISCV_CONTENT)
+
+    ret = run_cmd(f'openocd_wch -c "adapter serial {board["flasher_sn"]}" -f {f_wch} -c "program reset exit"')
     return ret
 
 
@@ -198,9 +229,22 @@ def flash_openocd_adi(board, firmware):
                   f'{board["flasher_args"]} -c "program {firmware}.elf reset exit"')
     return ret
 
+
+def reset_openocd_adi(board):
+    ret = run_cmd(f'{OPENCOD_ADI_PATH}/src/openocd -c "adapter serial {board["flasher_sn"]}" -s {OPENCOD_ADI_PATH}/tcl '
+                  f'{board["flasher_args"]} -c "program reset exit"')
+    return ret
+
+
 def flash_wlink_rs(board, firmware):
     # wlink use index for probe selection and lacking usb serial support
     ret = run_cmd(f'wlink flash {firmware}.elf')
+    return ret
+
+
+def reset_wlink_rs(board):
+    # wlink use index for probe selection and lacking usb serial support
+    ret = run_cmd(f'wlink reset')
     return ret
 
 
@@ -213,14 +257,21 @@ def flash_esptool(board, firmware):
         flash_args = f.read().strip().replace('\n', ' ')
     command = (f'esptool.py --chip {idf_target} -p {port} {board["flasher_args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
-    # command = f'echo abc'
     ret = run_cmd(command, cwd=fw_dir)
     return ret
+
+
+def reset_esptool(board):
+    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
 def flash_uniflash(board, firmware):
     ret = run_cmd(f'dslite.sh {board["flasher_args"]} -f {firmware}.hex')
     return ret
+
+
+def reset_uniflash(board):
+    return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
 # -------------------------------------------------------------
@@ -229,12 +280,16 @@ def flash_uniflash(board, firmware):
 def test_dual_host_info_to_device_cdc(board):
     uid = board['uid']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
-
     port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
-    # read from serial, first line should contain vid/pid and serial
+
+    # read from cdc, first line should contain vid/pid and serial
     data = ser.read(1000)
+    ser.close()
+    if len(data) == 0:
+        assert False, 'No data from device'
     lines = data.decode('utf-8').splitlines()
+
     enum_dev_sn = []
     for l in lines:
         vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
@@ -243,12 +298,8 @@ def test_dual_host_info_to_device_cdc(board):
             enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
 
     if set(declared_devs) != set(enum_dev_sn):
-        # for pico/pico2 make this test optional
-        failed_msg = f'Enumerated devices {enum_dev_sn} not match with declared {declared_devs}'
-        if 'raspberry_pi_pico' in board['name']:
-            print(f'\r\n  {failed_msg} {STATUS_FAILED} ', end='')
-        else:
-            assert False, failed_msg
+        failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+        assert False, failed_msg
     return 0
 
 
@@ -256,12 +307,17 @@ def test_dual_host_info_to_device_cdc(board):
 # Tests: host
 # -------------------------------------------------------------
 def test_host_device_info(board):
-    uid = board['uid']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
 
     port = get_serial_dev(board["flasher_sn"], None, None, 0)
     ser = open_serial_dev(port)
+
+    # reset device since we can miss the first line
+    ret = globals()[f'reset_{board["flasher"].lower()}'](board)
+    assert ret.returncode == 0,  'Failed to reset device'
+
     data = ser.read(1000)
+    ser.close()
     if len(data) == 0:
         assert False, 'No data from device'
 
@@ -274,12 +330,8 @@ def test_host_device_info(board):
             enum_dev_sn.append(f'{vid_pid_sn.group(1)}_{vid_pid_sn.group(2)}_{vid_pid_sn.group(3)}')
 
     if set(declared_devs) != set(enum_dev_sn):
-        # for pico/pico2 make this test optional
-        failed_msg = f'Enumerated devices {enum_dev_sn} not match with declared {declared_devs}'
-        if 'raspberry_pi_pico' in board['name']:
-            print(f'\r\n  {failed_msg} {STATUS_FAILED} ', end='')
-        else:
-            assert False, failed_msg
+        failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+        assert False, failed_msg
 
     return 0
 
@@ -323,7 +375,8 @@ def test_device_cdc_msc(board):
     str = b"test_str"
     ser.write(str)
     ser.flush()
-    assert ser.read(len(str)) == str, 'CDC wrong data'
+    rd_str = ser.read(len(str))
+    assert  rd_str == str, f'CDC wrong data: expected: {str} was {rd_str}'
 
     # Block test
     data = read_disk_file(uid,0,'README.TXT')
@@ -430,8 +483,12 @@ device_tests = [
     'device/hid_boot_interface',
 ]
 
-host_tests = [
+dual_tests = [
     'dual/host_info_to_device_cdc',
+]
+
+host_test = [
+    'host/device_info',
 ]
 
 
@@ -444,8 +501,12 @@ def test_board(board):
 
     if 'tests' in board:
         board_tests = board['tests']
-        if 'dev_attached' in board_tests:
-            test_list += host_tests
+        if 'device' in board_tests and board_tests['device'] == True:
+            test_list += list(device_tests)
+        if 'dual' in board_tests and board_tests['dual'] == True:
+            test_list += dual_tests
+        if 'host' in board_tests and board_tests['host'] == True:
+            test_list += host_test
         if 'only' in board_tests:
             test_list = board_tests['only']
         if 'skip' in board_tests:
@@ -455,7 +516,7 @@ def test_board(board):
                     print(f'{name:25} {skip:30} ... Skip')
 
     # board_test is added last to disable board's usb
-    #test_list.append('device/board_test')
+    test_list.append('device/board_test')
 
     err_count = 0
     flags_on_list = [""]
@@ -473,7 +534,7 @@ def test_board(board):
             fw_name = f'{fw_dir}/{os.path.basename(test)}'
             print(f'{name+f1_str:40} {test:30} ... ', end='')
 
-            if not os.path.exists(fw_dir):
+            if not os.path.exists(fw_dir) or not (os.path.exists(f'{fw_name}.elf') or os.path.exists(f'{fw_name}.bin')):
                 print('Skip (no binary)')
                 continue
 

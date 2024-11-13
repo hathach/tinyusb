@@ -56,8 +56,12 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
-
-static uint32_t blink_interval_ms = 1000;
+enum {
+  BLINK_NOT_MOUNTED = 250,
+  BLINK_MOUNTED = 1000,
+  BLINK_SUSPENDED = 2500,
+};
+static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void* param);
 static void print_utf16(uint16_t* temp_buf, size_t buf_len);
@@ -102,6 +106,8 @@ int main(void) {
 
 // Invoked when device is mounted (configured)
 void tuh_mount_cb(uint8_t daddr) {
+  blink_interval_ms = BLINK_MOUNTED;
+
   // Get Device Descriptor
   tusb_desc_device_t desc_device;
   uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc_device, 18);
@@ -161,6 +167,7 @@ void tuh_mount_cb(uint8_t daddr) {
 
 // Invoked when device is unmounted (bus reset/unplugged)
 void tuh_umount_cb(uint8_t daddr) {
+  blink_interval_ms = BLINK_NOT_MOUNTED;
   printf("Device removed, address = %d\r\n", daddr);
 }
 
@@ -227,15 +234,8 @@ void led_blinking_task(void* param) {
 
   while (1) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-    if (blink_interval_ms == 0) {
-      vTaskSuspend(NULL);
-    } else {
-      vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
-    }
+    vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
 #else
-    if (blink_interval_ms == 0) {
-      return;
-    }
     if (board_millis() - start_ms < blink_interval_ms) {
       return; // not enough time
     }
