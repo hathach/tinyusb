@@ -158,119 +158,137 @@ def run_cmd(cmd, cwd=None):
 
 
 def flash_jlink(board, firmware):
+    flasher = board['flasher']
     script = ['halt', 'r', f'loadfile {firmware}.elf', 'r', 'go', 'exit']
     f_jlink = f'{board["name"]}_{os.path.basename(firmware)}.jlink'
     with open(f_jlink, 'w') as f:
         f.writelines(f'{s}\n' for s in script)
-    ret = run_cmd(f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
+    ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
     os.remove(f_jlink)
     return ret
 
 
 def reset_jlink(board):
+    flasher = board['flasher']
     script = ['halt', 'r', 'go', 'exit']
     f_jlink = f'{board["name"]}_reset.jlink'
     if not os.path.exists(f_jlink):
         with open(f_jlink, 'w') as f:
             f.writelines(f'{s}\n' for s in script)
-    ret = run_cmd(f'JLinkExe -USB {board["flasher_sn"]} {board["flasher_args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
+    ret = run_cmd(f'JLinkExe -USB {flasher["uid"]} {flasher["args"]} -if swd -JTAGConf -1,-1 -speed auto -NoGui 1 -ExitOnError 1 -CommandFile {f_jlink}')
     return ret
 
 
 def flash_stlink(board, firmware):
-    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={board["flasher_sn"]} --write {firmware}.elf --go')
+    flasher = board['flasher']
+    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --write {firmware}.elf --go')
 
 
 def reset_stlink(board):
-    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={board["flasher_sn"]} --rst --go')
+    flasher = board['flasher']
+    return run_cmd(f'STM32_Programmer_CLI --connect port=swd sn={flasher["uid"]} --rst --go')
 
 def flash_stflash(board, firmware):
-    ret = run_cmd(f'st-flash --serial {board["flasher_sn"]} write {firmware}.bin 0x8000000')
+    flasher = board['flasher']
+    ret = run_cmd(f'st-flash --serial {flasher["uid"]} write {firmware}.bin 0x8000000')
     return ret
 
 
 def reset_stflash(board):
+    flasher = board['flasher']
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
 def flash_openocd(board, firmware):
-    ret = run_cmd(f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "program {firmware}.elf reset exit"')
+    flasher = board['flasher']
+    ret = run_cmd(f'openocd -c "adapter serial {flasher["uid"]}" {flasher["args"]} -c "program {firmware}.elf reset exit"')
     return ret
 
 
 def reset_openocd(board):
-    ret = run_cmd(f'openocd -c "adapter serial {board["flasher_sn"]}" {board["flasher_args"]} -c "reset exit"')
+    flasher = board['flasher']
+    ret = run_cmd(f'openocd -c "adapter serial {flasher["uid"]}" {flasher["args"]} -c "reset exit"')
     return ret
 
 
 def flash_openocd_wch(board, firmware):
+    flasher = board['flasher']
     f_wch = f"wch-riscv_{board['uid']}.cfg"
     if not os.path.exists(f_wch):
         with open(f_wch, 'w') as file:
             file.write(WCH_RISCV_CONTENT)
 
-    ret = run_cmd(f'openocd_wch -c "adapter serial {board["flasher_sn"]}" -f {f_wch} '
+    ret = run_cmd(f'openocd_wch -c "adapter serial {flasher["uid"]}" -f {f_wch} '
                   f'-c "program {firmware}.elf reset exit"')
     return ret
 
 
 def reset_openocd_wch(board):
+    flasher = board['flasher']
     f_wch = f"wch-riscv_{board['uid']}.cfg"
     if not os.path.exists(f_wch):
         with open(f_wch, 'w') as file:
             file.write(WCH_RISCV_CONTENT)
 
-    ret = run_cmd(f'openocd_wch -c "adapter serial {board["flasher_sn"]}" -f {f_wch} -c "program reset exit"')
+    ret = run_cmd(f'openocd_wch -c "adapter serial {flasher["uid"]}" -f {f_wch} -c "program reset exit"')
     return ret
 
 
 def flash_openocd_adi(board, firmware):
-    ret = run_cmd(f'{OPENCOD_ADI_PATH}/src/openocd -c "adapter serial {board["flasher_sn"]}" -s {OPENCOD_ADI_PATH}/tcl '
-                  f'{board["flasher_args"]} -c "program {firmware}.elf reset exit"')
+    flasher = board['flasher']
+    ret = run_cmd(f'{OPENCOD_ADI_PATH}/src/openocd -c "adapter serial {flasher["uid"]}" -s {OPENCOD_ADI_PATH}/tcl '
+                  f'{flasher["args"]} -c "program {firmware}.elf reset exit"')
     return ret
 
 
 def reset_openocd_adi(board):
-    ret = run_cmd(f'{OPENCOD_ADI_PATH}/src/openocd -c "adapter serial {board["flasher_sn"]}" -s {OPENCOD_ADI_PATH}/tcl '
-                  f'{board["flasher_args"]} -c "program reset exit"')
+    flasher = board['flasher']
+    ret = run_cmd(f'{OPENCOD_ADI_PATH}/src/openocd -c "adapter serial {flasher["uid"]}" -s {OPENCOD_ADI_PATH}/tcl '
+                  f'{flasher["args"]} -c "program reset exit"')
     return ret
 
 
 def flash_wlink_rs(board, firmware):
+    flasher = board['flasher']
     # wlink use index for probe selection and lacking usb serial support
     ret = run_cmd(f'wlink flash {firmware}.elf')
     return ret
 
 
 def reset_wlink_rs(board):
+    flasher = board['flasher']
     # wlink use index for probe selection and lacking usb serial support
     ret = run_cmd(f'wlink reset')
     return ret
 
 
 def flash_esptool(board, firmware):
-    port = get_serial_dev(board["flasher_sn"], None, None, 0)
+    flasher = board['flasher']
+    port = get_serial_dev(flasher["uid"], None, None, 0)
     fw_dir = os.path.dirname(f'{firmware}.bin')
     with open(f'{fw_dir}/config.env') as f:
         idf_target = json.load(f)['IDF_TARGET']
     with open(f'{fw_dir}/flash_args') as f:
         flash_args = f.read().strip().replace('\n', ' ')
-    command = (f'esptool.py --chip {idf_target} -p {port} {board["flasher_args"]} '
+    command = (f'esptool.py --chip {idf_target} -p {port} {flasher["args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
     ret = run_cmd(command, cwd=fw_dir)
     return ret
 
 
 def reset_esptool(board):
+    flasher = board['flasher']
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
 def flash_uniflash(board, firmware):
-    ret = run_cmd(f'dslite.sh {board["flasher_args"]} -f {firmware}.hex')
+    flasher = board['flasher']
+    ret = run_cmd(f'dslite.sh {flasher["args"]} -f {firmware}.hex')
     return ret
 
 
 def reset_uniflash(board):
+    flasher = board['flasher']
     return subprocess.CompletedProcess(args=['dummy'], returncode=0)
 
 
@@ -307,13 +325,14 @@ def test_dual_host_info_to_device_cdc(board):
 # Tests: host
 # -------------------------------------------------------------
 def test_host_device_info(board):
+    flasher = board['flasher']
     declared_devs = [f'{d["vid_pid"]}_{d["serial"]}' for d in board['tests']['dev_attached']]
 
-    port = get_serial_dev(board["flasher_sn"], None, None, 0)
+    port = get_serial_dev(flasher["uid"], None, None, 0)
     ser = open_serial_dev(port)
 
     # reset device since we can miss the first line
-    ret = globals()[f'reset_{board["flasher"].lower()}'](board)
+    ret = globals()[f'reset_{flasher["name"].lower()}'](board)
     assert ret.returncode == 0,  'Failed to reset device'
 
     data = ser.read(1000)
@@ -494,7 +513,7 @@ host_test = [
 
 def test_board(board):
     name = board['name']
-    flasher = board['flasher'].lower()
+    flasher = board['flasher']
 
     # default to all tests
     test_list = list(device_tests)
@@ -540,7 +559,7 @@ def test_board(board):
 
             # flash firmware. It may fail randomly, retry a few times
             for i in range(3):
-                ret = globals()[f'flash_{flasher}'](board, fw_name)
+                ret = globals()[f'flash_{flasher["name"].lower()}'](board, fw_name)
                 if ret.returncode == 0:
                     break
                 else:

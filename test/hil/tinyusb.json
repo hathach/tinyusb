@@ -7,9 +7,11 @@
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002427"}]
             },
-            "flasher": "esptool",
-            "flasher_sn": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
-            "flasher_args": "-b 1500000"
+            "flasher": {
+                "name": "esptool",
+                "uid": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
+                "args": "-b 1500000"
+            }
         },
         {
             "name": "espressif_s3_devkitm",
@@ -20,9 +22,11 @@
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
             },
-            "flasher": "esptool",
-            "flasher_sn": "3ea619acd1cdeb11a0a0b806e93fd3f1",
-            "flasher_args": "-b 1500000"
+            "flasher": {
+                "name": "esptool",
+                "uid": "3ea619acd1cdeb11a0a0b806e93fd3f1",
+                "args": "-b 1500000"
+            }
         },
         {
             "name": "feather_nrf52840_express",
@@ -30,9 +34,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "jlink",
-            "flasher_sn": "000682804350",
-            "flasher_args": "-device nrf52840_xxaa"
+            "flasher": {
+                "name": "jlink",
+                "uid": "000682804350",
+                "args": "-device nrf52840_xxaa"
+            }
         },
         {
             "name": "max32666fthr",
@@ -40,9 +46,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "openocd_adi",
-            "flasher_sn": "E6614C311B597D32",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
+            "flasher": {
+                "name": "openocd_adi",
+                "uid": "E6614C311B597D32",
+                "args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
+            }
         },
         {
             "name": "metro_m4_express",
@@ -51,9 +59,11 @@
                 "device": true, "host": false, "dual": true,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
             },
-            "flasher": "jlink",
-            "flasher_sn": "123456",
-            "flasher_args": "-device ATSAMD51J19"
+            "flasher": {
+                "name": "jlink",
+                "uid": "123456",
+                "args": "-device ATSAMD51J19"
+            }
         },
         {
             "name": "lpcxpresso11u37",
@@ -61,9 +71,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "jlink",
-            "flasher_sn": "000724441579",
-            "flasher_args": "-device LPC11U37/401"
+            "flasher": {
+                "name": "jlink",
+                "uid": "000724441579",
+                "args": "-device LPC11U37/401"
+            }
         },
         {
             "name": "ra4m1_ek",
@@ -73,9 +85,11 @@
                 "skip": ["device/cdc_msc", "device/cdc_msc_freertos"]
             },
             "comment": "MSC is slow to enumerated #2602",
-            "flasher": "jlink",
-            "flasher_sn": "000831174392",
-            "flasher_args": "-device R7FA4M1AB"
+            "flasher": {
+                "name": "jlink",
+                "uid": "000831174392",
+                "args": "-device R7FA4M1AB"
+            }
         },
         {
             "name": "raspberry_pi_pico",
@@ -84,9 +98,11 @@
                 "device": true, "host": false, "dual": false,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002470"}]
             },
-            "flasher": "openocd",
-            "flasher_sn": "E6614103E72C1D2F",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+            "flasher": {
+                "name": "openocd",
+                "uid": "E6614103E72C1D2F",
+                "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+            }
         },
         {
             "name": "raspberry_pi_pico2",
@@ -95,16 +111,20 @@
                 "device": true, "host": false, "dual": false,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "533D004242"}]
             },
-            "flasher": "openocd",
-            "flasher_sn": "E6633861A3978538",
-            "flasher_args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\""
+            "flasher": {
+                "name": "openocd",
+                "uid": "E6633861A3978538",
+                "args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\""
+            }
         },
         {
             "name": "stm32f072disco",
             "uid": "3A001A001357364230353532",
-            "flasher": "jlink",
-            "flasher_sn": "779541626",
-            "flasher_args": "-device stm32f072rb"
+            "name": "jlink",
+            "flasher": {
+                "uid": "779541626",
+                "args": "-device stm32f072rb"
+            }
         },
         {
             "name": "stm32f723disco",
@@ -116,9 +136,11 @@
                 "device": true, "host": true, "dual": false,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2003414"}]
             },
-            "flasher": "jlink",
-            "flasher_sn": "000776606156",
-            "flasher_args": "-device stm32f723ie"
+            "flasher": {
+                "name": "jlink",
+                "uid": "000776606156",
+                "args": "-device stm32f723ie"
+            }
         },
         {
             "name": "stm32h743nucleo",
@@ -129,9 +151,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "stlink",
-            "flasher_sn": "004C00343137510F39383538",
-            "flasher_args": ""
+            "flasher": {
+                "name": "stlink",
+                "uid": "004C00343137510F39383538",
+                "args": ""
+            }
         },
         {
             "name": "stm32g0b1nucleo",
@@ -139,9 +163,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "openocd",
-            "flasher_sn": "066FFF495087534867063844",
-            "flasher_args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+            "flasher": {
+                "name": "openocd",
+                "uid": "066FFF495087534867063844",
+                "args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+            }
         }
     ],
     "boards-skip": [
@@ -154,9 +180,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "jlink",
-            "flasher_sn": "000778170924",
-            "flasher_args": "-device stm32f769ni"
+            "flasher": {
+                "name": "jlink",
+                "uid": "000778170924",
+                "args": "-device stm32f769ni"
+            }
         },
         {
             "name": "mimxrt1015_evk",
@@ -164,9 +192,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "jlink",
-            "flasher_sn": "000726284213",
-            "flasher_args": "-device MIMXRT1015DAF5A"
+            "flasher": {
+                "name": "jlink",
+                "uid": "000726284213",
+                "args": "-device MIMXRT1015DAF5A"
+            }
         },
         {
             "name": "nanoch32v203",
@@ -174,9 +204,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "openocd_wch",
-            "flasher_sn": "EBCA8F0670AF",
-            "flasher_args": ""
+            "flasher": {
+                "name": "openocd_wch",
+                "uid": "EBCA8F0670AF",
+                "args": ""
+            }
         },
         {
             "name": "stm32f407disco",
@@ -184,9 +216,11 @@
             "tests": {
                 "device": true, "host": false, "dual": false
             },
-            "flasher": "jlink",
-            "flasher_sn": "000773661813",
-            "flasher_args": "-device stm32f407vg"
+            "flasher": {
+                "name": "jlink",
+                "uid": "000773661813",
+                "args": "-device stm32f407vg"
+            }
         }
     ]
 }
