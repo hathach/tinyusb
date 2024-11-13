@@ -393,12 +393,12 @@ def test_device_cdc_msc(board):
     port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
 
-    str = b"test_str"
-    ser.write(str)
+    test_str = b"test_str"
+    ser.write(test_str)
     ser.flush()
-    rd_str = ser.read(len(str))
+    rd_str = ser.read(len(test_str))
     ser.close()
-    assert  rd_str == str, f'CDC wrong data: expected: {str} was {rd_str}'
+    assert  rd_str == test_str, f'CDC wrong data: expected: {test_str} was {rd_str}'
 
     # Block test
     data = read_disk_file(uid,0,'README.TXT')
