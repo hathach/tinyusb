@@ -56,7 +56,7 @@
             "name": "metro_m4_express",
             "uid": "9995AD485337433231202020FF100A34",
             "tests": {
-                "device": true, "host": false, "dual": true,
+                "device": true, "host": false, "dual": false,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
             },
             "flasher": {

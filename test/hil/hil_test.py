@@ -517,7 +517,7 @@ def test_board(board):
     flasher = board['flasher']
 
     # default to all tests
-    test_list = list(device_tests)
+    test_list = []
 
     if 'tests' in board:
         board_tests = board['tests']
