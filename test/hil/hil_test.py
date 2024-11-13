@@ -365,24 +365,24 @@ def test_device_board_test(board):
 
 def test_device_cdc_dual_ports(board):
     uid = board['uid']
-    port1 = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
-    port2 = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 2)
+    port = [
+        get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0),
+        get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 2)
+    ]
+    ser = [open_serial_dev(p) for p in port]
 
-    ser1 = open_serial_dev(port1)
-    ser2 = open_serial_dev(port2)
-
-    # Echo test
-    str1 = b"test_no1"
-    ser1.write(str1)
-    ser1.flush()
-    assert ser1.read(len(str1)) == str1.lower(), 'Port1 wrong data'
-    assert ser2.read(len(str1)) == str1.upper(), 'Port2 wrong data'
-
-    str2 = b"test_no2"
-    ser2.write(str2)
-    ser2.flush()
-    assert ser1.read(len(str2)) == str2.lower(), 'Port1 wrong data'
-    assert ser2.read(len(str2)) == str2.upper(), 'Port2 wrong data'
+    str_test = [ b"test_no1", b"test_no2" ]
+    # Echo test write to each port and read back
+    for i in range(len(str_test)):
+        s = str_test[i]
+        l = len(s)
+        ser[i].write(s)
+        ser[i].flush()
+        rd = [ ser[i].read(l) for i in range(len(ser)) ]
+        assert rd[0] == s.lower(), f'Port1 wrong data: expected {s.lower()} was {rd[0]}'
+        assert rd[1] == s.upper(), f'Port2 wrong data: expected {s.upper()} was {rd[1]}'
+    ser[0].close()
+    ser[1].close()
 
 
 def test_device_cdc_msc(board):
@@ -395,6 +395,7 @@ def test_device_cdc_msc(board):
     ser.write(str)
     ser.flush()
     rd_str = ser.read(len(str))
+    ser.close()
     assert  rd_str == str, f'CDC wrong data: expected: {str} was {rd_str}'
 
     # Block test
