@@ -494,12 +494,13 @@ def test_device_hid_composite_freertos(id):
 # Main
 # -------------------------------------------------------------
 # device tests
+# note don't test 2 examples with cdc or 2 msc next to each other
 device_tests = [
     'device/cdc_dual_ports',
-    'device/cdc_msc',
     'device/dfu',
-    'device/cdc_msc_freertos',  # don't test 2 cdc_msc next to each other
+    'device/cdc_msc',
     'device/dfu_runtime',
+    'device/cdc_msc_freertos',
     'device/hid_boot_interface',
 ]
 
