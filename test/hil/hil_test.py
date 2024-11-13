@@ -201,13 +201,15 @@ def reset_stflash(board):
 
 def flash_openocd(board, firmware):
     flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "adapter serial {flasher["uid"]}" {flasher["args"]} -c "program {firmware}.elf reset exit"')
+    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
+                  f'{flasher["args"]} -c init -c halt -c "program {firmware}.elf verify" -c reset -c exit')
     return ret
 
 
 def reset_openocd(board):
     flasher = board['flasher']
-    ret = run_cmd(f'openocd -c "adapter serial {flasher["uid"]}" {flasher["args"]} -c "reset exit"')
+    ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
+                  f'{flasher["args"]} -c "reset exit"')
     return ret
 
 
@@ -560,25 +562,31 @@ def test_board(board):
                 continue
 
             # flash firmware. It may fail randomly, retry a few times
-            for i in range(3):
+            max_rety = 2
+            for i in range(max_rety):
                 ret = globals()[f'flash_{flasher["name"].lower()}'](board, fw_name)
                 if ret.returncode == 0:
-                    break
+                    try:
+                        globals()[f'test_{test.replace("/", "_")}'](board)
+                        print('OK')
+                        break
+                    except Exception as e:
+                        if i == max_rety - 1:
+                            err_count += 1
+                            print(STATUS_FAILED)
+                            print(f'  {e}')
+                        else:
+                            print()
+                            print(f'  Test failed: {e}, retry {i+1}')
+                            time.sleep(1)
                 else:
                     print(f'Flashing failed, retry {i+1}')
                     time.sleep(1)
 
-            if ret.returncode == 0:
-                try:
-                    ret = globals()[f'test_{test.replace("/", "_")}'](board)
-                    print('OK')
-                except Exception as e:
-                    err_count += 1
-                    print(STATUS_FAILED)
-                    print(f'  {e}')
-            else:
+            if ret.returncode != 0:
                 err_count += 1
                 print(f'Flash {STATUS_FAILED}')
+
     return err_count
 
 
