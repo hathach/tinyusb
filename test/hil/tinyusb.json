@@ -120,8 +120,8 @@
         {
             "name": "stm32f072disco",
             "uid": "3A001A001357364230353532",
-            "name": "jlink",
             "flasher": {
+                "name": "jlink",
                 "uid": "779541626",
                 "args": "-device stm32f072rb"
             }

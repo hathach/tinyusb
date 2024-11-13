@@ -22,7 +22,8 @@ def main():
     }
     for board in config['boards']:
         name = board['name']
-        if board['flasher'] == 'esptool':
+        flasher = board['flasher']
+        if flasher['name'] == 'esptool':
             toolchain = 'esp-idf'
         else:
             toolchain = 'arm-gcc'
