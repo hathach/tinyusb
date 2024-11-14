@@ -39,7 +39,7 @@
 #include "host/usbh_pvt.h"
 #endif
 
-tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { 0 };
+tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 
 //--------------------------------------------------------------------
 // Weak/Default API, can be overwritten by Application
