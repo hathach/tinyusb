@@ -71,7 +71,7 @@ static bool _sof_en;
 TU_ATTR_ALWAYS_INLINE static inline bool dma_device_enabled(const dwc2_regs_t* dwc2) {
   (void) dwc2;
   // Internal DMA only
-  return CFG_TUD_DWC2_DMA && dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA;
+  return CFG_TUD_DWC2_DMA_ENABLE && dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA;
 }
 
 static void dma_setup_prepare(uint8_t rhport) {
@@ -897,8 +897,6 @@ static void handle_epin_irq(uint8_t rhport) {
   Note: when OTG_MULTI_PROC_INTRPT = 1, Device Each endpoint interrupt deachint/deachmsk/diepeachmsk/doepeachmsk
   are combined to generate dedicated interrupt line for each endpoint.
  */
-
-
 void dcd_int_handler(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 

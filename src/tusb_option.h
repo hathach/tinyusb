@@ -252,8 +252,8 @@
 // (defined by CFG_TUSB_MEM_SECTION) must be declared as non-cacheable.
 // For example, on Cortex-M7 the MPU region can be configured as normal
 // non-cacheable, with RASR register value: TEX=1 C=0 B=0 S=0.
-#ifndef CFG_TUD_DWC2_DMA
-  #define CFG_TUD_DWC2_DMA 0
+#ifndef CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUD_DWC2_DMA_ENABLE 0
 #endif
 
 // Enable DWC2 Slave mode for host
