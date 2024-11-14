@@ -73,7 +73,7 @@ TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
 }
 
 bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role);
-bool dwc2_core_init(uint8_t rhport, bool is_highspeed);
+bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma);
 void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr);
 
 //--------------------------------------------------------------------+

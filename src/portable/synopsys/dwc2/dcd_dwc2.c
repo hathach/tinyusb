@@ -37,6 +37,12 @@
 #include "device/dcd.h"
 #include "dwc2_common.h"
 
+#if TU_CHECK_MCU(OPT_MCU_GD32VF103)
+  #define DWC2_EP_COUNT(_dwc2)   DWC2_EP_MAX
+#else
+  #define DWC2_EP_COUNT(_dwc2)  ((_dwc2)->ghwcfg2_bm.num_dev_ep)
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -282,58 +288,6 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   }
 }
 
-// Start of Bus Reset
-static void bus_reset(uint8_t rhport) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
-
-  tu_memclr(xfer_status, sizeof(xfer_status));
-
-  _sof_en = false;
-  _allocated_ep_in_count = 1;
-
-  // 1. NAK for all OUT endpoints
-  for (uint8_t n = 0; n < ep_count; n++) {
-    dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
-  }
-
-  // 2. Disable all IN endpoints
-  for (uint8_t n = 0; n < ep_count; n++) {
-    if (dwc2->epin[n].diepctl & DIEPCTL_EPENA) {
-      dwc2->epin[n].diepctl |= DIEPCTL_SNAK | DIEPCTL_EPDIS;
-    }
-  }
-
-  dfifo_flush_tx(dwc2, 0x10); // all tx fifo
-  dfifo_flush_rx(dwc2);
-
-  // 3. Set up interrupt mask for EP0
-  dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
-  dwc2->doepmsk = DOEPMSK_STUPM | DOEPMSK_XFRCM;
-  dwc2->diepmsk = DIEPMSK_TOM | DIEPMSK_XFRCM;
-
-  // 4. Set up DFIFO
-  dfifo_device_init(rhport);
-
-  // 5. Reset device address
-  dwc2->dcfg &= ~DCFG_DAD_Msk;
-
-  // Fixed both control EP0 size to 64 bytes
-  dwc2->epin[0].diepctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
-  dwc2->epout[0].doepctl &= ~(0x03 << DOEPCTL_MPSIZ_Pos);
-
-  xfer_status[0][TUSB_DIR_OUT].max_size = 64;
-  xfer_status[0][TUSB_DIR_IN].max_size = 64;
-
-  if(dma_device_enabled(dwc2)) {
-    dma_setup_prepare(rhport);
-  } else {
-    dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
-  }
-
-  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
-}
-
 static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir, uint16_t const num_packets,
                                   uint16_t total_bytes) {
   (void) rhport;
@@ -412,18 +366,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // Core Initialization
   const bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_DEVICE);
-  TU_ASSERT(dwc2_core_init(rhport, is_highspeed));
+  const bool is_dma = dma_device_enabled(dwc2);
+  TU_ASSERT(dwc2_core_init(rhport, is_highspeed, is_dma));
 
-  if (dma_device_enabled(dwc2)) {
-    // DMA seems to be only settable after a core reset, and not possible to switch on-the-fly
-    dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
-  } else {
-    dwc2->gintmsk |= GINTSTS_RXFLVL;
-  }
-
-  // Device Initialization
-  dcd_disconnect(rhport);
-
+  //------------- 7.1 Device Initialization -------------//
   // Set device max speed
   uint32_t dcfg = dwc2->dcfg & ~DCFG_DSPD_Msk;
   if (is_highspeed) {
@@ -434,19 +380,20 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
       dcfg |= DCFG_XCVRDLY;
     }
-  }else {
+  } else {
     dcfg |= DCFG_DSPD_FS << DCFG_DSPD_Pos;
   }
+
+  dcfg |= DCFG_NZLSOHSK; // send STALL back and discard if host send non-zlp during control status
   dwc2->dcfg = dcfg;
+
+  dcd_disconnect(rhport);
 
   // Force device mode
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
 
   // Clear A override, force B Valid
   dwc2->gotgctl = (dwc2->gotgctl & ~GOTGCTL_AVALOEN) | GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
-
-  // If USB host misbehaves during status portion of control xfer (non zero-length packet), send STALL back and discard
-  dwc2->dcfg |= DCFG_NZLSOHSK;
 
   // Enable required interrupts
   dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
@@ -677,6 +624,57 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 // Interrupt Handler
 //--------------------------------------------------------------------
 
+// 7.4.1 Initialization on USB Reset
+static void handle_bus_reset(uint8_t rhport) {
+  dwc2_regs_t *dwc2 = DWC2_REG(rhport);
+  const uint8_t ep_count =  DWC2_EP_COUNT(dwc2);
+
+  tu_memclr(xfer_status, sizeof(xfer_status));
+
+  _sof_en = false;
+  _allocated_ep_in_count = 1;
+
+  // 1. NAK for all OUT endpoints
+  for (uint8_t n = 0; n < ep_count; n++) {
+    dwc2->epout[n].doepctl |= DOEPCTL_SNAK;
+  }
+
+  // Disable all IN endpoints
+  for (uint8_t n = 0; n < ep_count; n++) {
+    if (dwc2->epin[n].diepctl & DIEPCTL_EPENA) {
+      dwc2->epin[n].diepctl |= DIEPCTL_SNAK | DIEPCTL_EPDIS;
+    }
+  }
+
+  // 2. Set up interrupt mask for EP0
+  dwc2->daintmsk = TU_BIT(DAINTMSK_OEPM_Pos) | TU_BIT(DAINTMSK_IEPM_Pos);
+  dwc2->doepmsk = DOEPMSK_STUPM | DOEPMSK_XFRCM;
+  dwc2->diepmsk = DIEPMSK_TOM | DIEPMSK_XFRCM;
+
+  // 4. Set up DFIFO
+  dfifo_flush_tx(dwc2, 0x10); // all tx fifo
+  dfifo_flush_rx(dwc2);
+  dfifo_device_init(rhport);
+
+  // 5. Reset device address
+  dwc2->dcfg_bm.address = 0;
+
+  // Fixed both control EP0 size to 64 bytes
+  dwc2->epin[0].ctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
+  dwc2->epout[0].ctl &= ~(0x03 << DOEPCTL_MPSIZ_Pos);
+
+  xfer_status[0][TUSB_DIR_OUT].max_size = 64;
+  xfer_status[0][TUSB_DIR_IN].max_size = 64;
+
+  if(dma_device_enabled(dwc2)) {
+    dma_setup_prepare(rhport);
+  } else {
+    dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
+  }
+
+  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
+}
+
 // Process shared receive FIFO, this interrupt is only used in Slave mode
 static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -686,7 +684,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
   const dwc2_grxstsp_t grxstsp_bm = dwc2->grxstsp_bm;
   const uint8_t epnum = grxstsp_bm.ep_ch_num;
   const uint16_t byte_count = grxstsp_bm.byte_count;
-  dwc2_epout_t* epout = &dwc2->epout[epnum];
+  dwc2_dep_t* epout = &dwc2->epout[epnum];
 
   switch (grxstsp_bm.packet_status) {
     // Global OUT NAK: do nothing
@@ -724,7 +722,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
       // short packet, minus remaining bytes (xfer_size)
       if (byte_count < xfer->max_size) {
-        xfer->total_len -= epout->doeptsiz_bm.xfer_size;
+        xfer->total_len -= epout->tsiz_bm.xfer_size;
         if (epnum == 0) {
           xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
           ep0_pending[TUSB_DIR_OUT] = 0;
@@ -753,7 +751,7 @@ static void handle_epout_irq(uint8_t rhport) {
   // OEPINT will be cleared when DAINT's out bits are cleared.
   for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
     if (dwc2->daint & TU_BIT(DAINT_OEPINT_Pos + epnum)) {
-      dwc2_epout_t* epout = &dwc2->epout[epnum];
+      dwc2_dep_t* epout = &dwc2->epout[epnum];
       const uint32_t doepint = epout->doepint;
       TU_ASSERT((epout->doepint & DOEPINT_AHBERR) == 0, );
 
@@ -829,7 +827,7 @@ static void handle_epin_irq(uint8_t rhport) {
     if (dwc2->daint & TU_BIT(DAINT_IEPINT_Pos + n)) {
       // IN XFER complete (entire xfer).
       xfer_ctl_t* xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
-      dwc2_epin_t* epin = &dwc2->epin[n];
+      dwc2_dep_t* epin = &dwc2->epin[n];
 
       if (epin->diepint & DIEPINT_XFRC) {
         epin->diepint = DIEPINT_XFRC;
@@ -852,11 +850,11 @@ static void handle_epin_irq(uint8_t rhport) {
         // It will only be cleared by hardware when written bytes is more than
         // - 64 bytes or
         // - Half/Empty of TX FIFO size (configured by GAHBCFG.TXFELVL)
-        const uint16_t remain_packets = epin->dieptsiz_bm.packet_count;
+        const uint16_t remain_packets = epin->tsiz_bm.packet_count;
 
         // Process every single packet (only whole packets can be written to fifo)
         for (uint16_t i = 0; i < remain_packets; i++) {
-          const uint16_t remain_bytes = (uint16_t) epin->dieptsiz_bm.xfer_size;
+          const uint16_t remain_bytes = (uint16_t) epin->tsiz_bm.xfer_size;
 
           // Packet can not be larger than ep max size
           const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
@@ -878,7 +876,7 @@ static void handle_epin_irq(uint8_t rhport) {
         }
 
         // Turn off TXFE if all bytes are written.
-        if (epin->dieptsiz_bm.xfer_size == 0) {
+        if (epin->tsiz_bm.xfer_size == 0) {
           dwc2->diepempmsk &= ~(1 << n);
         }
       }
@@ -887,12 +885,13 @@ static void handle_epin_irq(uint8_t rhport) {
 }
 
 /* Interrupt Hierarchy
-
-                DxEPINTn
-                   |
-                DAINT.xEPn
-                   |
-     GINTSTS:    xEPInt
+                 DIEPINT  DIEPINT
+                    \       /
+                     \     /
+                      DAINT
+                     /     \
+                    /       \
+     GINTSTS:    OEPInt    IEPInt | USBReset | EnumDone | USBSusp | WkUpInt | OTGInt | SOF | RXFLVL
 
   Note: when OTG_MULTI_PROC_INTRPT = 1, Device Each endpoint interrupt deachint/deachmsk/diepeachmsk/doepeachmsk
   are combined to generate dedicated interrupt line for each endpoint.
@@ -901,46 +900,45 @@ void dcd_int_handler(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   uint32_t const int_mask = dwc2->gintmsk;
-  uint32_t const int_status = dwc2->gintsts & int_mask;
+  uint32_t const gintsts = dwc2->gintsts & int_mask;
 
-  if (int_status & GINTSTS_USBRST) {
+  if (gintsts & GINTSTS_USBRST) {
     // USBRST is start of reset.
     dwc2->gintsts = GINTSTS_USBRST;
-    bus_reset(rhport);
+    handle_bus_reset(rhport);
   }
 
-  if (int_status & GINTSTS_ENUMDNE) {
+  if (gintsts & GINTSTS_ENUMDNE) {
     // ENUMDNE is the end of reset where speed of the link is detected
     dwc2->gintsts = GINTSTS_ENUMDNE;
 
     tusb_speed_t speed;
-    switch ((dwc2->dsts & DSTS_ENUMSPD_Msk) >> DSTS_ENUMSPD_Pos) {
-      case DSTS_ENUMSPD_HS:
+    switch (dwc2->dsts_bm.enum_speed) {
+      case DCFG_SPEED_HIGH:
         speed = TUSB_SPEED_HIGH;
         break;
 
-      case DSTS_ENUMSPD_LS:
+      case DCFG_SPEED_LOW:
         speed = TUSB_SPEED_LOW;
         break;
 
-      case DSTS_ENUMSPD_FS_HSPHY:
-      case DSTS_ENUMSPD_FS:
+      case DCFG_SPEED_FULL_30_60MHZ:
+      case DCFG_SPEED_FULL_48MHZ:
       default:
         speed = TUSB_SPEED_FULL;
         break;
     }
 
     // TODO must update GUSBCFG_TRDT according to link speed
-
     dcd_event_bus_reset(rhport, speed, true);
   }
 
-  if (int_status & GINTSTS_USBSUSP) {
+  if (gintsts & GINTSTS_USBSUSP) {
     dwc2->gintsts = GINTSTS_USBSUSP;
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
-  if (int_status & GINTSTS_WKUINT) {
+  if (gintsts & GINTSTS_WKUINT) {
     dwc2->gintsts = GINTSTS_WKUINT;
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
@@ -948,7 +946,7 @@ void dcd_int_handler(uint8_t rhport) {
   // TODO check GINTSTS_DISCINT for disconnect detection
   // if(int_status & GINTSTS_DISCINT)
 
-  if (int_status & GINTSTS_OTGINT) {
+  if (gintsts & GINTSTS_OTGINT) {
     // OTG INT bit is read-only
     uint32_t const otg_int = dwc2->gotgint;
 
@@ -959,7 +957,7 @@ void dcd_int_handler(uint8_t rhport) {
     dwc2->gotgint = otg_int;
   }
 
-  if(int_status & GINTSTS_SOF) {
+  if(gintsts & GINTSTS_SOF) {
     dwc2->gintsts = GINTSTS_SOF;
     const uint32_t frame = (dwc2->dsts & DSTS_FNSOF) >> DSTS_FNSOF_Pos;
 
@@ -972,7 +970,7 @@ void dcd_int_handler(uint8_t rhport) {
   }
 
   // RxFIFO non-empty interrupt handling.
-  if (int_status & GINTSTS_RXFLVL) {
+  if (gintsts & GINTSTS_RXFLVL) {
     // RXFLVL bit is read-only
     dwc2->gintmsk &= ~GINTMSK_RXFLVLM; // disable RXFLVL interrupt while reading
 
@@ -984,13 +982,13 @@ void dcd_int_handler(uint8_t rhport) {
   }
 
   // OUT endpoint interrupt handling.
-  if (int_status & GINTSTS_OEPINT) {
+  if (gintsts & GINTSTS_OEPINT) {
     // OEPINT is read-only, clear using DOEPINTn
     handle_epout_irq(rhport);
   }
 
   // IN endpoint interrupt handling.
-  if (int_status & GINTSTS_IEPINT) {
+  if (gintsts & GINTSTS_IEPINT) {
     // IEPINT bit read-only, clear using DIEPINTn
     handle_epin_irq(rhport);
   }

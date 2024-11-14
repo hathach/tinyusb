@@ -171,6 +171,13 @@ enum {
   HCCHAR_EPTYPE_INTERRUPT   = 3
 };
 
+enum {
+  DCFG_SPEED_HIGH          = 0, // Highspeed with 30/60 Mhz
+  DCFG_SPEED_FULL_30_60MHZ = 1, // Fullspeed with UTMI+/ULPI 30/60 Mhz
+  DCFG_SPEED_LOW           = 2, // Lowspeed with FS PHY at 6 Mhz
+  DCFG_SPEED_FULL_48MHZ    = 3, // Fullspeed with dedicated FS PHY at 48 Mhz
+};
+
 //--------------------------------------------------------------------
 // Common Register Bitfield
 //--------------------------------------------------------------------
@@ -469,47 +476,126 @@ typedef struct {
 // Device Register Bitfield
 //--------------------------------------------------------------------
 typedef struct TU_ATTR_PACKED {
- uint32_t xfer_size    : 19; // 0..18 Transfer size in bytes
- uint32_t packet_count : 10; // 19..28 Number of packets
- uint32_t mc_pid       :  2; // 29..30 IN: Multi Count, OUT: PID
+  uint32_t speed                    : 2; // 0..1 Speed
+  uint32_t nzsts_out_handshake      : 1; // 2 Non-zero-length status OUT handshake
+  uint32_t en_32khz_suspsend        : 1; // 3 Enable 32-kHz SUSPEND mode
+  uint32_t address                  : 7; // 4..10 Device address
+  uint32_t period_frame_interval    : 2; // 11..12 Periodic frame interval
+  uint32_t en_out_nak               : 1; // 13 Enable Device OUT NAK
+  uint32_t xcvr_delay               : 1; // 14 Transceiver delay
+  uint32_t erratic_int_mask         : 1; // 15 Erratic interrupt mask
+  uint32_t rsv16                    : 1; // 16 Reserved
+  uint32_t ipg_iso_support          : 1; // 17 Interpacket gap ISO support
+  uint32_t epin_mismatch_count      : 5; // 18..22 EP IN mismatch count
+  uint32_t dma_desc                 : 1; // 23 Enable scatter/gatter DMA descriptor
+  uint32_t period_schedule_interval : 2; // 24..25 Periodic schedule interval for scatter/gatter DMA
+  uint32_t resume_valid             : 6; // 26..31 Resume valid period
+} dwc2_dcfg_t;
+TU_VERIFY_STATIC(sizeof(dwc2_dcfg_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t remote_wakeup_signal   : 1; // 0 Remote wakeup signal
+  uint32_t soft_disconnet         : 1; // 1 Soft disconnect
+  uint32_t gnp_in_nak_status      : 1; // 2 Global non-periodic NAK IN status
+  uint32_t gout_nak_status        : 1; // 3 Global OUT NAK status
+  uint32_t test_control           : 3; // 4..6 Test control
+  uint32_t set_gnp_in_nak         : 1; // 7 Set global non-periodic IN NAK
+  uint32_t clear_gnp_in_nak       : 1; // 8 Clear global non-periodic IN NAK
+  uint32_t set_gout_nak           : 1; // 9 Set global OUT NAK
+  uint32_t clear_gout_nak         : 1; // 10 Clear global OUT NAK
+  uint32_t poweron_prog_done      : 1; // 11 Power-on programming done
+  uint32_t rsv12                  : 1; // 12 Reserved
+  uint32_t global_multi_count     : 2; // 13..14 Global multi-count
+  uint32_t ignore_frame_number    : 1; // 15 Ignore frame number
+  uint32_t nak_on_babble           : 1; // 16 NAK on babble
+  uint32_t en_cont_on_bna         : 1; // 17 Enable continue on BNA
+  uint32_t deep_sleep_besl_reject : 1 ; // 18 Deep sleep BESL reject
+  uint32_t service_interval       : 1; // 19 Service interval for ISO IN endpoint
+  uint32_t rsv20_31               : 12; // 20..31 Reserved
+} dwc2_dctl_t;
+TU_VERIFY_STATIC(sizeof(dwc2_dctl_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t suspend_status : 1; // 0 Suspend status
+  uint32_t enum_speed     : 2; // 1..2 Enumerated speed
+  uint32_t erratic_err    : 1; // 3 Erratic error
+  uint32_t rsv4_7         : 4; // 4..7 Reserved
+  uint32_t frame_number   : 14; // 8..21  Frame/MicroFrame number
+  uint32_t line_status    : 2; // 22..23 Line status
+  uint32_t rsv24_31       : 8; // 24..31 Reserved
+} dwc2_dsts_t;
+TU_VERIFY_STATIC(sizeof(dwc2_dsts_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t xfer_complete       : 1; // 0 Transfer complete
+  uint32_t disabled            : 1; // 1 Endpoint disabled
+  uint32_t ahb_err             : 1; // 2 AHB error
+  uint32_t timeout             : 1; // 3 Timeout
+  uint32_t in_rx_txfe          : 1; // 4 IN token received when TxFIFO is empty
+  uint32_t in_rx_ep_mismatch   : 1; // 5 IN token received with EP mismatch
+  uint32_t in_ep_nak_effective : 1; // 6 IN endpoint NAK effective
+  uint32_t rsv7                : 1; // 7 Reserved
+  uint32_t txfifo_underrun     : 1; // 8 Tx FIFO underrun
+  uint32_t bna                 : 1; // 9 Buffer not available
+  uint32_t rsv10_12            : 3; // 10..12 Reserved
+  uint32_t nak                 : 1; // 13 NAK
+  uint32_t rsv14_31            : 18; // 14..31 Reserved
+} dwc2_diepint_t;
+TU_VERIFY_STATIC(sizeof(dwc2_diepint_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+        uint32_t mps                : 11; // 0..10 Maximum packet size, EP0 only use 2 bit
+        uint32_t next_ep            : 4; // 11..14 Next endpoint number
+        uint32_t active             : 1; // 15 Active
+  const uint32_t dpid_iso_odd       : 1; // 16 DATA0/DATA1 for bulk/interrupt, odd frame for isochronous
+  const uint32_t nak_status         : 1; // 17 NAK status
+        uint32_t type               : 2; // 18..19 Endpoint type
+        uint32_t rsv20              : 1; // 20 Reserved
+        uint32_t stall              : 1; // 21 Stall
+        uint32_t tx_fifo_num        : 4; // 22..25 Tx FIFO number (IN)
+        uint32_t clear_nak          : 1; // 26 Clear NAK
+        uint32_t set_nak            : 1; // 27 Set NAK
+        uint32_t set_data0_iso_even : 1; // 28 Set DATA0 if bulk/interrupt, even frame for isochronous
+        uint32_t set_data1_iso_odd  : 1; // 29 Set DATA1 if bulk/interrupt, odd frame for isochronous
+        uint32_t disable            : 1; // 30 Disable
+        uint32_t enable             : 1; // 31 Enable
+} dwc2_depctl_t;
+TU_VERIFY_STATIC(sizeof(dwc2_depctl_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t xfer_complete      : 1; // 0 Transfer complete
+  uint32_t disabled           : 1; // 1 Endpoint disabled
+  uint32_t ahb_err            : 1; // 2 AHB error
+  uint32_t setup_phase_done   : 1; // 3 Setup phase done
+  uint32_t out_rx_ep_disabled : 1; // 4 OUT token received when endpoint disabled
+  uint32_t status_phase_rx    : 1; // 5 Status phase received
+  uint32_t setup_b2b          : 1; // 6 Setup packet back-to-back
+  uint32_t rsv7               : 1; // 7 Reserved
+  uint32_t out_packet_err     : 1; // 8 OUT packet error
+  uint32_t bna                : 1; // 9 Buffer not available
+  uint32_t rsv10_11           : 2; // 10..11 Reserved
+  uint32_t babble_err         : 1; // 12 Babble error
+  uint32_t nak                : 1; // 13 NAK
+  uint32_t nyet               : 1; // 14 NYET
+  uint32_t rsv15_31           : 16; // 15..31 Reserved
+} dwc2_doepint_t;
+TU_VERIFY_STATIC(sizeof(dwc2_doepint_t) == 4, "incorrect size");
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t xfer_size    : 19; // 0..18 Transfer size in bytes
+  uint32_t packet_count : 10; // 19..28 Number of packets
+  uint32_t mc_pid       :  2; // 29..30 IN: Multi Count, OUT: PID
 } dwc2_ep_tsize_t;
 TU_VERIFY_STATIC(sizeof(dwc2_ep_tsize_t) == 4, "incorrect size");
 
-// Endpoint IN
-typedef struct {
-    volatile uint32_t diepctl;          // 900 + 20*ep Device IN Endpoint Control
-             uint32_t reserved04;       // 904
-    volatile uint32_t diepint;          // 908 + 20*ep Device IN Endpoint Interrupt
-             uint32_t reserved0c;       // 90C
-  union {
-    volatile uint32_t dieptsiz;         // 910 + 20*ep Device IN Endpoint Transfer Size
-    volatile dwc2_ep_tsize_t dieptsiz_bm;
-  };
-    volatile uint32_t diepdma;          // 914 + 20*ep Device IN Endpoint DMA Address
-    volatile uint32_t dtxfsts;          // 918 + 20*ep Device IN Endpoint Tx FIFO Status
-             uint32_t reserved1c;       // 91C
-} dwc2_epin_t;
-
-// Endpoint OUT
-typedef struct {
-    volatile uint32_t doepctl;          // B00 + 20*ep Device OUT Endpoint Control
-             uint32_t reserved04;       // B04
-    volatile uint32_t doepint;          // B08 + 20*ep Device OUT Endpoint Interrupt
-             uint32_t reserved0c;       // B0C
-  union {
-    volatile uint32_t doeptsiz;         // B10 + 20*ep Device OUT Endpoint Transfer Size
-    volatile dwc2_ep_tsize_t doeptsiz_bm;
-  };
-    volatile uint32_t doepdma;          // B14 + 20*ep Device OUT Endpoint DMA Address
-             uint32_t reserved18[2];    // B18..B1C
-} dwc2_epout_t;
-
-// Universal Endpoint
+// Device IN/OUT Endpoint
 typedef struct {
   union {
     volatile uint32_t diepctl;
     volatile uint32_t doepctl;
+
     volatile uint32_t ctl;
+    volatile dwc2_depctl_t ctrl_bm;
   };
   uint32_t rsv04;
   union {
@@ -520,7 +606,7 @@ typedef struct {
   union {
     volatile uint32_t dieptsiz;
     volatile uint32_t doeptsiz;
-    volatile dwc2_ep_tsize_t deptsiz_bm;
+    volatile dwc2_ep_tsize_t tsiz_bm;
   };
   union {
     volatile uint32_t diepdma;
@@ -631,12 +717,27 @@ typedef struct {
              uint32_t reserved700[64];  // 700..7FF
 
     //------------- Device -----------//
+  union {
     volatile uint32_t dcfg;             // 800 Device Configuration
+    volatile dwc2_dcfg_t dcfg_bm;
+  };
+  union {
     volatile uint32_t dctl;             // 804 Device Control
+    volatile dwc2_dctl_t dctl_bm;
+  };
+  union {
     volatile uint32_t dsts;             // 808 Device Status (RO)
+    volatile dwc2_dsts_t dsts_bm;
+  };
              uint32_t reserved80c;      // 80C
+  union {
     volatile uint32_t diepmsk;          // 810 Device IN Endpoint Interrupt Mask
+    volatile dwc2_diepint_t diepmsk_bm;
+  };
+  union {
     volatile uint32_t doepmsk;          // 814 Device OUT Endpoint Interrupt Mask
+    volatile dwc2_doepint_t doepmsk_bm;
+  };
     volatile uint32_t daint;            // 818 Device All Endpoints Interrupt
     volatile uint32_t daintmsk;         // 81C Device All Endpoints Interrupt Mask
     volatile uint32_t dtknqr1;          // 820 Device IN token sequence learning queue read1
@@ -658,8 +759,8 @@ typedef struct {
     union {
       dwc2_dep_t ep[2][16];            // 0: IN, 1 OUT
       struct {
-        dwc2_epin_t  epin[16];         // 900..AFF  IN Endpoints
-        dwc2_epout_t epout[16];        // B00..CFF  OUT Endpoints
+        dwc2_dep_t  epin[16];         // 900..AFF  IN Endpoints
+        dwc2_dep_t epout[16];        // B00..CFF  OUT Endpoints
       };
     };
     uint32_t reservedd00[64];  // D00..DFF
