@@ -83,7 +83,7 @@
     if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
   } while(0)
 
-#elif defined(__riscv) && !TUP_MCU_ESPRESSIF
+#elif defined(__riscv) && !TUSB_MCU_VENDOR_ESPRESSIF
   #define TU_BREAKPOINT() do { __asm("ebreak\n"); } while(0)
 
 #elif defined(_mips)

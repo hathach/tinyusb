@@ -39,6 +39,11 @@
 #error CFG_TUSB_MCU must be defined
 #endif
 
+// Espressif IDF requires "freertos/" prefix in include path
+#if TUSB_MCU_VENDOR_ESPRESSIF
+#define CFG_TUSB_OS_INC_PATH  freertos/
+#endif
+
 #ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS           OPT_OS_NONE
 #endif

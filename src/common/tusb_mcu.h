@@ -169,6 +169,7 @@
       defined (STM32F107xB) || defined (STM32F107xC)
     #define TUP_USBIP_DWC2
     #define TUP_USBIP_DWC2_STM32
+    #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
 
     #define TUP_DCD_ENDPOINT_MAX  4
   #elif defined(STM32F102x6) || defined(STM32F102xB) || \
@@ -343,12 +344,14 @@
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_ESP32
   #define TUP_DCD_ENDPOINT_MAX    7 // only 5 TX FIFO for endpoint IN
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT  0 // TODO currently have issue with buffer DMA with espressif
 
 #elif TU_CHECK_MCU(OPT_MCU_ESP32P4)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_ESP32
   #define TUP_RHPORT_HIGHSPEED    1  // port0 FS, port1 HS
   #define TUP_DCD_ENDPOINT_MAX    16 // FS 7 ep, HS 16 ep
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT  0 // TODO currently have issue with buffer DMA with espressif
 
 #elif TU_CHECK_MCU(OPT_MCU_ESP32, OPT_MCU_ESP32C2, OPT_MCU_ESP32C3, OPT_MCU_ESP32C6, OPT_MCU_ESP32H2)
   #if (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
