@@ -130,13 +130,12 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
 //--------------------------------------------------------------------+
 
 // look up new key in previous keys
-static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8_t keycode)
-{
-  for(uint8_t i=0; i<6; i++)
-  {
-    if (report->keycode[i] == keycode)  return true;
+static inline bool find_key_in_report(hid_keyboard_report_t const* report, uint8_t keycode) {
+  for (uint8_t i = 0; i < 6; i++) {
+    if (report->keycode[i] == keycode) {
+      return true;
+    }
   }
-
   return false;
 }
 
