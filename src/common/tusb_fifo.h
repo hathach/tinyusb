@@ -44,6 +44,19 @@ extern "C" {
 #include "common/tusb_common.h"
 #include "osal/osal.h"
 
+/**
+ * Implemented by Nikhil to avoid cluttering the build log
+ * TinyUSB makes use of packed structures, which are space efficient but
+ * lead to longer access times. These are used mainly for the descriptors
+ * which are really accessed sporadically so it's not a concern.
+ * For the suppressed output, set the ticket here:
+ *      https://getbevi.atlassian.net/browse/EN-14480
+ */
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpacked"
+#pragma GCC diagnostic ignored "-Wattributes"
+
 // mutex is only needed for RTOS
 // for OS None, we don't get preempted
 #define CFG_FIFO_MUTEX      OSAL_MUTEX_REQUIRED
@@ -195,5 +208,11 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 #ifdef __cplusplus
 }
 #endif
+
+/**
+ * Reenable warnings for packed attributes
+ * see https://stackoverflow.com/questions/3378560/how-to-disable-gcc-warnings-for-a-few-lines-of-code
+ */
+#pragma GCC diagnostic pop
 
 #endif /* _TUSB_FIFO_H_ */

@@ -28,6 +28,10 @@
 #ifndef _TUSB_PRIVATE_H_
 #define _TUSB_PRIVATE_H_
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpacked"
+#pragma GCC diagnostic ignored "-Wattributes"
+
 // Internal Helper used by Host and Device Stack
 
 #ifdef __cplusplus
@@ -173,5 +177,7 @@ bool tu_edpt_stream_peek(tu_edpt_stream_t* s, uint8_t* ch) {
 #ifdef __cplusplus
  }
 #endif
+
+#pragma GCC diagnostic pop
 
 #endif /* _TUSB_PRIVATE_H_ */

@@ -27,6 +27,19 @@
 #ifndef TUSB_TYPES_H_
 #define TUSB_TYPES_H_
 
+/**
+ * Implemented by Nikhil to avoid cluttering the build log
+ * TinyUSB makes use of packed structures, which are space efficient but
+ * lead to longer access times. These are used mainly for the descriptors
+ * which are really accessed sporadically so it's not a concern.
+ * For the suppressed output, set the ticket here:
+ *      https://getbevi.atlassian.net/browse/EN-14480
+ */
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpacked"
+#pragma GCC diagnostic ignored "-Wattributes"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include "tusb_compiler.h"
@@ -531,5 +544,10 @@ uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t b
 #ifdef __cplusplus
  }
 #endif
+/**
+ * Reenable warnings for packed attributes
+ * see https://stackoverflow.com/questions/3378560/how-to-disable-gcc-warnings-for-a-few-lines-of-code
+ */
+#pragma GCC diagnostic pop
 
 #endif // TUSB_TYPES_H_

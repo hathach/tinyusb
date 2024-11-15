@@ -28,6 +28,10 @@
 
 #if CFG_TUD_ENABLED
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpacked"
+#pragma GCC diagnostic ignored "-Wattributes"
+
 #include "device/dcd.h"
 #include "tusb.h"
 #include "common/tusb_private.h"
@@ -1473,5 +1477,7 @@ bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep)
   _usbd_dev.ep_status[epnum][dir].claimed = 0;
   return dcd_edpt_iso_activate(rhport, desc_ep);
 }
+
+#pragma GCC diagnostic pop
 
 #endif
