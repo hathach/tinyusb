@@ -306,6 +306,9 @@
   // FS has 6, HS has 9
   #define TUP_DCD_ENDPOINT_MAX    9
 
+  // MCU with on-chip HS Phy
+  #define TUP_RHPORT_HIGHSPEED    1
+
 //--------------------------------------------------------------------+
 // Sony
 //--------------------------------------------------------------------+
