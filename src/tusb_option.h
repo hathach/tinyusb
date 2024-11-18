@@ -247,6 +247,10 @@
 // USBIP
 //--------------------------------------------------------------------+
 
+#ifndef CFG_TUD_DWC2_SLAVE_ENABLE
+  #define CFG_TUD_DWC2_SLAVE_ENABLE 1
+#endif
+
 // DWC2 controller: use DMA for data transfer
 // For processors with data cache enabled, USB endpoint buffer region
 // (defined by CFG_TUSB_MEM_SECTION) must be declared as non-cacheable.
