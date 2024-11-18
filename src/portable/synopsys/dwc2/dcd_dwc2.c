@@ -217,24 +217,32 @@ static void dfifo_device_init(uint8_t rhport) {
 //--------------------------------------------------------------------
 static void edpt_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
-  uint8_t const dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
+  const uint8_t epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
+  const uint8_t dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
 
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = tu_edpt_packet_size(p_endpoint_desc);
   xfer->interval = p_endpoint_desc->bInterval;
 
-  // USBAEP, EPTYP, SD0PID_SEVNFRM, MPSIZ are the same for IN and OUT endpoints.
-  uint32_t epctl = (1 << DOEPCTL_USBAEP_Pos) |
-                   (p_endpoint_desc->bmAttributes.xfer << DOEPCTL_EPTYP_Pos) |
-                   (p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? DOEPCTL_SD0PID_SEVNFRM : 0) |
-                   (xfer->max_size << DOEPCTL_MPSIZ_Pos);
+  // Endpoint control
+  union {
+    uint32_t value;
+    dwc2_depctl_t bm;
+  } depctl;
+  depctl.value = 0;
+
+  depctl.bm.mps = xfer->max_size;
+  depctl.bm.active = 1;
+  depctl.bm.type = p_endpoint_desc->bmAttributes.xfer;
+  if (p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS) {
+    depctl.bm.set_data0_iso_even = 1;
+  }
   if (dir == TUSB_DIR_IN) {
-    epctl |= (epnum << DIEPCTL_TXFNUM_Pos);
+    depctl.bm.tx_fifo_num = epnum;
   }
 
   dwc2_dep_t* dep = &dwc2->ep[1 - dir][epnum];
-  dep->ctl = epctl;
+  dep->ctl = depctl.value;
   dwc2->daintmsk |= TU_BIT(epnum + DAINT_SHIFT(dir));
 }
 
@@ -288,7 +296,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   }
 }
 
-static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir) {
+static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uint8_t dir) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
   const uint8_t is_epout = dir ? 0 : 1;
@@ -571,6 +579,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   xfer->total_len = total_bytes;
 
   // Schedule packets to be sent within interrupt
+  // TODO xfer fifo may only available for slave mode
   edpt_schedule_packets(rhport, epnum, dir);
 
   return true;
@@ -654,6 +663,48 @@ static void handle_bus_reset(uint8_t rhport) {
   dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
 }
 
+static void handle_enum_done(uint8_t rhport) {
+  dwc2_regs_t *dwc2 = DWC2_REG(rhport);
+  tusb_speed_t speed;
+  switch (dwc2->dsts_bm.enum_speed) {
+    case DCFG_SPEED_HIGH:
+      speed = TUSB_SPEED_HIGH;
+    break;
+
+    case DCFG_SPEED_LOW:
+      speed = TUSB_SPEED_LOW;
+    break;
+
+    case DCFG_SPEED_FULL_30_60MHZ:
+    case DCFG_SPEED_FULL_48MHZ:
+    default:
+      speed = TUSB_SPEED_FULL;
+    break;
+  }
+
+  // TODO must update GUSBCFG_TRDT according to link speed
+  dcd_event_bus_reset(rhport, speed, true);
+}
+
+#if 0
+TU_ATTR_ALWAYS_INLINE static inline void print_doepint(uint32_t doepint) {
+  const char* str[] = {
+    "XFRC", "DIS", "AHBERR", "SETUP_DONE",
+    "ORXED", "STATUS_RX", "SETUP_B2B", "RSV7",
+    "OPERR", "BNA", "RSV10", "ISODROP",
+    "BBLERR", "NAK", "NYET", "SETUP_RX"
+  };
+
+  for(uint32_t i=0; i<TU_ARRAY_SIZE(str); i++) {
+    if (doepint & TU_BIT(i)) {
+      TU_LOG1("%s ", str[i]);
+    }
+  }
+  TU_LOG1("\r\n");
+}
+#endif
+
+#if CFG_TUD_DWC2_SLAVE_ENABLE
 // Process shared receive FIFO, this interrupt is only used in Slave mode
 static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -735,92 +786,11 @@ static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doe
     if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
-      // EP0 can only handle one packet
       if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
-        // Schedule another packet to be received.
+        // EP0 can only handle one packet, Schedule another packet to be received.
         edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
       } else {
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
-      }
-    }
-  }
-}
-
-static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
-  if (doepint_bm.setup_phase_done) {
-    dma_setup_prepare(rhport);
-    dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
-    return;
-  }
-
-  // OUT XFER complete
-  if (doepint_bm.xfer_complete) {
-    // only handle data skip if it is setup or status related
-    // Normal OUT transfer complete
-    if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
-      if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
-        // EP0 can only handle one packet Schedule another packet to be received.
-        edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
-      } else {
-        dwc2_dep_t* epout = &dwc2->epout[epnum];
-        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-
-        // determine actual received bytes
-        const uint16_t remain = epout->tsiz_bm.xfer_size;
-        xfer->total_len -= remain;
-
-        // this is ZLP, so prepare EP0 for next setup
-        // TODO use status phase rx
-        if(epnum == 0 && xfer->total_len == 0) {
-          dma_setup_prepare(rhport);
-        }
-
-        dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
-      }
-    }
-  }
-}
-
-#if 0
-TU_ATTR_ALWAYS_INLINE static inline void print_doepint(uint32_t doepint) {
-  const char* str[] = {
-    "XFRC", "DIS", "AHBERR", "SETUP_DONE",
-    "ORXED", "STATUS_RX", "SETUP_B2B", "RSV7",
-    "OPERR", "BNA", "RSV10", "ISODROP",
-    "BBLERR", "NAK", "NYET", "SETUP_RX"
-  };
-
-  for(uint32_t i=0; i<TU_ARRAY_SIZE(str); i++) {
-    if (doepint & TU_BIT(i)) {
-      TU_LOG1("%s ", str[i]);
-    }
-  }
-  TU_LOG1("\r\n");
-}
-#endif
-
-static void handle_epout_irq(uint8_t rhport) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  const bool is_dma = dma_device_enabled(dwc2);
-  const uint8_t ep_count = DWC2_EP_COUNT(dwc2);
-
-  // DAINT for a given EP clears when DOEPINTx is cleared.
-  // OEPINT will be cleared when DAINT's out bits are cleared.
-  for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
-    if (dwc2->daint & TU_BIT(DAINT_OEPINT_Pos + epnum)) {
-      dwc2_dep_t* epout = &dwc2->epout[epnum];
-      const uint32_t doepint = epout->intr;
-      const dwc2_doepint_t doepint_bm = epout->doepint_bm;
-
-      epout->intr = doepint; // Clear interrupt
-
-      // print_doepint(doepint);
-      if (is_dma) {
-        handle_epout_dma(rhport, epnum, doepint_bm);
-      } else {
-        handle_epout_slave(rhport, epnum, doepint_bm);
       }
     }
   }
@@ -872,6 +842,45 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
     }
   }
 }
+#endif
+
+#if CFG_TUD_DWC2_DMA_ENABLE
+static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  if (doepint_bm.setup_phase_done) {
+    dma_setup_prepare(rhport);
+    dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
+    return;
+  }
+
+  // OUT XFER complete
+  if (doepint_bm.xfer_complete) {
+    // only handle data skip if it is setup or status related
+    // Normal OUT transfer complete
+    if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
+      if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
+        // EP0 can only handle one packet Schedule another packet to be received.
+        edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
+      } else {
+        dwc2_dep_t* epout = &dwc2->epout[epnum];
+        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+
+        // determine actual received bytes
+        const uint16_t remain = epout->tsiz_bm.xfer_size;
+        xfer->total_len -= remain;
+
+        // this is ZLP, so prepare EP0 for next setup
+        // TODO use status phase rx
+        if(epnum == 0 && xfer->total_len == 0) {
+          dma_setup_prepare(rhport);
+        }
+
+        dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
+      }
+    }
+  }
+}
 
 static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepint_bm) {
   // dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -890,27 +899,45 @@ static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepin
     }
   }
 }
+#endif
 
-static void handle_epin_irq(uint8_t rhport) {
+static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const bool is_dma = dma_device_enabled(dwc2);
   const uint8_t ep_count = DWC2_EP_COUNT(dwc2);
+  const uint8_t daint_offset = (dir == TUSB_DIR_IN) ? DAINT_IEPINT_Pos : DAINT_OEPINT_Pos;
 
-  // DAINT for a given EP clears when DIEPINTx is cleared.
-  // IEPINT will be cleared when DAINT's out bits are cleared.
+  // DAINT for a given EP clears when DEPINTx is cleared.
+  // EPINT will be cleared when DAINT bits are cleared.
   for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
-    if (dwc2->daint & TU_BIT(DAINT_IEPINT_Pos + epnum)) {
-      dwc2_dep_t* epin = &dwc2->epin[epnum];
-      const uint32_t diepint = epin->intr;
-      const dwc2_diepint_t diepint_bm = epin->diepint_bm;
+    if (dwc2->daint & TU_BIT(daint_offset + epnum)) {
+      dwc2_dep_t* epout = &dwc2->ep[1-dir][epnum];
+      union {
+        uint32_t value;
+        dwc2_diepint_t diepint_bm;
+        dwc2_doepint_t doepint_bm;
+      } intr;
+      intr.value = epout->intr;
 
-      epin->intr = diepint; // Clear interrupt
+      epout->intr = intr.value; // Clear interrupt
 
       // print_doepint(doepint);
       if (is_dma) {
-        handle_epin_dma(rhport, epnum, diepint_bm);
+        #if CFG_TUD_DWC2_DMA_ENABLE
+        if (dir == TUSB_DIR_IN) {
+          handle_epin_dma(rhport, epnum, intr.diepint_bm);
+        } else {
+          handle_epout_dma(rhport, epnum, intr.doepint_bm);
+        }
+        #endif
       } else {
-        handle_epin_slave(rhport, epnum, diepint_bm);
+        #if CFG_TUD_DWC2_SLAVE_ENABLE
+        if (dir == TUSB_DIR_IN) {
+          handle_epin_slave(rhport, epnum, intr.diepint_bm);
+        } else {
+          handle_epout_slave(rhport, epnum, intr.doepint_bm);
+        }
+        #endif
       }
     }
   }
@@ -931,8 +958,8 @@ static void handle_epin_irq(uint8_t rhport) {
 void dcd_int_handler(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
-  uint32_t const int_mask = dwc2->gintmsk;
-  uint32_t const gintsts = dwc2->gintsts & int_mask;
+  const uint32_t gintmask = dwc2->gintmsk;
+  const uint32_t gintsts = dwc2->gintsts & gintmask;
 
   if (gintsts & GINTSTS_USBRST) {
     // USBRST is start of reset.
@@ -943,26 +970,7 @@ void dcd_int_handler(uint8_t rhport) {
   if (gintsts & GINTSTS_ENUMDNE) {
     // ENUMDNE is the end of reset where speed of the link is detected
     dwc2->gintsts = GINTSTS_ENUMDNE;
-
-    tusb_speed_t speed;
-    switch (dwc2->dsts_bm.enum_speed) {
-      case DCFG_SPEED_HIGH:
-        speed = TUSB_SPEED_HIGH;
-        break;
-
-      case DCFG_SPEED_LOW:
-        speed = TUSB_SPEED_LOW;
-        break;
-
-      case DCFG_SPEED_FULL_30_60MHZ:
-      case DCFG_SPEED_FULL_48MHZ:
-      default:
-        speed = TUSB_SPEED_FULL;
-        break;
-    }
-
-    // TODO must update GUSBCFG_TRDT according to link speed
-    dcd_event_bus_reset(rhport, speed, true);
+    handle_enum_done(rhport);
   }
 
   if (gintsts & GINTSTS_USBSUSP) {
@@ -1001,6 +1009,7 @@ void dcd_int_handler(uint8_t rhport) {
     dcd_event_sof(rhport, frame, true);
   }
 
+#if CFG_TUD_DWC2_SLAVE_ENABLE
   // RxFIFO non-empty interrupt handling.
   if (gintsts & GINTSTS_RXFLVL) {
     // RXFLVL bit is read-only
@@ -1012,17 +1021,18 @@ void dcd_int_handler(uint8_t rhport) {
 
     dwc2->gintmsk |= GINTMSK_RXFLVLM;
   }
+#endif
 
   // OUT endpoint interrupt handling.
   if (gintsts & GINTSTS_OEPINT) {
     // OEPINT is read-only, clear using DOEPINTn
-    handle_epout_irq(rhport);
+    handle_ep_irq(rhport, TUSB_DIR_OUT);
   }
 
   // IN endpoint interrupt handling.
   if (gintsts & GINTSTS_IEPINT) {
     // IEPINT bit read-only, clear using DIEPINTn
-    handle_epin_irq(rhport);
+    handle_ep_irq(rhport, TUSB_DIR_IN);
   }
 
   //  // Check for Incomplete isochronous IN transfer
