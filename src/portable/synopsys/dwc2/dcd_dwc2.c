@@ -288,27 +288,27 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   }
 }
 
-static inline void iso_set_odd_even(dwc2_regs_t* dwc2, dwc2_depctl_t* depctl_bm) {
-  // Take odd/even bit from frame counter.
-  const uint32_t odd_now = (dwc2->dsts_bm.frame_number & 1u);
-  if (odd_now) {
-    depctl_bm->set_data0_iso_even = 1;
-  } else {
-    depctl_bm->set_data1_iso_odd = 1;
-  }
-}
-
-static void epout_xfer(dwc2_regs_t* dwc2, const uint8_t epnum, const uint16_t num_packets, uint16_t total_bytes) {
-  const uint8_t dir = TUSB_DIR_OUT;
+static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
-  dwc2_dep_t* dep = &dwc2->epout[epnum];
+  const uint8_t is_epout = dir ? 0 : 1;
+  dwc2_dep_t* dep = &dwc2->ep[is_epout][epnum];
 
-  // EP0 is limited to one packet each xfer
-  // We use multiple transaction of xfer->max_size length to get a whole transfer done
-  // if (epnum == 0) {
-  //   total_bytes = tu_min16(ep0_pending[dir], xfer->max_size);
-  //   ep0_pending[dir] -= total_bytes;
-  // }
+  uint16_t num_packets;
+  uint16_t total_bytes;
+
+  // EP0 is limited to one packet per xfer
+  if (epnum == 0) {
+    total_bytes = tu_min16(ep0_pending[dir], xfer->max_size);
+    ep0_pending[dir] -= total_bytes;
+    num_packets = 1;
+  } else {
+    total_bytes = xfer->total_len;
+    num_packets = tu_div_ceil(total_bytes, xfer->max_size);
+    if (num_packets == 0) {
+      num_packets = 1; // zero length packet still count as 1
+    }
+  }
 
   // transfer size: A full OUT transfer (multiple packets, possibly) triggers XFRC.
   union {
@@ -328,78 +328,27 @@ static void epout_xfer(dwc2_regs_t* dwc2, const uint8_t epnum, const uint16_t nu
   } depctl;
   depctl.value = dep->ctl;
 
-  if (depctl.bm.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
-    iso_set_odd_even(dwc2, &depctl.bm);
-  }
-
-  if(dma_device_enabled(dwc2)) {
-    dep->doepdma = (uintptr_t) xfer->buffer;
-  }
-
-  depctl.bm.clear_nak = 1;
-  depctl.bm.enable = 1;
-
-  dep->doepctl = depctl.value;
-}
-
-static void epin_xfer(dwc2_regs_t* dwc2, const uint8_t epnum, const uint16_t num_packets, uint16_t total_bytes) {
-  const uint8_t dir = TUSB_DIR_IN;
-  xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
-  dwc2_dep_t* dep = &dwc2->epin[epnum];
-
-  // A full IN transfer (multiple packets, possibly) triggers XFRC.
-  union {
-    uint32_t value;
-    dwc2_ep_tsize_t bm;
-  } deptsiz;
-  deptsiz.value = 0;
-  deptsiz.bm.xfer_size =  total_bytes;
-  deptsiz.bm.packet_count = num_packets;
-
-  dep->tsiz = deptsiz.value;
-
-  // control
-  union {
-    dwc2_depctl_t bm;
-    uint32_t value;
-  } depctl;
-  depctl.value = dep->ctl;
-
   depctl.bm.clear_nak = 1;
   depctl.bm.enable = 1;
   if (depctl.bm.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
-    iso_set_odd_even(dwc2, &depctl.bm);
-  }
-
-  if(dma_device_enabled(dwc2)) {
-    dep->diepdma = (uintptr_t)xfer->buffer;
-    dep->diepctl = depctl.value;
-  } else {
-    dep->diepctl = depctl.value;
-
-    // Enable fifo empty interrupt only if there are something to put in the fifo.
-    if (total_bytes != 0) {
-      dwc2->diepempmsk |= (1 << epnum);
+    const uint32_t odd_now = (dwc2->dsts_bm.frame_number & 1u);
+    if (odd_now) {
+      depctl.bm.set_data0_iso_even = 1;
+    } else {
+      depctl.bm.set_data1_iso_odd = 1;
     }
   }
-}
 
-static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir, uint16_t const num_packets,
-                                  uint16_t total_bytes) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
-
-  // EP0 is limited to one packet each xfer
-  // We use multiple transaction of xfer->max_size length to get a whole transfer done
-  if (epnum == 0) {
-    total_bytes = tu_min16(ep0_pending[dir], xfer->max_size);
-    ep0_pending[dir] -= total_bytes;
+  const bool is_dma = dma_device_enabled(dwc2);
+  if(is_dma) {
+    dep->diepdma = (uintptr_t) xfer->buffer;
   }
 
-  if (dir == TUSB_DIR_IN) {
-    epin_xfer(dwc2, epnum, num_packets, total_bytes);
-  } else {
-    epout_xfer(dwc2, epnum, num_packets, total_bytes);
+  dep->diepctl = depctl.value; // enable endpoint
+
+  // Slave: enable tx fifo empty interrupt only if there is data. Note must after depctl enable
+  if (!is_dma && dir == TUSB_DIR_IN && total_bytes != 0) {
+    dwc2->diepempmsk |= (1 << epnum);
   }
 }
 
@@ -597,18 +546,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   // EP0 can only handle one packet
   if (epnum == 0) {
     ep0_pending[dir] = total_bytes;
-
-    // Schedule the first transaction for EP0 transfer
-    edpt_schedule_packets(rhport, epnum, dir, 1, ep0_pending[dir]);
-  } else {
-    uint16_t num_packets = tu_div_ceil(total_bytes, xfer->max_size);
-    if (num_packets == 0) {
-      num_packets = 1; // zero length packet still count as 1
-    }
-
-    // Schedule packets to be sent within interrupt
-    edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
   }
+
+  // Schedule packets to be sent within interrupt
+  edpt_schedule_packets(rhport, epnum, dir);
 
   return true;
 }
@@ -629,13 +570,8 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   xfer->ff = ff;
   xfer->total_len = total_bytes;
 
-  uint16_t num_packets = tu_div_ceil(total_bytes, xfer->max_size);
-  if (num_packets == 0) {
-    num_packets = 1; // zero length packet still count as 1
-  }
-
   // Schedule packets to be sent within interrupt
-  edpt_schedule_packets(rhport, epnum, dir, num_packets, total_bytes);
+  edpt_schedule_packets(rhport, epnum, dir);
 
   return true;
 }
@@ -802,7 +738,7 @@ static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doe
       // EP0 can only handle one packet
       if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
         // Schedule another packet to be received.
-        edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+        edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
       } else {
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
@@ -826,7 +762,7 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
     if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
       if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
         // EP0 can only handle one packet Schedule another packet to be received.
-        edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+        edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
       } else {
         dwc2_dep_t* epout = &dwc2->epout[epnum];
         xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
@@ -892,12 +828,13 @@ static void handle_epout_irq(uint8_t rhport) {
 
 static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepint_bm) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2_dep_t* epin = &dwc2->epin[epnum];
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
 
   if (diepint_bm.xfer_complete) {
     if ((epnum == 0) && ep0_pending[TUSB_DIR_IN]) {
       // EP0 can only handle one packet. Schedule another packet to be transmitted.
-      edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
+      edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN);
     } else {
       dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
     }
@@ -907,7 +844,6 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   // - 64 bytes or
   // - Half/Empty of TX FIFO size (configured by GAHBCFG.TXFELVL)
   if (diepint_bm.txfifo_empty && (dwc2->diepempmsk & (1 << epnum))) {
-    dwc2_dep_t* epin = &dwc2->epin[epnum];
     const uint16_t remain_packets = epin->tsiz_bm.packet_count;
 
     // Process every single packet (only whole packets can be written to fifo)
@@ -945,7 +881,7 @@ static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepin
   if (diepint_bm.xfer_complete) {
     if ((epnum == 0) && ep0_pending[TUSB_DIR_IN]) {
       // EP0 can only handle one packet. Schedule another packet to be transmitted.
-      edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
+      edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN);
     } else {
       if(epnum == 0) {
         dma_setup_prepare(rhport);
