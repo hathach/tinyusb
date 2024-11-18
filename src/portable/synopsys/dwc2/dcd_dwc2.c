@@ -629,12 +629,9 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   xfer->ff = ff;
   xfer->total_len = total_bytes;
 
-  uint16_t num_packets = (total_bytes / xfer->max_size);
-  uint16_t const short_packet_size = total_bytes % xfer->max_size;
-
-  // Zero-size packet is special case.
-  if (short_packet_size > 0 || (total_bytes == 0)) {
-    num_packets++;
+  uint16_t num_packets = tu_div_ceil(total_bytes, xfer->max_size);
+  if (num_packets == 0) {
+    num_packets = 1; // zero length packet still count as 1
   }
 
   // Schedule packets to be sent within interrupt
@@ -839,6 +836,7 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
         xfer->total_len -= remain;
 
         // this is ZLP, so prepare EP0 for next setup
+        // TODO use status phase rx
         if(epnum == 0 && xfer->total_len == 0) {
           dma_setup_prepare(rhport);
         }
@@ -877,10 +875,10 @@ static void handle_epout_irq(uint8_t rhport) {
   for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
     if (dwc2->daint & TU_BIT(DAINT_OEPINT_Pos + epnum)) {
       dwc2_dep_t* epout = &dwc2->epout[epnum];
-      const uint32_t doepint = epout->doepint;
+      const uint32_t doepint = epout->intr;
       const dwc2_doepint_t doepint_bm = epout->doepint_bm;
 
-      epout->doepint = doepint; // Clear interrupt
+      epout->intr = doepint; // Clear interrupt
 
       // print_doepint(doepint);
       if (is_dma) {
@@ -892,68 +890,91 @@ static void handle_epout_irq(uint8_t rhport) {
   }
 }
 
+static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepint_bm) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
+
+  if (diepint_bm.xfer_complete) {
+    if ((epnum == 0) && ep0_pending[TUSB_DIR_IN]) {
+      // EP0 can only handle one packet. Schedule another packet to be transmitted.
+      edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
+    } else {
+      dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
+    }
+  }
+
+  // TX FIFO empty bit is read-only. It will only be cleared by hardware when written bytes is more than
+  // - 64 bytes or
+  // - Half/Empty of TX FIFO size (configured by GAHBCFG.TXFELVL)
+  if (diepint_bm.txfifo_empty && (dwc2->diepempmsk & (1 << epnum))) {
+    dwc2_dep_t* epin = &dwc2->epin[epnum];
+    const uint16_t remain_packets = epin->tsiz_bm.packet_count;
+
+    // Process every single packet (only whole packets can be written to fifo)
+    for (uint16_t i = 0; i < remain_packets; i++) {
+      const uint16_t remain_bytes = (uint16_t) epin->tsiz_bm.xfer_size;
+      const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
+
+      // Check if dtxfsts has enough space available
+      if (xact_bytes > ((epin->dtxfsts & DTXFSTS_INEPTFSAV_Msk) << 2)) {
+        break;
+      }
+
+      // Push packet to Tx-FIFO
+      if (xfer->ff) {
+        volatile uint32_t* tx_fifo = dwc2->fifo[epnum];
+        tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*)(uintptr_t)tx_fifo, xact_bytes);
+      } else {
+        dfifo_write_packet(dwc2, epnum, xfer->buffer, xact_bytes);
+        xfer->buffer += xact_bytes;
+      }
+    }
+
+    // Turn off TXFE if all bytes are written.
+    if (epin->tsiz_bm.xfer_size == 0) {
+      dwc2->diepempmsk &= ~(1 << epnum);
+    }
+  }
+}
+
+static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepint_bm) {
+  // dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  // dwc2_dep_t* epin = &dwc2->epin[epnum];
+  xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
+
+  if (diepint_bm.xfer_complete) {
+    if ((epnum == 0) && ep0_pending[TUSB_DIR_IN]) {
+      // EP0 can only handle one packet. Schedule another packet to be transmitted.
+      edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
+    } else {
+      if(epnum == 0) {
+        dma_setup_prepare(rhport);
+      }
+      dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
+    }
+  }
+}
+
 static void handle_epin_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  const uint8_t ep_count = _dwc2_controller[rhport].ep_count;
+  const bool is_dma = dma_device_enabled(dwc2);
+  const uint8_t ep_count = DWC2_EP_COUNT(dwc2);
 
   // DAINT for a given EP clears when DIEPINTx is cleared.
   // IEPINT will be cleared when DAINT's out bits are cleared.
-  for (uint8_t n = 0; n < ep_count; n++) {
-    if (dwc2->daint & TU_BIT(DAINT_IEPINT_Pos + n)) {
-      // IN XFER complete (entire xfer).
-      xfer_ctl_t* xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
-      dwc2_dep_t* epin = &dwc2->epin[n];
+  for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
+    if (dwc2->daint & TU_BIT(DAINT_IEPINT_Pos + epnum)) {
+      dwc2_dep_t* epin = &dwc2->epin[epnum];
+      const uint32_t diepint = epin->intr;
+      const dwc2_diepint_t diepint_bm = epin->diepint_bm;
 
-      if (epin->diepint & DIEPINT_XFRC) {
-        epin->diepint = DIEPINT_XFRC;
+      epin->intr = diepint; // Clear interrupt
 
-        // EP0 can only handle one packet
-        if ((n == 0) && ep0_pending[TUSB_DIR_IN]) {
-          // Schedule another packet to be transmitted.
-          edpt_schedule_packets(rhport, n, TUSB_DIR_IN, 1, ep0_pending[TUSB_DIR_IN]);
-        } else {
-          if((n == 0) && dma_device_enabled(dwc2)) {
-            dma_setup_prepare(rhport);
-          }
-          dcd_event_xfer_complete(rhport, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
-        }
-      }
-
-      // XFER FIFO empty
-      if ((epin->diepint & DIEPINT_TXFE) && (dwc2->diepempmsk & (1 << n))) {
-        // diepint's TXFE bit is read-only, software cannot clear it.
-        // It will only be cleared by hardware when written bytes is more than
-        // - 64 bytes or
-        // - Half/Empty of TX FIFO size (configured by GAHBCFG.TXFELVL)
-        const uint16_t remain_packets = epin->tsiz_bm.packet_count;
-
-        // Process every single packet (only whole packets can be written to fifo)
-        for (uint16_t i = 0; i < remain_packets; i++) {
-          const uint16_t remain_bytes = (uint16_t) epin->tsiz_bm.xfer_size;
-
-          // Packet can not be larger than ep max size
-          const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
-
-          // It's only possible to write full packets into FIFO. Therefore DTXFSTS register of current
-          // EP has to be checked if the buffer can take another WHOLE packet
-          if (xact_bytes > ((epin->dtxfsts & DTXFSTS_INEPTFSAV_Msk) << 2)) {
-            break;
-          }
-
-          // Push packet to Tx-FIFO
-          if (xfer->ff) {
-            volatile uint32_t* tx_fifo = dwc2->fifo[n];
-            tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*) (uintptr_t) tx_fifo, xact_bytes);
-          } else {
-            dfifo_write_packet(dwc2, n, xfer->buffer, xact_bytes);
-            xfer->buffer += xact_bytes;
-          }
-        }
-
-        // Turn off TXFE if all bytes are written.
-        if (epin->tsiz_bm.xfer_size == 0) {
-          dwc2->diepempmsk &= ~(1 << n);
-        }
+      // print_doepint(doepint);
+      if (is_dma) {
+        handle_epin_dma(rhport, epnum, diepint_bm);
+      } else {
+        handle_epin_slave(rhport, epnum, diepint_bm);
       }
     }
   }

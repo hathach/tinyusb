@@ -537,12 +537,15 @@ typedef struct TU_ATTR_PACKED {
   uint32_t in_rx_txfe          : 1; // 4 IN token received when TxFIFO is empty
   uint32_t in_rx_ep_mismatch   : 1; // 5 IN token received with EP mismatch
   uint32_t in_ep_nak_effective : 1; // 6 IN endpoint NAK effective
-  uint32_t rsv7                : 1; // 7 Reserved
-  uint32_t txfifo_underrun     : 1; // 8 Tx FIFO underrun
+  uint32_t txfifo_empty        : 1; // 7 TX FIFO empty
+  uint32_t txfifo_underrun     : 1; // 8 Tx FIFO under run
   uint32_t bna                 : 1; // 9 Buffer not available
-  uint32_t rsv10_12            : 3; // 10..12 Reserved
+  uint32_t rsv10               : 1; // 10 Reserved
+  uint32_t iso_packet_drop     : 1; // 11 Isochronous OUT packet drop status
+  uint32_t babble_err          : 1; // 12 Babble error
   uint32_t nak                 : 1; // 13 NAK
-  uint32_t rsv14_31            : 18; // 14..31 Reserved
+  uint32_t nyet                : 1; // 14 NYET
+  uint32_t rsv14_31            :17; // 15..31 Reserved
 } dwc2_diepint_t;
 TU_VERIFY_STATIC(sizeof(dwc2_diepint_t) == 4, "incorrect size");
 
@@ -582,7 +585,7 @@ typedef struct TU_ATTR_PACKED {
   uint32_t nak                : 1; // 13 NAK
   uint32_t nyet               : 1; // 14 NYET
   uint32_t setup_packet_rx    : 1; // 15 Setup packet received (Buffer DMA Mode only)
-  uint32_t rsv16_31           :15; // 16..31 Reserved
+  uint32_t rsv16_31           :16; // 16..31 Reserved
 } dwc2_doepint_t;
 TU_VERIFY_STATIC(sizeof(dwc2_doepint_t) == 4, "incorrect size");
 
@@ -604,6 +607,8 @@ typedef struct {
   };
   uint32_t rsv04;
   union {
+    volatile uint32_t intr;
+
     volatile uint32_t diepint;
     volatile dwc2_diepint_t diepint_bm;
 
