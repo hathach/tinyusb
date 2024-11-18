@@ -149,17 +149,12 @@ enum {
 };
 
 enum {
-  GRXSTS_PKTSTS_GLOBALOUTNAK = 1,
-  GRXSTS_PKTSTS_OUTRX        = 2,
-  GRXSTS_PKTSTS_OUTDONE      = 3,
-  GRXSTS_PKTSTS_SETUPDONE    = 4,
-  GRXSTS_PKTSTS_SETUPRX      = 6
-};
-
-enum {
-  GRXSTS_PKTSTS_RX_DATA    = 2,
-  GRXSTS_PKTSTS_RX_COMPLETE  = 3,
+  GRXSTS_PKTSTS_GLOBAL_OUT_NAK      = 1,
+  GRXSTS_PKTSTS_RX_DATA             = 2,
+  GRXSTS_PKTSTS_RX_COMPLETE         = 3,
+  GRXSTS_PKTSTS_SETUP_DONE          = 4,
   GRXSTS_PKTSTS_HOST_DATATOGGLE_ERR = 5,
+  GRXSTS_PKTSTS_SETUP_RX            = 6,
   GRXSTS_PKTSTS_HOST_CHANNEL_HALTED = 7
 };
 
@@ -176,6 +171,14 @@ enum {
   DCFG_SPEED_FULL_30_60MHZ = 1, // Fullspeed with UTMI+/ULPI 30/60 Mhz
   DCFG_SPEED_LOW           = 2, // Lowspeed with FS PHY at 6 Mhz
   DCFG_SPEED_FULL_48MHZ    = 3, // Fullspeed with dedicated FS PHY at 48 Mhz
+};
+
+// Same as TUSB_XFER_*
+enum {
+  DEPCTL_EPTYPE_CONTROL     = 0,
+  DEPCTL_EPTYPE_ISOCHRONOUS = 1,
+  DEPCTL_EPTYPE_BULK        = 2,
+  DEPCTL_EPTYPE_INTERRUPT   = 3
 };
 
 //--------------------------------------------------------------------
@@ -507,11 +510,11 @@ typedef struct TU_ATTR_PACKED {
   uint32_t rsv12                  : 1; // 12 Reserved
   uint32_t global_multi_count     : 2; // 13..14 Global multi-count
   uint32_t ignore_frame_number    : 1; // 15 Ignore frame number
-  uint32_t nak_on_babble           : 1; // 16 NAK on babble
+  uint32_t nak_on_babble          : 1; // 16 NAK on babble
   uint32_t en_cont_on_bna         : 1; // 17 Enable continue on BNA
-  uint32_t deep_sleep_besl_reject : 1 ; // 18 Deep sleep BESL reject
+  uint32_t deep_sleep_besl_reject : 1; // 18 Deep sleep BESL reject
   uint32_t service_interval       : 1; // 19 Service interval for ISO IN endpoint
-  uint32_t rsv20_31               : 12; // 20..31 Reserved
+  uint32_t rsv20_31               :12; // 20..31 Reserved
 } dwc2_dctl_t;
 TU_VERIFY_STATIC(sizeof(dwc2_dctl_t) == 4, "incorrect size");
 
@@ -573,11 +576,13 @@ typedef struct TU_ATTR_PACKED {
   uint32_t rsv7               : 1; // 7 Reserved
   uint32_t out_packet_err     : 1; // 8 OUT packet error
   uint32_t bna                : 1; // 9 Buffer not available
-  uint32_t rsv10_11           : 2; // 10..11 Reserved
+  uint32_t rsv10              : 1; // 10 Reserved
+  uint32_t iso_packet_drop    : 1; // 11 Isochronous OUT packet drop status
   uint32_t babble_err         : 1; // 12 Babble error
   uint32_t nak                : 1; // 13 NAK
   uint32_t nyet               : 1; // 14 NYET
-  uint32_t rsv15_31           : 16; // 15..31 Reserved
+  uint32_t setup_packet_rx    : 1; // 15 Setup packet received (Buffer DMA Mode only)
+  uint32_t rsv16_31           :15; // 16..31 Reserved
 } dwc2_doepint_t;
 TU_VERIFY_STATIC(sizeof(dwc2_doepint_t) == 4, "incorrect size");
 
@@ -595,17 +600,21 @@ typedef struct {
     volatile uint32_t doepctl;
 
     volatile uint32_t ctl;
-    volatile dwc2_depctl_t ctrl_bm;
+    volatile dwc2_depctl_t ctl_bm;
   };
   uint32_t rsv04;
   union {
     volatile uint32_t diepint;
+    volatile dwc2_diepint_t diepint_bm;
+
     volatile uint32_t doepint;
+    volatile dwc2_doepint_t doepint_bm;
   };
   uint32_t rsv0c;
   union {
     volatile uint32_t dieptsiz;
     volatile uint32_t doeptsiz;
+    volatile uint32_t tsiz;
     volatile dwc2_ep_tsize_t tsiz_bm;
   };
   union {

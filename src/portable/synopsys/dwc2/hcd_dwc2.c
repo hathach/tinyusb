@@ -1116,8 +1116,8 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       TU_ASSERT(xfer->ep_id < CFG_TUH_DWC2_ENDPOINT_MAX,);
       dwc2_channel_char_t hcchar_bm = channel->hcchar_bm;
 
-      uint32_t hcint = channel->hcint;
-      channel->hcint = hcint;
+      const uint32_t hcint = channel->hcint;
+      channel->hcint = hcint; // clear interrupt
 
       bool is_done;
       if (is_dma) {

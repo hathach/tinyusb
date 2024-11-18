@@ -288,10 +288,104 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   }
 }
 
+static inline void iso_set_odd_even(dwc2_regs_t* dwc2, dwc2_depctl_t* depctl_bm) {
+  // Take odd/even bit from frame counter.
+  const uint32_t odd_now = (dwc2->dsts_bm.frame_number & 1u);
+  if (odd_now) {
+    depctl_bm->set_data0_iso_even = 1;
+  } else {
+    depctl_bm->set_data1_iso_odd = 1;
+  }
+}
+
+static void epout_xfer(dwc2_regs_t* dwc2, const uint8_t epnum, const uint16_t num_packets, uint16_t total_bytes) {
+  const uint8_t dir = TUSB_DIR_OUT;
+  xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
+  dwc2_dep_t* dep = &dwc2->epout[epnum];
+
+  // EP0 is limited to one packet each xfer
+  // We use multiple transaction of xfer->max_size length to get a whole transfer done
+  // if (epnum == 0) {
+  //   total_bytes = tu_min16(ep0_pending[dir], xfer->max_size);
+  //   ep0_pending[dir] -= total_bytes;
+  // }
+
+  // transfer size: A full OUT transfer (multiple packets, possibly) triggers XFRC.
+  union {
+    uint32_t value;
+    dwc2_ep_tsize_t bm;
+  } deptsiz;
+  deptsiz.value = 0;
+  deptsiz.bm.xfer_size =  total_bytes;
+  deptsiz.bm.packet_count = num_packets;
+
+  dep->tsiz = deptsiz.value;
+
+  // control
+  union {
+    dwc2_depctl_t bm;
+    uint32_t value;
+  } depctl;
+  depctl.value = dep->ctl;
+
+  if (depctl.bm.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
+    iso_set_odd_even(dwc2, &depctl.bm);
+  }
+
+  if(dma_device_enabled(dwc2)) {
+    dep->doepdma = (uintptr_t) xfer->buffer;
+  }
+
+  depctl.bm.clear_nak = 1;
+  depctl.bm.enable = 1;
+
+  dep->doepctl = depctl.value;
+}
+
+static void epin_xfer(dwc2_regs_t* dwc2, const uint8_t epnum, const uint16_t num_packets, uint16_t total_bytes) {
+  const uint8_t dir = TUSB_DIR_IN;
+  xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
+  dwc2_dep_t* dep = &dwc2->epin[epnum];
+
+  // A full IN transfer (multiple packets, possibly) triggers XFRC.
+  union {
+    uint32_t value;
+    dwc2_ep_tsize_t bm;
+  } deptsiz;
+  deptsiz.value = 0;
+  deptsiz.bm.xfer_size =  total_bytes;
+  deptsiz.bm.packet_count = num_packets;
+
+  dep->tsiz = deptsiz.value;
+
+  // control
+  union {
+    dwc2_depctl_t bm;
+    uint32_t value;
+  } depctl;
+  depctl.value = dep->ctl;
+
+  depctl.bm.clear_nak = 1;
+  depctl.bm.enable = 1;
+  if (depctl.bm.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
+    iso_set_odd_even(dwc2, &depctl.bm);
+  }
+
+  if(dma_device_enabled(dwc2)) {
+    dep->diepdma = (uintptr_t)xfer->buffer;
+    dep->diepctl = depctl.value;
+  } else {
+    dep->diepctl = depctl.value;
+
+    // Enable fifo empty interrupt only if there are something to put in the fifo.
+    if (total_bytes != 0) {
+      dwc2->diepempmsk |= (1 << epnum);
+    }
+  }
+}
+
 static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t const dir, uint16_t const num_packets,
                                   uint16_t total_bytes) {
-  (void) rhport;
-
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
 
@@ -302,58 +396,10 @@ static void edpt_schedule_packets(uint8_t rhport, uint8_t const epnum, uint8_t c
     ep0_pending[dir] -= total_bytes;
   }
 
-  // IN and OUT endpoint xfers are interrupt-driven, we just schedule them here.
-  const uint8_t is_epout = 1 - dir;
-  dwc2_dep_t* dep = &dwc2->ep[is_epout][epnum];
-
   if (dir == TUSB_DIR_IN) {
-    // A full IN transfer (multiple packets, possibly) triggers XFRC.
-    dep->dieptsiz = (num_packets << DIEPTSIZ_PKTCNT_Pos) |
-                    ((total_bytes << DIEPTSIZ_XFRSIZ_Pos) & DIEPTSIZ_XFRSIZ_Msk);
-
-    if(dma_device_enabled(dwc2)) {
-      dep->diepdma = (uintptr_t)xfer->buffer;
-
-      // For ISO endpoint set correct odd/even bit for next frame.
-      if ((dep->diepctl & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1) {
-        // Take odd/even bit from frame counter.
-        uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
-        dep->diepctl |= (odd_frame_now ? DIEPCTL_SD0PID_SEVNFRM_Msk : DIEPCTL_SODDFRM_Msk);
-      }
-
-      dep->diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
-    } else {
-      dep->diepctl |= DIEPCTL_EPENA | DIEPCTL_CNAK;
-
-      // For ISO endpoint set correct odd/even bit for next frame.
-      if ((dep->diepctl & DIEPCTL_EPTYP) == DIEPCTL_EPTYP_0 && (XFER_CTL_BASE(epnum, dir))->interval == 1) {
-        // Take odd/even bit from frame counter.
-        uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
-        dep->diepctl |= (odd_frame_now ? DIEPCTL_SD0PID_SEVNFRM_Msk : DIEPCTL_SODDFRM_Msk);
-      }
-      // Enable fifo empty interrupt only if there are something to put in the fifo.
-      if (total_bytes != 0) {
-        dwc2->diepempmsk |= (1 << epnum);
-      }
-    }
+    epin_xfer(dwc2, epnum, num_packets, total_bytes);
   } else {
-    // A full OUT transfer (multiple packets, possibly) triggers XFRC.
-    dep->doeptsiz &= ~(DOEPTSIZ_PKTCNT_Msk | DOEPTSIZ_XFRSIZ);
-    dep->doeptsiz |= (num_packets << DOEPTSIZ_PKTCNT_Pos) |
-                             ((total_bytes << DOEPTSIZ_XFRSIZ_Pos) & DOEPTSIZ_XFRSIZ_Msk);
-
-    if ((dep->doepctl & DOEPCTL_EPTYP) == DOEPCTL_EPTYP_0 &&
-        XFER_CTL_BASE(epnum, dir)->interval == 1) {
-      // Take odd/even bit from frame counter.
-      uint32_t const odd_frame_now = (dwc2->dsts & (1u << DSTS_FNSOF_Pos));
-      dep->doepctl |= (odd_frame_now ? DOEPCTL_SD0PID_SEVNFRM_Msk : DOEPCTL_SODDFRM_Msk);
-    }
-
-    if(dma_device_enabled(dwc2)) {
-      dep->doepdma = (uintptr_t)xfer->buffer;
-    }
-
-    dep->doepctl |= DOEPCTL_EPENA | DOEPCTL_CNAK;
+    epout_xfer(dwc2, epnum, num_packets, total_bytes);
   }
 }
 
@@ -683,69 +729,148 @@ static void handle_rxflvl_irq(uint8_t rhport) {
   // Pop control word off FIFO
   const dwc2_grxstsp_t grxstsp_bm = dwc2->grxstsp_bm;
   const uint8_t epnum = grxstsp_bm.ep_ch_num;
-  const uint16_t byte_count = grxstsp_bm.byte_count;
+
   dwc2_dep_t* epout = &dwc2->epout[epnum];
 
   switch (grxstsp_bm.packet_status) {
-    // Global OUT NAK: do nothing
-    case GRXSTS_PKTSTS_GLOBALOUTNAK:
+    case GRXSTS_PKTSTS_GLOBAL_OUT_NAK:
+      // Global OUT NAK: do nothing
       break;
 
-    case GRXSTS_PKTSTS_SETUPRX:
+    case GRXSTS_PKTSTS_SETUP_RX:
       // Setup packet received
-      // We can receive up to three setup packets in succession, but  only the last one is valid.
+      // We can receive up to three setup packets in succession, but only the last one is valid.
       _setup_packet[0] = (*rx_fifo);
       _setup_packet[1] = (*rx_fifo);
       break;
 
-    case GRXSTS_PKTSTS_SETUPDONE:
+    case GRXSTS_PKTSTS_SETUP_DONE:
       // Setup packet done:
       // After popping this out, dwc2 asserts a DOEPINT_SETUP interrupt which is handled by handle_epout_irq()
       epout->doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
       break;
 
-    case GRXSTS_PKTSTS_OUTRX: {
+    case GRXSTS_PKTSTS_RX_DATA: {
       // Out packet received
+      const uint16_t byte_count = grxstsp_bm.byte_count;
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
-      // Read packet off RxFIFO
-      if (xfer->ff) {
-        // Ring buffer
-        tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, byte_count);
-      } else {
-        // Linear buffer
-        dfifo_read_packet(dwc2, xfer->buffer, byte_count);
+      if (byte_count) {
+        // Read packet off RxFIFO
+        if (xfer->ff) {
+          tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, byte_count);
+        } else {
+          dfifo_read_packet(dwc2, xfer->buffer, byte_count);
+          xfer->buffer += byte_count;
+        }
 
-        // Increment pointer to xfer data
-        xfer->buffer += byte_count;
-      }
-
-      // short packet, minus remaining bytes (xfer_size)
-      if (byte_count < xfer->max_size) {
-        xfer->total_len -= epout->tsiz_bm.xfer_size;
-        if (epnum == 0) {
-          xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
-          ep0_pending[TUSB_DIR_OUT] = 0;
+        // short packet, minus remaining bytes (xfer_size)
+        if (byte_count < xfer->max_size) {
+          xfer->total_len -= epout->tsiz_bm.xfer_size;
+          if (epnum == 0) {
+            xfer->total_len -= ep0_pending[TUSB_DIR_OUT];
+            ep0_pending[TUSB_DIR_OUT] = 0;
+          }
         }
       }
       break;
     }
 
-    case GRXSTS_PKTSTS_OUTDONE:
-      /* Out packet done
-         After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed interrupt on
-         the specified OUT endpoint which will be handled by handle_epout_irq() */
+    case GRXSTS_PKTSTS_RX_COMPLETE:
+      // Out packet done
+      // After this entry is popped from the receive FIFO, dwc2 asserts a Transfer Completed interrupt on
+      // the specified OUT endpoint which will be handled by handle_epout_irq()
       break;
 
-    default:
-      TU_BREAKPOINT();
-      break;
+    default: break;
   }
 }
 
+static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
+  // dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  if (doepint_bm.setup_phase_done) {
+    dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
+    return;
+  }
+
+  // Normal OUT transfer complete
+  if (doepint_bm.xfer_complete) {
+    // only handle data skip if it is setup or status related
+    // Note: even though (xfer_complete + status_phase_rx) is for buffered DMA only, for STM32L47x (dwc2 v3.00a) they
+    // can is set when GRXSTS_PKTSTS_SETUP_RX is popped therefore they can bet set before/together with setup_phase_done
+    if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
+      xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+
+      // EP0 can only handle one packet
+      if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
+        // Schedule another packet to be received.
+        edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+      } else {
+        dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
+      }
+    }
+  }
+}
+
+static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  if (doepint_bm.setup_phase_done) {
+    dma_setup_prepare(rhport);
+    dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
+    return;
+  }
+
+  // OUT XFER complete
+  if (doepint_bm.xfer_complete) {
+    // only handle data skip if it is setup or status related
+    // Normal OUT transfer complete
+    if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
+      if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
+        // EP0 can only handle one packet Schedule another packet to be received.
+        edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
+      } else {
+        dwc2_dep_t* epout = &dwc2->epout[epnum];
+        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+
+        // determine actual received bytes
+        const uint16_t remain = epout->tsiz_bm.xfer_size;
+        xfer->total_len -= remain;
+
+        // this is ZLP, so prepare EP0 for next setup
+        if(epnum == 0 && xfer->total_len == 0) {
+          dma_setup_prepare(rhport);
+        }
+
+        dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
+      }
+    }
+  }
+}
+
+#if 0
+TU_ATTR_ALWAYS_INLINE static inline void print_doepint(uint32_t doepint) {
+  const char* str[] = {
+    "XFRC", "DIS", "AHBERR", "SETUP_DONE",
+    "ORXED", "STATUS_RX", "SETUP_B2B", "RSV7",
+    "OPERR", "BNA", "RSV10", "ISODROP",
+    "BBLERR", "NAK", "NYET", "SETUP_RX"
+  };
+
+  for(uint32_t i=0; i<TU_ARRAY_SIZE(str); i++) {
+    if (doepint & TU_BIT(i)) {
+      TU_LOG1("%s ", str[i]);
+    }
+  }
+  TU_LOG1("\r\n");
+}
+#endif
+
 static void handle_epout_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
+  const bool is_dma = dma_device_enabled(dwc2);
+  const uint8_t ep_count = DWC2_EP_COUNT(dwc2);
 
   // DAINT for a given EP clears when DOEPINTx is cleared.
   // OEPINT will be cleared when DAINT's out bits are cleared.
@@ -753,65 +878,15 @@ static void handle_epout_irq(uint8_t rhport) {
     if (dwc2->daint & TU_BIT(DAINT_OEPINT_Pos + epnum)) {
       dwc2_dep_t* epout = &dwc2->epout[epnum];
       const uint32_t doepint = epout->doepint;
-      TU_ASSERT((epout->doepint & DOEPINT_AHBERR) == 0, );
+      const dwc2_doepint_t doepint_bm = epout->doepint_bm;
 
-      // Setup and/or STPKTRX/STSPHSRX (from 3.00a) can be set along with XFRC, and also set independently.
-      if (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a) {
-        if (doepint & DOEPINT_STSPHSRX) {
-          // Status phase received for control write: In token received from Host
-          epout->doepint = DOEPINT_STSPHSRX;
-        }
+      epout->doepint = doepint; // Clear interrupt
 
-        if (doepint & DOEPINT_STPKTRX) {
-          // New setup packet received, but wait for Setup done, since we can receive up to 3 setup consecutively
-          epout->doepint = DOEPINT_STPKTRX;
-        }
-      }
-
-      if (doepint & DOEPINT_SETUP) {
-        epout->doepint = DOEPINT_SETUP;
-
-        if(dma_device_enabled(dwc2)) {
-          dma_setup_prepare(rhport);
-        }
-
-        dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
-      }
-
-      // OUT XFER complete
-      if (doepint & DOEPINT_XFRC) {
-        epout->doepint = DOEPINT_XFRC;
-
-        // only handle data skip if it is setup or status related
-        // Normal OUT transfer complete
-        if (!(doepint & (DOEPINT_SETUP | DOEPINT_STPKTRX | DOEPINT_STSPHSRX))) {
-          xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-
-          if(dma_device_enabled(dwc2)) {
-            if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
-              // EP0 can only handle one packet Schedule another packet to be received.
-              edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
-            } else {
-              // Fix packet length
-              uint16_t remain = (epout->doeptsiz & DOEPTSIZ_XFRSIZ_Msk) >> DOEPTSIZ_XFRSIZ_Pos;
-              xfer->total_len -= remain;
-              // this is ZLP, so prepare EP0 for next setup
-              if(epnum == 0 && xfer->total_len == 0) {
-                dma_setup_prepare(rhport);
-              }
-
-              dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
-            }
-          } else {
-            // EP0 can only handle one packet
-            if ((epnum == 0) && ep0_pending[TUSB_DIR_OUT]) {
-              // Schedule another packet to be received.
-              edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT, 1, ep0_pending[TUSB_DIR_OUT]);
-            } else {
-              dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
-            }
-          }
-        }
+      // print_doepint(doepint);
+      if (is_dma) {
+        handle_epout_dma(rhport, epnum, doepint_bm);
+      } else {
+        handle_epout_slave(rhport, epnum, doepint_bm);
       }
     }
   }
