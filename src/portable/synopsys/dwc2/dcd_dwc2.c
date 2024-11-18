@@ -770,8 +770,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 }
 
 static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
-  // dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
   if (doepint_bm.setup_phase_done) {
     dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
     return;
@@ -882,8 +880,6 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
 }
 
 static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepint_bm) {
-  // dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  // dwc2_dep_t* epin = &dwc2->epin[epnum];
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
 
   if (diepint_bm.xfer_complete) {
@@ -921,7 +917,6 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
 
       epout->intr = intr.value; // Clear interrupt
 
-      // print_doepint(doepint);
       if (is_dma) {
         #if CFG_TUD_DWC2_DMA_ENABLE
         if (dir == TUSB_DIR_IN) {
@@ -1034,12 +1029,6 @@ void dcd_int_handler(uint8_t rhport) {
     // IEPINT bit read-only, clear using DIEPINTn
     handle_ep_irq(rhport, TUSB_DIR_IN);
   }
-
-  //  // Check for Incomplete isochronous IN transfer
-  //  if(int_status & GINTSTS_IISOIXFR) {
-  //    printf("      IISOIXFR!\r\n");
-  ////    TU_LOG(DWC2_DEBUG, "      IISOIXFR!\r\n");
-  //  }
 }
 
 #if CFG_TUD_TEST_MODE
