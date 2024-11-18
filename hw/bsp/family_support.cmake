@@ -289,6 +289,11 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
       )
   endif ()
 
+  # compile define from command line
+  if(DEFINED CFLAGS_CLI)
+    target_compile_options(${TARGET}-tinyusb PUBLIC ${CFLAGS_CLI})
+  endif()
+
 endfunction()
 
 # Add bin/hex output

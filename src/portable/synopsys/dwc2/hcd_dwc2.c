@@ -336,14 +336,8 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // Core Initialization
   const bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_HOST);
-  TU_ASSERT(dwc2_core_init(rhport, is_highspeed));
-
-  if (dma_host_enabled(dwc2)) {
-    // DMA seems to be only settable after a core reset, and not possible to switch on-the-fly
-    dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;
-  } else {
-    dwc2->gintmsk |= GINTSTS_RXFLVL;
-  }
+  const bool is_dma = dma_host_enabled(dwc2);
+  TU_ASSERT(dwc2_core_init(rhport, is_highspeed, is_dma));
 
   //------------- 3.1 Host Initialization -------------//
 
@@ -1122,8 +1116,8 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
       TU_ASSERT(xfer->ep_id < CFG_TUH_DWC2_ENDPOINT_MAX,);
       dwc2_channel_char_t hcchar_bm = channel->hcchar_bm;
 
-      uint32_t hcint = channel->hcint;
-      channel->hcint = hcint;
+      const uint32_t hcint = channel->hcint;
+      channel->hcint = hcint; // clear interrupt
 
       bool is_done;
       if (is_dma) {
