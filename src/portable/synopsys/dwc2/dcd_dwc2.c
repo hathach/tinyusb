@@ -241,7 +241,7 @@ static void edpt_activate(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoin
     depctl.bm.tx_fifo_num = epnum;
   }
 
-  dwc2_dep_t* dep = &dwc2->ep[1 - dir][epnum];
+  dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
   dep->ctl = depctl.value;
   dwc2->daintmsk |= TU_BIT(epnum + DAINT_SHIFT(dir));
 }
@@ -252,7 +252,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint8_t epnum = tu_edpt_number(ep_addr);
   const uint8_t dir = tu_edpt_dir(ep_addr);
-  dwc2_dep_t* dep = &dwc2->ep[1 - dir][epnum];
+  dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
 
   if (dir == TUSB_DIR_IN) {
     // Only disable currently enabled non-control endpoint
@@ -299,8 +299,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
 static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uint8_t dir) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
-  const uint8_t is_epout = dir ? 0 : 1;
-  dwc2_dep_t* dep = &dwc2->ep[is_epout][epnum];
+  dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
 
   uint16_t num_packets;
   uint16_t total_bytes;
@@ -601,7 +600,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
-  dwc2_dep_t* dep = &dwc2->ep[1 - dir][epnum];
+  dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
 
   // Clear stall and reset data toggle
   dep->ctl &= ~EPCTL_STALL;;
@@ -906,12 +905,13 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
   const bool is_dma = dma_device_enabled(dwc2);
   const uint8_t ep_count = DWC2_EP_COUNT(dwc2);
   const uint8_t daint_offset = (dir == TUSB_DIR_IN) ? DAINT_IEPINT_Pos : DAINT_OEPINT_Pos;
+  dwc2_dep_t* ep_base = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][0];
 
   // DAINT for a given EP clears when DEPINTx is cleared.
   // EPINT will be cleared when DAINT bits are cleared.
   for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
     if (dwc2->daint & TU_BIT(daint_offset + epnum)) {
-      dwc2_dep_t* epout = &dwc2->ep[1-dir][epnum];
+      dwc2_dep_t* epout = &ep_base[epnum];
       union {
         uint32_t value;
         dwc2_diepint_t diepint_bm;
