@@ -39,6 +39,14 @@
 #include "soc/periph_defs.h"
 #include "soc/usb_wrap_struct.h"
 
+#if (CFG_TUD_DWC2_DMA_ENABLE && SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE)
+#include "sdkconfig.h"
+#include "esp_cache.h"
+#include "esp_log.h"
+
+#define DWC2_MEM_CACHE_LINE_SIZE    CONFIG_CACHE_L1_CACHE_LINE_SIZE
+#endif // SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
+
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
 #define DWC2_FS_REG_BASE   0x60080000UL
 #define DWC2_EP_MAX        7
@@ -110,6 +118,25 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint
   (void)hs_phy_type;
   // maybe usb_utmi_hal_disable()
 }
+
+#if (CFG_TUD_DWC2_DMA_ENABLE && SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE)
+void dcd_dcache_clean(void const* addr, uint32_t data_size) {
+  int flags = ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED;
+  if (addr != NULL && data_size) {
+    esp_err_t ret = esp_cache_msync((void *) addr, data_size, flags);
+    assert(ret == ESP_OK);
+  }
+}
+
+void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+  int flags = ESP_CACHE_MSYNC_FLAG_DIR_M2C;
+  if (addr != NULL && data_size) {
+    data_size = (data_size < DWC2_MEM_CACHE_LINE_SIZE)? DWC2_MEM_CACHE_LINE_SIZE : data_size;
+    esp_err_t ret = esp_cache_msync((void *) addr, data_size, flags);
+    assert(ret == ESP_OK);
+  }
+}
+#endif // CFG_TUD_DWC2_DMA_ENABLE && SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
 
 #ifdef __cplusplus
 }
