@@ -47,20 +47,7 @@
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-#ifdef DWC2_MEM_CACHE_LINE_SIZE
-CFG_TUD_MEM_SECTION struct {
-  union {
-    uint32_t data[2];
-    uint8_t buffer[DWC2_MEM_CACHE_LINE_SIZE];
-  };
-} _cache_aligned_setup_packet;
-
-#define _setup_packet                         _cache_aligned_setup_packet.data
-#define _sizeof_setup_packet()                DWC2_MEM_CACHE_LINE_SIZE
-#else
 static CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
-#define _sizeof_setup_packet()                sizeof(_setup_packet)
-#endif // DWC2_MEM_CACHE_LINE_SIZE
 
 typedef struct {
   uint8_t* buffer;
@@ -361,11 +348,6 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
 
   const bool is_dma = dma_device_enabled(dwc2);
   if(is_dma) {
-    if (dir == TUSB_DIR_IN && total_bytes != 0) {
-      // CACHE HINT
-      // The xfer->buffer has new data for Host, move it to memory for DMA to transfer it
-      dcd_dcache_clean(xfer->buffer, total_bytes);
-    }
     dep->diepdma = (uintptr_t) xfer->buffer;
   }
 
@@ -865,11 +847,6 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
 
   if (doepint_bm.setup_phase_done) {
     dma_setup_prepare(rhport);
-    // CACHE HINT
-    // When cache is enabled, _setup_packet must have cache line size alignment
-    // and there should be no valuable data in memory after.
-    // Thus, specific struct is used as a buffer for setup packet data
-    dcd_dcache_invalidate((uint8_t*) _setup_packet, _sizeof_setup_packet());
     dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
     return;
   }
@@ -895,9 +872,7 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
         if(epnum == 0 && xfer->total_len == 0) {
           dma_setup_prepare(rhport);
         }
-        // CACHE HINT
-        // Some data has been received by DMA, fetch the data from memory to cache
-        dcd_dcache_invalidate(xfer->buffer, xfer->total_len);
+
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
     }
