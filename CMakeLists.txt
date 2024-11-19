@@ -47,6 +47,7 @@ set(srcs
     "src/class/dfu/dfu_rt_device.c"
     # Common, device-mode related
     "src/portable/synopsys/dwc2/dcd_dwc2.c"
+    "src/portable/synopsys/dwc2/dwc2_common.c"
     "src/common/tusb_fifo.c"
     "src/device/usbd_control.c"
     "src/device/usbd.c"
