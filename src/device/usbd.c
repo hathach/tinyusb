@@ -46,9 +46,7 @@
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
 TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
-  (void) rhport;
-  (void) eventid;
-  (void) in_isr;
+  (void) rhport; (void) eventid; (void) in_isr;
 }
 
 TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
@@ -82,9 +80,7 @@ TU_ATTR_WEAK void tud_resume_cb(void) {
 }
 
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
-  (void) rhport;
-  (void) stage;
-  (void) request;
+  (void) rhport; (void) stage; (void) request;
   return false;
 }
 
@@ -99,6 +95,18 @@ TU_ATTR_WEAK void dcd_connect(uint8_t rhport) {
 
 TU_ATTR_WEAK void dcd_disconnect(uint8_t rhport) {
   (void) rhport;
+}
+
+TU_ATTR_WEAK void dcd_dcache_clean(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
+}
+
+TU_ATTR_WEAK void dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
+}
+
+TU_ATTR_WEAK void dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
 }
 
 //--------------------------------------------------------------------+
