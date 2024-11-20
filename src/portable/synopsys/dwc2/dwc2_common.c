@@ -229,6 +229,8 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
   dwc2->gotgint = 0xFFFFFFFFU;
   dwc2->gintmsk = 0;
 
+  TU_LOG(DWC2_COMMON_DEBUG, "DMA = %u\r\n", is_dma);
+
   if (is_dma) {
     // DMA seems to be only settable after a core reset, and not possible to switch on-the-fly
     dwc2->gahbcfg |= GAHBCFG_DMAEN | GAHBCFG_HBSTLEN_2;

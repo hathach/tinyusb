@@ -46,8 +46,7 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-
-static CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(4) uint32_t _setup_packet[2];
+static CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN uint32_t _setup_packet[2];
 
 typedef struct {
   uint8_t* buffer;
@@ -73,6 +72,25 @@ static bool _sof_en;
 //--------------------------------------------------------------------
 // DMA
 //--------------------------------------------------------------------
+#if DWC2_ENABLE_MEM_CACHE
+void dcd_dcache_clean(const void* addr, uint32_t data_size) {
+  if (addr && data_size) {
+    dwc2_dcache_clean(addr, data_size);
+  }
+}
+
+void dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
+  if (addr && data_size) {
+    dwc2_dcache_invalidate(addr, data_size);
+  }
+}
+
+void dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
+  if (addr && data_size) {
+    dwc2_dcache_clean_invalidate(addr, data_size);
+  }
+}
+#endif
 
 TU_ATTR_ALWAYS_INLINE static inline bool dma_device_enabled(const dwc2_regs_t* dwc2) {
   (void) dwc2;
@@ -180,7 +198,7 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
     // Check if free space is available
     TU_ASSERT(_dfifo_top >= fifo_size + dwc2->grxfsiz);
     _dfifo_top -= fifo_size;
-    TU_LOG(DWC2_DEBUG, "    TX FIFO %u: allocated %u words at offset %u\r\n", epnum, fifo_size, _dfifo_top);
+    // TU_LOG(DWC2_DEBUG, "    TX FIFO %u: allocated %u words at offset %u\r\n", epnum, fifo_size, _dfifo_top);
 
     // Both TXFD and TXSA are in unit of 32-bit words.
     if (epnum == 0) {
@@ -348,14 +366,18 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
 
   const bool is_dma = dma_device_enabled(dwc2);
   if(is_dma) {
+    if (dir == TUSB_DIR_IN && total_bytes != 0) {
+      dcd_dcache_clean(xfer->buffer, total_bytes);
+    }
     dep->diepdma = (uintptr_t) xfer->buffer;
-  }
+    dep->diepctl = depctl.value; // enable endpoint
+  } else {
+    dep->diepctl = depctl.value; // enable endpoint
 
-  dep->diepctl = depctl.value; // enable endpoint
-
-  // Slave: enable tx fifo empty interrupt only if there is data. Note must after depctl enable
-  if (!is_dma && dir == TUSB_DIR_IN && total_bytes != 0) {
-    dwc2->diepempmsk |= (1 << epnum);
+    // Enable tx fifo empty interrupt only if there is data. Note must after depctl enable
+    if (dir == TUSB_DIR_IN && total_bytes != 0) {
+      dwc2->diepempmsk |= (1 << epnum);
+    }
   }
 }
 
@@ -847,6 +869,7 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
 
   if (doepint_bm.setup_phase_done) {
     dma_setup_prepare(rhport);
+    dcd_dcache_invalidate(_setup_packet, 8);
     dcd_event_setup_received(rhport, (uint8_t*) _setup_packet, true);
     return;
   }
@@ -873,6 +896,7 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
           dma_setup_prepare(rhport);
         }
 
+        dcd_dcache_invalidate(xfer->buffer, xfer->total_len);
         dcd_event_xfer_complete(rhport, epnum, xfer->total_len, XFER_RESULT_SUCCESS, true);
       }
     }

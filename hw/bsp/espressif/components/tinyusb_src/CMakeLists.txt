@@ -15,6 +15,13 @@ list(APPEND compile_definitions
   BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
   )
 
+if (target STREQUAL esp32p4)
+  # P4 change alignment to 64 (DCache line size) for possible DMA configuration
+  list(APPEND compile_definitions
+    CFG_TUSB_MEM_ALIGN=__attribute__\(\(aligned\(64\)\)\)
+    )
+endif ()
+
 list(APPEND srcs
   # common
   ${tusb_src}/tusb.c
@@ -68,6 +75,7 @@ endif()
 idf_component_register(SRCS ${srcs}
   INCLUDE_DIRS ${tusb_src}
   REQUIRES src
+  PRIV_REQUIRES esp_mm
   )
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC ${compile_definitions})
