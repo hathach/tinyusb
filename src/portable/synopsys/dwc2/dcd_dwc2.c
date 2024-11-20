@@ -72,7 +72,7 @@ static bool _sof_en;
 //--------------------------------------------------------------------
 // DMA
 //--------------------------------------------------------------------
-#if DWC2_ENABLE_MEM_CACHE
+#if CFG_TUD_MEM_DCACHE_ENABLE
 void dcd_dcache_clean(const void* addr, uint32_t data_size) {
   if (addr && data_size) {
     dwc2_dcache_clean(addr, data_size);

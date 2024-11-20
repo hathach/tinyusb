@@ -114,14 +114,15 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint
 //--------------------------------------------------------------------+
 // Data Cache
 //--------------------------------------------------------------------+
+#if CFG_TUD_DWC2_DMA_ENABLE || CFG_TUH_DWC2_DMA_ENABLE
 #if defined(SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE) && SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
-#include "sdkconfig.h"
 #include "hal/cache_hal.h"
 #include "esp_cache.h"
-#include "esp_log.h"
 
-#define DWC2_MEM_CACHE_LINE_SIZE    CONFIG_CACHE_L1_CACHE_LINE_SIZE
-#define DWC2_ENABLE_MEM_CACHE 1
+#if CFG_TUD_MEM_DCACHE_LINE_SIZE != CONFIG_CACHE_L1_CACHE_LINE_SIZE || \
+    CFG_TUH_MEM_DCACHE_LINE_SIZE != CONFIG_CACHE_L1_CACHE_LINE_SIZE
+#error "CFG_TUD/TUH_MEM_DCACHE_LINE_SIZE must match CONFIG_CACHE_L1_CACHE_LINE_SIZE"
+#endif
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_t size) {
   if (size & (CONFIG_CACHE_L1_CACHE_LINE_SIZE-1)) {
@@ -131,29 +132,25 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcache_clean(const void* addr, uint32_t data_size) {
-  // round up to cache line size
   const int flag = ESP_CACHE_MSYNC_FLAG_TYPE_DATA | ESP_CACHE_MSYNC_FLAG_DIR_C2M;
   data_size = round_up_to_cache_line_size(data_size);
-  //ESP_EARLY_LOGI("ESP32_DWC", "dcache clean, addr 0x%"PRIx32", size %d (%s)", (uintptr_t)addr, data_size);
   assert(ESP_OK == esp_cache_msync((void*)addr, data_size, flag));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcache_invalidate(const void* addr, uint32_t data_size) {
   const int flag = ESP_CACHE_MSYNC_FLAG_TYPE_DATA | ESP_CACHE_MSYNC_FLAG_DIR_M2C;
   data_size = round_up_to_cache_line_size(data_size);
-  //ESP_EARLY_LOGI("ESP32_DWC", "dcache invalidate, addr 0x%"PRIx32", size %d (%s)", (uintptr_t)addr, data_size);
   assert(ESP_OK == esp_cache_msync((void*)addr, data_size, flag));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
   const int flag = ESP_CACHE_MSYNC_FLAG_TYPE_DATA | ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_DIR_M2C;
   data_size = round_up_to_cache_line_size(data_size);
-  //ESP_EARLY_LOGI("ESP32_DWC", "dcache clean_invalidate, addr 0x%"PRIx32", size %d (%s)", (uintptr_t)addr, data_size);
   assert(ESP_OK == esp_cache_msync((void*)addr, data_size, flag));
 }
 
-#endif // SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
-
+#endif
+#endif
 
 #ifdef __cplusplus
 }
