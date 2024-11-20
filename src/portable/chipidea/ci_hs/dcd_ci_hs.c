@@ -54,6 +54,8 @@
 #elif TU_CHECK_MCU(OPT_MCU_MCXN9)
   // MCX N9 only port 1 use this controller
   #include "ci_hs_mcx.h"
+#elif TU_CHECK_MCU(OPT_MCU_KINETIS_K28F)
+  #include "ci_hs_kinetis_k28f.h"
 #else
   #error "Unsupported MCUs"
 #endif

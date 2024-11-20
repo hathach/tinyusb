@@ -50,6 +50,9 @@
 #elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L, OPT_MCU_KINETIS_K)
   #include "fsl_device_registers.h"
 
+#elif TU_CHECK_MCU(OPT_MCU_KINETIS_K28F)
+  #include "fsl_device_registers.h"
+
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
   #include "nrf.h"
 
