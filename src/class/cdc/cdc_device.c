@@ -69,8 +69,14 @@ typedef struct {
   OSAL_MUTEX_DEF(tx_ff_mutex);
 
   // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EP_BUFSIZE];
+    TUD_DCACHE_PADDING;
+  };
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EP_BUFSIZE];
+    TUD_DCACHE_PADDING;
+  };
 } cdcd_interface_t;
 
 #define ITF_MEM_RESET_SIZE   offsetof(cdcd_interface_t, wanted_char)

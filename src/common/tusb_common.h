@@ -58,6 +58,9 @@
 // Generate a mask with bit from high (31) to low (0) set, e.g TU_GENMASK(3, 0) = 0b1111
 #define TU_GENMASK(h, l)      ( (UINT32_MAX << (l)) & (UINT32_MAX >> (31 - (h))) )
 
+// DCache padding for variable to occupy full cache line
+#define TUD_DCACHE_PADDING    uint8_t TU_XSTRCAT(dcache_padding_, _TU_COUNTER_)[CFG_TUD_MEM_DCACHE_ENABLE ? CFG_TUD_MEM_DCACHE_LINE_SIZE : 1]
+
 //--------------------------------------------------------------------+
 // Includes
 //--------------------------------------------------------------------+

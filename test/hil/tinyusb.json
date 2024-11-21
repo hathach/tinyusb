@@ -3,6 +3,9 @@
         {
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+            },
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002427"}]

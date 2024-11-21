@@ -58,11 +58,9 @@ static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
 typedef struct {
-  CFG_TUD_MEM_ALIGN union {
-    uint32_t setup_packet[2];
-#if CFG_TUD_MEM_DCACHE_ENABLE
-    uint8_t setup_packet_cache_padding[CFG_TUD_MEM_DCACHE_LINE_SIZE];
-#endif
+  union {
+    CFG_TUD_MEM_ALIGN uint32_t setup_packet[2];
+    TUD_DCACHE_PADDING;
   };
 
   // EP0 transfers are limited to 1 packet - larger sizes has to be split

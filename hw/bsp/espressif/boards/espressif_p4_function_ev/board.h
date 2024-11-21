@@ -8,7 +8,7 @@
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * furnished to do so, subject to the following conditions:aaaaa
  *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
@@ -33,7 +33,7 @@
 
 // #define NEOPIXEL_PIN          48
 
-#define BUTTON_PIN            0
+#define BUTTON_PIN            35
 #define BUTTON_STATE_ACTIVE   0
 
 // For CI hardware test, to test both device and host on the same HS port with help of

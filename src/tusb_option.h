@@ -252,11 +252,7 @@
   #define CFG_TUD_DWC2_SLAVE_ENABLE 1
 #endif
 
-// DWC2 controller: use DMA for data transfer
-// For processors with data cache enabled, USB endpoint buffer region
-// (defined by CFG_TUSB_MEM_SECTION) must be declared as non-cacheable.
-// For example, on Cortex-M7 the MPU region can be configured as normal
-// non-cacheable, with RASR register value: TEX=1 C=0 B=0 S=0.
+// Enable DWC2 DMA for device
 #ifndef CFG_TUD_DWC2_DMA_ENABLE
   #define CFG_TUD_DWC2_DMA_ENABLE 0
 #endif

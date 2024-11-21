@@ -54,6 +54,10 @@ enum {
 };
 
 typedef struct {
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t ep_buf[CFG_TUD_ENDPOINT0_SIZE];
+    TUD_DCACHE_PADDING;
+  };
   tusb_control_request_t request;
   uint8_t* buffer;
   uint16_t data_len;
@@ -61,17 +65,14 @@ typedef struct {
   usbd_control_xfer_cb_t complete_cb;
 } usbd_control_xfer_t;
 
-tu_static usbd_control_xfer_t _ctrl_xfer;
-
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN
-tu_static uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
+CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN static usbd_control_xfer_t _ctrl_xfer;
 
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
 
 // Queue ZLP status transaction
-static inline bool _status_stage_xact(uint8_t rhport, tusb_control_request_t const* request) {
+static inline bool status_stage_xact(uint8_t rhport, tusb_control_request_t const* request) {
   // Opposite to endpoint in Data Phase
   uint8_t const ep_addr = request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN;
   return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
@@ -84,13 +85,13 @@ bool tud_control_status(uint8_t rhport, tusb_control_request_t const* request) {
   _ctrl_xfer.total_xferred = 0;
   _ctrl_xfer.data_len = 0;
 
-  return _status_stage_xact(rhport, request);
+  return status_stage_xact(rhport, request);
 }
 
 // Queue a transaction in Data Stage
 // Each transaction has up to Endpoint0's max packet size.
 // This function can also transfer an zero-length packet
-static bool _data_stage_xact(uint8_t rhport) {
+static bool data_stage_xact(uint8_t rhport) {
   uint16_t const xact_len = tu_min16(_ctrl_xfer.data_len - _ctrl_xfer.total_xferred,
                                      CFG_TUD_ENDPOINT0_SIZE);
 
@@ -99,11 +100,11 @@ static bool _data_stage_xact(uint8_t rhport) {
   if (_ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_IN) {
     ep_addr = EDPT_CTRL_IN;
     if (xact_len) {
-      TU_VERIFY(0 == tu_memcpy_s(_usbd_ctrl_buf, CFG_TUD_ENDPOINT0_SIZE, _ctrl_xfer.buffer, xact_len));
+      TU_VERIFY(0 == tu_memcpy_s(_ctrl_xfer.ep_buf, CFG_TUD_ENDPOINT0_SIZE, _ctrl_xfer.buffer, xact_len));
     }
   }
 
-  return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_buf : NULL, xact_len);
+  return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _ctrl_xfer.ep_buf : NULL, xact_len);
 }
 
 // Transmit data to/from the control endpoint.
@@ -122,10 +123,10 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const* request, voi
 //    TU_LOG2("  Control total data length is %u bytes\r\n", _ctrl_xfer.data_len);
 
     // Data stage
-    TU_ASSERT(_data_stage_xact(rhport));
+    TU_ASSERT(data_stage_xact(rhport));
   } else {
     // Status stage
-    TU_ASSERT(_status_stage_xact(rhport, request));
+    TU_ASSERT(status_stage_xact(rhport, request));
   }
 
   return true;
@@ -179,7 +180,7 @@ bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
 
   if (_ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_OUT) {
     TU_VERIFY(_ctrl_xfer.buffer);
-    memcpy(_ctrl_xfer.buffer, _usbd_ctrl_buf, xferred_bytes);
+    memcpy(_ctrl_xfer.buffer, _ctrl_xfer.ep_buf, xferred_bytes);
     TU_LOG_MEM(CFG_TUD_LOG_LEVEL, _usbd_ctrl_buf, xferred_bytes, 2);
   }
 
@@ -205,7 +206,7 @@ bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
 
     if (is_ok) {
       // Send status
-      TU_ASSERT(_status_stage_xact(rhport, &_ctrl_xfer.request));
+      TU_ASSERT(status_stage_xact(rhport, &_ctrl_xfer.request));
     } else {
       // Stall both IN and OUT control endpoint
       dcd_edpt_stall(rhport, EDPT_CTRL_OUT);
@@ -213,7 +214,7 @@ bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
     }
   } else {
     // More data to transfer
-    TU_ASSERT(_data_stage_xact(rhport));
+    TU_ASSERT(data_stage_xact(rhport));
   }
 
   return true;

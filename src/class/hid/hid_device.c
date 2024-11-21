@@ -53,9 +53,18 @@ typedef struct {
   // Note: HID descriptor may be not available from application after enumeration
   tusb_hid_descriptor_hid_t const *hid_descriptor;
 
-  uint8_t ctrl_buf[CFG_TUD_HID_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t ctrl_buf[CFG_TUD_HID_EP_BUFSIZE];
+    TUD_DCACHE_PADDING;
+  };
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_EP_BUFSIZE];
+    TUD_DCACHE_PADDING;
+  };
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_EP_BUFSIZE];
+    TUD_DCACHE_PADDING;
+  };
 } hidd_interface_t;
 
 CFG_TUD_MEM_SECTION tu_static hidd_interface_t _hidd_itf[CFG_TUD_HID];
