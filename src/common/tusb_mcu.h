@@ -355,12 +355,15 @@
   #define TUP_USBIP_DWC2_ESP32
   #define TUP_DCD_ENDPOINT_MAX    7 // only 5 TX FIFO for endpoint IN
   #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT  0 // TODO currently have issue with buffer DMA with espressif
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
 
 #elif TU_CHECK_MCU(OPT_MCU_ESP32P4)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_ESP32
   #define TUP_RHPORT_HIGHSPEED    1  // port0 FS, port1 HS
   #define TUP_DCD_ENDPOINT_MAX    16 // FS 7 ep, HS 16 ep
+
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
 
   #if defined(CFG_TUD_DWC2_DMA_ENABLE) && CFG_TUD_DWC2_DMA_ENABLE == 1
   #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  1
@@ -379,7 +382,9 @@
   #if (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
   #error "MCUs are only supported with CFG_TUH_MAX3421 enabled"
   #endif
+
   #define TUP_DCD_ENDPOINT_MAX    0
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
 
 //--------------------------------------------------------------------+
 // Dialog

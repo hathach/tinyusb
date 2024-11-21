@@ -51,8 +51,14 @@ typedef struct
   uint32_t prev_xferred_bytes;
 
   // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN bt_hci_cmd_t hci_cmd;
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_BTH_DATA_EPSIZE];
+  union {
+    CFG_TUD_MEM_ALIGN bt_hci_cmd_t hci_cmd;
+    TUD_DCACHE_PADDING;
+  };
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t epout_buf[CFG_TUD_BTH_DATA_EPSIZE];
+    TUD_DCACHE_PADDING;
+  };
 
 } btd_interface_t;
 

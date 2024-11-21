@@ -403,7 +403,11 @@
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
-  #define CFG_TUSB_OS_INC_PATH
+  #ifndef CFG_TUSB_OS_INC_PATH_DEFAULT
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT
+  #endif
+
+  #define CFG_TUSB_OS_INC_PATH  CFG_TUSB_OS_INC_PATH_DEFAULT
 #endif
 
 //--------------------------------------------------------------------

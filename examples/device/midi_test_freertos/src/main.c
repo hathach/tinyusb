@@ -30,6 +30,16 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
+/* This MIDI example send sequence of note (on/off) repeatedly. To test on PC, you need to install
+ * synth software and midi connection management software. On
+ * - Linux (Ubuntu): install qsynth, qjackctl. Then connect TinyUSB output port to FLUID Synth input port
+ * - Windows: install MIDI-OX
+ * - MacOS: SimpleSynth
+ */
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF PROTYPES
+//--------------------------------------------------------------------+
 #if TUSB_MCU_VENDOR_ESPRESSIF
   #define USBD_STACK_SIZE     4096
 #else
@@ -37,23 +47,8 @@
   #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
 
-#define CDC_STACK_SIZE      configMINIMAL_STACK_SIZE
 #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
-
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTOTYPES
-//--------------------------------------------------------------------+
-
-/* Blink pattern
- * - 250 ms  : device not mounted
- * - 1000 ms : device mounted
- * - 2500 ms : device is suspended
- */
-enum {
-  BLINK_NOT_MOUNTED = 250,
-  BLINK_MOUNTED = 1000,
-  BLINK_SUSPENDED = 2500,
-};
+#define MIDI_STACK_SIZE     configMINIMAL_STACK_SIZE
 
 // static task
 #if configSUPPORT_STATIC_ALLOCATION
@@ -63,32 +58,41 @@ StaticTask_t blinky_taskdef;
 StackType_t  usb_device_stack[USBD_STACK_SIZE];
 StaticTask_t usb_device_taskdef;
 
-StackType_t  cdc_stack[CDC_STACK_SIZE];
-StaticTask_t cdc_taskdef;
+StackType_t  midi_stack[MIDI_STACK_SIZE];
+StaticTask_t midi_taskdef;
 #endif
+
+/* Blink pattern
+ * - 250 ms  : device not mounted
+ * - 1000 ms : device mounted
+ * - 2500 ms : device is suspended
+ */
+enum  {
+  BLINK_NOT_MOUNTED = 250,
+  BLINK_MOUNTED = 1000,
+  BLINK_SUSPENDED = 2500,
+};
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-static void usb_device_task(void *param);
+void usb_device_task(void *param);
 void led_blinking_task(void* param);
-void cdc_task(void *params);
+void midi_task(void* param);
 
 //--------------------------------------------------------------------+
 // Main
 //--------------------------------------------------------------------+
-
 int main(void) {
   board_init();
 
-  // Create task for: tinyusb, blinky, cdc
 #if configSUPPORT_STATIC_ALLOCATION
   xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
-  xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, cdc_stack, &cdc_taskdef);
+  xTaskCreateStatic(midi_task, "midi", MIDI_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, midi_stack, &midi_taskdef);
 #else
   xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
-  xTaskCreate(cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES - 2, NULL);
+  xTaskCreate(midi_task, "midi", MIDI_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
 
 #if !TUSB_MCU_VENDOR_ESPRESSIF
@@ -107,7 +111,7 @@ void app_main(void) {
 
 // USB Device Driver task
 // This top level thread process all usb events and invoke callbacks
-static void usb_device_task(void *param) {
+void usb_device_task(void *param) {
   (void) param;
 
   // init device stack on configured roothub port
@@ -127,9 +131,6 @@ static void usb_device_task(void *param) {
   while (1) {
     // put this thread to waiting state until there is new events
     tud_task();
-
-    // following code only run if tud_task() process at least 1 event
-    tud_cdc_write_flush();
   }
 }
 
@@ -161,56 +162,62 @@ void tud_resume_cb(void) {
 }
 
 //--------------------------------------------------------------------+
-// USB CDC
+// MIDI Task
 //--------------------------------------------------------------------+
-void cdc_task(void *params) {
-  (void) params;
 
-  // RTOS forever loop
+// Store example melody as an array of note values
+const uint8_t note_sequence[] = {
+  74,78,81,86,90,93,98,102,57,61,66,69,73,78,81,85,88,92,97,100,97,92,88,85,81,78,
+  74,69,66,62,57,62,66,69,74,78,81,86,90,93,97,102,97,93,90,85,81,78,73,68,64,61,
+  56,61,64,68,74,78,81,86,90,93,98,102
+};
+
+void midi_task(void* param) {
+  (void) param;
+
+  const uint8_t cable_num = 0; // MIDI jack associated with USB endpoint
+  const uint8_t channel   = 0; // 0 for channel 1
+
+  // Variable that holds the current position in the sequence.
+  uint32_t note_pos = 0;
+
   while (1) {
-    // connected() check for DTR bit
-    // Most but not all terminal client set this when making connection
-    // if ( tud_cdc_connected() )
-    {
-      // There are data available
-      while (tud_cdc_available()) {
-        uint8_t buf[64];
+    // send note periodically
+    vTaskDelay(286  / portTICK_PERIOD_MS);
 
-        // read and echo back
-        uint32_t count = tud_cdc_read(buf, sizeof(buf));
-        (void) count;
+    // Previous positions in the note sequence.
+    int previous = (int) (note_pos - 1);
 
-        // Echo back
-        // Note: Skip echo by commenting out write() and write_flush()
-        // for throughput test e.g
-        //    $ dd if=/dev/zero of=/dev/ttyACM0 count=10000
-        tud_cdc_write(buf, count);
-      }
-
-      tud_cdc_write_flush();
+    // If we currently are at position 0, set the
+    // previous position to the last note in the sequence.
+    if (previous < 0) {
+      previous = sizeof(note_sequence) - 1;
     }
 
-    // For ESP32-Sx this delay is essential to allow idle how to run and reset watchdog
-    vTaskDelay(1);
+    // Send Note On for current position at full velocity (127) on channel 1.
+    uint8_t note_on[3] = { 0x90 | channel, note_sequence[note_pos], 127 };
+    tud_midi_stream_write(cable_num, note_on, 3);
+
+    // Send Note Off for previous note.
+    uint8_t note_off[3] = { 0x80 | channel, note_sequence[previous], 0};
+    tud_midi_stream_write(cable_num, note_off, 3);
+
+    // Increment position
+    note_pos++;
+
+    // If we are at the end of the sequence, start over.
+    if (note_pos >= sizeof(note_sequence)) {
+      note_pos = 0;
+    }
+
+    // The MIDI interface always creates input and output port/jack descriptors
+    // regardless of these being used or not. Therefore incoming traffic should be read
+    // (possibly just discarded) to avoid the sender blocking in IO
+    while (tud_midi_available()) {
+      uint8_t packet[4];
+      tud_midi_packet_read(packet);
+    }
   }
-}
-
-// Invoked when cdc when line state changed e.g connected/disconnected
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
-  (void) itf;
-  (void) rts;
-
-  // TODO set some indicator
-  if (dtr) {
-    // Terminal connected
-  } else {
-    // Terminal disconnected
-  }
-}
-
-// Invoked when CDC interface received data from host
-void tud_cdc_rx_cb(uint8_t itf) {
-  (void) itf;
 }
 
 //--------------------------------------------------------------------+

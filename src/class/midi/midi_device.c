@@ -40,15 +40,13 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-typedef struct
-{
+typedef struct {
   uint8_t buffer[4];
   uint8_t index;
   uint8_t total;
-}midid_stream_t;
+} midid_stream_t;
 
-typedef struct
-{
+typedef struct {
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t ep_out;
@@ -72,9 +70,14 @@ typedef struct
   #endif
 
   // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_MIDI_EP_BUFSIZE];
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_MIDI_EP_BUFSIZE];
-
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t epout_buf[CFG_TUD_MIDI_EP_BUFSIZE];
+    TUD_DCACHE_PADDING;
+  };
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t epin_buf[CFG_TUD_MIDI_EP_BUFSIZE];
+    TUD_DCACHE_PADDING;
+  };
 } midid_interface_t;
 
 #define ITF_MEM_RESET_SIZE   offsetof(midid_interface_t, rx_ff)
@@ -84,8 +87,7 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUD_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
 
-bool tud_midi_n_mounted (uint8_t itf)
-{
+bool tud_midi_n_mounted (uint8_t itf) {
   midid_interface_t* midi = &_midid_itf[itf];
   return midi->ep_in && midi->ep_out;
 }

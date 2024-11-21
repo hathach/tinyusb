@@ -47,8 +47,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-typedef struct
-{
+typedef struct {
   uint8_t attrs;
   uint8_t alt;
 
@@ -59,14 +58,16 @@ typedef struct
   uint16_t block;
   uint16_t length;
 
-  CFG_TUSB_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_XFER_BUFSIZE];
+  union {
+    CFG_TUD_MEM_ALIGN uint8_t transfer_buf[CFG_TUD_DFU_XFER_BUFSIZE];
+    TUD_DCACHE_PADDING;
+  };
 } dfu_state_ctx_t;
 
 // Only a single dfu state is allowed
 CFG_TUD_MEM_SECTION tu_static dfu_state_ctx_t _dfu_ctx;
 
-static void reset_state(void)
-{
+static void reset_state(void) {
   _dfu_ctx.state = DFU_IDLE;
   _dfu_ctx.status = DFU_STATUS_OK;
   _dfu_ctx.flashing_in_progress = false;
