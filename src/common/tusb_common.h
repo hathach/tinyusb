@@ -58,9 +58,6 @@
 // Generate a mask with bit from high (31) to low (0) set, e.g TU_GENMASK(3, 0) = 0b1111
 #define TU_GENMASK(h, l)      ( (UINT32_MAX << (l)) & (UINT32_MAX >> (31 - (h))) )
 
-// DCache padding for variable to occupy full cache line
-#define TUD_DCACHE_PADDING    uint8_t TU_XSTRCAT(dcache_padding_, _TU_COUNTER_)[CFG_TUD_MEM_DCACHE_ENABLE ? CFG_TUD_MEM_DCACHE_LINE_SIZE : 1]
-
 //--------------------------------------------------------------------+
 // Includes
 //--------------------------------------------------------------------+
@@ -179,7 +176,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_is_aligned32(uint32_t value) { retur
 TU_ATTR_ALWAYS_INLINE static inline bool tu_is_aligned64(uint64_t value) { return (value & 0x3FUL) == 0; }
 
 //------------- Mathematics -------------//
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_ceil(uint32_t v, uint32_t d) { return (v + d -1)/d; }
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_ceil(uint32_t v, uint32_t d) { return TU_DIV_CEIL(v, d); }
 
 // log2 of a value is its MSB's position
 // TODO use clz TODO remove

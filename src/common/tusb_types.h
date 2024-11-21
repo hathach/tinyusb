@@ -35,6 +35,16 @@
  extern "C" {
 #endif
 
+// DCache padding for variable to occupy full cache line
+#define TUD_DCACHE_PADDING    uint8_t TU_XSTRCAT(dcache_padding_, _TU_COUNTER_)[CFG_TUD_MEM_DCACHE_ENABLE ? CFG_TUD_MEM_DCACHE_LINE_SIZE : 1]
+
+#define TUD_EPBUF_DEF(_name, _size) \
+  union { \
+    CFG_TUD_MEM_ALIGN uint8_t _name[_size]; \
+    uint8_t _name##_dcache_padding[CFG_TUD_MEM_DCACHE_ENABLE ? (TU_DIV_CEIL(_size, CFG_TUD_MEM_DCACHE_LINE_SIZE) * CFG_TUD_MEM_DCACHE_LINE_SIZE) : 1]; \
+  };
+
+
 /*------------------------------------------------------------------*/
 /* CONSTANTS
  *------------------------------------------------------------------*/
