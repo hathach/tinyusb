@@ -1,8 +1,14 @@
 include ../../build_system/make/make.mk
 
+FREERTOS_SRC = lib/FreeRTOS-Kernel
+FREERTOS_PORTABLE_PATH = $(FREERTOS_SRC)/portable/$(if $(findstring iar,$(TOOLCHAIN)),IAR,GCC)
+
 INC += \
-  src \
-  $(TOP)/hw \
+	src \
+	$(TOP)/hw \
+	${TOP}/${FAMILY_PATH}/FreeRTOSConfig \
+	$(TOP)/$(FREERTOS_SRC)/include \
+	$(TOP)/$(FREERTOS_PORTABLE_SRC) \
 
 # Example source
 EXAMPLE_SOURCE += \
@@ -21,5 +27,14 @@ SRC_C += \
 
 SRC_S += \
 	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
+
+# Suppress FreeRTOSConfig.h warnings
+CFLAGS_GCC += -Wno-error=redundant-decls
+
+# Suppress FreeRTOS source warnings
+CFLAGS_GCC += -Wno-error=cast-qual
+
+# FreeRTOS (lto + Os) linker issue
+LDFLAGS_GCC += -Wl,--undefined=vTaskSwitchContext
 
 include ../../build_system/make/rules.mk
