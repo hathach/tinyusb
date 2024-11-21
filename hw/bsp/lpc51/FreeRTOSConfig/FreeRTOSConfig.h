@@ -85,6 +85,7 @@
 #define configUSE_TICK_HOOK                    0
 #define configUSE_MALLOC_FAILED_HOOK           0 // cause nested extern warning
 #define configCHECK_FOR_STACK_OVERFLOW         2
+#define configCHECK_HANDLER_INSTALLATION       0
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS          0
@@ -122,7 +123,8 @@
 
 /* Define to trap errors during development. */
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
-#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
+#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__) || \
+    defined(__ARM7M__) || defined (__ARM7EM__) || defined(__ARM8M_MAINLINE__) || defined(__ARM8EM_MAINLINE__)
   #define configASSERT(_exp) \
     do {\
       if ( !(_exp) ) { \
@@ -133,8 +135,6 @@
         }\
       }\
     } while(0)
-#else
-  #define configASSERT( x )
 #endif
 
 /* FreeRTOS hooks to NVIC vectors */
