@@ -20,7 +20,7 @@ runs:
       if: inputs.toolchain == 'arm-gcc'
       uses: carlosperate/arm-none-eabi-gcc-action@v1
       with:
-        release: '12.3.Rel1'
+        release: '13.2.Rel1'
 
     - name: Pull ESP-IDF docker
       if: inputs.toolchain == 'esp-idf'
