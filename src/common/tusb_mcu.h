@@ -373,8 +373,8 @@
   #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT 1
   #endif
 
-  #define CFG_TUD_MEM_DCACHE_LINE_SIZE  64
-  #define CFG_TUH_MEM_DCACHE_LINE_SIZE  64
+  #define CFG_TUD_MEM_DCACHE_LINE_SIZE_DEFAULT  64
+  #define CFG_TUH_MEM_DCACHE_LINE_SIZE_DEFAULT  64
 
   #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT  0 // TODO currently have issue with buffer DMA with espressif
 

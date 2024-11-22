@@ -89,7 +89,6 @@ typedef struct {
   uint8_t rhport;       // storage of \a rhport because some callbacks are done without it
 
   // recv handling
-  CFG_TUSB_MEM_ALIGN recv_ntb_t recv_ntb[RECV_NTB_N];   // actual recv NTBs
   recv_ntb_t *recv_free_ntb[RECV_NTB_N];                // free list of recv NTBs
   recv_ntb_t *recv_ready_ntb[RECV_NTB_N];               // NTBs waiting for transmission to glue logic
   recv_ntb_t *recv_tinyusb_ntb;                         // buffer for the running transfer TinyUSB -> driver
@@ -97,7 +96,6 @@ typedef struct {
   uint16_t recv_glue_ntb_datagram_ndx;                  // index into \a recv_glue_ntb_datagram
 
   // xmit handling
-  CFG_TUSB_MEM_ALIGN xmit_ntb_t xmit_ntb[XMIT_NTB_N];   // actual xmit NTBs
   xmit_ntb_t *xmit_free_ntb[XMIT_NTB_N];                // free list of xmit NTBs
   xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];               // NTBs waiting for transmission to TinyUSB
   xmit_ntb_t *xmit_tinyusb_ntb;                         // buffer for the running transfer driver -> TinyUSB
@@ -118,7 +116,18 @@ typedef struct {
   bool tud_network_recv_renew_process_again;            // tud_network_recv_renew() should process again
 } ncm_interface_t;
 
-CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN tu_static ncm_interface_t ncm_interface;
+typedef struct {
+  struct {
+    TUD_EPBUF_TYPE_DEF(ntb, recv_ntb_t);
+  } recv[RECV_NTB_N];
+
+  struct {
+    TUD_EPBUF_TYPE_DEF(ntb, xmit_ntb_t);
+  } xmit[XMIT_NTB_N];
+} ncm_epbuf_t;
+
+static ncm_interface_t ncm_interface;
+CFG_TUD_MEM_SECTION static ncm_epbuf_t ncm_epbuf;
 
 /**
  * This is the NTB parameter structure
@@ -126,7 +135,7 @@ CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN tu_static ncm_interface_t ncm_interface;
  * \attention
  *     We are lucky, that byte order is correct
  */
-CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
+TU_ATTR_ALIGNED(4) static const ntb_parameters_t ntb_parameters = {
   .wLength                  = sizeof(ntb_parameters_t),
   .bmNtbFormatsSupported    = 0x01,// 16-bit NTB supported
   .dwNtbInMaxSize           = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
@@ -743,10 +752,10 @@ void netd_init(void) {
   memset(&ncm_interface, 0, sizeof(ncm_interface));
 
   for (int i = 0; i < XMIT_NTB_N; ++i) {
-    ncm_interface.xmit_free_ntb[i] = ncm_interface.xmit_ntb + i;
+    ncm_interface.xmit_free_ntb[i] = &ncm_epbuf.xmit[i].ntb;
   }
   for (int i = 0; i < RECV_NTB_N; ++i) {
-    ncm_interface.recv_free_ntb[i] = ncm_interface.recv_ntb + i;
+    ncm_interface.recv_free_ntb[i] = &ncm_epbuf.recv[i].ntb;
   }
 } // netd_init
 

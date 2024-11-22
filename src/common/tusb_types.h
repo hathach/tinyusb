@@ -35,16 +35,17 @@
  extern "C" {
 #endif
 
-// DCache padding for variable to occupy full cache line
 #define TUD_EPBUF_DCACHE_SIZE(_size) \
   (CFG_TUD_MEM_DCACHE_ENABLE ? (TU_DIV_CEIL(_size, CFG_TUD_MEM_DCACHE_LINE_SIZE) * CFG_TUD_MEM_DCACHE_LINE_SIZE) : (_size))
 
+// Declare an endpoint buffer with uint8_t[size]
 #define TUD_EPBUF_DEF(_name, _size) \
   union { \
     CFG_TUD_MEM_ALIGN uint8_t _name[_size]; \
     uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(_size)]; \
   };
 
+// Declare an endpoint buffer with a type
 #define TUD_EPBUF_TYPE_DEF(_name, _type) \
   union { \
     CFG_TUD_MEM_ALIGN _type _name; \
