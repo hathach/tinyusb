@@ -97,7 +97,7 @@ static void _prep_out_transaction(uint8_t idx) {
   // TODO Actually we can still carry out the transfer, keeping count of received bytes
   // and slowly move it to the FIFO when read().
   // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= sizeof(_midid_epbuf[idx].epout), );
+  TU_VERIFY(available >= CFG_TUD_MIDI_EP_BUFSIZE, );
 
   // claim endpoint
   TU_VERIFY(usbd_edpt_claim(rhport, p_midi->ep_out), );
