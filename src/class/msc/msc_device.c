@@ -75,7 +75,7 @@ typedef struct {
 static mscd_interface_t _mscd_itf;
 
 CFG_TUD_MEM_SECTION static struct {
-  TUD_EPBUF_DEF(ep_buf, CFG_TUD_MSC_EP_BUFSIZE);
+  TUD_EPBUF_DEF(buf, CFG_TUD_MSC_EP_BUFSIZE);
 } _mscd_epbuf;
 
 //--------------------------------------------------------------------+
@@ -95,13 +95,13 @@ static inline bool send_csw(uint8_t rhport, mscd_interface_t* p_msc) {
   // Data residue is always = host expect - actual transferred
   p_msc->csw.data_residue = p_msc->cbw.total_bytes - p_msc->xferred_len;
   p_msc->stage = MSC_STAGE_STATUS_SENT;
-  memcpy(_mscd_epbuf.ep_buf, &p_msc->csw, sizeof(msc_csw_t));
-  return usbd_edpt_xfer(rhport, p_msc->ep_in , _mscd_epbuf.ep_buf, sizeof(msc_csw_t));
+  memcpy(_mscd_epbuf.buf, &p_msc->csw, sizeof(msc_csw_t));
+  return usbd_edpt_xfer(rhport, p_msc->ep_in , _mscd_epbuf.buf, sizeof(msc_csw_t));
 }
 
 static inline bool prepare_cbw(uint8_t rhport, mscd_interface_t* p_msc) {
   p_msc->stage = MSC_STAGE_CMD;
-  return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.ep_buf, sizeof(msc_cbw_t));
+  return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.buf, sizeof(msc_cbw_t));
 }
 
 static void fail_scsi_op(uint8_t rhport, mscd_interface_t* p_msc, uint8_t status) {
@@ -351,7 +351,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         return true;
       }
 
-      const uint32_t signature = tu_le32toh(tu_unaligned_read32(_mscd_epbuf.ep_buf));
+      const uint32_t signature = tu_le32toh(tu_unaligned_read32(_mscd_epbuf.buf));
 
       if (!(xferred_bytes == sizeof(msc_cbw_t) && signature == MSC_CBW_SIGNATURE)) {
         // BOT 6.6.1 If CBW is not valid stall both endpoints until reset recovery
@@ -362,7 +362,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         return false;
       }
 
-      memcpy(p_cbw, _mscd_epbuf.ep_buf, sizeof(msc_cbw_t));
+      memcpy(p_cbw, _mscd_epbuf.buf, sizeof(msc_cbw_t));
 
       TU_LOG_DRV("  SCSI Command [Lun%u]: %s\r\n", p_cbw->lun, tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
       //TU_LOG_MEM(MSC_DEBUG, p_cbw, xferred_bytes, 2);
@@ -404,15 +404,15 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           } else {
             // Didn't check for case 9 (Ho > Dn), which requires examining scsi command first
             // but it is OK to just receive data then responded with failed status
-            TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.ep_buf, (uint16_t) p_msc->total_len));
+            TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, (uint16_t) p_msc->total_len));
           }
         } else {
           // First process if it is a built-in commands
-          int32_t resplen = proc_builtin_scsi(p_cbw->lun, p_cbw->command, _mscd_epbuf.ep_buf, CFG_TUD_MSC_EP_BUFSIZE);
+          int32_t resplen = proc_builtin_scsi(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, CFG_TUD_MSC_EP_BUFSIZE);
 
           // Invoke user callback if not built-in
           if ((resplen < 0) && (p_msc->sense_key == 0)) {
-            resplen = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.ep_buf, (uint16_t)p_msc->total_len);
+            resplen = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, (uint16_t)p_msc->total_len);
           }
 
           if (resplen < 0) {
@@ -436,7 +436,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             } else {
               // cannot return more than host expect
               p_msc->total_len = tu_min32((uint32_t)resplen, p_cbw->total_bytes);
-              TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.ep_buf, (uint16_t) p_msc->total_len));
+              TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.buf, (uint16_t) p_msc->total_len));
             }
           }
         }
@@ -445,7 +445,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
     case MSC_STAGE_DATA:
       TU_LOG_DRV("  SCSI Data [Lun%u]\r\n", p_cbw->lun);
-      //TU_LOG_MEM(MSC_DEBUG, p_msc->ep_buf, xferred_bytes, 2);
+      //TU_LOG_MEM(MSC_DEBUG, _mscd_epbuf.buf, xferred_bytes, 2);
 
       if (SCSI_CMD_READ_10 == p_cbw->command[0]) {
         p_msc->xferred_len += xferred_bytes;
@@ -463,7 +463,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
         // OUT transfer, invoke callback if needed
         if ( !is_data_in(p_cbw->dir) ) {
-          int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.ep_buf, (uint16_t) p_msc->total_len);
+          int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, (uint16_t) p_msc->total_len);
 
           if ( cb_result < 0 ) {
             // unsupported command
@@ -686,8 +686,8 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       };
 
       // vendor_id, product_id, product_rev is space padded string
-      memset(inquiry_rsp.vendor_id, ' ', sizeof(inquiry_rsp.vendor_id));
-      memset(inquiry_rsp.product_id, ' ', sizeof(inquiry_rsp.product_id));
+      memset(inquiry_rsp.vendor_id  , ' ', sizeof(inquiry_rsp.vendor_id));
+      memset(inquiry_rsp.product_id , ' ', sizeof(inquiry_rsp.product_id));
       memset(inquiry_rsp.product_rev, ' ', sizeof(inquiry_rsp.product_rev));
 
       tud_msc_inquiry_cb(lun, inquiry_rsp.vendor_id, inquiry_rsp.product_id, inquiry_rsp.product_rev);
@@ -765,7 +765,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc) {
 
   // Application can consume smaller bytes
   uint32_t const offset = p_msc->xferred_len % block_sz;
-  nbytes = tud_msc_read10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.ep_buf, (uint32_t)nbytes);
+  nbytes = tud_msc_read10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, (uint32_t)nbytes);
 
   if (nbytes < 0) {
     // negative means error -> endpoint is stalled & status in CSW set to failed
@@ -779,7 +779,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc) {
     // zero means not ready -> simulate an transfer complete so that this driver callback will fired again
     dcd_event_xfer_complete(rhport, p_msc->ep_in, 0, XFER_RESULT_SUCCESS, false);
   } else {
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.ep_buf, (uint16_t) nbytes),);
+    TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.buf, (uint16_t) nbytes),);
   }
 }
 
@@ -803,7 +803,7 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc) {
   uint16_t nbytes = (uint16_t)tu_min32(CFG_TUD_MSC_EP_BUFSIZE, p_cbw->total_bytes - p_msc->xferred_len);
 
   // Write10 callback will be called later when usb transfer complete
-  TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.ep_buf, nbytes),);
+  TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, nbytes),);
 }
 
 // process new data arrived from WRITE10
@@ -818,7 +818,7 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
 
   // Invoke callback to consume new data
   uint32_t const offset = p_msc->xferred_len % block_sz;
-  int32_t nbytes = tud_msc_write10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.ep_buf, xferred_bytes);
+  int32_t nbytes = tud_msc_write10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, xferred_bytes);
 
   if (nbytes < 0) {
     // negative means error -> failed this scsi op
@@ -837,7 +837,7 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
       uint32_t const left_over = xferred_bytes - (uint32_t)nbytes;
       if (nbytes > 0) {
         p_msc->xferred_len += (uint16_t)nbytes;
-        memmove(_mscd_epbuf.ep_buf, _mscd_epbuf.ep_buf + nbytes, left_over);
+        memmove(_mscd_epbuf.buf, _mscd_epbuf.buf + nbytes, left_over);
       }
 
       // simulate an transfer complete with adjusted parameters --> callback will be invoked with adjusted parameter
