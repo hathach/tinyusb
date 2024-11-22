@@ -202,8 +202,9 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
       notify_speed_change.uplink = 12000000;
     }
 
+    uint16_t notif_len = sizeof(notify_speed_change.header) + notify_speed_change.header.wLength;
     ncm_epbuf.epnotif = notify_speed_change;
-    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_epbuf.epnotif, sizeof(ncm_notify_t));
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_epbuf.epnotif, notif_len);
 
     ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
     ncm_interface.notification_xmit_is_running = true;
@@ -223,8 +224,9 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
       },
     };
 
+    uint16_t notif_len = sizeof(notify_connected.header) + notify_connected.header.wLength;
     ncm_epbuf.epnotif = notify_connected;
-    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_epbuf.epnotif, sizeof(ncm_notify_t));
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_epbuf.epnotif, notif_len);
 
     ncm_interface.notification_xmit_state = NOTIFICATION_DONE;
     ncm_interface.notification_xmit_is_running = true;
