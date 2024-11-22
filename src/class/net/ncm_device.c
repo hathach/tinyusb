@@ -124,6 +124,8 @@ typedef struct {
   struct {
     TUD_EPBUF_TYPE_DEF(ntb, xmit_ntb_t);
   } xmit[XMIT_NTB_N];
+
+  TUD_EPBUF_TYPE_DEF(epnotif, ncm_notify_t);
 } ncm_epbuf_t;
 
 static ncm_interface_t ncm_interface;
@@ -165,30 +167,6 @@ TU_ATTR_ALIGNED(4) static const ntb_parameters_t ntb_parameters = {
 //
 // everything about notifications
 //
-tu_static struct ncm_notify_t ncm_notify_connected = {
-    .header = {
-        .bmRequestType_bit = {
-            .recipient = TUSB_REQ_RCPT_INTERFACE,
-            .type = TUSB_REQ_TYPE_CLASS,
-            .direction = TUSB_DIR_IN},
-        .bRequest = CDC_NOTIF_NETWORK_CONNECTION,
-        .wValue = 1 /* Connected */,
-        .wLength = 0,
-    },
-};
-
-tu_static struct ncm_notify_t ncm_notify_speed_change = {
-    .header = {
-        .bmRequestType_bit = {
-            .recipient = TUSB_REQ_RCPT_INTERFACE,
-            .type = TUSB_REQ_TYPE_CLASS,
-            .direction = TUSB_DIR_IN},
-        .bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE,
-        .wLength = 8,
-    },
-    .downlink = TUD_OPT_HIGH_SPEED ? 480000000 : 12000000,
-    .uplink = TUD_OPT_HIGH_SPEED ? 480000000 : 12000000,
-};
 
 /**
  * Transmit next notification to the host (if appropriate).
@@ -203,14 +181,51 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
 
   if (ncm_interface.notification_xmit_state == NOTIFICATION_SPEED) {
     TU_LOG_DRV("  NOTIFICATION_SPEED\n");
-    ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
-    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_notify_speed_change, sizeof(ncm_notify_speed_change));
+    ncm_notify_t notify_speed_change = {
+      .header = {
+        .bmRequestType_bit = {
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
+          .type = TUSB_REQ_TYPE_CLASS,
+          .direction = TUSB_DIR_IN
+        },
+        .bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE,
+        .wValue = 0,
+        .wIndex = ncm_interface.itf_num,
+        .wLength = 8
+      }
+    };
+    if (tud_speed_get() == TUSB_SPEED_HIGH) {
+      notify_speed_change.downlink = 480000000;
+      notify_speed_change.uplink = 480000000;
+    } else {
+      notify_speed_change.downlink = 12000000;
+      notify_speed_change.uplink = 12000000;
+    }
+
+    ncm_epbuf.epnotif = notify_speed_change;
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_epbuf.epnotif, sizeof(ncm_notify_t));
+
     ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
     ncm_interface.notification_xmit_is_running = true;
   } else if (ncm_interface.notification_xmit_state == NOTIFICATION_CONNECTED) {
     TU_LOG_DRV("  NOTIFICATION_CONNECTED\n");
-    ncm_notify_connected.header.wIndex = ncm_interface.itf_num;
-    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_notify_connected, sizeof(ncm_notify_connected));
+    ncm_notify_t notify_connected = {
+      .header = {
+        .bmRequestType_bit = {
+          .recipient = TUSB_REQ_RCPT_INTERFACE,
+          .type = TUSB_REQ_TYPE_CLASS,
+          .direction = TUSB_DIR_IN
+        },
+        .bRequest = CDC_NOTIF_NETWORK_CONNECTION,
+        .wValue = 1 /* Connected */,
+        .wIndex = ncm_interface.itf_num,
+        .wLength = 0,
+      },
+    };
+
+    ncm_epbuf.epnotif = notify_connected;
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_epbuf.epnotif, sizeof(ncm_notify_t));
+
     ncm_interface.notification_xmit_state = NOTIFICATION_DONE;
     ncm_interface.notification_xmit_is_running = true;
   } else {
