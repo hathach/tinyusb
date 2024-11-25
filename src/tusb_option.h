@@ -252,11 +252,7 @@
   #define CFG_TUD_DWC2_SLAVE_ENABLE 1
 #endif
 
-// DWC2 controller: use DMA for data transfer
-// For processors with data cache enabled, USB endpoint buffer region
-// (defined by CFG_TUSB_MEM_SECTION) must be declared as non-cacheable.
-// For example, on Cortex-M7 the MPU region can be configured as normal
-// non-cacheable, with RASR register value: TEX=1 C=0 B=0 S=0.
+// Enable DWC2 DMA for device
 #ifndef CFG_TUD_DWC2_DMA_ENABLE
   #define CFG_TUD_DWC2_DMA_ENABLE 0
 #endif
@@ -407,7 +403,11 @@
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
-  #define CFG_TUSB_OS_INC_PATH
+  #ifndef CFG_TUSB_OS_INC_PATH_DEFAULT
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT
+  #endif
+
+  #define CFG_TUSB_OS_INC_PATH  CFG_TUSB_OS_INC_PATH_DEFAULT
 #endif
 
 //--------------------------------------------------------------------
@@ -433,7 +433,11 @@
 #endif
 
 #ifndef CFG_TUD_MEM_DCACHE_LINE_SIZE
-  #define CFG_TUD_MEM_DCACHE_LINE_SIZE 32
+  #ifndef CFG_TUD_MEM_DCACHE_LINE_SIZE_DEFAULT
+  #define CFG_TUD_MEM_DCACHE_LINE_SIZE_DEFAULT 32
+  #endif
+
+  #define CFG_TUD_MEM_DCACHE_LINE_SIZE CFG_TUD_MEM_DCACHE_LINE_SIZE_DEFAULT
 #endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
@@ -541,6 +545,22 @@
 // Attribute to align memory for host controller
 #ifndef CFG_TUH_MEM_ALIGN
   #define CFG_TUH_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
+#endif
+
+#ifndef CFG_TUH_MEM_DCACHE_ENABLE
+  #ifndef CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  0
+  #endif
+
+  #define CFG_TUH_MEM_DCACHE_ENABLE   CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT
+#endif
+
+#ifndef CFG_TUH_MEM_DCACHE_LINE_SIZE
+  #ifndef CFG_TUH_MEM_DCACHE_LINE_SIZE_DEFAULT
+  #define CFG_TUH_MEM_DCACHE_LINE_SIZE_DEFAULT 32
+  #endif
+
+  #define CFG_TUH_MEM_DCACHE_LINE_SIZE CFG_TUH_MEM_DCACHE_LINE_SIZE_DEFAULT
 #endif
 
 //------------- CLASS -------------//

@@ -31,6 +31,10 @@
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_DWC2)
 
+#if !CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE
+#error DWC2 require either CFG_TUD_DWC2_SLAVE_ENABLE or CFG_TUH_DWC2_DMA_ENABLE to be enabled
+#endif
+
 // Debug level for DWC2
 #define DWC2_DEBUG    2
 
@@ -58,13 +62,6 @@ static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
 typedef struct {
-  CFG_TUD_MEM_ALIGN union {
-    uint32_t setup_packet[2];
-#if CFG_TUD_MEM_DCACHE_ENABLE
-    uint8_t setup_packet_cache_padding[CFG_TUD_MEM_DCACHE_LINE_SIZE];
-#endif
-  };
-
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
   uint16_t ep0_pending[2];  // Index determines direction as tusb_dir_t type
   uint16_t dfifo_top;      // top free location in DFIFO in words
@@ -76,7 +73,11 @@ typedef struct {
   bool sof_en;
 } dcd_data_t;
 
-CFG_TUD_MEM_SECTION static dcd_data_t _dcd_data;
+static dcd_data_t _dcd_data;
+
+CFG_TUD_MEM_SECTION static struct {
+  TUD_EPBUF_DEF(setup_packet, 8);
+} _dcd_usbbuf;
 
 //--------------------------------------------------------------------
 // DMA
@@ -118,7 +119,7 @@ static void dma_setup_prepare(uint8_t rhport) {
 
   // Receive only 1 packet
   dwc2->epout[0].doeptsiz = (1 << DOEPTSIZ_STUPCNT_Pos) | (1 << DOEPTSIZ_PKTCNT_Pos) | (8 << DOEPTSIZ_XFRSIZ_Pos);
-  dwc2->epout[0].doepdma = (uintptr_t) _dcd_data.setup_packet;
+  dwc2->epout[0].doepdma = (uintptr_t) _dcd_usbbuf.setup_packet;
   dwc2->epout[0].doepctl |= DOEPCTL_EPENA | DOEPCTL_USBAEP;
 }
 
@@ -753,12 +754,14 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // Global OUT NAK: do nothing
       break;
 
-    case GRXSTS_PKTSTS_SETUP_RX:
+    case GRXSTS_PKTSTS_SETUP_RX: {
       // Setup packet received
+      uint32_t* setup = (uint32_t*)(uintptr_t) _dcd_usbbuf.setup_packet;
       // We can receive up to three setup packets in succession, but only the last one is valid.
-      _dcd_data.setup_packet[0] = (*rx_fifo);
-      _dcd_data.setup_packet[1] = (*rx_fifo);
+      setup[0] = (*rx_fifo);
+      setup[1] = (*rx_fifo);
       break;
+    }
 
     case GRXSTS_PKTSTS_SETUP_DONE:
       // Setup packet done:
@@ -804,7 +807,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
 static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
   if (doepint_bm.setup_phase_done) {
-    dcd_event_setup_received(rhport, (uint8_t*) _dcd_data.setup_packet, true);
+    dcd_event_setup_received(rhport, _dcd_usbbuf.setup_packet, true);
     return;
   }
 
@@ -880,8 +883,8 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
 
   if (doepint_bm.setup_phase_done) {
     dma_setup_prepare(rhport);
-    dcd_dcache_invalidate(_dcd_data.setup_packet, 8);
-    dcd_event_setup_received(rhport, (uint8_t*) _dcd_data.setup_packet, true);
+    dcd_dcache_invalidate(_dcd_usbbuf.setup_packet, 8);
+    dcd_event_setup_received(rhport, _dcd_usbbuf.setup_packet, true);
     return;
   }
 

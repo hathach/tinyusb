@@ -33,7 +33,7 @@
 
 // #define NEOPIXEL_PIN          48
 
-#define BUTTON_PIN            0
+#define BUTTON_PIN            35
 #define BUTTON_STATE_ACTIVE   0
 
 // For CI hardware test, to test both device and host on the same HS port with help of

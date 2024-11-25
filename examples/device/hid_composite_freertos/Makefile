@@ -14,7 +14,6 @@ INC += \
 
 # Example source
 EXAMPLE_SOURCE = \
-	src/freertos_hook.c \
 	src/main.c \
 	src/usb_descriptors.c
 

@@ -116,7 +116,6 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint
 //--------------------------------------------------------------------+
 #if CFG_TUD_DWC2_DMA_ENABLE || CFG_TUH_DWC2_DMA_ENABLE
 #if defined(SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE) && SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
-#include "hal/cache_hal.h"
 #include "esp_cache.h"
 
 #if CFG_TUD_MEM_DCACHE_LINE_SIZE != CONFIG_CACHE_L1_CACHE_LINE_SIZE || \

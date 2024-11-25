@@ -5,15 +5,15 @@ FREERTOS_PORTABLE_PATH = $(FREERTOS_SRC)/portable/$(if $(findstring iar,$(TOOLCH
 
 INC += \
 	src \
-	src/FreeRTOSConfig \
 	$(TOP)/hw \
+	${TOP}/${FAMILY_PATH}/FreeRTOSConfig \
 	$(TOP)/$(FREERTOS_SRC)/include \
 	$(TOP)/$(FREERTOS_PORTABLE_SRC) \
 
 # Example source
-EXAMPLE_SOURCE = \
-	src/main.c \
-	src/usb_descriptors.c
+EXAMPLE_SOURCE += \
+  src/main.c \
+  src/usb_descriptors.c \
 
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
@@ -28,10 +28,13 @@ SRC_C += \
 SRC_S += \
 	$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
 
-# Suppress FreeRTOS warnings
-CFLAGS += -Wno-error=cast-qual -Wno-error=redundant-decls
+# Suppress FreeRTOSConfig.h warnings
+CFLAGS_GCC += -Wno-error=redundant-decls
+
+# Suppress FreeRTOS source warnings
+CFLAGS_GCC += -Wno-error=cast-qual
 
 # FreeRTOS (lto + Os) linker issue
-LDFLAGS += -Wl,--undefined=vTaskSwitchContext
+LDFLAGS_GCC += -Wl,--undefined=vTaskSwitchContext
 
 include ../../build_system/make/rules.mk
