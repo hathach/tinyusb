@@ -83,22 +83,19 @@ CFG_TUD_MEM_SECTION static struct {
 // DMA
 //--------------------------------------------------------------------
 #if CFG_TUD_MEM_DCACHE_ENABLE
-void dcd_dcache_clean(const void* addr, uint32_t data_size) {
-  if (addr && data_size) {
-    dwc2_dcache_clean(addr, data_size);
-  }
+bool dcd_dcache_clean(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return dwc2_dcache_clean(addr, data_size);
 }
 
-void dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
-  if (addr && data_size) {
-    dwc2_dcache_invalidate(addr, data_size);
-  }
+bool dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return dwc2_dcache_invalidate(addr, data_size);
 }
 
-void dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
-  if (addr && data_size) {
-    dwc2_dcache_clean_invalidate(addr, data_size);
-  }
+bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return dwc2_dcache_clean_invalidate(addr, data_size);
 }
 #endif
 

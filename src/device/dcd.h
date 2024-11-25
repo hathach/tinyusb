@@ -93,15 +93,15 @@ typedef struct TU_ATTR_ALIGNED(4) {
 
 // clean/flush data cache: write cache -> memory.
 // Required before an DMA TX transfer to make sure data is in memory
-void dcd_dcache_clean(const void* addr, uint32_t data_size);
+bool dcd_dcache_clean(const void* addr, uint32_t data_size);
 
 // invalidate data cache: mark cache as invalid, next read will read from memory
 // Required BOTH before and after an DMA RX transfer
-void dcd_dcache_invalidate(const void* addr, uint32_t data_size);
+bool dcd_dcache_invalidate(const void* addr, uint32_t data_size);
 
 // clean and invalidate data cache
 // Required before an DMA transfer where memory is both read/write by DMA
-void dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size);
+bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size);
 
 //--------------------------------------------------------------------+
 // Controller API
