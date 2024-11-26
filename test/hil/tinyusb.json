@@ -4,7 +4,7 @@
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
             "build" : {
-                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"]
             },
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
@@ -20,7 +20,7 @@
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
             "build" : {
-                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"]
             },
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
@@ -133,7 +133,7 @@
             "name": "stm32f723disco",
             "uid": "460029001951373031313335",
             "build" : {
-                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"]
             },
             "tests": {
                 "device": true, "host": true, "dual": false,
