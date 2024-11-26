@@ -79,11 +79,6 @@ typedef struct {
 static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
 CFG_TUH_MEM_SECTION static msch_epbuf_t _msch_epbuf[CFG_TUH_DEVICE_MAX];
 
-// Epbuf for enumeration, shared for all devices
-CFG_TUH_MEM_SECTION static struct {
-  TUH_EPBUF_DEF(buf, 32);
-} _msch_enum_buf;
-
 TU_ATTR_ALWAYS_INLINE static inline msch_interface_t* get_itf(uint8_t daddr) {
   return &_msch_itf[daddr - 1];
 }
@@ -309,7 +304,9 @@ void msch_close(uint8_t dev_addr) {
 
   // invoke Application Callback
   if (p_msc->mounted) {
-    if (tuh_msc_umount_cb) tuh_msc_umount_cb(dev_addr);
+    if (tuh_msc_umount_cb) {
+      tuh_msc_umount_cb(dev_addr);
+    }
   }
 
   tu_memclr(p_msc, sizeof(msch_interface_t));
@@ -422,11 +419,12 @@ bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
       .wLength  = 1
   };
 
+  uint8_t* enum_buf = usbh_get_enum_buf();
   tuh_xfer_t xfer = {
       .daddr       = daddr,
       .ep_addr     = 0,
       .setup       = &request,
-      .buffer      = _msch_enum_buf.buf,
+      .buffer      = enum_buf,
       .complete_cb = config_get_maxlun_complete,
       .user_data    = 0
   };
@@ -441,7 +439,8 @@ static void config_get_maxlun_complete(tuh_xfer_t* xfer) {
 
   // MAXLUN's response is minus 1 by specs, STALL means 1
   if (XFER_RESULT_SUCCESS == xfer->result) {
-    p_msc->max_lun = _msch_enum_buf.buf[0] + 1;
+    uint8_t* enum_buf = usbh_get_enum_buf();
+    p_msc->max_lun = enum_buf[0] + 1;
   } else {
     p_msc->max_lun = 1;
   }
@@ -457,18 +456,19 @@ static void config_get_maxlun_complete(tuh_xfer_t* xfer) {
 static bool config_test_unit_ready_complete(uint8_t dev_addr, tuh_msc_complete_data_t const* cb_data) {
   msc_cbw_t const* cbw = cb_data->cbw;
   msc_csw_t const* csw = cb_data->csw;
+  uint8_t* enum_buf = usbh_get_enum_buf();
 
   if (csw->status == 0) {
     // Unit is ready, read its capacity
     TU_LOG_DRV("SCSI Read Capacity\r\n");
-    tuh_msc_read_capacity(dev_addr, cbw->lun, (scsi_read_capacity10_resp_t*) (uintptr_t) _msch_enum_buf.buf,
+    tuh_msc_read_capacity(dev_addr, cbw->lun, (scsi_read_capacity10_resp_t*) (uintptr_t) enum_buf,
                           config_read_capacity_complete, 0);
   } else {
     // Note: During enumeration, some device fails Test Unit Ready and require a few retries
     // with Request Sense to start working !!
     // TODO limit number of retries
     TU_LOG_DRV("SCSI Request Sense\r\n");
-    TU_ASSERT(tuh_msc_request_sense(dev_addr, cbw->lun, _msch_enum_buf.buf, config_request_sense_complete, 0));
+    TU_ASSERT(tuh_msc_request_sense(dev_addr, cbw->lun, enum_buf, config_request_sense_complete, 0));
   }
 
   return true;
@@ -488,15 +488,18 @@ static bool config_read_capacity_complete(uint8_t dev_addr, tuh_msc_complete_dat
   msc_csw_t const* csw = cb_data->csw;
   TU_ASSERT(csw->status == 0);
   msch_interface_t* p_msc = get_itf(dev_addr);
+  uint8_t* enum_buf = usbh_get_enum_buf();
 
   // Capacity response field: Block size and Last LBA are both Big-Endian
-  scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) (uintptr_t) _msch_enum_buf.buf;
+  scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) (uintptr_t) enum_buf;
   p_msc->capacity[cbw->lun].block_count = tu_ntohl(resp->last_lba) + 1;
   p_msc->capacity[cbw->lun].block_size  = tu_ntohl(resp->block_size);
 
   // Mark enumeration is complete
   p_msc->mounted = true;
-  if (tuh_msc_mount_cb) tuh_msc_mount_cb(dev_addr);
+  if (tuh_msc_mount_cb) {
+    tuh_msc_mount_cb(dev_addr);
+  }
 
   // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(dev_addr, p_msc->itf_num);
