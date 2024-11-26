@@ -54,13 +54,12 @@ typedef struct {
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t ep_out;
-
   uint8_t max_lun;
 
   volatile bool configured; // Receive SET_CONFIGURE
   volatile bool mounted;    // Enumeration is complete
 
-  //------------- SCSI -------------//
+  // SCSI command data
   uint8_t stage;
   void* buffer;
   tuh_msc_complete_cb_t complete_cb;
@@ -82,7 +81,7 @@ CFG_TUH_MEM_SECTION static msch_epbuf_t _msch_epbuf[CFG_TUH_DEVICE_MAX];
 
 // Epbuf for enumeration, shared for all devices
 CFG_TUH_MEM_SECTION static struct {
-  TUH_EPBUF_DEF(buf, 32); // TODO make this configurable
+  TUH_EPBUF_DEF(buf, 32);
 } _msch_enum_buf;
 
 TU_ATTR_ALWAYS_INLINE static inline msch_interface_t* get_itf(uint8_t daddr) {
@@ -141,10 +140,10 @@ bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
   msch_epbuf_t* epbuf = get_epbuf(daddr);
 
   epbuf->cbw = *cbw;
-  p_msc->stage = MSC_STAGE_CMD;
   p_msc->buffer = data;
   p_msc->complete_cb = complete_cb;
   p_msc->complete_arg = arg;
+  p_msc->stage = MSC_STAGE_CMD;
 
   if (!usbh_edpt_xfer(daddr, p_msc->ep_out, (uint8_t*) &epbuf->cbw, sizeof(msc_cbw_t))) {
     usbh_edpt_release(daddr, p_msc->ep_out);
@@ -292,6 +291,7 @@ bool tuh_msc_reset(uint8_t dev_addr) {
 //--------------------------------------------------------------------+
 bool msch_init(void) {
   TU_LOG_DRV("sizeof(msch_interface_t) = %u\r\n", sizeof(msch_interface_t));
+  TU_LOG_DRV("sizeof(msch_epbuf_t) = %u\r\n", sizeof(msch_epbuf_t));
   tu_memclr(_msch_itf, sizeof(_msch_itf));
   return true;
 }
@@ -325,18 +325,15 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
     case MSC_STAGE_CMD:
       // Must be Command Block
       TU_ASSERT(ep_addr == p_msc->ep_out && event == XFER_RESULT_SUCCESS && xferred_bytes == sizeof(msc_cbw_t));
-
       if (cbw->total_bytes && p_msc->buffer) {
         // Data stage if any
         p_msc->stage = MSC_STAGE_DATA;
         uint8_t const ep_data = (cbw->dir & TUSB_DIR_IN_MASK) ? p_msc->ep_in : p_msc->ep_out;
         TU_ASSERT(usbh_edpt_xfer(dev_addr, ep_data, p_msc->buffer, (uint16_t) cbw->total_bytes));
-      } else {
-        // Status stage
-        p_msc->stage = MSC_STAGE_STATUS;
-        TU_ASSERT(usbh_edpt_xfer(dev_addr, p_msc->ep_in, (uint8_t*) csw, (uint16_t) sizeof(msc_csw_t)));
+        break;
       }
-      break;
+
+      TU_ATTR_FALLTHROUGH; // fallthrough to status stage
 
     case MSC_STAGE_DATA:
       // Status stage
