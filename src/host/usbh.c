@@ -152,65 +152,65 @@ typedef struct {
 #endif
 
 static usbh_class_driver_t const usbh_class_drivers[] = {
-    #if CFG_TUH_CDC
-    {
-        .name       = DRIVER_NAME("CDC"),
-        .init       = cdch_init,
-        .deinit     = cdch_deinit,
-        .open       = cdch_open,
-        .set_config = cdch_set_config,
-        .xfer_cb    = cdch_xfer_cb,
-        .close      = cdch_close
-    },
-    #endif
+  #if CFG_TUH_CDC
+  {
+      .name       = DRIVER_NAME("CDC"),
+      .init       = cdch_init,
+      .deinit     = cdch_deinit,
+      .open       = cdch_open,
+      .set_config = cdch_set_config,
+      .xfer_cb    = cdch_xfer_cb,
+      .close      = cdch_close
+  },
+  #endif
 
-    #if CFG_TUH_MSC
-    {
-        .name       = DRIVER_NAME("MSC"),
-        .init       = msch_init,
-        .deinit     = msch_deinit,
-        .open       = msch_open,
-        .set_config = msch_set_config,
-        .xfer_cb    = msch_xfer_cb,
-        .close      = msch_close
-    },
-    #endif
+  #if CFG_TUH_MSC
+  {
+      .name       = DRIVER_NAME("MSC"),
+      .init       = msch_init,
+      .deinit     = msch_deinit,
+      .open       = msch_open,
+      .set_config = msch_set_config,
+      .xfer_cb    = msch_xfer_cb,
+      .close      = msch_close
+  },
+  #endif
 
-    #if CFG_TUH_HID
-    {
-        .name       = DRIVER_NAME("HID"),
-        .init       = hidh_init,
-        .deinit     = hidh_deinit,
-        .open       = hidh_open,
-        .set_config = hidh_set_config,
-        .xfer_cb    = hidh_xfer_cb,
-        .close      = hidh_close
-    },
-    #endif
+  #if CFG_TUH_HID
+  {
+      .name       = DRIVER_NAME("HID"),
+      .init       = hidh_init,
+      .deinit     = hidh_deinit,
+      .open       = hidh_open,
+      .set_config = hidh_set_config,
+      .xfer_cb    = hidh_xfer_cb,
+      .close      = hidh_close
+  },
+  #endif
 
-    #if CFG_TUH_HUB
-    {
-        .name       = DRIVER_NAME("HUB"),
-        .init       = hub_init,
-        .deinit     = hub_deinit,
-        .open       = hub_open,
-        .set_config = hub_set_config,
-        .xfer_cb    = hub_xfer_cb,
-        .close      = hub_close
-    },
-    #endif
+  #if CFG_TUH_HUB
+  {
+      .name       = DRIVER_NAME("HUB"),
+      .init       = hub_init,
+      .deinit     = hub_deinit,
+      .open       = hub_open,
+      .set_config = hub_set_config,
+      .xfer_cb    = hub_xfer_cb,
+      .close      = hub_close
+  },
+  #endif
 
-    #if CFG_TUH_VENDOR
-    {
-      .name       = DRIVER_NAME("VENDOR"),
-      .init       = cush_init,
-      .deinit     = cush_deinit,
-      .open       = cush_open,
-      .set_config = cush_set_config,
-      .xfer_cb    = cush_isr,
-      .close      = cush_close
-    }
-    #endif
+  #if CFG_TUH_VENDOR
+  {
+    .name       = DRIVER_NAME("VENDOR"),
+    .init       = cush_init,
+    .deinit     = cush_deinit,
+    .open       = cush_open,
+    .set_config = cush_set_config,
+    .xfer_cb    = cush_isr,
+    .close      = cush_close
+  }
+  #endif
 };
 
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
