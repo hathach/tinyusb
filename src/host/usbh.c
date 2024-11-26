@@ -278,7 +278,7 @@ static struct {
 } _ctrl_xfer;
 
 typedef struct {
-  TUH_EPBUF_TYPE_DEF(request, tusb_control_request_t);
+  TUH_EPBUF_TYPE_DEF(tusb_control_request_t, request);
   TUH_EPBUF_DEF(ctrl, CFG_TUH_ENUMERATION_BUFSIZE);
 } usbh_epbuf_t;
 
