@@ -249,12 +249,20 @@
 //--------------------------------------------------------------------+
 
 #ifndef CFG_TUD_DWC2_SLAVE_ENABLE
-  #define CFG_TUD_DWC2_SLAVE_ENABLE 1
+  #ifndef CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT 1
+  #endif
+
+  #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
 #endif
 
 // Enable DWC2 DMA for device
 #ifndef CFG_TUD_DWC2_DMA_ENABLE
-  #define CFG_TUD_DWC2_DMA_ENABLE 0
+  #ifndef CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
+  #define CFG_TUD_DWC2_DMA_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
 // Enable DWC2 Slave mode for host
@@ -269,7 +277,7 @@
 // Enable DWC2 DMA for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
   #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
-  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 1
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
   #endif
 
   #define CFG_TUH_DWC2_DMA_ENABLE   CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
