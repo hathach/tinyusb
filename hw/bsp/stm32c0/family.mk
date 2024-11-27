@@ -11,7 +11,8 @@ CPU_CORE ?= cortex-m0plus
 # Compiler Flags
 # --------------
 CFLAGS += \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32C0
+  -DCFG_TUSB_MCU=OPT_MCU_STM32C0 \
+  -DCFG_EXAMPLE_VIDEO_READONLY \
 
 # GCC Flags
 CFLAGS_GCC += \

@@ -54,8 +54,9 @@ function(add_board_target BOARD_TARGET)
     ${ST_CMSIS}/Include
     ${ST_HAL_DRIVER}/Inc
     )
-#    target_compile_options(${BOARD_TARGET} PUBLIC)
-#    target_compile_definitions(${BOARD_TARGET} PUBLIC)
+  target_compile_definitions(${BOARD_TARGET} PUBLIC
+    CFG_EXAMPLE_VIDEO_READONLY
+    )
 
   update_board(${BOARD_TARGET})
 
