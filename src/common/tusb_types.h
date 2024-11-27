@@ -47,7 +47,7 @@
   }
 
 // Declare an endpoint buffer with a type
-#define TUD_EPBUF_TYPE_DEF(_name, _type) \
+#define TUD_EPBUF_TYPE_DEF(_type, _name) \
   union { \
     CFG_TUD_MEM_ALIGN _type _name; \
     uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(sizeof(_type))]; \

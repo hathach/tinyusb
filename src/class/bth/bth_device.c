@@ -52,7 +52,7 @@ typedef struct {
 
 typedef struct {
   TUD_EPBUF_DEF(epout_buf, CFG_TUD_BTH_DATA_EPSIZE);
-  TUD_EPBUF_TYPE_DEF(hci_cmd, bt_hci_cmd_t);
+  TUD_EPBUF_TYPE_DEF(bt_hci_cmd_t, hci_cmd);
 } btd_epbuf_t;
 
 //--------------------------------------------------------------------+
