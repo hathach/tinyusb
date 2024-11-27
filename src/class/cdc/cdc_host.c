@@ -78,8 +78,8 @@ typedef struct {
 } cdch_interface_t;
 
 typedef struct {
-  TUH_EPBUF_DEF(tx_ep_buf, CFG_TUH_CDC_TX_EPSIZE);
-  TUH_EPBUF_DEF(rx_ep_buf, CFG_TUH_CDC_TX_EPSIZE);
+  TUH_EPBUF_DEF(tx, CFG_TUH_CDC_TX_EPSIZE);
+  TUH_EPBUF_DEF(rx, CFG_TUH_CDC_TX_EPSIZE);
 } cdch_epbuf_t;
 
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
@@ -631,11 +631,11 @@ bool cdch_init(void) {
     cdch_epbuf_t* epbuf = &cdch_epbuf[i];
     tu_edpt_stream_init(&p_cdc->stream.tx, true, true, false,
                         p_cdc->stream.tx_ff_buf, CFG_TUH_CDC_TX_BUFSIZE,
-                        epbuf->tx_ep_buf, CFG_TUH_CDC_TX_EPSIZE);
+                        epbuf->tx, CFG_TUH_CDC_TX_EPSIZE);
 
     tu_edpt_stream_init(&p_cdc->stream.rx, true, false, false,
                         p_cdc->stream.rx_ff_buf, CFG_TUH_CDC_RX_BUFSIZE,
-                        epbuf->rx_ep_buf, CFG_TUH_CDC_RX_EPSIZE);
+                        epbuf->rx, CFG_TUH_CDC_RX_EPSIZE);
   }
 
   return true;

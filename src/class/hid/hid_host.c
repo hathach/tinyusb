@@ -61,8 +61,8 @@ typedef struct {
 } hidh_interface_t;
 
 typedef struct {
-  TUH_EPBUF_DEF(epin_buf, CFG_TUH_HID_EPIN_BUFSIZE);
-  TUH_EPBUF_DEF(epout_buf, CFG_TUH_HID_EPOUT_BUFSIZE);
+  TUH_EPBUF_DEF(epin, CFG_TUH_HID_EPIN_BUFSIZE);
+  TUH_EPBUF_DEF(epout, CFG_TUH_HID_EPOUT_BUFSIZE);
 } hidh_epbuf_t;
 
 static hidh_interface_t _hidh_itf[CFG_TUH_HID];
@@ -363,7 +363,7 @@ bool tuh_hid_receive_report(uint8_t daddr, uint8_t idx) {
   // claim endpoint
   TU_VERIFY(usbh_edpt_claim(daddr, p_hid->ep_in));
 
-  if (!usbh_edpt_xfer(daddr, p_hid->ep_in, epbuf->epin_buf, p_hid->epin_size)) {
+  if (!usbh_edpt_xfer(daddr, p_hid->ep_in, epbuf->epin, p_hid->epin_size)) {
     usbh_edpt_release(daddr, p_hid->ep_in);
     return false;
   }
@@ -403,16 +403,16 @@ bool tuh_hid_send_report(uint8_t daddr, uint8_t idx, uint8_t report_id, const vo
 
   if (report_id == 0) {
     // No report ID in transmission
-    memcpy(&epbuf->epout_buf[0], report, len);
+    memcpy(&epbuf->epout[0], report, len);
   } else {
-    epbuf->epout_buf[0] = report_id;
-    memcpy(&epbuf->epout_buf[1], report, len);
+    epbuf->epout[0] = report_id;
+    memcpy(&epbuf->epout[1], report, len);
     ++len; // 1 more byte for report_id
   }
 
   TU_LOG3_MEM(p_hid->epout_buf, len, 2);
 
-  if (!usbh_edpt_xfer(daddr, p_hid->ep_out, epbuf->epout_buf, len)) {
+  if (!usbh_edpt_xfer(daddr, p_hid->ep_out, epbuf->epout, len)) {
     usbh_edpt_release(daddr, p_hid->ep_out);
     return false;
   }
@@ -446,10 +446,10 @@ bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t
   if (dir == TUSB_DIR_IN) {
     TU_LOG_DRV("  Get Report callback (%u, %u)\r\n", daddr, idx);
     TU_LOG3_MEM(p_hid->epin_buf, xferred_bytes, 2);
-    tuh_hid_report_received_cb(daddr, idx, epbuf->epin_buf, (uint16_t) xferred_bytes);
+    tuh_hid_report_received_cb(daddr, idx, epbuf->epin, (uint16_t) xferred_bytes);
   } else {
     if (tuh_hid_report_sent_cb) {
-      tuh_hid_report_sent_cb(daddr, idx, epbuf->epout_buf, (uint16_t) xferred_bytes);
+      tuh_hid_report_sent_cb(daddr, idx, epbuf->epout, (uint16_t) xferred_bytes);
     }
   }
 

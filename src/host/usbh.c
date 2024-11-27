@@ -1477,8 +1477,6 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       dev->i_product = desc_device->iProduct;
       dev->i_serial = desc_device->iSerialNumber;
 
-      //  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_epbuf.ctrl);
-
       // Get 9-byte for total length
       uint8_t const config_idx = CONFIG_NUM - 1;
       TU_LOG_USBH("Get Configuration[0] Descriptor (9 bytes)\r\n");
