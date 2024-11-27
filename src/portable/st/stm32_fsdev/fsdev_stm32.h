@@ -104,6 +104,20 @@
   #define USB_CNTR_LPMODE USB_CNTR_SUSPRDY
   #define USB_CNTR_FSUSP USB_CNTR_SUSPEN
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C0
+  #include "stm32c0xx.h"
+  #define FSDEV_PMA_SIZE (2048u)
+  #define USB USB_DRD_FS
+  #define USB_EP_CTR_RX USB_CHEP_VTRX
+  #define USB_EP_CTR_TX USB_CHEP_VTTX
+  #define USB_EPREG_MASK USB_CHEP_REG_MASK
+  #define USB_CNTR_FRES USB_CNTR_USBRST
+  #define USB_CNTR_RESUME USB_CNTR_L2RES
+  #define USB_ISTR_EP_ID USB_ISTR_IDN
+  #define USB_EPADDR_FIELD USB_CHEP_ADDR
+  #define USB_CNTR_LPMODE USB_CNTR_SUSPRDY
+  #define USB_CNTR_FSUSP USB_CNTR_SUSPEN
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H5
   #include "stm32h5xx.h"
   #define FSDEV_PMA_SIZE (2048u)
@@ -260,6 +274,8 @@ static const IRQn_Type fsdev_irq[] = {
     #else
     USB_UCPD1_2_IRQn,
     #endif
+  #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
+    USB_DRD_FS_IRQn,
   #elif TU_CHECK_MCU(OPT_MCU_STM32G4, OPT_MCU_STM32L1)
     USB_HP_IRQn,
     USB_LP_IRQn,
