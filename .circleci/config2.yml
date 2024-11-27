@@ -121,6 +121,7 @@ commands:
                 TOOLCHAIN_OPTION="--toolchain clang"
               elif [ << parameters.toolchain >> == arm-iar ]; then
                 TOOLCHAIN_OPTION="--toolchain iar"
+                iccarm --version
               elif [ << parameters.toolchain >> == arm-gcc ]; then
                 TOOLCHAIN_OPTION="--toolchain gcc"
               fi
