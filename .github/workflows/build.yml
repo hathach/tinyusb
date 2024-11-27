@@ -125,6 +125,9 @@ jobs:
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
+      - name: Toolchain version
+        run: iccarm --version
+
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
