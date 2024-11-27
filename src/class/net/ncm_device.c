@@ -748,7 +748,7 @@ void tud_network_recv_renew(void) {
 /**
  * Same as tud_network_recv_renew() but knows \a rhport
  */
-void tud_network_recv_renew_r(uint8_t rhport) {
+static void tud_network_recv_renew_r(uint8_t rhport) {
   TU_LOG_DRV("tud_network_recv_renew_r(%d)\n", rhport);
 
   ncm_interface.rhport = rhport;

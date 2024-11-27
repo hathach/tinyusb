@@ -490,13 +490,13 @@ TU_ATTR_WEAK bool tud_audio_feedback_format_correction_cb(uint8_t func_id) {
   (void) func_id;
   return CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION;
 }
-#endif
 
 TU_ATTR_WEAK TU_ATTR_FAST_FUNC void tud_audio_feedback_interval_isr(uint8_t func_id, uint32_t frame_number, uint8_t interval_shift) {
   (void) func_id;
   (void) frame_number;
   (void) interval_shift;
 }
+#endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
 TU_ATTR_WEAK void tud_audio_int_done_cb(uint8_t rhport) {
