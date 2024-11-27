@@ -69,6 +69,7 @@ if (DEFINED LOG)
 endif()
 
 if(DEFINED CFLAGS_CLI)
+  separate_arguments(CFLAGS_CLI)
   list(APPEND compile_definitions ${CFLAGS_CLI})
 endif()
 
