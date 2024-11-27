@@ -1,0 +1,73 @@
+name: ESP-IDF USB Device examples
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        idf_ver: ["release-v5.0", "release-v5.1", "release-v5.2", "release-v5.3", "release-v5.4", "latest"]
+      fail-fast: false
+    runs-on: ubuntu-20.04
+    container: espressif/idf:${{ matrix.idf_ver }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: bash
+        run: |
+          . ${IDF_PATH}/export.sh
+          pip install idf-component-manager==1.5.2 idf-build-apps==2.4.3 --upgrade
+          export EXAMPLES_PATH="${IDF_PATH}/examples/peripherals/usb/device"
+          export MANIFEST_FILE="${IDF_PATH}/examples/peripherals/.build-test-rules.yml"
+          python .github/ci/override_managed_component.py tinyusb . ${EXAMPLES_PATH}/tusb_*
+          idf-build-apps find --path ${EXAMPLES_PATH}/ --recursive --target esp32s2 --manifest-file ${MANIFEST_FILE}
+          idf-build-apps build --path ${EXAMPLES_PATH}/ --recursive --target esp32s2 --manifest-file ${MANIFEST_FILE}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usb_device_tusb_apps_bin_${{ matrix.idf_ver }}
+          path: |
+              /opt/esp/idf/examples/peripherals/usb/device/tusb_*/build/bootloader/bootloader.bin
+              /opt/esp/idf/examples/peripherals/usb/device/tusb_*/build/partition_table/partition-table.bin
+              /opt/esp/idf/examples/peripherals/usb/device/tusb_*/build/tusb_*.bin
+              /opt/esp/idf/examples/peripherals/usb/device/tusb_*/build/tusb_*.elf
+              /opt/esp/idf/examples/peripherals/usb/device/tusb_*/build/flasher_args.json
+              /opt/esp/idf/examples/peripherals/usb/device/tusb_*/build/config/sdkconfig.json
+          if-no-files-found: error
+  run-target:
+    name: Run
+    if: ${{ github.repository_owner == 'espressif' }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        idf_ver: ["release-v5.3", "release-v5.4", "latest"]
+        idf_target: ["esp32s2"]
+        runner_tag: ["usb_device"]
+    runs-on: [self-hosted, linux, docker, "${{ matrix.idf_target }}", "${{ matrix.runner_tag }}"]
+    container:
+      image: espressif/idf:${{ matrix.idf_ver }}
+      options: --privileged --device-cgroup-rule="c 188:* rmw" --device-cgroup-rule="c 166:* rmw"
+    steps:
+      - name: ⚙️ Install System tools
+        run: |
+          apt update
+          apt install net-tools
+      - name: ⚙️ Install Python packages
+        env:
+          PIP_EXTRA_INDEX_URL: "https://dl.espressif.com/pypi/"
+        run: |
+          cd ${IDF_PATH}
+          . ./export.sh
+          pip install --only-binary cryptography pytest-embedded pytest-embedded-serial-esp pytest-embedded-idf pyserial pyusb python-gitlab minio idf-build-apps pytest_ignore_test_results pytest-timeout netifaces
+      - uses: actions/download-artifact@v4
+        with:
+          name: usb_device_tusb_apps_bin_${{ matrix.idf_ver }}
+          path: /opt/esp/idf/examples/peripherals/usb/device
+      - name: Run USB Test App on target
+        run: |
+          cd ${IDF_PATH}
+          . ./export.sh
+          export EXAMPLES_PATH="${IDF_PATH}/examples/peripherals/usb/device"
+          pytest ${EXAMPLES_PATH} --target ${{ matrix.idf_target }} -m ${{ matrix.runner_tag }} --ignore-result-cases=*ncm_example
