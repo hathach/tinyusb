@@ -1654,6 +1654,13 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
 
   // parse each interfaces
   while( p_desc < desc_end ) {
+    if ( 0 == tu_desc_len(p_desc) ) {
+      // A zero length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
+      // Parsed interfaces should still be usable
+      TU_LOG_USBH("Encountered a zero-length descriptor after %u bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
+      break;
+    }
+
     uint8_t assoc_itf_count = 1;
 
     // Class will always starts with Interface Association (if any) and then Interface descriptor
