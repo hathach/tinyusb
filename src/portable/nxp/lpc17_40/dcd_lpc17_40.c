@@ -167,9 +167,9 @@ static void bus_reset(void)
   tu_memclr(&_dcd, sizeof(dcd_data_t));
 }
 
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   //------------- user manual 11.13 usb device controller initialization -------------//
   // step 6 : set up control endpoint
@@ -186,6 +186,8 @@ void dcd_init(uint8_t rhport)
 
   // Clear pending IRQ
   NVIC_ClearPendingIRQ(USB_IRQn);
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

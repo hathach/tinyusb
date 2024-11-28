@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import json
 
 # toolchain, url
@@ -35,7 +36,7 @@ family_list = {
     "samd11 saml2x": ["arm-gcc", "arm-clang"],
     "samd21": ["arm-gcc", "arm-clang"],
     "samd5x_e5x samg": ["arm-gcc", "arm-clang"],
-    "stm32f0 stm32f1 stm32f2 stm32f3": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32c0 stm32f0 stm32f1 stm32f2 stm32f3": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f4": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f7": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32g0 stm32g4 stm32h5": ["arm-gcc", "arm-clang", "arm-iar"],

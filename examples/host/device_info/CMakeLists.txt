@@ -19,13 +19,13 @@ add_executable(${PROJECT})
 
 # Example source
 target_sources(${PROJECT} PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
-        )
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
+  )
 
 # Example include
 target_include_directories(${PROJECT} PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        )
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  )
 
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.

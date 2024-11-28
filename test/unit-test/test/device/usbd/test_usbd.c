@@ -39,6 +39,10 @@ TEST_FILE("usbd_control.c")
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+uint32_t tusb_time_millis_api(void) {
+  return 0;
+}
+
 enum
 {
   EDPT_CTRL_OUT = 0x00,
@@ -102,38 +106,38 @@ uint8_t const* desc_configuration;
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-uint8_t const * tud_descriptor_device_cb(void)
-{
+uint8_t const * tud_descriptor_device_cb(void) {
   return desc_device;
 }
 
-uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
-{
+uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
   return desc_configuration;
 }
 
-uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
-{
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
   (void) langid;
 
   return NULL;
 }
 
-void setUp(void)
-{
+void setUp(void) {
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
 
-  if ( !tud_inited() )
-  {
+  if ( !tud_inited() ) {
+    tusb_rhport_init_t dev_init = {
+      .role = TUSB_ROLE_DEVICE,
+      .speed = TUSB_SPEED_AUTO
+    };
+
     mscd_init_Expect();
-    dcd_init_Expect(rhport);
-    tusb_init();
+    dcd_init_ExpectAndReturn(0, &dev_init, true);
+
+    tusb_init(0, &dev_init);
   }
 }
 
-void tearDown(void)
-{
+void tearDown(void) {
 }
 
 //--------------------------------------------------------------------+

@@ -13,7 +13,6 @@ INC += \
 # Example source
 EXAMPLE_SOURCE = \
   src/cdc_app.c \
-  src/freertos_hook.c \
   src/hid_app.c \
   src/main.c \
   src/msc_app.c \

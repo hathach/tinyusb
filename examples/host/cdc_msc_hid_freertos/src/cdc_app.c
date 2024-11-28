@@ -27,23 +27,9 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 
-#if TUP_MCU_ESPRESSIF
-// ESP-IDF need "freertos/" prefix in include path.
-// CFG_TUSB_OS_INC_PATH should be defined accordingly.
-  #include "freertos/FreeRTOS.h"
-  #include "freertos/semphr.h"
-  #include "freertos/queue.h"
-  #include "freertos/task.h"
-  #include "freertos/timers.h"
-
+#if TUSB_MCU_VENDOR_ESPRESSIF
   #define CDC_STACK_SZIE      2048
 #else
-  #include "FreeRTOS.h"
-  #include "semphr.h"
-  #include "queue.h"
-  #include "task.h"
-  #include "timers.h"
-
   #define CDC_STACK_SZIE     (3*configMINIMAL_STACK_SIZE/2)
 #endif
 

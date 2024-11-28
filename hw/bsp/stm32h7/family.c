@@ -30,10 +30,34 @@
 #include "stm32h7xx_hal.h"
 #include "bsp/board_api.h"
 
-TU_ATTR_UNUSED static void Error_Handler(void) {
-}
+TU_ATTR_UNUSED static void Error_Handler(void) { }
+
+typedef struct {
+  GPIO_TypeDef* port;
+  GPIO_InitTypeDef pin_init;
+  uint8_t active_state;
+} board_pindef_t;
 
 #include "board.h"
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
+
+#ifdef UART_DEV
+UART_HandleTypeDef UartHandle = {
+  .Instance = UART_DEV,
+  .Init = {
+    .BaudRate = CFG_BOARD_UART_BAUDRATE,
+    .WordLength = UART_WORDLENGTH_8B,
+    .StopBits = UART_STOPBITS_1,
+    .Parity = UART_PARITY_NONE,
+    .HwFlowCtl = UART_HWCONTROL_NONE,
+    .Mode = UART_MODE_TX_RX,
+    .OverSampling = UART_OVERSAMPLING_16,
+  }
+};
+#endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -42,31 +66,18 @@ TU_ATTR_UNUSED static void Error_Handler(void) {
 // Despite being call USB2_OTG_FS on some MCUs
 // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
 void OTG_FS_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
 
 // Despite being call USB1_OTG_HS on some MCUs
 // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
 void OTG_HS_IRQHandler(void) {
-  tud_int_handler(1);
+  tusb_int_handler(1, true);
 }
-
-
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM
-//--------------------------------------------------------------------+
-
-UART_HandleTypeDef UartHandle;
-
-//--------------------------------------------------------------------+
-//
-//--------------------------------------------------------------------+
 
 #ifdef TRACE_ETM
 void trace_etm_init(void) {
   // H7 trace pin is PE2 to PE6
-  // __HAL_RCC_GPIOE_CLK_ENABLE();
-
   GPIO_InitTypeDef  gpio_init;
   gpio_init.Pin       = GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
   gpio_init.Mode      = GPIO_MODE_AF_PP;
@@ -88,22 +99,23 @@ void board_init(void) {
 
   // Enable All GPIOs clocks
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE(); // USB ULPI NXT
-  __HAL_RCC_GPIOC_CLK_ENABLE(); // USB ULPI NXT
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
-  __HAL_RCC_GPIOH_CLK_ENABLE(); // USB ULPI NXT
+  __HAL_RCC_GPIOH_CLK_ENABLE();
 #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
-  __HAL_RCC_GPIOI_CLK_ENABLE(); // USB ULPI NXT
+  __HAL_RCC_GPIOI_CLK_ENABLE();
 #endif
   __HAL_RCC_GPIOJ_CLK_ENABLE();
 
   trace_etm_init();
 
-  // Enable UART Clock
-  UART_CLK_EN();
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(board_pindef); i++) {
+    HAL_GPIO_Init(board_pindef[i].port, &board_pindef[i].pin_init);
+  }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -114,47 +126,21 @@ void board_init(void) {
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-#ifdef USB_OTG_FS_PERIPH_BASE
+  #ifdef USB_OTG_FS_PERIPH_BASE
   NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
-#endif
+  #endif
+
   NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;
 
-  // LED
-  GPIO_InitStruct.Pin = LED_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
-
-  // Button
-  GPIO_InitStruct.Pin = BUTTON_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
-
-  // Uart
-  GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = UART_GPIO_AF;
-  HAL_GPIO_Init(UART_GPIO_PORT, &GPIO_InitStruct);
-
-  UartHandle.Instance = UART_DEV;
-  UartHandle.Init.BaudRate = CFG_BOARD_UART_BAUDRATE;
-  UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
-  UartHandle.Init.StopBits = UART_STOPBITS_1;
-  UartHandle.Init.Parity = UART_PARITY_NONE;
-  UartHandle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  UartHandle.Init.Mode = UART_MODE_TX_RX;
-  UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
+#ifdef UART_DEV
+  UART_CLK_EN();
   HAL_UART_Init(&UartHandle);
+#endif
 
-#if BOARD_TUD_RHPORT == 0
+  //------------- USB FS -------------//
   // Despite being call USB2_OTG
   // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
   // PA9 VUSB, PA10 ID, PA11 DM, PA12 DP
@@ -198,20 +184,18 @@ void board_init(void) {
   USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif // vbus sense
 
-#elif BOARD_TUD_RHPORT == 1
+  //------------- USB HS -------------//
+#if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 1)
   // Despite being call USB2_OTG
   // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
-
   struct {
     GPIO_TypeDef* port;
     uint32_t pin;
-  } const ulpi_pins[] =
-  {
+  } const ulpi_pins[] = {
     ULPI_PINS
   };
 
-  for (uint8_t i=0; i < sizeof(ulpi_pins)/sizeof(ulpi_pins[0]); i++)
-  {
+  for (uint8_t i=0; i < sizeof(ulpi_pins)/sizeof(ulpi_pins[0]); i++) {
     GPIO_InitStruct.Pin       = ulpi_pins[i].pin;
     GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull      = GPIO_NOPULL;
@@ -238,12 +222,15 @@ void board_init(void) {
   // Force device mode
   USB_OTG_HS->GUSBCFG &= ~USB_OTG_GUSBCFG_FHMOD;
   USB_OTG_HS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
+#endif
 
   HAL_PWREx_EnableUSBVoltageDetector();
 
-  // For waveshare openh743 ULPI PHY reset walkaround
-  board_stm32h7_post_init();
-#endif // rhport = 1
+  board_init2(); // optional init
+
+#if CFG_TUH_ENABLED
+  board_vbus_set(BOARD_TUH_RHPORT, 1);
+#endif
 
 }
 
@@ -252,12 +239,22 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 
 void board_led_write(bool state) {
-  GPIO_PinState pin_state = (GPIO_PinState)(state ? LED_STATE_ON : (1 - LED_STATE_ON));
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, pin_state);
+#ifdef PINID_LED
+  board_pindef_t* pindef = &board_pindef[PINID_LED];
+  GPIO_PinState pin_state = state == pindef->active_state ? GPIO_PIN_SET : GPIO_PIN_RESET;
+  HAL_GPIO_WritePin(pindef->port, pindef->pin_init.Pin, pin_state);
+#else
+  (void) state;
+#endif
 }
 
 uint32_t board_button_read(void) {
-  return (BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) ? 1 : 0;
+#ifdef PINID_BUTTON
+  board_pindef_t* pindef = &board_pindef[PINID_BUTTON];
+  return pindef->active_state == HAL_GPIO_ReadPin(pindef->port, pindef->pin_init.Pin);
+#else
+  return 0;
+#endif
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
@@ -280,11 +277,15 @@ int board_uart_read(uint8_t *buf, int len) {
 }
 
 int board_uart_write(void const *buf, int len) {
+#ifdef UART_DEV
   HAL_UART_Transmit(&UartHandle, (uint8_t * )(uintptr_t)
   buf, len, 0xffff);
   return len;
+#else
+  (void) buf; (void) len;
+  return -1;
+#endif
 }
-
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;

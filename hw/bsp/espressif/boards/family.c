@@ -35,10 +35,6 @@
 #include "driver/uart.h"
 #include "esp_private/periph_ctrl.h"
 
-// Note; current code use UART0 can cause device to reset while monitoring
-#define USE_UART  0
-#define UART_ID  UART_NUM_0
-
 #ifdef NEOPIXEL_PIN
 #include "led_strip.h"
 static led_strip_handle_t led_strip;
@@ -57,19 +53,6 @@ static bool usb_init(void);
 
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void) {
-#if USE_UART
-  // uart init
-  uart_config_t uart_config = {
-      .baud_rate = 115200,
-      .data_bits = UART_DATA_8_BITS,
-      .parity = UART_PARITY_DISABLE,
-      .stop_bits = UART_STOP_BITS_1,
-      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
-  };
-  uart_driver_install(UART_ID, 1024, 0, 0, NULL, 0);
-  uart_param_config(UART_ID, &uart_config);
-#endif
-
 #ifdef NEOPIXEL_PIN
   #ifdef NEOPIXEL_POWER_PIN
   gpio_reset_pin(NEOPIXEL_POWER_PIN);
@@ -103,6 +86,12 @@ void board_init(void) {
 
 #if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32P4)
   usb_init();
+#endif
+
+#ifdef HIL_DEVICE_HOST_MUX_PIN
+  gpio_reset_pin(HIL_DEVICE_HOST_MUX_PIN);
+  gpio_set_direction(HIL_DEVICE_HOST_MUX_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_level(HIL_DEVICE_HOST_MUX_PIN, CFG_TUD_ENABLED ? HIL_DEVICE_STATE : (1-HIL_DEVICE_STATE));
 #endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
@@ -139,23 +128,26 @@ uint32_t board_button_read(void) {
 
 // Get characters from UART
 int board_uart_read(uint8_t* buf, int len) {
-#if USE_UART
-  return uart_read_bytes(UART_ID, buf, len, 0);
-#else
-  return -1;
-#endif
+  for (int i=0; i<len; i++) {
+    int c = getchar();
+    if (c == EOF) {
+      return i;
+    }
+    buf[i] = (uint8_t) c;
+  }
+  return len;
 }
 
 // Send characters to UART
 int board_uart_write(void const* buf, int len) {
-  (void) buf;
-  (void) len;
-  return 0;
+  for (int i = 0; i < len; i++) {
+    putchar(((char*) buf)[i]);
+  }
+  return len;
 }
 
 int board_getchar(void) {
-  uint8_t c = 0;
-  return board_uart_read(&c, 1) > 0 ? (int) c : (-1);
+  return getchar();
 }
 
 //--------------------------------------------------------------------
@@ -175,7 +167,15 @@ bool usb_init(void) {
   usb_phy_config_t phy_conf = {
     .controller = USB_PHY_CTRL_OTG,
     .target = USB_PHY_TARGET_INT,
+
+    // maybe we can use USB_OTG_MODE_DEFAULT and switch using dwc2 driver
+#if CFG_TUD_ENABLED
     .otg_mode = USB_OTG_MODE_DEVICE,
+    .otg_speed = BOARD_TUD_RHPORT ? USB_PHY_SPEED_HIGH : USB_PHY_SPEED_FULL,
+#elif CFG_TUH_ENABLED
+    .otg_mode = USB_OTG_MODE_HOST,
+    .otg_speed= BOARD_TUH_RHPORT ? USB_PHY_SPEED_HIGH : USB_PHY_SPEED_FULL,
+#endif
   };
 
   // OTG IOs config

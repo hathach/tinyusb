@@ -73,15 +73,17 @@ typedef struct {
     tu_edpt_stream_t rx;
 
     uint8_t tx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
-    CFG_TUH_MEM_ALIGN uint8_t tx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
-
     uint8_t rx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
-    CFG_TUH_MEM_ALIGN uint8_t rx_ep_buf[CFG_TUH_CDC_TX_EPSIZE];
   } stream;
 } cdch_interface_t;
 
-CFG_TUH_MEM_SECTION
+typedef struct {
+  TUH_EPBUF_DEF(tx, CFG_TUH_CDC_TX_EPSIZE);
+  TUH_EPBUF_DEF(rx, CFG_TUH_CDC_TX_EPSIZE);
+} cdch_epbuf_t;
+
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
+CFG_TUH_MEM_SECTION static cdch_epbuf_t cdch_epbuf[CFG_TUH_CDC];
 
 //--------------------------------------------------------------------+
 // Serial Driver
@@ -626,13 +628,14 @@ bool cdch_init(void) {
   tu_memclr(cdch_data, sizeof(cdch_data));
   for (size_t i = 0; i < CFG_TUH_CDC; i++) {
     cdch_interface_t* p_cdc = &cdch_data[i];
+    cdch_epbuf_t* epbuf = &cdch_epbuf[i];
     tu_edpt_stream_init(&p_cdc->stream.tx, true, true, false,
                         p_cdc->stream.tx_ff_buf, CFG_TUH_CDC_TX_BUFSIZE,
-                        p_cdc->stream.tx_ep_buf, CFG_TUH_CDC_TX_EPSIZE);
+                        epbuf->tx, CFG_TUH_CDC_TX_EPSIZE);
 
     tu_edpt_stream_init(&p_cdc->stream.rx, true, false, false,
                         p_cdc->stream.rx_ff_buf, CFG_TUH_CDC_RX_BUFSIZE,
-                        p_cdc->stream.rx_ep_buf, CFG_TUH_CDC_RX_EPSIZE);
+                        epbuf->rx, CFG_TUH_CDC_RX_EPSIZE);
   }
 
   return true;
@@ -654,7 +657,9 @@ void cdch_close(uint8_t daddr) {
       TU_LOG_DRV("  CDCh close addr = %u index = %u\r\n", daddr, idx);
 
       // Invoke application callback
-      if (tuh_cdc_umount_cb) tuh_cdc_umount_cb(idx);
+      if (tuh_cdc_umount_cb) {
+        tuh_cdc_umount_cb(idx);
+      }
 
       p_cdc->daddr = 0;
       p_cdc->bInterfaceNumber = 0;
@@ -675,7 +680,9 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 
   if ( ep_addr == p_cdc->stream.tx.ep_addr ) {
     // invoke tx complete callback to possibly refill tx fifo
-    if (tuh_cdc_tx_complete_cb) tuh_cdc_tx_complete_cb(idx);
+    if (tuh_cdc_tx_complete_cb) {
+      tuh_cdc_tx_complete_cb(idx);
+    }
 
     if ( 0 == tu_edpt_stream_write_xfer(daddr, &p_cdc->stream.tx) ) {
       // If there is no data left, a ZLP should be sent if:
@@ -695,7 +702,9 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
     }
 
     // invoke receive callback
-    if (tuh_cdc_rx_cb) tuh_cdc_rx_cb(idx);
+    if (tuh_cdc_rx_cb) {
+      tuh_cdc_rx_cb(idx);
+    }
 
     // prepare for next transfer if needed
     tu_edpt_stream_read_xfer(daddr, &p_cdc->stream.rx);
@@ -738,9 +747,8 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
   if (TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
       CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass) {
     return acm_open(daddr, itf_desc, max_len);
-  }
-  else if (SERIAL_DRIVER_COUNT > 1 &&
-           TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass) {
+  } else if (SERIAL_DRIVER_COUNT > 1 &&
+             TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass) {
     uint16_t vid, pid;
     TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid));
 
@@ -760,7 +768,9 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
 static void set_config_complete(cdch_interface_t * p_cdc, uint8_t idx, uint8_t itf_num) {
   TU_LOG_DRV("CDCh Set Configure complete\r\n");
   p_cdc->mounted = true;
-  if (tuh_cdc_mount_cb) tuh_cdc_mount_cb(idx);
+  if (tuh_cdc_mount_cb) {
+    tuh_cdc_mount_cb(idx);
+  }
 
   // Prepare for incoming data
   tu_edpt_stream_read_xfer(p_cdc->daddr, &p_cdc->stream.rx);

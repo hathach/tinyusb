@@ -206,6 +206,7 @@ function(family_configure_common TARGET RTOS)
 
   # compile define from command line
   if(DEFINED CFLAGS_CLI)
+    separate_arguments(CFLAGS_CLI)
     target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
   endif()
 
@@ -288,6 +289,12 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
       ${TOP}/src/portable/analog/max3421/hcd_max3421.c
       )
   endif ()
+
+  # compile define from command line
+  if(DEFINED CFLAGS_CLI)
+    separate_arguments(CFLAGS_CLI)
+    target_compile_options(${TARGET}-tinyusb PUBLIC ${CFLAGS_CLI})
+  endif()
 
 endfunction()
 
@@ -548,6 +555,7 @@ function(family_flash_teensy TARGET)
 
   add_custom_target(${TARGET}-teensy
     DEPENDS ${TARGET}
+    COMMAND ${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:${TARGET}> $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
     COMMAND ${TEENSY_CLI} --mcu=${TEENSY_MCU} -w -s $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.hex
     )
 endfunction()

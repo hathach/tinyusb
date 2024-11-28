@@ -67,6 +67,7 @@ function(add_tinyusb TARGET)
       -Wunused-function
       -Wreturn-type
       -Wredundant-decls
+      -Wmissing-prototypes
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
 

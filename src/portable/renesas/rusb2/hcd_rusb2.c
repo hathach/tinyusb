@@ -466,8 +466,8 @@ static void enable_interrupt(uint32_t pswi)
 }
 #endif
 
-bool hcd_init(uint8_t rhport)
-{
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   rusb2_module_start(rhport, true);
 

@@ -31,6 +31,7 @@ CFLAGS += \
   -Wreturn-type \
   -Wredundant-decls \
 
+#  -Wmissing-prototypes \
 # conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
 #  -Wconversion
 

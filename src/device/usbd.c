@@ -46,9 +46,7 @@
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
 TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
-  (void) rhport;
-  (void) eventid;
-  (void) in_isr;
+  (void) rhport; (void) eventid; (void) in_isr;
 }
 
 TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
@@ -82,9 +80,7 @@ TU_ATTR_WEAK void tud_resume_cb(void) {
 }
 
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
-  (void) rhport;
-  (void) stage;
-  (void) request;
+  (void) rhport; (void) stage; (void) request;
   return false;
 }
 
@@ -99,6 +95,21 @@ TU_ATTR_WEAK void dcd_connect(uint8_t rhport) {
 
 TU_ATTR_WEAK void dcd_disconnect(uint8_t rhport) {
   (void) rhport;
+}
+
+TU_ATTR_WEAK bool dcd_dcache_clean(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
+  return true;
+}
+
+TU_ATTR_WEAK bool dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
+  return true;
+}
+
+TU_ATTR_WEAK bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -448,11 +459,14 @@ bool tud_inited(void) {
   return _usbd_rhport != RHPORT_INVALID;
 }
 
-bool tud_init(uint8_t rhport) {
-  // skip if already initialized
-  if (tud_inited()) return true;
+bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  if (tud_inited()) {
+    return true; // skip if already initialized
+  }
+  TU_ASSERT(rh_init);
 
-  TU_LOG_USBD("USBD init on controller %u, Highspeed = %u\r\n", rhport, TUD_OPT_HIGH_SPEED);
+  TU_LOG_USBD("USBD init on controller %u, speed = %s\r\n", rhport,
+    rh_init->speed == TUSB_SPEED_HIGH ? "High" : "Full");
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(usbd_device_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(dcd_event_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_fifo_t));
@@ -487,15 +501,16 @@ bool tud_init(uint8_t rhport) {
   _usbd_rhport = rhport;
 
   // Init device controller driver
-  dcd_init(rhport);
+  TU_ASSERT(dcd_init(rhport, rh_init));
   dcd_int_enable(rhport);
 
   return true;
 }
 
 bool tud_deinit(uint8_t rhport) {
-  // skip if not initialized
-  if (!tud_inited()) return true;
+  if (!tud_inited()) {
+    return true; // skip if not initialized
+  }
 
   TU_LOG_USBD("USBD deinit on controller %u\r\n", rhport);
 
@@ -557,7 +572,7 @@ bool tud_task_event_ready(void) {
  *
     int main(void) {
       application_init();
-      tusb_init();
+      tusb_init(0, TUSB_ROLE_DEVICE);
 
       while(1) { // the mainloop
         application_code();

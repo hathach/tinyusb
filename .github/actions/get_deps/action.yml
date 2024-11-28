@@ -13,7 +13,7 @@ runs:
       uses: actions/checkout@v4
       with:
         repository: raspberrypi/pico-sdk
-        ref: develop
+        ref: master
         path: pico-sdk
 
     - name: Linux dependencies
