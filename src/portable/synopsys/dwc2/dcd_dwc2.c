@@ -543,7 +543,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
-  _dcd_data.allocated_epin_count = 1;
+  _dcd_data.allocated_epin_count = 0;
 
   // Disable non-control interrupt
   dwc2->daintmsk = (1 << DAINTMSK_OEPM_Pos) | (1 << DAINTMSK_IEPM_Pos);
@@ -654,7 +654,7 @@ static void handle_bus_reset(uint8_t rhport) {
   tu_memclr(xfer_status, sizeof(xfer_status));
 
   _dcd_data.sof_en = false;
-  _dcd_data.allocated_epin_count = 1;
+  _dcd_data.allocated_epin_count = 0;
 
   // 1. NAK for all OUT endpoints
   for (uint8_t n = 0; n < ep_count; n++) {
