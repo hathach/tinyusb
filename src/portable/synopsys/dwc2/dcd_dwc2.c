@@ -195,8 +195,8 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
     }
   } else {
     // Check IN endpoints concurrently active limit
-    if(_dwc2_controller->ep_in_count) {
-      TU_ASSERT(_dcd_data.allocated_epin_count < _dwc2_controller->ep_in_count);
+    if(dwc2_controller->ep_in_count) {
+      TU_ASSERT(_dcd_data.allocated_epin_count < dwc2_controller->ep_in_count);
       _dcd_data.allocated_epin_count++;
     }
 
