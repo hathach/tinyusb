@@ -31,33 +31,57 @@
  extern "C" {
 #endif
 
-#define LED_PORT              GPIOB
-#define LED_PIN               GPIO_PIN_1
-#define LED_STATE_ON          1
-
-#define BUTTON_PORT           GPIOA
-#define BUTTON_PIN            GPIO_PIN_0
-#define BUTTON_STATE_ACTIVE   1
-
 #define UART_DEV              USART6
 #define UART_CLK_EN           __HAL_RCC_USART6_CLK_ENABLE
-#define UART_GPIO_AF          GPIO_AF8_USART6
-
-#define UART_TX_PORT          GPIOC
-#define UART_TX_PIN           GPIO_PIN_6
-
-#define UART_RX_PORT          GPIOC
-#define UART_RX_PIN           GPIO_PIN_7
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     1
 #define OTG_HS_VBUS_SENSE     0
 
+#define PINID_LED      0
+#define PINID_BUTTON   1
+#define PINID_UART_TX  2
+#define PINID_UART_RX  3
+#define PINID_VBUS0_EN 4
+#define PINID_VBUS1_EN 5
+
+static board_pindef_t board_pindef[] = {
+{ // LED
+    .port = GPIOB,
+    .pin_init = { .Pin = GPIO_PIN_1, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+{ // Button
+    .port = GPIOA,
+    .pin_init = { .Pin = GPIO_PIN_0, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+{ // UART TX
+    .port = GPIOC,
+    .pin_init = { .Pin = GPIO_PIN_6, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF8_USART6 },
+    .active_state = 0
+  },
+{ // UART RX
+    .port = GPIOC,
+    .pin_init = { .Pin = GPIO_PIN_7, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF8_USART6 },
+    .active_state = 0
+  },
+{ // VBUS0 EN
+    .port = GPIOG,
+    .pin_init = { .Pin = GPIO_PIN_8, .Mode = GPIO_MODE_OUTPUT_OD, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 0
+  },
+{ // VBUS1 EN
+    .port = GPIOH,
+    .pin_init = { .Pin = GPIO_PIN_12, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_NOPULL, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+};
+
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-static inline void board_clock_init(void)
-{
+static inline void board_clock_init(void) {
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
 
@@ -74,7 +98,7 @@ static inline void board_clock_init(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = HSE_VALUE/1000000;
+  RCC_OscInitStruct.PLL.PLLM = HSE_VALUE / 1000000;
   RCC_OscInitStruct.PLL.PLLN = 432;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 9;
@@ -91,12 +115,14 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7);
+
+  UART_CLK_EN();
 }
 
-//static inline void board_vbus_sense_init(void)
-//{
-//
-//}
+static inline void board_vbus_set(uint8_t rhport, bool state) {
+  board_pindef_t* pindef = &board_pindef[rhport ? PINID_VBUS1_EN : PINID_VBUS0_EN];
+  HAL_GPIO_WritePin(pindef->port, pindef->pin_init.Pin, state == pindef->active_state ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
 
 #ifdef __cplusplus
  }

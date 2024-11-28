@@ -39,7 +39,7 @@ extern "C" {
 #include "tusb.h"
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-#if TUP_MCU_ESPRESSIF
+#if TUSB_MCU_VENDOR_ESPRESSIF
   // ESP-IDF need "freertos/" prefix in include path.
   // CFG_TUSB_OS_INC_PATH should be defined accordingly.
   #include "freertos/FreeRTOS.h"

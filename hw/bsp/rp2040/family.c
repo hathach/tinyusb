@@ -79,7 +79,13 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
 
   // The HI GPIO registers in SIO can observe and control the 6 QSPI pins.
   // Note the button pulls the pin *low* when pressed.
-  bool button_state = (sio_hw->gpio_hi_in & (1u << CS_PIN_INDEX));
+
+  #ifdef __ARM_ARCH_6M__ // CM0 for rp2040
+    #define CS_BIT (1u << 1)
+  #else // rp2350 (cm33/risv)
+    #define CS_BIT SIO_GPIO_HI_IN_QSPI_CSN_BITS
+  #endif
+  bool button_state = (sio_hw->gpio_hi_in & CS_BIT);
 
   // Need to restore the state of chip select, else we are going to have a
   // bad time when we return to code in flash!

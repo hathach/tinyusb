@@ -68,6 +68,7 @@ def get_examples(family):
     if family == 'espressif':
         all_examples.append('device/board_test')
         all_examples.append('device/video_capture')
+        all_examples.append('host/device_info')
     all_examples.sort()
     return all_examples
 
@@ -89,7 +90,7 @@ def cmake_board(board, toolchain, build_flags_on):
     if len(build_flags_on) > 0:
         build_flags =  ' '.join(f'-D{flag}=1' for flag in build_flags_on)
         build_flags = f'-DCFLAGS_CLI="{build_flags}"'
-        build_dir += '-' + '-'.join(build_flags_on)
+        build_dir += '-f1_' + '_'.join(build_flags_on)
 
     family = find_family(board)
     if family == 'espressif':

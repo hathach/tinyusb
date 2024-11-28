@@ -31,28 +31,36 @@
  extern "C" {
 #endif
 
-#define LED_PORT              GPIOA
-#define LED_PIN               GPIO_PIN_10
-#define LED_STATE_ON          1
-
-// No physical button is populated
-#define BUTTON_PORT           GPIOA
-#define BUTTON_PIN            GPIO_PIN_0
-#define BUTTON_STATE_ACTIVE   1
-
 #define UART_DEV              USART6
 #define UART_CLK_EN           __HAL_RCC_USART6_CLK_ENABLE
-#define UART_GPIO_AF          GPIO_AF8_USART6
-
-#define UART_TX_PORT          GPIOG
-#define UART_TX_PIN           GPIO_PIN_9
-
-#define UART_RX_PORT          GPIOG
-#define UART_RX_PIN           GPIO_PIN_14
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     1
 #define OTG_HS_VBUS_SENSE     0
+
+#define PINID_LED      0
+#define PINID_UART_TX  1
+#define PINID_UART_RX  2
+//#define PINID_VBUS0_EN 4
+//#define PINID_VBUS1_EN 5
+
+static board_pindef_t board_pindef[] = {
+  { // LED
+    .port = GPIOA,
+    .pin_init = { .Pin = GPIO_PIN_10, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+  { // UART TX
+    .port = GPIOG,
+    .pin_init = { .Pin = GPIO_PIN_9, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF8_USART6 },
+    .active_state = 0
+  },
+  { // UART RX
+    .port = GPIOG,
+    .pin_init = { .Pin = GPIO_PIN_14, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF8_USART6 },
+    .active_state = 0
+  }
+};
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -92,7 +100,14 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7);
+
+  UART_CLK_EN();
 }
+
+static inline void board_vbus_set(uint8_t rhport, bool state) {
+ (void) rhport; (void) state;
+}
+
 
 #ifdef __cplusplus
  }

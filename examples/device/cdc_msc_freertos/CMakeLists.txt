@@ -19,7 +19,6 @@ add_executable(${PROJECT})
 
 # Example source
 target_sources(${PROJECT} PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/freertos_hook.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_disk.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
