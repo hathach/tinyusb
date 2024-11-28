@@ -1307,7 +1307,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 #ifdef TUP_DCD_EDPT_ISO_ALLOC
     /* Allocate ISO endpoints */
     uint16_t ep_size = 0;
-    uint16_t ep_addr = 0;
+    uint8_t ep_addr = 0;
     uint8_t const *p_desc = (uint8_t const*)itf_desc + stm->desc.beg;
     uint8_t const *p_desc_end = (uint8_t const*)itf_desc + stm->desc.end;
     while (p_desc < p_desc_end) {
