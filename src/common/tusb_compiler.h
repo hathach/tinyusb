@@ -136,7 +136,7 @@
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
   #define TU_ATTR_PACKED                __attribute__ ((packed))
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
-  // #define TU_ATTR_WEAK_ALIAS(f)         __attribute__ ((weak, alias(#f))
+  // #define TU_ATTR_WEAK_ALIAS(f)         __attribute__ ((weak, alias(#f)))
   #ifndef TU_ATTR_ALWAYS_INLINE // allow to override for debug
     #define TU_ATTR_ALWAYS_INLINE       __attribute__ ((always_inline))
   #endif
@@ -189,6 +189,7 @@
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
   #define TU_ATTR_PACKED                __attribute__ ((packed))
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
+  // #define TU_ATTR_WEAK_ALIAS(f)         __attribute__ ((weak, alias(#f)))
   #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
@@ -216,6 +217,7 @@
   #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
   #define TU_ATTR_PACKED                __attribute__ ((packed))
   #define TU_ATTR_WEAK                  __attribute__ ((weak))
+  // #define TU_ATTR_WEAK_ALIAS(f)         __attribute__ ((weak, alias(#f)))
   #ifndef TU_ATTR_ALWAYS_INLINE // allow to override for debug
     #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
   #endif
@@ -244,6 +246,7 @@
   #define TU_ATTR_SECTION(sec_name)
   #define TU_ATTR_PACKED
   #define TU_ATTR_WEAK
+  // #define TU_ATTR_WEAK_ALIAS(f)
   #define TU_ATTR_ALWAYS_INLINE
   #define TU_ATTR_DEPRECATED(mess)
   #define TU_ATTR_UNUSED

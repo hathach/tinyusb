@@ -31,26 +31,41 @@
  extern "C" {
 #endif
 
-#define LED_PORT              GPIOE
-#define LED_PIN               GPIO_PIN_3
-#define LED_STATE_ON          1
-
-// Blue push-button
-#define BUTTON_PORT           GPIOC
-#define BUTTON_PIN            GPIO_PIN_13
-#define BUTTON_STATE_ACTIVE   1
-
 // UART
-//#define UART_DEV              USART3
-//#define UART_CLK_EN           __HAL_RCC_USART3_CLK_ENABLE
-//#define UART_GPIO_PORT        GPIOB
-//#define UART_GPIO_AF          GPIO_AF7_USART3
-//#define UART_TX_PIN           GPIO_PIN_10
-//#define UART_RX_PIN           GPIO_PIN_11
+#define UART_DEV              USART3
+#define UART_CLK_EN           __HAL_RCC_USART3_CLK_ENABLE
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     1
 #define OTG_HS_VBUS_SENSE     0
+
+#define PINID_LED      0
+#define PINID_BUTTON   1
+#define PINID_UART_TX  2
+#define PINID_UART_RX  3
+
+static board_pindef_t board_pindef[] = {
+  { // LED
+    .port = GPIOE,
+    .pin_init = { .Pin = GPIO_PIN_3, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+  { // Button
+    .port = GPIOC,
+    .pin_init = { .Pin = GPIO_PIN_13, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+  { // UART TX
+    .port = GPIOB,
+    .pin_init = { .Pin = GPIO_PIN_10, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF7_USART3 },
+    .active_state = 0
+  },
+  { // UART RX
+    .port = GPIOB,
+    .pin_init = { .Pin = GPIO_PIN_11, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF7_USART3 },
+    .active_state = 0
+  }
+};
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -121,8 +136,12 @@ static inline void SystemClock_Config(void) {
   HAL_PWREx_EnableUSBVoltageDetector();
 }
 
-static inline void board_stm32h7_post_init(void) {
+static inline void board_init2(void) {
   // For this board does nothing
+}
+
+void board_vbus_set(uint8_t rhport, bool state) {
+  (void) rhport; (void) state;
 }
 
 #ifdef __cplusplus

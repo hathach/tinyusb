@@ -34,41 +34,27 @@
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "ci_hs_imxrt.h"
 
-  void dcd_dcache_clean(void const* addr, uint32_t data_size) {
-    imxrt_dcache_clean(addr, data_size);
+  bool dcd_dcache_clean(void const* addr, uint32_t data_size) {
+    return imxrt_dcache_clean(addr, data_size);
   }
 
-  void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
-    imxrt_dcache_invalidate(addr, data_size);
+  bool dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+    return imxrt_dcache_invalidate(addr, data_size);
   }
 
-  void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-    imxrt_dcache_clean_invalidate(addr, data_size);
+  bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+    return imxrt_dcache_clean_invalidate(addr, data_size);
   }
 
-#else
-
-#if TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
+#elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
 
 #elif TU_CHECK_MCU(OPT_MCU_MCXN9)
   // MCX N9 only port 1 use this controller
   #include "ci_hs_mcx.h"
+
 #else
   #error "Unsupported MCUs"
-#endif
-
-  TU_ATTR_WEAK void dcd_dcache_clean(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
-
-  TU_ATTR_WEAK void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
-
-  TU_ATTR_WEAK void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
 #endif
 
 //--------------------------------------------------------------------+

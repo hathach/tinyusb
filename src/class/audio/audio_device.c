@@ -490,13 +490,13 @@ TU_ATTR_WEAK bool tud_audio_feedback_format_correction_cb(uint8_t func_id) {
   (void) func_id;
   return CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION;
 }
-#endif
 
 TU_ATTR_WEAK TU_ATTR_FAST_FUNC void tud_audio_feedback_interval_isr(uint8_t func_id, uint32_t frame_number, uint8_t interval_shift) {
   (void) func_id;
   (void) frame_number;
   (void) interval_shift;
 }
+#endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
 TU_ATTR_WEAK void tud_audio_int_done_cb(uint8_t rhport) {
@@ -1810,7 +1810,8 @@ static bool audiod_get_interface(uint8_t rhport, tusb_control_request_t const * 
   uint8_t const *dummy;
 
   TU_VERIFY(audiod_get_AS_interface_index_global(itf, &func_id, &idxItf, &dummy));
-  TU_VERIFY(tud_control_xfer(rhport, p_request, &_audiod_fct[func_id].alt_setting[idxItf], 1));
+  _audiod_fct[func_id].ctrl_buf[0] = _audiod_fct[func_id].alt_setting[idxItf];
+  TU_VERIFY(tud_control_xfer(rhport, p_request, _audiod_fct[func_id].ctrl_buf, 1));
 
   TU_LOG2("  Get itf: %u - current alt: %u\r\n", itf, _audiod_fct[func_id].alt_setting[idxItf]);
 
@@ -2136,6 +2137,13 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
         {
           // Check if entity is present and get corresponding driver index
           TU_VERIFY(audiod_verify_entity_exists(itf, entityID, &func_id));
+
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+          uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
+          if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO_CS_REQ_CUR) {
+            _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(_audiod_fct[func_id].ctrl_buf);
+          }
+#endif
 
           // Invoke callback
           return tud_audio_set_req_entity_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
