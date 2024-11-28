@@ -174,7 +174,7 @@ bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
   if (_ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_OUT) {
     TU_VERIFY(_ctrl_xfer.buffer);
     memcpy(_ctrl_xfer.buffer, _ctrl_epbuf.buf, xferred_bytes);
-    TU_LOG_MEM(CFG_TUD_LOG_LEVEL, _usbd_ctrl_buf, xferred_bytes, 2);
+    TU_LOG_MEM(CFG_TUD_LOG_LEVEL, _ctrl_xfer.buffer, xferred_bytes, 2);
   }
 
   _ctrl_xfer.total_xferred += (uint16_t) xferred_bytes;
