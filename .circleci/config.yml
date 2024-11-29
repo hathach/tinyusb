@@ -55,7 +55,7 @@ jobs:
               echo "              family: $FAMILY" >> .circleci/config2.yml
               # due to limit of IAR capacity, use medium resource
               if [[ $toolchain == arm-iar ]]; then
-                echo "              resource_class: ['medium']" >> .circleci/config2.yml
+                echo "              resource_class: ['large']" >> .circleci/config2.yml
               else
                 echo "              resource_class: ['medium+']" >> .circleci/config2.yml
               fi
