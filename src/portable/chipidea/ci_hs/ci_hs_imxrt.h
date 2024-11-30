@@ -63,4 +63,56 @@ static const ci_hs_controller_t _ci_controller[] =
 #define CI_HCD_INT_ENABLE(_p)   NVIC_EnableIRQ ((IRQn_Type)_ci_controller[_p].irqnum)
 #define CI_HCD_INT_DISABLE(_p)  NVIC_DisableIRQ((IRQn_Type)_ci_controller[_p].irqnum)
 
+//------------- DCache -------------//
+#if CFG_TUD_MEM_DCACHE_ENABLE || CFG_TUH_MEM_DCACHE_ENABLE
+#if __CORTEX_M == 7
+TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_t size) {
+  if (size & (CFG_TUD_MEM_DCACHE_LINE_SIZE-1)) {
+    size = (size & ~(CFG_TUD_MEM_DCACHE_LINE_SIZE-1)) + CFG_TUD_MEM_DCACHE_LINE_SIZE;
+  }
+  return size;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool imxrt_is_cache_mem(uintptr_t addr) {
+  return !(0x20000000 <= addr && addr < 0x20100000);
+}
+
+bool dcd_dcache_clean(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (imxrt_is_cache_mem(addr32)) {
+    TU_ASSERT(tu_is_aligned32(addr32));
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+bool dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (imxrt_is_cache_mem(addr32)) {
+    // Invalidating does not push cached changes back to RAM so we need to be
+    // *very* careful when we do it. If we're not aligned, then we risk resetting
+    // values back to their RAM state.
+    TU_ASSERT(tu_is_aligned32(addr32));
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_InvalidateDCache_by_Addr((void*) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (imxrt_is_cache_mem(addr32)) {
+    TU_ASSERT(tu_is_aligned32(addr32));
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanInvalidateDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+#elif __CORTEX_M == 4
+#error "Secondary M4 core's cache controller is not supported yet."
+#endif
+#endif
+
 #endif
