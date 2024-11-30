@@ -77,7 +77,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool imxrt_is_cache_mem(uintptr_t addr) {
   return !(0x20000000 <= addr && addr < 0x20100000);
 }
 
-bool dcd_dcache_clean(void const* addr, uint32_t data_size) {
+TU_ATTR_ALWAYS_INLINE static inline bool imxrt_dcache_clean(void const* addr, uint32_t data_size) {
   const uintptr_t addr32 = (uintptr_t) addr;
   if (imxrt_is_cache_mem(addr32)) {
     TU_ASSERT(tu_is_aligned32(addr32));
@@ -87,7 +87,7 @@ bool dcd_dcache_clean(void const* addr, uint32_t data_size) {
   return true;
 }
 
-bool dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+TU_ATTR_ALWAYS_INLINE static inline bool imxrt_dcache_invalidate(void const* addr, uint32_t data_size) {
   const uintptr_t addr32 = (uintptr_t) addr;
   if (imxrt_is_cache_mem(addr32)) {
     // Invalidating does not push cached changes back to RAM so we need to be
@@ -100,7 +100,7 @@ bool dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
   return true;
 }
 
-bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+TU_ATTR_ALWAYS_INLINE static inline bool imxrt_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
   const uintptr_t addr32 = (uintptr_t) addr;
   if (imxrt_is_cache_mem(addr32)) {
     TU_ASSERT(tu_is_aligned32(addr32));

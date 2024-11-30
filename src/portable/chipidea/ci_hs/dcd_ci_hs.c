@@ -34,6 +34,20 @@
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "ci_hs_imxrt.h"
 
+#if CFG_TUD_MEM_DCACHE_ENABLE
+bool dcd_dcache_clean(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_clean(addr, data_size);
+}
+
+bool dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_invalidate(addr, data_size);
+}
+
+bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_clean_invalidate(addr, data_size);
+}
+#endif
+
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
 
