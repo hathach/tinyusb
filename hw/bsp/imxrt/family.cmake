@@ -152,6 +152,7 @@ function(family_configure_example TARGET RTOS)
   family_add_bin_hex(${TARGET})
 
   # Flashing
+  family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
   #family_flash_pyocd(${TARGET})
