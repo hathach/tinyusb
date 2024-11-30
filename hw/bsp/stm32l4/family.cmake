@@ -104,6 +104,8 @@ function(family_configure_example TARGET RTOS)
   family_add_tinyusb(${TARGET} OPT_MCU_${FAMILY_MCUS} ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
+    ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
+    ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})

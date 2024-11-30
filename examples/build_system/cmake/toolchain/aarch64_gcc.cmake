@@ -7,9 +7,9 @@ if (NOT DEFINED CMAKE_CXX_COMPILER)
 endif ()
 
 set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
-set(CMAKE_SIZE "aarch64-none-elf-size" CACHE FILEPATH "")
-set(CMAKE_OBJCOPY "aarch64-none-elf-objcopy" CACHE FILEPATH "")
-set(CMAKE_OBJDUMP "aarch64-none-elf-objdump" CACHE FILEPATH "")
+find_program(CMAKE_SIZE aarch64-none-elf-size)
+find_program(CMAKE_OBJCOPY aarch64-none-elf-objcopy)
+find_program(CMAKE_OBJDUMP aarch64-none-elf-objdump)
 
 include(${CMAKE_CURRENT_LIST_DIR}/common.cmake)
 

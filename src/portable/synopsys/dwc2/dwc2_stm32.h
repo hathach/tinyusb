@@ -69,6 +69,14 @@ extern "C" {
     #define OTG_FS_IRQn             OTG_HS_IRQn
   #endif
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7RS
+  #include "stm32h7rsxx.h"
+  #define EP_MAX_FS       6
+  #define EP_FIFO_SIZE_FS 1280
+
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
   #define EP_MAX_FS       6
@@ -124,13 +132,19 @@ static const dwc2_controller_t _dwc2_controller[] = {
 // SystemCoreClock is already included by family header
 // extern uint32_t SystemCoreClock;
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_enable(uint8_t rhport) {
-  NVIC_EnableIRQ((IRQn_Type) _dwc2_controller[rhport].irqnum);
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
+  (void) role;
+  const IRQn_Type irqn = (IRQn_Type) _dwc2_controller[rhport].irqnum;
+  if (enabled) {
+    NVIC_EnableIRQ(irqn);
+  } else {
+    NVIC_DisableIRQ(irqn);
+  }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_disable(uint8_t rhport) {
-  NVIC_DisableIRQ((IRQn_Type) _dwc2_controller[rhport].irqnum);
-}
+#define dwc2_dcd_int_enable(_rhport)  dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, true)
+#define dwc2_dcd_int_disable(_rhport) dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, false)
+
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   // try to delay for 1 ms

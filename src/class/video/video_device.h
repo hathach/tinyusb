@@ -40,6 +40,8 @@ extern "C" {
 // CFG_TUD_VIDEO > 1
 //--------------------------------------------------------------------+
 
+bool tud_video_n_connected(uint_fast8_t ctl_idx);
+
 /** Return true if streaming
  *
  * @param[in] ctl_idx    Destination control interface index
