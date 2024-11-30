@@ -27,13 +27,13 @@ function(add_board_target BOARD_TARGET)
   # LD_FILE and STARTUP_FILE can be defined in board.cmake
   if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
     set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx${MCU_CORE}_flexspi_nor.ld)
-    #set(LD_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx_flexspi_nor.ld)
+    set(LD_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/iar/${MCU_VARIANT}xxxxx${MCU_CORE}_flexspi_nor.icf)
   endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
   if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
     set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT_WITH_CORE}.S)
-    #set(STARTUP_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT_WITH_CORE}.S)
+    set(STARTUP_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/iar/startup_${MCU_VARIANT_WITH_CORE}.s)
   endif ()
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
@@ -148,8 +148,6 @@ function(family_configure_example TARGET RTOS)
 
   # Link dependencies
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
-
-  family_add_bin_hex(${TARGET})
 
   # Flashing
   family_add_bin_hex(${TARGET})
