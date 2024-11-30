@@ -81,7 +81,7 @@
 
 // Only STM32 and dcd_transdimension use non-linear buffer for now
 // dwc2 except esp32sx (since it may use dcd_esp32sx)
-// Ring buffer is imcompatible with dcache, since neither address nor size is aligned to cache line
+// Ring buffer is incompatible with dcache, since neither address nor size is aligned to cache line
 #if (defined(TUP_USBIP_DWC2) && !TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)) || \
     defined(TUP_USBIP_FSDEV)          || \
     CFG_TUSB_MCU == OPT_MCU_RX63X     || \
@@ -179,13 +179,13 @@ tu_static OUT_SW_BUF_MEM_ATTR struct {
 
   #if CFG_FIFO_MUTEX
     #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ > 0
-      tu_static osal_mutex_def_t ep_out_ff_mutex_wr_1;
+      tu_static osal_mutex_def_t ep_out_ff_mutex_rd_1;
     #endif
     #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ > 0
-      tu_static osal_mutex_def_t ep_out_ff_mutex_wr_2;
+      tu_static osal_mutex_def_t ep_out_ff_mutex_rd_2;
     #endif
     #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ > 0
-      tu_static osal_mutex_def_t ep_out_ff_mutex_wr_3;
+      tu_static osal_mutex_def_t ep_out_ff_mutex_rd_3;
     #endif
   #endif
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING

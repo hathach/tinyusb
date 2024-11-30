@@ -467,7 +467,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
 #if !CFG_TUD_MEM_DCACHE_ENABLE
 // fifo has to be aligned to 4k boundary
-// It's imcompatible with dcache enabled transfer, since neither address nor size is aligned to cache line
+// It's incompatible with dcache enabled transfer, since neither address nor size is aligned to cache line
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
