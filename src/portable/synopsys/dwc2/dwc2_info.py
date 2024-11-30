@@ -15,16 +15,15 @@ dwc2_reg_value = {
     'ESP32-P4': [0, 0x4F54400A, 0, 0x215FFFD0, 0x03805EB5, 0xDFF1A030],
     'ST F207/F407/411/429 FS': [0x1200, 0x4F54281A, 0, 0x229DCD20, 0x020001E8, 0x0FF08030],
     'ST F407/429 HS': [0x1100, 0x4F54281A, 0, 0x229ED590, 0x03F403E8, 0x17F00030],
-    'ST F412/767 FS': [0x2000, 0x4F54320A, 0, 0x229ED520, 0x0200D1E8, 0x17F08030],
+    'ST F412/76x FS': [0x2000, 0x4F54320A, 0, 0x229ED520, 0x0200D1E8, 0x17F08030],
     'ST F723/L4P5 FS': [0x3000, 0x4F54330A, 0, 0x229ED520, 0x0200D1E8, 0x17F08030],
     'ST F723 HS': [0x3100, 0x4F54330A, 0, 0x229FE1D0, 0x03EED2E8, 0x23F00030],
-    'ST F769': [0x2100, 0x4F54320A, 0, 0x229FE190, 0x03EED2E8, 0x23F00030],
+    'ST F76x HS': [0x2100, 0x4F54320A, 0, 0x229FE190, 0x03EED2E8, 0x23F00030],
     'ST H743/H750': [0x2300, 0x4F54330A, 0, 0x229FE190, 0x03B8D2E8, 0xE3F00030],
     'ST L476 FS': [0x2000, 0x4F54310A, 0, 0x229ED520, 0x0200D1E8, 0x17F08030],
     'ST U5A5 HS': [0x5000, 0x4F54411A, 0, 0x228FE052, 0x03B882E8, 0xE2103E30],
+    'XMC4500': [0xAEC000, 0x4F54292A, 0, 0x228F5930, 0x027A01E5, 0xDBF08030],
     'GD32VF103': [0x1000, 0, 0, 0, 0, 0],
-    'XMC4500': [0xAEC000, 0x4F54292A, 0, 0x228F5930, 0x027A01E5, 0xDBF08030]
-
 }
 
 # Combine dwc2_info with dwc2_reg_list
@@ -44,7 +43,7 @@ class GHWCFG2(ctypes.LittleEndianStructure):
     _fields_ = [
         ("op_mode", ctypes.c_uint32, 3),
         ("arch", ctypes.c_uint32, 2),
-        ("p2p (hub support)", ctypes.c_uint32, 1),
+        ("single_point", ctypes.c_uint32, 1),
         ("hs_phy_type", ctypes.c_uint32, 2),
         ("fs_phy_type", ctypes.c_uint32, 2),
         ("num_dev_ep", ctypes.c_uint32, 4),
@@ -119,6 +118,10 @@ GHWCFG2_field = {
         1: "DMA external",
         2: "DMA internal"
     },
+    'single_point': {
+        0: "hub",
+        1: "n/a"
+    },
     'hs_phy_type': {
         0: "n/a",
         1: "UTMI+",
@@ -130,7 +133,18 @@ GHWCFG2_field = {
         1: "Dedicated",
         2: "Shared UTMI+",
         3: "Shared ULPI"
-    }
+    },
+    'nptx_q_depth': {
+        0: "2",
+        1: "4",
+        2: "8",
+    },
+    'ptx_q_depth': {
+        0: "2",
+        1: "4",
+        2: "8",
+        3: "16"
+    },
 }
 
 # mapping for specific fields in GHWCFG4

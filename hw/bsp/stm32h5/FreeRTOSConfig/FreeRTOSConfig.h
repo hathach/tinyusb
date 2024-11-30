@@ -119,8 +119,9 @@
 
 /* Define to trap errors during development. */
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
-#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
-#define configASSERT(_exp) \
+#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__) || \
+    defined(__ARM7M__) || defined (__ARM7EM__) || defined(__ARM8M_MAINLINE__) || defined(__ARM8EM_MAINLINE__)
+  #define configASSERT(_exp) \
     do {\
       if ( !(_exp) ) { \
         volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
@@ -130,8 +131,6 @@
         }\
       }\
     } while(0)
-#else
-#define configASSERT( x )
 #endif
 
 /* FreeRTOS hooks to NVIC vectors */

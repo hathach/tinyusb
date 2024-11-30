@@ -31,27 +31,42 @@
  extern "C" {
 #endif
 
-#define LED_PORT              GPIOI
-#define LED_PIN               GPIO_PIN_1
-#define LED_STATE_ON          1
-
-#define BUTTON_PORT           GPIOI
-#define BUTTON_PIN            GPIO_PIN_11
-#define BUTTON_STATE_ACTIVE   1
-
 #define UART_DEV              USART1
 #define UART_CLK_EN           __HAL_RCC_USART1_CLK_ENABLE
-#define UART_GPIO_AF          GPIO_AF7_USART1
-
-#define UART_TX_PORT          GPIOA
-#define UART_TX_PIN           GPIO_PIN_9
-
-#define UART_RX_PORT          GPIOB
-#define UART_RX_PIN           GPIO_PIN_7
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     0
 #define OTG_HS_VBUS_SENSE     0
+
+#define PINID_LED      0
+#define PINID_BUTTON   1
+#define PINID_UART_TX  2
+#define PINID_UART_RX  3
+//#define PINID_VBUS0_EN 4
+//#define PINID_VBUS1_EN 5
+
+static board_pindef_t board_pindef[] = {
+  { // LED
+    .port = GPIOI,
+    .pin_init = { .Pin = GPIO_PIN_1, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+  { // Button
+   .port = GPIOI,
+   .pin_init = { .Pin = GPIO_PIN_11, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
+   .active_state = 1
+  },
+  { // UART TX
+    .port = GPIOA,
+    .pin_init = { .Pin = GPIO_PIN_9, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF7_USART1 },
+    .active_state = 0
+  },
+  { // UART RX
+   .port = GPIOB,
+   .pin_init = { .Pin = GPIO_PIN_7, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_HIGH, .Alternate = GPIO_AF7_USART1 },
+   .active_state = 0
+  },
+};
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -91,7 +106,14 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7);
+
+  UART_CLK_EN();
 }
+
+static inline void board_vbus_set(uint8_t rhport, bool state) {
+ (void) rhport; (void) state;
+}
+
 
 #ifdef __cplusplus
  }

@@ -19,6 +19,8 @@ CFLAGS += -Wno-error=cast-qual -Wno-error=redundant-decls
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
+	src/portable/synopsys/dwc2/hcd_dwc2.c \
+	src/portable/synopsys/dwc2/dwc2_common.c \
 	$(MCU_DIR)/broadcom/gen/interrupt_handlers.c \
 	$(MCU_DIR)/broadcom/gpio.c \
 	$(MCU_DIR)/broadcom/interrupts.c \

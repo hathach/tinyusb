@@ -96,8 +96,6 @@ typedef union {
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
 
-//TU_ATTR_WEAK uint8_t tuh_attach_cb (tusb_desc_device_t const *desc_device);
-
 // Invoked when a device is mounted (configured)
 TU_ATTR_WEAK void tuh_mount_cb (uint8_t daddr);
 
