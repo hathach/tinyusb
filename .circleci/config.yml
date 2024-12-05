@@ -29,7 +29,7 @@ jobs:
               #"cmake esp-idf"
             )
 
-            RESOURCE_LARGE='["nrf", "imxrt"]'
+            RESOURCE_LARGE='["nrf", "imxrt", "stm32f4", "stm32h7"]'
 
             for e in "${BUILDSYSTEM_TOOLCHAIN[@]}"; do
               e_arr=($e)
@@ -53,12 +53,7 @@ jobs:
               echo "              build-system: ['$build_system']" >> .circleci/config2.yml
               echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
               echo "              family: $FAMILY" >> .circleci/config2.yml
-              # due to limit of IAR capacity, use medium resource
-              #if [[ $toolchain == arm-iar ]]; then
-              #  echo "              resource_class: ['large']" >> .circleci/config2.yml
-              #else
               echo "              resource_class: ['medium+']" >> .circleci/config2.yml
-              #fi
 
               # add large resources
               if [ "$(echo $FAMILY_LARGE | jq 'length')" -gt 0 ]; then
