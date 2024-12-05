@@ -19,14 +19,14 @@ jobs:
             echo "MATRIX_JSON=$MATRIX_JSON"
 
             BUILDSYSTEM_TOOLCHAIN=(
-              #"cmake arm-clang"
+              "cmake arm-clang"
               "cmake arm-iar"
-              #"make aarch64-gcc"
-              #"make arm-gcc"
-              #"make msp430-gcc"
-              #"make riscv-gcc"
-              #"make rx-gcc"
-              #"cmake esp-idf"
+              "make aarch64-gcc"
+              "make arm-gcc"
+              "make msp430-gcc"
+              "make riscv-gcc"
+              "make rx-gcc"
+              "cmake esp-idf"
             )
 
             RESOURCE_LARGE='["nrf", "imxrt", "stm32f4", "stm32h7"]'

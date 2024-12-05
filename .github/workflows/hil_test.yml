@@ -113,6 +113,7 @@ jobs:
         run: |
           MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json)
           BUILD_ARGS=$(echo $MATRIX_JSON | jq -r '.["arm-gcc"] | join(" ")')
+          echo "BUILD_ARGS=$BUILD_ARGS"
           echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
       - name: Get Dependencies
