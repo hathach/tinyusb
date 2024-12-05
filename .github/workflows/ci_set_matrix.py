@@ -55,14 +55,6 @@ def set_matrix_json():
     for toolchain in toolchain_list:
         filtered_families = [family for family, supported_toolchain in family_list.items() if
                              toolchain in supported_toolchain]
-
-        # always add board in hfp.json for arm-iar
-        if toolchain == 'arm-iar':
-            with open('test/hil/hfp.json') as f:
-                hfp_data = json.load(f)
-            hfp_boards = [f"-b{board['name']}" for board in hfp_data['boards']]
-            filtered_families = filtered_families + hfp_boards
-
         matrix[toolchain] = filtered_families
 
     print(json.dumps(matrix))
