@@ -109,7 +109,11 @@ def cmake_board(board, toolchain, build_flags_on):
         rcmd = run_cmd(f'cmake examples -B {build_dir} -G "Ninja" -DBOARD={board} -DCMAKE_BUILD_TYPE=MinSizeRel '
                        f'-DTOOLCHAIN={toolchain} {build_flags}')
         if rcmd.returncode == 0:
-            rcmd = run_cmd(f"cmake --build {build_dir}")
+            cmd = f"cmake --build {build_dir}"
+            # Due to IAR capability, limit parallel build to 4
+            if toolchain == 'iar' and os.getenv('CIRCLECI'):
+                cmd += ' --parallel 4'
+            rcmd = run_cmd(cmd)
         ret[0 if rcmd.returncode == 0 else 1] += 1
 
     example = 'all'
