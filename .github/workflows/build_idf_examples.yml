@@ -1,4 +1,4 @@
-name: Build ESP-IDF USB examples
+name: ESP-IDF USB Device examples
 
 on:
   schedule:
@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - name: Build ESP-IDF USB Device examples
+      - name: Build
         shell: bash
         run: |
           . ${IDF_PATH}/export.sh

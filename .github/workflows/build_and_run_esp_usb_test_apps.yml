@@ -1,0 +1,79 @@
+name: ESP-USB Test Apps
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  build:
+    name: Build
+    strategy:
+      fail-fast: false
+      matrix:
+        idf_ver: ["release-v5.0", "release-v5.1", "release-v5.2", "release-v5.3", "release-v5.4", "latest"]
+    runs-on: ubuntu-20.04
+    container: espressif/idf:${{ matrix.idf_ver }}
+    env:
+      ESP_USB_MANIFEST: ./esp-usb/.build-test-rules.yml
+      ESP_TINYUSB_TEST_APPS: ./esp-usb/device/esp_tinyusb/test_apps
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Clone esp-usb repository
+        run: |
+            git clone https://github.com/espressif/esp-usb.git
+      - name: Build
+        shell: bash
+        run: |
+          . ${IDF_PATH}/export.sh
+          pip install idf-component-manager==1.5.2 idf-build-apps==2.4.3 --upgrade
+          export PEDANTIC_FLAGS="-DIDF_CI_BUILD -Werror -Werror=deprecated-declarations -Werror=unused-variable -Werror=unused-but-set-variable -Werror=unused-function"
+          export EXTRA_CFLAGS="${PEDANTIC_FLAGS} -Wstrict-prototypes"
+          export EXTRA_CXXFLAGS="${PEDANTIC_FLAGS}"
+          python .github/ci/override_managed_component.py tinyusb . ${{ env.ESP_TINYUSB_TEST_APPS }}/*/
+          idf-build-apps find --path ${{ env.ESP_TINYUSB_TEST_APPS }}/ --recursive --target esp32s2 --manifest-file ${{ env.ESP_USB_MANIFEST }}
+          idf-build-apps build --path ${{ env.ESP_TINYUSB_TEST_APPS }}/ --recursive --target esp32s2 --manifest-file ${{ env.ESP_USB_MANIFEST }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usb_test_app_bin_${{ matrix.idf_ver }}
+          path: |
+            ${{env.ESP_TINYUSB_TEST_APPS}}/**/build/bootloader/bootloader.bin
+            ${{env.ESP_TINYUSB_TEST_APPS}}/**/build/partition_table/partition-table.bin
+            ${{env.ESP_TINYUSB_TEST_APPS}}/**/build/test_app_*.bin
+            ${{env.ESP_TINYUSB_TEST_APPS}}/**/build/test_app_*.elf
+            ${{env.ESP_TINYUSB_TEST_APPS}}/**/build/flasher_args.json
+            ${{env.ESP_TINYUSB_TEST_APPS}}/**/build/config/sdkconfig.json
+          if-no-files-found: error
+
+  run-target:
+    name: Run
+    if: ${{ github.repository_owner == 'espressif' }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        idf_ver: ["release-v5.0", "release-v5.1", "release-v5.2", "release-v5.3", "release-v5.4", "latest"]
+        idf_target: ["esp32s2"]
+        runner_tag: ["usb_device"]
+    runs-on: [self-hosted, linux, docker, "${{ matrix.idf_target }}", "${{ matrix.runner_tag }}"]
+    container:
+      image: python:3.11-bookworm
+      options: --privileged --device-cgroup-rule="c 188:* rmw" --device-cgroup-rule="c 166:* rmw"
+    env:
+      ESP_TINYUSB_TEST_APPS: ./esp-usb/device/esp_tinyusb/test_apps
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone esp-usb repository
+        run: |
+          git clone https://github.com/espressif/esp-usb.git
+      - name: Install Python packages
+        env:
+          PIP_EXTRA_INDEX_URL: "https://dl.espressif.com/pypi/"
+        run: pip install --only-binary cryptography pytest-embedded pytest-embedded-serial-esp pytest-embedded-idf pyserial pyusb
+      - uses: actions/download-artifact@v4
+        with:
+          name: usb_test_app_bin_${{ matrix.idf_ver }}
+          path: ${{env.ESP_TINYUSB_TEST_APPS}}
+      - name: Run USB Test App on target
+        run: pytest ${{env.ESP_TINYUSB_TEST_APPS}} --embedded-services esp,idf --target=${{ matrix.idf_target }} -m ${{ matrix.runner_tag }}
