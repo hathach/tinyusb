@@ -99,6 +99,7 @@ function(family_configure_example TARGET RTOS)
   family_add_tinyusb(${TARGET} OPT_MCU_SAMD21 ${RTOS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/microchip/samd/dcd_samd.c
+    ${TOP}/src/portable/microchip/samd/hcd_samd.c
     )
   target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 

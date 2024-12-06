@@ -56,21 +56,24 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USB_0_Handler(void) {
+TU_ATTR_ALWAYS_INLINE inline void USB_Any_Handler(void)
+{
+#if CFG_TUD_ENABLED
   tud_int_handler(0);
+#endif
+
+#if CFG_TUH_ENABLED && !CFG_TUH_MAX3421
+  tuh_int_handler(0);
+#endif
 }
 
-void USB_1_Handler(void) {
-  tud_int_handler(0);
-}
+void USB_0_Handler(void) { USB_Any_Handler(); }
 
-void USB_2_Handler(void) {
-  tud_int_handler(0);
-}
+void USB_1_Handler(void) { USB_Any_Handler(); }
 
-void USB_3_Handler(void) {
-  tud_int_handler(0);
-}
+void USB_2_Handler(void) { USB_Any_Handler(); }
+
+void USB_3_Handler(void) { USB_Any_Handler(); }
 
 //--------------------------------------------------------------------+
 // Implementation
@@ -138,8 +141,14 @@ void board_init(void) {
   gpio_set_pin_function(PIN_PA24, PINMUX_PA24H_USB_DM);
   gpio_set_pin_function(PIN_PA25, PINMUX_PA25H_USB_DP);
 
-#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-  max3421_init();
+#if CFG_TUH_ENABLED
+  #if defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+    max3421_init();
+  #else
+    // VBUS Power
+    gpio_set_pin_direction(PIN_PA28, GPIO_DIRECTION_OUT);
+    gpio_set_pin_level(PIN_PA28, true);
+  #endif
 #endif
 }
 
