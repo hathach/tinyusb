@@ -97,5 +97,6 @@ function(family_configure_example TARGET RTOS)
   target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
+  family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
 endfunction()

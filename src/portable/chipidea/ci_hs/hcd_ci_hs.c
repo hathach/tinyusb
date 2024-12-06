@@ -42,6 +42,7 @@
 
 #include "ci_hs_imxrt.h"
 
+#if CFG_TUH_MEM_DCACHE_ENABLE
 bool hcd_dcache_clean(void const* addr, uint32_t data_size) {
   return imxrt_dcache_clean(addr, data_size);
 }
@@ -53,6 +54,7 @@ bool hcd_dcache_invalidate(void const* addr, uint32_t data_size) {
 bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
   return imxrt_dcache_clean_invalidate(addr, data_size);
 }
+#endif
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
 
