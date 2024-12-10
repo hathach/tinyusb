@@ -73,10 +73,12 @@ uint32_t tuh_msc_get_block_size(uint8_t dev_addr, uint8_t lun);
 // Perform a full SCSI command (cbw, data, csw) in non-blocking manner.
 // Complete callback is invoked when SCSI op is complete.
 // return true if success, false if there is already pending operation.
+// NOTE: buffer must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data, tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
 
 // Perform SCSI Inquiry command
 // Complete callback is invoked when SCSI op is complete.
+// NOTE: response must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* response, tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
 
 // Perform SCSI Test Unit Ready command
@@ -85,14 +87,17 @@ bool tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, tuh_msc_complete_cb_
 
 // Perform SCSI Request Sense 10 command
 // Complete callback is invoked when SCSI op is complete.
+// NOTE: response must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void *response, tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
 
 // Perform SCSI Read 10 command. Read n blocks starting from LBA to buffer
 // Complete callback is invoked when SCSI op is complete.
+// NOTE: buffer must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
 
 // Perform SCSI Write 10 command. Write n blocks starting from LBA to device
 // Complete callback is invoked when SCSI op is complete.
+// NOTE: buffer must be accessible by USB/DMA controller, aligned correctly and multiple of cache line if enabled
 bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * buffer, uint32_t lba, uint16_t block_count, tuh_msc_complete_cb_t complete_cb, uintptr_t arg);
 
 // Perform SCSI Read Capacity 10 command
@@ -116,7 +121,7 @@ TU_ATTR_WEAK void tuh_msc_umount_cb(uint8_t dev_addr);
 bool msch_init       (void);
 bool msch_deinit     (void);
 bool msch_open       (uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len);
-bool msch_set_config (uint8_t dev_addr, uint8_t itf_num);
+bool msch_set_config (uint8_t daddr, uint8_t itf_num);
 void msch_close      (uint8_t dev_addr);
 bool msch_xfer_cb    (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 

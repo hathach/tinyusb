@@ -63,6 +63,14 @@ enum {
 };
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
+// Declare for buffer for usb transfer, may need to be in USB/DMA section and
+// multiple of dcache line size if dcache is enabled (for some ports).
+CFG_TUH_MEM_SECTION struct {
+  TUH_EPBUF_TYPE_DEF(tusb_desc_device_t, device);
+  TUH_EPBUF_DEF(serial, 64*sizeof(uint16_t));
+  TUH_EPBUF_DEF(buf, 128*sizeof(uint16_t));
+} desc;
+
 void led_blinking_task(void* param);
 static void print_utf16(uint16_t* temp_buf, size_t buf_len);
 
@@ -109,60 +117,57 @@ void tuh_mount_cb(uint8_t daddr) {
   blink_interval_ms = BLINK_MOUNTED;
 
   // Get Device Descriptor
-  tusb_desc_device_t desc_device;
-  uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc_device, 18);
+  uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc.device, 18);
   if (XFER_RESULT_SUCCESS != xfer_result) {
     printf("Failed to get device descriptor\r\n");
     return;
   }
 
-  uint16_t serial[64];
-  uint16_t buf[256];
-
-  printf("Device %u: ID %04x:%04x SN ", daddr, desc_device.idVendor, desc_device.idProduct);
-  xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, serial, sizeof(serial));
+  printf("Device %u: ID %04x:%04x SN ", daddr, desc.device.idVendor, desc.device.idProduct);
+  xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, desc.serial, sizeof(desc.serial));
   if (XFER_RESULT_SUCCESS != xfer_result) {
+    uint16_t* serial = (uint16_t*)(uintptr_t) desc.serial;
     serial[0] = 'n';
     serial[1] = '/';
     serial[2] = 'a';
     serial[3] = 0;
   }
-  print_utf16(serial, TU_ARRAY_SIZE(serial));
+  print_utf16((uint16_t*)(uintptr_t) desc.serial, sizeof(desc.serial)/2);
   printf("\r\n");
 
   printf("Device Descriptor:\r\n");
-  printf("  bLength             %u\r\n", desc_device.bLength);
-  printf("  bDescriptorType     %u\r\n", desc_device.bDescriptorType);
-  printf("  bcdUSB              %04x\r\n", desc_device.bcdUSB);
-  printf("  bDeviceClass        %u\r\n", desc_device.bDeviceClass);
-  printf("  bDeviceSubClass     %u\r\n", desc_device.bDeviceSubClass);
-  printf("  bDeviceProtocol     %u\r\n", desc_device.bDeviceProtocol);
-  printf("  bMaxPacketSize0     %u\r\n", desc_device.bMaxPacketSize0);
-  printf("  idVendor            0x%04x\r\n", desc_device.idVendor);
-  printf("  idProduct           0x%04x\r\n", desc_device.idProduct);
-  printf("  bcdDevice           %04x\r\n", desc_device.bcdDevice);
+  printf("  bLength             %u\r\n", desc.device.bLength);
+  printf("  bDescriptorType     %u\r\n", desc.device.bDescriptorType);
+  printf("  bcdUSB              %04x\r\n", desc.device.bcdUSB);
+  printf("  bDeviceClass        %u\r\n", desc.device.bDeviceClass);
+  printf("  bDeviceSubClass     %u\r\n", desc.device.bDeviceSubClass);
+  printf("  bDeviceProtocol     %u\r\n", desc.device.bDeviceProtocol);
+  printf("  bMaxPacketSize0     %u\r\n", desc.device.bMaxPacketSize0);
+  printf("  idVendor            0x%04x\r\n", desc.device.idVendor);
+  printf("  idProduct           0x%04x\r\n", desc.device.idProduct);
+  printf("  bcdDevice           %04x\r\n", desc.device.bcdDevice);
 
   // Get String descriptor using Sync API
 
-  printf("  iManufacturer       %u     ", desc_device.iManufacturer);
-  xfer_result = tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, buf, sizeof(buf));
+  printf("  iManufacturer       %u     ", desc.device.iManufacturer);
+  xfer_result = tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf));
   if (XFER_RESULT_SUCCESS == xfer_result) {
-    print_utf16(buf, TU_ARRAY_SIZE(buf));
+    print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
   }
   printf("\r\n");
 
-  printf("  iProduct            %u     ", desc_device.iProduct);
-  xfer_result = tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, buf, sizeof(buf));
+  printf("  iProduct            %u     ", desc.device.iProduct);
+  xfer_result = tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf));
   if (XFER_RESULT_SUCCESS == xfer_result) {
-    print_utf16(buf, TU_ARRAY_SIZE(buf));
+    print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
   }
   printf("\r\n");
 
-  printf("  iSerialNumber       %u     ", desc_device.iSerialNumber);
-  printf((char*)serial); // serial is already to UTF-8
+  printf("  iSerialNumber       %u     ", desc.device.iSerialNumber);
+  printf((char*)desc.serial); // serial is already to UTF-8
   printf("\r\n");
 
-  printf("  bNumConfigurations  %u\r\n", desc_device.bNumConfigurations);
+  printf("  bNumConfigurations  %u\r\n", desc.device.bNumConfigurations);
 }
 
 // Invoked when device is unmounted (bus reset/unplugged)

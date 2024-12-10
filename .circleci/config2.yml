@@ -16,7 +16,8 @@ commands:
               "arm-gcc": "https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v13.2.1-1.1/xpack-arm-none-eabi-gcc-13.2.1-1.1-linux-x64.tar.gz",
               "msp430-gcc": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
               "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz",
-              "rx-gcc": "https://llvm-gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run"
+              "rx-gcc": "https://llvm-gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run",
+              "arm-iar": "https://updates.iar.com/FileStore/STANDARD/001/003/322/cxarm-9.60.3.deb"
             }'
             toolchain_url=$(echo $TOOLCHAIN_JSON | jq -r '.["<< parameters.toolchain >>"]')
 
@@ -38,18 +39,26 @@ commands:
             # download if folder does not exist (not cached)
             if [ ! -d ~/cache/<< parameters.toolchain >> ]; then
               mkdir -p ~/cache/<< parameters.toolchain >>
-              wget --progress=dot:giga $toolchain_url -O toolchain.tar.gz
               if [[ << parameters.toolchain >> == rx-gcc ]]; then
-                mv toolchain.tar.gz toolchain.run
+                wget --progress=dot:giga $toolchain_url -O toolchain.run
                 chmod +x toolchain.run
                 ./toolchain.run -p ~/cache/<< parameters.toolchain >>/gnurx -y
+              elif [[ << parameters.toolchain >> == arm-iar ]]; then
+                wget --progress=dot:giga $toolchain_url -O ~/cache/<< parameters.toolchain >>/toolchain.deb
               else
+                wget --progress=dot:giga $toolchain_url -O toolchain.tar.gz
                 tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
               fi
             fi
 
             # Add toolchain to PATH
-            echo "export PATH=$PATH:`echo ~/cache/<< parameters.toolchain >>/*/bin`" >> $BASH_ENV
+            if [[ << parameters.toolchain >> == arm-iar ]]; then
+              # Install IAR since we only cache deb file
+              sudo dpkg --ignore-depends=libusb-1.0-0 -i ~/cache/<< parameters.toolchain >>/toolchain.deb
+              echo "export PATH=$PATH:/opt/iar/cxarm/arm/bin" >> $BASH_ENV
+            else
+              echo "export PATH=$PATH:`echo ~/cache/<< parameters.toolchain >>/*/bin`" >> $BASH_ENV
+            fi
 
       - save_cache:
           name: Save Toolchain Cache
@@ -110,6 +119,9 @@ commands:
               # Toolchain option default is gcc
               if [ << parameters.toolchain >> == arm-clang ]; then
                 TOOLCHAIN_OPTION="--toolchain clang"
+              elif [ << parameters.toolchain >> == arm-iar ]; then
+                TOOLCHAIN_OPTION="--toolchain iar"
+                iccarm --version
               elif [ << parameters.toolchain >> == arm-gcc ]; then
                 TOOLCHAIN_OPTION="--toolchain gcc"
               fi

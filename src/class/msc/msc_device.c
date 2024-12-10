@@ -147,7 +147,7 @@ static inline uint16_t rdwr10_get_blocksize(msc_cbw_t const* cbw) {
   return (uint16_t) (cbw->total_bytes / block_count);
 }
 
-uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw) {
+static uint8_t rdwr10_validate_cmd(msc_cbw_t const* cbw) {
   uint8_t status = MSC_CSW_STATUS_PASSED;
   uint16_t const block_count = rdwr10_get_blockcount(cbw);
 

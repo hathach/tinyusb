@@ -180,7 +180,7 @@ osal_mutex_t usbtmcLock;
 #define criticalEnter() do { (void) osal_mutex_lock(usbtmcLock,OSAL_TIMEOUT_WAIT_FOREVER); } while (0)
 #define criticalLeave() do { (void) osal_mutex_unlock(usbtmcLock); } while (0)
 
-bool atomicChangeState(usbtmcd_state_enum expectedState, usbtmcd_state_enum newState)
+static bool atomicChangeState(usbtmcd_state_enum expectedState, usbtmcd_state_enum newState)
 {
   bool ret = true;
   criticalEnter();

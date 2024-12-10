@@ -73,7 +73,7 @@ static void dwc2_int_handler_wrap(void* arg) {
     dcd_int_handler(rhport);
   }
 #endif
-#if CFG_TUH_ENABLED
+#if CFG_TUH_ENABLED && !CFG_TUH_MAX3421
   if (role == TUSB_ROLE_HOST) {
     hcd_int_handler(rhport, true);
   }
@@ -130,22 +130,22 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_
   return size;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcache_clean(const void* addr, uint32_t data_size) {
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean(const void* addr, uint32_t data_size) {
   const int flag = ESP_CACHE_MSYNC_FLAG_TYPE_DATA | ESP_CACHE_MSYNC_FLAG_DIR_C2M;
   data_size = round_up_to_cache_line_size(data_size);
-  assert(ESP_OK == esp_cache_msync((void*)addr, data_size, flag));
+  return ESP_OK == esp_cache_msync((void*)addr, data_size, flag);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcache_invalidate(const void* addr, uint32_t data_size) {
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_invalidate(const void* addr, uint32_t data_size) {
   const int flag = ESP_CACHE_MSYNC_FLAG_TYPE_DATA | ESP_CACHE_MSYNC_FLAG_DIR_M2C;
   data_size = round_up_to_cache_line_size(data_size);
-  assert(ESP_OK == esp_cache_msync((void*)addr, data_size, flag));
+  return ESP_OK == esp_cache_msync((void*)addr, data_size, flag);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
   const int flag = ESP_CACHE_MSYNC_FLAG_TYPE_DATA | ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_DIR_M2C;
   data_size = round_up_to_cache_line_size(data_size);
-  assert(ESP_OK == esp_cache_msync((void*)addr, data_size, flag));
+  return ESP_OK == esp_cache_msync((void*)addr, data_size, flag);
 }
 
 #endif
