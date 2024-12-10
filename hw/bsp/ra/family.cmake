@@ -44,8 +44,9 @@ function(add_board_target BOARD_TARGET)
     target_include_directories(${BOARD_TARGET} PUBLIC
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/fsp_cfg
-      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/fsp_cfg/bsp
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_cfg/fsp_cfg
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_cfg/fsp_cfg/bsp
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen
       ${CMSIS_DIR}/CMSIS/Core/Include
       ${FSP_RA}/inc
       ${FSP_RA}/inc/api
