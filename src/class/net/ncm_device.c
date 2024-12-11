@@ -118,14 +118,14 @@ typedef struct {
 
 typedef struct {
   struct {
-    TUD_EPBUF_TYPE_DEF(ntb, recv_ntb_t);
+    TUD_EPBUF_TYPE_DEF(recv_ntb_t, ntb);
   } recv[RECV_NTB_N];
 
   struct {
-    TUD_EPBUF_TYPE_DEF(ntb, xmit_ntb_t);
+    TUD_EPBUF_TYPE_DEF(xmit_ntb_t, ntb);
   } xmit[XMIT_NTB_N];
 
-  TUD_EPBUF_TYPE_DEF(epnotif, ncm_notify_t);
+  TUD_EPBUF_TYPE_DEF(ncm_notify_t, epnotif);
 } ncm_epbuf_t;
 
 static ncm_interface_t ncm_interface;
@@ -748,7 +748,7 @@ void tud_network_recv_renew(void) {
 /**
  * Same as tud_network_recv_renew() but knows \a rhport
  */
-void tud_network_recv_renew_r(uint8_t rhport) {
+static void tud_network_recv_renew_r(uint8_t rhport) {
   TU_LOG_DRV("tud_network_recv_renew_r(%d)\n", rhport);
 
   ncm_interface.rhport = rhport;

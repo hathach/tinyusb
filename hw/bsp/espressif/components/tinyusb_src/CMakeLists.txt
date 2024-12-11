@@ -18,7 +18,8 @@ list(APPEND compile_definitions
 if (target STREQUAL esp32p4)
   # P4 change alignment to 64 (DCache line size) for possible DMA configuration
   list(APPEND compile_definitions
-    CFG_TUSB_MEM_ALIGN=__attribute__\(\(aligned\(64\)\)\)
+    CFG_TUD_MEM_ALIGN=__attribute__\(\(aligned\(64\)\)\)
+    CFG_TUH_MEM_ALIGN=__attribute__\(\(aligned\(64\)\)\)
     )
 endif ()
 
@@ -68,6 +69,7 @@ if (DEFINED LOG)
 endif()
 
 if(DEFINED CFLAGS_CLI)
+  separate_arguments(CFLAGS_CLI)
   list(APPEND compile_definitions ${CFLAGS_CLI})
 endif()
 

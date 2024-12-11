@@ -31,8 +31,8 @@
 
 #if CFG_TUD_ENABLED && defined(TUP_USBIP_DWC2)
 
-#if !CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE
-#error DWC2 require either CFG_TUD_DWC2_SLAVE_ENABLE or CFG_TUH_DWC2_DMA_ENABLE to be enabled
+#if !(CFG_TUD_DWC2_SLAVE_ENABLE || CFG_TUD_DWC2_DMA_ENABLE)
+#error DWC2 require either CFG_TUD_DWC2_SLAVE_ENABLE or CFG_TUD_DWC2_DMA_ENABLE to be enabled
 #endif
 
 // Debug level for DWC2
@@ -83,22 +83,19 @@ CFG_TUD_MEM_SECTION static struct {
 // DMA
 //--------------------------------------------------------------------
 #if CFG_TUD_MEM_DCACHE_ENABLE
-void dcd_dcache_clean(const void* addr, uint32_t data_size) {
-  if (addr && data_size) {
-    dwc2_dcache_clean(addr, data_size);
-  }
+bool dcd_dcache_clean(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return dwc2_dcache_clean(addr, data_size);
 }
 
-void dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
-  if (addr && data_size) {
-    dwc2_dcache_invalidate(addr, data_size);
-  }
+bool dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return dwc2_dcache_invalidate(addr, data_size);
 }
 
-void dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
-  if (addr && data_size) {
-    dwc2_dcache_clean_invalidate(addr, data_size);
-  }
+bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return dwc2_dcache_clean_invalidate(addr, data_size);
 }
 #endif
 
@@ -617,10 +614,6 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   edpt_schedule_packets(rhport, epnum, dir);
 
   return true;
-}
-
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  edpt_disable(rhport, ep_addr, false);
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {

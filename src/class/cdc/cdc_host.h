@@ -89,8 +89,7 @@ bool tuh_cdc_get_dtr(uint8_t idx);
 bool tuh_cdc_get_rts(uint8_t idx);
 
 // Check if interface is connected (DTR active)
-TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_connected(uint8_t idx)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_connected(uint8_t idx) {
   return tuh_cdc_get_dtr(idx);
 }
 

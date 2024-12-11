@@ -462,6 +462,9 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
     case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
       break;
 
+    case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
+      break;
+
     default: return false;
   }
 
@@ -484,6 +487,10 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
+        break;
+
+      case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
         frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
         break;
 
@@ -576,6 +583,10 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
             frmnum = fmt->mjpeg.bDefaultFrameIndex;
             break;
 
+          case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
+            frmnum = fmt->frame_based.bDefaultFrameIndex;
+            break;
+
           default: return false;
         }
         break;
@@ -591,6 +602,10 @@ static bool _negotiate_streaming_parameters(videod_streaming_interface_t const *
         break;
 
       case VIDEO_CS_ITF_VS_FORMAT_MJPEG:
+        frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
+        break;
+
+      case VIDEO_CS_ITF_VS_FORMAT_FRAME_BASED:
         frame_size = (uint_fast32_t)frm->wWidth * frm->wHeight * 16 / 8; /* YUV422 */
         break;
 
@@ -1307,7 +1322,7 @@ uint16_t videod_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 #ifdef TUP_DCD_EDPT_ISO_ALLOC
     /* Allocate ISO endpoints */
     uint16_t ep_size = 0;
-    uint16_t ep_addr = 0;
+    uint8_t ep_addr = 0;
     uint8_t const *p_desc = (uint8_t const*)itf_desc + stm->desc.beg;
     uint8_t const *p_desc_end = (uint8_t const*)itf_desc + stm->desc.end;
     while (p_desc < p_desc_end) {

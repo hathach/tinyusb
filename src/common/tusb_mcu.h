@@ -238,6 +238,11 @@
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_DCD_ENDPOINT_MAX    8
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32C0)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_STM32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32L0, OPT_MCU_STM32L1)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
@@ -354,8 +359,11 @@
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_ESP32
   #define TUP_DCD_ENDPOINT_MAX    7 // only 5 TX FIFO for endpoint IN
-  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT  0 // TODO currently have issue with buffer DMA with espressif
   #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
+
+  // Disable slave if DMA is enabled
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUH_DWC2_DMA_ENABLE
 
 #elif TU_CHECK_MCU(OPT_MCU_ESP32P4)
   #define TUP_USBIP_DWC2
@@ -365,18 +373,14 @@
 
   #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
 
-  #if defined(CFG_TUD_DWC2_DMA_ENABLE) && CFG_TUD_DWC2_DMA_ENABLE == 1
-  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  1
-  #endif
+  // Disable slave if DMA is enabled
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUH_DWC2_DMA_ENABLE
 
-  #if defined(CFG_TUH_DWC2_DMA_ENABLE) && CFG_TUH_DWC2_DMA_ENABLE == 1
-  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT 1
-  #endif
-
-  #define CFG_TUD_MEM_DCACHE_LINE_SIZE_DEFAULT  64
-  #define CFG_TUH_MEM_DCACHE_LINE_SIZE_DEFAULT  64
-
-  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT  0 // TODO currently have issue with buffer DMA with espressif
+  // Enable dcache if DMA is enabled
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  CFG_TUH_DWC2_DMA_ENABLE
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT  64
 
 #elif TU_CHECK_MCU(OPT_MCU_ESP32, OPT_MCU_ESP32C2, OPT_MCU_ESP32C3, OPT_MCU_ESP32C6, OPT_MCU_ESP32H2)
   #if (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
@@ -396,6 +400,7 @@
 // Raspberry Pi
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_RP2040)
+  #define TUP_DCD_EDPT_ISO_ALLOC
   #define TUP_DCD_ENDPOINT_MAX    16
 
   #define TU_ATTR_FAST_FUNC       __attribute__((section(".time_critical.tinyusb")))

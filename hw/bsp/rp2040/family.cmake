@@ -191,6 +191,7 @@ function(family_configure_target TARGET RTOS)
 
 	# compile define from command line
 	if(DEFINED CFLAGS_CLI)
+		separate_arguments(CFLAGS_CLI)
 		target_compile_options(${TARGET} PUBLIC ${CFLAGS_CLI})
 	endif()
 

@@ -549,7 +549,7 @@ def test_board(board):
     for f1 in flags_on_list:
         f1_str = ""
         if f1 != "":
-            f1_str = '-' + f1.replace(' ', '-')
+            f1_str = '-f1_' + f1.replace(' ', '_')
         for test in test_list:
             fw_dir = f'{TINYUSB_ROOT}/cmake-build/cmake-build-{name}{f1_str}/{test}'
             if not os.path.exists(fw_dir):

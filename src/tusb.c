@@ -258,6 +258,10 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
     p_desc = tu_desc_next(p_desc);
 
     while (len < max_len) {
+      if (tu_desc_len(p_desc) == 0) {
+        // Escape infinite loop
+        break;
+      }
       // return on IAD regardless of itf count
       if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
         return len;

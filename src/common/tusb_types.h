@@ -35,22 +35,42 @@
  extern "C" {
 #endif
 
-#define TUD_EPBUF_DCACHE_SIZE(_size) \
-  (CFG_TUD_MEM_DCACHE_ENABLE ? (TU_DIV_CEIL(_size, CFG_TUD_MEM_DCACHE_LINE_SIZE) * CFG_TUD_MEM_DCACHE_LINE_SIZE) : (_size))
+//------------- Device DCache declaration -------------//
+#define TUD_EPBUF_DCACHE_SIZE(_size) (CFG_TUD_MEM_DCACHE_ENABLE ? \
+  (TU_DIV_CEIL(_size, CFG_TUD_MEM_DCACHE_LINE_SIZE) * CFG_TUD_MEM_DCACHE_LINE_SIZE) : (_size))
 
 // Declare an endpoint buffer with uint8_t[size]
 #define TUD_EPBUF_DEF(_name, _size) \
   union { \
     CFG_TUD_MEM_ALIGN uint8_t _name[_size]; \
     uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(_size)]; \
-  };
+  }
 
 // Declare an endpoint buffer with a type
-#define TUD_EPBUF_TYPE_DEF(_name, _type) \
+#define TUD_EPBUF_TYPE_DEF(_type, _name) \
   union { \
     CFG_TUD_MEM_ALIGN _type _name; \
     uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
-  };
+  }
+
+//------------- Host DCache declaration -------------//
+#define TUH_EPBUF_DCACHE_SIZE(_size) (CFG_TUH_MEM_DCACHE_ENABLE ? \
+  (TU_DIV_CEIL(_size, CFG_TUH_MEM_DCACHE_LINE_SIZE) * CFG_TUH_MEM_DCACHE_LINE_SIZE) : (_size))
+
+// Declare an endpoint buffer with uint8_t[size]
+#define TUH_EPBUF_DEF(_name, _size) \
+  union { \
+    CFG_TUH_MEM_ALIGN uint8_t _name[_size]; \
+    uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(_size)]; \
+  }
+
+// Declare an endpoint buffer with a type
+#define TUH_EPBUF_TYPE_DEF(_type, _name) \
+  union { \
+    CFG_TUH_MEM_ALIGN _type _name; \
+    uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
+  }
+
 
 /*------------------------------------------------------------------*/
 /* CONSTANTS

@@ -36,7 +36,7 @@ family_list = {
     "samd11 saml2x": ["arm-gcc", "arm-clang"],
     "samd21": ["arm-gcc", "arm-clang"],
     "samd5x_e5x samg": ["arm-gcc", "arm-clang"],
-    "stm32f0 stm32f1 stm32f2 stm32f3": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32c0 stm32f0 stm32f1 stm32f2 stm32f3": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f4": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f7": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32g0 stm32g4 stm32h5": ["arm-gcc", "arm-clang", "arm-iar"],
@@ -55,14 +55,6 @@ def set_matrix_json():
     for toolchain in toolchain_list:
         filtered_families = [family for family, supported_toolchain in family_list.items() if
                              toolchain in supported_toolchain]
-
-        # always add board in hfp.json for arm-iar
-        if toolchain == 'arm-iar':
-            with open('test/hil/hfp.json') as f:
-                hfp_data = json.load(f)
-            hfp_boards = [f"-b{board['name']}" for board in hfp_data['boards']]
-            filtered_families = filtered_families + hfp_boards
-
         matrix[toolchain] = filtered_families
 
     print(json.dumps(matrix))

@@ -4,7 +4,7 @@
             "name": "espressif_p4_function_ev",
             "uid": "6055F9F98715",
             "build" : {
-                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"]
             },
             "tests": {
                 "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
@@ -14,7 +14,8 @@
                 "name": "esptool",
                 "uid": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
                 "args": "-b 1500000"
-            }
+            },
+            "comment": "Use TS3USB30 mux to test both device and host"
         },
         {
             "name": "espressif_s3_devkitm",
@@ -133,7 +134,7 @@
             "name": "stm32f723disco",
             "uid": "460029001951373031313335",
             "build" : {
-                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+                "flags_on": ["", "CFG_TUH_DWC2_DMA_ENABLE"]
             },
             "tests": {
                 "device": true, "host": true, "dual": false,
@@ -143,7 +144,8 @@
                 "name": "jlink",
                 "uid": "000776606156",
                 "args": "-device stm32f723ie"
-            }
+            },
+            "comment": "Device port0 FS (slave only), Host port1 HS with DMA"
         },
         {
             "name": "stm32h743nucleo",

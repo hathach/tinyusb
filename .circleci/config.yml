@@ -20,6 +20,7 @@ jobs:
 
             BUILDSYSTEM_TOOLCHAIN=(
               "cmake arm-clang"
+              "cmake arm-iar"
               "make aarch64-gcc"
               "make arm-gcc"
               "make msp430-gcc"
@@ -28,7 +29,27 @@ jobs:
               "cmake esp-idf"
             )
 
-            RESOURCE_LARGE='["nrf", "imxrt"]'
+            RESOURCE_LARGE='["nrf", "imxrt", "stm32f4", "stm32h7"]'
+
+            gen_build_entry() {
+              local build_system="$1"
+              local toolchain="$2"
+              local family="$3"
+              local resource_class="$4"
+
+              if [[ "$toolchain" == "esp-idf" ]]; then
+                echo "      - build-vm:" >> .circleci/config2.yml
+              else
+                echo "      - build:" >> .circleci/config2.yml
+              fi
+
+              echo "          matrix:" >> .circleci/config2.yml
+              echo "            parameters:" >> .circleci/config2.yml
+              echo "              build-system: ['$build_system']" >> .circleci/config2.yml
+              echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
+              echo "              family: $family" >> .circleci/config2.yml
+              echo "              resource_class: ['$resource_class']" >> .circleci/config2.yml
+            }
 
             for e in "${BUILDSYSTEM_TOOLCHAIN[@]}"; do
               e_arr=($e)
@@ -43,26 +64,14 @@ jobs:
               FAMILY=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[]) | not))')
 
               if [[ $toolchain == esp-idf ]]; then
-                echo "      - build-vm:" >> .circleci/config2.yml
+                gen_build_entry "$build_system" "$toolchain" "$FAMILY" "large"
               else
-                echo "      - build:" >> .circleci/config2.yml
-              fi
-              echo "          matrix:" >> .circleci/config2.yml
-              echo "            parameters:" >> .circleci/config2.yml
-              echo "              build-system: ['$build_system']" >> .circleci/config2.yml
-              echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
-              echo "              family: $FAMILY" >> .circleci/config2.yml
-              #echo "              resource_class: ['medium+']" >> .circleci/config2.yml
+                gen_build_entry "$build_system" "$toolchain" "$FAMILY" "medium+"
 
-              # add large resources
-              if [ "$(echo $FAMILY_LARGE | jq 'length')" -gt 0 ]; then
-                echo "      - build:" >> .circleci/config2.yml
-                echo "          matrix:" >> .circleci/config2.yml
-                echo "            parameters:" >> .circleci/config2.yml
-                echo "              build-system: ['$build_system']" >> .circleci/config2.yml
-                echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
-                echo "              family: $FAMILY_LARGE" >> .circleci/config2.yml
-                echo "              resource_class: ['large']" >> .circleci/config2.yml
+                # add large resources if available
+                if [ "$(echo $FAMILY_LARGE | jq 'length')" -gt 0 ]; then
+                    gen_build_entry "$build_system" "$toolchain" "$FAMILY_LARGE" "large"
+                fi
               fi
             done
 
