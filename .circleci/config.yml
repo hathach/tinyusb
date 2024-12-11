@@ -20,7 +20,6 @@ jobs:
 
             BUILDSYSTEM_TOOLCHAIN=(
               "cmake arm-clang"
-              "cmake arm-iar"
               "make aarch64-gcc"
               "make arm-gcc"
               "make msp430-gcc"
@@ -28,6 +27,11 @@ jobs:
               "make rx-gcc"
               "cmake esp-idf"
             )
+
+            # only build IAR if not forked PR, since IAR token is not shared
+            if [ -z $CIRCLE_PR_USERNAME ]; then
+              BUILDSYSTEM_TOOLCHAIN+=("cmake arm-iar")
+            fi
 
             RESOURCE_LARGE='["nrf", "imxrt", "stm32f4", "stm32h7"]'
 
