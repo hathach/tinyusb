@@ -1,0 +1,127 @@
+name: Coverity Scan
+on:
+  # Run on every commit to mainline
+  push:
+    branches: main
+  # Allow manual running of the scan
+  workflow_dispatch:
+
+env:
+  bashPass: \033[32;1mPASSED -
+  bashInfo: \033[33;1mINFO -
+  bashFail: \033[31;1mFAILED -
+  bashEnd:  \033[0m
+
+jobs:
+  Coverity-Scan:
+    if: ( github.repository == 'FreeRTOS/FreeRTOS-Kernel' )
+    name: Coverity Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the Repository
+        uses: actions/checkout@v4.1.1
+
+      - env:
+          stepName: Install Build Essentials
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+          sudo apt-get -y update
+          sudo apt-get -y install build-essential
+
+          echo "::endgroup::"
+          echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+      - env:
+          stepName: Install Coverity Build
+          COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+          wget -nv -qO- https://scan.coverity.com/download/linux64 --post-data "token=${COVERITY_TOKEN}&project=FreeRTOS-Kernel" | tar -zx --one-top-level=cov_scan --strip-components 1
+          echo "cov_scan_path=$(pwd)/cov_scan/bin" >> $GITHUB_ENV
+
+          echo "::endgroup::"
+          echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }} "
+
+      - env:
+          stepName: Coverity Build
+          COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          COVERITY_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+          export PATH="$PATH:${{env.cov_scan_path}}"
+          cmake -S ./examples/cmake_example/ -B build
+          cd build
+          cov-build --dir cov-int make -j
+          # Move the report out of the build directory
+          tar czvf ../gcc_freertos_kernel_sample_build.tgz cov-int
+
+          echo "::endgroup::"
+          echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }} "
+
+      - env:
+          stepName: Upload Coverity Report for Scan
+          COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          COVERITY_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+          COV_SCAN_UPLOAD_STATUS=$(curl --form token=${COVERITY_TOKEN} \
+            --form email=${COVERITY_EMAIL} \
+            --form file=@gcc_freertos_kernel_sample_build.tgz \
+            --form version="Mainline" \
+            --form description="FreeRTOS Kernel Commit Scan" \
+            https://scan.coverity.com/builds?project=FreeRTOS-Kernel)
+
+          echo "::endgroup::"
+          echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }} "
+          echo "${COV_SCAN_UPLOAD_STATUS}" | grep -q -e 'Build successfully submitted' || echo >&2 "Error submitting build for analysis: ${COV_SCAN_UPLOAD_STATUS}"
+
+      - env:
+            stepName: Coverity Build for SMP FreeRTOS
+            COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+            COVERITY_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        shell: bash
+        run: |
+            # ${{ env.stepName }}
+            echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+  
+            export PATH="$PATH:${{env.cov_scan_path}}"
+            cmake -S ./examples/cmake_example/ -B build -DFREERTOS_SMP_EXAMPLE=1
+            cd build
+            cov-build --dir cov-int make -j
+            # Move the report out of the build directory
+            tar czvf ../gcc_freertos_kernel_smp_sample_build.tgz cov-int
+  
+            echo "::endgroup::"
+            echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }} "
+
+      - env:
+            stepName: Upload FreeRTOS SMP Coverity Report for Scan
+            COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+            COVERITY_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        shell: bash
+        run: |
+            # ${{ env.stepName }}
+            echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+  
+            COV_SCAN_UPLOAD_STATUS=$(curl --form token=${COVERITY_TOKEN} \
+              --form email=${COVERITY_EMAIL} \
+              --form file=@gcc_freertos_kernel_smp_sample_build.tgz \
+              --form version="Mainline" \
+              --form description="FreeRTOS Kernel SMP Commit Scan" \
+              https://scan.coverity.com/builds?project=FreeRTOS-Kernel)
+  
+            echo "::endgroup::"
+            echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }} "
+            echo "${COV_SCAN_UPLOAD_STATUS}" | grep -q -e 'Build successfully submitted' || echo >&2 "Error submitting build for analysis: ${COV_SCAN_UPLOAD_STATUS}"

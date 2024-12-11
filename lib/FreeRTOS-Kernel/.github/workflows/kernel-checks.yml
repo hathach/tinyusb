@@ -1,0 +1,69 @@
+name: Kernel-Checker
+
+on: [push, pull_request]
+
+jobs:
+  kernel-checker:
+    name: FreeRTOS Kernel Header Checks
+    runs-on: ubuntu-20.04
+    steps:
+      # Install python 3
+      - name: Tool Setup
+        uses: actions/setup-python@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # There is shared code, hosted by FreeRTOS/FreeRTOS, with deps needed by header checker
+      - name: Checkout FreeRTOS Tools
+        uses: actions/checkout@v4.1.1
+        with:
+          repository: FreeRTOS/FreeRTOS
+          sparse-checkout: '.github'
+          ref:  main
+          path: tools
+
+      # Checkout user pull request changes
+      - name: Checkout Pull Request
+        uses: actions/checkout@v4.1.1
+        with:
+          path: inspect
+
+      # Collect all affected files
+      - name: Collecting changed files
+        uses: lots0logs/gh-action-get-changed-files@2.2.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Run checks
+      - env:
+          bashPass: \033[32;1mPASSED -
+          bashInfo: \033[33;1mINFO -
+          bashFail: \033[31;1mFAILED -
+          bashEnd:  \033[0m
+          stepName: Check File Headers
+        name: ${{ env.stepName }}
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} Install Dependencies ${{ env.bashEnd }}"
+
+          # Copy the common tools from the FreeRTOS/FreeRTOS repo.
+          mv tools/.github/scripts/common inspect/.github/scripts
+
+          # Install the necessary python dependencies
+          pip install -r inspect/.github/scripts/common/requirements.txt
+          cd inspect
+
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+          # Use the python script to check the copyright header of modified files.
+          .github/scripts/kernel_checker.py --json ${HOME}/files_modified.json ${HOME}/files_added.json ${HOME}/files_renamed.json
+          exitStatus=$?
+          echo -e "::endgroup::"
+
+          if [ $exitStatus -eq 0 ]; then
+            echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }}"
+          else
+            echo -e "${{ env.bashFail }} ${{ env.stepName }} ${{ env.bashEnd }}"
+          fi
+          exit $exitStatus

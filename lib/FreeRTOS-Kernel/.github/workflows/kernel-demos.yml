@@ -1,0 +1,318 @@
+name: FreeRTOS-Kernel Demos
+on: [push, pull_request]
+
+env:
+  # The bash escape character is \033
+  bashPass:   \033[32;1mPASSED -
+  bashInfo:   \033[33;1mINFO -
+  bashFail:   \033[31;1mFAILED -
+  bashEnd:    \033[0m
+
+jobs:
+  WIN32-MSVC:
+    name: WIN32 MSVC
+    runs-on: windows-latest
+    steps:
+      - name: Checkout the FreeRTOS/FreeRTOS Repository
+        uses: actions/checkout@v4.1.1
+        with:
+          ref: main
+          repository: FreeRTOS/FreeRTOS
+          submodules: 'recursive'
+          fetch-depth: 1
+
+      # Checkout user pull request changes
+      - name: Checkout Pull Request
+        uses: actions/checkout@v4.1.1
+        with:
+          path: ./FreeRTOS/Source
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Build WIN32-MSVC Demo
+        working-directory: FreeRTOS/Demo/WIN32-MSVC
+        run: msbuild WIN32.sln -t:rebuild
+
+      - name: Build WIN32-MSVC-Static-Allocation-Only Demo
+        working-directory: FreeRTOS/Demo/WIN32-MSVC-Static-Allocation-Only
+        run: msbuild WIN32.sln -t:rebuild
+
+  WIN32-MingW:
+    name: WIN32 MingW
+    runs-on: windows-latest
+    steps:
+      - name: Checkout the FreeRTOS/FreeRTOS Repository
+        uses: actions/checkout@v4.1.1
+        with:
+          ref: main
+          repository: FreeRTOS/FreeRTOS
+          submodules: 'recursive'
+          fetch-depth: 1
+
+      # Checkout user pull request changes
+      - name: Checkout Pull Request
+        uses: actions/checkout@v4.1.1
+        with:
+          path: ./FreeRTOS/Source
+
+      - name: Build WIN32-MingW Demo
+        working-directory: FreeRTOS/Demo/WIN32-MingW
+        run: |
+          gcc --version
+          make --version
+          make
+
+  POSIX-GCC:
+    name: Native GCC
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout the FreeRTOS/FreeRTOS Repository
+        uses: actions/checkout@v4.1.1
+        with:
+          ref: main
+          repository: FreeRTOS/FreeRTOS
+          submodules: 'recursive'
+          fetch-depth: 1
+
+      # Checkout user pull request changes
+      - name: Checkout Pull Request
+        uses: actions/checkout@v4.1.1
+        with:
+          path: ./FreeRTOS/Source
+
+      - name: Install GCC
+        shell: bash
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install build-essential
+
+      - name: Build Posix_GCC Demo
+        shell: bash
+        working-directory: FreeRTOS/Demo/Posix_GCC
+        run: make -j
+
+      - name: Build Posix_GCC Demo for Coverage Test
+        shell: bash
+        working-directory: FreeRTOS/Demo/Posix_GCC
+        run: make -j COVERAGE_TEST=1
+
+  CMake-Example:
+    name: CMake Example with Native GCC
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout user pull request changes
+      - name: Checkout Repository
+        uses: actions/checkout@v4.1.1
+
+      - name: Install GCC
+        shell: bash
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install build-essential
+
+      - name: Build CMake Example Demo
+        shell: bash
+        working-directory: examples/cmake_example
+        run: |
+          cmake -S . -B build
+          cmake --build build
+
+      - name: Build CMake SMP Example Demo
+        shell: bash
+        working-directory: examples/cmake_example
+        run: |
+          cmake -S . -B build -DFREERTOS_SMP_EXAMPLE=1
+          cmake --build build
+
+  MSP430-GCC:
+    name: GNU MSP430 Toolchain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the FreeRTOS/FreeRTOS Repository
+        uses: actions/checkout@v4.1.1
+        with:
+          ref: main
+          repository: FreeRTOS/FreeRTOS
+          submodules: 'recursive'
+          fetch-depth: 1
+
+      # Checkout user pull request changes
+      - name: Checkout Pull Request
+        uses: actions/checkout@v4.1.1
+        with:
+          path: ./FreeRTOS/Source
+
+      - name: Install MSP430 Toolchain
+        shell: bash
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install gcc-msp430 build-essential
+
+      - name: Build msp430_GCC Demo
+        shell: bash
+        working-directory: FreeRTOS/Demo/msp430_GCC
+        run: make -j
+
+  MicroBlaze-GCC:
+    name: GCC MicroBlaze Toolchain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the FreeRTOS/FreeRTOS Repository
+        uses: actions/checkout@v4.1.1
+        with:
+          ref: main
+          repository: FreeRTOS/FreeRTOS
+          fetch-depth: 1
+
+      - env:
+          stepName: Fetch Community-Supported-Demos Submodule
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+          git submodule update --checkout --init --depth 1 FreeRTOS/Demo/ThirdParty/Community-Supported-Demos
+          # This repository contains the microblaze_instructions.h header file
+          git clone https://github.com/Xilinx/embeddedsw.git --branch xilinx_v2023.1
+          echo "::endgroup::"
+          echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+      # Checkout user pull request changes
+      - name: Checkout Pull Request
+        uses: actions/checkout@v4.1.1
+        with:
+          path: ./FreeRTOS/Source
+
+      - env:
+          stepName: Install Dependancies
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install -y build-essential m4 debhelper bison texinfo dejagnu flex
+          sudo apt install -y autogen gawk libgmp-dev libmpc-dev libmpfr-dev
+          sudo apt install -y patchutils sharutils zlib1g-dev autoconf2.64
+
+          # Download the mb-gcc toolchain from github
+          curl -L -O https://github.com/mdednev/mb-gcc/releases/download/2021-0623%2B2/binutils-microblaze_2.35-2021-0623+1_amd64.deb;
+          curl -L -O https://github.com/mdednev/mb-gcc/releases/download/2021-0623%2B2/gcc-microblaze_10.2.0-2021-0623+2_amd64.deb;
+          curl -L -O https://github.com/mdednev/mb-gcc/releases/download/2021-0623%2B2/libnewlib-microblaze-dev_3.3.0-2021-0623+3_all.deb;
+          curl -L -O https://github.com/mdednev/mb-gcc/releases/download/2021-0623%2B2/libnewlib-microblaze-doc_3.3.0-2021-0623+3_all.deb;
+          curl -L -O https://github.com/mdednev/mb-gcc/releases/download/2021-0623%2B2/libnewlib-microblaze_3.3.0-2021-0623+3_all.deb;
+          curl -L -O https://github.com/mdednev/mb-gcc/releases/download/2021-0623%2B2/newlib-source_3.3.0-2021-0623+3_all.deb;
+
+          # Install the packages for the toolchain
+          sudo apt install -y ./binutils-microblaze*.deb;
+          sudo apt install -y ./gcc-microblaze*.deb;
+          sudo apt install -y ./libnewlib-microblaze-dev*.deb;
+          sudo apt install -y ./libnewlib-microblaze-doc*.deb;
+          sudo apt install -y ./libnewlib-microblaze*.deb;
+          sudo apt install -y ./newlib-source*.deb;
+
+          # Validate that the toolchain is in the path and can be called
+          which mb-gcc
+          mb-gcc --version
+
+          echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+      - env:
+          stepName: Compile Microblaze Port
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+          # Compile MicroBlazeV9 Port files to validate they build
+          mb-gcc -mcpu=v9.5 -c \
+            FreeRTOS/Source/portable/GCC/MicroBlazeV9/port.c \
+            FreeRTOS/Source/portable/GCC/MicroBlazeV9/portasm.S \
+            FreeRTOS/Source/portable/GCC/MicroBlazeV9/port_exceptions.c \
+            FreeRTOS/Source/tasks.c \
+            FreeRTOS/Source/list.c \
+            -I embeddedsw/lib/bsp/standalone/src/microblaze \
+            -I FreeRTOS/Source/portable/GCC/MicroBlazeV9/ \
+            -I FreeRTOS/Source/include \
+            -I FreeRTOS/Demo/MicroBlaze_Kintex7_EthernetLite/RTOSDemo/src \
+            -I FreeRTOS/Demo/MicroBlaze_Kintex7_EthernetLite/BSP/microblaze_0/libsrc/standalone_v5_4/src \
+            -I FreeRTOS/Demo/MicroBlaze_Kintex7_EthernetLite/BSP/microblaze_0/include \
+            -I FreeRTOS/Demo/MicroBlaze_Kintex7_EthernetLite/BSP/microblaze_0/libsrc/intc_v3_5/src
+          echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+
+  ARM-GCC:
+    name: GNU ARM Toolchain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the FreeRTOS/FreeRTOS Repository
+        uses: actions/checkout@v4.1.1
+        with:
+          ref: main
+          repository: FreeRTOS/FreeRTOS
+          fetch-depth: 1
+
+      - env:
+          stepName: Fetch Community-Supported-Demos Submodule
+        shell: bash
+        run: |
+          # ${{ env.stepName }}
+          echo -e "::group::${{ env.bashInfo }} ${{ env.stepName }} ${{ env.bashEnd }}"
+          git submodule update --checkout --init --depth 1 FreeRTOS/Demo/ThirdParty/Community-Supported-Demos
+          echo -e "${{ env.bashPass }} ${{ env.stepName }} ${{ env.bashEnd }}"
+
+      # Checkout user pull request changes
+      - name: Checkout Pull Request
+        uses: actions/checkout@v4.1.1
+        with:
+          path: ./FreeRTOS/Source
+
+      - name: Install GNU ARM Toolchain
+        shell: bash
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install gcc-arm-none-eabi build-essential cmake git ninja-build python3-minimal
+
+      - name: Build CORTEX_MPU_M3_MPS2_QEMU_GCC Demo
+        shell: bash
+        working-directory: FreeRTOS/Demo/CORTEX_MPU_M3_MPS2_QEMU_GCC
+        run: make -j
+
+      - name: Build CORTEX_MPU_R4F_TI_RM46_HERCULES_GCC Demo
+        shell: bash
+        working-directory: FreeRTOS/Demo/CORTEX_MPU_R4F_TI_RM46_HERCULES_GCC
+        run: cmake -S . -B build && make -j -C build all
+
+      - name: Build CORTEX_MPU_R5F_TI_RM57_HERCULES_GCC Demo
+        shell: bash
+        working-directory: FreeRTOS/Demo/CORTEX_MPU_R5F_TI_RM57_HERCULES_GCC
+        run: cmake -S . -B build && make -j -C build all
+
+      - name: Build CORTEX_LM3S102_GCC Demo
+        shell: bash
+        working-directory: FreeRTOS/Demo/CORTEX_LM3S102_GCC
+        run: make -j
+
+      - name: Build CORTEX_LM3S811_GCC Demo
+        shell: bash
+        working-directory: FreeRTOS/Demo/CORTEX_LM3S811_GCC
+        run: make -j
+
+      - name: Build CORTEX_M0+_RP2040 Demos
+        shell: bash
+        working-directory: FreeRTOS/Demo/ThirdParty/Community-Supported-Demos/CORTEX_M0+_RP2040
+        run: |
+          git clone https://github.com/raspberrypi/pico-sdk.git
+          cmake -B build -DPICO_SDK_PATH=pico-sdk -GNinja
+          ninja -C build --verbose
+
+      - name: Build CORTEX_MPS2_QEMU_IAR_GCC Demo
+        shell: bash
+        working-directory: FreeRTOS/Demo/CORTEX_MPS2_QEMU_IAR_GCC
+        run: make -C build/gcc -j

@@ -199,6 +199,11 @@
 #define OPT_MCU_MAX32650         2402  ///< ADI MAX32650/1/2
 #define OPT_MCU_MAX78002         2403  ///< ADI MAX78002
 
+// ArteryTek
+#define OPT_MCU_AT32F403A_407    2500  ///< ArteryTek AT32F403A/AT32F407
+#define OPT_MCU_AT32F415         2501  ///< ArteryTek AT32F415
+#define OPT_MCU_AT32F435_437     2502  ///< ArteryTek AT32F435/AT32F437
+
 // Check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input
 #define _TU_CHECK_MCU(_m)    (CFG_TUSB_MCU == _m)

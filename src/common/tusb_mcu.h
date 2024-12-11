@@ -529,6 +529,24 @@
   #define TUP_RHPORT_HIGHSPEED    1
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
+//--------------------------------------------------------------------+
+// ArteryTek
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F403A_407)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F415)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_AT32
+  #define TUP_DCD_ENDPOINT_MAX    4
+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F435_437)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
 #endif
 
 //--------------------------------------------------------------------+
