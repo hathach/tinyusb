@@ -154,14 +154,24 @@ bool tusb_inited(void);
 // Called to handle usb interrupt/event. tusb_init(rhport, role) must be called before
 void tusb_int_handler(uint8_t rhport, bool in_isr);
 
-// TODO
-// bool tusb_teardown(void);
+// Internal helper for backward compatibility with tusb_init(void)
+bool tusb_rhport_teardown(uint8_t rhport);
+
+#if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
+  #define _tusb_teardown_arg0()        tusb_rhport_teardown(0)
+#else
+  #define _tusb_teardown_arg0()        TU_VERIFY_STATIC(false, "CFG_TUSB_RHPORT0_MODE/CFG_TUSB_RHPORT1_MODE must be defined")
+#endif
+
+#define _tusb_teardown_arg1(_rhport)         tusb_rhport_teardown(_rhport)
+#define tusb_teardown(...)                   TU_FUNC_OPTIONAL_ARG(_tusb_teardown, __VA_ARGS__)
 
 #else
 
 #define tusb_init(...)  (false)
 #define tusb_int_handler(...)  do {}while(0)
 #define tusb_inited()  (false)
+#define tusb_teardown(...) (false)
 
 #endif
 
