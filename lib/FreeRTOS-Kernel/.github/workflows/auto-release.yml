@@ -1,0 +1,126 @@
+name: Kernel-Auto-Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_id:
+        description: 'Commit ID'
+        required: true
+        default: 'HEAD'
+      version_number:
+        description: 'Version Number (Ex. 10.4.4)'
+        required: true
+        default: '10.4.4'
+      main_br_version:
+        description: "Version String for task.h on main branch (leave empty to leave as-is)."
+        required: false
+        default: ''
+
+jobs:
+  release-packager:
+    name: Release Packager
+    runs-on: ubuntu-latest
+    steps:
+      # Install python 3
+      - name: Tool Setup
+        uses: actions/setup-python@v2
+        with:
+          architecture:   x64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Currently FreeRTOS/.github/scripts houses the release script. Download it for upcoming usage
+      - name: Checkout FreeRTOS Release Tools
+        uses: actions/checkout@v4.1.1
+        with:
+          repository: FreeRTOS/FreeRTOS
+          path: tools
+
+      # Simpler git auth if we use checkout action and forward the repo to release script
+      - name: Checkout FreeRTOS Kernel
+        uses: actions/checkout@v4.1.1
+        with:
+          path: local_kernel
+          fetch-depth: 0
+
+      - name: Configure git identity
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          git config --global user.name "$ACTOR"
+          git config --global user.email "$ACTOR"@users.noreply.github.com
+
+      - name: create a new branch that references commit id
+        env:
+          VERSION_NUMBER: ${{ github.event.inputs.version_number }}
+          COMMIT_ID: ${{ github.event.inputs.commit_id }}
+        working-directory: ./local_kernel
+        run: |
+          git checkout -b "$VERSION_NUMBER" "$COMMIT_ID"
+          echo "COMMIT_SHA_1=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Update source files with version info
+        env:
+          VERSION_NUMBER: ${{ github.event.inputs.version_number }}
+          MAIN_BR_VERSION_NUMBER: ${{ github.event.inputs.main_br_version }}
+          COMMIT_SHA_1: ${{ env.COMMIT_SHA_1 }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Install deps and run
+          pip install -r ./tools/.github/scripts/release-requirements.txt
+          ./tools/.github/scripts/update_src_version.py FreeRTOS --kernel-repo-path=local_kernel --kernel-commit="$COMMIT_SHA_1" --new-kernel-version="$VERSION_NUMBER" --new-kernel-main-br-version="$MAIN_BR_VERSION_NUMBER"
+          exit $?
+
+      - name : Update version number in manifest.yml
+        env:
+          VERSION_NUMBER: ${{ github.event.inputs.version_number }}
+        working-directory: ./local_kernel
+        run: |
+          ./.github/scripts/manifest_updater.py -v "$VERSION_NUMBER"
+          exit $?
+
+      - name : Commit version number change in manifest.yml
+        env:
+          VERSION_NUMBER: ${{ github.event.inputs.version_number }}
+        working-directory: ./local_kernel
+        run: |
+          git add .
+          git commit -m '[AUTO][RELEASE]: Update version number in manifest.yml'
+          git push -u origin "$VERSION_NUMBER"
+
+      - name: Generate SBOM
+        uses: FreeRTOS/CI-CD-Github-Actions/sbom-generator@main
+        with:
+          repo_path: ./local_kernel
+          source_path: ./
+
+      - name: commit SBOM file
+        env:
+          VERSION_NUMBER: ${{ github.event.inputs.version_number }}
+        working-directory: ./local_kernel
+        run: |
+          git add .
+          git commit -m '[AUTO][RELEASE]: Update SBOM'
+          git push -u origin "$VERSION_NUMBER"
+          echo "COMMIT_SHA_2=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Release
+        env:
+          VERSION_NUMBER: ${{ github.event.inputs.version_number }}
+          MAIN_BR_VERSION_NUMBER: ${{ github.event.inputs.main_br_version }}
+          COMMIT_SHA_2: ${{ env.COMMIT_SHA_2 }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Install deps and run
+          pip install -r ./tools/.github/scripts/release-requirements.txt
+          ./tools/.github/scripts/release.py "$REPO_OWNER" --kernel-repo-path=local_kernel --kernel-commit="$COMMIT_SHA_2" --new-kernel-version="$VERSION_NUMBER" --new-kernel-main-br-version="$MAIN_BR_VERSION_NUMBER"
+          exit $?
+
+      - name: Cleanup
+        env:
+          VERSION_NUMBER: ${{ github.event.inputs.version_number }}
+        working-directory: ./local_kernel
+        run: |
+          # Delete the branch created for Tag by SBOM generator
+          git push -u origin --delete "$VERSION_NUMBER"
