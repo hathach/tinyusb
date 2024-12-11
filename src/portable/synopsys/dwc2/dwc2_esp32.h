@@ -73,7 +73,7 @@ static void dwc2_int_handler_wrap(void* arg) {
     dcd_int_handler(rhport);
   }
 #endif
-#if CFG_TUH_ENABLED
+#if CFG_TUH_ENABLED && !CFG_TUH_MAX3421
   if (role == TUSB_ROLE_HOST) {
     hcd_int_handler(rhport, true);
   }

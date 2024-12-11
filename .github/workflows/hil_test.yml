@@ -58,7 +58,7 @@ jobs:
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # self-hosted running on an VM. For attached hardware checkout HIL_JSON
+  # self-hosted on local VM, for attached hardware checkout HIL_JSON
   # ---------------------------------------
   hil-tinyusb:
     if: github.repository_owner == 'hathach'
@@ -86,3 +86,41 @@ jobs:
         run: |
           ls cmake-build/
           python3 test/hil/hil_test.py ${{ env.HIL_JSON }}
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # self-hosted by HFP, build with IAR toolchain, for attached hardware checkout test/hil/hfp.json
+  # ---------------------------------------
+  hil-hfp:
+    if: github.repository_owner == 'hathach'
+    runs-on: [self-hosted, Linux, X64, hifiphile]
+    #env:
+    #  IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+      - name: Toolchain version
+        run: iccarm --version
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get build boards
+        run: |
+          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json)
+          BUILD_ARGS=$(echo $MATRIX_JSON | jq -r '.["arm-gcc"] | join(" ")')
+          echo "BUILD_ARGS=$BUILD_ARGS"
+          echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
+
+      - name: Get Dependencies
+        run: python3 tools/get_deps.py $BUILD_ARGS
+
+      - name: Build
+        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
+
+      - name: Test on actual hardware (hardware in the loop)
+        run: python3 test/hil/hil_test.py hfp.json

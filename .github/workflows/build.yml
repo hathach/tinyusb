@@ -113,13 +113,12 @@ jobs:
   # Build IAR on HFP self-hosted
   # ---------------------------------------
   arm-iar:
-    if: github.repository_owner == 'hathach'
+    if: github.repository_owner == 'hathach' && github.event_name == 'push'
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
       BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'], ' ') }}
-      IAR_LMS_CLOUD_URL: https://license.cloud.iar.com
-      IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+      # IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
     steps:
       - name: Clean workspace
         run: |
@@ -138,8 +137,3 @@ jobs:
 
       - name: Build
         run: python3 tools/build.py --one-per-family --toolchain iar $BUILD_ARGS
-
-      - name: Test on actual hardware (hardware in the loop)
-        if: github.event_name == 'pull_request'
-        run: |
-          python3 test/hil/hil_test.py hfp.json
