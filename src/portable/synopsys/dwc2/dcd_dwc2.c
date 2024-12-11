@@ -44,7 +44,7 @@
 #if TU_CHECK_MCU(OPT_MCU_GD32VF103)
   #define DWC2_EP_COUNT(_dwc2)   DWC2_EP_MAX
 #else
-  #define DWC2_EP_COUNT(_dwc2)  ((_dwc2)->ghwcfg2_bm.num_dev_ep)
+  #define DWC2_EP_COUNT(_dwc2)  ((_dwc2)->ghwcfg2_bm.num_dev_ep + 1)
 #endif
 
 //--------------------------------------------------------------------+
