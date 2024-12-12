@@ -4,7 +4,7 @@ if (NOT BOARD)
   message(FATAL_ERROR "BOARD not specified")
 endif ()
 
-set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
+set(CMSIS_DIR ${TOP}/lib/CMSIS_6)
 set(FSP_RA ${TOP}/hw/mcu/renesas/fsp/ra/fsp)
 
 # include board specific
@@ -59,18 +59,19 @@ function(add_board_target BOARD_TARGET)
     update_board(${BOARD_TARGET})
 
     if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-      set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/gcc/${MCU_VARIANT}.ld)
+      set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/script/fsp.ld)
+      #set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/gcc/${MCU_VARIANT}.ld)
     endif ()
 
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
       target_link_options(${BOARD_TARGET} PUBLIC
         # linker file
         "LINKER:--script=${LD_FILE_GNU}"
-        -L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/gcc
+        #-L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/gcc
+        -L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/script
+        -Wl,--defsym=end=__bss_end__
         -nostartfiles
-        # nanolib
-        --specs=nano.specs
-        --specs=nosys.specs
+        --specs=nano.specs --specs=nosys.specs
         )
     elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
       target_link_options(${BOARD_TARGET} PUBLIC
