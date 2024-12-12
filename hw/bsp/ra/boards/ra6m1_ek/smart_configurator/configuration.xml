@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<raConfiguration version="3">
+<raConfiguration version="9">
   <generalSettings>
-    <option key="#pinconfiguration#" value="R7FA6M1AD3CFP.pincfg"/>
     <option key="#Board#" value="board.ra6m1ek"/>
     <option key="CPU" value="RA6M1"/>
     <option key="Core" value="CM4"/>
@@ -9,9 +8,10 @@
     <option key="#TargetARCHITECTURE#" value="cortex-m4"/>
     <option key="#DeviceCommand#" value="R7FA6M1AD"/>
     <option key="#RTOS#" value="_none"/>
+    <option key="#pinconfiguration#" value="R7FA6M1AD3CFP.pincfg"/>
     <option key="#FSPVersion#" value="5.6.0"/>
-    <option key="#SELECTED_TOOLCHAIN#" value="com.renesas.cdt.managedbuild.gnuarm.toolchain."/>
     <option key="#ConfigurationFragments#" value="Renesas##BSP##Board##ra6m1_ek##"/>
+    <option key="#SELECTED_TOOLCHAIN#" value="com.renesas.cdt.managedbuild.gnuarm.toolchain."/>
   </generalSettings>
   <raBspConfiguration>
     <config id="config.bsp.ra6m1.R7FA6M1AD3CFP">
@@ -87,8 +87,8 @@
       <property id="config.bsp.common.id_fixed" value=""/>
     </config>
     <config id="config.bsp.ra">
-      <property id="config.bsp.common.main" value="0x400"/>
-      <property id="config.bsp.common.heap" value="0"/>
+      <property id="config.bsp.common.main" value="0x1000"/>
+      <property id="config.bsp.common.heap" value="0x1000"/>
       <property id="config.bsp.common.vcc" value="3300"/>
       <property id="config.bsp.common.checking" value="config.bsp.common.checking.disabled"/>
       <property id="config.bsp.common.assert" value="config.bsp.common.assert.none"/>
@@ -175,125 +175,96 @@
       <originalPack>Renesas.RA_mcu_ra6m1.5.6.0.pack</originalPack>
     </component>
   </raComponentSelection>
+  <raElcConfiguration/>
   <raIcuConfiguration/>
-  <raMessagingConfiguration/>
   <raModuleConfiguration>
     <module id="module.driver.ioport_on_ioport.0">
       <property id="module.driver.ioport.name" value="g_ioport"/>
+      <property id="module.driver.ioport.elc_trigger_ioport1" value="_disabled"/>
+      <property id="module.driver.ioport.elc_trigger_ioport2" value="_disabled"/>
+      <property id="module.driver.ioport.elc_trigger_ioport3" value="_disabled"/>
+      <property id="module.driver.ioport.elc_trigger_ioport4" value="_disabled"/>
+      <property id="module.driver.ioport.pincfg" value="g_bsp_pin_cfg"/>
     </module>
     <context id="_hal.0">
       <stack module="module.driver.ioport_on_ioport.0"/>
     </context>
+    <config id="config.driver.ioport">
+      <property id="config.driver.ioport.checking" value="config.driver.ioport.checking.system"/>
+    </config>
   </raModuleConfiguration>
   <raPinConfiguration>
-    <pincfg active="true" name="RA6M1-EK.pincfg" symbol="g_bsp_pin_cfg">
-      <configSetting altId="debug0.mode.jtag" configurationId="debug0.mode"/>
-      <configSetting altId="p108.gpio_mode.gpio_mode_peripheral" configurationId="p108.gpio_mode"/>
-      <configSetting altId="p108.debug0.tms" configurationId="p108"/>
-      <configSetting altId="debug0.tms.p108" configurationId="debug0.tms"/>
-      <configSetting altId="p109.gpio_mode.gpio_mode_peripheral" configurationId="p109.gpio_mode"/>
-      <configSetting altId="p109.debug0.tdo" configurationId="p109"/>
-      <configSetting altId="debug0.tdo.p109" configurationId="debug0.tdo"/>
-      <configSetting altId="p110.gpio_mode.gpio_mode_peripheral" configurationId="p110.gpio_mode"/>
-      <configSetting altId="p110.debug0.tdi" configurationId="p110"/>
-      <configSetting altId="debug0.tdi.p110" configurationId="debug0.tdi"/>
-      <configSetting altId="p300.gpio_mode.gpio_mode_peripheral" configurationId="p300.gpio_mode"/>
-      <configSetting altId="p300.debug0.tck" configurationId="p300"/>
-      <configSetting altId="debug0.tck.p300" configurationId="debug0.tck"/>
-      <configSetting altId="system0.vss.vss" configurationId="system0.vss"/>
-      <configSetting altId="system0.vcc.vcc" configurationId="system0.vcc"/>
-      <configSetting altId="vcl0.vcl0" configurationId="vcl0"/>
-      <configSetting altId="vssusb.vssusb" configurationId="vssusb"/>
-      <configSetting altId="cgc0.xcout.xcout" configurationId="cgc0.xcout"/>
-      <configSetting altId="vccusb.vccusb" configurationId="vccusb"/>
-      <configSetting altId="vrefl.vrefl" configurationId="vrefl"/>
-      <configSetting altId="system0.vcl.vcl" configurationId="system0.vcl"/>
-      <configSetting altId="vrefh.vrefh" configurationId="vrefh"/>
-      <configSetting altId="res.system0.res" configurationId="res"/>
-      <configSetting altId="analog0.vrefl0.vrefl0" configurationId="analog0.vrefl0"/>
-      <configSetting altId="system0.vbatt.vbatt" configurationId="system0.vbatt"/>
-      <configSetting altId="usbdm.usbfs0.usbdm" configurationId="usbdm"/>
-      <configSetting altId="vrefl0.vrefl0" configurationId="vrefl0"/>
-      <configSetting altId="vrefh0.vrefh0" configurationId="vrefh0"/>
-      <configSetting altId="usbdp.usbfs0.usbdp" configurationId="usbdp"/>
-      <configSetting altId="analog0.vrefh0.vrefh0" configurationId="analog0.vrefh0"/>
-      <configSetting altId="analog0.vrefh.vrefh" configurationId="analog0.vrefh"/>
-      <configSetting altId="analog0.vrefl.vrefl" configurationId="analog0.vrefl"/>
-      <configSetting altId="xcout.cgc0.xcout" configurationId="xcout"/>
-      <configSetting altId="cgc0.xcin.xcin" configurationId="cgc0.xcin"/>
-      <configSetting altId="usbfs0.dm.usbdm" configurationId="usbfs0.dm"/>
-      <configSetting altId="usbfs0.vcc.vccusb" configurationId="usbfs0.vcc"/>
-      <configSetting altId="usbfs0.vss.vssusb" configurationId="usbfs0.vss"/>
-      <configSetting altId="usbfs0.dp.usbdp" configurationId="usbfs0.dp"/>
-      <configSetting altId="analog0.avcc0.avcc0" configurationId="analog0.avcc0"/>
-      <configSetting altId="analog0.avss0.avss0" configurationId="analog0.avss0"/>
-      <configSetting altId="vss.vss" configurationId="vss"/>
-      <configSetting altId="vcc.vcc" configurationId="vcc"/>
-      <configSetting altId="vbatt.system0.vbatt" configurationId="vbatt"/>
-      <configSetting altId="system0.res.res" configurationId="system0.res"/>
-      <configSetting altId="vcl.vcl" configurationId="vcl"/>
-      <configSetting altId="xcin.cgc0.xcin" configurationId="xcin"/>
-      <configSetting altId="system0.vcl0.vcl0" configurationId="system0.vcl0"/>
-      <configSetting altId="avcc0.avcc0" configurationId="avcc0"/>
-      <configSetting altId="avss0.avss0" configurationId="avss0"/>
-      <configSetting altId="p004.gpio_mode.gpio_mode_an" configurationId="p004.gpio_mode"/>
-      <configSetting altId="p104.gpio_mode.gpio_mode_peripheral" configurationId="p104.gpio_mode"/>
+    <symbolicName propertyId="p112.symbolic_name" value="LED1"/>
+    <symbolicName propertyId="p415.symbolic_name" value="SW1"/>
+    <pincfg active="true" name="RA6M1-EK.pincfg" selected="true" symbol="g_bsp_pin_cfg">
       <configSetting altId="adc1.an00.p004" configurationId="adc1.an00"/>
       <configSetting altId="adc1.mode.custom" configurationId="adc1.mode"/>
-      <configSetting altId="sci8.rxd.p104" configurationId="sci8.rxd"/>
-      <configSetting altId="p105.sci8.txd" configurationId="p105"/>
-      <configSetting altId="p104.sci8.rxd" configurationId="p104"/>
-      <configSetting altId="sci8.txd.p105" configurationId="sci8.txd"/>
-      <configSetting altId="p105.gpio_mode.gpio_mode_peripheral" configurationId="p105.gpio_mode"/>
+      <configSetting altId="ctsu0.mode.enabled" configurationId="ctsu0.mode"/>
+      <configSetting altId="ctsu0.ts02.p207" configurationId="ctsu0.ts02"/>
+      <configSetting altId="ctsu0.tscap.p205" configurationId="ctsu0.tscap"/>
+      <configSetting altId="debug0.mode.swd" configurationId="debug0.mode"/>
+      <configSetting altId="debug0.swclk.p300" configurationId="debug0.swclk"/>
+      <configSetting altId="debug0.swdio.p108" configurationId="debug0.swdio"/>
       <configSetting altId="p004.asel" configurationId="p004"/>
-      <configSetting altId="sci8.mode.asynchronous.free" configurationId="sci8.mode"/>
-      <configSetting altId="p101.gpio_mode.gpio_mode_peripheral" configurationId="p101.gpio_mode"/>
-      <configSetting altId="spi0.ssl0.p103" configurationId="spi0.ssl0"/>
-      <configSetting altId="spi0.mode.enabled.a" configurationId="spi0.mode"/>
-      <configSetting altId="p102.spi0.rspck" configurationId="p102"/>
-      <configSetting altId="p101.spi0.mosi" configurationId="p101"/>
+      <configSetting altId="p004.gpio_mode.gpio_mode_an" configurationId="p004.gpio_mode"/>
       <configSetting altId="p100.spi0.miso" configurationId="p100"/>
       <configSetting altId="p100.gpio_mode.gpio_mode_peripheral" configurationId="p100.gpio_mode"/>
+      <configSetting altId="p101.spi0.mosi" configurationId="p101"/>
+      <configSetting altId="p101.gpio_mode.gpio_mode_peripheral" configurationId="p101.gpio_mode"/>
+      <configSetting altId="p102.spi0.rspck" configurationId="p102"/>
+      <configSetting altId="p102.gpio_mode.gpio_mode_peripheral" configurationId="p102.gpio_mode"/>
       <configSetting altId="p103.spi0.ssl0" configurationId="p103"/>
       <configSetting altId="p103.gpio_mode.gpio_mode_peripheral" configurationId="p103.gpio_mode"/>
-      <configSetting altId="spi0.miso.p100" configurationId="spi0.miso"/>
-      <configSetting altId="spi0.mosi.p101" configurationId="spi0.mosi"/>
-      <configSetting altId="p102.gpio_mode.gpio_mode_peripheral" configurationId="p102.gpio_mode"/>
-      <configSetting altId="spi0.rspck.p102" configurationId="spi0.rspck"/>
-      <configSetting altId="p407.gpio_mode.gpio_mode_peripheral" configurationId="p407.gpio_mode"/>
-      <configSetting altId="usbfs0.mode.device" configurationId="usbfs0.mode"/>
-      <configSetting altId="usbfs0.vbus.p407" configurationId="usbfs0.vbus"/>
-      <configSetting altId="p407.usbfs0.vbus" configurationId="p407"/>
-      <configSetting altId="ctsu0.mode.enabled" configurationId="ctsu0.mode"/>
-      <configSetting altId="p207.gpio_mode.gpio_mode_peripheral" configurationId="p207.gpio_mode"/>
-      <configSetting altId="ctsu0.tscap.p205" configurationId="ctsu0.tscap"/>
-      <configSetting altId="p205.gpio_mode.gpio_mode_peripheral" configurationId="p205.gpio_mode"/>
-      <configSetting altId="ctsu0.ts02.p207" configurationId="ctsu0.ts02"/>
-      <configSetting altId="p205.ctsu0.tscap" configurationId="p205"/>
-      <configSetting altId="p207.ctsu0.ts02" configurationId="p207"/>
-      <configSetting altId="p112.gpio_mode.gpio_mode_out.low" configurationId="p112.gpio_mode"/>
-      <configSetting altId="p112.output.low" configurationId="p112"/>
+      <configSetting altId="p104.sci8.rxd" configurationId="p104"/>
+      <configSetting altId="p104.gpio_mode.gpio_mode_peripheral" configurationId="p104.gpio_mode"/>
+      <configSetting altId="p105.sci8.txd" configurationId="p105"/>
+      <configSetting altId="p105.gpio_mode.gpio_mode_peripheral" configurationId="p105.gpio_mode"/>
       <configSetting altId="p106.output.low" configurationId="p106"/>
+      <configSetting altId="p106.gpio_mode.gpio_mode_out.low" configurationId="p106.gpio_mode"/>
       <configSetting altId="p107.output.low" configurationId="p107"/>
       <configSetting altId="p107.gpio_mode.gpio_mode_out.low" configurationId="p107.gpio_mode"/>
-      <configSetting altId="p106.gpio_mode.gpio_mode_out.low" configurationId="p106.gpio_mode"/>
-      <configSetting altId="p201.gpio_mode.gpio_mode_in" configurationId="p201.gpio_mode"/>
-      <configSetting altId="p201.input" configurationId="p201"/>
-    </pincfg>
-    <pincfg active="false" name="R7FA6M1AD3CFP.pincfg" symbol="">
-      <configSetting altId="debug0.mode.jtag" configurationId="debug0.mode"/>
+      <configSetting altId="p108.debug0.swdio" configurationId="p108"/>
       <configSetting altId="p108.gpio_mode.gpio_mode_peripheral" configurationId="p108.gpio_mode"/>
-      <configSetting altId="p108.debug0.tms" configurationId="p108"/>
-      <configSetting altId="debug0.tms.p108" configurationId="debug0.tms"/>
-      <configSetting altId="p109.gpio_mode.gpio_mode_peripheral" configurationId="p109.gpio_mode"/>
-      <configSetting altId="p109.debug0.tdo" configurationId="p109"/>
-      <configSetting altId="debug0.tdo.p109" configurationId="debug0.tdo"/>
-      <configSetting altId="p110.gpio_mode.gpio_mode_peripheral" configurationId="p110.gpio_mode"/>
-      <configSetting altId="p110.debug0.tdi" configurationId="p110"/>
-      <configSetting altId="debug0.tdi.p110" configurationId="debug0.tdi"/>
+      <configSetting altId="p112.output.low" configurationId="p112"/>
+      <configSetting altId="p112.gpio_mode.gpio_mode_out.low" configurationId="p112.gpio_mode"/>
+      <configSetting altId="p201.input" configurationId="p201"/>
+      <configSetting altId="p201.gpio_mode.gpio_mode_in" configurationId="p201.gpio_mode"/>
+      <configSetting altId="p205.ctsu0.tscap" configurationId="p205"/>
+      <configSetting altId="p205.gpio_mode.gpio_mode_peripheral" configurationId="p205.gpio_mode"/>
+      <configSetting altId="p207.ctsu0.ts02" configurationId="p207"/>
+      <configSetting altId="p207.gpio_mode.gpio_mode_peripheral" configurationId="p207.gpio_mode"/>
+      <configSetting altId="p300.debug0.swclk" configurationId="p300"/>
       <configSetting altId="p300.gpio_mode.gpio_mode_peripheral" configurationId="p300.gpio_mode"/>
-      <configSetting altId="p300.debug0.tck" configurationId="p300"/>
+      <configSetting altId="p407.usbfs0.vbus" configurationId="p407"/>
+      <configSetting altId="p407.gpio_mode.gpio_mode_peripheral" configurationId="p407.gpio_mode"/>
+      <configSetting altId="p415.input" configurationId="p415"/>
+      <configSetting altId="p415.gpio_mode.gpio_mode_in" configurationId="p415.gpio_mode"/>
+      <configSetting altId="p415.gpio_pupd.gpio_pupd_ip_up" configurationId="p415.gpio_pupd"/>
+      <configSetting altId="sci8.mode.asynchronous.free" configurationId="sci8.mode"/>
+      <configSetting altId="sci8.rxd.p104" configurationId="sci8.rxd"/>
+      <configSetting altId="sci8.txd.p105" configurationId="sci8.txd"/>
+      <configSetting altId="spi0.miso.p100" configurationId="spi0.miso"/>
+      <configSetting altId="spi0.mode.enabled.a" configurationId="spi0.mode"/>
+      <configSetting altId="spi0.mosi.p101" configurationId="spi0.mosi"/>
+      <configSetting altId="spi0.rspck.p102" configurationId="spi0.rspck"/>
+      <configSetting altId="spi0.ssl0.p103" configurationId="spi0.ssl0"/>
+      <configSetting altId="usbfs0.mode.device" configurationId="usbfs0.mode"/>
+      <configSetting altId="usbfs0.vbus.p407" configurationId="usbfs0.vbus"/>
+    </pincfg>
+    <pincfg active="false" name="R7FA6M1AD3CFP.pincfg" selected="false" symbol="">
+      <configSetting altId="debug0.mode.jtag" configurationId="debug0.mode"/>
       <configSetting altId="debug0.tck.p300" configurationId="debug0.tck"/>
+      <configSetting altId="debug0.tdi.p110" configurationId="debug0.tdi"/>
+      <configSetting altId="debug0.tdo.p109" configurationId="debug0.tdo"/>
+      <configSetting altId="debug0.tms.p108" configurationId="debug0.tms"/>
+      <configSetting altId="p108.debug0.tms" configurationId="p108"/>
+      <configSetting altId="p108.gpio_mode.gpio_mode_peripheral" configurationId="p108.gpio_mode"/>
+      <configSetting altId="p109.debug0.tdo" configurationId="p109"/>
+      <configSetting altId="p109.gpio_mode.gpio_mode_peripheral" configurationId="p109.gpio_mode"/>
+      <configSetting altId="p110.debug0.tdi" configurationId="p110"/>
+      <configSetting altId="p110.gpio_mode.gpio_mode_peripheral" configurationId="p110.gpio_mode"/>
+      <configSetting altId="p300.debug0.tck" configurationId="p300"/>
+      <configSetting altId="p300.gpio_mode.gpio_mode_peripheral" configurationId="p300.gpio_mode"/>
     </pincfg>
   </raPinConfiguration>
 </raConfiguration>

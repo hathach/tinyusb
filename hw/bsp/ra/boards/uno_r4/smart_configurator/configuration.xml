@@ -186,20 +186,33 @@
     </config>
   </raModuleConfiguration>
   <raPinConfiguration>
+    <symbolicName propertyId="p110.symbolic_name" value="SW1"/>
+    <symbolicName propertyId="p111.symbolic_name" value="LED1"/>
+    <comment propertyId="p110.comment" value="active low"/>
+    <comment propertyId="p111.comment" value="active high"/>
     <pincfg active="true" name="R7FA4M1AB3CNE.pincfg" selected="true" symbol="g_bsp_pin_cfg">
-      <configSetting altId="debug0.mode.jtag" configurationId="debug0.mode"/>
-      <configSetting altId="debug0.tck.p300" configurationId="debug0.tck"/>
-      <configSetting altId="debug0.tdi.p110" configurationId="debug0.tdi"/>
-      <configSetting altId="debug0.tdo.p109" configurationId="debug0.tdo"/>
-      <configSetting altId="debug0.tms.p108" configurationId="debug0.tms"/>
-      <configSetting altId="p108.debug0.tms" configurationId="p108"/>
+      <configSetting altId="debug0.mode.swd" configurationId="debug0.mode"/>
+      <configSetting altId="debug0.swclk.p300" configurationId="debug0.swclk"/>
+      <configSetting altId="debug0.swdio.p108" configurationId="debug0.swdio"/>
+      <configSetting altId="p108.debug0.swdio" configurationId="p108"/>
       <configSetting altId="p108.gpio_mode.gpio_mode_peripheral" configurationId="p108.gpio_mode"/>
-      <configSetting altId="p109.debug0.tdo" configurationId="p109"/>
-      <configSetting altId="p109.gpio_mode.gpio_mode_peripheral" configurationId="p109.gpio_mode"/>
-      <configSetting altId="p110.debug0.tdi" configurationId="p110"/>
-      <configSetting altId="p110.gpio_mode.gpio_mode_peripheral" configurationId="p110.gpio_mode"/>
-      <configSetting altId="p300.debug0.tck" configurationId="p300"/>
+      <configSetting altId="p110.input" configurationId="p110"/>
+      <configSetting altId="p110.gpio_mode.gpio_mode_in" configurationId="p110.gpio_mode"/>
+      <configSetting altId="p110.gpio_pupd.gpio_pupd_ip_up" configurationId="p110.gpio_pupd"/>
+      <configSetting altId="p111.output.low" configurationId="p111"/>
+      <configSetting altId="p111.gpio_mode.gpio_mode_out.low" configurationId="p111.gpio_mode"/>
+      <configSetting altId="p300.debug0.swclk" configurationId="p300"/>
       <configSetting altId="p300.gpio_mode.gpio_mode_peripheral" configurationId="p300.gpio_mode"/>
+      <configSetting altId="p407.usbfs0.vbus" configurationId="p407"/>
+      <configSetting altId="p407.gpio_mode.gpio_mode_peripheral" configurationId="p407.gpio_mode"/>
+      <configSetting altId="p914.usbfs0.usbdp" configurationId="p914"/>
+      <configSetting altId="p914.gpio_mode.gpio_mode_peripheral" configurationId="p914.gpio_mode"/>
+      <configSetting altId="p915.usbfs0.usbdm" configurationId="p915"/>
+      <configSetting altId="p915.gpio_mode.gpio_mode_peripheral" configurationId="p915.gpio_mode"/>
+      <configSetting altId="usbfs0.mode.device" configurationId="usbfs0.mode"/>
+      <configSetting altId="usbfs0.usbdm.p915" configurationId="usbfs0.usbdm"/>
+      <configSetting altId="usbfs0.usbdp.p914" configurationId="usbfs0.usbdp"/>
+      <configSetting altId="usbfs0.vbus.p407" configurationId="usbfs0.vbus"/>
     </pincfg>
   </raPinConfiguration>
 </raConfiguration>

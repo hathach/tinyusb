@@ -36,6 +36,8 @@ function(add_board_target BOARD_TARGET)
       ${FSP_RA}/src/bsp/mcu/all/bsp_sbrk.c
       ${FSP_RA}/src/bsp/mcu/all/bsp_security.c
       ${FSP_RA}/src/r_ioport/r_ioport.c
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen/pin_data.c
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen/common_data.c
       )
 
     target_compile_options(${BOARD_TARGET} PUBLIC
@@ -60,14 +62,12 @@ function(add_board_target BOARD_TARGET)
 
     if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
       set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/script/fsp.ld)
-      #set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/gcc/${MCU_VARIANT}.ld)
     endif ()
 
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
       target_link_options(${BOARD_TARGET} PUBLIC
         # linker file
         "LINKER:--script=${LD_FILE_GNU}"
-        #-L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/gcc
         -L${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/script
         -Wl,--defsym=end=__bss_end__
         -nostartfiles
