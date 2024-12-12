@@ -37,6 +37,10 @@
 #include "ch32v20x.h"
 #include "ch32v20x_usb.h"
 
+void osal_task_delay(uint32_t msec) {
+    unsigned long start = board_millis();
+    while (board_millis() - start < msec) {}
+}
 
 #define USBFS_RX_BUF_LEN 64
 #define USBFS_TX_BUF_LEN 64
@@ -264,9 +268,10 @@ static bool hardware_device_attached(void)
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
-bool hcd_init(uint8_t rhport)
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init)
 {
     (void)rhport;
+    (void)rh_init;
     hardware_init_host(true);
 
     return true;
