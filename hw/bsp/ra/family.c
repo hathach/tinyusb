@@ -49,12 +49,6 @@
 /* Key code for writing PRCR register. */
 #define BSP_PRV_PRCR_KEY         (0xA500U)
 
-// static const ioport_cfg_t family_pin_cfg = {
-//     .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
-//     .p_pin_cfg_data = board_pin_cfg,
-// };
-// static ioport_instance_ctrl_t port_ctrl;
-
 //--------------------------------------------------------------------+
 // Vector Data
 //--------------------------------------------------------------------+
