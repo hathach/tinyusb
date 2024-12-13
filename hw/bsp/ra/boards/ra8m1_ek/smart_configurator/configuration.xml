@@ -133,8 +133,8 @@
       <property id="config.bsp.fsp.dcache" value="config.bsp.fsp.dcache.disabled"/>
     </config>
     <config id="config.bsp.ra">
-      <property id="config.bsp.common.main" value="0x400"/>
-      <property id="config.bsp.common.heap" value="0"/>
+      <property id="config.bsp.common.main" value="0x1000"/>
+      <property id="config.bsp.common.heap" value="0x1000"/>
       <property id="config.bsp.common.vcc" value="3300"/>
       <property id="config.bsp.common.checking" value="config.bsp.common.checking.disabled"/>
       <property id="config.bsp.common.assert" value="config.bsp.common.assert.none"/>
@@ -290,7 +290,7 @@
     <symbolicName propertyId="p006.symbolic_name" value="PMOD1_IRQ11"/>
     <symbolicName propertyId="p007.symbolic_name" value="ARDUINO_A004"/>
     <symbolicName propertyId="p008.symbolic_name" value="USER_S2"/>
-    <symbolicName propertyId="p009.symbolic_name" value="USER_S1"/>
+    <symbolicName propertyId="p009.symbolic_name" value="SW1"/>
     <symbolicName propertyId="p010.symbolic_name" value="MIKROBUS_IRQ14"/>
     <symbolicName propertyId="p014.symbolic_name" value="ARDUINO_A4"/>
     <symbolicName propertyId="p015.symbolic_name" value="ARDUINO_A5"/>
