@@ -15,6 +15,28 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 
 set(FAMILY_MCUS RAXXX ${MCU_VARIANT} CACHE INTERNAL "")
 
+# ----------------------
+# Port & Speed Selection
+# ----------------------
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 0)
+endif ()
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 0)
+endif ()
+
+if (NOT DEFINED RHPORT_SPEED)
+  set(RHPORT_SPEED OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED)
+endif ()
+if (NOT DEFINED RHPORT_DEVICE_SPEED)
+  list(GET RHPORT_SPEED ${RHPORT_DEVICE} RHPORT_DEVICE_SPEED)
+endif ()
+if (NOT DEFINED RHPORT_HOST_SPEED)
+  list(GET RHPORT_SPEED ${RHPORT_HOST} RHPORT_HOST_SPEED)
+endif ()
+
+cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
+
 #------------------------------------
 # BOARD_TARGET
 #------------------------------------
@@ -56,6 +78,12 @@ function(add_board_target BOARD_TARGET)
       ${FSP_RA}/src/bsp/cmsis/Device/RENESAS/Include
       ${FSP_RA}/src/bsp/mcu/all
       ${FSP_RA}/src/bsp/mcu/${MCU_VARIANT}
+      )
+    target_compile_definitions(${BOARD_TARGET} PUBLIC
+      BOARD_TUD_RHPORT=${RHPORT_DEVICE}
+      BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
+      BOARD_TUH_RHPORT=${RHPORT_HOST}
+      BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
       )
 
     update_board(${BOARD_TARGET})

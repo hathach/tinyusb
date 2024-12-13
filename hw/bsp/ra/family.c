@@ -32,11 +32,7 @@
 #pragma GCC diagnostic ignored "-Wundef"
 #endif
 
-//#include "bsp_api.h"
-//#include "r_ioport.h"
 #include "common_data.h"
-
-#include "r_ioport_api.h"
 #include "renesas.h"
 
 #ifdef __GNUC__
@@ -204,7 +200,6 @@ void usbfs_d1fifo_handler(void) {
 
 //------------- USB1 HighSpeed -------------//
 #ifdef BOARD_HAS_USB_HIGHSPEED
-
 void usbhs_interrupt_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
@@ -223,7 +218,6 @@ void usbhs_d1fifo_handler(void) {
   R_BSP_IrqStatusClear(irq);
   // TODO not used yet
 }
-
 #endif
 
 //--------------------------------------------------------------------+
