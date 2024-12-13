@@ -36,8 +36,8 @@ function(add_board_target BOARD_TARGET)
       ${FSP_RA}/src/bsp/mcu/all/bsp_sbrk.c
       ${FSP_RA}/src/bsp/mcu/all/bsp_security.c
       ${FSP_RA}/src/r_ioport/r_ioport.c
-      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen/pin_data.c
       ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen/common_data.c
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/ra_gen/pin_data.c
       )
 
     target_compile_options(${BOARD_TARGET} PUBLIC

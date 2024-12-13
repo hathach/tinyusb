@@ -1,8 +1,6 @@
 CPU_CORE = cortex-m33
 MCU_VARIANT = ra6m5
 
-LD_FILE = ${BOARD_PATH}/${BOARD}.ld
-
 # Port 1 is highspeed
 PORT ?= 1
 

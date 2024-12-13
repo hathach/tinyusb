@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/renesas/fsp lib/CMSIS_5
-
 FSP_RA = hw/mcu/renesas/fsp/ra/fsp
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -37,6 +35,8 @@ SRC_C += \
 	src/portable/renesas/rusb2/dcd_rusb2.c \
 	src/portable/renesas/rusb2/hcd_rusb2.c \
 	src/portable/renesas/rusb2/rusb2_common.c \
+	${BOARD_PATH}/ra_gen/common_data.c \
+	${BOARD_PATH}/ra_gen/pin_data.c \
 	$(FSP_RA)/src/bsp/cmsis/Device/RENESAS/Source/startup.c \
 	$(FSP_RA)/src/bsp/cmsis/Device/RENESAS/Source/system.c \
 	$(FSP_RA)/src/bsp/mcu/all/bsp_clocks.c \
@@ -53,10 +53,11 @@ SRC_C += \
 	$(FSP_RA)/src/r_ioport/r_ioport.c \
 
 INC += \
-	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(BOARD_PATH)/fsp_cfg \
-	$(TOP)/$(BOARD_PATH)/fsp_cfg/bsp \
+	$(TOP)/$(BOARD_PATH)/ra_cfg/fsp_cfg \
+	$(TOP)/$(BOARD_PATH)/ra_cfg/fsp_cfg/bsp \
+	$(TOP)/$(BOARD_PATH)/ra_gen \
+	$(TOP)/lib/CMSIS_6/CMSIS/Core/Include \
 	$(TOP)/$(FSP_RA)/src/bsp/cmsis/Device/RENESAS/Include \
 	$(TOP)/$(FSP_RA)/inc \
 	$(TOP)/$(FSP_RA)/inc/api \
@@ -65,10 +66,11 @@ INC += \
 	$(TOP)/$(FSP_RA)/src/bsp/mcu/$(MCU_VARIANT) \
 
 ifndef LD_FILE
-LD_FILE = $(FAMILY_PATH)/linker/gcc/$(MCU_VARIANT).ld
+LD_FILE = $(BOARD_PATH)/script/fsp.ld
 endif
 
-LDFLAGS += -L$(TOP)/$(FAMILY_PATH)/linker/gcc
+LDFLAGS += -L$(TOP)/$(BOARD_PATH)/script
+LDFLAGS += -Wl,--defsym=end=__bss_end__
 
 # For freeRTOS port source
 # hack to use the port provided by renesas
