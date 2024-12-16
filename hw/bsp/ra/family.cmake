@@ -134,6 +134,7 @@ function(family_configure_example TARGET RTOS)
     )
   target_compile_options(${TARGET} PUBLIC
     -Wno-error=undef
+    -Wno-error=strict-prototypes
     )
 
 #  # RA has custom freertos port

@@ -33,6 +33,7 @@ jobs:
 
     - name: Build Fuzzer
       run: |
+        clang --version
         export CC=clang
         export CXX=clang++
         fuzz_harness=$(ls -d test/fuzz/device/*/)
