@@ -194,6 +194,9 @@
 #elif CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
   #include "at32f403a_407.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F423
+  #include "at32f423.h"
+
 #else
   #error "Missing MCU header"
 #endif
