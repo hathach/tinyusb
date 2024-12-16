@@ -54,7 +54,6 @@ function(add_board_target BOARD_TARGET)
       ${FSP_RA}/src/bsp/mcu/all/bsp_io.c
       ${FSP_RA}/src/bsp/mcu/all/bsp_irq.c
       ${FSP_RA}/src/bsp/mcu/all/bsp_register_protection.c
-      ${FSP_RA}/src/bsp/mcu/all/bsp_rom_registers.c
       ${FSP_RA}/src/bsp/mcu/all/bsp_sbrk.c
       ${FSP_RA}/src/bsp/mcu/all/bsp_security.c
       ${FSP_RA}/src/r_ioport/r_ioport.c
@@ -125,11 +124,16 @@ function(family_configure_example TARGET RTOS)
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    # Explicitly added bsp_rom_registers here, otherwise MCU can be bricked if g_bsp_rom_registers is dropped by linker
+    ${FSP_RA}/src/bsp/mcu/all/bsp_rom_registers.c
     )
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
+    )
+  target_compile_options(${TARGET} PUBLIC
+    -Wno-error=undef
     )
 
 #  # RA has custom freertos port

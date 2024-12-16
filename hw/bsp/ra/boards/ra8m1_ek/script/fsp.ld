@@ -177,6 +177,9 @@ SECTIONS
         . = OPTION_SETTING_LENGTH > 0 ? . : __ROM_Start + 0x400;
         KEEP(*(.rom_registers*))
 
+        /* Reserving 0x100 bytes of space for ROM registers. */
+        . = OPTION_SETTING_LENGTH > 0 ? . : __ROM_Start + 0x500;
+
         /* Allocate flash write-boundary-aligned
          * space for sce9 wrapped public keys for mcuboot if the module is used.
          */
