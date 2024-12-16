@@ -29,94 +29,14 @@
  * This file is part of the TinyUSB stack.
  */
 
-/**********************************************
- * This driver has been tested with the following MCUs:
- *  - F070, F072, L053, F042F6
- *
- * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
- *  covers:
- *
- * F04x, F072, F078, F070x6/B     1024 byte buffer
- * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
- * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
- * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
- * C0                             2048 byte buffer; 32-bit bus; host mode
- * G0                             2048 byte buffer; 32-bit bus; host mode
- * G4                             1024 byte buffer
- * H5                             2048 byte buffer; 32-bit bus; host mode
- * L0x2, L0x3                     1024 byte buffer
- * L1                              512 byte buffer
- * L4x2, L4x3                     1024 byte buffer
- * L5                             1024 byte buffer
- * U0                             1024 byte buffer; 32-bit bus
- * U535, U545                     2048 byte buffer; 32-bit bus; host mode
- * WB35, WB55                     1024 byte buffer
- *
- * To use this driver, you must:
- * - If you are using a device with crystal-less USB, set up the clock recovery system (CRS)
- * - Remap pins to be D+/D- on devices that they are shared (for example: F042Fx)
- *   - This is different to the normal "alternate function" GPIO interface, needs to go through SYSCFG->CFGRx register
- * - Enable USB clock; Perhaps use __HAL_RCC_USB_CLK_ENABLE();
- * - (Optionally configure GPIO HAL to tell it the USB driver is using the USB pins)
- * - call tusb_init();
- * - periodically call tusb_task();
- *
- * Assumptions of the driver:
- * - You are not using CAN (it must share the packet buffer)
- * - APB clock is >= 10 MHz
- * - On some boards, series resistors are required, but not on others.
- * - On some boards, D+ pull up resistor (1.5kohm) is required, but not on others.
- * - You don't have long-running interrupts; some USB packets must be quickly responded to.
- * - You have the ST CMSIS library linked into the project. HAL is not used.
- *
- * Current driver limitations (i.e., a list of features for you to add):
- * - STALL handled, but not tested.
- *   - Does it work? No clue.
- * - All EP BTABLE buffers are created based on max packet size of first EP opened with that address.
- * - Packet buffer memory is copied in the interrupt.
- *   - This is better for performance, but means interrupts are disabled for longer
- *   - DMA may be the best choice, but it could also be pushed to the USBD task.
- * - No double-buffering
- * - No DMA
- * - Minimal error handling
- *   - Perhaps error interrupts should be reported to the stack, or cause a device reset?
- * - Assumes a single USB peripheral; I think that no hardware has multiple so this is fine.
- * - Add a callback for enabling/disabling the D+ PU on devices without an internal PU.
- * - F3 models use three separate interrupts. I think we could only use the LP interrupt for
- *     everything?  However, the interrupts are configurable so the DisableInt and EnableInt
- *     below functions could be adjusting the wrong interrupts (if they had been reconfigured)
- * - LPM is not used correctly, or at all?
- *
- * USB documentation and Reference implementations
- * - STM32 Reference manuals
- * - STM32 USB Hardware Guidelines AN4879
- *
- * - STM32 HAL (much of this driver is based on this)
- * - libopencm3/lib/stm32/common/st_usbfs_core.c
- * - Keil USB Device http://www.keil.com/pack/doc/mw/USB/html/group__usbd.html
- *
- * - YouTube OpenTechLab 011; https://www.youtube.com/watch?v=4FOkJLp_PUw
- *
- * Advantages over HAL driver:
- * - Tiny (saves RAM, assumes a single USB peripheral)
- *
- * Notes:
- * - The buffer table is allocated as endpoints are opened. The allocation is only
- *   cleared when the device is reset. This may be bad if the USB device needs
- *   to be reconfigured.
- */
-
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_FSDEV) && \
-    !(defined(TUP_USBIP_FSDEV_CH32) && CFG_TUD_WCH_USBIP_FSDEV == 0)
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_FSDEV)
 
 #include "device/dcd.h"
 
-#if defined(TUP_USBIP_FSDEV_STM32)
-  #include "fsdev_stm32.h"
-#elif defined(TUP_USBIP_FSDEV_CH32)
-  #include "fsdev_ch32.h"
+#if defined(TUP_USBIP_FSDEV_AT32)
+  #include "fsdev_at32.h"
 #else
   #error "Unknown USB IP"
 #endif
@@ -349,12 +269,10 @@ static void handle_ctr_rx(uint32_t ep_id) {
   if ((rx_count < xfer->max_packet_size) || (xfer->queued_len >= xfer->total_len)) {
     // all bytes received or short packet
 
-    // For ch32v203: reset rx bufsize to mps to prevent race condition to cause PMAOVR (occurs with msc write10)
     btable_set_rx_bufsize(ep_id, BTABLE_BUF_RX, xfer->max_packet_size);
 
     dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
 
-    // ch32 seems to unconditionally accept ZLP on EP0 OUT, which can incorrectly use queued_len of previous
     // transfer. So reset total_len and queued_len to 0.
     xfer->total_len = xfer->queued_len = 0;
   } else {
@@ -424,28 +342,6 @@ void dcd_int_handler(uint8_t rhport) {
     uint32_t const ep_reg = ep_read(ep_id);
 
     if (ep_reg & USB_EP_CTR_RX) {
-      #ifdef FSDEV_BUS_32BIT
-      /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
-       * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
-       * From H503/U535 errata: Buffer description table update completes after CTR interrupt triggers
-       * Description:
-       * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM accesses
-       * have completed. If the software responds quickly to the interrupt, the full buffer contents may not be correct.
-       * Workaround:
-       * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
-       * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
-       * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
-       * also takes time, so we'll wait 60 cycles (count = 20).
-       * - Since Low Speed mode is not supported/popular, we will ignore it for now.
-       *
-       * Note: this errata may also apply to G0, U5, H5 etc.
-       */
-      volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
-      while (cycle_count > 0U) {
-        cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
-      }
-      #endif
-
       if (ep_reg & USB_EP_SETUP) {
         handle_ctr_setup(ep_id); // CTR will be clear after copied setup packet
       } else {

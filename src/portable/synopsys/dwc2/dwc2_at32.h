@@ -37,6 +37,9 @@
   #include <at32f435_437.h>
   #define DWC2_OTGFS1_REG_BASE       0x50000000UL
   #define DWC2_OTGFS2_REG_BASE       0x40040000UL
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F423
+  #include <at32f423.h>
+  #define DWC2_OTGFS1_REG_BASE       0x50000000UL
 #endif
 
 #ifdef __cplusplus
