@@ -118,10 +118,13 @@
       <configuration PROFILE_NAME="stm32wb55nucleo" ENABLED="false" GENERATION_OPTIONS="-DBOARD=stm32wb55nucleo" />
       <configuration PROFILE_NAME="ra2a1_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra2a1_ek -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="ra4m1_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra4m1_ek -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra4m3_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra4m3_ek -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="ra6m1_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m1_ek -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="ra6m5_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
-      <configuration PROFILE_NAME="ra6m5_ek PORT0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1 -DPORT=0" />
-      <configuration PROFILE_NAME="uno_r4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=uno_r4 -DLOG=4 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="ra6m5_ek PORT0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra6m5_ek -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1 -DRHPORT_DEVICE=0" />
+      <configuration PROFILE_NAME="ra8m1_ek" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra8m1_ek -DLOG=2 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="ra8m1_ek PORT0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ra8m1_ek -DLOG=2 -DLOGGER=RTT -DTRACE_ETM=1 -DRHPORT_DEVICE=0" />
+      <configuration PROFILE_NAME="uno_r4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=uno_r4 -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="portenta_c33" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=portenta_c33 -DLOG=1" />
       <configuration PROFILE_NAME="lpcxpresso11u37" ENABLED="false" GENERATION_OPTIONS="-DBOARD=lpcxpresso11u37" />
       <configuration PROFILE_NAME="lpcxpresso11u68" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=lpcxpresso11u68 -DLOG=1 -DLOGGER=RTT" />
