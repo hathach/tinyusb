@@ -6,11 +6,11 @@
 /*
  * TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!GlobalInfo
-product: Pins v14.0
+product: Pins v16.0
 processor: MIMXRT1176xxxxx
 package_id: MIMXRT1176DVMAA
 mcu_data: ksdk2_0
-processor_version: 14.0.1
+processor_version: 16.3.0
 board: MIMXRT1170-EVKB
 external_user_signals: {}
 pin_labels:
@@ -90,7 +90,7 @@ void BOARD_InitPins(void) {
       IOMUXC_GPIO_AD_04_GPIO9_IO03,           /* GPIO_AD_04 PAD functional properties : */
       0x02U);                                 /* Slew Rate Field: Slow Slew Rate
                                                  Drive Strength Field: high drive strength
-                                                 Pull / Keep Select Field: Pull Disable, Highz
+                                                 Pull / Keep Select Field: Pull Disable
                                                  Pull Up / Down Config. Field: Weak pull down
                                                  Open Drain Field: Disabled
                                                  Domain write protection: Both cores are allowed
@@ -99,7 +99,7 @@ void BOARD_InitPins(void) {
       IOMUXC_GPIO_AD_24_LPUART1_TXD,          /* GPIO_AD_24 PAD functional properties : */
       0x02U);                                 /* Slew Rate Field: Slow Slew Rate
                                                  Drive Strength Field: high drive strength
-                                                 Pull / Keep Select Field: Pull Disable, Highz
+                                                 Pull / Keep Select Field: Pull Disable
                                                  Pull Up / Down Config. Field: Weak pull down
                                                  Open Drain Field: Disabled
                                                  Domain write protection: Both cores are allowed
@@ -108,22 +108,19 @@ void BOARD_InitPins(void) {
       IOMUXC_GPIO_AD_25_LPUART1_RXD,          /* GPIO_AD_25 PAD functional properties : */
       0x02U);                                 /* Slew Rate Field: Slow Slew Rate
                                                  Drive Strength Field: high drive strength
-                                                 Pull / Keep Select Field: Pull Disable, Highz
+                                                 Pull / Keep Select Field: Pull Disable
                                                  Pull Up / Down Config. Field: Weak pull down
                                                  Open Drain Field: Disabled
                                                  Domain write protection: Both cores are allowed
                                                  Domain write protection lock: Neither of DWP bits is locked */
   IOMUXC_SetPinConfig(
       IOMUXC_WAKEUP_DIG_GPIO13_IO00,          /* WAKEUP_DIG PAD functional properties : */
-      0x0EU);                                 /* Slew Rate Field: Slow Slew Rate
-                                                 Drive Strength Field: high driver
-                                                 Pull / Keep Select Field: Pull Enable
+      0x0EU);                                 /* Pull / Keep Select Field: Pull Enable
                                                  Pull Up / Down Config. Field: Weak pull up
                                                  Open Drain SNVS Field: Disabled
                                                  Domain write protection: Both cores are allowed
                                                  Domain write protection lock: Neither of DWP bits is locked */
 }
-
 /***********************************************************************************************************************
  * EOF
  **********************************************************************************************************************/

@@ -24,10 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "board.h"
+#include "bsp/board_api.h"
 #include "board/clock_config.h"
 #include "board/pin_mux.h"
-#include "bsp/board_api.h"
+#include "board.h"
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
@@ -47,14 +47,14 @@
 #endif
 
 /* --- Note about USB buffer RAM ---
-For M7 core it's recommended to put USB buffer in DTCM for better performance (flexspi_nor linker default)
-Otherwise you have to put the buffer in a non-cacheable section by configurate MPU manually or using BOARD_ConfigMPU():
-- Define CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))
-- (IAR only) Change __NCACHE_REGION_SIZE in linker script to cover the size of non-cacheable section, multiple of 2^N
+  For M7 core it's recommended to put USB buffer in DTCM for better performance (flexspi_nor linker default)
+  Otherwise you have to put the buffer in a non-cacheable section by configurate MPU manually or using BOARD_ConfigMPU():
+  - Define CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))
+  - (IAR only) Change __NCACHE_REGION_SIZE in linker script to cover the size of non-cacheable section, multiple of 2^N
 
-For secondary M4 core, the USB controller doesn't support transfer from DTCM so OCRAM must be used:
-- __NCACHE_REGION_SIZE is defined by the linker script by default
-- Define CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))
+  For secondary M4 core, the USB controller doesn't support transfer from DTCM so OCRAM must be used:
+  - __NCACHE_REGION_SIZE is defined by the linker script by default
+  - Define CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))
 */
 
 static void BOARD_ConfigMPU(void);
@@ -148,7 +148,112 @@ void board_init(void) {
 #endif
 }
 
-/* MPU configuration. */
+//--------------------------------------------------------------------+
+// USB Interrupt Handler
+//--------------------------------------------------------------------+
+void USB_OTG1_IRQHandler(void) {
+  tusb_int_handler(0, true);
+}
+
+void USB_OTG2_IRQHandler(void) {
+  tusb_int_handler(1, true);
+}
+
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
+void board_led_write(bool state) {
+  GPIO_PinWrite(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
+}
+
+uint32_t board_button_read(void) {
+  return BUTTON_STATE_ACTIVE == GPIO_PinRead(BUTTON_PORT, BUTTON_PIN);
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+
+#if FSL_FEATURE_OCOTP_HAS_TIMING_CTRL
+  OCOTP_Init(OCOTP, CLOCK_GetFreq(kCLOCK_IpgClk));
+#else
+  OCOTP_Init(OCOTP, 0u);
+#endif
+
+  // Reads shadow registers 0x01 - 0x04 (Configuration and Manufacturing Info)
+  // into 8 bit wide destination, avoiding punning.
+  for (int i = 0; i < 4; ++i) {
+    uint32_t wr = OCOTP_ReadFuseShadowRegister(OCOTP, i + 1);
+    for (int j = 0; j < 4; j++) {
+      id[i * 4 + j] = wr & 0xff;
+      wr >>= 8;
+    }
+  }
+  OCOTP_Deinit(OCOTP);
+
+  return 16;
+}
+
+int board_uart_read(uint8_t *buf, int len) {
+  int count = 0;
+
+  while (count < len) {
+    uint8_t const rx_count = LPUART_GetRxFifoCount(UART_PORT);
+    if (!rx_count) {
+      // clear all error flag if any
+      uint32_t status_flags = LPUART_GetStatusFlags(UART_PORT);
+      status_flags &= (kLPUART_RxOverrunFlag | kLPUART_ParityErrorFlag | kLPUART_FramingErrorFlag |
+                       kLPUART_NoiseErrorFlag);
+      LPUART_ClearStatusFlags(UART_PORT, status_flags);
+      break;
+    }
+
+    for (int i = 0; i < rx_count; i++) {
+      buf[count] = LPUART_ReadByte(UART_PORT);
+      count++;
+    }
+  }
+
+  return count;
+}
+
+int board_uart_write(void const *buf, int len) {
+  LPUART_WriteBlocking(UART_PORT, (uint8_t const *) buf, len);
+  return len;
+}
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler(void) {
+  system_ticks++;
+}
+
+uint32_t board_millis(void) {
+  return system_ticks;
+}
+#endif
+
+
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+
+#ifdef __clang__
+void _exit(int __status) {
+  while (1) {}
+}
+#endif
+#endif
+
+//--------------------------------------------------------------------
+// MPU configuration
+//--------------------------------------------------------------------
 #if __CORTEX_M == 7
 static void BOARD_ConfigMPU(void) {
   #if defined(__CC_ARM) || defined(__ARMCC_VERSION)
@@ -343,7 +448,9 @@ static void BOARD_ConfigMPU(void) {
   SCB_EnableICache();
   #endif
 }
+
 #elif __CORTEX_M == 4
+
 void BOARD_ConfigMPU(void) {
   #if defined(__CC_ARM) || defined(__ARMCC_VERSION)
   extern uint32_t Image$$RW_m_ncache$$Base[];
@@ -524,108 +631,4 @@ void BOARD_ConfigMPU(void) {
   /* Now enable the code bus cache. */
   LMEM->PCCCR |= LMEM_PCCCR_ENCACHE_MASK;
 }
-#endif
-
-//--------------------------------------------------------------------+
-// USB Interrupt Handler
-//--------------------------------------------------------------------+
-void USB_OTG1_IRQHandler(void) {
-  tusb_int_handler(0, true);
-}
-
-void USB_OTG2_IRQHandler(void) {
-  tusb_int_handler(1, true);
-}
-
-//--------------------------------------------------------------------+
-// Board porting API
-//--------------------------------------------------------------------+
-
-void board_led_write(bool state) {
-  GPIO_PinWrite(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
-}
-
-uint32_t board_button_read(void) {
-  return BUTTON_STATE_ACTIVE == GPIO_PinRead(BUTTON_PORT, BUTTON_PIN);
-}
-
-size_t board_get_unique_id(uint8_t id[], size_t max_len) {
-  (void) max_len;
-
-#if FSL_FEATURE_OCOTP_HAS_TIMING_CTRL
-  OCOTP_Init(OCOTP, CLOCK_GetFreq(kCLOCK_IpgClk));
-#else
-  OCOTP_Init(OCOTP, 0u);
-#endif
-
-  // Reads shadow registers 0x01 - 0x04 (Configuration and Manufacturing Info)
-  // into 8 bit wide destination, avoiding punning.
-  for (int i = 0; i < 4; ++i) {
-    uint32_t wr = OCOTP_ReadFuseShadowRegister(OCOTP, i + 1);
-    for (int j = 0; j < 4; j++) {
-      id[i * 4 + j] = wr & 0xff;
-      wr >>= 8;
-    }
-  }
-  OCOTP_Deinit(OCOTP);
-
-  return 16;
-}
-
-int board_uart_read(uint8_t *buf, int len) {
-  int count = 0;
-
-  while (count < len) {
-    uint8_t const rx_count = LPUART_GetRxFifoCount(UART_PORT);
-    if (!rx_count) {
-      // clear all error flag if any
-      uint32_t status_flags = LPUART_GetStatusFlags(UART_PORT);
-      status_flags &= (kLPUART_RxOverrunFlag | kLPUART_ParityErrorFlag | kLPUART_FramingErrorFlag |
-                       kLPUART_NoiseErrorFlag);
-      LPUART_ClearStatusFlags(UART_PORT, status_flags);
-      break;
-    }
-
-    for (int i = 0; i < rx_count; i++) {
-      buf[count] = LPUART_ReadByte(UART_PORT);
-      count++;
-    }
-  }
-
-  return count;
-}
-
-int board_uart_write(void const *buf, int len) {
-  LPUART_WriteBlocking(UART_PORT, (uint8_t const *) buf, len);
-  return len;
-}
-
-#if CFG_TUSB_OS == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-void SysTick_Handler(void) {
-  system_ticks++;
-}
-
-uint32_t board_millis(void) {
-  return system_ticks;
-}
-#endif
-
-
-#ifndef __ICCARM__
-// Implement _start() since we use linker flag '-nostartfiles'.
-// Requires defined __STARTUP_CLEAR_BSS,
-extern int main(void);
-TU_ATTR_UNUSED void _start(void) {
-  // called by startup code
-  main();
-  while (1) {}
-}
-
-  #ifdef __clang__
-void _exit(int __status) {
-  while (1) {}
-}
-  #endif
-
 #endif
