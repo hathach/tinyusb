@@ -50,12 +50,14 @@ extern char const* const tu_str_xfer_result[];
 #endif
 
 void tu_print_mem(void const *buf, uint32_t count, uint8_t indent);
+int tu_printf_r(const char *format, ...);
 
 #ifdef CFG_TUSB_DEBUG_PRINTF
+  // External debug print function, must be ISR-safe
   extern int CFG_TUSB_DEBUG_PRINTF(const char *format, ...);
   #define tu_printf    CFG_TUSB_DEBUG_PRINTF
 #else
-  #define tu_printf    printf
+  #define tu_printf    tu_printf_r
 #endif
 
 static inline void tu_print_buf(uint8_t const* buf, uint32_t bufsize) {
