@@ -33,6 +33,8 @@ jobs:
 
     - name: Build Fuzzer
       run: |
+        sudo apt install libc++-dev libc++abi-dev
+        clang --version
         export CC=clang
         export CXX=clang++
         fuzz_harness=$(ls -d test/fuzz/device/*/)

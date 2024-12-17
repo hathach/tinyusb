@@ -41,7 +41,7 @@ runs:
           "arm-clang": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-19.1.1/LLVM-ET-Arm-19.1.1-Linux-x86_64.tar.xz",
           "msp430-gcc": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
           "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz",
-          "rx-gcc": "http://gcc-renesas.com/downloads/get.php?f=rx/8.3.0.202004-gnurx/gcc-8.3.0.202004-GNURX-ELF.run"
+          "rx-gcc": "https://github.com/hathach/rx_device/releases/download/0.0.1/gcc-8.3.0.202411-GNURX-ELF.run"
         }'
         TOOLCHAIN_URL=$(echo $TOOLCHAIN_JSON | jq -r '.["${{ inputs.toolchain }}"]')
         echo "toolchain_url=$TOOLCHAIN_URL"
