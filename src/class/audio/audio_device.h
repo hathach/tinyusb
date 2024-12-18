@@ -203,6 +203,9 @@
 #define CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP                   0                             // Feedback - 0 or 1
 #endif
 
+// Audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
+#define CFG_TUD_AUDIO_INTERRUPT_EP_SZ                       6
+
 // Use software encoding/decoding
 
 // The software coding feature of the driver is not mandatory. It is useful if, for instance, you have two I2S streams which need to be interleaved

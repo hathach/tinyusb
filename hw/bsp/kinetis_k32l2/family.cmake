@@ -104,9 +104,9 @@ function(family_configure_example TARGET RTOS)
 
   # Flashing
   family_flash_jlink(${TARGET})
+  family_add_bin_hex(${TARGET})
 
   if (DEFINED TEENSY_MCU)
-    family_add_bin_hex(${TARGET})
     family_flash_teensy(${TARGET})
   endif ()
 endfunction()

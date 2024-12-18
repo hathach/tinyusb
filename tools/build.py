@@ -110,12 +110,13 @@ def cmake_board(board, toolchain, build_flags_on):
                        f'-DTOOLCHAIN={toolchain} {build_flags}')
         if rcmd.returncode == 0:
             cmd = f"cmake --build {build_dir}"
-            # Due to IAR capability, limit parallel build to 4 (medium+) or 6 (large) docker
-            if toolchain == 'iar' and os.getenv('CIRCLECI'):
-                if 'large' in os.getenv('CIRCLE_JOB'):
-                    cmd += ' --parallel 6'
-                else:
-                    cmd += ' --parallel 4'
+            # circleci docker return $nproc as 36 core, limit parallel according to resource class. Required for IAR, also prevent crashed/killed by docker
+            if os.getenv('CIRCLECI'):
+                resource_class = { 'small': 1, 'medium': 2, 'medium+': 3, 'large': 4 }
+                for rc in resource_class:
+                    if rc in os.getenv('CIRCLE_JOB'):
+                        cmd += f' --parallel {resource_class[rc]}'
+                        break
             rcmd = run_cmd(cmd)
         ret[0 if rcmd.returncode == 0 else 1] += 1
 
