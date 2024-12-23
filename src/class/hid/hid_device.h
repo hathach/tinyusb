@@ -288,7 +288,7 @@ void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, u
         HID_LOGICAL_MAX_N ( 0x7fff, 2                            ), \
         HID_REPORT_SIZE ( 16                                     ), \
         HID_REPORT_COUNT( 1                                      ), \
-        HID_UNIT_EXPONENT( -1                                    ), \
+        HID_UNIT_EXPONENT( 0x0f                                  ), \
         HID_UNIT        ( HID_VARIABLE | HID_NONLINEAR           ), \
         HID_PHYSICAL_MIN( 0                                      ), \
         HID_PHYSICAL_MAX( 0                                      ), \
