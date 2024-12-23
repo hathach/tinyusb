@@ -340,7 +340,7 @@ typedef struct TU_ATTR_PACKED
 } hid_stylus_report_t;
 
 // Standard Stylus Pen Attributes Bitmap.
-typedef enum 
+typedef enum
 {
   STYLUS_ATTR_TIP_SWITCH = TU_BIT(0), ///< Tip switch
   STYLUS_ATTR_IN_RANGE   = TU_BIT(1), ///< In-range bit.

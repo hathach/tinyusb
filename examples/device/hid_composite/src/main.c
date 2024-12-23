@@ -209,7 +209,7 @@ static void send_stylus_touch(uint16_t x, uint16_t y, bool state)
 
   static bool has_stylus_pen = false;
 
-  hid_stylus_report_t report = 
+  hid_stylus_report_t report =
   {
     .attr = 0,
     .x = 0,
