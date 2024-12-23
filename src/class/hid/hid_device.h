@@ -284,8 +284,8 @@ void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, u
         HID_REPORT_COUNT( 6                                      ), \
         HID_INPUT       ( HID_CONSTANT | HID_ARRAY | HID_ABSOLUTE), \
       HID_USAGE_PAGE    ( HID_USAGE_PAGE_DESKTOP                 ), \
-        HID_PHYSICAL_MAX( 0x7fff                                 ), \
-        HID_LOGICAL_MAX ( 0x7fff                                 ), \
+        HID_PHYSICAL_MAX_N( 0x7fff, 2                            ), \
+        HID_LOGICAL_MAX_N ( 0x7fff, 2                            ), \
         HID_REPORT_SIZE ( 16                                     ), \
         HID_REPORT_COUNT( 1                                      ), \
         HID_UNIT_EXPONENT( -1                                    ), \
