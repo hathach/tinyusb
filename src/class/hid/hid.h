@@ -326,6 +326,29 @@ typedef enum
 /// @}
 
 //--------------------------------------------------------------------+
+// Digitizer Stylus Pen
+//--------------------------------------------------------------------+
+/** \addtogroup ClassDriver_HID_Stylus Stylus
+ *  @{ */
+
+// Standard Stylus Pen Report.
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t attr;    /**< Attribute mask for describing current status of the stylus pen. */
+  uint16_t x;      /**< Current x position of the mouse. */
+  uint16_t y;      /**< Current y position of the mouse. */
+} hid_stylus_report_t;
+
+// Standard Stylus Pen Attributes Bitmap.
+typedef enum 
+{
+  STYLUS_ATTR_TIP_SWITCH = TU_BIT(0), ///< Tip switch
+  STYLUS_ATTR_IN_RANGE   = TU_BIT(1), ///< In-range bit.
+} hid_stylus_attr_bm_t;
+
+/// @}
+
+//--------------------------------------------------------------------+
 // Keyboard
 //--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Keyboard Keyboard
@@ -760,7 +783,9 @@ enum {
   HID_USAGE_PAGE_PID                       = 0x0f,
   HID_USAGE_PAGE_UNICODE                   = 0x10,
   HID_USAGE_PAGE_ALPHA_DISPLAY             = 0x14,
+  HID_USAGE_PAGE_IN_RANGE                  = 0x32,
   HID_USAGE_PAGE_MEDICAL                   = 0x40,
+  HID_USAGE_PAGE_TIP_SWITCH                = 0x42,
   HID_USAGE_PAGE_LIGHTING_AND_ILLUMINATION = 0x59,
   HID_USAGE_PAGE_MONITOR                   = 0x80, // 0x80 - 0x83
   HID_USAGE_PAGE_POWER                     = 0x84, // 0x084 - 0x87
@@ -844,6 +869,15 @@ enum {
   HID_USAGE_DESKTOP_SYSTEM_DISPLAY_TOGGLE_INT_EXT         = 0xB5,
   HID_USAGE_DESKTOP_SYSTEM_DISPLAY_SWAP_PRIMARY_SECONDARY = 0xB6,
   HID_USAGE_DESKTOP_SYSTEM_DISPLAY_LCD_AUTOSCALE          = 0xB7
+};
+
+/// HID Usage Table: Digitizer Page (0x0D)
+enum {
+  // Touch Screen.
+  HID_USAGE_DIGITIZER_TOUCH_SCREEN                    = 0x04,
+
+  // Stylus Pen.
+  HID_USAGE_DIGITIZER_STYLUS                          = 0x20,
 };
 
 
