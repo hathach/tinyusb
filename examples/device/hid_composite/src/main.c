@@ -241,6 +241,14 @@ void hid_task(void)
   // Poll every 10ms
   const uint32_t interval_ms = 10;
   static uint32_t start_ms = 0;
+  static uint32_t touch_ms = 0;
+  static bool touch_state = false;
+
+  if (board_millis() - touch_ms < 100) {
+    touch_ms = board_millis();
+    send_stylus_touch(0, 0, touch_state = !touch_state);
+    return;
+  }
 
   if ( board_millis() - start_ms < interval_ms) return; // not enough time
   start_ms += interval_ms;
