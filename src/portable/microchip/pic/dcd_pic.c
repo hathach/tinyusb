@@ -508,6 +508,19 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
+bool dcd_deinit(uint8_t rhport)
+{
+  U1CON = 0;
+  U1IE = 0;
+  U1OTGIE = 0;
+#if TU_PIC_INT_SIZE == 4
+  U1PWRCCLR = _U1PWRC_USUSPEND_MASK | _U1PWRC_USBPWR_MASK;
+#else
+  U1PWRC &= ~(_U1PWRC_USUSPEND_MASK | _U1PWRC_USBPWR_MASK);
+#endif
+  return true;
+}
+
 void dcd_int_enable(uint8_t rhport)
 {
   intr_enable(rhport);
