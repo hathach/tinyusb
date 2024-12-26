@@ -492,6 +492,9 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   tu_memclr(&_dcd, sizeof(_dcd));
 
 #if TU_PIC_INT_SIZE == 4
+  // The USBBUSY bit is present on PIC32s and we're required to check it
+  // prior to powering on the USB peripheral (see DS61126F page 27)
+  while (U1PWRCbits.USBBUSY);
   U1PWRCSET = _U1PWRC_USBPWR_MASK;
 #else
   U1PWRCbits.USBPWR = 1;
