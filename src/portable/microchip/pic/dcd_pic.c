@@ -489,10 +489,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   intr_disable(rhport);
   intr_clear(rhport);
 
-#if CFG_TUSB_MCU == OPT_MCU_PIC32MM
-  TRISBbits.TRISB6 = 1;
-#endif
-
   tu_memclr(&_dcd, sizeof(_dcd));
 
 #if TU_PIC_INT_SIZE == 4
