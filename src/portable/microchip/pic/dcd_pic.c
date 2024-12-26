@@ -741,8 +741,11 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 void dcd_int_handler(uint8_t rhport)
 {
-  uint32_t is  = U1IR;
-  uint32_t msk = U1IE;
+  uint32_t is, msk;
+
+  // Part 1 - "USB interrupts"
+  is = U1IR;
+  msk = U1IE;
 
   U1IR = is & ~msk;
   is &= msk;
@@ -750,7 +753,7 @@ void dcd_int_handler(uint8_t rhport)
   if (is & _U1IR_UERRIF_MASK) {
     uint32_t es = U1EIR;
     U1EIR = es;
-    U1IR   = is; /* discard any pending events */
+    U1IR = is; /* discard any pending events */
   }
 
   if (is & _U1IR_URSTIF_MASK) {
@@ -761,13 +764,33 @@ void dcd_int_handler(uint8_t rhport)
   if (is & _U1IR_IDLEIF_MASK) {
     // Note Host usually has extra delay after bus reset (without SOF), which could falsely
     // detected as Sleep event. Though usbd has debouncing logic so we are good
+
+    /*
+     * NOTE: Do not clear U1OTGIRbits.ACTVIF here!
+     * Reason:
+     * ACTVIF is only generated once an IDLEIF has been generated.
+     * This is a 1:1 ratio interrupt generation.
+     * For every IDLEIF, there will be only one ACTVIF regardless of
+     * the number of subsequent bus transitions.
+     *
+     * If the ACTIF is cleared here, a problem could occur when:
+     * [       IDLE       ][bus activity ->
+     * <--- 3 ms ----->     ^
+     *                ^     ACTVIF=1
+     *                IDLEIF=1
+     *  #           #           #           #   (#=Program polling flags)
+     *                          ^
+     *                          This polling loop will see both
+     *                          IDLEIF=1 and ACTVIF=1.
+     *                          However, the program services IDLEIF first
+     *                          because ACTIVIE=0.
+     *                          If this routine clears the only ACTIVIF,
+     *                          then it can never get out of the suspend
+     *                          mode.
+     */
+    U1OTGIESET = _U1OTGIE_ACTVIE_MASK;
     U1IR = _U1IR_IDLEIF_MASK;
     process_bus_sleep(rhport);
-  }
-
-  if (is & _U1IR_RESUMEIF_MASK) {
-    U1IR = _U1IR_RESUMEIF_MASK;
-    process_bus_resume(rhport);
   }
 
   if (is & _U1IR_SOFIF_MASK) {
@@ -776,12 +799,29 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   if (is & _U1IR_STALLIF_MASK) {
-    U1IR = _U1IR_STALLIF_MASK;
     process_stall(rhport);
+    U1IR = _U1IR_STALLIF_MASK;
   }
 
   if (is & _U1IR_TRNIF_MASK) {
     process_tokdne(rhport);
+  }
+
+  // Part 2 - "USB OTG interrupts"
+  is = U1OTGIR;
+  msk = U1OTGIE;
+
+  U1OTGIR = is & ~msk;
+  is &= msk;
+
+  if (is & _U1OTGIR_ACTVIF_MASK) {
+#if TU_PIC_INT_SIZE == 4
+    U1OTGIECLR = _U1OTGIE_ACTVIE_MASK;
+#else
+    U1OTGIE &= ~_U1OTGIE_ACTVIE_MASK;
+#endif
+    U1OTGIR = _U1OTGIR_ACTVIF_MASK;
+    process_bus_resume(rhport);
   }
 
   intr_clear(rhport);
