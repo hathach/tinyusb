@@ -316,12 +316,23 @@ static void prepare_next_setup_packet(uint8_t rhport)
 {
   const unsigned out_odd = _dcd.endpoint[0][0].odd;
   const unsigned in_odd  = _dcd.endpoint[0][1].odd;
-  TU_ASSERT(0 == _dcd.bdt[0][0][out_odd].own, );
+
+  // Abandon any previous control transfers that might have been using EP0.
+  // Ordinarily, nothing actually needs abandoning, since the previous control
+  // transfer would have completed successfully prior to the host sending the
+  // next SETUP packet. However, in a timeout error case, or after an EP0
+  // STALL event, one or more UOWN bits might still be set. If so, we should
+  // clear the UOWN bits, so the EP0 IN/OUT endpoints are in a known inactive
+  // state, ready for re-arming by the `dcd_edpt_xfer' function that will be
+  // called next.
 
   _dcd.bdt[0][0][out_odd].data     = 0;
+  _dcd.bdt[0][0][out_odd].own      = 0;
   _dcd.bdt[0][0][out_odd ^ 1].data = 1;
   _dcd.bdt[0][1][in_odd].data      = 1;
+  _dcd.bdt[0][1][in_odd].own       = 0;
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
+  _dcd.bdt[0][1][in_odd ^ 1].own   = 0;
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT),
           _dcd.setup_packet, sizeof(_dcd.setup_packet));
 }
