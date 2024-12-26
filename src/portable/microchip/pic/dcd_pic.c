@@ -1,8 +1,11 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2020 Koji Kitayama
- * Copyright (c) 2022 Reimu NotMoe <reimu@sudomaker.com>
+ * Copyright (c) 2022-2024 SudoMaker, Ltd.
+ * Author: Mike Yang (Reimu NotMoe) <reimu@sudomaker.com>
+ *
+ * Based on usb_device.c - Copyright (c) 2015 Microchip Technology Inc.
+ * Based on dcd_khci.c   - Copyright (c) 2020 Koji Kitayama
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
