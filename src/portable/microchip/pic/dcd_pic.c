@@ -532,8 +532,25 @@ void dcd_remote_wakeup(uint8_t rhport)
 #else
   U1CONbits.RESUME = 1;
 #endif
-  unsigned cnt = 25000000 / 1000;
+
+  // FIXME: Assert RESUME signal correctly, requires device-specific handling
+  // For now we use a hardcoded cycle-based delay which attempts to delay 10ms
+  // at the most common CPU frequencies. On PIC32s we assume the loop body
+  // takes 3 cycles. On 16-bit PICs we assume the XC16 compiler is in use and
+  // use its `__delay_ms' function.
+
+#if CFG_TUSB_MCU == OPT_MCU_PIC32MM
+  uint32_t cnt = 24000000 / 1000 / 3;
   while (cnt--) asm volatile("nop");
+#elif CFG_TUSB_MCU == OPT_MCU_PIC32MX
+  uint32_t cnt = 40000000 / 1000 / 3;
+  while (cnt--) asm volatile("nop");
+#elif CFG_TUSB_MCU == OPT_MCU_PIC32MK
+  uint32_t cnt = 120000000 / 1000 / 3;
+  while (cnt--) asm volatile("nop");
+#else
+  __delay_ms(10);
+#endif
 
 #if TU_PIC_INT_SIZE == 4
   U1CONCLR = _U1CON_RESUME_MASK;
