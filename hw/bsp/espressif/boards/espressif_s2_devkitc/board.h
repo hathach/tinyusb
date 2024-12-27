@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Espresif S2 DevKitC
+   url: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s2/esp32-s2-devkitc-1/index.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

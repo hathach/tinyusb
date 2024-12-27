@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Adafruit MagTag 2.9" Grayscale
+   url: https://www.adafruit.com/product/4800
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

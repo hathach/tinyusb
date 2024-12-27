@@ -22,6 +22,11 @@
  * THE SOFTWARE.
  */
 
+/* metadata:
+   name: CH32F205r-r0
+   url: https://github.com/openwch/ch32f20x
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

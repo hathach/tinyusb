@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Pyboard v1.1
+   url: https://www.adafruit.com/product/2390
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

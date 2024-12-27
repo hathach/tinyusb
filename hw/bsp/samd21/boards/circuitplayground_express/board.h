@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Adafruit Circuit Playground Express
+   url: https://www.adafruit.com/product/3333
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

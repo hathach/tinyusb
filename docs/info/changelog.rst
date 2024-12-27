@@ -17,7 +17,6 @@ General
 - Build ARM IAR with CircleCI
 - Improve HIL with dual/host_info_to_device_cdc optional for pico/pico2, enable dwc2 dma test
 
-
 API Changes
 -----------
 
@@ -30,7 +29,6 @@ API Changes
   - ``CFG_TUD/TUH_MEM_DCACHE_LINE_SIZE`` set cache line size
   - ``CFG_TUD/TUH_DWC2_SLAVE_ENABLE`` enable dwc2 slave mode
   - ``CFG_TUD/TUH_DWC2_DMA_ENABLE`` enable dwc2 dma mode
-
 
 Controller Driver (DCD & HCD)
 -----------------------------

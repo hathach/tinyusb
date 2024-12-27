@@ -1,3 +1,8 @@
+/* metadata:
+   name: CH32V203C-R0-1v0
+   url: https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

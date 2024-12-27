@@ -1,3 +1,8 @@
+/* metadata:
+   name: DA1469x Development Kit Pro
+   url: https://lpccs-docs.renesas.com/um-b-090-da1469x_getting_started/DA1469x_The_hardware/DA1469x_The_hardware.html
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 G474 Nucleo
+   url: https://www.st.com/en/evaluation-tools/nucleo-g474re.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

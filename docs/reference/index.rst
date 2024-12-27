@@ -79,7 +79,8 @@ Index
 .. toctree::
    :maxdepth: 2
 
-   supported
    getting_started
+   supported
+   boards
    dependencies
    concurrency

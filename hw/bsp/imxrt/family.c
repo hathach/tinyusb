@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: NXP
+*/
+
 #include "bsp/board_api.h"
 #include "board/clock_config.h"
 #include "board/pin_mux.h"

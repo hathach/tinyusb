@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: SAML22 Feather
+   url: https://github.com/joeycastillo/Feather-Projects/tree/main/SAML22%20Feather
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
