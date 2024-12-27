@@ -80,7 +80,6 @@ Index
    :maxdepth: 2
 
    getting_started
-   supported
    boards
    dependencies
    concurrency
