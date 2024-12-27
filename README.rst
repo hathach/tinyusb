@@ -5,14 +5,14 @@ Sponsors
 
 TinyUSB is funded by: Adafruit. Purchasing products from them helps to support this project.
 
-.. figure:: /docs/assets/adafruit_logo.svg
+.. figure:: docs/assets/adafruit_logo.svg
    :alt: Adafruit Logo
    :target: https://www.adafruit.com
 
 TinyUSB Project
 ===============
 
-.. figure:: /docs/assets/logo.svg
+.. figure:: docs/assets/logo.svg
    :alt: TinyUSB
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for
@@ -20,7 +20,7 @@ embedded system, designed to be memory-safe with no dynamic allocation
 and thread-safe with all interrupt events are deferred then handled in
 the non-ISR task function. Check out the online `documentation <https://docs.tinyusb.org/>`__ for more details.
 
-.. figure:: /docs/assets/stack.svg
+.. figure:: docs/assets/stack.svg
    :width: 500px
    :alt: stackup
 
@@ -43,11 +43,11 @@ Getting started
 
 See the `online documentation <https://docs.tinyusb.org>`_ for information about using TinyUSB and how it is implemented.
 
+Check out `Getting Started`_ guide for adding TinyUSB to your project or building the examples. If you are new to TinyUSB, we recommend starting with the `cdc_msc` example. There is a handful of `Supported Boards`_ that should work out of the box.
+
 We use `GitHub Discussions <https://github.com/hathach/tinyusb/discussions>`_ as our forum. It is a great place to ask questions and advice from the community or to discuss your TinyUSB-based projects.
 
 For bugs and feature requests, please `raise an issue <https://github.com/hathach/tinyusb/issues>`_ and follow the templates there.
-
-Check out `Getting Started`_ guide for adding TinyUSB to your project or building the examples. If you are new to TinyUSB, we recommend starting with the `cdc_msc` example.
 
 See `Porting`_ guide for adding support for new MCUs and boards.
 
@@ -241,15 +241,6 @@ Table Legend
 \[empty\] Unknown
 ========= =========================
 
-License
-=======
-
-All TinyUSB files in the ``src`` folder are licensed under the `MIT
-license <LICENSE>`__. while other files can be
-individually licensed especially those in ``lib`` and ``hw/mcu`` folder.
-Please make sure you understand all the license term for files you use
-in your project.
-
 
 .. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/build.yml/badge.svg
    :target: https://github.com/hathach/tinyusb/actions
@@ -263,15 +254,12 @@ in your project.
    :target: https://opensource.org/licenses/MIT
 
 
-.. _Uses: docs/info/uses.rst
 .. _Changelog: docs/info/changelog.rst
 .. _Contributors: CONTRIBUTORS.rst
-.. _Reference: docs/reference/index.rst
 .. _Getting Started: docs/reference/getting_started.rst
 .. _Supported Boards: docs/reference/boards.rst
 .. _Dependencies: docs/reference/dependencies.rst
 .. _Concurrency: docs/reference/concurrency.rst
 .. _Contributing: docs/contributing/index.rst
 .. _Code of Conduct: CODE_OF_CONDUCT.rst
-.. _Structure: docs/contributing/structure.rst
 .. _Porting: docs/contributing/porting.rst

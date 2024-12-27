@@ -1,6 +1,6 @@
 :hide-toc:
 
-.. include:: ../README.rst
+.. include:: ../README_processed.rst
 
 .. toctree::
    :caption: Index
