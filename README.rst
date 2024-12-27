@@ -5,14 +5,14 @@ Sponsors
 
 TinyUSB is funded by: Adafruit. Purchasing products from them helps to support this project.
 
-.. figure:: docs/assets/adafruit_logo.svg
+.. figure:: /docs/assets/adafruit_logo.svg
    :alt: Adafruit Logo
    :target: https://www.adafruit.com
 
 TinyUSB Project
 ===============
 
-.. figure:: docs/assets/logo.svg
+.. figure:: /docs/assets/logo.svg
    :alt: TinyUSB
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for
@@ -20,7 +20,7 @@ embedded system, designed to be memory-safe with no dynamic allocation
 and thread-safe with all interrupt events are deferred then handled in
 the non-ISR task function. Check out the online `documentation <https://docs.tinyusb.org/>`__ for more details.
 
-.. figure:: docs/assets/stack.svg
+.. figure:: /docs/assets/stack.svg
    :width: 500px
    :alt: stackup
 
@@ -250,27 +250,6 @@ individually licensed especially those in ``lib`` and ``hw/mcu`` folder.
 Please make sure you understand all the license term for files you use
 in your project.
 
-Docs
-====
-
-- Info
-
-  - `Uses`_
-  - `Changelog`_
-  - `Contributors`_
-
-- `Reference`_
-
-  - `Getting Started`_
-  - `Supported Boards`_
-  - `Dependencies`_
-  - `Concurrency`_
-
-- `Contributing`_
-
-  - `Code of Conduct`_
-  - `Structure`_
-  - `Porting`_
 
 .. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/build.yml/badge.svg
    :target: https://github.com/hathach/tinyusb/actions
