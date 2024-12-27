@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 H743 Eval
+   url: https://www.st.com/en/evaluation-tools/stm32h743i-eval.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

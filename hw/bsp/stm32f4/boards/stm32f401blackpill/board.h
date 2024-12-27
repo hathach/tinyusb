@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 F401 Blackpill
+   url: https://stm32-base.org/boards/STM32F401CCU6-WeAct-Black-Pill-V1.2
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

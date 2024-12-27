@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: MCXN947 Breakout
+   url: n/a
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

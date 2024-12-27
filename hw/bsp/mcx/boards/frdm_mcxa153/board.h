@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Freedom MCXA153
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA153
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

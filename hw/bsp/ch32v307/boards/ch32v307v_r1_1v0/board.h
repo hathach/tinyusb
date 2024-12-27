@@ -22,6 +22,11 @@
  * THE SOFTWARE.
  */
 
+/* metadata:
+   name: CH32V307V-R1-1v0
+   url: https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

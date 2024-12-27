@@ -22,6 +22,11 @@
  * THE SOFTWARE.
  */
 
+/* metadata:
+   name: Freedom K64F
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/freedom-development-platform-for-kinetis-k64-k63-and-k24-mcus:FRDM-K64F
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

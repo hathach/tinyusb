@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Arduino UNO R4
+   url: https://store-usa.arduino.cc/pages/uno-r4
+*/
+
 #ifndef _BOARD_H_
 #define _BOARD_H_
 

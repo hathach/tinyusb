@@ -1,3 +1,8 @@
+/* metadata:
+   name: MM32F3273G9P MB-039
+   url: https://www.mindmotion.com.cn/support/development_tools/evaluation_boards/evboard/mm32f3273g9p/
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 
