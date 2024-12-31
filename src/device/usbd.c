@@ -318,6 +318,12 @@ tu_static usbd_class_driver_t const * _app_driver = NULL;
 tu_static uint8_t _app_driver_count = 0;
 
 #define TOTAL_DRIVER_COUNT    (_app_driver_count + BUILTIN_DRIVER_COUNT)
+// Maximum total driver count is limited to `255u` / `0xFFu`.
+// Although unlikely, should ever need >`255u` drivers:
+// * Change `get_driver()` function to take `uint16_t` parameter.
+// * Update callers of `get_driver()` to use `uint16_t` index variable.
+// * Review all uses of index for potential overflow / underflow / etc.
+#define MAXIMUM_TOTAL_DRIVER_COUNT (UINT8_MAX)
 
 // virtually joins built-in and application drivers together.
 // Application is positioned first to allow overwriting built-in ones.
@@ -401,7 +407,8 @@ tu_static char const* const _usbd_event_str[DCD_EVENT_COUNT] = {
 
 // for usbd_control to print the name of control complete driver
 void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback) {
-  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+  for (int q = 0; (q < TOTAL_DRIVER_COUNT) && (q <= MAXIMUM_TOTAL_DRIVER_COUNT); q++) {
+    uint8_t i = (uint8_t)q;
     usbd_class_driver_t const* driver = get_driver(i);
     if (driver && driver->control_xfer_cb == callback) {
       TU_LOG_USBD("%s control complete\r\n", driver->name);
@@ -488,10 +495,14 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Get application driver if available
   if (usbd_app_driver_get_cb) {
     _app_driver = usbd_app_driver_get_cb(&_app_driver_count);
+    // See MAXIMUM_TOTAL_DRIVER_COUNT definition for details.
+    // Do not proceed if this invalid configuration is detected.
+    TU_ASSERT(TOTAL_DRIVER_COUNT <= MAXIMUM_TOTAL_DRIVER_COUNT);
   }
 
   // Init class drivers
-  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+  for (int q = 0; (q < TOTAL_DRIVER_COUNT) && (q <= MAXIMUM_TOTAL_DRIVER_COUNT); q++) {
+    uint8_t i = (uint8_t)q;
     usbd_class_driver_t const* driver = get_driver(i);
     TU_ASSERT(driver && driver->init);
     TU_LOG_USBD("%s init\r\n", driver->name);
@@ -520,7 +531,8 @@ bool tud_deinit(uint8_t rhport) {
   dcd_deinit(rhport);
 
   // Deinit class drivers
-  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+  for (int q = 0; (q < TOTAL_DRIVER_COUNT) && (q <= MAXIMUM_TOTAL_DRIVER_COUNT); q++) {
+    uint8_t i = (uint8_t)q;
     usbd_class_driver_t const* driver = get_driver(i);
     if(driver && driver->deinit) {
       TU_LOG_USBD("%s deinit\r\n", driver->name);
@@ -544,7 +556,8 @@ bool tud_deinit(uint8_t rhport) {
 }
 
 static void configuration_reset(uint8_t rhport) {
-  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+  for (int q = 0; (q < TOTAL_DRIVER_COUNT) && (q <= MAXIMUM_TOTAL_DRIVER_COUNT); q++) {
+    uint8_t i = (uint8_t)q;
     usbd_class_driver_t const* driver = get_driver(i);
     TU_ASSERT(driver,);
     driver->reset(rhport);
@@ -1011,9 +1024,10 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
     // Find driver for this interface
     uint16_t const remaining_len = (uint16_t) (desc_end-p_desc);
-    uint8_t drv_id;
-    for (drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++)
+    int q;
+    for (q = 0; (q < TOTAL_DRIVER_COUNT) && (q <= MAXIMUM_TOTAL_DRIVER_COUNT); q++)
     {
+      uint8_t drv_id = (uint8_t)q;
       usbd_class_driver_t const *driver = get_driver(drv_id);
       TU_ASSERT(driver);
       uint16_t const drv_len = driver->open(rhport, desc_itf, remaining_len);
@@ -1061,7 +1075,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     }
 
     // Failed if there is no supported drivers
-    TU_ASSERT(drv_id < TOTAL_DRIVER_COUNT);
+    TU_ASSERT(q < TOTAL_DRIVER_COUNT);
   }
 
   return true;
@@ -1193,7 +1207,8 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
 
     case DCD_EVENT_SOF:
       // SOF driver handler in ISR context
-      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+      for (int q = 0; (q < TOTAL_DRIVER_COUNT) && (q <= MAXIMUM_TOTAL_DRIVER_COUNT); q++) {
+        uint8_t i = (uint8_t)q;
         usbd_class_driver_t const* driver = get_driver(i);
         if (driver && driver->sof) {
           driver->sof(event->rhport, event->sof.frame_count);
@@ -1248,7 +1263,7 @@ void usbd_int_set(bool enabled)
 // Parse consecutive endpoint descriptors (IN & OUT)
 bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
-  for(int i=0; i<ep_count; i++)
+  for(uint8_t i=0; i<ep_count; i++)
   {
     tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
