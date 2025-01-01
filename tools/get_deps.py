@@ -55,8 +55,8 @@ deps_optional = {
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
                            'b41cf930e65c734d8ec6de04f1d57d46787c76ae',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
-    'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
-                            '144f1eb7ea8c06512e12f12b27383601c0272410',
+    'hw/mcu/nxp/mcux-sdk': ['https://github.com/nxp-mcuxpresso/mcux-sdk',
+                            'a1bdae309a14ec95a4f64a96d3315a4f89c397c6',
                             'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/hathach/Pico-PIO-USB.git',
                                          '810653f66adadba3e0e4b4b56d5167ac4f7fdbf7',
@@ -241,8 +241,12 @@ def get_a_dep(d):
     # Init git deps if not existed
     if not p.exists():
         p.mkdir(parents=True)
+        print(f'{p} does not exist... fetching dep')
         run_cmd(f"{git_cmd} init")
         run_cmd(f"{git_cmd} remote add origin {url}")
+        print(f'fetching {commit} from {url}')
+        run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
+        run_cmd(f"{git_cmd} checkout FETCH_HEAD")
 
     # Check if commit is already fetched
     result = run_cmd(f"{git_cmd} rev-parse HEAD")

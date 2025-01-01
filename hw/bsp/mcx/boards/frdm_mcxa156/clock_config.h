@@ -1,6 +1,5 @@
 /*
- * Copyright 2023 NXP
- * All rights reserved.
+ * Copyright 2024 NXP
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -168,3 +167,4 @@ void BOARD_BootClockFRO96M(void);
 #endif /* __cplusplus*/
 
 #endif /* _CLOCK_CONFIG_H_ */
+
