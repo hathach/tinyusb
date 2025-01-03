@@ -67,6 +67,10 @@ jobs:
       - name: Clone esp-usb repository
         run: |
           git clone https://github.com/espressif/esp-usb.git
+      - name: ⚙️ Install System tools
+        run: |
+          apt update
+          apt install -y usbutils
       - name: Install Python packages
         env:
           PIP_EXTRA_INDEX_URL: "https://dl.espressif.com/pypi/"
