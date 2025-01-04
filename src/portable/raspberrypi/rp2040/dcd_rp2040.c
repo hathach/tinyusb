@@ -496,6 +496,12 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
   (void) rhport;
   const uint8_t ep_addr = ep_desc->bEndpointAddress;
+
+  // init w/o allocate
+  const uint16_t mps = ep_desc->wMaxPacketSize;
+  uint16_t size = (uint16_t)tu_div_ceil(mps, 64) * 64u;
+  hw_endpoint_init(ep_addr, size, TUSB_XFER_ISOCHRONOUS);
+
   // Fill in endpoint control register with buffer offset
   struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
   TU_ASSERT(ep->hw_data_buf != NULL); // must be inited and buffer allocated
