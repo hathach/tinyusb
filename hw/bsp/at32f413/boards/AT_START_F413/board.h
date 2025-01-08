@@ -32,10 +32,10 @@
 #endif
 
 // LED
-#define LED_PORT              GPIOD
-#define LED_PIN               GPIO_PINS_13
+#define LED_PORT              GPIOC
+#define LED_PIN               GPIO_PINS_2
 #define LED_STATE_ON          0 // Active Low
-#define LED_GPIO_CLK_EN()     crm_periph_clock_enable(CRM_GPIOD_PERIPH_CLOCK, TRUE)
+#define LED_GPIO_CLK_EN()     crm_periph_clock_enable(CRM_GPIOC_PERIPH_CLOCK, TRUE)
 
 // Button
 #define BUTTON_PORT           GPIOA
@@ -52,6 +52,7 @@
 
 static inline void board_vbus_sense_init(void)
 {
+    
 }
 
 #ifdef __cplusplus

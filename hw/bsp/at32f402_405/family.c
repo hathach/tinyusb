@@ -24,56 +24,78 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "at32f403a_407_clock.h"
+#include "at32f402_405_clock.h"
 #include "bsp/board_api.h"
 #include "board.h"
 
-void usb_clock48m_select(usb_clk48_s clk_s);
 void uart_print_init(uint32_t baudrate);
+void usb_clock48m_select(usb_clk48_s clk_s);
+void led_and_botton_init(void);
+void usb_gpio_config(void);
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void USBFS_H_CAN1_TX_IRQHandler(void) {
-  tud_int_handler(0);
+void OTGFS1_IRQHandler(void) 
+{
+  tusb_int_handler(0, true);
 }
-void USBFS_L_CAN1_RX0_IRQHandler(void) {
-  tud_int_handler(0);
+void OTGHS_IRQHandler(void) 
+{
+  tusb_int_handler(1, true);
 }
-void USBFS_MAPH_IRQHandler(void) {
-  tud_int_handler(0);
+void OTGFS1_WKUP_IRQHandler(void)
+{
+  tusb_int_handler(0, true);
 }
-void USBFS_MAPL_IRQHandler(void) {
-  tud_int_handler(0);
-}
-void USBFSWakeUp_IRQHandler(void) {
-  tud_int_handler(0);
+void OTGHS_WKUP_IRQHandler(void)
+{
+  tusb_int_handler(1, true);
 }
 
 void board_init(void) 
 {
-  system_clock_config();
-
   /* config nvic priority group */
   nvic_priority_group_config(NVIC_PRIORITY_GROUP_4);
 
+  /* config system clock */
+  system_clock_config();
+
+  /* config usb io*/
+  usb_gpio_config();
+
+  /* enable usb clock */
+  crm_periph_clock_enable(OTG_CLOCK, TRUE);
+
   /* select usb 48m clcok source */
-  usb_clock48m_select(USB_CLK_HICK);
+  usb_clock48m_select(USB_CLK_HEXT);
+
+  /* vbus ignore */
+  board_vbus_sense_init();
 
   /* configure systick */
-  systick_clock_source_config(SYSTICK_CLOCK_SOURCE_AHBCLK_NODIV);
-  
-  /* enable usb clock */
-  crm_periph_clock_enable(CRM_USB_PERIPH_CLOCK, TRUE);
+  SysTick_Config(system_core_clock / 1000);
 
-  SysTick_Config(SystemCoreClock / 1000);
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(USBFS_H_CAN1_TX_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFS_L_CAN1_RX0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  NVIC_SetPriority(USBFSWakeUp_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-#endif
+  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+    // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+    NVIC_SetPriority(OTG_IRQ, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  #else
+    NVIC_SetPriority(OTG_IRQ, 0);
+  #endif
 
+  /* config led and key */
+  led_and_botton_init();
+
+  /* config usart to printf */
+  uart_print_init(115200);
+  // printf("usart printf config success!\r\n");
+}
+
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+void led_and_botton_init(void) 
+{
   /* LED */
   gpio_init_type gpio_led_init_struct;
   /* enable the led clock */
@@ -84,10 +106,11 @@ void board_init(void)
   gpio_led_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
   gpio_led_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
   gpio_led_init_struct.gpio_mode = GPIO_MODE_OUTPUT;
-  gpio_led_init_struct.gpio_pins = LED_PIN;
+  gpio_led_init_struct.gpio_pins = LED_PIN | GPIO_PINS_5 | GPIO_PINS_6;
   gpio_led_init_struct.gpio_pull = GPIO_PULL_NONE;
   gpio_init(LED_PORT, &gpio_led_init_struct);
-
+  gpio_bits_set(LED_PORT, GPIO_PINS_5);
+  gpio_bits_set(LED_PORT, GPIO_PINS_6);
   /* Button */
   gpio_init_type gpio_button_init_struct;
   /* enable the button clock */
@@ -101,14 +124,8 @@ void board_init(void)
   gpio_button_init_struct.gpio_pins = BUTTON_PIN;
   gpio_button_init_struct.gpio_pull = GPIO_PULL_DOWN;
   gpio_init(BUTTON_PORT, &gpio_button_init_struct);
-
-  uart_print_init(115200);
-  printf("usart printf config success!\r\n");
 }
 
-//--------------------------------------------------------------------+
-// Board porting API
-//--------------------------------------------------------------------+
 /**
   * @brief  usb 48M clock select
   * @param  clk_s:USB_CLK_HICK, USB_CLK_HEXT
@@ -119,64 +136,53 @@ void usb_clock48m_select(usb_clk48_s clk_s)
   if(clk_s == USB_CLK_HICK)
   {
     crm_usb_clock_source_select(CRM_USB_CLOCK_SOURCE_HICK);
-
     /* enable the acc calibration ready interrupt */
     crm_periph_clock_enable(CRM_ACC_PERIPH_CLOCK, TRUE);
-
     /* update the c1\c2\c3 value */
     acc_write_c1(7980);
     acc_write_c2(8000);
     acc_write_c3(8020);
-
     /* open acc calibration */
     acc_calibration_mode_enable(ACC_CAL_HICKTRIM, TRUE);
   }
   else
   {
-    switch(system_core_clock)
-    {
-      /* 48MHz */
-      case 48000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_1);
-        break;
-
-      /* 72MHz */
-      case 72000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_1_5);
-        break;
-
-      /* 96MHz */
-      case 96000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_2);
-        break;
-
-      /* 120MHz */
-      case 120000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_2_5);
-        break;
-
-      /* 144MHz */
-      case 144000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_3);
-        break;
-
-      /* 168MHz */
-      case 168000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_3_5);
-        break;
-
-      /* 192MHz */
-      case 192000000:
-        crm_usb_clock_div_set(CRM_USB_DIV_4);
-        break;
-
-      default:
-        break;
-
-    }
+    crm_pllu_output_set(TRUE);
+    /* wait till pll is ready */
+    while(crm_flag_get(CRM_PLLU_STABLE_FLAG) != SET){}
+    crm_usb_clock_source_select(CRM_USB_CLOCK_SOURCE_PLLU);
   }
 }
 
+void usb_gpio_config(void)
+{
+  gpio_init_type gpio_init_struct;
+  crm_periph_clock_enable(OTG_PIN_GPIO_CLOCK, TRUE);
+  gpio_default_para_init(&gpio_init_struct);
+  gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
+  gpio_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
+  gpio_init_struct.gpio_mode = GPIO_MODE_MUX;
+  gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
+  #ifdef USB_SOF_OUTPUT_ENABLE
+    crm_periph_clock_enable(OTG_PIN_SOF_GPIO_CLOCK, TRUE);
+    gpio_init_struct.gpio_pins = OTG_PIN_SOF;
+    gpio_init(OTG_PIN_SOF_GPIO, &gpio_init_struct);
+    gpio_pin_mux_config(OTG_PIN_SOF_GPIO, OTG_PIN_SOF_SOURCE, OTG_PIN_MUX);
+  #endif
+  /* otgfs use vbus pin */
+  #ifndef USB_VBUS_IGNORE
+    gpio_init_struct.gpio_pins = OTG_PIN_VBUS;
+    gpio_init_struct.gpio_pull = GPIO_PULL_DOWN;
+    gpio_pin_mux_config(OTG_PIN_GPIO, OTG_PIN_VBUS_SOURCE, OTG_PIN_MUX);
+    gpio_init(OTG_PIN_GPIO, &gpio_init_struct);
+  #endif
+}
+
+/**
+  * @brief  initialize uart
+  * @param  baudrate: uart baudrate
+  * @retval none
+  */
 void uart_print_init(uint32_t baudrate)
 {
   gpio_init_type gpio_init_struct;
@@ -191,39 +197,21 @@ void uart_print_init(uint32_t baudrate)
   gpio_init_struct.gpio_pins = PRINT_UART_TX_PIN;
   gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
   gpio_init(PRINT_UART_TX_GPIO, &gpio_init_struct);
+  gpio_pin_mux_config(PRINT_UART_TX_GPIO, PRINT_UART_TX_PIN_SOURCE, PRINT_UART_TX_PIN_MUX_NUM);
   /* configure uart param */
   usart_init(PRINT_UART, baudrate, USART_DATA_8BITS, USART_STOP_1_BIT);
   usart_transmitter_enable(PRINT_UART, TRUE);
   usart_enable(PRINT_UART, TRUE);
 }
 
-void board_led_write(bool state) {
-  gpio_bits_write(LED_PORT, LED_PIN, state ^ (!LED_STATE_ON));
-}
-
-uint32_t board_button_read(void) {
-  return gpio_input_data_bit_read(BUTTON_PORT, BUTTON_PIN);
-}
-
-size_t board_get_unique_id(uint8_t id[], size_t max_len) {
-  (void) max_len;
-  volatile uint32_t * at32_uuid = ((volatile uint32_t*)0x1FFFF7E8);
-  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
-  uint8_t const len = 12;
-
-  id32[0] = at32_uuid[0];
-  id32[1] = at32_uuid[1];
-  id32[2] = at32_uuid[2];
-
-  return len;
-}
-
+// Get characters from UART. Return number of read bytes
 int board_uart_read(uint8_t *buf, int len) {
   (void) buf;
   (void) len;
   return 0;
 }
 
+// Send characters to UART. Return number of sent bytes
 int board_uart_write(void const *buf, int len)
 {
   #if CFG_TUSB_OS == OPT_OS_NONE
@@ -250,6 +238,29 @@ int board_uart_write(void const *buf, int len)
   #endif
 }
 
+void board_led_write(bool state) 
+{
+  gpio_bits_write(LED_PORT, LED_PIN, state ^ (!LED_STATE_ON));
+}
+
+uint32_t board_button_read(void) 
+{
+  return gpio_input_data_bit_read(BUTTON_PORT, BUTTON_PIN);
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) 
+{
+  (void) max_len;
+  volatile uint32_t * at32_uuid = ((volatile uint32_t*)0x1FFFF7E8);
+  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
+  uint8_t const len = 12;
+
+  id32[0] = at32_uuid[0];
+  id32[1] = at32_uuid[1];
+  id32[2] = at32_uuid[2];
+
+  return len;
+}
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   volatile uint32_t system_ticks = 0;
@@ -257,22 +268,20 @@ int board_uart_write(void const *buf, int len)
   {
     system_ticks++;
   }
-
   uint32_t board_millis(void) 
   {
     return system_ticks;
   }
-  
   void SVC_Handler(void)
   {
   }
-
   void PendSV_Handler(void)
   {
   }
 #endif
 
-void HardFault_Handler(void) {
+void HardFault_Handler(void) 
+{
   __asm("BKPT #0\n");
 }
 
@@ -285,3 +294,4 @@ void assert_failed(const char *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+

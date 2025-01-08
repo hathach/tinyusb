@@ -41,4 +41,4 @@ SRC_S += \
 # For freeRTOS port source
 #FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4
 
-flash: flash-stlink
+flash: flash-atlink
