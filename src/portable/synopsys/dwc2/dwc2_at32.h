@@ -70,7 +70,9 @@
 static const dwc2_controller_t _dwc2_controller[] =
 {
   { .reg_base = DWC2_OTG1_REG_BASE, .irqnum = OTG1_IRQn, .ep_count = DWC2_EP_MAX, .ep_fifo_size = OTG1_FIFO_SIZE },
+  #if defined DWC2_OTG2_REG_BASE
   { .reg_base = DWC2_OTG2_REG_BASE, .irqnum = OTG2_IRQn, .ep_count = DWC2_EP_MAX, .ep_fifo_size = OTG2_FIFO_SIZE }
+  #endif
 };
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
