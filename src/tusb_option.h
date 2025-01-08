@@ -202,8 +202,11 @@
 // ArteryTek
 #define OPT_MCU_AT32F403A_407    2500  ///< ArteryTek AT32F403A_AT32F407
 #define OPT_MCU_AT32F415         2501  ///< ArteryTek AT32F415
-#define OPT_MCU_AT32F435_437     2502  ///< ArteryTek AT32F435/AT32F437
+#define OPT_MCU_AT32F435_437     2502  ///< ArteryTek AT32F435_AT32F437
 #define OPT_MCU_AT32F423         2503  ///< ArteryTek AT32F423
+#define OPT_MCU_AT32F402_405     2504  ///< ArteryTek AT32F402_405
+#define OPT_MCU_AT32F425         2505  ///< ArteryTek AT32F425
+#define OPT_MCU_AT32F413         2506  ///< ArteryTek AT32F413
 
 // Check if configured MCU is one of listed
 // Apply _TU_CHECK_MCU with || as separator to list of input

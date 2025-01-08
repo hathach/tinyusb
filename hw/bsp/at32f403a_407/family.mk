@@ -19,7 +19,7 @@ LDFLAGS_GCC += \
 	-flto --specs=nosys.specs
 
 SRC_C += \
-	src/portable/at32/dcd_at32_fsdev.c \
+	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
 	$(AT32F403A_407_SDK_SRC)/drivers/src/at32f403a_407_gpio.c \
 	$(AT32F403A_407_SDK_SRC)/drivers/src/at32f403a_407_misc.c \
 	$(AT32F403A_407_SDK_SRC)/drivers/src/at32f403a_407_usart.c \
@@ -39,4 +39,4 @@ SRC_S += \
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F
 
-flash: flash-stlink
+flash: flash-atlink

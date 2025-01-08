@@ -27,18 +27,21 @@
 #include "at32f435_437_clock.h"
 #include "bsp/board_api.h"
 #include "board.h"
-//#define USB_VBUS_IGNORE
+
+void usb_gpio_config(void);
+void uart_print_init(uint32_t baudrate);
+void usb_clock48m_select(usb_clk48_s clk_s);
+void led_and_botton_init(void);
+int inHandlerMode(void);
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void otg1_gpio_config(void);
-void otg2_gpio_config(void);
-void uart_print_init(uint32_t baudrate);
-
-void OTGFS1_IRQHandler(void) {
+void OTGFS1_IRQHandler(void) 
+{
   tusb_int_handler(0, true);
 }
-void OTGFS2_IRQHandler(void) {
+void OTGFS2_IRQHandler(void) 
+{
   tusb_int_handler(1, true);
 }
 void OTGFS1_WKUP_IRQHandler(void)
@@ -49,6 +52,46 @@ void OTGFS2_WKUP_IRQHandler(void)
 {
   tusb_int_handler(1, true);
 }
+
+void board_init(void) 
+{
+  /* config nvic priority group */
+  nvic_priority_group_config(NVIC_PRIORITY_GROUP_4);
+
+  /* config system clock to 288Mhz */
+  system_clock_config();
+
+  /* config usb io */
+  usb_gpio_config();
+
+  /* enable usb clock */
+  crm_periph_clock_enable(OTG_CLOCK, TRUE);
+
+  /* select usb 48m clcok source */
+  usb_clock48m_select(USB_CLK_HEXT);
+
+  /* enable otgfs irq */
+  //nvic_irq_enable(OTG_IRQ, 0, 0);
+
+  /* vbus ignore */
+  board_vbus_sense_init();
+
+  SysTick_Config(SystemCoreClock / 1000);
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(OTG_IRQ, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#endif
+
+  /* config led and key */
+  led_and_botton_init();
+
+  /* config usart printf */
+  uart_print_init(115200);
+}
+
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
 /**
   * @brief  usb 48M clock select
   * @param  clk_s:USB_CLK_HICK, USB_CLK_HEXT
@@ -138,21 +181,18 @@ void usb_clock48m_select(usb_clk48_s clk_s)
 
       default:
         break;
-
     }
   }
 }
 
-void led_init(void) {
+void led_and_botton_init(void) 
+{
   /* LED */
   gpio_init_type gpio_led_init_struct;
-
   /* enable the led clock */
   LED_GPIO_CLK_EN();
-
   /* set default parameter */
   gpio_default_para_init(&gpio_led_init_struct);
-
   /* configure the led gpio */
   gpio_led_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
   gpio_led_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
@@ -160,105 +200,7 @@ void led_init(void) {
   gpio_led_init_struct.gpio_pins = LED_PIN;
   gpio_led_init_struct.gpio_pull = GPIO_PULL_NONE;
   gpio_init(LED_PORT, &gpio_led_init_struct);
-  gpio_bits_set(GPIOD, GPIO_PINS_13);
-  gpio_bits_set(GPIOD, GPIO_PINS_14);
-  gpio_bits_set(GPIOD, GPIO_PINS_15);
-}
-
-void board_init(void) 
-{
-  /* config nvic priority group */
-  nvic_priority_group_config(NVIC_PRIORITY_GROUP_4);
-  #ifdef BOARD_TUH_RHPORT
-    #if BOARD_TUH_RHPORT == 1
-      #error "board unsupported!"
-    #endif
-  #endif
-  /* config system clock to 288Mhz */
-  system_clock_config();
-#ifdef BOARD_TUD_RHPORT
-  #if BOARD_TUD_RHPORT == 0
-  /* config usb pin */
-  otg1_gpio_config();
-  /* enable usb clock */
-  crm_periph_clock_enable(CRM_OTGFS1_PERIPH_CLOCK, TRUE);
-  /* select usb 48m clcok source */
-  usb_clock48m_select(USB_CLK_HEXT);
-  /* enable otgfs irq */
-  nvic_irq_enable(OTGFS1_IRQn, 0, 0);
-  /* vbus ignore */
-  *(int*)(0x50000038) |= (1<<21);
-  #else
-    /* config usb pin */
-  otg2_gpio_config();
-  /* enable usb clock */
-  crm_periph_clock_enable(CRM_OTGFS2_PERIPH_CLOCK, TRUE);
-  /* select usb 48m clcok source */
-  usb_clock48m_select(USB_CLK_HEXT);
-  /* enable otgfs irq */
-  nvic_irq_enable(OTGFS2_IRQn, 0, 0);
-  /* vbus ignore */
-  *(int*)(0x40040038) |= (1<<21);
-  #endif
-#endif
-
-#ifdef BOARD_TUH_RHPORT
-  #if BOARD_TUH_RHPORT == 0
-  /* config usb pin */
-  otg1_gpio_config();
-  /* enable usb clock */
-  crm_periph_clock_enable(CRM_OTGFS1_PERIPH_CLOCK, TRUE);
-  /* select usb 48m clcok source */
-  usb_clock48m_select(USB_CLK_HEXT);
-  /* enable otgfs irq */
-  nvic_irq_enable(OTGFS1_IRQn, 0, 0);
-  /* vbus ignore */
-  *(int*)(0x50000038) |= (1<<21);
-  #else
-    /* config usb pin */
-  otg2_gpio_config();
-  /* enable usb clock */
-  crm_periph_clock_enable(CRM_OTGFS2_PERIPH_CLOCK, TRUE);
-  /* select usb 48m clcok source */
-  usb_clock48m_select(USB_CLK_HEXT);
-  /* enable otgfs irq */
-  nvic_irq_enable(OTGFS2_IRQn, 0, 0);
-  /* vbus ignore */
-  *(int*)(0x40040038) |= (1<<21);
-  #endif
-#endif
-
-  SysTick_Config(SystemCoreClock / 1000);
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  #ifdef BOARD_TUD_RHPORT
-    #if BOARD_TUD_RHPORT == 0
-      NVIC_SetPriority(OTGFS1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-    #else
-      NVIC_SetPriority(OTGFS2_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-    #endif
-  #else
-      NVIC_SetPriority(OTGFS1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  #endif
-#endif
-
-  /* LED */
-  gpio_init_type gpio_led_init_struct;
-
-  /* enable the led clock */
-  LED_GPIO_CLK_EN();
-
-  /* set default parameter */
-  gpio_default_para_init(&gpio_led_init_struct);
-
-  /* configure the led gpio */
-  gpio_led_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
-  gpio_led_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
-  gpio_led_init_struct.gpio_mode = GPIO_MODE_OUTPUT;
-  gpio_led_init_struct.gpio_pins = LED_PIN | GPIO_PINS_14 | GPIO_PINS_15;
-  gpio_led_init_struct.gpio_pull = GPIO_PULL_NONE;
-  gpio_init(LED_PORT, &gpio_led_init_struct);
-  gpio_bits_set(LED_PORT, GPIO_PINS_13);
+  gpio_bits_set(LED_PORT, LED_PIN);
   gpio_bits_set(LED_PORT, GPIO_PINS_14);
   gpio_bits_set(LED_PORT, GPIO_PINS_15);
   /* Button */
@@ -276,131 +218,112 @@ void board_init(void)
   gpio_init(BUTTON_PORT, &gpio_button_init_struct);
 }
 
-//uart1_printf
+/**
+  * @brief  initialize uart
+  * @param  baudrate: uart baudrate
+  * @retval none
+  */
 void uart_print_init(uint32_t baudrate)
 {
   gpio_init_type gpio_init_struct;
-
-#if defined (__GNUC__) && !defined (__clang__)
-  setvbuf(stdout, NULL, _IONBF, 0);
-#endif
-
   /* enable the uart and gpio clock */
-  crm_periph_clock_enable(CRM_USART1_PERIPH_CLOCK, TRUE);
-  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
-
+  crm_periph_clock_enable(PRINT_UART_CRM_CLK, TRUE);
+  crm_periph_clock_enable(PRINT_UART_TX_GPIO_CRM_CLK, TRUE);
   gpio_default_para_init(&gpio_init_struct);
-
   /* configure the uart tx pin */
   gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
   gpio_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
   gpio_init_struct.gpio_mode = GPIO_MODE_MUX;
-  gpio_init_struct.gpio_pins = GPIO_PINS_9;
+  gpio_init_struct.gpio_pins = PRINT_UART_TX_PIN;
   gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
-  gpio_init(GPIOA, &gpio_init_struct);
-
-  gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE9, GPIO_MUX_7);
-
+  gpio_init(PRINT_UART_TX_GPIO, &gpio_init_struct);
+  gpio_pin_mux_config(PRINT_UART_TX_GPIO, PRINT_UART_TX_PIN_SOURCE, PRINT_UART_TX_PIN_MUX_NUM);
   /* configure uart param */
-  usart_init(USART1, baudrate, USART_DATA_8BITS, USART_STOP_1_BIT);
-  usart_transmitter_enable(USART1, TRUE);
-  usart_enable(USART1, TRUE);
+  usart_init(PRINT_UART, baudrate, USART_DATA_8BITS, USART_STOP_1_BIT);
+  usart_transmitter_enable(PRINT_UART, TRUE);
+  usart_enable(PRINT_UART, TRUE);
 }
 
-void otg1_gpio_config(void)
+// Get characters from UART. Return number of read bytes
+int board_uart_read(uint8_t *buf, int len) 
+{
+  (void) buf;
+  (void) len;
+  return 0;
+}
+// Send characters to UART. Return number of sent bytes
+int board_uart_write(void const *buf, int len)
+{
+  #if CFG_TUSB_OS == OPT_OS_NONE
+    int txsize = len;
+    u16 timeout = 0xffff;
+    while (txsize--) 
+    {
+      while(usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET)
+      {
+        timeout--;
+        if(timeout == 0)
+        {
+          return 0;
+        }
+      }
+      PRINT_UART->dt = (*((uint8_t const *)buf) & 0x01FF);
+      buf++;
+    }
+    return len;
+  #else
+    (void) buf;
+    (void) len;
+    return 0;
+  #endif
+}
+
+int inHandlerMode(void)
+{
+   return __get_IPSR();  
+}
+
+void usb_gpio_config(void)
 {
   gpio_init_type gpio_init_struct;
-
-  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
+  crm_periph_clock_enable(OTG_PIN_GPIO_CLOCK, TRUE);
   gpio_default_para_init(&gpio_init_struct);
-
   gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
   gpio_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
   gpio_init_struct.gpio_mode = GPIO_MODE_MUX;
   gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
-
   /* dp and dm */
-  gpio_init_struct.gpio_pins = GPIO_PINS_12 | GPIO_PINS_11;
-  gpio_init(GPIOA, &gpio_init_struct);
-
-  gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE12, GPIO_MUX_10);
-  gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE11, GPIO_MUX_10);
-
-#ifdef USB_SOF_OUTPUT_ENABLE
-  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
-  gpio_init_struct.gpio_pins = GPIO_PINS_8;
-  gpio_init(GPIOA, &gpio_init_struct);
-  gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE8, GPIO_MUX_10);
-#endif
-
-  /* otgfs use vbus pin */
-#ifndef USB_VBUS_IGNORE
-  gpio_init_struct.gpio_pins = GPIO_PINS_9;
-  gpio_init_struct.gpio_pull = GPIO_PULL_DOWN;
-  gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE9, GPIO_MUX_10);
-  gpio_init(GPIOA, &gpio_init_struct);
-#endif
-
-#ifdef BOARD_TUH_RHPORT
-  crm_periph_clock_enable(CRM_GPIOH_PERIPH_CLOCK, TRUE);
-  gpio_bits_set(GPIOH, GPIO_PINS_3);
-  gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
-  gpio_init_struct.gpio_out_type  = GPIO_OUTPUT_OPEN_DRAIN;
-  gpio_init_struct.gpio_mode = GPIO_MODE_OUTPUT;
-  gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
-  gpio_init_struct.gpio_pins = GPIO_PINS_3;
-  gpio_init(GPIOH, &gpio_init_struct);
-#endif
+  gpio_init_struct.gpio_pins = OTG_PIN_DP | OTG_PIN_DM;
+  gpio_init(OTG_PIN_GPIO, &gpio_init_struct);
+  gpio_pin_mux_config(OTG_PIN_GPIO, OTG_PIN_DP_SOURCE, OTG_PIN_MUX);
+  gpio_pin_mux_config(OTG_PIN_GPIO, OTG_PIN_DM_SOURCE, OTG_PIN_MUX);
+  #ifdef USB_SOF_OUTPUT_ENABLE
+    crm_periph_clock_enable(OTG_PIN_SOF_GPIO_CLOCK, TRUE);
+    gpio_init_struct.gpio_pins = OTG_PIN_SOF;
+    gpio_init(OTG_PIN_SOF_GPIO, &gpio_init_struct);
+    gpio_pin_mux_config(OTG_PIN_SOF_GPIO, OTG_PIN_SOF_SOURCE, OTG_PIN_MUX);
+  #endif
+    /* otgfs use vbus pin */
+  #ifndef USB_VBUS_IGNORE
+    gpio_init_struct.gpio_pins = OTG_PIN_VBUS;
+    gpio_init_struct.gpio_pull = GPIO_PULL_DOWN;
+    gpio_pin_mux_config(OTG_PIN_GPIO, OTG_PIN_VBUS_SOURCE, OTG_PIN_MUX);
+    gpio_init(OTG_PIN_GPIO, &gpio_init_struct);
+  #endif
 }
 
-void otg2_gpio_config(void)
+void board_led_write(bool state) 
 {
-  gpio_init_type gpio_init_struct;
-
-  crm_periph_clock_enable(CRM_GPIOB_PERIPH_CLOCK, TRUE);
-  gpio_default_para_init(&gpio_init_struct);
-
-  gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
-  gpio_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
-  gpio_init_struct.gpio_mode = GPIO_MODE_MUX;
-  gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
-
-  /* dp and dm */
-  gpio_init_struct.gpio_pins = GPIO_PINS_14 | GPIO_PINS_15;
-  gpio_init(GPIOB, &gpio_init_struct);
-
-  gpio_pin_mux_config(GPIOB, GPIO_PINS_SOURCE14, GPIO_MUX_12);
-  gpio_pin_mux_config(GPIOB, GPIO_PINS_SOURCE15, GPIO_MUX_12);
-
-#ifdef USB_SOF_OUTPUT_ENABLE
-  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
-  gpio_init_struct.gpio_pins = GPIO_PINS_4;
-  gpio_init(GPIOA, &gpio_init_struct);
-  gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE4, GPIO_MUX_12);
-#endif
-
-  /* otgfs use vbus pin */
-#ifndef USB_VBUS_IGNORE
-  gpio_init_struct.gpio_pins = GPIO_PINS_13;
-  gpio_init_struct.gpio_pull = GPIO_PULL_DOWN;
-  gpio_pin_mux_config(GPIOB, GPIO_PINS_SOURCE13, GPIO_MUX_12);
-  gpio_init(GPIOB, &gpio_init_struct);
-#endif
-
-}
-//--------------------------------------------------------------------+
-// Board porting API
-//--------------------------------------------------------------------+
-
-void board_led_write(bool state) {
   gpio_bits_write(LED_PORT, LED_PIN, state ^ (!LED_STATE_ON));
 }
 
-uint32_t board_button_read(void) {
+uint32_t board_button_read(void) 
+{
   return gpio_input_data_bit_read(BUTTON_PORT, BUTTON_PIN);
 }
 
-size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+size_t board_get_unique_id(uint8_t id[], size_t max_len) 
+{
   (void) max_len;
   volatile uint32_t * at32_uuid = ((volatile uint32_t*)0x1FFFF7E8);
   uint32_t* id32 = (uint32_t*) (uintptr_t) id;
@@ -413,31 +336,26 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   return len;
 }
 
-int board_uart_read(uint8_t *buf, int len) {
-  (void) buf;
-  (void) len;
-  return 0;
-}
-
-int board_uart_write(void const *buf, int len) {
-  (void) buf;
-  return len;
-}
-
 #if CFG_TUSB_OS == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler(void) {
-  system_ticks++;
-}
-
-uint32_t board_millis(void) {
-  return system_ticks;
-}
-
+  volatile uint32_t system_ticks = 0;
+  void SysTick_Handler(void) 
+  {
+    system_ticks++;
+  }
+  uint32_t board_millis(void) 
+  {
+    return system_ticks;
+  }
+  void SVC_Handler(void)
+  {
+  }
+  void PendSV_Handler(void)
+  {
+  }
 #endif
 
-void HardFault_Handler(void) {
+void HardFault_Handler(void) 
+{
   __asm("BKPT #0\n");
 }
 

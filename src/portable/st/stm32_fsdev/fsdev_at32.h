@@ -29,6 +29,10 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
   #include "at32f403a_407.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F413
+  #include "at32f413.h"
+
 #endif
 
 //#include "fsdev_common.h"
@@ -37,20 +41,21 @@
 //
 //--------------------------------------------------------------------+
 
-#if CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
+#if (CFG_TUSB_MCU == OPT_MCU_AT32F403A_407) || (CFG_TUSB_MCU == OPT_MCU_AT32F413)
 static const IRQn_Type fsdev_irq[] = {
   USBFS_H_CAN1_TX_IRQn,
   USBFS_L_CAN1_RX0_IRQn,
   USBFSWakeUp_IRQn
 };
 enum { FSDEV_IRQ_NUM = TU_ARRAY_SIZE(fsdev_irq) };
+
 #else
   #error "Unsupported MCU"
 #endif
 
 void dcd_int_enable(uint8_t rhport) {
   (void)rhport;
-  #if CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
+  #if (CFG_TUSB_MCU == OPT_MCU_AT32F403A_407) || (CFG_TUSB_MCU == OPT_MCU_AT32F413)
   // AT32F403A/407 devices allow to remap the USB interrupt vectors from
   // shared USB/CAN IRQs to separate CAN and USB IRQs.
   // This dynamically checks if this remap is active to enable the right IRQs.
@@ -69,7 +74,7 @@ void dcd_int_enable(uint8_t rhport) {
 
 void dcd_int_disable(uint8_t rhport) {
   (void)rhport;
-  #if CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
+  #if (CFG_TUSB_MCU == OPT_MCU_AT32F403A_407) || (CFG_TUSB_MCU == OPT_MCU_AT32F413)
   // AT32F403A/407 devices allow to remap the USB interrupt vectors from
   // shared USB/CAN IRQs to separate CAN and USB IRQs.
   // This dynamically checks if this remap is active to enable the right IRQs.

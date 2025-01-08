@@ -24,7 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "at32f403a_407_clock.h"
+#include "at32f413_clock.h"
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -172,7 +172,6 @@ void usb_clock48m_select(usb_clk48_s clk_s)
 
       default:
         break;
-
     }
   }
 }
