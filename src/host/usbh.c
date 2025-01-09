@@ -65,6 +65,11 @@ TU_ATTR_WEAK void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_is
   (void) in_isr;
 }
 
+TU_ATTR_WEAK bool tuh_enumeration_cb(tuh_xfer_t* xfer) {
+  (void) xfer;
+  return false;
+}
+
 TU_ATTR_WEAK bool hcd_dcache_clean(const void* addr, uint32_t data_size) {
   (void) addr; (void) data_size;
   return false;
@@ -1331,6 +1336,11 @@ static void enum_full_complete(void);
 
 // process device enumeration
 static void process_enumeration(tuh_xfer_t* xfer) {
+  // Call callback and skip if returns true
+  if (tuh_enumeration_cb(xfer)) {
+    return;
+  }
+  
   // Retry a few times with transfers in enumeration since device can be unstable when starting up
   enum {
     ATTEMPT_COUNT_MAX = 3,
