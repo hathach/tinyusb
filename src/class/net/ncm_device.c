@@ -857,7 +857,8 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     // - if there is a free receive buffer, initiate reception
     if (!recv_validate_datagram(ncm_interface.recv_tinyusb_ntb, xferred_bytes)) {
       // verification failed: ignore NTB and return it to free
-      TU_LOG_DRV("(EE) VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
+      TU_LOG_DRV("Invalid datatagram. Ignoring NTB\n");
+      recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
     } else {
       // packet ok -> put it into ready list
       recv_put_ntb_into_ready_list(ncm_interface.recv_tinyusb_ntb);
