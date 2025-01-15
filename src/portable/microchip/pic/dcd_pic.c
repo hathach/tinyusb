@@ -1,8 +1,11 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2020 Koji Kitayama
- * Copyright (c) 2022 Reimu NotMoe <reimu@sudomaker.com>
+ * Copyright (c) 2022-2024 SudoMaker, Ltd.
+ * Author: Mike Yang (Reimu NotMoe) <reimu@sudomaker.com>
+ *
+ * Based on usb_device.c - Copyright (c) 2015 Microchip Technology Inc.
+ * Based on dcd_khci.c   - Copyright (c) 2020 Koji Kitayama
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -313,12 +316,23 @@ static void prepare_next_setup_packet(uint8_t rhport)
 {
   const unsigned out_odd = _dcd.endpoint[0][0].odd;
   const unsigned in_odd  = _dcd.endpoint[0][1].odd;
-  TU_ASSERT(0 == _dcd.bdt[0][0][out_odd].own, );
+
+  // Abandon any previous control transfers that might have been using EP0.
+  // Ordinarily, nothing actually needs abandoning, since the previous control
+  // transfer would have completed successfully prior to the host sending the
+  // next SETUP packet. However, in a timeout error case, or after an EP0
+  // STALL event, one or more UOWN bits might still be set. If so, we should
+  // clear the UOWN bits, so the EP0 IN/OUT endpoints are in a known inactive
+  // state, ready for re-arming by the `dcd_edpt_xfer' function that will be
+  // called next.
 
   _dcd.bdt[0][0][out_odd].data     = 0;
+  _dcd.bdt[0][0][out_odd].own      = 0;
   _dcd.bdt[0][0][out_odd ^ 1].data = 1;
   _dcd.bdt[0][1][in_odd].data      = 1;
+  _dcd.bdt[0][1][in_odd].own       = 0;
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
+  _dcd.bdt[0][1][in_odd ^ 1].own   = 0;
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT),
           _dcd.setup_packet, sizeof(_dcd.setup_packet));
 }
@@ -475,13 +489,12 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   intr_disable(rhport);
   intr_clear(rhport);
 
-#if CFG_TUSB_MCU == OPT_MCU_PIC32MM
-  TRISBbits.TRISB6 = 1;
-#endif
-
   tu_memclr(&_dcd, sizeof(_dcd));
 
 #if TU_PIC_INT_SIZE == 4
+  // The USBBUSY bit is present on PIC32s and we're required to check it
+  // prior to powering on the USB peripheral (see DS61126F page 27)
+  while (U1PWRCbits.USBBUSY);
   U1PWRCSET = _U1PWRC_USBPWR_MASK;
 #else
   U1PWRCbits.USBPWR = 1;
@@ -502,6 +515,19 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   U1IE = _U1IE_URSTIE_MASK;
 
   dcd_connect(rhport);
+  return true;
+}
+
+bool dcd_deinit(uint8_t rhport)
+{
+  U1CON = 0;
+  U1IE = 0;
+  U1OTGIE = 0;
+#if TU_PIC_INT_SIZE == 4
+  U1PWRCCLR = _U1PWRC_USUSPEND_MASK | _U1PWRC_USBPWR_MASK;
+#else
+  U1PWRC &= ~(_U1PWRC_USUSPEND_MASK | _U1PWRC_USBPWR_MASK);
+#endif
   return true;
 }
 
@@ -529,8 +555,25 @@ void dcd_remote_wakeup(uint8_t rhport)
 #else
   U1CONbits.RESUME = 1;
 #endif
-  unsigned cnt = 25000000 / 1000;
+
+  // FIXME: Assert RESUME signal correctly, requires device-specific handling
+  // For now we use a hardcoded cycle-based delay which attempts to delay 10ms
+  // at the most common CPU frequencies. On PIC32s we assume the loop body
+  // takes 3 cycles. On 16-bit PICs we assume the XC16 compiler is in use and
+  // use its `__delay_ms' function.
+
+#if CFG_TUSB_MCU == OPT_MCU_PIC32MM
+  uint32_t cnt = 24000000 / 1000 / 3;
   while (cnt--) asm volatile("nop");
+#elif CFG_TUSB_MCU == OPT_MCU_PIC32MX
+  uint32_t cnt = 40000000 / 1000 / 3;
+  while (cnt--) asm volatile("nop");
+#elif CFG_TUSB_MCU == OPT_MCU_PIC32MK
+  uint32_t cnt = 120000000 / 1000 / 3;
+  while (cnt--) asm volatile("nop");
+#else
+  __delay_ms(10);
+#endif
 
 #if TU_PIC_INT_SIZE == 4
   U1CONCLR = _U1CON_RESUME_MASK;
@@ -738,8 +781,11 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 void dcd_int_handler(uint8_t rhport)
 {
-  uint32_t is  = U1IR;
-  uint32_t msk = U1IE;
+  uint32_t is, msk;
+
+  // Part 1 - "USB interrupts"
+  is = U1IR;
+  msk = U1IE;
 
   U1IR = is & ~msk;
   is &= msk;
@@ -747,7 +793,7 @@ void dcd_int_handler(uint8_t rhport)
   if (is & _U1IR_UERRIF_MASK) {
     uint32_t es = U1EIR;
     U1EIR = es;
-    U1IR   = is; /* discard any pending events */
+    U1IR = is; /* discard any pending events */
   }
 
   if (is & _U1IR_URSTIF_MASK) {
@@ -758,13 +804,33 @@ void dcd_int_handler(uint8_t rhport)
   if (is & _U1IR_IDLEIF_MASK) {
     // Note Host usually has extra delay after bus reset (without SOF), which could falsely
     // detected as Sleep event. Though usbd has debouncing logic so we are good
+
+    /*
+     * NOTE: Do not clear U1OTGIRbits.ACTVIF here!
+     * Reason:
+     * ACTVIF is only generated once an IDLEIF has been generated.
+     * This is a 1:1 ratio interrupt generation.
+     * For every IDLEIF, there will be only one ACTVIF regardless of
+     * the number of subsequent bus transitions.
+     *
+     * If the ACTIF is cleared here, a problem could occur when:
+     * [       IDLE       ][bus activity ->
+     * <--- 3 ms ----->     ^
+     *                ^     ACTVIF=1
+     *                IDLEIF=1
+     *  #           #           #           #   (#=Program polling flags)
+     *                          ^
+     *                          This polling loop will see both
+     *                          IDLEIF=1 and ACTVIF=1.
+     *                          However, the program services IDLEIF first
+     *                          because ACTIVIE=0.
+     *                          If this routine clears the only ACTIVIF,
+     *                          then it can never get out of the suspend
+     *                          mode.
+     */
+    U1OTGIESET = _U1OTGIE_ACTVIE_MASK;
     U1IR = _U1IR_IDLEIF_MASK;
     process_bus_sleep(rhport);
-  }
-
-  if (is & _U1IR_RESUMEIF_MASK) {
-    U1IR = _U1IR_RESUMEIF_MASK;
-    process_bus_resume(rhport);
   }
 
   if (is & _U1IR_SOFIF_MASK) {
@@ -773,12 +839,29 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   if (is & _U1IR_STALLIF_MASK) {
-    U1IR = _U1IR_STALLIF_MASK;
     process_stall(rhport);
+    U1IR = _U1IR_STALLIF_MASK;
   }
 
   if (is & _U1IR_TRNIF_MASK) {
     process_tokdne(rhport);
+  }
+
+  // Part 2 - "USB OTG interrupts"
+  is = U1OTGIR;
+  msk = U1OTGIE;
+
+  U1OTGIR = is & ~msk;
+  is &= msk;
+
+  if (is & _U1OTGIR_ACTVIF_MASK) {
+#if TU_PIC_INT_SIZE == 4
+    U1OTGIECLR = _U1OTGIE_ACTVIE_MASK;
+#else
+    U1OTGIE &= ~_U1OTGIE_ACTVIE_MASK;
+#endif
+    U1OTGIR = _U1OTGIR_ACTVIF_MASK;
+    process_bus_resume(rhport);
   }
 
   intr_clear(rhport);
