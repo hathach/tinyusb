@@ -185,6 +185,27 @@
 #elif CFG_TUSB_MCU == OPT_MCU_MAX78002
   #include "max78002.h"
 
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F435_437
+  #include "at32f435_437.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F415
+  #include "at32f415.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F403A_407
+  #include "at32f403a_407.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F423
+  #include "at32f423.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F402_405
+  #include "at32f402_405.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F425
+  #include "at32f425.h"
+
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F413
+  #include "at32f413.h"
+
 #else
   #error "Missing MCU header"
 #endif
