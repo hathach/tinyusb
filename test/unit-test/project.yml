@@ -14,10 +14,8 @@
 
   # optional features. If you don't need them, keep them turned off for performance
   :use_mocks: TRUE
-  :use_exceptions: TRUE
-  :use_test_preprocessor: :mocks  # options are :none, :mocks, :tests, or :all
+  :use_test_preprocessor: :mocks # options are :none, :mocks, :tests, or :all
   :use_deep_dependencies: :all   # options are :none, :mocks, :tests, or :all
-  :use_auxiliary_dependencies: TRUE
   :use_backtrace: :simple        # options are :none, :simple, or :gdb
   :use_decorators: :auto         # decorate Ceedling's output text. options are :auto, :all, or :none
 
@@ -50,10 +48,10 @@
     - osal.h
 
 # further details to configure the way Ceedling handles release code
-#:release_build:
-#  :output: MyApp.out
-#  :use_assembly: FALSE
-#  :artifacts: []
+:release_build:
+  :output: MyApp.out
+  :use_assembly: FALSE
+  :artifacts: []
 
 # Plugins are optional Ceedling features which can be enabled. Ceedling supports
 # a variety of plugins which may effect the way things are compiled, reported,
@@ -128,16 +126,9 @@
 #  - Referencing symbols in multiple lists using advanced YAML
 #  - Specifying symbols used during test preprocessing
 :defines:
-  # in order to add common defines:
-  #  1) remove the trailing [] from the :common: section
-  #  2) add entries to the :common: section (e.g. :test: has TEST defined)
-  :common: &common_defines []
   :test:
     - _UNITY_TEST_
-    #- *common_defines
-  :test_preprocess:
-    - _UNITY_TEST_
-    #- *common_defines
+  :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.
   :use_test_definition: FALSE
@@ -237,14 +228,11 @@
 # tests or releases. These options are MERGED with the options in supplemental yaml files.
 :libraries:
   :placement: :end
-  :flag: "${1}"  # or "-L ${1}" for example
+  :flag: "-l${1}"
   :path_flag: "-L ${1}"
   :system: []    # for example, you might list 'm' to grab the math library
-  :common: &common_libraries []
-  :test:
-    #- *common_libraries
-  :release:
-    #- *common_libraries
+  :test: []
+  :release: []
 
 ################################################################
 # PLUGIN CONFIGURATION
