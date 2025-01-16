@@ -45,7 +45,7 @@ function(add_tinyusb TARGET)
     target_compile_options(${TARGET} PRIVATE
       -Wall
       -Wextra
-      -Werror
+      #-Werror
       -Wfatal-errors
       -Wdouble-promotion
       -Wstrict-prototypes

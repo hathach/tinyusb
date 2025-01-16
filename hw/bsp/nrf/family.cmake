@@ -8,10 +8,10 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
 if (MCU_VARIANT STREQUAL "nrf5340_application")
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+  set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
   set(JLINK_DEVICE nrf5340_xxaa_app)
 else ()
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+  set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
   set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
 endif ()
 
@@ -113,12 +113,16 @@ endfunction()
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
 
-  # Board target
-  add_board_target(board_${BOARD})
+  if (BUILD_ZEPHYR)
+    #target_link_libraries(board_${BOARD} PUBLIC zephyr_interface kernel)
+  elseif ()
+    # Board target
+    add_board_target(board_${BOARD})
+  endif ()
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
-  target_sources(${TARGET} PUBLIC
+  target_sources(${TARGET} PRIVATE
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
@@ -132,16 +136,20 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_NRF5X ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  target_sources(${TARGET}-tinyusb PRIVATE
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+  if (BUILD_ZEPHYR)
+    target_link_libraries(${TARGET}-tinyusb PUBLIC  zephyr_interface kernel)
+    target_link_libraries(${TARGET} PUBLIC ${TARGET}-tinyusb)
+  elseif ()
+    target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+    target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+  endif ()
 
   # Flashing
-  family_add_bin_hex(${TARGET})
+  #family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
 #  family_flash_adafruit_nrfutil(${TARGET})
 endfunction()

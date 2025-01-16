@@ -67,6 +67,8 @@
   #define NRFX_VER 3
 #endif
 
+extern void nrfx_isr(const void *irq_handler);
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -137,8 +139,22 @@ void board_init(void) {
   // Button
   nrf_gpio_cfg_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP);
 
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_ZEPHYR
+  #ifdef CONFIG_HAS_HW_NRF_USBREG
+  // IRQ_CONNECT(USBREGULATOR_IRQn, DT_IRQ(DT_INST(0, nordic_nrf_clock), priority), nrfx_isr, nrfx_usbreg_irq_handler, 0);
+  // irq_enable(USBREGULATOR_IRQn);
+  #endif
+
+  // IRQ_CONNECT(CLOCK_POWER_IRQn, 0, nrfx_isr, nrfx_power_irq_handler, 0);
+
+  /* USB device controller access from devicetree */
+  // #define DT_DRV_COMPAT nordic_nrf_usbd
+  // IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), nrfx_isr, nrf_usbd_common_irq_handler, 0);
+
+#endif
 
   // UART
   #if NRFX_VER <= 2

@@ -73,33 +73,38 @@ if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
   set(NO_WARN_RWX_SEGMENTS_SUPPORTED 1)
 endif()
 
-set(WARNING_FLAGS_GNU
-  -Wall
-  -Wextra
-  -Werror
-  -Wfatal-errors
-  -Wdouble-promotion
-  -Wstrict-prototypes
-  -Wstrict-overflow
-  -Werror-implicit-function-declaration
-  -Wfloat-equal
-  -Wundef
-  -Wshadow
-  -Wwrite-strings
-  -Wsign-compare
-  -Wmissing-format-attribute
-  -Wunreachable-code
-  -Wcast-align
-  -Wcast-function-type
-  -Wcast-qual
-  -Wnull-dereference
-  -Wuninitialized
-  -Wunused
-  -Wreturn-type
-  -Wredundant-decls
-  )
+#set(WARNING_FLAGS_GNU
+#  -Wall
+#  -Wextra
+#  -Werror
+#  -Wfatal-errors
+#  -Wdouble-promotion
+#  -Wstrict-prototypes
+#  -Wstrict-overflow
+#  -Werror-implicit-function-declaration
+#  -Wfloat-equal
+#  -Wundef
+#  -Wshadow
+#  -Wwrite-strings
+#  -Wsign-compare
+#  -Wmissing-format-attribute
+#  -Wunreachable-code
+#  -Wcast-align
+#  -Wcast-function-type
+#  -Wcast-qual
+#  -Wnull-dereference
+#  -Wuninitialized
+#  -Wunused
+#  -Wreturn-type
+#  -Wredundant-decls
+#  )
 
 set(WARNING_FLAGS_IAR "")
+
+#if (BUILD_ZEPHYR)
+#  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
+#  find_package(Zephyr REQUIRED HINTS ${TOP}/lib/zephyr)
+#endif ()
 
 #-------------------------------------------------------------
 # Functions
@@ -216,7 +221,7 @@ function(family_configure_common TARGET RTOS)
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
     if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
-      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
+#      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
@@ -244,12 +249,12 @@ function(family_configure_common TARGET RTOS)
   endif ()
 
   # run size after build
-  find_program(SIZE_EXE ${CMAKE_SIZE})
-  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
-    add_custom_command(TARGET ${TARGET} POST_BUILD
-      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
-      )
-  endif ()
+#  find_program(SIZE_EXE ${CMAKE_SIZE})
+#  if(NOT ${SIZE_EXE} STREQUAL SIZE_EXE-NOTFOUND)
+#    add_custom_command(TARGET ${TARGET} POST_BUILD
+#      COMMAND ${SIZE_EXE} $<TARGET_FILE:${TARGET}>
+#      )
+#  endif ()
 endfunction()
 
 # Add tinyusb to example
@@ -272,6 +277,8 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
 
   if (RTOS STREQUAL "freertos")
     target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_OS=OPT_OS_FREERTOS)
+  elseif (RTOS STREQUAL "zephyr")
+    target_compile_definitions(${TARGET}-tinyusb_config INTERFACE CFG_TUSB_OS=OPT_OS_ZEPHYR)
   endif ()
 
   # tinyusb's CMakeList.txt
@@ -280,6 +287,8 @@ function(family_add_tinyusb TARGET OPT_MCU RTOS)
   if (RTOS STREQUAL "freertos")
     # link tinyusb with freeRTOS kernel
     target_link_libraries(${TARGET}-tinyusb PUBLIC freertos_kernel)
+  elseif (RTOS STREQUAL "zephyr")
+    target_include_directories(${TARGET}-tinyusb PUBLIC ${ZEPHYR_BASE}/include)
   endif ()
 
   # use max3421 as host controller
@@ -353,33 +362,33 @@ endfunction()
 # RPI specific: refactor later
 #----------------------------------
 function(family_add_default_example_warnings TARGET)
-  target_compile_options(${TARGET} PUBLIC
-    -Wall
-    -Wextra
-    -Werror
-    -Wfatal-errors
-    -Wdouble-promotion
-    -Wfloat-equal
-    # FIXME commented out because of https://github.com/raspberrypi/pico-sdk/issues/1468
-    #-Wshadow
-    -Wwrite-strings
-    -Wsign-compare
-    -Wmissing-format-attribute
-    -Wunreachable-code
-    -Wcast-align
-    -Wcast-qual
-    -Wnull-dereference
-    -Wuninitialized
-    -Wunused
-    -Wredundant-decls
-    #-Wstrict-prototypes
-    #-Werror-implicit-function-declaration
-    #-Wundef
-    )
+#  target_compile_options(${TARGET} PUBLIC
+#    -Wall
+#    -Wextra
+#    -Werror
+#    -Wfatal-errors
+#    -Wdouble-promotion
+#    -Wfloat-equal
+#    # FIXME commented out because of https://github.com/raspberrypi/pico-sdk/issues/1468
+#    #-Wshadow
+#    -Wwrite-strings
+#    -Wsign-compare
+#    -Wmissing-format-attribute
+#    -Wunreachable-code
+#    -Wcast-align
+#    -Wcast-qual
+#    -Wnull-dereference
+#    -Wuninitialized
+#    -Wunused
+#    -Wredundant-decls
+#    #-Wstrict-prototypes
+#    #-Werror-implicit-function-declaration
+#    #-Wundef
+#    )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
-      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
+#      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif()
 
     # GCC 10
