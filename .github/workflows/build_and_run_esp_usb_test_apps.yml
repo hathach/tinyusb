@@ -8,7 +8,6 @@ jobs:
   build:
     name: Build
     strategy:
-      fail-fast: false
       matrix:
         idf_ver: ["release-v5.0", "release-v5.1", "release-v5.2", "release-v5.3", "release-v5.4", "latest"]
     runs-on: ubuntu-20.04
@@ -51,7 +50,6 @@ jobs:
     if: ${{ github.repository_owner == 'espressif' }}
     needs: build
     strategy:
-      fail-fast: false
       matrix:
         idf_ver: ["release-v5.0", "release-v5.1", "release-v5.2", "release-v5.3", "release-v5.4", "latest"]
         idf_target: ["esp32s2"]
