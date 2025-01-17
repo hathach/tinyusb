@@ -333,6 +333,7 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
 
 msc_scsi_device_type_t tud_msc_scsi_device_type(uint8_t lun)
 {
+  (void)lun;
   return MSC_SCSI_DEVICE_BLOCK;
 }
 
