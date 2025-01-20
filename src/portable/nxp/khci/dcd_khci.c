@@ -565,7 +565,7 @@ void dcd_int_handler(uint8_t rhport)
 
   if (is & USB_ISTAT_SOFTOK_MASK) {
     KHCI->ISTAT = USB_ISTAT_SOFTOK_MASK;
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+    dcd_event_sof(rhport, tu_u16(KHCI->FRMNUMH, KHCI->FRMNUML), true);
   }
 
   if (is & USB_ISTAT_STALL_MASK) {
