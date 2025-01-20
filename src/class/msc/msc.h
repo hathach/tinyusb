@@ -78,6 +78,13 @@ typedef enum
   MSC_CSW_STATUS_PHASE_ERROR  ///< MSC_CSW_STATUS_PHASE_ERROR
 }msc_csw_status_t;
 
+/// MassStorage SCSI device type
+typedef enum
+{
+  MSC_SCSI_DEVICE_BLOCK = 0 , ///< USB removable disk
+  MSC_SCSI_DEVICE_CDROM     , ///< USB CDROM
+}msc_scsi_device_type_t;
+
 /// Command Block Wrapper
 typedef struct TU_ATTR_PACKED
 {

@@ -149,6 +149,9 @@ TU_ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[1
 // Invoked to check if device is writable as part of SCSI WRITE10
 TU_ATTR_WEAK bool tud_msc_is_writable_cb(uint8_t lun);
 
+// Invoked when INQUIRY received to return the correct SCSI device type.
+msc_scsi_device_type_t tud_msc_scsi_device_type(uint8_t lun);
+
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+

@@ -685,6 +685,12 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
         .additional_length = sizeof(scsi_inquiry_resp_t) - 5,
       };
 
+      if (tud_msc_scsi_device_type(lun) == MSC_SCSI_DEVICE_CDROM)
+      {
+        inquiry_rsp.peripheral_device_type = 0x05;
+        inquiry_rsp.peripheral_qualifier = 0x0;
+      }
+
       // vendor_id, product_id, product_rev is space padded string
       memset(inquiry_rsp.vendor_id  , ' ', sizeof(inquiry_rsp.vendor_id));
       memset(inquiry_rsp.product_id , ' ', sizeof(inquiry_rsp.product_id));
