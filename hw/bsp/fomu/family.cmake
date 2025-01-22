@@ -4,7 +4,7 @@ include_guard()
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR rv32i-ilp32 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU rv32i-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS VALENTYUSB_EPTRI CACHE INTERNAL "")

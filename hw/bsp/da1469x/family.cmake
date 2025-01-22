@@ -5,7 +5,7 @@ set(MCU_DIR ${TOP}/hw/mcu/dialog/da1469x)
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-set(CMAKE_SYSTEM_PROCESSOR cortex-m33-nodsp CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m33-nodsp CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 set(FAMILY_MCUS DA1469X CACHE INTERNAL "")
 

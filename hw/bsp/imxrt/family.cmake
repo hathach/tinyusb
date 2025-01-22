@@ -8,8 +8,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(MCU_VARIANT_WITH_CORE ${MCU_VARIANT}${MCU_CORE})
 
 # toolchain set up
-if (NOT DEFINED CMAKE_SYSTEM_PROCESSOR)
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
+if (NOT DEFINED CMAKE_SYSTEM_CPU)
+  set(CMAKE_SYSTEM_CPU cortex-m7 CACHE INTERNAL "System Processor")
 endif ()
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 

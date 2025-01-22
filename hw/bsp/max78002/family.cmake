@@ -12,7 +12,7 @@ set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/max78002.ld)
 set(LD_FILE_Clang ${LD_FILE_GNU})
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 set(JLINK_DEVICE max78000)
 

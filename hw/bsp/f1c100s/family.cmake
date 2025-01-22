@@ -5,7 +5,7 @@ set(SDK_DIR ${TOP}/hw/mcu/allwinner/f1c100s)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR arm926ej-s CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU arm926ej-s CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS F1C100S CACHE INTERNAL "")

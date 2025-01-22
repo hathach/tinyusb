@@ -8,10 +8,10 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
 if (MCU_VARIANT STREQUAL "MCXA153")
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m33-nodsp-nofp CACHE INTERNAL "System Processor")
+  set(CMAKE_SYSTEM_CPU cortex-m33-nodsp-nofp CACHE INTERNAL "System Processor")
   set(FAMILY_MCUS MCXA15 CACHE INTERNAL "")
 elseif (MCU_VARIANT STREQUAL "MCXN947")
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+  set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
   set(FAMILY_MCUS MCXN9 CACHE INTERNAL "")
 else()
   message(FATAL_ERROR "MCU_VARIANT not supported")

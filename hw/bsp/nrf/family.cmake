@@ -111,14 +111,10 @@ endfunction()
 
 
 function(family_configure_example TARGET RTOS)
-  family_configure_common(${TARGET} ${RTOS})
+  # Board target
+  add_board_target(board_${BOARD})
 
-  if (BUILD_ZEPHYR)
-    #target_link_libraries(board_${BOARD} PUBLIC zephyr_interface kernel)
-  elseif ()
-    # Board target
-    add_board_target(board_${BOARD})
-  endif ()
+  family_configure_common(${TARGET} ${RTOS})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
@@ -136,20 +132,18 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_NRF5X ${RTOS})
-  target_sources(${TARGET}-tinyusb PRIVATE
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
     )
 
-  if (BUILD_ZEPHYR)
-    target_link_libraries(${TARGET}-tinyusb PUBLIC  zephyr_interface kernel)
-    target_link_libraries(${TARGET} PUBLIC ${TARGET}-tinyusb)
-  elseif ()
-    target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
-    target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
-  endif ()
+#  if (BUILD_ZEPHYR)
+#    target_link_libraries(${TARGET} PUBLIC zephyr_interface kernel)
+#  elseif ()
+    target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+#  endif ()
 
   # Flashing
-  #family_add_bin_hex(${TARGET})
+#  family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
 #  family_flash_adafruit_nrfutil(${TARGET})
 endfunction()

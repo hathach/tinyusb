@@ -6,7 +6,7 @@ set(SDK_DIR ${TOP}/hw/mcu/ti/msp430/msp430-gcc-support-files/include)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR msp430 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU msp430 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/msp430_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS MSP430x5xx CACHE INTERNAL "")

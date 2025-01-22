@@ -9,7 +9,7 @@ set(SDK_DIR ${TOP}/hw/mcu/ti/${MCU_VARIANT}xx)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS TM4C123 CACHE INTERNAL "")
