@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Nordic nRF5340 DK
+   url: https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

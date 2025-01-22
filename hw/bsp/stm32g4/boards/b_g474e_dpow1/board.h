@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 B-G474E-DPOW1 Discovery kit
+   url: https://www.st.com/en/evaluation-tools/b-g474e-dpow1.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

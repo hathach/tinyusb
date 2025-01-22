@@ -34,17 +34,19 @@
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "ci_hs_imxrt.h"
 
-  bool dcd_dcache_clean(void const* addr, uint32_t data_size) {
-    return imxrt_dcache_clean(addr, data_size);
-  }
+#if CFG_TUD_MEM_DCACHE_ENABLE
+bool dcd_dcache_clean(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_clean(addr, data_size);
+}
 
-  bool dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
-    return imxrt_dcache_invalidate(addr, data_size);
-  }
+bool dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_invalidate(addr, data_size);
+}
 
-  bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-    return imxrt_dcache_clean_invalidate(addr, data_size);
-  }
+bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_clean_invalidate(addr, data_size);
+}
+#endif
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
@@ -311,9 +313,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 
 static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
-  // Force the CPU to flush the buffer. We increase the size by 31 because the call aligns the
-  // address to 32-byte boundaries. Buffer must be word aligned
-  dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes + 31);
+  dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes);
 
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
@@ -479,7 +479,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   return true;
 }
 
+#if !CFG_TUD_MEM_DCACHE_ENABLE
 // fifo has to be aligned to 4k boundary
+// It's incompatible with dcache enabled transfer, since neither address nor size is aligned to cache line
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -525,8 +527,6 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
           page++;
         }
       }
-
-      dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), total_bytes - fifo_info.len_wrap + 31);
     }
     else
     {
@@ -541,6 +541,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   return true;
 }
+#endif
 
 //--------------------------------------------------------------------+
 // ISR

@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Keil MCB1800
+   url: https://www.keil.com/arm/mcb1800/
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

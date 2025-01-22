@@ -2,6 +2,59 @@
 Changelog
 *********
 
+0.18.0
+======
+
+General
+-------
+
+- New MCUs:
+
+  - Add esp32p4 OTG highspeed support
+  - Add stm32 u0, c0, h7rs
+
+- Better support dcache, make sure all usb-transferred buffer are cache line aligned and occupy full cache line
+- Build ARM IAR with CircleCI
+- Improve HIL with dual/host_info_to_device_cdc optional for pico/pico2, enable dwc2 dma test
+
+API Changes
+-----------
+
+- Change signature of ``tusb_init(rhport, tusb_rhport_init_t*)``, tusb_init(void) is now deprecated but still available for backward compatibility
+- Add new ``tusb_int_handler(rhport, in_isr)``
+- Add time-related APIs: ``tusb_time_millis_api()`` and ``tusb_time_delay_ms_api()`` for non-RTOS, required for some ports/configuration
+- New configuration macros:
+
+  - ``CFG_TUD/TUH_MEM_DCACHE_ENABLE`` enable data cache sync for endpoint buffer
+  - ``CFG_TUD/TUH_MEM_DCACHE_LINE_SIZE`` set cache line size
+  - ``CFG_TUD/TUH_DWC2_SLAVE_ENABLE`` enable dwc2 slave mode
+  - ``CFG_TUD/TUH_DWC2_DMA_ENABLE`` enable dwc2 dma mode
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- DWC2
+  - Add DMA support for both device and host controller
+  - Add host driver support including: full/high speed, control/bulk/interrupt (CBI) transfer, split CBI i.e FS/LS attached via highspeed hub, hub support
+
+- RP2: implement dcd_edpt_iso_alloc() and dcd_edpt_iso_activate() for isochronous endpoint
+- iMXRT1170 support M4 core
+
+Device Stack
+------------
+
+- Vendor Fix  class reset
+- NCM fix recursions in tud_network_recv_renew()
+- Audio fix align issue of _audiod_fct.alt_setting
+- UVC support format frame based
+- Change dcd_dcache_() return type from void to bool
+- HID add Usage Table for Physical Input Device Page (0x0F)
+
+Host Stack
+----------
+
+- Fix an duplicated attach issue which cause USBH Defer Attach until current enumeration complete message
+
 0.17.0
 ======
 

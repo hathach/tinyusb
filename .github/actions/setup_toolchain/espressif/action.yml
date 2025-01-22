@@ -6,7 +6,8 @@ inputs:
     required: true
   toolchain_version:
     description: 'Toolchain version'
-    required: true
+    required: false
+    default: 'v5.3.2'
 
 runs:
   using: "composite"
@@ -38,4 +39,10 @@ runs:
       run: |
         du -sh $DOCKER_ESP_IDF
         docker load --input $DOCKER_ESP_IDF
+      shell: bash
+
+    - name: Tag Local Image
+      run: |
+        docker tag espressif/idf:${{ inputs.toolchain_version }} espressif/idf:tinyusb
+        docker images
       shell: bash

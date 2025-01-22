@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 F439 Nucleo
+   url: https://www.st.com/en/evaluation-tools/nucleo-f439zi.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

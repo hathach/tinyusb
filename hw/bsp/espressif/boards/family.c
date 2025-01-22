@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Espressif
+*/
+
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -171,19 +175,13 @@ bool usb_init(void) {
     // maybe we can use USB_OTG_MODE_DEFAULT and switch using dwc2 driver
 #if CFG_TUD_ENABLED
     .otg_mode = USB_OTG_MODE_DEVICE,
-    .otg_speed = BOARD_TUD_RHPORT ? USB_PHY_SPEED_HIGH : USB_PHY_SPEED_FULL,
 #elif CFG_TUH_ENABLED
     .otg_mode = USB_OTG_MODE_HOST,
-    .otg_speed= BOARD_TUH_RHPORT ? USB_PHY_SPEED_HIGH : USB_PHY_SPEED_FULL,
 #endif
+    // https://github.com/hathach/tinyusb/issues/2943#issuecomment-2601888322
+    // Set speed to undefined (auto-detect) to avoid timinng/racing issue with S3 with host such as macOS
+    .otg_speed = USB_PHY_SPEED_UNDEFINED,
   };
-
-  // OTG IOs config
-  // const usb_phy_otg_io_conf_t otg_io_conf = USB_PHY_SELF_POWERED_DEVICE(config->vbus_monitor_io);
-  // if (config->self_powered) {
-  //   phy_conf.otg_io_conf = &otg_io_conf;
-  // }
-  // ESP_RETURN_ON_ERROR(usb_new_phy(&phy_conf, &phy_hdl), TAG, "Install USB PHY failed");
 
   usb_new_phy(&phy_conf, &phy_hdl);
 

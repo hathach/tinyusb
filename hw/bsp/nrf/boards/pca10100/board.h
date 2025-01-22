@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Nordic nRF52833 DK
+   url: https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

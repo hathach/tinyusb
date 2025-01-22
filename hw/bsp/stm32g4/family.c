@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: STMicroelectronics
+*/
+
 #include "stm32g4xx_hal.h"
 #include "stm32g4xx_ll_bus.h"
 

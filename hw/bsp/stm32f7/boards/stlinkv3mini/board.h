@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Stlink-v3 mini
+   url: https://www.st.com/en/development-tools/stlink-v3mini.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

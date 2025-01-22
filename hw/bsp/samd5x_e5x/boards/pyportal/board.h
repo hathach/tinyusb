@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Adafruit PyPortal
+   url: https://www.adafruit.com/product/4116
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

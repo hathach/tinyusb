@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: LPCXpresso43S67
+   url: https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso43s67-development-board:OM13084
+*/
+
 #ifndef _BOARD_LPCXPRESSO43S67_H_
 #define _BOARD_LPCXPRESSO43S67_H_
 
