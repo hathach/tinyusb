@@ -6,11 +6,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
 family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
-if (BUILD_ZEPHYR)
-  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
-  find_package(Zephyr REQUIRED HINTS ${TOP}/lib/zephyr)
-endif ()
-
 project(${PROJECT} C CXX ASM)
 
 # Checks this example is valid for the family and initializes the project

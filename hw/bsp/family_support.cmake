@@ -73,10 +73,10 @@ if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
   set(NO_WARN_RWX_SEGMENTS_SUPPORTED 1)
 endif()
 
-#if (BUILD_ZEPHYR)
-#  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
-#  find_package(Zephyr REQUIRED HINTS ${TOP}/lib/zephyr)
-#endif ()
+if (BUILD_ZEPHYR)
+  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
+  find_package(Zephyr REQUIRED HINTS ${TOP}/lib/zephyr)
+endif ()
 
 #-------------------------------------------------------------
 # Functions
@@ -401,26 +401,28 @@ function(family_flash_jlink TARGET)
   endif ()
   separate_arguments(OPTION_LIST UNIX_COMMAND ${JLINK_OPTION})
 
+  if (BUILD_ZEPHYR)
+    set(BINARY_TARGET zephyr_final)
+    set(NAME_TARGET ${CMAKE_PROJECT_NAME})
+  else ()
+    set(BINARY_TARGET ${TARGET})
+    set(NAME_TARGET ${TARGET})
+  endif ()
+
   file(GENERATE
-    OUTPUT $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
+    OUTPUT $<TARGET_FILE_DIR:${BINARY_TARGET}>/${BINARY_TARGET}.jlink
     CONTENT "halt
-loadfile $<TARGET_FILE:${TARGET}>
+loadfile $<TARGET_FILE:${BINARY_TARGET}>
 r
 go
 exit"
     )
 
-  add_custom_target(${TARGET}-jlink
-    DEPENDS ${TARGET}
-    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} ${OPTION_LIST} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
+  add_custom_target(${NAME_TARGET}-jlink
+    DEPENDS ${BINARY_TARGET}
+    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} ${OPTION_LIST} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${BINARY_TARGET}>/${BINARY_TARGET}.jlink
     VERBATIM
     )
-
-  # optional flash post build
-#  add_custom_command(TARGET ${TARGET} POST_BUILD
-#    COMMAND ${JLINKEXE} -device ${JLINK_DEVICE} ${OPTION_LIST} -if ${JLINK_IF} -JTAGConf -1,-1 -speed auto -CommandFile $<TARGET_FILE_DIR:${TARGET}>/${TARGET}.jlink
-#    VERBATIM
-#    )
 endfunction()
 
 
