@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Pico
+   url: https://www.raspberrypi.org/products/raspberry-pi-pico/
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

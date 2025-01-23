@@ -62,7 +62,7 @@ deps_optional = {
                                          'fe9133fc513b82cc3dc62c67cb51f2339cf29ef7',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
-                           'd52e5a6a59b7c638da860c2bb309b6e78e752ff8',
+                           'edcc97d684b6f716728a60d7a6fea049d9870bd6',
                            'ra'],
     'hw/mcu/renesas/rx': ['https://github.com/kkitayam/rx_device.git',
                           '706b4e0cf485605c32351e2f90f5698267996023',
@@ -194,13 +194,16 @@ deps_optional = {
                             '77c4095087e5ed2c548ec9058e655d0b8757663b',
                             'ch32f20x'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
-                    '20285262657d1b482d132d20d755c8c330d55c1f',
-                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x '
+                    '2b7495b8535bdcb306dac29b9ded4cfb679d7e5c',
+                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
                     'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb '
                     'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg '
                     'tm4c '],
+    'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
+                    'b0bbb0423b278ca632cfe1474eb227961d835fd2',
+                    'ra'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],

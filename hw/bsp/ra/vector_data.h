@@ -6,6 +6,10 @@
 extern "C" {
 #endif
 
+#if defined(BSP_MCU_GROUP_RA6M5) || defined(BSP_MCU_GROUP_RA6M3) || (BSP_CFG_MCU_PART_SERIES == 8)
+#define BOARD_HAS_USB_HIGHSPEED
+#endif
+
 /* ISR prototypes */
 void usbfs_interrupt_handler(void);
 void usbfs_resume_handler(void);

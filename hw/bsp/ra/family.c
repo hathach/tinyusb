@@ -24,20 +24,19 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Renesas
+*/
+
 #include <stdio.h>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
 #pragma GCC diagnostic ignored "-Wundef"
-
-// extra push due to https://github.com/renesas/fsp/pull/278
-#pragma GCC diagnostic push
 #endif
 
-#include "bsp_api.h"
-#include "r_ioport.h"
-#include "r_ioport_api.h"
+#include "common_data.h"
 #include "renesas.h"
 
 #ifdef __GNUC__
@@ -49,12 +48,6 @@
 
 /* Key code for writing PRCR register. */
 #define BSP_PRV_PRCR_KEY         (0xA500U)
-
-static const ioport_cfg_t family_pin_cfg = {
-    .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
-    .p_pin_cfg_data = board_pin_cfg,
-};
-static ioport_instance_ctrl_t port_ctrl;
 
 //--------------------------------------------------------------------+
 // Vector Data
@@ -103,7 +96,7 @@ void board_init(void) {
   __enable_irq();
 
   /* Configure pins. */
-  R_IOPORT_Open(&port_ctrl, &family_pin_cfg);
+  R_IOPORT_Open(&IOPORT_CFG_CTRL, &IOPORT_CFG_NAME);
 
 #ifdef TRACE_ETM
   // TRCKCR is protected by PRCR bit0 register
@@ -138,12 +131,12 @@ void board_init_after_tusb(void) {
 }
 
 void board_led_write(bool state) {
-  R_IOPORT_PinWrite(&port_ctrl, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
+  R_IOPORT_PinWrite(&IOPORT_CFG_CTRL, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
 }
 
 uint32_t board_button_read(void) {
   bsp_io_level_t lvl = !BUTTON_STATE_ACTIVE;
-  R_IOPORT_PinRead(&port_ctrl, SW1, &lvl);
+  R_IOPORT_PinRead(&IOPORT_CFG_CTRL, SW1, &lvl);
   return lvl == BUTTON_STATE_ACTIVE;
 }
 
@@ -211,7 +204,6 @@ void usbfs_d1fifo_handler(void) {
 
 //------------- USB1 HighSpeed -------------//
 #ifdef BOARD_HAS_USB_HIGHSPEED
-
 void usbhs_interrupt_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
@@ -230,7 +222,6 @@ void usbhs_d1fifo_handler(void) {
   R_BSP_IrqStatusClear(irq);
   // TODO not used yet
 }
-
 #endif
 
 //--------------------------------------------------------------------+

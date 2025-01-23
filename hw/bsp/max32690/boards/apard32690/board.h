@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name:  APARD32690-SL
+   url: https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/ad-apard32690-sl.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Arduino Nano 33 BLE
+   url: https://store.arduino.cc/arduino-nano-33-ble
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

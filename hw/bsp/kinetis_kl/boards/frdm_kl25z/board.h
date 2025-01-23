@@ -22,6 +22,11 @@
  * THE SOFTWARE.
  */
 
+/* metadata:
+   name: fomu
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/freedom-development-platform-for-kinetis-kl14-kl15-kl24-kl25-mcus:FRDM-KL25Z
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

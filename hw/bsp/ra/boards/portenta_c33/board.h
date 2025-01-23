@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Arduino Portenta C33
+   url: https://www.arduino.cc/pro/hardware-product-portenta-c33/
+*/
+
 #ifndef _BOARD_H_
 #define _BOARD_H_
 
@@ -31,35 +36,8 @@
 extern "C" {
 #endif
 
-#define LED1                  BSP_IO_PORT_01_PIN_07 // Red LED
 #define LED_STATE_ON          1
-
-#define SW1                   BSP_IO_PORT_04_PIN_08 // D12
 #define BUTTON_STATE_ACTIVE   0
-
-static const ioport_pin_cfg_t board_pin_cfg[] = {
-    { .pin = LED1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_OUTPUT | IOPORT_CFG_PORT_OUTPUT_LOW },
-    { .pin = SW1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_INPUT },
-
-    // USB FS
-    { .pin = BSP_IO_PORT_04_PIN_07, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS | IOPORT_CFG_DRIVE_HIGH },
-    { .pin = BSP_IO_PORT_05_PIN_00, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS | IOPORT_CFG_DRIVE_HIGH},
-    { .pin = BSP_IO_PORT_05_PIN_01, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS | IOPORT_CFG_DRIVE_HIGH},
-
-    // USB HS
-    { .pin = BSP_IO_PORT_07_PIN_07, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_HS },
-    { .pin = BSP_IO_PORT_11_PIN_00, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_HS | IOPORT_CFG_DRIVE_HIGH},
-    { .pin = BSP_IO_PORT_11_PIN_01, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_HS | IOPORT_CFG_DRIVE_HIGH},
-
-    // ETM Trace
-    #ifdef TRACE_ETM
-    { .pin = BSP_IO_PORT_02_PIN_08, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_TRACE | IOPORT_CFG_DRIVE_HS_HIGH },
-    { .pin = BSP_IO_PORT_02_PIN_09, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_TRACE | IOPORT_CFG_DRIVE_HS_HIGH },
-    { .pin = BSP_IO_PORT_02_PIN_10, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_TRACE | IOPORT_CFG_DRIVE_HS_HIGH },
-    { .pin = BSP_IO_PORT_02_PIN_11, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_TRACE | IOPORT_CFG_DRIVE_HS_HIGH },
-    { .pin = BSP_IO_PORT_02_PIN_14, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_TRACE | IOPORT_CFG_DRIVE_HS_HIGH },
-     #endif
-};
 
 #ifdef __cplusplus
 }

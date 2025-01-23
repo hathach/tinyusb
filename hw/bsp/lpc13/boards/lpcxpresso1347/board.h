@@ -1,3 +1,8 @@
+/* metadata:
+   name: LPCXpresso1347
+   url: https://www.nxp.com/products/no-longer-manufactured/lpcxpresso-board-for-lpc1347:OM13045
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

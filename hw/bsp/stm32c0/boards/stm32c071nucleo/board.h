@@ -25,6 +25,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32C071 Nucleo
+   url: https://www.st.com/en/evaluation-tools/nucleo-g071rb.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

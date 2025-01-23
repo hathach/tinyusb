@@ -31,7 +31,7 @@
 
 // Version is release as major.minor.revision eg 1.0.0
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     17
+#define TUSB_VERSION_MINOR     18
 #define TUSB_VERSION_REVISION  0
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
@@ -152,7 +152,7 @@
 #define OPT_MCU_RX63X            1400 ///< Renesas RX63N/631
 #define OPT_MCU_RX65X            1401 ///< Renesas RX65N/RX651
 #define OPT_MCU_RX72N            1402 ///< Renesas RX72N
-#define OPT_MCU_RAXXX            1403 ///< Renesas RAxxx families
+#define OPT_MCU_RAXXX            1403 ///< Renesas RA generic
 
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327

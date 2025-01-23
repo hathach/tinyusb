@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: NXP
+*/
+
 #include "bsp/board_api.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"

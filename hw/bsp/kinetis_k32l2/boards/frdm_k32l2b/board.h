@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Freedom K32L2B3
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/nxp-freedom-development-platform-for-k32-l2b-mcus:FRDM-K32L2B3
+*/
 
 #ifndef BOARD_H_
 #define BOARD_H_

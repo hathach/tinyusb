@@ -46,7 +46,7 @@ void BOARD_InitBootPins(void);
 #define BOARD_INITPINS_USER_LED_GPIO_PIN                                      3U   /*!< GPIO pin number */
 #define BOARD_INITPINS_USER_LED_GPIO_PIN_MASK                         (1U << 3U)   /*!< GPIO pin mask */
 
-/* WAKEUP (coord T8), USER_BUTTON */
+/* WAKEUP (coord T8), USER_BUTTON/SW7 */
 /* Routed pin properties */
 #define BOARD_INITPINS_USER_BUTTON_PERIPHERAL                             GPIO13   /*!< Peripheral name */
 #define BOARD_INITPINS_USER_BUTTON_SIGNAL                                gpio_io   /*!< Signal name */

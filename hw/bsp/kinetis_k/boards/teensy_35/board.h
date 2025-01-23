@@ -22,6 +22,11 @@
  * THE SOFTWARE.
  */
 
+/* metadata:
+   name: Teensy 3.5
+   url: https://www.pjrc.com/store/teensy35.html
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 
