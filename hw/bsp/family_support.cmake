@@ -75,7 +75,7 @@ endif()
 
 if (BUILD_ZEPHYR)
   set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
-  find_package(Zephyr REQUIRED HINTS ${TOP}/lib/zephyr)
+  find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
 endif ()
 
 #-------------------------------------------------------------

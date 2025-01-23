@@ -6,7 +6,7 @@ manifest:
     - name: zephyr
       remote: zephyrproject-rtos
       revision: main
-      path: lib/zephyr
+      path: zephyr
       import: true
   self:
     path: .
