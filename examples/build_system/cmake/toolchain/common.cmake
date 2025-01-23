@@ -1,3 +1,7 @@
+if (BUILD_ZEPHYR)
+  return()
+endif()
+
 include(CMakePrintHelpers)
 
 # ----------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 include_guard()
 
-set(NRFX_DIR ${TOP}/hw/mcu/nordic/nrfx)
+set(NRFX_PATH ${TOP}/hw/mcu/nordic/nrfx)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
 # include board specific
@@ -25,6 +25,10 @@ set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 #------------------------------------
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
+  if (BUILD_ZEPHYR)
+    return()
+  endif ()
+
   if (TARGET ${BOARD_TARGET})
     return()
   endif ()
@@ -40,18 +44,18 @@ function(add_board_target BOARD_TARGET)
   endif ()
 
   if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-    set(STARTUP_FILE_GNU ${NRFX_DIR}/mdk/gcc_startup_${MCU_VARIANT}.S)
+    set(STARTUP_FILE_GNU ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}.S)
     set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
   endif ()
 
   add_library(${BOARD_TARGET} STATIC
-    ${NRFX_DIR}/helpers/nrfx_flag32_allocator.c
-    ${NRFX_DIR}/drivers/src/nrfx_gpiote.c
-    ${NRFX_DIR}/drivers/src/nrfx_power.c
-    ${NRFX_DIR}/drivers/src/nrfx_spim.c
-    ${NRFX_DIR}/drivers/src/nrfx_uarte.c
-    ${NRFX_DIR}/mdk/system_${MCU_VARIANT}.c
-    ${NRFX_DIR}/soc/nrfx_atomic.c
+    ${NRFX_PATH}/helpers/nrfx_flag32_allocator.c
+    ${NRFX_PATH}/drivers/src/nrfx_gpiote.c
+    ${NRFX_PATH}/drivers/src/nrfx_power.c
+    ${NRFX_PATH}/drivers/src/nrfx_spim.c
+    ${NRFX_PATH}/drivers/src/nrfx_uarte.c
+    ${NRFX_PATH}/mdk/system_${MCU_VARIANT}.c
+    ${NRFX_PATH}/soc/nrfx_atomic.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   string(TOUPPER "${MCU_VARIANT_XXAA}" MCU_VARIANT_XXAA_UPPER)
@@ -67,12 +71,10 @@ function(add_board_target BOARD_TARGET)
   endif ()
 
   target_include_directories(${BOARD_TARGET} PUBLIC
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-    ${NRFX_DIR}
-    ${NRFX_DIR}/mdk
-    ${NRFX_DIR}/hal
-    ${NRFX_DIR}/drivers/include
-    ${NRFX_DIR}/drivers/src
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/nrfx_config
+    ${NRFX_PATH}
+    ${NRFX_PATH}/mdk
+    ${NRFX_PATH}/drivers/include
     ${CMSIS_DIR}/CMSIS/Core/Include
     )
 
@@ -81,14 +83,14 @@ function(add_board_target BOARD_TARGET)
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      -L${NRFX_DIR}/mdk
+      -L${NRFX_PATH}/mdk
       --specs=nosys.specs --specs=nano.specs
       -nostartfiles
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      -L${NRFX_DIR}/mdk
+      -L${NRFX_PATH}/mdk
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
@@ -113,6 +115,9 @@ endfunction()
 function(family_configure_example TARGET RTOS)
   # Board target
   add_board_target(board_${BOARD})
+  if (NOT BUILD_ZEPHYR)
+    target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+  endif ()
 
   family_configure_common(${TARGET} ${RTOS})
 
@@ -132,15 +137,9 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_NRF5X ${RTOS})
-  target_sources(${TARGET} PUBLIC
+  target_sources(${TARGET} PRIVATE
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
     )
-
-#  if (BUILD_ZEPHYR)
-#    target_link_libraries(${TARGET} PUBLIC zephyr_interface kernel)
-#  elseif ()
-    target_link_libraries(${TARGET} PUBLIC board_${BOARD})
-#  endif ()
 
   # Flashing
 #  family_add_bin_hex(${TARGET})

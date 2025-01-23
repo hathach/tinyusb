@@ -170,7 +170,7 @@ function(family_add_rtos TARGET RTOS)
   elseif (RTOS STREQUAL "zephyr")
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_ZEPHYR)
     target_include_directories(${TARGET} PUBLIC ${ZEPHYR_BASE}/include)
-    target_link_libraries(${TARGET} PUBLIC zephyr_interface kernel)
+#    target_link_libraries(${TARGET} PUBLIC kernel)
   endif ()
 endfunction()
 
@@ -201,12 +201,9 @@ function(family_configure_common TARGET RTOS)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
     # Add segger rtt to example
     if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
-      if (NOT TARGET segger_rtt)
-        add_library(segger_rtt STATIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
-        target_include_directories(segger_rtt PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
-#        target_compile_definitions(segger_rtt PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
-      endif()
-      target_link_libraries(${TARGET} PUBLIC segger_rtt)
+      target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
+      target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
+#      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
     endif ()
   endif ()
 
@@ -239,7 +236,8 @@ function(family_configure_common TARGET RTOS)
       -Wmissing-prototypes
       )
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0
+      AND NO_WARN_RWX_SEGMENTS_SUPPORTED AND (NOT BUILD_ZEPHYR))
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
@@ -255,7 +253,7 @@ function(family_configure_common TARGET RTOS)
 #  endif ()
 endfunction()
 
-# Add tinyusb to target with RTOS
+# Add tinyusb to target (TODO remove RTOS)
 function(family_add_tinyusb TARGET OPT_MCU RTOS)
   # tinyusb's CMakeList.txt
   add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
@@ -364,7 +362,7 @@ function(family_add_default_example_warnings TARGET)
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
-#      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
+      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif()
 
     # GCC 10

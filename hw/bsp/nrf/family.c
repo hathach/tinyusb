@@ -44,10 +44,10 @@
 
 #include "nrfx.h"
 #include "hal/nrf_gpio.h"
-#include "drivers/include/nrfx_gpiote.h"
-#include "drivers/include/nrfx_power.h"
-#include "drivers/include/nrfx_uarte.h"
-#include "drivers/include/nrfx_spim.h"
+#include "nrfx_gpiote.h"
+#include "nrfx_power.h"
+#include "nrfx_uarte.h"
+#include "nrfx_spim.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -66,8 +66,6 @@
 #else
   #define NRFX_VER 3
 #endif
-
-extern void nrfx_isr(const void *irq_handler);
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -148,12 +146,10 @@ void board_init(void) {
   // irq_enable(USBREGULATOR_IRQn);
   #endif
 
-  // IRQ_CONNECT(CLOCK_POWER_IRQn, 0, nrfx_isr, nrfx_power_irq_handler, 0);
-
   /* USB device controller access from devicetree */
-  // #define DT_DRV_COMPAT nordic_nrf_usbd
-  // IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), nrfx_isr, nrf_usbd_common_irq_handler, 0);
-
+  #define DT_DRV_COMPAT nordic_nrf_usbd
+  IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), nrfx_isr, USBD_IRQHandler, 0);
+  irq_enable(DT_INST_IRQN(0));
 #endif
 
   // UART
@@ -187,7 +183,7 @@ void board_init(void) {
   };
   #endif
 
-  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
+  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL);
 
   //------------- USB -------------//
 #if CFG_TUD_ENABLED
@@ -231,8 +227,12 @@ void board_init(void) {
 #endif
   }
 
-  if ( usb_reg & VBUSDETECT_Msk ) tusb_hal_nrf_power_event(USB_EVT_DETECTED);
-  if ( usb_reg & OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(USB_EVT_READY);
+  if ( usb_reg & VBUSDETECT_Msk ) {
+    tusb_hal_nrf_power_event(USB_EVT_DETECTED);
+  }
+  if ( usb_reg & OUTPUTRDY_Msk  ) {
+    tusb_hal_nrf_power_event(USB_EVT_READY);
+  }
 #endif
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
@@ -244,7 +244,6 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
 void board_led_write(bool state) {
   nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
