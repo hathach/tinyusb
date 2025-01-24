@@ -96,5 +96,3 @@ int32_t tcpp0203_read_reg(const TCPP0203_ctx_t *ctx, uint8_t reg, uint8_t *data,
 /**
   * @}
   */
-
-

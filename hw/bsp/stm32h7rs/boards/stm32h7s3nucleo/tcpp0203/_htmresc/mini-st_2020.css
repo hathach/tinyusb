@@ -78,7 +78,7 @@ h1 {
 
 h2 {
   font-size: calc(1rem * var(--heading-ratio) * var(--heading-ratio) );
-  border-style: none none solid none ; 
+  border-style: none none solid none ;
   border-width: thin;
   border-color: var(--border-color); }
 h3 {

@@ -884,5 +884,3 @@ static int32_t TCPP0203_CheckReg0Reg1(TCPP0203_Object_t *pObj, uint8_t Reg0Expec
 /**
   * @}
   */
-
-
