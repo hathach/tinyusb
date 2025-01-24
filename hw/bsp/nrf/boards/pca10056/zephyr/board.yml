@@ -1,0 +1,6 @@
+board:
+  name: pca10056
+  full_name: nRF52840 DK
+  vendor: nordic
+  socs:
+  - name: nrf52840

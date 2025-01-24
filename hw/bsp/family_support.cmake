@@ -81,6 +81,7 @@ endif()
 
 if (RTOS STREQUAL zephyr)
   set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
+  cmake_print_variables(BOARD_ROOT BOARD)
   find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
 endif ()
 

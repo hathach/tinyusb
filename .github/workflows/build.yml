@@ -156,5 +156,5 @@ jobs:
 
       - name: Build
         run: |
-          west build -b pca10056 examples/device/cdc_msc
-          west build -b pca10056 examples/device/msc_dual_lun
+          west -v build -b pca10056 -d examples/device/cdc_msc/build examples/device/cdc_msc -- -DRTOS=zephyr
+          west -v build -b pca10056 -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr
