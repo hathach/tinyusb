@@ -113,7 +113,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_CH32V307 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_CH32V307)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/wch/dcd_ch32_usbhs.c
     ${TOP}/src/portable/wch/dcd_ch32_usbfs.c

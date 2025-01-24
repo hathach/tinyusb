@@ -100,7 +100,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_SAML22 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_SAML22)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/microchip/samd/dcd_samd.c
     )

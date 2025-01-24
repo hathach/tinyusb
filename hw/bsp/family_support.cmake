@@ -9,6 +9,13 @@ get_filename_component(TOP ${TOP} ABSOLUTE)
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 
 #-------------------------------------------------------------
+# RTOS
+#-------------------------------------------------------------
+if (NOT DEFINED RTOS)
+  set(RTOS noos)
+endif ()
+
+#-------------------------------------------------------------
 # Toolchain
 # Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
 #-------------------------------------------------------------
@@ -27,7 +34,6 @@ if (DEFINED CMAKE_C_COMPILER)
   endif ()
 endif ()
 
-# default to gcc
 if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
@@ -73,7 +79,7 @@ if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
   set(NO_WARN_RWX_SEGMENTS_SUPPORTED 1)
 endif()
 
-if (BUILD_ZEPHYR)
+if (RTOS STREQUAL zephyr)
   set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
   find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
 endif ()
@@ -170,7 +176,6 @@ function(family_add_rtos TARGET RTOS)
   elseif (RTOS STREQUAL "zephyr")
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_OS=OPT_OS_ZEPHYR)
     target_include_directories(${TARGET} PUBLIC ${ZEPHYR_BASE}/include)
-#    target_link_libraries(${TARGET} PUBLIC kernel)
   endif ()
 endfunction()
 
@@ -237,7 +242,7 @@ function(family_configure_common TARGET RTOS)
       )
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0
-      AND NO_WARN_RWX_SEGMENTS_SUPPORTED AND (NOT BUILD_ZEPHYR))
+      AND NO_WARN_RWX_SEGMENTS_SUPPORTED AND (NOT RTOS STREQUAL zephyr))
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
@@ -253,8 +258,8 @@ function(family_configure_common TARGET RTOS)
 #  endif ()
 endfunction()
 
-# Add tinyusb to target (TODO remove RTOS)
-function(family_add_tinyusb TARGET OPT_MCU RTOS)
+# Add tinyusb to target
+function(family_add_tinyusb TARGET OPT_MCU)
   # tinyusb's CMakeList.txt
   add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
 
@@ -401,7 +406,7 @@ function(family_flash_jlink TARGET)
   endif ()
   separate_arguments(OPTION_LIST UNIX_COMMAND ${JLINK_OPTION})
 
-  if (BUILD_ZEPHYR)
+  if (RTOS STREQUAL zephyr)
     set(BINARY_TARGET zephyr_final)
     set(NAME_TARGET ${CMAKE_PROJECT_NAME})
   else ()

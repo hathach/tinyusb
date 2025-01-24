@@ -101,7 +101,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_${FAMILY_MCUS} ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_${FAMILY_MCUS})
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c

@@ -16,7 +16,7 @@ if(FAMILY STREQUAL "espressif")
   return()
 endif()
 
-if (BUILD_ZEPHYR)
+if (RTOS STREQUAL zephyr)
   set(EXE_NAME app)
 else()
   set(EXE_NAME ${PROJECT})
@@ -37,8 +37,4 @@ target_include_directories(${EXE_NAME} PUBLIC
 
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
-if (BUILD_ZEPHYR)
-  family_configure_device_example(${EXE_NAME} zephyr)
-else()
-  family_configure_device_example(${EXE_NAME} noos)
-endif()
+family_configure_device_example(${EXE_NAME} ${RTOS})

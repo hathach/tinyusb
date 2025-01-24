@@ -110,9 +110,9 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   if (${FAMILY_MCUS} STREQUAL "MCXN9")
-    family_add_tinyusb(${TARGET} OPT_MCU_MCXN9 ${RTOS})
+    family_add_tinyusb(${TARGET} OPT_MCU_MCXN9)
   elseif(${FAMILY_MCUS} STREQUAL "MCXA15")
-    family_add_tinyusb(${TARGET} OPT_MCU_MCXA15 ${RTOS})
+    family_add_tinyusb(${TARGET} OPT_MCU_MCXA15)
   endif()
 
   target_sources(${TARGET}-tinyusb PUBLIC

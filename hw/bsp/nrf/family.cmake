@@ -25,10 +25,6 @@ set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
 #------------------------------------
 # only need to be built ONCE for all examples
 function(add_board_target BOARD_TARGET)
-  if (BUILD_ZEPHYR)
-    return()
-  endif ()
-
   if (TARGET ${BOARD_TARGET})
     return()
   endif ()
@@ -114,8 +110,8 @@ endfunction()
 
 function(family_configure_example TARGET RTOS)
   # Board target
-  add_board_target(board_${BOARD})
-  if (NOT BUILD_ZEPHYR)
+  if (NOT RTOS STREQUAL zephyr)
+    add_board_target(board_${BOARD})
     target_link_libraries(${TARGET} PUBLIC board_${BOARD})
   endif ()
 
@@ -136,7 +132,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_NRF5X ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_NRF5X)
   target_sources(${TARGET} PRIVATE
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
     )

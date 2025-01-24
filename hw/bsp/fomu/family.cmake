@@ -77,7 +77,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_VALENTYUSB_EPTRI ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_VALENTYUSB_EPTRI)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/valentyusb/eptri/dcd_eptri.c
     )

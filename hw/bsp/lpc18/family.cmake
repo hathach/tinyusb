@@ -84,7 +84,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_LPC18XX ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_LPC18XX)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c

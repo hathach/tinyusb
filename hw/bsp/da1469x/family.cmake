@@ -126,7 +126,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_DA1469X ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_DA1469X)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/dialog/da146xx/dcd_da146xx.c
     )

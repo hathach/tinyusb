@@ -106,7 +106,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_LPC51 ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_LPC51)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
     )

@@ -5,11 +5,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 # gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
 family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
-if (BUILD_ZEPHYR)
-  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
-  find_package(Zephyr REQUIRED HINTS ${TOP}/lib/zephyr)
-endif ()
-
 project(${PROJECT} C CXX ASM)
 
 # Checks this example is valid for the family and initializes the project
@@ -20,7 +15,7 @@ if(FAMILY STREQUAL "espressif")
   return()
 endif()
 
-if (BUILD_ZEPHYR)
+if (RTOS STREQUAL zephyr)
   set(EXE_NAME app)
 else()
   set(EXE_NAME ${PROJECT})
@@ -39,8 +34,4 @@ target_include_directories(${EXE_NAME} PUBLIC
 
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
-if (BUILD_ZEPHYR)
-  family_configure_device_example(${EXE_NAME} zephyr)
-else()
-  family_configure_device_example(${EXE_NAME} noos)
-endif()
+family_configure_device_example(${EXE_NAME} ${RTOS})

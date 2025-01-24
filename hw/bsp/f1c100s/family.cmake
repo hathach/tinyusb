@@ -100,7 +100,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_F1C100S ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_F1C100S)
   target_sources(${TARGET}-tinyusb PRIVATE
     ${TOP}/src/portable/sunxi/dcd_sunxi_musb.c
     )

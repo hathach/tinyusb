@@ -97,7 +97,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_KINETIS_K ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_KINETIS_K)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/chipidea/ci_fs/dcd_ci_fs.c
     ${TOP}/src/portable/nxp/khci/hcd_khci.c

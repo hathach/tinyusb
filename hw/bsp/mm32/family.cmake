@@ -87,7 +87,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MM32F327X ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_MM32F327X)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/mindmotion/mm32/dcd_mm32f327x_otg.c
     )

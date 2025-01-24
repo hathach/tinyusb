@@ -69,7 +69,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MSP430x5xx ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_MSP430x5xx)
   target_sources(${TARGET}-tinyusb PUBLIC
     ${TOP}/src/portable/ti/msp430x5xx/dcd_msp430x5xx.c
     )
