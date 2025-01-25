@@ -404,7 +404,7 @@
 // Alignment requirement of buffer used for usb transferring. if MEM_ALIGN is different for
 // host and device controller use: CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN instead
 #ifndef CFG_TUSB_MEM_ALIGN
-  #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
+  #define CFG_TUSB_MEM_ALIGN      4
 #endif
 
 #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE

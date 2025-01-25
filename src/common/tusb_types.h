@@ -42,14 +42,14 @@
 // Declare an endpoint buffer with uint8_t[size]
 #define TUD_EPBUF_DEF(_name, _size) \
   union { \
-    CFG_TUD_MEM_ALIGN uint8_t _name[_size]; \
+    TU_ATTR_ALIGNED(TU_MAX(CFG_TUD_MEM_ALIGN, CFG_TUD_MEM_DCACHE_LINE_SIZE)) uint8_t _name[_size]; \
     uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(_size)]; \
   }
 
 // Declare an endpoint buffer with a type
 #define TUD_EPBUF_TYPE_DEF(_type, _name) \
   union { \
-    CFG_TUD_MEM_ALIGN _type _name; \
+    TU_ATTR_ALIGNED(TU_MAX(CFG_TUD_MEM_ALIGN, CFG_TUD_MEM_DCACHE_LINE_SIZE)) _type _name; \
     uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
   }
 
@@ -60,14 +60,14 @@
 // Declare an endpoint buffer with uint8_t[size]
 #define TUH_EPBUF_DEF(_name, _size) \
   union { \
-    CFG_TUH_MEM_ALIGN uint8_t _name[_size]; \
+    TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_ALIGN, CFG_TUH_MEM_DCACHE_LINE_SIZE)) uint8_t _name[_size]; \
     uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(_size)]; \
   }
 
 // Declare an endpoint buffer with a type
 #define TUH_EPBUF_TYPE_DEF(_type, _name) \
   union { \
-    CFG_TUH_MEM_ALIGN _type _name; \
+    TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_ALIGN, CFG_TUH_MEM_DCACHE_LINE_SIZE)) _type _name; \
     uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
   }
 
