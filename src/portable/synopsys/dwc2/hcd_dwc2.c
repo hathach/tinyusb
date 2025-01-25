@@ -141,7 +141,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool dma_host_enabled(const dwc2_regs_t* dwc
   return CFG_TUH_DWC2_DMA_ENABLE && ghwcfg2.arch == GHWCFG2_ARCH_INTERNAL_DMA;
 }
 
-#if CFG_TUH_MEM_DCACHE_ENABLE
+#if CFG_TUH_MEM_DCACHE_ENABLE && CFG_TUH_DWC2_DMA_ENABLE
 bool hcd_dcache_clean(const void* addr, uint32_t data_size) {
   TU_VERIFY(addr && data_size);
   return dwc2_dcache_clean(addr, data_size);

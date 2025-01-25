@@ -279,6 +279,79 @@ static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   }
 }
 
+//------------- DCache -------------//
+#if (CFG_TUD_MEM_DCACHE_ENABLE && CFG_TUD_DWC2_DMA_ENABLE) || (CFG_TUH_MEM_DCACHE_ENABLE && CFG_TUH_DWC2_DMA_ENABLE)
+
+typedef struct
+{
+  uintptr_t start;
+  uintptr_t end;
+} mem_region_t;
+
+// Can be used to define additional uncached regions
+#ifndef CFG_DWC2_MEM_UNCACHED_REGIONS
+#define CFG_DWC2_MEM_UNCACHED_REGIONS
+#endif
+
+static mem_region_t uncached_regions[] = {
+  // DTCM (although USB DMA can't transfer to/from DTCM)
+#if CFG_TUSB_MCU == OPT_MCU_STM32H7
+  {.start = 0x20000000, .end = 0x2001FFFF},
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7RS
+  // DTCM (although USB DMA can't transfer to/from DTCM)
+  {.start = 0x20000000, .end = 0x2002FFFF},
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F7
+    // DTCM
+  {.start = 0x20000000, .end = 0x2000FFFF},
+#else
+#error "Cache maintenance is not supported yet"
+#endif
+  CFG_DWC2_MEM_UNCACHED_REGIONS
+};
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_t size) {
+  if (size & (CFG_TUD_MEM_DCACHE_LINE_SIZE-1)) {
+    size = (size & ~(CFG_TUD_MEM_DCACHE_LINE_SIZE-1)) + CFG_TUD_MEM_DCACHE_LINE_SIZE;
+  }
+  return size;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool is_cache_mem(uintptr_t addr) {
+  for (unsigned int i = 0; i < TU_ARRAY_SIZE(uncached_regions); i++) {
+    if (addr >= uncached_regions[i].start && addr <= uncached_regions[i].end)
+      return false;
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_InvalidateDCache_by_Addr((void*) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanInvalidateDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif
