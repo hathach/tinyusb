@@ -83,9 +83,8 @@ static const uint8_t bytesPerSampleAltList[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] =
 
 audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX+1]; 			// Volume range state
 
-
 // Audio test data
-TU_ATTR_ALIGNED(CFG_TUD_MEM_ALIGN) uint8_t test_buffer_audio[CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX];
+TU_ATTR_ALIGNED(4) uint8_t test_buffer_audio[CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX];
 uint16_t startVal = 0;
 
 void led_blinking_task(void);
