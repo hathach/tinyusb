@@ -40,35 +40,3 @@ function(tinyusb_target_add TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../lib/networking
     )
 endfunction()
-
-#------------------------------------
-# TinyUSB as library target
-#------------------------------------
-#if (NOT DEFINED TINYUSB_TARGET)
-#  set(TINYUSB_TARGET "tinyusb")
-#endif ()
-#
-#set(TINYUSB_CONFIG_TARGET "${TINYUSB_TARGET}_config")
-#
-#if (DEFINED TINYUSB_TARGET_PREFIX)
-#  set(TINYUSB_TARGET "${TINYUSB_TARGET_PREFIX}${TINYUSB_TARGET}")
-#  set(TINYUSB_CONFIG_TARGET "${TINYUSB_TARGET_PREFIX}${TINYUSB_CONFIG_TARGET}")
-#endif ()
-#
-#if (DEFINED TINYUSB_TARGET_SUFFIX)
-#  set(TINYUSB_TARGET "${TINYUSB_TARGET}${TINYUSB_TARGET_SUFFIX}")
-#  set(TINYUSB_CONFIG_TARGET "${TINYUSB_CONFIG_TARGET}${TINYUSB_TARGET_SUFFIX}")
-#endif ()
-#
-#add_library(${TINYUSB_TARGET} STATIC)
-#tinyusb_target_add(${TINYUSB_TARGET})
-#
-## Check if tinyusb_config target is defined
-#if (NOT TARGET ${TINYUSB_CONFIG_TARGET})
-#  message(FATAL_ERROR "${TINYUSB_CONFIG_TARGET} target is not defined")
-#endif()
-#
-## Link with tinyusb_config target
-#target_link_libraries(${TINYUSB_TARGET} PUBLIC
-#  ${TINYUSB_CONFIG_TARGET}
-#  )

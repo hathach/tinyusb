@@ -45,6 +45,7 @@ SRC_C += \
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
+  $(TOP)/$(FAMILY_PATH)/nrfx_config \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/${NRFX_PATH} \
   $(TOP)/${NRFX_PATH}/mdk \

@@ -346,29 +346,29 @@ endfunction()
 # RPI specific: refactor later
 #----------------------------------
 function(family_add_default_example_warnings TARGET)
-#  target_compile_options(${TARGET} PUBLIC
-#    -Wall
-#    -Wextra
-#    -Werror
-#    -Wfatal-errors
-#    -Wdouble-promotion
-#    -Wfloat-equal
-#    # FIXME commented out because of https://github.com/raspberrypi/pico-sdk/issues/1468
-#    #-Wshadow
-#    -Wwrite-strings
-#    -Wsign-compare
-#    -Wmissing-format-attribute
-#    -Wunreachable-code
-#    -Wcast-align
-#    -Wcast-qual
-#    -Wnull-dereference
-#    -Wuninitialized
-#    -Wunused
-#    -Wredundant-decls
-#    #-Wstrict-prototypes
-#    #-Werror-implicit-function-declaration
-#    #-Wundef
-#    )
+  target_compile_options(${TARGET} PUBLIC
+    -Wall
+    -Wextra
+    -Werror
+    -Wfatal-errors
+    -Wdouble-promotion
+    -Wfloat-equal
+    # FIXME commented out because of https://github.com/raspberrypi/pico-sdk/issues/1468
+    #-Wshadow
+    -Wwrite-strings
+    -Wsign-compare
+    -Wmissing-format-attribute
+    -Wunreachable-code
+    -Wcast-align
+    -Wcast-qual
+    -Wnull-dereference
+    -Wuninitialized
+    -Wunused
+    -Wredundant-decls
+    #-Wstrict-prototypes
+    #-Werror-implicit-function-declaration
+    #-Wundef
+    )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)

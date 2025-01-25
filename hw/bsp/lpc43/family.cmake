@@ -51,7 +51,10 @@ function(add_board_target BOARD_TARGET)
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(${BOARD_TARGET} PUBLIC -nostdlib)
+    target_compile_options(${BOARD_TARGET} PUBLIC
+      -nostdlib
+      -Wno-error=incompatible-pointer-types
+      )
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       --specs=nosys.specs --specs=nano.specs
