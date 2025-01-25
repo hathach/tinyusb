@@ -98,9 +98,16 @@ void trace_etm_init(void) {
 #endif
 
 void board_init(void) {
+  SCB_EnableICache();
+
+#if CFG_TUD_DWC2_DMA_ENABLE && CFG_TUD_MEM_DCACHE_ENABLE
+  SCB_EnableDCache();
+#endif
+
   HAL_Init();
 
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
+
   // Implemented in board.h
   SystemClock_Config();
 
