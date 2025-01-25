@@ -79,12 +79,6 @@ if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
   set(NO_WARN_RWX_SEGMENTS_SUPPORTED 1)
 endif()
 
-if (RTOS STREQUAL zephyr)
-  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
-  cmake_print_variables(BOARD_ROOT BOARD)
-  find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
-endif ()
-
 #-------------------------------------------------------------
 # Functions
 #-------------------------------------------------------------
@@ -604,7 +598,6 @@ function(family_flash_msp430flasher TARGET)
     )
 endfunction()
 
-
 function(family_flash_uniflash TARGET)
   if (NOT DEFINED DSLITE)
     set(DSLITE dslite.sh)
@@ -637,3 +630,12 @@ endif ()
 
 # save it in case of re-inclusion
 set(FAMILY_MCUS ${FAMILY_MCUS} CACHE INTERNAL "")
+
+#----------------------------------
+# Zephyr
+#----------------------------------
+if (RTOS STREQUAL zephyr)
+  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
+  set(ZEPHYR_BOARD_ALIASES ${CMAKE_CURRENT_LIST_DIR}/zephyr_board_aliases.cmake)
+  find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
+endif ()
