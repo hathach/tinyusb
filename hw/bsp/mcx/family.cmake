@@ -115,14 +115,13 @@ function(family_configure_example TARGET RTOS)
     family_add_tinyusb(${TARGET} OPT_MCU_MCXA15)
   endif()
 
-  target_sources(${TARGET}-tinyusb PUBLIC
+  target_sources(${TARGET} PUBLIC
     # TinyUSB: Port0 is chipidea FS, Port1 is chipidea HS
     ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

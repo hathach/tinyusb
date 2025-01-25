@@ -59,7 +59,7 @@ jobs:
         toolchain:
           # - 'arm-clang' is built by circle-ci in PR
           - 'aarch64-gcc'
-#          - 'arm-gcc'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -72,7 +72,7 @@ jobs:
   # Build Make (built by circle-ci in PR, only build on push here)
   # ---------------------------------------
   make:
-    if: github.event_name == 'push' && false
+    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
@@ -113,7 +113,7 @@ jobs:
   # Build IAR on HFP self-hosted
   # ---------------------------------------
   arm-iar:
-    if: github.repository_owner == 'hathach' && github.event_name == 'push' && false
+    if: github.repository_owner == 'hathach' && github.event_name == 'push'
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:

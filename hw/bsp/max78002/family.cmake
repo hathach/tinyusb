@@ -135,17 +135,16 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_MAX78002)
-  target_sources(${TARGET}-tinyusb PUBLIC
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/mentor/musb/dcd_musb.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
-  target_compile_options(${TARGET}-tinyusb PRIVATE
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+  target_compile_options(${TARGET} PRIVATE
     -Wno-error=strict-prototypes
     -Wno-error=redundant-decls
   )
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

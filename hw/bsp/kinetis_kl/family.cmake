@@ -97,14 +97,13 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_KINETIS_KL)
-  target_sources(${TARGET}-tinyusb PUBLIC
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/chipidea/ci_fs/dcd_ci_fs.c
     ${TOP}/src/portable/nxp/khci/hcd_khci.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

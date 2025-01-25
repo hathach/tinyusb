@@ -4,9 +4,8 @@ set(NRFX_PATH ${TOP}/hw/mcu/nordic/nrfx)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
 # include board specific, for zephyr BOARD_ALIAS may be used instead
-if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
-  include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
-else ()
+include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake OPTIONAL RESULT_VARIABLE board_cmake_included)
+if (NOT board_cmake_included)
   include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD_ALIAS}/board.cmake)
 endif ()
 

@@ -70,13 +70,11 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_MSP430x5xx)
-  target_sources(${TARGET}-tinyusb PUBLIC
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/ti/msp430x5xx/dcd_msp430x5xx.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
   family_add_bin_hex(${TARGET})

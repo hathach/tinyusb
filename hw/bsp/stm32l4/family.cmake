@@ -102,16 +102,15 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_${FAMILY_MCUS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})
