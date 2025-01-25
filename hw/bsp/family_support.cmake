@@ -59,6 +59,7 @@ if (NOT DEFINED FAMILY)
   # replace / with ; so that we can get the first element as FAMILY
   string(REPLACE "/" ";" BOARD_PATH ${BOARD_PATH})
   list(GET BOARD_PATH 0 FAMILY)
+  set(FAMILY ${FAMILY} CACHE STRING "Board family")
 endif ()
 
 if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/${FAMILY}/family.cmake)
@@ -78,6 +79,15 @@ endif()
 if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
   set(NO_WARN_RWX_SEGMENTS_SUPPORTED 1)
 endif()
+
+#----------------------------------
+# Zephyr
+#----------------------------------
+if (RTOS STREQUAL zephyr)
+  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
+  set(ZEPHYR_BOARD_ALIASES ${CMAKE_CURRENT_LIST_DIR}/zephyr_board_aliases.cmake)
+  find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
+endif ()
 
 #-------------------------------------------------------------
 # Functions
@@ -630,12 +640,3 @@ endif ()
 
 # save it in case of re-inclusion
 set(FAMILY_MCUS ${FAMILY_MCUS} CACHE INTERNAL "")
-
-#----------------------------------
-# Zephyr
-#----------------------------------
-if (RTOS STREQUAL zephyr)
-  set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
-  set(ZEPHYR_BOARD_ALIASES ${CMAKE_CURRENT_LIST_DIR}/zephyr_board_aliases.cmake)
-  find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
-endif ()

@@ -3,8 +3,12 @@ include_guard()
 set(NRFX_PATH ${TOP}/hw/mcu/nordic/nrfx)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
-# include board specific
-include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+# include board specific, for zephyr BOARD_ALIAS may be used instead
+if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+  include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
+else ()
+  include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD_ALIAS}/board.cmake)
+endif ()
 
 # toolchain set up
 if (MCU_VARIANT STREQUAL "nrf5340_application")
@@ -18,7 +22,6 @@ endif ()
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
-
 
 #------------------------------------
 # BOARD_TARGET
@@ -133,7 +136,6 @@ function(family_configure_example TARGET RTOS)
   if (RTOS STREQUAL zephyr AND DEFINED BOARD_ALIAS AND NOT BOARD STREQUAL BOARD_ALIAS)
     target_include_directories(${TARGET} PUBLIC ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD_ALIAS})
   endif ()
-
 
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_NRF5X)
