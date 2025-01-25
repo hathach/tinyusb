@@ -225,6 +225,7 @@
   #define CFG_TUSB_MEM_DCACHE_LINE_SIZE      32
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
+  #include "stm32h7xx.h"
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
 

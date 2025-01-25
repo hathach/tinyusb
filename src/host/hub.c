@@ -46,13 +46,15 @@ typedef struct
   uint8_t ep_in;
   uint8_t port_count;
 
-  CFG_TUH_MEM_ALIGN uint8_t status_change;
-  CFG_TUH_MEM_ALIGN hub_port_status_response_t port_status;
-  CFG_TUH_MEM_ALIGN hub_status_response_t hub_status;
+  TUH_EPBUF_TYPE_DEF(uint8_t, status_change);
+  TUH_EPBUF_TYPE_DEF(hub_port_status_response_t, port_status);
+  TUH_EPBUF_TYPE_DEF(hub_status_response_t, hub_status);
 } hub_interface_t;
 
 CFG_TUH_MEM_SECTION static hub_interface_t hub_data[CFG_TUH_HUB];
-CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN static uint8_t _hub_buffer[sizeof(descriptor_hub_desc_t)];
+CFG_TUD_MEM_SECTION static struct {
+  TUD_EPBUF_DEF(buf, sizeof(descriptor_hub_desc_t));
+} _hub_buffer;
 
 TU_ATTR_ALWAYS_INLINE
 static inline hub_interface_t* get_itf(uint8_t dev_addr)
@@ -271,7 +273,7 @@ bool hub_set_config(uint8_t dev_addr, uint8_t itf_num)
     .daddr       = dev_addr,
     .ep_addr     = 0,
     .setup       = &request,
-    .buffer      = _hub_buffer,
+    .buffer      = _hub_buffer.buf,
     .complete_cb = config_set_port_power,
     .user_data    = 0
   };
@@ -289,7 +291,7 @@ static void config_set_port_power (tuh_xfer_t* xfer)
   hub_interface_t* p_hub = get_itf(daddr);
 
   // only use number of ports in hub descriptor
-  descriptor_hub_desc_t const* desc_hub = (descriptor_hub_desc_t const*) _hub_buffer;
+  descriptor_hub_desc_t const* desc_hub = (descriptor_hub_desc_t const*) _hub_buffer.buf;
   p_hub->port_count = desc_hub->bNbrPorts;
 
   // May need to GET_STATUS
