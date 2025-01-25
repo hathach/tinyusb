@@ -7,7 +7,7 @@ set(SOC_DIR ${SDK_DIR}/SoC/gd32vf103)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR rv32imac-ilp32 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU rv32imac-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS GD32VF103 CACHE INTERNAL "")
@@ -105,16 +105,15 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_GD32VF103 ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_GD32VF103)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

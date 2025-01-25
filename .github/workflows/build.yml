@@ -137,3 +137,24 @@ jobs:
 
       - name: Build
         run: python3 tools/build.py --one-per-family --toolchain iar $BUILD_ARGS
+
+  # ---------------------------------------
+  # Zephyr
+  # ---------------------------------------
+  zephyr:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: examples
+          toolchains: arm-zephyr-eabi
+
+      - name: Build
+        run: |
+          west build -b pca10056 -d examples/device/cdc_msc/build examples/device/cdc_msc -- -DRTOS=zephyr
+          west build -b pca10056 -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr

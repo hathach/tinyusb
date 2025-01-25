@@ -4,6 +4,7 @@ include(CMakePrintHelpers)
 # Common
 # ----------------------------------------------------------------------------
 set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_SYSTEM_CPU})
 set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS FALSE)
 
 # Look for includes and libraries only in the target system prefix.
@@ -13,8 +14,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 
 # pass TOOLCHAIN_CPU to
-set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES CMAKE_SYSTEM_PROCESSOR)
-include(${CMAKE_CURRENT_LIST_DIR}/../cpu/${CMAKE_SYSTEM_PROCESSOR}.cmake)
+set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES CMAKE_SYSTEM_PROCESSOR CMAKE_SYSTEM_CPU)
+include(${CMAKE_CURRENT_LIST_DIR}/../cpu/${CMAKE_SYSTEM_CPU}.cmake)
 
 # ----------------------------------------------------------------------------
 # Compile flags
