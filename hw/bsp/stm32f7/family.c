@@ -78,6 +78,11 @@ void OTG_HS_IRQHandler(void) {
 //--------------------------------------------------------------------+
 
 void board_init(void) {
+  SCB_EnableICache();
+  SCB_EnableDCache();
+
+  HAL_Init();
+
   board_clock_init();
 
   // Enable All GPIOs clocks
