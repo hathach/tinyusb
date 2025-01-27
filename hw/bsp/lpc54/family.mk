@@ -9,7 +9,7 @@ CFLAGS += \
   -flto \
   -D__STARTUP_CLEAR_BSS \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
+  -DCFG_TUSB_MEM_ALIGN='64' \
 
 ifeq ($(PORT), 1)
   $(info "PORT1 High Speed")

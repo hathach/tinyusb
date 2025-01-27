@@ -99,8 +99,8 @@ extern "C" {
  * Tinyusb use follows macros to declare transferring memory so that they can be put
  * into those specific section.
  * e.g
- * - CFG_TUSB_MEM SECTION : __attribute__ (( section(".usb_ram") ))
- * - CFG_TUSB_MEM_ALIGN   : __attribute__ ((aligned(4)))
+ * - CFG_TUSB_MEM_SECTION : TU_ATTR_SECTION(".usb_ram")
+ * - CFG_TUSB_MEM_ALIGN   : 4
  */
 #ifndef CFG_TUSB_MEM_SECTION
 #define CFG_TUSB_MEM_SECTION        rt_section(PKG_TINYUSB_MEM_SECTION)

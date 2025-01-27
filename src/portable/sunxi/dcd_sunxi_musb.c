@@ -60,7 +60,7 @@ typedef struct TU_ATTR_PACKED
 
 typedef struct
 {
-  CFG_TUD_MEM_ALIGN tusb_control_request_t setup_packet;
+  TU_ATTR_ALIGNED(CFG_TUD_MEM_ALIGN) tusb_control_request_t setup_packet;
   uint16_t     remaining_ctrl; /* The number of bytes remaining in data stage of control transfer. */
   int8_t       status_out;
   pipe_state_t pipe0;
@@ -352,7 +352,7 @@ static void USBC_INT_DisableRxEp(u8 ep_index)
  * INTERNAL FUNCTION DECLARATION
  *------------------------------------------------------------------*/
 
-CFG_TUD_MEM_ALIGN static dcd_data_t _dcd;
+TU_ATTR_ALIGNED(CFG_TUD_MEM_ALIGN) static dcd_data_t _dcd;
 
 static inline free_block_t *find_containing_block(free_block_t *beg, free_block_t *end, uint_fast16_t addr)
 {

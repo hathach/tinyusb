@@ -404,7 +404,7 @@
 // Alignment requirement of buffer used for usb transferring. if MEM_ALIGN is different for
 // host and device controller use: CFG_TUD_MEM_ALIGN, CFG_TUH_MEM_ALIGN instead
 #ifndef CFG_TUSB_MEM_ALIGN
-  #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
+  #define CFG_TUSB_MEM_ALIGN      4
 #endif
 
 #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE
@@ -452,6 +452,12 @@
 
 #ifndef CFG_TUD_MEM_DCACHE_LINE_SIZE
   #define CFG_TUD_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
+#endif
+
+#if CFG_TUD_DWC2_DMA_ENABLE && CFG_TUD_MEM_DCACHE_ENABLE
+  #define TUD_EPBUF_DCACHE_ALIGNED 1
+#else
+  #define TUD_EPBUF_DCACHE_ALIGNED 0
 #endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
@@ -571,6 +577,12 @@
 
 #ifndef CFG_TUH_MEM_DCACHE_LINE_SIZE
   #define CFG_TUH_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
+#endif
+
+#if CFG_TUH_DWC2_DMA_ENABLE && CFG_TUH_MEM_DCACHE_ENABLE
+  #define TUH_EPBUF_DCACHE_ALIGNED 1
+#else
+  #define TUH_EPBUF_DCACHE_ALIGNED 0
 #endif
 
 //------------- CLASS -------------//

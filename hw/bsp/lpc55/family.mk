@@ -13,7 +13,7 @@ CFLAGS += \
   -flto \
   -D__STARTUP_CLEAR_BSS \
   -DCFG_TUSB_MCU=OPT_MCU_LPC55XX \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' \
+  -DCFG_TUSB_MEM_ALIGN='64' \
   -DBOARD_TUD_RHPORT=$(PORT) \
 
 ifeq ($(PORT), 1)

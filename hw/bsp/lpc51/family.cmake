@@ -57,7 +57,7 @@ function(add_board_target BOARD_TARGET)
     ${CMSIS_DIR}/CMSIS/Core/Include
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
+    CFG_TUSB_MEM_ALIGN=64
     __STARTUP_CLEAR_BSS
     )
 
