@@ -12,7 +12,7 @@ set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/max78002.ld)
 set(LD_FILE_Clang ${LD_FILE_GNU})
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 set(JLINK_DEVICE max78000)
 
@@ -134,18 +134,17 @@ function(family_configure_example TARGET RTOS)
 
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MAX78002 ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_MAX78002)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/mentor/musb/dcd_musb.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
-  target_compile_options(${TARGET}-tinyusb PRIVATE
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+  target_compile_options(${TARGET} PRIVATE
     -Wno-error=strict-prototypes
     -Wno-error=redundant-decls
   )
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

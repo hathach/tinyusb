@@ -1,4 +1,4 @@
-set(CMAKE_SYSTEM_PROCESSOR arm1176jzf-s CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU arm1176jzf-s CACHE INTERNAL "System Processor")
 #set(SUFFIX "")
 
 function(update_board TARGET)

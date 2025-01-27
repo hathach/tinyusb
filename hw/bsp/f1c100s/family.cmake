@@ -5,7 +5,7 @@ set(SDK_DIR ${TOP}/hw/mcu/allwinner/f1c100s)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR arm926ej-s CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU arm926ej-s CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS F1C100S CACHE INTERNAL "")
@@ -100,14 +100,13 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_F1C100S ${RTOS})
-  target_sources(${TARGET}-tinyusb PRIVATE
+  family_add_tinyusb(${TARGET} OPT_MCU_F1C100S)
+  target_sources(${TARGET} PRIVATE
     ${TOP}/src/portable/sunxi/dcd_sunxi_musb.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})
