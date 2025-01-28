@@ -61,6 +61,8 @@
 // FIXME cause redundant-decls warnings
 #if CFG_TUSB_MCU == OPT_MCU_MM32F327X
   extern u32 SystemCoreClock;
+#elif (defined TUP_USBIP_FSDEV_AT32)||(defined TUP_USBIP_DWC2_AT32)
+  extern unsigned int SystemCoreClock;
 #else
   extern uint32_t SystemCoreClock;
 #endif
