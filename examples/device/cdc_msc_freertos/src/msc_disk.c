@@ -28,10 +28,10 @@
 
 #if CFG_TUD_MSC
 
-#if CFG_TUD_MSC_ASYNC_IO
 // Simulate read/write operation time
-#define SIM_IO_TIME_MS 20
+#define SIM_IO_TIME_MS 0
 
+#if CFG_TUD_MSC_ASYNC_IO
 TimerHandle_t sim_io_ops_timer;
 static int32_t bytes_processed;
 #if configSUPPORT_STATIC_ALLOCATION
@@ -238,9 +238,12 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
   }
 
 #if CFG_TUD_MSC_ASYNC_IO
-  // Simulate read operation
+  // Simulate background read operation
   bytes_processed = ret;
   xTimerStart(sim_io_ops_timer, 0);
+#elif SIM_IO_TIME_MS > 0
+  // Simulate read operation
+  tusb_time_delay_ms_api(SIM_IO_TIME_MS);
 #endif
 
   return ret;
@@ -284,9 +287,12 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 #endif
 
 #if CFG_TUD_MSC_ASYNC_IO
-  // Simulate read operation
+  // Simulate background write operation
   bytes_processed = ret;
   xTimerStart(sim_io_ops_timer, 0);
+#elif SIM_IO_TIME_MS > 0
+  // Simulate write operation
+  tusb_time_delay_ms_api(SIM_IO_TIME_MS);
 #endif
 
   return ret;
