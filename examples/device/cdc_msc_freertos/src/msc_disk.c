@@ -28,6 +28,20 @@
 
 #if CFG_TUD_MSC
 
+#if CFG_TUD_MSC_ASYNC_IO
+// Simulate read/write operation time
+#define SIM_IO_TIME_MS 20
+
+TimerHandle_t sim_io_ops_timer;
+static int32_t bytes_processed;
+#if configSUPPORT_STATIC_ALLOCATION
+StaticTimer_t sim_io_ops_timer_buf;
+#endif
+static void sim_io_ops_done_cb(TimerHandle_t xTimer);
+#endif
+
+void msc_disk_init(void);
+
 // whether host does safe-eject
 static bool ejected = false;
 
@@ -119,6 +133,24 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
   README_CONTENTS
 };
 
+#if CFG_TUD_MSC_ASYNC_IO
+void msc_disk_init() {
+
+#if configSUPPORT_DYNAMIC_ALLOCATION
+  sim_io_ops_timer = xTimerCreate("sim_io_ops", pdMS_TO_TICKS(SIM_IO_TIME_MS), pdFALSE, NULL, sim_io_ops_done_cb);
+#else
+  sim_io_ops_timer = xTimerCreateStatic("sim_io_ops", pdMS_TO_TICKS(SIM_IO_TIME_MS), pdFALSE, NULL, sim_io_ops_done_cb, &sim_io_ops_timer_buf);
+#endif
+}
+
+static void sim_io_ops_done_cb(TimerHandle_t xTimer) {
+  (void) xTimer;
+  tud_msc_async_io_done(bytes_processed);
+}
+#else
+void msc_disk_init() {}
+#endif
+
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
@@ -188,21 +220,30 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
   (void) lun;
+  int32_t ret = bufsize;
 
   // out of ramdisk
   if ( lba >= DISK_BLOCK_NUM ) {
-    return -1;
+    ret = -1;
   }
 
   // Check for overflow of offset + bufsize
   if ( lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE ) {
-    return -1;
+    ret = -1;
   }
 
-  uint8_t const* addr = msc_disk[lba] + offset;
-  memcpy(buffer, addr, bufsize);
+  if (ret != -1) {
+    uint8_t const* addr = msc_disk[lba] + offset;
+    memcpy(buffer, addr, bufsize);
+  }
 
-  return (int32_t) bufsize;
+#if CFG_TUD_MSC_ASYNC_IO
+  // Simulate read operation
+  bytes_processed = ret;
+  xTimerStart(sim_io_ops_timer, 0);
+#endif
+
+  return ret;
 }
 
 bool tud_msc_is_writable_cb (uint8_t lun)
@@ -221,25 +262,34 @@ bool tud_msc_is_writable_cb (uint8_t lun)
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
   (void) lun;
+  int32_t ret = bufsize;
 
   // out of ramdisk
   if ( lba >= DISK_BLOCK_NUM ) {
-    return -1;
+    ret = -1;
   }
 
   // Check for overflow of offset + bufsize
   if ( lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE ) {
-    return -1;
+    ret = -1;
   }
 
 #ifndef CFG_EXAMPLE_MSC_READONLY
-  uint8_t* addr = msc_disk[lba] + offset;
-  memcpy(addr, buffer, bufsize);
+  if (ret != -1) {
+    uint8_t* addr = msc_disk[lba] + offset;
+    memcpy(addr, buffer, bufsize);
+  }
 #else
   (void) lba; (void) offset; (void) buffer;
 #endif
 
-  return (int32_t) bufsize;
+#if CFG_TUD_MSC_ASYNC_IO
+  // Simulate read operation
+  bytes_processed = ret;
+  xTimerStart(sim_io_ops_timer, 0);
+#endif
+
+  return ret;
 }
 
 // Callback invoked when received an SCSI command not in built-in list below

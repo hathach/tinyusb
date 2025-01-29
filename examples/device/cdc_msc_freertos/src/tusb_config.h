@@ -114,6 +114,10 @@
 // MSC Buffer size of Device Mass storage
 #define CFG_TUD_MSC_EP_BUFSIZE   512
 
+// Enable Async IO on MSC
+#define CFG_TUD_MSC_ASYNC_IO     0
+
+
 #ifdef __cplusplus
  }
 #endif
