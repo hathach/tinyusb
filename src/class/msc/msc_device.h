@@ -48,6 +48,11 @@
   #error CFG_TUD_MSC_EP_BUFSIZE must be defined, value of a block size should work well, the more the better
 #endif
 
+// Enable asynchronous read/write, once operation is finished tud_msc_async_io_done() must be called
+#ifndef CFG_TUD_MSC_ASYNC_IO
+#define CFG_TUD_MSC_ASYNC_IO 0
+#endif
+
 TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE < UINT16_MAX, "Size is not correct");
 
 //--------------------------------------------------------------------+
@@ -73,6 +78,9 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 //
 //   - read < 0       : Indicate application error e.g invalid address. This request will be STALLed
 //                      and return failed status in command status wrapper phase.
+//
+// - In case of asynchronous IO enabled, application should passing reading parameters to background IO
+//   task and return immediately. Once reading is done, tud_msc_async_io_done() must be called.
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 // Invoked when received SCSI WRITE10 command
@@ -88,6 +96,8 @@ int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buf
 //   - write < 0       : Indicate application error e.g invalid address. This request will be STALLed
 //                       and return failed status in command status wrapper phase.
 //
+// - In case of asynchronous IO enabled, application should passing writing parameters to background IO
+//   task and return immediately. Once writing is done, tud_msc_async_io_done() must be called.
 // TODO change buffer to const uint8_t*
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
 
@@ -121,6 +131,12 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
  */
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 
+#if CFG_TUD_MSC_ASYNC_IO
+// Called once asynchronous read/write operation is done
+// bytes_processed has the same meaning of tud_msc_read10_cb() /
+// tud_msc_write10_cb() return value
+void tud_msc_async_io_done(int32_t bytes_processed);
+#endif
 /*------------- Optional callbacks -------------*/
 
 // Invoked when received GET_MAX_LUN request, required for multiple LUNs implementation
