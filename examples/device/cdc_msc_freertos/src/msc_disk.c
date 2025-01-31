@@ -166,8 +166,10 @@ static void io_task(void *params) {
         uint8_t const* addr = msc_disk[io_ops.lba] + io_ops.offset;
         memcpy(io_ops.buffer, addr, io_ops.bufsize);
       } else {
+#ifndef CFG_EXAMPLE_MSC_READONLY
         uint8_t* addr = msc_disk[io_ops.lba] + io_ops.offset;
         memcpy(addr, io_ops.buffer, io_ops.bufsize);
+#endif
       }
 
       tusb_time_delay_ms_api(CFG_EXAMPLE_MSC_IO_DELAY_MS);

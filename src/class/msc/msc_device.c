@@ -267,14 +267,14 @@ void tud_msc_async_io_done(int32_t bytes_processed) {
   // Precheck to avoid queueing multiple RW done callback
   TU_VERIFY(_mscd_itf.next_op != MSC_NEXT_OP_NONE,);
   // Call usbd_edpt_xfer() in tud_task() to avoid racing condition
-  usbd_defer_func(tud_msc_async_io_done_cb, (void*) bytes_processed, false);
+  usbd_defer_func(tud_msc_async_io_done_cb, (void*) (intptr_t)bytes_processed, false);
 }
 
 static void tud_msc_async_io_done_cb(void* bytes_processed) {
   TU_VERIFY(_mscd_itf.next_op != MSC_NEXT_OP_NONE,);
   uint8_t next_op = _mscd_itf.next_op;
   _mscd_itf.next_op = MSC_NEXT_OP_NONE;
-  int32_t nbytes = (int32_t)bytes_processed;
+  int32_t nbytes = (int32_t)(intptr_t)bytes_processed;
   // READ10
   if (next_op == MSC_NEXT_OP_READ10) {
     proc_read10_next(&_mscd_itf, nbytes);
