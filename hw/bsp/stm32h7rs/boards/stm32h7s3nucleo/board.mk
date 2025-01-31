@@ -12,4 +12,4 @@ SRC_C += \
 	$(BOARD_PATH)/tcpp0203/tcpp0203_reg.c \
 
 INC += \
-	$(BOARD_PATH)/tcpp0203 \
+	$(TOP)/$(BOARD_PATH)/tcpp0203 \
