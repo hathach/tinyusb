@@ -48,10 +48,11 @@
   #error CFG_TUD_MSC_EP_BUFSIZE must be defined, value of a block size should work well, the more the better
 #endif
 
-// Enable asynchronous read/write, once operation is finished tud_msc_async_io_done() must be called
-#ifndef CFG_TUD_MSC_ASYNC_IO
-#define CFG_TUD_MSC_ASYNC_IO 0
-#endif
+// Return value of callback functions
+// Error
+#define TUD_MSC_RET_ERROR  -1
+// Asynchronous IO
+#define TUD_MSC_RET_ASYNC  -16
 
 TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE < UINT16_MAX, "Size is not correct");
 
@@ -62,6 +63,11 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE < UINT16_MAX, "Size is not correct");
 // Set SCSI sense response
 bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, uint8_t add_sense_qualifier);
 
+// Called once asynchronous read/write operation is done
+// bytes_processed has the same meaning of tud_msc_read10_cb() /
+// tud_msc_write10_cb() return value
+void tud_msc_async_io_done(int32_t bytes_processed);
+
 //--------------------------------------------------------------------+
 // Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
@@ -70,34 +76,40 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 // - Address = lba * BLOCK_SIZE + offset
 //   - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
 //
-// - Application fill the buffer (up to bufsize) with address contents and return number of read byte. If
-//   - read < bufsize : These bytes are transferred first and callback invoked again for remaining data.
+// - Application fill the buffer (up to bufsize) with address contents and return number of bytes read or status.
 //
-//   - read == 0      : Indicate application is not ready yet e.g disk I/O busy.
-//                      Callback invoked again with the same parameters later on.
+//   - ret < bufsize  : These bytes are transferred first and callback will be invoked again for remaining data.
 //
-//   - read < 0       : Indicate application error e.g invalid address. This request will be STALLed
+//   - ret == 0       : Indicate application is not ready yet e.g disk I/O busy.
+//                      Callback will be invoked again with the same parameters later on.
+//
+//   - ret == TUD_MSC_RET_ERROR (-1)
+//                    : Indicate application error e.g invalid address. This request will be STALLed
 //                      and return failed status in command status wrapper phase.
 //
-// - In case of asynchronous IO enabled, application should passing reading parameters to background IO
-//   task and return immediately. Once reading is done, tud_msc_async_io_done() must be called.
+//   - ret == TUD_MSC_RET_ASYNC (-16)
+//                    : Data reading will be done asynchronously in a background task. Application should return immediately.
+//                      tud_msc_async_io_done() must be called once reading is done to signal completion.
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 // Invoked when received SCSI WRITE10 command
 // - Address = lba * BLOCK_SIZE + offset
 //   - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
 //
-// - Application write data from buffer to address contents (up to bufsize) and return number of written byte. If
-//   - write < bufsize : callback invoked again with remaining data later on.
+// - Application writes data from buffer to address contents (up to bufsize) and returns the number of bytes written or status.
 //
-//   - write == 0      : Indicate application is not ready yet e.g disk I/O busy.
-//                       Callback invoked again with the same parameters later on.
+//   - ret < bufsize  : Callback will be invoked again with remaining data later on.
 //
-//   - write < 0       : Indicate application error e.g invalid address. This request will be STALLed
-//                       and return failed status in command status wrapper phase.
+//   - ret == 0       : Indicate application is not ready yet e.g disk I/O busy.
+//                      Callback will be invoked again with the same parameters later on.
 //
-// - In case of asynchronous IO enabled, application should passing writing parameters to background IO
-//   task and return immediately. Once writing is done, tud_msc_async_io_done() must be called.
+//   - ret == TUD_MSC_RET_ERROR (-1)
+//                    : Indicate application error e.g invalid address. This request will be STALLed
+//                      and return failed status in command status wrapper phase.
+//
+//   - ret == TUD_MSC_RET_ASYNC (-16)
+//                    : Data writing will be done asynchronously in a background task. Application should return immediately.
+//                      tud_msc_async_io_done() must be called once writing is done to signal completion.
 // TODO change buffer to const uint8_t*
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
 
@@ -131,12 +143,6 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
  */
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 
-#if CFG_TUD_MSC_ASYNC_IO
-// Called once asynchronous read/write operation is done
-// bytes_processed has the same meaning of tud_msc_read10_cb() /
-// tud_msc_write10_cb() return value
-void tud_msc_async_io_done(int32_t bytes_processed);
-#endif
 /*------------- Optional callbacks -------------*/
 
 // Invoked when received GET_MAX_LUN request, required for multiple LUNs implementation

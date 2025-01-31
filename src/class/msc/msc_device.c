@@ -78,10 +78,10 @@ typedef struct {
   uint8_t sense_key;
   uint8_t add_sense_code;
   uint8_t add_sense_qualifier;
-#if CFG_TUD_MSC_ASYNC_IO
+
+  // Async IO
   uint8_t next_op;
   uint32_t xferred_bytes;
-#endif
 }mscd_interface_t;
 
 static mscd_interface_t _mscd_itf;
@@ -100,9 +100,7 @@ static void proc_write10_cmd(mscd_interface_t* p_msc);
 static void proc_write10_new_data(mscd_interface_t* p_msc, uint32_t xferred_bytes);
 static void proc_write10_next(mscd_interface_t* p_msc, uint32_t xferred_bytes, int32_t nbytes);
 static bool proc_stage_status(mscd_interface_t* p_msc);
-#if CFG_TUD_MSC_ASYNC_IO
 static void tud_msc_async_io_done_cb(void* bytes_processed);
-#endif
 
 TU_ATTR_ALWAYS_INLINE static inline bool is_data_in(uint8_t dir) {
   return tu_bit_test(dir, 7);
@@ -265,7 +263,6 @@ static inline void set_sense_medium_not_present(uint8_t lun) {
   tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
 }
 
-#if CFG_TUD_MSC_ASYNC_IO
 void tud_msc_async_io_done(int32_t bytes_processed) {
   // Precheck to avoid queueing multiple RW done callback
   TU_VERIFY(_mscd_itf.next_op != MSC_NEXT_OP_NONE,);
@@ -289,7 +286,6 @@ static void tud_msc_async_io_done_cb(void* bytes_processed) {
     }
   }
 }
-#endif
 
 //--------------------------------------------------------------------+
 // USBD Driver API
@@ -821,13 +817,12 @@ static void proc_read10_cmd(mscd_interface_t* p_msc) {
   // Application can consume smaller bytes
   uint32_t const offset = p_msc->xferred_len % block_sz;
 
-#if CFG_TUD_MSC_ASYNC_IO
   p_msc->next_op = MSC_NEXT_OP_READ10;
-  tud_msc_read10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, (uint32_t)nbytes);
-#else
   nbytes = tud_msc_read10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, (uint32_t)nbytes);
-  proc_read10_next(p_msc, nbytes);
-#endif
+  if (nbytes != TUD_MSC_RET_ASYNC) {
+    p_msc->next_op = MSC_NEXT_OP_NONE;
+    proc_read10_next(p_msc, nbytes);
+  }
 }
 
 static void proc_read10_next(mscd_interface_t* p_msc, int32_t nbytes) {
@@ -885,14 +880,13 @@ static void proc_write10_new_data(mscd_interface_t* p_msc, uint32_t xferred_byte
   // Invoke callback to consume new data
   uint32_t const offset = p_msc->xferred_len % block_sz;
 
-#if CFG_TUD_MSC_ASYNC_IO
   p_msc->next_op = MSC_NEXT_OP_WRITE10;
   p_msc->xferred_bytes = xferred_bytes;
-  tud_msc_write10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, xferred_bytes);
-#else
   int32_t nbytes =  tud_msc_write10_cb(p_cbw->lun, lba, offset, _mscd_epbuf.buf, xferred_bytes);
-  proc_write10_next(p_msc, xferred_bytes, nbytes);
-#endif
+  if (nbytes != TUD_MSC_RET_ASYNC) {
+    p_msc->next_op = MSC_NEXT_OP_NONE;
+    proc_write10_next(p_msc, xferred_bytes, nbytes);
+  }
 }
 
 static void proc_write10_next(mscd_interface_t* p_msc, uint32_t xferred_bytes, int32_t nbytes) {
