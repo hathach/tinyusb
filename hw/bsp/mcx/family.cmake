@@ -8,10 +8,10 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
 if (MCU_VARIANT STREQUAL "MCXA153")
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m33-nodsp-nofp CACHE INTERNAL "System Processor")
+  set(CMAKE_SYSTEM_CPU cortex-m33-nodsp-nofp CACHE INTERNAL "System Processor")
   set(FAMILY_MCUS MCXA15 CACHE INTERNAL "")
 elseif (MCU_VARIANT STREQUAL "MCXN947")
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+  set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
   set(FAMILY_MCUS MCXN9 CACHE INTERNAL "")
 else()
   message(FATAL_ERROR "MCU_VARIANT not supported")
@@ -110,19 +110,18 @@ function(family_configure_example TARGET RTOS)
 
   # Add TinyUSB target and port source
   if (${FAMILY_MCUS} STREQUAL "MCXN9")
-    family_add_tinyusb(${TARGET} OPT_MCU_MCXN9 ${RTOS})
+    family_add_tinyusb(${TARGET} OPT_MCU_MCXN9)
   elseif(${FAMILY_MCUS} STREQUAL "MCXA15")
-    family_add_tinyusb(${TARGET} OPT_MCU_MCXA15 ${RTOS})
+    family_add_tinyusb(${TARGET} OPT_MCU_MCXA15)
   endif()
 
-  target_sources(${TARGET}-tinyusb PUBLIC
+  target_sources(${TARGET} PUBLIC
     # TinyUSB: Port0 is chipidea FS, Port1 is chipidea HS
     ${TOP}/src/portable/chipidea/$<IF:${PORT},ci_hs/dcd_ci_hs.c,ci_fs/dcd_ci_fs.c>
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

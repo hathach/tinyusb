@@ -1,6 +1,8 @@
 /*
- * Copyright (c) 2017 - 2018, Nordic Semiconductor ASA
+ * Copyright (c) 2017 - 2024, Nordic Semiconductor ASA
  * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -60,14 +62,14 @@ extern "C" {
 /**
  * @brief Macro for placing a runtime assertion.
  *
- * @param expression  Expression to evaluate.
+ * @param expression Expression to be evaluated.
  */
 #define NRFX_ASSERT(expression)
 
 /**
  * @brief Macro for placing a compile time assertion.
  *
- * @param expression  Expression to evaluate.
+ * @param expression Expression to be evaluated.
  */
 #define NRFX_STATIC_ASSERT(expression)
 
@@ -76,8 +78,8 @@ extern "C" {
 /**
  * @brief Macro for setting the priority of a specific IRQ.
  *
- * @param irq_number  IRQ number.
- * @param priority    Priority to set.
+ * @param irq_number IRQ number.
+ * @param priority   Priority to be set.
  */
 #define NRFX_IRQ_PRIORITY_SET(irq_number, priority) _NRFX_IRQ_PRIORITY_SET(irq_number, priority)
 static inline void _NRFX_IRQ_PRIORITY_SET(IRQn_Type irq_number,
@@ -158,14 +160,10 @@ static inline bool _NRFX_IRQ_IS_PENDING(IRQn_Type irq_number)
     return (NVIC_GetPendingIRQ(irq_number) == 1);
 }
 
-/**
- * @brief Macro for entering into a critical section.
- */
+/** @brief Macro for entering into a critical section. */
 #define NRFX_CRITICAL_SECTION_ENTER()
 
-/**
- * @brief Macro for exiting from a critical section.
- */
+/** @brief Macro for exiting from a critical section. */
 #define NRFX_CRITICAL_SECTION_EXIT()
 
 //------------------------------------------------------------------------------

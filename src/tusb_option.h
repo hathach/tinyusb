@@ -215,6 +215,7 @@
 #define OPT_OS_PICO       5  ///< Raspberry Pi Pico SDK
 #define OPT_OS_RTTHREAD   6  ///< RT-Thread
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
+#define OPT_OS_ZEPHYR     8  ///< Zephyr
 
 //--------------------------------------------------------------------+
 // Mode and Speed
