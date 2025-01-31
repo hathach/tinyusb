@@ -43,8 +43,7 @@ CFLAGS += \
 	-DBOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED} \
 	-DBOARD_TUH_RHPORT=${RHPORT_HOST} \
 	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
-	-DSEGGER_RTT_SECTION=\"noncacheable_buffer\" \
-	-DBUFFER_SIZE_UP=0x3000 \
+	-DSEGGER_RTT_SECTION="dtcm_data" \
 
 # GCC Flags
 CFLAGS_GCC += \
@@ -91,5 +90,5 @@ SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_GCC ?= $(ST_CMSIS)/Source/Templates/gcc/linker/$(MCU_VARIANT)_flash.ld
-LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
+LD_FILE_GCC ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT)_flash.ld
+LD_FILE_IAR ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT)_flash.icf
