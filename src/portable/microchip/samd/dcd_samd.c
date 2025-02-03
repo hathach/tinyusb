@@ -31,7 +31,7 @@
      CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
      CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21)
 
-#include "sam.h"
+#include "samd51n19a_tusb.h"
 #include "device/dcd.h"
 
 /*------------------------------------------------------------------*/
