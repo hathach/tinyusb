@@ -27,6 +27,19 @@
 #ifndef _TUSB_USBD_H_
 #define _TUSB_USBD_H_
 
+/**
+ * Implemented by Nikhil to avoid cluttering the build log
+ * TinyUSB makes use of packed structures, which are space efficient but
+ * lead to longer access times. These are used mainly for the descriptors
+ * which are really accessed sporadically so it's not a concern.
+ * For the suppressed output, set the ticket here:
+ *      https://getbevi.atlassian.net/browse/EN-14480
+ */
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpacked"
+#pragma GCC diagnostic ignored "-Wattributes"
+
 #include "common/tusb_common.h"
 
 #ifdef __cplusplus
@@ -872,6 +885,12 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 #ifdef __cplusplus
 }
 #endif
+
+/**
+ * Reenable warnings for packed attributes
+ * see https://stackoverflow.com/questions/3378560/how-to-disable-gcc-warnings-for-a-few-lines-of-code
+ */
+#pragma GCC diagnostic pop
 
 #endif /* _TUSB_USBD_H_ */
 
