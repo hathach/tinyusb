@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 B-U585i IOT2A Discovery kit
+   url: https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

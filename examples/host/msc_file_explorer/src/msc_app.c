@@ -53,7 +53,11 @@ static CLI_UINT cli_buffer[BYTES_TO_CLI_UINTS(CLI_BUFFER_SIZE)];
 static FATFS fatfs[CFG_TUH_DEVICE_MAX]; // for simplicity only support 1 LUN per device
 static volatile bool _disk_busy[CFG_TUH_DEVICE_MAX];
 
-static scsi_inquiry_resp_t inquiry_resp;
+// define the buffer to be place in USB/DMA memory with correct alignment/cache line size
+CFG_TUH_MEM_SECTION static struct {
+  TUH_EPBUF_TYPE_DEF(scsi_inquiry_resp_t, inquiry);
+} scsi_resp;
+
 
 //--------------------------------------------------------------------+
 //
@@ -63,7 +67,9 @@ bool cli_init(void);
 
 bool msc_app_init(void)
 {
-  for(size_t i=0; i<CFG_TUH_DEVICE_MAX; i++) _disk_busy[i] = false;
+  for(size_t i=0; i<CFG_TUH_DEVICE_MAX; i++) {
+    _disk_busy[i] = false;
+  }
 
   // disable stdout buffered for echoing typing command
   #ifndef __ICCARM__ // TODO IAR doesn't support stream control ?
@@ -77,7 +83,9 @@ bool msc_app_init(void)
 
 void msc_app_task(void)
 {
-  if (!_cli) return;
+  if (!_cli) {
+    return;
+  }
 
   int ch = board_getchar();
   if ( ch > 0 )
@@ -95,8 +103,7 @@ void msc_app_task(void)
 //
 //--------------------------------------------------------------------+
 
-bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data)
-{
+static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data) {
   msc_cbw_t const* cbw = cb_data->cbw;
   msc_csw_t const* csw = cb_data->csw;
 
@@ -107,7 +114,7 @@ bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_da
   }
 
   // Print out Vendor ID, Product ID and Rev
-  printf("%.8s %.16s rev %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
+  printf("%.8s %.16s rev %.4s\r\n", scsi_resp.inquiry.vendor_id, scsi_resp.inquiry.product_id, scsi_resp.inquiry.product_rev);
 
   // Get capacity of device
   uint32_t const block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
@@ -145,7 +152,7 @@ void tuh_msc_mount_cb(uint8_t dev_addr)
   printf("A MassStorage device is mounted\r\n");
 
   uint8_t const lun = 0;
-  tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb, 0);
+  tuh_msc_inquiry(dev_addr, lun, &scsi_resp.inquiry, inquiry_complete_cb, 0);
 }
 
 void tuh_msc_umount_cb(uint8_t dev_addr)
@@ -290,16 +297,9 @@ void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_rm(EmbeddedCli *cli, char *args, void *context);
 
-void cli_write_char(EmbeddedCli *cli, char c)
-{
+static void cli_write_char(EmbeddedCli *cli, char c) {
   (void) cli;
   putchar((int) c);
-}
-
-void cli_cmd_unknown(EmbeddedCli *cli, CliCommand *command)
-{
-  (void) cli;
-  printf("%s: command not found\r\n", command->name);
 }
 
 bool cli_init(void)

@@ -65,7 +65,7 @@ jobs:
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       one-per-family: ${{ github.event_name == 'push' }}
 
   # ---------------------------------------
@@ -85,11 +85,11 @@ jobs:
           - 'msp430-gcc'
           - 'riscv-gcc'
           - 'rx-gcc'
-          - 'esp-idf' # buid-system is ignored
+          - 'esp-idf' # build-system is ignored
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain].family) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       one-per-family: true
 
   # ---------------------------------------
@@ -113,17 +113,21 @@ jobs:
   # Build IAR on HFP self-hosted
   # ---------------------------------------
   arm-iar:
-    if: github.repository_owner == 'hathach'
+    if: github.repository_owner == 'hathach' && github.event_name == 'push'
     needs: set-matrix
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
-      BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'].family, ' ') }}
+      BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'], ' ') }}
+      IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
     steps:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
+
+      - name: Toolchain version
+        run: iccarm --version
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -134,7 +138,23 @@ jobs:
       - name: Build
         run: python3 tools/build.py --one-per-family --toolchain iar $BUILD_ARGS
 
-      - name: Test on actual hardware (hardware in the loop)
-        if: github.event_name == 'pull_request'
+  # ---------------------------------------
+  # Zephyr
+  # ---------------------------------------
+  zephyr:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: examples
+          toolchains: arm-zephyr-eabi
+
+      - name: Build
         run: |
-          python3 test/hil/hil_test.py hfp.json
+          west build -b pca10056 -d examples/device/cdc_msc/build examples/device/cdc_msc -- -DRTOS=zephyr
+          west build -b pca10056 -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr

@@ -582,7 +582,8 @@ void print_musb_info(musb_regs_t* musb_regs) {
 }
 #endif
 
-void dcd_init(uint8_t rhport) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
 
 #if CFG_TUSB_DEBUG >= MUSB_DEBUG
@@ -593,6 +594,7 @@ void dcd_init(uint8_t rhport) {
   musb_dcd_int_clear(rhport);
   musb_dcd_phy_init(rhport);
   dcd_connect(rhport);
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport) {

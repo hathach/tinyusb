@@ -1,3 +1,8 @@
+/* metadata:
+   name: DshanMCU Pitaya Lite with MM32F3273G8P
+   url: https://gitee.com/weidongshan/DshanMCU-Pitaya-c
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

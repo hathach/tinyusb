@@ -32,8 +32,8 @@
 #include "tusb_fifo.h"
 #include "tusb.h"
 #include "usbd.h"
-TEST_FILE("usbd_control.c")
-TEST_FILE("msc_device.c")
+TEST_SOURCE_FILE("usbd_control.c")
+TEST_SOURCE_FILE("msc_device.c")
 
 // Mock File
 #include "mock_dcd.h"
@@ -41,6 +41,10 @@ TEST_FILE("msc_device.c")
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+
+uint32_t tusb_time_millis_api(void) {
+  return 0;
+}
 
 enum
 {
@@ -197,10 +201,14 @@ void setUp(void)
   dcd_int_disable_Ignore();
   dcd_int_enable_Ignore();
 
-  if ( !tud_inited() )
-  {
-    dcd_init_Expect(rhport);
-    tusb_init();
+  if ( !tud_inited() ) {
+    tusb_rhport_init_t dev_init = {
+      .role = TUSB_ROLE_DEVICE,
+      .speed = TUSB_SPEED_AUTO
+    };
+
+    dcd_init_ExpectAndReturn(0, &dev_init, true);
+    tusb_init(0, &dev_init);
   }
 
   dcd_event_bus_reset(rhport, TUSB_SPEED_HIGH, false);

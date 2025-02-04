@@ -1,3 +1,8 @@
+/* metadata:
+   name: nanoCH32V203
+   url: https://github.com/wuxx/nanoCH32V203
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

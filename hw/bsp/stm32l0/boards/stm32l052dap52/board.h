@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 L052 DAP
+   url: n/a
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

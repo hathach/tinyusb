@@ -31,7 +31,7 @@
 
 // Version is release as major.minor.revision eg 1.0.0
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     17
+#define TUSB_VERSION_MINOR     18
 #define TUSB_VERSION_REVISION  0
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
@@ -91,6 +91,9 @@
 #define OPT_MCU_STM32U5           313 ///< ST U5
 #define OPT_MCU_STM32L5           314 ///< ST L5
 #define OPT_MCU_STM32H5           315 ///< ST H5
+#define OPT_MCU_STM32U0           316 ///< ST U0
+#define OPT_MCU_STM32H7RS         317 ///< ST F7RS
+#define OPT_MCU_STM32C0           318 ///< ST C0
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -123,7 +126,9 @@
 #define OPT_MCU_ESP32C6           904 ///< Espressif ESP32-C6
 #define OPT_MCU_ESP32C2           905 ///< Espressif ESP32-C2
 #define OPT_MCU_ESP32H2           906 ///< Espressif ESP32-H2
-#define TUP_MCU_ESPRESSIF         (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
+#define OPT_MCU_ESP32P4           907 ///< Espressif ESP32-P4
+#define TUSB_MCU_VENDOR_ESPRESSIF (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
+#define TUP_MCU_ESPRESSIF        TUSB_MCU_VENDOR_ESPRESSIF //  for backward compatibility
 
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
@@ -147,7 +152,7 @@
 #define OPT_MCU_RX63X            1400 ///< Renesas RX63N/631
 #define OPT_MCU_RX65X            1401 ///< Renesas RX65N/RX651
 #define OPT_MCU_RX72N            1402 ///< Renesas RX72N
-#define OPT_MCU_RAXXX            1403 ///< Renesas RAxxx families
+#define OPT_MCU_RAXXX            1403 ///< Renesas RA generic
 
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
@@ -210,6 +215,7 @@
 #define OPT_OS_PICO       5  ///< Raspberry Pi Pico SDK
 #define OPT_OS_RTTHREAD   6  ///< RT-Thread
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
+#define OPT_OS_ZEPHYR     8  ///< Zephyr
 
 //--------------------------------------------------------------------+
 // Mode and Speed
@@ -228,7 +234,7 @@
 #define OPT_MODE_SPEED_MASK     0xff00
 
 //--------------------------------------------------------------------+
-// Include tusb_config.h and tusb_mcu.h
+// Include tusb_config.h
 //--------------------------------------------------------------------+
 
 // Allow to use command line to change the config name/location
@@ -239,6 +245,60 @@
 #endif
 
 #include "common/tusb_mcu.h"
+
+//--------------------------------------------------------------------+
+// USBIP
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUD_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT 1
+  #endif
+
+  #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
+#endif
+
+// Enable DWC2 DMA for device
+#ifndef CFG_TUD_DWC2_DMA_ENABLE
+  #ifndef CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
+  #define CFG_TUD_DWC2_DMA_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
+#endif
+
+// Enable DWC2 Slave mode for host
+#ifndef CFG_TUH_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT 1
+  #endif
+
+  #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+#endif
+
+// Enable DWC2 DMA for host
+#ifndef CFG_TUH_DWC2_DMA_ENABLE
+  #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUH_DWC2_DMA_ENABLE   CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
+#endif
+
+// Enable PIO-USB software host controller
+#ifndef CFG_TUH_RPI_PIO_USB
+  #define CFG_TUH_RPI_PIO_USB 0
+#endif
+
+#ifndef CFG_TUD_RPI_PIO_USB
+  #define CFG_TUD_RPI_PIO_USB 0
+#endif
+
+// MAX3421 Host controller option
+#ifndef CFG_TUH_MAX3421
+  #define CFG_TUH_MAX3421  0
+#endif
+
 
 //--------------------------------------------------------------------
 // RootHub Mode detection
@@ -347,13 +407,25 @@
   #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
 #endif
 
+#ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE
+  #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
+  #endif
+
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
+#endif
+
 // OS selection
 #ifndef CFG_TUSB_OS
   #define CFG_TUSB_OS             OPT_OS_NONE
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
-  #define CFG_TUSB_OS_INC_PATH
+  #ifndef CFG_TUSB_OS_INC_PATH_DEFAULT
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT
+  #endif
+
+  #define CFG_TUSB_OS_INC_PATH  CFG_TUSB_OS_INC_PATH_DEFAULT
 #endif
 
 //--------------------------------------------------------------------
@@ -368,6 +440,18 @@
 // Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN)
 #ifndef CFG_TUD_MEM_ALIGN
   #define CFG_TUD_MEM_ALIGN       CFG_TUSB_MEM_ALIGN
+#endif
+
+#ifndef CFG_TUD_MEM_DCACHE_ENABLE
+  #ifndef CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  0
+  #endif
+
+  #define CFG_TUD_MEM_DCACHE_ENABLE   CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT
+#endif
+
+#ifndef CFG_TUD_MEM_DCACHE_LINE_SIZE
+  #define CFG_TUD_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
 #endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
@@ -477,6 +561,18 @@
   #define CFG_TUH_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
 #endif
 
+#ifndef CFG_TUH_MEM_DCACHE_ENABLE
+  #ifndef CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  0
+  #endif
+
+  #define CFG_TUH_MEM_DCACHE_ENABLE   CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT
+#endif
+
+#ifndef CFG_TUH_MEM_DCACHE_LINE_SIZE
+  #define CFG_TUH_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
+#endif
+
 //------------- CLASS -------------//
 
 #ifndef CFG_TUH_HUB
@@ -546,20 +642,6 @@
 
 #ifndef CFG_TUH_API_EDPT_XFER
   #define CFG_TUH_API_EDPT_XFER 0
-#endif
-
-// Enable PIO-USB software host controller
-#ifndef CFG_TUH_RPI_PIO_USB
-  #define CFG_TUH_RPI_PIO_USB 0
-#endif
-
-#ifndef CFG_TUD_RPI_PIO_USB
-  #define CFG_TUD_RPI_PIO_USB 0
-#endif
-
-// MAX3421 Host controller option
-#ifndef CFG_TUH_MAX3421
-  #define CFG_TUH_MAX3421  0
 #endif
 
 //--------------------------------------------------------------------+

@@ -1,3 +1,8 @@
+/* metadata:
+   name: Sipeed Longan Nano
+   url: https://longan.sipeed.com/en/
+*/
+
 #ifndef _NUCLEI_SDK_HAL_H
 #define _NUCLEI_SDK_HAL_H
 

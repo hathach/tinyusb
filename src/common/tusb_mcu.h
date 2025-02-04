@@ -108,11 +108,19 @@
   #define TUP_DCD_ENDPOINT_MAX    16
 
 #elif TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX)
+  #include "fsl_device_registers.h"
+
   #define TUP_USBIP_CHIPIDEA_HS
   #define TUP_USBIP_EHCI
 
   #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_RHPORT_HIGHSPEED    1
+
+  #if __CORTEX_M == 7
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  1
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  1
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE      32
+  #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L, OPT_MCU_KINETIS_K)
   #define TUP_USBIP_CHIPIDEA_FS
@@ -169,6 +177,7 @@
       defined (STM32F107xB) || defined (STM32F107xC)
     #define TUP_USBIP_DWC2
     #define TUP_USBIP_DWC2_STM32
+    #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
 
     #define TUP_DCD_ENDPOINT_MAX  4
   #elif defined(STM32F102x6) || defined(STM32F102xB) || \
@@ -237,6 +246,11 @@
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_DCD_ENDPOINT_MAX    8
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32C0)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_STM32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32L0, OPT_MCU_STM32L1)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
@@ -293,6 +307,21 @@
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_DCD_ENDPOINT_MAX    8
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32U0)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_STM32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_STM32H7RS)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_STM32
+
+  // FS has 6, HS has 9
+  #define TUP_DCD_ENDPOINT_MAX    9
+
+  // MCU with on-chip HS Phy
+  #define TUP_RHPORT_HIGHSPEED    1
+
 //--------------------------------------------------------------------+
 // Sony
 //--------------------------------------------------------------------+
@@ -337,13 +366,37 @@
 #elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_ESP32
-  #define TUP_DCD_ENDPOINT_MAX    6
+  #define TUP_DCD_ENDPOINT_MAX    7 // only 5 TX FIFO for endpoint IN
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
+
+  // Disable slave if DMA is enabled
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUH_DWC2_DMA_ENABLE
+
+#elif TU_CHECK_MCU(OPT_MCU_ESP32P4)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_ESP32
+  #define TUP_RHPORT_HIGHSPEED    1  // port0 FS, port1 HS
+  #define TUP_DCD_ENDPOINT_MAX    16 // FS 7 ep, HS 16 ep
+
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
+
+  // Disable slave if DMA is enabled
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUH_DWC2_DMA_ENABLE
+
+  // Enable dcache if DMA is enabled
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  CFG_TUH_DWC2_DMA_ENABLE
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT  64
 
 #elif TU_CHECK_MCU(OPT_MCU_ESP32, OPT_MCU_ESP32C2, OPT_MCU_ESP32C3, OPT_MCU_ESP32C6, OPT_MCU_ESP32H2)
   #if (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
   #error "MCUs are only supported with CFG_TUH_MAX3421 enabled"
   #endif
+
   #define TUP_DCD_ENDPOINT_MAX    0
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
 
 //--------------------------------------------------------------------+
 // Dialog
@@ -355,6 +408,7 @@
 // Raspberry Pi
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_RP2040)
+  #define TUP_DCD_EDPT_ISO_ALLOC
   #define TUP_DCD_ENDPOINT_MAX    16
 
   #define TU_ATTR_FAST_FUNC       __attribute__((section(".time_critical.tinyusb")))
@@ -524,7 +578,7 @@
   #define TUP_DCD_EDPT_ISO_ALLOC
 #endif
 
-#if defined(TUP_USBIP_DWC2)
+#if defined(TUP_USBIP_DWC2) // && CFG_TUD_DWC2_DMA_ENABLE == 0
   #define TUP_MEM_CONST_ADDR
 #endif
 

@@ -130,9 +130,8 @@ static void enable_functional_reset(const bool enable)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init (uint8_t rhport)
-{
-  (void) rhport;
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rhport; (void) rh_init;
 
   USBKEYPID = USBKEY;
 
@@ -164,6 +163,8 @@ void dcd_init (uint8_t rhport)
   }
 
   USBKEYPID = 0;
+
+  return true;
 }
 
 // There is no "USB peripheral interrupt disable" bit on MSP430, so we have
@@ -699,7 +700,11 @@ static void handle_bus_power_event(void *param) {
 
     // A successful lock is indicated by all PLL-related interrupt flags being cleared.
     if(!USBPLLIR) {
-      dcd_init(0);                    // Re-initialize the USB module.
+      const tusb_rhport_init_t rhport_init = {
+        .role = TUSB_ROLE_DEVICE,
+        .speed = TUSB_SPEED_FULL
+      };
+      dcd_init(0, &rhport_init);         // Re-initialize the USB module.
     }
   } else {                            // Event caused by removal of bus power.
     USBPWRCTL |= VBONIE;              // Enable bus-power-applied interrupt.

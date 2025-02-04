@@ -5,6 +5,7 @@ MCU_VARIANT = ra6m5
 JLINK_DEVICE = R7FA6M5BH
 
 # Port 1 is highspeed
-PORT ?= 1
+RHPORT_DEVICE ?= 1
+RHPORT_HOST ?= 0
 
 flash: flash-jlink

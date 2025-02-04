@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 P-NUCLEO-WB55
+   url: https://www.st.com/en/evaluation-tools/p-nucleo-wb55.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

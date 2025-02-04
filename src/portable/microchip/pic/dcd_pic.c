@@ -470,8 +470,8 @@ static void process_bus_resume(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   intr_disable(rhport);
   intr_clear(rhport);
 
@@ -502,6 +502,7 @@ void dcd_init(uint8_t rhport)
   U1IE = _U1IE_URSTIE_MASK;
 
   dcd_connect(rhport);
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

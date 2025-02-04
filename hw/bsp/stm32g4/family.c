@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: STMicroelectronics
+*/
+
 #include "stm32g4xx_hal.h"
 #include "stm32g4xx_ll_bus.h"
 
@@ -53,7 +57,9 @@ void UCPD1_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
+#ifdef UART_DEV
 UART_HandleTypeDef UartHandle;
+#endif
 
 void board_init(void) {
   HAL_Init();
@@ -66,8 +72,6 @@ void board_init(void) {
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
-
-  UART_CLK_EN();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -103,6 +107,8 @@ void board_init(void) {
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
 #ifdef UART_DEV
+  UART_CLK_EN();
+
   // UART
   memset(&GPIO_InitStruct, 0, sizeof(GPIO_InitStruct));
   GPIO_InitStruct.Pin       = UART_TX_PIN | UART_RX_PIN;
@@ -193,7 +199,6 @@ int board_uart_write(void const *buf, int len) {
 #else
   (void) buf;
   (void) len;
-  (void) UartHandle;
   return 0;
 #endif
 }

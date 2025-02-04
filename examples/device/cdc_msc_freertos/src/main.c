@@ -30,24 +30,9 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
-#if TUP_MCU_ESPRESSIF
-  // ESP-IDF need "freertos/" prefix in include path.
-  // CFG_TUSB_OS_INC_PATH should be defined accordingly.
-  #include "freertos/FreeRTOS.h"
-  #include "freertos/semphr.h"
-  #include "freertos/queue.h"
-  #include "freertos/task.h"
-  #include "freertos/timers.h"
-
+#if TUSB_MCU_VENDOR_ESPRESSIF
   #define USBD_STACK_SIZE     4096
 #else
-
-  #include "FreeRTOS.h"
-  #include "semphr.h"
-  #include "queue.h"
-  #include "task.h"
-  #include "timers.h"
-
   // Increase stack size when debug log is enabled
   #define USBD_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
 #endif
@@ -95,14 +80,10 @@ void cdc_task(void *params);
 int main(void) {
   board_init();
 
+  // Create task for: tinyusb, blinky, cdc
 #if configSUPPORT_STATIC_ALLOCATION
-  // blinky task
   xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
-
-  // Create a task for tinyusb device stack
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);
-
-  // Create CDC task
   xTaskCreateStatic(cdc_task, "cdc", CDC_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, cdc_stack, &cdc_taskdef);
 #else
   xTaskCreate(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, NULL);
@@ -110,15 +91,15 @@ int main(void) {
   xTaskCreate(cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
 
+#if !TUSB_MCU_VENDOR_ESPRESSIF
   // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
-#if !TUP_MCU_ESPRESSIF
   vTaskStartScheduler();
 #endif
 
   return 0;
 }
 
-#if TUP_MCU_ESPRESSIF
+#if TUSB_MCU_VENDOR_ESPRESSIF
 void app_main(void) {
   main();
 }
@@ -132,7 +113,11 @@ static void usb_device_task(void *param) {
   // init device stack on configured roothub port
   // This should be called after scheduler/kernel is started.
   // Otherwise it could cause kernel issue since USB IRQ handler does use RTOS queue API.
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();

@@ -106,7 +106,11 @@ int main(void)
   board_init();
 
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
@@ -414,7 +418,7 @@ void audio_task(void)
   if ( start_ms == curr_ms ) return; // not enough time
   start_ms = curr_ms;
 
-  uint16_t length = current_sample_rate/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX;
+  uint16_t length = (uint16_t) (current_sample_rate/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX);
 
   if (current_sample_rate == 44100 && (curr_ms % 10 == 0))
   {
@@ -465,7 +469,7 @@ void audio_debug_task(void)
   debug_info.alt_settings   = current_alt_settings;
   debug_info.fifo_size      = CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ;
   debug_info.fifo_count     = fifo_count;
-  debug_info.fifo_count_avg = fifo_count_avg >> 16;
+  debug_info.fifo_count_avg = (uint16_t) (fifo_count_avg >> 16);
   for (int i = 0; i < CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1; i++)
   {
     debug_info.mute[i] = mute[i];

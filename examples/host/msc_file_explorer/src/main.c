@@ -62,14 +62,12 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
+#include "msc_app.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
-
-// from msc_app.c
-extern bool msc_app_init(void);
-extern void msc_app_task(void);
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -78,7 +76,11 @@ int main(void) {
   printf("TinyUSB Host MassStorage Explorer Example\r\n");
 
   // init host stack on configured roothub port
-  tuh_init(BOARD_TUH_RHPORT);
+  tusb_rhport_init_t host_init = {
+    .role = TUSB_ROLE_HOST,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUH_RHPORT, &host_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();

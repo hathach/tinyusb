@@ -52,37 +52,31 @@ typedef struct
 // Endpoint 0-5, each can only be either OUT or In
 xfer_desc_t _dcd_xfer[EP_COUNT];
 
-void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize)
-{
+TU_ATTR_ALWAYS_INLINE static inline void xfer_epsize_set(xfer_desc_t* xfer, uint16_t epsize) {
   xfer->epsize = epsize;
 }
 
-void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes)
-{
+TU_ATTR_ALWAYS_INLINE static inline void xfer_begin(xfer_desc_t* xfer, uint8_t * buffer, uint16_t total_bytes) {
   xfer->buffer     = buffer;
   // xfer->ff         = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 }
 
-void xfer_end(xfer_desc_t* xfer)
-{
+TU_ATTR_ALWAYS_INLINE static inline void xfer_end(xfer_desc_t* xfer) {
   xfer->buffer     = NULL;
   // xfer->ff         = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len  = 0;
   xfer->actual_len = 0;
 }
 
-uint16_t xfer_packet_len(xfer_desc_t* xfer)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t xfer_packet_len(xfer_desc_t* xfer) {
   // also cover zero-length packet
   return tu_min16(xfer->total_len - xfer->actual_len, xfer->epsize);
 }
 
-void xfer_packet_done(xfer_desc_t* xfer)
-{
+TU_ATTR_ALWAYS_INLINE static inline void xfer_packet_done(xfer_desc_t* xfer) {
   uint16_t const xact_len = xfer_packet_len(xfer);
-
   xfer->buffer += xact_len;
   xfer->actual_len += xact_len;
 }
@@ -90,19 +84,15 @@ void xfer_packet_done(xfer_desc_t* xfer)
 //------------- Transaction helpers -------------//
 
 // Write data to EP FIFO, return number of written bytes
-static void xact_ep_write(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
-{
-  for(uint16_t i=0; i<xact_len; i++)
-  {
+static void xact_ep_write(uint8_t epnum, uint8_t* buffer, uint16_t xact_len) {
+  for(uint16_t i=0; i<xact_len; i++) {
     UDP->UDP_FDR[epnum] = (uint32_t) buffer[i];
   }
 }
 
 // Read data from EP FIFO
-static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
-{
-  for(uint16_t i=0; i<xact_len; i++)
-  {
+static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len) {
+  for(uint16_t i=0; i<xact_len; i++) {
     buffer[i] = (uint8_t) UDP->UDP_FDR[epnum];
   }
 }
@@ -112,24 +102,24 @@ static void xact_ep_read(uint8_t epnum, uint8_t* buffer, uint16_t xact_len)
 #define CSR_NO_EFFECT_1_ALL (UDP_CSR_RX_DATA_BK0 | UDP_CSR_RX_DATA_BK1 | UDP_CSR_STALLSENT | UDP_CSR_RXSETUP | UDP_CSR_TXCOMP)
 
 // Per Specs: CSR need synchronization each write
-static inline void csr_write(uint8_t epnum, uint32_t value)
-{
+TU_ATTR_ALWAYS_INLINE static inline void csr_write(uint8_t epnum, uint32_t value) {
   uint32_t const csr = value;
   UDP->UDP_CSR[epnum] = csr;
 
   volatile uint32_t nop_count;
-  for (nop_count = 0; nop_count < 20; nop_count ++) __NOP();
+  for (nop_count = 0; nop_count < 20; nop_count ++) {
+    __NOP();
+  }
 }
 
 // Per Specs: CSR need synchronization each write
-static inline void csr_set(uint8_t epnum, uint32_t mask)
+TU_ATTR_ALWAYS_INLINE static inline void csr_set(uint8_t epnum, uint32_t mask)
 {
   csr_write(epnum, UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL | mask);
 }
 
 // Per Specs: CSR need synchronization each write
-static inline void csr_clear(uint8_t epnum, uint32_t mask)
-{
+TU_ATTR_ALWAYS_INLINE static inline void csr_clear(uint8_t epnum, uint32_t mask) {
   csr_write(epnum, (UDP->UDP_CSR[epnum] | CSR_NO_EFFECT_1_ALL) & ~mask);
 }
 
@@ -155,10 +145,13 @@ static void bus_reset(void)
 }
 
 // Initialize controller to device mode
-void dcd_init (uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rhport;
+  (void) rh_init;
+
   tu_memclr(_dcd_xfer, sizeof(_dcd_xfer));
   dcd_connect(rhport);
+  return true;
 }
 
 // Enable device interrupt

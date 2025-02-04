@@ -79,7 +79,7 @@
 
 //--------------------------------------------------------------------+
 // Optional API implemented by application if needed
-// TODO move to a more ovious place/file
+// TODO move to a more obvious place/file
 //--------------------------------------------------------------------+
 
 // flush data cache
@@ -123,11 +123,15 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, c
 
 //------------- Bytes -------------//
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_u32(uint8_t b3, uint8_t b2, uint8_t b1, uint8_t b0) {
-  return ( ((uint32_t) b3) << 24) | ( ((uint32_t) b2) << 16) | ( ((uint32_t) b1) << 8) | b0;
+  return (((uint32_t)b3) << 24) | (((uint32_t)b2) << 16) | (((uint32_t)b1) << 8) | b0;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_u32_from_u16(uint16_t high, uint16_t low) {
+  return (((uint32_t)high) << 16) | low;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_u16(uint8_t high, uint8_t low) {
-  return (uint16_t) ((((uint16_t) high) << 8) | low);
+  return (uint16_t)((((uint16_t)high) << 8) | low);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_u32_byte3(uint32_t ui32) { return TU_U32_BYTE3(ui32); }
@@ -172,7 +176,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_is_aligned32(uint32_t value) { retur
 TU_ATTR_ALWAYS_INLINE static inline bool tu_is_aligned64(uint64_t value) { return (value & 0x3FUL) == 0; }
 
 //------------- Mathematics -------------//
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_ceil(uint32_t v, uint32_t d) { return (v + d -1)/d; }
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_ceil(uint32_t v, uint32_t d) { return TU_DIV_CEIL(v, d); }
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_round_up(uint32_t v, uint32_t f) { return tu_div_ceil(v, f) * f; }
 
 // log2 of a value is its MSB's position
 // TODO use clz TODO remove

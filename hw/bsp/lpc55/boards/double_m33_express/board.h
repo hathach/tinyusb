@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Double M33 Express
+   url: https://www.crowdsupply.com/steiert-solutions/double-m33-express
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
