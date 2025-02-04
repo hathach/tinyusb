@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
  * Copyright (c) 2021 Ha Thach (tinyusb.org) for Double Buffered
- * Copyright (c) 2024 rppicomidi for EPx-only operation (fix Data Sequence error chip bug)
+ * Copyright (c) 2024-2025 rppicomidi for EPx-only operation (fix Data Sequence error chip bug)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -184,23 +184,6 @@ static struct
   uint32_t frame_num;
 } frame_time_info;
 
-#if 0
-// TODO: Do we need this function?
-static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
-{
-  uint8_t num = tu_edpt_number(ep_addr);
-  if ( num == 0 ) return &epx;
-
-  for ( uint32_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++ )
-  {
-    struct hw_endpoint *ep = &ep_pool[i];
-    if ( ep->configured && (ep->dev_addr == dev_addr) && (ep->ep_addr == ep_addr) ) return ep;
-  }
-
-  return NULL;
-}
-#endif
-
 int8_t get_dev_ep_idx(uint8_t dev_addr, uint8_t ep_addr)
 {
   uint8_t num = tu_edpt_number(ep_addr);
@@ -227,15 +210,7 @@ static void __tusb_irq_path_func(hw_xfer_complete)(struct hw_endpoint *ep, xfer_
   uint8_t dev_addr = ep->dev_addr;
   uint8_t ep_addr = ep->ep_addr;
   uint xferred_len = ep->xferred_len;
-#if 0
-  uint8_t ep_num = tu_edpt_number(ep_addr);
-  if (ep_num != 0)
-  {
-    // copy the buffer control data back to the endpoint
-    struct hw_endpoint* og_ep = get_dev_ep(dev_addr, ep_addr);
-    *og_ep->buffer_control = *ep->buffer_control;
-  }
-#endif
+
   hw_endpoint_reset_transfer(ep);
   hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
@@ -277,29 +252,6 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
 
     _handle_buff_status_bit(bit, ep);
   }
-#if 0
-  // Check "interrupt" (asynchronous) endpoints for both IN and OUT
-  for ( uint i = 1; i <= USB_HOST_INTERRUPT_ENDPOINTS && remaining_buffers; i++ )
-  {
-    // EPX is bit 0 & 1
-    // IEP1 IN  is bit 2
-    // IEP1 OUT is bit 3
-    // IEP2 IN  is bit 4
-    // IEP2 OUT is bit 5
-    // IEP3 IN  is bit 6
-    // IEP3 OUT is bit 7
-    // etc
-    for ( uint j = 0; j < 2; j++ )
-    {
-      bit = 1 << (i * 2 + j);
-      if ( remaining_buffers & bit )
-      {
-        remaining_buffers &= ~bit;
-        _handle_buff_status_bit(bit, &ep_pool[i]);
-      }
-    }
-  }
-#endif
 
   if ( remaining_buffers )
   {
