@@ -613,13 +613,6 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
     usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
   }
 
-  // This is how application space forces the scheduler to run
-  if ( status & USB_INTS_DEV_SOF_BITS )
-  {
-    handled |= USB_INTS_DEV_SOF_BITS;
-    usb_hw_clear->intf = USB_INTF_DEV_SOF_BITS;
-  }
-
   if ( status ^ handled )
   {
     panic("Unhandled IRQ 0x%x\n", (uint) (status ^ handled));
@@ -781,7 +774,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                  USB_INTE_TRANS_COMPLETE_BITS   |
                  USB_INTE_ERROR_RX_TIMEOUT_BITS |
                  USB_INTE_HOST_SOF_BITS         |
-                 USB_INTE_DEV_SOF_BITS          |  // <= used by hcd_setup_send()
                  USB_INTE_ERROR_DATA_SEQ_BITS   ;
   tu_memclr(nak_mask, sizeof(nak_mask));
   control_xfers[0].daddr = 0;
@@ -997,8 +989,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
   // next call schedule_next_transfer() will start the transfer
   // if no other higher priority transfer is pending
-  // this interrupt is never used by the host, but it forces the scheduler now.
-  usb_hw_set->intf = USB_INTF_DEV_SOF_BITS;
   return true;
 }
 
@@ -1030,9 +1020,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   hw_endpoint_lock_update(&epx, -1);
   // next call schedule_next_transfer() will start the transfer
   // if no other higher priority control transfer is pending
-
-  // this interrupt is never used by the host, but it forces the scheduler now.
-  usb_hw_set->intf = USB_INTF_DEV_SOF_BITS;
   return true;
 }
 
