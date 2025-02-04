@@ -343,11 +343,13 @@ void __tusb_irq_path_func(_hw_epx_xfer_start)(uint8_t dev_addr, uint8_t ep_addr,
 // Control transfers operate until completion. NAK on the bus
 // causes auto-retry.
 //
-// Every SOF interrupt, all endpoints will be polled. BULK and INTERRUPT
+// Every SOF interrupt, all endpoints will be polled. INTERRUPT
 // endpoints that respond with NAK will not be polled again until the
 // next SOF at the soonest. If there is not enough time in the frame to
 // poll all endpoints, then INTERRUPT endpoints have priority over BULK
-// endpoints.
+// endpoints. If there is extra time at the end of the frame, BULK
+// endpoints that have responded with NAK will be polled again until
+// there is not enough time left in the frame.
 //
 // If the epx endpoint is in the middle of a transfer, then scheduling
 // is postponed
@@ -412,6 +414,12 @@ static void __tusb_irq_path_func(hcd_schedule_next_transfer)()
       active_xfer.pht = NULL;
       return;
     }
+    now = get_absolute_time();
+    // Must be at least 100us left in the 1000us frame
+    if (absolute_time_diff_us(frame_time_info.timestamp, now) > 900)
+    {
+      return;
+    }
   }
   // If there are any pending Interrupt transactions, start one
   // if its polling interval is exceeded
@@ -421,6 +429,12 @@ static void __tusb_irq_path_func(hcd_schedule_next_transfer)()
     int8_t old_idx = interrupt_xfers.idx;
     do
     {
+      now = get_absolute_time();
+      // Must be at least 100us left in the 1000us frame
+      if (absolute_time_diff_us(frame_time_info.timestamp, now) > 900)
+      {
+        return;
+      }
       int8_t pool_idx = (int8_t)interrupt_xfers.pending[interrupt_xfers.idx];
       struct hw_endpoint* ep = ep_pool + pool_idx;
       interrupt_xfers.idx = (int8_t)((interrupt_xfers.idx+1) % interrupt_xfers.n_pending);
@@ -447,13 +461,15 @@ static void __tusb_irq_path_func(hcd_schedule_next_transfer)()
     int old_idx = bulk_xfers.idx;
     do
     {
+      now = get_absolute_time();
+      // Must be at least 100us left in the 1000us frame
+      if (absolute_time_diff_us(frame_time_info.timestamp, now) > 900)
+      {
+        return;
+      }
       int8_t pool_idx = (int8_t)bulk_xfers.pending[bulk_xfers.idx];
       struct hw_endpoint* ep = ep_pool + pool_idx;
       bulk_xfers.idx = (int8_t)((bulk_xfers.idx+1) % bulk_xfers.n_pending);
-      if (is_nak_mask_set(ep->dev_addr, ep->ep_addr))
-      {
-        continue; // you only get to poll it once per frame
-      }
       _hw_setup_epx_from_ep(ep);
       active_xfer.pht = &bulk_xfers;
       active_xfer.idx = pool_idx;
@@ -595,6 +611,13 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   {
     handled |= USB_INTS_ERROR_RX_TIMEOUT_BITS;
     usb_hw_clear->sie_status = USB_SIE_STATUS_RX_TIMEOUT_BITS;
+  }
+
+  // This is how application space forces the scheduler to run
+  if ( status & USB_INTS_DEV_SOF_BITS )
+  {
+    handled |= USB_INTS_DEV_SOF_BITS;
+    usb_hw_clear->intf = USB_INTF_DEV_SOF_BITS;
   }
 
   if ( status ^ handled )
@@ -758,6 +781,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                  USB_INTE_TRANS_COMPLETE_BITS   |
                  USB_INTE_ERROR_RX_TIMEOUT_BITS |
                  USB_INTE_HOST_SOF_BITS         |
+                 USB_INTE_DEV_SOF_BITS          |  // <= used by hcd_setup_send()
                  USB_INTE_ERROR_DATA_SEQ_BITS   ;
   tu_memclr(nak_mask, sizeof(nak_mask));
   control_xfers[0].daddr = 0;
@@ -973,6 +997,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
   // next call schedule_next_transfer() will start the transfer
   // if no other higher priority transfer is pending
+  // this interrupt is never used by the host, but it forces the scheduler now.
+  usb_hw_set->intf = USB_INTF_DEV_SOF_BITS;
   return true;
 }
 
@@ -1004,6 +1030,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   hw_endpoint_lock_update(&epx, -1);
   // next call schedule_next_transfer() will start the transfer
   // if no other higher priority control transfer is pending
+
+  // this interrupt is never used by the host, but it forces the scheduler now.
+  usb_hw_set->intf = USB_INTF_DEV_SOF_BITS;
   return true;
 }
 
