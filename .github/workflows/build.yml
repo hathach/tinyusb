@@ -111,6 +111,7 @@ jobs:
 
   # ---------------------------------------
   # Build IAR on HFP self-hosted
+  # Since IAR Token secret is not passed to forked PR, only build on PR from the same repo
   # ---------------------------------------
   arm-iar:
     if: github.repository_owner == 'hathach' && github.event_name == 'push'

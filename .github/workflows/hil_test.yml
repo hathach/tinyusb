@@ -90,9 +90,10 @@ jobs:
   # ---------------------------------------
   # Hardware in the loop (HIL)
   # self-hosted by HFP, build with IAR toolchain, for attached hardware checkout test/hil/hfp.json
+  # Since IAR Token secret is not passed to forked PR, only build on PR from the same repo
   # ---------------------------------------
   hil-hfp:
-    if: github.repository_owner == 'hathach'
+    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
