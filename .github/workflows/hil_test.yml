@@ -94,8 +94,6 @@ jobs:
   hil-hfp:
     if: github.repository_owner == 'hathach'
     runs-on: [self-hosted, Linux, X64, hifiphile]
-    env:
-      IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
     steps:
       - name: Clean workspace
         run: |
