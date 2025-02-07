@@ -28,6 +28,32 @@
 
 #if CFG_TUD_MSC
 
+#if CFG_EXAMPLE_MSC_ASYNC_IO
+
+#define IO_STACK_SIZE      configMINIMAL_STACK_SIZE
+
+typedef struct {
+  uint8_t lun;
+  bool is_read;
+  uint32_t lba;
+  uint32_t offset;
+  void* buffer;
+  uint32_t bufsize;
+} io_ops_t;
+
+QueueHandle_t io_queue;
+#if configSUPPORT_STATIC_ALLOCATION
+uint8_t io_queue_buf[sizeof(io_ops_t)];
+StaticQueue_t io_queue_static;
+StackType_t  io_stack[IO_STACK_SIZE];
+StaticTask_t io_taskdef;
+#endif
+
+static void io_task(void *params);
+#endif
+
+void msc_disk_init(void);
+
 // whether host does safe-eject
 static bool ejected = false;
 
@@ -119,6 +145,43 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
   README_CONTENTS
 };
 
+#if CFG_EXAMPLE_MSC_ASYNC_IO
+void msc_disk_init() {
+
+#if configSUPPORT_STATIC_ALLOCATION
+  io_queue = xQueueCreateStatic(1, sizeof(io_ops_t), io_queue_buf, &io_queue_static);
+  xTaskCreateStatic(io_task, "io", IO_STACK_SIZE, NULL, 2, io_stack, &io_taskdef);
+#else
+  io_queue = xQueueCreate(1, sizeof(io_ops_t));
+  xTaskCreate(io_task, "io", IO_STACK_SIZE, NULL, 2, NULL);
+#endif
+}
+
+static void io_task(void *params) {
+  (void) params;
+  io_ops_t io_ops;
+  while (1) {
+    if (xQueueReceive(io_queue, &io_ops, portMAX_DELAY)) {
+      if (io_ops.is_read) {
+        uint8_t const* addr = msc_disk[io_ops.lba] + io_ops.offset;
+        memcpy(io_ops.buffer, addr, io_ops.bufsize);
+      } else {
+#ifndef CFG_EXAMPLE_MSC_READONLY
+        uint8_t* addr = msc_disk[io_ops.lba] + io_ops.offset;
+        memcpy(addr, io_ops.buffer, io_ops.bufsize);
+#endif
+      }
+
+      tusb_time_delay_ms_api(CFG_EXAMPLE_MSC_IO_DELAY_MS);
+      tud_msc_async_io_done(io_ops.bufsize);
+    }
+  }
+}
+
+#else
+void msc_disk_init() {}
+#endif
+
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
@@ -191,18 +254,28 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 
   // out of ramdisk
   if ( lba >= DISK_BLOCK_NUM ) {
-    return -1;
+    return TUD_MSC_RET_ERROR;
   }
 
   // Check for overflow of offset + bufsize
-  if ( offset + bufsize > DISK_BLOCK_SIZE ) {
-    return -1;
+  if ( lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE ) {
+    return TUD_MSC_RET_ERROR;
   }
 
+#if CFG_EXAMPLE_MSC_ASYNC_IO
+  io_ops_t io_ops = { .is_read = true, .lun = lun, .lba = lba, .offset = offset, .buffer = buffer, .bufsize = bufsize };
+
+  // Send IO operation to IO task
+  TU_ASSERT(xQueueSend(io_queue, &io_ops, 0) == pdPASS);
+
+  return TUD_MSC_RET_ASYNC;
+#else
   uint8_t const* addr = msc_disk[lba] + offset;
   memcpy(buffer, addr, bufsize);
+  tusb_time_delay_ms_api(CFG_EXAMPLE_MSC_IO_DELAY_MS);
 
-  return (int32_t) bufsize;
+  return bufsize;
+#endif
 }
 
 bool tud_msc_is_writable_cb (uint8_t lun)
@@ -220,19 +293,35 @@ bool tud_msc_is_writable_cb (uint8_t lun)
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
-  (void) lun;
-
   // out of ramdisk
-  if ( lba >= DISK_BLOCK_NUM ) return -1;
+  if ( lba >= DISK_BLOCK_NUM ) {
+    return TUD_MSC_RET_ERROR;
+  }
 
-#ifndef CFG_EXAMPLE_MSC_READONLY
-  uint8_t* addr = msc_disk[lba] + offset;
-  memcpy(addr, buffer, bufsize);
-#else
-  (void) lba; (void) offset; (void) buffer;
+  // Check for overflow of offset + bufsize
+  if ( lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE ) {
+    return TUD_MSC_RET_ERROR;
+  }
+
+#ifdef CFG_EXAMPLE_MSC_READONLY
+  (void) lun; (void) buffer;
+  return bufsize;
 #endif
 
-  return (int32_t) bufsize;
+#if CFG_EXAMPLE_MSC_ASYNC_IO
+  io_ops_t io_ops = { .is_read = false, .lun = lun, .lba = lba, .offset = offset, .buffer = buffer, .bufsize = bufsize };
+
+  // Send IO operation to IO task
+  TU_ASSERT(xQueueSend(io_queue, &io_ops, 0) == pdPASS);
+
+  return TUD_MSC_RET_ASYNC;
+#else
+  uint8_t* addr = msc_disk[lba] + offset;
+  memcpy(addr, buffer, bufsize);
+  tusb_time_delay_ms_api(CFG_EXAMPLE_MSC_IO_DELAY_MS);
+
+  return bufsize;
+#endif
 }
 
 // Callback invoked when received an SCSI command not in built-in list below

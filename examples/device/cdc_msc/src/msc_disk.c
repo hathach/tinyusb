@@ -195,7 +195,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
   }
 
   // Check for overflow of offset + bufsize
-  if ( offset + bufsize > DISK_BLOCK_SIZE ) {
+  if ( lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE ) {
     return -1;
   }
 
@@ -223,7 +223,14 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
   (void) lun;
 
   // out of ramdisk
-  if ( lba >= DISK_BLOCK_NUM ) return -1;
+  if ( lba >= DISK_BLOCK_NUM ) {
+    return -1;
+  }
+
+  // Check for overflow of offset + bufsize
+  if ( lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE ) {
+    return -1;
+  }
 
 #ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t* addr = msc_disk[lba] + offset;
