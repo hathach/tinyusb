@@ -1,3 +1,9 @@
+
+/* metadata:
+   name: STM32 F207 Nucleo
+   url: https://www.st.com/en/evaluation-tools/nucleo-f207zg.html
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

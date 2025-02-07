@@ -10,7 +10,7 @@ It is relatively simple to incorporate tinyusb to your project
 * Copy or ``git submodule`` this repo into your project in a subfolder. Let's say it is *your_project/tinyusb*
 * Add all the .c in the ``tinyusb/src`` folder to your project
 * Add *your_project/tinyusb/src* to your include path. Also make sure your current include path also contains the configuration file tusb_config.h.
-* Make sure all required macros are all defined properly in tusb_config.h (configure file in demo application is sufficient, but you need to add a few more such as CFG_TUSB_MCU, CFG_TUSB_OS since they are passed by IDE/compiler to maintain a unique configure for all boards).
+* Make sure all required macros are all defined properly in tusb_config.h (configure file in demo application is sufficient, but you need to add a few more such as ``CFG_TUSB_MCU``, ``CFG_TUSB_OS`` since they are passed by IDE/compiler to maintain a unique configure for all boards).
 * If you use the device stack, make sure you have created/modified usb descriptors for your own need. Ultimately you need to implement all **tud descriptor** callbacks for the stack to work.
 * Add tusb_init(rhport, role) call to your reset initialization code.
 * Call ``tusb_int_handler(rhport, in_isr)`` in your USB IRQ Handler
@@ -20,8 +20,17 @@ It is relatively simple to incorporate tinyusb to your project
 .. code-block::
 
    int main(void) {
-     your_init_code();
-     tusb_init(0, TUSB_ROLE_DEVICE); // initialize device stack on roothub port 0
+     tusb_rhport_init_t dev_init = {
+        .role = TUSB_ROLE_DEVICE,
+        .speed = TUSB_SPEED_AUTO
+     };
+     tusb_init(0, &dev_init); // initialize device stack on roothub port 0
+
+     tusb_rhport_init_t host_init = {
+        .role = TUSB_ROLE_HOST,
+        .speed = TUSB_SPEED_AUTO
+     };
+     tusb_init(1, &host_init); // initialize host stack on roothub port 1
 
      while(1) { // the mainloop
        your_application_code();
@@ -30,10 +39,18 @@ It is relatively simple to incorporate tinyusb to your project
      }
    }
 
+   void USB0_IRQHandler(void) {
+     tusb_int_handler(0, true);
+   }
+
+   void USB1_IRQHandler(void) {
+     tusb_int_handler(1, true);
+   }
+
 Examples
 --------
 
-For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API() should be used. Most examples will work on most of `the supported boards <supported.rst>`_. Firstly we need to ``git clone`` if not already
+For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API() should be used. Most examples will work on most of `the supported boards <boards.rst>`_. Firstly we need to ``git clone`` if not already
 
 .. code-block::
 

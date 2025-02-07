@@ -80,12 +80,14 @@
       <configuration PROFILE_NAME="samd11_xplained" ENABLED="false" CONFIG_NAME="MinSizeRel" GENERATION_OPTIONS="-DBOARD=samd11_xplained" />
       <configuration PROFILE_NAME="atsaml21_xpro" ENABLED="false" GENERATION_OPTIONS="-DBOARD=atsaml21_xpro" />
       <configuration PROFILE_NAME="feather_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m4_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
-      <configuration PROFILE_NAME="metro_m4_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="metro_m4_express" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m4_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
+      <configuration PROFILE_NAME="feather_m4_express-zephyr" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_m4_express -DLOG=1 -DMAX3421_HOST=1 -DRTOS=zephyr" />
       <configuration PROFILE_NAME="itsybitsy_m4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=itsybitsy_m4" />
       <configuration PROFILE_NAME="same54_xplained" ENABLED="false" GENERATION_OPTIONS="-DBOARD=same54_xplained -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="samg55_xplained" ENABLED="false" GENERATION_OPTIONS="-DBOARD=samg55_xplained" />
       <configuration PROFILE_NAME="feather_nrf52840_express" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_nrf52840_express -DLOG=1 -DLOGGER=RTT -DMAX3421_HOST=1" />
-      <configuration PROFILE_NAME="pca10056" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10056 -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="pca10056" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10056 -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
+      <configuration PROFILE_NAME="pca10056-zephyr" ENABLED="true" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10056 -DLOG=1 -DTRACE_ETM=1 -DRTOS=zephyr" BUILD_OPTIONS="-v" />
       <configuration PROFILE_NAME="pca10095" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pca10095 -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="metro m7 1011 sd" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011_sd -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="metro_m7_1011" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011 -DLOG=1 -DLOGGER=RTT" />

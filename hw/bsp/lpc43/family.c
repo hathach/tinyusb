@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: NXP
+*/
+
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -42,6 +46,11 @@
 /* System configuration variables used by chip driver */
 const uint32_t OscRateIn = 12000000;
 const uint32_t ExtRateIn = 0;
+
+extern void USB0_IRQHandler(void);
+extern void USB1_IRQHandler(void);
+extern void SysTick_Handler(void);
+void SystemInit(void);
 
 /*------------------------------------------------------------------*/
 /* BOARD API

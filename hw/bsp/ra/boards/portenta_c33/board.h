@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Arduino Portenta C33
+   url: https://www.arduino.cc/pro/hardware-product-portenta-c33/
+*/
+
 #ifndef _BOARD_H_
 #define _BOARD_H_
 

@@ -11,7 +11,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(LD_FILE_Clang ${LD_FILE_GNU})
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 set(JLINK_DEVICE max32650)
 set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -f target/max32650.cfg")
@@ -130,21 +130,20 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MAX32650 ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_MAX32650)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/mentor/musb/dcd_musb.c
     )
   target_compile_options(${TARGET} PRIVATE
     -Wno-error=strict-prototypes
     )
 
-    target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
-  target_compile_options(${TARGET}-tinyusb PRIVATE
+    target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+  target_compile_options(${TARGET} PRIVATE
     -Wno-error=strict-prototypes
     )
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

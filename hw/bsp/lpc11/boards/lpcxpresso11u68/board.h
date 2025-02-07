@@ -1,3 +1,8 @@
+/* metadata:
+  name: LPCXpresso11U68
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/OM13058
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

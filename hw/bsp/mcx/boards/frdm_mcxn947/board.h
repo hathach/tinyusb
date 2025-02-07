@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Freedom MCXN947
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXN947
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

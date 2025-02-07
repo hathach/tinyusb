@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Daisy Seed
+   url: https://electro-smith.com/products/daisy-seed
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

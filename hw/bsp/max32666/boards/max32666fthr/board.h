@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: MAX32666 Feather
+   url: https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32666fthr.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

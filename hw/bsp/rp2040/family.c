@@ -25,6 +25,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Raspberry Pi
+*/
+
 #include "pico/stdlib.h"
 #include "pico/binary_info.h"
 #include "pico/unique_id.h"

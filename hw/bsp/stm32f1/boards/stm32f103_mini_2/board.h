@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 F103 Mini v2
+   url: https://stm32-base.org/boards/STM32F103RCT6-STM32-Mini-V2.0
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

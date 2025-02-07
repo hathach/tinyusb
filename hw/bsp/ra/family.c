@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Renesas
+*/
+
 #include <stdio.h>
 
 #ifdef __GNUC__

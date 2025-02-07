@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 H750b Discovery Kit
+   url: https://www.st.com/en/evaluation-tools/stm32h750b-dk.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

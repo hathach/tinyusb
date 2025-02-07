@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 L4R5 Nucleo
+   url: https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

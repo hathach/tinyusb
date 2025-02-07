@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Espresif P4 Function EV
+   url: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/index.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
