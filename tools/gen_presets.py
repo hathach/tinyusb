@@ -24,46 +24,57 @@ def main():
         {"name": "default",
          "hidden": True,
          "description": r"Configure preset for the ${presetName} board",
-         "generator": "Ninja",
+         "generator": "Ninja Multi-Config",
          "binaryDir": r"${sourceDir}/build/${presetName}",
          "cacheVariables": {
-             "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+             "CMAKE_DEFAULT_BUILD_TYPE": "RelWithDebInfo",
              "BOARD": r"${presetName}"
-         }
-         }]
+         }}]
 
     presets['configurePresets'].extend(
-        [{'name': board, 'inherits': 'default'} for board in board_list]
+        sorted(
+            [
+                {
+                    'name': board,
+                    'inherits': 'default'
+                }
+                for board in board_list
+            ], key=lambda x: x['name']
+        )
     )
 
     # Build presets
     # no inheritance since 'name' doesn't support macro expansion
-    presets['buildPresets'] = [
-        {
-            'name': board,
-            'description': "Build preset for the " + board + " board",
-            'configurePreset': board
-        }
-        for board in board_list
-    ]
+    presets['buildPresets'] = sorted(
+        [
+            {
+                'name': board,
+                'description': "Build preset for the " + board + " board",
+                'configurePreset': board
+            }
+            for board in board_list
+        ], key=lambda x: x['name']
+    )
 
     # Workflow presets
-    presets['workflowPresets'] = [
-        {
-            "name": board,
-            "steps": [
-                {
-                    "type": "configure",
-                    "name": board
-                },
-                {
-                    "type": "build",
-                    "name": board
-                }
-            ]
-        }
-        for board in board_list
-    ]
+    presets['workflowPresets'] = sorted(
+        [
+            {
+                "name": board,
+                "steps": [
+                    {
+                        "type": "configure",
+                        "name": board
+                    },
+                    {
+                        "type": "build",
+                        "name": board
+                    }
+                ]
+            }
+            for board in board_list
+        ], key=lambda x: x['name']
+    )
 
     with open("hw/bsp/BoardPresets.json", "w") as f:
         f.write('{}\n'.format(json.dumps(presets, indent=2)))
@@ -86,6 +97,7 @@ def main():
 
     print('Generating presets for the following examples:')
     print(example_list)
+
 
 if __name__ == "__main__":
     main()
