@@ -18,12 +18,9 @@ latex
 .settings/
 .vscode/
 .gdb_history
-/examples/*/*/build*
 test_old/
 tests_obsolete/
 _build
-/examples/*/*/ses
-/examples/*/*/ozone
 /examples/obsolete
 hw/bsp/**/cubemx/*/
 .mxproject
@@ -38,3 +35,8 @@ sdkconfig
 .PVS-Studio
 .vscode/
 build/
+# example build directories
+/examples/device/*/*/
+/examples/dual/*/*/
+/examples/host/*/*/
+/examples/typec/*/*/

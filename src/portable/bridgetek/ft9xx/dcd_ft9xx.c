@@ -51,8 +51,9 @@ extern int8_t board_ft9xx_vbus(void);
 extern int board_uart_write(void const *buf, int len);
 
 // Static array to store an incoming SETUP request for processing by tinyusb.
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN
-static uint8_t _ft9xx_setup_packet[8];
+CFG_TUD_MEM_SECTION static struct {
+  TUD_EPBUF_DEF(setup_packet, 8);
+} _dcd_usbbuf;
 
 struct ft9xx_xfer_state
 {
@@ -1025,10 +1026,10 @@ void dcd_int_handler(uint8_t rhport)
         }
 
         // Host has sent a SETUP packet. Receive this into the SETUP packet store.
-        _ft9xx_dusb_out(USBD_EP_0, (uint8_t *)_ft9xx_setup_packet, sizeof(USB_device_request));
+        _ft9xx_dusb_out(USBD_EP_0, (uint8_t *)_dcd_usbbuf.setup_packet, sizeof(USB_device_request));
 
         // Send the packet to tinyusb.
-        dcd_event_setup_received(BOARD_TUD_RHPORT, _ft9xx_setup_packet, true);
+        dcd_event_setup_received(BOARD_TUD_RHPORT, _dcd_usbbuf.setup_packet, true);
 
         // Clear the interrupt that signals a SETUP packet is received.
         USBD_EP_SR_REG(USBD_EP_0) = (MASK_USBD_EP0SR_SETUP);

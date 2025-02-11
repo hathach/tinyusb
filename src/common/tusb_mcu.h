@@ -220,11 +220,22 @@
     #define TUP_RHPORT_HIGHSPEED  1 // Port0: FS, Port1: HS
   #endif
 
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  1
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  1
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE      32
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
+  #include "stm32h7xx.h"
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
 
   #define TUP_DCD_ENDPOINT_MAX    9
+
+  #if __CORTEX_M == 7
+    #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  1
+    #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  1
+    #define CFG_TUSB_MEM_DCACHE_LINE_SIZE      32
+  #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H5)
   #define TUP_USBIP_FSDEV
@@ -321,6 +332,10 @@
 
   // MCU with on-chip HS Phy
   #define TUP_RHPORT_HIGHSPEED    1
+
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  1
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  1
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE      32
 
 //--------------------------------------------------------------------+
 // Sony
