@@ -96,6 +96,7 @@ jobs:
     if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
+      IAR_LMS_CLOUD_URL: ${{ vars.IAR_LMS_CLOUD_URL }}
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
     steps:
       - name: Clean workspace
@@ -105,7 +106,9 @@ jobs:
           mkdir -p "${{ github.workspace }}"
 
       - name: Toolchain version
-        run: iccarm --version
+        run: |
+          echo IAR_LMS_CLOUD_URL=$IAR_LMS_CLOUD_URL
+          iccarm --version
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
