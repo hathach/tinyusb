@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 import json
-
+from pathlib import Path
 
 def main():
     board_list = []
@@ -76,21 +76,23 @@ def main():
         ], key=lambda x: x['name']
     )
 
-    with open("hw/bsp/BoardPresets.json", "w") as f:
+    path_boardpresets = "hw/bsp/BoardPresets.json"
+    with open(path_boardpresets, "w") as f:
         f.write('{}\n'.format(json.dumps(presets, indent=2)))
 
     # Generate presets for examples
     presets = {
         "version": 6,
         "include": [
-            "../../../hw/bsp/BoardPresets.json"
         ]
     }
 
     example_list = []
     for root, dirs, files in os.walk("examples"):
         for file in files:
-            if file == "CMakeLists.txt":
+            # Filter out ESP-IDF CMakeLists.txt in src folder
+            if file == "CMakeLists.txt" and os.path.basename(root) != 'src':
+                presets['include'] = [os.path.relpath(path_boardpresets, root).replace(os.sep, '/')]
                 with open(os.path.join(root, 'CMakePresets.json'), 'w') as f:
                     f.write('{}\n'.format(json.dumps(presets, indent=2)))
                 example_list.append(os.path.basename(root))

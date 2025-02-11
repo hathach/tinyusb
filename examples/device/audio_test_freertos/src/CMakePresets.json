@@ -1,6 +1,0 @@
-{
-  "version": 6,
-  "include": [
-    "../../../hw/bsp/BoardPresets.json"
-  ]
-}
