@@ -169,6 +169,8 @@ ifeq ($(RTOS),freertos)
 		$(TOP)/$(FREERTOS_SRC)/include \
 		$(TOP)/$(FREERTOS_PORTABLE_SRC)
 
+	CFLAGS += -DCFG_TUSB_OS=OPT_OS_FREERTOS
+
 	# Suppress FreeRTOSConfig.h warnings
 	CFLAGS_GCC += -Wno-error=redundant-decls
 
