@@ -10,7 +10,7 @@ jobs:
       matrix:
         idf_ver: ["release-v5.0", "release-v5.1", "release-v5.2", "release-v5.3", "release-v5.4", "latest"]
         name: ["usb_uart_bridge"]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     container: espressif/idf:${{ matrix.idf_ver }}
     env:
       ESP_IOT_PATH: esp-iot-solution
