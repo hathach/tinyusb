@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -118,7 +118,7 @@ void midih_close      (uint8_t dev_addr);
 //--------------------------------------------------------------------+
 
 // Invoked when device with MIDI interface is mounted.
-// If the MIDI host application requires MIDI IN, it should requst an
+// If the MIDI host application requires MIDI IN, it should request an
 // IN transfer here. The device will likely NAK this transfer. How the driver
 // handles the NAK is hardware dependent.
 TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx);

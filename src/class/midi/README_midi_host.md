@@ -9,7 +9,7 @@ constraint may change in the future.
 # MAXIMUM NUMBER OF ENDPOINTS
 Although the USB MIDI 1.0 Class specification allows an arbitrary number
 of endpoints, this driver supports at most one USB BULK DATA IN endpoint
-and one USB BULK DATA OUT endpoint. Each endpoint can support up to 16 
+and one USB BULK DATA OUT endpoint. Each endpoint can support up to 16
 virtual cables. If a device has multiple IN endpoints or multiple OUT
 endpoints, it will fail to enumerate.
 
@@ -51,9 +51,9 @@ pointer points to a MIDI interface descriptor, call midih_open() with that
 descriptor pointer.
 
 # CLASS SPECIFIC INTERFACE AND REQUESTS
-The host driver does not make use of the informaton in the class specific
+The host driver does not make use of the information in the class specific
 interface descriptors. In the future, a public API could be created to
-retrieve the string descriptors for the names of each ELEMENT, 
+retrieve the string descriptors for the names of each ELEMENT,
 IN JACK and OUT JACK, and how the device describes the connections.
 
 This driver also does not support class specific requests to control
@@ -68,18 +68,18 @@ Descriptors. This is wrong per my reading of the specification.
 # MESSAGE BUFFER DETAILS
 Messages buffers composed from USB data received on the IN endpoint will never contain
 running status because USB MIDI 1.0 class does not support that. Messages
-buffers to be sent to the device on the OUT endpont may contain running status
+buffers to be sent to the device on the OUT endpoint may contain running status
 (the message might come from a UART data stream from a 5-pin DIN MIDI IN
-cable on the host, for example). The driver may in the future correctly compose 
+cable on the host, for example). The driver may in the future correctly compose
 4-byte USB MIDI Class packets using the running status if need be. However,
 it does not currently do that. Also, use of running status is not a good idea
 overall because a single byte error can really mess up the data stream with no
 way to recover until the next non-real time status byte is in the message buffer.
 
 Message buffers to be sent to the device may contain Real time messages
-such as MIDI clock. Real time messages may be inserted in the message 
+such as MIDI clock. Real time messages may be inserted in the message
 byte stream between status and data bytes of another message without disrupting
-the running status. However, because MIDI 1.0 class messages are sent 
+the running status. However, because MIDI 1.0 class messages are sent
 as four byte packets, a real-time message so inserted will be re-ordered
 to be sent to the device in a new 4-byte packet immediately before the
 interrupted data stream.

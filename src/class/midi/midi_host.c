@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -76,7 +76,7 @@ typedef struct
   // Endpoint FIFOs
   tu_fifo_t rx_ff;
   tu_fifo_t tx_ff;
- 
+
 
   uint8_t rx_ff_buf[CFG_TUH_MIDI_RX_BUFSIZE];
   uint8_t tx_ff_buf[CFG_TUH_MIDI_TX_BUFSIZE];
@@ -280,17 +280,17 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
 
   // assume it is an interface header
   midi_desc_header_t const *p_mdh = (midi_desc_header_t const *)p_desc;
-  TU_VERIFY((p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE && p_mdh->bDescriptorSubType == MIDI_CS_INTERFACE_HEADER) || 
+  TU_VERIFY((p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE && p_mdh->bDescriptorSubType == MIDI_CS_INTERFACE_HEADER) ||
     (p_mdh->bDescriptorType == TUSB_DESC_CS_ENDPOINT && p_mdh->bDescriptorSubType == MIDI_CS_ENDPOINT_GENERAL) ||
     p_mdh->bDescriptorType == TUSB_DESC_ENDPOINT);
 
-  uint8_t prev_ep_addr = 0; // the CS endpoint descriptor is associated with the previous endpoint descrptor
+  uint8_t prev_ep_addr = 0; // the CS endpoint descriptor is associated with the previous endpoint descriptor
   p_midi_host->itf_num = desc_itf->bInterfaceNumber;
   tusb_desc_endpoint_t const* in_desc = NULL;
   tusb_desc_endpoint_t const* out_desc = NULL;
   while (len_parsed < max_len)
   {
-    TU_VERIFY((p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE) || 
+    TU_VERIFY((p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE) ||
       (p_mdh->bDescriptorType == TUSB_DESC_CS_ENDPOINT && p_mdh->bDescriptorSubType == MIDI_CS_ENDPOINT_GENERAL) ||
       p_mdh->bDescriptorType == TUSB_DESC_ENDPOINT);
 
@@ -306,7 +306,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
       }
       else if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_IN_JACK)
       {
-        // Then it is an in jack. 
+        // Then it is an in jack.
         TU_LOG2("Found in jack\r\n");
 #if CFG_MIDI_HOST_DEVSTRINGS
         if (p_midi_host->next_in_jack < MAX_IN_JACKS)
@@ -370,7 +370,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
       TU_LOG2("found CS_ENDPOINT Descriptor for %u\r\n", prev_ep_addr);
       TU_VERIFY(prev_ep_addr != 0);
       // parse out the mapping between the device's embedded jacks and the endpoints
-      // Each embedded IN jack is assocated with an OUT endpoint
+      // Each embedded IN jack is associated with an OUT endpoint
       midi_cs_desc_endpoint_t const* p_csep = (midi_cs_desc_endpoint_t const*)p_mdh;
       if (tu_edpt_dir(prev_ep_addr) == TUSB_DIR_OUT)
       {
