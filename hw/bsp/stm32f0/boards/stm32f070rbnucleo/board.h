@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -23,6 +23,11 @@
  *
  * This file is part of the TinyUSB stack.
  */
+
+/* metadata:
+   name: STM32 F070 Nucleo
+   url: https://www.st.com/en/evaluation-tools/nucleo-f070rb.html
+*/
 
 #ifndef BOARD_H_
 #define BOARD_H_

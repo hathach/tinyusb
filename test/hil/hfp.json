@@ -1,0 +1,40 @@
+{
+    "boards": [
+        {
+            "name": "stm32l412nucleo",
+            "uid": "41003B000E504E5457323020",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "774470029",
+                "args": "-device STM32L412KB"
+            }
+        },
+        {
+            "name": "stm32f746disco",
+            "uid": "210041000C51343237303334",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "770935966",
+                "args": "-device STM32F746NG"
+            }
+        },
+        {
+            "name": "lpcxpresso43s67",
+            "uid": "08F000044528BAAA8D858F58C50700F5",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "728973776",
+                "args": "-device LPC43S67_M4"
+            }
+        }
+    ]
+}

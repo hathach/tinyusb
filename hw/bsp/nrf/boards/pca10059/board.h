@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -23,6 +23,11 @@
  *
  * This file is part of the TinyUSB stack.
  */
+
+/* metadata:
+   name: Nordic nRF52840 Dongle
+   url: https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle
+*/
 
 #ifndef BOARD_H_
 #define BOARD_H_

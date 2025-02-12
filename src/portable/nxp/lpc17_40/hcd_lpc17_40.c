@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019, Ha Thach (tinyusb.org)
@@ -30,6 +30,7 @@
     (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 
 #include "chip.h"
+#include "host/hcd.h"
 
 void hcd_int_enable(uint8_t rhport)
 {
@@ -44,4 +45,3 @@ void hcd_int_disable(uint8_t rhport)
 }
 
 #endif
-

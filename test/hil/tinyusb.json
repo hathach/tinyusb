@@ -1,0 +1,231 @@
+{
+    "boards": [
+        {
+            "name": "espressif_p4_function_ev",
+            "uid": "6055F9F98715",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"]
+            },
+            "tests": {
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002427"}]
+            },
+            "flasher": {
+                "name": "esptool",
+                "uid": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
+                "args": "-b 1500000"
+            },
+            "comment": "Use TS3USB30 mux to test both device and host"
+        },
+        {
+            "name": "espressif_s3_devkitm",
+            "uid": "84F703C084E4",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+            },
+            "tests": {
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+            },
+            "flasher": {
+                "name": "esptool",
+                "uid": "3ea619acd1cdeb11a0a0b806e93fd3f1",
+                "args": "-b 1500000"
+            }
+        },
+        {
+            "name": "feather_nrf52840_express",
+            "uid": "1F0479CD0F764471",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000682804350",
+                "args": "-device nrf52840_xxaa"
+            }
+        },
+        {
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "openocd_adi",
+                "uid": "E6614C311B597D32",
+                "args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
+            }
+        },
+        {
+            "name": "metro_m4_express",
+            "uid": "9995AD485337433231202020FF100A34",
+            "tests": {
+                "device": true, "host": false, "dual": false,
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "123456",
+                "args": "-device ATSAMD51J19"
+            }
+        },
+        {
+            "name": "lpcxpresso11u37",
+            "uid": "17121919",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000724441579",
+                "args": "-device LPC11U37/401"
+            }
+        },
+        {
+            "name": "ra4m1_ek",
+            "uid": "152E163038303131393346E46F26574B",
+            "tests": {
+                "device": true, "host": false, "dual": false,
+                "skip": ["device/cdc_msc", "device/cdc_msc_freertos"]
+            },
+            "comment": "MSC is slow to enumerated #2602",
+            "flasher": {
+                "name": "jlink",
+                "uid": "000831174392",
+                "args": "-device R7FA4M1AB"
+            }
+        },
+        {
+            "name": "raspberry_pi_pico",
+            "uid": "E6614C311B764A37",
+            "tests": {
+                "device": true, "host": false, "dual": false,
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002470"}]
+            },
+            "flasher": {
+                "name": "openocd",
+                "uid": "E6614103E72C1D2F",
+                "args": "-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\""
+            }
+        },
+        {
+            "name": "raspberry_pi_pico2",
+            "uid": "560AE75E1C7152C9",
+            "tests": {
+                "device": true, "host": false, "dual": false,
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "533D004242"}]
+            },
+            "flasher": {
+                "name": "openocd",
+                "uid": "E6633861A3978538",
+                "args": "-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c \"adapter speed 5000\""
+            }
+        },
+        {
+            "name": "stm32f072disco",
+            "uid": "3A001A001357364230353532",
+            "flasher": {
+                "name": "jlink",
+                "uid": "779541626",
+                "args": "-device stm32f072rb"
+            }
+        },
+        {
+            "name": "stm32f723disco",
+            "uid": "460029001951373031313335",
+            "build" : {
+                "flags_on": ["", "CFG_TUH_DWC2_DMA_ENABLE"]
+            },
+            "tests": {
+                "device": true, "host": true, "dual": false,
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2003414"}]
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000776606156",
+                "args": "-device stm32f723ie"
+            },
+            "comment": "Device port0 FS (slave only), Host port1 HS with DMA"
+        },
+        {
+            "name": "stm32h743nucleo",
+            "uid": "110018000951383432343236",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+            },
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "stlink",
+                "uid": "004C00343137510F39383538",
+                "args": ""
+            }
+        },
+        {
+            "name": "stm32g0b1nucleo",
+            "uid": "4D0038000450434E37343120",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "openocd",
+                "uid": "066FFF495087534867063844",
+                "args": "-f interface/stlink.cfg -f target/stm32g0x.cfg"
+            }
+        }
+    ],
+    "boards-skip": [
+        {
+            "name": "stm32f769disco",
+            "uid": "21002F000F51363531383437",
+            "build" : {
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+            },
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000778170924",
+                "args": "-device stm32f769ni"
+            }
+        },
+        {
+            "name": "mimxrt1015_evk",
+            "uid": "DC28F865D2111D228D00B0543A70463C",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000726284213",
+                "args": "-device MIMXRT1015DAF5A"
+            }
+        },
+        {
+            "name": "nanoch32v203",
+            "uid": "CDAB277B0FBC03E339E339E3",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "openocd_wch",
+                "uid": "EBCA8F0670AF",
+                "args": ""
+            }
+        },
+        {
+            "name": "stm32f407disco",
+            "uid": "30001A000647313332353735",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000773661813",
+                "args": "-device stm32f407vg"
+            }
+        }
+    ]
+}

@@ -1,0 +1,39 @@
+name: Download Toolchain
+
+inputs:
+  toolchain:
+    description: 'Toolchain name'
+    required: true
+  toolchain_url:
+    description: 'Toolchain URL'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Cache Toolchain
+      if: ${{ !startsWith(inputs.toolchain_url, 'https://github.com') }}
+      uses: actions/cache@v4
+      id: cache-toolchain-download
+      with:
+        path: ~/cache/${{ inputs.toolchain }}
+        key: ${{ runner.os }}-${{ inputs.toolchain }}-${{ inputs.toolchain_url }}
+
+    - name: Install Toolchain
+      if: steps.cache-toolchain-download.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/cache/${{ inputs.toolchain }}
+        wget --progress=dot:giga ${{ inputs.toolchain_url }} -O toolchain.tar.gz
+        if [[ ${{ inputs.toolchain }} == rx-gcc ]]; then
+          mv toolchain.tar.gz toolchain.run
+          chmod +x toolchain.run
+          ./toolchain.run -p ~/cache/${{ inputs.toolchain }}/gnurx -y
+        else
+          tar -C ~/cache/${{ inputs.toolchain }} -xaf toolchain.tar.gz
+        fi
+      shell: bash
+
+    - name: Set Toolchain Path
+      run: |
+        echo >> $GITHUB_PATH `echo ~/cache/${{ inputs.toolchain }}/*/bin`
+      shell: bash

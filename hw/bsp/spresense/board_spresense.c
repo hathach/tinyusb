@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright 2019 Sony Semiconductor Solutions Corporation
@@ -29,7 +29,7 @@
 #include <arch/board/board.h>
 #include <arch/chip/pin.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -64,7 +64,7 @@ void board_led_write(bool state)
 // a '1' means active (pressed), a '0' means inactive.
 uint32_t board_button_read(void)
 {
-  if (board_gpio_read(BUTTON_PIN)) 
+  if (board_gpio_read(BUTTON_PIN))
   {
     return 0;
   }
@@ -96,7 +96,7 @@ uint32_t board_millis(void)
     /* Wait until RTC is available */
     while (g_rtc_enabled == false);
 
-    if (clock_gettime(CLOCK_MONOTONIC, &tp)) 
+    if (clock_gettime(CLOCK_MONOTONIC, &tp))
     {
         return 0;
     }

@@ -1,0 +1,196 @@
+version: 2.1
+
+commands:
+  setup-toolchain:
+    parameters:
+        toolchain:
+            type: string
+
+    steps:
+      - run:
+          name: Set toolchain url and key
+          command: |
+            TOOLCHAIN_JSON='{
+              "aarch64-gcc": "https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz",
+              "arm-clang": "https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-19.1.1/LLVM-ET-Arm-19.1.1-Linux-x86_64.tar.xz",
+              "arm-gcc": "https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v13.2.1-1.1/xpack-arm-none-eabi-gcc-13.2.1-1.1-linux-x64.tar.gz",
+              "msp430-gcc": "http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2",
+              "riscv-gcc": "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz",
+              "rx-gcc": "https://github.com/hathach/rx_device/releases/download/0.0.1/gcc-8.3.0.202411-GNURX-ELF.run",
+              "arm-iar": "https://updates.iar.com/FileStore/STANDARD/001/003/322/cxarm-9.60.3.deb"
+            }'
+            toolchain_url=$(echo $TOOLCHAIN_JSON | jq -r '.["<< parameters.toolchain >>"]')
+
+            # only cache if not a github link
+            if [[ $toolchain_url != "https://github.com"* ]]; then
+              echo "<< parameters.toolchain >>-$toolchain_url" > toolchain_key
+            fi
+            echo "export toolchain_url=$toolchain_url" >> $BASH_ENV
+
+      - restore_cache:
+          name: Restore Toolchain Cache
+          key: deps-{{ checksum "toolchain_key" }}
+          paths:
+            - ~/cache/<< parameters.toolchain >>
+
+      - run:
+          name: Install Toolchain
+          command: |
+            # download if folder does not exist (not cached)
+            if [ ! -d ~/cache/<< parameters.toolchain >> ]; then
+              mkdir -p ~/cache/<< parameters.toolchain >>
+              if [[ << parameters.toolchain >> == rx-gcc ]]; then
+                wget --progress=dot:giga $toolchain_url -O toolchain.run
+                chmod +x toolchain.run
+                ./toolchain.run -p ~/cache/<< parameters.toolchain >>/gnurx -y
+              elif [[ << parameters.toolchain >> == arm-iar ]]; then
+                wget --progress=dot:giga $toolchain_url -O ~/cache/<< parameters.toolchain >>/toolchain.deb
+              else
+                wget --progress=dot:giga $toolchain_url -O toolchain.tar.gz
+                tar -C ~/cache/<< parameters.toolchain >> -xaf toolchain.tar.gz
+              fi
+            fi
+
+            # Add toolchain to PATH
+            if [[ << parameters.toolchain >> == arm-iar ]]; then
+              # Install IAR since we only cache deb file
+              sudo dpkg --ignore-depends=libusb-1.0-0 -i ~/cache/<< parameters.toolchain >>/toolchain.deb
+              echo "export PATH=$PATH:/opt/iar/cxarm/arm/bin" >> $BASH_ENV
+            else
+              echo "export PATH=$PATH:`echo ~/cache/<< parameters.toolchain >>/*/bin`" >> $BASH_ENV
+            fi
+
+      - save_cache:
+          name: Save Toolchain Cache
+          key: deps-{{ checksum "toolchain_key" }}
+          paths:
+            - ~/cache/<< parameters.toolchain >>
+
+  build:
+    parameters:
+      build-system:
+        type: string
+      toolchain:
+        type: string
+      family:
+        type: string
+
+    steps:
+      - checkout
+      - run:
+          name: Get Dependencies
+          command: |
+            python tools/get_deps.py << parameters.family >>
+
+            # Install ninja  if cmake build system
+            if [ << parameters.build-system >> == "cmake" ]; then
+              NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip
+              wget $NINJA_URL -O ninja-linux.zip
+              unzip ninja-linux.zip -d ~/bin
+            fi
+
+            # rx-gcc is 32-bit binary
+            if [[ << parameters.toolchain >> == rx-gcc ]]; then
+              sudo dpkg --add-architecture i386
+              sudo apt update
+              sudo apt install libc6:i386 libstdc++6:i386 zlib1g:i386
+            fi
+
+            # Install Pico SDK
+            if [ << parameters.family >> == "rp2040" ]; then
+              git clone --depth 1 https://github.com/raspberrypi/pico-sdk.git ~/pico-sdk
+              echo "export PICO_SDK_PATH=~/pico-sdk" >> $BASH_ENV
+            fi
+
+      - when:
+          condition:
+            not:
+              equal: [esp-idf, << parameters.toolchain >>]
+          steps:
+            - setup-toolchain:
+                toolchain: << parameters.toolchain >>
+
+      - run:
+          name: Build
+          command: |
+            if [ << parameters.toolchain >> == esp-idf ]; then
+              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.family >>
+            else
+              # Toolchain option default is gcc
+              if [ << parameters.toolchain >> == arm-clang ]; then
+                TOOLCHAIN_OPTION="--toolchain clang"
+              elif [ << parameters.toolchain >> == arm-iar ]; then
+                TOOLCHAIN_OPTION="--toolchain iar"
+                echo IAR_LMS_CLOUD_URL=$IAR_LMS_CLOUD_URL
+                iccarm --version
+              elif [ << parameters.toolchain >> == arm-gcc ]; then
+                TOOLCHAIN_OPTION="--toolchain gcc"
+              fi
+
+              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
+            fi
+
+jobs:
+  # Build using docker
+  build:
+    parameters:
+      resource_class:
+        type: string
+        default: medium+
+      build-system:
+        type: string
+      toolchain:
+        type: string
+      family:
+        type: string
+
+    docker:
+      - image: cimg/base:current
+    resource_class: << parameters.resource_class >>
+
+    steps:
+      - build:
+          build-system: << parameters.build-system >>
+          toolchain: << parameters.toolchain >>
+          family: << parameters.family >>
+
+  # Build using VM
+  build-vm:
+    parameters:
+      resource_class:
+        type: string
+        default: large
+      build-system:
+        type: string
+      toolchain:
+        type: string
+      family:
+        type: string
+
+    machine:
+      image: ubuntu-2404:current
+    resource_class: << parameters.resource_class >>
+
+    steps:
+      - build:
+          build-system: << parameters.build-system >>
+          toolchain: << parameters.toolchain >>
+          family: << parameters.family >>
+
+workflows:
+  build:
+    jobs:
+#      - build:
+#          matrix:
+#            parameters:
+#              toolchain: [ 'arm-gcc' ]
+#              build-system: [ 'cmake' ]
+#              family: [ 'nrf' ]
+#              resource_class: ['large']
+#      - build-vm:
+#          matrix:
+#            parameters:
+#              toolchain: ['esp-idf']
+#              build-system: ['cmake']
+#              family: ['-bespressif_kaluga_1']
+#              resource_class: ['large']

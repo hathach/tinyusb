@@ -42,7 +42,7 @@
 #  define USE_SOF         0
 #endif
 
-// Dual bank can imporve performance, but need 2 times bigger packet buffer
+// Dual bank can improve performance, but need 2 times bigger packet buffer
 // As SAM7x has only 4KB packet buffer, use with caution !
 // Enable in FS mode as packets are smaller
 #ifndef USE_DUAL_BANK
@@ -77,7 +77,7 @@ static tusb_speed_t get_speed(void);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix);
 
 // DMA descriptors shouldn't be placed in ITCM !
-CFG_TUSB_MEM_SECTION static dma_desc_t dma_desc[6];
+CFG_TUD_MEM_SECTION static dma_desc_t dma_desc[6];
 
 static xfer_ctl_t xfer_status[EP_MAX];
 
@@ -104,9 +104,10 @@ TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, in
 //------------------------------------------------------------------
 
 // Initialize controller to device mode
-void dcd_init (uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   dcd_connect(rhport);
+  return true;
 }
 
 // Enable device interrupt
@@ -241,7 +242,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
     if (int_status & DEVEPTISR_RXOUTI)
     {
       uint8_t *ptr = EP_GET_FIFO_PTR(0,8);
-      
+
       if (count && xfer->total_len)
       {
         uint16_t remain = xfer->total_len - xfer->queued_len;
@@ -252,7 +253,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
         if (xfer->buffer)
         {
           memcpy(xfer->buffer + xfer->queued_len, ptr, count);
-        } else 
+        } else
         {
           tu_fifo_write_n(xfer->fifo, ptr, count);
         }
@@ -281,7 +282,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
       {
         // TX not complete
         dcd_transmit_packet(xfer, 0);
-      } else 
+      } else
       {
         // TX complete
         dcd_event_xfer_complete(0, 0x80 + 0, xfer->total_len, XFER_RESULT_SUCCESS, true);
@@ -292,7 +293,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
         }
       }
     }
-  } else 
+  } else
   {
     if (int_status & DEVEPTISR_RXOUTI)
     {
@@ -333,7 +334,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
       {
         // TX not complete
         dcd_transmit_packet(xfer, ep_ix);
-      } else 
+      } else
       {
         // TX complete
         dcd_event_xfer_complete(0, 0x80 + ep_ix, xfer->total_len, XFER_RESULT_SUCCESS, true);
@@ -359,7 +360,7 @@ static void dcd_dma_handler(uint8_t ep_ix)
   if(USB_REG->DEVEPTCFG[ep_ix] & DEVEPTCFG_EPDIR)
   {
     dcd_event_xfer_complete(0, 0x80 + ep_ix, count, XFER_RESULT_SUCCESS, true);
-  } else 
+  } else
   {
     dcd_event_xfer_complete(0, ep_ix, count, XFER_RESULT_SUCCESS, true);
   }
@@ -507,12 +508,12 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
       // Enable Endpoint 0 Interrupts
       USB_REG->DEVIER = DEVIER_PEP_0;
       return true;
-    } else 
+    } else
     {
       // Endpoint configuration is not successful
       return false;
     }
-  } else 
+  } else
   {
     // Enable the endpoint
     USB_REG->DEVEPT |= ((0x01 << epnum) << DEVEPT_EPEN0_Pos);
@@ -544,7 +545,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     {
       USB_REG->DEVIER = ((0x01 << epnum) << DEVIER_PEP_0_Pos);
       return true;
-    } else 
+    } else
     {
       // Endpoint configuration is not successful
       return false;
@@ -583,7 +584,7 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
     {
       memcpy(ptr, xfer->buffer + xfer->queued_len, len);
     }
-    else 
+    else
     {
       tu_fifo_read_n(xfer->fifo, ptr, len);
     }
@@ -595,7 +596,7 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
   {
     // Control endpoint: clear the interrupt flag to send the data
     USB_REG->DEVEPTICR[0] = DEVEPTICR_TXINIC;
-  } else 
+  } else
   {
     // Other endpoint types: clear the FIFO control flag to send the data
     USB_REG->DEVEPTIDR[ep_ix] = DEVEPTIDR_FIFOCONC;
@@ -616,7 +617,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
   xfer->fifo = NULL;
-  
+
   if (EP_DMA_SUPPORT(epnum) && total_bytes != 0)
   {
     // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
@@ -644,16 +645,16 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     }
     __set_PRIMASK(irq_state);
 
-    // Here a ZLP has been recieved
+    // Here a ZLP has been received
     // and the DMA transfer must be not started.
     // It is the end of transfer
     return false;
-  } else 
+  } else
   {
     if (dir == TUSB_DIR_OUT)
     {
       USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;
-    } else 
+    } else
     {
       dcd_transmit_packet(xfer,epnum);
     }
@@ -701,20 +702,20 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
     // Clean invalidate cache of linear part
     CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_lin, 4), info.len_lin + 31);
-    
+
     USB_REG->DEVDMA[epnum - 1].DEVDMAADDRESS = (uint32_t)info.ptr_lin;
     if (info.len_wrap)
     {
       // Clean invalidate cache of wrapped part
       CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_wrap, 4), info.len_wrap + 31);
-      
+
       dma_desc[epnum - 1].next_desc = 0;
       dma_desc[epnum - 1].buff_addr = (uint32_t)info.ptr_wrap;
       dma_desc[epnum - 1].chnl_ctrl =
         udd_dma_ctrl_wrap | (info.len_wrap << DEVDMACONTROL_BUFF_LENGTH_Pos);
       // Clean cache of wrapped DMA descriptor
       CleanInValidateCache((uint32_t*)&dma_desc[epnum - 1], sizeof(dma_desc_t));
-      
+
       udd_dma_ctrl_lin |= DEVDMASTATUS_DESC_LDST;
       USB_REG->DEVDMA[epnum - 1].DEVDMANXTDSC = (uint32_t)&dma_desc[epnum - 1];
     } else {
@@ -734,7 +735,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     }
     __set_PRIMASK(irq_state);
 
-    // Here a ZLP has been recieved
+    // Here a ZLP has been received
     // and the DMA transfer must be not started.
     // It is the end of transfer
     return false;
@@ -743,7 +744,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
     if (dir == TUSB_DIR_OUT)
     {
       USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;
-    } else 
+    } else
     {
       dcd_transmit_packet(xfer,epnum);
     }

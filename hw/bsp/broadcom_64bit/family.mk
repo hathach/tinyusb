@@ -1,6 +1,4 @@
 MCU_DIR = hw/mcu/broadcom
-DEPS_SUBMODULES += $(MCU_DIR)
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
@@ -9,6 +7,7 @@ CFLAGS += \
 	-ffreestanding \
 	-nostdlib \
 	-nostartfiles \
+	--specs=nosys.specs \
 	-mgeneral-regs-only \
 	-std=c17
 
@@ -19,14 +18,14 @@ CFLAGS += -Wno-error=cast-qual -Wno-error=redundant-decls
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
+	src/portable/synopsys/dwc2/hcd_dwc2.c \
+	src/portable/synopsys/dwc2/dwc2_common.c \
 	$(MCU_DIR)/broadcom/gen/interrupt_handlers.c \
 	$(MCU_DIR)/broadcom/gpio.c \
 	$(MCU_DIR)/broadcom/interrupts.c \
 	$(MCU_DIR)/broadcom/mmu.c \
 	$(MCU_DIR)/broadcom/caches.c \
 	$(MCU_DIR)/broadcom/vcmailbox.c
-
-SKIP_NANOLIB = 1
 
 LD_FILE = $(MCU_DIR)/broadcom/link8.ld
 
@@ -35,7 +34,7 @@ INC += \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core_A/Include
 
-SRC_S += $(MCU_DIR)/broadcom/boot8.S
+SRC_S += $(MCU_DIR)/broadcom/boot8.s
 
 $(BUILD)/kernel8.img: $(BUILD)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $^ $@

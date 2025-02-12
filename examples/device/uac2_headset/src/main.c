@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Jerzy Kasenberg
@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
 
@@ -35,11 +35,7 @@
 //--------------------------------------------------------------------+
 
 // List of supported sample rates
-#if defined(__RX__)
-  const uint32_t sample_rates[] = {44100, 48000};
-#else
-  const uint32_t sample_rates[] = {44100, 48000, 88200, 96000};
-#endif
+const uint32_t sample_rates[] = {44100, 48000};
 
 uint32_t current_sample_rate  = 44100;
 
@@ -79,8 +75,8 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 // Audio controls
 // Current states
-int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];       // +1 for master channel 0
-int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];    // +1 for master channel 0
+int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];       // +1 for master channel 0
+int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];    // +1 for master channel 0
 
 // Buffer for microphone data
 int32_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 4];
@@ -96,6 +92,7 @@ uint8_t current_resolution;
 
 void led_blinking_task(void);
 void audio_task(void);
+void audio_control_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -103,7 +100,15 @@ int main(void)
   board_init();
 
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+
+  if (board_init_after_tusb) {
+    board_init_after_tusb();
+  }
 
   TU_LOG1("Headset running\r\n");
 
@@ -111,10 +116,9 @@ int main(void)
   {
     tud_task(); // TinyUSB device task
     audio_task();
+    audio_control_task();
     led_blinking_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -145,7 +149,7 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = BLINK_MOUNTED;
+  blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
 // Helper for clock get requests
@@ -157,7 +161,7 @@ static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t 
   {
     if (request->bRequest == AUDIO_CS_REQ_CUR)
     {
-      TU_LOG1("Clock get current freq %lu\r\n", current_sample_rate);
+      TU_LOG1("Clock get current freq %" PRIu32 "\r\n", current_sample_rate);
 
       audio_control_cur_4_t curf = { (int32_t) tu_htole32(current_sample_rate) };
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &curf, sizeof(curf));
@@ -176,7 +180,7 @@ static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t 
         rangef.subrange[i].bRes = 0;
         TU_LOG1("Range %d (%d, %d, %d)\r\n", i, (int)rangef.subrange[i].bMin, (int)rangef.subrange[i].bMax, (int)rangef.subrange[i].bRes);
       }
-      
+
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &rangef, sizeof(rangef));
     }
   }
@@ -206,7 +210,7 @@ static bool tud_audio_clock_set_request(uint8_t rhport, audio_control_request_t 
 
     current_sample_rate = (uint32_t) ((audio_control_cur_4_t const *)buf)->bCur;
 
-    TU_LOG1("Clock set current freq: %ld\r\n", current_sample_rate);
+    TU_LOG1("Clock set current freq: %" PRIu32 "\r\n", current_sample_rate);
 
     return true;
   }
@@ -229,7 +233,7 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, audio_control_req
     TU_LOG1("Get channel %u mute %d\r\n", request->bChannelNumber, mute1.bCur);
     return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *)request, &mute1, sizeof(mute1));
   }
-  else if (UAC2_ENTITY_SPK_FEATURE_UNIT && request->bControlSelector == AUDIO_FU_CTRL_VOLUME)
+  else if (request->bControlSelector == AUDIO_FU_CTRL_VOLUME)
   {
     if (request->bRequest == AUDIO_CS_REQ_RANGE)
     {
@@ -424,6 +428,45 @@ void audio_task(void)
       spk_data_size = 0;
     }
   }
+}
+
+void audio_control_task(void)
+{
+  // Press on-board button to control volume
+  // Open host volume control, volume should switch between 10% and 100%
+
+  // Poll every 50ms
+  const uint32_t interval_ms = 50;
+  static uint32_t start_ms = 0;
+  static uint32_t btn_prev = 0;
+
+  if ( board_millis() - start_ms < interval_ms) return; // not enough time
+  start_ms += interval_ms;
+
+  uint32_t btn = board_button_read();
+
+  if (!btn_prev && btn)
+  {
+    // Adjust volume between 0dB (100%) and -30dB (10%)
+    for (int i = 0; i < CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1; i++)
+    {
+      volume[i] = volume[i] == 0 ? -VOLUME_CTRL_30_DB : 0;
+    }
+
+    // 6.1 Interrupt Data Message
+    const audio_interrupt_data_t data = {
+      .bInfo = 0,                                       // Class-specific interrupt, originated from an interface
+      .bAttribute = AUDIO_CS_REQ_CUR,                   // Caused by current settings
+      .wValue_cn_or_mcn = 0,                            // CH0: master volume
+      .wValue_cs = AUDIO_FU_CTRL_VOLUME,                // Volume change
+      .wIndex_ep_or_int = 0,                            // From the interface itself
+      .wIndex_entity_id = UAC2_ENTITY_SPK_FEATURE_UNIT, // From feature unit
+    };
+
+    tud_audio_int_write(&data);
+  }
+
+  btn_prev = btn;
 }
 
 //--------------------------------------------------------------------+

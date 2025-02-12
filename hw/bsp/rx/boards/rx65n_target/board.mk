@@ -12,7 +12,7 @@ MCU_DIR = hw/mcu/renesas/rx/rx65n
 LD_FILE = $(BOARD_PATH)/r5f565ne.ld
 
 # For freeRTOS port source
-FREERTOS_PORT = RX600
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RX600
 
 # For flash-jlink target
 JLINK_DEVICE = R5F565NE

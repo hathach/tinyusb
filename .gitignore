@@ -1,18 +1,22 @@
 html
 latex
+*.a
 *.d
 *.o
 *.P
-*.map
 *.axf
 *.bin
+*.elf
+*.env
+*.ind
+*.log
+*.map
+*.obj
 *.jlink
 *.emSession
-*.elf
-*.ind
-.env
+*.ninja*
 .settings/
-.idea/
+.vscode/
 .gdb_history
 /examples/*/*/build*
 test_old/
@@ -21,10 +25,16 @@ _build
 /examples/*/*/ses
 /examples/*/*/ozone
 /examples/obsolete
+hw/bsp/**/cubemx/*/
+.mxproject
 # coverity intermediate files
 cov-int
 # cppcheck build directories
 *-build-dir
 /_bin/
 __pycache__
-
+cmake-build-*
+sdkconfig
+.PVS-Studio
+.vscode/
+build/

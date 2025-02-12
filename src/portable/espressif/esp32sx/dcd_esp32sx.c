@@ -31,15 +31,26 @@
 #if (((CFG_TUSB_MCU == OPT_MCU_ESP32S2) ||  (CFG_TUSB_MCU == OPT_MCU_ESP32S3)) && CFG_TUD_ENABLED)
 
 // Espressif
-#include "freertos/xtensa_api.h"
+#include "xtensa/xtensa_api.h"
+
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
 #include "soc/dport_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/usb_periph.h"
+#include "soc/usb_reg.h"
+#include "soc/usb_struct.h"
 #include "soc/periph_defs.h" // for interrupt source
 
 #include "device/dcd.h"
+
+#ifndef USB_OUT_EP_NUM
+#define USB_OUT_EP_NUM ((int) (sizeof(USB0.out_ep_reg) / sizeof(USB0.out_ep_reg[0])))
+#endif
+
+#ifndef USB_IN_EP_NUM
+#define USB_IN_EP_NUM ((int) (sizeof(USB0.in_ep_reg) / sizeof(USB0.in_ep_reg[0])))
+#endif
 
 // Max number of bi-directional endpoints including EP0
 // Note: ESP32S2 specs say there are only up to 5 IN active endpoints include EP0
@@ -161,8 +172,8 @@ static void enum_done_processing(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   ESP_LOGV(TAG, "DCD init - Start");
 
   // A. Disconnect
@@ -196,9 +207,11 @@ void dcd_init(uint8_t rhport)
                  USB_USBRSTMSK_M   |
                  USB_ENUMDONEMSK_M |
                  USB_RESETDETMSK_M |
+                 USB_WKUPINT_M |
                  USB_DISCONNINTMSK_M; // host most only
 
   dcd_connect(rhport);
+  return true;
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -741,7 +754,7 @@ static void handle_epin_ints(void)
 
       // XFER Timeout
       if (USB0.in_ep_reg[n].diepint & USB_D_TIMEOUT0_M) {
-        // Clear interrupt or enpoint will hang.
+        // Clear interrupt or endpoint will hang.
         USB0.in_ep_reg[n].diepint = USB_D_TIMEOUT0_M;
         // Maybe retry?
       }
@@ -874,4 +887,3 @@ void dcd_int_disable (uint8_t rhport)
 }
 
 #endif // #if OPT_MCU_ESP32S2 || OPT_MCU_ESP32S3
-

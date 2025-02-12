@@ -24,7 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+/* metadata:
+   manufacturer: Texas Instruments
+*/
+
+#include "bsp/board_api.h"
 #include "board.h"
 #include "msp.h"
 
@@ -34,7 +38,7 @@
 void USB0_IRQHandler(void)
 {
 #if CFG_TUH_ENABLED
-  tuh_int_handler(0);
+  tuh_int_handler(0, true);
 #endif
 #if CFG_TUD_ENABLED
   tud_int_handler(0);

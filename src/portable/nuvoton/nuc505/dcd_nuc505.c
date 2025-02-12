@@ -27,9 +27,9 @@
 /*
   Theory of operation:
 
-  The NUC505 USBD peripheral has twelve "EP"s, where each is simplex, in addition 
+  The NUC505 USBD peripheral has twelve "EP"s, where each is simplex, in addition
   to dedicated support for the control endpoint (EP0).  The non-user endpoints
-  are referred to as "user" EPs in this code, and follow the datasheet 
+  are referred to as "user" EPs in this code, and follow the datasheet
   nomenclature of EPA through EPL.
 */
 
@@ -181,7 +181,7 @@ static void dcd_userEP_in_xfer(struct xfer_ctl_t *xfer, USBD_EP_T *ep)
     ep->EPINTEN = USBD_EPINTEN_TXPKIEN_Msk;
   }
 
-  /* provided buffers are thankfully 32-bit aligned, allowing most data to be transfered as 32-bit */
+  /* provided buffers are thankfully 32-bit aligned, allowing most data to be transferred as 32-bit */
 #if 0 // TODO support dcd_edpt_xfer_fifo API
   if (xfer->ff)
   {
@@ -279,9 +279,9 @@ static const uint32_t enabled_irqs = USBD_GINTEN_USBIEN_Msk | \
   NUC505 TinyUSB API driver implementation
 */
 
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   /* configure interrupts in their initial state; BUSINTEN and CEPINTEN will be subsequently and dynamically re-written as needed */
   USBD->GINTEN = enabled_irqs;
@@ -291,6 +291,8 @@ void dcd_init(uint8_t rhport)
   bus_reset();
 
   usb_attach();
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -389,7 +391,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
       while (total_bytes < USBD->CEPRXCNT);
       for (int count = 0; count < total_bytes; count++)
         *buffer++ = USBD->CEPDAT_BYTE;
-      
+
       dcd_event_xfer_complete(0, ep_addr, total_bytes, XFER_RESULT_SUCCESS, true);
     }
   }

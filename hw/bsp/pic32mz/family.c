@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2022 Jerzy Kasenberg
@@ -23,6 +23,10 @@
  *
  * This file is part of the TinyUSB stack.
  */
+
+/* metadata:
+   manufacturer: Microchip
+*/
 
 #include <stdint.h>
 #include <stdbool.h>

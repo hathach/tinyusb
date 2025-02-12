@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -23,6 +23,11 @@
  *
  * This file is part of the TinyUSB stack.
  */
+
+/* metadata:
+   name: STM32 L476 Disco
+   url: https://www.st.com/en/evaluation-tools/32l476gdiscovery.html
+*/
 
 #ifndef BOARD_H_
 #define BOARD_H_

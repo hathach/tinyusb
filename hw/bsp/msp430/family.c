@@ -24,7 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+/* metadata:
+   manufacturer: Texas Instruments
+*/
+
+#include "bsp/board_api.h"
 #include "board.h"
 #include "msp430.h"
 

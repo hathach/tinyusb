@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -23,6 +23,11 @@
  *
  * This file is part of the TinyUSB stack.
  */
+
+/* metadata:
+   name: Adafruit QT Py
+   url: https://www.adafruit.com/product/4600
+*/
 
 #ifndef BOARD_H_
 #define BOARD_H_

@@ -1,7 +1,7 @@
 /**
   ******************************************************************************
   * @file    stm32h7xx_hal_conf_template.h
-  * @brief   HAL configuration template file. 
+  * @brief   HAL configuration template file.
   *          This file should be copied to the application folder and renamed
   *          to stm32h7xx_hal_conf.h.
   ******************************************************************************
@@ -32,7 +32,7 @@
   * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   *
   ******************************************************************************
-  */ 
+  */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __STM32H7xx_HAL_CONF_H
@@ -70,7 +70,7 @@
 /* #define HAL_HCD_MODULE_ENABLED */
 /* #define HAL_HRTIM_MODULE_ENABLED */
 /* #define HAL_HSEM_MODULE_ENABLED */
-/* #define HAL_I2C_MODULE_ENABLED */
+#define HAL_I2C_MODULE_ENABLED
 /* #define HAL_I2S_MODULE_ENABLED */
 /* #define HAL_IRDA_MODULE_ENABLED */
 /* #define HAL_IWDG_MODULE_ENABLED */
@@ -478,6 +478,6 @@
 #endif
 
 #endif /* __STM32H7xx_HAL_CONF_H */
- 
+
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

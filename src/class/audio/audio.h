@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -489,7 +489,7 @@ typedef enum
   AUDIO_DATA_FORMAT_TYPE_I_IEEE_FLOAT     = (uint32_t) (1 << 2),
   AUDIO_DATA_FORMAT_TYPE_I_ALAW           = (uint32_t) (1 << 3),
   AUDIO_DATA_FORMAT_TYPE_I_MULAW          = (uint32_t) (1 << 4),
-  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x80000000,
+  AUDIO_DATA_FORMAT_TYPE_I_RAW_DATA       = 0x80000000u,
 } audio_data_format_type_I_t;
 
 /// All remaining definitions are taken from the descriptor descriptions in the UAC2 main specification
@@ -640,7 +640,7 @@ typedef enum
   AUDIO_CHANNEL_CONFIG_BOTTOM_CENTER              = 0x01000000,
   AUDIO_CHANNEL_CONFIG_BACK_LEFT_OF_CENTER        = 0x02000000,
   AUDIO_CHANNEL_CONFIG_BACK_RIGHT_OF_CENTER       = 0x04000000,
-  AUDIO_CHANNEL_CONFIG_RAW_DATA                   = 0x80000000,
+  AUDIO_CHANNEL_CONFIG_RAW_DATA                   = 0x80000000u,
 } audio_channel_config_t;
 
 /// AUDIO Channel Cluster Descriptor (4.1)
@@ -721,11 +721,13 @@ typedef struct TU_ATTR_PACKED
   uint8_t bLength            ; ///< Size of this descriptor, in bytes: 17.
   uint8_t bDescriptorType    ; ///< Descriptor Type. Value: TUSB_DESC_CS_INTERFACE.
   uint8_t bDescriptorSubType ; ///< Descriptor SubType. Value: AUDIO_CS_AC_INTERFACE_INPUT_TERMINAL.
+  uint8_t bTerminalID        ; ///< Constant uniquely identifying the Terminal within the audio function. This value is used in all requests to address this terminal.
   uint16_t wTerminalType     ; ///< Constant characterizing the type of Terminal. See: audio_terminal_type_t for USB streaming and audio_terminal_input_type_t for other input types.
   uint8_t bAssocTerminal     ; ///< ID of the Output Terminal to which this Input Terminal is associated.
   uint8_t bCSourceID         ; ///< ID of the Clock Entity to which this Input Terminal is connected.
   uint8_t bNrChannels        ; ///< Number of logical output channels in the Terminal’s output audio channel cluster.
   uint32_t bmChannelConfig   ; ///< Describes the spatial location of the logical channels. See:audio_channel_config_t.
+  uint8_t iChannelNames      ; ///< Index of a string descriptor, describing the name of the first logical channel.
   uint16_t bmControls        ; ///< See: audio_terminal_input_control_pos_t.
   uint8_t iTerminal          ; ///< Index of a string descriptor, describing the Input Terminal.
 } audio_desc_input_terminal_t;
@@ -822,10 +824,10 @@ typedef struct TU_ATTR_PACKED
             uint8_t type      :  2; ///< Request type tusb_request_type_t.
             uint8_t direction :  1; ///< Direction type. tusb_dir_t
         } bmRequestType_bit;
-        
+
         uint8_t bmRequestType;
     };
-    
+
     uint8_t bRequest;  ///< Request type audio_cs_req_t
     uint8_t bChannelNumber;
     uint8_t bControlSelector;
@@ -921,6 +923,31 @@ typedef struct TU_ATTR_PACKED {
     uint32_t bRes           ; /*The setting for the RES attribute of the nth subrange of the addressed Control*/\
     } subrange[numSubRanges];                   \
 }
+
+// 6.1 Interrupt Data Message Format
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bInfo;
+  uint8_t bAttribute;
+  union
+  {
+    uint16_t wValue;
+    struct
+    {
+      uint8_t wValue_cn_or_mcn;
+      uint8_t wValue_cs;
+    };
+  };
+  union
+  {
+    uint16_t wIndex;
+    struct
+    {
+      uint8_t wIndex_ep_or_int;
+      uint8_t wIndex_entity_id;
+    };
+  };
+} audio_interrupt_data_t;
 
 /** @} */
 

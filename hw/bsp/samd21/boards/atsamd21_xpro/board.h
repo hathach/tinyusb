@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020, Ha Thach (tinyusb.org)
@@ -23,6 +23,11 @@
  *
  * This file is part of the TinyUSB stack.
  */
+
+/* metadata:
+   name: SAMD21 Xplained Pro
+   url: https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMD21-XPRO
+*/
 
 #ifndef BOARD_H_
 #define BOARD_H_

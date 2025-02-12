@@ -27,9 +27,9 @@
 /*
   Theory of operation:
 
-  The NUC100/NUC120 USBD peripheral has six "EP"s, but each is simplex, 
-  so two collectively (peripheral nomenclature of "EP0" and "EP1") are needed to 
-  implement USB EP0.  PERIPH_EP0 and PERIPH_EP1 are used by this driver for 
+  The NUC100/NUC120 USBD peripheral has six "EP"s, but each is simplex,
+  so two collectively (peripheral nomenclature of "EP0" and "EP1") are needed to
+  implement USB EP0.  PERIPH_EP0 and PERIPH_EP1 are used by this driver for
   EP0_IN and EP0_OUT respectively.  This leaves up to four for user usage.
 */
 
@@ -201,9 +201,9 @@ static const uint32_t enabled_irqs = USBD_INTSTS_FLDET_STS_Msk | USBD_INTSTS_BUS
   NUC100/NUC120 TinyUSB API driver implementation
 */
 
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   USBD->ATTR = 0x7D0;
 
@@ -215,6 +215,8 @@ void dcd_init(uint8_t rhport)
 
   USBD->INTSTS = enabled_irqs;
   USBD->INTEN  = enabled_irqs;
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

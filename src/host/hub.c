@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -30,8 +30,12 @@
 
 #include "hcd.h"
 #include "usbh.h"
-#include "usbh_classdriver.h"
+#include "usbh_pvt.h"
 #include "hub.h"
+
+// Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
+#define HUB_DEBUG   2
+#define TU_LOG_DRV(...)   TU_LOG(HUB_DEBUG, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -41,14 +45,14 @@ typedef struct
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t port_count;
-  uint8_t status_change; // data from status change interrupt endpoint
 
-  hub_port_status_response_t port_status;
-  hub_status_response_t hub_status;
+  CFG_TUH_MEM_ALIGN uint8_t status_change;
+  CFG_TUH_MEM_ALIGN hub_port_status_response_t port_status;
+  CFG_TUH_MEM_ALIGN hub_status_response_t hub_status;
 } hub_interface_t;
 
-CFG_TUSB_MEM_SECTION static hub_interface_t hub_data[CFG_TUH_HUB];
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _hub_buffer[sizeof(descriptor_hub_desc_t)];
+CFG_TUH_MEM_SECTION static hub_interface_t hub_data[CFG_TUH_HUB];
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN static uint8_t _hub_buffer[sizeof(descriptor_hub_desc_t)];
 
 TU_ATTR_ALWAYS_INLINE
 static inline hub_interface_t* get_itf(uint8_t dev_addr)
@@ -178,9 +182,13 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-void hub_init(void)
-{
+bool hub_init(void) {
   tu_memclr(hub_data, sizeof(hub_data));
+  return true;
+}
+
+bool hub_deinit(void) {
+  return true;
 }
 
 bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
@@ -202,7 +210,7 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf
 
   TU_ASSERT(TUSB_DESC_ENDPOINT  == desc_ep->bDescriptorType &&
             TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
-  
+
   TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep));
 
   hub_interface_t* p_hub = get_itf(dev_addr);
@@ -218,7 +226,10 @@ void hub_close(uint8_t dev_addr)
   TU_VERIFY(dev_addr > CFG_TUH_DEVICE_MAX, );
   hub_interface_t* p_hub = get_itf(dev_addr);
 
-  if (p_hub->ep_in) tu_memclr(p_hub, sizeof( hub_interface_t));
+  if (p_hub->ep_in) {
+    TU_LOG_DRV("  HUB close addr = %d\r\n", dev_addr);
+    tu_memclr(p_hub, sizeof( hub_interface_t));
+  }
 }
 
 bool hub_edpt_status_xfer(uint8_t dev_addr)
@@ -320,34 +331,35 @@ static void connection_clear_conn_change_complete (tuh_xfer_t* xfer);
 static void connection_port_reset_complete (tuh_xfer_t* xfer);
 
 // callback as response of interrupt endpoint polling
-bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
+bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
   (void) ep_addr;
-  TU_ASSERT(result == XFER_RESULT_SUCCESS);
+  TU_VERIFY(result == XFER_RESULT_SUCCESS);
 
   hub_interface_t* p_hub = get_itf(dev_addr);
 
-  TU_LOG2("  Hub Status Change = 0x%02X\r\n", p_hub->status_change);
+  uint8_t const status_change = p_hub->status_change;
+  TU_LOG2("  Hub Status Change = 0x%02X\r\n", status_change);
 
-  // Hub bit 0 is for the hub device events
-  if (tu_bit_test(p_hub->status_change, 0))
-  {
-    if (hub_port_get_status(dev_addr, 0, &p_hub->hub_status, hub_get_status_complete, 0) == false)
-    {
+  if ( status_change == 0 ) {
+    // The status change event was neither for the hub, nor for any of its ports.
+    // This shouldn't happen, but it does with some devices.
+    // Initiate the next interrupt poll here.
+    return hub_edpt_status_xfer(dev_addr);
+  }
+
+  if (tu_bit_test(status_change, 0)) {
+    // Hub bit 0 is for the hub device events
+    if (hub_port_get_status(dev_addr, 0, &p_hub->hub_status, hub_get_status_complete, 0) == false) {
       //Hub status control transfer failed, retry
       hub_edpt_status_xfer(dev_addr);
     }
   }
-  else
-  {
+  else {
     // Hub bits 1 to n are hub port events
-    for (uint8_t port=1; port <= p_hub->port_count; port++)
-    {
-      if ( tu_bit_test(p_hub->status_change, port) )
-      {
-        if (hub_port_get_status(dev_addr, port, &p_hub->port_status, hub_port_get_status_complete, 0) == false)
-        {
+    for (uint8_t port=1; port <= p_hub->port_count; port++) {
+      if ( tu_bit_test(status_change, port) ) {
+        if (hub_port_get_status(dev_addr, port, &p_hub->port_status, hub_port_get_status_complete, 0) == false) {
           //Hub status control transfer failed, retry
           hub_edpt_status_xfer(dev_addr);
         }
@@ -357,7 +369,6 @@ bool hub_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32
   }
 
   // NOTE: next status transfer is queued by usbh.c after handling this request
-
   return true;
 }
 
@@ -428,9 +439,12 @@ static void hub_port_get_status_complete (tuh_xfer_t* xfer)
     // Other changes are: L1 state
     // TODO clear change
 
-    // prepare for next hub status
-    // TODO continue with status_change, or maybe we can do it again with status
-    hub_edpt_status_xfer(daddr);
+    else
+    {
+      // prepare for next hub status
+      // TODO continue with status_change, or maybe we can do it again with status
+      hub_edpt_status_xfer(daddr);
+    }
   }
 }
 

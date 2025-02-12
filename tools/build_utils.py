@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 import subprocess
 import pathlib
-import time
+import re
 
 build_format = '| {:29} | {:30} | {:18} | {:7} | {:6} | {:6} |'
 
@@ -13,110 +14,83 @@ def skip_example(example, board):
     ex_dir = pathlib.Path('examples/') / example
     bsp = pathlib.Path("hw/bsp")
 
-    if (bsp / board / "board.mk").exists():
-        # board without family
-        board_dir = bsp / board
-        family = ""
-        mk_contents = ""
-    else:
-        # board within family
-        board_dir = list(bsp.glob("*/boards/" + board))
-        if not board_dir:
-            # Skip unknown boards
-            return True
+    # board within family
+    board_dir = list(bsp.glob("*/boards/" + board))
+    if not board_dir:
+        # Skip unknown boards
+        return True
 
-        board_dir = list(board_dir)[0]
+    board_dir = list(board_dir)[0]
+    family_dir = board_dir.parent.parent
+    family = family_dir.name
 
-        family_dir = board_dir.parent.parent
-        family = family_dir.name
-
-        # family CMake
-        family_mk = family_dir / "family.cmake"
-
-        # family.mk
-        if not family_mk.exists():
-            family_mk = family_dir / "family.mk"
-
-        mk_contents = family_mk.read_text()
+    # family.mk
+    family_mk = family_dir / "family.mk"
+    mk_contents = family_mk.read_text()
 
     # Find the mcu, first in family mk then board mk
     if "CFG_TUSB_MCU=OPT_MCU_" not in mk_contents:
-        board_mk = board_dir / "board.cmake"
+        board_mk = board_dir / "board.mk"
         if not board_mk.exists():
-            board_mk = board_dir / "board.mk"
-
+            board_mk = board_dir / "board.cmake"
         mk_contents = board_mk.read_text()
 
-    for token in mk_contents.split():
-        if "CFG_TUSB_MCU=OPT_MCU_" in token:
-            # Strip " because cmake files has them.
-            token = token.strip("\"")
-            _, opt_mcu = token.split("=")
-            mcu = opt_mcu[len("OPT_MCU_"):]
+    mcu = "NONE"
+    if family == "espressif":
+        for line in mk_contents.splitlines():
+            match = re.search(r'set\(IDF_TARGET\s+"([^"]+)"\)', line)
+            if match:
+                mcu = match.group(1).upper()
+                break
+    else:
+        for token in mk_contents.split():
+            if "CFG_TUSB_MCU=OPT_MCU_" in token:
+                # Strip " because cmake files has them.
+                token = token.strip("\"")
+                _, opt_mcu = token.split("=")
+                mcu = opt_mcu[len("OPT_MCU_"):]
+            if mcu != "NONE":
+                break
 
     # Skip all OPT_MCU_NONE these are WIP port
     if mcu == "NONE":
         return True
 
+    max3421_enabled = False
+    for line in mk_contents.splitlines():
+        if "MAX3421_HOST=1" in line or 'MAX3421_HOST 1' in line:
+            max3421_enabled = True
+            break
+
     skip_file = ex_dir / "skip.txt"
     only_file = ex_dir / "only.txt"
 
-    if skip_file.exists() and only_file.exists():
-        raise RuntimeError("Only have a skip or only file. Not both.")
-    elif skip_file.exists():
+    if skip_file.exists():
         skips = skip_file.read_text().split()
-        return ("mcu:" + mcu in skips or
-                "board:" + board in skips or
-                "family:" + family in skips)
-    elif only_file.exists():
+        if ("mcu:" + mcu in skips or
+            "board:" + board in skips or
+            "family:" + family in skips):
+            return True
+
+    if only_file.exists():
         onlys = only_file.read_text().split()
-        return not ("mcu:" + mcu in onlys or
-                    "board:" + board in onlys or
-                    "family:" + family in onlys)
+        if not ("mcu:" + mcu in onlys or
+                ("mcu:MAX3421" in onlys and max3421_enabled) or
+                "board:" + board in onlys or
+                "family:" + family in onlys):
+            return True
 
     return False
 
 
-def build_example(example, board):
-    start_time = time.monotonic()
-    flash_size = "-"
-    sram_size = "-"
+def build_size(make_cmd):
+    size_output = subprocess.run(make_cmd + ' size', shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8").splitlines()
+    for i, l in enumerate(size_output):
+        text_title = 'text	   data	    bss	    dec'
+        if text_title in l:
+            size_list = size_output[i+1].split('\t')
+            flash_size = int(size_list[0])
+            sram_size = int(size_list[1]) + int(size_list[2])
+            return (flash_size, sram_size)
 
-    # succeeded, failed, skipped
-    ret = [0, 0, 0]
-
-    # Check if board is skipped
-    if skip_example(example, board):
-        status = SKIPPED
-        ret[2] = 1
-        print(build_format.format(example, board, status, '-', flash_size, sram_size))
-    else:
-        build_result = subprocess.run("make -j -C examples/{} BOARD={} all".format(example, board), shell=True,
-                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-        if build_result.returncode == 0:
-            status = SUCCEEDED
-            ret[0] = 1
-            (flash_size, sram_size) = build_size(example, board)
-            subprocess.run("make -j -C examples/{} BOARD={} copy-artifact".format(example, board), shell=True,
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        else:
-            status = FAILED
-            ret[1] = 1
-
-        build_duration = time.monotonic() - start_time
-        print(build_format.format(example, board, status, "{:.2f}s".format(build_duration), flash_size, sram_size))
-
-        if build_result.returncode != 0:
-            print(build_result.stdout.decode("utf-8"))
-
-    return ret
-
-
-def build_size(example, board):
-    elf_file = 'examples/{}/_build/{}/*.elf'.format(example, board)
-    size_output = subprocess.run('size {}'.format(elf_file), shell=True, stdout=subprocess.PIPE).stdout.decode("utf-8")
-    size_list = size_output.split('\n')[1].split('\t')
-    flash_size = int(size_list[0])
-    sram_size = int(size_list[1]) + int(size_list[2])
-    return (flash_size, sram_size)
+    return (0, 0)

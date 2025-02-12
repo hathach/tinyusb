@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: SAMD11 Xplained Pro
+   url: https://www.microchip.com/en-us/development-tool/ATSAMD11-XPRO
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
@@ -38,6 +43,7 @@
 // Button
 #define BUTTON_PIN            PIN_PA14 // pin PB22
 #define BUTTON_STATE_ACTIVE   0
+#define BUTTON_PULL_MODE      GPIO_PULL_UP
 
 #ifdef __cplusplus
  }

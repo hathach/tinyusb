@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -50,8 +50,8 @@
 //--------------------------------------------------------------------+
 #define RNDIS_MSG_PAYLOAD_MAX   (1024*4)
 
-CFG_TUSB_MEM_SECTION static uint8_t msg_notification[CFG_TUH_DEVICE_MAX][8];
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
+CFG_TUH_MEM_SECTION static uint8_t msg_notification[CFG_TUH_DEVICE_MAX][8];
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
 
 static rndish_data_t rndish_data[CFG_TUH_DEVICE_MAX];
 
@@ -117,7 +117,7 @@ void rndish_init(void)
 
   //------------- Task creation -------------//
 
-  //------------- semaphore creation for notificaiton pipe -------------//
+  //------------- semaphore creation for notification pipe -------------//
   for(uint8_t i=0; i<CFG_TUH_DEVICE_MAX; i++)
   {
     rndish_data[i].sem_notification_hdl = osal_semaphore_create( OSAL_SEM_REF(rndish_data[i].semaphore_notification) );

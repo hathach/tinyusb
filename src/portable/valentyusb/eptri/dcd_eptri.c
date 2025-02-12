@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -336,9 +336,9 @@ static void dcd_reset(void)
 }
 
 // Initializes the USB peripheral for device mode and enables it.
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   usb_pullup_out_write(0);
 
@@ -352,6 +352,8 @@ void dcd_init(uint8_t rhport)
 
   // Turn on the external pullup
   usb_pullup_out_write(1);
+
+  return true;
 }
 
 // Enables or disables the USB device interrupt(s). May be used to
@@ -436,6 +438,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   return true;
 }
 
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
+  (void) rhport; (void) ep_addr;
+  // TODO implement dcd_edpt_close()
+}
+
 void dcd_edpt_close_all (uint8_t rhport)
 {
   (void) rhport;
@@ -465,7 +472,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
       enable = 1;
     usb_out_ctrl_write((0 << CSR_USB_OUT_CTRL_STALL_OFFSET) | (enable << CSR_USB_OUT_CTRL_ENABLE_OFFSET) | tu_edpt_number(ep_addr));
   }
-  // IN endpoints will get unstalled when more data is written.
+  // IN endpoints will get un-stalled when more data is written.
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)

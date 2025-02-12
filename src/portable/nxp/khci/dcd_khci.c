@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2020 Koji Kitayama
@@ -26,12 +26,14 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && ( \
-      ( CFG_TUSB_MCU == OPT_MCU_MKL25ZXX ) || ( CFG_TUSB_MCU == OPT_MCU_K32L2BXX ) \
-    )
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_CHIPIDEA_FS)
 
-#include "fsl_device_registers.h"
-#define KHCI        USB0
+#ifdef TUP_USBIP_CHIPIDEA_FS_KINETIS
+  #include "fsl_device_registers.h"
+  #define KHCI        USB0
+#else
+  #error "MCU is not supported"
+#endif
 
 #include "device/dcd.h"
 
@@ -112,7 +114,7 @@ typedef struct
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // BDT(Buffer Descriptor Table) must be 256-byte aligned
-CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(512) static dcd_data_t _dcd;
+CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(512) static dcd_data_t _dcd;
 
 TU_VERIFY_STATIC( sizeof(_dcd.bdt) == 512, "size is not correct" );
 
@@ -263,12 +265,24 @@ static void process_bus_resume(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
+
+  // save crystal-less setting (if available)
+  #if defined(FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED) && FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED == 1
+  uint32_t clk_recover_irc_en = KHCI->CLK_RECOVER_IRC_EN;
+  uint32_t clk_recover_ctrl = KHCI->CLK_RECOVER_CTRL;
+  #endif
 
   KHCI->USBTRC0 |= USB_USBTRC0_USBRESET_MASK;
   while (KHCI->USBTRC0 & USB_USBTRC0_USBRESET_MASK);
+
+  // restore crystal-less setting (if available)
+  #if defined(FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED) && FSL_FEATURE_USB_KHCI_IRC48M_MODULE_CLOCK_ENABLED == 1
+  KHCI->CLK_RECOVER_IRC_EN = clk_recover_irc_en;
+  KHCI->CLK_RECOVER_CTRL  |= clk_recover_ctrl;
+  #endif
 
   tu_memclr(&_dcd, sizeof(_dcd));
   KHCI->USBTRC0 |= TU_BIT(6); /* software must set this bit to 1 */
@@ -280,6 +294,8 @@ void dcd_init(uint8_t rhport)
 
   dcd_connect(rhport);
   NVIC_ClearPendingIRQ(USB0_IRQn);
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -296,7 +312,7 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  _dcd.addr = dev_addr & 0x7F; 
+  _dcd.addr = dev_addr & 0x7F;
   /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
@@ -526,9 +542,9 @@ void dcd_int_handler(uint8_t rhport)
   }
 
   if (is & USB_ISTAT_SLEEP_MASK) {
-    // TU_LOG2("Suspend: "); TU_LOG2_HEX(is);
+    // TU_LOG3("Suspend: "); TU_LOG2_HEX(is);
 
-    // Note Host usually has extra delay after bus reset (without SOF), which could falsely 
+    // Note Host usually has extra delay after bus reset (without SOF), which could falsely
     // detected as Sleep event. Though usbd has debouncing logic so we are good
     KHCI->ISTAT = USB_ISTAT_SLEEP_MASK;
     process_bus_sleep(rhport);
@@ -549,7 +565,7 @@ void dcd_int_handler(uint8_t rhport)
 
   if (is & USB_ISTAT_SOFTOK_MASK) {
     KHCI->ISTAT = USB_ISTAT_SOFTOK_MASK;
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+    dcd_event_sof(rhport, tu_u16(KHCI->FRMNUMH, KHCI->FRMNUML), true);
   }
 
   if (is & USB_ISTAT_STALL_MASK) {

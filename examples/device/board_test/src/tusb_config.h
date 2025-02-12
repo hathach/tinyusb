@@ -43,6 +43,11 @@
   #define CFG_TUSB_OS               OPT_OS_NONE
 #endif
 
+// Espressif IDF requires "freertos/" prefix in include path
+#if TUSB_MCU_VENDOR_ESPRESSIF
+#define CFG_TUSB_OS_INC_PATH  freertos/
+#endif
+
 // This example only test LED & GPIO, disable both device and host stack
 #define CFG_TUD_ENABLED   0
 #define CFG_TUH_ENABLED   0

@@ -23,6 +23,11 @@
  *
  */
 
+/* metadata:
+   name: Adafruit Trinket M0
+   url: https://www.adafruit.com/product/3500
+*/
+
 #pragma once
 
 // LED
@@ -31,4 +36,5 @@
 
 // UART
 #define UART_SERCOM           0
-
+#define UART_RX_PIN           7
+#define UART_TX_PIN           6

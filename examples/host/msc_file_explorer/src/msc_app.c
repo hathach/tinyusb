@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -25,7 +25,7 @@
 
 #include <ctype.h>
 #include "tusb.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 
 #include "ff.h"
 #include "diskio.h"
@@ -53,7 +53,11 @@ static CLI_UINT cli_buffer[BYTES_TO_CLI_UINTS(CLI_BUFFER_SIZE)];
 static FATFS fatfs[CFG_TUH_DEVICE_MAX]; // for simplicity only support 1 LUN per device
 static volatile bool _disk_busy[CFG_TUH_DEVICE_MAX];
 
-static scsi_inquiry_resp_t inquiry_resp;
+// define the buffer to be place in USB/DMA memory with correct alignment/cache line size
+CFG_TUH_MEM_SECTION static struct {
+  TUH_EPBUF_TYPE_DEF(scsi_inquiry_resp_t, inquiry);
+} scsi_resp;
+
 
 //--------------------------------------------------------------------+
 //
@@ -63,10 +67,15 @@ bool cli_init(void);
 
 bool msc_app_init(void)
 {
-  for(size_t i=0; i<CFG_TUH_DEVICE_MAX; i++) _disk_busy[i] = false;
+  for(size_t i=0; i<CFG_TUH_DEVICE_MAX; i++) {
+    _disk_busy[i] = false;
+  }
 
   // disable stdout buffered for echoing typing command
+  #ifndef __ICCARM__ // TODO IAR doesn't support stream control ?
   setbuf(stdout, NULL);
+  #endif
+
   cli_init();
 
   return true;
@@ -74,7 +83,9 @@ bool msc_app_init(void)
 
 void msc_app_task(void)
 {
-  if (!_cli) return;
+  if (!_cli) {
+    return;
+  }
 
   int ch = board_getchar();
   if ( ch > 0 )
@@ -92,9 +103,10 @@ void msc_app_task(void)
 //
 //--------------------------------------------------------------------+
 
+static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data) {
+  msc_cbw_t const* cbw = cb_data->cbw;
+  msc_csw_t const* csw = cb_data->csw;
 
-bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
-{
   if (csw->status != 0)
   {
     printf("Inquiry failed\r\n");
@@ -102,13 +114,13 @@ bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const
   }
 
   // Print out Vendor ID, Product ID and Rev
-  printf("%.8s %.16s rev %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
+  printf("%.8s %.16s rev %.4s\r\n", scsi_resp.inquiry.vendor_id, scsi_resp.inquiry.product_id, scsi_resp.inquiry.product_rev);
 
   // Get capacity of device
   uint32_t const block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
   uint32_t const block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
 
-  printf("Disk Size: %lu MB\r\n", block_count / ((1024*1024)/block_size));
+  printf("Disk Size: %" PRIu32 " MB\r\n", block_count / ((1024*1024)/block_size));
   // printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
 
   // For simplicity: we only mount 1 LUN per device
@@ -140,7 +152,7 @@ void tuh_msc_mount_cb(uint8_t dev_addr)
   printf("A MassStorage device is mounted\r\n");
 
   uint8_t const lun = 0;
-  tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb);
+  tuh_msc_inquiry(dev_addr, lun, &scsi_resp.inquiry, inquiry_complete_cb, 0);
 }
 
 void tuh_msc_umount_cb(uint8_t dev_addr)
@@ -178,9 +190,9 @@ static void wait_for_disk_io(BYTE pdrv)
   }
 }
 
-static bool disk_io_complete(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+static bool disk_io_complete(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data)
 {
-  (void) dev_addr; (void) cbw; (void) csw;
+  (void) dev_addr; (void) cb_data;
   _disk_busy[dev_addr-1] = false;
   return true;
 }
@@ -212,7 +224,7 @@ DRESULT disk_read (
 	uint8_t const lun = 0;
 
 	_disk_busy[pdrv] = true;
-	tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete);
+	tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete, 0);
 	wait_for_disk_io(pdrv);
 
 	return RES_OK;
@@ -231,7 +243,7 @@ DRESULT disk_write (
 	uint8_t const lun = 0;
 
 	_disk_busy[pdrv] = true;
-	tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete);
+	tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t) count, disk_io_complete, 0);
 	wait_for_disk_io(pdrv);
 
 	return RES_OK;
@@ -285,16 +297,9 @@ void cli_cmd_mkdir(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_mv(EmbeddedCli *cli, char *args, void *context);
 void cli_cmd_rm(EmbeddedCli *cli, char *args, void *context);
 
-void cli_write_char(EmbeddedCli *cli, char c)
-{
+static void cli_write_char(EmbeddedCli *cli, char c) {
   (void) cli;
   putchar((int) c);
-}
-
-void cli_cmd_unknown(EmbeddedCli *cli, CliCommand *command)
-{
-  (void) cli;
-  printf("%s: command not found\r\n", command->name);
 }
 
 bool cli_init(void)
@@ -410,7 +415,7 @@ void cli_cmd_cat(EmbeddedCli *cli, char *args, void *context)
       {
         for(UINT c = 0; c < count; c++)
         {
-          const char ch = buf[c];
+          const uint8_t ch = buf[c];
           if (isprint(ch) || iscntrl(ch))
           {
             putchar(ch);
@@ -535,10 +540,10 @@ void cli_cmd_ls(EmbeddedCli *cli, char *args, void *context)
         printf("%-40s", fno.fname);
         if (fno.fsize < 1024)
         {
-          printf("%lu B\r\n", fno.fsize);
+          printf("%" PRIu32 " B\r\n", fno.fsize);
         }else
         {
-          printf("%lu KB\r\n", fno.fsize / 1024);
+          printf("%" PRIu32 " KB\r\n", fno.fsize / 1024);
         }
       }
     }

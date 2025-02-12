@@ -52,18 +52,18 @@
 /* Entry Point */
 ENTRY(Reset_Handler)
 
-/* Highest address of the user mode stack */
-_estack = ORIGIN(RAM) + 0x0001FFFF;	/* end of "SRAM1" Ram type memory */
-
-_Min_Heap_Size = 0x200;	/* required amount of heap  */
-_Min_Stack_Size = 0x400;	/* required amount of stack */
-
 /* Memories definition */
 MEMORY
 {
   RAM	(xrw)	: ORIGIN = 0x20000000,	LENGTH = 320K
   ROM	(rx)	: ORIGIN = 0x08000000,	LENGTH = 1024K
 }
+
+/* Highest address of the user mode stack */
+_estack = ORIGIN(RAM) + 0x0001FFFF;	/* end of "SRAM1" Ram type memory */
+
+_Min_Heap_Size = 0x200;	/* required amount of heap  */
+_Min_Stack_Size = 0x400;	/* required amount of stack */
 
 /* Sections */
 SECTIONS
@@ -102,12 +102,12 @@ SECTIONS
     . = ALIGN(4);
   } >ROM
 
-  .ARM.extab   : { 
+  .ARM.extab   : {
     . = ALIGN(4);
     *(.ARM.extab* .gnu.linkonce.armextab.*)
     . = ALIGN(4);
   } >ROM
-  
+
   .ARM : {
     . = ALIGN(4);
     __exidx_start = .;
@@ -124,7 +124,7 @@ SECTIONS
     PROVIDE_HIDDEN (__preinit_array_end = .);
     . = ALIGN(4);
   } >ROM
-  
+
   .init_array :
   {
     . = ALIGN(4);
@@ -134,7 +134,7 @@ SECTIONS
     PROVIDE_HIDDEN (__init_array_end = .);
     . = ALIGN(4);
   } >ROM
-  
+
   .fini_array :
   {
     . = ALIGN(4);
@@ -149,7 +149,7 @@ SECTIONS
   _sidata = LOADADDR(.data);
 
   /* Initialized data sections into "RAM" Ram type memory */
-  .data : 
+  .data :
   {
     . = ALIGN(4);
     _sdata = .;        /* create a global symbol at data start */
@@ -158,7 +158,7 @@ SECTIONS
 
     . = ALIGN(4);
     _edata = .;        /* define a global symbol at data end */
-    
+
   } >RAM AT> ROM
 
   /* Uninitialized data section into "RAM" Ram type memory */

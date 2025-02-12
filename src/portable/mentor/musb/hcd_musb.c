@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2021 Koji KITAYAMA
@@ -37,16 +37,10 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
 
 #include "host/hcd.h"
 
-#if TU_CHECK_MCU(OPT_MCU_MSP432E4)
-  #include "musb_msp432e.h"
+#include "musb_type.h"
 
-#elif TU_CHECK_MCU(OPT_MCU_TM4C123, OPT_MCU_TM4C129)
-  #include "musb_tm4c.h"
-
-  // HACK generalize later
-  #include "musb_type.h"
-  #define FIFO0_WORD FIFO0
-
+#if TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+  #include "musb_ti.h"
 #else
   #error "Unsupported MCUs"
 #endif
@@ -418,7 +412,7 @@ static void process_ep0(uint8_t rhport)
   (void)rhport;
 
   uint_fast8_t csrl = USB0->CSRL0;
-  // TU_LOG1(" EP0 CSRL = %x\n", csrl);
+  // TU_LOG1(" EP0 CSRL = %x\r\n", csrl);
 
   unsigned const dev_addr = USB0->TXFUNCADDR0;
   unsigned const req = _hcd.bmRequestType;
@@ -508,7 +502,7 @@ static void process_pipe_tx(uint8_t rhport, uint_fast8_t pipenum)
 
   volatile hw_endpoint_t *regs = edpt_regs(pipenum - 1);
   unsigned const csrl = regs->TXCSRL;
-  // TU_LOG1(" TXCSRL%d = %x\n", pipenum, csrl);
+  // TU_LOG1(" TXCSRL%d = %x\r\n", pipenum, csrl);
   if (csrl & (USB_TXCSRL1_STALLED | USB_TXCSRL1_ERROR)) {
     if (csrl & USB_TXCSRL1_TXRDY)
       regs->TXCSRL = (csrl & ~(USB_TXCSRL1_STALLED | USB_TXCSRL1_ERROR)) | USB_TXCSRL1_FLUSH;
@@ -537,7 +531,7 @@ static void process_pipe_rx(uint8_t rhport, uint_fast8_t pipenum)
 
   volatile hw_endpoint_t *regs = edpt_regs(pipenum - 1);
   unsigned const csrl = regs->RXCSRL;
-  // TU_LOG1(" RXCSRL%d = %x\n", pipenum, csrl);
+  // TU_LOG1(" RXCSRL%d = %x\r\n", pipenum, csrl);
   if (csrl & (USB_RXCSRL1_STALLED | USB_RXCSRL1_ERROR)) {
     if (csrl & USB_RXCSRL1_RXRDY)
       regs->RXCSRL = (csrl & ~(USB_RXCSRL1_STALLED | USB_RXCSRL1_ERROR)) | USB_RXCSRL1_FLUSH;
@@ -562,9 +556,9 @@ static void process_pipe_rx(uint8_t rhport, uint_fast8_t pipenum)
  * Host API
  *------------------------------------------------------------------*/
 
-bool hcd_init(uint8_t rhport)
-{
-  (void)rhport;
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rhport;
+  (void) rh_init;
 
   NVIC_ClearPendingIRQ(USB0_IRQn);
   _hcd.bmRequestType = REQUEST_TYPE_INVALID;
@@ -588,7 +582,7 @@ void hcd_int_disable(uint8_t rhport)
 uint32_t hcd_frame_number(uint8_t rhport)
 {
   (void)rhport;
-  /* The device must be reset at least once after connection 
+  /* The device must be reset at least once after connection
    * in order to start the frame counter. */
   if (_hcd.need_reset) hcd_port_reset(rhport);
   return USB0->FRAME;
@@ -822,9 +816,17 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   return ret;
 }
 
+bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) ep_addr;
+  // TODO not implemented yet
+  return false;
+}
+
 // clear stall, data toggle is also reset to DATA0
-bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
-{
+bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
+  (void) rhport;
   unsigned const pipenum = find_pipe(dev_addr, ep_addr);
   if (!pipenum) return false;
   hw_endpoint_t volatile *regs = edpt_regs(pipenum - 1);
@@ -839,14 +841,16 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 /*-------------------------------------------------------------------
  * ISR
  *-------------------------------------------------------------------*/
-void hcd_int_handler(uint8_t rhport)
+void hcd_int_handler(uint8_t rhport, bool in_isr)
 {
+  (void) in_isr;
+
   uint_fast8_t is, txis, rxis;
 
   is   = USB0->IS;   /* read and clear interrupt status */
   txis = USB0->TXIS; /* read and clear interrupt status */
   rxis = USB0->RXIS; /* read and clear interrupt status */
-  // TU_LOG1("D%2x T%2x R%2x\n", is, txis, rxis);
+  // TU_LOG1("D%2x T%2x R%2x\r\n", is, txis, rxis);
 
   is &= USB0->IE; /* Clear disabled interrupts */
   if (is & USB_IS_RESUME) {

@@ -243,7 +243,7 @@ static struct
 
 // Converts xfer pointer to epnum (0,1,2,3) regardless of xfer direction
 #define XFER_EPNUM(xfer)      ((xfer - &_dcd.xfer_status[0][0]) >> 1)
-// Converts xfer pinter to EPx_REGS pointer (returns same pointer for IN and OUT with same endpoint number)
+// Converts xfer pointer to EPx_REGS pointer (returns same pointer for IN and OUT with same endpoint number)
 #define XFER_REGS(xfer)       ep_regs[XFER_EPNUM(xfer)]
 // Converts epnum (0,1,2,3) to EPx_REGS pointer
 #define EPNUM_REGS(epnum)     ep_regs[epnum]
@@ -651,7 +651,7 @@ static void handle_epx_tx_ev(xfer_ctl_t *xfer)
   }
   if (txs & USB_USB_TXS1_REG_USB_TX_URUN_Msk)
   {
-    TU_LOG1("EP %d FIFO underrun\n", epnum);
+    TU_LOG1("EP %d FIFO underrun\r\n", epnum);
   }
   // Start next or repeated packet.
   start_tx_packet(xfer);
@@ -804,15 +804,16 @@ static void handle_ep0_nak(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   _dcd.init_called = true;
-  if (_dcd.vbus_present)
-  {
+  if (_dcd.vbus_present) {
     dcd_connect(rhport);
   }
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -895,6 +896,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
 }
 
+void tusb_vbus_changed(bool present);
 void tusb_vbus_changed(bool present)
 {
   if (present && !_dcd.vbus_present)
