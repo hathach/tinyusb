@@ -100,21 +100,21 @@ target_sources(tinyusb_device_base INTERFACE
 		${TOP}/src/class/video/video_device.c
 		)
 
-	#------------------------------------
-	# Base config for host mode; wrapped by SDK's tinyusb_host
-	#------------------------------------
-	add_library(tinyusb_host_base INTERFACE)
-	target_sources(tinyusb_host_base INTERFACE
-			${TOP}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
-			${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
-			${TOP}/src/host/usbh.c
-			${TOP}/src/host/hub.c
-			${TOP}/src/class/cdc/cdc_host.c
-			${TOP}/src/class/hid/hid_host.c
-      ${TOP}/src/class/midi/midi_host.c
-			${TOP}/src/class/msc/msc_host.c
-			${TOP}/src/class/vendor/vendor_host.c
-			)
+#------------------------------------
+# Base config for host mode; wrapped by SDK's tinyusb_host
+#------------------------------------
+add_library(tinyusb_host_base INTERFACE)
+target_sources(tinyusb_host_base INTERFACE
+		${TOP}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
+		${TOP}/src/portable/raspberrypi/rp2040/rp2040_usb.c
+		${TOP}/src/host/usbh.c
+		${TOP}/src/host/hub.c
+		${TOP}/src/class/cdc/cdc_host.c
+		${TOP}/src/class/hid/hid_host.c
+		${TOP}/src/class/midi/midi_host.c
+		${TOP}/src/class/msc/msc_host.c
+		${TOP}/src/class/vendor/vendor_host.c
+		)
 
 # Sometimes have to do host specific actions in mostly common functions
 target_compile_definitions(tinyusb_host_base INTERFACE

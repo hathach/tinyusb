@@ -440,7 +440,7 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint1
     drv_len = tu_desc_len(desc_itf);
     p_desc = tu_desc_next(desc_itf);
     // Skip Class Specific descriptors
-    while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len ) {
+    while (TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len) {
       drv_len += tu_desc_len(p_desc);
       p_desc   = tu_desc_next(p_desc);
     }
