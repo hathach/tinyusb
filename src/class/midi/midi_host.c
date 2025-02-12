@@ -29,7 +29,7 @@
 #if (TUSB_OPT_HOST_ENABLED && CFG_TUH_MIDI)
 
 #include "host/usbh.h"
-#include "host/usbh_classdriver.h"
+#include "host/usbh_pvt.h"
 
 #include "midi_host.h"
 
@@ -131,7 +131,7 @@ static uint32_t write_flush(uint8_t dev_addr, midih_interface_t* midi);
 //--------------------------------------------------------------------+
 // USBH API
 //--------------------------------------------------------------------+
-void midih_init(void)
+bool midih_init(void)
 {
   tu_memclr(&_midi_host, sizeof(_midi_host));
   // config fifos
@@ -146,6 +146,7 @@ void midih_init(void)
     tu_fifo_config_mutex(&p_midi_host->tx_ff, osal_mutex_create(&p_midi_host->tx_ff_mutex), NULL);
   #endif
   }
+  return true;
 }
 
 bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)

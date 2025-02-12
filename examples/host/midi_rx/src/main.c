@@ -27,10 +27,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
-#include "class/midi/midi_host.h"
-
 
 #if CFG_TUH_MIDI
 
