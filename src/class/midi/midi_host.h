@@ -37,16 +37,25 @@
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
-
-// TODO Highspeed bulk transfer can be up to 512 bytes
-#ifndef CFG_TUH_HID_EPIN_BUFSIZE
-#define CFG_TUH_HID_EPIN_BUFSIZE 64
+#ifndef CFG_TUH_MAX_CABLES
+#define CFG_TUH_MAX_CABLES 16
 #endif
 
-#ifndef CFG_TUH_HID_EPOUT_BUFSIZE
-#define CFG_TUH_HID_EPOUT_BUFSIZE 64
+#ifndef CFG_TUH_MIDI_RX_BUFSIZE
+#define CFG_TUH_MIDI_RX_BUFSIZE 64
 #endif
 
+#ifndef CFG_TUH_MIDI_TX_BUFSIZE
+#define CFG_TUH_MIDI_TX_BUFSIZE 64
+#endif
+
+#ifndef CFG_TUH_MIDI_EP_BUFSIZE
+#define CFG_TUH_MIDI_EP_BUFSIZE 64
+#endif
+
+#ifndef CFG_MIDI_HOST_DEVSTRINGS
+#define CFG_MIDI_HOST_DEVSTRINGS 0
+#endif
 
 //--------------------------------------------------------------------+
 // Application API (Single Interface)

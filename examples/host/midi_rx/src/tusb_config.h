@@ -107,10 +107,9 @@ extern "C" {
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 
 #define CFG_TUH_HUB                 1
-#define CFG_TUH_MIDI                1 // there will be at most one MIDIStreaming Interface descriptor
-
 // max device support (excluding hub device): 1 hub typically has 4 ports
 #define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
+#define CFG_TUH_MIDI                CFG_TUH_DEVICE_MAX
 
 #define CFG_MIDI_HOST_DEVSTRINGS 1
 
