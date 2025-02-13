@@ -192,6 +192,7 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
   {
       .name       = DRIVER_NAME("MIDI"),
       .init       = midih_init,
+      .deinit     = midih_deinit,
       .open       = midih_open,
       .set_config = midih_set_config,
       .xfer_cb    = midih_xfer_cb,
@@ -1672,7 +1673,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
     if ( 0 == tu_desc_len(p_desc) ) {
       // A zero length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
       // Parsed interfaces should still be usable
-      TU_LOG_USBH("Encountered a zero-length descriptor after %u bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
+      TU_LOG_USBH("Encountered a zero-length descriptor after %" PRIu32 " bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
       break;
     }
 

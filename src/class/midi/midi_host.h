@@ -42,15 +42,15 @@
 #endif
 
 #ifndef CFG_TUH_MIDI_RX_BUFSIZE
-#define CFG_TUH_MIDI_RX_BUFSIZE 64
+#define CFG_TUH_MIDI_RX_BUFSIZE TUH_EPSIZE_BULK_MPS
 #endif
 
 #ifndef CFG_TUH_MIDI_TX_BUFSIZE
-#define CFG_TUH_MIDI_TX_BUFSIZE 64
+#define CFG_TUH_MIDI_TX_BUFSIZE TUH_EPSIZE_BULK_MPS
 #endif
 
 #ifndef CFG_TUH_MIDI_EP_BUFSIZE
-#define CFG_TUH_MIDI_EP_BUFSIZE 64
+#define CFG_TUH_MIDI_EP_BUFSIZE TUH_EPSIZE_BULK_MPS
 #endif
 
 #ifndef CFG_MIDI_HOST_DEVSTRINGS
@@ -113,14 +113,6 @@ uint8_t tuh_midi_get_rx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint
 uint8_t tuh_midi_get_tx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings);
 uint8_t tuh_midi_get_all_istrings(uint8_t dev_addr, const uint8_t** istrings);
 #endif
-//--------------------------------------------------------------------+
-// Internal Class Driver API
-//--------------------------------------------------------------------+
-bool midih_init       (void);
-bool midih_open       (uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len);
-bool midih_set_config (uint8_t dev_addr, uint8_t itf_num);
-bool midih_xfer_cb    (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-void midih_close      (uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
@@ -138,6 +130,17 @@ TU_ATTR_WEAK void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance);
 
 TU_ATTR_WEAK void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets);
 TU_ATTR_WEAK void tuh_midi_tx_cb(uint8_t dev_addr);
+
+//--------------------------------------------------------------------+
+// Internal Class Driver API
+//--------------------------------------------------------------------+
+bool midih_init       (void);
+bool midih_deinit     (void);
+bool midih_open       (uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len);
+bool midih_set_config (uint8_t dev_addr, uint8_t itf_num);
+bool midih_xfer_cb    (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+void midih_close      (uint8_t dev_addr);
+
 #ifdef __cplusplus
 }
 #endif

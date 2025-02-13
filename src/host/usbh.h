@@ -37,6 +37,9 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+// Endpoint Bulk size depending on host mx speed
+#define TUH_EPSIZE_BULK_MPS   (TUD_OPT_HIGH_SPEED ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS)
+
 // forward declaration
 struct tuh_xfer_s;
 typedef struct tuh_xfer_s tuh_xfer_t;
