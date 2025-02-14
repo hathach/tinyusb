@@ -399,7 +399,11 @@ endfunction()
 # Add flash jlink target
 function(family_flash_jlink TARGET)
   if (NOT DEFINED JLINKEXE)
-    set(JLINKEXE JLinkExe)
+    if(CMAKE_HOST_WIN32)
+      set(JLINKEXE JLink.exe)
+    else()
+      set(JLINKEXE JLinkExe)
+    endif()
   endif ()
 
   if (NOT DEFINED JLINK_IF)
