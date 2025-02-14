@@ -14,6 +14,14 @@ CFLAGS += \
 # suppress following warnings from mcu driver
 CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-align -Wno-error=redundant-decls
 
+SPEED ?= high
+
+ifeq ($(SPEED), high)
+  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+else
+  CFLAGS += -DBOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+endif
+
 # SAM driver is flooded with -Wcast-qual which slow down complication significantly
 CFLAGS_SKIP += -Wcast-qual
 
