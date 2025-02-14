@@ -58,22 +58,34 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Application API (Single Interface)
+// Application API
 //--------------------------------------------------------------------+
 bool     tuh_midi_configured      (uint8_t dev_addr);
 
-// return the number of virtual midi cables on the device's OUT endpoint
-uint8_t tuh_midih_get_num_tx_cables (uint8_t dev_addr);
-
 // return the number of virtual midi cables on the device's IN endpoint
-uint8_t tuh_midih_get_num_rx_cables (uint8_t dev_addr);
+uint8_t tuh_midi_get_num_rx_cables(uint8_t dev_addr);
 
-// request available data from the device. tuh_midi_message_received_cb() will
-// be called if the device has any data to send. Otherwise, the device will
-// respond NAK. This function blocks until the transfer completes or the
-// devices sends NAK.
-// This function will return false if the hardware is busy.
-bool tuh_midi_read_poll( uint8_t dev_addr );
+// return the number of virtual midi cables on the device's OUT endpoint
+uint8_t tuh_midi_get_num_tx_cables(uint8_t dev_addr);
+
+#if CFG_MIDI_HOST_DEVSTRINGS
+uint8_t tuh_midi_get_rx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings);
+uint8_t tuh_midi_get_tx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings);
+uint8_t tuh_midi_get_all_istrings(uint8_t dev_addr, const uint8_t** istrings);
+#endif
+
+// return the raw number of bytes available from device endpoint.
+// Note: this is related but not the same as number of stream bytes available.
+uint32_t tuh_midi_read_available(uint8_t dev_addr);
+
+//--------------------------------------------------------------------+
+// Packet API
+//--------------------------------------------------------------------+
+
+// Read a raw MIDI packet from the connected device
+// This function does not parse the packet format
+// Return true if a packet was returned
+bool tuh_midi_packet_read (uint8_t dev_addr, uint8_t packet[4]);
 
 // Queue a packet to the device. The application
 // must call tuh_midi_stream_flush to actually have the
@@ -81,6 +93,10 @@ bool tuh_midi_read_poll( uint8_t dev_addr );
 // format this packet; this function does not check.
 // Returns true if the packet was successfully queued.
 bool tuh_midi_packet_write (uint8_t dev_addr, uint8_t const packet[4]);
+
+//--------------------------------------------------------------------+
+// Stream API
+//--------------------------------------------------------------------+
 
 // Queue a message to the device. The application
 // must call tuh_midi_stream_flush to actually have the
@@ -100,19 +116,6 @@ uint32_t tuh_midi_stream_flush( uint8_t dev_addr);
 // because a number of commercial devices out there do not encode
 // it properly.
 uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize);
-
-// Read a raw MIDI packet from the connected device
-// This function does not parse the packet format
-// Return true if a packet was returned
-bool tuh_midi_packet_read (uint8_t dev_addr, uint8_t packet[4]);
-
-uint8_t tuh_midi_get_num_rx_cables(uint8_t dev_addr);
-uint8_t tuh_midi_get_num_tx_cables(uint8_t dev_addr);
-#if CFG_MIDI_HOST_DEVSTRINGS
-uint8_t tuh_midi_get_rx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings);
-uint8_t tuh_midi_get_tx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings);
-uint8_t tuh_midi_get_all_istrings(uint8_t dev_addr, const uint8_t** istrings);
-#endif
 
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)

@@ -38,7 +38,7 @@
 static uint8_t midi_dev_addr = 0;
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTYPES
+// MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
 void midi_host_rx_task(void);
@@ -92,10 +92,9 @@ void midi_host_rx_task(void) {
   if (!midi_dev_addr || !tuh_midi_configured(midi_dev_addr)) {
     return;
   }
-  if (tuh_midih_get_num_rx_cables(midi_dev_addr) < 1) {
+  if (tuh_midi_get_num_rx_cables(midi_dev_addr) < 1) {
     return;
   }
-  tuh_midi_read_poll(midi_dev_addr);
 }
 
 //--------------------------------------------------------------------+
