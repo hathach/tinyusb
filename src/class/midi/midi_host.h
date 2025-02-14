@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MIDI_HOST_H_
-#define _TUSB_MIDI_HOST_H_
+#ifndef TUSB_MIDI_HOST_H_
+#define TUSB_MIDI_HOST_H_
 
 #include "class/audio/audio.h"
 #include "midi.h"
@@ -53,6 +53,12 @@
 #define CFG_TUH_MIDI_EP_BUFSIZE TUH_EPSIZE_BULK_MPS
 #endif
 
+// Enable the MIDI stream read/write API. Some library can work with raw USB MIDI packet
+// Disable this can save driver footprint.
+#ifndef CFG_TUH_MIDI_STREAM_API
+#define CFG_TUH_MIDI_STREAM_API 1
+#endif
+
 #ifndef CFG_MIDI_HOST_DEVSTRINGS
 #define CFG_MIDI_HOST_DEVSTRINGS 0
 #endif
@@ -60,7 +66,7 @@
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
-bool     tuh_midi_configured      (uint8_t dev_addr);
+bool    tuh_midi_configured      (uint8_t dev_addr);
 
 // return the number of virtual midi cables on the device's IN endpoint
 uint8_t tuh_midi_get_num_rx_cables(uint8_t dev_addr);
@@ -74,39 +80,50 @@ uint8_t tuh_midi_get_tx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint
 uint8_t tuh_midi_get_all_istrings(uint8_t dev_addr, const uint8_t** istrings);
 #endif
 
-// return the raw number of bytes available from device endpoint.
+// return the raw number of bytes available.
 // Note: this is related but not the same as number of stream bytes available.
 uint32_t tuh_midi_read_available(uint8_t dev_addr);
+
+// Send any queued packets to the device if the host hardware is able to do it
+// Returns the number of bytes flushed to the host hardware or 0 if
+// the host hardware is busy or there is nothing in queue to send.
+uint32_t tuh_midi_write_flush( uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // Packet API
 //--------------------------------------------------------------------+
 
-// Read a raw MIDI packet from the connected device
-// This function does not parse the packet format
-// Return true if a packet was returned
-bool tuh_midi_packet_read (uint8_t dev_addr, uint8_t packet[4]);
+// Read all available MIDI packets from the connected device
+// Return number of bytes read (always multiple of 4)
+uint32_t tuh_midi_packet_read_n(uint8_t dev_addr, uint8_t* buffer, uint32_t bufsize);
 
-// Queue a packet to the device. The application
-// must call tuh_midi_stream_flush to actually have the
-// data go out. It is up to the application to properly
-// format this packet; this function does not check.
+// Read a raw MIDI packet from the connected device
+// Return true if a packet was returned
+TU_ATTR_ALWAYS_INLINE static inline
+bool tuh_midi_packet_read (uint8_t dev_addr, uint8_t packet[4]) {
+ return 4 == tuh_midi_packet_read_n(dev_addr, packet, 4);
+}
+
+// Write all 4-byte packets, data is locally buffered and only transferred when buffered bytes
+// reach the endpoint packet size or tuh_midi_write_flush() is called
+uint32_t tuh_midi_packet_write_n(uint8_t dev_addr, const uint8_t* buffer, uint32_t bufsize);
+
+// Write a 4-bytes packet to the device.
 // Returns true if the packet was successfully queued.
-bool tuh_midi_packet_write (uint8_t dev_addr, uint8_t const packet[4]);
+TU_ATTR_ALWAYS_INLINE static inline
+bool tuh_midi_packet_write (uint8_t dev_addr, uint8_t const packet[4]) {
+ return 4 == tuh_midi_packet_write_n(dev_addr, packet, 4);
+}
 
 //--------------------------------------------------------------------+
 // Stream API
 //--------------------------------------------------------------------+
+#if CFG_TUH_MIDI_STREAM_API
 
-// Queue a message to the device. The application
-// must call tuh_midi_stream_flush to actually have the
-// data go out.
+// Queue a message to the device using stream API. data is locally buffered and only transferred when buffered bytes
+// reach the endpoint packet size or tuh_midi_write_flush() is called
+// Returns number of bytes was successfully queued.
 uint32_t tuh_midi_stream_write (uint8_t dev_addr, uint8_t cable_num, uint8_t const* p_buffer, uint32_t bufsize);
-
-// Send any queued packets to the device if the host hardware is able to do it
-// Returns the number of bytes flushed to the host hardware or 0 if
-// the host hardware is busy or there is nothing in queue to send.
-uint32_t tuh_midi_stream_flush( uint8_t dev_addr);
 
 // Get the MIDI stream from the device. Set the value pointed
 // to by p_cable_num to the MIDI cable number intended to receive it.
@@ -116,6 +133,8 @@ uint32_t tuh_midi_stream_flush( uint8_t dev_addr);
 // because a number of commercial devices out there do not encode
 // it properly.
 uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize);
+
+#endif
 
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
@@ -144,4 +163,4 @@ void midih_close      (uint8_t dev_addr);
 }
 #endif
 
-#endif /* _TUSB_MIDI_HOST_H_ */
+#endif

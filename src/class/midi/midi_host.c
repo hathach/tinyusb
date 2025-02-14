@@ -47,13 +47,14 @@ typedef struct {
   uint8_t num_cables_rx;  // IN endpoint CS descriptor bNumEmbMIDIJack value
   uint8_t num_cables_tx;  // OUT endpoint CS descriptor bNumEmbMIDIJack value
 
+  #if CFG_TUH_MIDI_STREAM_API
   // For Stream read()/write() API
   // Messages are always 4 bytes long, queue them for reading and writing so the
   // callers can use the Stream interface with single-byte read/write calls.
   midi_driver_stream_t stream_write;
   midi_driver_stream_t stream_read;
+  #endif
 
-  /*------------- From this point, data is not cleared by bus reset -------------*/
   // Endpoint stream
   struct {
     tu_edpt_stream_t tx;
@@ -433,6 +434,57 @@ bool tuh_midi_configured(uint8_t dev_addr) {
   return p_midi_host->configured;
 }
 
+uint8_t tuh_midi_get_num_tx_cables (uint8_t dev_addr) {
+  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
+  TU_VERIFY(p_midi_host != NULL, 0);
+  TU_VERIFY(p_midi_host->ep_stream.tx.ep_addr != 0, 0);
+  return p_midi_host->num_cables_tx;
+}
+
+uint8_t tuh_midi_get_num_rx_cables (uint8_t dev_addr) {
+  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
+  TU_VERIFY(p_midi_host != NULL, 0);
+  TU_VERIFY(p_midi_host->ep_stream.rx.ep_addr != 0, 0);
+  return p_midi_host->num_cables_rx;
+}
+
+uint32_t tuh_midi_read_available(uint8_t dev_addr) {
+  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
+  TU_VERIFY(p_midi_host != NULL);
+  return tu_edpt_stream_read_available(&p_midi_host->ep_stream.rx);
+}
+
+uint32_t tuh_midi_write_flush(uint8_t dev_addr) {
+  midih_interface_t *p_midi = find_midi_by_daddr(dev_addr);
+  TU_VERIFY(p_midi != NULL);
+  return tu_edpt_stream_write_xfer(p_midi->dev_addr, &p_midi->ep_stream.tx);
+}
+
+//--------------------------------------------------------------------+
+// Packet API
+//--------------------------------------------------------------------+
+
+uint32_t tuh_midi_packet_read_n(uint8_t dev_addr, uint8_t* buffer, uint32_t bufsize) {
+  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
+  TU_VERIFY(p_midi_host != NULL);
+
+  uint32_t count4 = tu_min32(bufsize, tu_edpt_stream_read_available(&p_midi_host->ep_stream.rx));
+  count4 = tu_align4(count4); // round down to multiple of 4
+  TU_VERIFY(count4 > 0, 0);
+  return tu_edpt_stream_read(dev_addr, &p_midi_host->ep_stream.rx, buffer, count4);
+}
+
+uint32_t tuh_midi_packet_write_n(uint8_t dev_addr, const uint8_t* buffer, uint32_t bufsize) {
+  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
+  TU_VERIFY(p_midi_host != NULL, 0);
+  uint32_t bufsize4 = tu_align4(bufsize);
+  return tu_edpt_stream_write(dev_addr, &p_midi_host->ep_stream.tx, buffer, bufsize4);
+}
+
+//--------------------------------------------------------------------+
+// Stream API
+//--------------------------------------------------------------------+
+#if CFG_TUH_MIDI_STREAM_API
 uint32_t tuh_midi_stream_write(uint8_t dev_addr, uint8_t cable_num, uint8_t const *buffer, uint32_t bufsize) {
   midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
   TU_VERIFY(p_midi_host != NULL);
@@ -528,47 +580,6 @@ uint32_t tuh_midi_stream_write(uint8_t dev_addr, uint8_t cable_num, uint8_t cons
     }
   }
   return i;
-}
-
-bool tuh_midi_packet_write (uint8_t dev_addr, uint8_t const packet[4]) {
-  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi_host != NULL);
-  return 4 == tu_edpt_stream_write(dev_addr, &p_midi_host->ep_stream.tx, packet, 4);
-}
-
-uint32_t tuh_midi_stream_flush(uint8_t dev_addr) {
-  midih_interface_t *p_midi = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi != NULL);
-  return tu_edpt_stream_write_xfer(p_midi->dev_addr, &p_midi->ep_stream.tx);
-}
-//--------------------------------------------------------------------+
-// Helper
-//--------------------------------------------------------------------+
-uint8_t tuh_midi_get_num_tx_cables (uint8_t dev_addr) {
-  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi_host != NULL, 0);
-  TU_VERIFY(p_midi_host->ep_stream.tx.ep_addr != 0, 0);
-  return p_midi_host->num_cables_tx;
-}
-
-uint8_t tuh_midi_get_num_rx_cables (uint8_t dev_addr) {
-  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi_host != NULL, 0);
-  TU_VERIFY(p_midi_host->ep_stream.rx.ep_addr != 0, 0);
-  return p_midi_host->num_cables_rx;
-}
-
-uint32_t tuh_midi_read_available(uint8_t dev_addr) {
-  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi_host != NULL);
-  return tu_edpt_stream_read_available(&p_midi_host->ep_stream.rx);
-}
-
-bool tuh_midi_packet_read (uint8_t dev_addr, uint8_t packet[4]) {
-  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi_host != NULL);
-  TU_VERIFY(tu_edpt_stream_read_available(&p_midi_host->ep_stream.rx) >= 4);
-  return 4 == tu_edpt_stream_read(dev_addr, &p_midi_host->ep_stream.rx, packet, 4);
 }
 
 uint32_t tuh_midi_stream_read(uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p_buffer, uint16_t bufsize) {
@@ -669,6 +680,9 @@ uint32_t tuh_midi_stream_read(uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p
   return bytes_buffered;
 }
 
+//--------------------------------------------------------------------+
+// String API
+//--------------------------------------------------------------------+
 #if CFG_MIDI_HOST_DEVSTRINGS
 static uint8_t find_string_index(midih_interface_t *ptr, uint8_t jack_id)
 {
@@ -690,9 +704,7 @@ static uint8_t find_string_index(midih_interface_t *ptr, uint8_t jack_id)
   }
   return index;
 }
-#endif
 
-#if CFG_MIDI_HOST_DEVSTRINGS
 uint8_t tuh_midi_get_rx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings) {
   midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
   TU_VERIFY(p_midi_host != NULL, 0);
@@ -731,4 +743,6 @@ uint8_t tuh_midi_get_all_istrings(uint8_t dev_addr, const uint8_t** istrings)
   if (nstrings) { *istrings = p_midi_host->all_string_indices; }
   return nstrings;
 }
+#endif
+
 #endif
