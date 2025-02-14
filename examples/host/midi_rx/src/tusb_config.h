@@ -27,7 +27,7 @@
 #define TUSB_CONFIG_H_
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 //--------------------------------------------------------------------
@@ -106,14 +106,15 @@
 // Size of buffer to hold descriptors and other data used for enumeration
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 
-// only hub class is enabled
 #define CFG_TUH_HUB                 1
-
 // max device support (excluding hub device): 1 hub typically has 4 ports
 #define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
+#define CFG_TUH_MIDI                CFG_TUH_DEVICE_MAX
+
+#define CFG_MIDI_HOST_DEVSTRINGS 1
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif

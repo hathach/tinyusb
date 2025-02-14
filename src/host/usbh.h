@@ -37,6 +37,9 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
+// Endpoint Bulk size depending on host mx speed
+#define TUH_EPSIZE_BULK_MPS   (TUD_OPT_HIGH_SPEED ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS)
+
 // forward declaration
 struct tuh_xfer_s;
 typedef struct tuh_xfer_s tuh_xfer_t;
@@ -95,6 +98,12 @@ typedef union {
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
+
+// Invoked when enumeration get device descriptor
+// TU_ATTR_WEAK void tuh_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device);
+
+// Invoked when enumeration get configuration descriptor
+// TU_ATTR_WEAK void tuh_desc_configuration_cb(uint8_t daddr, uint8_t cfg_index, const tusb_desc_configuration_t *desc_config);
 
 // Invoked when a device is mounted (configured)
 TU_ATTR_WEAK void tuh_mount_cb (uint8_t daddr);
