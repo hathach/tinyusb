@@ -122,14 +122,10 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
 //--------------------------------------------------------------------+
 
 // Invoked when device with MIDI interface is mounted.
-// If the MIDI host application requires MIDI IN, it should request an
-// IN transfer here. The device will likely NAK this transfer. How the driver
-// handles the NAK is hardware dependent.
-TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx);
+TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t num_cables_rx, uint16_t num_cables_tx);
 
 // Invoked when device with MIDI interface is un-mounted
-// For now, the instance parameter is always 0 and can be ignored
-TU_ATTR_WEAK void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance);
+TU_ATTR_WEAK void tuh_midi_umount_cb(uint8_t dev_addr);
 
 TU_ATTR_WEAK void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets);
 TU_ATTR_WEAK void tuh_midi_tx_cb(uint8_t dev_addr);

@@ -101,30 +101,20 @@ void midi_host_rx_task(void) {
 // TinyUSB Callbacks
 //--------------------------------------------------------------------+
 
-// Invoked when device with hid interface is mounted
-// Report descriptor is also available for use. tuh_hid_parse_report_descriptor()
-// can be used to parse common/simple enough descriptor.
-// Note: if report descriptor length > CFG_TUH_ENUMERATION_BUFSIZE, it will be skipped
-// therefore report_desc = NULL, desc_len = 0
-void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx) {
-  (void) in_ep;
-  (void) out_ep;
+// Invoked when device with MIDI interface is mounted.
+void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t num_cables_rx, uint16_t num_cables_tx) {
   (void) num_cables_rx;
   (void) num_cables_tx;
-
-  TU_LOG1("MIDI device address = %u, IN endpoint %u has %u cables, OUT endpoint %u has %u cables\r\n",
-          dev_addr, in_ep & 0xf, num_cables_rx, out_ep & 0xf, num_cables_tx);
-
   midi_dev_addr = dev_addr;
+  TU_LOG1("MIDI device address = %u, Number of RX cables = %u, Number of TX cables = %u\r\n",
+          dev_addr, num_cables_rx, num_cables_tx);
 }
 
 // Invoked when device with hid interface is un-mounted
-void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance) {
+void tuh_midi_umount_cb(uint8_t dev_addr) {
   (void) dev_addr;
-  (void) instance;
-
-  TU_LOG1("MIDI device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
   midi_dev_addr = 0;
+  TU_LOG1("MIDI device address = %d is unmounted\r\n", dev_addr);
 }
 
 void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets) {

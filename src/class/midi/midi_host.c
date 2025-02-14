@@ -37,14 +37,6 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// TODO: refactor to share code with the MIDI Device driver
-typedef struct
-{
-  uint8_t buffer[4];
-  uint8_t index;
-  uint8_t total;
-}midi_stream_t;
-
 typedef struct {
   uint8_t dev_addr;
   uint8_t itf_num;
@@ -58,8 +50,8 @@ typedef struct {
   // For Stream read()/write() API
   // Messages are always 4 bytes long, queue them for reading and writing so the
   // callers can use the Stream interface with single-byte read/write calls.
-  midi_stream_t stream_write;
-  midi_stream_t stream_read;
+  midi_driver_stream_t stream_write;
+  midi_driver_stream_t stream_read;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
   // Endpoint stream
@@ -152,7 +144,7 @@ void midih_close(uint8_t dev_addr) {
     return;
   }
   if (tuh_midi_umount_cb) {
-    tuh_midi_umount_cb(dev_addr, 0);
+    tuh_midi_umount_cb(dev_addr);
   }
   p_midi_host->ep_in = 0;
   p_midi_host->ep_out = 0;
@@ -422,7 +414,7 @@ bool midih_set_config(uint8_t dev_addr, uint8_t itf_num) {
   p_midi_host->configured = true;
 
   if (tuh_midi_mount_cb) {
-    tuh_midi_mount_cb(dev_addr, p_midi_host->ep_in, p_midi_host->ep_out, p_midi_host->num_cables_rx, p_midi_host->num_cables_tx);
+    tuh_midi_mount_cb(dev_addr, p_midi_host->num_cables_rx, p_midi_host->num_cables_tx);
   }
 
   tu_edpt_stream_read_xfer(dev_addr, &p_midi_host->ep_stream.rx); // prepare for incoming data
@@ -445,7 +437,7 @@ uint32_t tuh_midi_stream_write(uint8_t dev_addr, uint8_t cable_num, uint8_t cons
   midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
   TU_VERIFY(p_midi_host != NULL);
   TU_VERIFY(cable_num < p_midi_host->num_cables_tx);
-  midi_stream_t *stream = &p_midi_host->stream_write;
+  midi_driver_stream_t *stream = &p_midi_host->stream_write;
 
   uint32_t i = 0;
   while ((i < bufsize) && (tu_edpt_stream_write_available(dev_addr, &p_midi_host->ep_stream.tx) >= 4)) {
@@ -453,7 +445,7 @@ uint32_t tuh_midi_stream_write(uint8_t dev_addr, uint8_t cable_num, uint8_t cons
     i++;
     if (data >= MIDI_STATUS_SYSREAL_TIMING_CLOCK) {
       // real-time messages need to be sent right away
-      midi_stream_t streamrt;
+      midi_driver_stream_t streamrt;
       streamrt.buffer[0] = MIDI_CIN_SYSEX_END_1BYTE;
       streamrt.buffer[1] = data;
       streamrt.index = 2;
@@ -555,14 +547,14 @@ uint32_t tuh_midi_stream_flush(uint8_t dev_addr) {
 uint8_t tuh_midi_get_num_tx_cables (uint8_t dev_addr) {
   midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
   TU_VERIFY(p_midi_host != NULL, 0);
-  TU_VERIFY(p_midi_host->ep_out != 0, 0);
+  TU_VERIFY(p_midi_host->ep_stream.tx.ep_addr != 0, 0);
   return p_midi_host->num_cables_tx;
 }
 
 uint8_t tuh_midi_get_num_rx_cables (uint8_t dev_addr) {
   midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
   TU_VERIFY(p_midi_host != NULL, 0);
-  TU_VERIFY(p_midi_host->ep_in != 0, 0);
+  TU_VERIFY(p_midi_host->ep_stream.rx.ep_addr != 0, 0);
   return p_midi_host->num_cables_rx;
 }
 

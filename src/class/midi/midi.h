@@ -24,13 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_class
- *  \defgroup ClassDriver_CDC Communication Device Class (CDC)
- *            Currently only Abstract Control Model subclass is supported
- *  @{ */
-
-#ifndef _TUSB_MIDI_H__
-#define _TUSB_MIDI_H__
+#ifndef TUSB_MIDI_H_
+#define TUSB_MIDI_H_
 
 #include "common/tusb_common.h"
 
@@ -39,7 +34,7 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Class Specific Descriptor
+// Constants
 //--------------------------------------------------------------------+
 
 typedef enum
@@ -110,6 +105,10 @@ enum
 {
   MIDI_MAX_DATA_VAL = 0x7F,
 };
+
+//--------------------------------------------------------------------+
+// Class Specific Descriptor
+//--------------------------------------------------------------------+
 
 /// MIDI Interface Header Descriptor
 typedef struct TU_ATTR_PACKED
@@ -216,12 +215,17 @@ typedef struct
   uint8_t baAssocJackID[];   ; ///< A list of associated jacks
 } midi_cs_desc_endpoint_t;
 
-/** @} */
+//--------------------------------------------------------------------+
+// For Internal Driver Use
+//--------------------------------------------------------------------+
+typedef struct {
+  uint8_t buffer[4];
+  uint8_t index;
+  uint8_t total;
+} midi_driver_stream_t;
 
 #ifdef __cplusplus
  }
 #endif
 
 #endif
-
-/** @} */
