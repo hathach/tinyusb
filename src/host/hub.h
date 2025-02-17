@@ -184,7 +184,7 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void *resp,
                          tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Get status from Interrupt endpoint
-bool hub_edpt_status_xfer(uint8_t dev_addr);
+bool hub_edpt_status_xfer(uint8_t daddr);
 
 // Reset a port
 TU_ATTR_ALWAYS_INLINE static inline

@@ -183,6 +183,10 @@ tusb_speed_t tuh_speed_get(uint8_t daddr);
 // Check if device is connected and configured
 bool tuh_mounted(uint8_t daddr);
 
+// Check if device is connected which mean device has at least 1 successful transfer
+// Note: It may not be addressed/configured/mounted yet
+bool tuh_connected(uint8_t daddr);
+
 // Check if device is suspended
 TU_ATTR_ALWAYS_INLINE static inline
 bool tuh_suspended(uint8_t daddr) {
