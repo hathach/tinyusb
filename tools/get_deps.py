@@ -59,7 +59,7 @@ deps_optional = {
                             '144f1eb7ea8c06512e12f12b27383601c0272410',
                             'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
-                                         'fe9133fc513b82cc3dc62c67cb51f2339cf29ef7',
+                                         '442af432568f25fb72c5784d9d67b8e85465cb28',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',
@@ -217,7 +217,12 @@ TOP = Path(__file__).parent.parent.resolve()
 
 
 def run_cmd(cmd):
-    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    title = f'Command Error: {cmd}'
+    if r.returncode != 0:
+        print(title)
+        print(r.stdout.decode("utf-8"))
+    return r
 
 
 def get_a_dep(d):

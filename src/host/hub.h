@@ -24,22 +24,21 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_class
- *  \defgroup ClassDriver_Hub Hub (Host only)
- *  \details  Like most PC's OS, Hub support is completely hidden from Application. In fact, application cannot determine whether
- *            a device is mounted directly via roothub or via a hub's port. All Hub-related procedures are performed and managed
- *            by tinyusb stack. Unless you are trying to develop the stack itself, there are nothing else can be used by Application.
- *  \note     Due to my laziness, only 1-level of Hub is supported. In other way, the stack cannot mount a hub via another hub.
- *  @{
- */
-
-#ifndef _TUSB_HUB_H_
-#define _TUSB_HUB_H_
+#ifndef TUSB_HUB_H_
+#define TUSB_HUB_H_
 
 #include "common/tusb_common.h"
 
 #ifdef __cplusplus
  extern "C" {
+#endif
+
+//--------------------------------------------------------------------+
+// Configuration
+//--------------------------------------------------------------------+
+
+#ifndef CFG_TUH_HUB_BUFSIZE
+  #define CFG_TUH_HUB_BUFSIZE 12
 #endif
 
 //D1...D0: Logical Power Switching Mode
@@ -89,16 +88,17 @@ typedef struct TU_ATTR_PACKED{
   uint8_t  bHubContrCurrent;
   uint8_t  DeviceRemovable; // bitmap each bit for a port (from bit1)
   uint8_t  PortPwrCtrlMask; // just for compatibility, should be 0xff
-} descriptor_hub_desc_t;
+} hub_desc_cs_t;
 
-TU_VERIFY_STATIC( sizeof(descriptor_hub_desc_t) == 9, "size is not correct");
+TU_VERIFY_STATIC(sizeof(hub_desc_cs_t) == 9, "size is not correct");
+TU_VERIFY_STATIC(CFG_TUH_HUB_BUFSIZE >= sizeof(hub_desc_cs_t), "buffer is not big enough");
 
 enum {
   HUB_REQUEST_GET_STATUS      = 0  ,
   HUB_REQUEST_CLEAR_FEATURE   = 1  ,
-
+  // 2 is reserved
   HUB_REQUEST_SET_FEATURE     = 3  ,
-
+  // 4-5 are reserved
   HUB_REQUEST_GET_DESCRIPTOR  = 6  ,
   HUB_REQUEST_SET_DESCRIPTOR  = 7  ,
   HUB_REQUEST_CLEAR_TT_BUFFER = 8  ,
@@ -118,10 +118,10 @@ enum{
   HUB_FEATURE_PORT_SUSPEND             = 2,
   HUB_FEATURE_PORT_OVER_CURRENT        = 3,
   HUB_FEATURE_PORT_RESET               = 4,
-
+  // 5-7 are reserved
   HUB_FEATURE_PORT_POWER               = 8,
   HUB_FEATURE_PORT_LOW_SPEED           = 9,
-
+  // 10-15 are reserved
   HUB_FEATURE_PORT_CONNECTION_CHANGE   = 16,
   HUB_FEATURE_PORT_ENABLE_CHANGE       = 17,
   HUB_FEATURE_PORT_SUSPEND_CHANGE      = 18,
@@ -172,16 +172,16 @@ typedef struct {
 TU_VERIFY_STATIC( sizeof(hub_port_status_response_t) == 4, "size is not correct");
 
 // Clear feature
-bool hub_port_clear_feature (uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
-                             tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
+                            tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Set feature
-bool hub_port_set_feature   (uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
-                             tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
+                          tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Get port status
-bool hub_port_get_status    (uint8_t hub_addr, uint8_t hub_port, void* resp,
-                             tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void *resp,
+                         tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Get status from Interrupt endpoint
 bool hub_edpt_status_xfer(uint8_t dev_addr);
@@ -198,7 +198,6 @@ bool hub_port_clear_reset_change(uint8_t hub_addr, uint8_t hub_port, tuh_xfer_cb
   return hub_port_clear_feature(hub_addr, hub_port, HUB_FEATURE_PORT_RESET_CHANGE, complete_cb, user_data);
 }
 
-
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
@@ -213,6 +212,4 @@ void hub_close      (uint8_t dev_addr);
  }
 #endif
 
-#endif /* _TUSB_HUB_H_ */
-
-/** @} */
+#endif

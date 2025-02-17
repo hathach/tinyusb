@@ -467,13 +467,11 @@ bool tuh_task_event_ready(void) {
  * This should be called periodically within the mainloop or rtos thread.
  *
    @code
-    int main(void)
-    {
+    int main(void) {
       application_init();
       tusb_init(0, TUSB_ROLE_HOST);
 
-      while(1) // the mainloop
-      {
+      while(1) { // the mainloop
         application_code();
         tuh_task(); // tinyusb host task
       }
@@ -1657,7 +1655,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
     if ( 0 == tu_desc_len(p_desc) ) {
       // A zero length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
       // Parsed interfaces should still be usable
-      TU_LOG_USBH("Encountered a zero-length descriptor after %u bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
+      TU_LOG_USBH("Encountered a zero-length descriptor after %" PRIu32 "bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
       break;
     }
 
