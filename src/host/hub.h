@@ -148,21 +148,21 @@ TU_VERIFY_STATIC( sizeof(hub_status_response_t) == 4, "size is not correct");
 
 // data in response of HUB_REQUEST_GET_STATUS, wIndex = Port num
 typedef struct {
-  union {
+  union TU_ATTR_PACKED {
     struct TU_ATTR_PACKED {
-      uint16_t connection             : 1;
-      uint16_t port_enable            : 1;
-      uint16_t suspend                : 1;
-      uint16_t over_current           : 1;
-      uint16_t reset                  : 1;
+      uint16_t connection             : 1; // [0] 0 = no device, 1 = device connected
+      uint16_t port_enable            : 1; // [1] port is enabled
+      uint16_t suspend                : 1; // [2]
+      uint16_t over_current           : 1; // [3] over-current exists
+      uint16_t reset                  : 1; // [4] 0 = no reset, 1 = resetting
 
-      uint16_t                        : 3;
-      uint16_t port_power             : 1;
-      uint16_t low_speed              : 1;
-      uint16_t high_speed             : 1;
-      uint16_t port_test_mode         : 1;
-      uint16_t port_indicator_control : 1;
-      uint16_t TU_RESERVED            : 3;
+      uint16_t rsv5_7                 : 3; // [5..7] reserved
+      uint16_t port_power             : 1; // [8] 0 = port is off, 1 = port is on
+      uint16_t low_speed              : 1; // [9] low speed device attached
+      uint16_t high_speed             : 1; // [10] high speed device attached
+      uint16_t port_test_mode         : 1; // [11] port in test mode
+      uint16_t port_indicator_control : 1; // [12] 0: default color, 1: indicator is software controlled
+      uint16_t TU_RESERVED            : 3; // [13..15] reserved
     };
 
     uint16_t value;
@@ -171,11 +171,15 @@ typedef struct {
 
 TU_VERIFY_STATIC( sizeof(hub_port_status_response_t) == 4, "size is not correct");
 
-// Clear feature
+//--------------------------------------------------------------------+
+// HUB API
+//--------------------------------------------------------------------+
+
+// Clear port feature
 bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
                             tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
-// Set feature
+// Set port feature
 bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
                           tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
@@ -192,12 +196,23 @@ bool hub_port_reset(uint8_t hub_addr, uint8_t hub_port, tuh_xfer_cb_t complete_c
   return hub_port_set_feature(hub_addr, hub_port, HUB_FEATURE_PORT_RESET, complete_cb, user_data);
 }
 
-// Clear Reset Change
+// Clear Port Reset Change
 TU_ATTR_ALWAYS_INLINE static inline
 bool hub_port_clear_reset_change(uint8_t hub_addr, uint8_t hub_port, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return hub_port_clear_feature(hub_addr, hub_port, HUB_FEATURE_PORT_RESET_CHANGE, complete_cb, user_data);
 }
 
+// Get Hub status
+TU_ATTR_ALWAYS_INLINE static inline
+bool hub_get_status(uint8_t hub_addr, void* resp, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  return hub_port_get_status(hub_addr, 0, resp, complete_cb, user_data);
+}
+
+// Clear Hub feature
+TU_ATTR_ALWAYS_INLINE static inline
+bool hub_clear_feature(uint8_t hub_addr, uint8_t feature, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  return hub_port_clear_feature(hub_addr, 0, feature, complete_cb, user_data);
+}
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
