@@ -39,8 +39,8 @@
 #endif
 
 #include "nrf.h"
-#include "nrf_clock.h"
-#include "nrfx_usbd_errata.h"
+#include "nrfx_clock.h"
+#include "nrf_erratas.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -926,7 +926,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
 
 #ifdef NRF52_SERIES // NRF53 does not need this errata
         // ERRATA 171, 187, 166
-        if (nrfx_usbd_errata_187()) {
+        if (nrf52_errata_187()) {
           // CRITICAL_REGION_ENTER();
           if (*((volatile uint32_t*) (0x4006EC00)) == 0x00000000) {
             *((volatile uint32_t*) (0x4006EC00)) = 0x00009375;
@@ -938,7 +938,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
           // CRITICAL_REGION_EXIT();
         }
 
-        if (nrfx_usbd_errata_171()) {
+        if (nrf52_errata_171()) {
           // CRITICAL_REGION_ENTER();
           if (*((volatile uint32_t*) (0x4006EC00)) == 0x00000000) {
             *((volatile uint32_t*) (0x4006EC00)) = 0x00009375;
@@ -974,7 +974,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
       __DSB(); // for sync
 
 #ifdef NRF52_SERIES
-      if (nrfx_usbd_errata_171()) {
+      if (nrf52_errata_171()) {
         // CRITICAL_REGION_ENTER();
         if (*((volatile uint32_t*) (0x4006EC00)) == 0x00000000) {
           *((volatile uint32_t*) (0x4006EC00)) = 0x00009375;
@@ -987,7 +987,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         // CRITICAL_REGION_EXIT();
       }
 
-      if (nrfx_usbd_errata_187()) {
+      if (nrf52_errata_187()) {
         // CRITICAL_REGION_ENTER();
         if (*((volatile uint32_t*) (0x4006EC00)) == 0x00000000) {
           *((volatile uint32_t*) (0x4006EC00)) = 0x00009375;
@@ -999,7 +999,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         // CRITICAL_REGION_EXIT();
       }
 
-      if (nrfx_usbd_errata_166()) {
+      if (nrf52_errata_166()) {
         *((volatile uint32_t*) (NRF_USBD_BASE + 0x800)) = 0x7E3;
         *((volatile uint32_t*) (NRF_USBD_BASE + 0x804)) = 0x40;
 

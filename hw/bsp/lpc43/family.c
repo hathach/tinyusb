@@ -47,6 +47,11 @@
 const uint32_t OscRateIn = 12000000;
 const uint32_t ExtRateIn = 0;
 
+extern void USB0_IRQHandler(void);
+extern void USB1_IRQHandler(void);
+extern void SysTick_Handler(void);
+void SystemInit(void);
+
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/

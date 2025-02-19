@@ -390,7 +390,7 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
   if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_IN_MAX_DATAGRAMS_PER_NTB) {
     return false;
   }
-  if (ncm_interface.xmit_glue_ntb->nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+  if (ncm_interface.xmit_glue_ntb->nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_IN_NTB_MAX_SIZE) {
     return false;
   }
   return true;
@@ -674,7 +674,7 @@ static void recv_transfer_datagram_to_glue_logic(void) {
 bool tud_network_can_xmit(uint16_t size) {
   TU_LOG_DRV("tud_network_can_xmit(%d)\n", size);
 
-  TU_ASSERT(size <= CFG_TUD_NCM_OUT_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)), false);
+  TU_ASSERT(size <= CFG_TUD_NCM_IN_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)), false);
 
   if (xmit_requested_datagram_fits_into_current_ntb(size) || xmit_setup_next_glue_ntb()) {
     // -> everything is fine
@@ -709,7 +709,7 @@ void tud_network_xmit(void *ref, uint16_t arg) {
 
   ntb->nth.wBlockLength += (uint16_t) (size + XMIT_ALIGN_OFFSET(size));
 
-  if (ntb->nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+  if (ntb->nth.wBlockLength > CFG_TUD_NCM_IN_NTB_MAX_SIZE) {
     TU_LOG_DRV("(EE) tud_network_xmit: buffer overflow\n"); // must not happen (really)
     return;
   }
@@ -857,7 +857,8 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     // - if there is a free receive buffer, initiate reception
     if (!recv_validate_datagram(ncm_interface.recv_tinyusb_ntb, xferred_bytes)) {
       // verification failed: ignore NTB and return it to free
-      TU_LOG_DRV("(EE) VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
+      TU_LOG_DRV("Invalid datatagram. Ignoring NTB\n");
+      recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
     } else {
       // packet ok -> put it into ready list
       recv_put_ntb_into_ready_list(ncm_interface.recv_tinyusb_ntb);

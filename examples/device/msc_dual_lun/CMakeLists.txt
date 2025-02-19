@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../../hw/bsp/family_support.cmake)
 
@@ -15,20 +15,25 @@ if(FAMILY STREQUAL "espressif")
   return()
 endif()
 
-add_executable(${PROJECT})
+if (RTOS STREQUAL zephyr)
+  set(EXE_NAME app)
+else()
+  set(EXE_NAME ${PROJECT})
+  add_executable(${EXE_NAME})
+endif()
 
 # Example source
-target_sources(${PROJECT} PUBLIC
+target_sources(${EXE_NAME} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_disk_dual.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
   )
 
 # Example include
-target_include_directories(${PROJECT} PUBLIC
+target_include_directories(${EXE_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
-family_configure_device_example(${PROJECT} noos)
+family_configure_device_example(${EXE_NAME} ${RTOS})

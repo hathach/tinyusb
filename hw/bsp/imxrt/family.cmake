@@ -8,8 +8,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(MCU_VARIANT_WITH_CORE ${MCU_VARIANT}${MCU_CORE})
 
 # toolchain set up
-if (NOT DEFINED CMAKE_SYSTEM_PROCESSOR)
-  set(CMAKE_SYSTEM_PROCESSOR cortex-m7 CACHE INTERNAL "System Processor")
+if (NOT DEFINED CMAKE_SYSTEM_CPU)
+  set(CMAKE_SYSTEM_CPU cortex-m7 CACHE INTERNAL "System Processor")
 endif ()
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
@@ -138,16 +138,15 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT1XXX ${RTOS})
-  target_sources(${TARGET}-tinyusb PRIVATE
+  family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT1XXX)
+  target_sources(${TARGET} PRIVATE
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
     ${TOP}/src/portable/ehci/ehci.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

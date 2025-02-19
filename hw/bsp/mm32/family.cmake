@@ -7,7 +7,7 @@ set(SDK_DIR ${TOP}/hw/mcu/mindmotion/mm32sdk/${MCU_VARIANT_UPPER})
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m3 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m3 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS MM32F327X CACHE INTERNAL "")
@@ -87,14 +87,13 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MM32F327X ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_MM32F327X)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/mindmotion/mm32/dcd_mm32f327x_otg.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

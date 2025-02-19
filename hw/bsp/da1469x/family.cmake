@@ -5,7 +5,7 @@ set(MCU_DIR ${TOP}/hw/mcu/dialog/da1469x)
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
-set(CMAKE_SYSTEM_PROCESSOR cortex-m33-nodsp CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m33-nodsp CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 set(FAMILY_MCUS DA1469X CACHE INTERNAL "")
 
@@ -126,14 +126,13 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_DA1469X ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_DA1469X)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/dialog/da146xx/dcd_da146xx.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

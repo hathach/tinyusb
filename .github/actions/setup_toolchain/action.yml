@@ -4,9 +4,6 @@ inputs:
   toolchain:
     description: 'Toolchain name'
     required: true
-  toolchain_version:
-    description: 'Toolchain version'
-    required: false
 
 outputs:
   build_option:
@@ -27,7 +24,6 @@ runs:
       uses: ./.github/actions/setup_toolchain/espressif
       with:
         toolchain: ${{ inputs.toolchain }}
-        toolchain_version: ${{ inputs.toolchain_version }}
 
     - name: Get Toolchain URL
       if: >-

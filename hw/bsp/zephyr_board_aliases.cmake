@@ -1,0 +1,1 @@
+set(pca10056_BOARD_ALIAS nrf52840dk/nrf52840)

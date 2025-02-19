@@ -6,7 +6,7 @@ set(SDK_DIR ${TOP}/hw/mcu/ti/msp430/msp430-gcc-support-files/include)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR msp430 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU msp430 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/msp430_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS MSP430x5xx CACHE INTERNAL "")
@@ -69,14 +69,12 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MSP430x5xx ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_MSP430x5xx)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/ti/msp430x5xx/dcd_msp430x5xx.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
 
   # Flashing
   family_add_bin_hex(${TARGET})

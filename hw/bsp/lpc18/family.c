@@ -32,6 +32,11 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+extern void USB0_IRQHandler(void);
+extern void USB1_IRQHandler(void);
+extern void SysTick_Handler(void);
+void SystemInit(void);
+
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 //--------------------------------------------------------------------+

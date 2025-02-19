@@ -137,18 +137,6 @@ typedef osal_queue_def_t* osal_queue_t;
     .ff = TU_FIFO_INIT(_name##_buf, _depth, _type, false) \
   }
 
-// lock queue by disable USB interrupt
-TU_ATTR_ALWAYS_INLINE static inline void _osal_q_lock(osal_queue_t qhdl) {
-  // disable dcd/hcd interrupt
-  qhdl->interrupt_set(false);
-}
-
-// unlock queue
-TU_ATTR_ALWAYS_INLINE static inline void _osal_q_unlock(osal_queue_t qhdl) {
-  // enable dcd/hcd interrupt
-  qhdl->interrupt_set(true);
-}
-
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
   tu_fifo_clear(&qdef->ff);
   return (osal_queue_t) qdef;
@@ -162,22 +150,22 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_delete(osal_queue_t qhdl) {
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec) {
   (void) msec; // not used, always behave as msec = 0
 
-  _osal_q_lock(qhdl);
-  bool success = tu_fifo_read(&qhdl->ff, data);
-  _osal_q_unlock(qhdl);
+  qhdl->interrupt_set(false);
+  const bool success = tu_fifo_read(&qhdl->ff, data);
+  qhdl->interrupt_set(true);
 
   return success;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const* data, bool in_isr) {
   if (!in_isr) {
-    _osal_q_lock(qhdl);
+    qhdl->interrupt_set(false);
   }
 
-  bool success = tu_fifo_write(&qhdl->ff, data);
+  const bool success = tu_fifo_write(&qhdl->ff, data);
 
   if (!in_isr) {
-    _osal_q_unlock(qhdl);
+    qhdl->interrupt_set(true);
   }
 
   return success;

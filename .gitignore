@@ -37,4 +37,10 @@ cmake-build-*
 sdkconfig
 .PVS-Studio
 .vscode/
-build/
+build
+CMakeFiles
+Debug
+RelWithDebInfo
+Release
+BrowseInfo
+.cmake_build

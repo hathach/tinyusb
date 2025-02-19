@@ -185,7 +185,7 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
 
 #endif
 
-void video_send_frame(void) {
+static void video_send_frame(void) {
   static unsigned start_ms = 0;
   static unsigned already_sent = 0;
 

@@ -6,7 +6,6 @@
 # Toolchain
 # Can be changed via TOOLCHAIN=gcc|iar or CC=arm-none-eabi-gcc|iccarm|clang
 #-------------------------------------------------------------
-
 ifneq (,$(findstring clang,$(CC)))
   TOOLCHAIN = clang
 else ifneq (,$(findstring iccarm,$(CC)))
@@ -65,7 +64,9 @@ BUILD := _build/$(BOARD)
 PROJECT := $(notdir $(CURDIR))
 BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
-#-------------- Select the board to build for. ------------
+#-------------------------------------------------------------
+# Board / Family
+#-------------------------------------------------------------
 
 # Board without family
 ifneq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/board.mk),)
@@ -93,7 +94,9 @@ else
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-#-------------- Source files and compiler flags --------------
+#-------------------------------------------------------------
+# Source files and compiler flags
+#-------------------------------------------------------------
 # tinyusb makefile
 include $(TOP)/src/tinyusb.mk
 SRC_C += $(TINYUSB_SRC_C)
@@ -148,7 +151,37 @@ endif
 # toolchain specific
 include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN).mk
 
-# Handy check parameter function
+#---------------------- FreeRTOS -----------------------
+FREERTOS_SRC = lib/FreeRTOS-Kernel
+FREERTOS_PORTABLE_PATH = $(FREERTOS_SRC)/portable/$(if $(findstring iar,$(TOOLCHAIN)),IAR,GCC)
+
+ifeq ($(RTOS),freertos)
+	SRC_C += \
+		$(FREERTOS_SRC)/list.c \
+		$(FREERTOS_SRC)/queue.c \
+		$(FREERTOS_SRC)/tasks.c \
+		$(FREERTOS_SRC)/timers.c \
+		$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.c))
+
+	SRC_S += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
+	INC += \
+		$(TOP)/hw/bsp/$(FAMILY)/FreeRTOSConfig \
+		$(TOP)/$(FREERTOS_SRC)/include \
+		$(TOP)/$(FREERTOS_PORTABLE_SRC)
+
+	CFLAGS += -DCFG_TUSB_OS=OPT_OS_FREERTOS
+
+	# Suppress FreeRTOSConfig.h warnings
+	CFLAGS_GCC += -Wno-error=redundant-decls
+
+	# Suppress FreeRTOS source warnings
+	CFLAGS_GCC += -Wno-error=cast-qual
+
+	# FreeRTOS (lto + Os) linker issue
+	LDFLAGS_GCC += -Wl,--undefined=vTaskSwitchContext
+endif
+
+#---------------- Helper ----------------
 check_defined = \
     $(strip $(foreach 1,$1, \
     $(call __check_defined,$1,$(strip $(value 2)))))
