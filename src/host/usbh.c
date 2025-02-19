@@ -920,7 +920,6 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
 }
 
 // Submit an transfer
-// TODO call usbh_edpt_release if failed
 bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   (void) complete_cb;
