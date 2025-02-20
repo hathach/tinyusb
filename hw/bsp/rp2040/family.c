@@ -42,10 +42,6 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
-#ifdef UART_DEV
-static uart_inst_t *uart_inst;
-#endif
-
 #if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
 #include "pio_usb.h"
 #endif
@@ -55,6 +51,36 @@ static uart_inst_t *uart_inst;
 static void max3421_init(void);
 #endif
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+// LED
+#if !defined(LED_PIN) && defined(PICO_DEFAULT_LED_PIN)
+#define LED_PIN               PICO_DEFAULT_LED_PIN
+#define LED_STATE_ON          (!(PICO_DEFAULT_LED_PIN_INVERTED))
+#endif
+
+// Button, if not defined use BOOTSEL button
+#ifndef BUTTON_PIN
+#define BUTTON_BOOTSEL
+#define BUTTON_STATE_ACTIVE   0
+#endif
+
+// UART
+#if !defined(UART_DEV) && defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART) && \
+  defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN)
+#define UART_DEV              PICO_DEFAULT_UART
+#define UART_TX_PIN           PICO_DEFAULT_UART_TX_PIN
+#define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN
+#endif
+
+#ifdef UART_DEV
+static uart_inst_t *uart_inst;
+#endif
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 #ifdef BUTTON_BOOTSEL
 // This example blinks the Picoboard LED when the BOOTSEL button is pressed.
 //
@@ -79,7 +105,7 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
                   IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
 
   // Note we can't call into any sleep functions in flash right now
-  for (volatile int i = 0; i < 1000; ++i);
+  for (volatile int i = 0; i < 1000; ++i) {}
 
   // The HI GPIO registers in SIO can observe and control the 6 QSPI pins.
   // Note the button pulls the pin *low* when pressed.
@@ -133,7 +159,6 @@ void stdio_rtt_init(void) {
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-
 void board_init(void)
 {
 #if (CFG_TUH_ENABLED && CFG_TUH_RPI_PIO_USB) || (CFG_TUD_ENABLED && CFG_TUD_RPI_PIO_USB)
@@ -193,7 +218,6 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
 void board_led_write(bool state) {
   (void) state;
 

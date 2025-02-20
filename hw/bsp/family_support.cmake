@@ -476,6 +476,10 @@ function(family_flash_openocd TARGET)
     set(OPENOCD_OPTION2 "")
   endif ()
 
+  if (DEFINED OPENOCD_SERIAL)
+    set(OPENOCD_OPTION "-c \"adapter serial ${OPENOCD_SERIAL}\" ${OPENOCD_OPTION}")
+  endif ()
+
   separate_arguments(OPTION_LIST UNIX_COMMAND ${OPENOCD_OPTION})
   separate_arguments(OPTION_LIST2 UNIX_COMMAND ${OPENOCD_OPTION2})
 
