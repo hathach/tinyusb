@@ -89,7 +89,7 @@ void led_blinking_task(void) {
 //--------------------------------------------------------------------+
 void midi_host_rx_task(void) {
   // device must be attached and have at least one endpoint ready to receive a message
-  if (!midi_dev_addr || !tuh_midi_configured(midi_dev_addr)) {
+  if (!midi_dev_addr || !tuh_midi_mounted(midi_dev_addr)) {
     return;
   }
   if (tuh_midi_get_num_rx_cables(midi_dev_addr) < 1) {

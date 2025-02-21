@@ -59,26 +59,18 @@
 #define CFG_TUH_MIDI_STREAM_API 1
 #endif
 
-#ifndef CFG_MIDI_HOST_DEVSTRINGS
-#define CFG_MIDI_HOST_DEVSTRINGS 0
-#endif
-
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
-bool    tuh_midi_configured      (uint8_t dev_addr);
+
+// Check if MIDI interface is mounted
+bool tuh_midi_mounted(uint8_t dev_addr);
 
 // return the number of virtual midi cables on the device's IN endpoint
 uint8_t tuh_midi_get_num_rx_cables(uint8_t dev_addr);
 
 // return the number of virtual midi cables on the device's OUT endpoint
 uint8_t tuh_midi_get_num_tx_cables(uint8_t dev_addr);
-
-#if CFG_MIDI_HOST_DEVSTRINGS
-uint8_t tuh_midi_get_rx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings);
-uint8_t tuh_midi_get_tx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings);
-uint8_t tuh_midi_get_all_istrings(uint8_t dev_addr, const uint8_t** istrings);
-#endif
 
 // return the raw number of bytes available.
 // Note: this is related but not the same as number of stream bytes available.
@@ -139,6 +131,10 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
 //--------------------------------------------------------------------+
 // Callbacks (Weak is optional)
 //--------------------------------------------------------------------+
+
+// Invoked when MIDI interface is detected in enumeration. Application can copy/parse descriptor if needed.
+// Note: may be fired before tuh_midi_mount_cb(), therefore midi interface is not mounted/ready.
+// TU_ATTR_WEAK void tuh_midi_interface_descriptor_cb(uint8_t dev_addr, const uint8_t* desc_itf, uint16_t desc_len);
 
 // Invoked when device with MIDI interface is mounted.
 TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t num_cables_rx, uint16_t num_cables_tx);

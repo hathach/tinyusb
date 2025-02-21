@@ -33,6 +33,13 @@
 
 #include "midi_host.h"
 
+// Level where CFG_TUSB_DEBUG must be at least for this driver is logged
+#ifndef CFG_TUH_MIDI_LOG_LEVEL
+  #define CFG_TUH_MIDI_LOG_LEVEL   CFG_TUH_LOG_LEVEL
+#endif
+
+#define TU_LOG_DRV(...)   TU_LOG(CFG_TUH_MIDI_LOG_LEVEL, __VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -65,30 +72,6 @@ typedef struct {
   } ep_stream;
 
   bool configured;
-
-#if CFG_MIDI_HOST_DEVSTRINGS
-#define MAX_STRING_INDICES 32
-  uint8_t all_string_indices[MAX_STRING_INDICES];
-  uint8_t num_string_indices;
-#define MAX_IN_JACKS 8
-#define MAX_OUT_JACKS 8
-  struct {
-    uint8_t jack_id;
-    uint8_t jack_type;
-    uint8_t string_index;
-  } in_jack_info[MAX_IN_JACKS];
-  uint8_t next_in_jack;
-  struct {
-    uint8_t jack_id;
-    uint8_t jack_type;
-    uint8_t num_source_ids;
-    uint8_t source_ids[MAX_IN_JACKS/4];
-    uint8_t string_index;
-  } out_jack_info[MAX_OUT_JACKS];
-  uint8_t next_out_jack;
-  uint8_t ep_in_associated_jacks[MAX_OUT_JACKS/2];
-  uint8_t ep_out_associated_jacks[MAX_IN_JACKS/2];
-#endif
 }midih_interface_t;
 
 typedef struct {
@@ -209,19 +192,14 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
 bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len) {
   (void) rhport;
 
-  midih_interface_t *p_midi_host = find_new_midi();
-  TU_VERIFY(p_midi_host != NULL);
+  midih_interface_t *p_midi = find_new_midi();
+  TU_VERIFY(p_midi != NULL);
 
-  p_midi_host->num_string_indices = 0;
   TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
   // There can be just a MIDI interface or an audio and a MIDI interface. Only open the MIDI interface
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
   uint16_t len_parsed = 0;
   if (AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass) {
-    // Keep track of any string descriptor that might be here
-    if (desc_itf->iInterface != 0) {
-      p_midi_host->all_string_indices[p_midi_host->num_string_indices++] = desc_itf->iInterface;
-    }
     // This driver does not support audio streaming. However, if this is the audio control interface
     // there might be a MIDI interface following it. Search through every descriptor until a MIDI
     // interface is found or the end of the descriptor is found
@@ -237,26 +215,18 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass);
   len_parsed += desc_itf->bLength;
 
-  // Keep track of any string descriptor that might be here
-  if (desc_itf->iInterface != 0) {
-    p_midi_host->all_string_indices[p_midi_host->num_string_indices++] = desc_itf->iInterface;
-  }
+  TU_LOG_DRV("MIDI opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
+  p_midi->itf_num = desc_itf->bInterfaceNumber;
 
+  // CS Header descriptor
   p_desc = tu_desc_next(p_desc);
-  TU_LOG1("MIDI opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
-  // Find out if getting the MIDI class specific interface header or an endpoint descriptor
-  // or a class-specific endpoint descriptor
-  // Jack descriptors or element descriptors must follow the cs interface header,
-  // but this driver does not support devices that contain element descriptors
+  midi_desc_header_t const *p_mdh = (midi_desc_header_t const *) p_desc;
+  TU_VERIFY(p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE &&
+            p_mdh->bDescriptorSubType == MIDI_CS_INTERFACE_HEADER);
+  TU_LOG_DRV("  Interface Header descriptor\r\n");
 
-  // assume it is an interface header
-  midi_desc_header_t const *p_mdh = (midi_desc_header_t const *)p_desc;
-  TU_VERIFY((p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE && p_mdh->bDescriptorSubType == MIDI_CS_INTERFACE_HEADER) ||
-            (p_mdh->bDescriptorType == TUSB_DESC_CS_ENDPOINT && p_mdh->bDescriptorSubType == MIDI_CS_ENDPOINT_GENERAL) ||
-            p_mdh->bDescriptorType == TUSB_DESC_ENDPOINT);
-
+  // p_desc = tu_desc_next(p_desc);
   uint8_t prev_ep_addr = 0; // the CS endpoint descriptor is associated with the previous endpoint descriptor
-  p_midi_host->itf_num = desc_itf->bInterfaceNumber;
   tusb_desc_endpoint_t const* in_desc = NULL;
   tusb_desc_endpoint_t const* out_desc = NULL;
   while (len_parsed < max_len) {
@@ -271,110 +241,53 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
       // assume it is an input jack
       midi_desc_in_jack_t const *p_mdij = (midi_desc_in_jack_t const *) p_desc;
       if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_HEADER) {
-        TU_LOG2("Found MIDI Interface Header\r\b");
+        TU_LOG_DRV("  Interface Header descriptor\r\n");
       } else if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_IN_JACK) {
         // Then it is an in jack.
-        TU_LOG2("Found in jack\r\n");
-  #if CFG_MIDI_HOST_DEVSTRINGS
-        if (p_midi_host->next_in_jack < MAX_IN_JACKS) {
-          p_midi_host->in_jack_info[p_midi_host->next_in_jack].jack_id = p_mdij->bJackID;
-          p_midi_host->in_jack_info[p_midi_host->next_in_jack].jack_type = p_mdij->bJackType;
-          p_midi_host->in_jack_info[p_midi_host->next_in_jack].string_index = p_mdij->iJack;
-          ++p_midi_host->next_in_jack;
-          // Keep track of any string descriptor that might be here
-          if (p_mdij->iJack != 0) {
-            p_midi_host->all_string_indices[p_midi_host->num_string_indices++] = p_mdij->iJack;
-          }
-        }
-  #endif
+        TU_LOG_DRV("  IN Jack %s descriptor \r\n", p_mdij->bJackType == MIDI_JACK_EXTERNAL ? "External" : "Embedded");
       } else if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_OUT_JACK) {
         // then it is an out jack
-        TU_LOG2("Found out jack\r\n");
-  #if CFG_MIDI_HOST_DEVSTRINGS
-        if (p_midi_host->next_out_jack < MAX_OUT_JACKS) {
-          midi_desc_out_jack_t const *p_mdoj = (midi_desc_out_jack_t const *) p_desc;
-          p_midi_host->out_jack_info[p_midi_host->next_out_jack].jack_id = p_mdoj->bJackID;
-          p_midi_host->out_jack_info[p_midi_host->next_out_jack].jack_type = p_mdoj->bJackType;
-          p_midi_host->out_jack_info[p_midi_host->next_out_jack].num_source_ids = p_mdoj->bNrInputPins;
-          const struct associated_jack_s {
-            uint8_t id;
-            uint8_t pin;
-          } *associated_jack = (const struct associated_jack_s *) (p_desc + 6);
-          int jack;
-          for (jack = 0; jack < p_mdoj->bNrInputPins; jack++) {
-            p_midi_host->out_jack_info[p_midi_host->next_out_jack].source_ids[jack] = associated_jack->id;
-          }
-          p_midi_host->out_jack_info[p_midi_host->next_out_jack].string_index = *(p_desc + 6 + p_mdoj->bNrInputPins * 2);
-          ++p_midi_host->next_out_jack;
-          if (p_mdoj->iJack != 0) {
-            p_midi_host->all_string_indices[p_midi_host->num_string_indices++] = p_mdoj->iJack;
-          }
-        }
-  #endif
+        TU_LOG_DRV("  OUT Jack %s descriptor\r\n", p_mdij->bJackType == MIDI_JACK_EXTERNAL ? "External" : "Embedded");
       } else if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_ELEMENT) {
         // the it is an element;
-  #if CFG_MIDI_HOST_DEVSTRINGS
-        TU_LOG1("Found element; strings not supported\r\n");
-  #else
-        TU_LOG2("Found element\r\n");
-  #endif
+        TU_LOG_DRV("Found element\r\n");
       } else {
-        TU_LOG2("Unknown CS Interface sub-type %u\r\n", p_mdij->bDescriptorSubType);
+        TU_LOG_DRV("  Unknown CS Interface sub-type %u\r\n", p_mdij->bDescriptorSubType);
         TU_VERIFY(false);// unknown CS Interface sub-type
       }
       len_parsed += p_mdij->bLength;
     } else if (p_mdh->bDescriptorType == TUSB_DESC_CS_ENDPOINT) {
-      TU_LOG2("found CS_ENDPOINT Descriptor for %u\r\n", prev_ep_addr);
+      TU_LOG_DRV("  CS_ENDPOINT descriptor\r\n");
       TU_VERIFY(prev_ep_addr != 0);
       // parse out the mapping between the device's embedded jacks and the endpoints
       // Each embedded IN jack is associated with an OUT endpoint
-      midi_cs_desc_endpoint_t const *p_csep = (midi_cs_desc_endpoint_t const *) p_mdh;
+      midi_desc_cs_endpoint_t const *p_csep = (midi_desc_cs_endpoint_t const *) p_mdh;
       if (tu_edpt_dir(prev_ep_addr) == TUSB_DIR_OUT) {
-        TU_VERIFY(p_midi_host->ep_out == prev_ep_addr);
-        TU_VERIFY(p_midi_host->num_cables_tx == 0);
-        p_midi_host->num_cables_tx = p_csep->bNumEmbMIDIJack;
-  #if CFG_MIDI_HOST_DEVSTRINGS
-        uint8_t jack;
-        uint8_t max_jack = p_midi_host->num_cables_tx;
-        if (max_jack > sizeof(p_midi_host->ep_out_associated_jacks)) {
-          max_jack = sizeof(p_midi_host->ep_out_associated_jacks);
-        }
-        for (jack = 0; jack < max_jack; jack++) {
-          p_midi_host->ep_out_associated_jacks[jack] = p_csep->baAssocJackID[jack];
-        }
-  #endif
+        TU_VERIFY(p_midi->ep_out == prev_ep_addr);
+        TU_VERIFY(p_midi->num_cables_tx == 0);
+        p_midi->num_cables_tx = p_csep->bNumEmbMIDIJack;
       } else {
-        TU_VERIFY(p_midi_host->ep_in == prev_ep_addr);
-        TU_VERIFY(p_midi_host->num_cables_rx == 0);
-        p_midi_host->num_cables_rx = p_csep->bNumEmbMIDIJack;
-  #if CFG_MIDI_HOST_DEVSTRINGS
-        uint8_t jack;
-        uint8_t max_jack = p_midi_host->num_cables_rx;
-        if (max_jack > sizeof(p_midi_host->ep_in_associated_jacks)) {
-          max_jack = sizeof(p_midi_host->ep_in_associated_jacks);
-        }
-        for (jack = 0; jack < max_jack; jack++) {
-          p_midi_host->ep_in_associated_jacks[jack] = p_csep->baAssocJackID[jack];
-        }
-  #endif
+        TU_VERIFY(p_midi->ep_in == prev_ep_addr);
+        TU_VERIFY(p_midi->num_cables_rx == 0);
+        p_midi->num_cables_rx = p_csep->bNumEmbMIDIJack;
       }
       len_parsed += p_csep->bLength;
       prev_ep_addr = 0;
     } else if (p_mdh->bDescriptorType == TUSB_DESC_ENDPOINT) {
       // parse out the bulk endpoint info
       tusb_desc_endpoint_t const *p_ep = (tusb_desc_endpoint_t const *) p_mdh;
-      TU_LOG2("found ENDPOINT Descriptor for %u\r\n", p_ep->bEndpointAddress);
+      TU_LOG_DRV("  Endpoint descriptor %02x\r\n", p_ep->bEndpointAddress);
       if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
-        TU_VERIFY(p_midi_host->ep_out == 0);
-        TU_VERIFY(p_midi_host->num_cables_tx == 0);
-        p_midi_host->ep_out = p_ep->bEndpointAddress;
-        prev_ep_addr = p_midi_host->ep_out;
+        TU_VERIFY(p_midi->ep_out == 0);
+        TU_VERIFY(p_midi->num_cables_tx == 0);
+        p_midi->ep_out = p_ep->bEndpointAddress;
+        prev_ep_addr = p_midi->ep_out;
         out_desc = p_ep;
       } else {
-        TU_VERIFY(p_midi_host->ep_in == 0);
-        TU_VERIFY(p_midi_host->num_cables_rx == 0);
-        p_midi_host->ep_in = p_ep->bEndpointAddress;
-        prev_ep_addr = p_midi_host->ep_in;
+        TU_VERIFY(p_midi->ep_in == 0);
+        TU_VERIFY(p_midi->num_cables_rx == 0);
+        p_midi->ep_in = p_ep->bEndpointAddress;
+        prev_ep_addr = p_midi->ep_in;
         in_desc = p_ep;
       }
       len_parsed += p_mdh->bLength;
@@ -382,28 +295,22 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
     p_desc = tu_desc_next(p_desc);
     p_mdh = (midi_desc_header_t const *) p_desc;
   }
-  TU_VERIFY((p_midi_host->ep_out != 0 && p_midi_host->num_cables_tx != 0) ||
-            (p_midi_host->ep_in != 0 && p_midi_host->num_cables_rx != 0));
-  TU_LOG1("MIDI descriptor parsed successfully\r\n");
-  // remove duplicate string indices
-  for (int idx = 0; idx < p_midi_host->num_string_indices; idx++) {
-    for (int jdx = idx + 1; jdx < p_midi_host->num_string_indices; jdx++) {
-      while (jdx < p_midi_host->num_string_indices && p_midi_host->all_string_indices[idx] == p_midi_host->all_string_indices[jdx]) {
-        // delete the duplicate by overwriting it with the last entry and reducing the number of entries by 1
-        p_midi_host->all_string_indices[jdx] = p_midi_host->all_string_indices[p_midi_host->num_string_indices - 1];
-        --p_midi_host->num_string_indices;
-      }
-    }
-  }
+  TU_VERIFY((p_midi->ep_out != 0 && p_midi->num_cables_tx != 0) ||
+            (p_midi->ep_in != 0 && p_midi->num_cables_rx != 0));
+
   if (in_desc) {
     TU_ASSERT(tuh_edpt_open(dev_addr, in_desc));
-    tu_edpt_stream_open(&p_midi_host->ep_stream.rx, in_desc);
+    tu_edpt_stream_open(&p_midi->ep_stream.rx, in_desc);
   }
   if (out_desc) {
     TU_ASSERT(tuh_edpt_open(dev_addr, out_desc));
-    tu_edpt_stream_open(&p_midi_host->ep_stream.tx, out_desc);
+    tu_edpt_stream_open(&p_midi->ep_stream.tx, out_desc);
   }
-  p_midi_host->dev_addr = dev_addr;
+  p_midi->dev_addr = dev_addr;
+
+  // if (tuh_midi_interface_descriptor_cb) {
+  //   tuh_midi_interface_descriptor_cb(dev_addr, desc_itf, );
+  // }
 
   return true;
 }
@@ -428,7 +335,7 @@ bool midih_set_config(uint8_t dev_addr, uint8_t itf_num) {
 //--------------------------------------------------------------------+
 // API
 //--------------------------------------------------------------------+
-bool tuh_midi_configured(uint8_t dev_addr) {
+bool tuh_midi_mounted(uint8_t dev_addr) {
   midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
   TU_VERIFY(p_midi_host != NULL);
   return p_midi_host->configured;
@@ -680,69 +587,6 @@ uint32_t tuh_midi_stream_read(uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *p
   return bytes_buffered;
 }
 
-//--------------------------------------------------------------------+
-// String API
-//--------------------------------------------------------------------+
-#if CFG_MIDI_HOST_DEVSTRINGS
-static uint8_t find_string_index(midih_interface_t *ptr, uint8_t jack_id)
-{
-  uint8_t index = 0;
-  uint8_t assoc;
-  for (assoc = 0; index == 0 && assoc < ptr->next_in_jack; assoc++)
-  {
-    if (jack_id == ptr->in_jack_info[assoc].jack_id)
-    {
-      index = ptr->in_jack_info[assoc].string_index;
-    }
-  }
-  for (assoc = 0; index == 0 && assoc < ptr->next_out_jack; assoc++)
-  {
-    if (jack_id == ptr->out_jack_info[assoc].jack_id)
-    {
-      index = ptr->out_jack_info[assoc].string_index;
-    }
-  }
-  return index;
-}
-
-uint8_t tuh_midi_get_rx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings) {
-  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi_host != NULL, 0);
-  uint8_t nstrings = p_midi_host->num_cables_rx;
-  if (nstrings > max_istrings) {
-    nstrings = max_istrings;
-  }
-  for (uint8_t jack = 0; jack<nstrings; jack++) {
-    uint8_t jack_id = p_midi_host->ep_in_associated_jacks[jack];
-    istrings[jack] = find_string_index(p_midi_host, jack_id);
-  }
-  return nstrings;
-}
-
-uint8_t tuh_midi_get_tx_cable_istrings(uint8_t dev_addr, uint8_t* istrings, uint8_t max_istrings)
-{
-  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi_host != NULL, 0);
-  uint8_t nstrings = p_midi_host->num_cables_tx;
-  if (nstrings > max_istrings) {
-    nstrings = max_istrings;
-  }
-  for (uint8_t jack = 0; jack<nstrings; jack++) {
-    uint8_t jack_id = p_midi_host->ep_out_associated_jacks[jack];
-    istrings[jack] = find_string_index(p_midi_host, jack_id);
-  }
-  return nstrings;
-}
-#endif
-
-uint8_t tuh_midi_get_all_istrings(uint8_t dev_addr, const uint8_t** istrings)
-{
-  midih_interface_t *p_midi_host = find_midi_by_daddr(dev_addr);
-  TU_VERIFY(p_midi_host != NULL);
-  uint8_t nstrings = p_midi_host->num_string_indices;
-  if (nstrings) { *istrings = p_midi_host->all_string_indices; }
-  return nstrings;
-}
 #endif
 
 #endif
