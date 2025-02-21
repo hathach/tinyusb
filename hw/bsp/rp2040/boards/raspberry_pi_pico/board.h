@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021, Ha Thach (tinyusb.org)
+ * Copyright (c) 2025 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,55 +29,22 @@
    url: https://www.raspberrypi.org/products/raspberry-pi-pico/
 */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef TUSB_BOARD_H
+#define TUSB_BOARD_H
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-// LED
-#ifdef PICO_DEFAULT_LED_PIN
-#define LED_PIN               PICO_DEFAULT_LED_PIN
-#define LED_STATE_ON          (!(PICO_DEFAULT_LED_PIN_INVERTED))
-#endif
-
-// Button pin is BOOTSEL which is flash CS pin
-#define BUTTON_BOOTSEL
-#define BUTTON_STATE_ACTIVE   0
-
-// UART
-#if defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN) && \
-    defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART)
-#define UART_DEV              PICO_DEFAULT_UART
-#define UART_TX_PIN           PICO_DEFAULT_UART_TX_PIN
-#define UART_RX_PIN           PICO_DEFAULT_UART_RX_PIN
-#endif
+// UART and LED are already defined in pico-sdk board
 
 //--------------------------------------------------------------------+
 // PIO_USB
-// default to pin on Adafruit Feather rp2040 USB Host or Tester if defined
 //--------------------------------------------------------------------+
-
-// #define USE_ADAFRUIT_FEATHER_RP2040_USBHOST
-#ifdef USE_ADAFRUIT_FEATHER_RP2040_USBHOST
-#define PICO_DEFAULT_PIO_USB_DP_PIN       16
-#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   18
-#endif
-
-#ifndef PICO_DEFAULT_PIO_USB_DP_PIN
+// default to pico brain tester
 #define PICO_DEFAULT_PIO_USB_DP_PIN       20
-#endif
-
-// VBUS enable pin and its active state
-#ifndef PICO_DEFAULT_PIO_USB_VBUSEN_PIN
 #define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   22
-#endif
-
-// VBUS enable state
-#ifndef PICO_DEFAULT_PIO_USB_VBUSEN_STATE
 #define PICO_DEFAULT_PIO_USB_VBUSEN_STATE 1
-#endif
 
 //--------------------------------------------------------------------
 // USB Host MAX3421E
@@ -99,4 +66,4 @@
  }
 #endif
 
-#endif /* BOARD_H_ */
+#endif
