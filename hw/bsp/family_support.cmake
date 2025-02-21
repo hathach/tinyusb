@@ -399,7 +399,11 @@ endfunction()
 # Add flash jlink target
 function(family_flash_jlink TARGET)
   if (NOT DEFINED JLINKEXE)
-    set(JLINKEXE JLinkExe)
+    if(CMAKE_HOST_WIN32)
+      set(JLINKEXE JLink.exe)
+    else()
+      set(JLINKEXE JLinkExe)
+    endif()
   endif ()
 
   if (NOT DEFINED JLINK_IF)
@@ -470,6 +474,10 @@ function(family_flash_openocd TARGET)
 
   if (NOT DEFINED OPENOCD_OPTION2)
     set(OPENOCD_OPTION2 "")
+  endif ()
+
+  if (DEFINED OPENOCD_SERIAL)
+    set(OPENOCD_OPTION "-c \"adapter serial ${OPENOCD_SERIAL}\" ${OPENOCD_OPTION}")
   endif ()
 
   separate_arguments(OPTION_LIST UNIX_COMMAND ${OPENOCD_OPTION})
