@@ -150,27 +150,6 @@ typedef midi_desc_out_jack_n_t(1)  midi_desc_out_jack_1in_t; // 1 input
 typedef midi_desc_out_jack_1in_t midi_desc_out_jack_t; // backward compatible
 TU_VERIFY_STATIC(sizeof(midi_desc_out_jack_1in_t) == 7 + 2 * 1, "size is not correct");
 
-/// MIDI Element Descriptor
-typedef struct TU_ATTR_PACKED {
-  uint8_t bLength            ; ///< Size of this descriptor in bytes.
-  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType
-  uint8_t bElementID;
-
-  uint8_t bNrInputPins;
-  uint8_t baSourceID;
-  uint8_t baSourcePin;
-
-  uint8_t bNrOutputPins;
-  uint8_t bInTerminalLink;
-  uint8_t bOutTerminalLink;
-  uint8_t bElCapsSize;
-
-  uint16_t bmElementCaps;
-  uint8_t  iElement;
-} midi_desc_element_t;
-TU_VERIFY_STATIC(sizeof(midi_desc_element_t) == 14, "size is not correct");
-
 /// MIDI Element Descriptor with multiple pins
 #define midi_desc_element_n_t(input_num) \
   struct TU_ATTR_PACKED {       \

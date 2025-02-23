@@ -194,123 +194,108 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
 
   midih_interface_t *p_midi = find_new_midi();
   TU_VERIFY(p_midi != NULL);
-
   TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
-  // There can be just a MIDI interface or an audio and a MIDI interface. Only open the MIDI interface
+
+  // There can be just a MIDI or an Audio + MIDI interface
+  // const uint8_t* p_start = ((uint8_t const*) desc_itf);
+  const uint8_t* p_end = ((uint8_t const*) desc_itf) + max_len;
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
   uint16_t len_parsed = 0;
-  if (AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass) {
-    // This driver does not support audio streaming. However, if this is the audio control interface
-    // there might be a MIDI interface following it. Search through every descriptor until a MIDI
-    // interface is found or the end of the descriptor is found
-    while (len_parsed < max_len &&
-          (desc_itf->bInterfaceClass != TUSB_CLASS_AUDIO || desc_itf->bInterfaceSubClass != AUDIO_SUBCLASS_MIDI_STREAMING)) {
-      len_parsed += desc_itf->bLength;
-      p_desc = tu_desc_next(p_desc);
-      desc_itf = (tusb_desc_interface_t const *)p_desc;
-    }
 
+  tuh_midi_descriptor_cb_t desc_cb = { 0 };
+  desc_cb.jack_num = 0;
+
+  // If there is Audio Control Interface + Audio Header descriptor, skip it
+  if (AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass) {
+    TU_VERIFY(max_len > 2*sizeof(tusb_desc_interface_t) + sizeof(audio_desc_cs_ac_interface_t));
+
+    p_desc = tu_desc_next(p_desc);
+    TU_VERIFY(tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE &&
+              tu_desc_subtype(p_desc) == AUDIO_CS_AC_INTERFACE_HEADER);
+
+    p_desc = tu_desc_next(p_desc);
+    desc_itf = (tusb_desc_interface_t const *)p_desc;
     TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
   }
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass);
+  desc_cb.desc_interface = desc_itf;
+
   len_parsed += desc_itf->bLength;
 
   TU_LOG_DRV("MIDI opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
   p_midi->itf_num = desc_itf->bInterfaceNumber;
-
-  // CS Header descriptor
   p_desc = tu_desc_next(p_desc);
-  midi_desc_header_t const *p_mdh = (midi_desc_header_t const *) p_desc;
-  TU_VERIFY(p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE &&
-            p_mdh->bDescriptorSubType == MIDI_CS_INTERFACE_HEADER);
-  TU_LOG_DRV("  Interface Header descriptor\r\n");
 
-  // p_desc = tu_desc_next(p_desc);
-  uint8_t prev_ep_addr = 0; // the CS endpoint descriptor is associated with the previous endpoint descriptor
-  tusb_desc_endpoint_t const* in_desc = NULL;
-  tusb_desc_endpoint_t const* out_desc = NULL;
-  while (len_parsed < max_len) {
-    TU_VERIFY((p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE) ||
-              (p_mdh->bDescriptorType == TUSB_DESC_CS_ENDPOINT && p_mdh->bDescriptorSubType == MIDI_CS_ENDPOINT_GENERAL) ||
-              p_mdh->bDescriptorType == TUSB_DESC_ENDPOINT);
+  bool found_new_interface = false;
+  while ((p_desc < p_end) && (tu_desc_next(p_desc) <= p_end) && !found_new_interface) {
+    switch (tu_desc_type(p_desc)) {
+      case TUSB_DESC_INTERFACE:
+        found_new_interface = true;
+        break;
 
-    if (p_mdh->bDescriptorType == TUSB_DESC_CS_INTERFACE) {
-      // The USB host doesn't really need this information unless it uses
-      // the string descriptor for a jack or Element
+      case TUSB_DESC_CS_INTERFACE:
+        switch (tu_desc_subtype(p_desc)) {
+          case MIDI_CS_INTERFACE_HEADER:
+            TU_LOG_DRV("  Interface Header descriptor\r\n");
+            desc_cb.desc_header = p_desc;
+            break;
 
-      // assume it is an input jack
-      midi_desc_in_jack_t const *p_mdij = (midi_desc_in_jack_t const *) p_desc;
-      if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_HEADER) {
-        TU_LOG_DRV("  Interface Header descriptor\r\n");
-      } else if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_IN_JACK) {
-        // Then it is an in jack.
-        TU_LOG_DRV("  IN Jack %s descriptor \r\n", p_mdij->bJackType == MIDI_JACK_EXTERNAL ? "External" : "Embedded");
-      } else if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_OUT_JACK) {
-        // then it is an out jack
-        TU_LOG_DRV("  OUT Jack %s descriptor\r\n", p_mdij->bJackType == MIDI_JACK_EXTERNAL ? "External" : "Embedded");
-      } else if (p_mdij->bDescriptorSubType == MIDI_CS_INTERFACE_ELEMENT) {
-        // the it is an element;
-        TU_LOG_DRV("Found element\r\n");
-      } else {
-        TU_LOG_DRV("  Unknown CS Interface sub-type %u\r\n", p_mdij->bDescriptorSubType);
-        TU_VERIFY(false);// unknown CS Interface sub-type
+          case MIDI_CS_INTERFACE_IN_JACK:
+          case MIDI_CS_INTERFACE_OUT_JACK: {
+            TU_LOG_DRV("  Jack %s %s descriptor \r\n",
+                       tu_desc_subtype(p_desc) == MIDI_CS_INTERFACE_IN_JACK ? "IN" : "OUT",
+                       p_desc[3] == MIDI_JACK_EXTERNAL ? "External" : "Embedded");
+            desc_cb.desc_jack[desc_cb.jack_num++] = p_desc;
+            break;
+          }
+
+          case MIDI_CS_INTERFACE_ELEMENT:
+            TU_LOG_DRV("  Element descriptor\r\n");
+            desc_cb.desc_element = p_desc;
+            break;
+
+          default:
+            TU_LOG_DRV("  Unknown CS Interface sub-type %u\r\n", tu_desc_subtype(p_desc));
+            break;
+        }
+        break;
+
+      case TUSB_DESC_ENDPOINT: {
+        tusb_desc_endpoint_t const *p_ep = (tusb_desc_endpoint_t const *) p_desc;
+        p_desc = tu_desc_next(p_desc); // next to CS endpoint
+        TU_VERIFY(p_desc < p_end && tu_desc_next(p_desc) <= p_end);
+        midi_desc_cs_endpoint_t const *p_csep = (midi_desc_cs_endpoint_t const *) p_desc;
+
+        TU_LOG_DRV("  Endpoint and CS_Endpoint descriptor %02x\r\n", p_ep->bEndpointAddress);
+        if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
+          p_midi->ep_out = p_ep->bEndpointAddress;
+          p_midi->num_cables_tx = p_csep->bNumEmbMIDIJack;
+          desc_cb.desc_epout = p_ep;
+
+          TU_ASSERT(tuh_edpt_open(dev_addr, p_ep));
+          tu_edpt_stream_open(&p_midi->ep_stream.tx, p_ep);
+        } else {
+          p_midi->ep_in = p_ep->bEndpointAddress;
+          p_midi->num_cables_rx = p_csep->bNumEmbMIDIJack;
+          desc_cb.desc_epin = p_ep;
+
+          TU_ASSERT(tuh_edpt_open(dev_addr, p_ep));
+          tu_edpt_stream_open(&p_midi->ep_stream.rx, p_ep);
+        }
+        break;
       }
-      len_parsed += p_mdij->bLength;
-    } else if (p_mdh->bDescriptorType == TUSB_DESC_CS_ENDPOINT) {
-      TU_LOG_DRV("  CS_ENDPOINT descriptor\r\n");
-      TU_VERIFY(prev_ep_addr != 0);
-      // parse out the mapping between the device's embedded jacks and the endpoints
-      // Each embedded IN jack is associated with an OUT endpoint
-      midi_desc_cs_endpoint_t const *p_csep = (midi_desc_cs_endpoint_t const *) p_mdh;
-      if (tu_edpt_dir(prev_ep_addr) == TUSB_DIR_OUT) {
-        TU_VERIFY(p_midi->ep_out == prev_ep_addr);
-        TU_VERIFY(p_midi->num_cables_tx == 0);
-        p_midi->num_cables_tx = p_csep->bNumEmbMIDIJack;
-      } else {
-        TU_VERIFY(p_midi->ep_in == prev_ep_addr);
-        TU_VERIFY(p_midi->num_cables_rx == 0);
-        p_midi->num_cables_rx = p_csep->bNumEmbMIDIJack;
-      }
-      len_parsed += p_csep->bLength;
-      prev_ep_addr = 0;
-    } else if (p_mdh->bDescriptorType == TUSB_DESC_ENDPOINT) {
-      // parse out the bulk endpoint info
-      tusb_desc_endpoint_t const *p_ep = (tusb_desc_endpoint_t const *) p_mdh;
-      TU_LOG_DRV("  Endpoint descriptor %02x\r\n", p_ep->bEndpointAddress);
-      if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
-        TU_VERIFY(p_midi->ep_out == 0);
-        TU_VERIFY(p_midi->num_cables_tx == 0);
-        p_midi->ep_out = p_ep->bEndpointAddress;
-        prev_ep_addr = p_midi->ep_out;
-        out_desc = p_ep;
-      } else {
-        TU_VERIFY(p_midi->ep_in == 0);
-        TU_VERIFY(p_midi->num_cables_rx == 0);
-        p_midi->ep_in = p_ep->bEndpointAddress;
-        prev_ep_addr = p_midi->ep_in;
-        in_desc = p_ep;
-      }
-      len_parsed += p_mdh->bLength;
+
+      default: break; // skip unknown descriptor
     }
     p_desc = tu_desc_next(p_desc);
-    p_mdh = (midi_desc_header_t const *) p_desc;
   }
-  TU_VERIFY((p_midi->ep_out != 0 && p_midi->num_cables_tx != 0) ||
-            (p_midi->ep_in != 0 && p_midi->num_cables_rx != 0));
+  desc_cb.desc_interface_len = (uint16_t) ((uintptr_t)p_desc - (uintptr_t) desc_itf);
 
-  if (in_desc) {
-    TU_ASSERT(tuh_edpt_open(dev_addr, in_desc));
-    tu_edpt_stream_open(&p_midi->ep_stream.rx, in_desc);
-  }
-  if (out_desc) {
-    TU_ASSERT(tuh_edpt_open(dev_addr, out_desc));
-    tu_edpt_stream_open(&p_midi->ep_stream.tx, out_desc);
-  }
   p_midi->dev_addr = dev_addr;
 
-  // if (tuh_midi_interface_descriptor_cb) {
-  //   tuh_midi_interface_descriptor_cb(dev_addr, desc_itf, );
-  // }
+  if (tuh_midi_descriptor_cb) {
+    tuh_midi_descriptor_cb(dev_addr, &desc_cb);
+  }
 
   return true;
 }

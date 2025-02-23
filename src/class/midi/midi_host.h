@@ -62,6 +62,18 @@
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
+typedef struct {
+  const tusb_desc_interface_t* desc_interface; // start of whole midi interface descriptor
+  uint16_t desc_interface_len;
+
+  const uint8_t* desc_header;
+  const uint8_t* desc_element;
+  const tusb_desc_endpoint_t* desc_epin;  // endpoint IN descriptor, CS_ENDPOINT is right after
+  const tusb_desc_endpoint_t* desc_epout; // endpoint OUT descriptor, CS_ENDPOINT is right after
+
+  uint8_t jack_num;
+  const uint8_t* desc_jack[16]; // list of jack descriptors (embedded + external)
+} tuh_midi_descriptor_cb_t;
 
 // Check if MIDI interface is mounted
 bool tuh_midi_mounted(uint8_t dev_addr);
@@ -134,7 +146,7 @@ uint32_t tuh_midi_stream_read (uint8_t dev_addr, uint8_t *p_cable_num, uint8_t *
 
 // Invoked when MIDI interface is detected in enumeration. Application can copy/parse descriptor if needed.
 // Note: may be fired before tuh_midi_mount_cb(), therefore midi interface is not mounted/ready.
-// TU_ATTR_WEAK void tuh_midi_interface_descriptor_cb(uint8_t dev_addr, const uint8_t* desc_itf, uint16_t desc_len);
+TU_ATTR_WEAK void tuh_midi_descriptor_cb(uint8_t dev_addr, tuh_midi_descriptor_cb_t const* desc_cb);
 
 // Invoked when device with MIDI interface is mounted.
 TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t num_cables_rx, uint16_t num_cables_tx);
