@@ -63,8 +63,9 @@
 // Application API
 //--------------------------------------------------------------------+
 typedef struct {
-  const tusb_desc_interface_t* desc_interface; // start of whole midi interface descriptor
-  uint16_t desc_interface_len;
+  const tusb_desc_interface_t* desc_audio_control;
+  const tusb_desc_interface_t* desc_midi; // start of whole midi interface descriptor
+  uint16_t desc_midi_total_len;
 
   const uint8_t* desc_header;
   const uint8_t* desc_element;

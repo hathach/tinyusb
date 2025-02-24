@@ -111,8 +111,6 @@ extern "C" {
 #define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
 #define CFG_TUH_MIDI                CFG_TUH_DEVICE_MAX
 
-#define CFG_MIDI_HOST_DEVSTRINGS 1
-
 #ifdef __cplusplus
 }
 #endif

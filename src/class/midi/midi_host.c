@@ -227,9 +227,10 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
     p_desc = tu_desc_next(p_desc);
     TU_VERIFY(tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE &&
               tu_desc_subtype(p_desc) == AUDIO_CS_AC_INTERFACE_HEADER);
+    desc_cb.desc_audio_control = desc_itf;
 
     p_desc = tu_desc_next(p_desc);
-    desc_itf = (tusb_desc_interface_t const *)p_desc;
+    desc_itf = (const tusb_desc_interface_t *)p_desc;
     TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
     p_midi->itf_count = 1;
   }
@@ -238,7 +239,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   TU_LOG_DRV("MIDI opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
   p_midi->bInterfaceNumber = desc_itf->bInterfaceNumber;
   p_midi->itf_count++;
-  desc_cb.desc_interface = desc_itf;
+  desc_cb.desc_midi = desc_itf;
 
   p_desc = tu_desc_next(p_desc); // next to CS Header
 
@@ -305,7 +306,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
     }
     p_desc = tu_desc_next(p_desc);
   }
-  desc_cb.desc_interface_len = (uint16_t) ((uintptr_t)p_desc - (uintptr_t) desc_itf);
+  desc_cb.desc_midi_total_len = (uint16_t) ((uintptr_t)p_desc - (uintptr_t) desc_itf);
 
   p_midi->daddr = dev_addr;
 
