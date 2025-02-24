@@ -41,10 +41,6 @@
 #define TU_LOG_INT_USBH(...)  TU_LOG_INT(CFG_TUH_LOG_LEVEL, __VA_ARGS__)
 #define TU_LOG_HEX_USBH(...)  TU_LOG_HEX(CFG_TUH_LOG_LEVEL, __VA_ARGS__)
 
-enum {
-  USBH_EPSIZE_BULK_MAX = (TUH_OPT_HIGH_SPEED ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS)
-};
-
 //--------------------------------------------------------------------+
 // Class Driver API
 //--------------------------------------------------------------------+

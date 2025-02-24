@@ -39,9 +39,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-
-
 typedef struct {
   uint8_t itf_num;
   uint8_t ep_in;
@@ -440,8 +437,6 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint1
       drv_len += tu_desc_len(p_desc);
       p_desc   = tu_desc_next(p_desc);
     }
-  } else {
-    TU_LOG2("Warning: MIDI Device has no Audio Control Interface");
   }
 
   // 2nd Interface is MIDI Streaming

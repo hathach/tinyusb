@@ -41,6 +41,15 @@
 #define TU_LOG_DRV(...)   TU_LOG(CFG_TUH_MIDI_LOG_LEVEL, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tuh_midi_descriptor_cb(uint8_t idx, const tuh_midi_descriptor_cb_t * desc_cb_data) { (void) idx; (void) desc_cb_data; }
+TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t idx, const tuh_midi_mount_cb_t* mount_cb_data) { (void) idx; (void) mount_cb_data; }
+TU_ATTR_WEAK void tuh_midi_umount_cb(uint8_t idx) { (void) idx; }
+TU_ATTR_WEAK void tuh_midi_rx_cb(uint8_t idx, uint32_t xferred_bytes) { (void) idx; (void) xferred_bytes; }
+TU_ATTR_WEAK void tuh_midi_tx_cb(uint8_t idx, uint32_t xferred_bytes) { (void) idx; (void) xferred_bytes; }
+
+//--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
@@ -52,8 +61,8 @@ typedef struct {
   uint8_t ep_in;          // IN endpoint address
   uint8_t ep_out;         // OUT endpoint address
 
-  uint8_t num_cables_rx;  // IN endpoint CS descriptor bNumEmbMIDIJack value
-  uint8_t num_cables_tx;  // OUT endpoint CS descriptor bNumEmbMIDIJack value
+  uint8_t rx_cable_count;  // IN endpoint CS descriptor bNumEmbMIDIJack value
+  uint8_t tx_cable_count;  // OUT endpoint CS descriptor bNumEmbMIDIJack value
 
   #if CFG_TUH_MIDI_STREAM_API
   // For Stream read()/write() API
@@ -135,16 +144,13 @@ void midih_close(uint8_t daddr) {
     midih_interface_t* p_midi = &_midi_host[idx];
     if (p_midi->daddr == daddr) {
       TU_LOG_DRV("  MIDI close addr = %u index = %u\r\n", daddr, idx);
-
-      if (tuh_midi_umount_cb) {
-        tuh_midi_umount_cb(idx);
-      }
+      tuh_midi_umount_cb(idx);
 
       p_midi->ep_in = 0;
       p_midi->ep_out = 0;
       p_midi->bInterfaceNumber = 0;
-      p_midi->num_cables_rx = 0;
-      p_midi->num_cables_tx = 0;
+      p_midi->rx_cable_count = 0;
+      p_midi->tx_cable_count = 0;
       p_midi->daddr = 0;
       p_midi->mounted = false;
       tu_memclr(&p_midi->stream_read, sizeof(p_midi->stream_read));
@@ -163,33 +169,16 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
   midih_interface_t *p_midi_host = &_midi_host[idx];
 
   if (ep_addr == p_midi_host->ep_stream.rx.ep_addr) {
-    // receive new data if available
+    // receive new data, put it into FIFO and invoke callback if available
     if (xferred_bytes) {
-      // put in the RX FIFO only non-zero MIDI IN 4-byte packets
-      uint32_t packets_queued = 0;
-      uint8_t *buf = _midi_epbuf->rx;
-      const uint32_t npackets = xferred_bytes / 4;
-      for (uint32_t p = 0; p < npackets; p++) {
-        // some devices send back all zero packets even if there is no data ready
-        const uint32_t packet = tu_unaligned_read32(buf);
-        if (packet != 0) {
-          tu_edpt_stream_read_xfer_complete_with_buf(&p_midi_host->ep_stream.rx, buf, 4);
-          ++packets_queued;
-          TU_LOG3("MIDI RX=%08x\r\n", packet);
-        }
-        buf += 4;
-      }
-
-      if (tuh_midi_rx_cb) {
-        tuh_midi_rx_cb(idx, packets_queued);
-      }
+      tu_edpt_stream_read_xfer_complete(&p_midi_host->ep_stream.rx, xferred_bytes);
+      tuh_midi_rx_cb(idx, xferred_bytes);
     }
 
     tu_edpt_stream_read_xfer(dev_addr, &p_midi_host->ep_stream.rx); // prepare for next transfer
   } else if (ep_addr == p_midi_host->ep_stream.tx.ep_addr) {
-    if (tuh_midi_tx_cb) {
-      tuh_midi_tx_cb(idx);
-    }
+    tuh_midi_tx_cb(idx, xferred_bytes);
+
     if (0 == tu_edpt_stream_write_xfer(dev_addr, &p_midi_host->ep_stream.tx)) {
       // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
@@ -207,7 +196,6 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   (void) rhport;
 
   TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
-  // const uint8_t* p_start = ((uint8_t const*) desc_itf);
   const uint8_t *p_end = ((const uint8_t *) desc_itf) + max_len;
   const uint8_t *p_desc = (const uint8_t *) desc_itf;
 
@@ -286,14 +274,14 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
         TU_LOG_DRV("  Endpoint and CS_Endpoint descriptor %02x\r\n", p_ep->bEndpointAddress);
         if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
           p_midi->ep_out = p_ep->bEndpointAddress;
-          p_midi->num_cables_tx = p_csep->bNumEmbMIDIJack;
+          p_midi->tx_cable_count = p_csep->bNumEmbMIDIJack;
           desc_cb.desc_epout = p_ep;
 
           TU_ASSERT(tuh_edpt_open(dev_addr, p_ep));
           tu_edpt_stream_open(&p_midi->ep_stream.tx, p_ep);
         } else {
           p_midi->ep_in = p_ep->bEndpointAddress;
-          p_midi->num_cables_rx = p_csep->bNumEmbMIDIJack;
+          p_midi->rx_cable_count = p_csep->bNumEmbMIDIJack;
           desc_cb.desc_epin = p_ep;
 
           TU_ASSERT(tuh_edpt_open(dev_addr, p_ep));
@@ -309,10 +297,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   desc_cb.desc_midi_total_len = (uint16_t) ((uintptr_t)p_desc - (uintptr_t) desc_itf);
 
   p_midi->daddr = dev_addr;
-
-  if (tuh_midi_descriptor_cb) {
-    tuh_midi_descriptor_cb(idx, &desc_cb);
-  }
+  tuh_midi_descriptor_cb(idx, &desc_cb);
 
   return true;
 }
@@ -323,9 +308,13 @@ bool midih_set_config(uint8_t dev_addr, uint8_t itf_num) {
   midih_interface_t *p_midi = &_midi_host[idx];
   p_midi->mounted = true;
 
-  if (tuh_midi_mount_cb) {
-    tuh_midi_mount_cb(idx, p_midi->num_cables_rx, p_midi->num_cables_tx);
-  }
+  const tuh_midi_mount_cb_t mount_cb_data = {
+    .daddr = dev_addr,
+    .bInterfaceNumber = itf_num,
+    .rx_cable_count = p_midi->rx_cable_count,
+    .tx_cable_count = p_midi->tx_cable_count,
+  };
+  tuh_midi_mount_cb(idx, &mount_cb_data);
 
   tu_edpt_stream_read_xfer(dev_addr, &p_midi->ep_stream.rx); // prepare for incoming data
 
@@ -355,18 +344,18 @@ uint8_t tuh_midi_itf_get_index(uint8_t daddr, uint8_t itf_num) {
   return TUSB_INDEX_INVALID_8;
 }
 
-uint8_t tuh_midi_get_num_tx_cables (uint8_t idx) {
+uint8_t tuh_midi_get_tx_cable_count (uint8_t idx) {
   TU_VERIFY(idx < CFG_TUH_MIDI);
   midih_interface_t *p_midi = &_midi_host[idx];
   TU_VERIFY(p_midi->ep_stream.tx.ep_addr != 0, 0);
-  return p_midi->num_cables_tx;
+  return p_midi->tx_cable_count;
 }
 
-uint8_t tuh_midi_get_num_rx_cables (uint8_t idx) {
+uint8_t tuh_midi_get_rx_cable_count (uint8_t idx) {
   TU_VERIFY(idx < CFG_TUH_MIDI);
   midih_interface_t *p_midi = &_midi_host[idx];
   TU_VERIFY(p_midi->ep_stream.rx.ep_addr != 0, 0);
-  return p_midi->num_cables_rx;
+  return p_midi->rx_cable_count;
 }
 
 uint32_t tuh_midi_read_available(uint8_t idx) {
@@ -410,7 +399,7 @@ uint32_t tuh_midi_packet_write_n(uint8_t idx, const uint8_t* buffer, uint32_t bu
 uint32_t tuh_midi_stream_write(uint8_t idx, uint8_t cable_num, uint8_t const *buffer, uint32_t bufsize) {
   TU_VERIFY(idx < CFG_TUH_MIDI && buffer && bufsize > 0);
   midih_interface_t *p_midi = &_midi_host[idx];
-  TU_VERIFY(cable_num < p_midi->num_cables_tx);
+  TU_VERIFY(cable_num < p_midi->tx_cable_count);
   midi_driver_stream_t *stream = &p_midi->stream_write;
 
   uint32_t byte_count = 0;
@@ -520,7 +509,7 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
   while (nread == 4 && bytes_buffered < bufsize) {
     *p_cable_num = (p_midi->stream_read.buffer[0] >> 4) & 0x0f;
     uint8_t bytes_to_add_to_stream = 0;
-    if (*p_cable_num < p_midi->num_cables_rx) {
+    if (*p_cable_num < p_midi->rx_cable_count) {
       // ignore the CIN field; too many devices out there encode this wrong
       uint8_t status = p_midi->stream_read.buffer[1];
       uint16_t cable_mask = (uint16_t) (1 << *p_cable_num);

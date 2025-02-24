@@ -91,9 +91,9 @@ void midi_host_rx_task(void) {
 //--------------------------------------------------------------------+
 
 // Invoked when device with MIDI interface is mounted.
-void tuh_midi_mount_cb(uint8_t idx, uint8_t num_cables_rx, uint16_t num_cables_tx) {
-  printf("MIDI Interface Index = %u, Number of RX cables = %u, Number of TX cables = %u\r\n",
-          idx, num_cables_rx, num_cables_tx);
+void tuh_midi_mount_cb(uint8_t idx, const tuh_midi_mount_cb_t* mount_cb_data) {
+  printf("MIDI Interface Index = %u, Address = %u, Number of RX cables = %u, Number of TX cables = %u\r\n",
+          idx, mount_cb_data->daddr, mount_cb_data->rx_cable_count, mount_cb_data->tx_cable_count);
 }
 
 // Invoked when device with hid interface is un-mounted
@@ -101,8 +101,8 @@ void tuh_midi_umount_cb(uint8_t idx) {
   printf("MIDI Interface Index = %u is unmounted\r\n", idx);
 }
 
-void tuh_midi_rx_cb(uint8_t idx, uint32_t num_packets) {
-  if (num_packets == 0) {
+void tuh_midi_rx_cb(uint8_t idx, uint32_t xferred_bytes) {
+  if (xferred_bytes == 0) {
     return;
   }
 
@@ -117,6 +117,7 @@ void tuh_midi_rx_cb(uint8_t idx, uint32_t num_packets) {
   printf("\r\n");
 }
 
-void tuh_midi_tx_cb(uint8_t idx) {
+void tuh_midi_tx_cb(uint8_t idx, uint32_t xferred_bytes) {
   (void) idx;
+  (void) xferred_bytes;
 }

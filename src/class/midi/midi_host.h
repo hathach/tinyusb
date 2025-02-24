@@ -37,10 +37,6 @@
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
-#ifndef CFG_TUH_MAX_CABLES
-#define CFG_TUH_MAX_CABLES 16
-#endif
-
 #ifndef CFG_TUH_MIDI_RX_BUFSIZE
 #define CFG_TUH_MIDI_RX_BUFSIZE TUH_EPSIZE_BULK_MPS
 #endif
@@ -60,7 +56,7 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Application API
+// Application Types
 //--------------------------------------------------------------------+
 typedef struct {
   const tusb_desc_interface_t* desc_audio_control;
@@ -76,6 +72,17 @@ typedef struct {
   const uint8_t* desc_jack[16]; // list of jack descriptors (embedded + external)
 } tuh_midi_descriptor_cb_t;
 
+typedef struct {
+  uint8_t daddr;
+  uint8_t bInterfaceNumber; // interface number of MIDI streaming
+  uint8_t rx_cable_count;
+  uint8_t tx_cable_count;
+} tuh_midi_mount_cb_t;
+
+//--------------------------------------------------------------------+
+// Application API
+//--------------------------------------------------------------------+
+
 // Check if MIDI interface is mounted
 bool tuh_midi_mounted(uint8_t idx);
 
@@ -84,10 +91,10 @@ bool tuh_midi_mounted(uint8_t idx);
 uint8_t tuh_midi_itf_get_index(uint8_t daddr, uint8_t itf_num);
 
 // return the number of virtual midi cables on the device's IN endpoint
-uint8_t tuh_midi_get_num_rx_cables(uint8_t idx);
+uint8_t tuh_midi_get_rx_cable_count(uint8_t idx);
 
 // return the number of virtual midi cables on the device's OUT endpoint
-uint8_t tuh_midi_get_num_tx_cables(uint8_t idx);
+uint8_t tuh_midi_get_tx_cable_count(uint8_t idx);
 
 // return the raw number of bytes available.
 // Note: this is related but not the same as number of stream bytes available.
@@ -151,16 +158,19 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
 
 // Invoked when MIDI interface is detected in enumeration. Application can copy/parse descriptor if needed.
 // Note: may be fired before tuh_midi_mount_cb(), therefore midi interface is not mounted/ready.
-TU_ATTR_WEAK void tuh_midi_descriptor_cb(uint8_t idx, const tuh_midi_descriptor_cb_t * desc_cb);
+void tuh_midi_descriptor_cb(uint8_t idx, const tuh_midi_descriptor_cb_t * desc_cb_data);
 
 // Invoked when device with MIDI interface is mounted.
-TU_ATTR_WEAK void tuh_midi_mount_cb(uint8_t idx, uint8_t num_cables_rx, uint16_t num_cables_tx);
+void tuh_midi_mount_cb(uint8_t idx, const tuh_midi_mount_cb_t* mount_cb_data);
 
 // Invoked when device with MIDI interface is un-mounted
-TU_ATTR_WEAK void tuh_midi_umount_cb(uint8_t idx);
+void tuh_midi_umount_cb(uint8_t idx);
 
-TU_ATTR_WEAK void tuh_midi_rx_cb(uint8_t idx, uint32_t num_packets);
-TU_ATTR_WEAK void tuh_midi_tx_cb(uint8_t idx);
+// Invoked when received new data
+void tuh_midi_rx_cb(uint8_t idx, uint32_t xferred_bytes);
+
+// Invoked when a TX is complete and therefore space becomes available in TX buffer
+void tuh_midi_tx_cb(uint8_t idx, uint32_t xferred_bytes);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
