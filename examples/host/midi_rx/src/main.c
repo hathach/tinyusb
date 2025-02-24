@@ -30,12 +30,9 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
-#if CFG_TUH_MIDI
-
 //--------------------------------------------------------------------+
 // STATIC GLOBALS DECLARATION
 //--------------------------------------------------------------------+
-static uint8_t midi_dev_addr = 0;
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
@@ -65,8 +62,6 @@ int main(void) {
   return 0;
 }
 
-#endif
-
 //--------------------------------------------------------------------+
 // Blinking Task
 //--------------------------------------------------------------------+
@@ -88,13 +83,7 @@ void led_blinking_task(void) {
 // MIDI host receive task
 //--------------------------------------------------------------------+
 void midi_host_rx_task(void) {
-  // device must be attached and have at least one endpoint ready to receive a message
-  if (!midi_dev_addr || !tuh_midi_mounted(midi_dev_addr)) {
-    return;
-  }
-  if (tuh_midi_get_num_rx_cables(midi_dev_addr) < 1) {
-    return;
-  }
+  // nothing to do, we just print out received data in callback
 }
 
 //--------------------------------------------------------------------+
@@ -102,39 +91,32 @@ void midi_host_rx_task(void) {
 //--------------------------------------------------------------------+
 
 // Invoked when device with MIDI interface is mounted.
-void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t num_cables_rx, uint16_t num_cables_tx) {
-  (void) num_cables_rx;
-  (void) num_cables_tx;
-  midi_dev_addr = dev_addr;
-  TU_LOG1("MIDI device address = %u, Number of RX cables = %u, Number of TX cables = %u\r\n",
-          dev_addr, num_cables_rx, num_cables_tx);
+void tuh_midi_mount_cb(uint8_t idx, uint8_t num_cables_rx, uint16_t num_cables_tx) {
+  printf("MIDI Interface Index = %u, Number of RX cables = %u, Number of TX cables = %u\r\n",
+          idx, num_cables_rx, num_cables_tx);
 }
 
 // Invoked when device with hid interface is un-mounted
-void tuh_midi_umount_cb(uint8_t dev_addr) {
-  (void) dev_addr;
-  midi_dev_addr = 0;
-  TU_LOG1("MIDI device address = %d is unmounted\r\n", dev_addr);
+void tuh_midi_umount_cb(uint8_t idx) {
+  printf("MIDI Interface Index = %u is unmounted\r\n", idx);
 }
 
-void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets) {
-  if (midi_dev_addr != dev_addr) {
-    return;
-  }
-
+void tuh_midi_rx_cb(uint8_t idx, uint32_t num_packets) {
   if (num_packets == 0) {
     return;
   }
 
   uint8_t cable_num;
   uint8_t buffer[48];
-  uint32_t bytes_read = tuh_midi_stream_read(dev_addr, &cable_num, buffer, sizeof(buffer));
-  (void) bytes_read;
+  uint32_t bytes_read = tuh_midi_stream_read(idx, &cable_num, buffer, sizeof(buffer));
 
-  TU_LOG1("Read bytes %lu cable %u", bytes_read, cable_num);
-  TU_LOG1_MEM(buffer, bytes_read, 2);
+  printf("Cable %u rx %lu bytes: ", cable_num, bytes_read);
+  for (uint32_t i = 0; i < bytes_read; i++) {
+    printf("%02X ", buffer[i]);
+  }
+  printf("\r\n");
 }
 
-void tuh_midi_tx_cb(uint8_t dev_addr) {
-  (void) dev_addr;
+void tuh_midi_tx_cb(uint8_t idx) {
+  (void) idx;
 }
