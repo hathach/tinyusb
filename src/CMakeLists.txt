@@ -29,6 +29,7 @@ function(tinyusb_target_add TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/host/hub.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/cdc/cdc_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/hid/hid_host.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/midi/midi_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/msc/msc_host.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/vendor/vendor_host.c
     # typec
