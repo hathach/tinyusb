@@ -26,7 +26,7 @@
 
 /* metadata:
    name: Pico2
-   url: https://www.raspberrypi.org/products/raspberry-pi-pico/
+   url: https://www.raspberrypi.com/products/raspberry-pi-pico-2/
 */
 
 #ifndef TUSB_BOARD_H
