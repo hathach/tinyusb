@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Adafruit Feather RP2040 with USB Type A Host
+   url: https://www.adafruit.com/product/5723
+*/
+
 #ifndef TUSB_BOARD_H
 #define TUSB_BOARD_H
 
