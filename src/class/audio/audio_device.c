@@ -628,10 +628,6 @@ static uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 
 #if (CFG_TUD_AUDIO_ENABLE_EP_IN && (CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL || CFG_TUD_AUDIO_ENABLE_ENCODING)) || (CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING)
 static void audiod_parse_for_AS_params(audiod_function_t *audio, uint8_t const *p_desc, uint8_t const *p_desc_end, uint8_t const as_itf);
-
-static inline uint8_t tu_desc_subtype(void const *desc) {
-  return ((uint8_t const *) desc)[2];
-}
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
