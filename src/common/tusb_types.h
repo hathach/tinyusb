@@ -462,7 +462,7 @@ TU_VERIFY_STATIC( sizeof(tusb_desc_interface_assoc_t) == 8, "size is not correct
 typedef struct TU_ATTR_PACKED {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType ; ///< Descriptor Type
-  uint16_t unicode_string[];
+  uint16_t utf16le[];
 } tusb_desc_string_t;
 
 // USB Binary Device Object Store (BOS)
