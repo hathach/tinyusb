@@ -1282,13 +1282,17 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
           removing_hubs |= TU_BIT(dev_id - CFG_TUH_DEVICE_MAX);
         } else {
           // Invoke callback before closing driver (maybe call it later ?)
-          if (tuh_umount_cb) tuh_umount_cb(daddr);
+          if (tuh_umount_cb) {
+            tuh_umount_cb(daddr);
+          }
         }
 
         // Close class driver
         for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
           usbh_class_driver_t const* driver = get_driver(drv_id);
-          if (driver) driver->close(daddr);
+          if (driver) {
+            driver->close(daddr);
+          }
         }
 
         hcd_device_close(rhport, daddr);
@@ -1345,8 +1349,11 @@ enum {
   ENUM_HUB_GET_STATUS_2,
   ENUM_HUB_CLEAR_RESET_2,
   ENUM_SET_ADDR,
-
   ENUM_GET_DEVICE_DESC,
+  ENUM_GET_STRING_LANGUAGE_ID,
+  ENUM_GET_STRING_MANUFACTURER,
+  ENUM_GET_STRING_PRODUCT,
+  ENUM_GET_STRING_SERIAL,
   ENUM_GET_9BYTE_CONFIG_DESC,
   ENUM_GET_FULL_CONFIG_DESC,
   ENUM_SET_CONFIG,
@@ -1359,25 +1366,25 @@ static void enum_full_complete(void);
 
 // process device enumeration
 static void process_enumeration(tuh_xfer_t* xfer) {
-  // Retry a few times with transfers in enumeration since device can be unstable when starting up
-  enum {
-    ATTEMPT_COUNT_MAX = 3,
-    ATTEMPT_DELAY_MS = 100
-  };
+  // Retry a few times while enumerating since device can be unstable when starting up
   static uint8_t failed_count = 0;
+  if (XFER_RESULT_FAILED == xfer->result) {
+    enum {
+      ATTEMPT_COUNT_MAX = 3,
+      ATTEMPT_DELAY_MS = 100
+    };
 
-  if (XFER_RESULT_SUCCESS != xfer->result) {
     // retry if not reaching max attempt
+    failed_count++;
     bool retry = _dev0.enumerating && (failed_count < ATTEMPT_COUNT_MAX);
-    if ( retry ) {
-      failed_count++;
+    if (retry) {
       tusb_time_delay_ms_api(ATTEMPT_DELAY_MS); // delay a bit
-      TU_LOG1("Enumeration attempt %u\r\n", failed_count);
+      TU_LOG1("Enumeration attempt %u/%u\r\n", failed_count+1, ATTEMPT_COUNT_MAX);
       retry = tuh_control_xfer(xfer);
     }
 
     if (!retry) {
-      enum_full_complete();
+      enum_full_complete(); // complete as failed
     }
 
     return;
@@ -1386,6 +1393,8 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
   uint8_t const daddr = xfer->daddr;
   uintptr_t const state = xfer->user_data;
+  usbh_device_t* dev = get_device(daddr);
+  uint16_t langid = 0x0409; // default is English
 
   switch (state) {
     #if CFG_TUH_HUB
@@ -1476,7 +1485,6 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       tusb_time_delay_ms_api(2);
 
       const uint8_t new_addr = (uint8_t) tu_le16toh(xfer->setup->wValue);
-
       usbh_device_t* new_dev = get_device(new_addr);
       TU_ASSERT(new_dev,);
       new_dev->addressed = 1;
@@ -1490,21 +1498,69 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       // Get full device descriptor
       TU_LOG_USBH("Get Device Descriptor\r\n");
       TU_ASSERT(tuh_descriptor_get_device(new_addr, _usbh_epbuf.ctrl, sizeof(tusb_desc_device_t),
-                                          process_enumeration, ENUM_GET_9BYTE_CONFIG_DESC),);
+                                          process_enumeration, ENUM_GET_STRING_LANGUAGE_ID),);
       break;
     }
 
-    case ENUM_GET_9BYTE_CONFIG_DESC: {
-      tusb_desc_device_t const* desc_device = (tusb_desc_device_t const*) _usbh_epbuf.ctrl;
-      usbh_device_t* dev = get_device(daddr);
+    case ENUM_GET_STRING_LANGUAGE_ID: {
+      // save the received device descriptor
       TU_ASSERT(dev,);
-
+      tusb_desc_device_t const* desc_device = (tusb_desc_device_t const*) _usbh_epbuf.ctrl;
       dev->vid = desc_device->idVendor;
       dev->pid = desc_device->idProduct;
       dev->i_manufacturer = desc_device->iManufacturer;
       dev->i_product = desc_device->iProduct;
       dev->i_serial = desc_device->iSerialNumber;
 
+      tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
+                                       process_enumeration, ENUM_GET_STRING_MANUFACTURER);
+      break;
+    }
+
+    case ENUM_GET_STRING_MANUFACTURER: {
+      TU_ASSERT(dev,);
+      const tusb_desc_string_t* desc_langid = (tusb_desc_string_t const*) _usbh_epbuf.ctrl;
+      if (desc_langid->bLength >= 4) {
+        langid = tu_le16toh(desc_langid->utf16le[0]);
+      }
+      if (dev->i_manufacturer != 0) {
+        tuh_descriptor_get_string(daddr, dev->i_manufacturer, langid, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
+                                  process_enumeration, ENUM_GET_STRING_PRODUCT);
+        break;
+      } else {
+        TU_ATTR_FALLTHROUGH;
+      }
+    }
+
+    case ENUM_GET_STRING_PRODUCT: {
+      TU_ASSERT(dev,);
+      if (state == ENUM_GET_STRING_PRODUCT) {
+        langid = tu_le16toh(xfer->setup->wIndex); // if not fall through, get langid from previous setup packet
+      }
+      if (dev->i_product != 0) {
+        tuh_descriptor_get_string(daddr, dev->i_product, 0x0409, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
+                            process_enumeration, ENUM_GET_STRING_SERIAL);
+        break;
+      } else {
+        TU_ATTR_FALLTHROUGH;
+      }
+    }
+
+    case ENUM_GET_STRING_SERIAL: {
+      TU_ASSERT(dev,);
+      if (state == ENUM_GET_STRING_SERIAL) {
+        langid = tu_le16toh(xfer->setup->wIndex); // if not fall through, get langid from previous setup packet
+      }
+      if (dev->i_serial != 0) {
+        tuh_descriptor_get_string(daddr, dev->i_serial, langid, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
+                            process_enumeration, ENUM_GET_9BYTE_CONFIG_DESC);
+        break;
+      } else {
+        TU_ATTR_FALLTHROUGH;
+      }
+    }
+
+    case ENUM_GET_9BYTE_CONFIG_DESC: {
       // Get 9-byte for total length
       uint8_t const config_idx = CONFIG_NUM - 1;
       TU_LOG_USBH("Get Configuration[0] Descriptor (9 bytes)\r\n");
@@ -1537,7 +1593,6 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
     case ENUM_CONFIG_DRIVER: {
       TU_LOG_USBH("Device configured\r\n");
-      usbh_device_t* dev = get_device(daddr);
       TU_ASSERT(dev,);
 
       dev->configured = 1;

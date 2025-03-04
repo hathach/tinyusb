@@ -46,7 +46,7 @@ typedef struct {
 
   // from hub descriptor
   uint8_t bNbrPorts;
-  uint8_t bPwrOn2PwrGood; // port power on to good, in 2ms unit
+  uint8_t bPwrOn2PwrGood_2ms; // port power on to good, in 2ms unit
   // uint16_t wHubCharacteristics;
 
   hub_port_status_response_t port_status;
@@ -279,7 +279,7 @@ static void config_set_port_power (tuh_xfer_t* xfer) {
   // only use number of ports in hub descriptor
   hub_desc_cs_t const* desc_hub = (hub_desc_cs_t const*) p_epbuf->ctrl_buf;
   p_hub->bNbrPorts = desc_hub->bNbrPorts;
-  p_hub->bPwrOn2PwrGood = desc_hub->bPwrOn2PwrGood;
+  p_hub->bPwrOn2PwrGood_2ms = desc_hub->bPwrOn2PwrGood;
 
   // May need to GET_STATUS
 
@@ -301,7 +301,6 @@ static void config_port_power_complete (tuh_xfer_t* xfer) {
       TU_MESS_FAILED();
       TU_BREAKPOINT();
     }
-    // delay bPwrOn2PwrGood * 2 ms before set configuration complete
     usbh_driver_set_config_complete(daddr, p_hub->itf_num);
   } else {
     // power next port
