@@ -110,7 +110,7 @@ void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoi
       *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
       // 4.1.2.5.1 Con-current access: 12 cycles (should be good for 48*12Mhz = 576Mhz) after write to buffer control
       // Don't need delay in host mode as host is in charge
-      if ( !is_host_mode()) {
+      if (!is_host_mode()) {
         busy_wait_at_least_cycles(12);
       }
     }

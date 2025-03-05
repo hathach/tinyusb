@@ -365,7 +365,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       memcpy(p_cbw, _mscd_epbuf.buf, sizeof(msc_cbw_t));
 
       TU_LOG_DRV("  SCSI Command [Lun%u]: %s\r\n", p_cbw->lun, tu_lookup_find(&_msc_scsi_cmd_table, p_cbw->command[0]));
-      //TU_LOG_MEM(MSC_DEBUG, p_cbw, xferred_bytes, 2);
+      // TU_LOG_MEM(CFG_TUD_MSC_LOG_LEVEL, p_cbw, xferred_bytes, 2);
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
       p_csw->tag          = p_cbw->tag;
@@ -422,7 +422,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           } else if (resplen == 0) {
             if (p_cbw->total_bytes) {
               // 6.7 The 13 Cases: case 4 (Hi > Dn)
-              // TU_LOG(MSC_DEBUG, "  SCSI case 4 (Hi > Dn): %lu\r\n", p_cbw->total_bytes);
+              // TU_LOG_DRV("  SCSI case 4 (Hi > Dn): %lu\r\n", p_cbw->total_bytes);
               fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
             } else {
               // case 1 Hn = Dn: all good
@@ -431,7 +431,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           } else {
             if (p_cbw->total_bytes == 0) {
               // 6.7 The 13 Cases: case 2 (Hn < Di)
-              // TU_LOG(MSC_DEBUG, "  SCSI case 2 (Hn < Di): %lu\r\n", p_cbw->total_bytes);
+              // TU_LOG_DRV("  SCSI case 2 (Hn < Di): %lu\r\n", p_cbw->total_bytes);
               fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
             } else {
               // cannot return more than host expect
@@ -445,7 +445,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
     case MSC_STAGE_DATA:
       TU_LOG_DRV("  SCSI Data [Lun%u]\r\n", p_cbw->lun);
-      //TU_LOG_MEM(MSC_DEBUG, _mscd_epbuf.buf, xferred_bytes, 2);
+      TU_ASSERT(xferred_bytes <= CFG_TUD_MSC_EP_BUFSIZE); // sanity check to avoid buffer overflow
+      // TU_LOG_MEM(CFG_TUD_MSC_LOG_LEVEL, _mscd_epbuf.buf, xferred_bytes, 2);
 
       if (SCSI_CMD_READ_10 == p_cbw->command[0]) {
         p_msc->xferred_len += xferred_bytes;
@@ -492,7 +493,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       // Wait for the Status phase to complete
       if ((ep_addr == p_msc->ep_in) && (xferred_bytes == sizeof(msc_csw_t))) {
         TU_LOG_DRV("  SCSI Status [Lun%u] = %u\r\n", p_cbw->lun, p_csw->status);
-        // TU_LOG_MEM(MSC_DEBUG, p_csw, xferred_bytes, 2);
+        // TU_LOG_MEM(CFG_TUD_MSC_LOG_LEVEL, p_csw, xferred_bytes, 2);
 
         // Invoke complete callback if defined
         // Note: There is racing issue with samd51 + qspi flash testing with arduino
@@ -532,7 +533,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     if (!usbd_edpt_stalled(rhport, p_msc->ep_in)) {
       if ((p_cbw->total_bytes > p_msc->xferred_len) && is_data_in(p_cbw->dir)) {
         // 6.7 The 13 Cases: case 5 (Hi > Di): STALL before status
-        // TU_LOG(MSC_DEBUG, "  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_cbw->total_bytes, p_msc->xferred_len);
+        // TU_LOG_DRV("  SCSI case 5 (Hi > Di): %lu > %lu\r\n", p_cbw->total_bytes, p_msc->xferred_len);
         usbd_edpt_stall(rhport, p_msc->ep_in);
       } else {
         TU_ASSERT(send_csw(rhport, p_msc));
@@ -827,20 +828,18 @@ static void proc_write10_new_data(uint8_t rhport, mscd_interface_t* p_msc, uint3
     // update actual byte before failed
     p_msc->xferred_len += xferred_bytes;
 
-    // Set sense
     set_sense_medium_not_present(p_cbw->lun);
-
     fail_scsi_op(rhport, p_msc, MSC_CSW_STATUS_FAILED);
   } else {
-    // Application consume less than what we got (including zero)
     if ((uint32_t)nbytes < xferred_bytes) {
-      uint32_t const left_over = xferred_bytes - (uint32_t)nbytes;
+      // Application consume less than what we got (including zero)
+      const uint32_t left_over = xferred_bytes - (uint32_t)nbytes;
       if (nbytes > 0) {
         p_msc->xferred_len += (uint16_t)nbytes;
         memmove(_mscd_epbuf.buf, _mscd_epbuf.buf + nbytes, left_over);
       }
 
-      // simulate an transfer complete with adjusted parameters --> callback will be invoked with adjusted parameter
+      // simulate a transfer complete with adjusted parameters --> callback will be invoked with adjusted parameter
       dcd_event_xfer_complete(rhport, p_msc->ep_out, left_over, XFER_RESULT_SUCCESS, false);
     } else {
       // Application consume all bytes in our buffer

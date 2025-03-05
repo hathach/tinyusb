@@ -79,6 +79,9 @@ bool tud_hid_n_abs_mouse_report(uint8_t instance, uint8_t report_id, uint8_t but
 // use template layout report TUD_HID_REPORT_DESC_GAMEPAD
 bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons);
 
+// STYLUS PEN: convenient helper to send absolute stylus pen report if application
+bool tud_hid_n_stylus_report(uint8_t instance, uint8_t report_id, uint8_t attrs, uint16_t x, uint16_t y);
+
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
@@ -112,6 +115,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_abs_mouse_report(uint8_t report
 
 TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_gamepad_report(uint8_t report_id, int8_t x, int8_t y, int8_t z, int8_t rz, int8_t rx, int8_t ry, uint8_t hat, uint32_t buttons) {
   return tud_hid_n_gamepad_report(0, report_id, x, y, z, rz, rx, ry, hat, buttons);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_hid_stylus_report(uint8_t report_id, uint8_t attrs, uint16_t x, uint16_t y) {
+  return tud_hid_n_stylus_report(0, report_id, attrs, x, y);
 }
 
 //--------------------------------------------------------------------+
@@ -255,6 +262,41 @@ void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, u
         HID_REPORT_SIZE ( 8                                      ), \
         HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), \
     HID_COLLECTION_END                                            , \
+  HID_COLLECTION_END \
+
+// Stylus Pen Report Descriptor Template
+#define TUD_HID_REPORT_DESC_STYLUS_PEN(...) \
+  HID_USAGE_PAGE ( HID_USAGE_PAGE_DIGITIZER )                     , \
+  HID_USAGE      ( HID_USAGE_DIGITIZER_TOUCH_SCREEN )             , \
+  HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                  , \
+    /* Report ID if any */\
+    __VA_ARGS__ \
+    HID_USAGE    ( HID_USAGE_DIGITIZER_STYLUS )                   , \
+    HID_COLLECTION ( HID_COLLECTION_PHYSICAL   )                  , \
+      HID_USAGE_PAGE  ( HID_USAGE_DIGITIZER_TIP_SWITCH )          , \
+      HID_USAGE_PAGE  ( HID_USAGE_DIGITIZER_IN_RANGE )            , \
+        HID_LOGICAL_MIN ( 0                                      ), \
+        HID_LOGICAL_MAX ( 1                                      ), \
+        HID_REPORT_SIZE ( 1                                      ), \
+        HID_REPORT_COUNT( 2                                      ), \
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ), \
+        HID_REPORT_SIZE ( 1                                      ), \
+        HID_REPORT_COUNT( 6                                      ), \
+        HID_INPUT       ( HID_CONSTANT | HID_ARRAY | HID_ABSOLUTE), \
+      HID_USAGE_PAGE    ( HID_USAGE_PAGE_DESKTOP                 ), \
+        HID_PHYSICAL_MAX_N( 0x7fff, 2                            ), \
+        HID_LOGICAL_MAX_N ( 0x7fff, 2                            ), \
+        HID_REPORT_SIZE ( 16                                     ), \
+        HID_REPORT_COUNT( 1                                      ), \
+        HID_UNIT_EXPONENT( 0x0f                                  ), \
+        HID_UNIT        ( HID_VARIABLE | HID_NONLINEAR           ), \
+        HID_PHYSICAL_MIN( 0                                      ), \
+        HID_PHYSICAL_MAX( 0                                      ), \
+        HID_USAGE       ( HID_USAGE_DESKTOP_X                    ), \
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ), \
+        HID_USAGE       ( HID_USAGE_DESKTOP_Y                    ), \
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ), \
+    HID_COLLECTION_END                                          , \
   HID_COLLECTION_END \
 
 // Absolute Mouse Report Descriptor Template

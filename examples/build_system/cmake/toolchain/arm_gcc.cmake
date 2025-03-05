@@ -1,3 +1,7 @@
+if (RTOS STREQUAL zephyr)
+  return()
+endif ()
+
 if (NOT DEFINED CMAKE_C_COMPILER)
   set(CMAKE_C_COMPILER "arm-none-eabi-gcc")
 endif ()

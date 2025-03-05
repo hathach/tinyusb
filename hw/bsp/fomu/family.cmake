@@ -4,7 +4,7 @@ include_guard()
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR rv32i-ilp32 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU rv32i-ilp32 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS VALENTYUSB_EPTRI CACHE INTERNAL "")
@@ -77,14 +77,13 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_VALENTYUSB_EPTRI ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_VALENTYUSB_EPTRI)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/valentyusb/eptri/dcd_eptri.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

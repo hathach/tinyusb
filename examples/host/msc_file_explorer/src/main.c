@@ -62,14 +62,12 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
+#include "msc_app.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
-
-// from msc_app.c
-extern bool msc_app_init(void);
-extern void msc_app_task(void);
 
 /*------------- MAIN -------------*/
 int main(void) {
