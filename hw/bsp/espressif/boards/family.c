@@ -162,7 +162,6 @@ int board_getchar(void) {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
 
 #include "esp_private/usb_phy.h"
-#include "soc/usb_pins.h"
 
 static usb_phy_handle_t phy_hdl;
 

@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: Adafruit Fruit Jam - Mini RP2350
-   url: https://www.adafruit.com/product/6200
+   name: Adafruit Metro RP2350
+   url: https://www.adafruit.com/product/6003
 */
 
 #ifndef TUSB_BOARD_H
@@ -42,8 +42,8 @@
 // PIO_USB
 //--------------------------------------------------------------------+
 // default to pico brain tester
-#define PICO_DEFAULT_PIO_USB_DP_PIN       1
-#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   11
+#define PICO_DEFAULT_PIO_USB_DP_PIN       32
+#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   29
 #define PICO_DEFAULT_PIO_USB_VBUSEN_STATE 1
 
 //--------------------------------------------------------------------

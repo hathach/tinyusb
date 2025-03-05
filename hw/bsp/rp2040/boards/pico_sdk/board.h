@@ -24,11 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: Adafruit Fruit Jam - Mini RP2350
-   url: https://www.adafruit.com/product/6200
-*/
-
 #ifndef TUSB_BOARD_H
 #define TUSB_BOARD_H
 
@@ -37,18 +32,6 @@
 #endif
 
 // UART and LED are already defined in pico-sdk board
-
-//--------------------------------------------------------------------+
-// PIO_USB
-//--------------------------------------------------------------------+
-// default to pico brain tester
-#define PICO_DEFAULT_PIO_USB_DP_PIN       1
-#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   11
-#define PICO_DEFAULT_PIO_USB_VBUSEN_STATE 1
-
-//--------------------------------------------------------------------
-// USB Host MAX3421E
-//--------------------------------------------------------------------
 
 #ifdef __cplusplus
  }
