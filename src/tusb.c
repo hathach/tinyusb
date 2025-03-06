@@ -205,7 +205,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   return ret;
 }
 
-bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed) {
+bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed, bool is_host) {
   uint16_t const max_packet_size = tu_edpt_packet_size(desc_ep);
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
 
@@ -221,8 +221,17 @@ bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed) {
         // Bulk highspeed must be EXACTLY 512
         TU_ASSERT(max_packet_size == 512);
       } else {
-        // TODO Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(max_packet_size <= 64);
+        // Bulk fullspeed can only be 8, 16, 32, 64
+        if (is_host && max_packet_size == 512) {
+          // HACK: while in host mode, some device incorrectly always report 512 regardless of link speed
+          // overwrite descriptor to force 64
+          TU_LOG1("  WARN: EP max packet size is 512 in fullspeed, force to 64\r\n");
+          tusb_desc_endpoint_t* hacked_ep = (tusb_desc_endpoint_t*) (uintptr_t) desc_ep;
+          hacked_ep->wMaxPacketSize = tu_htole16(64);
+        } else {
+          TU_ASSERT(max_packet_size == 8  || max_packet_size == 16 ||
+                    max_packet_size == 32 || max_packet_size == 64);
+        }
       }
       break;
 

@@ -986,7 +986,7 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size) {
 }
 
 bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
-  TU_ASSERT(tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr)));
+  TU_ASSERT(tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr), true));
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, desc_ep);
 }
 

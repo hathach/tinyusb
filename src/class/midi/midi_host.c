@@ -267,10 +267,10 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
         break;
 
       case TUSB_DESC_ENDPOINT: {
-        tusb_desc_endpoint_t const *p_ep = (tusb_desc_endpoint_t const *) p_desc;
+        const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
         p_desc = tu_desc_next(p_desc); // next to CS endpoint
         TU_VERIFY(p_desc < p_end && tu_desc_next(p_desc) <= p_end);
-        midi_desc_cs_endpoint_t const *p_csep = (midi_desc_cs_endpoint_t const *) p_desc;
+        const midi_desc_cs_endpoint_t *p_csep = (const midi_desc_cs_endpoint_t *) p_desc;
 
         TU_LOG_DRV("  Endpoint and CS_Endpoint descriptor %02x\r\n", p_ep->bEndpointAddress);
         if (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT) {
