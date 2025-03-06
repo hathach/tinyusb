@@ -166,23 +166,24 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
   (void) result;
   const uint8_t idx = get_idx_by_ep_addr(dev_addr, ep_addr);
   TU_VERIFY(idx < CFG_TUH_MIDI);
-  midih_interface_t *p_midi_host = &_midi_host[idx];
+  midih_interface_t *p_midi = &_midi_host[idx];
 
-  if (ep_addr == p_midi_host->ep_stream.rx.ep_addr) {
+  if (ep_addr == p_midi->ep_stream.rx.ep_addr) {
     // receive new data, put it into FIFO and invoke callback if available
-    if (xferred_bytes) {
-      tu_edpt_stream_read_xfer_complete(&p_midi_host->ep_stream.rx, xferred_bytes);
+    // Note: some devices send back all zero packets even if there is no data ready
+    if (xferred_bytes && !tu_mem_is_zero(p_midi->ep_stream.rx.ep_buf, xferred_bytes)) {
+      tu_edpt_stream_read_xfer_complete(&p_midi->ep_stream.rx, xferred_bytes);
       tuh_midi_rx_cb(idx, xferred_bytes);
     }
 
-    tu_edpt_stream_read_xfer(dev_addr, &p_midi_host->ep_stream.rx); // prepare for next transfer
-  } else if (ep_addr == p_midi_host->ep_stream.tx.ep_addr) {
+    tu_edpt_stream_read_xfer(dev_addr, &p_midi->ep_stream.rx); // prepare for next transfer
+  } else if (ep_addr == p_midi->ep_stream.tx.ep_addr) {
     tuh_midi_tx_cb(idx, xferred_bytes);
 
-    if (0 == tu_edpt_stream_write_xfer(dev_addr, &p_midi_host->ep_stream.tx)) {
+    if (0 == tu_edpt_stream_write_xfer(dev_addr, &p_midi->ep_stream.tx)) {
       // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
-      tu_edpt_stream_write_zlp_if_needed(dev_addr, &p_midi_host->ep_stream.tx, xferred_bytes);
+      tu_edpt_stream_write_zlp_if_needed(dev_addr, &p_midi->ep_stream.tx, xferred_bytes);
     }
   }
 

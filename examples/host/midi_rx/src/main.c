@@ -110,7 +110,7 @@ void tuh_midi_rx_cb(uint8_t idx, uint32_t xferred_bytes) {
   uint8_t cable_num = 0;
   uint32_t bytes_read = tuh_midi_stream_read(idx, &cable_num, buffer, sizeof(buffer));
 
-  printf("Cable %u rx %lu bytes: ", cable_num, bytes_read);
+  printf("Cable %u rx: ", cable_num);
   for (uint32_t i = 0; i < bytes_read; i++) {
     printf("%02X ", buffer[i]);
   }
