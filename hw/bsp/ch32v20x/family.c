@@ -96,11 +96,11 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 #endif
 
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+  LED_CLOCK_EN();
 
   GPIO_InitTypeDef GPIO_InitStructure = {
     .GPIO_Pin = LED_PIN,
-    .GPIO_Mode = GPIO_Mode_Out_OD,
+    .GPIO_Mode = LED_MODE,
     .GPIO_Speed = GPIO_Speed_10MHz,
   };
   GPIO_Init(LED_PORT, &GPIO_InitStructure);
