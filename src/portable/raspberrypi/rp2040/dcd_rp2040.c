@@ -148,6 +148,32 @@ static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t* buffer, uint16_t total_by
   hw_endpoint_xfer_start(ep, buffer, total_bytes);
 }
 
+static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
+  // Abort any pending transfer
+  // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
+  // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
+  const uint8_t dir = tu_edpt_dir(ep->ep_addr);
+  const uint8_t epnum = tu_edpt_number(ep->ep_addr);
+  const uint32_t abort_mask = TU_BIT((epnum << 1) | (dir ? 0 : 1));
+  if (rp2040_chip_version() >= 2) {
+    usb_hw_set->abort = abort_mask;
+    while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
+  }
+
+  uint32_t buf_ctrl = USB_BUF_CTRL_SEL; // reset to buffer 0
+  if (ep->next_pid) {
+    buf_ctrl |= USB_BUF_CTRL_DATA1_PID;
+  }
+
+  _hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);
+  hw_endpoint_reset_transfer(ep);
+
+  if (rp2040_chip_version() >= 2) {
+    usb_hw_clear->abort_done = abort_mask;
+    usb_hw_clear->abort = abort_mask;
+  }
+}
+
 static void __tusb_irq_path_func(hw_handle_buff_status)(void) {
   uint32_t remaining_buffers = usb_hw->buf_status;
   pico_trace("buf_status = 0x%08lx\r\n", remaining_buffers);
@@ -178,25 +204,10 @@ TU_ATTR_ALWAYS_INLINE static inline void reset_ep0(void) {
   // setup transfer. Also clear a stall in case
   for (uint8_t dir = 0; dir < 2; dir++) {
     struct hw_endpoint* ep = hw_endpoint_get_by_num(0, dir);
-    if (ep->active) {
-      // Abort any pending transfer from a prior control transfer per USB specs
-      // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
-      // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
-      uint32_t const abort_mask = (dir ? USB_EP_ABORT_EP0_IN_BITS : USB_EP_ABORT_EP0_OUT_BITS);
-      if (rp2040_chip_version() >= 2) {
-        usb_hw_set->abort = abort_mask;
-        while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
-      }
-
-      _hw_endpoint_buffer_control_set_value32(ep, USB_BUF_CTRL_DATA1_PID | USB_BUF_CTRL_SEL);
-      hw_endpoint_reset_transfer(ep);
-
-      if (rp2040_chip_version() >= 2) {
-        usb_hw_clear->abort_done = abort_mask;
-        usb_hw_clear->abort = abort_mask;
-      }
-    }
     ep->next_pid = 1u;
+    if (ep->active) {
+      hw_endpoint_abort_xfer(ep); // Abort any pending transfer per USB specs
+    }
   }
 }
 
@@ -495,12 +506,14 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
 // New API: Configure and enable an ISO endpoint according to descriptor
 bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
   (void) rhport;
-  const uint8_t ep_addr = ep_desc->bEndpointAddress;
-  // Fill in endpoint control register with buffer offset
-  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
-  TU_ASSERT(ep->hw_data_buf != NULL); // must be inited and buffer allocated
-  ep->wMaxPacketSize = ep_desc->wMaxPacketSize;
+  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_desc->bEndpointAddress);
+  TU_ASSERT(ep->hw_data_buf != NULL); // must be inited and allocated previously
 
+  if (ep->active) {
+    hw_endpoint_abort_xfer(ep); // abort any pending transfer
+  }
+
+  ep->wMaxPacketSize = ep_desc->wMaxPacketSize;
   hw_endpoint_enable(ep);
   return true;
 }
