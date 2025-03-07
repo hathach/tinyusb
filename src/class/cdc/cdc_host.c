@@ -691,10 +691,10 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
     }
   } else if ( ep_addr == p_cdc->stream.rx.ep_addr ) {
     #if CFG_TUH_CDC_FTDI
-    if (p_cdc->serial_drid == SERIAL_DRIVER_FTDI) {
+    if (p_cdc->serial_drid == SERIAL_DRIVER_FTDI && xferred_bytes > 2) {
       // FTDI reserve 2 bytes for status
       // uint8_t status[2] = {p_cdc->stream.rx.ep_buf[0], p_cdc->stream.rx.ep_buf[1]};
-      tu_edpt_stream_read_xfer_complete_offset(&p_cdc->stream.rx, xferred_bytes, 2);
+      tu_edpt_stream_read_xfer_complete_with_buf(&p_cdc->stream.rx, p_cdc->stream.rx.ep_buf+2, xferred_bytes-2);
     }else
     #endif
     {

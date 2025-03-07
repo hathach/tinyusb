@@ -192,6 +192,18 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
   },
   #endif
 
+  #if CFG_TUH_MIDI
+  {
+      .name       = DRIVER_NAME("MIDI"),
+      .init       = midih_init,
+      .deinit     = midih_deinit,
+      .open       = midih_open,
+      .set_config = midih_set_config,
+      .xfer_cb    = midih_xfer_cb,
+      .close      = midih_close
+  },
+  #endif
+
   #if CFG_TUH_HUB
   {
       .name       = DRIVER_NAME("HUB"),
@@ -974,7 +986,7 @@ static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size) {
 }
 
 bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
-  TU_ASSERT(tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr)));
+  TU_ASSERT(tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr), true));
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, desc_ep);
 }
 
@@ -1588,6 +1600,8 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     }
 
     case ENUM_SET_CONFIG:
+      // tuh_desc_configuration_cb(daddr, CONFIG_NUM-1, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl);
+
       TU_ASSERT(tuh_configuration_set(daddr, CONFIG_NUM, process_enumeration, ENUM_CONFIG_DRIVER),);
       break;
 
@@ -1740,7 +1754,7 @@ static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configur
     if ( 0 == tu_desc_len(p_desc) ) {
       // A zero length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
       // Parsed interfaces should still be usable
-      TU_LOG_USBH("Encountered a zero-length descriptor after %" PRIu32 "bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
+      TU_LOG_USBH("Encountered a zero-length descriptor after %" PRIu32 " bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
       break;
     }
 
