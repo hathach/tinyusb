@@ -24,13 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_class
- *  \defgroup ClassDriver_CDC Communication Device Class (CDC)
- *            Currently only Abstract Control Model subclass is supported
- *  @{ */
-
-#ifndef _TUSB_MIDI_H__
-#define _TUSB_MIDI_H__
+#ifndef TUSB_MIDI_H_
+#define TUSB_MIDI_H_
 
 #include "common/tusb_common.h"
 
@@ -39,30 +34,31 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Class Specific Descriptor
+// Constants
 //--------------------------------------------------------------------+
+enum {
+  MIDI_VERSION_1_0 = 0x0100,
+  MIDI_VERSION_2_0 = 0x0200,
+};
 
-typedef enum
-{
+typedef enum {
   MIDI_CS_INTERFACE_HEADER    = 0x01,
   MIDI_CS_INTERFACE_IN_JACK   = 0x02,
   MIDI_CS_INTERFACE_OUT_JACK  = 0x03,
   MIDI_CS_INTERFACE_ELEMENT   = 0x04,
 } midi_cs_interface_subtype_t;
 
-typedef enum
-{
-  MIDI_CS_ENDPOINT_GENERAL = 0x01
+typedef enum {
+  MIDI_CS_ENDPOINT_GENERAL = 0x01,
+  MIDI_CS_ENDPOINT_GENERAL_2_0 = 0x02,
 } midi_cs_endpoint_subtype_t;
 
-typedef enum
-{
+typedef enum {
   MIDI_JACK_EMBEDDED = 0x01,
   MIDI_JACK_EXTERNAL = 0x02
 } midi_jack_type_t;
 
-typedef enum
-{
+typedef enum {
   MIDI_CIN_MISC              = 0,
   MIDI_CIN_CABLE_EVENT       = 1,
   MIDI_CIN_SYSCOM_2BYTE      = 2, // 2 byte system common message e.g MTC, SongSelect
@@ -82,8 +78,7 @@ typedef enum
 } midi_code_index_number_t;
 
 // MIDI 1.0 status byte
-enum
-{
+enum {
   //------------- System Exclusive -------------//
   MIDI_STATUS_SYSEX_START                    = 0xF0,
   MIDI_STATUS_SYSEX_END                      = 0xF7,
@@ -106,80 +101,54 @@ enum
   MIDI_STATUS_SYSREAL_SYSTEM_RESET           = 0xFF,
 };
 
+enum {
+  MIDI_MAX_DATA_VAL = 0x7F,
+};
+
+//--------------------------------------------------------------------+
+// Class Specific Descriptor
+//--------------------------------------------------------------------+
+
 /// MIDI Interface Header Descriptor
-typedef struct TU_ATTR_PACKED
-{
-  uint8_t bLength            ; ///< Size of this descriptor in bytes.
-  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType
-  uint16_t bcdMSC            ; ///< MidiStreaming SubClass release number in Binary-Coded Decimal
-  uint16_t wTotalLength      ;
+typedef struct TU_ATTR_PACKED {
+  uint8_t  bLength;           ///< Size of this descriptor in bytes.
+  uint8_t  bDescriptorType;   ///< must be TUSB_DESC_CS_INTERFACE
+  uint8_t  bDescriptorSubType;///< Descriptor SubType
+  uint16_t bcdMSC;            ///< MidiStreaming SubClass release number in Binary-Coded Decimal
+  uint16_t wTotalLength;
 } midi_desc_header_t;
+TU_VERIFY_STATIC(sizeof(midi_desc_header_t) == 7, "size is not correct");
 
 /// MIDI In Jack Descriptor
-typedef struct TU_ATTR_PACKED
-{
-  uint8_t bLength            ; ///< Size of this descriptor in bytes.
-  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType
-  uint8_t bJackType          ; ///< Embedded or External
-  uint8_t bJackID            ; ///< Unique ID for MIDI IN Jack
-  uint8_t iJack              ; ///< string descriptor
+typedef struct TU_ATTR_PACKED {
+  uint8_t bLength;           ///< Size of this descriptor in bytes.
+  uint8_t bDescriptorType;   ///< Descriptor Type, must be Class-Specific
+  uint8_t bDescriptorSubType;///< Descriptor SubType
+  uint8_t bJackType;         ///< Embedded or External
+  uint8_t bJackID;           ///< Unique ID for MIDI IN Jack
+  uint8_t iJack;             ///< string descriptor
 } midi_desc_in_jack_t;
+TU_VERIFY_STATIC(sizeof(midi_desc_in_jack_t) == 6, "size is not correct");
 
-
-/// MIDI Out Jack Descriptor with single pin
-typedef struct TU_ATTR_PACKED
-{
-  uint8_t bLength            ; ///< Size of this descriptor in bytes.
-  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType
-  uint8_t bJackType          ; ///< Embedded or External
-  uint8_t bJackID            ; ///< Unique ID for MIDI IN Jack
-  uint8_t bNrInputPins;
-
-  uint8_t baSourceID;
-  uint8_t baSourcePin;
-
-  uint8_t iJack              ; ///< string descriptor
-} midi_desc_out_jack_t ;
-
-/// MIDI Out Jack Descriptor with multiple pins
+/// MIDI Out Jack Descriptor with multiple input pins
 #define midi_desc_out_jack_n_t(input_num) \
-  struct TU_ATTR_PACKED { \
-    uint8_t bLength            ; \
-    uint8_t bDescriptorType    ; \
-    uint8_t bDescriptorSubType ; \
-    uint8_t bJackType          ; \
-    uint8_t bJackID            ; \
-    uint8_t bNrInputPins       ; \
-    struct TU_ATTR_PACKED {      \
-        uint8_t baSourceID;      \
-        uint8_t baSourcePin;     \
-    } pins[input_num];           \
-   uint8_t iJack              ;  \
+  struct TU_ATTR_PACKED {                 \
+    uint8_t bLength;                      \
+    uint8_t bDescriptorType;              \
+    uint8_t bDescriptorSubType;           \
+    uint8_t bJackType;                    \
+    uint8_t bJackID;                      \
+    uint8_t bNrInputPins;                 \
+    struct TU_ATTR_PACKED {               \
+      uint8_t baSourceID;                 \
+      uint8_t baSourcePin;                \
+    } input[input_num];                    \
+    uint8_t iJack;                        \
   }
 
-/// MIDI Element Descriptor
-typedef struct TU_ATTR_PACKED
-{
-  uint8_t bLength            ; ///< Size of this descriptor in bytes.
-  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType
-  uint8_t bElementID;
-
-  uint8_t bNrInputPins;
-  uint8_t baSourceID;
-  uint8_t baSourcePin;
-
-  uint8_t bNrOutputPins;
-  uint8_t bInTerminalLink;
-  uint8_t bOutTerminalLink;
-  uint8_t bElCapsSize;
-
-  uint16_t bmElementCaps;
-  uint8_t  iElement;
-} midi_desc_element_t;
+typedef midi_desc_out_jack_n_t(1)  midi_desc_out_jack_1in_t; // 1 input
+typedef midi_desc_out_jack_1in_t midi_desc_out_jack_t; // backward compatible
+TU_VERIFY_STATIC(sizeof(midi_desc_out_jack_1in_t) == 7 + 2 * 1, "size is not correct");
 
 /// MIDI Element Descriptor with multiple pins
 #define midi_desc_element_n_t(input_num) \
@@ -201,12 +170,32 @@ typedef struct TU_ATTR_PACKED
     uint8_t  iElement;          \
  }
 
-/** @} */
+// This descriptor follows the standard bulk data endpoint descriptor
+#define midi_desc_cs_endpoint_n_t(jack_num) \
+  struct TU_ATTR_PACKED {                   \
+    uint8_t bLength;                        \
+    uint8_t bDescriptorType;                \
+    uint8_t bDescriptorSubType;             \
+    uint8_t bNumEmbMIDIJack;                \
+    uint8_t baAssocJackID[jack_num];        \
+  }
+
+typedef midi_desc_cs_endpoint_n_t() midi_desc_cs_endpoint_t; // empty/flexible jack list
+typedef midi_desc_cs_endpoint_n_t(1) midi_desc_cs_endpoint_1jack_t;
+
+TU_VERIFY_STATIC(sizeof(midi_desc_cs_endpoint_1jack_t) == 4+1, "size is not correct");
+
+//--------------------------------------------------------------------+
+// For Internal Driver Use
+//--------------------------------------------------------------------+
+typedef struct {
+  uint8_t buffer[4];
+  uint8_t index;
+  uint8_t total;
+} midi_driver_stream_t;
 
 #ifdef __cplusplus
  }
 #endif
 
 #endif
-
-/** @} */

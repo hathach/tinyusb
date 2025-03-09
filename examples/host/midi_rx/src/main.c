@@ -23,31 +23,28 @@
  *
  */
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "bsp/board_api.h"
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTYPES
+// STATIC GLOBALS DECLARATION
+//--------------------------------------------------------------------+
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
-extern void cdc_app_task(void);
-extern void hid_app_task(void);
-
-#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-// API to read/rite MAX3421's register. Implemented by TinyUSB
-extern uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
-extern bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
-#endif
+void midi_host_rx_task(void);
 
 /*------------- MAIN -------------*/
 int main(void) {
   board_init();
 
-  printf("TinyUSB Host CDC MSC HID Example\r\n");
+  printf("TinyUSB Host MIDI Example\r\n");
 
   // init host stack on configured roothub port
   tusb_rhport_init_t host_init = {
@@ -56,40 +53,14 @@ int main(void) {
   };
   tusb_init(BOARD_TUH_RHPORT, &host_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
-
-#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-  // FeatherWing MAX3421E use MAX3421E's GPIO0 for VBUS enable
-  enum { IOPINS1_ADDR  = 20u << 3, /* 0xA0 */ };
-  tuh_max3421_reg_write(BOARD_TUH_RHPORT, IOPINS1_ADDR, 0x01, false);
-#endif
-
   while (1) {
-    // tinyusb host task
     tuh_task();
-
     led_blinking_task();
-    cdc_app_task();
-    hid_app_task();
+    midi_host_rx_task();
   }
+
+  return 0;
 }
-
-//--------------------------------------------------------------------+
-// TinyUSB Callbacks
-//--------------------------------------------------------------------+
-
-void tuh_mount_cb(uint8_t dev_addr) {
-  // application set-up
-  printf("A device with address %u is mounted\r\n", dev_addr);
-}
-
-void tuh_umount_cb(uint8_t dev_addr) {
-  // application tear-down
-  printf("A device with address %u is unmounted \r\n", dev_addr);
-}
-
 
 //--------------------------------------------------------------------+
 // Blinking Task
@@ -101,9 +72,52 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < interval_ms) return; // not enough time
+  if (board_millis() - start_ms < interval_ms) return;// not enough time
   start_ms += interval_ms;
 
   board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+  led_state = 1 - led_state;// toggle
+}
+
+//--------------------------------------------------------------------+
+// MIDI host receive task
+//--------------------------------------------------------------------+
+void midi_host_rx_task(void) {
+  // nothing to do, we just print out received data in callback
+}
+
+//--------------------------------------------------------------------+
+// TinyUSB Callbacks
+//--------------------------------------------------------------------+
+
+// Invoked when device with MIDI interface is mounted.
+void tuh_midi_mount_cb(uint8_t idx, const tuh_midi_mount_cb_t* mount_cb_data) {
+  printf("MIDI Interface Index = %u, Address = %u, Number of RX cables = %u, Number of TX cables = %u\r\n",
+          idx, mount_cb_data->daddr, mount_cb_data->rx_cable_count, mount_cb_data->tx_cable_count);
+}
+
+// Invoked when device with hid interface is un-mounted
+void tuh_midi_umount_cb(uint8_t idx) {
+  printf("MIDI Interface Index = %u is unmounted\r\n", idx);
+}
+
+void tuh_midi_rx_cb(uint8_t idx, uint32_t xferred_bytes) {
+  if (xferred_bytes == 0) {
+    return;
+  }
+
+  uint8_t buffer[48];
+  uint8_t cable_num = 0;
+  uint32_t bytes_read = tuh_midi_stream_read(idx, &cable_num, buffer, sizeof(buffer));
+
+  printf("Cable %u rx: ", cable_num);
+  for (uint32_t i = 0; i < bytes_read; i++) {
+    printf("%02X ", buffer[i]);
+  }
+  printf("\r\n");
+}
+
+void tuh_midi_tx_cb(uint8_t idx, uint32_t xferred_bytes) {
+  (void) idx;
+  (void) xferred_bytes;
 }
