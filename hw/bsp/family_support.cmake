@@ -12,7 +12,7 @@ set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 # RTOS
 #-------------------------------------------------------------
 if (NOT DEFINED RTOS)
-  set(RTOS noos)
+  set(RTOS noos CACHE STRING "RTOS")
 endif ()
 
 #-------------------------------------------------------------
