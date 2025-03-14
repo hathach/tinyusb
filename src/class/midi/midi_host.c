@@ -153,9 +153,10 @@ void midih_close(uint8_t daddr) {
       p_midi->tx_cable_count = 0;
       p_midi->daddr = 0;
       p_midi->mounted = false;
+#if CFG_TUH_MIDI_STREAM_API
       tu_memclr(&p_midi->stream_read, sizeof(p_midi->stream_read));
       tu_memclr(&p_midi->stream_write, sizeof(p_midi->stream_write));
-
+#endif
       tu_edpt_stream_close(&p_midi->ep_stream.rx);
       tu_edpt_stream_close(&p_midi->ep_stream.tx);
     }
