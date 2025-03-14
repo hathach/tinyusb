@@ -30,6 +30,8 @@ CFLAGS += -Wno-error=strict-prototypes
 ifeq ($(PORT),0)
   $(info "Using FSDEV driver")
   CFLAGS += -DCFG_TUD_WCH_USBIP_FSDEV=1
+  $(info "Using USBFS Host driver")
+  CFLAGS += -DCFG_TUH_WCH_USBIP_USBFS=1
 else
   $(info "Using USBFS driver")
   CFLAGS += -DCFG_TUD_WCH_USBIP_USBFS=1
@@ -43,6 +45,7 @@ LD_FILE = $(FAMILY_PATH)/linker/${CH32_FAMILY}.ld
 
 SRC_C += \
 	src/portable/wch/dcd_ch32_usbfs.c \
+	src/portable/wch/hcd_ch32_usbfs.c \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
 	$(SDK_SRC_DIR)/Core/core_riscv.c \
 	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_gpio.c \
