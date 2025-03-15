@@ -346,6 +346,29 @@ uint8_t tuh_midi_itf_get_index(uint8_t daddr, uint8_t itf_num) {
   return TUSB_INDEX_INVALID_8;
 }
 
+bool tuh_midi_itf_get_info(uint8_t idx, tuh_itf_info_t* info)
+{
+  midih_interface_t* p_midi = &_midi_host[idx];
+  TU_VERIFY(p_midi && info);
+
+  info->daddr = p_midi->daddr;
+
+  // re-construct descriptor
+  tusb_desc_interface_t* desc = &info->desc;
+  desc->bLength            = sizeof(tusb_desc_interface_t);
+  desc->bDescriptorType    = TUSB_DESC_INTERFACE;
+
+  desc->bInterfaceNumber   = p_midi->bInterfaceNumber;
+  desc->bAlternateSetting  = 0;
+  desc->bNumEndpoints      = (p_midi->ep_in != 0 ? 1:0) + (p_midi->ep_out != 0 ? 1:0);
+  desc->bInterfaceClass    = TUSB_CLASS_AUDIO;
+  desc->bInterfaceSubClass = AUDIO_SUBCLASS_MIDI_STREAMING;
+  desc->bInterfaceProtocol = 0;
+  desc->iInterface         = 0;
+
+  return true;
+}
+
 uint8_t tuh_midi_get_tx_cable_count (uint8_t idx) {
   TU_VERIFY(idx < CFG_TUH_MIDI);
   midih_interface_t *p_midi = &_midi_host[idx];
