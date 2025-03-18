@@ -361,7 +361,7 @@ bool tuh_midi_itf_get_info(uint8_t idx, tuh_itf_info_t* info) {
 
   desc->bInterfaceNumber   = p_midi->bInterfaceNumber;
   desc->bAlternateSetting  = 0;
-  desc->bNumEndpoints      = (p_midi->ep_in != 0 ? 1:0) + (p_midi->ep_out != 0 ? 1:0);
+  desc->bNumEndpoints      = (uint8_t)((p_midi->ep_in != 0 ? 1:0) + (p_midi->ep_out != 0 ? 1:0));
   desc->bInterfaceClass    = TUSB_CLASS_AUDIO;
   desc->bInterfaceSubClass = AUDIO_SUBCLASS_MIDI_STREAMING;
   desc->bInterfaceProtocol = 0;
