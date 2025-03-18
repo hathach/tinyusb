@@ -82,6 +82,7 @@ typedef struct {
   } ep_stream;
 
   bool mounted;
+  uint8_t iInterface; // for tuh_midi_itf_get_info()
 }midih_interface_t;
 
 typedef struct {
@@ -228,6 +229,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
 
   TU_LOG_DRV("MIDI opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
   p_midi->bInterfaceNumber = desc_itf->bInterfaceNumber;
+  p_midi->iInterface = desc_itf->iInterface;
   p_midi->itf_count++;
   desc_cb.desc_midi = desc_itf;
 
@@ -346,8 +348,7 @@ uint8_t tuh_midi_itf_get_index(uint8_t daddr, uint8_t itf_num) {
   return TUSB_INDEX_INVALID_8;
 }
 
-bool tuh_midi_itf_get_info(uint8_t idx, tuh_itf_info_t* info)
-{
+bool tuh_midi_itf_get_info(uint8_t idx, tuh_itf_info_t* info) {
   midih_interface_t* p_midi = &_midi_host[idx];
   TU_VERIFY(p_midi && info);
 
@@ -364,7 +365,7 @@ bool tuh_midi_itf_get_info(uint8_t idx, tuh_itf_info_t* info)
   desc->bInterfaceClass    = TUSB_CLASS_AUDIO;
   desc->bInterfaceSubClass = AUDIO_SUBCLASS_MIDI_STREAMING;
   desc->bInterfaceProtocol = 0;
-  desc->iInterface         = 0;
+  desc->iInterface         = p_midi->iInterface;
 
   return true;
 }
