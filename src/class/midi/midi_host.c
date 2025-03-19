@@ -56,6 +56,7 @@ TU_ATTR_WEAK void tuh_midi_tx_cb(uint8_t idx, uint32_t xferred_bytes) { (void) i
 typedef struct {
   uint8_t daddr;
   uint8_t bInterfaceNumber; // interface number of MIDI streaming
+  uint8_t iInterface;
   uint8_t itf_count;        // number of interface including Audio Control + MIDI streaming
 
   uint8_t ep_in;          // IN endpoint address
@@ -82,7 +83,6 @@ typedef struct {
   } ep_stream;
 
   bool mounted;
-  uint8_t iInterface; // for tuh_midi_itf_get_info()
 }midih_interface_t;
 
 typedef struct {
