@@ -69,7 +69,7 @@ typedef struct {
   const tusb_desc_endpoint_t* desc_epout; // endpoint OUT descriptor, CS_ENDPOINT is right after
 
   uint8_t jack_num;
-  const uint8_t* desc_jack[16]; // list of jack descriptors (embedded + external)
+  const uint8_t* desc_jack[32]; // list of jack descriptors (embedded + external)
 } tuh_midi_descriptor_cb_t;
 
 typedef struct {
