@@ -155,8 +155,7 @@ bool tuh_inited(void);
 void tuh_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
-TU_ATTR_ALWAYS_INLINE static inline
-void tuh_task(void) {
+TU_ATTR_ALWAYS_INLINE static inline void tuh_task(void) {
   tuh_task_ext(UINT32_MAX, false);
 }
 
@@ -197,16 +196,14 @@ bool tuh_mounted(uint8_t daddr);
 bool tuh_connected(uint8_t daddr);
 
 // Check if device is suspended
-TU_ATTR_ALWAYS_INLINE static inline
-bool tuh_suspended(uint8_t daddr) {
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_suspended(uint8_t daddr) {
   // TODO implement suspend & resume on host
   (void) daddr;
   return false;
 }
 
 // Check if device is ready to communicate with
-TU_ATTR_ALWAYS_INLINE static inline
-bool tuh_ready(uint8_t daddr) {
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_ready(uint8_t daddr) {
   return tuh_mounted(daddr) && !tuh_suspended(daddr);
 }
 
