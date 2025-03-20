@@ -7,7 +7,7 @@ inputs:
   toolchain_version:
     description: 'Toolchain version'
     required: false
-    default: 'v5.3.2'
+    default: 'v5.4'
 
 runs:
   using: "composite"
