@@ -110,7 +110,7 @@ typedef struct
   volatile bool data_pending;
 } _control_xfer_t;
 
-static _control_xfer_t control_xfers[CFG_TUH_DEVICE_MAX+2]; // one for each device + the hub + dev adr 0
+static _control_xfer_t control_xfers[CFG_TUH_DEVICE_MAX+CFG_TUH_HUB+1]; // one for each device + the hub + dev adr 0
 static pending_host_transfer_t interrupt_xfers;
 static pending_host_transfer_t bulk_xfers;
 static active_host_transfert_t active_xfer = {NULL, -1};
@@ -118,11 +118,12 @@ static active_host_transfert_t active_xfer = {NULL, -1};
 static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type);
 static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type, uint8_t bmInterval);
 
-// The highest dev_addr is CFG_TUH_DEVICE_MAX; hub address is CFG_TUH_DEVICE_MAX+1.
+// The highest dev_addr is CFG_TUH_DEVICE_MAX; hub addresses
+// start at CFG_TUH_DEVICE_MAX+1.
 // Let i be 0-15 for OUT endpoint and 16-31 for IN endpoints
 // Bit i in nak_mask[dev_addr - 1] is set if endpoint with index i
 // in device with dev_addr has sent NAK since the last SOF interrupt.
-static uint32_t nak_mask[CFG_TUH_DEVICE_MAX+1]; // +1 for hubs
+static uint32_t nak_mask[CFG_TUH_DEVICE_MAX+CFG_TUH_HUB];
 
 static uint32_t get_nak_mask_val(uint8_t edpt)
 {
