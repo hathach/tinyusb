@@ -709,7 +709,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
   // See https://github.com/raspberrypi/pico-feedback/issues/394
   uint32_t ep_reg = EP_CTRL_ENABLE_BITS
                     | EP_CTRL_INTERRUPT_PER_BUFFER
-                    | ((ep->transfer_type == TUSB_XFER_CONTROL ? TUSB_XFER_CONTROL:TUSB_XFER_INTERRUPT) << EP_CTRL_BUFFER_TYPE_LSB)
+                    | (uint32_t)((ep->transfer_type == TUSB_XFER_CONTROL ? TUSB_XFER_CONTROL:TUSB_XFER_INTERRUPT) << EP_CTRL_BUFFER_TYPE_LSB)
                     | dpram_offset;
   if ( bInterval )
   {
