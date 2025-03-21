@@ -877,13 +877,11 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++)
   {
     hw_endpoint_t* ep = &ep_pool[i];
-
     if (ep->dev_addr == dev_addr && ep->configured)
     {
       // in case it is an interrupt endpoint, disable it
       usb_hw_clear->int_ep_ctrl = (1 << (ep->interrupt_num + 1));
       usb_hw->int_ep_addr_ctrl[ep->interrupt_num] = 0;
-
       // unconfigure the endpoint
       ep->configured = false;
       *ep->endpoint_control = 0;

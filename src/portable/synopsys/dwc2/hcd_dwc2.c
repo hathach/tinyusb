@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && defined(TUP_USBIP_DWC2)
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_DWC2) && !CFG_TUH_MAX3421
 
 #if !(CFG_TUH_DWC2_SLAVE_ENABLE || CFG_TUH_DWC2_DMA_ENABLE)
 #error DWC2 require either CFG_TUH_DWC2_SLAVE_ENABLE or CFG_TUH_DWC2_DMA_ENABLE to be enabled
