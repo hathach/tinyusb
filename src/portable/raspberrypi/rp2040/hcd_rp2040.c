@@ -284,6 +284,7 @@ static void __tusb_irq_path_func(_hw_setup_epx_from_ep)(struct hw_endpoint* ep) 
   // Bits 0-5 should be 0
   assert(!(dpram_offset & 0b111111));
   // set up epx to do an interrupt transfer; the polling interval does not matter
+  // see https://github.com/raspberrypi/pico-feedback/issues/394
   uint32_t ep_reg = EP_CTRL_ENABLE_BITS
               | EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER
               | (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB)
@@ -704,9 +705,11 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
   assert(!(dpram_offset & 0b111111));
 
   // Fill in endpoint control register with buffer offset
+  // The transfer type is INTERRUPT for both BULK and INTERRUPT endpoints
+  // See https://github.com/raspberrypi/pico-feedback/issues/394
   uint32_t ep_reg = EP_CTRL_ENABLE_BITS
                     | EP_CTRL_INTERRUPT_PER_BUFFER
-                    | (ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB)
+                    | ((ep->transfer_type == TUSB_XFER_CONTROL ? TUSB_XFER_CONTROL:TUSB_XFER_INTERRUPT) << EP_CTRL_BUFFER_TYPE_LSB)
                     | dpram_offset;
   if ( bInterval )
   {
