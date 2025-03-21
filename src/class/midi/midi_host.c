@@ -254,8 +254,9 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
             TU_LOG_DRV("  Jack %s %s descriptor \r\n",
                        tu_desc_subtype(p_desc) == MIDI_CS_INTERFACE_IN_JACK ? "IN" : "OUT",
                        p_desc[3] == MIDI_JACK_EXTERNAL ? "External" : "Embedded");
-            if (desc_cb.jack_num < TU_ARRAY_SIZE(desc_cb.desc_jack))
+            if (desc_cb.jack_num < TU_ARRAY_SIZE(desc_cb.desc_jack)) {
                 desc_cb.desc_jack[desc_cb.jack_num++] = p_desc;
+            }
             break;
           }
 
