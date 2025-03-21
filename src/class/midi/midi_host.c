@@ -591,8 +591,8 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
             break;
           default:
             break;
-            cable_sysex_in_progress &= (uint16_t) ~cable_mask;
         }
+        cable_sysex_in_progress &= (uint16_t) ~cable_mask;
       } else {
         // Real-time message: can be inserted into a sysex message,
         // so do don't clear cable_sysex_in_progress bit
