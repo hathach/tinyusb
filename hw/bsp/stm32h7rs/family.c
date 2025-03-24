@@ -63,6 +63,10 @@ UART_HandleTypeDef UartHandle = {
 };
 #endif
 
+#ifndef SWO_FREQ
+#define SWO_FREQ  4000000
+#endif
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
@@ -97,6 +101,28 @@ void trace_etm_init(void) {
   #define trace_etm_init()
 #endif
 
+#ifdef LOGGER_SWO
+void log_swo_init(void)
+{
+  //UNLOCK FUNNEL
+  *(volatile uint32_t*)(0x5C004FB0) = 0xC5ACCE55; // SWTF_LAR
+  *(volatile uint32_t*)(0x5C003FB0) = 0xC5ACCE55; // SWO_LAR
+
+  //SWO current output divisor register
+  //To change it, you can use the following rule
+  // value = (CPU_Freq / 3 / SWO_Freq) - 1
+  *(volatile uint32_t*)(0x5C003010) = ((SystemCoreClock / 3 / SWO_FREQ) - 1); // SWO_CODR
+
+  //SWO selected pin protocol register
+  *(volatile uint32_t*)(0x5C0030F0) = 0x00000002; // SWO_SPPR
+
+  //Enable ITM input of SWO trace funnel
+  *(volatile uint32_t*)(0x5C004000) |= 0x00000001; // SWFT_CTRL
+}
+#else
+  #define log_swo_init()
+#endif
+
 void board_init(void) {
   HAL_Init();
 
@@ -117,6 +143,7 @@ void board_init(void) {
   __HAL_RCC_GPIOO_CLK_ENABLE();
   __HAL_RCC_GPIOP_CLK_ENABLE();
 
+  log_swo_init();
   trace_etm_init();
 
   for (uint8_t i = 0; i < TU_ARRAY_SIZE(board_pindef); i++) {
