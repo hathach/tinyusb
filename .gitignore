@@ -15,6 +15,14 @@ latex
 *.jlink
 *.emSession
 *.ninja*
+*.eww
+*.ewp
+*.ewt
+*.ewd
+*.hex
+cmake_install.cmake
+CMakeCache.txt
+settings/
 .settings/
 .vscode/
 .gdb_history
@@ -37,4 +45,10 @@ cmake-build-*
 sdkconfig
 .PVS-Studio
 .vscode/
-build/
+build
+CMakeFiles
+Debug
+RelWithDebInfo
+Release
+BrowseInfo
+.cmake_build
