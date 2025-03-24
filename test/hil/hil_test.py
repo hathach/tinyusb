@@ -81,7 +81,7 @@ def get_serial_dev(id, vendor_str, product_str, ifnum):
         return f'/dev/serial/by-id/usb-{vendor_str}_{product_str}_{id}-if{ifnum:02d}'
     else:
         # just use id: mostly for cp210x/ftdi flasher
-        pattern = f'/dev/serial/by-id/usb-*_{id}-if{ifnum:02d}*'
+        pattern = f'/dev/serial/by-id/usb-*_{id}-if*'
         port_list = glob.glob(pattern)
         return port_list[0]
 
@@ -98,18 +98,19 @@ def get_hid_dev(id, vendor_str, product_str, event):
 def open_serial_dev(port):
     timeout = ENUM_TIMEOUT
     ser = None
+    t_step = 0.1
     while timeout:
         if os.path.exists(port):
             try:
                 # slight delay since kernel may occupy the port briefly
-                time.sleep(0.5)
-                timeout = timeout - 0.5
+                time.sleep(t_step)
+                timeout = timeout - t_step
                 ser = serial.Serial(port, baudrate=115200, timeout=5)
                 break
             except serial.SerialException:
                 pass
-        time.sleep(0.5)
-        timeout = timeout - 0.5
+        time.sleep(t_step)
+        timeout = timeout - t_step
 
     assert timeout, f'Cannot open port f{port}' if os.path.exists(port) else f'Port {port} not existed'
     return ser
@@ -202,14 +203,14 @@ def reset_stflash(board):
 def flash_openocd(board, firmware):
     flasher = board['flasher']
     ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                  f'{flasher["args"]} -c init -c halt -c "program {firmware}.elf verify" -c reset -c exit')
+                  f'{flasher["args"]} -c "init; halt; program {firmware}.elf verify; reset; exit"')
     return ret
 
 
 def reset_openocd(board):
     flasher = board['flasher']
     ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                  f'{flasher["args"]} -c "reset exit"')
+                  f'{flasher["args"]} -c "init; reset run; exit"')
     return ret
 
 
@@ -309,6 +310,9 @@ def test_dual_host_info_to_device_cdc(board):
     if len(data) == 0:
         assert False, 'No data from device'
     lines = data.decode('utf-8').splitlines()
+
+    if verbose:
+        print('\n'.join(lines))
 
     enum_dev_sn = []
     for l in lines:
@@ -577,10 +581,10 @@ def test_board(board):
                             print(f'  {e}')
                         else:
                             print()
-                            print(f'  Test failed: {e}, retry {i+1}')
+                            print(f'  Test failed: {e}, retry {i+2}/{max_rety}')
                             time.sleep(1)
                 else:
-                    print(f'Flashing failed, retry {i+1}')
+                    print(f'Flashing failed, retry {i+2}/{max_rety}')
                     time.sleep(1)
 
             if ret.returncode != 0:
