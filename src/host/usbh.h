@@ -100,10 +100,13 @@ typedef union {
 //--------------------------------------------------------------------+
 
 // Invoked when enumeration get device descriptor
-// TU_ATTR_WEAK void tuh_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device);
+// Device is not ready to communicate yet, application can copy the descriptor if needed
+void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device);
 
 // Invoked when enumeration get configuration descriptor
-// TU_ATTR_WEAK void tuh_desc_configuration_cb(uint8_t daddr, uint8_t cfg_index, const tusb_desc_configuration_t *desc_config);
+// For multi-configuration device return false to skip, true to proceed with this configuration (may not be implemented yet)
+// Device is not ready to communicate yet, application can copy the descriptor if needed
+bool tuh_enum_descriptor_configuration_cb(uint8_t daddr, uint8_t cfg_index, const tusb_desc_configuration_t *desc_config);
 
 // Invoked when a device is mounted (configured)
 TU_ATTR_WEAK void tuh_mount_cb (uint8_t daddr);

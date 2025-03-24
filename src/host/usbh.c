@@ -52,21 +52,25 @@ enum {
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
 TU_ATTR_WEAK bool hcd_deinit(uint8_t rhport) {
-  (void) rhport;
-  return false;
+  (void) rhport; return false;
 }
 
 TU_ATTR_WEAK bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
-  (void) rhport;
-  (void) cfg_id;
-  (void) cfg_param;
+  (void) rhport; (void) cfg_id; (void) cfg_param;
   return false;
 }
 
+TU_ATTR_WEAK void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device) {
+  (void) daddr; (void) desc_device;
+}
+
+TU_ATTR_WEAK bool tuh_enum_descriptor_configuration_cb(uint8_t daddr, uint8_t cfg_index, const tusb_desc_configuration_t *desc_config) {
+  (void) daddr; (void) cfg_index; (void) desc_config;
+  return true;
+}
+
 TU_ATTR_WEAK void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
-  (void) rhport;
-  (void) eventid;
-  (void) in_isr;
+  (void) rhport; (void) eventid; (void) in_isr;
 }
 
 TU_ATTR_WEAK bool hcd_dcache_clean(const void* addr, uint32_t data_size) {
@@ -126,6 +130,7 @@ typedef struct {
   uint8_t  i_manufacturer;
   uint8_t  i_product;
   uint8_t  i_serial;
+  uint8_t  bNumConfigurations;
 
   // Configuration Descriptor
   // uint8_t interface_count; // bNumInterfaces alias
@@ -230,7 +235,6 @@ static usbh_class_driver_t const usbh_class_drivers[] = {
 };
 
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(usbh_class_drivers) };
-enum { CONFIG_NUM = 1 }; // default to use configuration 1
 
 // Additional class drivers implemented by application
 tu_static usbh_class_driver_t const * _app_driver = NULL;
@@ -1372,8 +1376,8 @@ enum {
   ENUM_CONFIG_DRIVER
 };
 
-static bool enum_request_set_addr(void);
-static bool _parse_configuration_descriptor (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
+static bool enum_request_set_addr(tusb_desc_device_t const* desc_device);
+static bool enum_parse_configuration_desc (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
 static void enum_full_complete(void);
 
 // process device enumeration
@@ -1489,7 +1493,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 #endif
 
     case ENUM_SET_ADDR:
-      enum_request_set_addr();
+      enum_request_set_addr((tusb_desc_device_t*) _usbh_epbuf.ctrl);
       break;
 
     case ENUM_GET_DEVICE_DESC: {
@@ -1523,6 +1527,9 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       dev->i_manufacturer = desc_device->iManufacturer;
       dev->i_product = desc_device->iProduct;
       dev->i_serial = desc_device->iSerialNumber;
+      dev->bNumConfigurations = desc_device->bNumConfigurations;
+
+      tuh_enum_descriptor_device_cb(daddr, desc_device); // callback
 
       tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
                                        process_enumeration, ENUM_GET_STRING_MANUFACTURER);
@@ -1574,8 +1581,8 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
     case ENUM_GET_9BYTE_CONFIG_DESC: {
       // Get 9-byte for total length
-      uint8_t const config_idx = CONFIG_NUM - 1;
-      TU_LOG_USBH("Get Configuration[0] Descriptor (9 bytes)\r\n");
+      uint8_t const config_idx = 0;
+      TU_LOG_USBH("Get Configuration[%u] Descriptor (9 bytes)\r\n", config_idx);
       TU_ASSERT(tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, 9,
                                                  process_enumeration, ENUM_GET_FULL_CONFIG_DESC),);
       break;
@@ -1585,25 +1592,32 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       uint8_t const* desc_config = _usbh_epbuf.ctrl;
 
       // Use offsetof to avoid pointer to the odd/misaligned address
-      uint16_t const total_len = tu_le16toh(
-          tu_unaligned_read16(desc_config + offsetof(tusb_desc_configuration_t, wTotalLength)));
+      uint16_t const total_len = tu_le16toh(tu_unaligned_read16(desc_config + offsetof(tusb_desc_configuration_t, wTotalLength)));
 
       // TODO not enough buffer to hold configuration descriptor
       TU_ASSERT(total_len <= CFG_TUH_ENUMERATION_BUFSIZE,);
 
       // Get full configuration descriptor
-      uint8_t const config_idx = CONFIG_NUM - 1;
-      TU_LOG_USBH("Get Configuration[0] Descriptor\r\n");
+      uint8_t const config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+      TU_LOG_USBH("Get Configuration[%u] Descriptor\r\n", config_idx);
       TU_ASSERT(tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, total_len,
                                                  process_enumeration, ENUM_SET_CONFIG),);
       break;
     }
 
-    case ENUM_SET_CONFIG:
-      // tuh_desc_configuration_cb(daddr, CONFIG_NUM-1, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl);
-
-      TU_ASSERT(tuh_configuration_set(daddr, CONFIG_NUM, process_enumeration, ENUM_CONFIG_DRIVER),);
+    case ENUM_SET_CONFIG: {
+      uint8_t config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+      if (tuh_enum_descriptor_configuration_cb(daddr, config_idx, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
+        TU_ASSERT(tuh_configuration_set(daddr, config_idx+1, process_enumeration, ENUM_CONFIG_DRIVER),);
+      } else {
+        config_idx++;
+        TU_ASSERT(config_idx < dev->bNumConfigurations,);
+        TU_LOG_USBH("Get Configuration[%u] Descriptor (9 bytes)\r\n", config_idx);
+        TU_ASSERT(tuh_descriptor_get_configuration(daddr, config_idx, _usbh_epbuf.ctrl, 9,
+                                                   process_enumeration, ENUM_GET_FULL_CONFIG_DESC),);
+      }
       break;
+    }
 
     case ENUM_CONFIG_DRIVER: {
       TU_LOG_USBH("Device configured\r\n");
@@ -1613,7 +1627,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
       // Parse configuration & set up drivers
       // driver_open() must not make any usb transfer
-      TU_ASSERT(_parse_configuration_descriptor(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl),);
+      TU_ASSERT(enum_parse_configuration_desc(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl),);
 
       // Start the Set Configuration process for interfaces (itf = TUSB_INDEX_INVALID_8)
       // Since driver can perform control transfer within its set_config, this is done asynchronously.
@@ -1624,13 +1638,10 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     }
 
     default:
-      // stop enumeration if unknown state
-      enum_full_complete();
+      enum_full_complete(); // stop enumeration if unknown state
       break;
   }
 }
-
-
 
 static bool enum_new_device(hcd_event_t* event) {
   _dev0.rhport = event->rhport;
@@ -1701,9 +1712,7 @@ static uint8_t get_new_address(bool is_hub) {
   return 0; // invalid address
 }
 
-static bool enum_request_set_addr(void) {
-  tusb_desc_device_t const* desc_device = (tusb_desc_device_t const*) _usbh_epbuf.ctrl;
-
+static bool enum_request_set_addr(tusb_desc_device_t const* desc_device) {
   // Get new address
   uint8_t const new_addr = get_new_address(desc_device->bDeviceClass == TUSB_CLASS_HUB);
   TU_ASSERT(new_addr != 0);
@@ -1741,7 +1750,7 @@ static bool enum_request_set_addr(void) {
   return true;
 }
 
-static bool _parse_configuration_descriptor(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg) {
+static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg) {
   usbh_device_t* dev = get_device(dev_addr);
   uint16_t const total_len = tu_le16toh(desc_cfg->wTotalLength);
   uint8_t const* desc_end = ((uint8_t const*) desc_cfg) + total_len;
@@ -1858,7 +1867,9 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
       TU_LOG_USBH("HUB address = %u is mounted\r\n", dev_addr);
     }else {
       // Invoke callback if available
-      if (tuh_mount_cb) tuh_mount_cb(dev_addr);
+      if (tuh_mount_cb) {
+        tuh_mount_cb(dev_addr);
+      }
     }
   }
 }
