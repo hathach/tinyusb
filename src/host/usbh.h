@@ -33,6 +33,10 @@
 
 #include "common/tusb_common.h"
 
+#if CFG_TUH_MAX3421
+#include "portable/analog/max3421/hcd_max3421.h"
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -226,6 +230,9 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer);
 
 // Open a non-control endpoint
 bool tuh_edpt_open(uint8_t daddr, tusb_desc_endpoint_t const * desc_ep);
+
+// Close a non-control endpoint, it will abort any pending transfer
+bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr);
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
 // Return true if a queued transfer is aborted, false if there is no transfer to abort

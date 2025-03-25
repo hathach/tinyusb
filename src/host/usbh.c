@@ -994,6 +994,12 @@ bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
   return hcd_edpt_open(usbh_get_rhport(dev_addr), dev_addr, desc_ep);
 }
 
+bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
+  TU_VERIFY(0 != tu_edpt_number(ep_addr)); // cannot close EP0
+  tuh_edpt_abort_xfer(daddr, ep_addr); // abort any pending transfer
+  return hcd_edpt_close(usbh_get_rhport(daddr), daddr, ep_addr);
+}
+
 bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   usbh_device_t* dev = get_device(dev_addr);
   TU_VERIFY(dev);
