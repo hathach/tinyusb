@@ -98,21 +98,18 @@ def get_hid_dev(id, vendor_str, product_str, event):
 def open_serial_dev(port):
     timeout = ENUM_TIMEOUT
     ser = None
-    t_step = 0.1
-    while timeout:
+    while timeout > 0:
         if os.path.exists(port):
             try:
-                # slight delay since kernel may occupy the port briefly
-                time.sleep(t_step)
-                timeout = timeout - t_step
                 ser = serial.Serial(port, baudrate=115200, timeout=5)
                 break
             except serial.SerialException:
+                print(f'serial {port} not reaady {timeout} sec')
                 pass
-        time.sleep(t_step)
-        timeout = timeout - t_step
+        time.sleep(0.1)
+        timeout -= 0.1
 
-    assert timeout, f'Cannot open port f{port}' if os.path.exists(port) else f'Port {port} not existed'
+    assert timeout > 0, f'Cannot open port f{port}' if os.path.exists(port) else f'Port {port} not existed'
     return ser
 
 
@@ -120,7 +117,7 @@ def read_disk_file(uid, lun, fname):
     # open_fs("fat://{dev}) require 'pip install pyfatfs'
     dev = get_disk_dev(uid, 'TinyUSB', lun)
     timeout = ENUM_TIMEOUT
-    while timeout:
+    while timeout > 0:
         if os.path.exists(dev):
             fat = fs.open_fs(f'fat://{dev}?read_only=true')
             try:
@@ -133,7 +130,7 @@ def read_disk_file(uid, lun, fname):
         time.sleep(1)
         timeout -= 1
 
-    assert timeout, f'Storage {dev} not existed'
+    assert timeout > 0, f'Storage {dev} not existed'
     return None
 
 
@@ -305,11 +302,11 @@ def test_dual_host_info_to_device_cdc(board):
     ser = open_serial_dev(port)
 
     # read from cdc, first line should contain vid/pid and serial
-    data = ser.read(1000)
+    data = ser.read(10000)
     ser.close()
     if len(data) == 0:
         assert False, 'No data from device'
-    lines = data.decode('utf-8').splitlines()
+    lines = data.decode('utf-8', errors='ignore').splitlines()
 
     enum_dev_sn = []
     for l in lines:
@@ -339,12 +336,12 @@ def test_host_device_info(board):
     ret = globals()[f'reset_{flasher["name"].lower()}'](board)
     assert ret.returncode == 0,  'Failed to reset device'
 
-    data = ser.read(1000)
+    data = ser.read(10000)
     ser.close()
     if len(data) == 0:
         assert False, 'No data from device'
 
-    lines = data.decode('utf-8').splitlines()
+    lines = data.decode('utf-8', errors='ignore').splitlines()
     enum_dev_sn = []
     for l in lines:
         vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
@@ -422,7 +419,7 @@ def test_device_dfu(board):
 
     # Wait device enum
     timeout = ENUM_TIMEOUT
-    while timeout:
+    while timeout > 0:
         ret = run_cmd(f'dfu-util -l')
         stdout = ret.stdout.decode()
         if f'serial="{uid}"' in stdout and 'Found DFU: [cafe:4000]' in stdout:
@@ -430,7 +427,7 @@ def test_device_dfu(board):
         time.sleep(1)
         timeout = timeout - 1
 
-    assert timeout, 'Device not available'
+    assert timeout > 0, 'Device not available'
 
     f_dfu0 = f'dfu0_{uid}'
     f_dfu1 = f'dfu1_{uid}'
@@ -463,7 +460,7 @@ def test_device_dfu_runtime(board):
 
     # Wait device enum
     timeout = ENUM_TIMEOUT
-    while timeout:
+    while timeout > 0:
         ret = run_cmd(f'dfu-util -l')
         stdout = ret.stdout.decode()
         if f'serial="{uid}"' in stdout and 'Found Runtime: [cafe:4000]' in stdout:
@@ -471,7 +468,7 @@ def test_device_dfu_runtime(board):
         time.sleep(1)
         timeout = timeout - 1
 
-    assert timeout, 'Device not available'
+    assert timeout > 0, 'Device not available'
 
 
 def test_device_hid_boot_interface(board):
@@ -481,13 +478,13 @@ def test_device_hid_boot_interface(board):
     mouse2 = get_hid_dev(uid, 'TinyUSB', 'TinyUSB_Device', 'if01-mouse')
     # Wait device enum
     timeout = ENUM_TIMEOUT
-    while timeout:
+    while timeout > 0:
         if os.path.exists(kbd) and os.path.exists(mouse1) and os.path.exists(mouse2):
             break
         time.sleep(1)
         timeout = timeout - 1
 
-    assert timeout, 'HID device not available'
+    assert timeout > 0, 'HID device not available'
 
 
 def test_device_hid_composite_freertos(id):

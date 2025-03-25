@@ -163,9 +163,9 @@
                 "device": true, "host": false, "dual": false
             },
             "flasher": {
-                "name": "stlink",
+                "name": "openocd",
                 "uid": "004C00343137510F39383538",
-                "args": ""
+                "args": "-f interface/stlink.cfg -f target/stm32h7x.cfg"
             }
         },
         {
