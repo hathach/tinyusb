@@ -311,9 +311,6 @@ def test_dual_host_info_to_device_cdc(board):
         assert False, 'No data from device'
     lines = data.decode('utf-8').splitlines()
 
-    if verbose:
-        print('\n'.join(lines))
-
     enum_dev_sn = []
     for l in lines:
         vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
@@ -323,6 +320,7 @@ def test_dual_host_info_to_device_cdc(board):
 
     if set(declared_devs) != set(enum_dev_sn):
         failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+        print('\n'.join(lines))
         assert False, failed_msg
     return 0
 
@@ -356,6 +354,7 @@ def test_host_device_info(board):
 
     if set(declared_devs) != set(enum_dev_sn):
         failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+        print('\n'.join(lines))
         assert False, failed_msg
 
     return 0
