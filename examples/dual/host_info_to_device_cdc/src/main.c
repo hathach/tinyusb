@@ -142,7 +142,7 @@ void cdc_task(void) {
   if (!tud_cdc_connected()) {
     // delay a bit otherwise we can outpace host's terminal. Linux will set LineState (DTR) then Line Coding.
     // If we send data before Linux's terminal set Line Coding, it can be ignored --> missing data with hardware test loop
-    board_delay(10);
+    board_delay(20);
     return;
   }
 
@@ -151,6 +151,7 @@ void cdc_task(void) {
       if (is_print[daddr]) {
         is_print[daddr] = false;
         print_device_info(daddr, &descriptor_device[daddr]);
+        tud_cdc_write_flush();
       }
     }
   }

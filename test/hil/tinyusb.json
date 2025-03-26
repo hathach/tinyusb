@@ -70,6 +70,19 @@
             }
         },
         {
+            "name": "mimxrt1064_evk",
+            "uid": "BAE96FB95AFA6DBB8F00005002001200",
+            "tests": {
+                "device": true, "host": true, "dual": true,
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2023299"}]
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000725299165",
+                "args": "-device MIMXRT1064xxx6A"
+            }
+        },
+        {
             "name": "lpcxpresso11u37",
             "uid": "17121919",
             "tests": {

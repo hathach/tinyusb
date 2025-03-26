@@ -561,6 +561,9 @@ def test_board(board):
                 print('Skip (no binary)')
                 continue
 
+            if verbose:
+                print(f'Flashing {fw_name}.elf')
+
             # flash firmware. It may fail randomly, retry a few times
             max_rety = 2
             for i in range(max_rety):
