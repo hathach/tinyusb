@@ -258,6 +258,7 @@ void _exit(int __status) {
 //--------------------------------------------------------------------
 // MPU configuration
 //--------------------------------------------------------------------
+#if 0 // TODO move to per board specific
 #if __CORTEX_M == 7
 static void BOARD_ConfigMPU(void) {
   #if defined(__CC_ARM) || defined(__ARMCC_VERSION)
@@ -635,4 +636,5 @@ void BOARD_ConfigMPU(void) {
   /* Now enable the code bus cache. */
   LMEM->PCCCR |= LMEM_PCCCR_ENCACHE_MASK;
 }
+#endif
 #endif
