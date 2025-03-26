@@ -109,8 +109,8 @@ static void init_usb_phy(uint8_t usb_id) {
 }
 
 void board_init(void) {
-  BOARD_ConfigMPU();
-  BOARD_InitPins();
+  // BOARD_ConfigMPU();
+  BOARD_InitBootPins();
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
 
