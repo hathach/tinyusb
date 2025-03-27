@@ -25,16 +25,6 @@ extern "C" {
  */
 void BOARD_InitBootPins(void);
 
-/* GPIO_AD_25 (coord M15), LPUART1_RXD */
-/* Routed pin properties */
-#define BOARD_INITPINS_LPUART1_RXD_PERIPHERAL                            LPUART1   /*!< Peripheral name */
-#define BOARD_INITPINS_LPUART1_RXD_SIGNAL                                    RXD   /*!< Signal name */
-
-/* GPIO_AD_24 (coord L13), LPUART1_TXD */
-/* Routed pin properties */
-#define BOARD_INITPINS_LPUART1_TXD_PERIPHERAL                            LPUART1   /*!< Peripheral name */
-#define BOARD_INITPINS_LPUART1_TXD_SIGNAL                                    TXD   /*!< Signal name */
-
 /* GPIO_AD_04 (coord M13), SIM1_PD/J44[C8]/USER_LED_CTL1/J9[8]/J25[7] */
 /* Routed pin properties */
 #define BOARD_INITPINS_USER_LED_PERIPHERAL                                 GPIO9   /*!< Peripheral name */
@@ -43,6 +33,7 @@ void BOARD_InitBootPins(void);
 
 /* Symbols to be used with GPIO driver */
 #define BOARD_INITPINS_USER_LED_GPIO                                       GPIO9   /*!< GPIO peripheral base pointer */
+#define BOARD_INITPINS_USER_LED_INIT_GPIO_VALUE                               0U   /*!< GPIO output initial state */
 #define BOARD_INITPINS_USER_LED_GPIO_PIN                                      3U   /*!< GPIO pin number */
 #define BOARD_INITPINS_USER_LED_GPIO_PIN_MASK                         (1U << 3U)   /*!< GPIO pin mask */
 
@@ -62,6 +53,22 @@ void BOARD_InitBootPins(void);
  *
  */
 void BOARD_InitPins(void);                    /* Function assigned for the Cortex-M7F */
+
+/* GPIO_AD_24 (coord L13), LPUART1_TXD */
+/* Routed pin properties */
+#define BOARD_INITDEBUG_UARTPINS_LPUART1_TXD_PERIPHERAL                  LPUART1   /*!< Peripheral name */
+#define BOARD_INITDEBUG_UARTPINS_LPUART1_TXD_SIGNAL                          TXD   /*!< Signal name */
+
+/* GPIO_AD_25 (coord M15), LPUART1_RXD */
+/* Routed pin properties */
+#define BOARD_INITDEBUG_UARTPINS_LPUART1_RXD_PERIPHERAL                  LPUART1   /*!< Peripheral name */
+#define BOARD_INITDEBUG_UARTPINS_LPUART1_RXD_SIGNAL                          RXD   /*!< Signal name */
+
+/*!
+ * @brief Configures pin routing and optionally pin electrical features.
+ *
+ */
+void BOARD_InitDEBUG_UARTPins(void);          /* Function assigned for the Cortex-M7F */
 
 #if defined(__cplusplus)
 }
