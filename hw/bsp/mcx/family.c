@@ -60,9 +60,14 @@ void USB0_IRQHandler(void) {
 
 
 void board_init(void) {
+
   BOARD_InitPins();
+
   BOARD_InitBootClocks();
+
+  #ifdef XTAL0_CLK_HZ
   CLOCK_SetupExtClocking(XTAL0_CLK_HZ);
+  #endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -84,15 +89,7 @@ void board_init(void) {
   board_led_write(0);
 
 #ifdef NEOPIXEL_PIN
-  // Neopixel
-  static uint32_t pixelData[NEOPIXEL_NUMBER];
-  IOCON_PinMuxSet(IOCON, NEOPIXEL_PORT, NEOPIXEL_PIN, IOCON_PIO_DIG_FUNC4_EN);
-
-  sctpix_init(NEOPIXEL_TYPE);
-  sctpix_addCh(NEOPIXEL_CH, pixelData, NEOPIXEL_NUMBER);
-  sctpix_setPixel(NEOPIXEL_CH, 0, 0x100010);
-  sctpix_setPixel(NEOPIXEL_CH, 1, 0x100010);
-  sctpix_show();
+  // No neo pixel support yet
 #endif
 
   // Button
@@ -103,9 +100,6 @@ void board_init(void) {
 #endif
 
 #ifdef UART_DEV
-  // UART
-//  IOCON_PinMuxSet(IOCON, UART_RX_PINMUX);
-//  IOCON_PinMuxSet(IOCON, UART_TX_PINMUX);
 
   // Enable UART when debug log is on
   board_uart_init_clock();
@@ -115,6 +109,7 @@ void board_init(void) {
   uart_config.baudRate_Bps = CFG_BOARD_UART_BAUDRATE;
   uart_config.enableTx = true;
   uart_config.enableRx = true;
+
   LPUART_Init(UART_DEV, &uart_config, 12000000u);
 #endif
 
@@ -196,17 +191,6 @@ void board_init(void) {
 
 void board_led_write(bool state) {
   GPIO_PinWrite(LED_GPIO, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
-
-#ifdef NEOPIXEL_PIN
-  if (state) {
-    sctpix_setPixel(NEOPIXEL_CH, 0, 0x100000);
-    sctpix_setPixel(NEOPIXEL_CH, 1, 0x101010);
-  } else {
-    sctpix_setPixel(NEOPIXEL_CH, 0, 0x001000);
-    sctpix_setPixel(NEOPIXEL_CH, 1, 0x000010);
-  }
-  sctpix_show();
-#endif
 }
 
 uint32_t board_button_read(void) {
