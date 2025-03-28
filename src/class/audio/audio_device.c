@@ -208,15 +208,15 @@ tu_static CFG_TUD_MEM_SECTION struct {
 #endif// CFG_TUD_AUDIO_ENABLE_EP_OUT && (USE_LINEAR_BUFFER || CFG_TUD_AUDIO_ENABLE_DECODING)
 
 // Control buffers
-tu_static uint8_t ctrl_buf_1[CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ];
-
-#if CFG_TUD_AUDIO > 1
-tu_static uint8_t ctrl_buf_2[CFG_TUD_AUDIO_FUNC_2_CTRL_BUF_SZ];
-#endif
-
-#if CFG_TUD_AUDIO > 2
-tu_static uint8_t ctrl_buf_3[CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ];
-#endif
+tu_static CFG_TUD_MEM_SECTION struct {
+  TUD_EPBUF_DEF(buf1, CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ);
+  #if CFG_TUD_AUDIO > 1
+  TUD_EPBUF_DEF(buf2, CFG_TUD_AUDIO_FUNC_2_CTRL_BUF_SZ);
+  #endif
+  #if CFG_TUD_AUDIO > 2
+  TUD_EPBUF_DEF(buf3, CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ);
+  #endif
+} ctrl_buf;
 
 // Active alternate setting of interfaces
 tu_static uint8_t alt_setting_1[CFG_TUD_AUDIO_FUNC_1_N_AS_INT];
@@ -628,10 +628,6 @@ static uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 
 #if (CFG_TUD_AUDIO_ENABLE_EP_IN && (CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL || CFG_TUD_AUDIO_ENABLE_ENCODING)) || (CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING)
 static void audiod_parse_for_AS_params(audiod_function_t *audio, uint8_t const *p_desc, uint8_t const *p_desc_end, uint8_t const as_itf);
-
-static inline uint8_t tu_desc_subtype(void const *desc) {
-  return ((uint8_t const *) desc)[2];
-}
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
@@ -1227,18 +1223,18 @@ void audiod_init(void) {
     // Initialize control buffers
     switch (i) {
       case 0:
-        audio->ctrl_buf = ctrl_buf_1;
+        audio->ctrl_buf = ctrl_buf.buf1;
         audio->ctrl_buf_sz = CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ;
         break;
 #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_CTRL_BUF_SZ > 0
       case 1:
-        audio->ctrl_buf = ctrl_buf_2;
+        audio->ctrl_buf = ctrl_buf.buf2;
         audio->ctrl_buf_sz = CFG_TUD_AUDIO_FUNC_2_CTRL_BUF_SZ;
         break;
 #endif
 #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ > 0
       case 2:
-        audio->ctrl_buf = ctrl_buf_3;
+        audio->ctrl_buf = ctrl_buf.buf3;
         audio->ctrl_buf_sz = CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ;
         break;
 #endif

@@ -60,13 +60,26 @@
             "name": "metro_m4_express",
             "uid": "9995AD485337433231202020FF100A34",
             "tests": {
-                "device": true, "host": false, "dual": false,
+                "device": true, "host": false, "dual": true,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002130"}]
             },
             "flasher": {
                 "name": "jlink",
                 "uid": "123456",
                 "args": "-device ATSAMD51J19"
+            }
+        },
+        {
+            "name": "mimxrt1064_evk",
+            "uid": "BAE96FB95AFA6DBB8F00005002001200",
+            "tests": {
+                "device": true, "host": true, "dual": true,
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2023299"}]
+            },
+            "flasher": {
+                "name": "jlink",
+                "uid": "000725299165",
+                "args": "-device MIMXRT1064xxx6A"
             }
         },
         {
@@ -98,8 +111,11 @@
         {
             "name": "raspberry_pi_pico",
             "uid": "E6614C311B764A37",
+            "build" : {
+                "flags_on": ["CFG_TUH_RPI_PIO_USB"]
+            },
             "tests": {
-                "device": true, "host": false, "dual": false,
+                "device": true, "host": true, "dual": true,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2002470"}]
             },
             "flasher": {
@@ -111,8 +127,11 @@
         {
             "name": "raspberry_pi_pico2",
             "uid": "560AE75E1C7152C9",
+            "build" : {
+                "flags_on": ["CFG_TUH_RPI_PIO_USB"]
+            },
             "tests": {
-                "device": true, "host": false, "dual": false,
+                "device": true, "host": true, "dual": true,
                 "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "533D004242"}]
             },
             "flasher": {
@@ -157,9 +176,9 @@
                 "device": true, "host": false, "dual": false
             },
             "flasher": {
-                "name": "stlink",
+                "name": "openocd",
                 "uid": "004C00343137510F39383538",
-                "args": ""
+                "args": "-f interface/stlink.cfg -f target/stm32h7x.cfg"
             }
         },
         {

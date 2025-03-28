@@ -49,15 +49,14 @@
 
 // TODO merge OHCI with EHCI
 enum {
-  EHCI_MAX_ITD  = 4,
+	EHCI_MAX_ITD  = 4,
   EHCI_MAX_SITD = 16
 };
 
 //--------------------------------------------------------------------+
 // EHCI Data Structure
 //--------------------------------------------------------------------+
-enum
-{
+enum {
   EHCI_QTYPE_ITD = 0 ,
   EHCI_QTYPE_QHD     ,
   EHCI_QTYPE_SITD    ,
@@ -65,8 +64,7 @@ enum
 };
 
 /// EHCI PID
-enum
-{
+enum {
   EHCI_PID_OUT = 0 ,
   EHCI_PID_IN      ,
   EHCI_PID_SETUP
@@ -74,187 +72,182 @@ enum
 
 /// Link pointer
 typedef union {
-	uint32_t address;
-	struct  {
-		uint32_t terminate : 1;
-		uint32_t type      : 2;
-	};
-}ehci_link_t;
+  uint32_t address;
+  struct {
+    uint32_t terminate : 1;
+    uint32_t type      : 2;
+  };
+} ehci_link_t;
 
 TU_VERIFY_STATIC( sizeof(ehci_link_t) == 4, "size is not correct" );
 
 /// Queue Element Transfer Descriptor
 /// Qtd is used to declare overlay in ehci_qhd_t -> cannot be declared with TU_ATTR_ALIGNED(32)
-typedef struct
-{
-	// Word 0: Next QTD Pointer
-	ehci_link_t next;
+typedef struct {
+  // Word 0 Next QTD Pointer
+  ehci_link_t next;
 
-	// Word 1: Alternate Next QTD Pointer (not used)
-	union{
-	  ehci_link_t alternate;
-	  struct {
-	    uint32_t                : 5;
-	    uint32_t used           : 1;
-	    uint32_t                : 10;
-	    uint32_t expected_bytes : 16;
-	  };
-	};
+  // Word 1 Alternate Next QTD Pointer (not used)
+  union {
+    ehci_link_t alternate;
+    struct {
+      uint32_t                : 5;
+      uint32_t used           : 1;
+      uint32_t                : 10;
+      uint32_t expected_bytes : 16;
+    };
+  };
 
-	// Word 2: qTQ Token
-	volatile uint32_t ping_err             : 1  ; ///< For Highspeed: 0 Out, 1 Ping. Full/Slow used as error indicator
-	volatile uint32_t non_hs_split_state   : 1  ; ///< Used by HC to track the state of split transaction
-	volatile uint32_t non_hs_missed_uframe : 1  ; ///< HC misses a complete split transaction
-	volatile uint32_t xact_err             : 1  ; ///< Error (Timeout, CRC, Bad PID ... )
-	volatile uint32_t babble_err           : 1  ; ///< Babble detected, also set Halted bit to 1
-	volatile uint32_t buffer_err           : 1  ; ///< Data overrun/underrun error
-	volatile uint32_t halted               : 1  ; ///< Serious error or STALL received
-	volatile uint32_t active               : 1  ; ///< Start transfer, clear by HC when complete
+  // Word 2 qTQ Token
+  volatile uint32_t ping_err             : 1;  // For Highspeed: 0 Out, 1 Ping. Full/Slow used as error indicator
+  volatile uint32_t non_hs_split_state   : 1;  // Used by HC to track the state of split transaction
+  volatile uint32_t non_hs_missed_uframe : 1;  // HC misses a complete split transaction
+  volatile uint32_t xact_err             : 1;  // Error (Timeout, CRC, Bad PID ... )
+  volatile uint32_t babble_err           : 1;  // Babble detected, also set Halted bit to 1
+  volatile uint32_t buffer_err           : 1;  // Data overrun/underrun error
+  volatile uint32_t halted               : 1;  // Serious error or STALL received
+  volatile uint32_t active               : 1;  // Start transfer, clear by HC when complete
 
-	uint32_t pid                           : 2  ; ///< 0: OUT, 1: IN, 2 Setup
-	volatile uint32_t err_count            : 2  ; ///< Error Counter of consecutive errors
-	volatile uint32_t current_page         : 3  ; ///< Index into the qTD buffer pointer list
-	uint32_t int_on_complete               : 1  ; ///< Interrupt on complete
-	volatile uint32_t total_bytes          : 15 ; ///< Transfer bytes, decreased during transaction
-	volatile uint32_t data_toggle          : 1  ; ///< Data Toggle bit
+  uint32_t pid                           : 2;  // 0: OUT, 1: IN, 2 Setup
+  volatile uint32_t err_count            : 2;  // Error Counter of consecutive errors
+  volatile uint32_t current_page         : 3;  // Index into the qTD buffer pointer list
+  uint32_t int_on_complete               : 1;  // Interrupt on complete
+  volatile uint32_t total_bytes          : 15; // Transfer bytes, decreased during transaction
+  volatile uint32_t data_toggle          : 1;  // Data Toggle bit
 
-
-	/// Buffer Page Pointer List, Each element in the list is a 4K page aligned, physical memory address. The lower 12 bits in each pointer are reserved (except for the first one) as each memory pointer must reference the start of a 4K page
-	uint32_t buffer[5];
+  // Buffer Page Pointer List, Each element in the list is a 4K page aligned, physical memory address.
+  // The lower 12 bits in each pointer are reserved (except for the first one) as each memory pointer must reference the start of a 4K page
+  uint32_t buffer[5];
 } ehci_qtd_t;
 
 TU_VERIFY_STATIC( sizeof(ehci_qtd_t) == 32, "size is not correct" );
 
 /// Queue Head
-typedef struct TU_ATTR_ALIGNED(32)
-{
-  // Word 0: Next QHD
-	ehci_link_t next;
+typedef struct TU_ATTR_ALIGNED(32) {
+  // Word 0 Next QHD
+  ehci_link_t next;
 
-	// Word 1: Endpoint Characteristics
-	uint32_t dev_addr              : 7  ; ///< device address
-	uint32_t fl_inactive_next_xact : 1  ; ///< Only valid for Periodic with Full/Slow speed
-	uint32_t ep_number             : 4  ; ///< EP number
-	uint32_t ep_speed              : 2  ; ///< 0: Full, 1: Low, 2: High
-	uint32_t data_toggle_control   : 1  ; ///< 0: use DT in qHD, 1: use DT in qTD
-	uint32_t head_list_flag        : 1  ; ///< Head of the queue
-	uint32_t max_packet_size       : 11 ; ///< Max packet size
-	uint32_t fl_ctrl_ep_flag       : 1  ; ///< 1 if is Full/Low speed control endpoint
-	uint32_t nak_reload            : 4  ; ///< Used by HC
+  // Word 1 Endpoint Characteristics
+  uint32_t dev_addr              : 7;  // device address
+  uint32_t fl_inactive_next_xact : 1;  // Only valid for Periodic with Full/Slow speed
+  uint32_t ep_number             : 4;  // EP number
+  uint32_t ep_speed              : 2;  // Full (0), Low (1), High (2)
+  uint32_t data_toggle_control   : 1;  // 0 use DT in qHD, 1 use DT in qTD
+  uint32_t head_list_flag        : 1;  // Head of the queue
+  uint32_t max_packet_size       : 11; // Max packet size
+  uint32_t fl_ctrl_ep_flag       : 1;  // 1 if is Full/Low speed control endpoint
+  uint32_t nak_reload            : 4;  // Used by HC
 
-	// Word 2: Endpoint Capabilities
-	uint32_t int_smask             : 8  ; ///< Interrupt Schedule Mask
-	uint32_t fl_int_cmask          : 8  ; ///< Split Completion Mask for Full/Slow speed
-	uint32_t fl_hub_addr           : 7  ; ///< Hub Address for Full/Slow speed
-	uint32_t fl_hub_port           : 7  ; ///< Hub Port for Full/Slow speed
-	uint32_t mult                  : 2  ; ///< Transaction per micro frame
+  // Word 2 Endpoint Capabilities
+  uint32_t int_smask             : 8;  // Interrupt Schedule Mask
+  uint32_t fl_int_cmask          : 8;  // Split Completion Mask for Full/Slow speed
+  uint32_t fl_hub_addr           : 7;  // Hub Address for Full/Slow speed
+  uint32_t fl_hub_port           : 7;  // Hub Port for Full/Slow speed
+  uint32_t mult                  : 2;  // Transaction per micro frame
 
-	// Word 3: Current qTD Pointer
-	volatile uint32_t qtd_addr;
+  // Word 3 Current qTD Pointer
+  volatile uint32_t qtd_addr;
 
-	// Word 4-11: Transfer Overlay
-	volatile ehci_qtd_t qtd_overlay;
+  // Word 4-11 Transfer Overlay
+  volatile ehci_qtd_t qtd_overlay;
 
-	//--------------------------------------------------------------------+
-  /// Due to the fact QHD is 32 bytes aligned but occupies only 48 bytes
-	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
-	uint8_t used;
-	uint8_t removing; // removed from asyn list, waiting for async advance
-	uint8_t pid;
-	uint8_t interval_ms; // polling interval in frames (or millisecond)
+  /// Due to the fact QHD is 32 bytes aligned but occupies only 48 bytes
+  /// thus there are 16 bytes padding free that we can make use of.
+  //--------------------------------------------------------------------+
+  uint8_t used;
+  uint8_t removing;// removed from asyn list, waiting for async advance
+  uint8_t pid;
+  uint8_t interval_ms;// polling interval in frames (or millisecond)
 
-	uint8_t TU_RESERVED[4];
+  uint8_t TU_RESERVED[4];
 
   // Attached TD management, note usbh will only queue 1 TD per QHD.
   // buffer for dcache invalidate since td's buffer is modified by HC and finding initial buffer address is not trivial
   uint32_t attached_buffer;
-	ehci_qtd_t * volatile attached_qtd;
+  ehci_qtd_t *volatile attached_qtd;
 } ehci_qhd_t;
-
 TU_VERIFY_STATIC( sizeof(ehci_qhd_t) == 64, "size is not correct" );
 
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)
 typedef struct TU_ATTR_ALIGNED(32) {
-	// Word 0: Next Link Pointer
-	ehci_link_t next;
+  // Word 0: Next Link Pointer
+  ehci_link_t next;
 
-	// Word 1-8: iTD Transaction Status and Control List
-	struct  {
-	  // iTD Control
-		volatile uint32_t offset          : 12 ; ///< This field is a value that is an offset, expressed in bytes, from the beginning of a buffer.
-		volatile uint32_t page_select     : 3  ; ///< These bits are set by software to indicate which of the buffer page pointers the offset field in this slot should be concatenated to produce the starting memory address for this transaction. The valid range of values for this field is 0 to 6
-             uint32_t int_on_complete : 1  ; ///< If this bit is set to a one, it specifies that when this transaction completes, the Host Controller should issue an interrupt at the next interrupt threshold
-		volatile uint32_t length          : 12 ; ///< For an OUT, this field is the number of data bytes the host controller will send during the transaction. The host controller is not required to update this field to reflect the actual number of bytes transferred during the transfer
-																						 ///< For an IN, the initial value of the field is the number of bytes the host expects the endpoint to deliver. During the status update, the host controller writes back the number of bytes successfully received. The value in this register is the actual byte count
-		// iTD Status
-		volatile uint32_t error           : 1  ; ///< Set to a one by the Host Controller during status update in the case where the host did not receive a valid response from the device (Timeout, CRC, Bad PID, etc.). This bit may only be set for isochronous IN transactions.
-		volatile uint32_t babble_err      : 1  ; ///< Set to a 1 by the Host Controller during status update when a babble is detected during the transaction
-		volatile uint32_t buffer_err      : 1  ; ///< Set to a 1 by the Host Controller during status update to indicate that the Host Controller is unable to keep up with the reception of incoming data (overrun) or is unable to supply data fast enough during transmission (underrun).
-		volatile uint32_t active          : 1  ; ///< Set to 1 by software to enable the execution of an isochronous transaction by the Host Controller
-	} xact[8];
+  // Word 1-8: iTD Transaction Status and Control List
+  struct {
+    // iTD Control
+    volatile uint32_t offset      : 12; // offset in bytes, from the beginning of a buffer.
+    volatile uint32_t page_select : 3;  // buffer page pointers the offset field in this slot should be concatenated to produce the starting memory address for this transaction. The valid range of values for this field is 0 to 6
+    uint32_t int_on_complete      : 1;  // If this bit is set to a one, it specifies that when this transaction completes, the Host Controller should issue an interrupt at the next interrupt threshold
+    volatile uint32_t length      : 12; // For an OUT, this field is the number of data bytes the host controller will send during the transaction. The host controller is not required to update this field to reflect the actual number of bytes transferred during the transfer
+                                        // For an IN, the initial value of the field is the number of bytes the host expects the endpoint to deliver. During the status update, the host controller writes back the number of bytes successfully received. The value in this register is the actual byte count
+    // iTD Status
+    volatile uint32_t error       : 1;  // Set to a one by the Host Controller during status update in the case where the host did not receive a valid response from the device (Timeout, CRC, Bad PID, etc.). This bit may only be set for isochronous IN transactions.
+    volatile uint32_t babble_err  : 1;  // Set to a 1 by the Host Controller during status update when a babble is detected during the transaction
+    volatile uint32_t buffer_err  : 1;  // Set to a 1 by the Host Controller during status update to indicate that the Host Controller is unable to keep up with the reception of incoming data (overrun) or is unable to supply data fast enough during transmission (underrun).
+    volatile uint32_t active      : 1;  // Set to 1 by software to enable the execution of an isochronous transaction by the Host Controller
+  } xact[8];
 
-	// Word 9-15  Buffer Page Pointer List (Plus)
-	uint32_t BufferPointer[7];
+  // Word 9-15  Buffer Page Pointer List (Plus)
+  uint32_t BufferPointer[7];
 
-//	// FIXME: Store meta data into buffer pointer reserved for saving memory
-//	/*---------- HCD Area ----------*/
-//	uint32_t used;
-//	uint32_t IhdIdx;
-//	uint32_t reserved[6];
+  // FIXME: Store meta data into buffer pointer reserved for saving memory
+  //---------- HCD Area ----------
+  // uint32_t used;
+  // uint32_t IhdIdx;
+  // uint32_t reserved[6];
 } ehci_itd_t;
-
 TU_VERIFY_STATIC( sizeof(ehci_itd_t) == 64, "size is not correct" );
 
 /// Split (Full-Speed) Isochronous Transfer Descriptor
-typedef struct TU_ATTR_ALIGNED(32)
-{
+typedef struct TU_ATTR_ALIGNED(32) {
   // Word 0: Next Link Pointer
-	ehci_link_t next;
+  ehci_link_t next;
 
-	// Word 1: siTD Endpoint Characteristics
-	uint32_t dev_addr    : 7; ///< This field selects the specific device serving as the data source or sink.
-	uint32_t             : 1; ///< reserved
-	uint32_t ep_number   : 4; ///< This 4-bit field selects the particular endpoint number on the device serving as the data source or sink.
-	uint32_t             : 4; ///< This field is reserved and should be set to zero.
-	uint32_t hub_addr    : 7; ///< This field holds the device address of the transaction translators’ hub.
-	uint32_t             : 1; ///< reserved
-	uint32_t port_number : 7; ///< This field is the port number of the recipient transaction translator.
-	uint32_t direction   : 1; ///<  0 = OUT; 1 = IN. This field encodes whether the full-speed transaction should be an IN or OUT.
+  // Word 1: siTD Endpoint Characteristics
+  uint32_t dev_addr    : 7; ///< This field selects the specific device serving as the data source or sink.
+  uint32_t             : 1; ///< reserved
+  uint32_t ep_number   : 4; ///< This 4-bit field selects the particular endpoint number on the device serving as the data source or sink.
+  uint32_t             : 4; ///< This field is reserved and should be set to zero.
+  uint32_t hub_addr    : 7; ///< This field holds the device address of the transaction translators’ hub.
+  uint32_t             : 1; ///< reserved
+  uint32_t port_number : 7; ///< This field is the port number of the recipient transaction translator.
+  uint32_t direction   : 1; ///<  0 = OUT; 1 = IN. This field encodes whether the full-speed transaction should be an IN or OUT.
 
-	// Word 2: Micro-frame Schedule Control
-	uint8_t int_smask   ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute complete-split transactions
-	uint8_t fl_int_cmask; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute start-split transactions.
-	uint16_t reserved ; ///< reserved
+  // Word 2: Micro-frame Schedule Control
+  uint8_t int_smask   ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute complete-split transactions
+  uint8_t fl_int_cmask; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute start-split transactions.
+  uint16_t reserved ; ///< reserved
 
-	// Word 3: siTD Transfer Status and Control
-	// Status [7:0] TODO identical to qTD Token'status --> refactor later
-	volatile uint32_t                 : 1  ; // reserved
-	volatile uint32_t split_state     : 1  ;
-	volatile uint32_t missed_uframe   : 1  ;
-	volatile uint32_t xact_err        : 1  ;
-	volatile uint32_t babble_err      : 1  ;
-	volatile uint32_t buffer_err      : 1  ;
-	volatile uint32_t error           : 1  ;
-	volatile uint32_t active          : 1  ;
-	// Micro-frame Schedule Control
-	volatile uint32_t cmask_progress  : 8  ; ///< This field is used by the host controller to record which split-completes have been executed. See Section 4.12.3.3.2 for behavioral requirements.
-	volatile uint32_t total_bytes     : 10 ; ///< This field is initialized by software to the total number of bytes expected in this transfer. Maximum value is 1023
-	volatile uint32_t                 : 4  ; ///< reserved
-	volatile uint32_t page_select     : 1  ; ///< Used to indicate which data page pointer should be concatenated with the CurrentOffsetfield to construct a data buffer pointer
-					 uint32_t int_on_complete : 1  ; ///< Do not interrupt when transaction is complete. 1 = Do interrupt when transaction is complete
-					 uint32_t                 : 0  ; // padding to the end of current storage unit
+  // Word 3: siTD Transfer Status and Control
+  // Status [7:0] TODO identical to qTD Token'status --> refactor later
+  volatile uint32_t                 : 1  ; // reserved
+  volatile uint32_t split_state     : 1  ;
+  volatile uint32_t missed_uframe   : 1  ;
+  volatile uint32_t xact_err        : 1  ;
+  volatile uint32_t babble_err      : 1  ;
+  volatile uint32_t buffer_err      : 1  ;
+  volatile uint32_t error           : 1  ;
+  volatile uint32_t active          : 1  ;
+  // Micro-frame Schedule Control
+  volatile uint32_t cmask_progress  : 8  ; ///< This field is used by the host controller to record which split-completes have been executed. See Section 4.12.3.3.2 for behavioral requirements.
+  volatile uint32_t total_bytes     : 10 ; ///< This field is initialized by software to the total number of bytes expected in this transfer. Maximum value is 1023
+  volatile uint32_t                 : 4  ; ///< reserved
+  volatile uint32_t page_select     : 1  ; ///< Used to indicate which data page pointer should be concatenated with the CurrentOffsetfield to construct a data buffer pointer
+           uint32_t int_on_complete : 1  ; ///< Do not interrupt when transaction is complete. 1 = Do interrupt when transaction is complete
+           uint32_t                 : 0  ; // padding to the end of current storage unit
 
-	/// Word 4-5: Buffer Pointer List
-	uint32_t buffer[2];		// buffer[1] TP: Transaction Position - T-Count: Transaction Count
+  /// Word 4-5: Buffer Pointer List
+  uint32_t buffer[2];    // buffer[1] TP: Transaction Position - T-Count: Transaction Count
 
-	/*---------- Word 6 ----------*/
-	ehci_link_t back;
+  /*---------- Word 6 ----------*/
+  ehci_link_t back;
 
-	/// SITD is 32-byte aligned but occupies only 28 --> 4 bytes for storing extra data
-	uint8_t used;
-	uint8_t ihd_idx;
-	uint8_t reserved2[2];
+  /// SITD is 32-byte aligned but occupies only 28 --> 4 bytes for storing extra data
+  uint8_t used;
+  uint8_t ihd_idx;
+  uint8_t reserved2[2];
 } ehci_sitd_t;
 
 TU_VERIFY_STATIC( sizeof(ehci_sitd_t) == 32, "size is not correct" );
@@ -315,8 +308,7 @@ enum {
     EHCI_PORTSC_MASK_OVER_CURRENT_CHANGE
 };
 
-typedef volatile struct
-{
+typedef volatile struct {
   union {
     uint32_t command; // 0x00
 

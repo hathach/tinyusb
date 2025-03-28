@@ -82,7 +82,7 @@ typedef struct {
 static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 CFG_TUD_MEM_SECTION static cdcd_epbuf_t _cdcd_epbuf[CFG_TUD_CDC];
 
-static tud_cdc_configure_fifo_t _cdcd_fifo_cfg;
+static tud_cdc_configure_t _cdcd_cfg = TUD_CDC_CONFIGURE_DEFAULT();
 
 static bool _prep_out_transaction(uint8_t itf) {
   const uint8_t rhport = 0;
@@ -119,9 +119,9 @@ static bool _prep_out_transaction(uint8_t itf) {
 // APPLICATION API
 //--------------------------------------------------------------------+
 
-bool tud_cdc_configure_fifo(const tud_cdc_configure_fifo_t* cfg) {
-  TU_VERIFY(cfg);
-  _cdcd_fifo_cfg = (*cfg);
+bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg) {
+  TU_VERIFY(driver_cfg);
+  _cdcd_cfg = *driver_cfg;
   return true;
 }
 
@@ -175,7 +175,7 @@ void tud_cdc_n_read_flush(uint8_t itf) {
 //--------------------------------------------------------------------+
 uint32_t tud_cdc_n_write(uint8_t itf, const void* buffer, uint32_t bufsize) {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) TU_MIN(bufsize, UINT16_MAX));
+  uint16_t wr_count = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) TU_MIN(bufsize, UINT16_MAX));
 
   // flush if queue more than packet size
   if (tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE
@@ -186,7 +186,7 @@ uint32_t tud_cdc_n_write(uint8_t itf, const void* buffer, uint32_t bufsize) {
     tud_cdc_n_write_flush(itf);
   }
 
-  return ret;
+  return wr_count;
 }
 
 uint32_t tud_cdc_n_write_flush(uint8_t itf) {
@@ -233,8 +233,6 @@ bool tud_cdc_n_write_clear(uint8_t itf) {
 //--------------------------------------------------------------------+
 void cdcd_init(void) {
   tu_memclr(_cdcd_itf, sizeof(_cdcd_itf));
-  tu_memclr(&_cdcd_fifo_cfg, sizeof(_cdcd_fifo_cfg));
-
   for (uint8_t i = 0; i < CFG_TUD_CDC; i++) {
     cdcd_interface_t* p_cdc = &_cdcd_itf[i];
 
@@ -249,10 +247,10 @@ void cdcd_init(void) {
     // Config RX fifo
     tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, TU_ARRAY_SIZE(p_cdc->rx_ff_buf), 1, false);
 
-    // Config TX fifo as overwritable at initialization and will be changed to non-overwritable
-    // if terminal supports DTR bit. Without DTR we do not know if data is actually polled by terminal.
-    // In this way, the most current data is prioritized.
-    tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, true);
+    // TX fifo can be configured to change to overwritable if not connected (DTR bit not set). Without DTR we do not
+    // know if data is actually polled by terminal. This way the most current data is prioritized.
+    // Default: is overwritable
+    tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, TU_ARRAY_SIZE(p_cdc->tx_ff_buf), 1, _cdcd_cfg.tx_overwritabe_if_not_connected);
 
     #if OSAL_MUTEX_REQUIRED
     osal_mutex_t mutex_rd = osal_mutex_create(&p_cdc->rx_ff_mutex);
@@ -294,13 +292,13 @@ void cdcd_reset(uint8_t rhport) {
     cdcd_interface_t* p_cdc = &_cdcd_itf[i];
 
     tu_memclr(p_cdc, ITF_MEM_RESET_SIZE);
-    if (!_cdcd_fifo_cfg.rx_persistent) {
+    if (!_cdcd_cfg.rx_persistent) {
       tu_fifo_clear(&p_cdc->rx_ff);
     }
-    if (!_cdcd_fifo_cfg.tx_persistent) {
+    if (!_cdcd_cfg.tx_persistent) {
       tu_fifo_clear(&p_cdc->tx_ff);
     }
-    tu_fifo_set_overwritable(&p_cdc->tx_ff, true);
+    tu_fifo_set_overwritable(&p_cdc->tx_ff, _cdcd_cfg.tx_overwritabe_if_not_connected);
   }
 }
 
@@ -414,8 +412,12 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
 
         p_cdc->line_state = (uint8_t) request->wValue;
 
-        // Disable fifo overwriting if DTR bit is set
-        tu_fifo_set_overwritable(&p_cdc->tx_ff, !dtr);
+        // If enabled: fifo overwriting is disabled if DTR bit is set and vice versa
+        if (_cdcd_cfg.tx_overwritabe_if_not_connected) {
+          tu_fifo_set_overwritable(&p_cdc->tx_ff, !dtr);
+        } else {
+          tu_fifo_set_overwritable(&p_cdc->tx_ff, false);
+        }
 
         TU_LOG_DRV("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 
@@ -496,7 +498,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
       // xferred_bytes is multiple of EP Packet size and not zero
       if (!tu_fifo_count(&p_cdc->tx_ff) && xferred_bytes && (0 == (xferred_bytes & (BULK_PACKET_SIZE - 1)))) {
         if (usbd_edpt_claim(rhport, p_cdc->ep_in)) {
-          usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0);
+          TU_ASSERT(usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0));
         }
       }
     }

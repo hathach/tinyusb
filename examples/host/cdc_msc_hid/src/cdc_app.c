@@ -27,7 +27,7 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 
-size_t get_console_inputs(uint8_t* buf, size_t bufsize) {
+static size_t get_console_inputs(uint8_t* buf, size_t bufsize) {
   size_t count = 0;
   while (count < bufsize) {
     int ch = board_getchar();

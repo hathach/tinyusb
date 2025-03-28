@@ -70,8 +70,11 @@ enum {
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 static bool is_print[CFG_TUH_DEVICE_MAX+1] = { 0 };
+static tusb_desc_device_t descriptor_device[CFG_TUH_DEVICE_MAX+1];
 
 static void print_utf16(uint16_t *temp_buf, size_t buf_len);
+static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_device);
+
 void led_blinking_task(void);
 void cdc_task(void);
 
@@ -135,84 +138,20 @@ void tud_resume_cb(void) {
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
-#if 1
-#define cdc_printf(...)                          \
-  do {                                           \
-    char _tempbuf[256];                          \
-    int count = sprintf(_tempbuf, __VA_ARGS__);  \
-    tud_cdc_write(_tempbuf, (uint32_t) count);   \
-    tud_cdc_write_flush();                       \
-    tud_task();                                  \
-  } while(0)
-#endif
-
-//#define cdc_printf printf
-
-void print_device_info(uint8_t daddr) {
-  tusb_desc_device_t desc_device;
-  uint8_t xfer_result = tuh_descriptor_get_device_sync(daddr, &desc_device, 18);
-  if (XFER_RESULT_SUCCESS != xfer_result) {
-    tud_cdc_write_str("Failed to get device descriptor\r\n");
+void cdc_task(void) {
+  if (!tud_cdc_connected()) {
+    // delay a bit otherwise we can outpace host's terminal. Linux will set LineState (DTR) then Line Coding.
+    // If we send data before Linux's terminal set Line Coding, it can be ignored --> missing data with hardware test loop
+    board_delay(20);
     return;
   }
 
-  // Get String descriptor using Sync API
-  uint16_t serial[64];
-  uint16_t buf[128];
-
-  cdc_printf("Device %u: ID %04x:%04x SN ", daddr, desc_device.idVendor, desc_device.idProduct);
-  xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, serial, sizeof(serial));
-  if (XFER_RESULT_SUCCESS != xfer_result) {
-    serial[0] = 'n';
-    serial[1] = '/';
-    serial[2] = 'a';
-    serial[3] = 0;
-  }
-  print_utf16(serial, TU_ARRAY_SIZE(serial));
-  tud_cdc_write_str("\r\n");
-
-  cdc_printf("Device Descriptor:\r\n");
-  cdc_printf("  bLength             %u\r\n"     , desc_device.bLength);
-  cdc_printf("  bDescriptorType     %u\r\n"     , desc_device.bDescriptorType);
-  cdc_printf("  bcdUSB              %04x\r\n"   , desc_device.bcdUSB);
-  cdc_printf("  bDeviceClass        %u\r\n"     , desc_device.bDeviceClass);
-  cdc_printf("  bDeviceSubClass     %u\r\n"     , desc_device.bDeviceSubClass);
-  cdc_printf("  bDeviceProtocol     %u\r\n"     , desc_device.bDeviceProtocol);
-  cdc_printf("  bMaxPacketSize0     %u\r\n"     , desc_device.bMaxPacketSize0);
-  cdc_printf("  idVendor            0x%04x\r\n" , desc_device.idVendor);
-  cdc_printf("  idProduct           0x%04x\r\n" , desc_device.idProduct);
-  cdc_printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
-
-  cdc_printf("  iManufacturer       %u     "     , desc_device.iManufacturer);
-  xfer_result = tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, buf, sizeof(buf));
-  if (XFER_RESULT_SUCCESS == xfer_result ) {
-    print_utf16(buf, TU_ARRAY_SIZE(buf));
-  }
-  tud_cdc_write_str("\r\n");
-
-  cdc_printf("  iProduct            %u     "     , desc_device.iProduct);
-  xfer_result = tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, buf, sizeof(buf));
-  if (XFER_RESULT_SUCCESS == xfer_result) {
-    print_utf16(buf, TU_ARRAY_SIZE(buf));
-  }
-  tud_cdc_write_str("\r\n");
-
-  cdc_printf("  iSerialNumber       %u     "     , desc_device.iSerialNumber);
-  tud_cdc_write_str((char*)serial); // serial is already to UTF-8
-  tud_cdc_write_str("\r\n");
-
-  cdc_printf("  bNumConfigurations  %u\r\n"     , desc_device.bNumConfigurations);
-}
-
-void cdc_task(void) {
-  if (tud_cdc_connected()) {
-    for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
-      if (tuh_mounted(daddr)) {
-        if (is_print[daddr]) {
-          is_print[daddr] = false;
-          print_device_info(daddr);
-          tud_cdc_write_flush();
-        }
+  for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
+    if (tuh_mounted(daddr)) {
+      if (is_print[daddr]) {
+        is_print[daddr] = false;
+        print_device_info(daddr, &descriptor_device[daddr]);
+        tud_cdc_write_flush();
       }
     }
   }
@@ -221,6 +160,77 @@ void cdc_task(void) {
 //--------------------------------------------------------------------+
 // Host Get device information
 //--------------------------------------------------------------------+
+#define cdc_printf(...)                          \
+  do {                                           \
+    char _tempbuf[256];                          \
+    char* _bufptr = _tempbuf;                        \
+    uint32_t count = (uint32_t) sprintf(_tempbuf, __VA_ARGS__);  \
+    while (count > 0) { \
+        uint32_t wr_count = tud_cdc_write(_bufptr, count); \
+        count -= wr_count; \
+        _bufptr += wr_count; \
+        if (count > 0){ \
+          tud_task();\
+          tud_cdc_write_flush(); \
+        } \
+    } \
+  } while(0)
+
+static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_device) {
+  // Get String descriptor using Sync API
+  uint16_t serial[64];
+  uint16_t buf[128];
+  (void) buf;
+
+  cdc_printf("Device %u: ID %04x:%04x SN ", daddr, desc_device->idVendor, desc_device->idProduct);
+  uint8_t xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, serial, sizeof(serial));
+  if (XFER_RESULT_SUCCESS != xfer_result) {
+    serial[0] = 'n';
+    serial[1] = '/';
+    serial[2] = 'a';
+    serial[3] = 0;
+  }
+  print_utf16(serial, TU_ARRAY_SIZE(serial));
+  cdc_printf("\r\n");
+
+  cdc_printf("Device Descriptor:\r\n");
+  cdc_printf("  bLength             %u\r\n"     , desc_device->bLength);
+  cdc_printf("  bDescriptorType     %u\r\n"     , desc_device->bDescriptorType);
+  cdc_printf("  bcdUSB              %04x\r\n"   , desc_device->bcdUSB);
+  cdc_printf("  bDeviceClass        %u\r\n"     , desc_device->bDeviceClass);
+  cdc_printf("  bDeviceSubClass     %u\r\n"     , desc_device->bDeviceSubClass);
+  cdc_printf("  bDeviceProtocol     %u\r\n"     , desc_device->bDeviceProtocol);
+  cdc_printf("  bMaxPacketSize0     %u\r\n"     , desc_device->bMaxPacketSize0);
+  cdc_printf("  idVendor            0x%04x\r\n" , desc_device->idVendor);
+  cdc_printf("  idProduct           0x%04x\r\n" , desc_device->idProduct);
+  cdc_printf("  bcdDevice           %04x\r\n"   , desc_device->bcdDevice);
+
+  cdc_printf("  iManufacturer       %u     "     , desc_device->iManufacturer);
+  xfer_result = tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, buf, sizeof(buf));
+  if (XFER_RESULT_SUCCESS == xfer_result) {
+    print_utf16(buf, TU_ARRAY_SIZE(buf));
+  }
+  cdc_printf("\r\n");
+
+  cdc_printf("  iProduct            %u     "     , desc_device->iProduct);
+  xfer_result = tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, buf, sizeof(buf));
+  if (XFER_RESULT_SUCCESS == xfer_result) {
+    print_utf16(buf, TU_ARRAY_SIZE(buf));
+  }
+  cdc_printf("\r\n");
+
+  cdc_printf("  iSerialNumber       %u     "     , desc_device->iSerialNumber);
+  cdc_printf((char*)serial); // serial is already to UTF-8
+  cdc_printf("\r\n");
+
+  cdc_printf("  bNumConfigurations  %u\r\n"     , desc_device->bNumConfigurations);
+}
+
+void tuh_enum_descriptor_device_cb(uint8_t daddr, tusb_desc_device_t const* desc_device) {
+  (void) daddr;
+  descriptor_device[daddr] = *desc_device; // save device descriptor
+}
+
 void tuh_mount_cb(uint8_t daddr) {
   printf("mounted device %u\r\n", daddr);
   is_print[daddr] = true;
@@ -296,7 +306,5 @@ static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
   _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
   ((uint8_t*) temp_buf)[utf8_len] = '\0';
 
-  tud_cdc_write(temp_buf, utf8_len);
-  tud_cdc_write_flush();
-  tud_task();
+  cdc_printf((char*) temp_buf);
 }

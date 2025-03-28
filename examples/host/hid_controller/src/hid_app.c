@@ -231,14 +231,12 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 }
 
 // check if different than 2
-bool diff_than_2(uint8_t x, uint8_t y)
-{
+static inline bool diff_than_2(uint8_t x, uint8_t y) {
   return (x - y > 2) || (y - x > 2);
 }
 
 // check if 2 reports are different enough
-bool diff_report(sony_ds4_report_t const* rpt1, sony_ds4_report_t const* rpt2)
-{
+static bool diff_report(sony_ds4_report_t const* rpt1, sony_ds4_report_t const* rpt2) {
   bool result;
 
   // x, y, z, rz must different than 2 to be counted
@@ -251,7 +249,7 @@ bool diff_report(sony_ds4_report_t const* rpt1, sony_ds4_report_t const* rpt2)
   return result;
 }
 
-void process_sony_ds4(uint8_t const* report, uint16_t len)
+static void process_sony_ds4(uint8_t const* report, uint16_t len)
 {
   (void)len;
   const char* dpad_str[] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW", "none" };
@@ -310,16 +308,13 @@ void process_sony_ds4(uint8_t const* report, uint16_t len)
 }
 
 // Invoked when received report from device via interrupt endpoint
-void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
-{
-  if ( is_sony_ds4(dev_addr) )
-  {
+void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len) {
+  if (is_sony_ds4(dev_addr)) {
     process_sony_ds4(report, len);
   }
 
   // continue to request to receive report
-  if ( !tuh_hid_receive_report(dev_addr, instance) )
-  {
+  if (!tuh_hid_receive_report(dev_addr, instance)) {
     printf("Error: cannot request to receive report\r\n");
   }
 }

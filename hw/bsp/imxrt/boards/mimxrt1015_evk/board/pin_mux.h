@@ -37,7 +37,7 @@ extern "C" {
  */
 void BOARD_InitBootPins(void);
 
-/* GPIO_EMC_09 (number 1), USER_BUTTON */
+/* GPIO_EMC_09 (number 1), USER_BUTTON/SW4 */
 /* Routed pin properties */
 #define BOARD_INITPINS_USER_BUTTON_PERIPHERAL                              GPIO2   /*!< Peripheral name */
 #define BOARD_INITPINS_USER_BUTTON_SIGNAL                                gpio_io   /*!< Signal name */
@@ -51,16 +51,6 @@ void BOARD_InitBootPins(void);
 #define BOARD_INITPINS_USER_BUTTON_PIN                                        9U   /*!< PORT pin number */
 #define BOARD_INITPINS_USER_BUTTON_PIN_MASK                           (1U << 9U)   /*!< PORT pin mask */
 
-/* GPIO_AD_B0_07 (number 68), LPUART1_RXD */
-/* Routed pin properties */
-#define BOARD_INITPINS_UART1_RXD_PERIPHERAL                              LPUART1   /*!< Peripheral name */
-#define BOARD_INITPINS_UART1_RXD_SIGNAL                                       RX   /*!< Signal name */
-
-/* GPIO_AD_B0_06 (number 72), LPUART1_TXD */
-/* Routed pin properties */
-#define BOARD_INITPINS_UART1_TXD_PERIPHERAL                              LPUART1   /*!< Peripheral name */
-#define BOARD_INITPINS_UART1_TXD_SIGNAL                                       TX   /*!< Signal name */
-
 /* GPIO_SD_B1_01 (number 21), GPIO SD_B1_01 */
 /* Routed pin properties */
 #define BOARD_INITPINS_USER_LED_PERIPHERAL                                 GPIO3   /*!< Peripheral name */
@@ -69,6 +59,7 @@ void BOARD_InitBootPins(void);
 
 /* Symbols to be used with GPIO driver */
 #define BOARD_INITPINS_USER_LED_GPIO                                       GPIO3   /*!< GPIO peripheral base pointer */
+#define BOARD_INITPINS_USER_LED_INIT_GPIO_VALUE                               0U   /*!< GPIO output initial state */
 #define BOARD_INITPINS_USER_LED_GPIO_PIN                                     21U   /*!< GPIO pin number */
 #define BOARD_INITPINS_USER_LED_GPIO_PIN_MASK                        (1U << 21U)   /*!< GPIO pin mask */
 #define BOARD_INITPINS_USER_LED_PORT                                       GPIO3   /*!< PORT peripheral base pointer */
@@ -118,6 +109,23 @@ void BOARD_InitPins(void);
  *
  */
 void BOARD_InitQSPIPins(void);
+
+/* GPIO_AD_B0_07 (number 68), LPUART1_RXD */
+/* Routed pin properties */
+#define BOARD_INITDEBUG_UARTPINS_UART1_RXD_PERIPHERAL                    LPUART1   /*!< Peripheral name */
+#define BOARD_INITDEBUG_UARTPINS_UART1_RXD_SIGNAL                             RX   /*!< Signal name */
+
+/* GPIO_AD_B0_06 (number 72), LPUART1_TXD */
+/* Routed pin properties */
+#define BOARD_INITDEBUG_UARTPINS_UART1_TXD_PERIPHERAL                    LPUART1   /*!< Peripheral name */
+#define BOARD_INITDEBUG_UARTPINS_UART1_TXD_SIGNAL                             TX   /*!< Signal name */
+
+
+/*!
+ * @brief Configures pin routing and optionally pin electrical features.
+ *
+ */
+void BOARD_InitDEBUG_UARTPins(void);
 
 #if defined(__cplusplus)
 }

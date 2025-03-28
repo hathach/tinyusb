@@ -81,7 +81,7 @@ void init_freertos_task(void);
 //--------------------------------------------------------------------
 // Main
 //--------------------------------------------------------------------
-void init_tinyusb(void) {
+static void init_tinyusb(void) {
   // init host stack on configured roothub port
   tusb_rhport_init_t host_init = {
     .role = TUSB_ROLE_HOST,
