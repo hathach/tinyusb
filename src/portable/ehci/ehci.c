@@ -381,7 +381,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   if (ep_desc->bEndpointAddress == 0) {
     p_qhd = qhd_control(dev_addr);
   } else {
-    TU_VERIFY(NULL == qhd_get_from_addr(dev_addr, ep_desc->bEndpointAddress)); // ep not opened yet
+    if (NULL != qhd_get_from_addr(dev_addr, ep_desc->bEndpointAddress)) {
+      return true; // already opened
+    }
     p_qhd = qhd_find_free();
   }
   TU_ASSERT(p_qhd);
