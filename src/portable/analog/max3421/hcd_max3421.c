@@ -611,7 +611,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
     ep = &_hcd_data.ep[0];
   }else {
     if (NULL != find_ep_not_addr0(daddr, ep_num, ep_dir)) {
-      return false; // endpoint already opened
+      return true; // already opened
     }
     ep = allocate_ep();
     TU_ASSERT(ep);
