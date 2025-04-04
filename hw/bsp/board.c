@@ -64,13 +64,27 @@ int sys_read(int fhdl, char *buf, size_t count) {
 #endif
 
 #elif defined(LOGGER_SWO)
+
+#define ITM_BASE 0xE0000000
+
+#define ITM_STIM0 (*((volatile uint8_t*)(ITM_BASE + 0)))
+#define ITM_TER *((volatile uint32_t*)(ITM_BASE + 0xE00))
+#define ITM_TCR *((volatile uint32_t*)(ITM_BASE + 0xE80))
+
+#define ITM_TCR_ITMENA (1 << 0)
+
 // Logging with SWO for ARM Cortex-M
 int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
   uint8_t const* buf8 = (uint8_t const*) buf;
 
-  for(size_t i=0; i<count; i++) {
-    ITM_SendChar(buf8[i]);
+  if ((ITM_TCR & ITM_TCR_ITMENA) && (ITM_TER & 1ul)) {
+    for(size_t i=0; i < count; i++) {
+      while (!(ITM_STIM0 & 1ul)) {
+        asm("nop");
+      }
+      ITM_STIM0 = buf8[i];
+    }
   }
 
   return (int) count;
