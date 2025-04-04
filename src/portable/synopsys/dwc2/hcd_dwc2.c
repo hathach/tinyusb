@@ -1182,6 +1182,7 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
 static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
   (void) in_isr;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2->gintsts = GINTSTS_SOF; // Clear the SOF interrupt flag
 
   bool more_isr = false;
 
