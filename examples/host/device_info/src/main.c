@@ -81,7 +81,7 @@ void init_freertos_task(void);
 //--------------------------------------------------------------------
 // Main
 //--------------------------------------------------------------------
-void init_tinyusb(void) {
+static void init_tinyusb(void) {
   // init host stack on configured roothub port
   tusb_rhport_init_t host_init = {
     .role = TUSB_ROLE_HOST,
@@ -124,13 +124,18 @@ void tuh_mount_cb(uint8_t daddr) {
   }
 
   printf("Device %u: ID %04x:%04x SN ", daddr, desc.device.idVendor, desc.device.idProduct);
-  xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, desc.serial, sizeof(desc.serial));
+
+  xfer_result = XFER_RESULT_FAILED;
+  if (desc.device.iSerialNumber != 0) {
+    xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, desc.serial, sizeof(desc.serial));
+  }
   if (XFER_RESULT_SUCCESS != xfer_result) {
     uint16_t* serial = (uint16_t*)(uintptr_t) desc.serial;
-    serial[0] = 'n';
-    serial[1] = '/';
-    serial[2] = 'a';
-    serial[3] = 0;
+    serial[0] = (uint16_t) ((TUSB_DESC_STRING << 8) | (2 * 3 + 2));
+    serial[1] = 'n';
+    serial[2] = '/';
+    serial[3] = 'a';
+    serial[4] = 0;
   }
   print_utf16((uint16_t*)(uintptr_t) desc.serial, sizeof(desc.serial)/2);
   printf("\r\n");
@@ -150,16 +155,20 @@ void tuh_mount_cb(uint8_t daddr) {
   // Get String descriptor using Sync API
 
   printf("  iManufacturer       %u     ", desc.device.iManufacturer);
-  xfer_result = tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf));
-  if (XFER_RESULT_SUCCESS == xfer_result) {
-    print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
+  if (desc.device.iManufacturer != 0) {
+    xfer_result = tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf));
+    if (XFER_RESULT_SUCCESS == xfer_result) {
+      print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
+    }
   }
   printf("\r\n");
 
   printf("  iProduct            %u     ", desc.device.iProduct);
-  xfer_result = tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf));
-  if (XFER_RESULT_SUCCESS == xfer_result) {
-    print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
+  if (desc.device.iProduct != 0) {
+    xfer_result = tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, desc.buf, sizeof(desc.buf));
+    if (XFER_RESULT_SUCCESS == xfer_result) {
+      print_utf16((uint16_t*)(uintptr_t) desc.buf, sizeof(desc.buf)/2);
+    }
   }
   printf("\r\n");
 

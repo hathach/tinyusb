@@ -270,10 +270,6 @@ function(family_add_tinyusb TARGET OPT_MCU)
 
   # Add TinyUSB sources, include and common define
   tinyusb_target_add(${TARGET})
-
-  # path to tusb_config.h
-  target_include_directories(${TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
   target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_MCU=${OPT_MCU})
   if (DEFINED LOG)
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_DEBUG=${LOG})

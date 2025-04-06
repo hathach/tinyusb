@@ -506,6 +506,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   return true;
 }
 
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport; (void) daddr; (void) ep_addr;
+  return false; // TODO not implemented yet
+}
+
 // clean up channel after part of transfer is done but the whole urb is not complete
 static void channel_xfer_out_wrapup(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
@@ -1177,6 +1182,7 @@ static void handle_channel_irq(uint8_t rhport, bool in_isr) {
 static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
   (void) in_isr;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2->gintsts = GINTSTS_SOF; // Clear the SOF interrupt flag
 
   bool more_isr = false;
 

@@ -62,8 +62,7 @@
 #define QHD_MAX      (CFG_TUH_DEVICE_MAX*CFG_TUH_ENDPOINT_MAX + CFG_TUH_HUB)
 #define QTD_MAX      QHD_MAX
 
-typedef struct
-{
+typedef struct {
   ehci_link_t period_framelist[FRAMELIST_SIZE];
 
   // TODO only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
@@ -139,6 +138,12 @@ static ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 static void qhd_attach_qtd(ehci_qhd_t *qhd, ehci_qtd_t *qtd);
 static void qhd_remove_qtd(ehci_qhd_t *qhd);
+TU_ATTR_ALWAYS_INLINE static inline bool qhd_is_periodic(ehci_qhd_t const *qhd) {
+  return qhd->int_smask != 0;
+}
+TU_ATTR_ALWAYS_INLINE static inline uint8_t qhd_ep_addr(ehci_qhd_t const *qhd) {
+  return tu_edpt_addr(qhd->ep_number, qhd->pid);
+}
 
 TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_control(uint8_t dev_addr);
 TU_ATTR_ALWAYS_INLINE static inline ehci_qtd_t* qtd_find_free (void);
@@ -146,9 +151,10 @@ static void qtd_init (ehci_qtd_t* qtd, void const* buffer, uint16_t total_bytes)
 
 TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_get_period_head(uint8_t rhport, uint32_t interval_ms);
 TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* list_get_async_head(uint8_t rhport);
-TU_ATTR_ALWAYS_INLINE static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_next (ehci_link_t const *p_link);
-static void list_remove_qhd_by_daddr(ehci_link_t* list_head, uint8_t dev_addr);
+TU_ATTR_ALWAYS_INLINE static inline void list_insert (ehci_link_t *current, ehci_link_t *entry, uint8_t type);
+TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_link_t* prev, ehci_qhd_t* qhd);
+static void list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, uint8_t ep_addr);
 
 static void ehci_disable_schedule(ehci_registers_t* regs, bool is_period) {
   // maybe have a timeout for status
@@ -175,15 +181,12 @@ static void ehci_enable_schedule(ehci_registers_t* regs, bool is_period) {
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
-
-uint32_t hcd_frame_number(uint8_t rhport)
-{
+uint32_t hcd_frame_number(uint8_t rhport) {
   (void) rhport;
   return (ehci_data.uframe_number + ehci_data.regs->frame_index) >> 3;
 }
 
-void hcd_port_reset(uint8_t rhport)
-{
+void hcd_port_reset(uint8_t rhport) {
   (void) rhport;
 
   ehci_registers_t* regs = ehci_data.regs;
@@ -204,8 +207,7 @@ void hcd_port_reset(uint8_t rhport)
   regs->portsc = portsc;
 }
 
-void hcd_port_reset_end(uint8_t rhport)
-{
+void hcd_port_reset_end(uint8_t rhport) {
   (void) rhport;
   ehci_registers_t* regs = ehci_data.regs;
 
@@ -221,32 +223,29 @@ void hcd_port_reset_end(uint8_t rhport)
   regs->portsc = portsc;
 }
 
-bool hcd_port_connect_status(uint8_t rhport)
-{
+bool hcd_port_connect_status(uint8_t rhport) {
   (void) rhport;
   return ehci_data.regs->portsc_bm.current_connect_status;
 }
 
-tusb_speed_t hcd_port_speed_get(uint8_t rhport)
-{
+tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
   (void) rhport;
   return (tusb_speed_t) ehci_data.regs->portsc_bm.nxp_port_speed; // NXP specific port speed
 }
 
 // Close all opened endpoint belong to this device
-void hcd_device_close(uint8_t rhport, uint8_t daddr)
-{
+void hcd_device_close(uint8_t rhport, uint8_t daddr) {
   // skip dev0
   if (daddr == 0) {
     return;
   }
 
-  // Remove from async list
-  list_remove_qhd_by_daddr((ehci_link_t *) list_get_async_head(rhport), daddr);
+  // Remove from async list all endpoints of this device
+  list_remove_qhd_by_addr((ehci_link_t *) list_get_async_head(rhport), daddr, TUSB_INDEX_INVALID_8);
 
-  // Remove from all interval period list
-  for(uint8_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++) {
-    list_remove_qhd_by_daddr((ehci_link_t *) &ehci_data.period_head_arr[i], daddr);
+  // Remove from all interval period list of this device
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(ehci_data.period_head_arr); i++) {
+    list_remove_qhd_by_addr((ehci_link_t *) &ehci_data.period_head_arr[i], daddr, TUSB_INDEX_INVALID_8);
   }
 
   // Async doorbell (EHCI 4.8.2 for operational details)
@@ -358,12 +357,10 @@ bool ehci_init(uint8_t rhport, uint32_t capability_reg, uint32_t operatial_reg)
 }
 
 #if 0
-static void ehci_stop(uint8_t rhport)
-{
+static void ehci_stop(uint8_t rhport) {
   (void) rhport;
 
   ehci_registers_t* regs = ehci_data.regs;
-
   regs->command_bm.run_stop = 0;
 
   // USB Spec: controller has to stop within 16 uframe = 2 frames
@@ -375,41 +372,46 @@ static void ehci_stop(uint8_t rhport)
 // Endpoint API
 //--------------------------------------------------------------------+
 
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
-{
-  (void) rhport;
-
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc) {
   // TODO not support ISO yet
   TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
   //------------- Prepare Queue Head -------------//
-  ehci_qhd_t *p_qhd = (ep_desc->bEndpointAddress == 0) ? qhd_control(dev_addr) : qhd_find_free();
+  ehci_qhd_t *p_qhd;
+  if (ep_desc->bEndpointAddress == 0) {
+    p_qhd = qhd_control(dev_addr);
+  } else {
+    if (NULL != qhd_get_from_addr(dev_addr, ep_desc->bEndpointAddress)) {
+      return true; // already opened
+    }
+    p_qhd = qhd_find_free();
+  }
   TU_ASSERT(p_qhd);
-
   qhd_init(p_qhd, dev_addr, ep_desc);
 
-  // control of dev0 is always present as async head
-  if ( dev_addr == 0 ) return true;
+  // control of dev0 always exists as async head
+  if (dev_addr == 0) {
+    return true;
+  }
 
   // Insert to list
   ehci_link_t * list_head = NULL;
-
-  switch (ep_desc->bmAttributes.xfer)
-  {
+  switch (ep_desc->bmAttributes.xfer) {
     case TUSB_XFER_CONTROL:
     case TUSB_XFER_BULK:
-      list_head = (ehci_link_t*) list_get_async_head(rhport);
-    break;
+      list_head = (ehci_link_t *) list_get_async_head(rhport);
+      break;
 
     case TUSB_XFER_INTERRUPT:
       list_head = list_get_period_head(rhport, p_qhd->interval_ms);
-    break;
+      break;
 
     case TUSB_XFER_ISOCHRONOUS:
       // TODO iso is not supported
-    break;
+      break;
 
-    default: break;
+    default:
+      break;
   }
   TU_ASSERT(list_head);
 
@@ -421,8 +423,23 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   return true;
 }
 
-bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
-{
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  ehci_qhd_t* qhd = qhd_get_from_addr(daddr, ep_addr);
+  TU_VERIFY(qhd != NULL);
+
+  ehci_link_t * list_head;
+  if (qhd_is_periodic(qhd)) {
+    // interrupt endpoint
+    list_head = list_get_period_head(rhport, qhd->interval_ms);;
+  } else {
+    list_head = (ehci_link_t *) list_get_async_head(rhport);
+  }
+
+  list_remove_qhd_by_addr(list_head, daddr, ep_addr);
+  return true;
+}
+
+bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]) {
   (void) rhport;
 
   ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
@@ -444,14 +461,14 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   return true;
 }
 
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
-{
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   (void) rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   ehci_qhd_t* qhd = qhd_get_from_addr(dev_addr, ep_addr);
+  TU_VERIFY(qhd != NULL);
   ehci_qtd_t* qtd;
 
   if (epnum == 0) {
@@ -540,8 +557,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
 // This isr mean it is safe to modify previously removed queue head from async list.
 // In tinyusb, queue head is only removed when device is unplugged.
 TU_ATTR_ALWAYS_INLINE static inline
-void async_advance_isr(uint8_t rhport)
-{
+void async_advance_isr(uint8_t rhport) {
   (void) rhport;
 
   ehci_qhd_t *qhd_pool = ehci_data.qhd_pool;
@@ -612,8 +628,7 @@ void qhd_xfer_complete_isr(ehci_qhd_t * qhd) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
-void proccess_async_xfer_isr(ehci_qhd_t * const list_head)
-{
+void proccess_async_xfer_isr(ehci_qhd_t * const list_head) {
   ehci_qhd_t *qhd = list_head;
 
   do {
@@ -623,8 +638,7 @@ void proccess_async_xfer_isr(ehci_qhd_t * const list_head)
 }
 
 TU_ATTR_ALWAYS_INLINE static inline
-void process_period_xfer_isr(uint8_t rhport, uint32_t interval_ms)
-{
+void process_period_xfer_isr(uint8_t rhport, uint32_t interval_ms) {
   uint32_t const period_1ms_addr = (uint32_t) list_get_period_head(rhport, 1u);
   ehci_link_t next_link = *list_get_period_head(rhport, interval_ms);
 
@@ -726,50 +740,54 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_link_t* list_next(ehci_link_t const *p_
   return (ehci_link_t*) tu_align32(p_link->address);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
-{
-  new->address = current->address;
-  current->address = ((uint32_t) new) | (new_type << 1);
+TU_ATTR_ALWAYS_INLINE static inline void list_insert(ehci_link_t *current, ehci_link_t *entry, uint8_t type) {
+  entry->address = current->address;
+  current->address = ((uint32_t) entry) | (type << 1);
 }
 
-// Remove all queue head belong to this device address
-static void list_remove_qhd_by_daddr(ehci_link_t* list_head, uint8_t dev_addr) {
-  ehci_link_t* prev = list_head;
+// Remove a queue head from the list.
+// Per EHCI 4.8.2 the removed qhd's next is linked to list head (which always reachable by Host Controller)
+// TODO support iTD/siTD
+TU_ATTR_ALWAYS_INLINE static inline void list_remove(ehci_link_t* head, ehci_link_t* prev, ehci_qhd_t* qhd) {
+  // TODO deactivate all TD, wait for QHD to inactive before removal
+  prev->address = qhd->next.address;
+
+  // link the removed qhd's next to list head
+  qhd->next.address = ((uint32_t) head) | (EHCI_QTYPE_QHD << 1);
+
+  if (qhd_is_periodic(qhd)) {
+    // period list queue element is guarantee to be free in the next frame (1 ms)
+    qhd->used = 0;
+  } else {
+    // async list use async advance handshake. Mark as removing, will completely re-usable when async advance isr occurs
+    qhd->removing = 1;
+  }
+
+  hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
+  hcd_dcache_clean(prev, sizeof(ehci_qhd_t));
+}
+
+// Remove queue head belong to this device address
+static void list_remove_qhd_by_addr(ehci_link_t *list_head, uint8_t dev_addr, uint8_t ep_addr) {
+  ehci_link_t *prev = list_head;
 
   while (prev && !prev->terminate) {
-    ehci_qhd_t* qhd = (ehci_qhd_t*) (uintptr_t) list_next(prev);
+    ehci_qhd_t *qhd = (ehci_qhd_t *) (uintptr_t) list_next(prev);
 
     // done if loop back to head
-    if ( (uintptr_t) qhd == (uintptr_t) list_head) {
+    if ((uintptr_t) qhd == (uintptr_t) list_head) {
       break;
     }
 
-    if ( qhd->dev_addr == dev_addr ) {
-      // TODO deactivate all TD, wait for QHD to inactive before removal
-      prev->address = qhd->next.address;
-
-      // EHCI 4.8.2 link the removed qhd's next to async head (which always reachable by Host Controller)
-      qhd->next.address = ((uint32_t) list_head) | (EHCI_QTYPE_QHD << 1);
-
-      if ( qhd->int_smask )
-      {
-        // period list queue element is guarantee to be free in the next frame (1 ms)
-        qhd->used = 0;
-      }else
-      {
-        // async list use async advance handshake
-        // mark as removing, will completely re-usable when async advance isr occurs
-        qhd->removing = 1;
-      }
-
-      hcd_dcache_clean(qhd, sizeof(ehci_qhd_t));
-      hcd_dcache_clean(prev, sizeof(ehci_qhd_t));
-    }else {
+    // ep_addr is 0xff means all endpoints of this device address
+    if (qhd->dev_addr == dev_addr &&
+        (ep_addr == TUSB_INDEX_INVALID_8 || qhd_ep_addr(qhd) == ep_addr)) {
+      list_remove(list_head, prev, qhd);
+    } else {
       prev = list_next(prev);
     }
   }
 }
-
 
 //--------------------------------------------------------------------+
 // Queue Header helper
@@ -782,8 +800,10 @@ TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t* qhd_control(uint8_t dev_addr) {
 
 // Find a free queue head
 TU_ATTR_ALWAYS_INLINE static inline ehci_qhd_t *qhd_find_free(void) {
-  for ( uint32_t i = 0; i < QHD_MAX; i++ ) {
-    if ( !ehci_data.qhd_pool[i].used ) return &ehci_data.qhd_pool[i];
+  for (uint32_t i = 0; i < QHD_MAX; i++) {
+    if (!ehci_data.qhd_pool[i].used) {
+      return &ehci_data.qhd_pool[i];
+    }
   }
   return NULL;
 }
@@ -800,10 +820,9 @@ static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
   }
 
   ehci_qhd_t *qhd_pool = ehci_data.qhd_pool;
-
-  for ( uint32_t i = 0; i < QHD_MAX; i++ ) {
-    if ( (qhd_pool[i].dev_addr == dev_addr) &&
-         ep_addr == tu_edpt_addr(qhd_pool[i].ep_number, qhd_pool[i].pid) ) {
+  for (uint32_t i = 0; i < QHD_MAX; i++) {
+    if ((qhd_pool[i].dev_addr == dev_addr) &&
+        ep_addr == qhd_ep_addr(&qhd_pool[i])) {
       return &qhd_pool[i];
     }
   }
@@ -812,8 +831,7 @@ static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
 }
 
 // Init queue head with endpoint descriptor
-static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
-{
+static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc) {
   // address 0 is used as async head, which always on the list --> cannot be cleared (ehci halted otherwise)
   if (dev_addr != 0) {
     tu_memclr(p_qhd, sizeof(ehci_qhd_t));
@@ -830,39 +848,43 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   p_qhd->ep_number          = tu_edpt_number(ep_desc->bEndpointAddress);
   p_qhd->ep_speed           = devtree_info.speed;
   p_qhd->data_toggle_control= (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
-  p_qhd->head_list_flag     = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
+  p_qhd->head_list_flag     = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static async list head
   p_qhd->max_packet_size    = tu_edpt_packet_size(ep_desc);
   p_qhd->fl_ctrl_ep_flag    = ((xfer_type == TUSB_XFER_CONTROL) && (p_qhd->ep_speed != TUSB_SPEED_HIGH))  ? 1 : 0;
   p_qhd->nak_reload         = 0;
 
-  // Bulk/Control -> smask = cmask = 0
-  // TODO Isochronous
-  if (TUSB_XFER_INTERRUPT == xfer_type)
-  {
-    if (TUSB_SPEED_HIGH == p_qhd->ep_speed)
-    {
-      TU_ASSERT( interval <= 16, );
-      if ( interval < 4) // sub millisecond interval
-      {
-        p_qhd->interval_ms = 0;
-        p_qhd->int_smask   = (interval == 1) ? TU_BIN8(11111111) :
-                             (interval == 2) ? TU_BIN8(10101010) : TU_BIN8(01000100);
-      }else
-      {
-        p_qhd->interval_ms = (uint8_t) tu_min16( 1 << (interval-4), 255 );
-        p_qhd->int_smask = TU_BIT(interval % 8);
+  switch (xfer_type) {
+    case TUSB_XFER_CONTROL:
+    case TUSB_XFER_BULK:
+      p_qhd->int_smask = p_qhd->fl_int_cmask = 0;
+      break;
+
+    case TUSB_XFER_INTERRUPT:
+      if (TUSB_SPEED_HIGH == p_qhd->ep_speed) {
+        TU_ASSERT(interval <= 16, );
+        if (interval < 4) {
+          // sub millisecond interval
+          p_qhd->interval_ms = 0;
+          p_qhd->int_smask = (interval == 1) ? TU_BIN8(11111111) :
+                             (interval == 2) ? TU_BIN8(10101010): TU_BIN8(01000100);
+        } else {
+          p_qhd->interval_ms = (uint8_t) tu_min16(1 << (interval - 4), 255);
+          p_qhd->int_smask = TU_BIT(interval % 8);
+        }
+      } else {
+        TU_ASSERT(0 != interval, );
+        // Full/Low: 4.12.2.1 (EHCI) case 1 schedule start split at 1 us & complete split at 2,3,4 uframes
+        p_qhd->int_smask = 0x01;
+        p_qhd->fl_int_cmask = TU_BIN8(11100);
+        p_qhd->interval_ms = interval;
       }
-    }else
-    {
-      TU_ASSERT( 0 != interval, );
-      // Full/Low: 4.12.2.1 (EHCI) case 1 schedule start split at 1 us & complete split at 2,3,4 uframes
-      p_qhd->int_smask    = 0x01;
-      p_qhd->fl_int_cmask = TU_BIN8(11100);
-      p_qhd->interval_ms  = interval;
-    }
-  }else
-  {
-    p_qhd->int_smask = p_qhd->fl_int_cmask = 0;
+      break;
+
+    case TUSB_XFER_ISOCHRONOUS:
+      // TODO not support ISO yet
+      break;
+
+    default: break;
   }
 
   p_qhd->fl_hub_addr  = devtree_info.hub_addr;
@@ -880,8 +902,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   p_qhd->qtd_overlay.next.terminate      = 1;
   p_qhd->qtd_overlay.alternate.terminate = 1;
 
-  if (TUSB_XFER_BULK == xfer_type && p_qhd->ep_speed == TUSB_SPEED_HIGH && p_qhd->pid == EHCI_PID_OUT)
-  {
+  if (TUSB_XFER_BULK == xfer_type && p_qhd->ep_speed == TUSB_SPEED_HIGH && p_qhd->pid == EHCI_PID_OUT) {
     p_qhd->qtd_overlay.ping_err = 1; // do PING for Highspeed Bulk OUT, EHCI section 4.11
   }
 }

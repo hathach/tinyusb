@@ -1,0 +1,14 @@
+<component name="DebugServers">
+  <generic-debug-target name="rp2040" uniqueID="006ce655-8571-401e-a94b-6a4f6d519724">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/local/bin/openocd" args="-f interface/cmsis-dap.cfg -f target/rp2040.cfg -c &quot;adapter speed 5000&quot;">
+      <env />
+    </gdbserver>
+    <console enabled="true" port="4444" />
+    <target download-type="UPDATED_ONLY" reset-before="false" />
+    <connection extended-remote="false" remote-string="tcp::3333" warmup-ms="500" />
+  </generic-debug-target>
+</component>
