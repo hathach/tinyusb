@@ -1266,8 +1266,6 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
 
     if (hprt_bm.conn_status) {
       hcd_event_device_attach(rhport, in_isr);
-    } else {
-      hcd_event_device_remove(rhport, in_isr);
     }
   }
 
@@ -1324,10 +1322,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     handle_hprt_irq(rhport, in_isr);
   }
 
-  if(gintsts & GINTSTS_DISCINT) {
+  if (gintsts & GINTSTS_DISCINT) {
     // Device disconnected
     dwc2->gintsts = GINTSTS_DISCINT;
-    hcd_event_device_remove(rhport, in_isr);
+    if (!(dwc2->hprt & HPRT_CONN_STATUS)) {
+      hcd_event_device_remove(rhport, in_isr);
+    }
   }
 
   if (gintsts & GINTSTS_HCINT) {
