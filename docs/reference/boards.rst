@@ -261,6 +261,7 @@ stm32h743nucleo      STM32 H743 Nucleo                  stm32h7   https://www.st
 stm32h745disco       STM32 H745 Discovery               stm32h7   https://www.st.com/en/evaluation-tools/stm32h745i-disco.html
 stm32h750_weact      STM32 H750 WeAct                   stm32h7   https://www.adafruit.com/product/5032
 stm32h750bdk         STM32 H750b Discovery Kit          stm32h7   https://www.st.com/en/evaluation-tools/stm32h750b-dk.html
+stm32h7s3nucleo      STM32 H7S3 Nucleo                  stm32h7rs https://www.st.com/en/evaluation-tools/nucleo-h7s3l8.html
 waveshare_openh743i  Waveshare Open H743i               stm32h7   https://www.waveshare.com/openh743i-c-standard.htm
 stm32l052dap52       STM32 L052 DAP                     stm32l0   n/a
 stm32l0538disco      STM32 L0538 Discovery              stm32l0   https://www.st.com/en/evaluation-tools/32l0538discovery.html

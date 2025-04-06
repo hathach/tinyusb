@@ -1655,6 +1655,9 @@ static bool enum_new_device(hcd_event_t* event) {
   _dev0.hub_port = event->connection.hub_port;
 
   if (_dev0.hub_addr == 0) {
+    // wait until device connection is stable TODO non blocking
+    tusb_time_delay_ms_api(ENUM_DEBOUNCING_DELAY_MS);
+
     // connected directly to roothub
     hcd_port_reset(_dev0.rhport);
 
@@ -1664,8 +1667,7 @@ static bool enum_new_device(hcd_event_t* event) {
 
     hcd_port_reset_end(_dev0.rhport);
 
-    // wait until device connection is stable TODO non blocking
-    tusb_time_delay_ms_api(ENUM_DEBOUNCING_DELAY_MS);
+    tusb_time_delay_ms_api(ENUM_RESET_DELAY_MS);
 
     // device unplugged while delaying
     if (!hcd_port_connect_status(_dev0.rhport)) {
