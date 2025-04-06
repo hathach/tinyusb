@@ -381,7 +381,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2->hprt = HPRT_POWER; // turn on VBUS
 
   // Enable required interrupts
-  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_CONIDSTSCHNG | GINTSTS_HPRTINT | GINTSTS_HCINT;
+  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_CONIDSTSCHNG | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
 
   // NPTX can hold at least 2 packet, change interrupt level to half-empty
   uint32_t gahbcfg = dwc2->gahbcfg & ~GAHBCFG_TX_FIFO_EPMTY_LVL;
@@ -1316,6 +1316,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     // Host port interrupt: source is cleared in HPRT register
     // TU_LOG1_HEX(dwc2->hprt);
     handle_hprt_irq(rhport, in_isr);
+  }
+
+  if(gintsts & GINTSTS_DISCINT) {
+    // Device disconnected
+    dwc2->gintsts = GINTSTS_DISCINT;
+    hcd_event_device_remove(rhport, in_isr);
   }
 
   if (gintsts & GINTSTS_HCINT) {
