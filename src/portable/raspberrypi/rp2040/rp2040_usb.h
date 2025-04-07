@@ -87,8 +87,17 @@ typedef struct hw_endpoint
     // Only needed for host
     uint8_t dev_addr;
 
-    // If interrupt endpoint
+    // Even though the RP2040 HCD does not use the hardware "interrupt" (asynchronous)
+    // endpoints, the pointers to the endpoint control register and the buffer
+    // control register for each endpoint use the storage for that endpoint.
+    // The driver just does not activate the interrupt endpoint hardware.
     uint8_t interrupt_num;
+
+    // The polling interval in ms (for interrupt endpoints)
+    uint8_t polling_interval;
+
+    // Interrupt endpoint polling interval information
+    absolute_time_t scheduled_time;
 #endif
 
 } hw_endpoint_t;
@@ -104,11 +113,16 @@ bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 void hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
 
+#if 0
 TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
   // todo add critsec as necessary to prevent issues between worker and IRQ...
   //  note that this is perhaps as simple as disabling IRQs because it would make
   //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
+#else
+// only update the endpoint when interrupts are disabled
+void hw_endpoint_lock_update(struct hw_endpoint * ep, int delta);
+#endif
 
 void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
 
