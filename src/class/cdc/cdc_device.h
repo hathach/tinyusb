@@ -83,6 +83,9 @@ uint8_t tud_cdc_n_get_line_state(uint8_t itf);
 // Get current line encoding: bit rate, stop bits parity etc ..
 void tud_cdc_n_get_line_coding(uint8_t itf, cdc_line_coding_t* coding);
 
+// Send UART status notification: DCD, DSR etc ..
+bool tud_cdc_n_send_uart_state(uint8_t itf, cdc_uart_state_t state);
+
 // Set special character that will trigger tud_cdc_rx_wanted_cb() callback on receiving
 void tud_cdc_n_set_wanted_char(uint8_t itf, char wanted);
 
@@ -145,6 +148,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tud_cdc_get_line_state(void) {
 TU_ATTR_ALWAYS_INLINE static inline void tud_cdc_get_line_coding(cdc_line_coding_t* coding) {
   tud_cdc_n_get_line_coding(0, coding);
 }
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_send_uart_state(cdc_uart_state_t state) {
+  return tud_cdc_n_send_uart_state(0, state);
+}
+
 
 TU_ATTR_ALWAYS_INLINE static inline void tud_cdc_set_wanted_char(char wanted) {
   tud_cdc_n_set_wanted_char(0, wanted);
