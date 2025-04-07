@@ -62,21 +62,18 @@ BOARD_InitPins:
 void BOARD_InitPins(void)
 {
     RESET_PeripheralReset(kLPUART0_RST_SHIFT_RSTn);
-    RESET_PeripheralReset(kPORT0_RST_SHIFT_RSTn);
     CLOCK_SetClockDiv(kCLOCK_DivLPUART0, 1u);
     CLOCK_AttachClk(kFRO12M_to_LPUART0);
 
-    /* write to PORT0: Peripheral clock is enabled */
-    CLOCK_EnableClock(kCLOCK_GatePORT0);
-
-    /* Write to GPIO3: Peripheral clock is enabled */
+    /* GPIO3: Peripheral clock is enabled */
     CLOCK_EnableClock(kCLOCK_GateGPIO3);
-    /* Write to PORT3: Peripheral clock is enabled */
+    /* PORT3: Peripheral clock is enabled */
     CLOCK_EnableClock(kCLOCK_GatePORT3);
     /* GPIO3 peripheral is released from reset */
     RESET_ReleasePeripheralReset(kGPIO3_RST_SHIFT_RSTn);
     /* PORT3 peripheral is released from reset */
     RESET_ReleasePeripheralReset(kPORT3_RST_SHIFT_RSTn);
+
 
     const port_pin_config_t port3_12_pin38_config = {/* Internal pull-up/down resistor is disabled */
                                        kPORT_PullDisable,
