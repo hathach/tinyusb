@@ -1266,8 +1266,6 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
 
     if (hprt_bm.conn_status) {
       hcd_event_device_attach(rhport, in_isr);
-    } else {
-      hcd_event_device_remove(rhport, in_isr);
     }
   }
 
