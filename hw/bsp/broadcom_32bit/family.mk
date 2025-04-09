@@ -10,7 +10,7 @@ CFLAGS += \
 	-nostartfiles \
 	-mgeneral-regs-only \
 	-fno-exceptions \
-	-std=c17
+	-std=gnu17
 
 CROSS_COMPILE = arm-none-eabi-
 
