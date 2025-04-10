@@ -719,6 +719,14 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       }
     }
 
+    // immediately retry if bInterval is 1 - otherwise we'd waste a microframe before retrying
+    if ((hcint & HCINT_HALTED) && (edpt->uframe_interval == 1)) {
+      edpt->hcchar_bm.odd_frame = 1 - (dwc2->hfnum & 1);   // transfer on next frame
+      channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);
+      channel_send_in_token(dwc2, channel);
+      return;
+    }
+
     // for periodic, de-allocate channel, enable SOF set frame counter for later transfer
     edpt->next_pid = channel->hctsiz_bm.pid; // save PID
     edpt->uframe_countdown = edpt->uframe_interval;
