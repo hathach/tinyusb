@@ -448,6 +448,12 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[i];
     if (edpt->hcchar_bm.enable && edpt->hcchar_bm.dev_addr == dev_addr) {
       tu_memclr(edpt, sizeof(hcd_endpoint_t));
+      for (uint8_t j = 0; j < (uint8_t) DWC2_CHANNEL_COUNT_MAX; j++) {
+        hcd_xfer_t* xfer = &_hcd_data.xfer[j];
+        if (xfer->allocated && xfer->ep_id == i) {
+          tu_memclr(xfer, sizeof(hcd_xfer_t));
+        }
+      }
     }
   }
 }
