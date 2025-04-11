@@ -219,6 +219,9 @@ TU_ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p
 //                          device will send a break until another SendBreak request is received with value 0000h.
 TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms);
 
+// Invoked when the driver is reset.
+TU_ATTR_WEAK void tud_cdc_reset_cb(uint8_t itf);
+
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
