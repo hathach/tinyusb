@@ -448,6 +448,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[i];
     if (edpt->hcchar_bm.enable && edpt->hcchar_bm.dev_addr == dev_addr) {
       tu_memclr(edpt, sizeof(hcd_endpoint_t));
+      tu_memclr(&_hcd_data.xfer[i], sizeof(hcd_xfer_t));
     }
   }
 }
