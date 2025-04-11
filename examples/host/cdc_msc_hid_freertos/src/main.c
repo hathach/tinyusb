@@ -69,12 +69,6 @@ extern void cdc_app_init(void);
 extern void hid_app_init(void);
 extern void msc_app_init(void);
 
-#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-// API to read/rite MAX3421's register. Implemented by TinyUSB
-extern uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
-extern bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
-#endif
-
 /*------------- MAIN -------------*/
 int main(void) {
   board_init();

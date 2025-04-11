@@ -121,6 +121,7 @@ commands:
                 TOOLCHAIN_OPTION="--toolchain clang"
               elif [ << parameters.toolchain >> == arm-iar ]; then
                 TOOLCHAIN_OPTION="--toolchain iar"
+                echo IAR_LMS_CLOUD_URL=$IAR_LMS_CLOUD_URL
                 iccarm --version
               elif [ << parameters.toolchain >> == arm-gcc ]; then
                 TOOLCHAIN_OPTION="--toolchain gcc"

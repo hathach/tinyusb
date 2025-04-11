@@ -48,14 +48,24 @@
 //--------------------------------------------------------------------+
 // Driver Configuration
 //--------------------------------------------------------------------+
-
 typedef struct TU_ATTR_PACKED {
-  uint8_t rx_persistent : 1; // keep rx fifo on bus reset or disconnect
-  uint8_t tx_persistent : 1; // keep tx fifo on bus reset or disconnect
-} tud_cdc_configure_fifo_t;
+  uint8_t rx_persistent : 1; // keep rx fifo data even with bus reset or disconnect
+  uint8_t tx_persistent : 1; // keep tx fifo data even with reset or disconnect
+  uint8_t tx_overwritabe_if_not_connected : 1; // if not connected, tx fifo can be overwritten
+} tud_cdc_configure_t;
 
-// Configure CDC FIFOs behavior
-bool tud_cdc_configure_fifo(tud_cdc_configure_fifo_t const* cfg);
+#define TUD_CDC_CONFIGURE_DEFAULT() { \
+  .rx_persistent = 0, \
+  .tx_persistent = 0, \
+  .tx_overwritabe_if_not_connected = 1, \
+}
+
+// Configure CDC driver behavior
+bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg);
+
+// Backward compatible
+#define tud_cdc_configure_fifo_t tud_cdc_configure_t
+#define tud_cdc_configure_fifo   tud_cdc_configure
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Ports) i.e. CFG_TUD_CDC > 1

@@ -12,7 +12,7 @@ set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 # RTOS
 #-------------------------------------------------------------
 if (NOT DEFINED RTOS)
-  set(RTOS noos)
+  set(RTOS noos CACHE STRING "RTOS")
 endif ()
 
 #-------------------------------------------------------------
@@ -270,10 +270,6 @@ function(family_add_tinyusb TARGET OPT_MCU)
 
   # Add TinyUSB sources, include and common define
   tinyusb_target_add(${TARGET})
-
-  # path to tusb_config.h
-  target_include_directories(${TARGET} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
   target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_MCU=${OPT_MCU})
   if (DEFINED LOG)
     target_compile_definitions(${TARGET} PUBLIC CFG_TUSB_DEBUG=${LOG})
@@ -399,7 +395,11 @@ endfunction()
 # Add flash jlink target
 function(family_flash_jlink TARGET)
   if (NOT DEFINED JLINKEXE)
-    set(JLINKEXE JLinkExe)
+    if(CMAKE_HOST_WIN32)
+      set(JLINKEXE JLink.exe)
+    else()
+      set(JLINKEXE JLinkExe)
+    endif()
   endif ()
 
   if (NOT DEFINED JLINK_IF)
@@ -470,6 +470,10 @@ function(family_flash_openocd TARGET)
 
   if (NOT DEFINED OPENOCD_OPTION2)
     set(OPENOCD_OPTION2 "")
+  endif ()
+
+  if (DEFINED OPENOCD_SERIAL)
+    set(OPENOCD_OPTION "-c \"adapter serial ${OPENOCD_SERIAL}\" ${OPENOCD_OPTION}")
   endif ()
 
   separate_arguments(OPTION_LIST UNIX_COMMAND ${OPENOCD_OPTION})
