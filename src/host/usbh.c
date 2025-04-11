@@ -1038,7 +1038,7 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr) 
       // Check if dev0 is removed
       if ((event->rhport == _dev0.rhport) && (event->connection.hub_addr == _dev0.hub_addr) &&
           (event->connection.hub_port == _dev0.hub_port)) {
-        _dev0.enumerating = 0;
+        //_dev0.enumerating = 0;// Causes assert in dwc2 process_enumeration() -> ENUM_ADDR0_DEVICE_DESC
       }
       break;
 
