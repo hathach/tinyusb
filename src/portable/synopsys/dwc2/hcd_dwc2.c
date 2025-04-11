@@ -1242,9 +1242,9 @@ static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
 
   uint32_t hfir = dwc2->hfir & ~HFIR_FRIVL_Msk;
   if (speed == TUSB_SPEED_HIGH) {
-    hfir |= 125*phy_clock;
+    hfir |= 125*phy_clock - 1; // The "- 1" is the correct value. The Synopsys databook was corrected in 3.30a
   } else {
-    hfir |= 1000*phy_clock;
+    hfir |= 1000*phy_clock - 1;
   }
 
   dwc2->hfir = hfir;
