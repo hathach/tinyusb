@@ -299,6 +299,7 @@ void cdcd_reset(uint8_t rhport) {
       tu_fifo_clear(&p_cdc->tx_ff);
     }
     tu_fifo_set_overwritable(&p_cdc->tx_ff, _cdcd_cfg.tx_overwritabe_if_not_connected);
+    if (tud_cdc_reset_cb) tud_cdc_reset_cb(i);
   }
 }
 
