@@ -42,6 +42,10 @@
 #include "bsp/board_api.h"
 #include "board.h"
 
+extern void USB_IRQHandler(void);
+extern void SysTick_Handler(void);
+void SystemInit(void);
+
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+

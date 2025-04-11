@@ -1,0 +1,14 @@
+<component name="DebugServers">
+  <generic-debug-target name="rp2350" uniqueID="939fdf16-9c30-4261-8435-3e8df7fd5800" selected="true">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/local/bin/openocd" args="-f interface/cmsis-dap.cfg -f target/rp2350.cfg -c &quot;adapter speed 5000&quot;">
+      <env />
+    </gdbserver>
+    <console enabled="true" port="4444" />
+    <target download-type="UPDATED_ONLY" reset-before="false" />
+    <connection extended-remote="false" remote-string="tcp::3333" warmup-ms="500" />
+  </generic-debug-target>
+</component>

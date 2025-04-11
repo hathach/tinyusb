@@ -64,9 +64,7 @@ int sys_read(int fhdl, char *buf, size_t count) {
 #endif
 
 #elif defined(LOGGER_SWO)
-// Logging with SWO for ARM Cortex
-#include "board_mcu.h"
-
+// Logging with SWO for ARM Cortex-M
 int sys_write (int fhdl, const char *buf, size_t count) {
   (void) fhdl;
   uint8_t const* buf8 = (uint8_t const*) buf;

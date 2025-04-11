@@ -6,11 +6,11 @@
 /*
  * TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!GlobalInfo
-product: Pins v13.1
+product: Pins v17.0
 processor: MIMXRT1015xxxxx
 package_id: MIMXRT1015DAF5A
 mcu_data: ksdk2_0
-processor_version: 13.0.2
+processor_version: 24.12.10
 board: MIMXRT1015-EVK
 external_user_signals: {}
 pin_labels:
@@ -32,6 +32,7 @@ power_domains: {NVCC_GPIO: '3.3'}
  * END ****************************************************************************************************************/
 void BOARD_InitBootPins(void) {
     BOARD_InitPins();
+    BOARD_InitDEBUG_UARTPins();
 }
 
 /*
@@ -40,8 +41,6 @@ BOARD_InitPins:
 - options: {callFromInitBoot: 'true', coreID: core0, enableClock: 'true'}
 - pin_list:
   - {pin_num: '1', peripheral: GPIO2, signal: 'gpio_io, 09', pin_signal: GPIO_EMC_09, direction: INPUT, pull_keeper_select: Pull, pull_up_down_config: Pull_Up_47K_Ohm}
-  - {pin_num: '68', peripheral: LPUART1, signal: RX, pin_signal: GPIO_AD_B0_07, pull_up_down_config: Pull_Down_100K_Ohm}
-  - {pin_num: '72', peripheral: LPUART1, signal: TX, pin_signal: GPIO_AD_B0_06}
   - {pin_num: '21', peripheral: GPIO3, signal: 'gpio_io, 21', pin_signal: GPIO_SD_B1_01, direction: OUTPUT}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
@@ -73,14 +72,10 @@ void BOARD_InitPins(void) {
   /* Initialize GPIO functionality on GPIO_SD_B1_01 (pin 21) */
   GPIO_PinInit(GPIO3, 21U, &USER_LED_config);
 
-  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_06_LPUART1_TX, 0U);
-  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_07_LPUART1_RX, 0U);
   IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_09_GPIO2_IO09, 0U);
   IOMUXC_SetPinMux(IOMUXC_GPIO_SD_B1_01_GPIO3_IO21, 0U);
-  IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B0_07_LPUART1_RX, 0x10B0U);
   IOMUXC_SetPinConfig(IOMUXC_GPIO_EMC_09_GPIO2_IO09, 0x70B0U);
 }
-
 
 /*
  * TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
@@ -113,6 +108,30 @@ void BOARD_InitQSPIPins(void) {
   IOMUXC_SetPinMux(IOMUXC_GPIO_SD_B1_11_FLEXSPI_A_SS0_B, 0U);
 }
 
+/*
+ * TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
+BOARD_InitDEBUG_UARTPins:
+- options: {callFromInitBoot: 'true', coreID: core0, enableClock: 'true'}
+- pin_list:
+  - {pin_num: '68', peripheral: LPUART1, signal: RX, pin_signal: GPIO_AD_B0_07, slew_rate: Slow}
+  - {pin_num: '72', peripheral: LPUART1, signal: TX, pin_signal: GPIO_AD_B0_06, slew_rate: Slow}
+ * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
+ */
+
+/* FUNCTION ************************************************************************************************************
+ *
+ * Function Name : BOARD_InitDEBUG_UARTPins
+ * Description   : Configures pin routing and optionally pin electrical features.
+ *
+ * END ****************************************************************************************************************/
+void BOARD_InitDEBUG_UARTPins(void) {
+  CLOCK_EnableClock(kCLOCK_Iomuxc);
+
+  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_06_LPUART1_TX, 0U);
+  IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_07_LPUART1_RX, 0U);
+  IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B0_06_LPUART1_TX, 0x10B0U);
+  IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B0_07_LPUART1_RX, 0x10B0U);
+}
 /***********************************************************************************************************************
  * EOF
  **********************************************************************************************************************/
