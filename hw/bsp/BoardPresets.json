@@ -1,0 +1,4002 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "default",
+      "hidden": true,
+      "description": "Configure preset for the ${presetName} board",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_DEFAULT_BUILD_TYPE": "RelWithDebInfo",
+        "BOARD": "${presetName}"
+      }
+    },
+    {
+      "name": "adafruit_clue",
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_feather_esp32_v2",
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_feather_esp32s2",
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_feather_esp32s3",
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_magtag_29gray",
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_metro_esp32s2",
+      "inherits": "default"
+    },
+    {
+      "name": "apard32690",
+      "inherits": "default"
+    },
+    {
+      "name": "arduino_nano33_ble",
+      "inherits": "default"
+    },
+    {
+      "name": "atsamd21_xpro",
+      "inherits": "default"
+    },
+    {
+      "name": "atsaml21_xpro",
+      "inherits": "default"
+    },
+    {
+      "name": "b_g474e_dpow1",
+      "inherits": "default"
+    },
+    {
+      "name": "b_u585i_iot2a",
+      "inherits": "default"
+    },
+    {
+      "name": "ch32v103r_r1_1v0",
+      "inherits": "default"
+    },
+    {
+      "name": "ch32v203c_r0_1v0",
+      "inherits": "default"
+    },
+    {
+      "name": "ch32v203g_r0_1v0",
+      "inherits": "default"
+    },
+    {
+      "name": "ch32v307v_r1_1v0",
+      "inherits": "default"
+    },
+    {
+      "name": "circuitplayground_bluefruit",
+      "inherits": "default"
+    },
+    {
+      "name": "circuitplayground_express",
+      "inherits": "default"
+    },
+    {
+      "name": "curiosity_nano",
+      "inherits": "default"
+    },
+    {
+      "name": "cynthion_d11",
+      "inherits": "default"
+    },
+    {
+      "name": "cynthion_d21",
+      "inherits": "default"
+    },
+    {
+      "name": "d5035_01",
+      "inherits": "default"
+    },
+    {
+      "name": "da14695_dk_usb",
+      "inherits": "default"
+    },
+    {
+      "name": "da1469x_dk_pro",
+      "inherits": "default"
+    },
+    {
+      "name": "daisyseed",
+      "inherits": "default"
+    },
+    {
+      "name": "double_m33_express",
+      "inherits": "default"
+    },
+    {
+      "name": "ea4088_quickstart",
+      "inherits": "default"
+    },
+    {
+      "name": "ea4357",
+      "inherits": "default"
+    },
+    {
+      "name": "ek_tm4c123gxl",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_addax_1",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_c3_devkitc",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_c6_devkitc",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_kaluga_1",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_p4_function_ev",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_s2_devkitc",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_s3_devkitc",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_s3_devkitm",
+      "inherits": "default"
+    },
+    {
+      "name": "espressif_saola_1",
+      "inherits": "default"
+    },
+    {
+      "name": "f1c100s",
+      "inherits": "default"
+    },
+    {
+      "name": "feather_m0_express",
+      "inherits": "default"
+    },
+    {
+      "name": "feather_m4_express",
+      "inherits": "default"
+    },
+    {
+      "name": "feather_nrf52840_express",
+      "inherits": "default"
+    },
+    {
+      "name": "feather_nrf52840_sense",
+      "inherits": "default"
+    },
+    {
+      "name": "feather_rp2040_max3421",
+      "inherits": "default"
+    },
+    {
+      "name": "feather_stm32f405",
+      "inherits": "default"
+    },
+    {
+      "name": "fomu",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_k32l2a4s",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_k32l2b",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_k64f",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_kl25z",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_mcxa153",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_mcxn947",
+      "inherits": "default"
+    },
+    {
+      "name": "itsybitsy_m0",
+      "inherits": "default"
+    },
+    {
+      "name": "itsybitsy_m4",
+      "inherits": "default"
+    },
+    {
+      "name": "itsybitsy_nrf52840",
+      "inherits": "default"
+    },
+    {
+      "name": "kuiic",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso11u37",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso11u68",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso1347",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso1549",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso1769",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso18s37",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso43s67",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso51u68",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso54114",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso54608",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso54628",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso55s28",
+      "inherits": "default"
+    },
+    {
+      "name": "lpcxpresso55s69",
+      "inherits": "default"
+    },
+    {
+      "name": "max32650evkit",
+      "inherits": "default"
+    },
+    {
+      "name": "max32650fthr",
+      "inherits": "default"
+    },
+    {
+      "name": "max32651evkit",
+      "inherits": "default"
+    },
+    {
+      "name": "max32666evkit",
+      "inherits": "default"
+    },
+    {
+      "name": "max32666fthr",
+      "inherits": "default"
+    },
+    {
+      "name": "max32690evkit",
+      "inherits": "default"
+    },
+    {
+      "name": "max78002evkit",
+      "inherits": "default"
+    },
+    {
+      "name": "mbed1768",
+      "inherits": "default"
+    },
+    {
+      "name": "mcb1800",
+      "inherits": "default"
+    },
+    {
+      "name": "mcu_link",
+      "inherits": "default"
+    },
+    {
+      "name": "mcxn947brk",
+      "inherits": "default"
+    },
+    {
+      "name": "metro_m0_express",
+      "inherits": "default"
+    },
+    {
+      "name": "metro_m4_express",
+      "inherits": "default"
+    },
+    {
+      "name": "metro_m7_1011",
+      "inherits": "default"
+    },
+    {
+      "name": "metro_m7_1011_sd",
+      "inherits": "default"
+    },
+    {
+      "name": "mimxrt1010_evk",
+      "inherits": "default"
+    },
+    {
+      "name": "mimxrt1015_evk",
+      "inherits": "default"
+    },
+    {
+      "name": "mimxrt1020_evk",
+      "inherits": "default"
+    },
+    {
+      "name": "mimxrt1024_evk",
+      "inherits": "default"
+    },
+    {
+      "name": "mimxrt1050_evkb",
+      "inherits": "default"
+    },
+    {
+      "name": "mimxrt1060_evk",
+      "inherits": "default"
+    },
+    {
+      "name": "mimxrt1064_evk",
+      "inherits": "default"
+    },
+    {
+      "name": "mimxrt1170_evkb",
+      "inherits": "default"
+    },
+    {
+      "name": "mm32f327x_mb39",
+      "inherits": "default"
+    },
+    {
+      "name": "mm32f327x_pitaya_lite",
+      "inherits": "default"
+    },
+    {
+      "name": "msp_exp430f5529lp",
+      "inherits": "default"
+    },
+    {
+      "name": "msp_exp432e401y",
+      "inherits": "default"
+    },
+    {
+      "name": "nanoch32v203",
+      "inherits": "default"
+    },
+    {
+      "name": "pca10056",
+      "inherits": "default"
+    },
+    {
+      "name": "pca10059",
+      "inherits": "default"
+    },
+    {
+      "name": "pca10095",
+      "inherits": "default"
+    },
+    {
+      "name": "pca10100",
+      "inherits": "default"
+    },
+    {
+      "name": "pico_sdk",
+      "inherits": "default"
+    },
+    {
+      "name": "portenta_c33",
+      "inherits": "default"
+    },
+    {
+      "name": "pybadge",
+      "inherits": "default"
+    },
+    {
+      "name": "pyboardv11",
+      "inherits": "default"
+    },
+    {
+      "name": "pyportal",
+      "inherits": "default"
+    },
+    {
+      "name": "qtpy",
+      "inherits": "default"
+    },
+    {
+      "name": "ra2a1_ek",
+      "inherits": "default"
+    },
+    {
+      "name": "ra4m1_ek",
+      "inherits": "default"
+    },
+    {
+      "name": "ra4m3_ek",
+      "inherits": "default"
+    },
+    {
+      "name": "ra6m1_ek",
+      "inherits": "default"
+    },
+    {
+      "name": "ra6m5_ek",
+      "inherits": "default"
+    },
+    {
+      "name": "ra8m1_ek",
+      "inherits": "default"
+    },
+    {
+      "name": "raspberry_pi_pico",
+      "inherits": "default"
+    },
+    {
+      "name": "raspberry_pi_pico2",
+      "inherits": "default"
+    },
+    {
+      "name": "raspberrypi_cm4",
+      "inherits": "default"
+    },
+    {
+      "name": "raspberrypi_zero",
+      "inherits": "default"
+    },
+    {
+      "name": "raspberrypi_zero2",
+      "inherits": "default"
+    },
+    {
+      "name": "samd11_xplained",
+      "inherits": "default"
+    },
+    {
+      "name": "same54_xplained",
+      "inherits": "default"
+    },
+    {
+      "name": "samg55_xplained",
+      "inherits": "default"
+    },
+    {
+      "name": "saml22_feather",
+      "inherits": "default"
+    },
+    {
+      "name": "seeeduino_xiao",
+      "inherits": "default"
+    },
+    {
+      "name": "sensorwatch_m0",
+      "inherits": "default"
+    },
+    {
+      "name": "sipeed_longan_nano",
+      "inherits": "default"
+    },
+    {
+      "name": "sparkfun_samd21_mini_usb",
+      "inherits": "default"
+    },
+    {
+      "name": "stlinkv3mini",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32c071nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f070rbnucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f072disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f072eval",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f103_bluepill",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f103_mini_2",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f103ze_iar",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f207nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f303disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f401blackpill",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f407blackvet",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f407disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f411blackpill",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f411disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f412disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f412nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f439nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f723disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f746disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f746nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f767nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32f769disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32g0b1nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32g474nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32g491nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h503nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h563nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h573i_dk",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h723nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h743eval",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h743nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h745disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h750_weact",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h750bdk",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h7s3nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32l052dap52",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32l0538disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32l412nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32l476disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32l4p5nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32l4r5nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32u545nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32u575eval",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32u575nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32u5a5nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32wb55nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "teensy_35",
+      "inherits": "default"
+    },
+    {
+      "name": "teensy_40",
+      "inherits": "default"
+    },
+    {
+      "name": "teensy_41",
+      "inherits": "default"
+    },
+    {
+      "name": "trinket_m0",
+      "inherits": "default"
+    },
+    {
+      "name": "uno_r4",
+      "inherits": "default"
+    },
+    {
+      "name": "waveshare_openh743i",
+      "inherits": "default"
+    },
+    {
+      "name": "xmc4500_relax",
+      "inherits": "default"
+    },
+    {
+      "name": "xmc4700_relax",
+      "inherits": "default"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "adafruit_clue",
+      "description": "Build preset for the adafruit_clue board",
+      "configurePreset": "adafruit_clue"
+    },
+    {
+      "name": "adafruit_feather_esp32_v2",
+      "description": "Build preset for the adafruit_feather_esp32_v2 board",
+      "configurePreset": "adafruit_feather_esp32_v2"
+    },
+    {
+      "name": "adafruit_feather_esp32s2",
+      "description": "Build preset for the adafruit_feather_esp32s2 board",
+      "configurePreset": "adafruit_feather_esp32s2"
+    },
+    {
+      "name": "adafruit_feather_esp32s3",
+      "description": "Build preset for the adafruit_feather_esp32s3 board",
+      "configurePreset": "adafruit_feather_esp32s3"
+    },
+    {
+      "name": "adafruit_magtag_29gray",
+      "description": "Build preset for the adafruit_magtag_29gray board",
+      "configurePreset": "adafruit_magtag_29gray"
+    },
+    {
+      "name": "adafruit_metro_esp32s2",
+      "description": "Build preset for the adafruit_metro_esp32s2 board",
+      "configurePreset": "adafruit_metro_esp32s2"
+    },
+    {
+      "name": "apard32690",
+      "description": "Build preset for the apard32690 board",
+      "configurePreset": "apard32690"
+    },
+    {
+      "name": "arduino_nano33_ble",
+      "description": "Build preset for the arduino_nano33_ble board",
+      "configurePreset": "arduino_nano33_ble"
+    },
+    {
+      "name": "atsamd21_xpro",
+      "description": "Build preset for the atsamd21_xpro board",
+      "configurePreset": "atsamd21_xpro"
+    },
+    {
+      "name": "atsaml21_xpro",
+      "description": "Build preset for the atsaml21_xpro board",
+      "configurePreset": "atsaml21_xpro"
+    },
+    {
+      "name": "b_g474e_dpow1",
+      "description": "Build preset for the b_g474e_dpow1 board",
+      "configurePreset": "b_g474e_dpow1"
+    },
+    {
+      "name": "b_u585i_iot2a",
+      "description": "Build preset for the b_u585i_iot2a board",
+      "configurePreset": "b_u585i_iot2a"
+    },
+    {
+      "name": "ch32v103r_r1_1v0",
+      "description": "Build preset for the ch32v103r_r1_1v0 board",
+      "configurePreset": "ch32v103r_r1_1v0"
+    },
+    {
+      "name": "ch32v203c_r0_1v0",
+      "description": "Build preset for the ch32v203c_r0_1v0 board",
+      "configurePreset": "ch32v203c_r0_1v0"
+    },
+    {
+      "name": "ch32v203g_r0_1v0",
+      "description": "Build preset for the ch32v203g_r0_1v0 board",
+      "configurePreset": "ch32v203g_r0_1v0"
+    },
+    {
+      "name": "ch32v307v_r1_1v0",
+      "description": "Build preset for the ch32v307v_r1_1v0 board",
+      "configurePreset": "ch32v307v_r1_1v0"
+    },
+    {
+      "name": "circuitplayground_bluefruit",
+      "description": "Build preset for the circuitplayground_bluefruit board",
+      "configurePreset": "circuitplayground_bluefruit"
+    },
+    {
+      "name": "circuitplayground_express",
+      "description": "Build preset for the circuitplayground_express board",
+      "configurePreset": "circuitplayground_express"
+    },
+    {
+      "name": "curiosity_nano",
+      "description": "Build preset for the curiosity_nano board",
+      "configurePreset": "curiosity_nano"
+    },
+    {
+      "name": "cynthion_d11",
+      "description": "Build preset for the cynthion_d11 board",
+      "configurePreset": "cynthion_d11"
+    },
+    {
+      "name": "cynthion_d21",
+      "description": "Build preset for the cynthion_d21 board",
+      "configurePreset": "cynthion_d21"
+    },
+    {
+      "name": "d5035_01",
+      "description": "Build preset for the d5035_01 board",
+      "configurePreset": "d5035_01"
+    },
+    {
+      "name": "da14695_dk_usb",
+      "description": "Build preset for the da14695_dk_usb board",
+      "configurePreset": "da14695_dk_usb"
+    },
+    {
+      "name": "da1469x_dk_pro",
+      "description": "Build preset for the da1469x_dk_pro board",
+      "configurePreset": "da1469x_dk_pro"
+    },
+    {
+      "name": "daisyseed",
+      "description": "Build preset for the daisyseed board",
+      "configurePreset": "daisyseed"
+    },
+    {
+      "name": "double_m33_express",
+      "description": "Build preset for the double_m33_express board",
+      "configurePreset": "double_m33_express"
+    },
+    {
+      "name": "ea4088_quickstart",
+      "description": "Build preset for the ea4088_quickstart board",
+      "configurePreset": "ea4088_quickstart"
+    },
+    {
+      "name": "ea4357",
+      "description": "Build preset for the ea4357 board",
+      "configurePreset": "ea4357"
+    },
+    {
+      "name": "ek_tm4c123gxl",
+      "description": "Build preset for the ek_tm4c123gxl board",
+      "configurePreset": "ek_tm4c123gxl"
+    },
+    {
+      "name": "espressif_addax_1",
+      "description": "Build preset for the espressif_addax_1 board",
+      "configurePreset": "espressif_addax_1"
+    },
+    {
+      "name": "espressif_c3_devkitc",
+      "description": "Build preset for the espressif_c3_devkitc board",
+      "configurePreset": "espressif_c3_devkitc"
+    },
+    {
+      "name": "espressif_c6_devkitc",
+      "description": "Build preset for the espressif_c6_devkitc board",
+      "configurePreset": "espressif_c6_devkitc"
+    },
+    {
+      "name": "espressif_kaluga_1",
+      "description": "Build preset for the espressif_kaluga_1 board",
+      "configurePreset": "espressif_kaluga_1"
+    },
+    {
+      "name": "espressif_p4_function_ev",
+      "description": "Build preset for the espressif_p4_function_ev board",
+      "configurePreset": "espressif_p4_function_ev"
+    },
+    {
+      "name": "espressif_s2_devkitc",
+      "description": "Build preset for the espressif_s2_devkitc board",
+      "configurePreset": "espressif_s2_devkitc"
+    },
+    {
+      "name": "espressif_s3_devkitc",
+      "description": "Build preset for the espressif_s3_devkitc board",
+      "configurePreset": "espressif_s3_devkitc"
+    },
+    {
+      "name": "espressif_s3_devkitm",
+      "description": "Build preset for the espressif_s3_devkitm board",
+      "configurePreset": "espressif_s3_devkitm"
+    },
+    {
+      "name": "espressif_saola_1",
+      "description": "Build preset for the espressif_saola_1 board",
+      "configurePreset": "espressif_saola_1"
+    },
+    {
+      "name": "f1c100s",
+      "description": "Build preset for the f1c100s board",
+      "configurePreset": "f1c100s"
+    },
+    {
+      "name": "feather_m0_express",
+      "description": "Build preset for the feather_m0_express board",
+      "configurePreset": "feather_m0_express"
+    },
+    {
+      "name": "feather_m4_express",
+      "description": "Build preset for the feather_m4_express board",
+      "configurePreset": "feather_m4_express"
+    },
+    {
+      "name": "feather_nrf52840_express",
+      "description": "Build preset for the feather_nrf52840_express board",
+      "configurePreset": "feather_nrf52840_express"
+    },
+    {
+      "name": "feather_nrf52840_sense",
+      "description": "Build preset for the feather_nrf52840_sense board",
+      "configurePreset": "feather_nrf52840_sense"
+    },
+    {
+      "name": "feather_rp2040_max3421",
+      "description": "Build preset for the feather_rp2040_max3421 board",
+      "configurePreset": "feather_rp2040_max3421"
+    },
+    {
+      "name": "feather_stm32f405",
+      "description": "Build preset for the feather_stm32f405 board",
+      "configurePreset": "feather_stm32f405"
+    },
+    {
+      "name": "fomu",
+      "description": "Build preset for the fomu board",
+      "configurePreset": "fomu"
+    },
+    {
+      "name": "frdm_k32l2a4s",
+      "description": "Build preset for the frdm_k32l2a4s board",
+      "configurePreset": "frdm_k32l2a4s"
+    },
+    {
+      "name": "frdm_k32l2b",
+      "description": "Build preset for the frdm_k32l2b board",
+      "configurePreset": "frdm_k32l2b"
+    },
+    {
+      "name": "frdm_k64f",
+      "description": "Build preset for the frdm_k64f board",
+      "configurePreset": "frdm_k64f"
+    },
+    {
+      "name": "frdm_kl25z",
+      "description": "Build preset for the frdm_kl25z board",
+      "configurePreset": "frdm_kl25z"
+    },
+    {
+      "name": "frdm_mcxa153",
+      "description": "Build preset for the frdm_mcxa153 board",
+      "configurePreset": "frdm_mcxa153"
+    },
+    {
+      "name": "frdm_mcxn947",
+      "description": "Build preset for the frdm_mcxn947 board",
+      "configurePreset": "frdm_mcxn947"
+    },
+    {
+      "name": "itsybitsy_m0",
+      "description": "Build preset for the itsybitsy_m0 board",
+      "configurePreset": "itsybitsy_m0"
+    },
+    {
+      "name": "itsybitsy_m4",
+      "description": "Build preset for the itsybitsy_m4 board",
+      "configurePreset": "itsybitsy_m4"
+    },
+    {
+      "name": "itsybitsy_nrf52840",
+      "description": "Build preset for the itsybitsy_nrf52840 board",
+      "configurePreset": "itsybitsy_nrf52840"
+    },
+    {
+      "name": "kuiic",
+      "description": "Build preset for the kuiic board",
+      "configurePreset": "kuiic"
+    },
+    {
+      "name": "lpcxpresso11u37",
+      "description": "Build preset for the lpcxpresso11u37 board",
+      "configurePreset": "lpcxpresso11u37"
+    },
+    {
+      "name": "lpcxpresso11u68",
+      "description": "Build preset for the lpcxpresso11u68 board",
+      "configurePreset": "lpcxpresso11u68"
+    },
+    {
+      "name": "lpcxpresso1347",
+      "description": "Build preset for the lpcxpresso1347 board",
+      "configurePreset": "lpcxpresso1347"
+    },
+    {
+      "name": "lpcxpresso1549",
+      "description": "Build preset for the lpcxpresso1549 board",
+      "configurePreset": "lpcxpresso1549"
+    },
+    {
+      "name": "lpcxpresso1769",
+      "description": "Build preset for the lpcxpresso1769 board",
+      "configurePreset": "lpcxpresso1769"
+    },
+    {
+      "name": "lpcxpresso18s37",
+      "description": "Build preset for the lpcxpresso18s37 board",
+      "configurePreset": "lpcxpresso18s37"
+    },
+    {
+      "name": "lpcxpresso43s67",
+      "description": "Build preset for the lpcxpresso43s67 board",
+      "configurePreset": "lpcxpresso43s67"
+    },
+    {
+      "name": "lpcxpresso51u68",
+      "description": "Build preset for the lpcxpresso51u68 board",
+      "configurePreset": "lpcxpresso51u68"
+    },
+    {
+      "name": "lpcxpresso54114",
+      "description": "Build preset for the lpcxpresso54114 board",
+      "configurePreset": "lpcxpresso54114"
+    },
+    {
+      "name": "lpcxpresso54608",
+      "description": "Build preset for the lpcxpresso54608 board",
+      "configurePreset": "lpcxpresso54608"
+    },
+    {
+      "name": "lpcxpresso54628",
+      "description": "Build preset for the lpcxpresso54628 board",
+      "configurePreset": "lpcxpresso54628"
+    },
+    {
+      "name": "lpcxpresso55s28",
+      "description": "Build preset for the lpcxpresso55s28 board",
+      "configurePreset": "lpcxpresso55s28"
+    },
+    {
+      "name": "lpcxpresso55s69",
+      "description": "Build preset for the lpcxpresso55s69 board",
+      "configurePreset": "lpcxpresso55s69"
+    },
+    {
+      "name": "max32650evkit",
+      "description": "Build preset for the max32650evkit board",
+      "configurePreset": "max32650evkit"
+    },
+    {
+      "name": "max32650fthr",
+      "description": "Build preset for the max32650fthr board",
+      "configurePreset": "max32650fthr"
+    },
+    {
+      "name": "max32651evkit",
+      "description": "Build preset for the max32651evkit board",
+      "configurePreset": "max32651evkit"
+    },
+    {
+      "name": "max32666evkit",
+      "description": "Build preset for the max32666evkit board",
+      "configurePreset": "max32666evkit"
+    },
+    {
+      "name": "max32666fthr",
+      "description": "Build preset for the max32666fthr board",
+      "configurePreset": "max32666fthr"
+    },
+    {
+      "name": "max32690evkit",
+      "description": "Build preset for the max32690evkit board",
+      "configurePreset": "max32690evkit"
+    },
+    {
+      "name": "max78002evkit",
+      "description": "Build preset for the max78002evkit board",
+      "configurePreset": "max78002evkit"
+    },
+    {
+      "name": "mbed1768",
+      "description": "Build preset for the mbed1768 board",
+      "configurePreset": "mbed1768"
+    },
+    {
+      "name": "mcb1800",
+      "description": "Build preset for the mcb1800 board",
+      "configurePreset": "mcb1800"
+    },
+    {
+      "name": "mcu_link",
+      "description": "Build preset for the mcu_link board",
+      "configurePreset": "mcu_link"
+    },
+    {
+      "name": "mcxn947brk",
+      "description": "Build preset for the mcxn947brk board",
+      "configurePreset": "mcxn947brk"
+    },
+    {
+      "name": "metro_m0_express",
+      "description": "Build preset for the metro_m0_express board",
+      "configurePreset": "metro_m0_express"
+    },
+    {
+      "name": "metro_m4_express",
+      "description": "Build preset for the metro_m4_express board",
+      "configurePreset": "metro_m4_express"
+    },
+    {
+      "name": "metro_m7_1011",
+      "description": "Build preset for the metro_m7_1011 board",
+      "configurePreset": "metro_m7_1011"
+    },
+    {
+      "name": "metro_m7_1011_sd",
+      "description": "Build preset for the metro_m7_1011_sd board",
+      "configurePreset": "metro_m7_1011_sd"
+    },
+    {
+      "name": "mimxrt1010_evk",
+      "description": "Build preset for the mimxrt1010_evk board",
+      "configurePreset": "mimxrt1010_evk"
+    },
+    {
+      "name": "mimxrt1015_evk",
+      "description": "Build preset for the mimxrt1015_evk board",
+      "configurePreset": "mimxrt1015_evk"
+    },
+    {
+      "name": "mimxrt1020_evk",
+      "description": "Build preset for the mimxrt1020_evk board",
+      "configurePreset": "mimxrt1020_evk"
+    },
+    {
+      "name": "mimxrt1024_evk",
+      "description": "Build preset for the mimxrt1024_evk board",
+      "configurePreset": "mimxrt1024_evk"
+    },
+    {
+      "name": "mimxrt1050_evkb",
+      "description": "Build preset for the mimxrt1050_evkb board",
+      "configurePreset": "mimxrt1050_evkb"
+    },
+    {
+      "name": "mimxrt1060_evk",
+      "description": "Build preset for the mimxrt1060_evk board",
+      "configurePreset": "mimxrt1060_evk"
+    },
+    {
+      "name": "mimxrt1064_evk",
+      "description": "Build preset for the mimxrt1064_evk board",
+      "configurePreset": "mimxrt1064_evk"
+    },
+    {
+      "name": "mimxrt1170_evkb",
+      "description": "Build preset for the mimxrt1170_evkb board",
+      "configurePreset": "mimxrt1170_evkb"
+    },
+    {
+      "name": "mm32f327x_mb39",
+      "description": "Build preset for the mm32f327x_mb39 board",
+      "configurePreset": "mm32f327x_mb39"
+    },
+    {
+      "name": "mm32f327x_pitaya_lite",
+      "description": "Build preset for the mm32f327x_pitaya_lite board",
+      "configurePreset": "mm32f327x_pitaya_lite"
+    },
+    {
+      "name": "msp_exp430f5529lp",
+      "description": "Build preset for the msp_exp430f5529lp board",
+      "configurePreset": "msp_exp430f5529lp"
+    },
+    {
+      "name": "msp_exp432e401y",
+      "description": "Build preset for the msp_exp432e401y board",
+      "configurePreset": "msp_exp432e401y"
+    },
+    {
+      "name": "nanoch32v203",
+      "description": "Build preset for the nanoch32v203 board",
+      "configurePreset": "nanoch32v203"
+    },
+    {
+      "name": "pca10056",
+      "description": "Build preset for the pca10056 board",
+      "configurePreset": "pca10056"
+    },
+    {
+      "name": "pca10059",
+      "description": "Build preset for the pca10059 board",
+      "configurePreset": "pca10059"
+    },
+    {
+      "name": "pca10095",
+      "description": "Build preset for the pca10095 board",
+      "configurePreset": "pca10095"
+    },
+    {
+      "name": "pca10100",
+      "description": "Build preset for the pca10100 board",
+      "configurePreset": "pca10100"
+    },
+    {
+      "name": "pico_sdk",
+      "description": "Build preset for the pico_sdk board",
+      "configurePreset": "pico_sdk"
+    },
+    {
+      "name": "portenta_c33",
+      "description": "Build preset for the portenta_c33 board",
+      "configurePreset": "portenta_c33"
+    },
+    {
+      "name": "pybadge",
+      "description": "Build preset for the pybadge board",
+      "configurePreset": "pybadge"
+    },
+    {
+      "name": "pyboardv11",
+      "description": "Build preset for the pyboardv11 board",
+      "configurePreset": "pyboardv11"
+    },
+    {
+      "name": "pyportal",
+      "description": "Build preset for the pyportal board",
+      "configurePreset": "pyportal"
+    },
+    {
+      "name": "qtpy",
+      "description": "Build preset for the qtpy board",
+      "configurePreset": "qtpy"
+    },
+    {
+      "name": "ra2a1_ek",
+      "description": "Build preset for the ra2a1_ek board",
+      "configurePreset": "ra2a1_ek"
+    },
+    {
+      "name": "ra4m1_ek",
+      "description": "Build preset for the ra4m1_ek board",
+      "configurePreset": "ra4m1_ek"
+    },
+    {
+      "name": "ra4m3_ek",
+      "description": "Build preset for the ra4m3_ek board",
+      "configurePreset": "ra4m3_ek"
+    },
+    {
+      "name": "ra6m1_ek",
+      "description": "Build preset for the ra6m1_ek board",
+      "configurePreset": "ra6m1_ek"
+    },
+    {
+      "name": "ra6m5_ek",
+      "description": "Build preset for the ra6m5_ek board",
+      "configurePreset": "ra6m5_ek"
+    },
+    {
+      "name": "ra8m1_ek",
+      "description": "Build preset for the ra8m1_ek board",
+      "configurePreset": "ra8m1_ek"
+    },
+    {
+      "name": "raspberry_pi_pico",
+      "description": "Build preset for the raspberry_pi_pico board",
+      "configurePreset": "raspberry_pi_pico"
+    },
+    {
+      "name": "raspberry_pi_pico2",
+      "description": "Build preset for the raspberry_pi_pico2 board",
+      "configurePreset": "raspberry_pi_pico2"
+    },
+    {
+      "name": "raspberrypi_cm4",
+      "description": "Build preset for the raspberrypi_cm4 board",
+      "configurePreset": "raspberrypi_cm4"
+    },
+    {
+      "name": "raspberrypi_zero",
+      "description": "Build preset for the raspberrypi_zero board",
+      "configurePreset": "raspberrypi_zero"
+    },
+    {
+      "name": "raspberrypi_zero2",
+      "description": "Build preset for the raspberrypi_zero2 board",
+      "configurePreset": "raspberrypi_zero2"
+    },
+    {
+      "name": "samd11_xplained",
+      "description": "Build preset for the samd11_xplained board",
+      "configurePreset": "samd11_xplained"
+    },
+    {
+      "name": "same54_xplained",
+      "description": "Build preset for the same54_xplained board",
+      "configurePreset": "same54_xplained"
+    },
+    {
+      "name": "samg55_xplained",
+      "description": "Build preset for the samg55_xplained board",
+      "configurePreset": "samg55_xplained"
+    },
+    {
+      "name": "saml22_feather",
+      "description": "Build preset for the saml22_feather board",
+      "configurePreset": "saml22_feather"
+    },
+    {
+      "name": "seeeduino_xiao",
+      "description": "Build preset for the seeeduino_xiao board",
+      "configurePreset": "seeeduino_xiao"
+    },
+    {
+      "name": "sensorwatch_m0",
+      "description": "Build preset for the sensorwatch_m0 board",
+      "configurePreset": "sensorwatch_m0"
+    },
+    {
+      "name": "sipeed_longan_nano",
+      "description": "Build preset for the sipeed_longan_nano board",
+      "configurePreset": "sipeed_longan_nano"
+    },
+    {
+      "name": "sparkfun_samd21_mini_usb",
+      "description": "Build preset for the sparkfun_samd21_mini_usb board",
+      "configurePreset": "sparkfun_samd21_mini_usb"
+    },
+    {
+      "name": "stlinkv3mini",
+      "description": "Build preset for the stlinkv3mini board",
+      "configurePreset": "stlinkv3mini"
+    },
+    {
+      "name": "stm32c071nucleo",
+      "description": "Build preset for the stm32c071nucleo board",
+      "configurePreset": "stm32c071nucleo"
+    },
+    {
+      "name": "stm32f070rbnucleo",
+      "description": "Build preset for the stm32f070rbnucleo board",
+      "configurePreset": "stm32f070rbnucleo"
+    },
+    {
+      "name": "stm32f072disco",
+      "description": "Build preset for the stm32f072disco board",
+      "configurePreset": "stm32f072disco"
+    },
+    {
+      "name": "stm32f072eval",
+      "description": "Build preset for the stm32f072eval board",
+      "configurePreset": "stm32f072eval"
+    },
+    {
+      "name": "stm32f103_bluepill",
+      "description": "Build preset for the stm32f103_bluepill board",
+      "configurePreset": "stm32f103_bluepill"
+    },
+    {
+      "name": "stm32f103_mini_2",
+      "description": "Build preset for the stm32f103_mini_2 board",
+      "configurePreset": "stm32f103_mini_2"
+    },
+    {
+      "name": "stm32f103ze_iar",
+      "description": "Build preset for the stm32f103ze_iar board",
+      "configurePreset": "stm32f103ze_iar"
+    },
+    {
+      "name": "stm32f207nucleo",
+      "description": "Build preset for the stm32f207nucleo board",
+      "configurePreset": "stm32f207nucleo"
+    },
+    {
+      "name": "stm32f303disco",
+      "description": "Build preset for the stm32f303disco board",
+      "configurePreset": "stm32f303disco"
+    },
+    {
+      "name": "stm32f401blackpill",
+      "description": "Build preset for the stm32f401blackpill board",
+      "configurePreset": "stm32f401blackpill"
+    },
+    {
+      "name": "stm32f407blackvet",
+      "description": "Build preset for the stm32f407blackvet board",
+      "configurePreset": "stm32f407blackvet"
+    },
+    {
+      "name": "stm32f407disco",
+      "description": "Build preset for the stm32f407disco board",
+      "configurePreset": "stm32f407disco"
+    },
+    {
+      "name": "stm32f411blackpill",
+      "description": "Build preset for the stm32f411blackpill board",
+      "configurePreset": "stm32f411blackpill"
+    },
+    {
+      "name": "stm32f411disco",
+      "description": "Build preset for the stm32f411disco board",
+      "configurePreset": "stm32f411disco"
+    },
+    {
+      "name": "stm32f412disco",
+      "description": "Build preset for the stm32f412disco board",
+      "configurePreset": "stm32f412disco"
+    },
+    {
+      "name": "stm32f412nucleo",
+      "description": "Build preset for the stm32f412nucleo board",
+      "configurePreset": "stm32f412nucleo"
+    },
+    {
+      "name": "stm32f439nucleo",
+      "description": "Build preset for the stm32f439nucleo board",
+      "configurePreset": "stm32f439nucleo"
+    },
+    {
+      "name": "stm32f723disco",
+      "description": "Build preset for the stm32f723disco board",
+      "configurePreset": "stm32f723disco"
+    },
+    {
+      "name": "stm32f746disco",
+      "description": "Build preset for the stm32f746disco board",
+      "configurePreset": "stm32f746disco"
+    },
+    {
+      "name": "stm32f746nucleo",
+      "description": "Build preset for the stm32f746nucleo board",
+      "configurePreset": "stm32f746nucleo"
+    },
+    {
+      "name": "stm32f767nucleo",
+      "description": "Build preset for the stm32f767nucleo board",
+      "configurePreset": "stm32f767nucleo"
+    },
+    {
+      "name": "stm32f769disco",
+      "description": "Build preset for the stm32f769disco board",
+      "configurePreset": "stm32f769disco"
+    },
+    {
+      "name": "stm32g0b1nucleo",
+      "description": "Build preset for the stm32g0b1nucleo board",
+      "configurePreset": "stm32g0b1nucleo"
+    },
+    {
+      "name": "stm32g474nucleo",
+      "description": "Build preset for the stm32g474nucleo board",
+      "configurePreset": "stm32g474nucleo"
+    },
+    {
+      "name": "stm32g491nucleo",
+      "description": "Build preset for the stm32g491nucleo board",
+      "configurePreset": "stm32g491nucleo"
+    },
+    {
+      "name": "stm32h503nucleo",
+      "description": "Build preset for the stm32h503nucleo board",
+      "configurePreset": "stm32h503nucleo"
+    },
+    {
+      "name": "stm32h563nucleo",
+      "description": "Build preset for the stm32h563nucleo board",
+      "configurePreset": "stm32h563nucleo"
+    },
+    {
+      "name": "stm32h573i_dk",
+      "description": "Build preset for the stm32h573i_dk board",
+      "configurePreset": "stm32h573i_dk"
+    },
+    {
+      "name": "stm32h723nucleo",
+      "description": "Build preset for the stm32h723nucleo board",
+      "configurePreset": "stm32h723nucleo"
+    },
+    {
+      "name": "stm32h743eval",
+      "description": "Build preset for the stm32h743eval board",
+      "configurePreset": "stm32h743eval"
+    },
+    {
+      "name": "stm32h743nucleo",
+      "description": "Build preset for the stm32h743nucleo board",
+      "configurePreset": "stm32h743nucleo"
+    },
+    {
+      "name": "stm32h745disco",
+      "description": "Build preset for the stm32h745disco board",
+      "configurePreset": "stm32h745disco"
+    },
+    {
+      "name": "stm32h750_weact",
+      "description": "Build preset for the stm32h750_weact board",
+      "configurePreset": "stm32h750_weact"
+    },
+    {
+      "name": "stm32h750bdk",
+      "description": "Build preset for the stm32h750bdk board",
+      "configurePreset": "stm32h750bdk"
+    },
+    {
+      "name": "stm32h7s3nucleo",
+      "description": "Build preset for the stm32h7s3nucleo board",
+      "configurePreset": "stm32h7s3nucleo"
+    },
+    {
+      "name": "stm32l052dap52",
+      "description": "Build preset for the stm32l052dap52 board",
+      "configurePreset": "stm32l052dap52"
+    },
+    {
+      "name": "stm32l0538disco",
+      "description": "Build preset for the stm32l0538disco board",
+      "configurePreset": "stm32l0538disco"
+    },
+    {
+      "name": "stm32l412nucleo",
+      "description": "Build preset for the stm32l412nucleo board",
+      "configurePreset": "stm32l412nucleo"
+    },
+    {
+      "name": "stm32l476disco",
+      "description": "Build preset for the stm32l476disco board",
+      "configurePreset": "stm32l476disco"
+    },
+    {
+      "name": "stm32l4p5nucleo",
+      "description": "Build preset for the stm32l4p5nucleo board",
+      "configurePreset": "stm32l4p5nucleo"
+    },
+    {
+      "name": "stm32l4r5nucleo",
+      "description": "Build preset for the stm32l4r5nucleo board",
+      "configurePreset": "stm32l4r5nucleo"
+    },
+    {
+      "name": "stm32u545nucleo",
+      "description": "Build preset for the stm32u545nucleo board",
+      "configurePreset": "stm32u545nucleo"
+    },
+    {
+      "name": "stm32u575eval",
+      "description": "Build preset for the stm32u575eval board",
+      "configurePreset": "stm32u575eval"
+    },
+    {
+      "name": "stm32u575nucleo",
+      "description": "Build preset for the stm32u575nucleo board",
+      "configurePreset": "stm32u575nucleo"
+    },
+    {
+      "name": "stm32u5a5nucleo",
+      "description": "Build preset for the stm32u5a5nucleo board",
+      "configurePreset": "stm32u5a5nucleo"
+    },
+    {
+      "name": "stm32wb55nucleo",
+      "description": "Build preset for the stm32wb55nucleo board",
+      "configurePreset": "stm32wb55nucleo"
+    },
+    {
+      "name": "teensy_35",
+      "description": "Build preset for the teensy_35 board",
+      "configurePreset": "teensy_35"
+    },
+    {
+      "name": "teensy_40",
+      "description": "Build preset for the teensy_40 board",
+      "configurePreset": "teensy_40"
+    },
+    {
+      "name": "teensy_41",
+      "description": "Build preset for the teensy_41 board",
+      "configurePreset": "teensy_41"
+    },
+    {
+      "name": "trinket_m0",
+      "description": "Build preset for the trinket_m0 board",
+      "configurePreset": "trinket_m0"
+    },
+    {
+      "name": "uno_r4",
+      "description": "Build preset for the uno_r4 board",
+      "configurePreset": "uno_r4"
+    },
+    {
+      "name": "waveshare_openh743i",
+      "description": "Build preset for the waveshare_openh743i board",
+      "configurePreset": "waveshare_openh743i"
+    },
+    {
+      "name": "xmc4500_relax",
+      "description": "Build preset for the xmc4500_relax board",
+      "configurePreset": "xmc4500_relax"
+    },
+    {
+      "name": "xmc4700_relax",
+      "description": "Build preset for the xmc4700_relax board",
+      "configurePreset": "xmc4700_relax"
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "adafruit_clue",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_clue"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_clue"
+        }
+      ]
+    },
+    {
+      "name": "adafruit_feather_esp32_v2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_feather_esp32_v2"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_feather_esp32_v2"
+        }
+      ]
+    },
+    {
+      "name": "adafruit_feather_esp32s2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_feather_esp32s2"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_feather_esp32s2"
+        }
+      ]
+    },
+    {
+      "name": "adafruit_feather_esp32s3",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_feather_esp32s3"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_feather_esp32s3"
+        }
+      ]
+    },
+    {
+      "name": "adafruit_magtag_29gray",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_magtag_29gray"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_magtag_29gray"
+        }
+      ]
+    },
+    {
+      "name": "adafruit_metro_esp32s2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_metro_esp32s2"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_metro_esp32s2"
+        }
+      ]
+    },
+    {
+      "name": "apard32690",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "apard32690"
+        },
+        {
+          "type": "build",
+          "name": "apard32690"
+        }
+      ]
+    },
+    {
+      "name": "arduino_nano33_ble",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "arduino_nano33_ble"
+        },
+        {
+          "type": "build",
+          "name": "arduino_nano33_ble"
+        }
+      ]
+    },
+    {
+      "name": "atsamd21_xpro",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "atsamd21_xpro"
+        },
+        {
+          "type": "build",
+          "name": "atsamd21_xpro"
+        }
+      ]
+    },
+    {
+      "name": "atsaml21_xpro",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "atsaml21_xpro"
+        },
+        {
+          "type": "build",
+          "name": "atsaml21_xpro"
+        }
+      ]
+    },
+    {
+      "name": "b_g474e_dpow1",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "b_g474e_dpow1"
+        },
+        {
+          "type": "build",
+          "name": "b_g474e_dpow1"
+        }
+      ]
+    },
+    {
+      "name": "b_u585i_iot2a",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "b_u585i_iot2a"
+        },
+        {
+          "type": "build",
+          "name": "b_u585i_iot2a"
+        }
+      ]
+    },
+    {
+      "name": "ch32v103r_r1_1v0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32v103r_r1_1v0"
+        },
+        {
+          "type": "build",
+          "name": "ch32v103r_r1_1v0"
+        }
+      ]
+    },
+    {
+      "name": "ch32v203c_r0_1v0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32v203c_r0_1v0"
+        },
+        {
+          "type": "build",
+          "name": "ch32v203c_r0_1v0"
+        }
+      ]
+    },
+    {
+      "name": "ch32v203g_r0_1v0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32v203g_r0_1v0"
+        },
+        {
+          "type": "build",
+          "name": "ch32v203g_r0_1v0"
+        }
+      ]
+    },
+    {
+      "name": "ch32v307v_r1_1v0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ch32v307v_r1_1v0"
+        },
+        {
+          "type": "build",
+          "name": "ch32v307v_r1_1v0"
+        }
+      ]
+    },
+    {
+      "name": "circuitplayground_bluefruit",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "circuitplayground_bluefruit"
+        },
+        {
+          "type": "build",
+          "name": "circuitplayground_bluefruit"
+        }
+      ]
+    },
+    {
+      "name": "circuitplayground_express",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "circuitplayground_express"
+        },
+        {
+          "type": "build",
+          "name": "circuitplayground_express"
+        }
+      ]
+    },
+    {
+      "name": "curiosity_nano",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "curiosity_nano"
+        },
+        {
+          "type": "build",
+          "name": "curiosity_nano"
+        }
+      ]
+    },
+    {
+      "name": "cynthion_d11",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "cynthion_d11"
+        },
+        {
+          "type": "build",
+          "name": "cynthion_d11"
+        }
+      ]
+    },
+    {
+      "name": "cynthion_d21",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "cynthion_d21"
+        },
+        {
+          "type": "build",
+          "name": "cynthion_d21"
+        }
+      ]
+    },
+    {
+      "name": "d5035_01",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "d5035_01"
+        },
+        {
+          "type": "build",
+          "name": "d5035_01"
+        }
+      ]
+    },
+    {
+      "name": "da14695_dk_usb",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "da14695_dk_usb"
+        },
+        {
+          "type": "build",
+          "name": "da14695_dk_usb"
+        }
+      ]
+    },
+    {
+      "name": "da1469x_dk_pro",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "da1469x_dk_pro"
+        },
+        {
+          "type": "build",
+          "name": "da1469x_dk_pro"
+        }
+      ]
+    },
+    {
+      "name": "daisyseed",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "daisyseed"
+        },
+        {
+          "type": "build",
+          "name": "daisyseed"
+        }
+      ]
+    },
+    {
+      "name": "double_m33_express",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "double_m33_express"
+        },
+        {
+          "type": "build",
+          "name": "double_m33_express"
+        }
+      ]
+    },
+    {
+      "name": "ea4088_quickstart",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ea4088_quickstart"
+        },
+        {
+          "type": "build",
+          "name": "ea4088_quickstart"
+        }
+      ]
+    },
+    {
+      "name": "ea4357",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ea4357"
+        },
+        {
+          "type": "build",
+          "name": "ea4357"
+        }
+      ]
+    },
+    {
+      "name": "ek_tm4c123gxl",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ek_tm4c123gxl"
+        },
+        {
+          "type": "build",
+          "name": "ek_tm4c123gxl"
+        }
+      ]
+    },
+    {
+      "name": "espressif_addax_1",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_addax_1"
+        },
+        {
+          "type": "build",
+          "name": "espressif_addax_1"
+        }
+      ]
+    },
+    {
+      "name": "espressif_c3_devkitc",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_c3_devkitc"
+        },
+        {
+          "type": "build",
+          "name": "espressif_c3_devkitc"
+        }
+      ]
+    },
+    {
+      "name": "espressif_c6_devkitc",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_c6_devkitc"
+        },
+        {
+          "type": "build",
+          "name": "espressif_c6_devkitc"
+        }
+      ]
+    },
+    {
+      "name": "espressif_kaluga_1",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_kaluga_1"
+        },
+        {
+          "type": "build",
+          "name": "espressif_kaluga_1"
+        }
+      ]
+    },
+    {
+      "name": "espressif_p4_function_ev",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_p4_function_ev"
+        },
+        {
+          "type": "build",
+          "name": "espressif_p4_function_ev"
+        }
+      ]
+    },
+    {
+      "name": "espressif_s2_devkitc",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_s2_devkitc"
+        },
+        {
+          "type": "build",
+          "name": "espressif_s2_devkitc"
+        }
+      ]
+    },
+    {
+      "name": "espressif_s3_devkitc",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_s3_devkitc"
+        },
+        {
+          "type": "build",
+          "name": "espressif_s3_devkitc"
+        }
+      ]
+    },
+    {
+      "name": "espressif_s3_devkitm",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_s3_devkitm"
+        },
+        {
+          "type": "build",
+          "name": "espressif_s3_devkitm"
+        }
+      ]
+    },
+    {
+      "name": "espressif_saola_1",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "espressif_saola_1"
+        },
+        {
+          "type": "build",
+          "name": "espressif_saola_1"
+        }
+      ]
+    },
+    {
+      "name": "f1c100s",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "f1c100s"
+        },
+        {
+          "type": "build",
+          "name": "f1c100s"
+        }
+      ]
+    },
+    {
+      "name": "feather_m0_express",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "feather_m0_express"
+        },
+        {
+          "type": "build",
+          "name": "feather_m0_express"
+        }
+      ]
+    },
+    {
+      "name": "feather_m4_express",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "feather_m4_express"
+        },
+        {
+          "type": "build",
+          "name": "feather_m4_express"
+        }
+      ]
+    },
+    {
+      "name": "feather_nrf52840_express",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "feather_nrf52840_express"
+        },
+        {
+          "type": "build",
+          "name": "feather_nrf52840_express"
+        }
+      ]
+    },
+    {
+      "name": "feather_nrf52840_sense",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "feather_nrf52840_sense"
+        },
+        {
+          "type": "build",
+          "name": "feather_nrf52840_sense"
+        }
+      ]
+    },
+    {
+      "name": "feather_rp2040_max3421",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "feather_rp2040_max3421"
+        },
+        {
+          "type": "build",
+          "name": "feather_rp2040_max3421"
+        }
+      ]
+    },
+    {
+      "name": "feather_stm32f405",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "feather_stm32f405"
+        },
+        {
+          "type": "build",
+          "name": "feather_stm32f405"
+        }
+      ]
+    },
+    {
+      "name": "fomu",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "fomu"
+        },
+        {
+          "type": "build",
+          "name": "fomu"
+        }
+      ]
+    },
+    {
+      "name": "frdm_k32l2a4s",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_k32l2a4s"
+        },
+        {
+          "type": "build",
+          "name": "frdm_k32l2a4s"
+        }
+      ]
+    },
+    {
+      "name": "frdm_k32l2b",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_k32l2b"
+        },
+        {
+          "type": "build",
+          "name": "frdm_k32l2b"
+        }
+      ]
+    },
+    {
+      "name": "frdm_k64f",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_k64f"
+        },
+        {
+          "type": "build",
+          "name": "frdm_k64f"
+        }
+      ]
+    },
+    {
+      "name": "frdm_kl25z",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_kl25z"
+        },
+        {
+          "type": "build",
+          "name": "frdm_kl25z"
+        }
+      ]
+    },
+    {
+      "name": "frdm_mcxa153",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_mcxa153"
+        },
+        {
+          "type": "build",
+          "name": "frdm_mcxa153"
+        }
+      ]
+    },
+    {
+      "name": "frdm_mcxn947",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_mcxn947"
+        },
+        {
+          "type": "build",
+          "name": "frdm_mcxn947"
+        }
+      ]
+    },
+    {
+      "name": "itsybitsy_m0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "itsybitsy_m0"
+        },
+        {
+          "type": "build",
+          "name": "itsybitsy_m0"
+        }
+      ]
+    },
+    {
+      "name": "itsybitsy_m4",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "itsybitsy_m4"
+        },
+        {
+          "type": "build",
+          "name": "itsybitsy_m4"
+        }
+      ]
+    },
+    {
+      "name": "itsybitsy_nrf52840",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "itsybitsy_nrf52840"
+        },
+        {
+          "type": "build",
+          "name": "itsybitsy_nrf52840"
+        }
+      ]
+    },
+    {
+      "name": "kuiic",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "kuiic"
+        },
+        {
+          "type": "build",
+          "name": "kuiic"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso11u37",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso11u37"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso11u37"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso11u68",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso11u68"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso11u68"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso1347",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso1347"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso1347"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso1549",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso1549"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso1549"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso1769",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso1769"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso1769"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso18s37",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso18s37"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso18s37"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso43s67",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso43s67"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso43s67"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso51u68",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso51u68"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso51u68"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso54114",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso54114"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso54114"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso54608",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso54608"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso54608"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso54628",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso54628"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso54628"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso55s28",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso55s28"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso55s28"
+        }
+      ]
+    },
+    {
+      "name": "lpcxpresso55s69",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "lpcxpresso55s69"
+        },
+        {
+          "type": "build",
+          "name": "lpcxpresso55s69"
+        }
+      ]
+    },
+    {
+      "name": "max32650evkit",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "max32650evkit"
+        },
+        {
+          "type": "build",
+          "name": "max32650evkit"
+        }
+      ]
+    },
+    {
+      "name": "max32650fthr",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "max32650fthr"
+        },
+        {
+          "type": "build",
+          "name": "max32650fthr"
+        }
+      ]
+    },
+    {
+      "name": "max32651evkit",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "max32651evkit"
+        },
+        {
+          "type": "build",
+          "name": "max32651evkit"
+        }
+      ]
+    },
+    {
+      "name": "max32666evkit",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "max32666evkit"
+        },
+        {
+          "type": "build",
+          "name": "max32666evkit"
+        }
+      ]
+    },
+    {
+      "name": "max32666fthr",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "max32666fthr"
+        },
+        {
+          "type": "build",
+          "name": "max32666fthr"
+        }
+      ]
+    },
+    {
+      "name": "max32690evkit",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "max32690evkit"
+        },
+        {
+          "type": "build",
+          "name": "max32690evkit"
+        }
+      ]
+    },
+    {
+      "name": "max78002evkit",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "max78002evkit"
+        },
+        {
+          "type": "build",
+          "name": "max78002evkit"
+        }
+      ]
+    },
+    {
+      "name": "mbed1768",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mbed1768"
+        },
+        {
+          "type": "build",
+          "name": "mbed1768"
+        }
+      ]
+    },
+    {
+      "name": "mcb1800",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mcb1800"
+        },
+        {
+          "type": "build",
+          "name": "mcb1800"
+        }
+      ]
+    },
+    {
+      "name": "mcu_link",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mcu_link"
+        },
+        {
+          "type": "build",
+          "name": "mcu_link"
+        }
+      ]
+    },
+    {
+      "name": "mcxn947brk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mcxn947brk"
+        },
+        {
+          "type": "build",
+          "name": "mcxn947brk"
+        }
+      ]
+    },
+    {
+      "name": "metro_m0_express",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "metro_m0_express"
+        },
+        {
+          "type": "build",
+          "name": "metro_m0_express"
+        }
+      ]
+    },
+    {
+      "name": "metro_m4_express",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "metro_m4_express"
+        },
+        {
+          "type": "build",
+          "name": "metro_m4_express"
+        }
+      ]
+    },
+    {
+      "name": "metro_m7_1011",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "metro_m7_1011"
+        },
+        {
+          "type": "build",
+          "name": "metro_m7_1011"
+        }
+      ]
+    },
+    {
+      "name": "metro_m7_1011_sd",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "metro_m7_1011_sd"
+        },
+        {
+          "type": "build",
+          "name": "metro_m7_1011_sd"
+        }
+      ]
+    },
+    {
+      "name": "mimxrt1010_evk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mimxrt1010_evk"
+        },
+        {
+          "type": "build",
+          "name": "mimxrt1010_evk"
+        }
+      ]
+    },
+    {
+      "name": "mimxrt1015_evk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mimxrt1015_evk"
+        },
+        {
+          "type": "build",
+          "name": "mimxrt1015_evk"
+        }
+      ]
+    },
+    {
+      "name": "mimxrt1020_evk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mimxrt1020_evk"
+        },
+        {
+          "type": "build",
+          "name": "mimxrt1020_evk"
+        }
+      ]
+    },
+    {
+      "name": "mimxrt1024_evk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mimxrt1024_evk"
+        },
+        {
+          "type": "build",
+          "name": "mimxrt1024_evk"
+        }
+      ]
+    },
+    {
+      "name": "mimxrt1050_evkb",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mimxrt1050_evkb"
+        },
+        {
+          "type": "build",
+          "name": "mimxrt1050_evkb"
+        }
+      ]
+    },
+    {
+      "name": "mimxrt1060_evk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mimxrt1060_evk"
+        },
+        {
+          "type": "build",
+          "name": "mimxrt1060_evk"
+        }
+      ]
+    },
+    {
+      "name": "mimxrt1064_evk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mimxrt1064_evk"
+        },
+        {
+          "type": "build",
+          "name": "mimxrt1064_evk"
+        }
+      ]
+    },
+    {
+      "name": "mimxrt1170_evkb",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mimxrt1170_evkb"
+        },
+        {
+          "type": "build",
+          "name": "mimxrt1170_evkb"
+        }
+      ]
+    },
+    {
+      "name": "mm32f327x_mb39",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mm32f327x_mb39"
+        },
+        {
+          "type": "build",
+          "name": "mm32f327x_mb39"
+        }
+      ]
+    },
+    {
+      "name": "mm32f327x_pitaya_lite",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mm32f327x_pitaya_lite"
+        },
+        {
+          "type": "build",
+          "name": "mm32f327x_pitaya_lite"
+        }
+      ]
+    },
+    {
+      "name": "msp_exp430f5529lp",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msp_exp430f5529lp"
+        },
+        {
+          "type": "build",
+          "name": "msp_exp430f5529lp"
+        }
+      ]
+    },
+    {
+      "name": "msp_exp432e401y",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msp_exp432e401y"
+        },
+        {
+          "type": "build",
+          "name": "msp_exp432e401y"
+        }
+      ]
+    },
+    {
+      "name": "nanoch32v203",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nanoch32v203"
+        },
+        {
+          "type": "build",
+          "name": "nanoch32v203"
+        }
+      ]
+    },
+    {
+      "name": "pca10056",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pca10056"
+        },
+        {
+          "type": "build",
+          "name": "pca10056"
+        }
+      ]
+    },
+    {
+      "name": "pca10059",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pca10059"
+        },
+        {
+          "type": "build",
+          "name": "pca10059"
+        }
+      ]
+    },
+    {
+      "name": "pca10095",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pca10095"
+        },
+        {
+          "type": "build",
+          "name": "pca10095"
+        }
+      ]
+    },
+    {
+      "name": "pca10100",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pca10100"
+        },
+        {
+          "type": "build",
+          "name": "pca10100"
+        }
+      ]
+    },
+    {
+      "name": "pico_sdk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pico_sdk"
+        },
+        {
+          "type": "build",
+          "name": "pico_sdk"
+        }
+      ]
+    },
+    {
+      "name": "portenta_c33",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "portenta_c33"
+        },
+        {
+          "type": "build",
+          "name": "portenta_c33"
+        }
+      ]
+    },
+    {
+      "name": "pybadge",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pybadge"
+        },
+        {
+          "type": "build",
+          "name": "pybadge"
+        }
+      ]
+    },
+    {
+      "name": "pyboardv11",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pyboardv11"
+        },
+        {
+          "type": "build",
+          "name": "pyboardv11"
+        }
+      ]
+    },
+    {
+      "name": "pyportal",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "pyportal"
+        },
+        {
+          "type": "build",
+          "name": "pyportal"
+        }
+      ]
+    },
+    {
+      "name": "qtpy",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "qtpy"
+        },
+        {
+          "type": "build",
+          "name": "qtpy"
+        }
+      ]
+    },
+    {
+      "name": "ra2a1_ek",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ra2a1_ek"
+        },
+        {
+          "type": "build",
+          "name": "ra2a1_ek"
+        }
+      ]
+    },
+    {
+      "name": "ra4m1_ek",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ra4m1_ek"
+        },
+        {
+          "type": "build",
+          "name": "ra4m1_ek"
+        }
+      ]
+    },
+    {
+      "name": "ra4m3_ek",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ra4m3_ek"
+        },
+        {
+          "type": "build",
+          "name": "ra4m3_ek"
+        }
+      ]
+    },
+    {
+      "name": "ra6m1_ek",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ra6m1_ek"
+        },
+        {
+          "type": "build",
+          "name": "ra6m1_ek"
+        }
+      ]
+    },
+    {
+      "name": "ra6m5_ek",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ra6m5_ek"
+        },
+        {
+          "type": "build",
+          "name": "ra6m5_ek"
+        }
+      ]
+    },
+    {
+      "name": "ra8m1_ek",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ra8m1_ek"
+        },
+        {
+          "type": "build",
+          "name": "ra8m1_ek"
+        }
+      ]
+    },
+    {
+      "name": "raspberry_pi_pico",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "raspberry_pi_pico"
+        },
+        {
+          "type": "build",
+          "name": "raspberry_pi_pico"
+        }
+      ]
+    },
+    {
+      "name": "raspberry_pi_pico2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "raspberry_pi_pico2"
+        },
+        {
+          "type": "build",
+          "name": "raspberry_pi_pico2"
+        }
+      ]
+    },
+    {
+      "name": "raspberrypi_cm4",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "raspberrypi_cm4"
+        },
+        {
+          "type": "build",
+          "name": "raspberrypi_cm4"
+        }
+      ]
+    },
+    {
+      "name": "raspberrypi_zero",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "raspberrypi_zero"
+        },
+        {
+          "type": "build",
+          "name": "raspberrypi_zero"
+        }
+      ]
+    },
+    {
+      "name": "raspberrypi_zero2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "raspberrypi_zero2"
+        },
+        {
+          "type": "build",
+          "name": "raspberrypi_zero2"
+        }
+      ]
+    },
+    {
+      "name": "samd11_xplained",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "samd11_xplained"
+        },
+        {
+          "type": "build",
+          "name": "samd11_xplained"
+        }
+      ]
+    },
+    {
+      "name": "same54_xplained",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "same54_xplained"
+        },
+        {
+          "type": "build",
+          "name": "same54_xplained"
+        }
+      ]
+    },
+    {
+      "name": "samg55_xplained",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "samg55_xplained"
+        },
+        {
+          "type": "build",
+          "name": "samg55_xplained"
+        }
+      ]
+    },
+    {
+      "name": "saml22_feather",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "saml22_feather"
+        },
+        {
+          "type": "build",
+          "name": "saml22_feather"
+        }
+      ]
+    },
+    {
+      "name": "seeeduino_xiao",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "seeeduino_xiao"
+        },
+        {
+          "type": "build",
+          "name": "seeeduino_xiao"
+        }
+      ]
+    },
+    {
+      "name": "sensorwatch_m0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sensorwatch_m0"
+        },
+        {
+          "type": "build",
+          "name": "sensorwatch_m0"
+        }
+      ]
+    },
+    {
+      "name": "sipeed_longan_nano",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sipeed_longan_nano"
+        },
+        {
+          "type": "build",
+          "name": "sipeed_longan_nano"
+        }
+      ]
+    },
+    {
+      "name": "sparkfun_samd21_mini_usb",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sparkfun_samd21_mini_usb"
+        },
+        {
+          "type": "build",
+          "name": "sparkfun_samd21_mini_usb"
+        }
+      ]
+    },
+    {
+      "name": "stlinkv3mini",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stlinkv3mini"
+        },
+        {
+          "type": "build",
+          "name": "stlinkv3mini"
+        }
+      ]
+    },
+    {
+      "name": "stm32c071nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32c071nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32c071nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32f070rbnucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f070rbnucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32f070rbnucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32f072disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f072disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32f072disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32f072eval",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f072eval"
+        },
+        {
+          "type": "build",
+          "name": "stm32f072eval"
+        }
+      ]
+    },
+    {
+      "name": "stm32f103_bluepill",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f103_bluepill"
+        },
+        {
+          "type": "build",
+          "name": "stm32f103_bluepill"
+        }
+      ]
+    },
+    {
+      "name": "stm32f103_mini_2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f103_mini_2"
+        },
+        {
+          "type": "build",
+          "name": "stm32f103_mini_2"
+        }
+      ]
+    },
+    {
+      "name": "stm32f103ze_iar",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f103ze_iar"
+        },
+        {
+          "type": "build",
+          "name": "stm32f103ze_iar"
+        }
+      ]
+    },
+    {
+      "name": "stm32f207nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f207nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32f207nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32f303disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f303disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32f303disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32f401blackpill",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f401blackpill"
+        },
+        {
+          "type": "build",
+          "name": "stm32f401blackpill"
+        }
+      ]
+    },
+    {
+      "name": "stm32f407blackvet",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f407blackvet"
+        },
+        {
+          "type": "build",
+          "name": "stm32f407blackvet"
+        }
+      ]
+    },
+    {
+      "name": "stm32f407disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f407disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32f407disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32f411blackpill",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f411blackpill"
+        },
+        {
+          "type": "build",
+          "name": "stm32f411blackpill"
+        }
+      ]
+    },
+    {
+      "name": "stm32f411disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f411disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32f411disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32f412disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f412disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32f412disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32f412nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f412nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32f412nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32f439nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f439nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32f439nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32f723disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f723disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32f723disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32f746disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f746disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32f746disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32f746nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f746nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32f746nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32f767nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f767nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32f767nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32f769disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32f769disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32f769disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32g0b1nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32g0b1nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32g0b1nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32g474nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32g474nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32g474nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32g491nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32g491nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32g491nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32h503nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h503nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32h503nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32h563nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h563nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32h563nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32h573i_dk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h573i_dk"
+        },
+        {
+          "type": "build",
+          "name": "stm32h573i_dk"
+        }
+      ]
+    },
+    {
+      "name": "stm32h723nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h723nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32h723nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32h743eval",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h743eval"
+        },
+        {
+          "type": "build",
+          "name": "stm32h743eval"
+        }
+      ]
+    },
+    {
+      "name": "stm32h743nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h743nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32h743nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32h745disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h745disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32h745disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32h750_weact",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h750_weact"
+        },
+        {
+          "type": "build",
+          "name": "stm32h750_weact"
+        }
+      ]
+    },
+    {
+      "name": "stm32h750bdk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h750bdk"
+        },
+        {
+          "type": "build",
+          "name": "stm32h750bdk"
+        }
+      ]
+    },
+    {
+      "name": "stm32h7s3nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h7s3nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32h7s3nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32l052dap52",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32l052dap52"
+        },
+        {
+          "type": "build",
+          "name": "stm32l052dap52"
+        }
+      ]
+    },
+    {
+      "name": "stm32l0538disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32l0538disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32l0538disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32l412nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32l412nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32l412nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32l476disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32l476disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32l476disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32l4p5nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32l4p5nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32l4p5nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32l4r5nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32l4r5nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32l4r5nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32u545nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32u545nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32u545nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32u575eval",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32u575eval"
+        },
+        {
+          "type": "build",
+          "name": "stm32u575eval"
+        }
+      ]
+    },
+    {
+      "name": "stm32u575nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32u575nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32u575nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32u5a5nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32u5a5nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32u5a5nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32wb55nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32wb55nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32wb55nucleo"
+        }
+      ]
+    },
+    {
+      "name": "teensy_35",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "teensy_35"
+        },
+        {
+          "type": "build",
+          "name": "teensy_35"
+        }
+      ]
+    },
+    {
+      "name": "teensy_40",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "teensy_40"
+        },
+        {
+          "type": "build",
+          "name": "teensy_40"
+        }
+      ]
+    },
+    {
+      "name": "teensy_41",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "teensy_41"
+        },
+        {
+          "type": "build",
+          "name": "teensy_41"
+        }
+      ]
+    },
+    {
+      "name": "trinket_m0",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "trinket_m0"
+        },
+        {
+          "type": "build",
+          "name": "trinket_m0"
+        }
+      ]
+    },
+    {
+      "name": "uno_r4",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "uno_r4"
+        },
+        {
+          "type": "build",
+          "name": "uno_r4"
+        }
+      ]
+    },
+    {
+      "name": "waveshare_openh743i",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "waveshare_openh743i"
+        },
+        {
+          "type": "build",
+          "name": "waveshare_openh743i"
+        }
+      ]
+    },
+    {
+      "name": "xmc4500_relax",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "xmc4500_relax"
+        },
+        {
+          "type": "build",
+          "name": "xmc4500_relax"
+        }
+      ]
+    },
+    {
+      "name": "xmc4700_relax",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "xmc4700_relax"
+        },
+        {
+          "type": "build",
+          "name": "xmc4700_relax"
+        }
+      ]
+    }
+  ]
+}

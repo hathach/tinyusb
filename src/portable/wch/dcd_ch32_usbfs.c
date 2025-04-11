@@ -192,7 +192,8 @@ void dcd_int_handler(uint8_t rhport) {
     data.xfer[0][TUSB_DIR_OUT].max_size = 64;
     data.xfer[0][TUSB_DIR_IN].max_size = 64;
 
-    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+    //dcd_event_bus_reset(rhport, (USBOTG_FS->BASE_CTRL & USBFS_CTRL_LOW_SPEED) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL, true);
+    dcd_event_bus_reset(rhport, (USBOTG_FS->UDEV_CTRL & USBFS_UDEV_CTRL_LOW_SPEED) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL, true);
 
     USBOTG_FS->DEV_ADDR = 0x00;
     EP_RX_CTRL(0) = USBFS_EP_R_RES_ACK;

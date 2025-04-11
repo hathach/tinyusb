@@ -197,9 +197,41 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
       }
     }
     break;
-
     default: break;
   }
+}
+
+/* use this to send stylus touch signal through USB. */
+static void send_stylus_touch(uint16_t x, uint16_t y, bool state)
+{
+  // skip if hid is not ready yet
+  if ( !tud_hid_ready() ) return;
+
+  static bool has_stylus_pen = false;
+
+  hid_stylus_report_t report =
+  {
+    .attr = 0,
+    .x = 0,
+    .y = 0
+  };
+
+  report.x = x;
+  report.y = y;
+
+  if (state)
+  {
+    report.attr = STYLUS_ATTR_TIP_SWITCH | STYLUS_ATTR_IN_RANGE;
+    tud_hid_report(REPORT_ID_STYLUS_PEN, &report, sizeof(report));
+
+    has_stylus_pen = true;
+  }else
+  {
+    report.attr = 0;
+    if (has_stylus_pen) tud_hid_report(REPORT_ID_STYLUS_PEN, &report, sizeof(report));
+    has_stylus_pen = false;
+  }
+
 }
 
 // Every 10ms, we will sent 1 report for each HID profile (keyboard, mouse etc ..)
@@ -209,6 +241,14 @@ void hid_task(void)
   // Poll every 10ms
   const uint32_t interval_ms = 10;
   static uint32_t start_ms = 0;
+  static uint32_t touch_ms = 0;
+  static bool touch_state = false;
+
+  if (board_millis() - touch_ms < 100) {
+    touch_ms = board_millis();
+    send_stylus_touch(0, 0, touch_state = !touch_state);
+    return;
+  }
 
   if ( board_millis() - start_ms < interval_ms) return; // not enough time
   start_ms += interval_ms;

@@ -661,6 +661,7 @@ typedef struct TU_ATTR_PACKED
   uint16_t wTotalLength      ; ///< Total number of bytes returned for the class-specific AudioControl interface descriptor. Includes the combined length of this descriptor header and all Clock Source, Unit and Terminal descriptors.
   uint8_t bmControls         ; ///< See: audio_cs_ac_interface_control_pos_t.
 } audio_desc_cs_ac_interface_t;
+TU_VERIFY_STATIC(sizeof(audio_desc_cs_ac_interface_t) == 9, "size is not correct");
 
 /// AUDIO Clock Source Descriptor (4.7.2.1)
 typedef struct TU_ATTR_PACKED
