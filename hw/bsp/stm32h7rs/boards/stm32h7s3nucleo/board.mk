@@ -20,3 +20,4 @@ INC += \
 
 CFLAGS += \
 	-DSEGGER_RTT_SECTION=\"noncacheable_buffer\" \
+	-DBUFFER_SIZE_UP=0x3000 \
