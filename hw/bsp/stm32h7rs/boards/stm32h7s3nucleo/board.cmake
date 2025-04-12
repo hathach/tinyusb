@@ -2,8 +2,14 @@ set(MCU_VARIANT stm32h7s3xx)
 set(JLINK_DEVICE stm32h7s3xx)
 
 function(update_board TARGET)
+
+  set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/stm32h7s3xx_flash.ld)
+  set(LD_FILE_Clang ${LD_FILE_GNU})
+  set(LD_FILE_IAR ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/stm32h7s3xx_flash.icf)
+
   target_compile_definitions(${TARGET} PUBLIC
     STM32H7S3xx
+    SEGGER_RTT_SECTION="noncacheable_buffer"
     )
 
   target_sources(${TARGET} PUBLIC

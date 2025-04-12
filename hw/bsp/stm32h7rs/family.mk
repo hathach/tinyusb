@@ -88,5 +88,5 @@ SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_GCC = $(ST_CMSIS)/Source/Templates/gcc/linker/$(MCU_VARIANT)_flash.ld
+LD_FILE_GCC ?= $(ST_CMSIS)/Source/Templates/gcc/linker/$(MCU_VARIANT)_flash.ld
 LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
