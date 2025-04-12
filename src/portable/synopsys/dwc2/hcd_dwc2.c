@@ -1290,10 +1290,10 @@ static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
 */
 static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  uint32_t hprt = dwc2->hprt & ~HPRT_W1_MASK;
-  const dwc2_hprt_t hprt_bm = {.value = hprt};
+  const dwc2_hprt_t hprt_bm = {.value = dwc2->hprt};
+  uint32_t hprt = hprt_bm.value & ~HPRT_W1_MASK;
 
-  if (dwc2->hprt & HPRT_CONN_DETECT) {
+  if (hprt_bm.conn_detected) {
     // Port Connect Detect
     hprt |= HPRT_CONN_DETECT;
 
@@ -1304,7 +1304,7 @@ static void handle_hprt_irq(uint8_t rhport, bool in_isr) {
     }
   }
 
-  if (dwc2->hprt & HPRT_ENABLE_CHANGE) {
+  if (hprt_bm.enable_change) {
     // Port enable change
     hprt |= HPRT_ENABLE_CHANGE;
 
