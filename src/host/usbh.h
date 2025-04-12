@@ -33,6 +33,10 @@
 
 #include "common/tusb_common.h"
 
+#if CFG_TUH_MAX3421
+#include "portable/analog/max3421/hcd_max3421.h"
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -100,10 +104,13 @@ typedef union {
 //--------------------------------------------------------------------+
 
 // Invoked when enumeration get device descriptor
-// TU_ATTR_WEAK void tuh_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device);
+// Device is not ready to communicate yet, application can copy the descriptor if needed
+void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc_device);
 
 // Invoked when enumeration get configuration descriptor
-// TU_ATTR_WEAK void tuh_desc_configuration_cb(uint8_t daddr, uint8_t cfg_index, const tusb_desc_configuration_t *desc_config);
+// For multi-configuration device return false to skip, true to proceed with this configuration (may not be implemented yet)
+// Device is not ready to communicate yet, application can copy the descriptor if needed
+bool tuh_enum_descriptor_configuration_cb(uint8_t daddr, uint8_t cfg_index, const tusb_desc_configuration_t *desc_config);
 
 // Invoked when a device is mounted (configured)
 TU_ATTR_WEAK void tuh_mount_cb (uint8_t daddr);
@@ -155,8 +162,7 @@ bool tuh_inited(void);
 void tuh_task_ext(uint32_t timeout_ms, bool in_isr);
 
 // Task function should be called in main/rtos loop
-TU_ATTR_ALWAYS_INLINE static inline
-void tuh_task(void) {
+TU_ATTR_ALWAYS_INLINE static inline void tuh_task(void) {
   tuh_task_ext(UINT32_MAX, false);
 }
 
@@ -197,16 +203,14 @@ bool tuh_mounted(uint8_t daddr);
 bool tuh_connected(uint8_t daddr);
 
 // Check if device is suspended
-TU_ATTR_ALWAYS_INLINE static inline
-bool tuh_suspended(uint8_t daddr) {
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_suspended(uint8_t daddr) {
   // TODO implement suspend & resume on host
   (void) daddr;
   return false;
 }
 
 // Check if device is ready to communicate with
-TU_ATTR_ALWAYS_INLINE static inline
-bool tuh_ready(uint8_t daddr) {
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_ready(uint8_t daddr) {
   return tuh_mounted(daddr) && !tuh_suspended(daddr);
 }
 
@@ -226,6 +230,9 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer);
 
 // Open a non-control endpoint
 bool tuh_edpt_open(uint8_t daddr, tusb_desc_endpoint_t const * desc_ep);
+
+// Close a non-control endpoint, it will abort any pending transfer
+bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr);
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
 // Return true if a queued transfer is aborted, false if there is no transfer to abort

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding= "UTF-8" ?>
-<configuration name="MIMXRT1176xxxxx" xsi:schemaLocation="http://mcuxpresso.nxp.com/XSD/mex_configuration_16 http://mcuxpresso.nxp.com/XSD/mex_configuration_16.xsd" uuid="060646c1-2247-47a8-b52d-03c1968b4426" version="16" xmlns="http://mcuxpresso.nxp.com/XSD/mex_configuration_16" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<configuration name="MIMXRT1176xxxxx" xsi:schemaLocation="http://mcuxpresso.nxp.com/XSD/mex_configuration_17 http://mcuxpresso.nxp.com/XSD/mex_configuration_17.xsd" uuid="060646c1-2247-47a8-b52d-03c1968b4426" version="17" xmlns="http://mcuxpresso.nxp.com/XSD/mex_configuration_17" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
    <common>
       <processor>MIMXRT1176xxxxx</processor>
       <package>MIMXRT1176DVMAA</package>
@@ -13,19 +13,18 @@
    </common>
    <preferences>
       <validate_boot_init_only>true</validate_boot_init_only>
-      <generate_extended_information>false</generate_extended_information>
       <generate_code_modified_registers_only>false</generate_code_modified_registers_only>
       <update_include_paths>true</update_include_paths>
       <generate_registers_defines>false</generate_registers_defines>
    </preferences>
    <tools>
-      <pins name="Pins" version="16.0" enabled="true" update_project_code="true">
+      <pins name="Pins" version="17.0" enabled="true" update_project_code="true">
          <generated_project_files>
             <file path="board/pin_mux.c" update_enabled="true"/>
             <file path="board/pin_mux.h" update_enabled="true"/>
          </generated_project_files>
          <pins_profile>
-            <processor_version>16.3.0</processor_version>
+            <processor_version>24.12.10</processor_version>
             <pin_labels>
                <pin_label pin_num="M13" pin_signal="GPIO_AD_04" label="SIM1_PD/J44[C8]/USER_LED_CTL1/J9[8]/J25[7]" identifier="SIM1_PD;LED;USER_LED"/>
             </pin_labels>
@@ -43,11 +42,6 @@
                   <enableClock>true</enableClock>
                </options>
                <dependencies>
-                  <dependency resourceType="Peripheral" resourceId="LPUART1" description="Peripheral LPUART1 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitPins">
-                     <feature name="initialized" evaluation="equal">
-                        <data>true</data>
-                     </feature>
-                  </dependency>
                   <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitPins">
                      <feature name="enabled" evaluation="equal" configuration="cm7">
                         <data>true</data>
@@ -65,26 +59,6 @@
                   </dependency>
                </dependencies>
                <pins>
-                  <pin peripheral="LPUART1" signal="RXD" pin_num="M15" pin_signal="GPIO_AD_25">
-                     <pin_features>
-                        <pin_feature name="software_input_on" value="Disable"/>
-                        <pin_feature name="pull_up_down_config" value="Pull_Down"/>
-                        <pin_feature name="pull_keeper_select" value="Keeper"/>
-                        <pin_feature name="open_drain" value="Disable"/>
-                        <pin_feature name="drive_strength" value="High"/>
-                        <pin_feature name="slew_rate" value="Slow"/>
-                     </pin_features>
-                  </pin>
-                  <pin peripheral="LPUART1" signal="TXD" pin_num="L13" pin_signal="GPIO_AD_24">
-                     <pin_features>
-                        <pin_feature name="software_input_on" value="Disable"/>
-                        <pin_feature name="pull_up_down_config" value="Pull_Down"/>
-                        <pin_feature name="pull_keeper_select" value="Keeper"/>
-                        <pin_feature name="open_drain" value="Disable"/>
-                        <pin_feature name="drive_strength" value="High"/>
-                        <pin_feature name="slew_rate" value="Slow"/>
-                     </pin_features>
-                  </pin>
                   <pin peripheral="GPIO9" signal="gpio_io, 03" pin_num="M13" pin_signal="GPIO_AD_04">
                      <pin_features>
                         <pin_feature name="identifier" value="USER_LED"/>
@@ -101,15 +75,54 @@
                   </pin>
                </pins>
             </function>
+            <function name="BOARD_InitDEBUG_UARTPins">
+               <description>Configures pin routing and optionally pin electrical features.</description>
+               <options>
+                  <callFromInitBoot>true</callFromInitBoot>
+                  <coreID>cm7</coreID>
+                  <enableClock>true</enableClock>
+               </options>
+               <dependencies>
+                  <dependency resourceType="Peripheral" resourceId="LPUART1" description="Peripheral LPUART1 signals are routed in the Pins Tool, but the peripheral is not initialized in the Peripherals Tool." problem_level="1" source="Pins:BOARD_InitDEBUG_UARTPins">
+                     <feature name="initialized" evaluation="equal">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.common" description="Pins initialization requires the COMMON Driver in the project." problem_level="2" source="Pins:BOARD_InitDEBUG_UARTPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm7">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+                  <dependency resourceType="SWComponent" resourceId="platform.drivers.iomuxc" description="Pins initialization requires the IOMUXC Driver in the project." problem_level="2" source="Pins:BOARD_InitDEBUG_UARTPins">
+                     <feature name="enabled" evaluation="equal" configuration="cm7">
+                        <data>true</data>
+                     </feature>
+                  </dependency>
+               </dependencies>
+               <pins>
+                  <pin peripheral="LPUART1" signal="TXD" pin_num="L13" pin_signal="GPIO_AD_24">
+                     <pin_features>
+                        <pin_feature name="pull_keeper_select" value="Keeper"/>
+                        <pin_feature name="slew_rate" value="Slow"/>
+                     </pin_features>
+                  </pin>
+                  <pin peripheral="LPUART1" signal="RXD" pin_num="M15" pin_signal="GPIO_AD_25">
+                     <pin_features>
+                        <pin_feature name="pull_keeper_select" value="Keeper"/>
+                        <pin_feature name="slew_rate" value="Slow"/>
+                     </pin_features>
+                  </pin>
+               </pins>
+            </function>
          </functions_list>
       </pins>
-      <clocks name="Clocks" version="14.0" enabled="true" update_project_code="true">
+      <clocks name="Clocks" version="15.0" enabled="true" update_project_code="true">
          <generated_project_files>
             <file path="board/clock_config.c" update_enabled="true"/>
             <file path="board/clock_config.h" update_enabled="true"/>
          </generated_project_files>
          <clocks_profile>
-            <processor_version>16.3.0</processor_version>
+            <processor_version>24.12.10</processor_version>
          </clocks_profile>
          <clock_configurations>
             <clock_configuration name="BOARD_BootClockRUN" id_prefix="" prefix_user_defined="false">

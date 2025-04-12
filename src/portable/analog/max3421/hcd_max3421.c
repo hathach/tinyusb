@@ -253,28 +253,6 @@ static tuh_configure_max3421_t _tuh_cfg = {
 };
 
 //--------------------------------------------------------------------+
-// API: SPI transfer with MAX3421E
-// - spi_cs_api(), spi_xfer_api(), int_api(): must be implemented by application
-// - reg_read(), reg_write(): is implemented by this driver, can be used by application
-//--------------------------------------------------------------------+
-
-// API to control MAX3421 SPI CS
-extern void tuh_max3421_spi_cs_api(uint8_t rhport, bool active);
-
-// API to transfer data with MAX3421 SPI
-// Either tx_buf or rx_buf can be NULL, which means transfer is write or read only
-extern bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx_buf, size_t xfer_bytes);
-
-// API to enable/disable MAX3421 INTR pin interrupt
-extern void tuh_max3421_int_api(uint8_t rhport, bool enabled);
-
-// API to read MAX3421's register. Implemented by TinyUSB
-uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
-
-// API to write MAX3421's register. Implemented by TinyUSB
-bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
-
-//--------------------------------------------------------------------+
 // SPI Commands and Helper
 //--------------------------------------------------------------------+
 
@@ -632,6 +610,9 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
   if (daddr == 0 && ep_num == 0) {
     ep = &_hcd_data.ep[0];
   }else {
+    if (NULL != find_ep_not_addr0(daddr, ep_num, ep_dir)) {
+      return true; // already opened
+    }
     ep = allocate_ep();
     TU_ASSERT(ep);
     ep->daddr = daddr;
@@ -641,6 +622,21 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
   }
 
   ep->packet_size = (uint16_t) (tu_edpt_packet_size(ep_desc) & 0x7ff);
+
+  return true;
+}
+
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport;
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
+  max3421_ep_t * ep = find_ep_not_addr0(daddr, ep_num, ep_dir);
+
+  if (!ep) {
+    return false; // not opened
+  }
+
+  tu_memclr(ep, sizeof(max3421_ep_t));
 
   return true;
 }
