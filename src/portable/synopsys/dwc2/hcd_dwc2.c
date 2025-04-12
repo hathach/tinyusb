@@ -543,7 +543,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
   dwc2_channel_char_t* hcchar_bm = &edpt->hcchar_bm;
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
-  bool const is_period = channel_is_periodic(hcchar_bm->ep_type);
+  bool const is_period = channel_is_periodic(edpt->hcchar);
 
   // clear previous state
   xfer->fifo_bytes = 0;
