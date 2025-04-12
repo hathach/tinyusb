@@ -311,6 +311,12 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) 
   return &_usbh_devices[dev_addr-1];
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage) {
+  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  _ctrl_xfer.stage = stage;
+  (void) osal_mutex_unlock(_usbh_mutex);
+}
+
 static bool enum_new_device(hcd_event_t* event);
 static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
@@ -557,6 +563,13 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         TU_LOG_USBH("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
         process_removing_device(event.rhport, event.connection.hub_addr, event.connection.hub_port);
 
+        if ((event.rhport == _dev0.rhport) && (event.connection.hub_addr == _dev0.hub_addr) &&
+            (event.connection.hub_port == _dev0.hub_port)) {
+          _dev0.enumerating = 0;
+          if (_ctrl_xfer.daddr == 0) {
+            _set_control_xfer_stage(CONTROL_STAGE_IDLE);
+          }
+        }
         #if CFG_TUH_HUB
         // TODO remove
         if (event.connection.hub_addr != 0 && event.connection.hub_port != 0) {
@@ -1042,11 +1055,6 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr) 
       // FIXME device remove from a hub need an HCD API for hcd to free up endpoint
       // mark device as removing to prevent further xfer before the event is processed in usbh task
 
-      // Check if dev0 is removed
-      if ((event->rhport == _dev0.rhport) && (event->connection.hub_addr == _dev0.hub_addr) &&
-          (event->connection.hub_port == _dev0.hub_port)) {
-        _dev0.enumerating = 0;
-      }
       break;
 
     default: break;
