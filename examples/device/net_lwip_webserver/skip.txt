@@ -10,6 +10,7 @@ mcu:SAMD11
 mcu:STM32L0
 mcu:STM32F0
 mcu:KINETIS_KL
+mcu:STM32H7RS
 family:broadcom_64bit
 family:broadcom_32bit
 family:espressif

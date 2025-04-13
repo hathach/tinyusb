@@ -14,7 +14,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_CPU cortex-m7 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS STM32H7 CACHE INTERNAL "")
+set(FAMILY_MCUS STM32H7RS CACHE INTERNAL "")
 
 # ----------------------
 # Port & Speed Selection
