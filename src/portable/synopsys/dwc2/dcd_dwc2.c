@@ -41,12 +41,6 @@
 #include "device/dcd.h"
 #include "dwc2_common.h"
 
-#if TU_CHECK_MCU(OPT_MCU_GD32VF103)
-  #define DWC2_EP_COUNT(_dwc2)   DWC2_EP_MAX
-#else
-  #define DWC2_EP_COUNT(_dwc2)  ({const dwc2_ghwcfg2_t ghwcfg2 = {.value = (_dwc2)->ghwcfg2};  ghwcfg2.num_dev_ep + 1;})
-#endif
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -78,6 +72,16 @@ static dcd_data_t _dcd_data;
 CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(setup_packet, 8);
 } _dcd_usbbuf;
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc2) {
+  #if TU_CHECK_MCU(OPT_MCU_GD32VF103)
+  return DWC2_EP_MAX;
+  #else
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  return ghwcfg2.num_dev_ep + 1;
+  #endif
+}
+
 
 //--------------------------------------------------------------------
 // DMA
@@ -629,7 +633,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 // 7.4.1 Initialization on USB Reset
 static void handle_bus_reset(uint8_t rhport) {
   dwc2_regs_t *dwc2 = DWC2_REG(rhport);
-  const uint8_t ep_count =  DWC2_EP_COUNT(dwc2);
+  const uint8_t ep_count =  dwc2_ep_count(dwc2);
 
   tu_memclr(xfer_status, sizeof(xfer_status));
 
@@ -926,7 +930,7 @@ static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepin
 static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const bool is_dma = dma_device_enabled(dwc2);
-  const uint8_t ep_count = DWC2_EP_COUNT(dwc2);
+  const uint8_t ep_count = dwc2_ep_count(dwc2);
   const uint8_t daint_offset = (dir == TUSB_DIR_IN) ? DAINT_IEPINT_Pos : DAINT_OEPINT_Pos;
   dwc2_dep_t* ep_base = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][0];
 

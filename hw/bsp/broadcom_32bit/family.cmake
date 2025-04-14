@@ -42,7 +42,7 @@ function(add_board_target BOARD_TARGET)
     -ffreestanding
     -mgeneral-regs-only
     -fno-exceptions
-    -std=gnu17
+    -std=c17
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_DIR}

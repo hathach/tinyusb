@@ -43,7 +43,7 @@ function(add_board_target BOARD_TARGET)
     -ffreestanding
     -mgeneral-regs-only
     -fno-exceptions
-    -std=gnu17
+    -std=c17
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     BCM_VERSION=${BCM_VERSION}

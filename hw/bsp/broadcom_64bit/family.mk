@@ -9,7 +9,7 @@ CFLAGS += \
 	-nostartfiles \
 	--specs=nosys.specs \
 	-mgeneral-regs-only \
-	-std=gnu17
+	-std=c17
 
 CROSS_COMPILE = aarch64-none-elf-
 

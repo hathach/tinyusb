@@ -44,8 +44,6 @@
 #endif
 
 #define DWC2_CHANNEL_COUNT_MAX    16 // absolute max channel count
-#define DWC2_CHANNEL_COUNT(_dwc2) ({const dwc2_ghwcfg2_t ghwcfg2 = {.value = (_dwc2)->ghwcfg2};  tu_min8(ghwcfg2.num_host_ch + 1, DWC2_CHANNEL_COUNT_MAX);})
-
 TU_VERIFY_STATIC(CFG_TUH_DWC2_ENDPOINT_MAX <= 255, "currently only use 8-bit for index");
 
 enum {
@@ -116,6 +114,11 @@ hcd_data_t _hcd_data;
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
+TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_channel_count(const dwc2_regs_t* dwc2) {
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  return tu_min8(ghwcfg2.num_host_ch + 1, DWC2_CHANNEL_COUNT_MAX);
+}
+
 TU_ATTR_ALWAYS_INLINE static inline tusb_speed_t hprt_speed_get(dwc2_regs_t* dwc2) {
   tusb_speed_t speed;
   const dwc2_hprt_t hprt = {.value = dwc2->hprt};
@@ -157,7 +160,7 @@ bool hcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
 
 // Allocate a channel for new transfer
 TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_alloc(dwc2_regs_t* dwc2) {
-  const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
+  const uint8_t max_channel = dwc2_channel_count(dwc2);
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
     if (!xfer->allocated) {
@@ -208,7 +211,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool channel_send_in_token(const dwc2_regs_t
 
 // Find currently enabled channel. Note: EP0 is bidirectional
 TU_ATTR_ALWAYS_INLINE static inline uint8_t channel_find_enabled(dwc2_regs_t* dwc2, uint8_t dev_addr, uint8_t ep_num, uint8_t ep_dir) {
-  const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
+  const uint8_t max_channel = dwc2_channel_count(dwc2);
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     if (_hcd_data.xfer[ch_id].allocated) {
       const dwc2_channel_char_t hcchar = {.value = dwc2->channel[ch_id].hcchar};
@@ -813,7 +816,7 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
   // Use period txsts for both p/np to get request queue space available (1-bit difference, it is small enough)
   const dwc2_hptxsts_t txsts = {.value = (is_periodic ? dwc2->hptxsts : dwc2->hnptxsts)};
 
-  const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
+  const uint8_t max_channel = dwc2_channel_count(dwc2);
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     dwc2_channel_t* channel = &dwc2->channel[ch_id];
     const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
@@ -1168,7 +1171,7 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
 static void handle_channel_irq(uint8_t rhport, bool in_isr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const bool is_dma = dma_host_enabled(dwc2);
-  const uint8_t max_channel = DWC2_CHANNEL_COUNT(dwc2);
+  const uint8_t max_channel = dwc2_channel_count(dwc2);
 
   for (uint8_t ch_id = 0; ch_id < max_channel; ch_id++) {
     if (tu_bit_test(dwc2->haint, ch_id)) {
