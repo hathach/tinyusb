@@ -108,15 +108,13 @@ typedef struct {
 } tu_lookup_table_t;
 
 static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint32_t key) {
-  tu_static char not_found[11];
-
   for(uint16_t i=0; i<p_table->count; i++) {
-    if (p_table->items[i].key == key) return p_table->items[i].data;
+    if (p_table->items[i].key == key) { return p_table->items[i].data; }
   }
 
   // not found return the key value in hex
+  static char not_found[11];
   snprintf(not_found, sizeof(not_found), "0x%08lX", (unsigned long) key);
-
   return not_found;
 }
 
