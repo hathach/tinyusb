@@ -736,23 +736,22 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       }
     }
 
-    // immediately retry if bInterval is 1 - otherwise we'd waste a microframe before retrying
-    if ((hcint & HCINT_HALTED) && (edpt->uframe_interval == 1)) {
-      edpt->hcchar_bm.odd_frame = 1 - (dwc2->hfnum & 1);   // transfer on next frame
-      channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);
-      channel_send_in_token(dwc2, channel);
-      return;
-    }
-
-    // for periodic, de-allocate channel, enable SOF set frame counter for later transfer
-    const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
-    edpt->next_pid = hctsiz.pid; // save PID
-    edpt->uframe_countdown = edpt->uframe_interval;
-    dwc2->gintmsk |= GINTSTS_SOF;
-
     if (hcint & HCINT_HALTED) {
-      // already halted, de-allocate channel (called from DMA isr)
-      channel_dealloc(dwc2, ch_id);
+      const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH ? 1 : 8);
+      if (edpt->uframe_interval == ucount) {
+        // immediately retry if bInterval is 1
+        edpt->hcchar_bm.odd_frame = 1 - (dwc2->hfnum & 1);   // transfer on next frame
+        channel->hcchar = (edpt->hcchar & ~HCCHAR_CHENA);
+        channel_send_in_token(dwc2, channel);
+      } else {
+        // otherwise, de-allocate channel, enable SOF set frame counter for later transfer
+        const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+        edpt->next_pid = hctsiz.pid; // save PID
+        edpt->uframe_countdown = edpt->uframe_interval - ucount;
+        dwc2->gintmsk |= GINTSTS_SOF;
+        // already halted, de-allocate channel (called from DMA isr)
+        channel_dealloc(dwc2, ch_id);
+      }
     } else {
       // disable channel first if not halted (called slave isr)
       xfer->halted_sof_schedule = 1;
