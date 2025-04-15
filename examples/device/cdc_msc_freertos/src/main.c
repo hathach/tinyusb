@@ -72,7 +72,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 static void usb_device_task(void *param);
 void led_blinking_task(void* param);
 void cdc_task(void *params);
-
+extern void msc_disk_init(void);
 //--------------------------------------------------------------------+
 // Main
 //--------------------------------------------------------------------+
@@ -123,6 +123,7 @@ static void usb_device_task(void *param) {
     board_init_after_tusb();
   }
 
+  msc_disk_init();
   // RTOS forever loop
   while (1) {
     // put this thread to waiting state until there is new events
