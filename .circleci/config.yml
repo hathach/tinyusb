@@ -30,7 +30,7 @@ jobs:
 
             # only build IAR if not forked PR, since IAR token is not shared
             if [ -z $CIRCLE_PR_USERNAME ]; then
-              BUILDSYSTEM_TOOLCHAIN+=("make arm-iar")
+              BUILDSYSTEM_TOOLCHAIN+=("cmake arm-iar")
             fi
 
             RESOURCE_LARGE='["nrf", "imxrt", "stm32f4", "stm32h7"]'
