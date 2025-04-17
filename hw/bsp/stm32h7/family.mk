@@ -45,11 +45,9 @@ CFLAGS += \
 	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
 
 # GCC Flags
-CFLAGS_GCC += \
-  -flto \
-
 # suppress warning caused by vendor mcu driver
 CFLAGS_GCC += \
+  -flto \
   -Wno-error=cast-align \
   -Wno-error=unused-parameter \
 

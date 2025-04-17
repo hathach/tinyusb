@@ -249,7 +249,7 @@ static inline void board_init2(void) {
 }
 
 // VBUS1 is actually controlled by USB3320C PHY (using dwc2 drivebus signal)
-static void board_vbus_set(uint8_t rhport, bool state) {
+static void TU_ATTR_UNUSED board_vbus_set(uint8_t rhport, bool state) {
   if (mfx_io) {
     mfx_io->IO_WritePin(&mfx_obj, mfx_vbus_pin[rhport], state);
   }

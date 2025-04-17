@@ -543,7 +543,7 @@ def test_example(board, f1, example):
         print(f'Flashing {fw_name}.elf')
 
     # flash firmware. It may fail randomly, retry a few times
-    max_rety = 2
+    max_rety = 3
     for i in range(max_rety):
         ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
         if ret.returncode == 0:
