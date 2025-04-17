@@ -21,16 +21,18 @@
             "name": "espressif_s3_devkitm",
             "uid": "84F703C084E4",
             "build" : {
-                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE"]
+                "flags_on": ["", "CFG_TUD_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE"]
             },
             "tests": {
-                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos"]
+                "only": ["device/cdc_msc_freertos", "device/hid_composite_freertos", "host/device_info"],
+                "dev_attached": [{"vid_pid": "1a86_55d4", "serial": "52D2005402"}]
             },
             "flasher": {
                 "name": "esptool",
                 "uid": "3ea619acd1cdeb11a0a0b806e93fd3f1",
                 "args": "-b 1500000"
-            }
+            },
+            "comment": "Use TS3USB30 mux to test both device and host"
         },
         {
             "name": "feather_nrf52840_express",

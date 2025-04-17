@@ -92,10 +92,10 @@ void board_init(void) {
   usb_init();
 #endif
 
-#ifdef HIL_DEVICE_HOST_MUX_PIN
-  gpio_reset_pin(HIL_DEVICE_HOST_MUX_PIN);
-  gpio_set_direction(HIL_DEVICE_HOST_MUX_PIN, GPIO_MODE_OUTPUT);
-  gpio_set_level(HIL_DEVICE_HOST_MUX_PIN, CFG_TUD_ENABLED ? HIL_DEVICE_STATE : (1-HIL_DEVICE_STATE));
+#ifdef HIL_TS3USB30_MODE_PIN
+  gpio_reset_pin(HIL_TS3USB30_MODE_PIN);
+  gpio_set_direction(HIL_TS3USB30_MODE_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_level(HIL_TS3USB30_MODE_PIN, CFG_TUD_ENABLED ? HIL_TS3USB30_MODE_DEVICE : (1-HIL_TS3USB30_MODE_DEVICE));
 #endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
