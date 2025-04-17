@@ -1,9 +1,4 @@
 ST_FAMILY = l0
-DEPS_SUBMODULES += \
-	lib/CMSIS_5 \
-	hw/mcu/st/cmsis_device_$(ST_FAMILY) \
-	hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
-
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
@@ -11,20 +6,17 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m0plus
 
 CFLAGS += \
-  -flto \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_STM32L0
 
 # mcu driver cause following warnings
 CFLAGS_GCC += \
+  -flto \
 	-Wno-error=unused-parameter \
 	-Wno-error=redundant-decls \
 	-Wno-error=cast-align \
-
-ifeq ($(TOOLCHAIN),gcc)
-CFLAGS_GCC += -Wno-error=maybe-uninitialized
-endif
+	-Wno-error=maybe-uninitialized \
 
 CFLAGS_CLANG += \
   -Wno-error=parentheses-equality
@@ -48,3 +40,10 @@ INC += \
   $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc
+
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_${MCU_VARIANT}.s
+
+# Linker
+LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
