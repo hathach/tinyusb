@@ -119,7 +119,6 @@ jobs:
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
       BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'], ' ') }}
-      IAR_LMS_CLOUD_URL: ${{ vars.IAR_LMS_CLOUD_URL }}
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
     steps:
       - name: Clean workspace
@@ -130,7 +129,6 @@ jobs:
 
       - name: Toolchain version
         run: |
-          echo IAR_LMS_CLOUD_URL=$IAR_LMS_CLOUD_URL
           iccarm --version
 
       - name: Checkout TinyUSB
