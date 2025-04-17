@@ -28,7 +28,6 @@ runs:
     - name: Get Toolchain URL
       if: >-
         inputs.toolchain != 'arm-gcc' &&
-        inputs.toolchain != 'arm-iar' &&
         inputs.toolchain != 'esp-idf'
       id: set-toolchain-url
       run: |
@@ -40,7 +39,6 @@ runs:
     - name: Download Toolchain
       if: >-
         inputs.toolchain != 'arm-gcc' &&
-        inputs.toolchain != 'arm-iar' &&
         inputs.toolchain != 'esp-idf'
       uses: ./.github/actions/setup_toolchain/download
       with:
