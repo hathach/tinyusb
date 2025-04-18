@@ -443,15 +443,17 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
 
 // HCD closes all opened endpoints belong to this device
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
-  (void) rhport;
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   for (uint8_t i = 0; i < (uint8_t) CFG_TUH_DWC2_ENDPOINT_MAX; i++) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[i];
     if (edpt->hcchar_bm.enable && edpt->hcchar_bm.dev_addr == dev_addr) {
       tu_memclr(edpt, sizeof(hcd_endpoint_t));
-      for (uint8_t j = 0; j < (uint8_t) DWC2_CHANNEL_COUNT_MAX; j++) {
-        hcd_xfer_t* xfer = &_hcd_data.xfer[j];
+      for (uint8_t ch_id = 0; ch_id < (uint8_t) DWC2_CHANNEL_COUNT_MAX; ch_id++) {
+        hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
         if (xfer->allocated && xfer->ep_id == i) {
-          tu_memclr(xfer, sizeof(hcd_xfer_t));
+          dwc2_channel_t* channel = &dwc2->channel[ch_id];
+          xfer->err_count = HCD_XFER_ERROR_MAX;
+          channel_disable(dwc2, channel);
         }
       }
     }
