@@ -566,6 +566,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         if ((event.rhport == _dev0.rhport) && (event.connection.hub_addr == _dev0.hub_addr) &&
             (event.connection.hub_port == _dev0.hub_port)) {
           _dev0.enumerating = 0;
+          hcd_device_close(_dev0.rhport, _dev0.hub_addr);
           if (_ctrl_xfer.daddr == 0) {
             _set_control_xfer_stage(CONTROL_STAGE_IDLE);
           }
