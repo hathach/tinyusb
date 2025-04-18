@@ -184,7 +184,7 @@ static MFXSTM32L152_Object_t  mfx_obj = { 0 };
 static MFXSTM32L152_IO_Mode_t* mfx_io = NULL;
 static uint32_t mfx_vbus_pin[2] = { MFXSTM32L152_GPIO_PIN_7, MFXSTM32L152_GPIO_PIN_9 };
 
-int32_t board_i2c_init(void) {
+static int32_t board_i2c_init(void) {
   __HAL_RCC_I2C1_CLK_ENABLE();
   __HAL_RCC_I2C1_FORCE_RESET();
   __HAL_RCC_I2C1_RELEASE_RESET();
@@ -200,16 +200,16 @@ int32_t board_i2c_init(void) {
   return 0;
 }
 
-int32_t board_i2c_deinit(void) {
+static int32_t board_i2c_deinit(void) {
   return 0;
 }
 
-int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+static int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
   TU_ASSERT (HAL_OK == HAL_I2C_Mem_Read(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
   return 0;
 }
 
-int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+static int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
   TU_ASSERT(HAL_OK == HAL_I2C_Mem_Write(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
   return 0;
 }
@@ -249,7 +249,7 @@ static inline void board_init2(void) {
 }
 
 // VBUS1 is actually controlled by USB3320C PHY (using dwc2 drivebus signal)
-void board_vbus_set(uint8_t rhport, bool state) {
+static void TU_ATTR_UNUSED board_vbus_set(uint8_t rhport, bool state) {
   if (mfx_io) {
     mfx_io->IO_WritePin(&mfx_obj, mfx_vbus_pin[rhport], state);
   }

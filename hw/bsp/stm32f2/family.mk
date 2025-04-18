@@ -1,5 +1,4 @@
 ST_FAMILY = f2
-
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
@@ -14,11 +13,10 @@ CPU_CORE ?= cortex-m3
 CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32F2
 
+# mcu driver cause following warnings
 CFLAGS_GCC += \
   -flto \
-
-# mcu driver cause following warnings
-CFLAGS_GCC += -Wno-error=sign-compare
+  -Wno-error=sign-compare
 
 LDFLAGS_GCC += \
   -nostdlib -nostartfiles \
@@ -40,3 +38,10 @@ INC += \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc \
   $(TOP)/$(BOARD_PATH)
+
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_${MCU_VARIANT}.s
+
+# Linker
+LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf
