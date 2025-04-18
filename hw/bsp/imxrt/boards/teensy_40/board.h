@@ -24,10 +24,13 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Teensy 4.0
+   url: https://www.pjrc.com/store/teensy40.html
+*/
 
 #ifndef BOARD_H_
 #define BOARD_H_
-
 
 // required since iMXRT MCUX-SDK include this file for board size
 #define BOARD_FLASH_SIZE (2 * 1024 * 1024)

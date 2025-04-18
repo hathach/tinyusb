@@ -39,19 +39,67 @@
 #include "host/usbh_pvt.h"
 #endif
 
+tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
+
+//--------------------------------------------------------------------
+// Weak/Default API, can be overwritten by Application
+//--------------------------------------------------------------------
+
+TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_task_delay(ms);
+#else
+  // delay using millis() (if implemented) and/or frame number if possible
+  const uint32_t time_ms = tusb_time_millis_api();
+  while ((tusb_time_millis_api() - time_ms) < ms) {}
+#endif
+}
+
 //--------------------------------------------------------------------+
 // Public API
 //--------------------------------------------------------------------+
+bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  //  backward compatible called with tusb_init(void)
+  #if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
+  if (rh_init == NULL) {
+    #if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
+    // init device stack CFG_TUSB_RHPORTx_MODE must be defined
+    const tusb_rhport_init_t dev_init = {
+      .role = TUSB_ROLE_DEVICE,
+      .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
+    };
+    TU_ASSERT ( tud_rhport_init(TUD_OPT_RHPORT, &dev_init) );
+    _tusb_rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
+    #endif
 
-bool tusb_init(void) {
-  #if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
-  // init device stack CFG_TUSB_RHPORTx_MODE must be defined
-  TU_ASSERT ( tud_init(TUD_OPT_RHPORT) );
+    #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
+    // init host stack CFG_TUSB_RHPORTx_MODE must be defined
+    const tusb_rhport_init_t host_init = {
+      .role = TUSB_ROLE_HOST,
+      .speed = TUH_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
+    };
+    TU_ASSERT( tuh_rhport_init(TUH_OPT_RHPORT, &host_init) );
+    _tusb_rhport_role[TUH_OPT_RHPORT] = TUSB_ROLE_HOST;
+    #endif
+
+    return true;
+  }
   #endif
 
-  #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
-  // init host stack CFG_TUSB_RHPORTx_MODE must be defined
-  TU_ASSERT( tuh_init(TUH_OPT_RHPORT) );
+  // new API with explicit rhport and role
+  TU_ASSERT(rhport < TUP_USBIP_CONTROLLER_NUM && rh_init->role != TUSB_ROLE_INVALID);
+  _tusb_rhport_role[rhport] = rh_init->role;
+
+  #if CFG_TUD_ENABLED
+  if (rh_init->role == TUSB_ROLE_DEVICE) {
+    TU_ASSERT(tud_rhport_init(rhport, rh_init));
+  }
+  #endif
+
+  #if CFG_TUH_ENABLED
+  if (rh_init->role == TUSB_ROLE_HOST) {
+    TU_ASSERT(tuh_rhport_init(rhport, rh_init));
+  }
   #endif
 
   return true;
@@ -71,13 +119,32 @@ bool tusb_inited(void) {
   return ret;
 }
 
+void tusb_int_handler(uint8_t rhport, bool in_isr) {
+  TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
+
+  #if CFG_TUD_ENABLED
+  if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
+    (void) in_isr;
+    dcd_int_handler(rhport);
+  }
+  #endif
+
+  #if CFG_TUH_ENABLED
+  if (_tusb_rhport_role[rhport] == TUSB_ROLE_HOST) {
+    hcd_int_handler(rhport, in_isr);
+  }
+  #endif
+}
+
 //--------------------------------------------------------------------+
 // Descriptor helper
 //--------------------------------------------------------------------+
 
 uint8_t const* tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1) {
   while (desc + 1 < end) {
-    if (desc[1] == byte1) return desc;
+    if (desc[1] == byte1) {
+      return desc;
+    }
     desc += desc[DESC_OFFSET_LEN];
   }
   return NULL;
@@ -85,7 +152,9 @@ uint8_t const* tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byt
 
 uint8_t const* tu_desc_find2(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2) {
   while (desc + 2 < end) {
-    if (desc[1] == byte1 && desc[2] == byte2) return desc;
+    if (desc[1] == byte1 && desc[2] == byte2) {
+      return desc;
+    }
     desc += desc[DESC_OFFSET_LEN];
   }
   return NULL;
@@ -93,7 +162,9 @@ uint8_t const* tu_desc_find2(uint8_t const* desc, uint8_t const* end, uint8_t by
 
 uint8_t const* tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2, uint8_t byte3) {
   while (desc + 3 < end) {
-    if (desc[1] == byte1 && desc[2] == byte2 && desc[3] == byte3) return desc;
+    if (desc[1] == byte1 && desc[2] == byte2 && desc[3] == byte3) {
+      return desc;
+    }
     desc += desc[DESC_OFFSET_LEN];
   }
   return NULL;
@@ -134,7 +205,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   return ret;
 }
 
-bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed) {
+bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed, bool is_host) {
   uint16_t const max_packet_size = tu_edpt_packet_size(desc_ep);
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
 
@@ -150,8 +221,17 @@ bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed) {
         // Bulk highspeed must be EXACTLY 512
         TU_ASSERT(max_packet_size == 512);
       } else {
-        // TODO Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(max_packet_size <= 64);
+        // Bulk fullspeed can only be 8, 16, 32, 64
+        if (is_host && max_packet_size == 512) {
+          // HACK: while in host mode, some device incorrectly always report 512 regardless of link speed
+          // overwrite descriptor to force 64
+          TU_LOG1("  WARN: EP max packet size is 512 in fullspeed, force to 64\r\n");
+          tusb_desc_endpoint_t* hacked_ep = (tusb_desc_endpoint_t*) (uintptr_t) desc_ep;
+          hacked_ep->wMaxPacketSize = tu_htole16(64);
+        } else {
+          TU_ASSERT(max_packet_size == 8  || max_packet_size == 16 ||
+                    max_packet_size == 32 || max_packet_size == 64);
+        }
       }
       break;
 
@@ -193,6 +273,10 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
     p_desc = tu_desc_next(p_desc);
 
     while (len < max_len) {
+      if (tu_desc_len(p_desc) == 0) {
+        // Escape infinite loop
+        break;
+      }
       // return on IAD regardless of itf count
       if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
         return len;
@@ -216,13 +300,17 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 
 bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
                          void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize) {
-  osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
-  (void) new_mutex;
   (void) is_tx;
 
   s->is_host = is_host;
   tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);
-  tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
+
+  #if OSAL_MUTEX_REQUIRED
+  if (ff_buf && ff_bufsize) {
+    osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
+    tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
+  }
+  #endif
 
   s->ep_buf = ep_buf;
   s->ep_bufsize = ep_bufsize;
@@ -239,43 +327,40 @@ bool tu_edpt_stream_deinit(tu_edpt_stream_t* s) {
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline
-bool stream_claim(tu_edpt_stream_t* s) {
+TU_ATTR_ALWAYS_INLINE static inline bool stream_claim(uint8_t hwid, tu_edpt_stream_t* s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
-    return usbh_edpt_claim(s->daddr, s->ep_addr);
+    return usbh_edpt_claim(hwid, s->ep_addr);
     #endif
   } else {
     #if CFG_TUD_ENABLED
-    return usbd_edpt_claim(s->rhport, s->ep_addr);
+    return usbd_edpt_claim(hwid, s->ep_addr);
     #endif
   }
   return false;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline
-bool stream_xfer(tu_edpt_stream_t* s, uint16_t count) {
+TU_ATTR_ALWAYS_INLINE static inline bool stream_xfer(uint8_t hwid, tu_edpt_stream_t* s, uint16_t count) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
-    return usbh_edpt_xfer(s->daddr, s->ep_addr, count ? s->ep_buf : NULL, count);
+    return usbh_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count);
     #endif
   } else {
     #if CFG_TUD_ENABLED
-    return usbd_edpt_xfer(s->rhport, s->ep_addr, count ? s->ep_buf : NULL, count);
+    return usbd_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count);
     #endif
   }
   return false;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline
-bool stream_release(tu_edpt_stream_t* s) {
+TU_ATTR_ALWAYS_INLINE static inline bool stream_release(uint8_t hwid, tu_edpt_stream_t* s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
-    return usbh_edpt_release(s->daddr, s->ep_addr);
+    return usbh_edpt_release(hwid, s->ep_addr);
     #endif
   } else {
     #if CFG_TUD_ENABLED
-    return usbd_edpt_release(s->rhport, s->ep_addr);
+    return usbd_edpt_release(hwid, s->ep_addr);
     #endif
   }
   return false;
@@ -284,83 +369,117 @@ bool stream_release(tu_edpt_stream_t* s) {
 //--------------------------------------------------------------------+
 // Stream Write
 //--------------------------------------------------------------------+
-bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t* s, uint32_t last_xferred_bytes) {
+bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint32_t last_xferred_bytes) {
   // ZLP condition: no pending data, last transferred bytes is multiple of packet size
-  TU_VERIFY(!tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (s->ep_packetsize - 1))));
-  TU_VERIFY(stream_claim(s));
-  TU_ASSERT(stream_xfer(s, 0));
+  const uint16_t mps = s->is_mps512 ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
+  TU_VERIFY(!tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (mps - 1))));
+  TU_VERIFY(stream_claim(hwid, s));
+  TU_ASSERT(stream_xfer(hwid, s, 0));
   return true;
 }
 
-uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t* s) {
+uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
   // skip if no data
   TU_VERIFY(tu_fifo_count(&s->ff), 0);
 
-  // Claim the endpoint
-  TU_VERIFY(stream_claim(s), 0);
+  TU_VERIFY(stream_claim(hwid, s), 0);
 
   // Pull data from FIFO -> EP buf
   uint16_t const count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
 
   if (count) {
-    TU_ASSERT(stream_xfer(s, count), 0);
+    TU_ASSERT(stream_xfer(hwid, s, count), 0);
     return count;
   } else {
     // Release endpoint since we don't make any transfer
     // Note: data is dropped if terminal is not connected
-    stream_release(s);
+    stream_release(hwid, s);
     return 0;
   }
 }
 
-uint32_t tu_edpt_stream_write(tu_edpt_stream_t* s, void const* buffer, uint32_t bufsize) {
+uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t* s, void const* buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize); // TODO support ZLP
-  uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
 
-  // flush if fifo has more than packet size or
-  // in rare case: fifo depth is configured too small (which never reach packet size)
-  if ((tu_fifo_count(&s->ff) >= s->ep_packetsize) || (tu_fifo_depth(&s->ff) < s->ep_packetsize)) {
-    tu_edpt_stream_write_xfer(s);
+  if (0 == tu_fifo_depth(&s->ff)) {
+    // no fifo for buffered
+    TU_VERIFY(stream_claim(hwid, s), 0);
+    const uint32_t xact_len = tu_min32(bufsize, s->ep_bufsize);
+    memcpy(s->ep_buf, buffer, xact_len);
+    TU_ASSERT(stream_xfer(hwid, s, (uint16_t) xact_len), 0);
+    return xact_len;
+  } else {
+    const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
+
+    // flush if fifo has more than packet size or
+    // in rare case: fifo depth is configured too small (which never reach packet size)
+    const uint16_t mps = s->is_mps512 ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
+    if ((tu_fifo_count(&s->ff) >= mps) || (tu_fifo_depth(&s->ff) < mps)) {
+      tu_edpt_stream_write_xfer(hwid, s);
+    }
+    return ret;
   }
+}
 
-  return ret;
+uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s) {
+  if (tu_fifo_depth(&s->ff)) {
+    return (uint32_t) tu_fifo_remaining(&s->ff);
+  } else {
+    bool is_busy = true;
+    if (s->is_host) {
+      #if CFG_TUH_ENABLED
+      is_busy = usbh_edpt_busy(hwid, s->ep_addr);
+      #endif
+    } else {
+      #if CFG_TUD_ENABLED
+      is_busy = usbd_edpt_busy(hwid, s->ep_addr);
+      #endif
+    }
+    return is_busy ? 0 : s->ep_bufsize;
+  }
 }
 
 //--------------------------------------------------------------------+
 // Stream Read
 //--------------------------------------------------------------------+
-uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t* s) {
-  uint16_t available = tu_fifo_remaining(&s->ff);
-
-  // Prepare for incoming data but only allow what we can store in the ring buffer.
-  // TODO Actually we can still carry out the transfer, keeping count of received bytes
-  // and slowly move it to the FIFO when read().
-  // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= s->ep_packetsize);
-
-  // claim endpoint
-  TU_VERIFY(stream_claim(s), 0);
-
-  // get available again since fifo can be changed before endpoint is claimed
-  available = tu_fifo_remaining(&s->ff);
-
-  if (available >= s->ep_packetsize) {
-    // multiple of packet size limit by ep bufsize
-    uint16_t count = (uint16_t) (available & ~(s->ep_packetsize - 1));
-    count = tu_min16(count, s->ep_bufsize);
-
-    TU_ASSERT(stream_xfer(s, count), 0);
-    return count;
+uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
+  if (0 == tu_fifo_depth(&s->ff)) {
+    // no fifo for buffered
+    TU_VERIFY(stream_claim(hwid, s), 0);
+    TU_ASSERT(stream_xfer(hwid, s, s->ep_bufsize), 0);
+    return s->ep_bufsize;
   } else {
-    // Release endpoint since we don't make any transfer
-    stream_release(s);
-    return 0;
+    const uint16_t mps = s->is_mps512 ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
+    uint16_t available = tu_fifo_remaining(&s->ff);
+
+    // Prepare for incoming data but only allow what we can store in the ring buffer.
+    // TODO Actually we can still carry out the transfer, keeping count of received bytes
+    // and slowly move it to the FIFO when read().
+    // This pre-check reduces endpoint claiming
+    TU_VERIFY(available >= mps);
+
+    TU_VERIFY(stream_claim(hwid, s), 0);
+
+    // get available again since fifo can be changed before endpoint is claimed
+    available = tu_fifo_remaining(&s->ff);
+
+    if (available >= mps) {
+      // multiple of packet size limit by ep bufsize
+      uint16_t count = (uint16_t) (available & ~(mps - 1));
+      count = tu_min16(count, s->ep_bufsize);
+      TU_ASSERT(stream_xfer(hwid, s, count), 0);
+      return count;
+    } else {
+      // Release endpoint since we don't make any transfer
+      stream_release(hwid, s);
+      return 0;
+    }
   }
 }
 
-uint32_t tu_edpt_stream_read(tu_edpt_stream_t* s, void* buffer, uint32_t bufsize) {
+uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, uint32_t bufsize) {
   uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t) bufsize);
-  tu_edpt_stream_read_xfer(s);
+  tu_edpt_stream_read_xfer(hwid, s);
   return num_read;
 }
 

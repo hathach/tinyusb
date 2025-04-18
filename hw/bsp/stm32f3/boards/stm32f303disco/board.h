@@ -1,3 +1,9 @@
+
+/* metadata:
+   name: STM32 F303 Discovery
+   url: https://www.st.com/en/evaluation-tools/stm32f3discovery.html
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

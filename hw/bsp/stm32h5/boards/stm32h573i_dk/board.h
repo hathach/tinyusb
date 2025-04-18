@@ -25,6 +25,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 H573i Discovery
+   url: https://www.st.com/en/evaluation-tools/stm32h573i-dk.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

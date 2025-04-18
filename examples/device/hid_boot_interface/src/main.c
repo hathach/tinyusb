@@ -57,7 +57,11 @@ int main(void)
   board_init();
 
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
@@ -161,8 +165,8 @@ void hid_task(void)
       {
         uint8_t const report_id   = 0;
         uint8_t const button_mask = 0;
-        uint8_t const vertical    = 0;
-        uint8_t const horizontal  = 0;
+        int8_t  const vertical    = 0;
+        int8_t  const horizontal  = 0;
         int8_t  const delta       = 5;
 
         tud_hid_n_mouse_report(ITF_NUM_MOUSE, report_id, button_mask, delta, delta, vertical, horizontal);

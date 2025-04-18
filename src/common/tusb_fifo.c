@@ -315,9 +315,8 @@ static void _ff_pull_n(tu_fifo_t* f, void* app_buf, uint16_t n, uint16_t rd_ptr,
         // Read data wrapped part
         if (wrap_bytes > 0) _ff_pull_const_addr(app_buf, ff_buf, wrap_bytes);
       }
-#endif
     break;
-
+#endif
     default: break;
   }
 }
@@ -917,8 +916,11 @@ bool tu_fifo_clear(tu_fifo_t *f)
                 Overwritable mode the fifo is set to
  */
 /******************************************************************************/
-bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
-{
+bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
+  if (f->overwritable == overwritable) {
+    return true;
+  }
+
   _ff_lock(f->mutex_wr);
   _ff_lock(f->mutex_rd);
 

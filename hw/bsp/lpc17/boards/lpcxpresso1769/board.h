@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: LPCXpresso1769
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/OM13000
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

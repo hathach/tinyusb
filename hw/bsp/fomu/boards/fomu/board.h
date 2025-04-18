@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: fomu
+   url: https://tomu.im/fomu.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

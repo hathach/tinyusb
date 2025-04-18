@@ -3,6 +3,7 @@ mcu:CH32V20X
 mcu:LPC11UXX
 mcu:LPC13XX
 mcu:LPC15XX
+mcu:MCXA15
 mcu:MSP430x5xx
 mcu:NUC121
 mcu:SAMD11

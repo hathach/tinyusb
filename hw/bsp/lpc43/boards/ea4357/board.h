@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Embedded Artists LPC4357 Development Kit
+   url: https://www.embeddedartists.com/products/lpc4357-developers-kit/
+*/
+
 #ifndef _BOARD_EA4357_H
 #define _BOARD_EA4357_H
 

@@ -85,17 +85,17 @@ enum
   #define EPNUM_MSC_OUT   0x02
   #define EPNUM_MSC_IN    0x82
 
-#elif CFG_TUSB_MCU == OPT_MCU_SAMG
-  // SAMG doesn't support a same endpoint number with different direction IN and OUT
-  //  e.g EP1 OUT & EP1 IN cannot exist together
-  #define EPNUM_MSC_OUT   0x01
-  #define EPNUM_MSC_IN    0x82
+#elif CFG_TUSB_MCU == OPT_MCU_CXD56
+  // CXD56 USB driver has fixed endpoint type (bulk/interrupt/iso) and direction (IN/OUT) by its number
+  // 0 control (IN/OUT), 1 Bulk (IN), 2 Bulk (OUT), 3 In (IN), 4 Bulk (IN), 5 Bulk (OUT), 6 In (IN)
+  #define EPNUM_MSC_OUT  0x02
+  #define EPNUM_MSC_IN   0x81
 
-#elif CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X
-  // FT9XX doesn't support a same endpoint number with different direction IN and OUT
+#elif defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
+  // MCUs that don't support a same endpoint number with different direction IN and OUT defined in tusb_mcu.h
   //    e.g EP1 OUT & EP1 IN cannot exist together
-  #define EPNUM_MSC_OUT   0x01
-  #define EPNUM_MSC_IN    0x82
+  #define EPNUM_MSC_OUT  0x01
+  #define EPNUM_MSC_IN   0x82
 
 #else
   #define EPNUM_MSC_OUT   0x01

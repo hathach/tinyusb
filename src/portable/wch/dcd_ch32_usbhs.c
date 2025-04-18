@@ -131,8 +131,9 @@ static void xfer_data_packet(uint8_t ep_num, tusb_dir_t ep_dir, xfer_ctl_t* xfer
   ep_set_response_and_toggle(ep_num, ep_dir, USBHS_EP_R_RES_ACK);
 }
 
-void dcd_init(uint8_t rhport) {
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   memset(&xfer_status, 0, sizeof(xfer_status));
 
@@ -170,6 +171,8 @@ void dcd_init(uint8_t rhport) {
 
   USBHSD->DEV_AD = 0;
   USBHSD->CONTROL |= USBHS_DEV_PU_EN;
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport) {

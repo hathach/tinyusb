@@ -55,8 +55,9 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void *cfg_param) {
   return true;
 }
 
-bool hcd_init(uint8_t rhport) {
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   // To run USB SOF interrupt in core1, call this init in core1
   pio_usb_host_init(&pio_host_cfg);
@@ -119,6 +120,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   uint8_t const pio_rhport = RHPORT_PIO(rhport);
   return pio_usb_host_endpoint_open(pio_rhport, dev_addr, (uint8_t const *) desc_ep, need_pre);
+}
+
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  uint8_t const pio_rhport = RHPORT_PIO(rhport);
+  return pio_usb_host_endpoint_close(pio_rhport, daddr, ep_addr);
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {

@@ -7,9 +7,9 @@ if (NOT DEFINED CMAKE_CXX_COMPILER)
 endif ()
 
 set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
-set(CMAKE_SIZE "llvm-size" CACHE FILEPATH "")
-set(CMAKE_OBJCOPY "llvm-objcopy" CACHE FILEPATH "")
-set(CMAKE_OBJDUMP "llvm-objdump" CACHE FILEPATH "")
+find_program(CMAKE_SIZE llvm-size)
+find_program(CMAKE_OBJCOPY llvm-objcopy)
+find_program(CMAKE_OBJDUMP llvm-objdump)
 
 include(${CMAKE_CURRENT_LIST_DIR}/common.cmake)
 

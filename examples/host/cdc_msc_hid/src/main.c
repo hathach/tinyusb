@@ -31,17 +31,11 @@
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTYPES
+// MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
 extern void cdc_app_task(void);
 extern void hid_app_task(void);
-
-#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-// API to read/rite MAX3421's register. Implemented by TinyUSB
-extern uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
-extern bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
-#endif
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -50,7 +44,11 @@ int main(void) {
   printf("TinyUSB Host CDC MSC HID Example\r\n");
 
   // init host stack on configured roothub port
-  tuh_init(BOARD_TUH_RHPORT);
+  tusb_rhport_init_t host_init = {
+    .role = TUSB_ROLE_HOST,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUH_RHPORT, &host_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
@@ -78,12 +76,12 @@ int main(void) {
 
 void tuh_mount_cb(uint8_t dev_addr) {
   // application set-up
-  printf("A device with address %d is mounted\r\n", dev_addr);
+  printf("A device with address %u is mounted\r\n", dev_addr);
 }
 
 void tuh_umount_cb(uint8_t dev_addr) {
   // application tear-down
-  printf("A device with address %d is unmounted \r\n", dev_addr);
+  printf("A device with address %u is unmounted \r\n", dev_addr);
 }
 
 
@@ -97,7 +95,9 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < interval_ms) return; // not enough time
+  if (board_millis() - start_ms < interval_ms) {
+    return;// not enough time
+  }
   start_ms += interval_ms;
 
   board_led_write(led_state);

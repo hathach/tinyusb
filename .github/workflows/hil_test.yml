@@ -18,82 +18,58 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HIL_JSON: test/hil/rpi.json
+  HIL_JSON: test/hil/tinyusb.json
 
 jobs:
-  # ---------------------------------------
-  # Build Non Espressif
-  # ---------------------------------------
-  build:
-    if: github.repository_owner == 'hathach'
+  set-matrix:
     runs-on: ubuntu-latest
     outputs:
-      BOARDS_LIST: ${{ steps.parse_hil_json.outputs.BOARDS_LIST }}
+      json: ${{ steps.set-matrix-json.outputs.matrix }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
 
-      - name: Parse HIL json
-        id: parse_hil_json
+      - name: Generate matrix json
+        id: set-matrix-json
         run: |
-          sudo apt install -y jq
+          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${{ env.HIL_JSON }})
+          echo "matrix=$MATRIX_JSON"
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
-          # Non-Espresif boards
-          BOARDS_LIST=$(jq -r '.boards[] | select(.flasher != "esptool") | "-b " + .name' ${{ env.HIL_JSON }} | tr '\n' ' ')
-          echo "BOARDS_LIST=$BOARDS_LIST"
-          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_ENV
-          echo "BOARDS_LIST=$BOARDS_LIST" >> $GITHUB_OUTPUT
-
-      - name: Setup arm-gcc toolchain
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain: 'arm-gcc'
-
-      - name: Setup risv-gcc toolchain
-        uses: ./.github/actions/setup_toolchain
-        with:
-          toolchain: 'riscv-gcc'
-
-      - name: Get Dependencies
-        uses: ./.github/actions/get_deps
-        with:
-          arg: ${{ env.BOARDS_LIST }}
-
-      - name: Build
-        run: python tools/build.py $BOARDS_LIST
-
-      - name: Upload Artifacts for Hardware Testing
-        uses: actions/upload-artifact@v4
-        with:
-          name: hil_rpi
-          path: |
-            cmake-build/cmake-build-*/*/*/*.elf
-            cmake-build/cmake-build-*/*/*/*.bin
+  # ---------------------------------------
+  # Build arm-gcc
+  # ---------------------------------------
+  build:
+    if: github.repository_owner == 'hathach'
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - 'arm-gcc'
+          - 'esp-idf'
+    with:
+      build-system: 'cmake'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
+      one-per-family: true
+      upload-artifacts: true
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
-  # self-hosted running on an RPI. For attached hardware checkout test/hil/rpi.json
+  # self-hosted on local VM, for attached hardware checkout HIL_JSON
   # ---------------------------------------
-  hil-rpi:
+  hil-tinyusb:
     if: github.repository_owner == 'hathach'
-    needs:
-      - build
-    runs-on: [self-hosted, ARM64, rpi, hardware-in-the-loop]
-    env:
-      BOARDS_LIST: "${{ needs.build-esp.outputs.BOARDS_LIST }} ${{ needs.build.outputs.BOARDS_LIST }}"
+    needs: build
+    runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
     steps:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
-
-        # USB bus on rpi is not stable, reset it before testing
-#      - name: Reset USB bus
-#        run: |
-#          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/unbind
-#          sleep 5
-#          echo "1-2" | sudo tee /sys/bus/usb/drivers/usb/bind
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -108,8 +84,47 @@ jobs:
 
       - name: Test on actual hardware
         run: |
-          echo "BOARDS_LIST=$BOARDS_LIST"
-          echo "::group::{cmake-build contents}"
-          tree cmake-build
-          echo "::endgroup::"
-          python3 test/hil/hil_test.py $BOARDS_LIST ${{ env.HIL_JSON }}
+          ls cmake-build/
+          python3 test/hil/hil_test.py ${{ env.HIL_JSON }}
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # self-hosted by HFP, build with IAR toolchain, for attached hardware checkout test/hil/hfp.json
+  # Since IAR Token secret is not passed to forked PR, only build on PR from the same repo
+  # ---------------------------------------
+  hil-hfp:
+    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
+    runs-on: [self-hosted, Linux, X64, hifiphile]
+    env:
+      IAR_LMS_CLOUD_URL: ${{ vars.IAR_LMS_CLOUD_URL }}
+      IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+      - name: Toolchain version
+        run: |
+          echo IAR_LMS_CLOUD_URL=$IAR_LMS_CLOUD_URL
+          iccarm --version
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get build boards
+        run: |
+          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json)
+          BUILD_ARGS=$(echo $MATRIX_JSON | jq -r '.["arm-gcc"] | join(" ")')
+          echo "BUILD_ARGS=$BUILD_ARGS"
+          echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
+
+      - name: Get Dependencies
+        run: python3 tools/get_deps.py $BUILD_ARGS
+
+      - name: Build
+        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
+
+      - name: Test on actual hardware (hardware in the loop)
+        run: python3 test/hil/hil_test.py hfp.json

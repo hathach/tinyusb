@@ -1,7 +1,9 @@
 MCU_VARIANT = stm32f723xx
 
-PORT ?= 1
-SPEED ?= high
+# For Hardware test: device default to PORT 0, Host to port 1
+RHPORT_SPEED = OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED
+RHPORT_DEVICE ?= 0
+RHPORT_HOST ?= 1
 
 CFLAGS += \
   -DSTM32F723xx \

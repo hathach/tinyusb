@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: i.MX RT1064 Evaluation Kit
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/MIMXRT1064-EVK
+*/
+
 #ifndef BOARD_MIMXRT1064_EVKB_H_
 #define BOARD_MIMXRT1064_EVKB_H_
 

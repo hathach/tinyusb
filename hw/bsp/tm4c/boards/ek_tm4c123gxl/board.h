@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: TM4C123G LaunchPad
+   url: https://www.ti.com/tool/EK-TM4C123GXL
+*/
+
 #ifndef _BOARD_H_
 #define _BOARD_H_
 

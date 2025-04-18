@@ -87,29 +87,40 @@ enum
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
   // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-  #define EPNUM_CDC_IN     2
-  #define EPNUM_CDC_OUT    2
-  #define EPNUM_VENDOR_IN  5
-  #define EPNUM_VENDOR_OUT 5
-#elif CFG_TUSB_MCU == OPT_MCU_SAMG || CFG_TUSB_MCU ==  OPT_MCU_SAMX7X
-  // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
+  #define EPNUM_CDC_NOTIF  0x81
+  #define EPNUM_CDC_OUT    0x02
+  #define EPNUM_CDC_IN     0x82
+
+  #define EPNUM_VENDOR_OUT 0x05
+  #define EPNUM_VENDOR_IN  0x85
+
+#elif CFG_TUSB_MCU == OPT_MCU_CXD56
+  // CXD56 USB driver has fixed endpoint type (bulk/interrupt/iso) and direction (IN/OUT) by its number
+  // 0 control (IN/OUT), 1 Bulk (IN), 2 Bulk (OUT), 3 In (IN), 4 Bulk (IN), 5 Bulk (OUT), 6 In (IN)
+  #define EPNUM_CDC_NOTIF   0x83
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x81
+
+  #define EPNUM_VENDOR_OUT  0x05
+  #define EPNUM_VENDOR_IN   0x84
+
+#elif defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
+  // MCUs that don't support a same endpoint number with different direction IN and OUT defined in tusb_mcu.h
   //    e.g EP1 OUT & EP1 IN cannot exist together
-  #define EPNUM_CDC_IN     2
-  #define EPNUM_CDC_OUT    3
-  #define EPNUM_VENDOR_IN  4
-  #define EPNUM_VENDOR_OUT 5
-#elif CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X
-  // FT9XX doesn't support a same endpoint number with different direction IN and OUT
-  //    e.g EP1 OUT & EP1 IN cannot exist together
-  #define EPNUM_CDC_IN     2
-  #define EPNUM_CDC_OUT    3
-  #define EPNUM_VENDOR_IN  4
-  #define EPNUM_VENDOR_OUT 5
+  #define EPNUM_CDC_NOTIF   0x81
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x83
+
+  #define EPNUM_VENDOR_OUT  0x04
+  #define EPNUM_VENDOR_IN   0x85
+
 #else
-  #define EPNUM_CDC_IN     2
-  #define EPNUM_CDC_OUT    2
-  #define EPNUM_VENDOR_IN  3
-  #define EPNUM_VENDOR_OUT 3
+  #define EPNUM_CDC_NOTIF   0x81
+  #define EPNUM_CDC_OUT     0x02
+  #define EPNUM_CDC_IN      0x82
+
+  #define EPNUM_VENDOR_OUT  0x03
+  #define EPNUM_VENDOR_IN   0x83
 #endif
 
 uint8_t const desc_configuration[] =
@@ -118,7 +129,7 @@ uint8_t const desc_configuration[] =
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, 0x81, 8, EPNUM_CDC_OUT, 0x80 | EPNUM_CDC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 8, EPNUM_CDC_OUT, 0x80 | EPNUM_CDC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
 
   // Interface number, string index, EP Out & IN address, EP size
   TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR, 5, EPNUM_VENDOR_OUT, 0x80 | EPNUM_VENDOR_IN, TUD_OPT_HIGH_SPEED ? 512 : 64)

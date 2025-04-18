@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import argparse
 import sys
 import subprocess
@@ -24,6 +25,9 @@ deps_optional = {
     'hw/mcu/allwinner': ['https://github.com/hathach/allwinner_driver.git',
                          '8e5e89e8e132c0fd90e72d5422e5d3d68232b756',
                          'fc100s'],
+    'hw/mcu/analog/max32' : ['https://github.com/analogdevicesinc/msdk.git',
+                             'b20b398d3e5e2007594e54a74ba3d2a2e50ddd75',
+                             'max32650 max32666 max32690 max78002'],
     'hw/mcu/bridgetek/ft9xx/ft90x-sdk': ['https://github.com/BRTSG-FOSS/ft90x-sdk.git',
                                          '91060164afe239fcb394122e8bf9eb24d3194eb1',
                                          'brtmm90x'],
@@ -54,11 +58,11 @@ deps_optional = {
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
                             '144f1eb7ea8c06512e12f12b27383601c0272410',
                             'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
-    'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
-                                         '7902e9fa8ed4a271d8d1d5e7e50516c2292b7bc2',
+    'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/hathach/Pico-PIO-USB.git',
+                                         '810653f66adadba3e0e4b4b56d5167ac4f7fdbf7',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
-                           'd52e5a6a59b7c638da860c2bb309b6e78e752ff8',
+                           'edcc97d684b6f716728a60d7a6fea049d9870bd6',
                            'ra'],
     'hw/mcu/renesas/rx': ['https://github.com/kkitayam/rx_device.git',
                           '706b4e0cf485605c32351e2f90f5698267996023',
@@ -69,6 +73,9 @@ deps_optional = {
     'hw/mcu/sony/cxd56/spresense-exported-sdk': ['https://github.com/sonydevworld/spresense-exported-sdk.git',
                                                  '2ec2a1538362696118dc3fdf56f33dacaf8f4067',
                                                  'spresense'],
+    'hw/mcu/st/cmsis_device_c0': ['https://github.com/STMicroelectronics/cmsis_device_c0.git',
+                                  'fb56b1b70c73b74eacda2a4bcc36886444364ab3',
+                                  'stm32c0'],
     'hw/mcu/st/cmsis_device_f0': ['https://github.com/STMicroelectronics/cmsis_device_f0.git',
                                   '2fc25ee22264bc27034358be0bd400b893ef837e',
                                   'stm32f0'],
@@ -117,6 +124,12 @@ deps_optional = {
     'hw/mcu/st/cmsis_device_wb': ['https://github.com/STMicroelectronics/cmsis_device_wb.git',
                                   '9c5d1920dd9fabbe2548e10561d63db829bb744f',
                                   'stm32wb'],
+    'hw/mcu/st/stm32-mfxstm32l152': ['https://github.com/STMicroelectronics/stm32-mfxstm32l152.git',
+                                     '7f4389efee9c6a655b55e5df3fceef5586b35f9b',
+                                     'stm32h7'],
+    'hw/mcu/st/stm32c0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32c0xx_hal_driver.git',
+                                       '41253e2f1d7ae4a4d0c379cf63f5bcf71fcf8eb3',
+                                       'stm32c0'],
     'hw/mcu/st/stm32f0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32f0xx_hal_driver.git',
                                        '0e95cd88657030f640a11e690a8a5186c7712ea5',
                                        'stm32f0'],
@@ -181,13 +194,16 @@ deps_optional = {
                             '77c4095087e5ed2c548ec9058e655d0b8757663b',
                             'ch32f20x'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
-                    '20285262657d1b482d132d20d755c8c330d55c1f',
-                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf ra saml2x'
-                    'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'
-                    'stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5'
-                    'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb'
-                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'
-                    'tm4c'],
+                    '2b7495b8535bdcb306dac29b9ded4cfb679d7e5c',
+                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x '
+                    'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
+                    'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
+                    'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb '
+                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg '
+                    'tm4c '],
+    'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
+                    'b0bbb0423b278ca632cfe1474eb227961d835fd2',
+                    'ra'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],
@@ -201,7 +217,12 @@ TOP = Path(__file__).parent.parent.resolve()
 
 
 def run_cmd(cmd):
-    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    title = f'Command Error: {cmd}'
+    if r.returncode != 0:
+        print(title)
+        print(r.stdout.decode("utf-8"))
+    return r
 
 
 def get_a_dep(d):
@@ -248,6 +269,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to fetch')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
+    parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
     parser.add_argument('--print', action='store_true', help='Print commit hash only')
     args = parser.parse_args()
 

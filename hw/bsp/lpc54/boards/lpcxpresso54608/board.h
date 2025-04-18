@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: LPCXpresso54608
+   url: https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-development-board-for-lpc5460x-mcus:OM13092
+*/
+
 #ifndef BOARD_LPCXPRESSO54608_H_
 #define BOARD_LPCXPRESSO54608_H_
 

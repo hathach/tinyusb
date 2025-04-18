@@ -657,14 +657,14 @@ static void enable_interrupt(uint32_t pswi)
 }
 #endif
 
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   rusb2_module_start(rhport, true);
 
-// We disable SOF for now until needed later on.
-// Since TinyUSB doesn't use SOF for now, and this interrupt often (1ms interval)
-_dcd.sof_enabled = false;
+  // We disable SOF for now until needed later on.
+  // Since TinyUSB doesn't use SOF for now, and this interrupt often (1ms interval)
+  _dcd.sof_enabled = false;
 
 #ifdef RUSB2_SUPPORT_HIGHSPEED
   if ( rusb2_is_highspeed_rhport(rhport) ) {
@@ -719,6 +719,8 @@ _dcd.sof_enabled = false;
   if (rusb->INTSTS0_b.VBSTS) {
     dcd_connect(rhport);
   }
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport) {

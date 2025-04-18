@@ -289,20 +289,22 @@ static void edpt_reset_all(uint8_t rhport)
   }
   prepare_setup_packet(rhport);
 }
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   edpt_reset_all(rhport);
 
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   dcd_reg->EPLISTSTART  = (uint32_t) _dcd.ep;
   dcd_reg->DATABUFSTART = tu_align((uint32_t) &_dcd, TU_BIT(22)); // 22-bit alignment
-  dcd_reg->INTSTAT     |= dcd_reg->INTSTAT; // clear all pending interrupt
+  dcd_reg->INTSTAT      = dcd_reg->INTSTAT; // clear all pending interrupt
   dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK;
   dcd_reg->DEVCMDSTAT  |= DEVCMDSTAT_DEVICE_ENABLE_MASK | DEVCMDSTAT_DEVICE_CONNECT_MASK |
                            DEVCMDSTAT_RESET_CHANGE_MASK | DEVCMDSTAT_CONNECT_CHANGE_MASK | DEVCMDSTAT_SUSPEND_CHANGE_MASK;
 
   NVIC_ClearPendingIRQ(_dcd_controller[rhport].irqnum);
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -561,7 +563,8 @@ void dcd_int_handler(uint8_t rhport)
 
   uint32_t const cmd_stat = dcd_reg->DEVCMDSTAT;
 
-  uint32_t int_status = dcd_reg->INTSTAT & dcd_reg->INTEN;
+  uint32_t int_status = dcd_reg->INTSTAT;
+	int_status &= dcd_reg->INTEN;
   dcd_reg->INTSTAT = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;

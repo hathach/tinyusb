@@ -23,6 +23,10 @@
  * THE SOFTWARE.
  */
 
+/* metadata:
+   manufacturer: NXP
+*/
+
 #include "bsp/board_api.h"
 #include "board.h"
 #include "fsl_device_registers.h"

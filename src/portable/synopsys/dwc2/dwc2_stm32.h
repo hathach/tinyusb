@@ -69,6 +69,14 @@ extern "C" {
     #define OTG_FS_IRQn             OTG_HS_IRQn
   #endif
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7RS
+  #include "stm32h7rsxx.h"
+  #define EP_MAX_FS       6
+  #define EP_FIFO_SIZE_FS 1280
+
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
   #define EP_MAX_FS       6
@@ -124,13 +132,19 @@ static const dwc2_controller_t _dwc2_controller[] = {
 // SystemCoreClock is already included by family header
 // extern uint32_t SystemCoreClock;
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_enable(uint8_t rhport) {
-  NVIC_EnableIRQ((IRQn_Type) _dwc2_controller[rhport].irqnum);
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
+  (void) role;
+  const IRQn_Type irqn = (IRQn_Type) _dwc2_controller[rhport].irqnum;
+  if (enabled) {
+    NVIC_EnableIRQ(irqn);
+  } else {
+    NVIC_DisableIRQ(irqn);
+  }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_disable(uint8_t rhport) {
-  NVIC_DisableIRQ((IRQn_Type) _dwc2_controller[rhport].irqnum);
-}
+#define dwc2_dcd_int_enable(_rhport)  dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, true)
+#define dwc2_dcd_int_disable(_rhport) dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, false)
+
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   // try to delay for 1 ms
@@ -142,7 +156,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 // - dwc2 3.30a (H5) use USB_HS_PHYC
 // - dwc2 4.11a (U5) use femtoPHY
 static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
-  if (hs_phy_type == HS_PHY_TYPE_NONE) {
+  if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
     // Enable on-chip FS PHY
     dwc2->stm32_gccfg |= STM32_GCCFG_PWRDWN;
 
@@ -175,7 +189,7 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 #endif
 
     // Enable on-chip HS PHY
-    if (hs_phy_type == HS_PHY_TYPE_UTMI || hs_phy_type == HS_PHY_TYPE_UTMI_ULPI) {
+    if (hs_phy_type == GHWCFG2_HSPHY_UTMI || hs_phy_type == GHWCFG2_HSPHY_UTMI_ULPI) {
       #ifdef USB_HS_PHYC
       // Enable UTMI HS PHY
       dwc2->stm32_gccfg |= STM32_GCCFG_PHYHSEN;
@@ -218,7 +232,7 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 // MCU specific PHY update, it is called AFTER init() and core reset
 static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   // used to set turnaround time for fullspeed, nothing to do in highspeed mode
-  if (hs_phy_type == HS_PHY_TYPE_NONE) {
+  if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
     // Turnaround timeout depends on the AHB clock dictated by STM32 Reference Manual
     uint32_t turnaround;
 

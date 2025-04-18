@@ -58,19 +58,21 @@ void led_blinking_task(void);
 void midi_task(void);
 
 /*------------- MAIN -------------*/
-int main(void)
-{
+int main(void) {
   board_init();
 
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
   }
 
-  while (1)
-  {
+  while (1) {
     tud_task(); // tinyusb device task
     led_blinking_task();
     midi_task();
@@ -82,29 +84,25 @@ int main(void)
 //--------------------------------------------------------------------+
 
 // Invoked when device is mounted
-void tud_mount_cb(void)
-{
+void tud_mount_cb(void) {
   blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Invoked when device is unmounted
-void tud_umount_cb(void)
-{
+void tud_umount_cb(void) {
   blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
 // Invoked when usb bus is suspended
 // remote_wakeup_en : if host allow us  to perform remote wakeup
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
-void tud_suspend_cb(bool remote_wakeup_en)
-{
+void tud_suspend_cb(bool remote_wakeup_en) {
   (void) remote_wakeup_en;
   blink_interval_ms = BLINK_SUSPENDED;
 }
 
 // Invoked when usb bus is resumed
-void tud_resume_cb(void)
-{
+void tud_resume_cb(void) {
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
@@ -116,8 +114,7 @@ void tud_resume_cb(void)
 uint32_t note_pos = 0;
 
 // Store example melody as an array of note values
-uint8_t note_sequence[] =
-{
+const uint8_t note_sequence[] = {
   74,78,81,86,90,93,98,102,57,61,66,69,73,78,81,85,88,92,97,100,97,92,88,85,81,78,
   74,69,66,62,57,62,66,69,74,78,81,86,90,93,97,102,97,93,90,85,81,78,73,68,64,61,
   56,61,64,68,74,78,81,86,90,93,98,102
@@ -133,11 +130,15 @@ void midi_task(void)
   // The MIDI interface always creates input and output port/jack descriptors
   // regardless of these being used or not. Therefore incoming traffic should be read
   // (possibly just discarded) to avoid the sender blocking in IO
-  uint8_t packet[4];
-  while ( tud_midi_available() ) tud_midi_packet_read(packet);
+  while (tud_midi_available()) {
+    uint8_t packet[4];
+    tud_midi_packet_read(packet);
+  }
 
   // send note periodically
-  if (board_millis() - start_ms < 286) return; // not enough time
+  if (board_millis() - start_ms < 286) {
+    return; // not enough time
+  }
   start_ms += 286;
 
   // Previous positions in the note sequence.
@@ -145,7 +146,9 @@ void midi_task(void)
 
   // If we currently are at position 0, set the
   // previous position to the last note in the sequence.
-  if (previous < 0) previous = sizeof(note_sequence) - 1;
+  if (previous < 0) {
+    previous = sizeof(note_sequence) - 1;
+  }
 
   // Send Note On for current position at full velocity (127) on channel 1.
   uint8_t note_on[3] = { 0x90 | channel, note_sequence[note_pos], 127 };
@@ -159,7 +162,9 @@ void midi_task(void)
   note_pos++;
 
   // If we are at the end of the sequence, start over.
-  if (note_pos >= sizeof(note_sequence)) note_pos = 0;
+  if (note_pos >= sizeof(note_sequence)) {
+    note_pos = 0;
+  }
 }
 
 //--------------------------------------------------------------------+

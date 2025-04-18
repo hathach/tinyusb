@@ -50,12 +50,13 @@ static usb_descriptor_buffers_t desc;
  *------------------------------------------------------------------*/
 
 // Initialize controller to device mode
-void dcd_init (uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
-
+  (void) rh_init;
   static pio_usb_configuration_t config = PIO_USB_DEFAULT_CONFIG;
   usb_device = pio_usb_device_init(&config, &desc);
+
+  return true;
 }
 
 // Enable device interrupt

@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Tomu
+*/
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "csr.h"

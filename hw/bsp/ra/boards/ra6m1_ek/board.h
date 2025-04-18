@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: RA6M1 EK
+   url: https://www.renesas.com/en/products/microcontrollers-microprocessors/ra-cortex-m-mcus/ek-ra6m1-evaluation-kit-ra6m1-mcu-group
+*/
+
 #ifndef _BOARD_H_
 #define _BOARD_H_
 
@@ -31,18 +36,8 @@
 extern "C" {
 #endif
 
-#define LED1          BSP_IO_PORT_01_PIN_12
-#define LED_STATE_ON  1
-
-#define SW1                   BSP_IO_PORT_04_PIN_15
+#define LED_STATE_ON          1
 #define BUTTON_STATE_ACTIVE   0
-
-static const ioport_pin_cfg_t board_pin_cfg[] = {
-    { .pin = LED1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_OUTPUT },
-    { .pin = SW1, .pin_cfg = IOPORT_CFG_PORT_DIRECTION_INPUT },
-    // USB FS
-    { .pin = BSP_IO_PORT_04_PIN_07, .pin_cfg = IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_USB_FS },
-};
 
 #ifdef __cplusplus
 }

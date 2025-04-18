@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Great Scott Gadgets Cynthion
+   url: https://greatscottgadgets.com/cynthion/
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

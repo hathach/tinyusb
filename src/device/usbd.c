@@ -46,9 +46,7 @@
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
 TU_ATTR_WEAK void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
-  (void) rhport;
-  (void) eventid;
-  (void) in_isr;
+  (void) rhport; (void) eventid; (void) in_isr;
 }
 
 TU_ATTR_WEAK void tud_sof_cb(uint32_t frame_count) {
@@ -82,9 +80,7 @@ TU_ATTR_WEAK void tud_resume_cb(void) {
 }
 
 TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
-  (void) rhport;
-  (void) stage;
-  (void) request;
+  (void) rhport; (void) stage; (void) request;
   return false;
 }
 
@@ -99,6 +95,21 @@ TU_ATTR_WEAK void dcd_connect(uint8_t rhport) {
 
 TU_ATTR_WEAK void dcd_disconnect(uint8_t rhport) {
   (void) rhport;
+}
+
+TU_ATTR_WEAK bool dcd_dcache_clean(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
+  return true;
+}
+
+TU_ATTR_WEAK bool dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
+  return true;
+}
+
+TU_ATTR_WEAK bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
+  (void) addr; (void) data_size;
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -448,11 +459,14 @@ bool tud_inited(void) {
   return _usbd_rhport != RHPORT_INVALID;
 }
 
-bool tud_init(uint8_t rhport) {
-  // skip if already initialized
-  if (tud_inited()) return true;
+bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  if (tud_inited()) {
+    return true; // skip if already initialized
+  }
+  TU_ASSERT(rh_init);
 
-  TU_LOG_USBD("USBD init on controller %u, Highspeed = %u\r\n", rhport, TUD_OPT_HIGH_SPEED);
+  TU_LOG_USBD("USBD init on controller %u, speed = %s\r\n", rhport,
+    rh_init->speed == TUSB_SPEED_HIGH ? "High" : "Full");
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(usbd_device_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(dcd_event_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_fifo_t));
@@ -487,15 +501,16 @@ bool tud_init(uint8_t rhport) {
   _usbd_rhport = rhport;
 
   // Init device controller driver
-  dcd_init(rhport);
+  TU_ASSERT(dcd_init(rhport, rh_init));
   dcd_int_enable(rhport);
 
   return true;
 }
 
 bool tud_deinit(uint8_t rhport) {
-  // skip if not initialized
-  if (!tud_inited()) return true;
+  if (!tud_inited()) {
+    return true; // skip if not initialized
+  }
 
   TU_LOG_USBD("USBD deinit on controller %u\r\n", rhport);
 
@@ -546,8 +561,7 @@ static void usbd_reset(uint8_t rhport) {
 }
 
 bool tud_task_event_ready(void) {
-  // Skip if stack is not initialized
-  if (!tud_inited()) return false;
+  TU_VERIFY(tud_inited()); // Skip if stack is not initialized
   return !osal_queue_empty(_usbd_q);
 }
 
@@ -557,7 +571,7 @@ bool tud_task_event_ready(void) {
  *
     int main(void) {
       application_init();
-      tusb_init();
+      tusb_init(0, TUSB_ROLE_DEVICE);
 
       while(1) { // the mainloop
         application_code();
@@ -669,7 +683,9 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
       case USBD_EVENT_FUNC_CALL:
         TU_LOG_USBD("\r\n");
-        if (event.func_call.func) event.func_call.func(event.func_call.param);
+        if (event.func_call.func) {
+          event.func_call.func(event.func_call.param);
+        }
         break;
 
       case DCD_EVENT_SOF:
@@ -686,7 +702,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
 #if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
     // return if there is no more events, for application to run other background
-    if (osal_queue_empty(_usbd_q)) return;
+    if (osal_queue_empty(_usbd_q)) { return; }
 #endif
   }
 }
@@ -1017,7 +1033,14 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
           #endif
 
           #if CFG_TUD_MIDI
-          if ( driver->open == midid_open ) assoc_itf_count = 2;
+          if (driver->open == midid_open) {
+            // If there is a class-compliant Audio Control Class, then 2 interfaces. Otherwise, only one
+            if (TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
+                AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
+                AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol) {
+              assoc_itf_count = 2;
+            }
+          }
           #endif
 
           #if CFG_TUD_BTH && CFG_TUD_BTH_ISO_ALT_COUNT
@@ -1274,7 +1297,7 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
   rhport = _usbd_rhport;
 
   TU_ASSERT(tu_edpt_number(desc_ep->bEndpointAddress) < CFG_TUD_ENDPPOINT_MAX);
-  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
+  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed, false));
 
   return dcd_edpt_open(rhport, desc_ep);
 }
@@ -1418,9 +1441,12 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
  * In progress transfers on this EP may be delivered after this call.
  */
 void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
+  (void) rhport; (void) ep_addr;
+  // ISO alloc/activate Should be used instead
+#else
   rhport = _usbd_rhport;
 
-  TU_ASSERT(dcd_edpt_close, /**/);
   TU_LOG_USBD("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -1430,6 +1456,7 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   _usbd_dev.ep_status[epnum][dir].stalled = 0;
   _usbd_dev.ep_status[epnum][dir].busy = 0;
   _usbd_dev.ep_status[epnum][dir].claimed = 0;
+#endif
 
   return;
 }
@@ -1452,28 +1479,35 @@ void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en) {
 }
 
 bool usbd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
   rhport = _usbd_rhport;
 
-  TU_ASSERT(dcd_edpt_iso_alloc);
   TU_ASSERT(tu_edpt_number(ep_addr) < CFG_TUD_ENDPPOINT_MAX);
-
   return dcd_edpt_iso_alloc(rhport, ep_addr, largest_packet_size);
+#else
+  (void) rhport; (void) ep_addr; (void) largest_packet_size;
+  return false;
+#endif
 }
 
 bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
+#ifdef TUP_DCD_EDPT_ISO_ALLOC
   rhport = _usbd_rhport;
 
   uint8_t const epnum = tu_edpt_number(desc_ep->bEndpointAddress);
   uint8_t const dir = tu_edpt_dir(desc_ep->bEndpointAddress);
 
-  TU_ASSERT(dcd_edpt_iso_activate);
   TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX);
-  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed));
+  TU_ASSERT(tu_edpt_validate(desc_ep, (tusb_speed_t) _usbd_dev.speed, false));
 
   _usbd_dev.ep_status[epnum][dir].stalled = 0;
   _usbd_dev.ep_status[epnum][dir].busy = 0;
   _usbd_dev.ep_status[epnum][dir].claimed = 0;
   return dcd_edpt_iso_activate(rhport, desc_ep);
+#else
+  (void) rhport; (void) desc_ep;
+  return false;
+#endif
 }
 
 #endif

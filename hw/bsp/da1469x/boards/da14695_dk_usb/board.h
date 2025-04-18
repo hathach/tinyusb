@@ -1,3 +1,8 @@
+/* metadata:
+   name: DA14695-00HQDEVKT-U
+   url: https://www.renesas.com/en/products/wireless-connectivity/bluetooth-low-energy/da14695-00hqdevkt-u-smartbond-da14695-bluetooth-low-energy-52-usb-development-kit
+*/
+
 #ifndef BOARD_H
 #define BOARD_H
 

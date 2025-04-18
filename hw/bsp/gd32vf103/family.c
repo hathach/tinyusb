@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: GigaDevice
+*/
+
 #include "drv_usb_hw.h"
 #include "drv_usb_dev.h"
 
