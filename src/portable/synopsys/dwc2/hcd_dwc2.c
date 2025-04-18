@@ -75,9 +75,9 @@ typedef struct {
 
   struct TU_ATTR_PACKED {
     uint32_t uframe_interval : 18; // micro-frame interval
-    uint32_t speed    : 2;
-    uint32_t next_pid : 2;
-    uint32_t do_ping  : 1;
+    uint32_t speed           : 2;
+    uint32_t next_pid        : 2; // PID for next transfer
+    uint32_t next_do_ping    : 1; // Do PING for next transfer if possible (highspeed OUT)
     // uint32_t : 9;
   };
 
@@ -567,12 +567,12 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hctsiz.pid = edpt->next_pid; // next PID is set in transfer complete interrupt
   hctsiz.packet_count = packet_count;
   hctsiz.xfer_size = edpt->buflen;
-  if (edpt->do_ping && edpt->speed == TUSB_SPEED_HIGH &&
+  if (edpt->next_do_ping && edpt->speed == TUSB_SPEED_HIGH &&
      edpt->next_pid != HCTSIZ_PID_SETUP && hcchar_bm->ep_dir == TUSB_DIR_OUT) {
     hctsiz.do_ping = 1;
   }
   channel->hctsiz = hctsiz.value;
-  edpt->do_ping = 0;
+  edpt->next_do_ping = 0;
 
   // pre-calculate next PID based on packet count, adjusted in transfer complete interrupt if short packet
   if (hcchar_bm->ep_num == 0) {
@@ -970,7 +970,7 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       channel->hcsplt = hcsplt.value;
       channel->hcchar |= HCCHAR_CHENA;
     } else {
-      edpt->do_ping = 1;
+      edpt->next_do_ping = 1;
       channel_xfer_out_wrapup(dwc2, ch_id);
       channel_disable(dwc2, channel);
     }
@@ -983,7 +983,7 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       channel->hcintmsk |= HCINT_ACK;
     } else {
       // NAK disable channel to flush all posted request and try again
-      edpt->do_ping = 1;
+      edpt->next_do_ping = 1;
       xfer->err_count = 0;
     }
   } else if (hcint & HCINT_HALTED) {
@@ -1009,7 +1009,7 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       }
     } else {
       // Device is ready, resume transfer
-      edpt->do_ping = 0;
+      edpt->next_do_ping = 0;
       xfer->err_count = 0;
       TU_ASSERT(channel_xfer_start(dwc2, ch_id));
     }
