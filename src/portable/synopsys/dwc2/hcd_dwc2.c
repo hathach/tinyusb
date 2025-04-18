@@ -75,9 +75,9 @@ typedef struct {
 
   struct TU_ATTR_PACKED {
     uint32_t uframe_interval : 18; // micro-frame interval
-    uint32_t speed    : 2;
-    uint32_t next_pid : 2;
-    uint32_t do_ping  : 1;
+    uint32_t speed           : 2;
+    uint32_t next_pid        : 2; // PID for next transfer
+    uint32_t next_do_ping    : 1; // Do PING for next transfer if possible (highspeed OUT)
     // uint32_t : 9;
   };
 
@@ -567,12 +567,12 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
   hctsiz.pid = edpt->next_pid; // next PID is set in transfer complete interrupt
   hctsiz.packet_count = packet_count;
   hctsiz.xfer_size = edpt->buflen;
-  if (edpt->do_ping && edpt->speed == TUSB_SPEED_HIGH &&
+  if (edpt->next_do_ping && edpt->speed == TUSB_SPEED_HIGH &&
      edpt->next_pid != HCTSIZ_PID_SETUP && hcchar_bm->ep_dir == TUSB_DIR_OUT) {
     hctsiz.do_ping = 1;
   }
   channel->hctsiz = hctsiz.value;
-  edpt->do_ping = 0;
+  edpt->next_do_ping = 0;
 
   // pre-calculate next PID based on packet count, adjusted in transfer complete interrupt if short packet
   if (hcchar_bm->ep_num == 0) {
@@ -603,7 +603,7 @@ static bool channel_xfer_start(dwc2_regs_t* dwc2, uint8_t ch_id) {
       hcintmsk |= HCINT_BABBLE_ERR | HCINT_DATATOGGLE_ERR | HCINT_ACK;
     } else {
       hcintmsk |= HCINT_NYET;
-      if (edpt->hcsplt_bm.split_en) {
+      if (edpt->hcsplt_bm.split_en || hctsiz.do_ping) {
         hcintmsk |= HCINT_ACK;
       }
     }
@@ -959,6 +959,10 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
     is_done = true;
     xfer->result = XFER_RESULT_SUCCESS;
     channel->hcintmsk &= ~HCINT_ACK;
+    if (hcint & HCINT_NYET) {
+      // complete transfer with NYET, do ping next time
+      edpt->next_do_ping = 1;
+    }
   } else if (hcint & HCINT_STALL) {
     xfer->result = XFER_RESULT_STALLED;
     channel_disable(dwc2, channel);
@@ -970,7 +974,7 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       channel->hcsplt = hcsplt.value;
       channel->hcchar |= HCCHAR_CHENA;
     } else {
-      edpt->do_ping = 1;
+      edpt->next_do_ping = 1;
       channel_xfer_out_wrapup(dwc2, ch_id);
       channel_disable(dwc2, channel);
     }
@@ -983,7 +987,7 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       channel->hcintmsk |= HCINT_ACK;
     } else {
       // NAK disable channel to flush all posted request and try again
-      edpt->do_ping = 1;
+      edpt->next_do_ping = 1;
       xfer->err_count = 0;
     }
   } else if (hcint & HCINT_HALTED) {
@@ -1000,10 +1004,17 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
   } else if (hcint & HCINT_ACK) {
     xfer->err_count = 0;
     channel->hcintmsk &= ~HCINT_ACK;
-    if (hcsplt.split_en && !hcsplt.split_compl) {
-      // start split is ACK --> do complete split
-      hcsplt.split_compl = 1;
-      channel->hcsplt = hcsplt.value;
+    if (hcsplt.split_en) {
+      if (!hcsplt.split_compl) {
+        // ACK for start split --> do complete split
+        hcsplt.split_compl = 1;
+        channel->hcsplt = hcsplt.value;
+        channel->hcchar |= HCCHAR_CHENA;
+      }
+    } else {
+      // ACK interrupt is only enabled for Split and PING
+      // ACK for PING, which mean device is ready to receive data
+      channel->hctsiz &= ~HCTSIZ_DOPING; // HC already cleared PING bit, but we clear anyway
       channel->hcchar |= HCCHAR_CHENA;
     }
   }
