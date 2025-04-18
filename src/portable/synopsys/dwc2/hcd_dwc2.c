@@ -95,7 +95,6 @@ typedef struct {
     uint8_t err_count : 3;
     uint8_t period_split_nyet_count : 3;
     uint8_t halted_nyet : 1;
-    uint8_t halted_sof_schedule : 1;
   };
   uint8_t result;
 
@@ -713,19 +712,21 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 //--------------------------------------------------------------------
 // HCD Event Handler
 //--------------------------------------------------------------------
+
+// retry an IN transfer, channel must be halted
 static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hcint) {
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  dwc2_channel_t* channel = &dwc2->channel[ch_id];
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
+  dwc2_channel_t* channel = &dwc2->channel[ch_id];
+  dwc2_channel_char_t hcchar = {.value = channel->hcchar};
 
-  if (channel_is_periodic(channel->hcchar)){
+  if (channel_is_periodic(hcchar.value)){
     const dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
     // retry immediately for periodic split NYET if we haven't reach max retry
     if (hcsplt.split_en && hcsplt.split_compl && (hcint & HCINT_NYET || xfer->halted_nyet)) {
       xfer->period_split_nyet_count++;
       xfer->halted_nyet = 0;
       if (xfer->period_split_nyet_count < HCD_XFER_PERIOD_SPLIT_NYET_MAX) {
-        dwc2_channel_char_t hcchar = {.value = channel->hcchar};
         hcchar.odd_frame = 1 - (dwc2->hfnum & 1); // transfer on next frame
         channel->hcchar = hcchar.value;
         channel_send_in_token(dwc2, channel);
@@ -736,19 +737,20 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       }
     }
 
-    // for periodic, de-allocate channel, enable SOF set frame counter for later transfer
-    const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
-    edpt->next_pid = hctsiz.pid; // save PID
-    edpt->uframe_countdown = edpt->uframe_interval;
-    dwc2->gintmsk |= GINTSTS_SOF;
-
-    if (hcint & HCINT_HALTED) {
+    const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH ? 1 : 8);
+    if (edpt->uframe_interval == ucount) {
+      // retry on next frame if bInterval is 1
+      hcchar.odd_frame = 1 - (dwc2->hfnum & 1);
+      channel->hcchar = hcchar.value;
+      channel_send_in_token(dwc2, channel);
+    } else {
+      // otherwise, de-allocate channel, enable SOF set frame counter for later transfer
+      const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
+      edpt->next_pid = hctsiz.pid; // save PID
+      edpt->uframe_countdown = edpt->uframe_interval - ucount;
+      dwc2->gintmsk |= GINTSTS_SOF;
       // already halted, de-allocate channel (called from DMA isr)
       channel_dealloc(dwc2, ch_id);
-    } else {
-      // disable channel first if not halted (called slave isr)
-      xfer->halted_sof_schedule = 1;
-      channel_disable(dwc2, channel);
     }
   } else {
     // for control/bulk: retry immediately
@@ -898,7 +900,7 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     xfer->halted_nyet = 1;
     channel_disable(dwc2, channel);
   } else if (hcint & HCINT_NAK) {
-    // NAK received, re-enable channel if request queue is available
+    // NAK received, disable channel to flush all posted request and try again
     if (hcsplt.split_en) {
       hcsplt.split_compl = 0; // restart with start-split
       channel->hcsplt = hcsplt.value;
@@ -930,10 +932,7 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     }
   } else if (hcint & HCINT_HALTED) {
     channel->hcintmsk &= ~HCINT_HALTED;
-    if (xfer->halted_sof_schedule) {
-      // de-allocate channel but does not complete xfer, we schedule it in the SOF interrupt
-      channel_dealloc(dwc2, ch_id);
-    } else if (xfer->result != XFER_RESULT_INVALID) {
+    if (xfer->result != XFER_RESULT_INVALID) {
       is_done = true;
     } else if (xfer->err_count == HCD_XFER_ERROR_MAX) {
       xfer->result = XFER_RESULT_FAILED;
