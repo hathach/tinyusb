@@ -2088,9 +2088,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HCTSIZ_DOPING_Pos                (31U)
 #define HCTSIZ_DOPING_Msk                (0x1UL << HCTSIZ_DOPING_Pos)             // 0x80000000
 #define HCTSIZ_DOPING                    HCTSIZ_DOPING_Msk                        // Do PING
-#define HCTSIZ_PID_Pos                  (29U)
-#define HCTSIZ_PID_Msk                  (0x3UL << HCTSIZ_PID_Pos)               // 0x60000000
-#define HCTSIZ_PID                      HCTSIZ_PID_Msk                          // Data PID
+#define HCTSIZ_PID_Pos                   (29U)
+#define HCTSIZ_PID_Msk                   (0x3UL << HCTSIZ_PID_Pos)                // 0x60000000
+#define HCTSIZ_PID                       HCTSIZ_PID_Msk                           // Data PID
 
 /********************  Bit definition for DIEPDMA register  ********************/
 #define DIEPDMA_DMAADDR_Pos              (0U)

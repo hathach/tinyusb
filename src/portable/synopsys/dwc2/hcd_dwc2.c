@@ -959,6 +959,10 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
     is_done = true;
     xfer->result = XFER_RESULT_SUCCESS;
     channel->hcintmsk &= ~HCINT_ACK;
+    if (hcint & HCINT_NYET) {
+      // complete transfer with NYET, do ping next time
+      edpt->next_do_ping = 1;
+    }
   } else if (hcint & HCINT_STALL) {
     xfer->result = XFER_RESULT_STALLED;
     channel_disable(dwc2, channel);
@@ -1002,16 +1006,16 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
     channel->hcintmsk &= ~HCINT_ACK;
     if (hcsplt.split_en) {
       if (!hcsplt.split_compl) {
-        // start split is ACK --> do complete split
+        // ACK for start split --> do complete split
         hcsplt.split_compl = 1;
         channel->hcsplt = hcsplt.value;
         channel->hcchar |= HCCHAR_CHENA;
       }
     } else {
-      // Device is ready, resume transfer
-      edpt->next_do_ping = 0;
-      xfer->err_count = 0;
-      TU_ASSERT(channel_xfer_start(dwc2, ch_id));
+      // ACK interrupt is only enabled for Split and PING
+      // ACK for PING, which mean device is ready to receive data
+      channel->hctsiz &= ~HCTSIZ_DOPING; // HC already cleared PING bit, but we clear anyway
+      channel->hcchar |= HCCHAR_CHENA;
     }
   }
 
