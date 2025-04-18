@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2020, Ha Thach (tinyusb.org)
+ * Copyright (c) 2025 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,29 +25,46 @@
  */
 
 /* metadata:
-   name: Espresif P4 Function EV
-   url: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/index.html
+   name: Pico
+   url: https://www.raspberrypi.com/products/raspberry-pi-pico/
 */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef TUSB_BOARD_H
+#define TUSB_BOARD_H
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-// #define NEOPIXEL_PIN          48
+// UART and LED are already defined in pico-sdk board
 
-#define BUTTON_PIN            35
-#define BUTTON_STATE_ACTIVE   0
+//--------------------------------------------------------------------+
+// PIO_USB
+//--------------------------------------------------------------------+
+// default to pico brain tester
+#define PICO_DEFAULT_PIO_USB_DP_PIN       20
+#define PICO_DEFAULT_PIO_USB_VBUSEN_PIN   22
+#define PICO_DEFAULT_PIO_USB_VBUSEN_STATE 1
 
-// For CI hardware test, to test both device and host on the same HS port with help of TS3USB30
-// https://www.adafruit.com/product/5871
-#define HIL_TS3USB30_MODE_PIN    47
-#define HIL_TS3USB30_MODE_DEVICE 1
+//--------------------------------------------------------------------
+// USB Host MAX3421E
+//--------------------------------------------------------------------
+
+#ifdef PICO_DEFAULT_SPI
+#define MAX3421_SPI      PICO_DEFAULT_SPI // sdk v2
+#else
+#define MAX3421_SPI      PICO_DEFAULT_SPI_INSTANCE // sdk v1
+#endif
+
+#define MAX3421_SCK_PIN  PICO_DEFAULT_SPI_SCK_PIN
+#define MAX3421_MOSI_PIN PICO_DEFAULT_SPI_TX_PIN
+#define MAX3421_MISO_PIN PICO_DEFAULT_SPI_RX_PIN
+#define MAX3421_CS_PIN   10
+#define MAX3421_INTR_PIN 9
+
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* BOARD_H_ */
+#endif

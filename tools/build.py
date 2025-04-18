@@ -182,9 +182,14 @@ def build_boards_list(boards, toolchain, build_system, build_flags_on):
 
 
 def build_family(family, toolchain, build_system, build_flags_on, one_per_family, boards):
+    skip_ci = ['pico_sdk']
+    if os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'):
+        skip_ci_file = Path(f"hw/bsp/{family}/skip_ci.txt")
+        if skip_ci_file.exists():
+            skip_ci = skip_ci_file.read_text().split()
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
-        if entry.is_dir() and entry.name != 'pico_sdk':
+        if entry.is_dir() and not entry.name in skip_ci:
             all_boards.append(entry.name)
     all_boards.sort()
 

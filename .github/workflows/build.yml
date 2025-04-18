@@ -85,7 +85,7 @@ jobs:
           - 'msp430-gcc'
           - 'riscv-gcc'
           - 'rx-gcc'
-          - 'esp-idf' # build-system is ignored
+          - 'esp-idf'
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
@@ -110,37 +110,26 @@ jobs:
       one-per-family: true
 
   # ---------------------------------------
-  # Build IAR on HFP self-hosted
-  # Since IAR Token secret is not passed to forked PR, only build on PR from the same repo
+  # Build IAR
+  # Since IAR Token secret is not passed to forked PR, only build non-forked PR with make.
+  # cmake is built by circle-ci. Due to IAR limit capacity, only build oe per family
   # ---------------------------------------
   arm-iar:
-    if: github.repository_owner == 'hathach' && github.event_name == 'push'
+    if: false # disable for now since we got reach capacity limit too often
+    #if: github.event_name == 'push' && github.repository_owner == 'hathach'
     needs: set-matrix
-    runs-on: [self-hosted, Linux, X64, hifiphile]
-    env:
-      BUILD_ARGS: ${{ join(fromJSON(needs.set-matrix.outputs.json)['arm-iar'], ' ') }}
-      IAR_LMS_CLOUD_URL: ${{ vars.IAR_LMS_CLOUD_URL }}
-      IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
-    steps:
-      - name: Clean workspace
-        run: |
-          echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"
-          mkdir -p "${{ github.workspace }}"
-
-      - name: Toolchain version
-        run: |
-          echo IAR_LMS_CLOUD_URL=$IAR_LMS_CLOUD_URL
-          iccarm --version
-
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
-
-      - name: Get Dependencies
-        run: python3 tools/get_deps.py $BUILD_ARGS
-
-      - name: Build
-        run: python3 tools/build.py --one-per-family --toolchain iar $BUILD_ARGS
+    uses: ./.github/workflows/build_util.yml
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        build-system:
+          - 'make'
+    with:
+      build-system: ${{ matrix.build-system }}
+      toolchain: 'arm-iar'
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar']) }}
+      one-per-family: true
 
   # ---------------------------------------
   # Zephyr

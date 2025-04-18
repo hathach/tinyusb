@@ -1,0 +1,7 @@
+# boards in this files are skipped when running CI with this family
+adafruit_feather_rp2040_usb_host
+adafruit_fruit_jam
+adafruit_metro_rp2350
+feather_rp2040_max3421
+pico_sdk
+raspberry_pi_pico_w

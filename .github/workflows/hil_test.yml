@@ -90,13 +90,12 @@ jobs:
   # ---------------------------------------
   # Hardware in the loop (HIL)
   # self-hosted by HFP, build with IAR toolchain, for attached hardware checkout test/hil/hfp.json
-  # Since IAR Token secret is not passed to forked PR, only build on PR from the same repo
+  # Since IAR Token secret is not passed to forked PR, only build non-forked PR
   # ---------------------------------------
   hil-hfp:
     if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     runs-on: [self-hosted, Linux, X64, hifiphile]
     env:
-      IAR_LMS_CLOUD_URL: ${{ vars.IAR_LMS_CLOUD_URL }}
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
     steps:
       - name: Clean workspace
@@ -107,7 +106,6 @@ jobs:
 
       - name: Toolchain version
         run: |
-          echo IAR_LMS_CLOUD_URL=$IAR_LMS_CLOUD_URL
           iccarm --version
 
       - name: Checkout TinyUSB

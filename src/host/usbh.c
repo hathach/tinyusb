@@ -1372,9 +1372,13 @@ enum {
   ENUM_HUB_CLEAR_RESET_2,
   ENUM_SET_ADDR,
   ENUM_GET_DEVICE_DESC,
+  ENUM_GET_STRING_LANGUAGE_ID_LEN,
   ENUM_GET_STRING_LANGUAGE_ID,
+  ENUM_GET_STRING_MANUFACTURER_LEN,
   ENUM_GET_STRING_MANUFACTURER,
+  ENUM_GET_STRING_PRODUCT_LEN,
   ENUM_GET_STRING_PRODUCT,
+  ENUM_GET_STRING_SERIAL_LEN,
   ENUM_GET_STRING_SERIAL,
   ENUM_GET_9BYTE_CONFIG_DESC,
   ENUM_GET_FULL_CONFIG_DESC,
@@ -1416,6 +1420,9 @@ static void process_enumeration(tuh_xfer_t* xfer) {
   uint8_t const daddr = xfer->daddr;
   uintptr_t const state = xfer->user_data;
   usbh_device_t* dev = get_device(daddr);
+  if (daddr > 0) {
+    TU_ASSERT(dev,);
+  }
   uint16_t langid = 0x0409; // default is English
 
   switch (state) {
@@ -1474,30 +1481,6 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       break;
     }
 
-#if 0
-      case ENUM_RESET_2:
-        // TODO not used by now, but may be needed for some devices !?
-        // Reset device again before Set Address
-        TU_LOG_USBH("Port reset2 \r\n");
-        if (_dev0.hub_addr == 0) {
-          // connected directly to roothub
-          hcd_port_reset( _dev0.rhport );
-          tusb_time_delay_ms_api(RESET_DELAY); // TODO may not work for no-OS on MCU that require reset_end() since
-                                        // sof of controller may not running while resetting
-          hcd_port_reset_end(_dev0.rhport);
-          // TODO: fall through to SET ADDRESS, refactor later
-        }
-#if CFG_TUH_HUB
-        else {
-          // after RESET_DELAY the hub_port_reset() already complete
-          TU_ASSERT( hub_port_reset(_dev0.hub_addr, _dev0.hub_port,
-                                    process_enumeration, ENUM_HUB_GET_STATUS_2), );
-          break;
-        }
-#endif
-        TU_ATTR_FALLTHROUGH;
-#endif
-
     case ENUM_SET_ADDR:
       enum_request_set_addr((tusb_desc_device_t*) _usbh_epbuf.ctrl);
       break;
@@ -1520,14 +1503,15 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       // Get full device descriptor
       TU_LOG_USBH("Get Device Descriptor\r\n");
       TU_ASSERT(tuh_descriptor_get_device(new_addr, _usbh_epbuf.ctrl, sizeof(tusb_desc_device_t),
-                                          process_enumeration, ENUM_GET_STRING_LANGUAGE_ID),);
+                                          process_enumeration, ENUM_GET_STRING_LANGUAGE_ID_LEN),);
       break;
     }
 
-    case ENUM_GET_STRING_LANGUAGE_ID: {
+    // For string descriptor (langid, manufacturer, product, serila): always get the first 2 bytes
+    // to determine the length first. otherwise, some device may have buffer overflow.
+    case ENUM_GET_STRING_LANGUAGE_ID_LEN: {
       // save the received device descriptor
-      TU_ASSERT(dev,);
-      tusb_desc_device_t const* desc_device = (tusb_desc_device_t const*) _usbh_epbuf.ctrl;
+      tusb_desc_device_t const *desc_device = (tusb_desc_device_t const *) _usbh_epbuf.ctrl;
       dev->vid = desc_device->idVendor;
       dev->pid = desc_device->idProduct;
       dev->i_manufacturer = desc_device->iManufacturer;
@@ -1535,50 +1519,88 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       dev->i_serial = desc_device->iSerialNumber;
       dev->bNumConfigurations = desc_device->bNumConfigurations;
 
-      tuh_enum_descriptor_device_cb(daddr, desc_device); // callback
+      tuh_enum_descriptor_device_cb(daddr, desc_device);// callback
 
-      tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
-                                       process_enumeration, ENUM_GET_STRING_MANUFACTURER);
+      tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, 2,
+                                       process_enumeration, ENUM_GET_STRING_LANGUAGE_ID);
       break;
     }
 
-    case ENUM_GET_STRING_MANUFACTURER: {
-      TU_ASSERT(dev,);
-      const tusb_desc_string_t* desc_langid = (tusb_desc_string_t const*) _usbh_epbuf.ctrl;
+    case ENUM_GET_STRING_LANGUAGE_ID: {
+      const uint8_t str_len = xfer->buffer[0];
+      tuh_descriptor_get_string_langid(daddr, _usbh_epbuf.ctrl, str_len,
+                                       process_enumeration, ENUM_GET_STRING_MANUFACTURER_LEN);
+      break;
+    }
+
+    case ENUM_GET_STRING_MANUFACTURER_LEN: {
+      const tusb_desc_string_t* desc_langid = (const tusb_desc_string_t *) _usbh_epbuf.ctrl;
       if (desc_langid->bLength >= 4) {
-        langid = tu_le16toh(desc_langid->utf16le[0]);
+        langid = tu_le16toh(desc_langid->utf16le[0]); // previous request is langid
       }
       if (dev->i_manufacturer != 0) {
-        tuh_descriptor_get_string(daddr, dev->i_manufacturer, langid, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
+        tuh_descriptor_get_string(daddr, dev->i_manufacturer, langid, _usbh_epbuf.ctrl, 2,
+                                  process_enumeration, ENUM_GET_STRING_MANUFACTURER);
+        break;
+      }else {
+        TU_ATTR_FALLTHROUGH;
+      }
+    }
+
+    case ENUM_GET_STRING_MANUFACTURER: {
+      if (dev->i_manufacturer != 0)  {
+        langid = tu_le16toh(xfer->setup->wIndex); // langid from length's request
+        const uint8_t str_len = xfer->buffer[0];
+        tuh_descriptor_get_string(daddr, dev->i_manufacturer, langid, _usbh_epbuf.ctrl, str_len,
+                                  process_enumeration, ENUM_GET_STRING_PRODUCT_LEN);
+        break;
+      } else {
+        TU_ATTR_FALLTHROUGH;
+      }
+    }
+
+    case ENUM_GET_STRING_PRODUCT_LEN:
+      if (dev->i_product != 0) {
+        if (state == ENUM_GET_STRING_PRODUCT_LEN) {
+          langid = tu_le16toh(xfer->setup->wIndex); // get langid from previous setup packet if not fall through
+        }
+        tuh_descriptor_get_string(daddr, dev->i_product, langid, _usbh_epbuf.ctrl, 2,
                                   process_enumeration, ENUM_GET_STRING_PRODUCT);
         break;
       } else {
         TU_ATTR_FALLTHROUGH;
       }
-    }
 
     case ENUM_GET_STRING_PRODUCT: {
-      TU_ASSERT(dev,);
-      if (state == ENUM_GET_STRING_PRODUCT) {
-        langid = tu_le16toh(xfer->setup->wIndex); // if not fall through, get langid from previous setup packet
-      }
       if (dev->i_product != 0) {
-        tuh_descriptor_get_string(daddr, dev->i_product, 0x0409, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
-                            process_enumeration, ENUM_GET_STRING_SERIAL);
+        langid = tu_le16toh(xfer->setup->wIndex); // langid from length's request
+        const uint8_t str_len = xfer->buffer[0];
+        tuh_descriptor_get_string(daddr, dev->i_product, langid, _usbh_epbuf.ctrl, str_len,
+                            process_enumeration, ENUM_GET_STRING_SERIAL_LEN);
         break;
       } else {
         TU_ATTR_FALLTHROUGH;
       }
     }
 
-    case ENUM_GET_STRING_SERIAL: {
-      TU_ASSERT(dev,);
-      if (state == ENUM_GET_STRING_SERIAL) {
-        langid = tu_le16toh(xfer->setup->wIndex); // if not fall through, get langid from previous setup packet
-      }
+    case ENUM_GET_STRING_SERIAL_LEN:
       if (dev->i_serial != 0) {
-        tuh_descriptor_get_string(daddr, dev->i_serial, langid, _usbh_epbuf.ctrl, CFG_TUH_ENUMERATION_BUFSIZE,
-                            process_enumeration, ENUM_GET_9BYTE_CONFIG_DESC);
+        if (state == ENUM_GET_STRING_SERIAL_LEN) {
+          langid = tu_le16toh(xfer->setup->wIndex); // get langid from previous setup packet if not fall through
+        }
+        tuh_descriptor_get_string(daddr, dev->i_serial, langid, _usbh_epbuf.ctrl, 2,
+                                  process_enumeration, ENUM_GET_STRING_SERIAL);
+        break;
+      } else {
+        TU_ATTR_FALLTHROUGH;
+      }
+
+    case ENUM_GET_STRING_SERIAL: {
+      if (dev->i_serial != 0) {
+        langid = tu_le16toh(xfer->setup->wIndex); // langid from length's request
+        const uint8_t str_len = xfer->buffer[0];
+        tuh_descriptor_get_string(daddr, dev->i_serial, langid, _usbh_epbuf.ctrl, str_len,
+                                  process_enumeration, ENUM_GET_9BYTE_CONFIG_DESC);
         break;
       } else {
         TU_ATTR_FALLTHROUGH;
@@ -1627,8 +1649,6 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
     case ENUM_CONFIG_DRIVER: {
       TU_LOG_USBH("Device configured\r\n");
-      TU_ASSERT(dev,);
-
       dev->configured = 1;
 
       // Parse configuration & set up drivers
