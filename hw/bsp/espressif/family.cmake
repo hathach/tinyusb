@@ -34,6 +34,6 @@ endif ()
 set(EXTRA_COMPONENT_DIRS "src" "${CMAKE_CURRENT_LIST_DIR}/boards" "${CMAKE_CURRENT_LIST_DIR}/components")
 
 # set SDKCONFIG for each IDF Target
-set(SDKCONFIG ${CMAKE_SOURCE_DIR}/sdkconfig.${IDF_TARGET})
+set(SDKCONFIG ${CMAKE_BINARY_DIR}/sdkconfig)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
