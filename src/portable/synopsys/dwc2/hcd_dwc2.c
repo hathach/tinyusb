@@ -748,6 +748,7 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       const dwc2_channel_tsize_t hctsiz = {.value = channel->hctsiz};
       edpt->next_pid = hctsiz.pid; // save PID
       edpt->uframe_countdown = edpt->uframe_interval - ucount;
+      dwc2->gintsts = GINTSTS_SOF; // SOF flag is probably pending
       dwc2->gintmsk |= GINTSTS_SOF;
       // already halted, de-allocate channel (called from DMA isr)
       channel_dealloc(dwc2, ch_id);
