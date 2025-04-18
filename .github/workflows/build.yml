@@ -115,7 +115,7 @@ jobs:
   # cmake is built by circle-ci. Due to IAR limit capacity, only build oe per family
   # ---------------------------------------
   arm-iar:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    if: github.event_name == 'push' && github.repository_owner == 'hathach'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     secrets: inherit
