@@ -118,8 +118,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   (void) dev_addr;
 
   // NOTE: ep_desc is allocated on the stack when called from usbh_edpt_control_open()
-  // If you need to persist any ep_desc values across HCD calls (eg ep_desc->wMaxPacketSize),
-  // then you need to copy the data into another variable inside this function.
+  // You need to copy the data into a local variable who maintains the state of the endpoint and transfer.
+  // Check _hcd_data in hcd_dwc2.c for example.
   (void) ep_desc;
 
   return false;
