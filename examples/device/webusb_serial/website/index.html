@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TinyUSB WebUSB Serial</title>
+  <link rel="stylesheet" href="style.css" />
+  <script defer src="serial.js"></script>
+  <script defer src="application.js"></script>
+</head>
+
+<body>
+  <header class="header">
+    <h1 class="title">TinyUSB - WebUSB Serial</h1>
+    <a class="github-link" href="https://github.com/hathach/tinyusb/tree/master/examples/device/webusb_serial/website"
+      target="_blank">
+      Find my source on GitHub
+    </a>
+  </header>
+  <main>
+    <section class="controls-section">
+      <button id="connect" class="btn good">Connect</button>
+      <label for="newline_mode">
+        Newline mode:
+        <select id="newline_mode">
+          <option value="CR">Only \r</option>
+          <option value="CRLF">\r\n</option>
+          <option value="ANY" selected>\r, \n or \r\n</option>
+        </select>
+      </label>
+      <label for="auto_reconnect">
+        <input type="checkbox" id="auto_reconnect" />
+        Auto Reconnect
+      </label>
+      <button id="forget_device" class="btn danger">Forget Device</button>
+      <button id="forget_all_devices" class="btn danger">Forget All Devices</button>
+      <button id="reset_all" class="btn danger">Reset All</button>
+      <button id="reset_output" class="btn danger">Reset Output</button>
+    </section>
+    <section class="status-section">
+      <span id="status" class="status">
+        Click "Connect" to start
+      </span>
+    </section>
+    <div class="io-container">
+      <section class="column sender">
+        <h2>Sender</h2>
+        <div class="scrollbox-wrapper">
+          <div id="sender_lines" class="scrollbox monospaced"></div>
+        </div>
+        <div class="send-container">
+          <input id="command_line" class="input" placeholder="Start typing..." />
+          <button id="send_mode" class="btn send-mode-command">Command Mode</button>
+        </div>
+      </section>
+      <section class="column">
+        <h2>Receiver</h2>
+        <div class="scrollbox-wrapper">
+          <div id="receiver_lines" class="scrollbox monospaced"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+
+</html>
