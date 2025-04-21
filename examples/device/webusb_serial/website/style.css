@@ -43,6 +43,10 @@ main {
 .controls-section, .status-section {
   padding: 1rem;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 /* Container for the two columns */
@@ -51,6 +55,7 @@ main {
   flex: 1;
   /* fill remaining vertical space */
   width: 100%;
+  overflow: hidden;
 }
 
 /* Both columns flex equally and full height */
@@ -67,7 +72,7 @@ main {
   flex-direction: column;
 }
 
-.sender-entry {
+.command-history-entry {
   width: 100%;
   display: flex;
   flex-direction: row;
@@ -85,7 +90,7 @@ main {
   color: inherit;
 }
 
-.sender-entry:hover {
+.command-history-entry:hover {
   background-color: #f0f0f0;
 }
 
@@ -133,15 +138,6 @@ main {
   background-color: blue;
 }
 
-/* UI Styles */
-.controls {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  flex: 1
-}
-
 .btn {
   padding: 0.5rem 1rem;
   font-size: 1rem;
@@ -185,4 +181,11 @@ main {
   border-color: #0078d7;
   box-shadow: 0 0 6px rgba(0, 120, 215, 0.5);
   background-color: #fff;
+}
+
+.resizer {
+  width: 5px;
+  background-color: #ccc;
+  cursor: col-resize;
+  height: 100%;
 }
