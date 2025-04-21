@@ -174,7 +174,7 @@ class WebUsbSerialPort {
   async _readLoop() {
     while (this.isConnected) {
       try {
-        const result = await this.device.transferIn(this.endpointIn, 64);
+        const result = await this.device.transferIn(this.endpointIn, 16384);
         if (result.data && this.onReceive) {
           this.onReceive(result.data);
         }
