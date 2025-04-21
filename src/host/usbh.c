@@ -647,6 +647,21 @@ static void _control_blocking_complete_cb(tuh_xfer_t* xfer) {
   *((xfer_result_t*) xfer->user_data) = xfer->result;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void _control_set_xfer_stage(uint8_t stage) {
+  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  _ctrl_xfer.stage = stage;
+  (void) osal_mutex_unlock(_usbh_mutex);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const uint8_t setup_packet[8]) {
+  const uint8_t rhport = usbh_get_rhport(daddr);
+  const bool ret = hcd_setup_send(rhport, daddr, setup_packet);
+  if (!ret) {
+    _control_set_xfer_stage(CONTROL_STAGE_IDLE);
+  }
+  return ret;
+}
+
 // TODO timeout_ms is not supported yet
 bool tuh_control_xfer (tuh_xfer_t* xfer) {
   TU_VERIFY(xfer->ep_addr == 0 && xfer->setup); // EP0 with setup packet
@@ -673,15 +688,13 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
   (void) osal_mutex_unlock(_usbh_mutex);
 
   TU_VERIFY(is_idle);
-  const uint8_t rhport = usbh_get_rhport(daddr);
-
   TU_LOG_USBH("[%u:%u] %s: ", rhport, daddr,
               (xfer->setup->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                   tu_str_std_request[xfer->setup->bRequest] : "Class Request");
   TU_LOG_BUF_USBH(xfer->setup, 8);
 
   if (xfer->complete_cb) {
-    TU_ASSERT(hcd_setup_send(rhport, daddr, (uint8_t const *) &_usbh_epbuf.request));
+    TU_ASSERT(usbh_setup_send(daddr, (uint8_t const *) &_usbh_epbuf.request));
   }else {
     // blocking if complete callback is not provided
     // change callback to internal blocking, and result as user argument
@@ -691,7 +704,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
     _ctrl_xfer.user_data   = (uintptr_t) &result;
     _ctrl_xfer.complete_cb = _control_blocking_complete_cb;
 
-    TU_ASSERT(hcd_setup_send(rhport, daddr, (uint8_t *) &_usbh_epbuf.request));
+    TU_ASSERT(usbh_setup_send(daddr, (uint8_t const *) &_usbh_epbuf.request));
 
     while (result == XFER_RESULT_INVALID) {
       // Note: this can be called within an callback ie. part of tuh_task()
@@ -713,12 +726,6 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage) {
-  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-  _ctrl_xfer.stage = stage;
-  (void) osal_mutex_unlock(_usbh_mutex);
-}
-
 static void _control_xfer_complete(uint8_t daddr, xfer_result_t result) {
   TU_LOG_USBH("\r\n");
 
@@ -735,7 +742,7 @@ static void _control_xfer_complete(uint8_t daddr, xfer_result_t result) {
     .user_data   = _ctrl_xfer.user_data
   };
 
-  _set_control_xfer_stage(CONTROL_STAGE_IDLE);
+  _control_set_xfer_stage(CONTROL_STAGE_IDLE);
 
   if (xfer_temp.complete_cb) {
     xfer_temp.complete_cb(&xfer_temp);
@@ -764,7 +771,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
         _ctrl_xfer.actual_len = 0; // reset actual_len
         (void) osal_mutex_unlock(_usbh_mutex);
 
-        TU_ASSERT(hcd_setup_send(rhport, daddr, (uint8_t const *) request));
+        TU_ASSERT(usbh_setup_send(daddr, (uint8_t const *) request));
       } else {
         TU_LOG_USBH("[%u:%u] Control FAILED, xferred_bytes = %" PRIu32 "\r\n", rhport, daddr, xferred_bytes);
         TU_LOG_BUF_USBH(request, 8);
@@ -777,8 +784,8 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
         case CONTROL_STAGE_SETUP:
           if (request->wLength) {
             // DATA stage: initial data toggle is always 1
-            _set_control_xfer_stage(CONTROL_STAGE_DATA);
-            TU_ASSERT( hcd_edpt_xfer(rhport, daddr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength) );
+            _control_set_xfer_stage(CONTROL_STAGE_DATA);
+            TU_ASSERT(hcd_edpt_xfer(rhport, daddr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength));
             return true;
           }
         TU_ATTR_FALLTHROUGH;
@@ -792,7 +799,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
         _ctrl_xfer.actual_len = (uint16_t) xferred_bytes;
 
         // ACK stage: toggle is always 1
-        _set_control_xfer_stage(CONTROL_STAGE_ACK);
+        _control_set_xfer_stage(CONTROL_STAGE_ACK);
         TU_ASSERT( hcd_edpt_xfer(rhport, daddr, tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction), NULL, 0) );
         break;
 
@@ -854,7 +861,7 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     // control transfer: only 1 control at a time, check if we are aborting the current one
     TU_VERIFY(daddr == _ctrl_xfer.daddr && _ctrl_xfer.stage != CONTROL_STAGE_IDLE);
     hcd_edpt_abort_xfer(rhport, daddr, ep_addr);
-    _set_control_xfer_stage(CONTROL_STAGE_IDLE); // reset control transfer state to idle
+    _control_set_xfer_stage(CONTROL_STAGE_IDLE); // reset control transfer state to idle
   } else {
     usbh_device_t* dev = get_device(daddr);
     TU_VERIFY(dev);
@@ -1321,7 +1328,9 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
         clear_device(dev);
 
         // abort on-going control xfer on this device if any
-        if (_ctrl_xfer.daddr == daddr) _set_control_xfer_stage(CONTROL_STAGE_IDLE);
+        if (_ctrl_xfer.daddr == daddr) {
+          _control_set_xfer_stage(CONTROL_STAGE_IDLE);
+        }
       }
     }
 
