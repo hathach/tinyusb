@@ -692,7 +692,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
   (void) osal_mutex_unlock(_usbh_mutex);
 
   TU_VERIFY(is_idle);
-  TU_LOG_USBH("[%u:%u] %s: ", rhport, daddr,
+  TU_LOG_USBH("[%u:%u] %s: ", usbh_get_rhport(daddr), daddr,
               (xfer->setup->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME) ?
                   tu_str_std_request[xfer->setup->bRequest] : "Class Request");
   TU_LOG_BUF_USBH(xfer->setup, 8);
