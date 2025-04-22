@@ -311,12 +311,6 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) 
   return &_usbh_devices[dev_addr-1];
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _set_control_xfer_stage(uint8_t stage) {
-  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-  _ctrl_xfer.stage = stage;
-  (void) osal_mutex_unlock(_usbh_mutex);
-}
-
 static bool enum_new_device(hcd_event_t* event);
 static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
@@ -563,14 +557,6 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         TU_LOG_USBH("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
         process_removing_device(event.rhport, event.connection.hub_addr, event.connection.hub_port);
 
-        if ((event.rhport == _dev0.rhport) && (event.connection.hub_addr == _dev0.hub_addr) &&
-            (event.connection.hub_port == _dev0.hub_port)) {
-          _dev0.enumerating = 0;
-          hcd_device_close(_dev0.rhport, _dev0.hub_addr);
-          if (_ctrl_xfer.daddr == 0) {
-            _set_control_xfer_stage(CONTROL_STAGE_IDLE);
-          }
-        }
         #if CFG_TUH_HUB
         // TODO remove
         if (event.connection.hub_addr != 0 && event.connection.hub_port != 0) {
@@ -662,9 +648,11 @@ static void _control_blocking_complete_cb(tuh_xfer_t* xfer) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void _control_set_xfer_stage(uint8_t stage) {
-  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-  _ctrl_xfer.stage = stage;
-  (void) osal_mutex_unlock(_usbh_mutex);
+  if (_ctrl_xfer.stage != stage) {
+    (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+    _ctrl_xfer.stage = stage;
+    (void) osal_mutex_unlock(_usbh_mutex);
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const uint8_t setup_packet[8]) {
@@ -1279,30 +1267,19 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_hub_addr(uint8_t daddr) {
   return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX);
 }
 
-//static void mark_removing_device_isr(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
-//  for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
-//    usbh_device_t *dev = &_usbh_devices[dev_id];
-//    uint8_t const daddr = dev_id + 1;
-//
-//    // hub_addr = 0 means roothub, hub_port = 0 means all devices of downstream hub
-//    if (dev->rhport == rhport && dev->connected &&
-//        (hub_addr == 0 || dev->hub_addr == hub_addr) &&
-//        (hub_port == 0 || dev->hub_port == hub_port)) {
-//      if (is_hub_addr(daddr)) {
-//        // If the device itself is a usb hub, mark all downstream devices.
-//        // FIXME recursive calls
-//        mark_removing_device_isr(rhport, daddr, 0);
-//      }
-//
-//      dev->removing = 1;
-//    }
-//  }
-//}
-
 // a device unplugged from rhport:hub_addr:hub_port
 static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
+  // dev0 is unplugged
+  if (_dev0.enumerating && (rhport == _dev0.rhport) && (hub_addr == _dev0.hub_addr) && (hub_port == _dev0.hub_port)) {
+    hcd_device_close(_dev0.rhport, 0);
+    if (_ctrl_xfer.daddr == 0) {
+      _control_set_xfer_stage(CONTROL_STAGE_IDLE);
+    }
+    _dev0.enumerating = 0;
+    return;
+  }
+
   //------------- find the all devices (star-network) under port that is unplugged -------------//
-  // TODO mark as disconnected in ISR, also handle dev0
   uint32_t removing_hubs = 0;
   do {
     for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
@@ -1343,9 +1320,11 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
       }
     }
 
-    // if removing a hub, we need to remove its downstream devices
+    // if removing a hub, we need to remove all of its downstream devices
     #if CFG_TUH_HUB
-    if (removing_hubs == 0) break;
+    if (removing_hubs == 0) {
+      break;
+    }
 
     // find a marked hub to process
     for (uint8_t h_id = 0; h_id < CFG_TUH_HUB; h_id++) {
