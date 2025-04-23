@@ -475,8 +475,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const tusb_speed_t rh_speed = hprt_speed_get(dwc2);
 
-  hcd_devtree_info_t devtree_info;
-  hcd_devtree_get_info(dev_addr, &devtree_info);
+  tuh_bus_info_t bus_info;
+  hcd_bus_info_get(dev_addr, &bus_info);
 
   // find a free endpoint
   const uint8_t ep_id = edpt_alloc();
@@ -487,7 +487,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   hcchar_bm->ep_size         = tu_edpt_packet_size(desc_ep);
   hcchar_bm->ep_num          = tu_edpt_number(desc_ep->bEndpointAddress);
   hcchar_bm->ep_dir          = tu_edpt_dir(desc_ep->bEndpointAddress);
-  hcchar_bm->low_speed_dev   = (devtree_info.speed == TUSB_SPEED_LOW) ? 1 : 0;
+  hcchar_bm->low_speed_dev   = (bus_info.speed == TUSB_SPEED_LOW) ? 1 : 0;
   hcchar_bm->ep_type         = desc_ep->bmAttributes.xfer; // ep_type matches TUSB_XFER_*
   hcchar_bm->err_multi_count = 0;
   hcchar_bm->dev_addr        = dev_addr;
@@ -496,21 +496,21 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   hcchar_bm->enable          = 1;
 
   dwc2_channel_split_t* hcsplt_bm = &edpt->hcsplt_bm;
-  hcsplt_bm->hub_port        = devtree_info.hub_port;
-  hcsplt_bm->hub_addr        = devtree_info.hub_addr;
+  hcsplt_bm->hub_port        = bus_info.hub_port;
+  hcsplt_bm->hub_addr        = bus_info.hub_addr;
   hcsplt_bm->xact_pos        = 0;
   hcsplt_bm->split_compl     = 0;
-  hcsplt_bm->split_en        = (rh_speed == TUSB_SPEED_HIGH && devtree_info.speed != TUSB_SPEED_HIGH) ? 1 : 0;
+  hcsplt_bm->split_en        = (rh_speed == TUSB_SPEED_HIGH && bus_info.speed != TUSB_SPEED_HIGH) ? 1 : 0;
 
-  edpt->speed = devtree_info.speed;
+  edpt->speed = bus_info.speed;
   edpt->next_pid = HCTSIZ_PID_DATA0;
   if (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
     edpt->uframe_interval = 1 << (desc_ep->bInterval - 1);
-    if (devtree_info.speed == TUSB_SPEED_FULL) {
+    if (bus_info.speed == TUSB_SPEED_FULL) {
       edpt->uframe_interval <<= 3;
     }
   } else if (desc_ep->bmAttributes.xfer == TUSB_XFER_INTERRUPT) {
-    if (devtree_info.speed == TUSB_SPEED_HIGH) {
+    if (bus_info.speed == TUSB_SPEED_HIGH) {
       edpt->uframe_interval = 1 << (desc_ep->bInterval - 1);
     } else {
       edpt->uframe_interval = desc_ep->bInterval << 3;
