@@ -36,6 +36,7 @@
 #endif
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION

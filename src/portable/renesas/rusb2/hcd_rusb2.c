@@ -30,6 +30,7 @@
 #if CFG_TUH_ENABLED && defined(TUP_USBIP_RUSB2)
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 #include "rusb2_type.h"
 
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
@@ -662,13 +663,13 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   if (0 == epn) {
     rusb->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
-    hcd_devtree_info_t devtree;
-    hcd_devtree_get_info(dev_addr, &devtree);
+    tuh_bus_info_t bus_info;
+    tuh_bus_info_get(dev_addr, &bus_info);
     uint16_t volatile *devadd = (uint16_t volatile *)(uintptr_t) &rusb->DEVADD[0];
     devadd += dev_addr;
     while (rusb->DCPCTR_b.PBUSY) {}
     rusb->DCPMAXP = (dev_addr << 12) | mps;
-    *devadd = (TUSB_SPEED_FULL == devtree.speed) ? RUSB2_DEVADD_USBSPD_FS : RUSB2_DEVADD_USBSPD_LS;
+    *devadd = (TUSB_SPEED_FULL == bus_info.speed) ? RUSB2_DEVADD_USBSPD_FS : RUSB2_DEVADD_USBSPD_LS;
     _hcd.ctl_mps[dev_addr] = mps;
     return true;
   }

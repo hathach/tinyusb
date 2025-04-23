@@ -34,6 +34,7 @@
 #include "osal/osal.h"
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 #include "ehci_api.h"
 #include "ehci.h"
 
@@ -837,8 +838,8 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
     tu_memclr(p_qhd, sizeof(ehci_qhd_t));
   }
 
-  hcd_devtree_info_t devtree_info;
-  hcd_devtree_get_info(dev_addr, &devtree_info);
+  tuh_bus_info_t bus_info;
+  tuh_bus_info_get(dev_addr, &bus_info);
 
   uint8_t const xfer_type = ep_desc->bmAttributes.xfer;
   uint8_t const interval = ep_desc->bInterval;
@@ -846,7 +847,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   p_qhd->dev_addr           = dev_addr;
   p_qhd->fl_inactive_next_xact = 0;
   p_qhd->ep_number          = tu_edpt_number(ep_desc->bEndpointAddress);
-  p_qhd->ep_speed           = devtree_info.speed;
+  p_qhd->ep_speed           = bus_info.speed;
   p_qhd->data_toggle_control= (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
   p_qhd->head_list_flag     = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static async list head
   p_qhd->max_packet_size    = tu_edpt_packet_size(ep_desc);
@@ -887,8 +888,8 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
     default: break;
   }
 
-  p_qhd->fl_hub_addr  = devtree_info.hub_addr;
-  p_qhd->fl_hub_port  = devtree_info.hub_port;
+  p_qhd->fl_hub_addr  = bus_info.hub_addr;
+  p_qhd->fl_hub_port  = bus_info.hub_port;
   p_qhd->mult         = 1; // TODO not use high bandwidth/park mode yet
 
   //------------- HCD Management Data -------------//
