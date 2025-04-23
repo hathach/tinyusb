@@ -62,32 +62,30 @@ main {
 .column {
   flex: 1;
   padding: 1rem;
-  overflow: auto;
   display: flex;
   flex-direction: column;
 }
 
-.sender {
+.heading-with-controls {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .command-history-entry {
-  width: 100%;
+  all: unset;
   display: flex;
   flex-direction: row;
-  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
   background: none;
   border: none;
-  border-bottom: 1px solid #ccc;
-  /* light gray line */
+  border-bottom: 1px solid #ccc; /* light gray line */
   padding: 0.5rem 1rem;
   margin: 0;
-  gap: 0;
   text-align: left;
   cursor: pointer;
-  font-size: 1rem;
-  color: inherit;
 }
 
 .command-history-entry:hover {

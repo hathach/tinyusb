@@ -25,7 +25,7 @@
       <button id="connect_serial_btn" class="controls btn good">Connect Serial</button>
       <button id="disconnect_btn" class="controls btn danger">Disconnect</button>
       <label for="newline_mode_select" class="controls">
-        Newline mode:
+        Command newline mode:
         <select id="newline_mode_select">
           <option value="CR">Only \r</option>
           <option value="CRLF">\r\n</option>
@@ -39,8 +39,8 @@
       <button id="forget_device_btn" class="controls btn danger">Forget Device</button>
       <button id="forget_all_devices_btn" class="controls btn danger">Forget All Devices</button>
       <button id="reset_all_btn" class="controls btn danger">Reset All</button>
-      <button id="reset_output_btn" class="controls btn danger">Reset Output</button>
       <button id="copy_output_btn" class="controls btn good">Copy Output</button>
+      <button id="download_csv_output_btn" class="controls btn good">Download CSV</button>
     </section>
     <section class="status-section">
       <span id="status_span" class="status">
@@ -48,8 +48,11 @@
       </span>
     </section>
     <div class="io-container">
-      <section class="column sender">
-        <h2>Command History</h2>
+      <section class="column">
+        <div class="heading-with-controls">
+          <h2>Command History</h2>
+          <button id="clear_command_history_btn" class="controls btn danger">Clear History</button>
+        </div>
         <div class="scrollbox-wrapper">
           <div id="command_history_scrollbox" class="scrollbox monospaced"></div>
         </div>
@@ -60,7 +63,10 @@
       </section>
       <div class="resizer" id="resizer"></div>
       <section class="column">
-        <h2>Received Data</h2>
+        <div class="heading-with-controls">
+          <h2>Received Data</h2>
+          <button id="clear_received_data_btn" class="controls btn danger">Clear Received</button>
+        </div>
         <div class="scrollbox-wrapper">
           <div id="received_data_scrollbox" class="scrollbox monospaced"></div>
         </div>
