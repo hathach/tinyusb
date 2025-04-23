@@ -191,6 +191,7 @@ class WebUsbSerialPort {
   async disconnect() {
     this.isConnected = false;
     await this._waitForReadLoopToFinish();
+    if (!this.device.opened) return;
     try {
       await this.device.controlTransferOut({
         requestType: 'class',

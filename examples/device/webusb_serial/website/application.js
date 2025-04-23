@@ -2,27 +2,48 @@
 
 (async () => {
   // bind to the html
-  const connectWebUsbSerialBtn = document.getElementById('connect_webusb_serial_btn');
-  const connectSerialBtn = document.getElementById('connect_serial_btn');
-  const disconnectBtn = document.getElementById('disconnect_btn');
+  const uiConnectWebUsbSerialBtn = document.getElementById('connect_webusb_serial_btn');
+  const uiConnectSerialBtn = document.getElementById('connect_serial_btn');
+  const uiDisconnectBtn = document.getElementById('disconnect_btn');
 
-  const newlineModeSelect = document.getElementById('newline_mode_select');
-  const autoReconnectCheckbox = document.getElementById('auto_reconnect_checkbox');
-  const forgetDeviceBtn = document.getElementById('forget_device_btn');
-  const forgetAllDevicesBtn = document.getElementById('forget_all_devices_btn');
-  const resetAllBtn = document.getElementById('reset_all_btn');
-  const resetOutputBtn = document.getElementById('reset_output_btn');
-  const copyOutputBtn = document.getElementById('copy_output_btn');
+  const uiNewlineModeSelect = document.getElementById('newline_mode_select');
+  const uiAutoReconnectCheckbox = document.getElementById('auto_reconnect_checkbox');
+  const uiForgetDeviceBtn = document.getElementById('forget_device_btn');
+  const uiForgetAllDevicesBtn = document.getElementById('forget_all_devices_btn');
+  const uiResetAllBtn = document.getElementById('reset_all_btn');
+  const uiCopyOutputBtn = document.getElementById('copy_output_btn');
+  const uiDownloadOutputCsvBtn = document.getElementById('download_csv_output_btn');
 
-  const statusSpan = document.getElementById('status_span');
+  const uiStatusSpan = document.getElementById('status_span');
 
-  const commandHistoryScrollbox = document.getElementById('command_history_scrollbox');
-  const commandLineInput = document.getElementById('command_line_input');
-  const sendModeBtn = document.getElementById('send_mode_btn');
+  const uiCommandHistoryClearBtn = document.getElementById('clear_command_history_btn');
+  const uiCommandHistoryScrollbox = document.getElementById('command_history_scrollbox');
+  const uiCommandLineInput = document.getElementById('command_line_input');
+  const uiSendModeBtn = document.getElementById('send_mode_btn');
 
-  const receivedDataScrollbox = document.getElementById('received_data_scrollbox');
+  const uiReceivedDataClearBtn = document.getElementById('clear_received_data_btn');
+  const uiReceivedDataScrollbox = document.getElementById('received_data_scrollbox');
 
-  const nearTheBottomThreshold = 100; // pixels from the bottom to trigger scroll
+  const uiNearTheBottomThreshold = 100; // pixels from the bottom to trigger scroll
+
+  const maxCommandHistoryLength = 123; // max number of command history entries
+  const maxReceivedDataLength = 8192/8; // max number of received data entries
+
+  class CommandHistoryEntry {
+    constructor(text) {
+      this.text = text;
+      this.time = Date.now();
+      this.count = 1;
+    }
+  }
+
+  class ReceivedDataEntry {
+    constructor(text) {
+      this.text = text;
+      this.time = Date.now();
+      this.terminated = false;
+    }
+  }
 
   class Application {
     constructor() {
@@ -33,122 +54,251 @@
       this.reconnectTimeoutId = null;
 
       this.commandHistory = [];
-      this.commandHistoryIndex = -1;
-      this.lastCommandCount = 0;
-      this.lastCommand = null;
-      this.lastCommandBtn = null;
+      this.uiCommandHistoryIndex = -1;
+
+      this.receivedData = [];
 
       // bind the UI elements
-      connectWebUsbSerialBtn.addEventListener('click', () => this.connectWebUsbSerialPort());
-      connectSerialBtn.addEventListener('click', () => this.connectSerialPort());
-      disconnectBtn.addEventListener('click', () => this.disconnectPort());
-      newlineModeSelect.addEventListener('change', () => this.setNewlineMode());
-      autoReconnectCheckbox.addEventListener('change', () => this.autoReconnectChanged());
-      forgetDeviceBtn.addEventListener('click', () => this.forgetPort());
-      forgetAllDevicesBtn.addEventListener('click', () => this.forgetAllPorts());
-      resetAllBtn.addEventListener('click', () => this.resetAll());
-      resetOutputBtn.addEventListener('click', () => this.resetOutput());
-      copyOutputBtn.addEventListener('click', () => this.copyOutput());
-      commandLineInput.addEventListener('keydown', (e) => this.handleCommandLineInput(e));
-      sendModeBtn.addEventListener('click', () => this.toggleSendMode());
+      uiConnectWebUsbSerialBtn.addEventListener('click', () => this.connectWebUsbSerialPort());
+      uiConnectSerialBtn.addEventListener('click', () => this.connectSerialPort());
+      uiDisconnectBtn.addEventListener('click', () => this.disconnectPort());
+      uiNewlineModeSelect.addEventListener('change', () => this.setNewlineMode());
+      uiAutoReconnectCheckbox.addEventListener('change', () => this.autoReconnectChanged());
+      uiForgetDeviceBtn.addEventListener('click', () => this.forgetPort());
+      uiForgetAllDevicesBtn.addEventListener('click', () => this.forgetAllPorts());
+      uiResetAllBtn.addEventListener('click', () => this.resetAll());
+      uiCopyOutputBtn.addEventListener('click', () => this.copyOutput());
+      uiDownloadOutputCsvBtn.addEventListener('click', () => this.downloadOutputCsv());
+      uiCommandHistoryClearBtn.addEventListener('click', () => this.clearCommandHistory());
+      uiCommandLineInput.addEventListener('keydown', (e) => this.handleCommandLineInput(e));
+      uiSendModeBtn.addEventListener('click', () => this.toggleSendMode());
+      uiReceivedDataClearBtn.addEventListener('click', () => this.clearReceivedData());
 
       // restore state from localStorage
+      try {
+        this.restoreState();
+      } catch (error) {
+        console.error('Failed to restore state from localStorage', error);
+        this.resetAll();
+        this.restoreState();
+      }
 
+      this.updateUIConnectionState();
+      this.connectWebUsbSerialPort(true);
+    }
+
+    restoreState() {
       // Restore command history
       let savedCommandHistory = JSON.parse(localStorage.getItem('commandHistory') || '[]');
       for (const cmd of savedCommandHistory) {
         this.appendCommandToHistory(cmd);
       }
 
+      // Restore received data
+      let savedReceivedData = JSON.parse(localStorage.getItem('receivedData') || '[]');
+      for (let line of savedReceivedData) {
+        line.terminated = true;
+        this.appendReceivedData(line);
+      }
+
       this.sendMode = localStorage.getItem('sendMode') || 'command';
       this.setSendMode(this.sendMode);
 
-      autoReconnectCheckbox.checked = localStorage.getItem('autoReconnect') === 'true';
+      uiAutoReconnectCheckbox.checked = !(localStorage.getItem('autoReconnect') === 'false');
 
       let savedNewlineMode = localStorage.getItem('newlineMode');
       if (savedNewlineMode) {
-        newlineModeSelect.value = savedNewlineMode;
+        uiNewlineModeSelect.value = savedNewlineMode;
       }
-
-      this.connectWebUsbSerialPort(true);
     }
 
-    appendCommandToHistory(text) {
-      if (text === this.lastCommand) {
-        // Increment count and update button
-        this.lastCommandCount++;
-        this.lastCommandBtn.textContent = `${text} ×${this.lastCommandCount}`;
-      } else {
-        // Add a new entry to the command history
-        this.commandHistory.push(text);
-        localStorage.setItem('commandHistory', JSON.stringify(this.commandHistory));
-        this.commandHistoryIndex = -1;
+    appendCommandToHistory(commandHistoryEntry) {
+      const wasNearBottom = uiCommandHistoryScrollbox.scrollHeight - uiCommandHistoryScrollbox.scrollTop <= uiCommandHistoryScrollbox.clientHeight + uiNearTheBottomThreshold;
 
-        const commandHistoryEntryBtn = document.createElement('button');
-        commandHistoryEntryBtn.className = 'command-history-entry';
-        commandHistoryEntryBtn.type = 'button';
-        commandHistoryEntryBtn.textContent = text;
-        commandHistoryEntryBtn.addEventListener('click', () => {
-          if (commandLineInput.disabled) return;
-          commandLineInput.value = text;
-          commandLineInput.focus();
-        });
-        commandHistoryScrollbox.appendChild(commandHistoryEntryBtn);
+      let commandHistoryEntryBtn = null;
 
-        this.lastCommand = text;
-        this.lastCommandBtn = commandHistoryEntryBtn;
+      let lastCommandMatched = false;
+      if (this.commandHistory.length > 0) {
+        let lastCommandEntry = this.commandHistory[this.commandHistory.length - 1];
+        if (lastCommandEntry.text === commandHistoryEntry.text) {
+          lastCommandEntry.count++;
+          lastCommandEntry.time = Date.now();
+          lastCommandMatched = true;
 
-        // Scroll to the new entry if near the bottom
-        const distanceFromBottom = commandHistoryScrollbox.scrollHeight - (commandHistoryScrollbox.scrollTop + commandHistoryScrollbox.clientHeight);
-        if (distanceFromBottom < nearTheBottomThreshold) {
-          requestAnimationFrame(() => {
-            commandHistoryEntryBtn.scrollIntoView({ behavior: 'instant' });
-          });
+          // Update the last command entry
+          commandHistoryEntryBtn = uiCommandHistoryScrollbox.lastElementChild;
+          let time_str = new Date(lastCommandEntry.time).toLocaleString();
+          commandHistoryEntryBtn.querySelector('.command-history-entry-time').textContent = time_str;
+          commandHistoryEntryBtn.querySelector('.command-history-entry-text').textContent = lastCommandEntry.text;
+          commandHistoryEntryBtn.querySelector('.command-history-entry-count').textContent = '×' + lastCommandEntry.count;
         }
       }
-    }
+      if (!lastCommandMatched) {
+        this.commandHistory.push(commandHistoryEntry);
 
-    appendLineToReceived(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      receivedDataScrollbox.appendChild(div);
+        // Create a new command history entry
+        commandHistoryEntryBtn = document.createElement('button');
+        commandHistoryEntryBtn.className = 'command-history-entry';
+        commandHistoryEntryBtn.type = 'button';
+        let time_str = new Date(commandHistoryEntry.time).toLocaleString();
+        commandHistoryEntryBtn.innerHTML = `
+          <span class="command-history-entry-time">${time_str}</span>
+          <span class="command-history-entry-text">${commandHistoryEntry.text}</span>
+          <span class="command-history-entry-count">×${commandHistoryEntry.count}</span>
+        `;
+        commandHistoryEntryBtn.addEventListener('click', () => {
+          if (uiCommandLineInput.disabled) return;
+          uiCommandLineInput.value = commandHistoryEntry.text;
+          uiCommandLineInput.focus();
+        });
+
+        uiCommandHistoryScrollbox.appendChild(commandHistoryEntryBtn);
+      }
+
+      // Limit the command history length
+      while (this.commandHistory.length > maxCommandHistoryLength) {
+        this.commandHistory.shift();
+        uiCommandHistoryScrollbox.removeChild(uiCommandHistoryScrollbox.firstElementChild);
+      }
+
+      // Save the command history to localStorage
+      localStorage.setItem('commandHistory', JSON.stringify(this.commandHistory));
 
       // Scroll to the new entry if near the bottom
-      const distanceFromBottom = receivedDataScrollbox.scrollHeight - (receivedDataScrollbox.scrollTop + receivedDataScrollbox.clientHeight);
-      if (distanceFromBottom < nearTheBottomThreshold) {
+      if (wasNearBottom) {
         requestAnimationFrame(() => {
-          div.scrollIntoView({ behavior: 'instant' });
+          uiCommandHistoryScrollbox.scrollTop = uiCommandHistoryScrollbox.scrollHeight;
         });
       }
+    }
+
+    clearCommandHistory() {
+      this.commandHistory = [];
+      uiCommandHistoryScrollbox.innerHTML = '';
+      localStorage.removeItem('commandHistory');
+      this.setStatus('Command history cleared', 'info');
+    }
+
+    appendReceivedData(receivedDataEntry) {
+      const wasNearBottom = uiReceivedDataScrollbox.scrollHeight - uiReceivedDataScrollbox.scrollTop <= uiReceivedDataScrollbox.clientHeight + uiNearTheBottomThreshold;
+
+      let newReceivedDataEntries = [];
+      let updateLastReceivedDataEntry = false;
+      if (this.receivedData.length <= 0) {
+        newReceivedDataEntries.push(receivedDataEntry);
+      } else {
+        let lastReceivedDataEntry = this.receivedData[this.receivedData.length - 1];
+        // Check if the last entry is terminated
+        if (lastReceivedDataEntry.terminated) {
+          newReceivedDataEntries.push(receivedDataEntry);
+        } else {
+          if (!lastReceivedDataEntry.terminated) {
+            updateLastReceivedDataEntry = true;
+            this.receivedData.pop();
+            receivedDataEntry.text = lastReceivedDataEntry.text + receivedDataEntry.text;
+          }
+          // split the text into lines
+          let lines = receivedDataEntry.text.split(/\r?\n/);
+          // check if the last line is terminated by checking if it ends with an empty string
+          let lastLineTerminated = lines[lines.length - 1] === '';
+          if (lastLineTerminated) {
+            lines.pop(); // remove the last empty line
+          }
+
+          // create new entries for each line
+          for (let i = 0; i < lines.length; i++) {
+            let line = lines[i];
+            let entry = new ReceivedDataEntry(line);
+            if (i === lines.length - 1) {
+              entry.terminated = lastLineTerminated;
+            } else {
+              entry.terminated = true;
+            }
+            newReceivedDataEntries.push(entry);
+          }
+          // if the last line is terminated, modify the last entry
+          if (lastLineTerminated) {
+            newReceivedDataEntries[newReceivedDataEntries.length - 1].terminated = true;
+          } else {
+            newReceivedDataEntries[newReceivedDataEntries.length - 1].terminated = false;
+          }
+        }
+      }
+
+      this.receivedData.push(...newReceivedDataEntries);
+
+      if (updateLastReceivedDataEntry) {
+        // update the rendering of the last entry
+        let lastReceivedDataEntryBtn = uiReceivedDataScrollbox.lastElementChild;
+        lastReceivedDataEntryBtn.querySelector('.received-data-entry-text').textContent = newReceivedDataEntries[0].text;
+        lastReceivedDataEntryBtn.querySelector('.received-data-entry-time').textContent = new Date(newReceivedDataEntries[0].time).toLocaleString();
+        newReceivedDataEntries.shift();
+      }
+
+      // render the new entries
+      let documentFragment = document.createDocumentFragment();
+      for (const entry of newReceivedDataEntries) {
+        let receivedDataEntryBtn = document.createElement('div');
+        receivedDataEntryBtn.className = 'received-data-entry';
+        receivedDataEntryBtn.innerHTML = `
+          <span class="received-data-entry-time">${new Date(entry.time).toLocaleString()}</span>
+          <span class="received-data-entry-text">${entry.text}</span>
+        `;
+        documentFragment.appendChild(receivedDataEntryBtn);
+      }
+      uiReceivedDataScrollbox.appendChild(documentFragment);
+
+      // Limit the received data length
+      while (this.receivedData.length > maxReceivedDataLength) {
+        this.receivedData.shift();
+        uiReceivedDataScrollbox.removeChild(uiReceivedDataScrollbox.firstElementChild);
+      }
+
+      // Save the received data to localStorage
+      localStorage.setItem('receivedData', JSON.stringify(this.receivedData));
+
+      // Scroll to the new entry if near the bottom
+      if (wasNearBottom) {
+        requestAnimationFrame(() => {
+          uiReceivedDataScrollbox.scrollTop = uiReceivedDataScrollbox.scrollHeight;
+        });
+      }
+    }
+
+    clearReceivedData() {
+      this.receivedData = [];
+      uiReceivedDataScrollbox.innerHTML = '';
+      localStorage.removeItem('receivedData');
+      this.setStatus('Received data cleared', 'info');
     }
 
     setStatus(msg, level = 'info') {
       console.log(msg);
-      statusSpan.textContent = msg;
-      statusSpan.className = 'status status-' + level;
+      uiStatusSpan.textContent = msg;
+      uiStatusSpan.className = 'status status-' + level;
     }
 
     updateUIConnectionState() {
       if (this.currentPort && this.currentPort.isConnected) {
-        connectWebUsbSerialBtn.style.display = 'none';
-        connectSerialBtn.style.display = 'none';
-        disconnectBtn.style.display = 'block';
-        commandLineInput.disabled = false;
-        commandLineInput.focus();
+        uiConnectWebUsbSerialBtn.style.display = 'none';
+        uiConnectSerialBtn.style.display = 'none';
+        uiDisconnectBtn.style.display = 'block';
+        uiCommandLineInput.disabled = false;
+        uiCommandLineInput.focus();
       } else {
         if (serial.isWebUsbSupported()) {
-          connectWebUsbSerialBtn.style.display = 'block';
+          uiConnectWebUsbSerialBtn.style.display = 'block';
         }
         if (serial.isWebSerialSupported()) {
-          connectSerialBtn.style.display = 'block';
+          uiConnectSerialBtn.style.display = 'block';
         }
         if (!serial.isWebUsbSupported() && !serial.isWebSerialSupported()) {
           this.setStatus('Your browser does not support WebUSB or WebSerial', 'error');
         }
-        disconnectBtn.style.display = 'none';
-        commandLineInput.disabled = true;
-        commandLineInput.value = '';
-        commandLineInput.blur();
+        uiDisconnectBtn.style.display = 'none';
+        uiCommandLineInput.disabled = true;
+        uiCommandLineInput.value = '';
+        uiCommandLineInput.blur();
       }
     }
 
@@ -168,9 +318,10 @@
 
     async onReceive(dataView) {
       this.updateUIConnectionState();
+
       let text = this.textDecoder.decode(dataView);
-      text = this.normalizeNewlines(text);
-      this.appendLineToReceived(text);
+      let receivedDataEntry = new ReceivedDataEntry(text);
+      this.appendReceivedData(receivedDataEntry);
     }
 
     async onReceiveError(error) {
@@ -210,7 +361,7 @@
         let first_time_connection = false;
         let grantedDevices = await serial.getWebUsbSerialPorts();
         if (initial) {
-          if (!autoReconnectCheckbox.checked || grantedDevices.length === 0) {
+          if (!uiAutoReconnectCheckbox.checked || grantedDevices.length === 0) {
             return false;
           }
 
@@ -303,18 +454,18 @@
     }
 
     setNewlineMode() {
-      localStorage.setItem('newlineMode', newlineModeSelect.value);
+      localStorage.setItem('newlineMode', uiNewlineModeSelect.value);
     }
 
     autoReconnectChanged() {
-      if (autoReconnectCheckbox.checked) {
+      if (uiAutoReconnectCheckbox.checked) {
         this.setStatus('Auto-reconnect enabled', 'info');
         this.tryAutoReconnect();
       } else {
         this.setStatus('Auto-reconnect disabled', 'info');
         this.stopAutoReconnect();
       }
-      localStorage.setItem('autoReconnect', autoReconnectCheckbox.checked);
+      localStorage.setItem('autoReconnect', uiAutoReconnectCheckbox.checked);
     }
 
     stopAutoReconnect() {
@@ -327,12 +478,12 @@
 
     tryAutoReconnect() {
       this.updateUIConnectionState();
-      if (!autoReconnectCheckbox.checked) return;
+      if (!uiAutoReconnectCheckbox.checked) return;
       if (this.reconnectTimeoutId !== null) return; // already trying
       this.setStatus('Attempting to auto-reconnect...', 'info');
       this.reconnectTimeoutId = setTimeout(async () => {
         this.reconnectTimeoutId = null;
-        if (!autoReconnectCheckbox.checked) {
+        if (!uiAutoReconnectCheckbox.checked) {
           this.setStatus('Auto-reconnect stopped.', 'info');
           return;
         }
@@ -362,7 +513,7 @@
           let sendText = '';
           switch (e.key) {
             case 'Enter':
-              switch (newlineModeSelect.value) {
+              switch (uiNewlineModeSelect.value) {
                 case 'CR': sendText = '\r'; break;
                 case 'CRLF': sendText = '\r\n'; break;
                 default: sendText = '\n'; break;
@@ -387,7 +538,7 @@
               sendText = e.key;
           }
           try {
-            await port.send(this.textEncoder.encode(sendText));
+            await this.currentPort.send(this.textEncoder.encode(sendText));
           } catch (error) {
             this.setStatus(`Send error: ${error.message}`, 'error');
             this.tryAutoReconnect();
@@ -402,24 +553,24 @@
         e.preventDefault();
         if (this.commandHistory.length === 0) return;
         if (e.key === 'ArrowUp') {
-          if (this.commandHistoryIndex === -1) this.commandHistoryIndex = this.commandHistory.length - 1;
-          else if (this.commandHistoryIndex > 0) this.commandHistoryIndex--;
+          if (this.uiCommandHistoryIndex === -1) this.uiCommandHistoryIndex = this.commandHistory.length - 1;
+          else if (this.uiCommandHistoryIndex > 0) this.uiCommandHistoryIndex--;
         } else if (e.key === 'ArrowDown') {
-          if (this.commandHistoryIndex !== -1) this.commandHistoryIndex++;
-          if (this.commandHistoryIndex >= this.commandHistory.length) this.commandHistoryIndex = -1;
+          if (this.uiCommandHistoryIndex !== -1) this.uiCommandHistoryIndex++;
+          if (this.uiCommandHistoryIndex >= this.commandHistory.length) this.uiCommandHistoryIndex = -1;
         }
-        commandLineInput.value = this.commandHistoryIndex === -1 ? '' : this.commandHistory[this.commandHistoryIndex];
+        uiCommandLineInput.value = this.uiCommandHistoryIndex === -1 ? '' : this.commandHistory[this.uiCommandHistoryIndex].text;
         return;
       }
 
       if (e.key !== 'Enter' || !this.currentPort.isConnected) return;
       e.preventDefault();
-      const text = commandLineInput.value;
+      const text = uiCommandLineInput.value;
       if (!text) return;
 
       // Convert to Uint8Array with newline based on config
       let sendText = text;
-      switch (newlineModeSelect.value) {
+      switch (uiNewlineModeSelect.value) {
         case 'CR':
           sendText += '\r';
           break;
@@ -434,9 +585,11 @@
 
       try {
         await this.currentPort.send(data);
-        this.commandHistoryIndex = -1;
-        this.appendCommandToHistory(sendText.replace(/[\r\n]+$/, ''));
-        commandLineInput.value = '';
+        this.uiCommandHistoryIndex = -1;
+        let history_cmd_text = sendText.replace(/[\r\n]+$/, '');
+        let history_entry = new CommandHistoryEntry(history_cmd_text);
+        this.appendCommandToHistory(history_entry);
+        uiCommandLineInput.value = '';
       } catch (error) {
         this.setStatus(`Send error: ${error.message}`, 'error');
         this.tryAutoReconnect();
@@ -454,32 +607,26 @@
     setSendMode(mode) {
       this.sendMode = mode;
       if (mode === 'instant') {
-        sendModeBtn.classList.remove('send-mode-command');
-        sendModeBtn.classList.add('send-mode-instant');
-        sendModeBtn.textContent = 'Instant mode';
+        uiSendModeBtn.classList.remove('send-mode-command');
+        uiSendModeBtn.classList.add('send-mode-instant');
+        uiSendModeBtn.textContent = 'Instant mode';
       } else {
-        sendModeBtn.classList.remove('send-mode-instant');
-        sendModeBtn.classList.add('send-mode-command');
-        sendModeBtn.textContent = 'Command mode';
+        uiSendModeBtn.classList.remove('send-mode-instant');
+        uiSendModeBtn.classList.add('send-mode-command');
+        uiSendModeBtn.textContent = 'Command mode';
       }
       localStorage.setItem('sendMode', this.sendMode);
     }
 
-    normalizeNewlines(text) {
-      switch (newlineModeSelect.value) {
-        case 'CR':
-          return text.replace(/\r?\n/g, '\r');
-        case 'CRLF':
-          return text.replace(/\r\n|[\r\n]/g, '\r\n');
-        case 'ANY':
-          return text.replace(/\r\n|\r/g, '\n');
-        default:
-          return text;
-      }
-    }
-
     copyOutput() {
-      const text = receivedDataScrollbox.innerText;
+      let text = '';
+      for (const entry of this.receivedData) {
+        text += entry.text;
+        if (entry.terminated) {
+          text += '\n';
+        }
+      }
+
       if (text) {
         navigator.clipboard.writeText(text).then(() => {
           this.setStatus('Output copied to clipboard', 'info');
@@ -491,8 +638,22 @@
       }
     }
 
-    resetOutput() {
-      receivedDataScrollbox.innerHTML = '';
+    downloadOutputCsv() {
+      // save <iso_date_time>,<received_line>
+      let csvContent = 'data:text/csv;charset=utf-8,';
+      for (const entry of this.receivedData) {
+        let line = new Date(entry.time).toISOString() + ',"' + entry.text.replace(/[\r\n]+$/, '') + '"';
+        csvContent += line + '\n';
+      }
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      const filename = new Date().toISOString() + '_tinyusb_received_serial_data.csv';
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
     async resetAll() {
