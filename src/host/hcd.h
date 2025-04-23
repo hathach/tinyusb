@@ -90,13 +90,6 @@ typedef struct {
   };
 } hcd_event_t;
 
-typedef struct {
-  uint8_t rhport;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
-} tuh_bus_info_t;
-
 //--------------------------------------------------------------------+
 // Memory API
 //--------------------------------------------------------------------+
@@ -185,9 +178,6 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 //--------------------------------------------------------------------+
 // USBH implemented API
 //--------------------------------------------------------------------+
-
-// Get device port information
-extern bool hcd_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info);
 
 // Called by HCD to notify stack
 extern void hcd_event_handler(hcd_event_t const* event, bool in_isr);

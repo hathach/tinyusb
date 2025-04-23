@@ -36,6 +36,7 @@
 
 #if CFG_TUH_ENABLED
 #include "host/hcd.h"
+#include "host/usbh.h"
 #endif
 
 #include "dwc2_common.h"

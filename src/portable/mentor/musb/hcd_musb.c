@@ -36,6 +36,7 @@ _Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
 #endif
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 
 #include "musb_type.h"
 
@@ -696,7 +697,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   _hcd.pipe0.remaining = 0;
 
   tuh_bus_info_t bus_info;
-  hcd_bus_info_get(dev_addr, &bus_info);
+  tuh_bus_info_get(dev_addr, &bus_info);
   switch (bus_info.speed) {
     default: return false;
     case TUSB_SPEED_LOW:  USB0->TYPE0 = USB_TYPE0_SPEED_LOW;  break;
@@ -745,7 +746,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   uint8_t pipe_type = 0;
   tuh_bus_info_t bus_info;
-  hcd_bus_info_get(dev_addr, &bus_info);
+  tuh_bus_info_get(dev_addr, &bus_info);
   switch (bus_info.speed) {
     default: return false;
     case TUSB_SPEED_LOW:  pipe_type |= USB_TXTYPE1_SPEED_LOW;  break;

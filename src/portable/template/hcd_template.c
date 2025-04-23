@@ -29,6 +29,7 @@
 #if CFG_TUH_ENABLED && CFG_TUSB_MCU == OPT_MCU_NONE
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 
 //--------------------------------------------------------------------+
 // Controller API

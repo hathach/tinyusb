@@ -38,6 +38,7 @@
 #include "osal/osal.h"
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 #include "ohci.h"
 
 // TODO remove
@@ -329,7 +330,7 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t ep_size, uint8_t
   }
 
   tuh_bus_info_t bus_info;
-  hcd_bus_info_get(dev_addr, &bus_info);
+  tuh_bus_info_get(dev_addr, &bus_info);
 
   p_ed->dev_addr          = dev_addr;
   p_ed->ep_number         = ep_addr & 0x0F;

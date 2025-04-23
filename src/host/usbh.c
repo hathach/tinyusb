@@ -28,9 +28,9 @@
 
 #if CFG_TUH_ENABLED
 
-#include "host/hcd.h"
+#include "hcd.h"
 #include "tusb.h"
-#include "host/usbh_pvt.h"
+#include "usbh_pvt.h"
 #include "hub.h"
 
 //--------------------------------------------------------------------+
@@ -342,7 +342,7 @@ bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t *vid, uint16_t *pid) {
 
 tusb_speed_t tuh_speed_get(uint8_t daddr) {
   tuh_bus_info_t bus_info;
-  hcd_bus_info_get(daddr, &bus_info);
+  tuh_bus_info_get(daddr, &bus_info);
   return bus_info.speed;
 }
 
@@ -875,7 +875,7 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
 
 uint8_t usbh_get_rhport(uint8_t daddr) {
   tuh_bus_info_t bus_info;
-  hcd_bus_info_get(daddr, &bus_info);
+  tuh_bus_info_get(daddr, &bus_info);
   return bus_info.rhport;
 }
 
@@ -1013,7 +1013,7 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
 // HCD Event Handler
 //--------------------------------------------------------------------+
 
-bool hcd_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info) {
+bool tuh_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info) {
   usbh_device_t const* dev = get_device(daddr);
   if (dev) {
     *bus_info = dev->bus_info;

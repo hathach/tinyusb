@@ -115,7 +115,7 @@ void hcd_int_disable(uint8_t rhport) {
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const *desc_ep) {
   tuh_bus_info_t bus_info;
-  hcd_bus_info_get(dev_addr, &bus_info);
+  tuh_bus_info_get(dev_addr, &bus_info);
   bool const need_pre = (bus_info.hub_addr && bus_info.speed == TUSB_SPEED_LOW);
 
   uint8_t const pio_rhport = RHPORT_PIO(rhport);

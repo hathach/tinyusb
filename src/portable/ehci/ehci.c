@@ -34,6 +34,7 @@
 #include "osal/osal.h"
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 #include "ehci_api.h"
 #include "ehci.h"
 
@@ -838,7 +839,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   }
 
   tuh_bus_info_t bus_info;
-  hcd_bus_info_get(dev_addr, &bus_info);
+  tuh_bus_info_get(dev_addr, &bus_info);
 
   uint8_t const xfer_type = ep_desc->bmAttributes.xfer;
   uint8_t const interval = ep_desc->bInterval;

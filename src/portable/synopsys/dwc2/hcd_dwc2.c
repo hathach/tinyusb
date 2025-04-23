@@ -36,6 +36,7 @@
 #define DWC2_DEBUG    2
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 #include "dwc2_common.h"
 
 // Max number of endpoints application can open, can be larger than DWC2_CHANNEL_COUNT_MAX
@@ -476,7 +477,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t*
   const tusb_speed_t rh_speed = hprt_speed_get(dwc2);
 
   tuh_bus_info_t bus_info;
-  hcd_bus_info_get(dev_addr, &bus_info);
+  tuh_bus_info_get(dev_addr, &bus_info);
 
   // find a free endpoint
   const uint8_t ep_id = edpt_alloc();
