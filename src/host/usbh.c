@@ -1546,7 +1546,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       TU_ASSERT(new_addr != 0,);
 
       usbh_device_t* new_dev = get_device(new_addr);
-      new_dev->bus_info = _usbh_data.dev0_bus;
+      new_dev->bus_info = *dev0_bus;
       new_dev->connected = 1;
       new_dev->ep0_size = desc_device->bMaxPacketSize0;
 
@@ -1564,7 +1564,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       new_dev->addressed = 1;
       _usbh_data.enumerating_daddr = new_addr;
 
-      hcd_device_close(_usbh_data.dev0_bus.rhport, 0); // close dev0_bus
+      hcd_device_close(dev0_bus->rhport, 0); // close dev0
 
       TU_ASSERT(usbh_edpt_control_open(new_addr, new_dev->ep0_size),); // open new control endpoint
 
