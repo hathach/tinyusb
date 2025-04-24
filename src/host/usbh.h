@@ -250,6 +250,10 @@ bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr);
 // Return true if a queued transfer is aborted, false if there is no transfer to abort
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr);
 
+// Set Address (control transfer)
+bool tuh_address_set(uint8_t daddr, uint8_t new_addr,
+                     tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
 // true on success, false if there is on-going control transfer or incorrect parameters
