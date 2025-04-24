@@ -1370,6 +1370,7 @@ enum {
   ENUM_HUB_RERSET,
   ENUM_HUB_GET_STATUS_AFTER_RESET,
   ENUM_HUB_CLEAR_RESET,
+  ENUM_HUB_CLEAR_RESET_COMPLETE,
 
   ENUM_ADDR0_DEVICE_DESC,
   ENUM_SET_ADDR,
@@ -1511,18 +1512,32 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     case ENUM_HUB_CLEAR_RESET: {
       hub_port_status_response_t port_status;
       hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status);
-      dev0_bus->speed = (port_status.status.high_speed) ? TUSB_SPEED_HIGH :
-                        (port_status.status.low_speed) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
 
       if (port_status.change.reset) {
         // Acknowledge Port Reset Change
-        TU_ASSERT(hub_port_clear_reset_change(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration, ENUM_ADDR0_DEVICE_DESC),);
+        TU_ASSERT(hub_port_clear_reset_change(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration, ENUM_HUB_CLEAR_RESET_COMPLETE),);
       } else {
         // maybe retry if reset change not set but we need timeout to prevent infinite loop
-        // TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration, ENUM_HUB_CLEAR_RESET),);
+        // TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration, ENUM_HUB_CLEAR_RESET_COMPLETE),);
       }
 
       break;
+    }
+
+    case ENUM_HUB_CLEAR_RESET_COMPLETE: {
+      hub_port_status_response_t port_status;
+      hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status);
+
+      if (!port_status.status.connection) {
+        TU_LOG_USBH("Device unplugged from hub (not addressed yet)\r\n");
+        enum_full_complete();
+        return;
+      }
+
+      dev0_bus->speed = (port_status.status.high_speed) ? TUSB_SPEED_HIGH :
+                        (port_status.status.low_speed) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
+
+      TU_ATTR_FALLTHROUGH;
     }
     #endif
 
