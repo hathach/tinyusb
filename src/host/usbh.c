@@ -513,28 +513,19 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       case HCD_EVENT_DEVICE_ATTACH:
         // due to the shared control buffer, we must fully complete enumerating one device first.
         // TODO better to have an separated queue for newly attached devices
-        if (_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8) {
-          if (event.rhport == _usbh_data.dev0_bus.rhport &&
-              event.connection.hub_addr == _usbh_data.dev0_bus.hub_addr && event.connection.hub_port == _usbh_data.dev0_bus.hub_port) {
-            // Some device can cause multiple duplicated attach events
-            // drop current enumerating and start over for a proper port reset
-            // abort/cancel current enumeration and start new one
-            TU_LOG1("[%u:] USBH Device Attach (duplicated)\r\n", event.rhport);
-            tuh_edpt_abort_xfer(0, 0);
-            enum_new_device(&event);
-          } else {
-            TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
-            bool is_empty = osal_queue_empty(_usbh_q);
-            queue_event(&event, in_isr);
-
-            if (is_empty) {
-              // Exit if this is the only event in the queue, otherwise we may loop forever
-              return;
-            }
-          }
-        } else {
+        if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
+          // New device attached and we are ready
           TU_LOG1("[%u:] USBH Device Attach\r\n", event.rhport);
+          _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
           enum_new_device(&event);
+        } else {
+          // currently enumerating another device
+          TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
+          const bool is_empty = osal_queue_empty(_usbh_q);
+          queue_event(&event, in_isr);
+          if (is_empty) {
+            return; // Exit if this is the only event in the queue, otherwise we loop forever
+          }
         }
         break;
 
@@ -1409,8 +1400,6 @@ static bool enum_new_device(hcd_event_t* event) {
   dev0_bus->rhport = event->rhport;
   dev0_bus->hub_addr = event->connection.hub_addr;
   dev0_bus->hub_port = event->connection.hub_port;
-
-  _usbh_data.enumerating_daddr = 0;
 
   // wait until device connection is stable TODO non blocking
   tusb_time_delay_ms_api(ENUM_DEBOUNCING_DELAY_MS);
