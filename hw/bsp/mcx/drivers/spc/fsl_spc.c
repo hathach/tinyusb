@@ -161,7 +161,7 @@ void SPC_SetSRAMOperateVoltage(SPC_Type *base, const spc_sram_voltage_config_t *
  * @note To disable bandgap in Active mode:
  *          1. Disable all LVD's and HVD's in active mode;
  *          2. Disable Glitch detect;
- *          3. Configrue LDO's and DCDC to low drive strength in active mode;
+ *          3. Configure LDO's and DCDC to low drive strength in active mode;
  *          4. Invoke this function to disable bandgap in active mode;
  *      otherwise the error status will be reported.
  *
@@ -1115,7 +1115,7 @@ status_t SPC_SetActiveModeSystemLDORegulatorConfig(SPC_Type *base, const spc_act
         return kStatus_SPC_BandgapModeWrong;
     }
 
-    /* 3. Must disable system LDO high voltage detector before specifing overdrive voltage. */
+    /* 3. Must disable system LDO high voltage detector before specifying overdrive voltage. */
     if ((option->SysLDOVoltage == kSPC_SysLDO_OverDriveVoltage) &&
         ((SPC_GetActiveModeVoltageDetectStatus(base) & SPC_ACTIVE_CFG_SYS_HVDE_MASK) != 0UL))
     {
@@ -1138,14 +1138,14 @@ status_t SPC_SetActiveModeSystemLDORegulatorConfig(SPC_Type *base, const spc_act
  * param voltageLevel Specify the voltage level of System LDO Regulator in Active mode.
  *
  * retval #kStatus_Success Set System LDO Regulator voltage level in Active mode successfully.
- * retval #kStatus_SPC_SYSLDOOverDriveVoltageFail Must disable system LDO high voltage detector before specifing
+ * retval #kStatus_SPC_SYSLDOOverDriveVoltageFail Must disable system LDO high voltage detector before specifying
  * overdrive voltage.
  */
 status_t SPC_SetActiveModeSystemLDORegulatorVoltageLevel(SPC_Type *base, spc_sys_ldo_voltage_level_t voltageLevel)
 {
     if (voltageLevel == kSPC_SysLDO_OverDriveVoltage)
     {
-        /* Must disable system LDO high voltage detector before specifing overdrive voltage. */
+        /* Must disable system LDO high voltage detector before specifying overdrive voltage. */
         if ((SPC_GetActiveModeVoltageDetectStatus(base) & SPC_ACTIVE_CFG_SYS_HVDE_MASK) != 0UL)
         {
             return kStatus_SPC_SYSLDOOverDriveVoltageFail;
@@ -1490,7 +1490,7 @@ void SPC_SetDCDCRefreshCount(SPC_Type *base, uint16_t count)
  *
  *
  * @note Some hardware restrictions not covered, application should be aware of this and follow this hardware
- * restrictions otherwise some unkown issue may occur:
+ * restrictions otherwise some unknown issue may occur:
  *        1. If Core LDO's drive strength are set to same value in both Active mode and low power mode,
  *          the voltage level should also set to same value.
  *        2. When switching Core LDO's drive strength from low to normal, ensure the LDO_CORE high voltage level is set
@@ -1538,7 +1538,7 @@ status_t SPC_SetActiveModeRegulatorsConfig(SPC_Type *base, const spc_active_mode
     }
 
 #if (defined(FSL_FEATURE_MCX_SPC_HAS_SYS_LDO) && FSL_FEATURE_MCX_SPC_HAS_SYS_LDO)
-    /*  2. Must disable system LDO high voltage detector before specifing SysLDO to overdrive voltage  */
+    /*  2. Must disable system LDO high voltage detector before specifying SysLDO to overdrive voltage  */
     if (((activeModeVDValue & SPC_ACTIVE_CFG_SYS_HVDE_MASK) != 0UL) &&
         (config->SysLDOOption.SysLDOVoltage == kSPC_SysLDO_OverDriveVoltage))
     {

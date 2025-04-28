@@ -128,7 +128,7 @@ enum _spc_analog_module_control
 };
 
 /*!
- * @brief The enumeration of spc power domain, the connected power domain is chip specfic, please refer to chip's RM
+ * @brief The enumeration of spc power domain, the connected power domain is chip specific, please refer to chip's RM
  * for details.
  */
 typedef enum _spc_power_domain_id
@@ -153,8 +153,8 @@ typedef enum _spc_power_domain_low_power_mode
  */
 typedef enum _spc_lowPower_request_pin_polarity
 {
-    kSPC_HighTruePolarity = 0x0U, /*!< Control the High Polarity of the Low Power Reqest Pin. */
-    kSPC_LowTruePolarity  = 0x1U, /*!< Control the Low Polarity of the Low Power Reqest Pin. */
+    kSPC_HighTruePolarity = 0x0U, /*!< Control the High Polarity of the Low Power Request Pin. */
+    kSPC_LowTruePolarity  = 0x1U, /*!< Control the Low Polarity of the Low Power Request Pin. */
 } spc_lowpower_request_pin_polarity_t;
 
 /*!
@@ -197,7 +197,7 @@ typedef enum _spc_dcdc_voltage_level
 /*!
  * @brief DCDC regulator Drive Strength enumeration in Active mode or Low Power Mode.
  *
- * @note Different drive strength differ in these DCDC characterstics:
+ * @note Different drive strength differ in these DCDC characteristics:
  *              Maximum load current
  *              Quiescent current
  *              Transient response.
@@ -901,7 +901,7 @@ static inline uint32_t SPC_GetActiveModeVoltageDetectStatus(SPC_Type *base)
  * @note To disable bandgap in Active mode:
  *          1. Disable all LVD's and HVD's in active mode;
  *          2. Disable Glitch detect;
- *          3. Configrue LDO's and DCDC to low drive strength in active mode;
+ *          3. Configure LDO's and DCDC to low drive strength in active mode;
  *          4. Invoke this function to disable bandgap in active mode;
  *      otherwise the error status will be reported.
  *
@@ -962,7 +962,7 @@ static inline void SPC_SetActiveModeVoltageTrimDelay(SPC_Type *base, uint16_t de
  *
  *
  * @note Some hardware restrictions not covered, application should be aware of this and follow this hardware
- * restrictions otherwise some unkown issue may occur:
+ * restrictions otherwise some unknown issue may occur:
  *        1. If Core LDO's drive strength are set to same value in both Active mode and low power mode,
  *          the voltage level should also set to same value.
  *        2. When switching Core LDO's drive strength from low to normal, ensure the LDO_CORE high voltage level is set
@@ -1275,7 +1275,7 @@ static inline void SPC_SetLowPowerWakeUpDelay(SPC_Type *base, uint16_t delay)
  * parameters do not satisfy hardware restrictions the specific error will be reported.
  *
  * @note Some hardware restrictions not covered, application should be aware of this and follow this hardware
- * restrictions otherwise some unkown issue may occur:
+ * restrictions otherwise some unknown issue may occur:
  *        1. If Core LDO's drive strength are set to same value in both Active mode and low power mode,
  *          the voltage level should also set to same value.
  *        2. When switching Core LDO's drive strength from low to normal, ensure the LDO_CORE high voltage level is set
@@ -2084,7 +2084,7 @@ status_t SPC_SetActiveModeSystemLDORegulatorConfig(SPC_Type *base, const spc_act
  * @param voltageLevel Specify the voltage level of System LDO Regulator in Active mode.
  *
  * @retval #kStatus_Success Set System LDO Regulator voltage level in Active mode successfully.
- * @retval #kStatus_SPC_SYSLDOOverDriveVoltageFail Must disable system LDO high voltage detector before specifing
+ * @retval #kStatus_SPC_SYSLDOOverDriveVoltageFail Must disable system LDO high voltage detector before specifying
  * overdrive voltage.
  */
 status_t SPC_SetActiveModeSystemLDORegulatorVoltageLevel(SPC_Type *base, spc_sys_ldo_voltage_level_t voltageLevel);
@@ -2229,7 +2229,7 @@ static inline void SPC_TriggerDCDCBurstRequest(SPC_Type *base)
 }
 
 /*!
- * @brief Check if burst acknowlege flag is asserted.
+ * @brief Check if burst acknowledge flag is asserted.
  *
  * @param base SPC peripheral base address.
  *
