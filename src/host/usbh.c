@@ -275,6 +275,7 @@ typedef struct {
 typedef struct {
   uint8_t controller_id;      // controller ID
   uint8_t enumerating_daddr;  // device address of the device being enumerated
+  uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
 } usbh_data_t;
@@ -349,7 +350,7 @@ bool tuh_rhport_is_active(uint8_t rhport) {
 
 bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
   TU_VERIFY(tuh_rhport_is_active(rhport));
-  if ( active ) {
+  if (active) {
     hcd_port_reset(rhport);
   } else {
     hcd_port_reset_end(rhport);
@@ -1021,10 +1022,18 @@ bool tuh_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info) {
 TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr) {
   switch (event->event_id) {
     case HCD_EVENT_DEVICE_ATTACH:
-
-      break;
-
     case HCD_EVENT_DEVICE_REMOVE:
+      // Attach debouncing on roothub: skip attach/remove while debouncing delay
+      if (event->connection.hub_addr == 0) {
+        if (tu_bit_test(_usbh_data.attach_debouncing_bm, event->rhport)) {
+          return;
+        }
+
+        if (event->event_id == HCD_EVENT_DEVICE_ATTACH) {
+          // No debouncing, set flag if attach event
+          _usbh_data.attach_debouncing_bm |= TU_BIT(event->rhport);
+        }
+      }
       break;
 
     default: break;
@@ -1405,6 +1414,11 @@ static bool enum_new_device(hcd_event_t* event) {
 
   // wait until device connection is stable TODO non blocking
   tusb_time_delay_ms_api(ENUM_DEBOUNCING_DELAY_MS);
+
+  // clear roothub debouncing delay
+  if (dev0_bus->hub_addr == 0) {
+    _usbh_data.attach_debouncing_bm &= (uint8_t) ~TU_BIT(dev0_bus->rhport);
+  }
 
   if (dev0_bus->hub_addr == 0) {
     // connected directly to roothub
