@@ -86,6 +86,9 @@ typedef struct {
   uint8_t speed;
 } tuh_bus_info_t;
 
+// backward compatibility for hcd_devtree_info_t, maybe removed in the future
+#define hcd_devtree_info_t tuh_bus_info_t
+#define hcd_devtree_get_info(_daddr, _bus_info) tuh_bus_info_get(_daddr, _bus_info)
 
 // ConfigID for tuh_configure()
 enum {
