@@ -62,5 +62,3 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/sctimer
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
-
-

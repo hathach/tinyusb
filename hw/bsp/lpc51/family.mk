@@ -40,7 +40,7 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/flexcomm/usart \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio
-	
+
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU).S
 
 LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower.a

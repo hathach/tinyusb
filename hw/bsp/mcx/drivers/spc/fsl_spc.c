@@ -454,9 +454,9 @@ status_t SPC_EnableLowPowerModeCoreLowVoltageDetect(SPC_Type *base, bool enable)
  *
  * This function selects the system VDD low-voltage level. Changing system VDD low-voltage level
  * must be done after disabling the System VDD low voltage reset and interrupt.
- * 
+ *
  * @deprecated In latest RM, reserved for all devices, will removed in next release.
- * 
+ *
  * param base SPC peripheral base address.
  * param level System VDD Low-Voltage level selection. See @ref spc_low_voltage_level_select_t for details.
  */

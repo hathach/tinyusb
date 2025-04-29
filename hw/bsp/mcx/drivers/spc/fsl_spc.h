@@ -206,7 +206,7 @@ typedef enum _spc_dcdc_drive_strength
 {
     kSPC_DCDC_PulseRefreshMode = 0x0U,    /*!< DCDC_CORE Regulator Drive Strength set to Pulse Refresh Mode,
                                            * This enum member is only useful for Low Power Mode config, please
-                                           * note that pluse refresh mode is invalid in SLEEP mode.
+                                           * note that pulse refresh mode is invalid in SLEEP mode.
                                            */
     kSPC_DCDC_LowDriveStrength    = 0x1U, /*!< DCDC_CORE regulator Drive Strength set to low. */
     kSPC_DCDC_NormalDriveStrength = 0x2U, /*!< DCDC_CORE regulator Drive Strength set to Normal. */

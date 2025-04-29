@@ -67,7 +67,7 @@ void BOARD_InitPins(void)
     /* PORT3 peripheral is released from reset */
     RESET_ReleasePeripheralReset(kPORT3_RST_SHIFT_RSTn);
 
-  
+
     /* Write to PORT0: Peripheral clock is enabled */
     CLOCK_EnableClock(kCLOCK_GatePORT0);
     /* LPUART0 peripheral is released from reset */

@@ -81,7 +81,7 @@ void BOARD_InitPins(void)
   RESET_ReleasePeripheralReset(kGPIO0_RST_SHIFT_RSTn);
   /* PORT3 peripheral is released from reset */
   RESET_ReleasePeripheralReset(kPORT0_RST_SHIFT_RSTn);
-  
+
     /* PORT0: Peripheral clock is enabled */
     CLOCK_EnableClock(kCLOCK_GatePORT0);
     /* LPUART0 peripheral is released from reset */
