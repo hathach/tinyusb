@@ -275,6 +275,7 @@ typedef struct {
 typedef struct {
   uint8_t controller_id;      // controller ID
   uint8_t enumerating_daddr;  // device address of the device being enumerated
+  uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
 } usbh_data_t;
@@ -349,7 +350,7 @@ bool tuh_rhport_is_active(uint8_t rhport) {
 
 bool tuh_rhport_reset_bus(uint8_t rhport, bool active) {
   TU_VERIFY(tuh_rhport_is_active(rhport));
-  if ( active ) {
+  if (active) {
     hcd_port_reset(rhport);
   } else {
     hcd_port_reset_end(rhport);
@@ -512,28 +513,19 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       case HCD_EVENT_DEVICE_ATTACH:
         // due to the shared control buffer, we must fully complete enumerating one device first.
         // TODO better to have an separated queue for newly attached devices
-        if (_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8) {
-          if (event.rhport == _usbh_data.dev0_bus.rhport &&
-              event.connection.hub_addr == _usbh_data.dev0_bus.hub_addr && event.connection.hub_port == _usbh_data.dev0_bus.hub_port) {
-            // Some device can cause multiple duplicated attach events
-            // drop current enumerating and start over for a proper port reset
-            // abort/cancel current enumeration and start new one
-            TU_LOG1("[%u:] USBH Device Attach (duplicated)\r\n", event.rhport);
-            tuh_edpt_abort_xfer(0, 0);
-            enum_new_device(&event);
-          } else {
-            TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
-            bool is_empty = osal_queue_empty(_usbh_q);
-            queue_event(&event, in_isr);
-
-            if (is_empty) {
-              // Exit if this is the only event in the queue, otherwise we may loop forever
-              return;
-            }
-          }
-        } else {
+        if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
+          // New device attached and we are ready
           TU_LOG1("[%u:] USBH Device Attach\r\n", event.rhport);
+          _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
           enum_new_device(&event);
+        } else {
+          // currently enumerating another device
+          TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
+          const bool is_empty = osal_queue_empty(_usbh_q);
+          queue_event(&event, in_isr);
+          if (is_empty) {
+            return; // Exit if this is the only event in the queue, otherwise we loop forever
+          }
         }
         break;
 
@@ -1021,10 +1013,18 @@ bool tuh_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info) {
 TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr) {
   switch (event->event_id) {
     case HCD_EVENT_DEVICE_ATTACH:
-
-      break;
-
     case HCD_EVENT_DEVICE_REMOVE:
+      // Attach debouncing on roothub: skip attach/remove while debouncing delay
+      if (event->connection.hub_addr == 0) {
+        if (tu_bit_test(_usbh_data.attach_debouncing_bm, event->rhport)) {
+          return;
+        }
+
+        if (event->event_id == HCD_EVENT_DEVICE_ATTACH) {
+          // No debouncing, set flag if attach event
+          _usbh_data.attach_debouncing_bm |= TU_BIT(event->rhport);
+        }
+      }
       break;
 
     default: break;
@@ -1363,6 +1363,7 @@ enum {                               // USB 2.0 specs 7.1.7 for timing
   ENUM_RESET_ROOT_DELAY_MS = 50,     // T(DRSTr)  minimum 50 ms for reset from root port
   ENUM_RESET_HUB_DELAY_MS = 20,      // T(DRST)   10-20 ms for hub reset
   ENUM_RESET_RECOVERY_DELAY_MS = 10, // T(RSTRCY) minimum 10 ms for reset recovery
+  ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 2, // USB 2.0 Spec 9.2.6.3 min is 2 ms
 };
 
 enum {
@@ -1401,10 +1402,13 @@ static bool enum_new_device(hcd_event_t* event) {
   dev0_bus->hub_addr = event->connection.hub_addr;
   dev0_bus->hub_port = event->connection.hub_port;
 
-  _usbh_data.enumerating_daddr = 0;
-
   // wait until device connection is stable TODO non blocking
   tusb_time_delay_ms_api(ENUM_DEBOUNCING_DELAY_MS);
+
+  // clear roothub debouncing delay
+  if (dev0_bus->hub_addr == 0) {
+    _usbh_data.attach_debouncing_bm &= (uint8_t) ~TU_BIT(dev0_bus->rhport);
+  }
 
   if (dev0_bus->hub_addr == 0) {
     // connected directly to roothub
@@ -1570,8 +1574,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     }
 
     case ENUM_GET_DEVICE_DESC: {
-      // Allow 2ms for address recovery time, Ref USB Spec 9.2.6.3
-      tusb_time_delay_ms_api(2);
+      tusb_time_delay_ms_api(ENUM_SET_ADDRESS_RECOVERY_DELAY_MS); // set address recovery
 
       const uint8_t new_addr = (uint8_t) tu_le16toh(xfer->setup->wValue);
       usbh_device_t* new_dev = get_device(new_addr);
