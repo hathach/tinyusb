@@ -93,12 +93,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   hcd_reg->USBMODE = USBMODE_CM_HOST;
 #endif
 
-  // FIXME force full speed, still have issue with Highspeed enumeration
-  // probably due to physical connection bouncing when plug/unplug
-  // 1. Have issue when plug/unplug devices, maybe the port is not reset properly
-  // 2. Also does not seems to detect disconnection
-  hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
-
   return ehci_init(rhport, (uint32_t) &hcd_reg->CAPLENGTH, (uint32_t) &hcd_reg->USBCMD);
 }
 
