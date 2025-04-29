@@ -1363,6 +1363,7 @@ enum {                               // USB 2.0 specs 7.1.7 for timing
   ENUM_RESET_ROOT_DELAY_MS = 50,     // T(DRSTr)  minimum 50 ms for reset from root port
   ENUM_RESET_HUB_DELAY_MS = 20,      // T(DRST)   10-20 ms for hub reset
   ENUM_RESET_RECOVERY_DELAY_MS = 10, // T(RSTRCY) minimum 10 ms for reset recovery
+  ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 2, // USB 2.0 Spec 9.2.6.3 min is 2 ms
 };
 
 enum {
@@ -1573,8 +1574,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     }
 
     case ENUM_GET_DEVICE_DESC: {
-      // Allow 2ms for address recovery time, Ref USB Spec 9.2.6.3
-      tusb_time_delay_ms_api(2);
+      tusb_time_delay_ms_api(ENUM_SET_ADDRESS_RECOVERY_DELAY_MS); // set address recovery
 
       const uint8_t new_addr = (uint8_t) tu_le16toh(xfer->setup->wValue);
       usbh_device_t* new_dev = get_device(new_addr);
