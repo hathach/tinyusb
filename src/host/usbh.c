@@ -299,6 +299,10 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) 
   return &_usbh_devices[dev_addr-1];
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool is_hub_addr(uint8_t daddr) {
+  return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX);
+}
+
 TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, bool in_isr) {
   TU_ASSERT(osal_queue_send(_usbh_q, event, in_isr));
   tuh_event_hook_cb(event->rhport, event->event_id, in_isr);
@@ -1274,15 +1278,13 @@ uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_i
 //--------------------------------------------------------------------+
 // Detaching
 //--------------------------------------------------------------------+
-
-TU_ATTR_ALWAYS_INLINE static inline bool is_hub_addr(uint8_t daddr) {
-  return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX);
-}
-
 // a device unplugged from rhport:hub_addr:hub_port
 static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
   // Find the all devices (star-network) under port that is unplugged
-  uint32_t removing_hubs_bm = 0;
+  #if CFG_TUH_HUB
+  uint8_t removing_hubs[CFG_TUH_HUB] = { 0 };
+  #endif
+
   do {
     for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
       usbh_device_t* dev = &_usbh_devices[dev_id];
@@ -1294,10 +1296,13 @@ static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub
           (hub_port == 0 || dev->bus_info.hub_port == hub_port)) {
         TU_LOG_USBH("[%u:%u:%u] unplugged address = %u\r\n", rhport, hub_addr, hub_port, daddr);
 
+        #if CFG_TUH_HUB
         if (is_hub_addr(daddr)) {
           TU_LOG_USBH("  is a HUB device %u\r\n", daddr);
-          removing_hubs_bm |= TU_BIT(dev_id - CFG_TUH_DEVICE_MAX);
-        } else {
+          removing_hubs[dev_id - CFG_TUH_DEVICE_MAX] = 1;
+        } else
+        #endif
+        {
           // Invoke callback before closing driver (maybe call it later ?)
           if (tuh_umount_cb) {
             tuh_umount_cb(daddr);
@@ -1317,16 +1322,16 @@ static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub
       }
     }
 
-    // if removing a hub, we need to remove all of its downstream devices
-    #if CFG_TUH_HUB
-    if (removing_hubs_bm == 0) {
+#if CFG_TUH_HUB
+    // if a hub is removed, we need to remove all of its downstream devices
+    if (tu_mem_is_zero(removing_hubs, CFG_TUH_HUB)) {
       break;
     }
 
     // find a marked hub to process
     for (uint8_t h_id = 0; h_id < CFG_TUH_HUB; h_id++) {
-      if (tu_bit_test(removing_hubs_bm, h_id)) {
-        removing_hubs_bm &= ~TU_BIT(h_id);
+      if (removing_hubs[h_id]) {
+        removing_hubs[h_id] = 0;
 
         // update hub_addr and hub_port for next loop
         hub_addr = h_id + 1 + CFG_TUH_DEVICE_MAX;
@@ -1334,10 +1339,10 @@ static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub
         break;
       }
     }
-    #else
-    (void) removing_hubs;
+#else
     break;
-    #endif
+#endif
+
   } while(1);
 }
 
