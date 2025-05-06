@@ -45,6 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
+      hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -52,9 +53,14 @@ jobs:
       - name: Generate matrix json
         id: set-matrix-json
         run: |
+          # build matrix
           MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
           echo "matrix=$MATRIX_JSON"
           echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          # hil matrix
+          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${{ env.HIL_JSON }})
+          echo "hil_matrix=$HIL_MATRIX_JSON"
+          echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
   # Build CMake
@@ -166,21 +172,6 @@ jobs:
   # Hardware in the loop (HIL)
   # Run on PR only (hil-tinyusb), hil-hfp only run on non-forked PR
   # ---------------------------------------
-  hil-set-matrix:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    outputs:
-      json: ${{ steps.set-matrix-json.outputs.matrix }}
-    steps:
-      - name: Checkout TinyUSB
-        uses: actions/checkout@v4
-
-      - name: Generate matrix json
-        id: set-matrix-json
-        run: |
-          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${{ env.HIL_JSON }})
-          echo "matrix=$MATRIX_JSON"
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
   # Build arm-gcc
@@ -189,7 +180,7 @@ jobs:
     if: |
       github.repository_owner == 'hathach' &&
       (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
-    needs: hil-set-matrix
+    needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
@@ -200,7 +191,7 @@ jobs:
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.hil-set-matrix.outputs.json)[matrix.toolchain]) }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)[matrix.toolchain]) }}
       one-per-family: true
       upload-artifacts: true
 
@@ -254,7 +245,7 @@ jobs:
       - name: Clean workspace
         run: |
           echo "Cleaning up previous run"
-          rm -rf "${{ github.workspace }}"
+          rm -rf "${{ github.workspace }}"3
           mkdir -p "${{ github.workspace }}"
 
       - name: Toolchain version
