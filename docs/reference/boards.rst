@@ -165,6 +165,7 @@ lpcxpresso55s28     LPCXpresso55s28                            lpc55          ht
 lpcxpresso55s69     LPCXpresso55s69                            lpc55          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/lpcxpresso-boards/lpcxpresso55s69-development-board:LPC55S69-EVK
 mcu_link            MCU Link                                   lpc55          https://www.nxp.com/design/design-center/software/development-software/mcuxpresso-software-and-tools-/mcu-link-debug-probe:MCU-LINK
 frdm_mcxa153        Freedom MCXA153                            mcx            https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA153
+frdm_mcxa156        Freedom MCXA156                            mcx            https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA156
 frdm_mcxn947        Freedom MCXN947                            mcx            https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXN947
 mcxn947brk          MCXN947 Breakout                           mcx            n/a
 ==================  =========================================  =============  =========================================================================================================================================================================  ======

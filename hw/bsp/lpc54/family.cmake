@@ -44,7 +44,7 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/drivers/lpc_gpio/fsl_gpio.c
     ${SDK_DIR}/drivers/common/fsl_common_arm.c
     ${SDK_DIR}/drivers/flexcomm/fsl_flexcomm.c
-    ${SDK_DIR}/drivers/flexcomm/fsl_usart.c
+    ${SDK_DIR}/drivers/flexcomm/usart/fsl_usart.c
     # mcu
     ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
@@ -56,6 +56,7 @@ function(add_board_target BOARD_TARGET)
     # driver
     ${SDK_DIR}/drivers/common
     ${SDK_DIR}/drivers/flexcomm
+    ${SDK_DIR}/drivers/flexcomm/usart
     ${SDK_DIR}/drivers/lpc_iocon
     ${SDK_DIR}/drivers/lpc_gpio
     ${SDK_DIR}/drivers/lpuart

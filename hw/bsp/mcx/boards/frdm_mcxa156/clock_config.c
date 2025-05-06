@@ -1,6 +1,5 @@
 /*
- * Copyright 2023 NXP
- * All rights reserved.
+ * Copyright 2024 NXP
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -25,11 +24,11 @@
 /* clang-format off */
 /* TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!GlobalInfo
-product: Clocks v12.0
-processor: MCXA153
-package_id: MCXA153VLH
+product: Clocks v13.0
+processor: MCXA156
+package_id: MCXA156VLL
 mcu_data: ksdk2_0
-processor_version: 0.13.0
+processor_version: 0.15.0
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
 /* clang-format on */
 
@@ -52,6 +51,7 @@ processor_version: 0.13.0
  ******************************************************************************/
 void BOARD_InitBootClocks(void)
 {
+    BOARD_BootClockFRO96M();
 }
 
 /*******************************************************************************
@@ -68,9 +68,12 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 12 MHz}
 - {id: Slow_clock.outFreq, value: 3 MHz}
 - {id: System_clock.outFreq, value: 12 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
 settings:
 - {id: SCGMode, value: SIRC}
 - {id: FRO_HF_PERIPHERALS_EN_CFG, value: Disabled}
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
 - {id: SCG.SCSSEL.sel, value: SCG.SIRC}
 - {id: SCG_FIRCCSR_FIRCEN_CFG, value: Disabled}
@@ -149,7 +152,10 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 48 MHz}
 - {id: Slow_clock.outFreq, value: 6 MHz}
 - {id: System_clock.outFreq, value: 24 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
 settings:
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
 - {id: SYSCON.AHBCLKDIV.scale, value: '2', locked: true}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
@@ -230,7 +236,10 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 48 MHz}
 - {id: Slow_clock.outFreq, value: 12 MHz}
 - {id: System_clock.outFreq, value: 48 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
 settings:
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
 /* clang-format on */
@@ -310,8 +319,11 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 64 MHz}
 - {id: Slow_clock.outFreq, value: 16 MHz}
 - {id: System_clock.outFreq, value: 64 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
 settings:
 - {id: VDD_CORE, value: voltage_1v1}
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.FROHFDIV.scale, value: '1', locked: true}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
 - {id: SYSCON.AHBCLKDIV.scale, value: '1', locked: true}
@@ -385,6 +397,7 @@ void BOARD_BootClockFRO64M(void)
 /* TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!Configuration
 name: BOARD_BootClockFRO96M
+called_from_default_init: true
 outputs:
 - {id: CLK_1M_clock.outFreq, value: 1 MHz}
 - {id: CLK_48M_clock.outFreq, value: 48 MHz}
@@ -395,9 +408,12 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 96 MHz}
 - {id: Slow_clock.outFreq, value: 24 MHz}
 - {id: System_clock.outFreq, value: 96 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
 settings:
 - {id: VDD_CORE, value: voltage_1v1}
 - {id: CLKOUTDIV_HALT, value: Enable}
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.FROHFDIV.scale, value: '1', locked: true}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
 - {id: SYSCON.AHBCLKDIV.scale, value: '1', locked: true}
