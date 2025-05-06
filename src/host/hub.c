@@ -459,7 +459,8 @@ static void process_new_status(tuh_xfer_t* xfer) {
         }
       };
       hcd_event_handler(&event, false);
-      processed = true; // usbh queue status after handled this in (de)enumeration
+      // skip status for attach event, usbh will do it after handled this enumeration
+      processed = (event.event_id == HCD_EVENT_DEVICE_ATTACH);
       break;
     }
 
