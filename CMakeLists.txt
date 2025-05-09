@@ -38,6 +38,7 @@ set(srcs
     "src/class/audio/audio_device.c"
     "src/class/video/video_device.c"
     "src/class/bth/bth_device.c"
+    "src/class/usbtmc/usbtmc_device.c"
     # NET class
     "src/class/net/ecm_rndis_device.c"
     "lib/networking/rndis_reports.c"
