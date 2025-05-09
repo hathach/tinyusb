@@ -210,33 +210,20 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uin
   TU_VERIFY(p_vendor, 0);
 
   p_vendor->itf_num = desc_itf->bInterfaceNumber;
-  uint8_t found_ep = 0;
-  while (found_ep < desc_itf->bNumEndpoints) {
-    // skip non-endpoint descriptors
-    while ( (TUSB_DESC_ENDPOINT != tu_desc_type(p_desc)) && (p_desc < desc_end) ) {
-      p_desc = tu_desc_next(p_desc);
-    }
-    if (p_desc >= desc_end) {
-      break;
-    }
+  while (TUSB_DESC_INTERFACE != tu_desc_type(p_desc) && (desc_end - p_desc > 0)) {
+    if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
+      const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
+      TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
-    const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
-    TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
-    found_ep++;
-
-    if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      tu_edpt_stream_open(&p_vendor->tx.stream, desc_ep);
-      tud_vendor_n_write_flush((uint8_t)(p_vendor - _vendord_itf));
-    } else {
-      tu_edpt_stream_open(&p_vendor->rx.stream, desc_ep);
-      TU_ASSERT(tu_edpt_stream_read_xfer(rhport, &p_vendor->rx.stream) > 0, 0); // prepare for incoming data
+      if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
+        tu_edpt_stream_open(&p_vendor->tx.stream, desc_ep);
+        tud_vendor_n_write_flush((uint8_t)(p_vendor - _vendord_itf));
+      } else {
+        tu_edpt_stream_open(&p_vendor->rx.stream, desc_ep);
+        TU_ASSERT(tu_edpt_stream_read_xfer(rhport, &p_vendor->rx.stream) > 0, 0); // prepare for incoming data
+      }
     }
 
-    p_desc = tu_desc_next(p_desc);
-  }
-
-  // skip any other descriptors until the next interface descriptor, or end of all descriptors
-  while ( (TUSB_DESC_INTERFACE != tu_desc_type(p_desc)) && (p_desc < desc_end) ) {
     p_desc = tu_desc_next(p_desc);
   }
 
