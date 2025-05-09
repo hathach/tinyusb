@@ -196,8 +196,9 @@ void vendord_reset(uint8_t rhport) {
 
 uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint16_t max_len) {
   TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == desc_itf->bInterfaceClass, 0);
-  const uint8_t* p_desc = tu_desc_next(desc_itf);
-  const uint8_t* desc_end = (uint8_t const*)desc_itf + max_len;
+  const uint8_t* p_desc = (const uint8_t*)desc_itf;
+  const uint8_t* desc_end = p_desc + max_len;
+  p_desc = tu_desc_next(p_desc);
 
   // Find available interface
   vendord_interface_t* p_vendor = NULL;
@@ -232,6 +233,11 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uin
       TU_ASSERT(tu_edpt_stream_read_xfer(rhport, &p_vendor->rx.stream) > 0, 0); // prepare for incoming data
     }
 
+    p_desc = tu_desc_next(p_desc);
+  }
+
+  // skip any other descriptors until the next interface descriptor, or end of all descriptors
+  while ( (TUSB_DESC_INTERFACE != tu_desc_type(p_desc)) && (p_desc < desc_end) ) {
     p_desc = tu_desc_next(p_desc);
   }
 
