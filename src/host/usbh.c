@@ -579,7 +579,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         uint8_t const epnum = tu_edpt_number(ep_addr);
         uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
 
-        TU_LOG_USBH("on EP %02X with %u bytes: %s\r\n", ep_addr, (unsigned int) event.xfer_complete.len, tu_str_xfer_result[event.xfer_complete.result]);
+        TU_LOG_USBH("[:%u] on EP %02X with %u bytes: %s\r\n",
+                    event.dev_addr, ep_addr, (unsigned int) event.xfer_complete.len, tu_str_xfer_result[event.xfer_complete.result]);
 
         if (event.dev_addr == 0) {
           // device 0 only has control endpoint
@@ -618,7 +619,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
               uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
               usbh_class_driver_t const* driver = get_driver(drv_id);
               if (driver) {
-                TU_LOG_USBH("%s xfer callback\r\n", driver->name);
+                TU_LOG_USBH("  %s xfer callback\r\n", driver->name);
                 driver->xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result,
                                 event.xfer_complete.len);
               } else {
