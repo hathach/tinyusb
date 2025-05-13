@@ -122,7 +122,7 @@ deps_optional = {
                                   '5ad9797c54ec3e55eff770fc9b3cd4a1aefc1309',
                                   'stm32u5'],
     'hw/mcu/st/cmsis_device_wb': ['https://github.com/STMicroelectronics/cmsis_device_wb.git',
-                                  '9c5d1920dd9fabbe2548e10561d63db829bb744f',
+                                  'd6a7fa2e7de084f5e5e47f2ab88b022fe9b50e5a',
                                   'stm32wb'],
     'hw/mcu/st/stm32-mfxstm32l152': ['https://github.com/STMicroelectronics/stm32-mfxstm32l152.git',
                                      '7f4389efee9c6a655b55e5df3fceef5586b35f9b',
