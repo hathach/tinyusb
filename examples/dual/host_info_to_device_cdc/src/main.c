@@ -233,11 +233,13 @@ void tuh_enum_descriptor_device_cb(uint8_t daddr, tusb_desc_device_t const* desc
 
 void tuh_mount_cb(uint8_t daddr) {
   cdc_printf("mounted device %u\r\n", daddr);
+  tud_cdc_write_flush();
   is_print[daddr] = true;
 }
 
 void tuh_umount_cb(uint8_t daddr) {
   cdc_printf("unmounted device %u\r\n", daddr);
+  tud_cdc_write_flush();
   is_print[daddr] = false;
 }
 
