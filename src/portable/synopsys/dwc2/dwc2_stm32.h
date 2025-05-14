@@ -305,7 +305,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_
 
 TU_ATTR_ALWAYS_INLINE static inline bool is_cache_mem(uintptr_t addr) {
   for (unsigned int i = 0; i < TU_ARRAY_SIZE(uncached_regions); i++) {
-    if (addr >= uncached_regions[i].start && addr <= uncached_regions[i].start)
+    if (addr >= uncached_regions[i].start && addr <= uncached_regions[i].end)
       return false;
   }
   return true;
