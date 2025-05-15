@@ -98,6 +98,7 @@ typedef struct {
     uint8_t period_split_nyet_count : 3;
     uint8_t halted_nyet : 1;
     uint8_t halted_sof_schedule : 1;
+    uint8_t closing : 1; // closing channel
   };
   uint8_t result;
 
@@ -452,8 +453,12 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
         hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
         if (xfer->allocated && xfer->ep_id == i) {
           dwc2_channel_t* channel = &dwc2->channel[ch_id];
-          xfer->err_count = HCD_XFER_ERROR_MAX;
-          channel_disable(dwc2, channel);
+          dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
+          xfer->closing = 1;
+          // Channel disable must not be programmed for non-split periodic channels
+          if (!channel_is_periodic(channel->hcchar) || hcsplt.split_en) {
+            channel_disable(dwc2, channel);
+          }
         }
       }
     }
@@ -915,6 +920,11 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     } else if (xfer->err_count == HCD_XFER_ERROR_MAX) {
       xfer->result = XFER_RESULT_FAILED;
       is_done = true;
+    } else if (xfer->closing) {
+      // channel is closing, de-allocate channel
+      channel_dealloc(dwc2, ch_id);
+      // don't send event
+      is_done = false;
     } else {
       // got here due to NAK or NYET
       channel_xfer_in_retry(dwc2, ch_id, hcint);
@@ -969,6 +979,11 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
     } else if (xfer->err_count == HCD_XFER_ERROR_MAX) {
       xfer->result = XFER_RESULT_FAILED;
       is_done = true;
+    } else if (xfer->closing) {
+      // channel is closing, de-allocate channel
+      channel_dealloc(dwc2, ch_id);
+      // don't send event
+      is_done = false;
     } else {
       // Got here due to NAK or NYET
       TU_ASSERT(channel_xfer_start(dwc2, ch_id));
@@ -1068,6 +1083,13 @@ static bool handle_channel_in_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
       // retry start-split in next binterval
       channel_xfer_in_retry(dwc2, ch_id, hcint);
     }
+
+    if (xfer->closing) {
+      // channel is closing, de-allocate channel
+      channel_dealloc(dwc2, ch_id);
+      // don't send event
+      is_done = false;
+    }
   }
 
   return is_done;
@@ -1124,6 +1146,13 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
         channel->hcsplt_bm.split_compl = 1;
         channel->hcchar |= HCCHAR_CHENA;
       }
+    }
+
+    if (xfer->closing) {
+      // channel is closing, de-allocate channel
+      channel_dealloc(dwc2, ch_id);
+      // don't send event
+      is_done = false;
     }
   } else if (hcint & HCINT_ACK) {
     xfer->err_count = 0;
