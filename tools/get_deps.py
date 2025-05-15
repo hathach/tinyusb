@@ -59,7 +59,7 @@ deps_optional = {
                             '144f1eb7ea8c06512e12f12b27383601c0272410',
                             'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/hathach/Pico-PIO-USB.git',
-                                         'd15f0c62ac22348a8708e1626525fdba9466e1ee',
+                                         '032a469e79f6a4ba40760d7868e6db26e15002d7',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',
