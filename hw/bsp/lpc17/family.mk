@@ -13,7 +13,7 @@ CFLAGS += \
   -DRTC_EV_SUPPORT=0
 
 # lpc_types.h cause following errors
-CFLAGS += -Wno-error=strict-prototypes -Wno-error=cast-qual
+CFLAGS_GCC += -Wno-error=strict-prototypes -Wno-error=cast-qual
 
 # caused by freeRTOS port !!
 CFLAGS += -Wno-error=maybe-uninitialized

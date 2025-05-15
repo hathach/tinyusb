@@ -13,20 +13,30 @@
       }
     },
     {
+      "name": "default single",
+      "hidden": true,
+      "description": "Configure preset for the ${presetName} board",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "BOARD": "${presetName}"
+      }
+    },
+    {
       "name": "adafruit_clue",
       "inherits": "default"
     },
     {
       "name": "adafruit_feather_esp32_v2",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "adafruit_feather_esp32s2",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "adafruit_feather_esp32s3",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "adafruit_magtag_29gray",
@@ -34,7 +44,7 @@
     },
     {
       "name": "adafruit_metro_esp32s2",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "apard32690",
@@ -130,39 +140,39 @@
     },
     {
       "name": "espressif_addax_1",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "espressif_c3_devkitc",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "espressif_c6_devkitc",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "espressif_kaluga_1",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "espressif_p4_function_ev",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "espressif_s2_devkitc",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "espressif_s3_devkitc",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "espressif_s3_devkitm",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "espressif_saola_1",
-      "inherits": "default"
+      "inherits": "default single"
     },
     {
       "name": "f1c100s",

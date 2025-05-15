@@ -114,9 +114,9 @@ void hcd_int_disable(uint8_t rhport) {
 //--------------------------------------------------------------------+
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const *desc_ep) {
-  hcd_devtree_info_t dev_tree;
-  hcd_devtree_get_info(dev_addr, &dev_tree);
-  bool const need_pre = (dev_tree.hub_addr && dev_tree.speed == TUSB_SPEED_LOW);
+  tuh_bus_info_t bus_info;
+  tuh_bus_info_get(dev_addr, &bus_info);
+  bool const need_pre = (bus_info.hub_addr && bus_info.speed == TUSB_SPEED_LOW);
 
   uint8_t const pio_rhport = RHPORT_PIO(rhport);
   return pio_usb_host_endpoint_open(pio_rhport, dev_addr, (uint8_t const *) desc_ep, need_pre);

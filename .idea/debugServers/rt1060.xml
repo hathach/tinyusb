@@ -5,7 +5,7 @@
       <env />
     </debugger>
     <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
-    <console port="2334" type="RTT" />
+    <console port="19021" />
     <target device="MIMXRT1062xxx6A" reset-before="false" />
     <connection extended-remote="false" port="4444" warmup-ms="500" />
     <swo />

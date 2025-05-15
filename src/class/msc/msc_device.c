@@ -344,7 +344,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   msc_csw_t * p_csw = &p_msc->csw;
 
   switch (p_msc->stage) {
-    case MSC_STAGE_CMD:
+    case MSC_STAGE_CMD: {
       //------------- new CBW received -------------//
       // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
       if (ep_addr != p_msc->ep_out) {
@@ -441,7 +441,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           }
         }
       }
-    break;
+      break;
+    }
 
     case MSC_STAGE_DATA:
       TU_LOG_DRV("  SCSI Data [Lun%u]\r\n", p_cbw->lun);

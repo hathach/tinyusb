@@ -29,14 +29,9 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+#define MAX_REPORT 4
 
-// If your host terminal support ansi escape code such as TeraTerm
-// it can be use to simulate mouse cursor movement within terminal
-#define USE_ANSI_ESCAPE   0
-
-#define MAX_REPORT  4
-
-static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
+static uint8_t const keycode2ascii[128][2] = {HID_KEYCODE_TO_ASCII};
 
 // Each HID instance can has multiple reports
 static struct {
@@ -45,8 +40,8 @@ static struct {
 } hid_info[CFG_TUH_HID];
 
 static void process_kbd_report(hid_keyboard_report_t const *report);
-static void process_mouse_report(hid_mouse_report_t const * report);
-static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
+static void process_mouse_report(hid_mouse_report_t const *report);
+static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len);
 
 void hid_app_task(void) {
   // nothing to do
@@ -70,7 +65,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
 
   printf("HID Interface Protocol = %s\r\n", protocol_str[itf_protocol]);
 
-  // By default host stack will use activate boot protocol on supported interface.
+  // By default, host stack will use boot protocol on supported interface.
   // Therefore for this simple example, we only need to parse generic report descriptor (with built-in parser)
   if (itf_protocol == HID_ITF_PROTOCOL_NONE) {
     hid_info[instance].report_count = tuh_hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
@@ -121,7 +116,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
 //--------------------------------------------------------------------+
 
 // look up new key in previous keys
-static inline bool find_key_in_report(hid_keyboard_report_t const* report, uint8_t keycode) {
+static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8_t keycode) {
   for (uint8_t i = 0; i < 6; i++) {
     if (report->keycode[i] == keycode) {
       return true;
@@ -130,28 +125,25 @@ static inline bool find_key_in_report(hid_keyboard_report_t const* report, uint8
   return false;
 }
 
-static void process_kbd_report(hid_keyboard_report_t const *report)
-{
-  static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
+static void process_kbd_report(hid_keyboard_report_t const *report) {
+  static hid_keyboard_report_t prev_report = {0, 0, {0}};// previous report to check key released
 
   //------------- example code ignore control (non-printable) key affects -------------//
-  for(uint8_t i=0; i<6; i++)
-  {
-    if ( report->keycode[i] )
-    {
-      if ( find_key_in_report(&prev_report, report->keycode[i]) )
-      {
+  for (uint8_t i = 0; i < 6; i++) {
+    if (report->keycode[i]) {
+      if (find_key_in_report(&prev_report, report->keycode[i])) {
         // exist in previous report means the current key is holding
-      }else
-      {
+      } else {
         // not existed in previous report means the current key is pressed
         bool const is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
         uint8_t ch = keycode2ascii[report->keycode[i]][is_shift ? 1 : 0];
         putchar(ch);
-        if ( ch == '\r' ) putchar('\n'); // added new line for enter key
+        if (ch == '\r') {
+          putchar('\n');
+        }
 
-        #ifndef __ICCARM__ // TODO IAR doesn't support stream control ?
-        fflush(stdout); // flush right away, else nanolib will wait for newline
+        #ifndef __ICCARM__     // TODO IAR doesn't support stream control ?
+        fflush(stdout);// flush right away, else nanolib will wait for newline
         #endif
       }
     }
@@ -166,55 +158,22 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
 //--------------------------------------------------------------------+
 
 static void cursor_movement(int8_t x, int8_t y, int8_t wheel) {
-#if USE_ANSI_ESCAPE
-  // Move X using ansi escape
-  if ( x < 0)
-  {
-    printf(ANSI_CURSOR_BACKWARD(%d), (-x)); // move left
-  }else if ( x > 0)
-  {
-    printf(ANSI_CURSOR_FORWARD(%d), x); // move right
-  }
-
-  // Move Y using ansi escape
-  if ( y < 0)
-  {
-    printf(ANSI_CURSOR_UP(%d), (-y)); // move up
-  }else if ( y > 0)
-  {
-    printf(ANSI_CURSOR_DOWN(%d), y); // move down
-  }
-
-  // Scroll using ansi escape
-  if (wheel < 0)
-  {
-    printf(ANSI_SCROLL_UP(%d), (-wheel)); // scroll up
-  }else if (wheel > 0)
-  {
-    printf(ANSI_SCROLL_DOWN(%d), wheel); // scroll down
-  }
-
-  printf("\r\n");
-#else
   printf("(%d %d %d)\r\n", x, y, wheel);
-#endif
 }
 
-static void process_mouse_report(hid_mouse_report_t const * report)
-{
-  static hid_mouse_report_t prev_report = { 0 };
+static void process_mouse_report(hid_mouse_report_t const *report) {
+  static hid_mouse_report_t prev_report = {0};
 
-  //------------- button state  -------------//
+  // button state
   uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
-  if ( button_changed_mask & report->buttons)
-  {
+  if (button_changed_mask & report->buttons) {
     printf(" %c%c%c ",
-       report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-',
-       report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
-       report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-');
+           report->buttons & MOUSE_BUTTON_LEFT ? 'L' : '-',
+           report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
+           report->buttons & MOUSE_BUTTON_RIGHT ? 'R' : '-');
   }
 
-  //------------- cursor movement -------------//
+  // cursor movement
   cursor_movement(report->x, report->y, report->wheel);
 }
 
@@ -263,18 +222,23 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
   if (rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP) {
     switch (rpt_info->usage) {
       case HID_USAGE_DESKTOP_KEYBOARD:
-        TU_LOG1("HID receive keyboard report\r\n");
+        TU_LOG2("HID receive keyboard report\r\n");
         // Assume keyboard follow boot report layout
         process_kbd_report((hid_keyboard_report_t const *) report);
         break;
 
       case HID_USAGE_DESKTOP_MOUSE:
-        TU_LOG1("HID receive mouse report\r\n");
+        TU_LOG2("HID receive mouse report\r\n");
         // Assume mouse follow boot report layout
         process_mouse_report((hid_mouse_report_t const *) report);
         break;
 
       default:
+        printf("report[%u] ", rpt_info->report_id);
+        for (uint8_t i = 0; i < len; i++) {
+          printf("%02X ", report[i]);
+        }
+        printf("\r\n");
         break;
     }
   }

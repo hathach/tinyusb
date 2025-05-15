@@ -47,7 +47,6 @@
 // forward declaration
 struct tuh_xfer_s;
 typedef struct tuh_xfer_s tuh_xfer_t;
-
 typedef void (*tuh_xfer_cb_t)(tuh_xfer_t* xfer);
 
 // Note1: layout and order of this will be changed in near future
@@ -79,6 +78,17 @@ typedef struct {
   uint8_t daddr;
   tusb_desc_interface_t desc;
 } tuh_itf_info_t;
+
+typedef struct {
+  uint8_t rhport;
+  uint8_t hub_addr;
+  uint8_t hub_port;
+  uint8_t speed;
+} tuh_bus_info_t;
+
+// backward compatibility for hcd_devtree_info_t, maybe removed in the future
+#define hcd_devtree_info_t tuh_bus_info_t
+#define hcd_devtree_get_info(_daddr, _bus_info) tuh_bus_info_get(_daddr, _bus_info)
 
 // ConfigID for tuh_configure()
 enum {
@@ -177,6 +187,8 @@ extern void hcd_int_handler(uint8_t rhport, bool in_isr);
 #define _tuh_int_handler_arg0()                   TU_VERIFY_STATIC(false, "tuh_int_handler() must have 1 or 2 arguments")
 #define _tuh_int_handler_arg1(_rhport)            hcd_int_handler(_rhport, true)
 #define _tuh_int_handler_arg2(_rhport, _in_isr)   hcd_int_handler(_rhport, _in_isr)
+
+// 1st argument is rhport (mandatory), 2nd argument in_isr (optional)
 #define tuh_int_handler(...)   TU_FUNC_OPTIONAL_ARG(_tuh_int_handler, __VA_ARGS__)
 
 // Check if roothub port is initialized and active as a host
@@ -214,6 +226,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool tuh_ready(uint8_t daddr) {
   return tuh_mounted(daddr) && !tuh_suspended(daddr);
 }
 
+// Get bus information of device
+bool tuh_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info);
+
 //--------------------------------------------------------------------+
 // Transfer API
 //--------------------------------------------------------------------+
@@ -237,6 +252,10 @@ bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr);
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
 // Return true if a queued transfer is aborted, false if there is no transfer to abort
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr);
+
+// Set Address (control transfer)
+bool tuh_address_set(uint8_t daddr, uint8_t new_addr,
+                     tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1

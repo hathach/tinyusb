@@ -1,12 +1,12 @@
 <component name="DebugServers">
-  <jlink-debug-target name="sam21" uniqueID="b22537b6-0924-4a2b-8721-48a8952239de">
+  <jlink-debug-target name="stm32h743" uniqueID="6d6a3ed6-f66d-4f6a-9e70-6aafe5c971d0">
     <debugger version="1">
       <debugger kind="GDB" isBundled="true" />
       <env />
     </debugger>
     <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
     <console port="19021" />
-    <target device="ATSAMD21G18A" reset-before="false" />
+    <target device="STM32H743XI" reset-before="false" frequency="16000" />
     <connection extended-remote="false" port="4444" warmup-ms="500" />
     <swo />
   </jlink-debug-target>

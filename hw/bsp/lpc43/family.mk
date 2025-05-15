@@ -5,14 +5,14 @@ include ${TOP}/${BOARD_PATH}/board.mk
 CPU_CORE ?= cortex-m4
 
 CFLAGS += \
-  -flto \
-  -nostdlib \
   -DCORE_M4 \
   -D__USE_LPCOPEN \
   -DCFG_TUSB_MCU=OPT_MCU_LPC43XX
 
 # mcu driver cause following warnings
-CFLAGS += \
+CFLAGS_GCC += \
+  -flto \
+  -nostdlib \
   -Wno-error=unused-parameter \
   -Wno-error=cast-qual \
   -Wno-error=incompatible-pointer-types \
