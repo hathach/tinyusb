@@ -547,7 +547,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         // TODO better to have an separated queue for newly attached devices
         if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
           // New device attached and we are ready
-          TU_LOG1("[%u:] USBH Device Attach\r\n", event.rhport);
+          TU_LOG_USBH("[%u:] USBH Device Attach\r\n", event.rhport);
           _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
           enum_new_device(&event);
         } else {
@@ -562,7 +562,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case HCD_EVENT_DEVICE_REMOVE:
-        TU_LOG1("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
+        TU_LOG_USBH("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
         if (_usbh_data.enumerating_daddr == 0 &&
             event.rhport == _usbh_data.dev0_bus.rhport &&
             event.connection.hub_addr == _usbh_data.dev0_bus.hub_addr &&
@@ -579,7 +579,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         uint8_t const epnum = tu_edpt_number(ep_addr);
         uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
 
-        TU_LOG_USBH("on EP %02X with %u bytes: %s\r\n", ep_addr, (unsigned int) event.xfer_complete.len, tu_str_xfer_result[event.xfer_complete.result]);
+        TU_LOG_USBH("[:%u] on EP %02X with %u bytes: %s\r\n",
+                    event.dev_addr, ep_addr, (unsigned int) event.xfer_complete.len, tu_str_xfer_result[event.xfer_complete.result]);
 
         if (event.dev_addr == 0) {
           // device 0 only has control endpoint
@@ -618,7 +619,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
               uint8_t drv_id = dev->ep2drv[epnum][ep_dir];
               usbh_class_driver_t const* driver = get_driver(drv_id);
               if (driver) {
-                TU_LOG_USBH("%s xfer callback\r\n", driver->name);
+                TU_LOG_USBH("  %s xfer callback\r\n", driver->name);
                 driver->xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result,
                                 event.xfer_complete.len);
               } else {
@@ -1463,7 +1464,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     bool retry = (_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8) && (failed_count < ATTEMPT_COUNT_MAX);
     if (retry) {
       tusb_time_delay_ms_api(ATTEMPT_DELAY_MS); // delay a bit
-      TU_LOG1("Enumeration attempt %u/%u\r\n", failed_count+1, ATTEMPT_COUNT_MAX);
+      TU_LOG_USBH("Enumeration attempt %u/%u\r\n", failed_count+1, ATTEMPT_COUNT_MAX);
       retry = tuh_control_xfer(xfer);
     }
 
