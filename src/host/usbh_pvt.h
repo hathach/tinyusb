@@ -63,7 +63,7 @@ usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count) TU_ATTR
 // Call by class driver to tell USBH that it has complete the enumeration
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num);
 
-uint8_t usbh_get_rhport(uint8_t dev_addr);
+uint8_t usbh_get_rhport(uint8_t daddr);
 
 uint8_t* usbh_get_enum_buf(void);
 

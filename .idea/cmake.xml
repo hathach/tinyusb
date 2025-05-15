@@ -6,13 +6,13 @@
       <configuration PROFILE_NAME="raspberrypi_zero2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberrypi_zero2 -DLOG=1" />
       <configuration PROFILE_NAME="raspberrypi_cm4" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberrypi_cm4 -DLOG=1" />
       <configuration PROFILE_NAME="raspberry_pi_pico" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1" />
-      <configuration PROFILE_NAME="raspberry_pi_pico2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico2 -DLOG=1" />
-      <configuration PROFILE_NAME="raspberry_pi_pico2_riscv" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico2_riscv -DLOG=1" />
       <configuration PROFILE_NAME="raspberry_pi_pico-pio_host" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" />
+      <configuration PROFILE_NAME="raspberry_pi_pico2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico2 -DLOG=1" />
+      <configuration PROFILE_NAME="raspberry_pi_pico2-pio_host" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=raspberry_pi_pico2 -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" />
       <configuration PROFILE_NAME="feather_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_feather_rp2040 -DLOG=1" />
       <configuration PROFILE_NAME="feather_rp2040_max3421" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=feather_rp2040_max3421 -DLOG=1" />
       <configuration PROFILE_NAME="metro_rp2040" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=pico_sdk -DPICO_BOARD=adafruit_metro_rp2040 -DLOG=1 -DMAX3421_HOST=1" />
-      <configuration PROFILE_NAME="adafruit_metro_rp2350" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=adafruit_metro_rp2350 -DLOG=1" />
+      <configuration PROFILE_NAME="adafruit_metro_rp2350" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=adafruit_metro_rp2350 -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" />
       <configuration PROFILE_NAME="adafruit_fruit_jam" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=adafruit_fruit_jam -DLOG=1 -DCFLAGS_CLI=&quot;-DCFG_TUH_RPI_PIO_USB=1&quot;" />
       <configuration PROFILE_NAME="adafruit_feather_esp32_v2" ENABLED="false" TOOLCHAIN_NAME="ESP-IDF" GENERATION_OPTIONS="-DBOARD=adafruit_feather_esp32_v2 -DMAX3421_HOST=1 -DLOG=1">
         <ADDITIONAL_GENERATION_ENVIRONMENT>
@@ -94,7 +94,8 @@
       <configuration PROFILE_NAME="metro m7 1011 sd" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011_sd -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="metro_m7_1011" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011 -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="rt1010 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1010_evk -DLOG=1 -DLOGGER=RTT" />
-      <configuration PROFILE_NAME="mimxrt1060_evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1060_evk -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="mimxrt1060_evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1060_evk -DLOG=1" />
+      <configuration PROFILE_NAME="mimxrt1064_evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1064_evk" />
       <configuration PROFILE_NAME="rt1170 evkb" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1170_evkb -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="stm32f072disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f072disco -DLOG=0 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32f103_mini_2" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32f103_mini_2 -DLOG=1 -DLOGGGER=RTT" />
@@ -166,7 +167,6 @@
       <configuration PROFILE_NAME="max32650fthr" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=max32650fthr -DLOG=0 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="max32666fthr" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=max32666fthr -DLOG=0 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="max32690evkit" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=max32690evkit -DLOG=1 -DLOGGER=RTT" />
-      <configuration PROFILE_NAME="mimxrt1064_evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1064_evk" />
     </configurations>
   </component>
 </project>

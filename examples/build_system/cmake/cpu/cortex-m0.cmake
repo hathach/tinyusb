@@ -1,7 +1,7 @@
 if (TOOLCHAIN STREQUAL "gcc")
   set(TOOLCHAIN_COMMON_FLAGS
     -mthumb
-    -mcpu=cortex-m0plus
+    -mcpu=cortex-m0
     -mfloat-abi=soft
     )
   set(FREERTOS_PORT GCC_ARM_CM0 CACHE INTERNAL "")

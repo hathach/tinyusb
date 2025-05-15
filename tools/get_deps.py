@@ -59,7 +59,7 @@ deps_optional = {
                             '144f1eb7ea8c06512e12f12b27383601c0272410',
                             'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/hathach/Pico-PIO-USB.git',
-                                         '9c8df3083b62c0a678f3bd3d8a7e773932622d4b',
+                                         '810653f66adadba3e0e4b4b56d5167ac4f7fdbf7',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',
@@ -243,11 +243,13 @@ def get_a_dep(d):
         p.mkdir(parents=True)
         run_cmd(f"{git_cmd} init")
         run_cmd(f"{git_cmd} remote add origin {url}")
+        head = None
+    else:
+        # Check if commit is already fetched
+        result = run_cmd(f"{git_cmd} rev-parse HEAD")
+        head = result.stdout.decode("utf-8").splitlines()[0]
+        run_cmd(f"{git_cmd} reset --hard")
 
-    # Check if commit is already fetched
-    result = run_cmd(f"{git_cmd} rev-parse HEAD")
-    head = result.stdout.decode("utf-8").splitlines()[0]
-    run_cmd(f"{git_cmd} reset --hard")
     if commit != head:
         run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
         run_cmd(f"{git_cmd} checkout FETCH_HEAD")
