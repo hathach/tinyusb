@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: Freedom MCXA153
-   url: https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA153
+   name: Freedom MCXA156
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA156
 */
 
 #ifndef BOARD_H_
@@ -39,13 +39,13 @@ extern "C" {
 // LED
 #define LED_GPIO              GPIO3
 #define LED_CLK               kCLOCK_GateGPIO3
-#define LED_PIN               12 //red
+#define LED_PIN               12 // red
 #define LED_STATE_ON          0
 
 // ISP button
-#define BUTTON_GPIO           GPIO3
-#define BUTTON_CLK            kCLOCK_GateGPIO3
-#define BUTTON_PIN            29 //sw2
+#define BUTTON_GPIO           GPIO0
+#define BUTTON_CLK            kCLOCK_GateGPIO0
+#define BUTTON_PIN            6 //SW3
 #define BUTTON_STATE_ACTIVE   0
 
 // UART

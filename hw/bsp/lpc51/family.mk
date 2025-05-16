@@ -28,15 +28,16 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c \
 	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
-	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c
+	$(SDK_DIR)/drivers/flexcomm/usart/fsl_usart.c
 
 INC += \
-  $(TOP)/$(BOARD_PATH) \
-  $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
+    $(TOP)/$(BOARD_PATH) \
+    $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(SDK_DIR)/drivers/common \
 	$(TOP)/$(SDK_DIR)/drivers/flexcomm \
+	$(TOP)/$(SDK_DIR)/drivers/flexcomm/usart \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio
 
