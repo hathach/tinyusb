@@ -103,6 +103,9 @@ deps_optional = {
     'hw/mcu/st/cmsis_device_h7': ['https://github.com/STMicroelectronics/cmsis_device_h7.git',
                                   '60dc2c913203dc8629dc233d4384dcc41c91e77f',
                                   'stm32h7'],
+    'hw/mcu/st/cmsis_device_h7rs': ['https://github.com/STMicroelectronics/cmsis_device_h7rs.git',
+                                  '832649d1fd09bd901e9f68e979522e5c209ebf20',
+                                  'stm32h7rs'],
     'hw/mcu/st/cmsis_device_h5': ['https://github.com/STMicroelectronics/cmsis_device_h5.git',
                                   'cd2d1d579743de57b88ccaf61a968b9c05848ffc',
                                   'stm32h5'],
@@ -157,6 +160,9 @@ deps_optional = {
     'hw/mcu/st/stm32h7xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git',
                                        'd8461b980b59b1625207d8c4f2ce0a9c2a7a3b04',
                                        'stm32h7'],
+    'hw/mcu/st/stm32h7rsxx_hal_driver': ['https://github.com/STMicroelectronics/stm32h7rsxx-hal-driver.git',
+                                       '7ca2e07ca21bc66b53654e845b4c85c884343b60',
+                                       'stm32h7rs'],
     'hw/mcu/st/stm32h5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h5xx_hal_driver.git',
                                        '2cf77de584196d619cec1b4586c3b9e2820a254e',
                                        'stm32h5'],
@@ -198,7 +204,7 @@ deps_optional = {
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
-                    'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb '
+                    'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb '
                     'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg '
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',

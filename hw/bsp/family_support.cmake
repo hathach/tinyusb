@@ -208,9 +208,10 @@ function(family_configure_common TARGET RTOS)
 
   # LOGGER option
   if (DEFINED LOGGER)
+    string(TOUPPER ${LOGGER} LOGGER)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
     # Add segger rtt to example
-    if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
+    if(LOGGER STREQUAL "RTT")
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
       target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
