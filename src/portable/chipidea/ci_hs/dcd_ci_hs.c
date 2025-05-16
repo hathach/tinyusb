@@ -239,7 +239,11 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   usbmode |= USBMODE_CM_DEVICE;
   dcd_reg->USBMODE = usbmode;
 
+#ifdef CFG_TUD_CI_HS_VBUS_CHARGE
+  dcd_reg->OTGSC = OTGSC_VBUS_CHARGE | OTGSC_OTG_TERMINATION;
+#else
   dcd_reg->OTGSC = OTGSC_VBUS_DISCHARGE | OTGSC_OTG_TERMINATION;
+#endif
 
 #if !TUD_OPT_HIGH_SPEED
   dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
