@@ -40,7 +40,6 @@
 
 #include "device/dcd.h"
 #include "dwc2_common.h"
-#include "dwc2_critical.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -53,11 +52,11 @@ typedef struct {
   uint8_t interval;
 } xfer_ctl_t;
 
-/*
-This variable is modified from ISR context, so it must be protected by critical section
-*/
+// This variable is modified from ISR context, so it must be protected by critical section
 static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
+
+static osal_critical_t _dcd_critical;
 
 typedef struct {
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
@@ -394,6 +393,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   tu_memclr(&_dcd_data, sizeof(_dcd_data));
+  osal_critical_init(&_dcd_critical);
 
   // Core Initialization
   const bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_DEVICE);
@@ -538,7 +538,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
-  DCD_ENTER_CRITICAL();
+  osal_critical_enter(&_dcd_critical);
   _dcd_data.allocated_epin_count = 0;
 
   // Disable non-control interrupt
@@ -558,7 +558,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dfifo_flush_rx(dwc2);
 
   dfifo_device_init(rhport); // re-init dfifo
-  DCD_EXIT_CRITICAL();
+  osal_critical_exit(&_dcd_critical);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -576,27 +576,33 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
-
-  DCD_ENTER_CRITICAL();
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
+
+  bool ret;
+
+  osal_critical_enter(&_dcd_critical);
+
   if (xfer->max_size == 0) {
-    DCD_EXIT_CRITICAL();
-    return false; // Endpoint is closed
+    ret = false;  // Endpoint is closed
+  } else {
+    xfer->buffer = buffer;
+    xfer->ff = NULL;
+    xfer->total_len = total_bytes;
+
+    // EP0 can only handle one packet
+    if (epnum == 0) {
+      _dcd_data.ep0_pending[dir] = total_bytes;
+    }
+
+    // Schedule packets to be sent within interrupt
+    edpt_schedule_packets(rhport, epnum, dir);
+
+    ret = true;
   }
-  xfer->buffer = buffer;
-  xfer->ff = NULL;
-  xfer->total_len = total_bytes;
 
-  // EP0 can only handle one packet
-  if (epnum == 0) {
-    _dcd_data.ep0_pending[dir] = total_bytes;
-  }
+  osal_critical_exit(&_dcd_critical);
 
-  // Schedule packets to be sent within interrupt
-  edpt_schedule_packets(rhport, epnum, dir);
-  DCD_EXIT_CRITICAL();
-
-  return true;
+  return ret;
 }
 
 // The number of bytes has to be given explicitly to allow more flexible control of how many
@@ -609,23 +615,29 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
-
-  DCD_ENTER_CRITICAL();
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
+
+  bool ret;
+
+  osal_critical_enter(&_dcd_critical);
+
   if (xfer->max_size == 0) {
-    DCD_EXIT_CRITICAL();
-    return false; // Endpoint is closed
+    ret = false;  // Endpoint is closed
+  } else {
+    xfer->buffer = NULL;
+    xfer->ff = ff;
+    xfer->total_len = total_bytes;
+
+    // Schedule packets to be sent within interrupt
+    // TODO xfer fifo may only available for slave mode
+    edpt_schedule_packets(rhport, epnum, dir);
+
+    ret = true;
   }
-  xfer->buffer = NULL;
-  xfer->ff = ff;
-  xfer->total_len = total_bytes;
 
-  // Schedule packets to be sent within interrupt
-  // TODO xfer fifo may only available for slave mode
-  edpt_schedule_packets(rhport, epnum, dir);
-  DCD_EXIT_CRITICAL();
+  osal_critical_exit(&_dcd_critical);
 
-  return true;
+  return ret;
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -1011,10 +1023,10 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (gintsts & GINTSTS_USBRST) {
     // USBRST is start of reset.
-    DCD_ENTER_CRITICAL();
+    osal_critical_enter(&_dcd_critical);
     dwc2->gintsts = GINTSTS_USBRST;
     handle_bus_reset(rhport);
-    DCD_EXIT_CRITICAL();
+    osal_critical_exit(&_dcd_critical);
   }
 
   if (gintsts & GINTSTS_ENUMDNE) {
