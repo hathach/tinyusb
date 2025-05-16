@@ -586,6 +586,12 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
   return ((uint8_t const*) desc)[DESC_OFFSET_SUBTYPE];
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_is_valid(void const* desc, uint8_t const* desc_end) {
+  const uint8_t* desc8 = (uint8_t const*) desc;
+  return (desc8 < desc_end) && (tu_desc_next(desc) <= desc_end);
+}
+
+
 // find descriptor that match byte1 (type)
 uint8_t const * tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1);
 
