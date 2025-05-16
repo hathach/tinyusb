@@ -41,6 +41,23 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec);
 #endif
 
 //--------------------------------------------------------------------+
+// Critical API
+//--------------------------------------------------------------------+
+typedef uint8_t osal_critical_t; // not used
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_init(osal_critical_t *ctx) {
+  (void) ctx;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx) {
+  (void) ctx;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx) {
+  (void) ctx;
+}
+
+//--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
 typedef struct {
