@@ -152,8 +152,8 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint* ep, 
 }
 
 // Prepare buffer control register value
-void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep) {
-  uint32_t ep_ctrl = *ep->endpoint_control;
+void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint *ep) {
+  uint32_t ep_ctrl = ep->endpoint_control ? *ep->endpoint_control : 0;
 
   // always compute and start with buffer 0
   uint32_t buf_ctrl = prepare_ep_buffer(ep, 0) | USB_BUF_CTRL_SEL;
@@ -182,7 +182,11 @@ void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep)
     ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
   }
 
-  *ep->endpoint_control = ep_ctrl;
+  uint8_t epnum = tu_edpt_number(ep->ep_addr);
+  // There's no endpoint control for endpoint 0
+  if (epnum != 0) {
+    *ep->endpoint_control = ep_ctrl;
+  }
 
   TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
@@ -194,7 +198,12 @@ void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep)
 void hw_endpoint_xfer_start(struct hw_endpoint* ep, uint8_t* buffer, uint16_t total_len) {
   hw_endpoint_lock_update(ep, 1);
 
-  if (ep->active) {
+  // We need to make sure the ep didn't get cleared from under us by an IRQ
+  if ( !ep->configured ) {
+    return;
+  }
+
+  if ( ep->active ) {
     // TODO: Is this acceptable for interrupt packets?
     TU_LOG(1, "WARN: starting new transfer on already active ep %02X\r\n", ep->ep_addr);
     hw_endpoint_reset_transfer(ep);
@@ -263,7 +272,7 @@ static void __tusb_irq_path_func(_hw_endpoint_xfer_sync)(struct hw_endpoint* ep)
   uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
 
   // sync buffer 1 if double buffered
-  if ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
+  if ( ep->endpoint_control && ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) ) {
     if (buf0_bytes == ep->wMaxPacketSize) {
       // sync buffer 1 if not short packet
       sync_ep_buffer(ep, 1);
