@@ -23,6 +23,7 @@ build_separator = '-' * 95
 build_status = [STATUS_OK, STATUS_FAILED, STATUS_SKIPPED]
 
 verbose = False
+parallel_jobs = os.cpu_count()
 
 # -----------------------------
 # Helper
@@ -110,13 +111,17 @@ def cmake_board(board, toolchain, build_flags_on):
                        f'-DTOOLCHAIN={toolchain} {build_flags}')
         if rcmd.returncode == 0:
             cmd = f"cmake --build {build_dir}"
-            # circleci docker return $nproc as 36 core, limit parallel according to resource class. Required for IAR, also prevent crashed/killed by docker
+            njobs = parallel_jobs
+
+            # circleci docker return $nproc as 36 core, limit parallel according to resource class.
+            # Required for IAR, also prevent crashed/killed by docker
             if os.getenv('CIRCLECI'):
                 resource_class = { 'small': 1, 'medium': 2, 'medium+': 3, 'large': 4 }
                 for rc in resource_class:
                     if rc in os.getenv('CIRCLE_JOB'):
-                        cmd += f' --parallel {resource_class[rc]}'
+                        njobs = resource_class[rc]
                         break
+            cmd += f' --parallel {njobs}'
             rcmd = run_cmd(cmd)
         ret[0 if rcmd.returncode == 0 else 1] += 1
 
@@ -211,6 +216,7 @@ def build_family(family, toolchain, build_system, build_flags_on, one_per_family
 # -----------------------------
 def main():
     global verbose
+    global parallel_jobs
 
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to build')
@@ -219,6 +225,7 @@ def main():
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Build flag to pass to build system')
     parser.add_argument('-1', '--one-per-family', action='store_true', default=False, help='Build only one random board inside a family')
+    parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -229,6 +236,7 @@ def main():
     build_flags_on = args.build_flags_on
     one_per_family = args.one_per_family
     verbose = args.verbose
+    parallel_jobs = args.jobs
 
     if len(families) == 0 and len(boards) == 0:
         print("Please specify families or board to build")
