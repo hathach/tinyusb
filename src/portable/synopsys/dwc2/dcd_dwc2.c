@@ -539,6 +539,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
   osal_critical_enter(&_dcd_critical);
+
   _dcd_data.allocated_epin_count = 0;
 
   // Disable non-control interrupt
@@ -556,8 +557,8 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
   dfifo_flush_tx(dwc2, 0x10); // all tx fifo
   dfifo_flush_rx(dwc2);
-
   dfifo_device_init(rhport); // re-init dfifo
+
   osal_critical_exit(&_dcd_critical);
 }
 
@@ -577,7 +578,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
-
   bool ret;
 
   osal_critical_enter(&_dcd_critical);
@@ -596,7 +596,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
     // Schedule packets to be sent within interrupt
     edpt_schedule_packets(rhport, epnum, dir);
-
     ret = true;
   }
 
@@ -616,7 +615,6 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
-
   bool ret;
 
   osal_critical_enter(&_dcd_critical);
@@ -631,7 +629,6 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     // Schedule packets to be sent within interrupt
     // TODO xfer fifo may only available for slave mode
     edpt_schedule_packets(rhport, epnum, dir);
-
     ret = true;
   }
 
@@ -1017,16 +1014,21 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
  */
 void dcd_int_handler(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
   const uint32_t gintmask = dwc2->gintmsk;
   const uint32_t gintsts = dwc2->gintsts & gintmask;
 
   if (gintsts & GINTSTS_USBRST) {
     // USBRST is start of reset.
+    #if TUP_MCU_MULTIPLE_CORE
     osal_critical_enter(&_dcd_critical);
+    #endif
+
     dwc2->gintsts = GINTSTS_USBRST;
     handle_bus_reset(rhport);
+
+    #if TUP_MCU_MULTIPLE_CORE
     osal_critical_exit(&_dcd_critical);
+    #endif
   }
 
   if (gintsts & GINTSTS_ENUMDNE) {
