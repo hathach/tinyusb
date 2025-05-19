@@ -1242,13 +1242,10 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
 // USBD API For Class Driver
 //--------------------------------------------------------------------+
 
-void usbd_int_set(bool enabled)
-{
-  if (enabled)
-  {
+void usbd_int_set(bool enabled) {
+  if (enabled) {
     dcd_int_enable(_usbd_rhport);
-  }else
-  {
+  } else {
     dcd_int_disable(_usbd_rhport);
   }
 }

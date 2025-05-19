@@ -102,38 +102,50 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
 //--------------------------------------------------------------------+
 // Critical API
 //--------------------------------------------------------------------+
+#define OSAL_CRITIAL_DEF(_name, _int_set) \
+  osal_critical_t _name
+
 #if TUSB_MCU_VENDOR_ESPRESSIF
-// Espressif critical take spinlock as argument
+// Espressif critical take spinlock as argument and does not use in_isr
 typedef portMUX_TYPE osal_critical_t;
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_critical_init(osal_critical_t *ctx) {
   spinlock_initialize(ctx);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx, bool in_isr) {
+  (void) in_isr;
   portENTER_CRITICAL(ctx);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx, bool in_isr) {
+  (void) in_isr;
   portEXIT_CRITICAL(ctx);
 }
 
 #else
 
-typedef uint8_t osal_critical_t; // not used
+typedef UBaseType_t osal_critical_t;
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_critical_init(osal_critical_t *ctx) {
   (void) ctx;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx) {
-  (void) ctx;
-  portENTER_CRITICAL();
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx, bool in_isr) {
+  if (in_isr) {
+    *ctx = taskENTER_CRITICAL_FROM_ISR();
+  } else {
+    taskENTER_CRITICAL();
+  }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx, bool in_isr) {
   (void) ctx;
-  portEXIT_CRITICAL();
+  if (in_isr) {
+    taskEXIT_CRITICAL_FROM_ISR(*ctx);
+  } else {
+    taskEXIT_CRITICAL();
+  }
 }
 
 #endif

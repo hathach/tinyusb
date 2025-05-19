@@ -44,6 +44,27 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
 }
 
 //--------------------------------------------------------------------+
+// Critical API
+//--------------------------------------------------------------------+
+typedef critical_section_t osal_critical_t;
+#define OSAL_CRITIAL_DEF(_name, _int_set) \
+  osal_critical_t _name
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_init(osal_critical_t *ctx) {
+  critical_section_init(ctx);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx, bool in_isr) {
+  (void) in_isr;
+  critical_section_enter_blocking(ctx);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx, bool in_isr) {
+  (void) in_isr;
+  critical_section_exit(ctx);
+}
+
+//--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
 typedef struct semaphore osal_semaphore_def_t, * osal_semaphore_t;
