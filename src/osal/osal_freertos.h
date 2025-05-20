@@ -100,38 +100,38 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
 }
 
 //--------------------------------------------------------------------+
-// Critical API
+// Spinlock API
 //--------------------------------------------------------------------+
-#define OSAL_CRITIAL_DEF(_name, _int_set) \
-  osal_critical_t _name
+#define OSAL_SPINLOCK_DEF(_name, _int_set) \
+  osal_spinlock_t _name
 
 #if TUSB_MCU_VENDOR_ESPRESSIF
 // Espressif critical take spinlock as argument and does not use in_isr
-typedef portMUX_TYPE osal_critical_t;
+typedef portMUX_TYPE osal_spinlock_t;
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_init(osal_critical_t *ctx) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   spinlock_initialize(ctx);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
   (void) in_isr;
   portENTER_CRITICAL(ctx);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
   (void) in_isr;
   portEXIT_CRITICAL(ctx);
 }
 
 #else
 
-typedef UBaseType_t osal_critical_t;
+typedef UBaseType_t osal_spinlock_t;
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_init(osal_critical_t *ctx) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
   if (in_isr) {
     *ctx = taskENTER_CRITICAL_FROM_ISR();
   } else {
@@ -139,7 +139,7 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ct
   }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
   (void) ctx;
   if (in_isr) {
     taskEXIT_CRITICAL_FROM_ISR(*ctx);

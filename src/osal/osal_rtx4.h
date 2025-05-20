@@ -57,6 +57,25 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t msec2wait(uint32_t msec) {
 }
 
 //--------------------------------------------------------------------+
+// Spinlock API, stub not implemented
+//--------------------------------------------------------------------+
+typedef uint8_t osal_spinlock_t;
+#define OSAL_SPINLOCK_DEF(_name, _int_set) \
+  osal_spinlock_t _name
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
+  (void) ctx;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
+  (void) ctx; (void) in_isr;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
+  (void) ctx; (void) in_isr;
+}
+
+//--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
 typedef OS_SEM osal_semaphore_def_t;

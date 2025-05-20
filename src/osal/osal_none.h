@@ -41,26 +41,27 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec);
 #endif
 
 //--------------------------------------------------------------------+
-// Critical API
+// Spinlock API
 //--------------------------------------------------------------------+
 typedef struct {
   void (* interrupt_set)(bool);
-} osal_critical_t;
+} osal_spinlock_t;
 
-#define OSAL_CRITIAL_DEF(_name, _int_set) \
-  osal_critical_t _name = { .interrupt_set = _int_set }
+// For SMP, spinlock must be locked by hardware, not use interrupt
+#define OSAL_SPINLOCK_DEF(_name, _int_set) \
+  osal_spinlock_t _name = { .interrupt_set = _int_set }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_init(osal_critical_t *ctx) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_enter(osal_critical_t *ctx, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
   if (!in_isr) {
     ctx->interrupt_set(false);
   }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void osal_critical_exit(osal_critical_t *ctx, bool in_isr) {
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
   if (!in_isr) {
     ctx->interrupt_set(true);
   }

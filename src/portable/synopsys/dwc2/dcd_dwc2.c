@@ -57,7 +57,7 @@ typedef struct {
 static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
-static OSAL_CRITIAL_DEF(_dcd_critical, usbd_int_set);
+static OSAL_SPINLOCK_DEF(_dcd_spinlock, usbd_int_set);
 
 typedef struct {
   // EP0 transfers are limited to 1 packet - larger sizes has to be split
@@ -394,7 +394,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   tu_memclr(&_dcd_data, sizeof(_dcd_data));
-  osal_critical_init(&_dcd_critical);
+  osal_spin_init(&_dcd_spinlock);
 
   // Core Initialization
   const bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_DEVICE);
@@ -539,7 +539,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
-  osal_critical_enter(&_dcd_critical, false);
+  osal_spin_lock(&_dcd_spinlock, false);
 
   _dcd_data.allocated_epin_count = 0;
 
@@ -560,7 +560,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dfifo_flush_rx(dwc2);
   dfifo_device_init(rhport); // re-init dfifo
 
-  osal_critical_exit(&_dcd_critical, false);
+  osal_spin_unlock(&_dcd_spinlock, false);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -581,7 +581,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
 
-  osal_critical_enter(&_dcd_critical, false);
+  osal_spin_lock(&_dcd_spinlock, false);
 
   if (xfer->max_size == 0) {
     ret = false;  // Endpoint is closed
@@ -600,7 +600,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     ret = true;
   }
 
-  osal_critical_exit(&_dcd_critical, false);
+  osal_spin_unlock(&_dcd_spinlock, false);
 
   return ret;
 }
@@ -618,7 +618,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
 
-  osal_critical_enter(&_dcd_critical, false);
+  osal_spin_lock(&_dcd_spinlock, false);
 
   if (xfer->max_size == 0) {
     ret = false;  // Endpoint is closed
@@ -633,7 +633,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     ret = true;
   }
 
-  osal_critical_exit(&_dcd_critical, false);
+  osal_spin_unlock(&_dcd_spinlock, false);
 
   return ret;
 }
@@ -1021,14 +1021,14 @@ void dcd_int_handler(uint8_t rhport) {
   if (gintsts & GINTSTS_USBRST) {
     // USBRST is start of reset.
     #if TUP_MCU_MULTIPLE_CORE
-    osal_critical_enter(&_dcd_critical, true);
+    osal_spin_lock(&_dcd_spinlock, true);
     #endif
 
     dwc2->gintsts = GINTSTS_USBRST;
     handle_bus_reset(rhport);
 
     #if TUP_MCU_MULTIPLE_CORE
-    osal_critical_exit(&_dcd_critical, true);
+    osal_spin_unlock(&_dcd_spinlock, true);
     #endif
   }
 

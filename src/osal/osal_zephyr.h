@@ -36,6 +36,31 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
 }
 
 //--------------------------------------------------------------------+
+// Spinlock API
+//--------------------------------------------------------------------+
+typedef struct {
+  struct k_spinlock lock;
+  k_spinlock_key_t key;
+} osal_spinlock_t;
+
+#define OSAL_SPINLOCK_DEF(_name, _int_set) \
+  osal_spinlock_t _name
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
+  (void) ctx;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
+  (void) in_isr;
+  ctx->key = k_spin_lock(&ctx->lock);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
+  (void) in_isr;
+  k_spin_unlock(&ctx->lock, ctx->key);
+}
+
+//--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
 typedef struct k_sem osal_semaphore_def_t, * osal_semaphore_t;
