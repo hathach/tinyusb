@@ -47,7 +47,7 @@ typedef struct {
   void (* interrupt_set)(bool);
 } osal_spinlock_t;
 
-// For SMP, spinlock must be locked by hardware, not use interrupt
+// For SMP, spinlock must be locked by hardware, cannot just use interrupt
 #define OSAL_SPINLOCK_DEF(_name, _int_set) \
   osal_spinlock_t _name = { .interrupt_set = _int_set }
 

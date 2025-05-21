@@ -114,12 +114,16 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
-  (void) in_isr;
+  if (!TUP_MCU_MULTIPLE_CORE && in_isr) {
+    return; // single core MCU does not need to lock in ISR
+  }
   portENTER_CRITICAL(ctx);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  (void) in_isr;
+  if (!TUP_MCU_MULTIPLE_CORE && in_isr) {
+    return; // single core MCU does not need to lock in ISR
+  }
   portEXIT_CRITICAL(ctx);
 }
 
@@ -133,6 +137,10 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
   if (in_isr) {
+    if (!TUP_MCU_MULTIPLE_CORE) {
+      (void) ctx;
+      return; // single core MCU does not need to lock in ISR
+    }
     *ctx = taskENTER_CRITICAL_FROM_ISR();
   } else {
     taskENTER_CRITICAL();
@@ -140,8 +148,11 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bo
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  (void) ctx;
   if (in_isr) {
+    if (!TUP_MCU_MULTIPLE_CORE) {
+      (void) ctx;
+      return; // single core MCU does not need to lock in ISR
+    }
     taskEXIT_CRITICAL_FROM_ISR(*ctx);
   } else {
     taskEXIT_CRITICAL();

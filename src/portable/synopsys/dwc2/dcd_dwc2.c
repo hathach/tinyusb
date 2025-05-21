@@ -1020,16 +1020,11 @@ void dcd_int_handler(uint8_t rhport) {
 
   if (gintsts & GINTSTS_USBRST) {
     // USBRST is start of reset.
-    #if TUP_MCU_MULTIPLE_CORE
-    osal_spin_lock(&_dcd_spinlock, true);
-    #endif
-
     dwc2->gintsts = GINTSTS_USBRST;
-    handle_bus_reset(rhport);
 
-    #if TUP_MCU_MULTIPLE_CORE
+    osal_spin_lock(&_dcd_spinlock, true);
+    handle_bus_reset(rhport);
     osal_spin_unlock(&_dcd_spinlock, true);
-    #endif
   }
 
   if (gintsts & GINTSTS_ENUMDNE) {
