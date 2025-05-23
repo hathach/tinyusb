@@ -267,7 +267,7 @@
   #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
-// Enable CI_HS VBUS Charge
+// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is insufficient).
 #ifndef CFG_TUD_CI_HS_VBUS_CHARGE
   #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
   #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
