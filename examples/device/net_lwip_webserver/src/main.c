@@ -69,9 +69,6 @@ try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00
 /* lwip context */
 static struct netif netif_data;
 
-/* shared between tud_network_recv_cb() and service_traffic() */
-static struct pbuf *received_frame;
-
 /* this is used by this code, ./class/net/net_driver.c, and usb_descriptors.c */
 /* ideally speaking, this should be generated from the hardware's unique ID (if available) */
 /* it is suggested that the first byte is 0x02 to indicate a link-local address */
@@ -184,9 +181,7 @@ bool dns_query_proc(const char *name, ip4_addr_t *addr) {
 }
 
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
-  /* this shouldn't happen, but if we get another packet before
-  parsing the previous, we must signal our inability to accept it */
-  if (received_frame) return false;
+  struct netif *netif = &netif_data;
 
   if (size) {
     struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
@@ -199,8 +194,16 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
     /* Copy buf to pbuf */
     pbuf_take(p, src, size);
 
-    /* store away the pointer for service_traffic() to later handle */
-    received_frame = p;
+    // Surrender ownership of our pbuf unless there was an error
+    // Only call pbuf_free if not Ok else it will panic with "pbuf_free: p->ref > 0"
+    // or steal it from whatever took ownership of it with undefined consequences.
+    // See: https://savannah.nongnu.org/patch/index.php?10121
+    if (netif->input(p, netif) != ERR_OK) {
+      printf("ERROR: netif input failed\n");
+      pbuf_free(p);
+    }
+    // Signal tinyusb that the current frame has been processed.
+    tud_network_recv_renew();
   }
 
   return true;
@@ -214,39 +217,12 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg) {
   return pbuf_copy_partial(p, dst, p->tot_len, 0);
 }
 
-static void service_traffic(void) {
-  /* handle any packet received by tud_network_recv_cb() */
-  if (received_frame) {
-    struct netif *netif = &netif_data;
-    // Surrender ownership of our pbuf unless there was an error
-    // Only call pbuf_free if not Ok else it will panic with "pbuf_free: p->ref > 0"
-    // or steal it from whatever took ownership of it with undefined consequences.
-    // See: https://savannah.nongnu.org/patch/index.php?10121
-    if (netif->input(received_frame, netif) != ERR_OK) {
-      printf("ERROR: netif input failed\n");
-      pbuf_free(received_frame);
-    }
-    received_frame = NULL;
-    tud_network_recv_renew();
-  }
-
-  sys_check_timeouts();
-}
-
-void tud_network_init_cb(void) {
-  /* if the network is re-initializing and we have a leftover packet, we must do a cleanup */
-  if (received_frame) {
-    pbuf_free(received_frame);
-    received_frame = NULL;
-  }
-}
-
 static void handle_link_state_switch(void) {
   /* Check for button press to toggle link state */
   static bool last_link_state = true;
   static bool last_button_state = false;
   bool current_button_state = board_button_read();
-  
+
   if (current_button_state && !last_button_state) {
     /* Button pressed - toggle link state */
     last_link_state = !last_link_state;
@@ -260,7 +236,7 @@ static void handle_link_state_switch(void) {
     /* LWIP callback will notify USB host about the change */
   }
   last_button_state = current_button_state;
-  
+
 }
 
 int main(void) {
@@ -298,7 +274,7 @@ int main(void) {
 
   while (1) {
     tud_task();
-    service_traffic();
+    sys_check_timeouts(); // service lwip
     handle_link_state_switch();
   }
 
