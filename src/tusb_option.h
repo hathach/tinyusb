@@ -195,6 +195,7 @@
 
 // Analog Devices
 #define OPT_MCU_MAX32690         2400  ///< ADI MAX32690
+#define OPT_MCU_MAX32665         2401  ///< ADI MAX32666/5
 #define OPT_MCU_MAX32666         2401  ///< ADI MAX32666/5
 #define OPT_MCU_MAX32650         2402  ///< ADI MAX32650/1/2
 #define OPT_MCU_MAX78002         2403  ///< ADI MAX78002
