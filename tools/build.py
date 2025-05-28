@@ -101,13 +101,13 @@ def cmake_board(board, toolchain, build_flags_on):
             if build_utils.skip_example(example, board):
                 ret[2] += 1
             else:
-                rcmd = run_cmd(f'cmake examples/{example} -B {build_dir}/{example} -G "Ninja" '
+                rcmd = run_cmd(f'cmake examples/{example} -B {build_dir}/{example} -G Ninja '
                                f'-DBOARD={board} {build_flags}')
                 if rcmd.returncode == 0:
                     rcmd = run_cmd(f'cmake --build {build_dir}/{example}')
                 ret[0 if rcmd.returncode == 0 else 1] += 1
     else:
-        rcmd = run_cmd(f'cmake examples -B {build_dir} -G "Ninja" -DBOARD={board} -DCMAKE_BUILD_TYPE=MinSizeRel '
+        rcmd = run_cmd(f'cmake examples -B {build_dir} -G Ninja -DBOARD={board} -DCMAKE_BUILD_TYPE=MinSizeRel '
                        f'-DTOOLCHAIN={toolchain} {build_flags}')
         if rcmd.returncode == 0:
             cmd = f"cmake --build {build_dir}"
