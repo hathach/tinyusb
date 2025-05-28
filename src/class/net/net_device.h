@@ -87,6 +87,11 @@ void tud_network_init_cb(void);
 // TODO removed later since it is not part of tinyusb stack
 extern uint8_t tud_network_mac_address[6];
 
+//------------- NCM -------------//
+
+// Set the network link state (up/down) and notify the host
+void tud_network_link_state(uint8_t rhport, bool is_up);
+
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
