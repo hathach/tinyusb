@@ -105,13 +105,8 @@ uint8_t clkValid;
 audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX+1]; 			// Volume range state
 audio_control_range_4_n_t(1) sampleFreqRng; 						// Sample frequency range state
 
-#if CFG_TUD_AUDIO_ENABLE_ENCODING
-// Audio test data, each buffer contains 2 channels, buffer[0] for CH0-1, buffer[1] for CH1-2
-uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO][CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX*CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE/1000/CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO];
-#else
 // Audio test data, 4 channels muxed together, buffer[0] for CH0, buffer[1] for CH1, buffer[2] for CH2, buffer[3] for CH3
 uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX*CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE/1000];
-#endif
 
 void led_blinking_task(void* param);
 void usb_device_task(void* param);
@@ -132,27 +127,6 @@ int main(void)
   sampleFreqRng.subrange[0].bRes = 0;
 
   // Generate dummy data
-#if CFG_TUD_AUDIO_ENABLE_ENCODING
-  uint16_t * p_buff = i2s_dummy_buffer[0];
-  uint16_t dataVal = 0;
-  for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
-  {
-    // CH0 saw wave
-    *p_buff++ = dataVal;
-    // CH1 inverted saw wave
-    *p_buff++ = 3200 + AUDIO_SAMPLE_RATE/1000 - dataVal;
-    dataVal+= 32;
-  }
-  p_buff = i2s_dummy_buffer[1];
-  for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
-  {
-    // CH3 square wave
-    *p_buff++ = cnt < (AUDIO_SAMPLE_RATE/1000/2) ? 3400:5000;
-    // CH4 sinus wave
-    float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
-    *p_buff++ = (uint16_t)((int16_t)(sinf(t) * 750) + 6000);
-  }
-#else
   uint16_t * p_buff = i2s_dummy_buffer;
   uint16_t dataVal = 0;
   for (uint16_t cnt = 0; cnt < AUDIO_SAMPLE_RATE/1000; cnt++)
@@ -168,7 +142,6 @@ int main(void)
     float t = 2*3.1415f * cnt / (AUDIO_SAMPLE_RATE/1000);
     *p_buff++ = (uint16_t)((int16_t)(sinf(t) * 750) + 6000);
   }
-#endif
 
 #if configSUPPORT_STATIC_ALLOCATION
   // blinky task
@@ -269,15 +242,7 @@ void audio_task(void* param)
   // Here we simulate a I2S receive callback every 1ms.
   while (1) {
     vTaskDelay(1);
-#if CFG_TUD_AUDIO_ENABLE_ENCODING
-  // Write I2S buffer into FIFO
-    for (uint8_t cnt=0; cnt < 2; cnt++)
-    {
-      tud_audio_write_support_ff(cnt, i2s_dummy_buffer[cnt], AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX);
-    }
-#else
     tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
-#endif
   }
 }
 

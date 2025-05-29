@@ -53,31 +53,16 @@ UART_HandleTypeDef UartHandle;
 
 void board_init(void) {
   HAL_Init();
-
-  // Enable the HSIUSB48 48 MHz oscillator.
-  RCC->CR |= RCC_CR_HSIUSB48ON;
-
-  // Wait for HSIUSB48 to be ready.
-  while (!(RCC->CR & RCC_CR_HSIUSB48RDY)) { }
-
-  // Change the SYSCLK source to HSIUSB48.
-  RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_SYSCLKSOURCE_HSIUSB48;
-
-  // Wait for the SYSCLK source to change.
-  while ((RCC->CFGR & RCC_CFGR_SWS) >> RCC_CFGR_SWS_Pos != RCC_SYSCLKSOURCE_HSIUSB48) { }
-
-  // Disable HSI48 to save power.
-  RCC->CR &= ~RCC_CR_HSION;
+  board_clock_init();
 
   // Enable peripheral clocks.
-  RCC->APBENR1 = RCC_APBENR1_USBEN | RCC_APBENR1_CRSEN | RCC_APBENR1_USART2EN;
-  RCC->APBENR2 = RCC_APBENR2_USART1EN;
-
-  // Enable all GPIO clocks.
-  RCC->IOPENR = 0x2F;
-
-  // Turn on CRS to make the HSIUSB48 clock more precise when USB is connected.
-  CRS->CR |= CRS_CR_AUTOTRIMEN | CRS_CR_CEN;
+  __HAL_RCC_USB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+  __HAL_RCC_PWR_CLK_ENABLE();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -109,6 +94,7 @@ void board_init(void) {
   }
 
 #ifdef UART_DEV
+  UART_CLK_EN();
   // UART
   {
     GPIO_InitTypeDef gpio_init = { 0 };
