@@ -61,6 +61,7 @@ function(add_board_target BOARD_TARGET)
   if (PORT EQUAL 0)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       CFG_TUD_WCH_USBIP_FSDEV=1
+      CFG_TUH_WCH_USBIP_USBFS=1
       )
   elseif (PORT EQUAL 1)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
@@ -127,6 +128,7 @@ function(family_configure_example TARGET RTOS)
 
   target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
+    ${TOP}/src/portable/wch/hcd_ch32_usbfs.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
   target_link_libraries(${TARGET} PUBLIC board_${BOARD})
