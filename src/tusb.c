@@ -136,6 +136,40 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
   #endif
 }
 
+bool tusb_rhport_teardown(uint8_t rhport) {
+  // backward compatible call with tusb_init(void)
+  #if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
+    #if CFG_TUD_ENABLED && defined(TUD_OPT_RHPORT)
+    // deinit device stack, CFG_TUSB_RHPORTx_MODE must be defined
+    TU_ASSERT( tud_deinit(TUD_OPT_RHPORT) );
+    _tusb_rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_INVALID;
+    #endif
+
+    #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
+    // deinit host stack CFG_TUSB_RHPORTx_MODE must be defined
+    TU_ASSERT( tuh_deinit(TUH_OPT_RHPORT) );
+    _tusb_rhport_role[TUH_OPT_RHPORT] = TUSB_ROLE_INVALID;
+    #endif
+
+    return true;
+  #endif
+
+  // new API with explicit rhport and role
+  TU_ASSERT(rhport < TUP_USBIP_CONTROLLER_NUM);
+
+  #if CFG_TUD_ENABLED
+  TU_ASSERT( tud_deinit(rhport) );
+  _tusb_rhport_role[rhport] = TUSB_ROLE_INVALID;
+  #endif
+
+  #if CFG_TUH_ENABLED
+  TU_ASSERT(  tuh_deinit(rhport) );
+  _tusb_rhport_role[rhport] = TUSB_ROLE_INVALID;
+  #endif
+
+  return true;
+}
+
 //--------------------------------------------------------------------+
 // Descriptor helper
 //--------------------------------------------------------------------+
