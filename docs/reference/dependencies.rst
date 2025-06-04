@@ -57,6 +57,7 @@ hw/mcu/st/stm32l0xx_hal_driver            https://github.com/STMicroelectronics/
 hw/mcu/st/stm32l1xx_hal_driver            https://github.com/STMicroelectronics/stm32l1xx_hal_driver.git  44efc446fa69ed8344e7fd966e68ed11043b35d9  stm32l1
 hw/mcu/st/stm32l4xx_hal_driver            https://github.com/STMicroelectronics/stm32l4xx_hal_driver.git  aee3d5bf283ae5df87532b781bdd01b7caf256fc  stm32l4
 hw/mcu/st/stm32l5xx_hal_driver            https://github.com/STMicroelectronics/stm32l5xx_hal_driver.git  675c32a75df37f39d50d61f51cb0dcf53f07e1cb  stm32l5
+hw/mcu/st/stm32n6xx_hal_driver            https://github.com/STMicroelectronics/stm32n6xx-hal-driver.git  49f9989d10cf6817d4b07ac01848956b46bd0fd6  stm32n6
 hw/mcu/st/stm32u5xx_hal_driver            https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git  4d93097a67928e9377e655ddd14622adc31b9770  stm32u5
 hw/mcu/st/stm32wbxx_hal_driver            https://github.com/STMicroelectronics/stm32wbxx_hal_driver.git  2c5f06638be516c1b772f768456ba637f077bac8  stm32wb
 hw/mcu/ti                                 https://github.com/hathach/ti_driver.git                        143ed6cc20a7615d042b03b21e070197d473e6e5  msp430 msp432e4 tm4c
