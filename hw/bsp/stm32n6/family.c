@@ -145,7 +145,7 @@ void board_init(void) {
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
 
-  NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  NVIC_SetPriority(USB1_OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
 
@@ -173,7 +173,9 @@ void board_init(void) {
   __HAL_RCC_USB1_OTG_HS_CLK_ENABLE();
 
   /* Required few clock cycles before accessing USB PHY Controller Registers */
-  HAL_Delay(1);
+  for (volatile uint32_t i = 0; i < 10; i++) {
+      __NOP(); // No Operation instruction to create a delay
+  }
 
   USB1_HS_PHYC->USBPHYC_CR &= ~(0x7 << 0x4);
 
@@ -185,7 +187,9 @@ void board_init(void) {
   __HAL_RCC_USB1_OTG_HS_PHY_RELEASE_RESET();
 
   /* Required few clock cycles before Releasing Reset */
-  HAL_Delay(1);
+  for (volatile uint32_t i = 0; i < 10; i++) {
+      __NOP(); // No Operation instruction to create a delay
+  }
 
   __HAL_RCC_USB1_OTG_HS_RELEASE_RESET();
 

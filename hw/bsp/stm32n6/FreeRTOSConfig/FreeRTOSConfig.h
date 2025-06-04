@@ -44,10 +44,11 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-  #include "stm32h7rsxx.h"
+  #include "stm32n6xx.h"
 #endif
 
-/* Cortex M23/M33 port configuration. */
+/* Cortex M55 port configuration. */
+#define configENABLE_MVE                        0
 #define configENABLE_MPU                        0
 #define configENABLE_FPU                        1
 #define configENABLE_TRUSTZONE                  0
