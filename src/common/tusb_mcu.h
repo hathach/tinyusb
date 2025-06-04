@@ -322,6 +322,15 @@
   // MCU with on-chip HS Phy
   #define TUP_RHPORT_HIGHSPEED    1
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32N6)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_STM32
+
+  #define TUP_DCD_ENDPOINT_MAX    9
+
+  // MCU with on-chip HS Phy
+  #define TUP_RHPORT_HIGHSPEED    2
+
 //--------------------------------------------------------------------+
 // Sony
 //--------------------------------------------------------------------+
