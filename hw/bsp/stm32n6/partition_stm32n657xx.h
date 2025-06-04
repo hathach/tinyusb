@@ -785,7 +785,7 @@ __STATIC_INLINE void TZ_SAU_Setup (void)
 
   #if defined (NVIC_INIT_ITNS6) && (NVIC_INIT_ITNS6 == 1U)
     NVIC->ITNS[6] = NVIC_INIT_ITNS6_VAL;
-  #endif    
+  #endif
 
 }
 
