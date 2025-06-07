@@ -478,6 +478,12 @@
 //--------------------------------------------------------------------+
 // WCH
 //--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_CH32X035)
+  #define TUP_USBIP_WCH_USBFS
+  #if !defined(CFG_TUD_WCH_USBIP_USBFS)
+  #define CFG_TUD_WCH_USBIP_USBFS 1
+  #endif
+  #define TUP_DCD_ENDPOINT_MAX    8
 #elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
   #define TUP_USBIP_WCH_USBHS
   #define TUP_USBIP_WCH_USBFS
