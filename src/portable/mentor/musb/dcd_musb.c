@@ -170,83 +170,76 @@ TU_ATTR_ALWAYS_INLINE static inline void hwfifo_flush(musb_regs_t* musb, unsigne
   }
 }
 
-static void pipe_write_packet(void *buf, volatile void *fifo, unsigned len, uint8_t op)
+static uint8_t pipe_write_packet(void *buf, volatile void *fifo, unsigned len, uint8_t max_width)
 {
   volatile hw_fifo_t *reg = (volatile hw_fifo_t*)fifo;
   uintptr_t addr = (uintptr_t)buf;
+  uint8_t width = 1;
 
-  if(op == 4) {
+  if(max_width == 4) {
     while (len >= 4) {
       reg->u32 = *(uint32_t const *)addr;
       addr += 4;
       len  -= 4;
     }
+    width = 4;
   }
 
-  if(op == 2) {
+  if(max_width >= 2) {
     while (len >= 2) {
       reg->u16 = *(uint16_t const *)addr;
       addr += 2;
       len  -= 2;
     }
+    width = 2;
   }
 
-  if(op == 1) {
+  if (len) {
     while (len) {
       reg->u8 = *(uint8_t const *)addr;
       addr += 1;
       len -= 1;
     }
+    width = 1;
   }
+
+  return width;
 }
 
-static void pipe_read_packet(void *buf, volatile void *fifo, unsigned len, uint8_t op)
+static uint8_t pipe_read_packet(void *buf, volatile void *fifo, unsigned len, uint8_t max_width)
 {
   volatile hw_fifo_t *reg = (volatile hw_fifo_t*)fifo;
   uintptr_t addr = (uintptr_t)buf;
+  uint8_t width = 1;
 
-  if(op == 4) {
+  if(max_width == 4) {
     while (len >= 4) {
       *(uint32_t *)addr = reg->u32;
       addr += 4;
       len  -= 4;
     }
+    width = 4;
   }
 
-  if(op == 2) {
+  if(max_width >= 2) {
     while (len >= 2) {
       *(uint16_t *)addr = reg->u16;
       addr += 2;
       len  -= 2;
     }
+    width = 2;
   }
 
-  if(op == 1) {
+  if(len) {
     while (len) {
       *(uint8_t *)addr = reg->u8;
       addr += 1;
       len -= 1;
     }
+    width = 1;
   }
 
-}
-
-/**
- * @brief Determine which #-bit operation can be used to send/receive all
- *        the data.
- *
- * @param len Number of bytes that will be read/written
- *
- * @return 4 (32-bit), 2(16-bit) or 1(8-bit)
- *
- */
-static uint8_t fifo_access_size(unsigned len) {
-  /* Check if only 32-bit operations can be used */
-  if ((len & 3) == 0 ) return 4;
-  /* Check if only 16-bit operations can be used */
-  if ((len & 1) == 0 ) return 2;
-  /* Only use 8-bit operations */
-  return 1;
+  return width;
 }
 
 static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigned len, unsigned dir)
@@ -254,7 +247,7 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
   static const struct {
     void (*tu_fifo_get_info)(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
     void (*tu_fifo_advance)(tu_fifo_t *f, uint16_t n);
-    void (*pipe_read_write)(void *buf, volatile void *fifo, unsigned len,uint8_t op);
+    uint8_t (*pipe_read_write)(void *buf, volatile void *fifo, unsigned len,uint8_t op);
   } ops[] = {
     /* OUT */ {tu_fifo_get_write_info,tu_fifo_advance_write_pointer,pipe_read_packet},
     /* IN  */ {tu_fifo_get_read_info, tu_fifo_advance_read_pointer, pipe_write_packet},
@@ -265,13 +258,12 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
   len = TU_MIN(total_len, info.len_lin);
   unsigned rem = total_len - len;
 
-  /* Determine the min # bit operation that can be used for the packet */
-  uint8_t op = TU_MIN(fifo_access_size(len),fifo_access_size(rem));
-  ops[dir].pipe_read_write(info.ptr_lin, fifo, len,op);
+  /* Get maximum R/W operation width for wrapped part */
+  uint8_t width = ops[dir].pipe_read_write(info.ptr_lin, fifo, len, 4);
 
   if (rem) {
     len = TU_MIN(rem, info.len_wrap);
-    ops[dir].pipe_read_write(info.ptr_wrap, fifo, len,op);
+    ops[dir].pipe_read_write(info.ptr_wrap, fifo, len, width);
     rem -= len;
   }
   ops[dir].tu_fifo_advance(f, total_len - rem);
@@ -324,7 +316,7 @@ static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr)
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1)) {
       pipe_read_write_packet_ff(buf, fifo_ptr, len, TUSB_DIR_IN);
     } else {
-      pipe_write_packet(buf, fifo_ptr, len , fifo_access_size(len));
+      pipe_write_packet(buf, fifo_ptr, len , 4);
       pipe->buf       = buf + len;
     }
     pipe->remaining = rem - len;
@@ -355,7 +347,7 @@ static bool handle_xfer_out(uint8_t rhport, uint_fast8_t ep_addr)
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_OUT] & TU_BIT(epnum_minus1)) {
       pipe_read_write_packet_ff(buf, fifo_ptr, len, TUSB_DIR_OUT);
     } else {
-      pipe_read_packet(buf, fifo_ptr, len, fifo_access_size(len));
+      pipe_read_packet(buf, fifo_ptr, len, 4);
       pipe->buf       = buf + len;
     }
     pipe->remaining = rem - len;
@@ -423,7 +415,7 @@ static bool edpt0_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_
     const unsigned len = TU_MIN(TU_MIN(rem, 64), total_bytes);
     volatile void *fifo_ptr = &musb_regs->fifo[0];
     if (dir_in) {
-      pipe_write_packet(buffer, fifo_ptr, len, fifo_access_size(len));
+      pipe_write_packet(buffer, fifo_ptr, len, 4);
 
       _dcd.pipe0.buf       = buffer + len;
       _dcd.pipe0.length    = len;
@@ -503,7 +495,7 @@ static void process_ep0(uint8_t rhport)
       const unsigned rem = _dcd.pipe0.remaining;
       const unsigned len = TU_MIN(TU_MIN(rem, 64), vld);
       volatile void *fifo_ptr = &musb_regs->fifo[0];
-      pipe_read_packet(_dcd.pipe0.buf, fifo_ptr, len,  fifo_access_size(len));
+      pipe_read_packet(_dcd.pipe0.buf, fifo_ptr, len,  4);
 
       _dcd.pipe0.remaining = rem - len;
       _dcd.remaining_ctrl -= len;
