@@ -2,6 +2,9 @@
 
 (async () => {
   // bind to the html
+  const uiBody = document.body;
+  const uiToggleThemeBtn = document.getElementById('theme-toggle');
+
   const uiConnectWebUsbSerialBtn = document.getElementById('connect_webusb_serial_btn');
   const uiConnectSerialBtn = document.getElementById('connect_serial_btn');
   const uiDisconnectBtn = document.getElementById('disconnect_btn');
@@ -27,7 +30,9 @@
   const uiNearTheBottomThreshold = 100; // pixels from the bottom to trigger scroll
 
   const maxCommandHistoryLength = 123; // max number of command history entries
-  const maxReceivedDataLength = 8192/8; // max number of received data entries
+  const maxReceivedDataLength = 8192 / 8; // max number of received data entries
+
+  const THEME_STATES = ['auto', 'light', 'dark'];
 
   class CommandHistoryEntry {
     constructor(text) {
@@ -59,6 +64,16 @@
       this.receivedData = [];
 
       // bind the UI elements
+      uiToggleThemeBtn.addEventListener('click', () => this.toggleTheme());
+      // Listener for OS Theme Changes
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        const currentPreference = localStorage.getItem('theme') || 'auto';
+        // Only act if the user is in automatic mode
+        if (currentPreference === 'auto') {
+          this.setTheme('auto');
+        }
+      });
+
       uiConnectWebUsbSerialBtn.addEventListener('click', () => this.connectWebUsbSerialPort());
       uiConnectSerialBtn.addEventListener('click', () => this.connectSerialPort());
       uiDisconnectBtn.addEventListener('click', () => this.disconnectPort());
@@ -88,6 +103,12 @@
     }
 
     restoreState() {
+      // Restore theme choice
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) {
+        this.setTheme(savedTheme);
+      }
+
       // Restore command history
       let savedCommandHistory = JSON.parse(localStorage.getItem('commandHistory') || '[]');
       for (const cmd of savedCommandHistory) {
@@ -110,6 +131,38 @@
       if (savedNewlineMode) {
         uiNewlineModeSelect.value = savedNewlineMode;
       }
+    }
+
+    setTheme(theme) {
+      const modeName = theme.charAt(0).toUpperCase() + theme.slice(1);
+      uiToggleThemeBtn.textContent = `Theme: ${modeName}`;
+
+      if (theme === 'auto') {
+        // In auto mode, we rely on the OS preference.
+        // We check the media query and add/remove the class accordingly.
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) {
+          uiBody.classList.add('dark-mode');
+        } else {
+          uiBody.classList.remove('dark-mode');
+        }
+      } else if (theme === 'light') {
+        // Force light mode by removing the class.
+        uiBody.classList.remove('dark-mode');
+      } else if (theme === 'dark') {
+        // Force dark mode by adding the class.
+        uiBody.classList.add('dark-mode');
+      }
+
+      // Save the theme to localStorage
+      localStorage.setItem('theme', theme);
+    }
+
+    toggleTheme() {
+      const currentTheme = localStorage.getItem('theme') || 'auto';
+      const nextThemeIndex = (THEME_STATES.indexOf(currentTheme) + 1) % THEME_STATES.length;
+      const nextTheme = THEME_STATES[nextThemeIndex];
+      this.setTheme(nextTheme);
     }
 
     appendCommandToHistory(commandHistoryEntry) {

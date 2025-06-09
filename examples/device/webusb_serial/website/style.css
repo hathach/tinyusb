@@ -25,12 +25,22 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 0.5em 1em;
+  gap: 1em;
   flex-shrink: 0;
 }
 
 h1,
 h2 {
   margin: 0;
+}
+
+.app-title {
+  flex-grow: 1;
+}
+
+.btn-theme {
+  background-color: #6b6b6b;
+  color: #fff;
 }
 
 .github-link {
@@ -197,4 +207,66 @@ main {
   background-color: #ccc;
   cursor: col-resize;
   height: 100%;
+}
+
+/*
+================================
+Togglable Dark Mode
+================================
+*/
+/* This class will be added to the body element by JavaScript */
+body.dark-mode {
+  /* Invert base background and text colors */
+  background: #1e1e1e;
+  color: #d4d4d4;
+}
+
+body.dark-mode .btn-theme {
+  background-color: #b0b0b0;
+  color: #000;
+}
+
+body.dark-mode .github-link {
+  color: #58a6ff;
+}
+
+body.dark-mode .resizer {
+  background-color: #444;
+}
+
+body.dark-mode .input {
+  background-color: #3c3c3c;
+  color: #f0f0f0;
+  border: 2px solid #555;
+}
+
+body.dark-mode .input::placeholder {
+  color: #888;
+}
+
+body.dark-mode .input:focus {
+  background-color: #2a2d2e;
+  border-color: #0078d7;
+}
+
+body.dark-mode .scrollbox {
+  background-color: #252526;
+  border: 1px solid #444;
+}
+
+body.dark-mode .monospaced {
+  color: #d4d4d4;
+}
+
+body.dark-mode .command-history-entry {
+  border-bottom: 1px solid #444;
+}
+
+body.dark-mode .command-history-entry:hover {
+  background-color: #3c3c3c;
+}
+
+body.dark-mode .send-mode-command {
+  background-color: #555;
+  color: #f5f5f5;
 }
