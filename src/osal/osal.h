@@ -75,6 +75,10 @@ typedef void (*osal_task_func_t)( void * );
 // OSAL Porting API
 // Should be implemented as static inline function in osal_port.h header
 /*
+   void osal_spin_init(osal_spinlock_t *ctx);
+   void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr)
+   void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr);
+
    osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);
    bool osal_semaphore_delete(osal_semaphore_t semd_hdl);
    bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr);

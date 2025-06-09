@@ -39,10 +39,10 @@ extern "C" {
 // LED
 #define LED_GPIO              GPIO3
 #define LED_CLK               kCLOCK_GateGPIO3
-#define LED_PIN               12 // red
+#define LED_PIN               12 //red
 #define LED_STATE_ON          0
 
-// ISP button (Dummy, use unused pin
+// ISP button
 #define BUTTON_GPIO           GPIO3
 #define BUTTON_CLK            kCLOCK_GateGPIO3
 #define BUTTON_PIN            29 //sw2

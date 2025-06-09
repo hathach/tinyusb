@@ -514,7 +514,6 @@ void hcd_int_disable(uint8_t rhport)
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
-
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
   (void) rhport;
@@ -533,6 +532,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
                     ep_desc->bInterval);
 
   return true;
+}
+
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport; (void) daddr; (void) ep_addr;
+  return false; // TODO not implemented yet
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)

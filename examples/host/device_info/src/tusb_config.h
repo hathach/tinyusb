@@ -74,9 +74,10 @@
 // Enable Host stack
 #define CFG_TUH_ENABLED       1
 
+// #define CFG_TUH_MAX3421       1 // use max3421 as host controller
+
 #if CFG_TUSB_MCU == OPT_MCU_RP2040
   // #define CFG_TUH_RPI_PIO_USB   1 // use pio-usb as host controller
-  // #define CFG_TUH_MAX3421       1 // use max3421 as host controller
 
   // host roothub port is 1 if using either pio-usb or max3421
   #if (defined(CFG_TUH_RPI_PIO_USB) && CFG_TUH_RPI_PIO_USB) || (defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
@@ -109,8 +110,7 @@
 // only hub class is enabled
 #define CFG_TUH_HUB                 1
 
-// max device support (excluding hub device)
-// 1 hub typically has 4 ports
+// max device support (excluding hub device): 1 hub typically has 4 ports
 #define CFG_TUH_DEVICE_MAX          (3*CFG_TUH_HUB + 1)
 
 #ifdef __cplusplus

@@ -190,7 +190,9 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
 // look up new key in previous keys
 static inline bool find_key_in_report(hid_keyboard_report_t const* report, uint8_t keycode) {
   for (uint8_t i = 0; i < 6; i++) {
-    if (report->keycode[i] == keycode) return true;
+    if (report->keycode[i] == keycode) {
+      return true;
+    }
   }
 
   return false;
@@ -230,7 +232,9 @@ static void process_kbd_report(uint8_t dev_addr, hid_keyboard_report_t const* re
     // TODO example skips key released
   }
 
-  if (flush) tud_cdc_write_flush();
+  if (flush) {
+    tud_cdc_write_flush();
+  }
 
   prev_report = *report;
 }

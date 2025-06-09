@@ -45,7 +45,7 @@ SRC_C += \
 	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
 	$(SDK_DIR)/drivers/common/fsl_common_arm.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
-	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c \
+	$(SDK_DIR)/drivers/flexcomm/usart/fsl_usart.c \
 	lib/sct_neopixel/sct_neopixel.c
 
 INC += \
@@ -55,11 +55,10 @@ INC += \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(SDK_DIR)/drivers/common \
-	$(TOP)/$(SDK_DIR)/drivers/flexcomm \
+	$(TOP)/$(SDK_DIR)/drivers/flexcomm/usart \
+	$(TOP)/$(SDK_DIR)/drivers/flexcomm/ \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio \
 	$(TOP)/$(SDK_DIR)/drivers/sctimer
 
 SRC_S += $(MCU_DIR)/gcc/startup_$(MCU_CORE).S
-
-LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower_hardabi.a

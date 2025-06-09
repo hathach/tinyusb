@@ -35,7 +35,7 @@
 #define TUSB_VERSION_REVISION  0
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
-#define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
+#define TUSB_VERSION_STRING    TU_XSTRING(TUSB_VERSION_MAJOR) "." TU_XSTRING(TUSB_VERSION_MINOR) "." TU_XSTRING(TUSB_VERSION_REVISION)
 
 //--------------------------------------------------------------------+
 // Supported MCUs
@@ -195,6 +195,7 @@
 
 // Analog Devices
 #define OPT_MCU_MAX32690         2400  ///< ADI MAX32690
+#define OPT_MCU_MAX32665         2401  ///< ADI MAX32666/5
 #define OPT_MCU_MAX32666         2401  ///< ADI MAX32666/5
 #define OPT_MCU_MAX32650         2402  ///< ADI MAX32650/1/2
 #define OPT_MCU_MAX78002         2403  ///< ADI MAX78002
@@ -265,6 +266,15 @@
   #endif
 
   #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
+#endif
+
+// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is insufficient).
+#ifndef CFG_TUD_CI_HS_VBUS_CHARGE
+  #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+  #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
 #endif
 
 // Enable DWC2 Slave mode for host

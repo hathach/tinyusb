@@ -41,9 +41,10 @@
 #define BUTTON_PIN            35
 #define BUTTON_STATE_ACTIVE   0
 
-// For CI hardware test, to test both device and host on the same HS port with help of
-#define HIL_DEVICE_HOST_MUX_PIN  47
-#define HIL_DEVICE_STATE         1
+// For CI hardware test, to test both device and host on the same HS port with help of TS3USB30
+// https://www.adafruit.com/product/5871
+#define HIL_TS3USB30_MODE_PIN    47
+#define HIL_TS3USB30_MODE_DEVICE 1
 
 #ifdef __cplusplus
  }

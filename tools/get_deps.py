@@ -55,11 +55,11 @@ deps_optional = {
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
                            'b41cf930e65c734d8ec6de04f1d57d46787c76ae',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
-    'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
-                            '144f1eb7ea8c06512e12f12b27383601c0272410',
+    'hw/mcu/nxp/mcux-sdk': ['https://github.com/nxp-mcuxpresso/mcux-sdk',
+                            'a1bdae309a14ec95a4f64a96d3315a4f89c397c6',
                             'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/hathach/Pico-PIO-USB.git',
-                                         '9c8df3083b62c0a678f3bd3d8a7e773932622d4b',
+                                         '032a469e79f6a4ba40760d7868e6db26e15002d7',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',
@@ -122,7 +122,7 @@ deps_optional = {
                                   '5ad9797c54ec3e55eff770fc9b3cd4a1aefc1309',
                                   'stm32u5'],
     'hw/mcu/st/cmsis_device_wb': ['https://github.com/STMicroelectronics/cmsis_device_wb.git',
-                                  '9c5d1920dd9fabbe2548e10561d63db829bb744f',
+                                  'd6a7fa2e7de084f5e5e47f2ab88b022fe9b50e5a',
                                   'stm32wb'],
     'hw/mcu/st/stm32-mfxstm32l152': ['https://github.com/STMicroelectronics/stm32-mfxstm32l152.git',
                                      '7f4389efee9c6a655b55e5df3fceef5586b35f9b',
@@ -243,11 +243,13 @@ def get_a_dep(d):
         p.mkdir(parents=True)
         run_cmd(f"{git_cmd} init")
         run_cmd(f"{git_cmd} remote add origin {url}")
+        head = None
+    else:
+        # Check if commit is already fetched
+        result = run_cmd(f"{git_cmd} rev-parse HEAD")
+        head = result.stdout.decode("utf-8").splitlines()[0]
+        run_cmd(f"{git_cmd} reset --hard")
 
-    # Check if commit is already fetched
-    result = run_cmd(f"{git_cmd} rev-parse HEAD")
-    head = result.stdout.decode("utf-8").splitlines()[0]
-    run_cmd(f"{git_cmd} reset --hard")
     if commit != head:
         run_cmd(f"{git_cmd} fetch --depth 1 origin {commit}")
         run_cmd(f"{git_cmd} checkout FETCH_HEAD")
