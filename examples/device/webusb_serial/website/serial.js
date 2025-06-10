@@ -83,8 +83,7 @@ class SerialPort {
   /// Send data to port
   send(data) {
     if (!this.writer) throw new Error('Port not connected');
-    const encoder = new TextEncoder();
-    return this.writer.write(encoder.encode(data));
+    return this.writer.write(data);
   }
 
   async forgetDevice() {}
