@@ -40,7 +40,7 @@ family_list = {
     "stm32f4": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f7": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32g0 stm32g4 stm32h5": ["arm-gcc", "arm-clang", "arm-iar"],
-    "stm32h7": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32h7 stm32h7rs": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32l0 stm32l4": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32u5 stm32wb": ["arm-gcc", "arm-clang", "arm-iar"],
     "xmc4000": ["arm-gcc"],
