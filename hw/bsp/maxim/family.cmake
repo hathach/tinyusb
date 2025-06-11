@@ -13,8 +13,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-cmake_print_variables(MAX_DEVICE)
 string(TOUPPER ${MAX_DEVICE} MAX_DEVICE_UPPER)
+cmake_print_variables(MAX_DEVICE MAX_DEVICE_UPPER)
 
 set(JLINK_DEVICE ${MAX_DEVICE})
 set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -f target/${MAX_DEVICE}.cfg")
@@ -132,18 +132,9 @@ function(add_board_target BOARD_TARGET)
     MXC_ASSERT_ENABLE
     ${MAX_DEVICE_UPPER}
     IAR_PRAGMAS=0
-    FLASH_BOOT_SIZE=${FLASH_BOOT_SIZE}
     MAX_PERIPH_ID=${PERIPH_ID}
-    )
-
-  target_compile_definitions(${TARGET} PUBLIC
-    TARGET=MAX32690
-    TARGET_REV=0x4131
-    MXC_ASSERT_ENABLE
-    MAX32690
     BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
     )
-
   target_compile_options(${BOARD_TARGET} PRIVATE
     -Wno-error=strict-prototypes
   )

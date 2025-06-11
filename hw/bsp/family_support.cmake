@@ -38,6 +38,11 @@ if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
 
+# Optimization
+if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+  set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type" FORCE)
+endif ()
+
 #-------------------------------------------------------------
 # FAMILY and BOARD
 #-------------------------------------------------------------

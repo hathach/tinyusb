@@ -39,5 +39,5 @@ compatible debug probe. However, at the time of writing, the necessary flashing
 algorithms for OpenOCD have not yet been incorporated into the OpenOCD master
 branch.  To utilize the provided debug probes, please install the bundled MSDK
 package which includes the appropriate OpenOCD modifications.   To leverage this
-OpenOCD instance, run the `<target>-openocd` CMake
+OpenOCD instance, run the `flash-msdk` Makefile rule, or `<target>-openocd` CMake
 target.

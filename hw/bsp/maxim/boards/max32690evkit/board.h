@@ -32,12 +32,11 @@
 #ifndef BOARD_H_
 #define BOARD_H_
 
-#include "gpio.h"
-#include "mxc_sys.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "max32690.h"
 
 // LED
 #define LED_PORT        MXC_GPIO0

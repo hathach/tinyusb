@@ -32,8 +32,7 @@
 #ifndef BOARD_H_
 #define BOARD_H_
 
-#include "gpio.h"
-#include "mxc_sys.h"
+#include "max78002.h"
 
 #ifdef __cplusplus
 extern "C" {
