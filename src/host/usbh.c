@@ -147,6 +147,9 @@ static osal_mutex_t _usbh_mutex;
 #define _usbh_mutex   NULL
 #endif
 
+// Spinlock for interrupt handler
+static OSAL_SPINLOCK_DEF(_usbh_spin, usbh_int_set);
+
 // Event queue: usbh_int_set() is used as mutex in OS NONE config
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
@@ -423,6 +426,8 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     TU_LOG_INT_USBH(sizeof(tuh_xfer_t));
     TU_LOG_INT_USBH(sizeof(tu_fifo_t));
     TU_LOG_INT_USBH(sizeof(tu_edpt_stream_t));
+
+    osal_spin_init(&_usbh_spin);
 
     // Event queue
     _usbh_q = osal_queue_create(&_usbh_qdef);
@@ -893,6 +898,14 @@ void usbh_int_set(bool enabled) {
   } else {
     hcd_int_disable(_usbh_data.controller_id);
   }
+}
+
+void usbh_spin_lock(bool in_isr) {
+  osal_spin_lock(&_usbh_spin, in_isr);
+}
+
+void usbh_spin_unlock(bool in_isr) {
+  osal_spin_unlock(&_usbh_spin, in_isr);
 }
 
 void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr) {

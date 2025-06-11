@@ -10,6 +10,9 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 if (MCU_VARIANT STREQUAL "MCXA153")
   set(CMAKE_SYSTEM_CPU cortex-m33-nodsp-nofp CACHE INTERNAL "System Processor")
   set(FAMILY_MCUS MCXA15 CACHE INTERNAL "")
+elseif (MCU_VARIANT STREQUAL "MCXA156")
+    set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
+    set(FAMILY_MCUS MCXA15 CACHE INTERNAL "")
 elseif (MCU_VARIANT STREQUAL "MCXN947")
   set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
   set(FAMILY_MCUS MCXN9 CACHE INTERNAL "")
@@ -38,12 +41,14 @@ function(add_board_target BOARD_TARGET)
   endif()
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
+
   add_library(${BOARD_TARGET} STATIC
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     # driver
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_gpio.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_common_arm.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpuart.c
+    ${SDK_DIR}/drivers/gpio/fsl_gpio.c
+    ${SDK_DIR}/drivers/common/fsl_common_arm.c
+    ${SDK_DIR}/drivers/lpuart/fsl_lpuart.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/drivers/spc/fsl_spc.c
     # mcu
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
@@ -51,18 +56,27 @@ function(add_board_target BOARD_TARGET)
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMSIS_DIR}/CMSIS/Core/Include
+    ${SDK_DIR}/drivers/gpio/
+    ${SDK_DIR}/drivers/lpuart
+    ${SDK_DIR}/drivers/common
+    ${SDK_DIR}/drivers/port
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/drivers/spc
     ${SDK_DIR}/devices/${MCU_VARIANT}
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
     )
 
   if (${FAMILY_MCUS} STREQUAL "MCXN9")
+
     target_sources(${BOARD_TARGET} PRIVATE
-      ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_lpflexcomm.c
+            ${SDK_DIR}/drivers/lpflexcomm/fsl_lpflexcomm.c
+    )
+
+    target_include_directories(${BOARD_TARGET} PUBLIC
+            ${SDK_DIR}/drivers/lpflexcomm
     )
   elseif(${FAMILY_MCUS} STREQUAL "MCXA15")
-    target_sources(${BOARD_TARGET} PRIVATE
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_spc.c
-  )
+
+
   endif()
 
   update_board(${BOARD_TARGET})

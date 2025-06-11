@@ -47,18 +47,6 @@
             }
         },
         {
-            "name": "max32666fthr",
-            "uid": "0C81464124010B20FF0A08CC2C",
-            "tests": {
-                "device": true, "host": false, "dual": false
-            },
-            "flasher": {
-                "name": "openocd_adi",
-                "uid": "E6614C311B597D32",
-                "args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
-            }
-        },
-        {
             "name": "metro_m4_express",
             "uid": "9995AD485337433231202020FF100A34",
             "tests": {
@@ -211,6 +199,18 @@
         }
     ],
     "boards-skip": [
+        {
+            "name": "max32666fthr",
+            "uid": "0C81464124010B20FF0A08CC2C",
+            "tests": {
+                "device": true, "host": false, "dual": false
+            },
+            "flasher": {
+                "name": "openocd_adi",
+                "uid": "E6614C311B597D32",
+                "args": "-f interface/cmsis-dap.cfg -f target/max32665.cfg"
+            }
+        },
         {
             "name": "stm32f769disco",
             "uid": "21002F000F51363531383437",

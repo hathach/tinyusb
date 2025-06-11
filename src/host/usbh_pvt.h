@@ -71,6 +71,9 @@ void usbh_int_set(bool enabled);
 
 void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr);
 
+void usbh_spin_lock(bool in_isr);
+void usbh_spin_unlock(bool in_isr);
+
 //--------------------------------------------------------------------+
 // USBH Endpoint API
 //--------------------------------------------------------------------+
