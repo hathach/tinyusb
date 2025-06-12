@@ -2,6 +2,9 @@
 # Common make definition for all examples
 # ---------------------------------------
 
+# upper helper function
+to_upper = $(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,$(subst x,X,$(subst y,Y,$(subst z,Z,$(subst -,_,$(1))))))))))))))))))))))))))))
+
 #-------------------------------------------------------------
 # Toolchain
 # Can be changed via TOOLCHAIN=gcc|iar or CC=arm-none-eabi-gcc|iccarm|clang
@@ -109,7 +112,7 @@ INC += \
   $(TOP)/$(FAMILY_PATH) \
   $(TOP)/src \
 
-BOARD_UPPER = $(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,$(subst x,X,$(subst y,Y,$(subst z,Z,$(subst -,_,$(BOARD))))))))))))))))))))))))))))
+BOARD_UPPER = $(call to_upper,$(BOARD))
 CFLAGS += -DBOARD_$(BOARD_UPPER)
 
 ifdef CFLAGS_CLI

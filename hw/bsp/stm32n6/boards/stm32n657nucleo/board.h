@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: STM32 H723 Nucleo
-   url: https://www.st.com/en/evaluation-tools/nucleo-h723zg.html
+   name: STM32 N657X0-Q Nucleo
+   url: https://www.st.com/en/evaluation-tools/nucleo-n657x0-q.html
 */
 
 #ifndef BOARD_H_
