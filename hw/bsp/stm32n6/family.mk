@@ -2,6 +2,7 @@ ST_FAMILY = n6
 ST_PREFIX = stm32${ST_FAMILY}xx
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/${ST_PREFIX}_hal_driver
+ST_TCPP0203 = hw/mcu/st/stm32-tcpp0203
 
 UF2_FAMILY_ID = 0x6db66083
 

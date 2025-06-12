@@ -2,6 +2,7 @@ ST_FAMILY = h7rs
 ST_PREFIX = stm32${ST_FAMILY}xx
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/${ST_PREFIX}_hal_driver
+ST_TCPP0203 = hw/mcu/st/stm32-tcpp0203
 
 UF2_FAMILY_ID = 0x6db66083
 
@@ -42,6 +43,8 @@ CFLAGS += \
 	-DBOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED} \
 	-DBOARD_TUH_RHPORT=${RHPORT_HOST} \
 	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
+	-DSEGGER_RTT_SECTION=\"noncacheable_buffer\" \
+	-DBUFFER_SIZE_UP=0x3000 \
 
 # GCC Flags
 CFLAGS_GCC += \

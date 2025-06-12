@@ -10,8 +10,8 @@ flash: flash-stlink
 PORT = 1
 
 SRC_C += \
-	$(BOARD_PATH)/tcpp0203/tcpp0203.c \
-	$(BOARD_PATH)/tcpp0203/tcpp0203_reg.c \
+	$(ST_TCPP0203)/tcpp0203.c \
+	$(ST_TCPP0203)/tcpp0203_reg.c \
 
 INC += \
-	$(TOP)/$(BOARD_PATH)/tcpp0203 \
+	$(TOP)/$(ST_TCPP0203) \

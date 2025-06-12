@@ -6,6 +6,7 @@ set(ST_PREFIX stm32${ST_FAMILY}xx)
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
 set(ST_CMSIS ${TOP}/hw/mcu/st/cmsis_device_${ST_FAMILY})
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
+set(ST_TCPP0203 ${TOP}/hw/mcu/st/stm32-tcpp0203)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
