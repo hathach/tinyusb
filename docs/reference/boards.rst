@@ -7,25 +7,25 @@ It is responsible for getting the MCU started and the USB peripheral clocked wit
 
 -  One LED : for status
 -  One Button : to get input from user
--  One UART : optional for device, but required for host examples
+-  One UART : needed for logging with LOGGER=uart, maybe required for host/dual examples
 
 Following boards are supported
 
 Analog Devices
 --------------
 
-=============  ================  ========  ===========================================================================================================================  ======
-Board          Name              Family    URL                                                                                                                          Note
-=============  ================  ========  ===========================================================================================================================  ======
-max32650evkit  MAX32650 EVKIT    max32650  https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32650-evkit.html#eb-overview
-max32650fthr   MAX32650 Feather  max32650  https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32650fthr.html
-max32651evkit  MAX32651 EVKIT    max32650  https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32651-evkit.html
-max32666evkit  MAX32666 EVKIT    max32666  https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32666evkit.html
-max32666fthr   MAX32666 Feather  max32666  https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32666fthr.html
-apard32690     APARD32690-SL     max32690  https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/ad-apard32690-sl.html
-max32690evkit  MAX32690 EVKIT    max32690  https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32690evkit.html
-max78002evkit  MAX78002 EVKIT    max78002  https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max78002evkit.html
-=============  ================  ========  ===========================================================================================================================  ======
+=============  ================  ========  =================================================================================================================  ======
+Board          Name              Family    URL                                                                                                                Note
+=============  ================  ========  =================================================================================================================  ======
+apard32690     APARD32690-SL     maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/ad-apard32690-sl.html
+max32650evkit  MAX32650 EVKIT    maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32650-evkit.html
+max32650fthr   MAX32650 Feather  maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32650fthr.html
+max32651evkit  MAX32651 EVKIT    maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32651-evkit.html
+max32666evkit  MAX32666 EVKIT    maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32666evkit.html
+max32666fthr   MAX32666 Feather  maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32666fthr.html
+max32690evkit  MAX32690 EVKIT    maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32690evkit.html
+max78002evkit  MAX78002 EVKIT    maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max78002evkit.html
+=============  ================  ========  =================================================================================================================  ======
 
 Bridgetek
 ---------
@@ -43,6 +43,7 @@ Espressif
 Board                      Name                            Family     URL                                                                                                       Note
 =========================  ==============================  =========  ========================================================================================================  ======
 adafruit_feather_esp32_v2  Adafruit Feather ESP32 v2       espressif  https://www.adafruit.com/product/5400
+adafruit_feather_esp32c6   Adafruit Feather EPS32-C6       espressif  https://www.adafruit.com/product/5933
 adafruit_feather_esp32s2   Adafruit Feather ESP32S2        espressif  https://www.adafruit.com/product/5000
 adafruit_feather_esp32s3   Adafruit Feather ESP32S3        espressif  https://www.adafruit.com/product/5323
 adafruit_magtag_29gray     Adafruit MagTag 2.9" Grayscale  espressif  https://www.adafruit.com/product/4800
@@ -191,13 +192,19 @@ pca10100                     Nordic nRF52833 DK                     nrf       ht
 Raspberry Pi
 ------------
 
-=================  =================  ==============  ==========================================================  ======
-Board              Name               Family          URL                                                         Note
-=================  =================  ==============  ==========================================================  ======
-raspberrypi_zero   Raspberry Pi Zero  broadcom_32bit  https://www.raspberrypi.org/products/raspberry-pi-zero/
-raspberrypi_cm4    Raspberry CM4      broadcom_64bit  https://www.raspberrypi.org/products/compute-module-4
-raspberrypi_zero2  Raspberry Zero2    broadcom_64bit  https://www.raspberrypi.org/products/raspberry-pi-zero-2-w
-=================  =================  ==============  ==========================================================  ======
+================================  ============================================  ==============  ==========================================================  ======
+Board                             Name                                          Family          URL                                                         Note
+================================  ============================================  ==============  ==========================================================  ======
+raspberrypi_zero                  Raspberry Pi Zero                             broadcom_32bit  https://www.raspberrypi.org/products/raspberry-pi-zero/
+raspberrypi_cm4                   Raspberry CM4                                 broadcom_64bit  https://www.raspberrypi.org/products/compute-module-4
+raspberrypi_zero2                 Raspberry Zero2                               broadcom_64bit  https://www.raspberrypi.org/products/raspberry-pi-zero-2-w
+adafruit_feather_rp2040_usb_host  Adafruit Feather RP2040 with USB Type A Host  rp2040          https://www.adafruit.com/product/5723
+adafruit_fruit_jam                Adafruit Fruit Jam - Mini RP2350              rp2040          https://www.adafruit.com/product/6200
+adafruit_metro_rp2350             Adafruit Metro RP2350                         rp2040          https://www.adafruit.com/product/6003
+raspberry_pi_pico                 Pico                                          rp2040          https://www.raspberrypi.com/products/raspberry-pi-pico/
+raspberry_pi_pico2                Pico2                                         rp2040          https://www.raspberrypi.com/products/raspberry-pi-pico-2/
+raspberry_pi_pico_w               Pico                                          rp2040          https://www.raspberrypi.com/products/raspberry-pi-pico/
+================================  ============================================  ==============  ==========================================================  ======
 
 Renesas
 -------
@@ -220,63 +227,64 @@ uno_r4          Arduino UNO R4               ra        https://store-usa.arduino
 STMicroelectronics
 ------------------
 
-===================  =================================  ========  =================================================================  ======
-Board                Name                               Family    URL                                                                Note
-===================  =================================  ========  =================================================================  ======
-stm32c071nucleo      STM32C071 Nucleo                   stm32c0   https://www.st.com/en/evaluation-tools/nucleo-g071rb.html
-stm32f070rbnucleo    STM32 F070 Nucleo                  stm32f0   https://www.st.com/en/evaluation-tools/nucleo-f070rb.html
-stm32f072disco       STM32 F072 Discovery               stm32f0   https://www.st.com/en/evaluation-tools/32f072bdiscovery.html
-stm32f072eval        STM32 F072 Eval                    stm32f0   https://www.st.com/en/evaluation-tools/stm32072b-eval.html
-stm32f103_bluepill   STM32 F103 Bluepill                stm32f1   https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill
-stm32f103_mini_2     STM32 F103 Mini v2                 stm32f1   https://stm32-base.org/boards/STM32F103RCT6-STM32-Mini-V2.0
-stm32f103ze_iar      IAR STM32 F103ze starter kit       stm32f1   n/a
-stm32f207nucleo      STM32 F207 Nucleo                  stm32f2   https://www.st.com/en/evaluation-tools/nucleo-f207zg.html
-stm32f303disco       STM32 F303 Discovery               stm32f3   https://www.st.com/en/evaluation-tools/stm32f3discovery.html
-feather_stm32f405    Adafruit Feather STM32F405         stm32f4   https://www.adafruit.com/product/4382
-pyboardv11           Pyboard v1.1                       stm32f4   https://www.adafruit.com/product/2390
-stm32f401blackpill   STM32 F401 Blackpill               stm32f4   https://stm32-base.org/boards/STM32F401CCU6-WeAct-Black-Pill-V1.2
-stm32f407blackvet    STM32 F407 Blackvet                stm32f4   https://stm32-base.org/boards/STM32F407VET6-STM32-F4VE-V2.0
-stm32f407disco       STM32 F407 Discovery               stm32f4   https://www.st.com/en/evaluation-tools/stm32f4discovery.html
-stm32f411blackpill   STM32 F411 Blackpill               stm32f4   https://stm32-base.org/boards/STM32F411CEU6-WeAct-Black-Pill-V2.0
-stm32f411disco       STM32 F411 Discovery               stm32f4   https://www.st.com/en/evaluation-tools/32f411ediscovery.html
-stm32f412disco       STM32 F412 Discovery               stm32f4   https://www.st.com/en/evaluation-tools/32f412gdiscovery.html
-stm32f412nucleo      STM32 F412 Nucleo                  stm32f4   https://www.st.com/en/evaluation-tools/nucleo-f412zg.html
-stm32f439nucleo      STM32 F439 Nucleo                  stm32f4   https://www.st.com/en/evaluation-tools/nucleo-f439zi.html
-stlinkv3mini         Stlink-v3 mini                     stm32f7   https://www.st.com/en/development-tools/stlink-v3mini.html
-stm32f723disco       STM32 F723 Discovery               stm32f7   https://www.st.com/en/evaluation-tools/32f723ediscovery.html
-stm32f746disco       STM32 F746 Discovery               stm32f7   https://www.st.com/en/evaluation-tools/32f746gdiscovery.html
-stm32f746nucleo      STM32 F746 Nucleo                  stm32f7   https://www.st.com/en/evaluation-tools/nucleo-f746zg.html
-stm32f767nucleo      STM32 F767 Nucleo                  stm32f7   https://www.st.com/en/evaluation-tools/nucleo-f767zi.html
-stm32f769disco       STM32 F769 Discovery               stm32f7   https://www.st.com/en/evaluation-tools/32f769idiscovery.html
-stm32g0b1nucleo      STM32 G0B1 Nucleo                  stm32g0   https://www.st.com/en/evaluation-tools/nucleo-g0b1re.html
-b_g474e_dpow1        STM32 B-G474E-DPOW1 Discovery kit  stm32g4   https://www.st.com/en/evaluation-tools/b-g474e-dpow1.html
-stm32g474nucleo      STM32 G474 Nucleo                  stm32g4   https://www.st.com/en/evaluation-tools/nucleo-g474re.html
-stm32g491nucleo      STM32 G491 Nucleo                  stm32g4   https://www.st.com/en/evaluation-tools/nucleo-g491re.html
-stm32h503nucleo      STM32 H503 Nucleo                  stm32h5   https://www.st.com/en/evaluation-tools/nucleo-h503rb.html
-stm32h563nucleo      STM32 H563 Nucleo                  stm32h5   https://www.st.com/en/evaluation-tools/nucleo-h563zi.html
-stm32h573i_dk        STM32 H573i Discovery              stm32h5   https://www.st.com/en/evaluation-tools/stm32h573i-dk.html
-daisyseed            Daisy Seed                         stm32h7   https://electro-smith.com/products/daisy-seed
-stm32h723nucleo      STM32 H723 Nucleo                  stm32h7   https://www.st.com/en/evaluation-tools/nucleo-h723zg.html
-stm32h743eval        STM32 H743 Eval                    stm32h7   https://www.st.com/en/evaluation-tools/stm32h743i-eval.html
-stm32h743nucleo      STM32 H743 Nucleo                  stm32h7   https://www.st.com/en/evaluation-tools/nucleo-h743zi.html
-stm32h745disco       STM32 H745 Discovery               stm32h7   https://www.st.com/en/evaluation-tools/stm32h745i-disco.html
-stm32h750_weact      STM32 H750 WeAct                   stm32h7   https://www.adafruit.com/product/5032
-stm32h750bdk         STM32 H750b Discovery Kit          stm32h7   https://www.st.com/en/evaluation-tools/stm32h750b-dk.html
-stm32h7s3nucleo      STM32 H7S3 Nucleo                  stm32h7rs https://www.st.com/en/evaluation-tools/nucleo-h7s3l8.html
-waveshare_openh743i  Waveshare Open H743i               stm32h7   https://www.waveshare.com/openh743i-c-standard.htm
-stm32l052dap52       STM32 L052 DAP                     stm32l0   n/a
-stm32l0538disco      STM32 L0538 Discovery              stm32l0   https://www.st.com/en/evaluation-tools/32l0538discovery.html
-stm32l412nucleo      STM32 L412 Nucleo                  stm32l4   https://www.st.com/en/evaluation-tools/nucleo-l412kb.html
-stm32l476disco       STM32 L476 Disco                   stm32l4   https://www.st.com/en/evaluation-tools/32l476gdiscovery.html
-stm32l4p5nucleo      STM32 L4P5 Nucleo                  stm32l4   https://www.st.com/en/evaluation-tools/nucleo-l4p5zg.html
-stm32l4r5nucleo      STM32 L4R5 Nucleo                  stm32l4   https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html
-b_u585i_iot2a        STM32 B-U585i IOT2A Discovery kit  stm32u5   https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html
-stm32u545nucleo      STM32 U545 Nucleo                  stm32u5   https://www.st.com/en/evaluation-tools/nucleo-u545re-q.html
-stm32u575eval        STM32 U575 Eval                    stm32u5   https://www.st.com/en/evaluation-tools/stm32u575i-ev.html
-stm32u575nucleo      STM32 U575 Nucleo                  stm32u5   https://www.st.com/en/evaluation-tools/nucleo-u575zi-q.html
-stm32u5a5nucleo      STM32 U5a5 Nucleo                  stm32u5   https://www.st.com/en/evaluation-tools/nucleo-u5a5zj-q.html
-stm32wb55nucleo      STM32 P-NUCLEO-WB55                stm32wb   https://www.st.com/en/evaluation-tools/p-nucleo-wb55.html
-===================  =================================  ========  =================================================================  ======
+===================  =================================  =========  =================================================================  ======
+Board                Name                               Family     URL                                                                Note
+===================  =================================  =========  =================================================================  ======
+stm32c071nucleo      STM32C071 Nucleo                   stm32c0    https://www.st.com/en/evaluation-tools/nucleo-g071rb.html
+stm32f070rbnucleo    STM32 F070 Nucleo                  stm32f0    https://www.st.com/en/evaluation-tools/nucleo-f070rb.html
+stm32f072disco       STM32 F072 Discovery               stm32f0    https://www.st.com/en/evaluation-tools/32f072bdiscovery.html
+stm32f072eval        STM32 F072 Eval                    stm32f0    https://www.st.com/en/evaluation-tools/stm32072b-eval.html
+stm32f103_bluepill   STM32 F103 Bluepill                stm32f1    https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill
+stm32f103_mini_2     STM32 F103 Mini v2                 stm32f1    https://stm32-base.org/boards/STM32F103RCT6-STM32-Mini-V2.0
+stm32f103ze_iar      IAR STM32 F103ze starter kit       stm32f1    n/a
+stm32f207nucleo      STM32 F207 Nucleo                  stm32f2    https://www.st.com/en/evaluation-tools/nucleo-f207zg.html
+stm32f303disco       STM32 F303 Discovery               stm32f3    https://www.st.com/en/evaluation-tools/stm32f3discovery.html
+feather_stm32f405    Adafruit Feather STM32F405         stm32f4    https://www.adafruit.com/product/4382
+pyboardv11           Pyboard v1.1                       stm32f4    https://www.adafruit.com/product/2390
+stm32f401blackpill   STM32 F401 Blackpill               stm32f4    https://stm32-base.org/boards/STM32F401CCU6-WeAct-Black-Pill-V1.2
+stm32f407blackvet    STM32 F407 Blackvet                stm32f4    https://stm32-base.org/boards/STM32F407VET6-STM32-F4VE-V2.0
+stm32f407disco       STM32 F407 Discovery               stm32f4    https://www.st.com/en/evaluation-tools/stm32f4discovery.html
+stm32f411blackpill   STM32 F411 Blackpill               stm32f4    https://stm32-base.org/boards/STM32F411CEU6-WeAct-Black-Pill-V2.0
+stm32f411disco       STM32 F411 Discovery               stm32f4    https://www.st.com/en/evaluation-tools/32f411ediscovery.html
+stm32f412disco       STM32 F412 Discovery               stm32f4    https://www.st.com/en/evaluation-tools/32f412gdiscovery.html
+stm32f412nucleo      STM32 F412 Nucleo                  stm32f4    https://www.st.com/en/evaluation-tools/nucleo-f412zg.html
+stm32f439nucleo      STM32 F439 Nucleo                  stm32f4    https://www.st.com/en/evaluation-tools/nucleo-f439zi.html
+stlinkv3mini         Stlink-v3 mini                     stm32f7    https://www.st.com/en/development-tools/stlink-v3mini.html
+stm32f723disco       STM32 F723 Discovery               stm32f7    https://www.st.com/en/evaluation-tools/32f723ediscovery.html
+stm32f746disco       STM32 F746 Discovery               stm32f7    https://www.st.com/en/evaluation-tools/32f746gdiscovery.html
+stm32f746nucleo      STM32 F746 Nucleo                  stm32f7    https://www.st.com/en/evaluation-tools/nucleo-f746zg.html
+stm32f767nucleo      STM32 F767 Nucleo                  stm32f7    https://www.st.com/en/evaluation-tools/nucleo-f767zi.html
+stm32f769disco       STM32 F769 Discovery               stm32f7    https://www.st.com/en/evaluation-tools/32f769idiscovery.html
+stm32g0b1nucleo      STM32 G0B1 Nucleo                  stm32g0    https://www.st.com/en/evaluation-tools/nucleo-g0b1re.html
+b_g474e_dpow1        STM32 B-G474E-DPOW1 Discovery kit  stm32g4    https://www.st.com/en/evaluation-tools/b-g474e-dpow1.html
+stm32g474nucleo      STM32 G474 Nucleo                  stm32g4    https://www.st.com/en/evaluation-tools/nucleo-g474re.html
+stm32g491nucleo      STM32 G491 Nucleo                  stm32g4    https://www.st.com/en/evaluation-tools/nucleo-g491re.html
+stm32h503nucleo      STM32 H503 Nucleo                  stm32h5    https://www.st.com/en/evaluation-tools/nucleo-h503rb.html
+stm32h563nucleo      STM32 H563 Nucleo                  stm32h5    https://www.st.com/en/evaluation-tools/nucleo-h563zi.html
+stm32h573i_dk        STM32 H573i Discovery              stm32h5    https://www.st.com/en/evaluation-tools/stm32h573i-dk.html
+daisyseed            Daisy Seed                         stm32h7    https://electro-smith.com/products/daisy-seed
+stm32h723nucleo      STM32 H723 Nucleo                  stm32h7    https://www.st.com/en/evaluation-tools/nucleo-h723zg.html
+stm32h743eval        STM32 H743 Eval                    stm32h7    https://www.st.com/en/evaluation-tools/stm32h743i-eval.html
+stm32h743nucleo      STM32 H743 Nucleo                  stm32h7    https://www.st.com/en/evaluation-tools/nucleo-h743zi.html
+stm32h745disco       STM32 H745 Discovery               stm32h7    https://www.st.com/en/evaluation-tools/stm32h745i-disco.html
+stm32h750_weact      STM32 H750 WeAct                   stm32h7    https://www.adafruit.com/product/5032
+stm32h750bdk         STM32 H750b Discovery Kit          stm32h7    https://www.st.com/en/evaluation-tools/stm32h750b-dk.html
+waveshare_openh743i  Waveshare Open H743i               stm32h7    https://www.waveshare.com/openh743i-c-standard.htm
+stm32h7s3nucleo      STM32 H7S3L8 Nucleo                stm32h7rs  https://www.st.com/en/evaluation-tools/nucleo-h7s3l8.html
+stm32l052dap52       STM32 L052 DAP                     stm32l0    n/a
+stm32l0538disco      STM32 L0538 Discovery              stm32l0    https://www.st.com/en/evaluation-tools/32l0538discovery.html
+stm32l412nucleo      STM32 L412 Nucleo                  stm32l4    https://www.st.com/en/evaluation-tools/nucleo-l412kb.html
+stm32l476disco       STM32 L476 Disco                   stm32l4    https://www.st.com/en/evaluation-tools/32l476gdiscovery.html
+stm32l4p5nucleo      STM32 L4P5 Nucleo                  stm32l4    https://www.st.com/en/evaluation-tools/nucleo-l4p5zg.html
+stm32l4r5nucleo      STM32 L4R5 Nucleo                  stm32l4    https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html
+stm32n657nucleo      STM32 N657X0-Q Nucleo              stm32n6    https://www.st.com/en/evaluation-tools/nucleo-n657x0-q.html
+b_u585i_iot2a        STM32 B-U585i IOT2A Discovery kit  stm32u5    https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html
+stm32u545nucleo      STM32 U545 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u545re-q.html
+stm32u575eval        STM32 U575 Eval                    stm32u5    https://www.st.com/en/evaluation-tools/stm32u575i-ev.html
+stm32u575nucleo      STM32 U575 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u575zi-q.html
+stm32u5a5nucleo      STM32 U5a5 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u5a5zj-q.html
+stm32wb55nucleo      STM32 P-NUCLEO-WB55                stm32wb    https://www.st.com/en/evaluation-tools/p-nucleo-wb55.html
+===================  =================================  =========  =================================================================  ======
 
 Sunxi
 -----

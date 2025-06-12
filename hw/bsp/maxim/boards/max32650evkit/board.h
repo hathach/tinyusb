@@ -26,7 +26,7 @@
 
 /* metadata:
    name: MAX32650 EVKIT
-   url: https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32650-evkit.html#eb-overview
+   url: https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max32650-evkit.html
 */
 
 #ifndef BOARD_H_

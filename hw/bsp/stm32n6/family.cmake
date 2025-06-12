@@ -1,21 +1,21 @@
 include_guard()
 
-set(ST_FAMILY h7rs)
+set(ST_FAMILY n6)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
 set(ST_CMSIS ${TOP}/hw/mcu/st/cmsis_device_${ST_FAMILY})
-set(ST_TCPP0203 ${TOP}/hw/mcu/st/stm32-tcpp0203)
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
+set(ST_TCPP0203 ${TOP}/hw/mcu/st/stm32-tcpp0203)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_CPU cortex-m7 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m55 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS STM32H7RS CACHE INTERNAL "")
+set(FAMILY_MCUS STM32N6 CACHE INTERNAL "")
 
 # ----------------------
 # Port & Speed Selection
@@ -27,14 +27,12 @@ if (NOT DEFINED RHPORT_HOST)
   set(RHPORT_HOST 1)
 endif ()
 
-if (NOT DEFINED RHPORT_SPEED)
-  set(RHPORT_SPEED OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED)
-endif ()
+# N6 are all high speed
 if (NOT DEFINED RHPORT_DEVICE_SPEED)
-  list(GET RHPORT_SPEED ${RHPORT_DEVICE} RHPORT_DEVICE_SPEED)
+  set(RHPORT_DEVICE_SPEED OPT_MODE_HIGH_SPEED)
 endif ()
 if (NOT DEFINED RHPORT_HOST_SPEED)
-  list(GET RHPORT_SPEED ${RHPORT_HOST} RHPORT_HOST_SPEED)
+  set(RHPORT_HOST_SPEED OPT_MODE_HIGH_SPEED)
 endif ()
 
 cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
@@ -62,7 +60,7 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   add_library(${BOARD_TARGET} STATIC
-    ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
+    ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}_fsbl.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
@@ -135,7 +133,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32H7RS ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32N6 ${RTOS})
   target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
