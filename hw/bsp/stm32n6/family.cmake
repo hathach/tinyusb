@@ -26,14 +26,12 @@ if (NOT DEFINED RHPORT_HOST)
   set(RHPORT_HOST 1)
 endif ()
 
-if (NOT DEFINED RHPORT_SPEED)
-  set(RHPORT_SPEED OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED)
-endif ()
+# N6 are all high speed
 if (NOT DEFINED RHPORT_DEVICE_SPEED)
-  list(GET RHPORT_SPEED ${RHPORT_DEVICE} RHPORT_DEVICE_SPEED)
+  set(RHPORT_DEVICE_SPEED OPT_MODE_HIGH_SPEED)
 endif ()
 if (NOT DEFINED RHPORT_HOST_SPEED)
-  list(GET RHPORT_SPEED ${RHPORT_HOST} RHPORT_HOST_SPEED)
+  set(RHPORT_HOST_SPEED OPT_MODE_HIGH_SPEED)
 endif ()
 
 cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
@@ -61,7 +59,7 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   add_library(${BOARD_TARGET} STATIC
-    ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}_ns.c
+    ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}_fsbl.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
@@ -86,6 +84,8 @@ function(add_board_target BOARD_TARGET)
     BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
     BOARD_TUH_RHPORT=${RHPORT_HOST}
     BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
+    SEGGER_RTT_SECTION="noncacheable_buffer"
+    BUFFER_SIZE_UP=0x3000
     )
 
   update_board(${BOARD_TARGET})

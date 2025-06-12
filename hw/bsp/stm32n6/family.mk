@@ -1,6 +1,5 @@
 ST_FAMILY = n6
 ST_PREFIX = stm32${ST_FAMILY}xx
-ST_PREFIX_LONG = stm32${ST_FAMILY}57xx
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/${ST_PREFIX}_hal_driver
 
@@ -12,26 +11,15 @@ CPU_CORE ?= cortex-m55
 # ----------------------
 # Port & Speed Selection
 # ----------------------
-RHPORT_SPEED ?= OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED
 RHPORT_DEVICE ?= 1
 RHPORT_HOST ?= 1
 
-# Determine RHPORT_DEVICE_SPEED if not defined
 ifndef RHPORT_DEVICE_SPEED
-ifeq ($(RHPORT_DEVICE), 0)
-  RHPORT_DEVICE_SPEED = $(firstword $(RHPORT_SPEED))
-else
-  RHPORT_DEVICE_SPEED = $(lastword $(RHPORT_SPEED))
-endif
+  RHPORT_DEVICE_SPEED = OPT_MODE_HIGH_SPEED
 endif
 
-# Determine RHPORT_HOST_SPEED if not defined
 ifndef RHPORT_HOST_SPEED
-ifeq ($(RHPORT_HOST), 0)
-  RHPORT_HOST_SPEED = $(firstword $(RHPORT_SPEED))
-else
-  RHPORT_HOST_SPEED = $(lastword $(RHPORT_SPEED))
-endif
+  RHPORT_HOST_SPEED = OPT_MODE_HIGH_SPEED
 endif
 
 # --------------
@@ -42,7 +30,9 @@ CFLAGS += \
 	-DBOARD_TUD_RHPORT=${RHPORT_DEVICE} \
 	-DBOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED} \
 	-DBOARD_TUH_RHPORT=${RHPORT_HOST} \
-	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
+	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
+	-DSEGGER_RTT_SECTION=\"noncacheable_buffer\" \
+	-DBUFFER_SIZE_UP=0x3000 \
 
 # GCC Flags
 CFLAGS_GCC += \
@@ -71,10 +61,10 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_dma.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_gpio.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_hcd.c \
-    $(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_i2c.c \
+	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_i2c.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_pcd.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_pcd_ex.c \
-    $(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_pwr.c \
+	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_pwr.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_pwr_ex.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_rcc.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_rcc_ex.c \
@@ -89,13 +79,10 @@ INC += \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
-# Linker
-LD_FILE_GCC = $(BOARD_PATH)/STM32N657XX_AXISRAM2_fsbl.ld
-
 # Startup
-SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(ST_PREFIX_LONG)_fsbl.s
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT)_fsbl.s
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_GCC ?= $(ST_CMSIS)/Source/Templates/gcc/linker/$(ST_PREFIX_LONG)_flash.ld
+LD_FILE_GCC ?= $(ST_CMSIS)/Source/Templates/gcc/linker/$(MCU_VARIANT)_flash.ld
 LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
