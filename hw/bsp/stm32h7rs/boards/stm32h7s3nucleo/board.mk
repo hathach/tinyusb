@@ -7,10 +7,6 @@ JLINK_DEVICE = stm32h7s3xx
 # flash target using on-board stlink
 flash: flash-stlink
 
-# Linker
-LD_FILE_GCC = $(BOARD_PATH)/stm32h7s3xx_flash.ld
-LD_FILE_IAR = $(BOARD_PATH)/stm32h7s3xx_flash.icf
-
 SRC_C += \
 	$(ST_TCPP0203)/tcpp0203.c \
 	$(ST_TCPP0203)/tcpp0203_reg.c \

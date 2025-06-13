@@ -35,15 +35,19 @@
 /* Entry Point */
 ENTRY(Reset_Handler)
 
+/* Highest address of the user mode stack */
+_estack = ORIGIN(DTCM) + LENGTH(DTCM); /* end of "DTCM" Ram type memory */
+
 _Min_Heap_Size = 0x200; /* required amount of heap */
 _Min_Stack_Size = 0x400; /* required amount of stack */
 
 __FLASH_BEGIN  = 0x08000000;
 __FLASH_SIZE   = 0x00010000;
 
+
 __RAM_BEGIN    = 0x24000000;
 __RAM_SIZE     = 0x4FC00;
-__RAM_NONCACHEABLEBUFFER_SIZE = 0x4000;
+__RAM_NONCACHEABLEBUFFER_SIZE = 0x400;
 
 /* Memories definition */
 MEMORY
@@ -58,9 +62,6 @@ MEMORY
 
   FLASH     (xrw) : ORIGIN = __FLASH_BEGIN, LENGTH = __FLASH_SIZE
 }
-
-/* Highest address of the user mode stack */
-_estack = ORIGIN(DTCM) + LENGTH(DTCM); /* end of "DTCM" Ram type memory */
 
 /* Sections */
 SECTIONS
@@ -99,14 +100,14 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  .ARM.extab :
+  .ARM.extab (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     . = ALIGN(4);
     *(.ARM.extab* .gnu.linkonce.armextab.*)
     . = ALIGN(4);
   } >FLASH
 
-  .ARM :
+  .ARM (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
    {
     . = ALIGN(4);
     __exidx_start = .;
@@ -115,7 +116,7 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  .preinit_array   :
+  .preinit_array  (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     . = ALIGN(4);
     PROVIDE_HIDDEN (__preinit_array_start = .);
@@ -124,7 +125,7 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  .init_array  :
+  .init_array (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     . = ALIGN(4);
     PROVIDE_HIDDEN (__init_array_start = .);
@@ -134,7 +135,7 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  .fini_array  :
+  .fini_array (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     . = ALIGN(4);
     PROVIDE_HIDDEN (__fini_array_start = .);
@@ -182,7 +183,7 @@ SECTIONS
   {
     __NONCACHEABLEBUFFER_BEGIN = .;/* create symbol for start of section */
     KEEP(*(noncacheable_buffer))
-    __NONCACHEABLEBUFFER_END = .;  /* create symbol for start of section */
+    __NONCACHEABLEBUFFER_END = .;  /* create symbol for end of section */
   } > RAM_NONCACHEABLEBUFFER
 
   /* User_heap_stack section, used to check that there is enough "DTCM" Ram  type memory left */
@@ -194,6 +195,11 @@ SECTIONS
     . = . + _Min_Heap_Size;
     . = . + _Min_Stack_Size;
     . = ALIGN(8);
+  } >DTCM
+
+  .dtcm_data :
+  {
+    *(dtcm_data)
   } >DTCM
 
   /* Remove information from the compiler libraries */

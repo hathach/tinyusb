@@ -98,6 +98,11 @@ static void trace_etm_init(void) {
 #endif
 
 void board_init(void) {
+  SCB_EnableICache();
+  SCB_EnableDCache();
+
+  HAL_Init();
+
   // Implemented in board.h
   SystemClock_Config();
 
