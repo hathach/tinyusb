@@ -12,11 +12,11 @@ if __name__ == '__main__':
     # print(sd.query_devices())
 
     fs = 48000           # Sample rate
-    duration = 100e-3    # Duration of recording
+    duration = 3    # Duration of recording
 
     if platform.system() == 'Windows':
         # MME is needed since there are more than one MicNode device APIs (at least in Windows)
-        device = 'Microphone (MicNode) MME'
+        device = 'Microphone (MicNode), Windows WASAPI'
     elif platform.system() == 'Darwin':
         device = 'MicNode'
     else:
