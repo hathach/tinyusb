@@ -205,7 +205,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = audiod_open,
         .control_xfer_cb  = audiod_control_xfer_cb,
         .xfer_cb          = audiod_xfer_cb,
-        .xfer_isr         = NULL,
+        .xfer_isr         = audiod_xfer_isr,
         .sof              = audiod_sof_isr
     },
     #endif
