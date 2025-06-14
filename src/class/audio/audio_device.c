@@ -119,7 +119,7 @@
   #define OUT_SW_BUF_MEM_ATTR CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN
 #endif
 
-// EP IN software buffers and mutexes
+// EP IN software buffers
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
 tu_static IN_SW_BUF_MEM_ATTR struct {
   #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ > 0
@@ -132,18 +132,6 @@ tu_static IN_SW_BUF_MEM_ATTR struct {
   TUD_EPBUF_DEF(buf_3, CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ);
   #endif
 } ep_in_sw_buf;
-
-  #if CFG_FIFO_MUTEX
-    #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ > 0
-    tu_static osal_mutex_def_t ep_in_ff_mutex_wr_1;
-    #endif
-    #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ > 0
-    tu_static osal_mutex_def_t ep_in_ff_mutex_wr_2;
-    #endif
-    #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ > 0
-    tu_static osal_mutex_def_t ep_in_ff_mutex_wr_3;
-    #endif
-  #endif
 #endif// CFG_TUD_AUDIO_ENABLE_EP_IN
 
 // Linear buffer TX in case:
@@ -162,7 +150,7 @@ tu_static CFG_TUD_MEM_SECTION struct {
 } lin_buf_in;
 #endif// CFG_TUD_AUDIO_ENABLE_EP_IN && USE_LINEAR_BUFFER
 
-// EP OUT software buffers and mutexes
+// EP OUT software buffers
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 tu_static OUT_SW_BUF_MEM_ATTR struct {
   #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ > 0
@@ -175,18 +163,6 @@ tu_static OUT_SW_BUF_MEM_ATTR struct {
   TUD_EPBUF_DEF(buf_3, CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ);
   #endif
 } ep_out_sw_buf;
-
-  #if CFG_FIFO_MUTEX
-    #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ > 0
-    tu_static osal_mutex_def_t ep_out_ff_mutex_rd_1;
-    #endif
-    #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ > 0
-    tu_static osal_mutex_def_t ep_out_ff_mutex_rd_2;
-    #endif
-    #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ > 0
-    tu_static osal_mutex_def_t ep_out_ff_mutex_rd_3;
-    #endif
-  #endif
 #endif// CFG_TUD_AUDIO_ENABLE_EP_OUT
 
 // Linear buffer RX in case:
@@ -751,25 +727,16 @@ void audiod_init(void) {
   #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ > 0
       case 0:
         tu_fifo_config(&audio->ep_in_ff, ep_in_sw_buf.buf_1, CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ, 1, true);
-    #if CFG_FIFO_MUTEX
-        tu_fifo_config_mutex(&audio->ep_in_ff, osal_mutex_create(&ep_in_ff_mutex_wr_1), NULL);
-    #endif
         break;
   #endif
   #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ > 0
       case 1:
         tu_fifo_config(&audio->ep_in_ff, ep_in_sw_buf.buf_2, CFG_TUD_AUDIO_FUNC_2_EP_IN_SW_BUF_SZ, 1, true);
-    #if CFG_FIFO_MUTEX
-        tu_fifo_config_mutex(&audio->ep_in_ff, osal_mutex_create(&ep_in_ff_mutex_wr_2), NULL);
-    #endif
         break;
   #endif
   #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ > 0
       case 2:
         tu_fifo_config(&audio->ep_in_ff, ep_in_sw_buf.buf_3, CFG_TUD_AUDIO_FUNC_3_EP_IN_SW_BUF_SZ, 1, true);
-    #if CFG_FIFO_MUTEX
-        tu_fifo_config_mutex(&audio->ep_in_ff, osal_mutex_create(&ep_in_ff_mutex_wr_3), NULL);
-    #endif
         break;
   #endif
     }
@@ -803,25 +770,16 @@ void audiod_init(void) {
   #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ > 0
       case 0:
         tu_fifo_config(&audio->ep_out_ff, ep_out_sw_buf.buf_1, CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ, 1, true);
-    #if CFG_FIFO_MUTEX
-        tu_fifo_config_mutex(&audio->ep_out_ff, NULL, osal_mutex_create(&ep_out_ff_mutex_rd_1));
-    #endif
         break;
   #endif
   #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ > 0
       case 1:
         tu_fifo_config(&audio->ep_out_ff, ep_out_sw_buf.buf_2, CFG_TUD_AUDIO_FUNC_2_EP_OUT_SW_BUF_SZ, 1, true);
-    #if CFG_FIFO_MUTEX
-        tu_fifo_config_mutex(&audio->ep_out_ff, NULL, osal_mutex_create(&ep_out_ff_mutex_rd_2));
-    #endif
         break;
   #endif
   #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ > 0
       case 2:
         tu_fifo_config(&audio->ep_out_ff, ep_out_sw_buf.buf_3, CFG_TUD_AUDIO_FUNC_3_EP_OUT_SW_BUF_SZ, 1, true);
-    #if CFG_FIFO_MUTEX
-        tu_fifo_config_mutex(&audio->ep_out_ff, NULL, osal_mutex_create(&ep_out_ff_mutex_rd_3));
-    #endif
         break;
   #endif
     }
