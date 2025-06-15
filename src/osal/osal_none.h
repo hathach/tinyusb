@@ -34,26 +34,46 @@ extern "C" {
 //--------------------------------------------------------------------+
 // Spinlock API
 //--------------------------------------------------------------------+
+// Note: This implementation is designed for bare-metal single-core systems without RTOS.
+// - Supports nested locking within the same execution context
+// - NOT suitable for true SMP (Symmetric Multi-Processing) systems
+// - NOT thread-safe for multi-threaded environments
+// - Primarily manages interrupt enable/disable state for critical sections
 typedef struct {
   void (* interrupt_set)(bool enabled);
+  uint32_t nested_count;
 } osal_spinlock_t;
 
 // For SMP, spinlock must be locked by hardware, cannot just use interrupt
 #define OSAL_SPINLOCK_DEF(_name, _int_set) \
-  osal_spinlock_t _name = { .interrupt_set = _int_set }
+  osal_spinlock_t _name = { .interrupt_set = _int_set, .nested_count = 0 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
-  if (!in_isr) {
+  // Disable interrupts first to make nested_count increment atomic
+  if (!in_isr && ctx->nested_count == 0) {
     ctx->interrupt_set(false);
   }
+  ctx->nested_count++;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  if (!in_isr) {
+  // Check for underflow - unlock without lock
+  if (ctx->nested_count == 0) {
+    // Re-enable interrupts before asserting to avoid leaving interrupts disabled
+    if (!in_isr) {
+      ctx->interrupt_set(true);
+    }
+    TU_ASSERT(0,);
+  }
+
+  ctx->nested_count--;
+
+  // Only re-enable interrupts when fully unlocked
+  if (!in_isr && ctx->nested_count == 0) {
     ctx->interrupt_set(true);
   }
 }
