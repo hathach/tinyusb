@@ -42,7 +42,18 @@
 
 #if TU_CHECK_MCU(OPT_MCU_LPC11UXX, OPT_MCU_LPC13XX, OPT_MCU_LPC15XX)
   // LPCOpen
+  #ifdef __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wunused-parameter"
+  #pragma GCC diagnostic ignored "-Wstrict-prototypes"
+  #endif
+
   #include "chip.h"
+
+  #ifdef __GNUC__
+  #pragma GCC diagnostic pop
+  #endif
+
 #else
   // SDK
   #include "fsl_device_registers.h"
@@ -239,7 +250,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(ep_cmd_sts_t* ep_cs, bool is_
   return is_highspeed ? (ep_cs[0].cmd_sts.type && !ep_cs[0].cmd_sts.rf_tv) : ep_cs->cmd_sts.type;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool ep_is_bulk(ep_cmd_sts_t* ep_cs) {
+TU_ATTR_ALWAYS_INLINE TU_ATTR_UNUSED static inline bool ep_is_bulk(ep_cmd_sts_t* ep_cs) {
   return (ep_cs[0].cmd_sts.type == 0) && (ep_cs[0].cmd_sts.rf_tv == 0);
 }
 
@@ -278,20 +289,22 @@ static void edpt_reset_all(uint8_t rhport)
   }
   prepare_setup_packet(rhport);
 }
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   edpt_reset_all(rhport);
 
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   dcd_reg->EPLISTSTART  = (uint32_t) _dcd.ep;
   dcd_reg->DATABUFSTART = tu_align((uint32_t) &_dcd, TU_BIT(22)); // 22-bit alignment
-  dcd_reg->INTSTAT     |= dcd_reg->INTSTAT; // clear all pending interrupt
+  dcd_reg->INTSTAT      = dcd_reg->INTSTAT; // clear all pending interrupt
   dcd_reg->INTEN        = INT_DEVICE_STATUS_MASK;
   dcd_reg->DEVCMDSTAT  |= DEVCMDSTAT_DEVICE_ENABLE_MASK | DEVCMDSTAT_DEVICE_CONNECT_MASK |
                            DEVCMDSTAT_RESET_CHANGE_MASK | DEVCMDSTAT_CONNECT_CHANGE_MASK | DEVCMDSTAT_SUSPEND_CHANGE_MASK;
 
   NVIC_ClearPendingIRQ(_dcd_controller[rhport].irqnum);
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -550,7 +563,8 @@ void dcd_int_handler(uint8_t rhport)
 
   uint32_t const cmd_stat = dcd_reg->DEVCMDSTAT;
 
-  uint32_t int_status = dcd_reg->INTSTAT & dcd_reg->INTEN;
+  uint32_t int_status = dcd_reg->INTSTAT;
+	int_status &= dcd_reg->INTEN;
   dcd_reg->INTSTAT = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;

@@ -1,7 +1,7 @@
 UF2_FAMILY_ID = 0x00
-MCU_DIR = hw/mcu/infineon/mtb-xmclib-cat3
+SDK_DIR = hw/mcu/infineon/mtb-xmclib-cat3
 
-DEPS_SUBMODULES += $(MCU_DIR)
+DEPS_SUBMODULES += ${SDK_DIR}
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
@@ -14,22 +14,22 @@ CFLAGS += \
 # mcu driver cause following warnings
 #CFLAGS += -Wno-error=shadow -Wno-error=cast-align
 
-SKIP_NANOLIB = 1
-
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
-	$(MCU_DIR)/Newlib/syscalls.c \
-	$(MCU_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Source/system_$(MCU_VARIANT).c \
-	$(MCU_DIR)/XMCLib/src/xmc_gpio.c \
-	$(MCU_DIR)/XMCLib/src/xmc4_gpio.c \
-	$(MCU_DIR)/XMCLib/src/xmc4_scu.c \
-	$(MCU_DIR)/XMCLib/src/xmc_usic.c \
-	$(MCU_DIR)/XMCLib/src/xmc_uart.c
+	src/portable/synopsys/dwc2/hcd_dwc2.c \
+	src/portable/synopsys/dwc2/dwc2_common.c \
+	${SDK_DIR}/CMSIS/Infineon/COMPONENT_${MCU_VARIANT}/Source/system_${MCU_VARIANT}.c \
+	${SDK_DIR}/Newlib/syscalls.c \
+	${SDK_DIR}/XMCLib/src/xmc_gpio.c \
+	${SDK_DIR}/XMCLib/src/xmc4_gpio.c \
+	${SDK_DIR}/XMCLib/src/xmc4_scu.c \
+	${SDK_DIR}/XMCLib/src/xmc_usic.c \
+	${SDK_DIR}/XMCLib/src/xmc_uart.c
 
-SRC_S += $(MCU_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Source/TOOLCHAIN_GCC_ARM/startup_$(MCU_VARIANT).S
+SRC_S += ${SDK_DIR}/CMSIS/Infineon/COMPONENT_${MCU_VARIANT}/Source/TOOLCHAIN_GCC_ARM/startup_${MCU_VARIANT}.S
 
 INC += \
   $(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(MCU_DIR)/CMSIS/Core/Include \
-	$(TOP)/$(MCU_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Include \
-	$(TOP)/$(MCU_DIR)/XMCLib/inc
+	$(TOP)/${SDK_DIR}/CMSIS/Core/Include \
+	$(TOP)/${SDK_DIR}/CMSIS/Infineon/COMPONENT_${MCU_VARIANT}/Include \
+	$(TOP)/${SDK_DIR}/XMCLib/inc

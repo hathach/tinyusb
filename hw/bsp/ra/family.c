@@ -24,20 +24,19 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Renesas
+*/
+
 #include <stdio.h>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
 #pragma GCC diagnostic ignored "-Wundef"
-
-// extra push due to https://github.com/renesas/fsp/pull/278
-#pragma GCC diagnostic push
 #endif
 
-#include "bsp_api.h"
-#include "r_ioport.h"
-#include "r_ioport_api.h"
+#include "common_data.h"
 #include "renesas.h"
 
 #ifdef __GNUC__
@@ -50,12 +49,6 @@
 /* Key code for writing PRCR register. */
 #define BSP_PRV_PRCR_KEY         (0xA500U)
 
-static const ioport_cfg_t family_pin_cfg = {
-    .number_of_pins = sizeof(board_pin_cfg) / sizeof(ioport_pin_cfg_t),
-    .p_pin_cfg_data = board_pin_cfg,
-};
-static ioport_instance_ctrl_t port_ctrl;
-
 //--------------------------------------------------------------------+
 // Vector Data
 //--------------------------------------------------------------------+
@@ -64,8 +57,11 @@ BSP_DONT_REMOVE BSP_PLACE_IN_SECTION(BSP_SECTION_APPLICATION_VECTORS)
 const fsp_vector_t g_vector_table[BSP_ICU_VECTOR_MAX_ENTRIES] = {
     [0] = usbfs_interrupt_handler, /* USBFS INT (USBFS interrupt) */
     [1] = usbfs_resume_handler,    /* USBFS RESUME (USBFS resume interrupt) */
+
+#ifndef BSP_MCU_GROUP_RA2A1
     [2] = usbfs_d0fifo_handler,    /* USBFS FIFO 0 (DMA transfer request 0) */
     [3] = usbfs_d1fifo_handler,    /* USBFS FIFO 1 (DMA transfer request 1) */
+#endif
 
 #ifdef BOARD_HAS_USB_HIGHSPEED
     [4] = usbhs_interrupt_handler, /* USBHS INT (USBHS interrupt) */
@@ -100,7 +96,7 @@ void board_init(void) {
   __enable_irq();
 
   /* Configure pins. */
-  R_IOPORT_Open(&port_ctrl, &family_pin_cfg);
+  R_IOPORT_Open(&IOPORT_CFG_CTRL, &IOPORT_CFG_NAME);
 
 #ifdef TRACE_ETM
   // TRCKCR is protected by PRCR bit0 register
@@ -135,13 +131,20 @@ void board_init_after_tusb(void) {
 }
 
 void board_led_write(bool state) {
-  R_IOPORT_PinWrite(&port_ctrl, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
+  R_IOPORT_PinWrite(&IOPORT_CFG_CTRL, LED1, state ? LED_STATE_ON : !LED_STATE_ON);
 }
 
 uint32_t board_button_read(void) {
   bsp_io_level_t lvl = !BUTTON_STATE_ACTIVE;
-  R_IOPORT_PinRead(&port_ctrl, SW1, &lvl);
+  R_IOPORT_PinRead(&IOPORT_CFG_CTRL, SW1, &lvl);
   return lvl == BUTTON_STATE_ACTIVE;
+}
+
+size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  max_len = tu_min32(max_len, sizeof(bsp_unique_id_t));
+  bsp_unique_id_t const *uid = R_BSP_UniqueIdGet();
+  memcpy(id, uid->unique_id_bytes, max_len);
+  return max_len;
 }
 
 int board_uart_read(uint8_t *buf, int len) {
@@ -166,50 +169,25 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
-
 #endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
-#if CFG_TUD_ENABLED && defined(BOARD_TUD_RHPORT)
-  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_DEVICE(_n)  0
-#endif
-
-#if CFG_TUH_ENABLED && defined(BOARD_TUH_RHPORT)
-  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
-#else
-  #define PORT_SUPPORT_HOST(_n)    0
-#endif
-
 //------------- USB0 FullSpeed -------------//
 void usbfs_interrupt_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-  #if PORT_SUPPORT_HOST(0)
-  tuh_int_handler(0, true);
-  #endif
-
-  #if PORT_SUPPORT_DEVICE(0)
-  tud_int_handler(0);
-  #endif
+  tusb_int_handler(0, true);
 }
 
 void usbfs_resume_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-  #if PORT_SUPPORT_HOST(0)
-  tuh_int_handler(0, true);
-  #endif
-
-  #if PORT_SUPPORT_DEVICE(0)
-  tud_int_handler(0);
-  #endif
+  tusb_int_handler(0, true);
 }
 
 void usbfs_d0fifo_handler(void) {
@@ -226,18 +204,11 @@ void usbfs_d1fifo_handler(void) {
 
 //------------- USB1 HighSpeed -------------//
 #ifdef BOARD_HAS_USB_HIGHSPEED
-
 void usbhs_interrupt_handler(void) {
   IRQn_Type irq = R_FSP_CurrentIrqGet();
   R_BSP_IrqStatusClear(irq);
 
-  #if PORT_SUPPORT_HOST(1)
-  tuh_int_handler(1, true);
-  #endif
-
-  #if PORT_SUPPORT_DEVICE(1)
-  tud_int_handler(1);
-  #endif
+  tusb_int_handler(1, true);
 }
 
 void usbhs_d0fifo_handler(void) {
@@ -251,7 +222,6 @@ void usbhs_d1fifo_handler(void) {
   R_BSP_IrqStatusClear(irq);
   // TODO not used yet
 }
-
 #endif
 
 //--------------------------------------------------------------------+

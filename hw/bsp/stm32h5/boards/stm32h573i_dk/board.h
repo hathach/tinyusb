@@ -25,6 +25,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 H573i Discovery
+   url: https://www.st.com/en/evaluation-tools/stm32h573i-dk.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
@@ -35,12 +40,12 @@ extern "C" {
 // LED
 #define LED_PORT              GPIOI
 #define LED_PIN               GPIO_PIN_9
-#define LED_STATE_ON          0
+#define LED_STATE_ON          1
 
 // Button
 #define BUTTON_PORT           GPIOC
 #define BUTTON_PIN            GPIO_PIN_13
-#define BUTTON_STATE_ACTIVE   0
+#define BUTTON_STATE_ACTIVE   1
 
 // UART Enable for STLink VCOM
 #define UART_DEV              USART1

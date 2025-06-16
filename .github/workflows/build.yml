@@ -1,0 +1,272 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'tools/build.py'
+      - 'tools/get_deps.py'
+      - '.github/actions/**'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/build_util.yml'
+      - '.github/workflows/ci_set_matrix.py'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'lib/**'
+      - 'hw/**'
+      - 'test/hil/**'
+      - 'tools/build.py'
+      - 'tools/get_deps.py'
+      - '.github/actions/**'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/build_util.yml'
+      - '.github/workflows/ci_set_matrix.py'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HIL_JSON: test/hil/tinyusb.json
+
+jobs:
+  # ---------------------------------------
+  #
+  # Build
+  #
+  # ---------------------------------------
+  set-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.set-matrix-json.outputs.matrix }}
+      hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Generate matrix json
+        id: set-matrix-json
+        run: |
+          # build matrix
+          MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
+          echo "matrix=$MATRIX_JSON"
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          # hil matrix
+          HIL_MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py ${{ env.HIL_JSON }})
+          echo "hil_matrix=$HIL_MATRIX_JSON"
+          echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
+
+  # ---------------------------------------
+  # Build CMake
+  # ---------------------------------------
+  cmake:
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          # - 'arm-clang' is built by circle-ci in PR
+          - 'aarch64-gcc'
+          - 'arm-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
+    with:
+      build-system: 'cmake'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
+      one-per-family: ${{ github.event_name == 'push' }}
+
+  # ---------------------------------------
+  # Build Make (built by circle-ci in PR, only build on push here)
+  # ---------------------------------------
+  make:
+    if: github.event_name == 'push'
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          # 'arm-clang'
+          - 'arm-gcc'
+          - 'aarch64-gcc'
+          - 'msp430-gcc'
+          - 'riscv-gcc'
+          - 'rx-gcc'
+          - 'esp-idf'
+    with:
+      build-system: 'make'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
+      one-per-family: true
+
+  # ---------------------------------------
+  # Build Make on Windows/MacOS
+  # ---------------------------------------
+  make-os:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    with:
+      os: ${{ matrix.os }}
+      build-system: 'make'
+      toolchain: 'arm-gcc'
+      build-args: '["stm32h7"]'
+      one-per-family: true
+
+  # ---------------------------------------
+  # Build IAR
+  # Since IAR Token secret is not passed to forked PR, only build non-forked PR with make.
+  # cmake is built by circle-ci. Due to IAR limit capacity, only build oe per family
+  # ---------------------------------------
+  arm-iar:
+    if: false # disable for now since we got reach capacity limit too often
+    #if: github.event_name == 'push' && github.repository_owner == 'hathach'
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        build-system:
+          - 'make'
+    with:
+      build-system: ${{ matrix.build-system }}
+      toolchain: 'arm-iar'
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar']) }}
+      one-per-family: true
+
+  # ---------------------------------------
+  # Zephyr
+  # ---------------------------------------
+  zephyr:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Setup Zephyr project
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: examples
+          toolchains: arm-zephyr-eabi
+
+      - name: Build
+        run: |
+          west build -b pca10056 -d examples/device/cdc_msc/build examples/device/cdc_msc -- -DRTOS=zephyr
+          west build -b pca10056 -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr
+
+  # ---------------------------------------
+  #
+  # Hardware in the loop (HIL)
+  # Run on PR only (hil-tinyusb), hil-hfp only run on non-forked PR
+  # ---------------------------------------
+
+  # ---------------------------------------
+  # Build arm-gcc
+  # ---------------------------------------
+  hil-build:
+    if: |
+      github.repository_owner == 'hathach' &&
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - 'arm-gcc'
+          - 'esp-idf'
+    with:
+      build-system: 'cmake'
+      toolchain: ${{ matrix.toolchain }}
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)[matrix.toolchain]) }}
+      one-per-family: true
+      upload-artifacts: true
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # self-hosted on local VM, for attached hardware checkout HIL_JSON
+  # ---------------------------------------
+  hil-tinyusb:
+    if: |
+      github.repository_owner == 'hathach' &&
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+    needs: hil-build
+    runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"
+          mkdir -p "${{ github.workspace }}"
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: test/hil
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: cmake-build
+          merge-multiple: true
+
+      - name: Test on actual hardware
+        run: |
+          ls cmake-build/
+          python3 test/hil/hil_test.py ${{ env.HIL_JSON }}
+
+  # ---------------------------------------
+  # Hardware in the loop (HIL)
+  # self-hosted by HFP, build with IAR toolchain, for attached hardware checkout test/hil/hfp.json
+  # Since IAR Token secret is not passed to forked PR, only build non-forked PR
+  # ---------------------------------------
+  hil-hfp:
+    if: |
+      github.repository_owner == 'hathach' &&
+      github.event.pull_request.head.repo.fork == false &&
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, Linux, X64, hifiphile]
+    env:
+      IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+    steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous run"
+          rm -rf "${{ github.workspace }}"3
+          mkdir -p "${{ github.workspace }}"
+
+      - name: Toolchain version
+        run: |
+          iccarm --version
+
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get build boards
+        run: |
+          MATRIX_JSON=$(python test/hil/hil_ci_set_matrix.py test/hil/hfp.json)
+          BUILD_ARGS=$(echo $MATRIX_JSON | jq -r '.["arm-gcc"] | join(" ")')
+          echo "BUILD_ARGS=$BUILD_ARGS"
+          echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
+
+      - name: Get Dependencies
+        run: python3 tools/get_deps.py $BUILD_ARGS
+
+      - name: Build
+        run: python3 tools/build.py -j 4 --toolchain iar $BUILD_ARGS
+
+      - name: Test on actual hardware (hardware in the loop)
+        run: python3 test/hil/hil_test.py hfp.json

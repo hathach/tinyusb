@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../hw/bsp/family_support.cmake)
 
@@ -8,6 +8,8 @@ family_initialize_project(tinyusb_device_examples ${CMAKE_CURRENT_LIST_DIR})
 # family_add_subdirectory will filter what to actually add based on selected FAMILY
 family_add_subdirectory(audio_4_channel_mic)
 family_add_subdirectory(audio_test)
+family_add_subdirectory(audio_4_channel_mic_freertos)
+family_add_subdirectory(audio_test_freertos)
 family_add_subdirectory(audio_test_multi_rate)
 family_add_subdirectory(board_test)
 family_add_subdirectory(cdc_dual_ports)
@@ -26,6 +28,8 @@ family_add_subdirectory(midi_test)
 family_add_subdirectory(msc_dual_lun)
 family_add_subdirectory(net_lwip_webserver)
 family_add_subdirectory(uac2_headset)
+family_add_subdirectory(uac2_speaker_fb)
 family_add_subdirectory(usbtmc)
 family_add_subdirectory(video_capture)
+family_add_subdirectory(video_capture_2ch)
 family_add_subdirectory(webusb_serial)

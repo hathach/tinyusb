@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: MM900EVxB
+   url: https://brtchip.com/product/mm900ev1b
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

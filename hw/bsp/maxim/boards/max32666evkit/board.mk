@@ -1,0 +1,1 @@
+MAX_DEVICE = max32665

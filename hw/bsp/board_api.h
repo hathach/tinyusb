@@ -24,33 +24,38 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _BOARD_API_H_
-#define _BOARD_API_H_
+#ifndef BOARD_API_H_
+#define BOARD_API_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdbool.h>
+#include <string.h>
+
 #include "tusb.h"
 
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-  // ESP-IDF need "freertos/" prefix in include path.
-  // CFG_TUSB_OS_INC_PATH should be defined accordingly.
-  #include "freertos/FreeRTOS.h"
-  #include "freertos/semphr.h"
-  #include "freertos/queue.h"
-  #include "freertos/task.h"
-  #include "freertos/timers.h"
-#else
-  #include "FreeRTOS.h"
-  #include "semphr.h"
-  #include "queue.h"
-  #include "task.h"
-  #include "timers.h"
-#endif
+#if CFG_TUSB_OS == OPT_OS_ZEPHYR
+  #include <zephyr/kernel.h>
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  #if TUSB_MCU_VENDOR_ESPRESSIF
+    // ESP-IDF need "freertos/" prefix in include path.
+    // CFG_TUSB_OS_INC_PATH should be defined accordingly.
+    #include "freertos/FreeRTOS.h"
+    #include "freertos/semphr.h"
+    #include "freertos/queue.h"
+    #include "freertos/task.h"
+    #include "freertos/timers.h"
+  #else
+    #include "FreeRTOS.h"
+    #include "semphr.h"
+    #include "queue.h"
+    #include "task.h"
+    #include "timers.h"
+  #endif
 #endif
 
 // Define the default baudrate
@@ -68,6 +73,9 @@ void board_init(void);
 
 // Init board after tinyusb is initialized
 void board_init_after_tusb(void) TU_ATTR_WEAK;
+
+// Jump to bootloader
+void board_reset_to_bootloader(void) TU_ATTR_WEAK;
 
 // Turn LED on or off
 void board_led_write(bool state);
@@ -118,6 +126,10 @@ static inline uint32_t board_millis(void) {
 // Implement your own board_millis() in any of .c file
 uint32_t board_millis(void);
 
+#elif CFG_TUSB_OS == OPT_OS_ZEPHYR
+static inline uint32_t board_millis(void) {
+  return k_uptime_get_32();
+}
 #else
   #error "board_millis() is not implemented for this OS"
 #endif
@@ -139,6 +151,7 @@ static inline size_t board_usb_get_serial(uint16_t desc_str1[], size_t max_chars
   uint8_t uid[16] TU_ATTR_ALIGNED(4);
   size_t uid_len;
 
+  // TODO work with make, but not working with esp32s3 cmake
   if ( board_get_unique_id ) {
     uid_len = board_get_unique_id(uid, sizeof(uid));
   }else {

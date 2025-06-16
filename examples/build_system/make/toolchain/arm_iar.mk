@@ -1,4 +1,6 @@
 # makefile for arm iar toolchain
+
+CC = iccarm
 AS = iasmarm
 LD = ilinkarm
 OBJCOPY = ielftool --silent

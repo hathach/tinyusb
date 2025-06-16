@@ -85,7 +85,7 @@ audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX+1]; 		
 
 
 // Audio test data
-CFG_TUSB_MEM_ALIGN uint8_t test_buffer_audio[CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX];
+CFG_TUD_MEM_ALIGN uint8_t test_buffer_audio[CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX];
 uint16_t startVal = 0;
 
 void led_blinking_task(void);
@@ -97,7 +97,11 @@ int main(void)
   board_init();
 
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
@@ -272,7 +276,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
 
         sampFreq = (uint32_t)((audio_control_cur_4_t *)pBuff)->bCur;
 
-        TU_LOG2("Clock set current freq: %lu\r\n", sampFreq);
+        TU_LOG2("Clock set current freq: %" PRIu32 "\r\n", sampFreq);
 
         return true;
       break;

@@ -1,9 +1,5 @@
 include_guard()
 
-if (NOT BOARD)
-  message(FATAL_ERROR "BOARD not specified")
-endif ()
-
 set(ST_FAMILY h5)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
@@ -15,7 +11,7 @@ set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32H5 CACHE INTERNAL "")
@@ -32,11 +28,13 @@ function(add_board_target BOARD_TARGET)
 
   # Startup & Linker script
   set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
   set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
-  set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
   string(REPLACE "stm32h" "STM32H" MCU_VARIANT_UPPER ${MCU_VARIANT})
-  set(LD_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/linker/${MCU_VARIANT_UPPER}_FLASH.ld)
+  set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT_UPPER}_FLASH.ld)
+  set(LD_FILE_Clang ${LD_FILE_GNU})
+  set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
   add_library(${BOARD_TARGET} STATIC
     ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
@@ -65,8 +63,11 @@ function(add_board_target BOARD_TARGET)
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
-      # nanolib
       --specs=nosys.specs --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
@@ -100,17 +101,17 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32H5 ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32H5)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     ${TOP}/src/portable/st/typec/typec_stm32.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
+  family_add_bin_hex(${TARGET})
   family_flash_stlink(${TARGET})
   family_flash_jlink(${TARGET})
 endfunction()

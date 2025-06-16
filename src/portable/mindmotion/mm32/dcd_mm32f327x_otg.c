@@ -245,9 +245,9 @@ static void process_bus_active(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
+  (void) rh_init;
 
   tu_memclr(&_dcd, sizeof(_dcd));
   USB_OTG_FS->BDT_PAGE_01 = (uint8_t)((uintptr_t)_dcd.bdt >>  8);
@@ -256,6 +256,7 @@ void dcd_init(uint8_t rhport)
 
   dcd_connect(rhport);
   NVIC_ClearPendingIRQ(USB_FS_IRQn);
+  return true;
 }
 #define USB_DEVICE_INTERRUPT_PRIORITY (3U)
 void dcd_int_enable(uint8_t rhport)
@@ -283,7 +284,18 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   /* Response with status first before changing device address */
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
+
+#ifdef __GNUC__ // caused by extra declaration of SystemCoreClock in freeRTOSConfig.h
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
 extern u32 SystemCoreClock;
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;

@@ -743,7 +743,7 @@ EmbeddedCli *embeddedCliNew(EmbeddedCliConfig *config) {
 
     bool allocated = false;
     if (config->cliBuffer == NULL) {
-        config->cliBuffer = (CLI_UINT *) malloc(totalSize); // malloc guarantees alignment.
+//        config->cliBuffer = (CLI_UINT *) malloc(totalSize); // malloc guarantees alignment.
         if (config->cliBuffer == NULL)
             return NULL;
         allocated = true;
@@ -887,7 +887,7 @@ void embeddedCliFree(EmbeddedCli *cli) {
     PREPARE_IMPL(cli);
     if (IS_FLAG_SET(impl->flags, CLI_FLAG_ALLOCATED)) {
         // allocation is done in single call to malloc, so need only single free
-        free(cli);
+//        free(cli);
     }
 }
 

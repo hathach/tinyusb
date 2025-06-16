@@ -7,8 +7,5 @@ function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     STM32H743xx
     HSE_VALUE=8000000
-    # default to PORT 0
-    BOARD_TUD_RHPORT=0
-    BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     )
 endfunction()

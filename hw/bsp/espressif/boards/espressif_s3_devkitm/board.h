@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Espresif S3 DevKitM
+   url: https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitm-1/index.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
@@ -43,6 +48,11 @@
 #define MAX3421_MISO_PIN 21
 #define MAX3421_CS_PIN   15
 #define MAX3421_INTR_PIN 14
+
+// For CI hardware test, to test both device and host on the same HS port with help of TS3USB30
+// https://www.adafruit.com/product/5871
+#define HIL_TS3USB30_MODE_PIN    47
+#define HIL_TS3USB30_MODE_DEVICE 1
 
 #ifdef __cplusplus
  }

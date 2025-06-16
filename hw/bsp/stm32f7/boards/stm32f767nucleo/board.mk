@@ -1,5 +1,8 @@
 MCU_VARIANT = stm32f767xx
 
+RHPORT_DEVICE ?= 0
+RHPORT_HOST ?= 0
+
 PORT ?= 0
 SPEED ?= full
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Install python3 HID package https://pypi.org/project/hid/
 import hid
 

@@ -27,23 +27,9 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 
-#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
-// ESP-IDF need "freertos/" prefix in include path.
-// CFG_TUSB_OS_INC_PATH should be defined accordingly.
-  #include "freertos/FreeRTOS.h"
-  #include "freertos/semphr.h"
-  #include "freertos/queue.h"
-  #include "freertos/task.h"
-  #include "freertos/timers.h"
-
+#if TUSB_MCU_VENDOR_ESPRESSIF
   #define CDC_STACK_SZIE      2048
 #else
-  #include "FreeRTOS.h"
-  #include "semphr.h"
-  #include "queue.h"
-  #include "task.h"
-  #include "timers.h"
-
   #define CDC_STACK_SZIE     (3*configMINIMAL_STACK_SIZE/2)
 #endif
 
@@ -66,7 +52,7 @@ void cdc_app_init(void) {
 }
 
 // helper
-size_t get_console_inputs(uint8_t *buf, size_t bufsize) {
+static size_t get_console_inputs(uint8_t *buf, size_t bufsize) {
   size_t count = 0;
   while (count < bufsize) {
     int ch = board_getchar();
@@ -117,7 +103,7 @@ void tuh_cdc_rx_cb(uint8_t idx) {
   uint32_t count = tuh_cdc_read(idx, buf, bufsize);
   buf[count] = 0;
 
-  printf((char *) buf);
+  printf("%s", (char *) buf);
 }
 
 void tuh_cdc_mount_cb(uint8_t idx) {
@@ -131,7 +117,7 @@ void tuh_cdc_mount_cb(uint8_t idx) {
   // otherwise you need to call tuh_cdc_set_line_coding() first
   cdc_line_coding_t line_coding = { 0 };
   if (tuh_cdc_get_local_line_coding(idx, &line_coding)) {
-    printf("  Baudrate: %lu, Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
+    printf("  Baudrate: %" PRIu32 ", Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
     printf("  Parity  : %u, Data Width: %u\r\n", line_coding.parity, line_coding.data_bits);
   }
 #endif

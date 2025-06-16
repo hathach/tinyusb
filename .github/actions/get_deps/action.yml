@@ -1,0 +1,29 @@
+name: Get dependencies
+
+inputs:
+  arg:
+    description: 'Arguments to get_deps.py'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout pico-sdk for rp2040
+      if: contains(inputs.arg, 'rp2040') || contains(inputs.arg, 'raspberry_pi_pico')
+      uses: actions/checkout@v4
+      with:
+        repository: raspberrypi/pico-sdk
+        ref: master
+        path: pico-sdk
+
+    - name: Linux dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt install -y ninja-build
+      shell: bash
+
+    - name: Get Dependencies
+      run: |
+        python3 tools/get_deps.py ${{ inputs.arg }}
+        echo "PICO_SDK_PATH=${{ github.workspace }}/pico-sdk" >> $GITHUB_ENV
+      shell: bash

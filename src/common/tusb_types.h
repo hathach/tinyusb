@@ -24,12 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_usb_definitions
- *  \defgroup USBDef_Type USB Types
- *  @{ */
-
-#ifndef _TUSB_TYPES_H_
-#define _TUSB_TYPES_H_
+#ifndef TUSB_TYPES_H_
+#define TUSB_TYPES_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -39,24 +35,68 @@
  extern "C" {
 #endif
 
+//------------- Device DCache declaration -------------//
+#define TUD_EPBUF_DCACHE_SIZE(_size) (CFG_TUD_MEM_DCACHE_ENABLE ? \
+  (TU_DIV_CEIL(_size, CFG_TUD_MEM_DCACHE_LINE_SIZE) * CFG_TUD_MEM_DCACHE_LINE_SIZE) : (_size))
+
+// Declare an endpoint buffer with uint8_t[size]
+#define TUD_EPBUF_DEF(_name, _size) \
+  union { \
+    CFG_TUD_MEM_ALIGN uint8_t _name[_size]; \
+    uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(_size)]; \
+  }
+
+// Declare an endpoint buffer with a type
+#define TUD_EPBUF_TYPE_DEF(_type, _name) \
+  union { \
+    CFG_TUD_MEM_ALIGN _type _name; \
+    uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
+  }
+
+//------------- Host DCache declaration -------------//
+#define TUH_EPBUF_DCACHE_SIZE(_size) (CFG_TUH_MEM_DCACHE_ENABLE ? \
+  (TU_DIV_CEIL(_size, CFG_TUH_MEM_DCACHE_LINE_SIZE) * CFG_TUH_MEM_DCACHE_LINE_SIZE) : (_size))
+
+// Declare an endpoint buffer with uint8_t[size]
+#define TUH_EPBUF_DEF(_name, _size) \
+  union { \
+    CFG_TUH_MEM_ALIGN uint8_t _name[_size]; \
+    uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(_size)]; \
+  }
+
+// Declare an endpoint buffer with a type
+#define TUH_EPBUF_TYPE_DEF(_type, _name) \
+  union { \
+    CFG_TUH_MEM_ALIGN _type _name; \
+    uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
+  }
+
+
 /*------------------------------------------------------------------*/
 /* CONSTANTS
  *------------------------------------------------------------------*/
+
+typedef enum {
+  TUSB_ROLE_INVALID = 0,
+  TUSB_ROLE_DEVICE  = 0x1,
+  TUSB_ROLE_HOST    = 0x2,
+} tusb_role_t;
 
 /// defined base on EHCI specs value for Endpoint Speed
 typedef enum {
   TUSB_SPEED_FULL = 0,
   TUSB_SPEED_LOW  = 1,
   TUSB_SPEED_HIGH = 2,
+  TUSB_SPEED_AUTO = 0xaa,
   TUSB_SPEED_INVALID = 0xff,
 } tusb_speed_t;
 
 /// defined base on USB Specs Endpoint's bmAttributes
 typedef enum {
-  TUSB_XFER_CONTROL = 0 ,
-  TUSB_XFER_ISOCHRONOUS ,
-  TUSB_XFER_BULK        ,
-  TUSB_XFER_INTERRUPT
+  TUSB_XFER_CONTROL     = 0,
+  TUSB_XFER_ISOCHRONOUS = 1,
+  TUSB_XFER_BULK        = 2,
+  TUSB_XFER_INTERRUPT   = 3
 } tusb_xfer_type_t;
 
 typedef enum {
@@ -212,11 +252,20 @@ typedef enum {
 } device_capability_type_t;
 
 enum {
-  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = TU_BIT(5),
-  TUSB_DESC_CONFIG_ATT_SELF_POWERED  = TU_BIT(6),
+  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = 1u << 5,
+  TUSB_DESC_CONFIG_ATT_SELF_POWERED  = 1u << 6,
 };
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
+
+// USB 2.0 Spec Table 9-7: Test Mode Selectors
+typedef enum {
+  TUSB_FEATURE_TEST_J = 1,
+  TUSB_FEATURE_TEST_K = 2,
+  TUSB_FEATURE_TEST_SE0_NAK = 3,
+  TUSB_FEATURE_TEST_PACKET = 4,
+  TUSB_FEATURE_TEST_FORCE_ENABLE = 5,
+} tusb_feature_test_mode_t;
 
 //--------------------------------------------------------------------+
 //
@@ -232,7 +281,8 @@ typedef enum {
 // TODO remove
 enum {
   DESC_OFFSET_LEN  = 0,
-  DESC_OFFSET_TYPE = 1
+  DESC_OFFSET_TYPE = 1,
+  DESC_OFFSET_SUBTYPE = 2
 };
 
 enum {
@@ -252,15 +302,23 @@ typedef enum {
 } microsoft_os_20_type_t;
 
 enum {
-  CONTROL_STAGE_IDLE,
-  CONTROL_STAGE_SETUP,
-  CONTROL_STAGE_DATA,
-  CONTROL_STAGE_ACK
+  CONTROL_STAGE_IDLE = 0,
+  CONTROL_STAGE_SETUP, // 1
+  CONTROL_STAGE_DATA,  // 2
+  CONTROL_STAGE_ACK    // 3
 };
 
 enum {
   TUSB_INDEX_INVALID_8 = 0xFFu
 };
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+typedef struct {
+  tusb_role_t role;
+  tusb_speed_t speed;
+} tusb_rhport_init_t;
 
 //--------------------------------------------------------------------+
 // USB Descriptors
@@ -274,11 +332,11 @@ TU_ATTR_BIT_FIELD_ORDER_BEGIN
 typedef struct TU_ATTR_PACKED {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes.
   uint8_t  bDescriptorType    ; ///< DEVICE Descriptor Type.
-  uint16_t bcdUSB             ; ///< BUSB Specification Release Number in Binary-Coded Decimal (i.e., 2.10 is 210H). This field identifies the release of the USB Specification with which the device and its descriptors are compliant.
+  uint16_t bcdUSB             ; ///< BUSB Specification Release Number in Binary-Coded Decimal (i.e., 2.10 is 210H).
 
-  uint8_t  bDeviceClass       ; ///< Class code (assigned by the USB-IF). \li If this field is reset to zero, each interface within a configuration specifies its own class information and the various interfaces operate independently. \li If this field is set to a value between 1 and FEH, the device supports different class specifications on different interfaces and the interfaces may not operate independently. This value identifies the class definition used for the aggregate interfaces. \li If this field is set to FFH, the device class is vendor-specific.
-  uint8_t  bDeviceSubClass    ; ///< Subclass code (assigned by the USB-IF). These codes are qualified by the value of the bDeviceClass field. \li If the bDeviceClass field is reset to zero, this field must also be reset to zero. \li If the bDeviceClass field is not set to FFH, all values are reserved for assignment by the USB-IF.
-  uint8_t  bDeviceProtocol    ; ///< Protocol code (assigned by the USB-IF). These codes are qualified by the value of the bDeviceClass and the bDeviceSubClass fields. If a device supports class-specific protocols on a device basis as opposed to an interface basis, this code identifies the protocols that the device uses as defined by the specification of the device class. \li If this field is reset to zero, the device does not use class-specific protocols on a device basis. However, it may use classspecific protocols on an interface basis. \li If this field is set to FFH, the device uses a vendor-specific protocol on a device basis.
+  uint8_t  bDeviceClass       ; ///< Class code (assigned by the USB-IF).
+  uint8_t  bDeviceSubClass    ; ///< Subclass code (assigned by the USB-IF).
+  uint8_t  bDeviceProtocol    ; ///< Protocol code (assigned by the USB-IF).
   uint8_t  bMaxPacketSize0    ; ///< Maximum packet size for endpoint zero (only 8, 16, 32, or 64 are valid). For HS devices is fixed to 64.
 
   uint16_t idVendor           ; ///< Vendor ID (assigned by the USB-IF).
@@ -405,7 +463,7 @@ TU_VERIFY_STATIC( sizeof(tusb_desc_interface_assoc_t) == 8, "size is not correct
 typedef struct TU_ATTR_PACKED {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType ; ///< Descriptor Type
-  uint16_t unicode_string[];
+  uint16_t utf16le[];
 } tusb_desc_string_t;
 
 // USB Binary Device Object Store (BOS)
@@ -493,15 +551,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t di
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_edpt_packet_size(tusb_desc_endpoint_t const* desc_ep) {
-  return tu_le16toh(desc_ep->wMaxPacketSize) & TU_GENMASK(10, 0);
+  return tu_le16toh(desc_ep->wMaxPacketSize) & 0x7FF;
 }
 
 #if CFG_TUSB_DEBUG
-TU_ATTR_ALWAYS_INLINE static inline const char *tu_edpt_dir_str(tusb_dir_t dir) {
-  tu_static const char *str[] = {"out", "in"};
-  return str[dir];
-}
-
 TU_ATTR_ALWAYS_INLINE static inline const char *tu_edpt_type_str(tusb_xfer_type_t t) {
   tu_static const char *str[] = {"control", "isochronous", "bulk", "interrupt"};
   return str[t];
@@ -518,15 +571,26 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t const * tu_desc_next(void const* des
   return desc8 + desc8[DESC_OFFSET_LEN];
 }
 
+// get descriptor length
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_len(void const* desc) {
+  return ((uint8_t const*) desc)[DESC_OFFSET_LEN];
+}
+
 // get descriptor type
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_type(void const* desc) {
   return ((uint8_t const*) desc)[DESC_OFFSET_TYPE];
 }
 
-// get descriptor length
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_len(void const* desc) {
-  return ((uint8_t const*) desc)[DESC_OFFSET_LEN];
+// get descriptor subtype
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
+  return ((uint8_t const*) desc)[DESC_OFFSET_SUBTYPE];
 }
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_is_valid(void const* desc, uint8_t const* desc_end) {
+  const uint8_t* desc8 = (uint8_t const*) desc;
+  return (desc8 < desc_end) && (tu_desc_next(desc) <= desc_end);
+}
+
 
 // find descriptor that match byte1 (type)
 uint8_t const * tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1);
@@ -541,6 +605,4 @@ uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t b
  }
 #endif
 
-#endif /* _TUSB_TYPES_H_ */
-
-/** @} */
+#endif // TUSB_TYPES_H_

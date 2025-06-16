@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Nordic Semiconductor
+*/
+
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -33,16 +37,17 @@
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #pragma GCC diagnostic ignored "-Wcast-align"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wundef"
 #pragma GCC diagnostic ignored "-Wredundant-decls"
 #endif
 
 #include "nrfx.h"
 #include "hal/nrf_gpio.h"
-#include "drivers/include/nrfx_gpiote.h"
-#include "drivers/include/nrfx_power.h"
-#include "drivers/include/nrfx_uarte.h"
-#include "drivers/include/nrfx_spim.h"
+#include "nrfx_gpiote.h"
+#include "nrfx_power.h"
+#include "nrfx_uarte.h"
+#include "nrfx_spim.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -53,6 +58,14 @@
 #pragma GCC diagnostic pop
 #endif
 
+
+// There is API changes between nrfx v2 and v3
+#if 85301 >= (10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION)
+  // note MDK 8.53.1 is also used by nrfx v3.0.0, just skip this version and use later 3.x
+  #define NRFX_VER 2
+#else
+  #define NRFX_VER 3
+#endif
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -98,8 +111,12 @@ TU_ATTR_UNUSED static void power_event_handler(nrfx_power_usb_evt_t event) {
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 static void max3421_init(void);
 static nrfx_spim_t _spi = NRFX_SPIM_INSTANCE(1);
+
+#if NRFX_VER > 2
+static nrfx_gpiote_t _gpiote = NRFX_GPIOTE_INSTANCE(0);
 #endif
 
+#endif
 
 //--------------------------------------------------------------------+
 //
@@ -120,10 +137,23 @@ void board_init(void) {
   // Button
   nrf_gpio_cfg_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP);
 
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_ZEPHYR
+  #ifdef CONFIG_HAS_HW_NRF_USBREG
+  // IRQ_CONNECT(USBREGULATOR_IRQn, DT_IRQ(DT_INST(0, nordic_nrf_clock), priority), nrfx_isr, nrfx_usbreg_irq_handler, 0);
+  // irq_enable(USBREGULATOR_IRQn);
+  #endif
+
+  /* USB device controller access from devicetree */
+  #define DT_DRV_COMPAT nordic_nrf_usbd
+  IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), nrfx_isr, USBD_IRQHandler, 0);
+  irq_enable(DT_INST_IRQN(0));
+#endif
 
   // UART
+  #if NRFX_VER <= 2
   nrfx_uarte_config_t uart_cfg = {
       .pseltxd   = UART_TX_PIN,
       .pselrxd   = UART_RX_PIN,
@@ -137,8 +167,23 @@ void board_init(void) {
           .parity    = NRF_UARTE_PARITY_EXCLUDED,
       }
   };
+  #else
+  nrfx_uarte_config_t uart_cfg = {
+      .txd_pin   = UART_TX_PIN,
+      .rxd_pin   = UART_RX_PIN,
+      .rts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
+      .cts_pin   = NRF_UARTE_PSEL_DISCONNECTED,
+      .p_context = NULL,
+      .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
+      .interrupt_priority = 7,
+      .config = {
+          .hwfc      = NRF_UARTE_HWFC_DISABLED,
+          .parity    = NRF_UARTE_PARITY_EXCLUDED,
+      }
+  };
+  #endif
 
-  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
+  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL);
 
   //------------- USB -------------//
 #if CFG_TUD_ENABLED
@@ -182,8 +227,12 @@ void board_init(void) {
 #endif
   }
 
-  if ( usb_reg & VBUSDETECT_Msk ) tusb_hal_nrf_power_event(USB_EVT_DETECTED);
-  if ( usb_reg & OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(USB_EVT_READY);
+  if ( usb_reg & VBUSDETECT_Msk ) {
+    tusb_hal_nrf_power_event(USB_EVT_DETECTED);
+  }
+  if ( usb_reg & OUTPUTRDY_Msk  ) {
+    tusb_hal_nrf_power_event(USB_EVT_READY);
+  }
 #endif
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
@@ -195,7 +244,6 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
 void board_led_write(bool state) {
   nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }
@@ -224,11 +272,17 @@ int board_uart_read(uint8_t* buf, int len) {
   (void) buf;
   (void) len;
   return 0;
-//  return NRFX_SUCCESS == nrfx_uart_rx(&_uart_id, buf, (size_t) len) ? len : 0;
+//  nrfx_err_t err = nrfx_uarte_rx(&_uart_id, buf, (size_t) len);
+//  return NRFX_SUCCESS == err ? len : 0;
 }
 
 int board_uart_write(void const* buf, int len) {
-  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
+  nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len
+                                 #if NRFX_VER > 2
+                                 ,0
+                                 #endif
+                                );
+  return (NRFX_SUCCESS == err) ? len : 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
@@ -241,9 +295,22 @@ void SysTick_Handler(void) {
 uint32_t board_millis(void) {
   return system_ticks;
 }
-
 #endif
 
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+#endif
+
+//--------------------------------------------------------------------+
+// Softdevice running
+//--------------------------------------------------------------------+
 #ifdef SOFTDEVICE_PRESENT
 // process SOC event from SD
 uint32_t proc_soc(void) {
@@ -286,8 +353,16 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
 
-void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
-  if (!(pin == MAX3421_INTR_PIN && action == NRF_GPIOTE_POLARITY_HITOLO)) return;
+#if NRFX_VER <= 2
+void max3421_int_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action ) {
+  if (action != NRF_GPIOTE_POLARITY_HITOLO) return;
+#else
+void max3421_int_handler(nrfx_gpiote_pin_t pin, nrfx_gpiote_trigger_t action, void* p_context) {
+  (void) p_context;
+  if (action != NRFX_GPIOTE_TRIGGER_HITOLO) return;
+#endif
+
+  if (pin != MAX3421_INTR_PIN) return;
   tuh_int_handler(1, true);
 }
 
@@ -303,28 +378,55 @@ static void max3421_init(void) {
       .sck_pin        = MAX3421_SCK_PIN,
       .mosi_pin       = MAX3421_MOSI_PIN,
       .miso_pin       = MAX3421_MISO_PIN,
+  #if NRFX_VER <= 2
       .ss_pin         = NRFX_SPIM_PIN_NOT_USED,
+      .frequency      = NRF_SPIM_FREQ_4M,
+  #else
+      .ss_pin         = NRF_SPIM_PIN_NOT_CONNECTED,
+      .frequency      = 4000000u,
+  #endif
       .ss_active_high = false,
       .irq_priority   = 3,
       .orc            = 0xFF,
       // default setting 4 Mhz, Mode 0, MSB first
-      .frequency      = NRF_SPIM_FREQ_4M,
       .mode           = NRF_SPIM_MODE_0,
       .bit_order      = NRF_SPIM_BIT_ORDER_MSB_FIRST,
+      .miso_pull      = NRF_GPIO_PIN_NOPULL,
   };
 
   // no handler --> blocking
-  nrfx_spim_init(&_spi, &cfg, NULL, NULL);
+  TU_ASSERT(NRFX_SUCCESS == nrfx_spim_init(&_spi, &cfg, NULL, NULL), );
 
   // max3421e interrupt pin
+  #if NRFX_VER <= 2
   nrfx_gpiote_init(1);
   nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
   in_config.pull = NRF_GPIO_PIN_PULLUP;
-
   NVIC_SetPriority(GPIOTE_IRQn, 2);
-
   nrfx_gpiote_in_init(MAX3421_INTR_PIN, &in_config, max3421_int_handler);
   nrfx_gpiote_trigger_enable(MAX3421_INTR_PIN, true);
+  #else
+  nrf_gpio_pin_pull_t intr_pull = NRF_GPIO_PIN_PULLUP;
+  nrfx_gpiote_trigger_config_t intr_trigger = {
+      .trigger = NRFX_GPIOTE_TRIGGER_HITOLO,
+      .p_in_channel = NULL, // sensing mechanism
+  };
+  nrfx_gpiote_handler_config_t intr_handler = {
+      .handler = max3421_int_handler,
+      .p_context = NULL,
+  };
+  nrfx_gpiote_input_pin_config_t intr_config = {
+      .p_pull_config = &intr_pull,
+      .p_trigger_config = &intr_trigger,
+      .p_handler_config = &intr_handler,
+  };
+
+  nrfx_gpiote_init(&_gpiote, 1);
+  NVIC_SetPriority(GPIOTE_IRQn, 2);
+
+  nrfx_gpiote_input_configure(&_gpiote, MAX3421_INTR_PIN, &intr_config);
+  nrfx_gpiote_trigger_enable(&_gpiote, MAX3421_INTR_PIN, true);
+  #endif
 }
 
 // API to enable/disable MAX3421 INTR pin interrupt

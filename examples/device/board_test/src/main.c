@@ -67,7 +67,7 @@ int main(void) {
   }
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 || CFG_TUSB_MCU == OPT_MCU_ESP32S3
+#if TUSB_MCU_VENDOR_ESPRESSIF
 void app_main(void) {
   main();
 }

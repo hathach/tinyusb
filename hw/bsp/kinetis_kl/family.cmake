@@ -11,7 +11,7 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m0plus CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m0plus CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS KINETIS_KL CACHE INTERNAL "")
@@ -26,7 +26,12 @@ function(add_board_target BOARD_TARGET)
     return()
   endif ()
 
+  # LD_FILE and STARTUP_FILE can be defined in board.cmake
+  set(LD_FILE_Clang ${LD_FILE_GNU})
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+
   add_library(${BOARD_TARGET} STATIC
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     ${SDK_DIR}/drivers/gpio/fsl_gpio.c
     ${SDK_DIR}/drivers/lpsci/fsl_lpsci.c
     ${SDK_DIR}/drivers/uart/fsl_uart.c
@@ -34,6 +39,7 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT}.c
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
+    __STARTUP_CLEAR_BSS
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMSIS_DIR}/CMSIS/Core/Include
@@ -48,16 +54,15 @@ function(add_board_target BOARD_TARGET)
     )
   update_board(${BOARD_TARGET})
 
-  # LD_FILE and STARTUP_FILE can be defined in board.cmake
-  target_sources(${BOARD_TARGET} PUBLIC
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
-    )
-
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      # nanolib
       --specs=nosys.specs --specs=nano.specs
+      -nostartfiles
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
@@ -91,17 +96,16 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_KINETIS_KL ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_KINETIS_KL)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/chipidea/ci_fs/dcd_ci_fs.c
     ${TOP}/src/portable/nxp/khci/hcd_khci.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
+  family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
-  #family_flash_nxplink(${TARGET})
 endfunction()

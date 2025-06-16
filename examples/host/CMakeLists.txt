@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../hw/bsp/family_support.cmake)
 
@@ -9,5 +9,7 @@ family_initialize_project(tinyusb_host_examples ${CMAKE_CURRENT_LIST_DIR})
 family_add_subdirectory(bare_api)
 family_add_subdirectory(cdc_msc_hid)
 family_add_subdirectory(cdc_msc_hid_freertos)
+family_add_subdirectory(device_info)
 family_add_subdirectory(hid_controller)
+family_add_subdirectory(midi_rx)
 family_add_subdirectory(msc_file_explorer)

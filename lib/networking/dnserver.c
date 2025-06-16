@@ -192,7 +192,7 @@ err_t dnserv_init(const ip_addr_t *bind, uint16_t port, dns_query_proc_t qp)
 	return ERR_OK;
 }
 
-void dnserv_free()
+void dnserv_free(void)
 {
 	if (pcb == NULL) return;
 	udp_remove(pcb);

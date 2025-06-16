@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Raspberry CM4
+   url: https://www.raspberrypi.org/products/compute-module-4
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 F103 Bluepill
+   url: https://stm32-base.org/boards/STM32F103C8T6-Blue-Pill
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

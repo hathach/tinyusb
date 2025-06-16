@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: STMicroelectronics
+*/
+
 #include "stm32f0xx_hal.h"
 #include "bsp/board_api.h"
 #include "board.h"
@@ -115,7 +119,7 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 
 void board_led_write(bool state) {
-  GPIO_PinState pin_state = (GPIO_PinState)(state ? LED_STATE_ON : (1 - LED_STATE_ON));
+  GPIO_PinState pin_state = (GPIO_PinState) (state ? LED_STATE_ON : (1 - LED_STATE_ON));
   HAL_GPIO_WritePin(LED_PORT, LED_PIN, pin_state);
 }
 

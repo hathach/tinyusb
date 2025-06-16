@@ -247,7 +247,7 @@ SECTIONS
        PROVIDE(__end_bss_RAM5 = .) ;
     } > RamAHB_ETB16
 
-    /* MAIN BSS SECTION */
+    /* MAIN BSS SECTION: EDIT change to RamLoc40 */
     .bss : ALIGN(4)
     {
         _bss = .;
@@ -255,8 +255,8 @@ SECTIONS
         *(COMMON)
         . = ALIGN(4) ;
         _ebss = .;
-        PROVIDE(end = .);
-    } > RamLoc32
+        /* PROVIDE(end = .); */
+    } > RamLoc40 /* RamLoc32 */
 
     /* NOINIT section for RamLoc40 */
     .noinit_RAM2 (NOLOAD) : ALIGN(4)
@@ -264,6 +264,21 @@ SECTIONS
        *(.noinit.$RAM2*)
        *(.noinit.$RamLoc40*)
        . = ALIGN(4) ;
+    } > RamLoc40
+
+    /* hathach add heap section for clang */
+    .heap (NOLOAD): {
+        __heap_start = .;
+        __HeapBase = .;
+        __heap_base = .;
+        __end = .;
+        PROVIDE(end = .);
+        PROVIDE(_end = .);
+        PROVIDE(__end__ = .);
+        KEEP(*(.heap*))
+        __HeapLimit = .;
+        __heap_limit = .;
+        __heap_end = .;
     } > RamLoc40
 
     /* NOINIT section for RamAHB32 */
@@ -298,19 +313,21 @@ SECTIONS
          . = ALIGN(4) ;
         _end_noinit = .;
     } > RamLoc32
-    PROVIDE(_pvHeapStart = DEFINED(__user_heap_base) ? __user_heap_base : .);
+/*    PROVIDE(_pvHeapStart = DEFINED(__user_heap_base) ? __user_heap_base : .);*/
     PROVIDE(_vStackTop = DEFINED(__user_stack_top) ? __user_stack_top : __top_RamLoc32 - 0);
 
     /* ## Create checksum value (used in startup) ## */
-    PROVIDE(__valid_user_code_checksum = 0 -
-                                         (_vStackTop
-                                         + (ResetISR + 1)
-                                         + (NMI_Handler + 1)
-                                         + (HardFault_Handler + 1)
-                                         + (( DEFINED(MemManage_Handler) ? MemManage_Handler : 0 ) + 1)   /* MemManage_Handler may not be defined */
-                                         + (( DEFINED(BusFault_Handler) ? BusFault_Handler : 0 ) + 1)     /* BusFault_Handler may not be defined */
-                                         + (( DEFINED(UsageFault_Handler) ? UsageFault_Handler : 0 ) + 1) /* UsageFault_Handler may not be defined */
-                                         ) );
+    /* This cause issue with clang linker, so it is disabled */
+    /* MemManage_Handler, BusFault_Handler, UsageFault_Handler may not be defined */
+/*    PROVIDE(__valid_user_code_checksum = 0 -*/
+/*                                         (_vStackTop*/
+/*                                         + (ResetISR + 1)*/
+/*                                         + (NMI_Handler + 1)*/
+/*                                         + (HardFault_Handler + 1)*/
+/*                                         + (( DEFINED(MemManage_Handler) ? MemManage_Handler : 0 ) + 1)*/
+/*                                         + (( DEFINED(BusFault_Handler) ? BusFault_Handler : 0 ) + 1)*/
+/*                                         + (( DEFINED(UsageFault_Handler) ? UsageFault_Handler : 0 ) + 1)*/
+/*                                         ) );*/
 
     /* Provide basic symbols giving location and size of main text
      * block, including initial values of RW data sections. Note that

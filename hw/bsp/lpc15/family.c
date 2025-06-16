@@ -24,7 +24,22 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: NXP
+*/
+
+#ifdef __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wstrict-prototypes"
+  #pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #include "chip.h"
+
+#ifdef __GNUC__
+  #pragma GCC diagnostic pop
+#endif
+
 #include "bsp/board_api.h"
 #include "board.h"
 

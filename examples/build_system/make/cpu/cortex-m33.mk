@@ -5,15 +5,23 @@ ifeq ($(TOOLCHAIN),gcc)
     -mfloat-abi=hard \
     -mfpu=fpv5-sp-d16 \
 
+else ifeq ($(TOOLCHAIN),clang)
+  CFLAGS += \
+	  --target=arm-none-eabi \
+	  -mcpu=cortex-m33 \
+	  -mfpu=fpv5-sp-d16 \
+
 else ifeq ($(TOOLCHAIN),iar)
-	CFLAGS += \
+  CFLAGS += \
 		--cpu cortex-m33 \
 		--fpu VFPv5-SP \
 
-	ASFLAGS += \
+  ASFLAGS += \
 		--cpu cortex-m33 \
 		--fpu VFPv5-SP \
 
+else
+  $(error "TOOLCHAIN is not supported")
 endif
 
 FREERTOS_PORTABLE_SRC ?= $(FREERTOS_PORTABLE_PATH)/ARM_CM33_NTZ/non_secure

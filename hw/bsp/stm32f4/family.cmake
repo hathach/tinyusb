@@ -1,9 +1,5 @@
 include_guard()
 
-if (NOT BOARD)
-  message(FATAL_ERROR "BOARD not specified")
-endif ()
-
 set(ST_FAMILY f4)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
@@ -15,11 +11,33 @@ set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS STM32F4 CACHE INTERNAL "")
 
+# ----------------------
+# Port & Speed Selection
+# ----------------------
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 0)
+endif ()
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 0)
+endif ()
+
+if (NOT DEFINED RHPORT_SPEED)
+  # Most F7 does not has built-in HS PHY
+  set(RHPORT_SPEED OPT_MODE_FULL_SPEED OPT_MODE_FULL_SPEED)
+endif ()
+if (NOT DEFINED RHPORT_DEVICE_SPEED)
+  list(GET RHPORT_SPEED ${RHPORT_DEVICE} RHPORT_DEVICE_SPEED)
+endif ()
+if (NOT DEFINED RHPORT_HOST_SPEED)
+  list(GET RHPORT_SPEED ${RHPORT_HOST} RHPORT_HOST_SPEED)
+endif ()
+
+cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
 
 #------------------------------------
 # BOARD_TARGET
@@ -32,7 +50,10 @@ function(add_board_target BOARD_TARGET)
 
   # Startup & Linker script
   set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
   set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
+
+  set(LD_FILE_Clang ${LD_FILE_GNU})
   set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
   add_library(${BOARD_TARGET} STATIC
@@ -53,9 +74,11 @@ function(add_board_target BOARD_TARGET)
     ${ST_CMSIS}/Include
     ${ST_HAL_DRIVER}/Inc
     )
-  target_compile_options(${BOARD_TARGET} PUBLIC
-    )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
+    BOARD_TUD_RHPORT=${RHPORT_DEVICE}
+    BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
+    BOARD_TUH_RHPORT=${RHPORT_HOST}
+    BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
     )
 
   update_board(${BOARD_TARGET})
@@ -64,9 +87,11 @@ function(add_board_target BOARD_TARGET)
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
-      # nanolib
-      --specs=nosys.specs
-      --specs=nano.specs
+      --specs=nosys.specs --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
@@ -100,16 +125,18 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_STM32F4 ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_STM32F4)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
+    ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
+    ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
+  family_add_bin_hex(${TARGET})
   family_flash_stlink(${TARGET})
   family_flash_jlink(${TARGET})
 endfunction()

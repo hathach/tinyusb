@@ -30,6 +30,7 @@
 #if CFG_TUH_ENABLED && defined(TUP_USBIP_RUSB2)
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 #include "rusb2_type.h"
 
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
@@ -45,6 +46,9 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+enum {
+  PIPE_COUNT = 10,
+};
 
 TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
@@ -75,7 +79,7 @@ TU_ATTR_BIT_FIELD_ORDER_END
 typedef struct
 {
   bool         need_reset; /* The device has not been reset after connection. */
-  pipe_state_t pipe[10];
+  pipe_state_t pipe[PIPE_COUNT];
   uint8_t ep[4][2][15];   /* a lookup table for a pipe index from an endpoint address */
   uint8_t      ctl_mps[5]; /* EP0 max packet size for each device */
 } hcd_data_t;
@@ -86,46 +90,30 @@ typedef struct
 static hcd_data_t _hcd;
 
 // TODO merged with DCD
-// Transfer conditions specifiable for each pipe:
+// Transfer conditions specifiable for each pipe for most MCUs
 // - Pipe 0: Control transfer with 64-byte single buffer
-// - Pipes 1 and 2: Bulk isochronous transfer continuous transfer mode with programmable buffer size up
-//   to 2 KB and optional double buffer
-// - Pipes 3 to 5: Bulk transfer continuous transfer mode with programmable buffer size up to 2 KB and
-//   optional double buffer
-// - Pipes 6 to 9: Interrupt transfer with 64-byte single buffer
-enum {
-  PIPE_1ST_BULK = 3,
-  PIPE_1ST_INTERRUPT = 6,
-  PIPE_COUNT = 10,
-};
+// - Pipes 1 and 2: Bulk or ISO
+// - Pipes 3 to 5: Bulk
+// - Pipes 6 to 9: Interrupt
+//
+// Note: for small mcu such as
+// - RA2A1: only pipe 4-7 are available, and no support for ISO
+static unsigned find_pipe(unsigned xfer_type) {
+  const uint8_t pipe_idx_arr[4][2] = {
+      { 0, 0 }, // Control
+      { 1, 2 }, // Isochronous
+      { 1, 5 }, // Bulk
+      { 6, 9 }, // Interrupt
+  };
 
-static unsigned find_pipe(unsigned xfer) {
-  switch ( xfer ) {
-    case TUSB_XFER_ISOCHRONOUS:
-      for (int i = 1; i < PIPE_1ST_BULK; ++i) {
-        if ( 0 == _hcd.pipe[i].ep ) return i;
-      }
-      break;
+  // find backward since only pipe 1, 2 support ISO
+  const uint8_t idx_first = pipe_idx_arr[xfer_type][0];
+  const uint8_t idx_last  = pipe_idx_arr[xfer_type][1];
 
-    case TUSB_XFER_BULK:
-      for (int i = PIPE_1ST_BULK; i < PIPE_1ST_INTERRUPT; ++i) {
-        if ( 0 == _hcd.pipe[i].ep ) return i;
-      }
-      for (int i = 1; i < PIPE_1ST_BULK; ++i) {
-        if ( 0 == _hcd.pipe[i].ep ) return i;
-      }
-      break;
-
-    case TUSB_XFER_INTERRUPT:
-      for (int i = PIPE_1ST_INTERRUPT; i < PIPE_COUNT; ++i) {
-        if ( 0 == _hcd.pipe[i].ep ) return i;
-      }
-      break;
-
-    default:
-      /* No support for control transfer */
-      break;
+  for (int i = idx_last; i >= idx_first; i--) {
+    if (0 == _hcd.pipe[i].ep) return i;
   }
+
   return 0;
 }
 
@@ -479,8 +467,8 @@ static void enable_interrupt(uint32_t pswi)
 }
 #endif
 
-bool hcd_init(uint8_t rhport)
-{
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
   rusb2_module_start(rhport, true);
 
@@ -675,13 +663,13 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   if (0 == epn) {
     rusb->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
-    hcd_devtree_info_t devtree;
-    hcd_devtree_get_info(dev_addr, &devtree);
+    tuh_bus_info_t bus_info;
+    tuh_bus_info_get(dev_addr, &bus_info);
     uint16_t volatile *devadd = (uint16_t volatile *)(uintptr_t) &rusb->DEVADD[0];
     devadd += dev_addr;
     while (rusb->DCPCTR_b.PBUSY) {}
     rusb->DCPMAXP = (dev_addr << 12) | mps;
-    *devadd = (TUSB_SPEED_FULL == devtree.speed) ? RUSB2_DEVADD_USBSPD_FS : RUSB2_DEVADD_USBSPD_LS;
+    *devadd = (TUSB_SPEED_FULL == bus_info.speed) ? RUSB2_DEVADD_USBSPD_FS : RUSB2_DEVADD_USBSPD_LS;
     _hcd.ctl_mps[dev_addr] = mps;
     return true;
   }
@@ -718,7 +706,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   }
 
   rusb->PIPECFG = cfg;
-  rusb->BRDYSTS = 0x1FFu ^ TU_BIT(num);
+  rusb->BRDYSTS = 0x3FFu ^ TU_BIT(num);
   rusb->NRDYENB |= TU_BIT(num);
   rusb->BRDYENB |= TU_BIT(num);
 
@@ -729,6 +717,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   hcd_int_enable(rhport);
 
   return true;
+}
+
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport; (void) daddr; (void) ep_addr;
+  return false; // TODO not implemented yet
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen)
@@ -771,6 +764,17 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
+#if defined(__CCRX__)
+TU_ATTR_ALWAYS_INLINE static inline unsigned __builtin_ctz(unsigned int value) {
+  unsigned int count = 0;
+  while ((value & 1) == 0) {
+    value >>= 1;
+    count++;
+  }
+  return count;
+}
+#endif
+
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
   (void) in_isr;
 
@@ -820,23 +824,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     }
   }
 
-#if defined(__CCRX__)
-  static const int Mod37BitPosition[] = {
-    -1, 0, 1, 26, 2, 23, 27, 0, 3, 16, 24, 30, 28, 11, 0, 13, 4,
-    7, 17, 0, 25, 22, 31, 15, 29, 10, 12, 6, 0, 21, 14, 9, 5,
-    20, 8, 19, 18};
-#endif
-
   if (is0 & RUSB2_INTSTS0_NRDY_Msk) {
     const unsigned m = rusb->NRDYENB;
     unsigned s = rusb->NRDYSTS & m;
     rusb->NRDYSTS = ~s;
     while (s) {
-#if defined(__CCRX__)
-      const unsigned num = Mod37BitPosition[(-s & s) % 37];
-#else
       const unsigned num = __builtin_ctz(s);
-#endif
       process_pipe_nrdy(rhport, num);
       s &= ~TU_BIT(num);
     }
@@ -847,11 +840,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     /* clear active bits (don't write 0 to already cleared bits according to the HW manual) */
     rusb->BRDYSTS = ~s;
     while (s) {
-#if defined(__CCRX__)
-      const unsigned num = Mod37BitPosition[(-s & s) % 37];
-#else
       const unsigned num = __builtin_ctz(s);
-#endif
       process_pipe_brdy(rhport, num);
       s &= ~TU_BIT(num);
     }

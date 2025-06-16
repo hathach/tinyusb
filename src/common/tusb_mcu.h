@@ -100,12 +100,27 @@
   #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_RHPORT_HIGHSPEED    1
 
+#elif TU_CHECK_MCU(OPT_MCU_MCXA15)
+  // USB0 is chipidea FS
+  #define TUP_USBIP_CHIPIDEA_FS
+  #define TUP_USBIP_CHIPIDEA_FS_MCX
+
+  #define TUP_DCD_ENDPOINT_MAX    16
+
 #elif TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX)
+  #include "fsl_device_registers.h"
+
   #define TUP_USBIP_CHIPIDEA_HS
   #define TUP_USBIP_EHCI
 
   #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_RHPORT_HIGHSPEED    1
+
+  #if __CORTEX_M == 7
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  1
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  1
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE      32
+  #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L, OPT_MCU_KINETIS_K)
   #define TUP_USBIP_CHIPIDEA_FS
@@ -131,21 +146,21 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMG)
   #define TUP_DCD_ENDPOINT_MAX    6
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMX7X)
   #define TUP_DCD_ENDPOINT_MAX    10
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MZ)
   #define TUP_DCD_ENDPOINT_MAX    8
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_PIC32MX, OPT_MCU_PIC32MM, OPT_MCU_PIC32MK) || \
       TU_CHECK_MCU(OPT_MCU_PIC24, OPT_MCU_DSPIC33)
   #define TUP_DCD_ENDPOINT_MAX    16
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // ST
@@ -162,6 +177,7 @@
       defined (STM32F107xB) || defined (STM32F107xC)
     #define TUP_USBIP_DWC2
     #define TUP_USBIP_DWC2_STM32
+    #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
 
     #define TUP_DCD_ENDPOINT_MAX  4
   #elif defined(STM32F102x6) || defined(STM32F102xB) || \
@@ -230,6 +246,11 @@
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_DCD_ENDPOINT_MAX    8
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32C0)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_STM32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32L0, OPT_MCU_STM32L1)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
@@ -262,16 +283,23 @@
   #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32U5)
-  #define TUP_USBIP_DWC2
-  #define TUP_USBIP_DWC2_STM32
+  #if defined (STM32U535xx) || defined (STM32U545xx)
+    #define TUP_USBIP_FSDEV
+    #define TUP_USBIP_FSDEV_STM32
+    #define TUP_DCD_ENDPOINT_MAX    8
 
-  // U59x/5Ax/5Fx/5Gx are highspeed with built-in HS PHY
-  #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || defined(STM32U5A9xx) || \
-      defined(STM32U5F7xx) || defined(STM32U5F9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx)
-    #define TUP_DCD_ENDPOINT_MAX  9
-    #define TUP_RHPORT_HIGHSPEED  1
   #else
-    #define TUP_DCD_ENDPOINT_MAX  6
+    #define TUP_USBIP_DWC2
+    #define TUP_USBIP_DWC2_STM32
+
+    // U59x/5Ax/5Fx/5Gx are highspeed with built-in HS PHY
+    #if defined(STM32U595xx) || defined(STM32U599xx) || defined(STM32U5A5xx) || defined(STM32U5A9xx) || \
+        defined(STM32U5F7xx) || defined(STM32U5F9xx) || defined(STM32U5G7xx) || defined(STM32U5G9xx)
+      #define TUP_DCD_ENDPOINT_MAX  9
+      #define TUP_RHPORT_HIGHSPEED  1
+    #else
+      #define TUP_DCD_ENDPOINT_MAX  6
+    #endif
   #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32L5)
@@ -279,13 +307,28 @@
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_DCD_ENDPOINT_MAX    8
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32U0)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_STM32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_STM32H7RS, OPT_MCU_STM32N6)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_STM32
+
+  // FS has 6, HS has 9
+  #define TUP_DCD_ENDPOINT_MAX    9
+
+  // MCU with on-chip HS Phy
+  #define TUP_RHPORT_HIGHSPEED    1
+
 //--------------------------------------------------------------------+
 // Sony
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_CXD56)
   #define TUP_DCD_ENDPOINT_MAX    7
   #define TUP_RHPORT_HIGHSPEED    1
-  #define TUP_DCD_ENDPOINT_EXCLUSIVE_NUMBER
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // TI
@@ -294,6 +337,8 @@
   #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_MSP432E4, OPT_MCU_TM4C123, OPT_MCU_TM4C129)
+  #define TUP_USBIP_MUSB
+  #define TUP_USBIP_MUSB_TI
   #define TUP_DCD_ENDPOINT_MAX    8
 
 //--------------------------------------------------------------------+
@@ -320,7 +365,44 @@
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
   #define TUP_USBIP_DWC2
-  #define TUP_DCD_ENDPOINT_MAX    6
+  #define TUP_USBIP_DWC2_ESP32
+  #define TUP_DCD_ENDPOINT_MAX    7 // only 5 TX FIFO for endpoint IN
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
+
+  #if CFG_TUSB_MCU == OPT_MCU_ESP32S3
+    #define TUP_MCU_MULTIPLE_CORE 1
+  #endif
+
+  // Disable slave if DMA is enabled
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUH_DWC2_DMA_ENABLE
+
+#elif TU_CHECK_MCU(OPT_MCU_ESP32P4)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_ESP32
+  #define TUP_RHPORT_HIGHSPEED    1  // port0 FS, port1 HS
+  #define TUP_DCD_ENDPOINT_MAX    16 // FS 7 ep, HS 16 ep
+
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
+
+  #define TUP_MCU_MULTIPLE_CORE   1
+
+  // Disable slave if DMA is enabled
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUH_DWC2_DMA_ENABLE
+
+  // Enable dcache if DMA is enabled
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  CFG_TUH_DWC2_DMA_ENABLE
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT  64
+
+#elif TU_CHECK_MCU(OPT_MCU_ESP32, OPT_MCU_ESP32C2, OPT_MCU_ESP32C3, OPT_MCU_ESP32C6, OPT_MCU_ESP32H2)
+  #if (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
+  #error "MCUs are only supported with CFG_TUH_MAX3421 enabled"
+  #endif
+
+  #define TUP_DCD_ENDPOINT_MAX    0
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT   freertos/
 
 //--------------------------------------------------------------------+
 // Dialog
@@ -332,7 +414,9 @@
 // Raspberry Pi
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_RP2040)
+  #define TUP_DCD_EDPT_ISO_ALLOC
   #define TUP_DCD_ENDPOINT_MAX    16
+  #define TUP_MCU_MULTIPLE_CORE   1
 
   #define TU_ATTR_FAST_FUNC       __attribute__((section(".time_critical.tinyusb")))
 
@@ -378,10 +462,12 @@
 #elif TU_CHECK_MCU(OPT_MCU_FT90X)
   #define TUP_DCD_ENDPOINT_MAX    8
   #define TUP_RHPORT_HIGHSPEED    1
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 #elif TU_CHECK_MCU(OPT_MCU_FT93X)
   #define TUP_DCD_ENDPOINT_MAX    16
   #define TUP_RHPORT_HIGHSPEED    1
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
 
 //--------------------------------------------------------------------+
 // Allwinner
@@ -389,16 +475,76 @@
 #elif TU_CHECK_MCU(OPT_MCU_F1C100S)
   #define TUP_DCD_ENDPOINT_MAX    4
 
-//------------- WCH -------------//
-#elif TU_CHECK_MCU(OPT_MCU_CH32V307)
-  #define TUP_DCD_ENDPOINT_MAX    16
-  #define TUP_RHPORT_HIGHSPEED    1
-
+//--------------------------------------------------------------------+
+// WCH
+//--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_CH32F20X)
-  #define TUP_DCD_ENDPOINT_MAX    16
-  #define TUP_RHPORT_HIGHSPEED    1
-#endif
+  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBFS
 
+  #if !defined(CFG_TUD_WCH_USBIP_USBFS)
+  #define CFG_TUD_WCH_USBIP_USBFS 0
+  #endif
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBHS)
+  #define CFG_TUD_WCH_USBIP_USBHS (CFG_TUD_WCH_USBIP_USBFS ? 0 : 1)
+  #endif
+
+  #define TUP_RHPORT_HIGHSPEED    CFG_TUD_WCH_USBIP_USBHS
+  #define TUP_DCD_ENDPOINT_MAX    (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
+
+#elif TU_CHECK_MCU(OPT_MCU_CH32V103)
+  #define TUP_USBIP_WCH_USBFS
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBFS)
+  #define CFG_TUD_WCH_USBIP_USBFS 1
+  #endif
+
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
+  // v20x support both FSDEV (USBD) and USBFS, default to FSDEV
+  #define TUP_USBIP_WCH_USBFS
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_CH32
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBFS)
+  #define CFG_TUD_WCH_USBIP_USBFS 0
+  #endif
+
+  #if !defined(CFG_TUD_WCH_USBIP_FSDEV)
+  #define CFG_TUD_WCH_USBIP_FSDEV  (CFG_TUD_WCH_USBIP_USBFS ? 0 : 1)
+  #endif
+
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_CH32V307)
+  // v307 support both FS and HS, default to HS
+  #define TUP_USBIP_WCH_USBHS
+  #define TUP_USBIP_WCH_USBFS
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBFS)
+  #define CFG_TUD_WCH_USBIP_USBFS 0
+  #endif
+
+  #if !defined(CFG_TUD_WCH_USBIP_USBHS)
+  #define CFG_TUD_WCH_USBIP_USBHS (CFG_TUD_WCH_USBIP_USBFS ? 0 : 1)
+  #endif
+
+  #define TUP_RHPORT_HIGHSPEED    CFG_TUD_WCH_USBIP_USBHS
+  #define TUP_DCD_ENDPOINT_MAX    (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
+
+//--------------------------------------------------------------------+
+// Analog Devices
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_MAX32650, OPT_MCU_MAX32666, OPT_MCU_MAX32690, OPT_MCU_MAX78002)
+  #define TUP_USBIP_MUSB
+  #define TUP_USBIP_MUSB_ADI
+  #define TUP_DCD_ENDPOINT_MAX    12
+  #define TUP_RHPORT_HIGHSPEED    1
+  #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
+
+#endif
 
 //--------------------------------------------------------------------+
 // External USB controller
@@ -419,7 +565,7 @@
 #define TUP_MCU_MULTIPLE_CORE 0
 #endif
 
-#ifndef TUP_DCD_ENDPOINT_MAX
+#if !defined(TUP_DCD_ENDPOINT_MAX) && defined(CFG_TUD_ENABLED) && CFG_TUD_ENABLED
   #warning "TUP_DCD_ENDPOINT_MAX is not defined for this MCU, default to 8"
   #define TUP_DCD_ENDPOINT_MAX    8
 #endif
@@ -432,6 +578,15 @@
 // fast function, normally mean placing function in SRAM
 #ifndef TU_ATTR_FAST_FUNC
   #define TU_ATTR_FAST_FUNC
+#endif
+
+// USBIP that support ISO alloc & activate API
+#if defined(TUP_USBIP_DWC2) || defined(TUP_USBIP_FSDEV) || defined(TUP_USBIP_MUSB)
+  #define TUP_DCD_EDPT_ISO_ALLOC
+#endif
+
+#if defined(TUP_USBIP_DWC2) // && CFG_TUD_DWC2_DMA_ENABLE == 0
+  #define TUP_MEM_CONST_ADDR
 #endif
 
 #endif

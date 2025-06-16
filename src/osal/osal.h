@@ -63,6 +63,8 @@ typedef void (*osal_task_func_t)( void * );
   #include "osal_rtthread.h"
 #elif CFG_TUSB_OS == OPT_OS_RTX4
   #include "osal_rtx4.h"
+#elif CFG_TUSB_OS == OPT_OS_ZEPHYR
+  #include "osal_zephyr.h"
 #elif CFG_TUSB_OS == OPT_OS_CUSTOM
   #include "tusb_os_custom.h" // implemented by application
 #else
@@ -73,6 +75,10 @@ typedef void (*osal_task_func_t)( void * );
 // OSAL Porting API
 // Should be implemented as static inline function in osal_port.h header
 /*
+   void osal_spin_init(osal_spinlock_t *ctx);
+   void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr)
+   void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr);
+
    osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);
    bool osal_semaphore_delete(osal_semaphore_t semd_hdl);
    bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr);

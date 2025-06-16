@@ -5,7 +5,7 @@ CFLAGS += \
 # mcu driver cause following warnings
 CFLAGS += -Wno-stringop-overread
 
-LD_FILE = $(MCU_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Source/TOOLCHAIN_GCC_ARM/XMC4500x1024.ld
+LD_FILE = $(SDK_DIR)/CMSIS/Infineon/COMPONENT_$(MCU_VARIANT)/Source/TOOLCHAIN_GCC_ARM/XMC4500x1024.ld
 
 JLINK_DEVICE = XMC4500-1024
 

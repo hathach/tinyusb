@@ -4,10 +4,18 @@ ifeq ($(TOOLCHAIN),gcc)
     -mcpu=cortex-m0 \
     -mfloat-abi=soft \
 
+else ifeq ($(TOOLCHAIN),clang)
+  CFLAGS += \
+	  --target=arm-none-eabi \
+	  -mcpu=cortex-m0 \
+
 else ifeq ($(TOOLCHAIN),iar)
   # IAR Flags
   CFLAGS += --cpu cortex-m0
   ASFLAGS += --cpu cortex-m0
+
+else
+  $(error "TOOLCHAIN is not supported")
 endif
 
 # For freeRTOS port source

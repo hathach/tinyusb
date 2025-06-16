@@ -23,6 +23,10 @@
  * THE SOFTWARE.
  */
 
+/* metadata:
+   manufacturer: NXP
+*/
+
 #include "bsp/board_api.h"
 #include "board.h"
 #include "fsl_device_registers.h"
@@ -140,4 +144,23 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
+#endif
+
+
+#ifndef __ICCARM__
+// Implement _start() since we use linker flag '-nostartfiles'.
+// Requires defined __STARTUP_CLEAR_BSS,
+extern int main(void);
+TU_ATTR_UNUSED void _start(void) {
+  // called by startup code
+  main();
+  while (1) {}
+}
+
+#ifdef __clang__
+void	_exit (int __status) {
+  while (1) {}
+}
+#endif
+
 #endif

@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/microchip
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m0plus
 
@@ -22,12 +20,12 @@ LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/microchip/samd/dcd_samd.c \
-	hw/mcu/microchip/samd11/gcc/gcc/startup_samd11.c \
 	hw/mcu/microchip/samd11/gcc/system_samd11.c \
+	hw/mcu/microchip/samd11/gcc/gcc/startup_samd11.c \
+	hw/mcu/microchip/samd11/hal/src/hal_atomic.c \
 	hw/mcu/microchip/samd11/hpl/gclk/hpl_gclk.c \
 	hw/mcu/microchip/samd11/hpl/pm/hpl_pm.c \
 	hw/mcu/microchip/samd11/hpl/sysctrl/hpl_sysctrl.c \
-	hw/mcu/microchip/samd11/hal/src/hal_atomic.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \

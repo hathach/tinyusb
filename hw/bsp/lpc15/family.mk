@@ -15,7 +15,7 @@ CFLAGS += \
 LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=cast-qual
+CFLAGS_GCC += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=cast-qual
 
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc15xx/lpc_chip_15xx
 
@@ -28,8 +28,8 @@ SRC_C += \
 	$(MCU_DIR)/src/iocon_15xx.c \
 	$(MCU_DIR)/src/swm_15xx.c \
 	$(MCU_DIR)/src/sysctl_15xx.c \
+	$(MCU_DIR)/src/sysinit_15xx.c \
 	$(MCU_DIR)/src/uart_15xx.c \
-	$(MCU_DIR)/src/sysinit_15xx.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \

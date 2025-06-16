@@ -183,6 +183,7 @@ static struct elf_file *load_elf(const char *filename)
   buf = (char *)malloc(fsize);
   if (!buf)
     {
+      free(ef);
       fclose(fp);
       return NULL;
     }
@@ -191,6 +192,8 @@ static struct elf_file *load_elf(const char *filename)
   fclose(fp);
   if (ret != 1)
     {
+      free(ef);
+      free(buf);
       return NULL;
     }
 
@@ -351,7 +354,11 @@ int main(int argc, char **argv)
     }
 
   spkimage = create_image(elf, args->core, args->savename, &size);
+  if(elf->data) {
+      free(elf->data);
+  }
   free(elf);
+
 
   c = cipher_init(vmk, NULL);
   cipher_calc_cmac(c, spkimage, size, (uint8_t *) spkimage + size);

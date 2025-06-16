@@ -1,9 +1,5 @@
 include_guard()
 
-if (NOT BOARD)
-  message(FATAL_ERROR "BOARD not specified")
-endif ()
-
 set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
 set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 
@@ -11,7 +7,7 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m4 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS LPC54 CACHE INTERNAL "")
@@ -32,24 +28,51 @@ function(add_board_target BOARD_TARGET)
     return()
   endif()
 
+  if (NOT DEFINED LD_FILE_GNU)
+    set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
+  endif ()
+  set(LD_FILE_Clang ${LD_FILE_GNU})
+
+  if (NOT DEFINED STARTUP_FILE_GNU)
+    set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S)
+  endif ()
+  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+
   add_library(${BOARD_TARGET} STATIC
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     # driver
     ${SDK_DIR}/drivers/lpc_gpio/fsl_gpio.c
     ${SDK_DIR}/drivers/common/fsl_common_arm.c
     ${SDK_DIR}/drivers/flexcomm/fsl_flexcomm.c
-    ${SDK_DIR}/drivers/flexcomm/fsl_usart.c
+    ${SDK_DIR}/drivers/flexcomm/usart/fsl_usart.c
     # mcu
     ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_power.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
     )
-
+  target_include_directories(${BOARD_TARGET} PUBLIC
+    ${TOP}/lib/sct_neopixel
+    # driver
+    ${SDK_DIR}/drivers/common
+    ${SDK_DIR}/drivers/flexcomm
+    ${SDK_DIR}/drivers/flexcomm/usart
+    ${SDK_DIR}/drivers/lpc_iocon
+    ${SDK_DIR}/drivers/lpc_gpio
+    ${SDK_DIR}/drivers/lpuart
+    ${SDK_DIR}/drivers/sctimer
+    # mcu
+    ${SDK_DIR}/devices/${MCU_VARIANT}
+    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+    ${CMSIS_DIR}/CMSIS/Core/Include
+    )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
     BOARD_TUD_RHPORT=${PORT}
     BOARD_TUH_RHPORT=${HOST_PORT}
+    __STARTUP_CLEAR_BSS
     )
+
   # Port 0 is Fullspeed, Port 1 is Highspeed. Port1 controller can only access USB_SRAM
   if (PORT EQUAL 1)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
@@ -66,42 +89,17 @@ function(add_board_target BOARD_TARGET)
       )
   endif ()
 
-  target_include_directories(${BOARD_TARGET} PUBLIC
-    ${TOP}/lib/sct_neopixel
-    # driver
-    ${SDK_DIR}/drivers/common
-    ${SDK_DIR}/drivers/flexcomm
-    ${SDK_DIR}/drivers/lpc_iocon
-    ${SDK_DIR}/drivers/lpc_gpio
-    ${SDK_DIR}/drivers/lpuart
-    ${SDK_DIR}/drivers/sctimer
-    # mcu
-    ${CMSIS_DIR}/CMSIS/Core/Include
-    ${SDK_DIR}/devices/${MCU_VARIANT}
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
-    )
-
   update_board(${BOARD_TARGET})
-
-  if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-    set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
-  endif ()
-
-  if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-    set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S)
-  endif ()
-
-  target_sources(${BOARD_TARGET} PUBLIC
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
-    )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${BOARD_TARGET} PUBLIC
-      # linker file
       "LINKER:--script=${LD_FILE_GNU}"
-      # nanolib
-      --specs=nosys.specs
-      --specs=nano.specs
+      --specs=nosys.specs --specs=nano.specs
+      -nostartfiles
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${BOARD_TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
@@ -142,16 +140,16 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_LPC54 ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_LPC54)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
+  family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
   #family_flash_pyocd(${TARGET})

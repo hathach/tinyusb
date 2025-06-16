@@ -69,14 +69,6 @@ void tud_network_init_cb(void) {
 // TODO removed later since it is not part of tinyusb stack
 uint8_t tud_network_mac_address[6] = {0};
 
-//------------- NCM -------------//
-
-// callback to client providing optional indication of internal state of network
-// driver
-void tud_network_link_state_cb(bool state) {
-  (void)state;
-  // NoOp.
-}
-}
+}   // extern "C"
 
 #endif

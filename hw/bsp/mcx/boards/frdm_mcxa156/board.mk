@@ -1,0 +1,14 @@
+MCU_VARIANT = MCXA156
+MCU_CORE = MCXA156
+PORT = 0
+
+CPU_CORE = cortex-m33-nodsp-nofp
+CFLAGS += \
+	-DCPU_MCXA156VLH \
+	-DCFG_TUSB_MCU=OPT_MCU_MCXA15 \
+
+JLINK_DEVICE = MCXA156
+PYOCD_TARGET = MCXA156
+
+# flash using pyocd
+flash: flash-jlink

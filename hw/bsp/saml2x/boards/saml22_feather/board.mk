@@ -1,6 +1,6 @@
-CFLAGS += -D__SAML22J18A__ -DCFG_EXAMPLE_VIDEO_READONLY
+SAM_FAMILY = saml22
 
-SAML_VARIANT = saml22
+CFLAGS += -D__SAML22J18A__
 
 # All source paths should be relative to the top level.
 LD_FILE = $(BOARD_PATH)/$(BOARD).ld

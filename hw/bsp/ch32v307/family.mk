@@ -1,66 +1,64 @@
 # https://www.embecosm.com/resources/tool-chain-downloads/#riscv-stable
 #CROSS_COMPILE ?= riscv32-unknown-elf-
 
-# Toolchain from https://github.com/xpack-dev-tools/riscv-none-embed-gcc-xpack
-CROSS_COMPILE ?= riscv-none-embed-
+# Toolchain from https://nucleisys.com/download.php
+#CROSS_COMPILE ?= riscv-nuclei-elf-
 
-# Submodules
-CH32V307_SDK = hw/mcu/wch/ch32v307
-DEPS_SUBMODULES += $(CH32V307_SDK)
+# Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
+CROSS_COMPILE ?= riscv-none-elf-
 
-# WCH-SDK paths
-CH32V307_SDK_SRC = $(CH32V307_SDK)/EVT/EXAM/SRC
+CH32_FAMILY = ch32v30x
+SDK_DIR = hw/mcu/wch/ch32v307
+SDK_SRC_DIR = $(SDK_DIR)/EVT/EXAM/SRC
 
 include $(TOP)/$(BOARD_PATH)/board.mk
+CPU_CORE ?= rv32imac-ilp32
+
+# default to use high speed port, unless specified in board.mk or command line
+SPEED ?= high
 
 CFLAGS += \
 	-flto \
-	-march=rv32imac \
-	-mabi=ilp32 \
 	-msmall-data-limit=8 \
-	-mno-save-restore -Os \
+	-mno-save-restore \
 	-fmessage-length=0 \
 	-fsigned-char \
-	-ffunction-sections \
-	-fdata-sections \
-	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_CH32V307 \
-	-Xlinker --gc-sections \
-	-DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
+# https://github.com/openwch/ch32v307/pull/90
+CFLAGS += -Wno-error=strict-prototypes
+
+ifeq ($(SPEED),high)
+  $(info "Using USBHS driver for HighSpeed mode")
+  CFLAGS += -DCFG_TUD_WCH_USBIP_USBHS=1
+else
+  $(info "Using USBFS driver for FullSpeed mode")
+  CFLAGS += -DCFG_TUD_WCH_USBIP_USBFS=1
+endif
+
+LDFLAGS_GCC += \
+	-nostdlib -nostartfiles \
+  --specs=nosys.specs --specs=nano.specs \
 
 SRC_C += \
 	src/portable/wch/dcd_ch32_usbhs.c \
-	$(CH32V307_SDK_SRC)/Core/core_riscv.c \
-	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_gpio.c \
-	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_misc.c \
-	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_rcc.c \
-	$(CH32V307_SDK_SRC)/Peripheral/src/ch32v30x_usart.c
+	src/portable/wch/dcd_ch32_usbfs.c \
+	$(SDK_SRC_DIR)/Core/core_riscv.c \
+	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_gpio.c \
+	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_misc.c \
+	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_rcc.c \
+	$(SDK_SRC_DIR)/Peripheral/src/${CH32_FAMILY}_usart.c
 
 SRC_S += \
-	$(CH32V307_SDK_SRC)/Startup/startup_ch32v30x_D8C.S
+	$(SDK_SRC_DIR)/Startup/startup_${CH32_FAMILY}_D8C.S
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(CH32V307_SDK_SRC)/Peripheral/inc
+	$(TOP)/$(SDK_SRC_DIR)/Core \
+	$(TOP)/$(SDK_SRC_DIR)/Peripheral/inc
 
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 
-# wch-link is not supported yet in official openOCD yet. We need to either use
-# 1. download openocd as part of mounriver studio http://www.mounriver.com/download or
-# 2. compiled from modified source https://github.com/kprasadvnsi/riscv-openocd-wch
-#
-# Note: For Linux, somehow openocd in mounriver studio does not seem to have wch-link enable,
-# therefore we need to compile it from source as follows:
-# 	git clone https://github.com/kprasadvnsi/riscv-openocd-wch
-# 	cd riscv-openocd-wch
-#		./bootstrap
-#		./configure CFLAGS="-Wno-error" --enable-wlink
-#		make
-# openocd binaries will be generated in riscv-openocd-wch/src
-
-# flash target ROM bootloader
-flash: $(BUILD)/$(PROJECT).elf
-	openocd -f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg -c init -c halt -c "program $<" -c wlink_reset_resume -c exit
+OPENOCD_WCH_OPTION=-f $(TOP)/$(FAMILY_PATH)/wch-riscv.cfg
+flash: flash-openocd-wch

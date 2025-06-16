@@ -10,19 +10,6 @@
 ifeq (,$(findstring $(FAMILY),espressif rp2040))
 
 # ---------------------------------------
-# Compiler Flags
-# ---------------------------------------
-
-CFLAGS += $(addprefix -I,$(INC))
-
-# Verbose mode
-ifeq ("$(V)","1")
-$(info CFLAGS  $(CFLAGS) ) $(info )
-$(info LDFLAGS $(LDFLAGS)) $(info )
-$(info ASFLAGS $(ASFLAGS)) $(info )
-endif
-
-# ---------------------------------------
 # Rules
 # ---------------------------------------
 
@@ -37,7 +24,20 @@ vpath %.c . $(TOP)
 vpath %.s . $(TOP)
 vpath %.S . $(TOP)
 
-include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN)_rules.mk
+include ${TOP}/examples/build_system/make/toolchain/$(TOOLCHAIN)_rules.mk
+
+# ---------------------------------------
+# Compiler Flags
+# ---------------------------------------
+
+CFLAGS += $(addprefix -I,$(INC))
+
+# Verbose mode
+ifeq ("$(V)","1")
+$(info CFLAGS  $(CFLAGS) ) $(info )
+$(info LDFLAGS $(LDFLAGS)) $(info )
+$(info ASFLAGS $(ASFLAGS)) $(info )
+endif
 
 
 OBJ_DIRS = $(sort $(dir $(OBJ)))
@@ -134,6 +134,23 @@ OPENOCD_OPTION ?=
 flash-openocd: $(BUILD)/$(PROJECT).elf
 	openocd $(OPENOCD_OPTION) -c "program $< verify reset exit"
 
+# --------------- openocd-wch -----------------
+# wch-linke is not supported yet in official openOCD yet. We need to either use
+# 1. download openocd as part of mounriver studio http://www.mounriver.com/download or
+# 2. compiled from https://github.com/hathach/riscv-openocd-wch or
+#    https://github.com/dragonlock2/miscboards/blob/main/wch/SDK/riscv-openocd.tar.xz
+#    with  ./configure --disable-werror --enable-wlinke --enable-ch347=no
+OPENOCD_WCH ?= /home/${USER}/app/riscv-openocd-wch/src/openocd
+OPENOCD_WCH_OPTION ?=
+flash-openocd-wch: $(BUILD)/$(PROJECT).elf
+	$(OPENOCD_WCH) $(OPENOCD_WCH_OPTION) -c init -c halt -c "flash write_image $<" -c reset -c exit
+
+# --------------- wlink-rs -----------------
+# flash with https://github.com/ch32-rs/wlink
+WLINK_RS ?= wlink
+flash-wlink-rs: $(BUILD)/$(PROJECT).elf
+	$(WLINK_RS) flash $<
+
 # --------------- dfu-util -----------------
 DFU_UTIL_OPTION ?= -a 0
 flash-dfu-util: $(BUILD)/$(PROJECT).bin
@@ -148,6 +165,11 @@ flash-bmp: $(BUILD)/$(PROJECT).elf
 
 debug-bmp: $(BUILD)/$(PROJECT).elf
 	$(GDB) -ex 'target extended-remote $(BMP)' -ex 'monitor swdp_scan' -ex 'attach 1' $<
+
+# --------------- TI Uniflash -----------------
+DSLITE ?= dslite.sh
+flash-uniflash: $(BUILD)/$(PROJECT).hex
+	${DSLITE} ${UNIFLASH_OPTION} -f $<
 
 #-------------- Artifacts --------------
 

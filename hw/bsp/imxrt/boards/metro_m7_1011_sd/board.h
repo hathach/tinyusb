@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Adafruit Metro M7 1011 SD
+   url: https://www.adafruit.com/product/5600
+*/
+
 #ifndef BOARD_METRO_M7_1011_SD_H_
 #define BOARD_METRO_M7_1011_SD_H_
 

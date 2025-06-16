@@ -34,41 +34,29 @@
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
   #include "ci_hs_imxrt.h"
 
-  void dcd_dcache_clean(void const* addr, uint32_t data_size) {
-    imxrt_dcache_clean(addr, data_size);
-  }
+#if CFG_TUD_MEM_DCACHE_ENABLE
+bool dcd_dcache_clean(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_clean(addr, data_size);
+}
 
-  void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
-    imxrt_dcache_invalidate(addr, data_size);
-  }
+bool dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_invalidate(addr, data_size);
+}
 
-  void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-    imxrt_dcache_clean_invalidate(addr, data_size);
-  }
+bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+  return imxrt_dcache_clean_invalidate(addr, data_size);
+}
+#endif
 
-#else
-
-#if TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
+#elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
   #include "ci_hs_lpc18_43.h"
 
 #elif TU_CHECK_MCU(OPT_MCU_MCXN9)
   // MCX N9 only port 1 use this controller
   #include "ci_hs_mcx.h"
+
 #else
   #error "Unsupported MCUs"
-#endif
-
-  TU_ATTR_WEAK void dcd_dcache_clean(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
-
-  TU_ATTR_WEAK void dcd_dcache_invalidate(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
-
-  TU_ATTR_WEAK void dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
-    (void) addr; (void) data_size;
-  }
 #endif
 
 //--------------------------------------------------------------------+
@@ -234,13 +222,13 @@ static void bus_reset(uint8_t rhport)
   dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
 }
 
-void dcd_init(uint8_t rhport)
-{
+bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+  (void) rh_init;
   tu_memclr(&_dcd_data, sizeof(dcd_data_t));
 
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
 
-  TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX, );
+  TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX);
 
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
@@ -251,7 +239,11 @@ void dcd_init(uint8_t rhport)
   usbmode |= USBMODE_CM_DEVICE;
   dcd_reg->USBMODE = usbmode;
 
+#ifdef CFG_TUD_CI_HS_VBUS_CHARGE
+  dcd_reg->OTGSC = OTGSC_VBUS_CHARGE | OTGSC_OTG_TERMINATION;
+#else
   dcd_reg->OTGSC = OTGSC_VBUS_DISCHARGE | OTGSC_OTG_TERMINATION;
+#endif
 
 #if !TUD_OPT_HIGH_SPEED
   dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
@@ -268,6 +260,8 @@ void dcd_init(uint8_t rhport)
   usbcmd |= USBCMD_RUN_STOP; // run
 
   dcd_reg->USBCMD = usbcmd;
+
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -309,10 +303,12 @@ void dcd_disconnect(uint8_t rhport)
 
 void dcd_sof_enable(uint8_t rhport, bool en)
 {
-  (void) rhport;
-  (void) en;
-
-  // TODO implement later
+  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
+  if (en) {
+      dcd_reg->USBINTR |= INTR_SOF;
+  } else {
+      dcd_reg->USBINTR &= ~INTR_SOF;
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -321,9 +317,7 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 
 static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
-  // Force the CPU to flush the buffer. We increase the size by 31 because the call aligns the
-  // address to 32-byte boundaries. Buffer must be word aligned
-  dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes + 31);
+  dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes);
 
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
@@ -489,7 +483,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   return true;
 }
 
+#if !CFG_TUD_MEM_DCACHE_ENABLE
 // fifo has to be aligned to 4k boundary
+// It's incompatible with dcache enabled transfer, since neither address nor size is aligned to cache line
 bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -535,8 +531,6 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
           page++;
         }
       }
-
-      dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) fifo_info.ptr_wrap, 4), total_bytes - fifo_info.len_wrap + 31);
     }
     else
     {
@@ -551,6 +545,7 @@ bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16
 
   return true;
 }
+#endif
 
 //--------------------------------------------------------------------+
 // ISR
@@ -679,7 +674,8 @@ void dcd_int_handler(uint8_t rhport)
 
   if (int_status & INTR_SOF)
   {
-    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
+    const uint32_t frame = dcd_reg->FRINDEX;
+    dcd_event_sof(rhport, frame, true);
   }
 }
 

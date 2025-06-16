@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Adafruit Feather nRF52840 Express
+   url: https://www.adafruit.com/product/4062
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

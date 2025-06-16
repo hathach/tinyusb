@@ -59,7 +59,7 @@ typedef struct dhcp_config
 #ifdef __cplusplus
 extern "C" {
 #endif
-err_t dhserv_init(const dhcp_config_t *config);
+err_t dhserv_init(const dhcp_config_t *c);
 void dhserv_free(void);
 #ifdef __cplusplus
 }

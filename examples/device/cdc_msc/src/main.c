@@ -23,10 +23,6 @@
  *
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
 #include "bsp/board_api.h"
 #include "tusb.h"
 
@@ -55,7 +51,11 @@ int main(void) {
   board_init();
 
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();

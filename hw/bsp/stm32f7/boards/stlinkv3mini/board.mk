@@ -1,6 +1,10 @@
 MCU_VARIANT = stm32f723xx
 
 # Only OTG-HS has a connector on this board
+RHPORT_SPEED = OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED
+RHPORT_DEVICE ?= 1
+RHPORT_HOST ?= 1
+
 PORT ?= 1
 SPEED ?= high
 

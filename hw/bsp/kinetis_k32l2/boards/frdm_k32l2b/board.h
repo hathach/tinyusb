@@ -24,11 +24,17 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Freedom K32L2B3
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/general-purpose-mcus/nxp-freedom-development-platform-for-k32-l2b-mcus:FRDM-K32L2B3
+*/
 
 #ifndef BOARD_H_
 #define BOARD_H_
 
 #include "fsl_device_registers.h"
+
+#define USB_CLOCK_SOURCE kCLOCK_UsbSrcIrc48M
 
 // LED
 #define LED_PIN_CLOCK         kCLOCK_PortD
@@ -52,5 +58,25 @@
 #define UART_PIN_TX           2u
 #define SOPT5_LPUART0RXSRC_LPUART_RX 0x00u /*!<@brief LPUART0 Receive Data Source Select: LPUART_RX pin */
 #define SOPT5_LPUART0TXSRC_LPUART_TX 0x00u /*!<@brief LPUART0 Transmit Data Source Select: LPUART0_TX pin */
+#define UART_CLOCK_SOURCE_HZ  CLOCK_GetFreq(kCLOCK_McgIrc48MClk)
+
+static inline void BOARD_InitBootPins(void) {
+  /* PORTA1 (pin 23) is configured as LPUART0_RX */
+  PORT_SetPinMux(PORTA, 1U, kPORT_MuxAlt2);
+  /* PORTA2 (pin 24) is configured as LPUART0_TX */
+  PORT_SetPinMux(PORTA, 2U, kPORT_MuxAlt2);
+
+  SIM->SOPT5 = ((SIM->SOPT5 &
+                 /* Mask bits to zero which are setting */
+                 (~(SIM_SOPT5_LPUART0TXSRC_MASK | SIM_SOPT5_LPUART0RXSRC_MASK)))
+                /* LPUART0 Transmit Data Source Select: LPUART0_TX pin. */
+                | SIM_SOPT5_LPUART0TXSRC(SOPT5_LPUART0TXSRC_LPUART_TX)
+                /* LPUART0 Receive Data Source Select: LPUART_RX pin. */
+                | SIM_SOPT5_LPUART0RXSRC(SOPT5_LPUART0RXSRC_LPUART_RX));
+
+  BOARD_BootClockRUN();
+  SystemCoreClockUpdate();
+  CLOCK_SetLpuart0Clock(1);
+}
 
 #endif /* BOARD_H_ */
