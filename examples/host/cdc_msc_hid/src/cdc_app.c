@@ -31,8 +31,7 @@ static size_t get_console_inputs(uint8_t* buf, size_t bufsize) {
   size_t count = 0;
   while (count < bufsize) {
     int ch = board_getchar();
-    if (ch <= 0) break;
-
+    if (ch <= 0) { break; }
     buf[count] = (uint8_t) ch;
     count++;
   }
@@ -69,10 +68,12 @@ void tuh_cdc_rx_cb(uint8_t idx) {
   uint32_t const bufsize = sizeof(buf) - 1;
 
   // forward cdc interfaces -> console
-  uint32_t count = tuh_cdc_read(idx, buf, bufsize);
-  buf[count] = 0;
-
-  printf("%s", (char*) buf);
+  const uint32_t count = tuh_cdc_read(idx, buf, bufsize);
+  if (count) {
+    buf[count] = 0;
+    printf("%s", (char*) buf);
+    fflush(stdout);
+  }
 }
 
 // Invoked when a device with CDC interface is mounted
