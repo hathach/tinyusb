@@ -345,7 +345,6 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  iManufacturer      ; ///< Index of string descriptor describing manufacturer.
   uint8_t  iProduct           ; ///< Index of string descriptor describing product.
   uint8_t  iSerialNumber      ; ///< Index of string descriptor describing the device's serial number.
-
   uint8_t  bNumConfigurations ; ///< Number of possible configurations.
 } tusb_desc_device_t;
 

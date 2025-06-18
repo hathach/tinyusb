@@ -123,10 +123,6 @@ typedef struct {
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
 CFG_TUH_MEM_SECTION static cdch_epbuf_t cdch_epbuf[CFG_TUH_CDC];
 
-#if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_PL2303
-  static tusb_desc_device_t desc_dev[CFG_TUH_ENUMERATION_BUFSIZE];
-#endif
-
 //--------------------------------------------------------------------+
 // Serial Driver
 //--------------------------------------------------------------------+
@@ -188,8 +184,6 @@ static bool ch34x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complet
 #if CFG_TUH_CDC_PL2303
 static uint16_t const pl2303_vid_pid_list[][2] = {CFG_TUH_CDC_PL2303_VID_PID_LIST};
 static const struct pl2303_type_data pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
-
-CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN
 
 static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 static bool pl2303_process_set_config(tuh_xfer_t *xfer);
@@ -331,7 +325,7 @@ TU_ATTR_ALWAYS_INLINE static inline cdch_interface_t * get_itf(uint8_t idx) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t get_idx_by_ptr(cdch_interface_t* p_cdc) {
-  return p_cdc - cdch_data;
+  return (uint8_t) (p_cdc - cdch_data);
 }
 
 static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
@@ -434,7 +428,7 @@ bool tuh_cdc_itf_get_info(uint8_t idx, tuh_itf_info_t * info) {
 
   info->daddr = p_cdc->daddr;
 
-  // re-construct descriptor
+  // re-construct interface descriptor
   tusb_desc_interface_t * desc = &info->desc;
   desc->bLength            = sizeof(tusb_desc_interface_t);
   desc->bDescriptorType    = TUSB_DESC_INTERFACE;
@@ -975,8 +969,6 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
 // ACM
 //--------------------------------------------------------------------+
 
-//------------- Driver API -------------//
-
 // internal control complete to update state such as line state, encoding
 static void acm_internal_control_complete(tuh_xfer_t *xfer) {
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
@@ -1089,7 +1081,6 @@ static bool acm_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb,
 }
 
 //------------- Enumeration -------------//
-
 enum {
   CONFIG_ACM_SET_CONTROL_LINE_STATE = 0,
   CONFIG_ACM_SET_LINE_CODING,
@@ -1339,8 +1330,7 @@ static bool ftdi_set_modem_ctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_
 //------------- Enumeration -------------//
 
 enum {
-  CONFIG_FTDI_GET_DESC = 0,
-  CONFIG_FTDI_DETERMINE_TYPE,
+  CONFIG_FTDI_DETERMINE_TYPE = 0,
   CONFIG_FTDI_WRITE_LATENCY,
   CONFIG_FTDI_SIO_RESET,
   CONFIG_FTDI_SET_DATA,
@@ -1383,15 +1373,6 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
 
   switch (state) {
     // from here sequence overtaken from Linux Kernel function ftdi_port_probe()
-    case CONFIG_FTDI_GET_DESC:
-      // get device descriptor
-      if (itf_num == 0) {                          // only necessary for 1st interface. other interface overtake type from interface 0
-        TU_ASSERT(tuh_descriptor_get_device(xfer->daddr, &desc_dev, sizeof(tusb_desc_device_t),
-                                            cdch_process_set_config, CONFIG_FTDI_DETERMINE_TYPE));
-        break;
-      }
-      TU_ATTR_FALLTHROUGH;
-
     case CONFIG_FTDI_DETERMINE_TYPE:
       // determine type
       if (itf_num == 0) {
@@ -1472,7 +1453,9 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
 //------------- Helper -------------//
 
 static bool ftdi_determine_type(cdch_interface_t *p_cdc) {
-  uint16_t const version = desc_dev->bcdDevice;
+  tusb_desc_device_t desc_dev;
+  TU_VERIFY(tuh_descriptor_get_device_local(p_cdc->daddr, &desc_dev));
+  uint16_t const version = desc_dev.bcdDevice;
   uint8_t const itf_num = p_cdc->bInterfaceNumber;
 
   p_cdc->ftdi.chip_type = UNKNOWN;
@@ -1482,8 +1465,7 @@ static bool ftdi_determine_type(cdch_interface_t *p_cdc) {
 
   switch (version) {
     case 0x200:
-      // FT232A not supported to keep it simple (no extra _read_latency_timer())
-      // not testable
+      // FT232A not supported to keep it simple (no extra _read_latency_timer()) not testable
       // p_cdc->ftdi.chip_type = FT232A;
       // p_cdc->ftdi.baud_base = 48000000 / 2;
       // p_cdc->ftdi.channel = 0;
@@ -1497,50 +1479,20 @@ static bool ftdi_determine_type(cdch_interface_t *p_cdc) {
       //   p_cdc->ftdi.chip_type = FT232B;
       // }
       break;
-    case 0x400:
-      p_cdc->ftdi.chip_type = FT232B;
-      p_cdc->ftdi.channel = 0;
-      break;
-    case 0x500:
-      p_cdc->ftdi.chip_type = FT2232C;
-      break;
-    case 0x600:
-      p_cdc->ftdi.chip_type = FT232R;
-      p_cdc->ftdi.channel = 0;
-      break;
-    case 0x700:
-      p_cdc->ftdi.chip_type = FT2232H;
-      break;
-    case 0x800:
-      p_cdc->ftdi.chip_type = FT4232H;
-      break;
-    case 0x900:
-      p_cdc->ftdi.chip_type = FT232H;
-      break;
-    case 0x1000:
-      p_cdc->ftdi.chip_type = FTX;
-      break;
-    case 0x2800:
-      p_cdc->ftdi.chip_type = FT2233HP;
-      break;
-    case 0x2900:
-      p_cdc->ftdi.chip_type = FT4233HP;
-      break;
-    case 0x3000:
-      p_cdc->ftdi.chip_type = FT2232HP;
-      break;
-    case 0x3100:
-      p_cdc->ftdi.chip_type = FT4232HP;
-      break;
-    case 0x3200:
-      p_cdc->ftdi.chip_type = FT233HP;
-      break;
-    case 0x3300:
-      p_cdc->ftdi.chip_type = FT232HP;
-      break;
-    case 0x3600:
-      p_cdc->ftdi.chip_type = FT4232HA;
-      break;
+    case 0x400: p_cdc->ftdi.chip_type = FT232B; p_cdc->ftdi.channel = 0; break;
+    case 0x500: p_cdc->ftdi.chip_type = FT2232C; break;
+    case 0x600: p_cdc->ftdi.chip_type = FT232R; p_cdc->ftdi.channel = 0; break;
+    case 0x700: p_cdc->ftdi.chip_type = FT2232H; break;
+    case 0x800: p_cdc->ftdi.chip_type = FT4232H; break;
+    case 0x900: p_cdc->ftdi.chip_type = FT232H; break;
+    case 0x1000: p_cdc->ftdi.chip_type = FTX; break;
+    case 0x2800: p_cdc->ftdi.chip_type = FT2233HP; break;
+    case 0x2900: p_cdc->ftdi.chip_type = FT4233HP; break;
+    case 0x3000: p_cdc->ftdi.chip_type = FT2232HP; break;
+    case 0x3100: p_cdc->ftdi.chip_type = FT4232HP; break;
+    case 0x3200: p_cdc->ftdi.chip_type = FT233HP; break;
+    case 0x3300: p_cdc->ftdi.chip_type = FT232HP; break;
+    case 0x3600: p_cdc->ftdi.chip_type = FT4232HA; break;
     default:
       if (version < 0x200) {
         p_cdc->ftdi.chip_type = SIO;
@@ -1550,7 +1502,7 @@ static bool ftdi_determine_type(cdch_interface_t *p_cdc) {
   }
 
   TU_LOG_P_CDC("%s detected (bcdDevice = 0x%04x)",
-               ftdi_chip_name[p_cdc->ftdi.chip_type], desc_dev->bcdDevice);
+               ftdi_chip_name[p_cdc->ftdi.chip_type], version);
 
   return (p_cdc->ftdi.chip_type != UNKNOWN);
 }
@@ -2025,7 +1977,8 @@ static bool ch34x_write_reg_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t comp
 }
 
 static bool ch34x_modem_ctrl_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint8_t control = ~((p_cdc->requested_line_state.rts ? CH34X_BIT_RTS : 0) |// CH34x signals are inverted
+  // CH34x signals are inverted
+  uint8_t control = ~((p_cdc->requested_line_state.rts ? CH34X_BIT_RTS : 0) |
                       (p_cdc->requested_line_state.dtr ? CH34X_BIT_DTR : 0));
   return ch34x_control_out(p_cdc, CH34X_REQ_MODEM_CTRL, control, 0, complete_cb, user_data);
 }
@@ -2506,8 +2459,7 @@ static bool pl2303_set_modem_ctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complet
 //------------- Enumeration -------------//
 
 enum {
-  CONFIG_PL2303_GET_DESC = 0,
-  CONFIG_PL2303_DETECT_TYPE,
+  CONFIG_PL2303_DETECT_TYPE = 0,
   CONFIG_PL2303_READ1,
   CONFIG_PL2303_WRITE1,
   CONFIG_PL2303_READ2,
@@ -2568,14 +2520,8 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
   TU_ASSERT(p_cdc && (xfer->result == XFER_RESULT_SUCCESS || xfer->user_data == CONFIG_PL2303_READ1));
   switch (state) {
     // from here sequence overtaken from Linux Kernel function pl2303_startup()
-    case CONFIG_PL2303_GET_DESC:
-      p_cdc->user_control_cb = cdch_process_set_config;// set once for whole process config
-      // get device descriptor
-      TU_ASSERT(tuh_descriptor_get_device(xfer->daddr, &desc_dev, sizeof(tusb_desc_device_t),
-                                          cdch_process_set_config, CONFIG_PL2303_DETECT_TYPE));
-      break;
-
     case CONFIG_PL2303_DETECT_TYPE:
+      p_cdc->user_control_cb = cdch_process_set_config;// set once for whole process config
       // get type and quirks (step 1)
       type = pl2303_detect_type(p_cdc, 1, cdch_process_set_config, CONFIG_PL2303_READ1);
       TU_ASSERT(type != PL2303_DETECT_TYPE_FAILED);
@@ -2784,39 +2730,39 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
 static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
                                  tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  /*
-   * Legacy PL2303H, variants 0 and 1 (difference unknown).
-   */
-  if (desc_dev->bDeviceClass == 0x02) {
+  tusb_desc_device_t desc_dev;
+  TU_VERIFY(tuh_descriptor_get_device_local(p_cdc->daddr, &desc_dev), PL2303_DETECT_TYPE_FAILED);
+
+  // Legacy PL2303H, variants 0 and 1 (difference unknown).
+  if (desc_dev.bDeviceClass == 0x02) {
     return TYPE_H; /* variant 0 */
   }
 
-  if (desc_dev->bMaxPacketSize0 != 0x40) {
-    if (desc_dev->bDeviceClass == 0x00 || desc_dev->bDeviceClass == 0xff) {
+  if (desc_dev.bMaxPacketSize0 != 0x40) {
+    if (desc_dev.bDeviceClass == 0x00 || desc_dev.bDeviceClass == 0xff) {
       return TYPE_H; /* variant 1 */
     }
     return TYPE_H; /* variant 0 */
   }
 
-  switch (desc_dev->bcdUSB) {
+  switch (desc_dev.bcdUSB) {
     case 0x101:
       /* USB 1.0.1? Let's assume they meant 1.1... */
       TU_ATTR_FALLTHROUGH;
     case 0x110:
-      switch (desc_dev->bcdDevice) {
-        case 0x300:
-          return TYPE_HX;
-        case 0x400:
-          return TYPE_HXD;
-        default:
-          return TYPE_HX;
+      switch (desc_dev.bcdDevice) {
+        case 0x300: return TYPE_HX;
+        case 0x400: return TYPE_HXD;
+        default: return TYPE_HX;
       }
       break;
+
     case 0x200:
-      switch (desc_dev->bcdDevice) {
+      switch (desc_dev.bcdDevice) {
         case 0x100: /* GC */
         case 0x105:
           return TYPE_HXN;
+
         case 0x300: /* GT / TA */
           if (step == 1) {
             // step 1 trigger pl2303_supports_hx_status() request
@@ -2833,6 +2779,7 @@ static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
         case 0x400: /* GL */
         case 0x405:
           return TYPE_HXN;
+
         case 0x500: /* GE / TB */
           if (step == 1) {
             // step 1 trigger pl2303_supports_hx_status() request
@@ -2851,6 +2798,7 @@ static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
         case 0x700: /* GR */
         case 0x705:
           return TYPE_HXN;
+
         default:
           break;
       }
@@ -2858,8 +2806,7 @@ static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
     default: break;
   }
 
-  TU_LOG_P_CDC("unknown device type bcdUSB = 0x%04x", desc_dev->bcdUSB);
-
+  TU_LOG_P_CDC("unknown device type bcdUSB = 0x%04x", desc_dev.bcdUSB);
   return PL2303_DETECT_TYPE_FAILED;
 }
 

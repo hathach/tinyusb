@@ -204,6 +204,9 @@ bool tuh_rhport_reset_bus(uint8_t rhport, bool active);
 // Get VID/PID of device
 bool tuh_vid_pid_get(uint8_t daddr, uint16_t* vid, uint16_t* pid);
 
+// Get local (cached) device descriptor once device is enumerated
+bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t* desc_device);
+
 // Get speed of device
 tusb_speed_t tuh_speed_get(uint8_t daddr);
 
