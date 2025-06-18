@@ -131,9 +131,6 @@ CFG_TUH_MEM_SECTION static cdch_epbuf_t cdch_epbuf[CFG_TUH_CDC];
 // Serial Driver
 //--------------------------------------------------------------------+
 
-// for process_set_config user_data: idx (byte1) and state (byte0)
-#define PROCESS_CONFIG_STATE(_idx, _state) tu_u16(_idx, _state)
-
 static void cdch_process_set_config(tuh_xfer_t *xfer);
 
 //------------- ACM prototypes -------------//
@@ -327,11 +324,14 @@ TU_VERIFY_STATIC(TU_ARRAY_SIZE(serial_drivers) == SERIAL_DRIVER_COUNT, "Serial d
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-static inline cdch_interface_t * get_itf(uint8_t idx) {
+TU_ATTR_ALWAYS_INLINE static inline cdch_interface_t * get_itf(uint8_t idx) {
   TU_ASSERT(idx < CFG_TUH_CDC, NULL);
   cdch_interface_t * p_cdc = &cdch_data[idx];
-
   return (p_cdc->daddr != 0) ? p_cdc : NULL;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t get_idx_by_ptr(cdch_interface_t* p_cdc) {
+  return p_cdc - cdch_data;
 }
 
 static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
@@ -344,6 +344,57 @@ static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
   }
 
   return TUSB_INDEX_INVALID_8;
+}
+
+// determine the interface from the completed transfer
+static cdch_interface_t* get_itf_by_xfer(const tuh_xfer_t * xfer) {
+  TU_VERIFY(xfer->daddr != 0, NULL);
+  for(uint8_t i=0; i<CFG_TUH_CDC; i++) {
+    cdch_interface_t * p_cdc = &cdch_data[i];
+    if (p_cdc->daddr == xfer->daddr) {
+      switch (p_cdc->serial_drid) {
+        #if CFG_TUH_CDC_CP210X
+        case SERIAL_DRIVER_CP210X:
+        #endif
+        case SERIAL_DRIVER_ACM: {
+          // Driver use wIndex for bInterfaceNumber
+          const uint8_t itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+          if (p_cdc->bInterfaceNumber == itf_num) {
+            return p_cdc;
+          }
+          break;
+        }
+
+        #if CFG_TUH_CDC_FTDI
+        case SERIAL_DRIVER_FTDI: {
+          // FTDI uses wIndex for channel number, if channel is 0 then it is the default channel
+          const uint8_t channel = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+          if (p_cdc->ftdi.channel == 0 || p_cdc->ftdi.channel == channel) {
+            return p_cdc;
+          }
+          break;
+        }
+        #endif
+
+        #if CFG_TUH_CDC_CH34X
+        case SERIAL_DRIVER_CH34X:
+          // ch34x has only one interface
+          return p_cdc;
+        #endif
+
+        #if CFG_TUH_CDC_PL2303
+        case SERIAL_DRIVER_PL2303:
+          // pl2303 has only one interface
+          return p_cdc;
+        #endif
+
+        default:
+          break;
+      }
+    }
+  }
+
+  return NULL;
 }
 
 static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t const * itf_desc) {
@@ -604,7 +655,7 @@ bool tuh_cdc_set_control_line_state_u(uint8_t idx, cdc_line_control_state_t line
   // uses cdc_line_control_state_t union for line_state
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
-  TU_LOG_P_CDC("set control line state dtr = %u rts = %u", line_state.dtr, line_state.rts );
+  TU_LOG_P_CDC("set control line state dtr = %u rts = %u", line_state.dtr, line_state.rts);
   cdch_serial_driver_t const * driver = &serial_drivers[p_cdc->serial_drid];
 
   p_cdc->requested_line_state = line_state;
@@ -614,8 +665,6 @@ bool tuh_cdc_set_control_line_state_u(uint8_t idx, cdc_line_control_state_t line
   if (ret && !complete_cb) {
     p_cdc->line_state = line_state;
   }
-//  TU_LOG_P_CDC_BOOL("set control line state", ret);
-
   return ret;
 }
 
@@ -893,9 +942,9 @@ static void set_config_complete(uint8_t idx, uint8_t itf_offset, bool success) {
 }
 
 static void cdch_process_set_config(tuh_xfer_t *xfer) {
-  const uint8_t idx = tu_u32_byte1(xfer->user_data);
-  cdch_interface_t *p_cdc = get_itf(idx);
+  cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
+  const uint8_t idx = get_idx_by_ptr(p_cdc);
 
   if (!serial_drivers[p_cdc->serial_drid].process_set_config(xfer)) {
     const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
@@ -916,7 +965,7 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   xfer.daddr = daddr;
   xfer.result = XFER_RESULT_SUCCESS;
   xfer.setup = &request;
-  xfer.user_data = PROCESS_CONFIG_STATE(idx, 0); // initial state 0
+  xfer.user_data = 0; // initial state 0
   cdch_process_set_config(&xfer);
 
   return true;
@@ -1093,7 +1142,7 @@ static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint1
 }
 
 static bool acm_process_set_config(tuh_xfer_t *xfer) {
-  const uint8_t state = (uint8_t) xfer->user_data;
+  const uintptr_t state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t *p_cdc = get_itf(idx);
@@ -1104,7 +1153,7 @@ static bool acm_process_set_config(tuh_xfer_t *xfer) {
       #ifdef LINE_CONTROL_ON_ENUM
       if (p_cdc->acm_capability.support_line_request) {
         p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
-        TU_ASSERT(acm_set_control_line_state(p_cdc, cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_ACM_SET_LINE_CODING)));
+        TU_ASSERT(acm_set_control_line_state(p_cdc, cdch_process_set_config, CONFIG_ACM_SET_LINE_CODING));
         break;
       }
       #endif
@@ -1114,7 +1163,7 @@ static bool acm_process_set_config(tuh_xfer_t *xfer) {
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       if (p_cdc->acm_capability.support_line_request) {
         p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-        TU_ASSERT(acm_set_line_coding(p_cdc, cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_ACM_COMPLETE)));
+        TU_ASSERT(acm_set_line_coding(p_cdc, cdch_process_set_config, CONFIG_ACM_COMPLETE));
         break;
       }
       #endif
@@ -1326,7 +1375,7 @@ static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint
 }
 
 static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
-  const uint8_t state = (uint8_t) xfer->user_data;
+  const uintptr_t state = xfer->user_data;
   uint8_t const idx = ftdi_get_idx(xfer);
   cdch_interface_t *p_cdc = get_itf(idx);
   uint8_t const itf_num = p_cdc->bInterfaceNumber;
@@ -1338,7 +1387,7 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
       // get device descriptor
       if (itf_num == 0) {                          // only necessary for 1st interface. other interface overtake type from interface 0
         TU_ASSERT(tuh_descriptor_get_device(xfer->daddr, &desc_dev, sizeof(tusb_desc_device_t),
-                                            cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_FTDI_DETERMINE_TYPE)));
+                                            cdch_process_set_config, CONFIG_FTDI_DETERMINE_TYPE));
         break;
       }
       TU_ATTR_FALLTHROUGH;
@@ -1370,7 +1419,7 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
       // from here sequence overtaken from Linux Kernel function ftdi_open()
     case CONFIG_FTDI_SIO_RESET:
       p_cdc->user_control_cb = cdch_process_set_config;
-      TU_ASSERT(ftdi_sio_reset(p_cdc, cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_FTDI_SET_DATA)));
+      TU_ASSERT(ftdi_sio_reset(p_cdc, cdch_process_set_config, CONFIG_FTDI_SET_DATA));
       break;
 
       // from here sequence overtaken from Linux Kernel function ftdi_set_termios()
@@ -1378,7 +1427,7 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
       p_cdc->user_control_cb = cdch_process_set_config;
-      TU_ASSERT(ftdi_set_data_request(p_cdc, ftdi_internal_control_complete, PROCESS_CONFIG_STATE(idx, CONFIG_FTDI_SET_BAUDRATE)));
+      TU_ASSERT(ftdi_set_data_request(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_SET_BAUDRATE));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -1387,7 +1436,7 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
     case CONFIG_FTDI_SET_BAUDRATE:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       p_cdc->user_control_cb = cdch_process_set_config;
-      TU_ASSERT(ftdi_change_speed(p_cdc, ftdi_internal_control_complete, PROCESS_CONFIG_STATE(idx, CONFIG_FTDI_FLOW_CONTROL)));
+      TU_ASSERT(ftdi_change_speed(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_FLOW_CONTROL));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -1396,14 +1445,14 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
     case CONFIG_FTDI_FLOW_CONTROL:
       // disable flow control
       TU_ASSERT(ftdi_set_request(p_cdc, FTDI_SIO_SET_FLOW_CTRL_REQUEST, FTDI_SIO_SET_FLOW_CTRL_REQUEST_TYPE, FTDI_SIO_DISABLE_FLOW_CTRL,
-                                 p_cdc->ftdi.channel, cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_FTDI_MODEM_CTRL)));
+                                 p_cdc->ftdi.channel, cdch_process_set_config, CONFIG_FTDI_MODEM_CTRL));
       break;
 
     case CONFIG_FTDI_MODEM_CTRL:
       #ifdef LINE_CONTROL_ON_ENUM
       p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
       p_cdc->user_control_cb = cdch_process_set_config;
-      TU_ASSERT(ftdi_update_mctrl(p_cdc, ftdi_internal_control_complete, PROCESS_CONFIG_STATE(idx, CONFIG_FTDI_COMPLETE)));
+      TU_ASSERT(ftdi_update_mctrl(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_COMPLETE));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -1840,7 +1889,7 @@ static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, ui
 }
 
 static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
-  const uint8_t state = (uint8_t) xfer->user_data;
+  const uintptr_t state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t *p_cdc = get_itf(idx);
@@ -1848,16 +1897,14 @@ static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
 
   switch (state) {
     case CONFIG_CP210X_IFC_ENABLE:
-      TU_ASSERT(cp210x_ifc_enable(p_cdc, CP210X_UART_ENABLE, cdch_process_set_config,
-                                  PROCESS_CONFIG_STATE(idx, CONFIG_CP210X_SET_BAUDRATE_REQUEST)));
+      TU_ASSERT(cp210x_ifc_enable(p_cdc, CP210X_UART_ENABLE, cdch_process_set_config, CONFIG_CP210X_SET_BAUDRATE_REQUEST));
       break;
 
     case CONFIG_CP210X_SET_BAUDRATE_REQUEST:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
       p_cdc->user_control_cb = cdch_process_set_config;
-      TU_ASSERT(cp210x_set_baudrate_request(p_cdc, cp210x_internal_control_complete,
-                                            PROCESS_CONFIG_STATE(idx, CONFIG_CP210X_SET_LINE_CTL)));
+      TU_ASSERT(cp210x_set_baudrate_request(p_cdc, cp210x_internal_control_complete, CONFIG_CP210X_SET_LINE_CTL));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -1866,8 +1913,7 @@ static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_CP210X_SET_LINE_CTL:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       p_cdc->user_control_cb = cdch_process_set_config;
-      TU_ASSERT(cp210x_set_line_ctl(p_cdc, cp210x_internal_control_complete,
-                                    PROCESS_CONFIG_STATE(idx, CONFIG_CP210X_SET_DTR_RTS)));
+      TU_ASSERT(cp210x_set_line_ctl(p_cdc, cp210x_internal_control_complete, CONFIG_CP210X_SET_DTR_RTS));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -1877,8 +1923,7 @@ static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
       #ifdef LINE_CONTROL_ON_ENUM
       p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
       p_cdc->user_control_cb = cdch_process_set_config;
-      TU_ASSERT(cp210x_set_mhs(p_cdc, cp210x_internal_control_complete,
-                               PROCESS_CONFIG_STATE(idx, CONFIG_CP210X_COMPLETE)));
+      TU_ASSERT(cp210x_set_mhs(p_cdc, cp210x_internal_control_complete, CONFIG_CP210X_COMPLETE));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -2108,7 +2153,7 @@ static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, ui
 }
 
 static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
-  const uint8_t state = (uint8_t) xfer->user_data;
+  const uintptr_t state = xfer->user_data;
   uint8_t const itf_num = 0; // CH34x has only interface 0, since wIndex is used as payload
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
   cdch_interface_t *p_cdc = get_itf(idx);
@@ -2119,7 +2164,7 @@ static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
   switch (state) {
     case CONFIG_CH34X_READ_VERSION:
       TU_ASSERT(ch34x_control_in(p_cdc, CH34X_REQ_READ_VERSION, 0, 0, buffer, 2,
-                                 cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_CH34X_SERIAL_INIT)));
+                                 cdch_process_set_config, CONFIG_CH34X_SERIAL_INIT));
       break;
 
     case CONFIG_CH34X_SERIAL_INIT: {
@@ -2135,7 +2180,7 @@ static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
         uint8_t const lcr = ch34x_get_lcr(p_cdc);
         TU_ASSERT(div_ps != 0 && lcr != 0);
         TU_ASSERT(ch34x_control_out(p_cdc, CH34X_REQ_SERIAL_INIT, tu_u16(lcr, 0x9c), div_ps,
-                                    cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_CH34X_SPECIAL_REG_WRITE)));
+                                    cdch_process_set_config, CONFIG_CH34X_SPECIAL_REG_WRITE));
       }
       break;
     }
@@ -2144,20 +2189,20 @@ static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
       // overtake line coding and do special reg write, purpose unknown, overtaken from WCH driver
       p_cdc->line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
       TU_ASSERT(ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x0F, CH341_REG_0x2C), 0x0007,
-                                cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_CH34X_FLOW_CONTROL)));
+                                cdch_process_set_config, CONFIG_CH34X_FLOW_CONTROL));
       break;
 
     case CONFIG_CH34X_FLOW_CONTROL:
       // no hardware flow control
       TU_ASSERT(ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x27, CH341_REG_0x27), 0x0000,
-                                cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_CH34X_MODEM_CONTROL)));
+                                cdch_process_set_config, CONFIG_CH34X_MODEM_CONTROL));
       break;
 
     case CONFIG_CH34X_MODEM_CONTROL:
       #ifdef LINE_CONTROL_ON_ENUM
       p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
       p_cdc->user_control_cb = cdch_process_set_config;
-      TU_ASSERT(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete, PROCESS_CONFIG_STATE(idx, CONFIG_CH34X_COMPLETE)));
+      TU_ASSERT(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete, CONFIG_CH34X_COMPLETE));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -2511,7 +2556,7 @@ static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, ui
 }
 
 static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
-  const uint8_t state = (uint8_t) xfer->user_data;
+  const uintptr_t state = xfer->user_data;
   // PL2303 has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
   uint8_t const itf_num = 0;
   uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
@@ -2527,12 +2572,12 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
       p_cdc->user_control_cb = cdch_process_set_config;// set once for whole process config
       // get device descriptor
       TU_ASSERT(tuh_descriptor_get_device(xfer->daddr, &desc_dev, sizeof(tusb_desc_device_t),
-                                          cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_DETECT_TYPE)));
+                                          cdch_process_set_config, CONFIG_PL2303_DETECT_TYPE));
       break;
 
     case CONFIG_PL2303_DETECT_TYPE:
       // get type and quirks (step 1)
-      type = pl2303_detect_type(p_cdc, 1, cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_READ1));
+      type = pl2303_detect_type(p_cdc, 1, cdch_process_set_config, CONFIG_PL2303_READ1);
       TU_ASSERT(type != PL2303_DETECT_TYPE_FAILED);
       if (type == PL2303_SUPPORTS_HX_STATUS_TRIGGERED) {
         break;
@@ -2559,8 +2604,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
       #endif
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf,
-                                     cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_WRITE1)));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE1));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2568,8 +2612,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_WRITE1:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 0,
-                                      cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_READ2)));
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 0, cdch_process_set_config, CONFIG_PL2303_READ2));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2577,8 +2620,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_READ2:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf,
-                                     cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_READ3)));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_READ3));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2586,8 +2628,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_READ3:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf,
-                                     cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_READ4)));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, cdch_process_set_config, CONFIG_PL2303_READ4));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2595,8 +2636,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_READ4:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf,
-                                     cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_WRITE2)));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE2));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2604,8 +2644,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_WRITE2:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 1,
-                                      cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_READ5)));
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 1, cdch_process_set_config, CONFIG_PL2303_READ5));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2613,8 +2652,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_READ5:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf,
-                                     cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_READ6)));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_READ6));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2622,8 +2660,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_READ6:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf,
-                                     cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_WRITE3)));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE3));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2631,8 +2668,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_WRITE3:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_write(p_cdc, 0, 1,
-                                      cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_WRITE4)));
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 0, 1, cdch_process_set_config, CONFIG_PL2303_WRITE4));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2640,8 +2676,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_WRITE4:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
-        TU_ASSERT(pl2303_vendor_write(p_cdc, 1, 0,
-                                      cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_WRITE5)));
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 1, 0, cdch_process_set_config, CONFIG_PL2303_WRITE5));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2650,8 +2685,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
         uint16_t const windex = (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) ? 0x24 : 0x44;
-        TU_ASSERT(pl2303_vendor_write(p_cdc, 2, windex,
-                                      cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_RESET_ENDP1)));
+        TU_ASSERT(pl2303_vendor_write(p_cdc, 2, windex, cdch_process_set_config, CONFIG_PL2303_RESET_ENDP1));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2660,17 +2694,15 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_RESET_ENDP1:
       // step 1
       if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
-        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_OUT_EP,
-                                    cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_RESET_ENDP2)));
+        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_OUT_EP, cdch_process_set_config, CONFIG_PL2303_RESET_ENDP2));
       } else {
         /* reset upstream data pipes */
         if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
           TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_RESET_REG,// skip CONFIG_PL2303_RESET_ENDP2, no 2nd step
                                         PL2303_HXN_RESET_UPSTREAM_PIPE | PL2303_HXN_RESET_DOWNSTREAM_PIPE,
-                                        cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_LINE_CODING)));
+                                        cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
         } else {
-          pl2303_vendor_write(p_cdc, 8, 0,
-                              cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_RESET_ENDP2));
+          pl2303_vendor_write(p_cdc, 8, 0, cdch_process_set_config, CONFIG_PL2303_RESET_ENDP2);
         }
       }
       break;
@@ -2678,15 +2710,13 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_RESET_ENDP2:
       // step 2
       if (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) {
-        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_IN_EP,
-                                    cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_LINE_CODING)));
+        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_IN_EP, cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
       } else {
         /* reset upstream data pipes */
         if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
           // here nothing to do, only structure of previous step overtaken for better reading and comparison
         } else {
-          TU_ASSERT(pl2303_vendor_write(p_cdc, 9, 0,
-                                        cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_LINE_CODING)));
+          TU_ASSERT(pl2303_vendor_write(p_cdc, 9, 0, cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
         }
       }
       break;
@@ -2696,8 +2726,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_LINE_CODING:
     #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      TU_ASSERT(pl2303_set_line_request(p_cdc, pl2303_internal_control_complete,
-                                        PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_MODEM_CONTROL)));
+      TU_ASSERT(pl2303_set_line_request(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_MODEM_CONTROL));
       break;
     #else
       TU_ATTR_FALLTHROUGH;
@@ -2706,8 +2735,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
     case CONFIG_PL2303_MODEM_CONTROL:
     #ifdef LINE_CONTROL_ON_ENUM
       p_cdc->requested_line_state.all = LINE_CONTROL_ON_ENUM;
-      TU_ASSERT(pl2303_set_control_lines(p_cdc, pl2303_internal_control_complete,
-                                         PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_COMPLETE)));
+      TU_ASSERT(pl2303_set_control_lines(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_COMPLETE));
       break;
     #else
       TU_ATTR_FALLTHROUGH;
@@ -2719,7 +2747,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
       //      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
       //        TU_LOG_P_CDC ( "1\r\n" );
       //        TU_ASSERT(pl2303_vendor_read(p_cdc, PL2303_HXN_FLOWCTRL_REG, &buf,
-      //                                     cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_FLOW_CTRL_WRITE)));
+      //                                     cdch_process_set_config, CONFIG_PL2303_FLOW_CTRL_WRITE));
       //      } else {
       //        TU_LOG_P_CDC ( "2\r\n" );
       //        TU_ASSERT(pl2303_vendor_read(p_cdc, 0, &buf, cdch_process_set_config, CONFIG_PL2303_FLOW_CTRL_WRITE));
@@ -2733,11 +2761,11 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
       //        buf &= (uint8_t) ~PL2303_HXN_FLOWCTRL_MASK;
       //        buf |= PL2303_HXN_FLOWCTRL_NONE;
       //        TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_FLOWCTRL_REG, buf,
-      //                                      cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_COMPLETE)));
+      //                                      cdch_process_set_config, CONFIG_PL2303_COMPLETE));
       //      } else {
       //        buf &= (uint8_t) ~PL2303_FLOWCTRL_MASK;
       //        TU_ASSERT(pl2303_vendor_write(p_cdc, 0, buf,
-      //                                      cdch_process_set_config, PROCESS_CONFIG_STATE(idx, CONFIG_PL2303_COMPLETE)));
+      //                                      cdch_process_set_config, CONFIG_PL2303_COMPLETE));
       //      }
       //      break;
 
