@@ -97,65 +97,53 @@
 
 // type data
 typedef enum pl2303_type {
-  PL2303_TYPE_H,
-  PL2303_TYPE_HX,
-  PL2303_TYPE_TA,
-  PL2303_TYPE_TB,
-  PL2303_TYPE_HXD,
-  PL2303_TYPE_HXN,
-  // PL2303_TYPE_NEED_SUPPORTS_HX_STATUS,
-  // PL2303_TYPE_UNKNOWN,
-  PL2303_TYPE_COUNT
+  PL2303_TYPE_H = 0, // 0
+  PL2303_TYPE_HX,    // 1
+  PL2303_TYPE_TA,    // 2
+  PL2303_TYPE_TB,    // 3
+  PL2303_TYPE_HXD,   // 4
+  PL2303_TYPE_HXN,   // 5
+  PL2303_TYPE_COUNT,
+  PL2303_TYPE_NEED_SUPPORTS_HX_STATUS,
+  PL2303_TYPE_UNKNOWN,
 } pl2303_type_t;
 
 typedef struct pl2303_type_data {
-  uint8_t  const *name;
   uint32_t const max_baud_rate;
-  uint8_t  const quirks;
-  uint16_t const no_autoxonxoff:1;
-  uint16_t const no_divisors:1;
-  uint16_t const alt_divisors:1;
+  uint8_t const quirks;
+  uint8_t const no_autoxonxoff : 1;
+  uint8_t const no_divisors    : 1;
+  uint8_t const alt_divisors   : 1;
 } pl2303_type_data_t;
 
 #define PL2303_TYPE_DATA \
   [PL2303_TYPE_H] = { \
-    .name = (uint8_t const*)"H", \
     .max_baud_rate = 1228800, \
     .quirks = PL2303_QUIRK_LEGACY, \
     .no_autoxonxoff = true, \
   }, \
   [PL2303_TYPE_HX] = { \
-    .name = (uint8_t const*)"HX", \
     .max_baud_rate = 6000000, \
   }, \
   [PL2303_TYPE_TA] = { \
-    .name = (uint8_t const*)"TA", \
     .max_baud_rate = 6000000, \
     .alt_divisors = true, \
   }, \
   [PL2303_TYPE_TB] = { \
-    .name = (uint8_t const*)"TB", \
     .max_baud_rate = 12000000, \
     .alt_divisors = true, \
   }, \
   [PL2303_TYPE_HXD] = { \
-    .name = (uint8_t const*)"HXD", \
     .max_baud_rate = 12000000, \
   }, \
   [PL2303_TYPE_HXN] = { \
-    .name = (uint8_t const*)"G (HXN)", \
     .max_baud_rate = 12000000, \
     .no_divisors = true, \
   }
 
-// private data types
-struct pl2303_serial_private {
-  const struct pl2303_type_data* type;
-  uint8_t quirks;
-};
-
 typedef struct TU_ATTR_PACKED {
-  struct pl2303_serial_private serial_private;
+  pl2303_type_t type;
+  uint8_t quirks;
   bool supports_hx_status;
 } pl2303_private_t;
 
@@ -166,9 +154,5 @@ typedef struct TU_ATTR_PACKED {
 // bulk endpoints
 #define PL2303_OUT_EP                       0x02
 #define PL2303_IN_EP                        0x83
-
-// return values of pl2303_detect_type()
-#define PL2303_TYPE_NEED_SUPPORTS_HX_STATUS -1
-#define PL2303_TYPE_UNKNOWN                 -2
 
 #endif // TUSB_PL2303_H
