@@ -65,27 +65,30 @@ typedef struct {
   uint8_t ep_notif;
   uint8_t serial_drid; // Serial Driver ID
   bool mounted;        // Enumeration is complete
-  cdc_acm_capability_t acm_capability;
 
-  TU_ATTR_ALIGNED(4) cdc_line_coding_t line_coding; // Baudrate, stop bits, parity, data width
-  TU_ATTR_ALIGNED(4) cdc_line_coding_t requested_line_coding;
-  // 1 byte padding
+  struct {
+    TU_ATTR_ALIGNED(4) cdc_line_coding_t coding; // Baudrate, stop bits, parity, data width
+    cdc_line_control_state_t control_state;      // DTR, RTS
+  } line, requested_line;
 
-  cdc_line_control_state_t line_state;
-  cdc_line_control_state_t requested_line_state;
-
-  tuh_xfer_cb_t user_control_cb;
+  tuh_xfer_cb_t user_complete_cb; // required since we handle request internally first
   #if CFG_TUH_CDC_FTDI || CFG_TUH_CDC_CP210X || CFG_TUH_CDC_CH34X
     tuh_xfer_cb_t requested_complete_cb;
   #endif
 
-  #if CFG_TUH_CDC_FTDI
-    ftdi_private_t ftdi;
-  #endif
+  union {
+    struct {
+      cdc_acm_capability_t capability;
+    } acm;
 
-  #if CFG_TUH_CDC_PL2303
+    #if CFG_TUH_CDC_FTDI
+    ftdi_private_t ftdi;
+    #endif
+
+    #if CFG_TUH_CDC_PL2303
     pl2303_private_t pl2303;
-  #endif
+    #endif
+  };
 
   struct {
     tu_edpt_stream_t tx;
@@ -376,8 +379,8 @@ static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t cons
       p_cdc->bInterfaceNumber   = itf_desc->bInterfaceNumber;
       p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
       p_cdc->bInterfaceProtocol = itf_desc->bInterfaceProtocol;
-      p_cdc->line_coding        = (cdc_line_coding_t) { 0, 0, 0, 0 };
-      p_cdc->line_state.value   = 0;
+      p_cdc->line.coding        = (cdc_line_coding_t) { 0, 0, 0, 0 };
+      p_cdc->line.control_state.value = 0;
       return p_cdc;
     }
   }
@@ -430,7 +433,7 @@ bool tuh_cdc_mounted(uint8_t idx) {
 bool tuh_cdc_get_control_line_state_local(uint8_t idx, uint16_t* line_state) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
-  *line_state = p_cdc->line_state.value;
+  *line_state = p_cdc->line.control_state.value;
   return true;
 }
 
@@ -438,10 +441,10 @@ bool tuh_cdc_get_line_coding_local(uint8_t idx, cdc_line_coding_t * line_coding)
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
-  *line_coding = p_cdc->line_coding;
+  *line_coding = p_cdc->line.coding;
   TU_LOG_P_CDC("get line coding %lu %u%c%s",
-               p_cdc->line_coding.bit_rate, p_cdc->line_coding.data_bits,
-               CDC_LINE_CODING_PARITY_CHAR(p_cdc->line_coding.parity),
+               p_cdc->line.coding.bit_rate, p_cdc->line.coding.data_bits,
+               CDC_LINE_CODING_PARITY_CHAR(p_cdc->line.coding.parity),
                CDC_LINE_CODING_STOP_BITS_TEXT(line_coding->stop_bits));
 
   return true;
@@ -533,7 +536,7 @@ static bool set_line_coding_sequence(
     // non-blocking
     // stage 1 set baudrate
     p_cdc->requested_complete_cb = complete_cb; // store complete_cb to be used in set_line_coding_stage1_complete()
-    p_cdc->user_control_cb = set_line_coding_stage1_complete;
+    p_cdc->user_complete_cb = set_line_coding_stage1_complete;
     return set_baudrate_request(p_cdc, internal_control_complete, user_data);
   } else {
     // blocking sequence
@@ -549,7 +552,7 @@ static bool set_line_coding_sequence(
     TU_VERIFY(result == XFER_RESULT_SUCCESS);
 
     // overtake baudrate after successful request
-    p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
+    p_cdc->line.coding.bit_rate = p_cdc->requested_line.coding.bit_rate;
 
     // stage 2 set data format
     result = XFER_RESULT_INVALID;
@@ -577,7 +580,7 @@ static void set_line_coding_stage1_complete(
 
   if (xfer->result == XFER_RESULT_SUCCESS) {
     // stage 1 success, continue with stage 2
-    p_cdc->user_control_cb = p_cdc->requested_complete_cb;
+    p_cdc->user_complete_cb = p_cdc->requested_complete_cb;
     set_data_format_request(p_cdc, internal_control_complete, xfer->user_data);
   } else {
     // stage 1 failed, notify user
@@ -614,13 +617,13 @@ bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_c
   TU_VERIFY(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
   cdch_serial_driver_t const * driver = &serial_drivers[p_cdc->serial_drid];
 
-  p_cdc->requested_line_state.value = (uint8_t) line_state;
-  TU_LOG_P_CDC("set control line state dtr = %u rts = %u", p_cdc->requested_line_state.dtr, p_cdc->requested_line_state.rts);
+  p_cdc->requested_line.control_state.value = (uint8_t) line_state;
+  TU_LOG_P_CDC("set control line state dtr = %u rts = %u", p_cdc->requested_line.control_state.dtr, p_cdc->requested_line.control_state.rts);
 
   const bool ret = set_function_call(p_cdc, driver->set_control_line_state, complete_cb, user_data);
 
   if (ret && !complete_cb) {
-    p_cdc->line_state = p_cdc->requested_line_state;
+    p_cdc->line.control_state = p_cdc->requested_line.control_state;
   }
   return ret;
 }
@@ -631,12 +634,12 @@ bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete
   TU_LOG_P_CDC("set baudrate %lu", baudrate);
   cdch_serial_driver_t const *driver = &serial_drivers[p_cdc->serial_drid];
 
-  p_cdc->requested_line_coding.bit_rate = baudrate;
+  p_cdc->requested_line.coding.bit_rate = baudrate;
 
   bool ret = set_function_call(p_cdc, driver->set_baudrate, complete_cb, user_data);
 
   if (ret && !complete_cb) {
-    p_cdc->line_coding.bit_rate = baudrate;
+    p_cdc->line.coding.bit_rate = baudrate;
   }
 //  TU_LOG_P_CDC_BOOL("set baudrate", ret);
 
@@ -652,16 +655,16 @@ bool tuh_cdc_set_data_format(uint8_t idx, uint8_t stop_bits, uint8_t parity, uin
                CDC_LINE_CODING_STOP_BITS_TEXT(stop_bits));
   cdch_serial_driver_t const *driver = &serial_drivers[p_cdc->serial_drid];
 
-  p_cdc->requested_line_coding.stop_bits = stop_bits;
-  p_cdc->requested_line_coding.parity    = parity;
-  p_cdc->requested_line_coding.data_bits = data_bits;
+  p_cdc->requested_line.coding.stop_bits = stop_bits;
+  p_cdc->requested_line.coding.parity    = parity;
+  p_cdc->requested_line.coding.data_bits = data_bits;
 
   bool ret = set_function_call(p_cdc, driver->set_data_format, complete_cb, user_data);
 
   if (ret && !complete_cb) {
-    p_cdc->line_coding.stop_bits = stop_bits;
-    p_cdc->line_coding.parity    = parity;
-    p_cdc->line_coding.data_bits = data_bits;
+    p_cdc->line.coding.stop_bits = stop_bits;
+    p_cdc->line.coding.parity    = parity;
+    p_cdc->line.coding.data_bits = data_bits;
   }
 //  TU_LOG_P_CDC_BOOL("set data format", ret);
 
@@ -678,12 +681,12 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const *line_coding,
                CDC_LINE_CODING_STOP_BITS_TEXT(line_coding->stop_bits));
   cdch_serial_driver_t const *driver = &serial_drivers[p_cdc->serial_drid];
 
-  p_cdc->requested_line_coding = *line_coding;
+  p_cdc->requested_line.coding = *line_coding;
 
   bool ret = set_function_call(p_cdc, driver->set_line_coding, complete_cb, user_data);
 
   if (ret && !complete_cb) {
-    p_cdc->line_coding = *line_coding;
+    p_cdc->line.coding = *line_coding;
   }
 //  TU_LOG_P_CDC_BOOL("set line coding", ret);
 
@@ -921,25 +924,25 @@ static void acm_internal_control_complete(tuh_xfer_t *xfer) {
   if (success) {
     switch (xfer->setup->bRequest) {
       case CDC_REQUEST_SET_CONTROL_LINE_STATE:
-        p_cdc->line_state = p_cdc->requested_line_state;
+        p_cdc->line.control_state = p_cdc->requested_line.control_state;
         break;
 
       case CDC_REQUEST_SET_LINE_CODING:
-        p_cdc->line_coding = p_cdc->requested_line_coding;
+        p_cdc->line.coding = p_cdc->requested_line.coding;
         break;
 
       default: break;
     }
   }
 
-  xfer->complete_cb = p_cdc->user_control_cb;
+  xfer->complete_cb = p_cdc->user_complete_cb;
   if (xfer->complete_cb) {
     xfer->complete_cb(xfer);
   }
 }
 
 static bool acm_set_control_line_state(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(p_cdc->acm_capability.support_line_request);
+  TU_VERIFY(p_cdc->acm.capability.support_line_request);
 
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -948,12 +951,12 @@ static bool acm_set_control_line_state(cdch_interface_t *p_cdc, tuh_xfer_cb_t co
       .direction = TUSB_DIR_OUT
     },
     .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
-    .wValue   = tu_htole16((uint16_t) p_cdc->requested_line_state.value),
+    .wValue   = tu_htole16((uint16_t) p_cdc->requested_line.control_state.value),
     .wIndex   = tu_htole16((uint16_t) p_cdc->bInterfaceNumber),
     .wLength  = 0
   };
 
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
 
   tuh_xfer_t xfer = {
     .daddr       = p_cdc->daddr,
@@ -970,9 +973,9 @@ static bool acm_set_control_line_state(cdch_interface_t *p_cdc, tuh_xfer_cb_t co
 }
 
 static bool acm_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(p_cdc->acm_capability.support_line_request);
-  TU_VERIFY((p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8) ||
-            p_cdc->requested_line_coding.data_bits == 16);
+  TU_VERIFY(p_cdc->acm.capability.support_line_request);
+  TU_VERIFY((p_cdc->requested_line.coding.data_bits >= 5 && p_cdc->requested_line.coding.data_bits <= 8) ||
+            p_cdc->requested_line.coding.data_bits == 16);
 
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -988,9 +991,9 @@ static bool acm_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_
 
   // use usbh enum buf to hold line coding since user line_coding variable does not live long enough
   uint8_t *enum_buf = usbh_get_enum_buf();
-  memcpy(enum_buf, &p_cdc->requested_line_coding, sizeof(cdc_line_coding_t));
+  memcpy(enum_buf, &p_cdc->requested_line.coding, sizeof(cdc_line_coding_t));
 
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
 
   tuh_xfer_t xfer = {
     .daddr       = p_cdc->daddr,
@@ -1007,15 +1010,15 @@ static bool acm_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_
 }
 
 static bool acm_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->requested_line_coding.bit_rate = p_cdc->line_coding.bit_rate;
+  p_cdc->requested_line.coding.bit_rate = p_cdc->line.coding.bit_rate;
 
   return acm_set_line_coding(p_cdc, complete_cb, user_data);
 }
 
 static bool acm_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->requested_line_coding.stop_bits = p_cdc->line_coding.stop_bits;
-  p_cdc->requested_line_coding.parity    = p_cdc->line_coding.parity;
-  p_cdc->requested_line_coding.data_bits = p_cdc->line_coding.data_bits;
+  p_cdc->requested_line.coding.stop_bits = p_cdc->line.coding.stop_bits;
+  p_cdc->requested_line.coding.parity    = p_cdc->line.coding.parity;
+  p_cdc->requested_line.coding.data_bits = p_cdc->line.coding.data_bits;
 
   return acm_set_line_coding(p_cdc, complete_cb, user_data);
 }
@@ -1042,7 +1045,7 @@ static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint1
   while ((p_desc < p_desc_end) && (TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc))) {
     if (CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc)) {
       // save ACM bmCapabilities
-      p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
+      p_cdc->acm.capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
     }
 
     p_desc = tu_desc_next(p_desc);
@@ -1082,8 +1085,8 @@ static bool acm_process_set_config(tuh_xfer_t *xfer) {
   switch (state) {
     case CONFIG_ACM_SET_CONTROL_LINE_STATE:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      if (p_cdc->acm_capability.support_line_request) {
-        p_cdc->requested_line_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      if (p_cdc->acm.capability.support_line_request) {
+        p_cdc->requested_line.control_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
         TU_ASSERT(acm_set_control_line_state(p_cdc, cdch_process_set_config, CONFIG_ACM_SET_LINE_CODING));
         break;
       }
@@ -1092,8 +1095,8 @@ static bool acm_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_ACM_SET_LINE_CODING:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      if (p_cdc->acm_capability.support_line_request) {
-        p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+      if (p_cdc->acm.capability.support_line_request) {
+        p_cdc->requested_line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
         TU_ASSERT(acm_set_line_coding(p_cdc, cdch_process_set_config, CONFIG_ACM_COMPLETE));
         break;
       }
@@ -1175,10 +1178,10 @@ static bool ftdi_change_speed(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb
 }
 
 static bool ftdi_set_data_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 7 && p_cdc->requested_line_coding.data_bits <= 8, 0);
-  uint16_t value = (uint16_t) ((p_cdc->requested_line_coding.data_bits & 0xfUL) |       // data bit quantity is stored in bits 0-3
-                               (p_cdc->requested_line_coding.parity    & 0x7UL) << 8 |  // parity is stored in bits 8-10, same coding
-                               (p_cdc->requested_line_coding.stop_bits & 0x3UL) << 11); // stop bits quantity is stored in bits 11-12, same coding
+  TU_VERIFY(p_cdc->requested_line.coding.data_bits >= 7 && p_cdc->requested_line.coding.data_bits <= 8, 0);
+  uint16_t value = (uint16_t) ((p_cdc->requested_line.coding.data_bits & 0xfUL) |       // data bit quantity is stored in bits 0-3
+                               (p_cdc->requested_line.coding.parity    & 0x7UL) << 8 |  // parity is stored in bits 8-10, same coding
+                               (p_cdc->requested_line.coding.stop_bits & 0x3UL) << 11); // stop bits quantity is stored in bits 11-12, same coding
                                                                                         // not each FTDI supports 1.5 stop bits
 
   return ftdi_set_request(p_cdc, FTDI_SIO_SET_DATA_REQUEST, FTDI_SIO_SET_DATA_REQUEST_TYPE,
@@ -1186,8 +1189,8 @@ static bool ftdi_set_data_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t complet
 }
 
 static inline bool ftdi_update_mctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint16_t value = (uint16_t) ((p_cdc->requested_line_state.dtr ? FTDI_SIO_SET_DTR_HIGH : FTDI_SIO_SET_DTR_LOW) |
-                               (p_cdc->requested_line_state.rts ? FTDI_SIO_SET_RTS_HIGH : FTDI_SIO_SET_RTS_LOW));
+  uint16_t value = (uint16_t) ((p_cdc->requested_line.control_state.dtr ? FTDI_SIO_SET_DTR_HIGH : FTDI_SIO_SET_DTR_LOW) |
+                               (p_cdc->requested_line.control_state.rts ? FTDI_SIO_SET_RTS_HIGH : FTDI_SIO_SET_RTS_LOW));
 
   return ftdi_set_request(p_cdc, FTDI_SIO_SET_MODEM_CTRL_REQUEST, FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE,
                           value, p_cdc->ftdi.channel, complete_cb, user_data);
@@ -1206,35 +1209,35 @@ static void ftdi_internal_control_complete(tuh_xfer_t *xfer) {
   if (success) {
     if (xfer->setup->bRequest      == FTDI_SIO_SET_MODEM_CTRL_REQUEST &&
         xfer->setup->bmRequestType == FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE ) {
-      p_cdc->line_state = p_cdc->requested_line_state;
+      p_cdc->line.control_state = p_cdc->requested_line.control_state;
     }
     if (xfer->setup->bRequest      == FTDI_SIO_SET_DATA_REQUEST &&
         xfer->setup->bmRequestType == FTDI_SIO_SET_DATA_REQUEST_TYPE ) {
-      p_cdc->line_coding.stop_bits = p_cdc->requested_line_coding.stop_bits;
-      p_cdc->line_coding.parity    = p_cdc->requested_line_coding.parity;
-      p_cdc->line_coding.data_bits = p_cdc->requested_line_coding.data_bits;
+      p_cdc->line.coding.stop_bits = p_cdc->requested_line.coding.stop_bits;
+      p_cdc->line.coding.parity    = p_cdc->requested_line.coding.parity;
+      p_cdc->line.coding.data_bits = p_cdc->requested_line.coding.data_bits;
     }
     if (xfer->setup->bRequest      == FTDI_SIO_SET_BAUDRATE_REQUEST &&
         xfer->setup->bmRequestType == FTDI_SIO_SET_BAUDRATE_REQUEST_TYPE ) {
-      p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
+      p_cdc->line.coding.bit_rate = p_cdc->requested_line.coding.bit_rate;
     }
   }
 
-  xfer->complete_cb = p_cdc->user_control_cb;
+  xfer->complete_cb = p_cdc->user_complete_cb;
   if (xfer->complete_cb) {
     xfer->complete_cb(xfer);
   }
 }
 
 static bool ftdi_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(ftdi_set_data_request(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
 
   return true;
 }
 
 static bool ftdi_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(ftdi_change_speed(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
 
   return true;
@@ -1261,7 +1264,7 @@ static bool ftdi_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complet
 }
 
 static bool ftdi_set_modem_ctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(ftdi_update_mctrl(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
 
   return true;
@@ -1339,15 +1342,15 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
 
       // from here sequence overtaken from Linux Kernel function ftdi_open()
     case CONFIG_FTDI_SIO_RESET:
-      p_cdc->user_control_cb = cdch_process_set_config;
+      p_cdc->user_complete_cb = cdch_process_set_config;
       TU_ASSERT(ftdi_sio_reset(p_cdc, cdch_process_set_config, CONFIG_FTDI_SET_DATA));
       break;
 
       // from here sequence overtaken from Linux Kernel function ftdi_set_termios()
     case CONFIG_FTDI_SET_DATA:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      p_cdc->user_control_cb = cdch_process_set_config;
+      p_cdc->requested_line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+      p_cdc->user_complete_cb = cdch_process_set_config;
       TU_ASSERT(ftdi_set_data_request(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_SET_BAUDRATE));
       break;
       #else
@@ -1356,7 +1359,7 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_FTDI_SET_BAUDRATE:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      p_cdc->user_control_cb = cdch_process_set_config;
+      p_cdc->user_complete_cb = cdch_process_set_config;
       TU_ASSERT(ftdi_change_speed(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_FLOW_CONTROL));
       break;
       #else
@@ -1371,8 +1374,8 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_FTDI_MODEM_CTRL:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      p_cdc->requested_line_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-      p_cdc->user_control_cb = cdch_process_set_config;
+      p_cdc->requested_line.control_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      p_cdc->user_complete_cb = cdch_process_set_config;
       TU_ASSERT(ftdi_update_mctrl(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_COMPLETE));
       break;
       #else
@@ -1529,7 +1532,7 @@ static inline uint32_t ftdi_2232h_baud_to_divisor(uint32_t baud) {
 }
 
 static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
-  uint32_t baud = p_cdc->requested_line_coding.bit_rate;
+  uint32_t baud = p_cdc->requested_line.coding.bit_rate;
   uint32_t div_value = 0;
   TU_VERIFY(baud);
 
@@ -1661,16 +1664,16 @@ static inline bool cp210x_ifc_enable(cdch_interface_t *p_cdc, uint16_t enabled,
 
 static bool cp210x_set_baudrate_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // Not every baud rate is supported. See datasheets and AN205 "CP210x Baud Rate Support"
-  uint32_t baud_le = tu_htole32(p_cdc->requested_line_coding.bit_rate);
+  uint32_t baud_le = tu_htole32(p_cdc->requested_line.coding.bit_rate);
 
   return cp210x_set_request(p_cdc, CP210X_SET_BAUDRATE, 0, (uint8_t *) &baud_le, 4, complete_cb, user_data);
 }
 
 static bool cp210x_set_line_ctl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8, 0);
-  uint16_t lcr = (uint16_t) ((p_cdc->requested_line_coding.data_bits & 0xfUL) << 8 | // data bit quantity is stored in bits 8-11
-                             (p_cdc->requested_line_coding.parity    & 0xfUL) << 4 | // parity is stored in bits 4-7, same coding
-                             (p_cdc->requested_line_coding.stop_bits & 0xfUL));      // parity is stored in bits 0-3, same coding
+  TU_VERIFY(p_cdc->requested_line.coding.data_bits >= 5 && p_cdc->requested_line.coding.data_bits <= 8, 0);
+  uint16_t lcr = (uint16_t) ((p_cdc->requested_line.coding.data_bits & 0xfUL) << 8 | // data bit quantity is stored in bits 8-11
+                             (p_cdc->requested_line.coding.parity    & 0xfUL) << 4 | // parity is stored in bits 4-7, same coding
+                             (p_cdc->requested_line.coding.stop_bits & 0xfUL));      // parity is stored in bits 0-3, same coding
 
   return cp210x_set_request(p_cdc, CP210X_SET_LINE_CTL, lcr, NULL, 0, complete_cb, user_data);
 }
@@ -1679,7 +1682,7 @@ static inline bool cp210x_set_mhs(cdch_interface_t *p_cdc, tuh_xfer_cb_t complet
   // CP210x has the same bit coding
   return cp210x_set_request(p_cdc, CP210X_SET_MHS,
                             (uint16_t) (CP210X_CONTROL_WRITE_DTR | CP210X_CONTROL_WRITE_RTS |
-                                        p_cdc->requested_line_state.value),
+                                        p_cdc->requested_line.control_state.value),
                             NULL, 0, complete_cb, user_data);
 }
 
@@ -1697,38 +1700,38 @@ static void cp210x_internal_control_complete(tuh_xfer_t *xfer) {
   if (success) {
     switch (xfer->setup->bRequest) {
       case CP210X_SET_MHS:
-        p_cdc->line_state = p_cdc->requested_line_state;
+        p_cdc->line.control_state = p_cdc->requested_line.control_state;
         break;
 
       case CP210X_SET_LINE_CTL:
-        p_cdc->line_coding.stop_bits = p_cdc->requested_line_coding.stop_bits;
-        p_cdc->line_coding.parity    = p_cdc->requested_line_coding.parity;
-        p_cdc->line_coding.data_bits = p_cdc->requested_line_coding.data_bits;
+        p_cdc->line.coding.stop_bits = p_cdc->requested_line.coding.stop_bits;
+        p_cdc->line.coding.parity    = p_cdc->requested_line.coding.parity;
+        p_cdc->line.coding.data_bits = p_cdc->requested_line.coding.data_bits;
         break;
 
       case CP210X_SET_BAUDRATE:
-        p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
+        p_cdc->line.coding.bit_rate = p_cdc->requested_line.coding.bit_rate;
         break;
 
       default: break;
     }
   }
 
-  xfer->complete_cb = p_cdc->user_control_cb;
+  xfer->complete_cb = p_cdc->user_complete_cb;
   if (xfer->complete_cb) {
     xfer->complete_cb(xfer);
   }
 }
 
 static bool cp210x_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(cp210x_set_baudrate_request(p_cdc, complete_cb ? cp210x_internal_control_complete : NULL, user_data));
 
   return true;
 }
 
 static bool cp210x_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(cp210x_set_line_ctl(p_cdc, complete_cb ? cp210x_internal_control_complete : NULL, user_data));
 
   return true;
@@ -1752,7 +1755,7 @@ static bool cp210x_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t comple
 }
 
 static bool cp210x_set_modem_ctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(cp210x_set_mhs(p_cdc, complete_cb ? cp210x_internal_control_complete : NULL, user_data));
 
   return true;
@@ -1799,8 +1802,8 @@ static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_CP210X_SET_BAUDRATE_REQUEST:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      p_cdc->user_control_cb = cdch_process_set_config;
+      p_cdc->requested_line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+      p_cdc->user_complete_cb = cdch_process_set_config;
       TU_ASSERT(cp210x_set_baudrate_request(p_cdc, cp210x_internal_control_complete, CONFIG_CP210X_SET_LINE_CTL));
       break;
       #else
@@ -1809,7 +1812,7 @@ static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_CP210X_SET_LINE_CTL:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      p_cdc->user_control_cb = cdch_process_set_config;
+      p_cdc->user_complete_cb = cdch_process_set_config;
       TU_ASSERT(cp210x_set_line_ctl(p_cdc, cp210x_internal_control_complete, CONFIG_CP210X_SET_DTR_RTS));
       break;
       #else
@@ -1818,8 +1821,8 @@ static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_CP210X_SET_DTR_RTS:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      p_cdc->requested_line_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-      p_cdc->user_control_cb = cdch_process_set_config;
+      p_cdc->requested_line.control_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      p_cdc->user_complete_cb = cdch_process_set_config;
       TU_ASSERT(cp210x_set_mhs(p_cdc, cp210x_internal_control_complete, CONFIG_CP210X_COMPLETE));
       break;
       #else
@@ -1923,8 +1926,8 @@ static bool ch34x_write_reg_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t comp
 
 static bool ch34x_modem_ctrl_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // CH34x signals are inverted
-  uint8_t control = ~((p_cdc->requested_line_state.rts ? CH34X_BIT_RTS : 0) |
-                      (p_cdc->requested_line_state.dtr ? CH34X_BIT_DTR : 0));
+  uint8_t control = ~((p_cdc->requested_line.control_state.rts ? CH34X_BIT_RTS : 0) |
+                      (p_cdc->requested_line.control_state.dtr ? CH34X_BIT_DTR : 0));
   return ch34x_control_out(p_cdc, CH34X_REQ_MODEM_CTRL, control, 0, complete_cb, user_data);
 }
 
@@ -1947,14 +1950,14 @@ static void ch34x_internal_control_complete(tuh_xfer_t *xfer) {
         switch (tu_le16toh(xfer->setup->wValue)) {
           case CH34X_REG16_DIVISOR_PRESCALER:
             // baudrate
-            p_cdc->line_coding.bit_rate = p_cdc->requested_line_coding.bit_rate;
+            p_cdc->line.coding.bit_rate = p_cdc->requested_line.coding.bit_rate;
             break;
 
           case CH32X_REG16_LCR2_LCR:
             // data format
-            p_cdc->line_coding.stop_bits = p_cdc->requested_line_coding.stop_bits;
-            p_cdc->line_coding.parity    = p_cdc->requested_line_coding.parity;
-            p_cdc->line_coding.data_bits = p_cdc->requested_line_coding.data_bits;
+            p_cdc->line.coding.stop_bits = p_cdc->requested_line.coding.stop_bits;
+            p_cdc->line.coding.parity    = p_cdc->requested_line.coding.parity;
+            p_cdc->line.coding.data_bits = p_cdc->requested_line.coding.data_bits;
             break;
 
           default: break;
@@ -1962,28 +1965,28 @@ static void ch34x_internal_control_complete(tuh_xfer_t *xfer) {
         break;
 
       case CH34X_REQ_MODEM_CTRL:
-        p_cdc->line_state = p_cdc->requested_line_state;
+        p_cdc->line.control_state = p_cdc->requested_line.control_state;
         break;
 
       default: break;
     }
   }
 
-  xfer->complete_cb = p_cdc->user_control_cb;
+  xfer->complete_cb = p_cdc->user_complete_cb;
   if (xfer->complete_cb) {
     xfer->complete_cb(xfer);
   }
 }
 
 static bool ch34x_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(ch34x_write_reg_data_format(p_cdc, complete_cb ? ch34x_internal_control_complete : NULL, user_data));
 
   return true;
 }
 
 static bool ch34x_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(ch34x_write_reg_baudrate(p_cdc, complete_cb ? ch34x_internal_control_complete : NULL, user_data));
 
   return true;
@@ -2008,7 +2011,7 @@ static bool ch34x_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t comple
 }
 
 static bool ch34x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(ch34x_modem_ctrl_request(p_cdc, complete_cb ? ch34x_internal_control_complete : NULL, user_data));
 
   return true;
@@ -2073,7 +2076,7 @@ static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
       // see drivers from WCH vendor, Linux kernel and FreeBSD
       if (version >= 0x30) {
         // init CH34x with line coding
-        p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
+        p_cdc->requested_line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
         uint16_t const div_ps = ch34x_get_divisor_prescaler(p_cdc);
         uint8_t const lcr = ch34x_get_lcr(p_cdc);
         TU_ASSERT(div_ps != 0 && lcr != 0);
@@ -2085,7 +2088,7 @@ static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_CH34X_SPECIAL_REG_WRITE:
       // overtake line coding and do special reg write, purpose unknown, overtaken from WCH driver
-      p_cdc->line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
+      p_cdc->line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM_CH34X;
       TU_ASSERT(ch34x_write_reg(p_cdc, TU_U16(CH341_REG_0x0F, CH341_REG_0x2C), 0x0007,
                                 cdch_process_set_config, CONFIG_CH34X_FLOW_CONTROL));
       break;
@@ -2098,8 +2101,8 @@ static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_CH34X_MODEM_CONTROL:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      p_cdc->requested_line_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-      p_cdc->user_control_cb = cdch_process_set_config;
+      p_cdc->requested_line.control_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      p_cdc->user_complete_cb = cdch_process_set_config;
       TU_ASSERT(ch34x_modem_ctrl_request(p_cdc, ch34x_internal_control_complete, CONFIG_CH34X_COMPLETE));
       break;
       #else
@@ -2121,7 +2124,7 @@ static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
 
 // calculate divisor and prescaler for baudrate, return it as 16-bit combined value
 static uint16_t ch34x_get_divisor_prescaler(cdch_interface_t *p_cdc) {
-  uint32_t const baval = p_cdc->requested_line_coding.bit_rate;
+  uint32_t const baval = p_cdc->requested_line.coding.bit_rate;
   uint8_t a;
   uint8_t b;
   uint32_t c;
@@ -2171,9 +2174,9 @@ static uint16_t ch34x_get_divisor_prescaler(cdch_interface_t *p_cdc) {
 
 // calculate lcr value from data coding
 static uint8_t ch34x_get_lcr(cdch_interface_t *p_cdc) {
-  uint8_t const stop_bits = p_cdc->requested_line_coding.stop_bits;
-  uint8_t const parity = p_cdc->requested_line_coding.parity;
-  uint8_t const data_bits = p_cdc->requested_line_coding.data_bits;
+  uint8_t const stop_bits = p_cdc->requested_line.coding.stop_bits;
+  uint8_t const parity = p_cdc->requested_line.coding.parity;
+  uint8_t const data_bits = p_cdc->requested_line.coding.data_bits;
 
   uint8_t lcr = CH34X_LCR_ENABLE_RX | CH34X_LCR_ENABLE_TX;
   TU_VERIFY(data_bits >= 5 && data_bits <= 8);
@@ -2276,7 +2279,7 @@ static inline bool pl2303_supports_hx_status(cdch_interface_t *p_cdc, tuh_xfer_c
 static inline bool pl2303_set_control_lines(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // PL2303 has the same bit coding
   return pl2303_set_request(p_cdc, PL2303_SET_CONTROL_REQUEST, PL2303_SET_CONTROL_REQUEST_TYPE,
-                            p_cdc->requested_line_state.value, 0, NULL, 0, complete_cb, user_data);
+                            p_cdc->requested_line.control_state.value, 0, NULL, 0, complete_cb, user_data);
 }
 
 //static bool pl2303_get_line_request(cdch_interface_t * p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE])
@@ -2292,14 +2295,14 @@ static bool pl2303_set_line_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t compl
    * even to the same values as before. Thus we actually need to filter
    * in this specific case.
    */
-  TU_VERIFY(p_cdc->requested_line_coding.data_bits != p_cdc->line_coding.data_bits ||
-            p_cdc->requested_line_coding.stop_bits != p_cdc->line_coding.stop_bits ||
-            p_cdc->requested_line_coding.parity    != p_cdc->line_coding.parity    ||
-            p_cdc->requested_line_coding.bit_rate  != p_cdc->line_coding.bit_rate );
+  TU_VERIFY(p_cdc->requested_line.coding.data_bits != p_cdc->line.coding.data_bits ||
+            p_cdc->requested_line.coding.stop_bits != p_cdc->line.coding.stop_bits ||
+            p_cdc->requested_line.coding.parity    != p_cdc->line.coding.parity    ||
+            p_cdc->requested_line.coding.bit_rate  != p_cdc->line.coding.bit_rate );
 
   /* For reference buf[6] data bits value */
-  TU_VERIFY(p_cdc->requested_line_coding.data_bits >= 5 && p_cdc->requested_line_coding.data_bits <= 8, 0);
-  buf[6] = p_cdc->requested_line_coding.data_bits;
+  TU_VERIFY(p_cdc->requested_line.coding.data_bits >= 5 && p_cdc->requested_line.coding.data_bits <= 8, 0);
+  buf[6] = p_cdc->requested_line.coding.data_bits;
 
   /* For reference buf[0]:buf[3] baud rate value */
   TU_VERIFY(pl2303_encode_baud_rate(p_cdc, &buf[0]));
@@ -2307,14 +2310,14 @@ static bool pl2303_set_line_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t compl
   /* For reference buf[4]=0 is 1 stop bits */
   /* For reference buf[4]=1 is 1.5 stop bits */
   /* For reference buf[4]=2 is 2 stop bits */
-  buf[4] = p_cdc->requested_line_coding.stop_bits; // PL2303 has the same coding
+  buf[4] = p_cdc->requested_line.coding.stop_bits; // PL2303 has the same coding
 
   /* For reference buf[5]=0 is none parity */
   /* For reference buf[5]=1 is odd parity */
   /* For reference buf[5]=2 is even parity */
   /* For reference buf[5]=3 is mark parity */
   /* For reference buf[5]=4 is space parity */
-  buf[5] = p_cdc->requested_line_coding.parity; // PL2303 has the same coding
+  buf[5] = p_cdc->requested_line.coding.parity; // PL2303 has the same coding
 
   return pl2303_set_request(p_cdc, PL2303_SET_LINE_REQUEST, PL2303_SET_LINE_REQUEST_TYPE, 0, 0,
                             buf, PL2303_LINE_CODING_BUFSIZE, complete_cb, user_data);
@@ -2350,45 +2353,45 @@ static void pl2303_internal_control_complete(tuh_xfer_t *xfer) {
   if (success) {
     if (xfer->setup->bRequest == PL2303_SET_LINE_REQUEST &&
         xfer->setup->bmRequestType == PL2303_SET_LINE_REQUEST_TYPE) {
-      p_cdc->line_coding = p_cdc->requested_line_coding;
+      p_cdc->line.coding = p_cdc->requested_line.coding;
     }
     if (xfer->setup->bRequest == PL2303_SET_CONTROL_REQUEST &&
         xfer->setup->bmRequestType == PL2303_SET_CONTROL_REQUEST_TYPE) {
-      p_cdc->line_state = p_cdc->requested_line_state;
+      p_cdc->line.control_state = p_cdc->requested_line.control_state;
     }
   }
 
-  xfer->complete_cb = p_cdc->user_control_cb;
+  xfer->complete_cb = p_cdc->user_complete_cb;
   if (xfer->complete_cb) {
     xfer->complete_cb(xfer);
   }
 }
 
 static bool pl2303_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? pl2303_internal_control_complete : NULL, user_data));
   return true;
 }
 
 static bool pl2303_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->requested_line_coding.bit_rate = p_cdc->line_coding.bit_rate;
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->requested_line.coding.bit_rate = p_cdc->line.coding.bit_rate;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? pl2303_internal_control_complete : NULL, user_data));
   return true;
 }
 
 static bool pl2303_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->requested_line_coding.stop_bits = p_cdc->line_coding.stop_bits;
-  p_cdc->requested_line_coding.parity    = p_cdc->line_coding.parity;
-  p_cdc->requested_line_coding.data_bits = p_cdc->line_coding.data_bits;
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->requested_line.coding.stop_bits = p_cdc->line.coding.stop_bits;
+  p_cdc->requested_line.coding.parity    = p_cdc->line.coding.parity;
+  p_cdc->requested_line.coding.data_bits = p_cdc->line.coding.data_bits;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? pl2303_internal_control_complete : NULL, user_data));
   return true;
 }
 
 static bool pl2303_set_modem_ctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // PL2303 has the same bit coding
-  p_cdc->user_control_cb = complete_cb;
+  p_cdc->user_complete_cb = complete_cb;
   TU_ASSERT(pl2303_set_control_lines(p_cdc, complete_cb ? pl2303_internal_control_complete : NULL, user_data));
   return true;
 }
@@ -2458,7 +2461,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
   switch (state) {
     // from here sequence overtaken from Linux Kernel function pl2303_startup()
     case CONFIG_PL2303_DETECT_TYPE:
-      p_cdc->user_control_cb = cdch_process_set_config;// set once for whole process config
+      p_cdc->user_complete_cb = cdch_process_set_config;// set once for whole process config
       // get type and quirks (step 1)
       type = pl2303_detect_type(p_cdc, 1);
       TU_ASSERT(type != PL2303_TYPE_UNKNOWN);
@@ -2606,7 +2609,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
       // unnecessary pl2303_get_line_request() is skipped due to a stall
     case CONFIG_PL2303_LINE_CODING:
     #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      p_cdc->requested_line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
+      p_cdc->requested_line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
       TU_ASSERT(pl2303_set_line_request(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_MODEM_CONTROL));
       break;
     #else
@@ -2615,7 +2618,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_MODEM_CONTROL:
     #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      p_cdc->requested_line_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
+      p_cdc->requested_line.control_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
       TU_ASSERT(pl2303_set_control_lines(p_cdc, pl2303_internal_control_complete, CONFIG_PL2303_COMPLETE));
       break;
     #else
@@ -2861,7 +2864,7 @@ static uint32_t pl2303_encode_baud_rate_divisor_alt(uint8_t buf[PL2303_LINE_CODI
 }
 
 static bool pl2303_encode_baud_rate(cdch_interface_t *p_cdc, uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE]) {
-  uint32_t baud = p_cdc->requested_line_coding.bit_rate;
+  uint32_t baud = p_cdc->requested_line.coding.bit_rate;
   uint32_t baud_sup;
   const pl2303_type_data_t* type_data = &pl2303_type_data[p_cdc->pl2303.type];
 
