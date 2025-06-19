@@ -404,8 +404,7 @@ static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 //--------------------------------------------------------------------+
 // Requests
 //--------------------------------------------------------------------+
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint32_t bit_rate;
   uint8_t  stop_bits; ///< 0: 1 stop bit - 1: 1.5 stop bits - 2: 2 stop bits
   uint8_t  parity;    ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
@@ -414,14 +413,13 @@ typedef struct TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
-typedef union TU_ATTR_PACKED
-{
+typedef union TU_ATTR_PACKED {
   struct {
-  uint8_t dtr : 1;
-  uint8_t rts : 1;
-  uint8_t     : 6;
+    uint8_t dtr : 1;
+    uint8_t rts : 1;
+    uint8_t     : 6;
   };
-  uint8_t all;
+  uint8_t value;
 } cdc_line_control_state_t;
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 1, "size is not correct");
