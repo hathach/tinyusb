@@ -69,14 +69,27 @@ uint8_t tuh_cdc_itf_get_index(uint8_t daddr, uint8_t itf_num);
 // return true if index is correct and interface is currently mounted
 bool tuh_cdc_itf_get_info(uint8_t idx, tuh_itf_info_t* info);
 
-// Check if a interface is mounted
+// Check if an interface is mounted
 bool tuh_cdc_mounted(uint8_t idx);
 
+// Get local (cached) line state
+// This function should return correct values if tuh_cdc_set_control_line_state() / tuh_cdc_get_control_line_state()
+// are invoked previously or CFG_TUH_CDC_LINE_STATE_ON_ENUM is defined.
+bool tuh_cdc_get_control_line_state_local(uint8_t idx, uint16_t* line_state);
+
 // Get current DTR status
-bool tuh_cdc_get_dtr(uint8_t idx);
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_get_dtr(uint8_t idx) {
+  uint16_t line_state;
+  TU_VERIFY(tuh_cdc_get_control_line_state_local(idx, &line_state));
+  return (line_state & CDC_CONTROL_LINE_STATE_DTR) != 0;
+}
 
 // Get current RTS status
-bool tuh_cdc_get_rts(uint8_t idx);
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_get_rts(uint8_t idx) {
+  uint16_t line_state;
+  TU_VERIFY(tuh_cdc_get_control_line_state_local(idx, &line_state));
+  return (line_state & CDC_CONTROL_LINE_STATE_RTS) != 0;
+}
 
 // Check if interface is connected (DTR active)
 TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_connected(uint8_t idx) {
@@ -87,7 +100,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_connected(uint8_t idx) {
 // This function should return correct values if tuh_cdc_set_line_coding() / tuh_cdc_get_line_coding()
 // are invoked previously or CFG_TUH_CDC_LINE_CODING_ON_ENUM is defined.
 // NOTE: This function does not make any USB transfer request to device.
-bool tuh_cdc_get_local_line_coding(uint8_t idx, cdc_line_coding_t* line_coding);
+bool tuh_cdc_get_line_coding_local(uint8_t idx, cdc_line_coding_t* line_coding);
+
+#define tuh_cdc_get_local_line_coding tuh_cdc_get_line_coding_local // backward compatibility
 
 //--------------------------------------------------------------------+
 // Write API
@@ -131,14 +146,22 @@ bool tuh_cdc_read_clear (uint8_t idx);
 //   - The function will return true if transfer is successful, false otherwise.
 //--------------------------------------------------------------------+
 
-// Request to Set Control Line State
-bool tuh_cdc_set_control_line_state_u(uint8_t idx, cdc_line_control_state_t line_state, // uses cdc_line_control_state_t union for line_state
-                                      tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state,                   // uses uint16_t for line_state (legacy function)
-                                    tuh_xfer_cb_t complete_cb, uintptr_t user_data);    // DTR (bit 0), RTS (bit 1)
+// Request to Set Control Line State: DTR (bit 0), RTS (bit 1)
+bool tuh_cdc_set_control_line_state(uint8_t idx, uint16_t line_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
-bool tuh_cdc_set_dtr(uint8_t idx, bool dtr_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data); // Request to Set DTR
-bool tuh_cdc_set_rts(uint8_t idx, bool rts_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data); // Request to Set RTS
+// Request to Set DTR
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_set_dtr(uint8_t idx, bool dtr_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  cdc_line_control_state_t line_state = { .dtr = dtr_state };
+  line_state.rts = tuh_cdc_get_rts(idx);
+  return tuh_cdc_set_control_line_state(idx, line_state.value, complete_cb, user_data);
+}
+
+// Request to Set RTS
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_set_rts(uint8_t idx, bool rts_state, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  cdc_line_control_state_t line_state = { .rts = rts_state };
+  line_state.dtr = tuh_cdc_get_dtr(idx);
+  return tuh_cdc_set_control_line_state(idx, line_state.value, complete_cb, user_data);
+}
 
 // Request to set baudrate
 bool tuh_cdc_set_baudrate(uint8_t idx, uint32_t baudrate, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
