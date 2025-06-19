@@ -96,51 +96,53 @@
 #define PL2303_HXN_FLOWCTRL_XON_XOFF      0x0c
 
 // type data
-enum pl2303_type {
-  TYPE_H,
-  TYPE_HX,
-  TYPE_TA,
-  TYPE_TB,
-  TYPE_HXD,
-  TYPE_HXN,
-  TYPE_COUNT
-};
+typedef enum pl2303_type {
+  PL2303_TYPE_H,
+  PL2303_TYPE_HX,
+  PL2303_TYPE_TA,
+  PL2303_TYPE_TB,
+  PL2303_TYPE_HXD,
+  PL2303_TYPE_HXN,
+  // PL2303_TYPE_NEED_SUPPORTS_HX_STATUS,
+  // PL2303_TYPE_UNKNOWN,
+  PL2303_TYPE_COUNT
+} pl2303_type_t;
 
-struct pl2303_type_data {
+typedef struct pl2303_type_data {
   uint8_t  const *name;
   uint32_t const max_baud_rate;
   uint8_t  const quirks;
   uint16_t const no_autoxonxoff:1;
   uint16_t const no_divisors:1;
   uint16_t const alt_divisors:1;
-};
+} pl2303_type_data_t;
 
 #define PL2303_TYPE_DATA \
-  [TYPE_H] = { \
+  [PL2303_TYPE_H] = { \
     .name = (uint8_t const*)"H", \
     .max_baud_rate = 1228800, \
     .quirks = PL2303_QUIRK_LEGACY, \
     .no_autoxonxoff = true, \
   }, \
-  [TYPE_HX] = { \
+  [PL2303_TYPE_HX] = { \
     .name = (uint8_t const*)"HX", \
     .max_baud_rate = 6000000, \
   }, \
-  [TYPE_TA] = { \
+  [PL2303_TYPE_TA] = { \
     .name = (uint8_t const*)"TA", \
     .max_baud_rate = 6000000, \
     .alt_divisors = true, \
   }, \
-  [TYPE_TB] = { \
+  [PL2303_TYPE_TB] = { \
     .name = (uint8_t const*)"TB", \
     .max_baud_rate = 12000000, \
     .alt_divisors = true, \
   }, \
-  [TYPE_HXD] = { \
+  [PL2303_TYPE_HXD] = { \
     .name = (uint8_t const*)"HXD", \
     .max_baud_rate = 12000000, \
   }, \
-  [TYPE_HXN] = { \
+  [PL2303_TYPE_HXN] = { \
     .name = (uint8_t const*)"G (HXN)", \
     .max_baud_rate = 12000000, \
     .no_divisors = true, \
@@ -166,7 +168,7 @@ typedef struct TU_ATTR_PACKED {
 #define PL2303_IN_EP                        0x83
 
 // return values of pl2303_detect_type()
-#define PL2303_SUPPORTS_HX_STATUS_TRIGGERED -1
-#define PL2303_DETECT_TYPE_FAILED           -2
+#define PL2303_TYPE_NEED_SUPPORTS_HX_STATUS -1
+#define PL2303_TYPE_UNKNOWN                 -2
 
 #endif // TUSB_PL2303_H

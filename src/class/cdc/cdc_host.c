@@ -111,13 +111,13 @@ typedef struct {
     tu_edpt_stream_t rx;
 
     uint8_t tx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
-    uint8_t rx_ff_buf[CFG_TUH_CDC_TX_BUFSIZE];
+    uint8_t rx_ff_buf[CFG_TUH_CDC_RX_BUFSIZE];
   } stream;
 } cdch_interface_t;
 
 typedef struct {
   TUH_EPBUF_DEF(tx, CFG_TUH_CDC_TX_EPSIZE);
-  TUH_EPBUF_DEF(rx, CFG_TUH_CDC_TX_EPSIZE);
+  TUH_EPBUF_DEF(rx, CFG_TUH_CDC_RX_EPSIZE);
 } cdch_epbuf_t;
 
 static cdch_interface_t cdch_data[CFG_TUH_CDC];
@@ -141,10 +141,6 @@ static bool acm_set_control_line_state(cdch_interface_t * p_cdc, tuh_xfer_cb_t c
 //------------- FTDI prototypes -------------//
 #if CFG_TUH_CDC_FTDI
 static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST};
-#if CFG_TUSB_DEBUG && CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL
-  static uint8_t const * ftdi_chip_name[] = { FTDI_CHIP_NAMES };
-#endif
-
 static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t * itf_desc, uint16_t max_len);
 static bool ftdi_proccess_set_config(tuh_xfer_t * xfer);
 
@@ -183,7 +179,7 @@ static bool ch34x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complet
 //------------- PL2303 prototypes -------------//
 #if CFG_TUH_CDC_PL2303
 static uint16_t const pl2303_vid_pid_list[][2] = {CFG_TUH_CDC_PL2303_VID_PID_LIST};
-static const struct pl2303_type_data pl2303_type_data[TYPE_COUNT] = {PL2303_TYPE_DATA};
+static const pl2303_type_data_t pl2303_type_data[PL2303_TYPE_COUNT] = {PL2303_TYPE_DATA};
 
 static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 static bool pl2303_process_set_config(tuh_xfer_t *xfer);
@@ -1209,7 +1205,7 @@ static bool ftdi_set_request(cdch_interface_t *p_cdc, uint8_t request, uint8_t r
 #ifdef CFG_TUH_CDC_FTDI_LATENCY
 static int8_t ftdi_write_latency_timer(cdch_interface_t * p_cdc, uint16_t latency,
                                        tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  if (p_cdc->ftdi.chip_type == SIO /* || p_cdc->ftdi.chip_type == FT232A */ )
+  if (p_cdc->ftdi.chip_type == FTDI_SIO /* || p_cdc->ftdi.chip_type == FT232A */ )
     return FTDI_NOT_POSSIBLE;
   return ftdi_set_request(p_cdc, FTDI_SIO_SET_LATENCY_TIMER_REQUEST, FTDI_SIO_SET_LATENCY_TIMER_REQUEST_TYPE,
                           latency, p_cdc->ftdi.channel, complete_cb, user_data) ? FTDI_REQUESTED : FTDI_FAIL;
@@ -1458,7 +1454,7 @@ static bool ftdi_determine_type(cdch_interface_t *p_cdc) {
   uint16_t const version = desc_dev.bcdDevice;
   uint8_t const itf_num = p_cdc->bInterfaceNumber;
 
-  p_cdc->ftdi.chip_type = UNKNOWN;
+  p_cdc->ftdi.chip_type = FTDI_UNKNOWN;
 
   /* Assume Hi-Speed type */
   p_cdc->ftdi.channel = CHANNEL_A + itf_num;
@@ -1476,35 +1472,40 @@ static bool ftdi_determine_type(cdch_interface_t *p_cdc) {
       //  */
       // if (desc->iSerialNumber == 0 &&
       //     _read_latency_timer(port) >= 0) {
-      //   p_cdc->ftdi.chip_type = FT232B;
+      //   p_cdc->ftdi.chip_type = FTDI_FT232B;
       // }
       break;
-    case 0x400: p_cdc->ftdi.chip_type = FT232B; p_cdc->ftdi.channel = 0; break;
-    case 0x500: p_cdc->ftdi.chip_type = FT2232C; break;
-    case 0x600: p_cdc->ftdi.chip_type = FT232R; p_cdc->ftdi.channel = 0; break;
-    case 0x700: p_cdc->ftdi.chip_type = FT2232H; break;
-    case 0x800: p_cdc->ftdi.chip_type = FT4232H; break;
-    case 0x900: p_cdc->ftdi.chip_type = FT232H; break;
-    case 0x1000: p_cdc->ftdi.chip_type = FTX; break;
-    case 0x2800: p_cdc->ftdi.chip_type = FT2233HP; break;
-    case 0x2900: p_cdc->ftdi.chip_type = FT4233HP; break;
-    case 0x3000: p_cdc->ftdi.chip_type = FT2232HP; break;
-    case 0x3100: p_cdc->ftdi.chip_type = FT4232HP; break;
-    case 0x3200: p_cdc->ftdi.chip_type = FT233HP; break;
-    case 0x3300: p_cdc->ftdi.chip_type = FT232HP; break;
-    case 0x3600: p_cdc->ftdi.chip_type = FT4232HA; break;
+
+    case 0x400 : p_cdc->ftdi.chip_type = FTDI_FT232B; p_cdc->ftdi.channel = 0; break;
+    case 0x500 : p_cdc->ftdi.chip_type = FTDI_FT2232C; break;
+    case 0x600 : p_cdc->ftdi.chip_type = FTDI_FT232R; p_cdc->ftdi.channel = 0; break;
+    case 0x700 : p_cdc->ftdi.chip_type = FTDI_FT2232H; break;
+    case 0x800 : p_cdc->ftdi.chip_type = FTDI_FT4232H; break;
+    case 0x900 : p_cdc->ftdi.chip_type = FTDI_FT232H; break;
+    case 0x1000: p_cdc->ftdi.chip_type = FTDI_FTX; break;
+    case 0x2800: p_cdc->ftdi.chip_type = FTDI_FT2233HP; break;
+    case 0x2900: p_cdc->ftdi.chip_type = FTDI_FT4233HP; break;
+    case 0x3000: p_cdc->ftdi.chip_type = FTDI_FT2232HP; break;
+    case 0x3100: p_cdc->ftdi.chip_type = FTDI_FT4232HP; break;
+    case 0x3200: p_cdc->ftdi.chip_type = FTDI_FT233HP; break;
+    case 0x3300: p_cdc->ftdi.chip_type = FTDI_FT232HP; break;
+    case 0x3600: p_cdc->ftdi.chip_type = FTDI_FT4232HA; break;
+
     default:
       if (version < 0x200) {
-        p_cdc->ftdi.chip_type = SIO;
+        p_cdc->ftdi.chip_type = FTDI_SIO;
         p_cdc->ftdi.channel = 0;
       }
       break;
   }
 
+  #if CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL
+  const char * ftdi_chip_name[] = { FTDI_CHIP_NAMES };
   TU_LOG_P_CDC("%s detected (bcdDevice = 0x%04x)",
                ftdi_chip_name[p_cdc->ftdi.chip_type], version);
+  #endif
 
-  return (p_cdc->ftdi.chip_type != UNKNOWN);
+  return (p_cdc->ftdi.chip_type != FTDI_UNKNOWN);
 }
 
 // FT232A not supported
@@ -1589,9 +1590,9 @@ static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
   TU_VERIFY(baud);
 
   switch (p_cdc->ftdi.chip_type) {
-    case UNKNOWN:
+    case FTDI_UNKNOWN:
       return 0;
-    case SIO:
+    case FTDI_SIO:
       switch (baud) {
         case 300: div_value = ftdi_sio_b300; break;
         case 600: div_value = ftdi_sio_b600; break;
@@ -1620,23 +1621,23 @@ static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
       //     div_okay = false;
       //   }
       //   break;
-    case FT232B:
-    case FT2232C:
-    case FT232R:
-    case FTX:
+    case FTDI_FT232B:
+    case FTDI_FT2232C:
+    case FTDI_FT232R:
+    case FTDI_FTX:
       TU_VERIFY(baud <= 3000000); // else Baud rate too high!
       div_value = ftdi_232bm_baud_to_divisor(baud);
       break;
-    case FT232H:
-    case FT2232H:
-    case FT4232H:
-    case FT4232HA:
-    case FT232HP:
-    case FT233HP:
-    case FT2232HP:
-    case FT2233HP:
-    case FT4232HP:
-    case FT4233HP:
+    case FTDI_FT232H:
+    case FTDI_FT2232H:
+    case FTDI_FT4232H:
+    case FTDI_FT4232HA:
+    case FTDI_FT232HP:
+    case FTDI_FT233HP:
+    case FTDI_FT2232HP:
+    case FTDI_FT2233HP:
+    case FTDI_FT4232HP:
+    case FTDI_FT4233HP:
     default:
       TU_VERIFY(baud <= 12000000); // else Baud rate too high!
       if (baud >= 1200) {
@@ -2273,8 +2274,7 @@ static uint8_t ch34x_get_lcr(cdch_interface_t *p_cdc) {
 //--------------------------------------------------------------------+
 #if CFG_TUH_CDC_PL2303
 
-static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
-                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step);
 static bool pl2303_encode_baud_rate(cdch_interface_t *p_cdc, uint8_t buf[PL2303_LINE_CODING_BAUDRATE_BUFSIZE]);
 
 //------------- Control Request -------------//
@@ -2313,14 +2313,13 @@ static bool pl2303_set_request(cdch_interface_t *p_cdc, uint8_t request, uint8_t
 
 static bool pl2303_vendor_read(cdch_interface_t *p_cdc, uint16_t value, uint8_t *buf,
                                tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint8_t request = p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN] ? PL2303_VENDOR_READ_NREQUEST : PL2303_VENDOR_READ_REQUEST;
-
+  uint8_t request = p_cdc->pl2303.serial_private.type == &pl2303_type_data[PL2303_TYPE_HXN] ? PL2303_VENDOR_READ_NREQUEST : PL2303_VENDOR_READ_REQUEST;
   return pl2303_set_request(p_cdc, request, PL2303_VENDOR_READ_REQUEST_TYPE, value, 0, buf, 1, complete_cb, user_data);
 }
 
 static bool pl2303_vendor_write(cdch_interface_t *p_cdc, uint16_t value, uint16_t index,
                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint8_t request = p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN] ? PL2303_VENDOR_WRITE_NREQUEST : PL2303_VENDOR_WRITE_REQUEST;
+  uint8_t request = p_cdc->pl2303.serial_private.type == &pl2303_type_data[PL2303_TYPE_HXN] ? PL2303_VENDOR_WRITE_NREQUEST : PL2303_VENDOR_WRITE_REQUEST;
 
   return pl2303_set_request(p_cdc, request, PL2303_VENDOR_WRITE_REQUEST_TYPE, value, index, NULL, 0, complete_cb, user_data);
 }
@@ -2517,25 +2516,30 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
   uint8_t buf = 0;
   int8_t type;
 
-  TU_ASSERT(p_cdc && (xfer->result == XFER_RESULT_SUCCESS || xfer->user_data == CONFIG_PL2303_READ1));
+  TU_ASSERT(p_cdc && (xfer->result == XFER_RESULT_SUCCESS || state == CONFIG_PL2303_READ1));
   switch (state) {
     // from here sequence overtaken from Linux Kernel function pl2303_startup()
     case CONFIG_PL2303_DETECT_TYPE:
       p_cdc->user_control_cb = cdch_process_set_config;// set once for whole process config
       // get type and quirks (step 1)
-      type = pl2303_detect_type(p_cdc, 1, cdch_process_set_config, CONFIG_PL2303_READ1);
-      TU_ASSERT(type != PL2303_DETECT_TYPE_FAILED);
-      if (type == PL2303_SUPPORTS_HX_STATUS_TRIGGERED) {
+      type = pl2303_detect_type(p_cdc, 1);
+      TU_ASSERT(type != PL2303_TYPE_UNKNOWN);
+      if (type == PL2303_TYPE_NEED_SUPPORTS_HX_STATUS) {
+        TU_ASSERT(pl2303_supports_hx_status(p_cdc, cdch_process_set_config, CONFIG_PL2303_READ1));
         break;
-      }// else: no transfer triggered and continue with CONFIG_PL2303_READ1
-      TU_ATTR_FALLTHROUGH;
+      } else {
+        // no transfer triggered and continue with CONFIG_PL2303_READ1
+        TU_ATTR_FALLTHROUGH;
+      }
 
     case CONFIG_PL2303_READ1:
       // get supports_hx_status, type and quirks (step 2), do special read
-      p_cdc->pl2303.supports_hx_status = (// will not be true, if coming directly from previous case
-          xfer->user_data == CONFIG_PL2303_READ1 && xfer->result == XFER_RESULT_SUCCESS);
-      type = pl2303_detect_type(p_cdc, 2, NULL, 0); // step 2 now with supports_hx_status
-      TU_ASSERT(type != PL2303_DETECT_TYPE_FAILED);
+      // will not be true, if coming directly from previous case
+      if (xfer->user_data == CONFIG_PL2303_READ1 && xfer->result == XFER_RESULT_SUCCESS) {
+        p_cdc->pl2303.supports_hx_status = true;
+      }
+      type = pl2303_detect_type(p_cdc, 2); // step 2 now with supports_hx_status
+      TU_ASSERT(type != PL2303_TYPE_UNKNOWN);
       p_cdc->pl2303.serial_private.type = &pl2303_type_data[type];
       p_cdc->pl2303.serial_private.quirks |= p_cdc->pl2303.serial_private.type->quirks;
       #if CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL && 0// can be activated if necessary
@@ -2549,7 +2553,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
                    p_cdc->pl2303.serial_private.type->name, p_cdc->pl2303.serial_private.quirks);
       #endif
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE1));
         break;
       }// else: continue with next step
@@ -2557,7 +2561,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_WRITE1:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 0, cdch_process_set_config, CONFIG_PL2303_READ2));
         break;
       }// else: continue with next step
@@ -2565,7 +2569,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_READ2:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_READ3));
         break;
       }// else: continue with next step
@@ -2573,7 +2577,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_READ3:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, cdch_process_set_config, CONFIG_PL2303_READ4));
         break;
       }// else: continue with next step
@@ -2581,7 +2585,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_READ4:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE2));
         break;
       }// else: continue with next step
@@ -2589,7 +2593,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_WRITE2:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_write(p_cdc, 0x0404, 1, cdch_process_set_config, CONFIG_PL2303_READ5));
         break;
       }// else: continue with next step
@@ -2597,7 +2601,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_READ5:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_READ6));
         break;
       }// else: continue with next step
@@ -2605,7 +2609,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_READ6:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE3));
         break;
       }// else: continue with next step
@@ -2613,7 +2617,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_WRITE3:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_write(p_cdc, 0, 1, cdch_process_set_config, CONFIG_PL2303_WRITE4));
         break;
       }// else: continue with next step
@@ -2621,7 +2625,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_WRITE4:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         TU_ASSERT(pl2303_vendor_write(p_cdc, 1, 0, cdch_process_set_config, CONFIG_PL2303_WRITE5));
         break;
       }// else: continue with next step
@@ -2629,7 +2633,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_PL2303_WRITE5:
       // purpose unknown, overtaken from Linux Kernel driver
-      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[TYPE_HXN]) {
+      if (p_cdc->pl2303.serial_private.type != &pl2303_type_data[PL2303_TYPE_HXN]) {
         uint16_t const windex = (p_cdc->pl2303.serial_private.quirks & PL2303_QUIRK_LEGACY) ? 0x24 : 0x44;
         TU_ASSERT(pl2303_vendor_write(p_cdc, 2, windex, cdch_process_set_config, CONFIG_PL2303_RESET_ENDP1));
         break;
@@ -2643,7 +2647,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
         TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_OUT_EP, cdch_process_set_config, CONFIG_PL2303_RESET_ENDP2));
       } else {
         /* reset upstream data pipes */
-        if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+        if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[PL2303_TYPE_HXN]) {
           TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_RESET_REG,// skip CONFIG_PL2303_RESET_ENDP2, no 2nd step
                                         PL2303_HXN_RESET_UPSTREAM_PIPE | PL2303_HXN_RESET_DOWNSTREAM_PIPE,
                                         cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
@@ -2659,7 +2663,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
         TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_IN_EP, cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
       } else {
         /* reset upstream data pipes */
-        if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+        if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[PL2303_TYPE_HXN]) {
           // here nothing to do, only structure of previous step overtaken for better reading and comparison
         } else {
           TU_ASSERT(pl2303_vendor_write(p_cdc, 9, 0, cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
@@ -2690,7 +2694,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
       // skipped, because it's not working with each PL230x. flow control can be also set by PL2303 EEPROM Writer Program
       //    case CONFIG_PL2303_FLOW_CTRL_READ:
       //      // read flow control register for modify & write back in next step
-      //      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+      //      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[PL2303_TYPE_HXN]) {
       //        TU_LOG_P_CDC ( "1\r\n" );
       //        TU_ASSERT(pl2303_vendor_read(p_cdc, PL2303_HXN_FLOWCTRL_REG, &buf,
       //                                     cdch_process_set_config, CONFIG_PL2303_FLOW_CTRL_WRITE));
@@ -2703,7 +2707,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
       //    case CONFIG_PL2303_FLOW_CTRL_WRITE:
       //      // no flow control
       //      buf = xfer->buffer[0];
-      //      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[TYPE_HXN]) {
+      //      if (p_cdc->pl2303.serial_private.type == &pl2303_type_data[PL2303_TYPE_HXN]) {
       //        buf &= (uint8_t) ~PL2303_HXN_FLOWCTRL_MASK;
       //        buf |= PL2303_HXN_FLOWCTRL_NONE;
       //        TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_FLOWCTRL_REG, buf,
@@ -2728,21 +2732,20 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
 
 //------------- Helper -------------//
 
-static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
-                                 tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step) {
   tusb_desc_device_t desc_dev;
-  TU_VERIFY(tuh_descriptor_get_device_local(p_cdc->daddr, &desc_dev), PL2303_DETECT_TYPE_FAILED);
+  TU_VERIFY(tuh_descriptor_get_device_local(p_cdc->daddr, &desc_dev), PL2303_TYPE_UNKNOWN);
 
   // Legacy PL2303H, variants 0 and 1 (difference unknown).
   if (desc_dev.bDeviceClass == 0x02) {
-    return TYPE_H; /* variant 0 */
+    return PL2303_TYPE_H; /* variant 0 */
   }
 
   if (desc_dev.bMaxPacketSize0 != 0x40) {
     if (desc_dev.bDeviceClass == 0x00 || desc_dev.bDeviceClass == 0xff) {
-      return TYPE_H; /* variant 1 */
+      return PL2303_TYPE_H; /* variant 1 */
     }
-    return TYPE_H; /* variant 0 */
+    return PL2303_TYPE_H; /* variant 0 */
   }
 
   switch (desc_dev.bcdUSB) {
@@ -2751,9 +2754,9 @@ static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
       TU_ATTR_FALLTHROUGH;
     case 0x110:
       switch (desc_dev.bcdDevice) {
-        case 0x300: return TYPE_HX;
-        case 0x400: return TYPE_HXD;
-        default: return TYPE_HX;
+        case 0x300: return PL2303_TYPE_HX;
+        case 0x400: return PL2303_TYPE_HXD;
+        default: return PL2303_TYPE_HX;
       }
       break;
 
@@ -2761,34 +2764,32 @@ static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
       switch (desc_dev.bcdDevice) {
         case 0x100: /* GC */
         case 0x105:
-          return TYPE_HXN;
+          return PL2303_TYPE_HXN;
 
         case 0x300: /* GT / TA */
           if (step == 1) {
             // step 1 trigger pl2303_supports_hx_status() request
-            TU_ASSERT(pl2303_supports_hx_status(p_cdc, complete_cb, user_data), PL2303_DETECT_TYPE_FAILED);
-            return PL2303_SUPPORTS_HX_STATUS_TRIGGERED;
+            return PL2303_TYPE_NEED_SUPPORTS_HX_STATUS;
           } else {
             // step 2 use supports_hx_status
             if (p_cdc->pl2303.supports_hx_status) {
-              return TYPE_TA;
+              return PL2303_TYPE_TA;
             }
           }
           TU_ATTR_FALLTHROUGH;
         case 0x305:
         case 0x400: /* GL */
         case 0x405:
-          return TYPE_HXN;
+          return PL2303_TYPE_HXN;
 
         case 0x500: /* GE / TB */
           if (step == 1) {
             // step 1 trigger pl2303_supports_hx_status() request
-            TU_ASSERT(pl2303_supports_hx_status(p_cdc, complete_cb, user_data), PL2303_DETECT_TYPE_FAILED);
-            return PL2303_SUPPORTS_HX_STATUS_TRIGGERED;
+            return PL2303_TYPE_NEED_SUPPORTS_HX_STATUS;
           } else {
             // step 2 use supports_hx_status
             if (p_cdc->pl2303.supports_hx_status) {
-              return TYPE_TB;
+              return PL2303_TYPE_TB;
             }
           }
           TU_ATTR_FALLTHROUGH;
@@ -2797,7 +2798,7 @@ static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
         case 0x605:
         case 0x700: /* GR */
         case 0x705:
-          return TYPE_HXN;
+          return PL2303_TYPE_HXN;
 
         default:
           break;
@@ -2807,7 +2808,7 @@ static int8_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step,
   }
 
   TU_LOG_P_CDC("unknown device type bcdUSB = 0x%04x", desc_dev.bcdUSB);
-  return PL2303_DETECT_TYPE_FAILED;
+  return PL2303_TYPE_UNKNOWN;
 }
 
 /*

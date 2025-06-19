@@ -165,48 +165,48 @@ enum ftdi_sio_baudrate {
 #define FTDI_RS_FIFO  (1 << 7)
 
 // chip types and names
-enum ftdi_chip_type {
-  SIO = 0,
-//  FT232A,
-  FT232B,
-  FT2232C,
-  FT232R,
-  FT232H,
-  FT2232H,
-  FT4232H,
-  FT4232HA,
-  FT232HP,
-  FT233HP,
-  FT2232HP,
-  FT2233HP,
-  FT4232HP,
-  FT4233HP,
-  FTX,
-  UNKNOWN
-};
+typedef enum ftdi_chip_type {
+  FTDI_SIO = 0,
+//  FTDI_FT232A,
+  FTDI_FT232B,
+  FTDI_FT2232C,
+  FTDI_FT232R,
+  FTDI_FT232H,
+  FTDI_FT2232H,
+  FTDI_FT4232H,
+  FTDI_FT4232HA,
+  FTDI_FT232HP,
+  FTDI_FT233HP,
+  FTDI_FT2232HP,
+  FTDI_FT2233HP,
+  FTDI_FT4232HP,
+  FTDI_FT4233HP,
+  FTDI_FTX,
+  FTDI_UNKNOWN
+} ftdi_chip_type_t;
 
 #define FTDI_CHIP_NAMES \
-  [SIO]       = (uint8_t const*) "SIO", /* the serial part of FT8U100AX */ \
-/*  [FT232A]    = (uint8_t const*) "FT232A", */ \
-  [FT232B]    = (uint8_t const*) "FT232B", \
-  [FT2232C]   = (uint8_t const*) "FT2232C/D", \
-  [FT232R]    = (uint8_t const*) "FT232R", \
-  [FT232H]    = (uint8_t const*) "FT232H", \
-  [FT2232H]   = (uint8_t const*) "FT2232H", \
-  [FT4232H]   = (uint8_t const*) "FT4232H", \
-  [FT4232HA]  = (uint8_t const*) "FT4232HA", \
-  [FT232HP]   = (uint8_t const*) "FT232HP", \
-  [FT233HP]   = (uint8_t const*) "FT233HP", \
-  [FT2232HP]  = (uint8_t const*) "FT2232HP", \
-  [FT2233HP]  = (uint8_t const*) "FT2233HP", \
-  [FT4232HP]  = (uint8_t const*) "FT4232HP", \
-  [FT4233HP]  = (uint8_t const*) "FT4233HP", \
-  [FTX]       = (uint8_t const*) "FT-X", \
-  [UNKNOWN]   = (uint8_t const*) "UNKNOWN"
+  [FTDI_SIO]       = "SIO", /* the serial part of FT8U100AX */ \
+/*  [FTDI_FT232A]    = "FT232A", */ \
+  [FTDI_FT232B]    = "FT232B", \
+  [FTDI_FT2232C]   = "FT2232C/D", \
+  [FTDI_FT232R]    = "FT232R", \
+  [FTDI_FT232H]    = "FT232H", \
+  [FTDI_FT2232H]   = "FTDI_FT2232H", \
+  [FTDI_FT4232H]   = "FT4232H", \
+  [FTDI_FT4232HA]  = "FT4232HA", \
+  [FTDI_FT232HP]   = "FT232HP", \
+  [FTDI_FT233HP]   = "FT233HP", \
+  [FTDI_FT2232HP]  = "FT2232HP", \
+  [FTDI_FT2233HP]  = "FT2233HP", \
+  [FTDI_FT4232HP]  = "FT4232HP", \
+  [FTDI_FT4233HP]  = "FT4233HP", \
+  [FTDI_FTX]       = "FT-X", \
+  [FTDI_UNKNOWN]   = "UNKNOWN"
 
 // private interface data
 typedef struct ftdi_private {
-  enum    ftdi_chip_type chip_type;
+  ftdi_chip_type_t chip_type;
   uint8_t channel;                  // channel index, or 0 for legacy types
 } ftdi_private_t;
 
