@@ -89,7 +89,7 @@ void tuh_cdc_mount_cb(uint8_t idx) {
   // If CFG_TUH_CDC_LINE_CODING_ON_ENUM is defined, line coding will be set by tinyusb stack
   // while eneumerating new cdc device
   cdc_line_coding_t line_coding = {0};
-  if (tuh_cdc_get_local_line_coding(idx, &line_coding)) {
+  if (tuh_cdc_get_line_coding_local(idx, &line_coding)) {
     printf("  Baudrate: %" PRIu32 ", Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
     printf("  Parity  : %u, Data Width: %u\r\n", line_coding.parity, line_coding.data_bits);
   }

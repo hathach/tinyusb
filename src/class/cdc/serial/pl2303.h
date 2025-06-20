@@ -109,36 +109,37 @@ typedef enum pl2303_type {
 } pl2303_type_t;
 
 typedef struct pl2303_type_data {
-  uint32_t const max_baud_rate;
-  uint8_t const quirks;
-  uint8_t const no_autoxonxoff : 1;
-  uint8_t const no_divisors    : 1;
-  uint8_t const alt_divisors   : 1;
+  uint32_t max_baud_rate;
+  uint8_t  quirks;
+  uint8_t  no_autoxonxoff : 1;
+  uint8_t  no_divisors    : 1;
+  uint8_t  alt_divisors   : 1;
 } pl2303_type_data_t;
 
 #define PL2303_TYPE_DATA \
   [PL2303_TYPE_H] = { \
-    .max_baud_rate = 1228800, \
-    .quirks = PL2303_QUIRK_LEGACY, \
-    .no_autoxonxoff = true, \
+    .max_baud_rate = 1228800, .quirks = PL2303_QUIRK_LEGACY, \
+    .no_autoxonxoff = 1, .no_divisors = 0, .alt_divisors = 0 \
   }, \
   [PL2303_TYPE_HX] = { \
-    .max_baud_rate = 6000000, \
+    .max_baud_rate = 6000000, .quirks = 0, \
+    .no_autoxonxoff = 0, .no_divisors = 0, .alt_divisors = 0 \
   }, \
   [PL2303_TYPE_TA] = { \
-    .max_baud_rate = 6000000, \
-    .alt_divisors = true, \
+    .max_baud_rate = 6000000, .quirks = 0, \
+    .no_autoxonxoff = 0, .no_divisors = 0, .alt_divisors = 1 \
   }, \
   [PL2303_TYPE_TB] = { \
-    .max_baud_rate = 12000000, \
-    .alt_divisors = true, \
+    .max_baud_rate = 12000000, .quirks = 0, \
+    .no_autoxonxoff = 0, .no_divisors = 0, .alt_divisors = 1 \
   }, \
   [PL2303_TYPE_HXD] = { \
-    .max_baud_rate = 12000000, \
+    .max_baud_rate = 12000000, .quirks = 0, \
+    .no_autoxonxoff = 0, .no_divisors = 0, .alt_divisors = 0 \
   }, \
   [PL2303_TYPE_HXN] = { \
-    .max_baud_rate = 12000000, \
-    .no_divisors = true, \
+    .max_baud_rate = 12000000, .quirks = 0, \
+    .no_autoxonxoff = 0, .no_divisors = 1, .alt_divisors = 0 \
   }
 
 typedef struct TU_ATTR_PACKED {

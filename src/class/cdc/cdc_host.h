@@ -137,13 +137,12 @@ bool tuh_cdc_peek(uint8_t idx, uint8_t* ch);
 bool tuh_cdc_read_clear (uint8_t idx);
 
 //--------------------------------------------------------------------+
-// Control Endpoint (Request) API
+// Control Request API
 // Each Function will make a USB control transfer request to/from device
 // - If complete_cb is provided, the function will return immediately and invoke
 // the callback when request is complete.
 // - If complete_cb is NULL, the function will block until request is complete.
-//   - In this case, user_data should be pointed to xfer_result_t to hold the transfer result.
-//   - The function will return true if transfer is successful, false otherwise.
+// In this case, user_data should be usb_xfer_result_t* to hold the transfer result.
 //--------------------------------------------------------------------+
 
 // Request to Set Control Line State: DTR (bit 0), RTS (bit 1)
@@ -179,15 +178,50 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const* line_coding, 
 // bool tuh_cdc_get_line_coding(uint8_t idx, cdc_line_coding_t* coding);
 
 // Connect by set both DTR, RTS
-TU_ATTR_ALWAYS_INLINE static inline
-bool tuh_cdc_connect(uint8_t idx, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_connect(uint8_t idx, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return tuh_cdc_set_control_line_state(idx, CDC_CONTROL_LINE_STATE_DTR | CDC_CONTROL_LINE_STATE_RTS, complete_cb, user_data);
 }
 
 // Disconnect by clear both DTR, RTS
-TU_ATTR_ALWAYS_INLINE static inline
-bool tuh_cdc_disconnect(uint8_t idx, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+TU_ATTR_ALWAYS_INLINE static inline bool tuh_cdc_disconnect(uint8_t idx, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return tuh_cdc_set_control_line_state(idx, 0x00, complete_cb, user_data);
+}
+
+//--------------------------------------------------------------------+
+// Control Request Sync API
+// Each Function will make a USB control transfer request to/from device the function will block until request is
+// complete. The function will return the transfer request result
+//--------------------------------------------------------------------+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_set_control_line_state_sync(uint8_t idx, uint16_t line_state) {
+  TU_API_SYNC(tuh_cdc_set_control_line_state, idx, line_state);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_set_dtr_sync(uint8_t idx, bool dtr_state) {
+  TU_API_SYNC(tuh_cdc_set_dtr, idx, dtr_state);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_set_rts_sync(uint8_t idx, bool rts_state) {
+  TU_API_SYNC(tuh_cdc_set_rts, idx, rts_state);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_set_baudrate_sync(uint8_t idx, uint32_t baudrate) {
+  TU_API_SYNC(tuh_cdc_set_baudrate, idx, baudrate);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_set_data_format_sync(uint8_t idx, uint8_t stop_bits, uint8_t parity, uint8_t data_bits) {
+  TU_API_SYNC(tuh_cdc_set_data_format, idx, stop_bits, parity, data_bits);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_set_line_coding_sync(uint8_t idx, cdc_line_coding_t const* line_coding) {
+  TU_API_SYNC(tuh_cdc_set_line_coding, idx, line_coding);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_connect_sync(uint8_t idx) {
+  TU_API_SYNC(tuh_cdc_connect, idx);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_disconnect_sync(uint8_t idx) {
+  TU_API_SYNC(tuh_cdc_disconnect, idx);
 }
 
 //--------------------------------------------------------------------+
