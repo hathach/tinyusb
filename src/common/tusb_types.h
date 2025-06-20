@@ -278,6 +278,8 @@ typedef enum {
   XFER_RESULT_INVALID
 } xfer_result_t;
 
+#define tusb_xfer_result_t xfer_result_t
+
 // TODO remove
 enum {
   DESC_OFFSET_LEN  = 0,

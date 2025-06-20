@@ -1092,8 +1092,9 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr) 
 
 // generic helper to get a descriptor
 // if blocking, user_data is pointed to xfer_result
-static bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
-                            tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+TU_ATTR_ALWAYS_INLINE static inline
+bool _get_descriptor(uint8_t daddr, uint8_t type, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
+                    tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
       .recipient = TUSB_REQ_RCPT_DEVICE,
@@ -1134,7 +1135,6 @@ bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer
 }
 
 //------------- String Descriptor -------------//
-
 bool tuh_descriptor_get_string(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len,
                                tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return _get_descriptor(daddr, TUSB_DESC_STRING, index, language_id, buffer, len, complete_cb, user_data);
@@ -1270,47 +1270,6 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
   };
 
   return tuh_control_xfer(&xfer);
-}
-
-//--------------------------------------------------------------------+
-// Descriptor Sync
-//--------------------------------------------------------------------+
-
-#define _CONTROL_SYNC_API(_async_func, ...) \
-  xfer_result_t result = XFER_RESULT_INVALID;\
-  TU_VERIFY(_async_func(__VA_ARGS__, NULL, (uintptr_t) &result), XFER_RESULT_TIMEOUT); \
-  return (uint8_t) result
-
-uint8_t tuh_descriptor_get_sync(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len) {
-  _CONTROL_SYNC_API(tuh_descriptor_get, daddr, type, index, buffer, len);
-}
-
-uint8_t tuh_descriptor_get_device_sync(uint8_t daddr, void* buffer, uint16_t len) {
-  _CONTROL_SYNC_API(tuh_descriptor_get_device, daddr, buffer, len);
-}
-
-uint8_t tuh_descriptor_get_configuration_sync(uint8_t daddr, uint8_t index, void* buffer, uint16_t len) {
-  _CONTROL_SYNC_API(tuh_descriptor_get_configuration, daddr, index, buffer, len);
-}
-
-uint8_t tuh_descriptor_get_hid_report_sync(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len) {
-  _CONTROL_SYNC_API(tuh_descriptor_get_hid_report, daddr, itf_num, desc_type, index, buffer, len);
-}
-
-uint8_t tuh_descriptor_get_string_sync(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len) {
-  _CONTROL_SYNC_API(tuh_descriptor_get_string, daddr, index, language_id, buffer, len);
-}
-
-uint8_t tuh_descriptor_get_manufacturer_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len) {
-  _CONTROL_SYNC_API(tuh_descriptor_get_manufacturer_string, daddr, language_id, buffer, len);
-}
-
-uint8_t tuh_descriptor_get_product_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len) {
-  _CONTROL_SYNC_API(tuh_descriptor_get_product_string, daddr, language_id, buffer, len);
-}
-
-uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len) {
-  _CONTROL_SYNC_API(tuh_descriptor_get_serial_string, daddr, language_id, buffer, len);
 }
 
 //--------------------------------------------------------------------+
