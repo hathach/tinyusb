@@ -112,11 +112,13 @@ CFG_TUH_MEM_SECTION static cdch_epbuf_t cdch_epbuf[CFG_TUH_CDC];
 // Serial Driver
 //--------------------------------------------------------------------+
 
+// General driver
 static void cdch_process_set_config(tuh_xfer_t *xfer);
+static void cdch_internal_control_complete(tuh_xfer_t *xfer);
 
 //------------- ACM prototypes -------------//
 static bool acm_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-static bool acm_process_set_config(tuh_xfer_t * xfer);
+static bool acm_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
 
 static bool acm_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool acm_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -127,7 +129,8 @@ static bool acm_set_control_line_state(cdch_interface_t * p_cdc, tuh_xfer_cb_t c
 #if CFG_TUH_CDC_FTDI
 static uint16_t const ftdi_vid_pid_list[][2] = {CFG_TUH_CDC_FTDI_VID_PID_LIST};
 static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t * itf_desc, uint16_t max_len);
-static bool ftdi_proccess_set_config(tuh_xfer_t * xfer);
+static bool ftdi_proccess_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
+static void ftdi_internal_control_complete(cdch_interface_t* p_cdc, tuh_xfer_t *xfer);
 
 static bool ftdi_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool ftdi_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -140,7 +143,9 @@ static bool ftdi_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete
 static uint16_t const cp210x_vid_pid_list[][2] = {CFG_TUH_CDC_CP210X_VID_PID_LIST};
 
 static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-static bool cp210x_process_set_config(tuh_xfer_t * xfer);
+static bool cp210x_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
+static void acm_internal_control_complete(tuh_xfer_t *xfer);
+static void cp210x_internal_control_complete(tuh_xfer_t *xfer);
 
 static bool cp210x_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool cp210x_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -153,7 +158,8 @@ static bool cp210x_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t comple
 static uint16_t const ch34x_vid_pid_list[][2] = {CFG_TUH_CDC_CH34X_VID_PID_LIST};
 
 static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-static bool ch34x_process_set_config(tuh_xfer_t *xfer);
+static bool ch34x_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
+static void ch34x_internal_control_complete(tuh_xfer_t *xfer);
 
 static bool ch34x_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool ch34x_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -167,7 +173,8 @@ static uint16_t const pl2303_vid_pid_list[][2] = {CFG_TUH_CDC_PL2303_VID_PID_LIS
 static const pl2303_type_data_t pl2303_type_data[PL2303_TYPE_COUNT] = {PL2303_TYPE_DATA};
 
 static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-static bool pl2303_process_set_config(tuh_xfer_t *xfer);
+static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
+static void pl2303_internal_control_complete(tuh_xfer_t *xfer);
 
 static bool pl2303_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool pl2303_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
@@ -206,11 +213,11 @@ typedef struct {
   bool is_2stage_line_coding; // true if driver requires to set baudrate then data format separately
 
   bool (*const open)(uint8_t daddr, const tusb_desc_interface_t * itf_desc, uint16_t max_len);
-  bool (*const process_set_config)(tuh_xfer_t * xfer);
-  const serial_driver_func_t set_control_line_state;
-  const serial_driver_func_t set_baudrate;
-  const serial_driver_func_t set_data_format;
-  const serial_driver_func_t set_line_coding;
+  bool (*const process_set_config)(cdch_interface_t * p_cdc, tuh_xfer_t * xfer);
+  void (*const request_complete)(cdch_interface_t * p_cdc, tuh_xfer_t * xfer); // internal request complete handler to update line state
+
+  serial_driver_func_t set_control_line_state, set_baudrate, set_data_format, set_line_coding;
+
   #if CFG_TUSB_DEBUG && CFG_TUSB_DEBUG >= CFG_TUH_CDC_LOG_LEVEL
   const char * name;
   #endif
@@ -244,6 +251,7 @@ static const cdch_serial_driver_t serial_drivers[] = {
       .is_2stage_line_coding  = true,
       .open                   = ftdi_open,
       .process_set_config     = ftdi_proccess_set_config,
+      .request_complete       = ftdi_internal_control_complete,
       .set_control_line_state = ftdi_set_modem_ctrl,
       .set_baudrate           = ftdi_set_baudrate,
       .set_data_format        = ftdi_set_data_format,
@@ -827,11 +835,9 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
   return false;
 }
 
-static void set_config_complete(uint8_t idx, uint8_t itf_offset, bool success) {
-  cdch_interface_t *p_cdc = get_itf(idx);
-  TU_ASSERT(p_cdc, );
-
+static void set_config_complete(cdch_interface_t *p_cdc, uint8_t itf_offset, bool success) {
   if (success) {
+    const uint8_t idx = get_idx_by_ptr(p_cdc);
     p_cdc->mounted = true;
     if (tuh_cdc_mount_cb) {
       tuh_cdc_mount_cb(idx);
@@ -846,19 +852,6 @@ static void set_config_complete(uint8_t idx, uint8_t itf_offset, bool success) {
 
   // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(p_cdc->daddr, p_cdc->bInterfaceNumber + itf_offset);
-}
-
-static void cdch_process_set_config(tuh_xfer_t *xfer) {
-  cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
-  TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
-  const uint8_t idx = get_idx_by_ptr(p_cdc);
-
-  TU_LOG_DRV("  state = %u\r\n", xfer->user_data);
-
-  if (!serial_drivers[p_cdc->serial_drid].process_set_config(xfer)) {
-    const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
-    set_config_complete(idx, itf_offset, false);
-  }
 }
 
 bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
@@ -878,6 +871,32 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   cdch_process_set_config(&xfer);
 
   return true;
+}
+
+
+static void cdch_process_set_config(tuh_xfer_t *xfer) {
+  cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
+  TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
+  TU_LOG_DRV("  state = %u\r\n", xfer->user_data);
+
+  if (!serial_drivers[p_cdc->serial_drid].process_set_config(p_cdc, xfer)) {
+    const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
+    set_config_complete(p_cdc, itf_offset, false);
+  }
+}
+
+static void cdch_internal_control_complete(tuh_xfer_t *xfer) {
+  cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
+  TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
+
+  TU_LOG_DRV("  request result = %u\r\n", xfer->result);
+  serial_drivers[p_cdc->serial_drid].request_complete(p_cdc, xfer);
+
+  // Invoke application callback
+  xfer->complete_cb = p_cdc->user_complete_cb;
+  if (xfer->complete_cb) {
+    xfer->complete_cb(xfer);
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -1046,13 +1065,9 @@ static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint1
   return true;
 }
 
-static bool acm_process_set_config(tuh_xfer_t *xfer) {
+static bool acm_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
   const uintptr_t state = xfer->user_data;
-  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t *p_cdc = get_itf(idx);
-  TU_ASSERT(p_cdc && xfer->result == XFER_RESULT_SUCCESS);
-
   switch (state) {
     case CONFIG_ACM_SET_CONTROL_LINE_STATE:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
@@ -1076,7 +1091,7 @@ static bool acm_process_set_config(tuh_xfer_t *xfer) {
 
     case CONFIG_ACM_COMPLETE:
       // itf_num+1 to account for data interface as well
-      set_config_complete(idx, 1, true);
+      set_config_complete(p_cdc, 1, true);
       break;
 
     default:
@@ -1159,55 +1174,38 @@ static bool ftdi_set_data_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t complet
                           value, p_cdc->ftdi.channel, complete_cb, user_data);
 }
 
-static inline bool ftdi_update_mctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  uint16_t value = (uint16_t) ((p_cdc->requested_line.control_state.dtr ? FTDI_SIO_SET_DTR_HIGH : FTDI_SIO_SET_DTR_LOW) |
-                               (p_cdc->requested_line.control_state.rts ? FTDI_SIO_SET_RTS_HIGH : FTDI_SIO_SET_RTS_LOW));
-
-  return ftdi_set_request(p_cdc, FTDI_SIO_SET_MODEM_CTRL_REQUEST, FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE,
-                          value, p_cdc->ftdi.channel, complete_cb, user_data);
-}
-
 //------------- Driver API -------------//
 
 // internal control complete to update state such as line state, line_coding
-static void ftdi_internal_control_complete(tuh_xfer_t *xfer) {
-  uint8_t const idx = ftdi_get_idx(xfer);
-  cdch_interface_t *p_cdc = get_itf(idx);
-  TU_ASSERT(p_cdc, );
-  bool const success = (xfer->result == XFER_RESULT_SUCCESS);
-
-  if (success) {
-    if (xfer->setup->bRequest      == FTDI_SIO_SET_MODEM_CTRL_REQUEST &&
-        xfer->setup->bmRequestType == FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE ) {
+static void ftdi_internal_control_complete(cdch_interface_t* p_cdc, tuh_xfer_t *xfer) {
+  const tusb_control_request_t * setup = xfer->setup;
+  if (xfer->result == XFER_RESULT_SUCCESS) {
+    if (setup->bRequest      == FTDI_SIO_SET_MODEM_CTRL_REQUEST &&
+        setup->bmRequestType == FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE ) {
       p_cdc->line.control_state = p_cdc->requested_line.control_state;
     }
-    if (xfer->setup->bRequest      == FTDI_SIO_SET_DATA_REQUEST &&
-        xfer->setup->bmRequestType == FTDI_SIO_SET_DATA_REQUEST_TYPE ) {
+    if (setup->bRequest      == FTDI_SIO_SET_DATA_REQUEST &&
+        setup->bmRequestType == FTDI_SIO_SET_DATA_REQUEST_TYPE ) {
       p_cdc->line.coding.stop_bits = p_cdc->requested_line.coding.stop_bits;
       p_cdc->line.coding.parity    = p_cdc->requested_line.coding.parity;
       p_cdc->line.coding.data_bits = p_cdc->requested_line.coding.data_bits;
     }
-    if (xfer->setup->bRequest      == FTDI_SIO_SET_BAUDRATE_REQUEST &&
-        xfer->setup->bmRequestType == FTDI_SIO_SET_BAUDRATE_REQUEST_TYPE ) {
+    if (setup->bRequest      == FTDI_SIO_SET_BAUDRATE_REQUEST &&
+        setup->bmRequestType == FTDI_SIO_SET_BAUDRATE_REQUEST_TYPE ) {
       p_cdc->line.coding.bit_rate = p_cdc->requested_line.coding.bit_rate;
     }
-  }
-
-  xfer->complete_cb = p_cdc->user_complete_cb;
-  if (xfer->complete_cb) {
-    xfer->complete_cb(xfer);
   }
 }
 
 static bool ftdi_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_complete_cb = complete_cb;
-  TU_ASSERT(ftdi_set_data_request(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
+  TU_ASSERT(ftdi_set_data_request(p_cdc, complete_cb ? cdch_internal_control_complete : NULL, user_data));
   return true;
 }
 
 static bool ftdi_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   p_cdc->user_complete_cb = complete_cb;
-  TU_ASSERT(ftdi_change_speed(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
+  TU_ASSERT(ftdi_change_speed(p_cdc, complete_cb ? cdch_internal_control_complete : NULL, user_data));
   return true;
 }
 
@@ -1218,7 +1216,7 @@ static void ftdi_set_line_coding_stage1_complete(tuh_xfer_t *xfer) {
   uint8_t const itf_num = p_cdc->bInterfaceNumber;
   set_line_coding_stage1_complete(xfer, itf_num,
                                   ftdi_set_data_request,           // control request function to set data format
-                                  ftdi_internal_control_complete); // control complete function to be called after request
+                                  cdch_internal_control_complete); // control complete function to be called after request
 }
 
 // 2 stages: set baudrate (stage1) + set data format (stage2)
@@ -1227,15 +1225,16 @@ static bool ftdi_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complet
                                   ftdi_change_speed,                    // control request function to set baudrate
                                   ftdi_set_data_request,                // control request function to set data format
                                   ftdi_set_line_coding_stage1_complete, // function to be called after stage 1 completed
-                                  ftdi_internal_control_complete,       // control complete function to be called after request
+                                  cdch_internal_control_complete,       // control complete function to be called after request
                                   complete_cb, user_data);
 }
 
 static bool ftdi_set_modem_ctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  uint16_t line_state = (uint16_t) ((p_cdc->requested_line.control_state.dtr ? FTDI_SIO_SET_DTR_HIGH : FTDI_SIO_SET_DTR_LOW) |
+                                    (p_cdc->requested_line.control_state.rts ? FTDI_SIO_SET_RTS_HIGH : FTDI_SIO_SET_RTS_LOW));
   p_cdc->user_complete_cb = complete_cb;
-  TU_ASSERT(ftdi_update_mctrl(p_cdc, complete_cb ? ftdi_internal_control_complete : NULL, user_data));
-
-  return true;
+  return ftdi_set_request(p_cdc, FTDI_SIO_SET_MODEM_CTRL_REQUEST, FTDI_SIO_SET_MODEM_CTRL_REQUEST_TYPE,
+                          line_state, p_cdc->ftdi.channel, complete_cb ? cdch_internal_control_complete : NULL, user_data);
 }
 
 //------------- Enumeration -------------//
@@ -1274,18 +1273,14 @@ static bool ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint
   return open_ep_stream_pair(p_cdc, desc_ep);
 }
 
-static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
+static bool ftdi_proccess_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
   const uintptr_t state = xfer->user_data;
-  uint8_t const idx = ftdi_get_idx(xfer);
-  cdch_interface_t *p_cdc = get_itf(idx);
-  uint8_t const itf_num = p_cdc->bInterfaceNumber;
-  TU_ASSERT(p_cdc && xfer->result == XFER_RESULT_SUCCESS);
-
   switch (state) {
     // from here sequence overtaken from Linux Kernel function ftdi_port_probe()
     case CONFIG_FTDI_DETERMINE_TYPE:
       // determine type
-      if (itf_num == 0) {
+      if (p_cdc->bInterfaceNumber == 0) {
         TU_ASSERT(ftdi_determine_type(p_cdc));
       } else {
         // other interfaces have same type as interface 0
@@ -1318,7 +1313,7 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       p_cdc->requested_line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
       p_cdc->user_complete_cb = cdch_process_set_config;
-      TU_ASSERT(ftdi_set_data_request(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_SET_BAUDRATE));
+      TU_ASSERT(ftdi_set_data_request(p_cdc, cdch_internal_control_complete, CONFIG_FTDI_SET_BAUDRATE));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -1327,7 +1322,7 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
     case CONFIG_FTDI_SET_BAUDRATE:
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
       p_cdc->user_complete_cb = cdch_process_set_config;
-      TU_ASSERT(ftdi_change_speed(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_FLOW_CONTROL));
+      TU_ASSERT(ftdi_change_speed(p_cdc, cdch_internal_control_complete, CONFIG_FTDI_FLOW_CONTROL));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
@@ -1342,15 +1337,14 @@ static bool ftdi_proccess_set_config(tuh_xfer_t *xfer) {
     case CONFIG_FTDI_MODEM_CTRL:
       #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
       p_cdc->requested_line.control_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-      p_cdc->user_complete_cb = cdch_process_set_config;
-      TU_ASSERT(ftdi_update_mctrl(p_cdc, ftdi_internal_control_complete, CONFIG_FTDI_COMPLETE));
+      TU_ASSERT(ftdi_set_modem_ctrl(p_cdc, cdch_process_set_config, CONFIG_FTDI_COMPLETE));
       break;
       #else
       TU_ATTR_FALLTHROUGH;
       #endif
 
     case CONFIG_FTDI_COMPLETE:
-      set_config_complete(idx, 0, true);
+      set_config_complete(p_cdc, 0, true);
       break;
 
     default:
@@ -1754,12 +1748,9 @@ static bool cp210x_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, ui
   return open_ep_stream_pair(p_cdc, desc_ep);
 }
 
-static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
+static bool cp210x_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
   const uintptr_t state = xfer->user_data;
-  uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
-  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t *p_cdc = get_itf(idx);
-  TU_ASSERT(p_cdc && xfer->result == XFER_RESULT_SUCCESS);
 
     switch (state) {
     case CONFIG_CP210X_IFC_ENABLE:
@@ -1796,7 +1787,7 @@ static bool cp210x_process_set_config(tuh_xfer_t *xfer) {
       #endif
 
     case CONFIG_CP210X_COMPLETE:
-      set_config_complete(idx, 0, true);
+      set_config_complete(p_cdc, 0, true);
       break;
 
     default:
@@ -2018,13 +2009,10 @@ static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, ui
   return true;
 }
 
-static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
-  const uintptr_t state = xfer->user_data;
-  uint8_t const itf_num = 0; // CH34x has only interface 0, since wIndex is used as payload
-  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t *p_cdc = get_itf(idx);
+static bool ch34x_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
   uint8_t buffer[2];// TODO remove
-  TU_ASSERT(p_cdc && xfer->result == XFER_RESULT_SUCCESS);
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
+  const uintptr_t state = xfer->user_data;
 
   switch (state) {
     case CONFIG_CH34X_READ_VERSION:
@@ -2074,7 +2062,7 @@ static bool ch34x_process_set_config(tuh_xfer_t *xfer) {
       #endif
 
     case CONFIG_CH34X_COMPLETE:
-      set_config_complete(idx, 0, true);
+      set_config_complete(p_cdc, 0, true);
       break;
 
     default:
@@ -2410,17 +2398,12 @@ static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, ui
   return true;
 }
 
-static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
-  const uintptr_t state = xfer->user_data;
-  // PL2303 has only interface 0, because wIndex is used as payload and not for bInterfaceNumber
-  uint8_t const itf_num = 0;
-  uint8_t const idx = tuh_cdc_itf_get_index(xfer->daddr, itf_num);
-  cdch_interface_t *p_cdc = get_itf(idx);
+static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
   // state CONFIG_PL2303_READ1 may have no success due to expected stall by pl2303_supports_hx_status()
+  const uintptr_t state = xfer->user_data;
+  TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS || state == CONFIG_PL2303_READ1);
   uint8_t buf = 0;
   pl2303_type_t type;
-
-  TU_ASSERT(p_cdc && (xfer->result == XFER_RESULT_SUCCESS || state == CONFIG_PL2303_READ1));
 
   switch (state) {
     // from here sequence overtaken from Linux Kernel function pl2303_startup()
@@ -2618,7 +2601,7 @@ static bool pl2303_process_set_config(tuh_xfer_t *xfer) {
   //      break;
 
     case CONFIG_PL2303_COMPLETE:
-      set_config_complete(idx, 0, true);
+      set_config_complete(p_cdc, 0, true);
       break;
 
     default:
