@@ -192,6 +192,11 @@ typedef enum {
   CDC_LINE_CODING_STOP_BITS_2   = 2, // 2   bits
 } cdc_line_coding_stopbits_t;
 
+#define CDC_LINE_CODING_STOP_BITS_TEXT(STOP_BITS) (        \
+  STOP_BITS == CDC_LINE_CODING_STOP_BITS_1 ?   "1" :       \
+  STOP_BITS == CDC_LINE_CODING_STOP_BITS_1_5 ? "1.5" :     \
+  STOP_BITS == CDC_LINE_CODING_STOP_BITS_2 ?   "2"   : "?" )
+
 // TODO Backward compatible for typos. Maybe removed in the future release
 #define CDC_LINE_CONDING_STOP_BITS_1   CDC_LINE_CODING_STOP_BITS_1
 #define CDC_LINE_CONDING_STOP_BITS_1_5 CDC_LINE_CODING_STOP_BITS_1_5
@@ -204,6 +209,13 @@ typedef enum {
   CDC_LINE_CODING_PARITY_MARK  = 3,
   CDC_LINE_CODING_PARITY_SPACE = 4,
 } cdc_line_coding_parity_t;
+
+#define CDC_LINE_CODING_PARITY_CHAR(PARITY) (        \
+  PARITY == CDC_LINE_CODING_PARITY_NONE  ? 'N' :     \
+  PARITY == CDC_LINE_CODING_PARITY_ODD   ? 'O' :     \
+  PARITY == CDC_LINE_CODING_PARITY_EVEN  ? 'E' :     \
+  PARITY == CDC_LINE_CODING_PARITY_MARK  ? 'M' :     \
+  PARITY == CDC_LINE_CODING_PARITY_SPACE ? 'S' : '?' )
 
 //--------------------------------------------------------------------+
 // Management Element Notification (Notification Endpoint)
@@ -392,8 +404,7 @@ static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 //--------------------------------------------------------------------+
 // Requests
 //--------------------------------------------------------------------+
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint32_t bit_rate;
   uint8_t  stop_bits; ///< 0: 1 stop bit - 1: 1.5 stop bits - 2: 2 stop bits
   uint8_t  parity;    ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
@@ -402,15 +413,16 @@ typedef struct TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
-typedef struct TU_ATTR_PACKED
-{
-  uint16_t dtr : 1;
-  uint16_t rts : 1;
-  uint16_t : 6;
-  uint16_t : 8;
+typedef union TU_ATTR_PACKED {
+  struct {
+    uint8_t dtr : 1;
+    uint8_t rts : 1;
+    uint8_t     : 6;
+  };
+  uint8_t value;
 } cdc_line_control_state_t;
 
-TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
+TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 1, "size is not correct");
 
 TU_ATTR_PACKED_END  // End of all packed definitions
 TU_ATTR_BIT_FIELD_ORDER_END
