@@ -184,7 +184,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void *buff
   }
 
   // Check for overflow of offset + bufsize
-  if (offset + bufsize > DISK_BLOCK_SIZE) {
+  if (lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE) {
     return -1;
   }
 
