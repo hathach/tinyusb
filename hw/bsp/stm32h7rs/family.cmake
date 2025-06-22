@@ -54,11 +54,11 @@ function(add_board_target BOARD_TARGET)
   set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
 
   if(NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/linker/${MCU_VARIANT}_flash.ld)
+    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_flash.ld)
   endif()
   set(LD_FILE_Clang ${LD_FILE_GNU})
   if(NOT DEFINED LD_FILE_IAR)
-    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+    set(LD_FILE_IAR ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_flash.icf)
   endif()
 
   add_library(${BOARD_TARGET} STATIC
@@ -87,8 +87,7 @@ function(add_board_target BOARD_TARGET)
     BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
     BOARD_TUH_RHPORT=${RHPORT_HOST}
     BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
-    SEGGER_RTT_SECTION="noncacheable_buffer"
-    BUFFER_SIZE_UP=0x3000
+    SEGGER_RTT_SECTION=\"dtcm_data\"
     )
 
   update_board(${BOARD_TARGET})

@@ -124,9 +124,13 @@ void log_swo_init(void)
 #endif
 
 void board_init(void) {
+  SCB_EnableICache();
+  SCB_EnableDCache();
+
   HAL_Init();
 
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
+
   // Implemented in board.h
   SystemClock_Config();
 
