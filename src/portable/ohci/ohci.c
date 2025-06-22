@@ -38,6 +38,7 @@
 #include "osal/osal.h"
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 #include "ohci.h"
 
 // TODO remove
@@ -328,13 +329,13 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t ep_size, uint8_t
     tu_memclr(p_ed, sizeof(ohci_ed_t));
   }
 
-  hcd_devtree_info_t devtree_info;
-  hcd_devtree_get_info(dev_addr, &devtree_info);
+  tuh_bus_info_t bus_info;
+  tuh_bus_info_get(dev_addr, &bus_info);
 
   p_ed->dev_addr          = dev_addr;
   p_ed->ep_number         = ep_addr & 0x0F;
   p_ed->pid               = (xfer_type == TUSB_XFER_CONTROL) ? PID_FROM_TD : (tu_edpt_dir(ep_addr) ? PID_IN : PID_OUT);
-  p_ed->speed             = devtree_info.speed;
+  p_ed->speed             = bus_info.speed;
   p_ed->is_iso            = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
   p_ed->max_packet_size   = ep_size;
 

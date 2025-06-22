@@ -514,6 +514,63 @@ host_test = [
 ]
 
 
+def test_example(board, f1, example):
+    """
+    Test example firmware
+    :param board: board dict
+    :param f1: flags on
+    :param example: example name
+    :return: 0 if success/skip, 1 if failed
+    """
+    name = board['name']
+    err_count = 0
+
+    f1_str = ""
+    if f1 != "":
+        f1_str = '-f1_' + f1.replace(' ', '_')
+
+    fw_dir = f'{TINYUSB_ROOT}/cmake-build/cmake-build-{name}{f1_str}/{example}'
+    if not os.path.exists(fw_dir):
+        fw_dir = f'{TINYUSB_ROOT}/examples/cmake-build-{name}{f1_str}/{example}'
+    fw_name = f'{fw_dir}/{os.path.basename(example)}'
+    print(f'{name+f1_str:40} {example:30} ... ', end='')
+
+    if not os.path.exists(fw_dir) or not (os.path.exists(f'{fw_name}.elf') or os.path.exists(f'{fw_name}.bin')):
+        print('Skip (no binary)')
+        return 0
+
+    if verbose:
+        print(f'Flashing {fw_name}.elf')
+
+    # flash firmware. It may fail randomly, retry a few times
+    max_rety = 3
+    for i in range(max_rety):
+        ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
+        if ret.returncode == 0:
+            try:
+                globals()[f'test_{example.replace("/", "_")}'](board)
+                print('OK')
+                break
+            except Exception as e:
+                if i == max_rety - 1:
+                    err_count += 1
+                    print(STATUS_FAILED)
+                    print(f'  {e}')
+                else:
+                    print()
+                    print(f'  Test failed: {e}, retry {i+2}/{max_rety}')
+                    time.sleep(1)
+        else:
+            print(f'Flashing failed, retry {i+2}/{max_rety}')
+            time.sleep(1)
+
+    if ret.returncode != 0:
+        err_count += 1
+        print(f'Flash {STATUS_FAILED}')
+
+    return err_count
+
+
 def test_board(board):
     name = board['name']
     flasher = board['flasher']
@@ -537,57 +594,17 @@ def test_board(board):
                     test_list.remove(skip)
                     print(f'{name:25} {skip:30} ... Skip')
 
-    # board_test is added last to disable board's usb
-    test_list.append('device/board_test')
-
     err_count = 0
     flags_on_list = [""]
     if 'build' in board and 'flags_on' in board['build']:
         flags_on_list = board['build']['flags_on']
 
     for f1 in flags_on_list:
-        f1_str = ""
-        if f1 != "":
-            f1_str = '-f1_' + f1.replace(' ', '_')
         for test in test_list:
-            fw_dir = f'{TINYUSB_ROOT}/cmake-build/cmake-build-{name}{f1_str}/{test}'
-            if not os.path.exists(fw_dir):
-                fw_dir = f'{TINYUSB_ROOT}/examples/cmake-build-{name}{f1_str}/{test}'
-            fw_name = f'{fw_dir}/{os.path.basename(test)}'
-            print(f'{name+f1_str:40} {test:30} ... ', end='')
+            err_count += test_example(board, f1, test)
 
-            if not os.path.exists(fw_dir) or not (os.path.exists(f'{fw_name}.elf') or os.path.exists(f'{fw_name}.bin')):
-                print('Skip (no binary)')
-                continue
-
-            if verbose:
-                print(f'Flashing {fw_name}.elf')
-
-            # flash firmware. It may fail randomly, retry a few times
-            max_rety = 2
-            for i in range(max_rety):
-                ret = globals()[f'flash_{flasher["name"].lower()}'](board, fw_name)
-                if ret.returncode == 0:
-                    try:
-                        globals()[f'test_{test.replace("/", "_")}'](board)
-                        print('OK')
-                        break
-                    except Exception as e:
-                        if i == max_rety - 1:
-                            err_count += 1
-                            print(STATUS_FAILED)
-                            print(f'  {e}')
-                        else:
-                            print()
-                            print(f'  Test failed: {e}, retry {i+2}/{max_rety}')
-                            time.sleep(1)
-                else:
-                    print(f'Flashing failed, retry {i+2}/{max_rety}')
-                    time.sleep(1)
-
-            if ret.returncode != 0:
-                err_count += 1
-                print(f'Flash {STATUS_FAILED}')
+    # flash board_test last to disable board's usb
+    test_example(board, flags_on_list[0], 'device/board_test')
 
     return err_count
 

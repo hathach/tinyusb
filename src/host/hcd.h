@@ -90,13 +90,6 @@ typedef struct {
   };
 } hcd_event_t;
 
-typedef struct {
-  uint8_t rhport;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
-} hcd_devtree_info_t;
-
 //--------------------------------------------------------------------+
 // Memory API
 //--------------------------------------------------------------------+
@@ -186,13 +179,6 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 // USBH implemented API
 //--------------------------------------------------------------------+
 
-// Get device tree information of a device
-// USB device tree can be complicated and manged by USBH, this help HCD to retrieve
-// needed topology info to carry out its work
-extern void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info);
-
-//------------- Event API -------------//
-
 // Called by HCD to notify stack
 extern void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 
@@ -239,4 +225,4 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred
  }
 #endif
 
-#endif /* _TUSB_HCD_H_ */
+#endif

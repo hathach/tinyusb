@@ -510,8 +510,8 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           }
         }
       }
+      break;
     }
-    break;
 
     case MSC_STAGE_DATA:
       TU_LOG_DRV("  SCSI Data [Lun%u]\r\n", p_cbw->lun);

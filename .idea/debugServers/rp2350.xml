@@ -1,5 +1,5 @@
 <component name="DebugServers">
-  <generic-debug-target name="rp2350" uniqueID="939fdf16-9c30-4261-8435-3e8df7fd5800" selected="true">
+  <generic-debug-target name="rp2350" uniqueID="939fdf16-9c30-4261-8435-3e8df7fd5800">
     <debugger version="1">
       <debugger kind="GDB" isBundled="true" />
       <env />

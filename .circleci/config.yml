@@ -20,12 +20,12 @@ jobs:
 
             BUILDSYSTEM_TOOLCHAIN=(
               "cmake arm-clang"
+              "cmake esp-idf"
               "make aarch64-gcc"
               "make arm-gcc"
               "make msp430-gcc"
               "make riscv-gcc"
               "make rx-gcc"
-              "cmake esp-idf"
             )
 
             # only build IAR if not forked PR, since IAR token is not shared

@@ -57,5 +57,12 @@ INC += \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc \
 	$(TOP)/$(BOARD_PATH)
 
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
+
+# Linker
+LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
+
 # flash target using on-board stlink
 flash: flash-stlink

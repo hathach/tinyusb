@@ -1,0 +1,21 @@
+set(MCU_VARIANT MCXA156)
+set(MCU_CORE MCXA156)
+
+set(JLINK_DEVICE MCXA156_M33)
+set(PYOCD_TARGET MCXA156)
+set(NXPLINK_DEVICE MCXA156:MCXA156)
+
+set(PORT 0)
+
+function(update_board TARGET)
+  target_compile_definitions(${TARGET} PUBLIC
+    CPU_MCXA156VLH
+    BOARD_TUD_RHPORT=0
+    BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+    CFG_EXAMPLE_VIDEO_READONLY
+    )
+  target_sources(${TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/clock_config.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/pin_mux.c
+    )
+endfunction()

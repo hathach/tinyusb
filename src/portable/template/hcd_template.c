@@ -29,6 +29,7 @@
 #if CFG_TUH_ENABLED && CFG_TUSB_MCU == OPT_MCU_NONE
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -106,6 +107,11 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 // Open an endpoint
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc) {
   (void) rhport; (void) dev_addr; (void) ep_desc;
+
+  // NOTE: ep_desc is allocated on the stack when called from usbh_edpt_control_open()
+  // You need to copy the data into a local variable who maintains the state of the endpoint and transfer.
+  // Check _hcd_data in hcd_dwc2.c for example.
+
   return false;
 }
 
