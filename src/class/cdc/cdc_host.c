@@ -42,7 +42,7 @@
 
 // Level where CFG_TUSB_DEBUG must be at least for this driver is logged
 #ifndef CFG_TUH_CDC_LOG_LEVEL
-  #define CFG_TUH_CDC_LOG_LEVEL   1
+  #define CFG_TUH_CDC_LOG_LEVEL   2
 #endif
 
 #define TU_LOG_DRV(...)                 TU_LOG(CFG_TUH_CDC_LOG_LEVEL, __VA_ARGS__)
@@ -748,25 +748,25 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
   (void) rhport;
   // For CDC: only support ACM subclass
   // Note: Protocol 0xFF can be RNDIS device
-  if (TUSB_CLASS_CDC                           == itf_desc->bInterfaceClass &&
+  if (TUSB_CLASS_CDC == itf_desc->bInterfaceClass &&
       CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass) {
     return acm_open(daddr, itf_desc, max_len);
-      } else if (SERIAL_DRIVER_COUNT > 1 &&
-                 TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass) {
-        uint16_t vid, pid;
-        TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid));
+  } else if (SERIAL_DRIVER_COUNT > 1 &&
+             TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass) {
+    uint16_t vid, pid;
+    TU_VERIFY(tuh_vid_pid_get(daddr, &vid, &pid));
 
-        for (size_t dr = 1; dr < SERIAL_DRIVER_COUNT; dr++) {
-          const cdch_serial_driver_t *driver = &serial_drivers[dr];
-          for (size_t i = 0; i < driver->vid_pid_count; i++) {
-            if (driver->vid_pid_list[i][0] == vid && driver->vid_pid_list[i][1] == pid) {
-              const bool ret = driver->open(daddr, itf_desc, max_len);
-              TU_LOG_DRV("[:%u:%u] CDCh %s open %s\r\n", daddr, itf_desc->bInterfaceNumber, driver->name, ret ? "OK" : "FAILED");
-              return ret;
-            }
-          }
+    for (size_t dr = 1; dr < SERIAL_DRIVER_COUNT; dr++) {
+      const cdch_serial_driver_t *driver = &serial_drivers[dr];
+      for (size_t i = 0; i < driver->vid_pid_count; i++) {
+        if (driver->vid_pid_list[i][0] == vid && driver->vid_pid_list[i][1] == pid) {
+          const bool ret = driver->open(daddr, itf_desc, max_len);
+          TU_LOG_DRV("[:%u:%u] CDCh %s open %s\r\n", daddr, itf_desc->bInterfaceNumber, driver->name, ret ? "OK" : "FAILED");
+          return ret;
         }
-                 }
+      }
+    }
+  }
 
   return false;
 }

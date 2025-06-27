@@ -103,7 +103,7 @@
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 
 #define CFG_TUH_HUB                 1 // number of supported hubs
-#define CFG_TUH_CDC                 4 // number of supported CDC devices. also activates CDC ACM
+#define CFG_TUH_CDC                 2 // number of supported CDC devices. also activates CDC ACM
 #define CFG_TUH_CDC_FTDI            1 // FTDI Serial.  FTDI is not part of CDC class, only to re-use CDC driver API
 #define CFG_TUH_CDC_CP210X          1 // CP210x Serial. CP210X is not part of CDC class, only to re-use CDC driver API
 #define CFG_TUH_CDC_CH34X           1 // CH340 or CH341 Serial. CH34X is not part of CDC class, only to re-use CDC driver API
@@ -122,6 +122,7 @@
 //------------- CDC -------------//
 
 // Set Line Control state on enumeration/mounted:
+// DTR ( bit 0), RTS (bit 1)
 #define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM    (CDC_CONTROL_LINE_STATE_DTR | CDC_CONTROL_LINE_STATE_RTS)
 
 // Set Line Coding on enumeration/mounted, value for cdc_line_coding_t
