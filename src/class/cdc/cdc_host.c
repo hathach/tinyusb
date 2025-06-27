@@ -1054,7 +1054,9 @@ static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint1
 
 static bool acm_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
+  (void) p_cdc;
   const uintptr_t state = xfer->user_data;
+
   switch (state) {
     case CONFIG_ACM_COMPLETE: {
       xfer->user_data = 0; // kick-off set line state on enum
@@ -1767,15 +1769,16 @@ static bool ch34x_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, ui
 }
 
 static bool ch34x_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
-  uint8_t buffer[2];// TODO remove
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
   const uintptr_t state = xfer->user_data;
 
   switch (state) {
-    case CONFIG_CH34X_READ_VERSION:
-      TU_ASSERT(ch34x_control_in(p_cdc, CH34X_REQ_READ_VERSION, 0, 0, buffer, 2,
+    case CONFIG_CH34X_READ_VERSION: {
+      uint8_t* enum_buf = usbh_get_enum_buf();
+      TU_ASSERT(ch34x_control_in(p_cdc, CH34X_REQ_READ_VERSION, 0, 0, enum_buf, 2,
                                  cdch_process_set_config, CONFIG_CH34X_SERIAL_INIT));
       break;
+    }
 
     case CONFIG_CH34X_SERIAL_INIT: {
       // handle version read data, set CH34x line coding (incl. baudrate)
@@ -2104,7 +2107,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
   // state CONFIG_PL2303_READ1 may have no success due to expected stall by pl2303_supports_hx_status()
   const uintptr_t state = xfer->user_data;
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS || state == CONFIG_PL2303_READ1);
-  uint8_t buf = 0;
+  uint8_t* enum_buf = usbh_get_enum_buf();
   pl2303_type_t type;
 
   switch (state) {
@@ -2136,7 +2139,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
 
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.type != PL2303_TYPE_HXN) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE1));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, enum_buf, cdch_process_set_config, CONFIG_PL2303_WRITE1));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2152,7 +2155,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
     case CONFIG_PL2303_READ2:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.type != PL2303_TYPE_HXN) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_READ3));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, enum_buf, cdch_process_set_config, CONFIG_PL2303_READ3));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2160,7 +2163,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
     case CONFIG_PL2303_READ3:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.type != PL2303_TYPE_HXN) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, cdch_process_set_config, CONFIG_PL2303_READ4));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, enum_buf, cdch_process_set_config, CONFIG_PL2303_READ4));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2168,7 +2171,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
     case CONFIG_PL2303_READ4:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.type != PL2303_TYPE_HXN) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE2));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, enum_buf, cdch_process_set_config, CONFIG_PL2303_WRITE2));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2184,7 +2187,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
     case CONFIG_PL2303_READ5:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.type != PL2303_TYPE_HXN) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, &buf, cdch_process_set_config, CONFIG_PL2303_READ6));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8484, enum_buf, cdch_process_set_config, CONFIG_PL2303_READ6));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
@@ -2192,7 +2195,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
     case CONFIG_PL2303_READ6:
       // purpose unknown, overtaken from Linux Kernel driver
       if (p_cdc->pl2303.type != PL2303_TYPE_HXN) {
-        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, &buf, cdch_process_set_config, CONFIG_PL2303_WRITE3));
+        TU_ASSERT(pl2303_vendor_read(p_cdc, 0x8383, enum_buf, cdch_process_set_config, CONFIG_PL2303_WRITE3));
         break;
       }// else: continue with next step
       TU_ATTR_FALLTHROUGH;
