@@ -117,8 +117,6 @@ static bool acm_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, uint
 static bool acm_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
 static void acm_internal_control_complete(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
 
-static bool acm_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool acm_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool acm_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool acm_set_control_line_state(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
@@ -169,8 +167,6 @@ static bool pl2303_open(uint8_t daddr, tusb_desc_interface_t const * itf_desc, u
 static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
 static void pl2303_internal_control_complete(cdch_interface_t *p_cdc, tuh_xfer_t *xfer);
 
-static bool pl2303_set_baudrate(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
-static bool pl2303_set_data_format(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool pl2303_set_line_coding(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 static bool pl2303_set_modem_ctrl(cdch_interface_t * p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 #endif
@@ -228,10 +224,9 @@ static const cdch_serial_driver_t serial_drivers[] = {
       .open                   = acm_open,
       .process_set_config     = acm_process_set_config,
       .request_complete       = acm_internal_control_complete,
-
       .set_control_line_state = acm_set_control_line_state,
-      .set_baudrate           = acm_set_baudrate,
-      .set_data_format        = acm_set_data_format,
+      .set_baudrate           = acm_set_line_coding,
+      .set_data_format        = acm_set_line_coding,
       .set_line_coding        = acm_set_line_coding,
       DRIVER_NAME_DECLARE("ACM")
   },
@@ -290,8 +285,8 @@ static const cdch_serial_driver_t serial_drivers[] = {
       .process_set_config     = pl2303_process_set_config,
       .request_complete       = pl2303_internal_control_complete,
       .set_control_line_state = pl2303_set_modem_ctrl,
-      .set_baudrate           = pl2303_set_baudrate,
-      .set_data_format        = pl2303_set_data_format,
+      .set_baudrate           = pl2303_set_line_coding,
+      .set_data_format        = pl2303_set_line_coding,
       .set_line_coding        = pl2303_set_line_coding,
       DRIVER_NAME_DECLARE("PL2303")
   }
@@ -586,10 +581,11 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const *line_coding,
                CDC_LINE_CODING_STOP_BITS_TEXT(line_coding->stop_bits));
   cdch_serial_driver_t const *driver = &serial_drivers[p_cdc->serial_drid];
   p_cdc->requested_line.coding = *line_coding;
+  p_cdc->user_complete_cb = complete_cb;
 
   if (driver->set_line_coding) {
     // driver support set_line_coding request
-    TU_VERIFY(driver->set_line_coding(p_cdc, complete_cb, user_data));
+    TU_VERIFY(driver->set_line_coding(p_cdc, complete_cb ? cdch_internal_control_complete : NULL, user_data));
 
     if (!complete_cb) {
       p_cdc->line.coding = *line_coding;
@@ -598,7 +594,6 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const *line_coding,
     // driver does not support set_line_coding and need 2 stage to set baudrate and data format separately
     if (complete_cb) {
       // non-blocking
-      p_cdc->user_complete_cb = complete_cb;
       TU_VERIFY(driver->set_baudrate(p_cdc, cdch_set_line_coding_stage1_baudrate_complete, user_data));
     } else {
       // blocking
@@ -795,7 +790,7 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   return true;
 }
 
-static void set_config_complete(cdch_interface_t *p_cdc, uint8_t itf_offset, bool success) {
+static void set_config_complete(cdch_interface_t *p_cdc, bool success) {
   if (success) {
     const uint8_t idx = get_idx_by_ptr(p_cdc);
     p_cdc->mounted = true;
@@ -811,6 +806,7 @@ static void set_config_complete(cdch_interface_t *p_cdc, uint8_t itf_offset, boo
   }
 
   // notify usbh that driver enumeration is complete
+  const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
   usbh_driver_set_config_complete(p_cdc->daddr, p_cdc->bInterfaceNumber + itf_offset);
 }
 
@@ -821,8 +817,7 @@ static void cdch_process_set_config(tuh_xfer_t *xfer) {
   const cdch_serial_driver_t *driver = &serial_drivers[p_cdc->serial_drid];
 
   if (!driver->process_set_config(p_cdc, xfer)) {
-    const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
-    set_config_complete(p_cdc, itf_offset, false);
+    set_config_complete(p_cdc, false);
   }
 }
 
@@ -858,11 +853,9 @@ static bool set_line_state_on_enum(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
       TU_ATTR_FALLTHROUGH;
       #endif
 
-    case ENUM_SET_LINE_COMPLETE: {
-      const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
-      set_config_complete(p_cdc, itf_offset, true);
+    case ENUM_SET_LINE_COMPLETE:
+      set_config_complete(p_cdc, true);
       break;
-    }
 
     default:
       return false;
@@ -874,11 +867,8 @@ static bool set_line_state_on_enum(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
 static void cdch_process_line_state_on_enum(tuh_xfer_t *xfer) {
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
-  TU_LOG_DRV("  xfer result = %u\r\n", xfer->result);
-
   if (xfer->result != XFER_RESULT_SUCCESS || !set_line_state_on_enum(p_cdc, xfer)) {
-    const uint8_t itf_offset = (p_cdc->serial_drid == SERIAL_DRIVER_ACM) ? 1 : 0;
-    set_config_complete(p_cdc, itf_offset, false);
+    set_config_complete(p_cdc, false);
   }
 }
 
@@ -967,20 +957,16 @@ static bool acm_set_control_line_state(cdch_interface_t *p_cdc, tuh_xfer_cb_t co
     .wLength  = 0
   };
 
-  p_cdc->user_complete_cb = complete_cb;
-
   tuh_xfer_t xfer = {
     .daddr       = p_cdc->daddr,
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = NULL,
-    .complete_cb = complete_cb ? cdch_internal_control_complete : NULL,
+    .complete_cb = complete_cb,
     .user_data   = user_data
   };
 
-  TU_ASSERT(tuh_control_xfer(&xfer));
-
-  return true;
+  return tuh_control_xfer(&xfer);
 }
 
 static bool acm_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
@@ -1004,35 +990,21 @@ static bool acm_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_
   uint8_t *enum_buf = usbh_get_enum_buf();
   memcpy(enum_buf, &p_cdc->requested_line.coding, sizeof(cdc_line_coding_t));
 
-  p_cdc->user_complete_cb = complete_cb;
-
   tuh_xfer_t xfer = {
     .daddr       = p_cdc->daddr,
     .ep_addr     = 0,
     .setup       = &request,
     .buffer      = enum_buf,
-    .complete_cb = complete_cb ? cdch_internal_control_complete : NULL,
+    .complete_cb = complete_cb,
     .user_data   = user_data
   };
 
-  TU_ASSERT(tuh_control_xfer(&xfer));
-
-  return true;
-}
-
-static bool acm_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  return acm_set_line_coding(p_cdc, complete_cb, user_data);
-}
-
-static bool acm_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  return acm_set_line_coding(p_cdc, complete_cb, user_data);
+  return tuh_control_xfer(&xfer);
 }
 
 //------------- Enumeration -------------//
 enum {
-  CONFIG_ACM_SET_CONTROL_LINE_STATE = 0,
-  CONFIG_ACM_SET_LINE_CODING,
-  CONFIG_ACM_COMPLETE
+  CONFIG_ACM_COMPLETE = 0
 };
 
 static bool acm_open(uint8_t daddr, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
@@ -1084,30 +1056,11 @@ static bool acm_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
   TU_ASSERT(xfer->result == XFER_RESULT_SUCCESS);
   const uintptr_t state = xfer->user_data;
   switch (state) {
-    case CONFIG_ACM_SET_CONTROL_LINE_STATE:
-      #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      if (p_cdc->acm.capability.support_line_request) {
-        p_cdc->requested_line.control_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-        TU_ASSERT(acm_set_control_line_state(p_cdc, cdch_process_set_config, CONFIG_ACM_SET_LINE_CODING));
-        break;
-      }
-      #endif
-      TU_ATTR_FALLTHROUGH;
-
-    case CONFIG_ACM_SET_LINE_CODING:
-      #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      if (p_cdc->acm.capability.support_line_request) {
-        p_cdc->requested_line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-        TU_ASSERT(acm_set_line_coding(p_cdc, cdch_process_set_config, CONFIG_ACM_COMPLETE));
-        break;
-      }
-      #endif
-      TU_ATTR_FALLTHROUGH;
-
-    case CONFIG_ACM_COMPLETE:
-      // itf_num+1 to account for data interface as well
-      set_config_complete(p_cdc, 1, true);
+    case CONFIG_ACM_COMPLETE: {
+      xfer->user_data = 0; // kick-off set line state on enum
+      cdch_process_line_state_on_enum(xfer);
       break;
+    }
 
     default:
       return false; // invalid state
@@ -2023,18 +1976,40 @@ static inline bool pl2303_supports_hx_status(cdch_interface_t *p_cdc, tuh_xfer_c
                             &buf, 1, complete_cb, user_data);
 }
 
-static inline bool pl2303_set_control_lines(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  // PL2303 has the same bit coding
-  return pl2303_set_request(p_cdc, PL2303_SET_CONTROL_REQUEST, PL2303_SET_CONTROL_REQUEST_TYPE,
-                            p_cdc->requested_line.control_state.value, 0, NULL, 0, complete_cb, user_data);
-}
-
-//static bool pl2303_get_line_request(cdch_interface_t * p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE])
-//{
+//static bool pl2303_get_line_request(cdch_interface_t * p_cdc, uint8_t buf[PL2303_LINE_CODING_BUFSIZE]) {
 //  return pl2303_set_request(p_cdc, PL2303_GET_LINE_REQUEST, PL2303_GET_LINE_REQUEST_TYPE, 0, 0, buf, PL2303_LINE_CODING_BUFSIZE);
 //}
 
-static bool pl2303_set_line_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+//static bool pl2303_set_break(cdch_interface_t * p_cdc, bool enable) {
+//  uint16_t state = enable ? PL2303_BREAK_ON : PL2303_BREAK_OFF;
+//  return pl2303_set_request(p_cdc, PL2303_BREAK_REQUEST, PL2303_BREAK_REQUEST_TYPE, state, 0, NULL, 0);
+//}
+
+static inline int pl2303_clear_halt(cdch_interface_t *p_cdc, uint8_t endp, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  /* we don't care if it wasn't halted first. in fact some devices
+   * (like some ibmcam model 1 units) seem to expect hosts to make
+   * this request for iso endpoints, which can't halt!
+   */
+  return pl2303_set_request(p_cdc, TUSB_REQ_CLEAR_FEATURE, PL2303_CLEAR_HALT_REQUEST_TYPE, TUSB_REQ_FEATURE_EDPT_HALT, endp,
+                            NULL, 0, complete_cb, user_data);
+}
+
+//------------- Driver API -------------//
+
+// internal control complete to update state such as line state, encoding
+static void pl2303_internal_control_complete(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
+  TU_VERIFY(xfer->result == XFER_RESULT_SUCCESS,);
+  if (xfer->setup->bRequest == PL2303_SET_LINE_REQUEST &&
+      xfer->setup->bmRequestType == PL2303_SET_LINE_REQUEST_TYPE) {
+    p_cdc->line.coding = p_cdc->requested_line.coding;
+  }
+  if (xfer->setup->bRequest == PL2303_SET_CONTROL_REQUEST &&
+      xfer->setup->bmRequestType == PL2303_SET_CONTROL_REQUEST_TYPE) {
+    p_cdc->line.control_state = p_cdc->requested_line.control_state;
+  }
+}
+
+static bool pl2303_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // the caller has to precheck, that the new line coding different than the current, else false returned
   uint8_t buf[PL2303_LINE_CODING_BUFSIZE];
   /*
@@ -2070,63 +2045,10 @@ static bool pl2303_set_line_request(cdch_interface_t *p_cdc, tuh_xfer_cb_t compl
                             buf, PL2303_LINE_CODING_BUFSIZE, complete_cb, user_data);
 }
 
-//static bool pl2303_set_break(cdch_interface_t * p_cdc, bool enable)
-//{
-//  uint16_t state = enable ? PL2303_BREAK_ON : PL2303_BREAK_OFF;
-//  return pl2303_set_request(p_cdc, PL2303_BREAK_REQUEST, PL2303_BREAK_REQUEST_TYPE, state, 0, NULL, 0);
-//}
-
-static inline int pl2303_clear_halt(cdch_interface_t *p_cdc, uint8_t endp, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  /* we don't care if it wasn't halted first. in fact some devices
-   * (like some ibmcam model 1 units) seem to expect hosts to make
-   * this request for iso endpoints, which can't halt!
-   */
-  return pl2303_set_request(p_cdc, TUSB_REQ_CLEAR_FEATURE, PL2303_CLEAR_HALT_REQUEST_TYPE, TUSB_REQ_FEATURE_EDPT_HALT, endp,
-                            NULL, 0, complete_cb, user_data);
-}
-
-//------------- Driver API -------------//
-
-// internal control complete to update state such as line state, encoding
-static void pl2303_internal_control_complete(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
-  TU_VERIFY(xfer->result == XFER_RESULT_SUCCESS,);
-  if (xfer->setup->bRequest == PL2303_SET_LINE_REQUEST &&
-      xfer->setup->bmRequestType == PL2303_SET_LINE_REQUEST_TYPE) {
-    p_cdc->line.coding = p_cdc->requested_line.coding;
-  }
-  if (xfer->setup->bRequest == PL2303_SET_CONTROL_REQUEST &&
-      xfer->setup->bmRequestType == PL2303_SET_CONTROL_REQUEST_TYPE) {
-    p_cdc->line.control_state = p_cdc->requested_line.control_state;
-  }
-}
-
-static bool pl2303_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->user_complete_cb = complete_cb;
-  TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? cdch_internal_control_complete : NULL, user_data));
-  return true;
-}
-
-static bool pl2303_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->requested_line.coding.bit_rate = p_cdc->line.coding.bit_rate;
-  p_cdc->user_complete_cb = complete_cb;
-  TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? cdch_internal_control_complete : NULL, user_data));
-  return true;
-}
-
-static bool pl2303_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  p_cdc->requested_line.coding.stop_bits = p_cdc->line.coding.stop_bits;
-  p_cdc->requested_line.coding.parity    = p_cdc->line.coding.parity;
-  p_cdc->requested_line.coding.data_bits = p_cdc->line.coding.data_bits;
-  p_cdc->user_complete_cb = complete_cb;
-  TU_ASSERT(pl2303_set_line_request(p_cdc, complete_cb ? cdch_internal_control_complete : NULL, user_data));
-  return true;
-}
-
 static bool pl2303_set_modem_ctrl(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   // PL2303 has the same bit coding
-  p_cdc->user_complete_cb = complete_cb;
-  TU_ASSERT(pl2303_set_control_lines(p_cdc, complete_cb ? cdch_internal_control_complete : NULL, user_data));
-  return true;
+  return pl2303_set_request(p_cdc, PL2303_SET_CONTROL_REQUEST, PL2303_SET_CONTROL_REQUEST_TYPE,
+                            p_cdc->requested_line.control_state.value, 0, NULL, 0, complete_cb, user_data);
 }
 
 //------------- Enumeration -------------//
@@ -2146,8 +2068,6 @@ enum {
   CONFIG_PL2303_WRITE5,
   CONFIG_PL2303_RESET_ENDP1,
   CONFIG_PL2303_RESET_ENDP2,
-  CONFIG_PL2303_LINE_CODING,
-  CONFIG_PL2303_MODEM_CONTROL,
 //  CONFIG_PL2303_FLOW_CTRL_READ,
 //  CONFIG_PL2303_FLOW_CTRL_WRITE,
   CONFIG_PL2303_COMPLETE
@@ -2190,7 +2110,6 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
   switch (state) {
     // from here sequence overtaken from Linux Kernel function pl2303_startup()
     case CONFIG_PL2303_DETECT_TYPE:
-      p_cdc->user_complete_cb = cdch_process_set_config;// set once for whole process config
       // get type and quirks (step 1)
       type = pl2303_detect_type(p_cdc, 1);
       TU_ASSERT(type != PL2303_TYPE_UNKNOWN);
@@ -2313,7 +2232,7 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
         if (p_cdc->pl2303.type == PL2303_TYPE_HXN) {
           TU_ASSERT(pl2303_vendor_write(p_cdc, PL2303_HXN_RESET_REG,// skip CONFIG_PL2303_RESET_ENDP2, no 2nd step
                                         PL2303_HXN_RESET_UPSTREAM_PIPE | PL2303_HXN_RESET_DOWNSTREAM_PIPE,
-                                        cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
+                                        cdch_process_set_config, CONFIG_PL2303_COMPLETE));
         } else {
           pl2303_vendor_write(p_cdc, 8, 0, cdch_process_set_config, CONFIG_PL2303_RESET_ENDP2);
         }
@@ -2323,36 +2242,16 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
     case CONFIG_PL2303_RESET_ENDP2:
       // step 2
       if (p_cdc->pl2303.quirks & PL2303_QUIRK_LEGACY) {
-        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_IN_EP, cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
+        TU_ASSERT(pl2303_clear_halt(p_cdc, PL2303_IN_EP, cdch_process_set_config, CONFIG_PL2303_COMPLETE));
       } else {
         /* reset upstream data pipes */
         if (p_cdc->pl2303.type == PL2303_TYPE_HXN) {
           // here nothing to do, only structure of previous step overtaken for better reading and comparison
         } else {
-          TU_ASSERT(pl2303_vendor_write(p_cdc, 9, 0, cdch_process_set_config, CONFIG_PL2303_LINE_CODING));
+          TU_ASSERT(pl2303_vendor_write(p_cdc, 9, 0, cdch_process_set_config, CONFIG_PL2303_COMPLETE));
         }
       }
       break;
-
-      // from here sequence overtaken from Linux Kernel function pl2303_set_termios()
-      // unnecessary pl2303_get_line_request() is skipped due to a stall
-    case CONFIG_PL2303_LINE_CODING:
-    #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
-      p_cdc->requested_line.coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
-      TU_ASSERT(pl2303_set_line_request(p_cdc, cdch_internal_control_complete, CONFIG_PL2303_MODEM_CONTROL));
-      break;
-    #else
-      TU_ATTR_FALLTHROUGH;
-    #endif
-
-    case CONFIG_PL2303_MODEM_CONTROL:
-    #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
-      p_cdc->requested_line.control_state.value = CFG_TUH_CDC_LINE_CONTROL_ON_ENUM;
-      TU_ASSERT(pl2303_set_control_lines(p_cdc, cdch_internal_control_complete, CONFIG_PL2303_COMPLETE));
-      break;
-    #else
-      TU_ATTR_FALLTHROUGH;
-    #endif
 
   // skipped, because it's not working with each PL230x. flow control can be also set by PL2303 EEPROM Writer Program
   //    case CONFIG_PL2303_FLOW_CTRL_READ:
@@ -2383,7 +2282,8 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
   //      break;
 
     case CONFIG_PL2303_COMPLETE:
-      set_config_complete(p_cdc, 0, true);
+      xfer->user_data = 0; // kick-off set line state on enum
+      cdch_process_line_state_on_enum(xfer);
       break;
 
     default:
