@@ -45,7 +45,7 @@
  */
 
 //Limitations:
-// "vendor-specific" commands are not handled.
+// "vendor-specific" commands are handled similar to normal massages, except that the MsgID is changed to "vendor-specific".
 // Dealing with "termchar" must be handled by the application layer,
 //    though additional error checking is does in this module.
 // talkOnly and listenOnly are NOT supported. They're not permitted
@@ -171,6 +171,8 @@ tu_static uint8_t termChar;
 
 tu_static uint8_t termCharRequested = false;
 
+tu_static uint8_t usbtmcVendorSpecificRequested = false;
+
 #if OSAL_MUTEX_REQUIRED
 static OSAL_MUTEX_DEF(usbtmcLockBuffer);
 #endif
@@ -226,7 +228,14 @@ bool tud_usbtmc_transmit_dev_msg_data(
   TU_VERIFY(usbtmc_state.state == STATE_TX_REQUESTED);
   usbtmc_msg_dev_dep_msg_in_header_t *hdr = (usbtmc_msg_dev_dep_msg_in_header_t*)usbtmc_epbuf.epin;
   tu_varclr(hdr);
-  hdr->header.MsgID = USBTMC_MSGID_DEV_DEP_MSG_IN;
+  if(usbtmcVendorSpecificRequested)
+  {
+    hdr->header.MsgID = USBTMC_MSGID_VENDOR_SPECIFIC_IN;
+  } 
+  else
+  {
+    hdr->header.MsgID = USBTMC_MSGID_DEV_DEP_MSG_IN;
+  }
   hdr->header.bTag = usbtmc_state.lastBulkInTag;
   hdr->header.bTagInverse = (uint8_t)~(usbtmc_state.lastBulkInTag);
   hdr->TransferSize = len;
@@ -512,6 +521,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
         switch(msg->header.MsgID) {
         case USBTMC_MSGID_DEV_DEP_MSG_OUT:
+          usbtmcVendorSpecificRequested = false;
           if(!handle_devMsgOutStart(rhport, msg, xferred_bytes))
           {
             usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
@@ -520,6 +530,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
           break;
 
         case USBTMC_MSGID_DEV_DEP_MSG_IN:
+          usbtmcVendorSpecificRequested = false;
           TU_VERIFY(handle_devMsgIn(msg, xferred_bytes));
           break;
 
@@ -532,7 +543,19 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
           break;
 #endif
         case USBTMC_MSGID_VENDOR_SPECIFIC_MSG_OUT:
+          usbtmcVendorSpecificRequested = true;
+          if(!handle_devMsgOutStart(rhport, msg, xferred_bytes))
+          {
+            usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+            return false;
+          }
+          break;
+
         case USBTMC_MSGID_VENDOR_SPECIFIC_IN:
+          usbtmcVendorSpecificRequested = true;
+          TU_VERIFY(handle_devMsgIn(msg, xferred_bytes));
+          break;
+
         default:
           usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
           return false;
