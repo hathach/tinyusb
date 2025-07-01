@@ -828,8 +828,8 @@ static void proc_read10_cmd(mscd_interface_t* p_msc) {
 
 static void proc_read_io_data(mscd_interface_t* p_msc, int32_t nbytes) {
   uint8_t rhport = p_msc->rhport;
-  if (nbytes < 0) {
-    // negative means error -> endpoint is stalled & status in CSW set to failed
+  if (nbytes == TUD_MSC_RET_ERROR) {
+    // error -> endpoint is stalled & status in CSW set to failed
     TU_LOG_DRV("  IO read() failed\r\n");
 
     // set sense
@@ -837,7 +837,7 @@ static void proc_read_io_data(mscd_interface_t* p_msc, int32_t nbytes) {
     set_sense_medium_not_present(p_cbw->lun);
 
     fail_scsi_op(p_msc, MSC_CSW_STATUS_FAILED);
-  } else if (nbytes == 0) {
+  } else if (nbytes == TUD_MSC_RET_BUSY) {
     // zero means not ready -> fake a transfer complete so that this driver callback will fire again
     dcd_event_xfer_complete(rhport, p_msc->ep_in, 0, XFER_RESULT_SUCCESS, false);
   } else {

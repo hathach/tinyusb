@@ -114,12 +114,6 @@
 // MSC Buffer size of Device Mass storage
 #define CFG_TUD_MSC_EP_BUFSIZE   512
 
-// Use async IO in example or not
-#define CFG_EXAMPLE_MSC_ASYNC_IO    1
-
-// Simulate read/write operation delay
-#define CFG_EXAMPLE_MSC_IO_DELAY_MS 0
-
 #ifdef __cplusplus
  }
 #endif
