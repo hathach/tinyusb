@@ -79,12 +79,11 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
     - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
   - Application fill the buffer (up to bufsize) with address contents and return number of bytes read or status.
     - 0 < ret < bufsize: These bytes are transferred first and callback will be invoked again for remaining data.
-    - ret == TUD_MSC_RET_BUSY
-        Application is buys e.g disk I/O not ready.
-        Callback will be invoked again with the same parameters later on.
-    - ret == TUD_MSC_RET_ERROR
+    - TUD_MSC_RET_BUSY
+        Application is buys e.g disk I/O not ready. Callback will be invoked again with the same parameters later on.
+    - TUD_MSC_RET_ERROR
         error such as invalid address. This request will be STALLed and scsi command will be failed
-    - ret == TUD_MSC_RET_ASYNC
+    - TUD_MSC_RET_ASYNC
         Data I/O will be done asynchronously in a background task. Application should return immediately.
         tud_msc_async_io_done() must be called once IO/ is done to signal completion.
 */

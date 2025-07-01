@@ -254,10 +254,10 @@ TU_ATTR_ALWAYS_INLINE static inline void set_sense_medium_not_present(uint8_t lu
   tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3A, 0x00);
 }
 
-static void proc_async_io_done(void *bytes_processed) {
+static void proc_async_io_done(void *bytes_io) {
   mscd_interface_t *p_msc = &_mscd_itf;
   TU_VERIFY(p_msc->pending_io, );
-  const int32_t nbytes = (int32_t) (intptr_t) bytes_processed;
+  const int32_t nbytes = (int32_t) (intptr_t) bytes_io;
   const uint8_t cmd = p_msc->cbw.command[0];
 
   p_msc->pending_io = 0;
@@ -283,15 +283,9 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr) {
   // Precheck to avoid queueing multiple RW done callback
   TU_VERIFY(_mscd_itf.pending_io);
   if (bytes_io == 0) {
-    bytes_io = TUD_MSC_RET_ERROR; // 0 is treated as error, no sense to call this with BUSY here
+    bytes_io = TUD_MSC_RET_ERROR; // 0 is treated as error, no reason to call this with BUSY here
   }
-
-  if (in_isr) {
-    usbd_defer_func(proc_async_io_done, (void*) (intptr_t)bytes_io, in_isr);
-  } else {
-    proc_async_io_done((void*)(intptr_t) bytes_io);
-  }
-
+  usbd_defer_func(proc_async_io_done, (void *) (intptr_t) bytes_io, in_isr);
   return true;
 }
 
@@ -827,21 +821,26 @@ static void proc_read10_cmd(mscd_interface_t* p_msc) {
 }
 
 static void proc_read_io_data(mscd_interface_t* p_msc, int32_t nbytes) {
-  uint8_t rhport = p_msc->rhport;
-  if (nbytes == TUD_MSC_RET_ERROR) {
-    // error -> endpoint is stalled & status in CSW set to failed
-    TU_LOG_DRV("  IO read() failed\r\n");
-
-    // set sense
-    msc_cbw_t const* p_cbw = &p_msc->cbw;
-    set_sense_medium_not_present(p_cbw->lun);
-
-    fail_scsi_op(p_msc, MSC_CSW_STATUS_FAILED);
-  } else if (nbytes == TUD_MSC_RET_BUSY) {
-    // zero means not ready -> fake a transfer complete so that this driver callback will fire again
-    dcd_event_xfer_complete(rhport, p_msc->ep_in, 0, XFER_RESULT_SUCCESS, false);
-  } else {
+  const uint8_t rhport = p_msc->rhport;
+  if (nbytes > 0) {
     TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_epbuf.buf, (uint16_t) nbytes),);
+  } else {
+    // nbytes is status
+    switch (nbytes) {
+      case TUD_MSC_RET_ERROR:
+        // error -> endpoint is stalled & status in CSW set to failed
+        TU_LOG_DRV("  IO read() failed\r\n");
+        set_sense_medium_not_present(p_msc->cbw.lun);
+        fail_scsi_op(p_msc, MSC_CSW_STATUS_FAILED);
+        break;
+
+      case TUD_MSC_RET_BUSY:
+        // not ready yet -> fake a transfer complete so that this driver callback will fire again
+        dcd_event_xfer_complete(rhport, p_msc->ep_in, 0, XFER_RESULT_SUCCESS, false);
+        break;
+
+      default: break;
+    }
   }
 }
 
@@ -886,13 +885,20 @@ static void proc_write10_host_data(mscd_interface_t* p_msc, uint32_t xferred_byt
 
 static void proc_write_io_data(mscd_interface_t* p_msc, uint32_t xferred_bytes, int32_t nbytes) {
   if (nbytes < 0) {
-    // negative means error -> failed this scsi op
-    TU_LOG_DRV("  IO write() failed\r\n");
-    set_sense_medium_not_present(p_msc->cbw.lun);
-    fail_scsi_op(p_msc, MSC_CSW_STATUS_FAILED);
+    // nbytes is status
+    switch (nbytes) {
+      case TUD_MSC_RET_ERROR:
+        // IO error -> failed this scsi op
+        TU_LOG_DRV("  IO write() failed\r\n");
+        set_sense_medium_not_present(p_msc->cbw.lun);
+        fail_scsi_op(p_msc, MSC_CSW_STATUS_FAILED);
+        break;
+
+      default: break;
+    }
   } else {
     if ((uint32_t)nbytes < xferred_bytes) {
-      // Application consume less than what we got (including zero)
+      // Application consume less than what we got including TUD_MSC_RET_BUSY (0)
       const uint32_t left_over = xferred_bytes - (uint32_t)nbytes;
       if (nbytes > 0) {
         memmove(_mscd_epbuf.buf, _mscd_epbuf.buf + nbytes, left_over);
