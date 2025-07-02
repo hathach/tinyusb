@@ -66,7 +66,6 @@ int sys_read(int fhdl, char *buf, size_t count) {
 #elif defined(LOGGER_SWO)
 
 #define ITM_BASE 0xE0000000
-
 #define ITM_STIM0 (*((volatile uint8_t*)(ITM_BASE + 0)))
 #define ITM_TER *((volatile uint32_t*)(ITM_BASE + 0xE00))
 #define ITM_TCR *((volatile uint32_t*)(ITM_BASE + 0xE80))
@@ -150,6 +149,9 @@ int board_getchar(void) {
   return (sys_read(0, &c, 1) > 0) ? (int) c : (-1);
 }
 
+void board_putchar(int c) {
+  sys_write(0, (const char*)&c, 1);
+}
 
 uint32_t tusb_time_millis_api(void) {
   return board_millis();
@@ -158,7 +160,7 @@ uint32_t tusb_time_millis_api(void) {
 //--------------------------------------------------------------------
 // FreeRTOS hooks
 //--------------------------------------------------------------------
-#if CFG_TUSB_OS == OPT_OS_FREERTOS && !TUSB_MCU_VENDOR_ESPRESSIF
+#if CFG_TUSB_OS == OPT_OS_FREERTOS && !defined(ESP_PLATFORM)
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -239,6 +241,5 @@ void vApplicationSetupTimerInterrupt(void) {
   CMT.CMSTR0.BIT.STR0 = 1;
 }
 #endif
-
 
 #endif
