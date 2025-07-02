@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Espressif
+*/
+
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -45,7 +49,9 @@ static led_strip_handle_t led_strip;
 static void max3421_init(void);
 #endif
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32P4)
 static bool usb_init(void);
+#endif
 
 //--------------------------------------------------------------------+
 // Implementation
@@ -88,10 +94,10 @@ void board_init(void) {
   usb_init();
 #endif
 
-#ifdef HIL_DEVICE_HOST_MUX_PIN
-  gpio_reset_pin(HIL_DEVICE_HOST_MUX_PIN);
-  gpio_set_direction(HIL_DEVICE_HOST_MUX_PIN, GPIO_MODE_OUTPUT);
-  gpio_set_level(HIL_DEVICE_HOST_MUX_PIN, CFG_TUD_ENABLED ? HIL_DEVICE_STATE : (1-HIL_DEVICE_STATE));
+#ifdef HIL_TS3USB30_MODE_PIN
+  gpio_reset_pin(HIL_TS3USB30_MODE_PIN);
+  gpio_set_direction(HIL_TS3USB30_MODE_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_level(HIL_TS3USB30_MODE_PIN, CFG_TUD_ENABLED ? HIL_TS3USB30_MODE_DEVICE : (1-HIL_TS3USB30_MODE_DEVICE));
 #endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
@@ -150,6 +156,10 @@ int board_getchar(void) {
   return getchar();
 }
 
+void board_putchar(int c) {
+  putchar(c);
+}
+
 //--------------------------------------------------------------------
 // PHY Init
 //--------------------------------------------------------------------
@@ -158,7 +168,6 @@ int board_getchar(void) {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
 
 #include "esp_private/usb_phy.h"
-#include "soc/usb_pins.h"
 
 static usb_phy_handle_t phy_hdl;
 
@@ -171,19 +180,13 @@ bool usb_init(void) {
     // maybe we can use USB_OTG_MODE_DEFAULT and switch using dwc2 driver
 #if CFG_TUD_ENABLED
     .otg_mode = USB_OTG_MODE_DEVICE,
-    .otg_speed = BOARD_TUD_RHPORT ? USB_PHY_SPEED_HIGH : USB_PHY_SPEED_FULL,
 #elif CFG_TUH_ENABLED
     .otg_mode = USB_OTG_MODE_HOST,
-    .otg_speed= BOARD_TUH_RHPORT ? USB_PHY_SPEED_HIGH : USB_PHY_SPEED_FULL,
 #endif
+    // https://github.com/hathach/tinyusb/issues/2943#issuecomment-2601888322
+    // Set speed to undefined (auto-detect) to avoid timinng/racing issue with S3 with host such as macOS
+    .otg_speed = USB_PHY_SPEED_UNDEFINED,
   };
-
-  // OTG IOs config
-  // const usb_phy_otg_io_conf_t otg_io_conf = USB_PHY_SELF_POWERED_DEVICE(config->vbus_monitor_io);
-  // if (config->self_powered) {
-  //   phy_conf.otg_io_conf = &otg_io_conf;
-  // }
-  // ESP_RETURN_ON_ERROR(usb_new_phy(&phy_conf, &phy_hdl), TAG, "Install USB PHY failed");
 
   usb_new_phy(&phy_conf, &phy_hdl);
 

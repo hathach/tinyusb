@@ -1,3 +1,7 @@
+/* metadata:
+   manufacturer: WCH
+*/
+
 #include <stdio.h>
 
 // https://github.com/openwch/ch32v307/pull/90

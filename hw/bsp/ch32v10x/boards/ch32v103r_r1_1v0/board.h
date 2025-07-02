@@ -1,3 +1,8 @@
+/* metadata:
+   name: CH32V103R-R1-1v1
+   url: https://github.com/openwch/ch32v103/tree/main/SCHPCB/CH32V103R-R1-1v1
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

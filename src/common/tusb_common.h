@@ -120,6 +120,22 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, c
   return 0;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool tu_mem_is_zero(const void *buffer, size_t size) {
+  const uint8_t* buf8 = (const uint8_t*) buffer;
+  for (size_t i = 0; i < size; i++) {
+    if (buf8[i] != 0) { return false; }
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tu_mem_is_ff(const void *buffer, size_t size) {
+  const uint8_t* buf8 = (const uint8_t*) buffer;
+  for (size_t i = 0; i < size; i++) {
+    if (buf8[i] != 0xff) { return false; }
+  }
+  return true;
+}
+
 
 //------------- Bytes -------------//
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_u32(uint8_t b3, uint8_t b2, uint8_t b1, uint8_t b0) {
@@ -181,8 +197,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_round_up(uint32_t v, uint32_t f)
 
 // log2 of a value is its MSB's position
 // TODO use clz TODO remove
-static inline uint8_t tu_log2(uint32_t value)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_log2(uint32_t value) {
   uint8_t result = 0;
   while (value >>= 1) { result++; }
   return result;
@@ -193,8 +208,7 @@ static inline uint8_t tu_log2(uint32_t value)
 //   return sizeof(uint32_t) * CHAR_BIT - __builtin_clz(x) - 1;
 //}
 
-static inline bool tu_is_power_of_two(uint32_t value)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tu_is_power_of_two(uint32_t value) {
    return (value != 0) && ((value & (value - 1)) == 0);
 }
 
@@ -205,27 +219,23 @@ static inline bool tu_is_power_of_two(uint32_t value)
 typedef struct { uint16_t val; } TU_ATTR_PACKED tu_unaligned_uint16_t;
 typedef struct { uint32_t val; } TU_ATTR_PACKED tu_unaligned_uint32_t;
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_unaligned_read32(const void* mem)
-{
-  tu_unaligned_uint32_t const* ua32 = (tu_unaligned_uint32_t const*) mem;
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_unaligned_read32(const void *mem) {
+  tu_unaligned_uint32_t const *ua32 = (tu_unaligned_uint32_t const *) mem;
   return ua32->val;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void* mem, uint32_t value)
-{
-  tu_unaligned_uint32_t* ua32 = (tu_unaligned_uint32_t*) mem;
+TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void *mem, uint32_t value) {
+  tu_unaligned_uint32_t *ua32 = (tu_unaligned_uint32_t *) mem;
   ua32->val = value;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_unaligned_read16(const void* mem)
-{
-  tu_unaligned_uint16_t const* ua16 = (tu_unaligned_uint16_t const*) mem;
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_unaligned_read16(const void *mem) {
+  tu_unaligned_uint16_t const *ua16 = (tu_unaligned_uint16_t const *) mem;
   return ua16->val;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void* mem, uint16_t value)
-{
-  tu_unaligned_uint16_t* ua16 = (tu_unaligned_uint16_t*) mem;
+TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_t value) {
+  tu_unaligned_uint16_t *ua16 = (tu_unaligned_uint16_t *) mem;
   ua16->val = value;
 }
 

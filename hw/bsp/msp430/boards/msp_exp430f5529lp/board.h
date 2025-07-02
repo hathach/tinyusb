@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: MSP430F5529 LaunchPad
+   url: https://www.ti.com/tool/MSP-EXP430F5529LP
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

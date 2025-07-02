@@ -5,13 +5,16 @@
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import re
+from pathlib import Path
+
 # -- Path setup --------------------------------------------------------------
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'TinyUSB'
-copyright = '2021, Ha Thach'
+copyright = '2024, Ha Thach'
 author = 'Ha Thach'
 
 
@@ -40,3 +43,16 @@ html_theme_options = {
 }
 
 todo_include_todos = True
+
+# pre-process path in README.rst
+def preprocess_readme():
+    """Modify figure paths in README.rst for Sphinx builds."""
+    src = Path(__file__).parent.parent / "README.rst"
+    tgt = Path(__file__).parent.parent / "README_processed.rst"
+    if src.exists():
+        content = src.read_text()
+        content = re.sub(r"docs/", r"", content)
+        content = re.sub(r".rst", r".html", content)
+        tgt.write_text(content)
+
+preprocess_readme()

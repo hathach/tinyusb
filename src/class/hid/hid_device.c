@@ -194,6 +194,16 @@ bool tud_hid_n_gamepad_report(uint8_t instance, uint8_t report_id,
   return tud_hid_n_report(instance, report_id, &report, sizeof(report));
 }
 
+bool tud_hid_n_stylus_report(uint8_t instance, uint8_t report_id, uint8_t attrs, uint16_t x, uint16_t y) {
+  hid_stylus_report_t report = {
+    .attr = attrs,
+    .x = x,
+    .y = y,
+  };
+
+  return tud_hid_n_report(instance, report_id, &report, sizeof(report));
+}
+
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+

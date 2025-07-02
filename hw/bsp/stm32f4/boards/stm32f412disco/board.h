@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 F412 Discovery
+   url: https://www.st.com/en/evaluation-tools/32f412gdiscovery.html
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

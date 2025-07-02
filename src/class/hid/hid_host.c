@@ -410,7 +410,7 @@ bool tuh_hid_send_report(uint8_t daddr, uint8_t idx, uint8_t report_id, const vo
     ++len; // 1 more byte for report_id
   }
 
-  TU_LOG3_MEM(p_hid->epout_buf, len, 2);
+  TU_LOG3_MEM(epbuf->epout, len, 2);
 
   if (!usbh_edpt_xfer(daddr, p_hid->ep_out, epbuf->epout, len)) {
     usbh_edpt_release(daddr, p_hid->ep_out);
@@ -444,8 +444,8 @@ bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t
   hidh_epbuf_t* epbuf = get_hid_epbuf(idx);
 
   if (dir == TUSB_DIR_IN) {
-    TU_LOG_DRV("  Get Report callback (%u, %u)\r\n", daddr, idx);
-    TU_LOG3_MEM(p_hid->epin_buf, xferred_bytes, 2);
+    TU_LOG_DRV("  [idx=%u] Get Report callback\r\n", idx);
+    TU_LOG3_MEM(epbuf->epin, xferred_bytes, 2);
     tuh_hid_report_received_cb(daddr, idx, epbuf->epin, (uint16_t) xferred_bytes);
   } else {
     if (tuh_hid_report_sent_cb) {
@@ -461,7 +461,9 @@ void hidh_close(uint8_t daddr) {
     hidh_interface_t* p_hid = &_hidh_itf[i];
     if (p_hid->daddr == daddr) {
       TU_LOG_DRV("  HIDh close addr = %u index = %u\r\n", daddr, i);
-      if (tuh_hid_umount_cb) tuh_hid_umount_cb(daddr, i);
+      if (tuh_hid_umount_cb) {
+        tuh_hid_umount_cb(daddr, i);
+      }
       tu_memclr(p_hid, sizeof(hidh_interface_t));
     }
   }

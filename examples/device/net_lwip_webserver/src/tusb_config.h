@@ -85,6 +85,7 @@ extern "C" {
 #endif
 
 // Use different configurations to test all net devices (also due to resource limitations)
+#ifndef USE_ECM
 #if TU_CHECK_MCU(OPT_MCU_LPC15XX, OPT_MCU_LPC40XX, OPT_MCU_LPC51UXX, OPT_MCU_LPC54)
   #define USE_ECM 1
 #elif TU_CHECK_MCU(OPT_MCU_SAMD21, OPT_MCU_SAML21, OPT_MCU_SAML22)
@@ -96,6 +97,7 @@ extern "C" {
 #else
   #define USE_ECM 0
   #define INCLUDE_IPERF
+#endif
 #endif
 
 //--------------------------------------------------------------------

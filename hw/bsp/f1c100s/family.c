@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Sunxi
+*/
+
 #include <stdint.h>
 #include <malloc.h>
 #include <irqflags.h>

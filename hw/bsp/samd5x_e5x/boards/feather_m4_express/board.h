@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Adafruit Feather M4 Express
+   url: https://www.adafruit.com/product/3857
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

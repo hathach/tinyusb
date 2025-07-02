@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Seeeduino XIAO
+   url: https://wiki.seeedstudio.com/Seeeduino-XIAO/
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

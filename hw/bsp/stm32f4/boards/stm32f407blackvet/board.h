@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 F407 Blackvet
+   url: https://stm32-base.org/boards/STM32F407VET6-STM32-F4VE-V2.0
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

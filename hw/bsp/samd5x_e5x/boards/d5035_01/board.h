@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: D5035-01
+   url: https://github.com/RudolphRiedel/USB_CAN-FD
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

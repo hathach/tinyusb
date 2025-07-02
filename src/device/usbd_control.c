@@ -44,10 +44,6 @@ TU_ATTR_WEAK void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_r
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-#if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
-extern void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);
-#endif
-
 enum {
   EDPT_CTRL_OUT = 0x00,
   EDPT_CTRL_IN = 0x80

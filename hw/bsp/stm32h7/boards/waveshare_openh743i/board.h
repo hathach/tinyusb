@@ -26,6 +26,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Waveshare Open H743i
+   url: https://www.waveshare.com/openh743i-c-standard.htm
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

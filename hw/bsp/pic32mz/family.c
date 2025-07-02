@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Microchip
+*/
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <xc.h>

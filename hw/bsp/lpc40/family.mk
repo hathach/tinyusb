@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
-
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc40xx/lpc_chip_40xx
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
@@ -13,7 +11,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC40XX
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=cast-qual
+CFLAGS_GCC += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=cast-qual
 
 LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
 

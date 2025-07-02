@@ -916,8 +916,11 @@ bool tu_fifo_clear(tu_fifo_t *f)
                 Overwritable mode the fifo is set to
  */
 /******************************************************************************/
-bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
-{
+bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
+  if (f->overwritable == overwritable) {
+    return true;
+  }
+
   _ff_lock(f->mutex_wr);
   _ff_lock(f->mutex_rd);
 

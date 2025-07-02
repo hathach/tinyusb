@@ -55,8 +55,7 @@ If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
 
-MSC_CONST uint8_t msc_disk0[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
-{
+MSC_CONST uint8_t msc_disk0[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
   //------------- Block0: Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
   // sector_per_cluster = 1; reserved_sectors = 1;
@@ -283,9 +282,11 @@ bool tud_msc_is_writable_cb(uint8_t lun) {
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
   // out of ramdisk
-  if (lba >= DISK_BLOCK_NUM) return -1;
+  if (lba >= DISK_BLOCK_NUM) {
+    return -1;
+  }
 
-#if defined(CFG_EXAMPLE_MSC_READONLY) || defined(CFG_EXAMPLE_MSC_DUAL_READONLY)
+  #if defined(CFG_EXAMPLE_MSC_READONLY) || defined(CFG_EXAMPLE_MSC_DUAL_READONLY)
   (void) lun;
   (void) lba;
   (void) offset;
@@ -302,11 +303,8 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
 // - READ10 and WRITE10 has their own callbacks (MUST not be handled here)
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) {
-  void const* response = NULL;
-  int32_t resplen = 0;
-
-  // most scsi handled is input
-  bool in_xfer = true;
+  (void) buffer;
+  (void) bufsize;
 
   switch (scsi_cmd[0]) {
     default:
@@ -316,19 +314,6 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
       // negative means error -> tinyusb could stall and/or response with failed status
       return -1;
   }
-
-  // return resplen must not larger than bufsize
-  if (resplen > bufsize) resplen = bufsize;
-
-  if (response && (resplen > 0)) {
-    if (in_xfer) {
-      memcpy(buffer, response, (size_t) resplen);
-    } else {
-      // SCSI output
-    }
-  }
-
-  return resplen;
 }
 
 #endif

@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: SparkFun SAMD21 Mini
+   url: https://www.sparkfun.com/products/13664
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

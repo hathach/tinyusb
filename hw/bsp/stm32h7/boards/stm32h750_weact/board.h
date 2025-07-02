@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: STM32 H750 WeAct
+   url: https://www.adafruit.com/product/5032
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Embedded Artists LPC4088 QuickStart Board
+   url: https://www.embeddedartists.com/products/lpc4088-quickstart-board/
+*/
+
 #ifndef EA4088QS__BOARD_H
 #define EA4088QS__BOARD_H
 

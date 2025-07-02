@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Freedom MCXA153
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXA153
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
@@ -34,10 +39,10 @@ extern "C" {
 // LED
 #define LED_GPIO              GPIO3
 #define LED_CLK               kCLOCK_GateGPIO3
-#define LED_PIN               12 // red
+#define LED_PIN               12 //red
 #define LED_STATE_ON          0
 
-// ISP button (Dummy, use unused pin
+// ISP button
 #define BUTTON_GPIO           GPIO3
 #define BUTTON_CLK            kCLOCK_GateGPIO3
 #define BUTTON_PIN            29 //sw2
