@@ -70,7 +70,7 @@ jobs:
       matrix:
         toolchain:
           - 'aarch64-gcc'
-          - 'arm-clang'
+          #- 'arm-clang'
           - 'arm-gcc'
           - 'esp-idf'
           - 'msp430-gcc'
@@ -110,7 +110,8 @@ jobs:
   # cmake is built by circle-ci. Due to IAR limit capacity, only build oe per family
   # ---------------------------------------
   arm-iar:
-    if: github.event_name == 'push' && github.repository_owner == 'hathach'
+    if: false # disable for now since we got reach capacity limit too often
+    #if: github.event_name == 'push' && github.repository_owner == 'hathach'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     secrets: inherit
