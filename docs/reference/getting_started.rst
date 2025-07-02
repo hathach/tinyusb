@@ -82,7 +82,7 @@ You only need to do this once per family. Check out `complete list of dependenci
 Build Examples
 ^^^^^^^^^^^^^^
 
-Examples support make and cmake build system, though some MCU family such as espressif/rp2040 only support cmake. First change directory to an example folder.
+Examples support make and cmake build system for most MCUs, however some MCU families such as espressif or rp2040 only support cmake. First change directory to an example folder.
 
 .. code-block:: bash
 
