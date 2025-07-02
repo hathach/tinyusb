@@ -36,11 +36,6 @@ env:
   HIL_JSON: test/hil/tinyusb.json
 
 jobs:
-  # ---------------------------------------
-  #
-  # Build
-  #
-  # ---------------------------------------
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -63,28 +58,31 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
-  # Build CMake
+  # Build CMake: only build on push with one-per-family.
+  # Full built is done by CircleCI in PR
   # ---------------------------------------
   cmake:
+    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
         toolchain:
-          # - 'arm-clang' is built by circle-ci in PR
           - 'aarch64-gcc'
+          - 'arm-clang'
           - 'arm-gcc'
+          - 'esp-idf'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      one-per-family: ${{ github.event_name == 'push' }}
+      one-per-family: true
 
   # ---------------------------------------
-  # Build Make (built by circle-ci in PR, only build on push here)
+  # Build Make: only build on push with one-per-family
   # ---------------------------------------
   make:
     if: github.event_name == 'push'
@@ -94,17 +92,37 @@ jobs:
       fail-fast: false
       matrix:
         toolchain:
-          # 'arm-clang'
-          - 'arm-gcc'
           - 'aarch64-gcc'
+          - 'arm-clang'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
           - 'rx-gcc'
-          - 'esp-idf'
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
+      one-per-family: true
+
+  # ---------------------------------------
+  # Build IAR
+  # Since IAR Token secret is not passed to forked PR, only build non-forked PR with make.
+  # cmake is built by circle-ci. Due to IAR limit capacity, only build oe per family
+  # ---------------------------------------
+  arm-iar:
+    if: github.event_name == 'push' && github.repository_owner == 'hathach'
+    needs: set-matrix
+    uses: ./.github/workflows/build_util.yml
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        build-system:
+          - 'make'
+    with:
+      build-system: ${{ matrix.build-system }}
+      toolchain: 'arm-iar'
+      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar']) }}
       one-per-family: true
 
   # ---------------------------------------
@@ -122,28 +140,6 @@ jobs:
       build-system: 'make'
       toolchain: 'arm-gcc'
       build-args: '["stm32h7"]'
-      one-per-family: true
-
-  # ---------------------------------------
-  # Build IAR
-  # Since IAR Token secret is not passed to forked PR, only build non-forked PR with make.
-  # cmake is built by circle-ci. Due to IAR limit capacity, only build oe per family
-  # ---------------------------------------
-  arm-iar:
-    if: false # disable for now since we got reach capacity limit too often
-    #if: github.event_name == 'push' && github.repository_owner == 'hathach'
-    needs: set-matrix
-    uses: ./.github/workflows/build_util.yml
-    secrets: inherit
-    strategy:
-      fail-fast: false
-      matrix:
-        build-system:
-          - 'make'
-    with:
-      build-system: ${{ matrix.build-system }}
-      toolchain: 'arm-iar'
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar']) }}
       one-per-family: true
 
   # ---------------------------------------
@@ -168,13 +164,8 @@ jobs:
           west build -b pca10056 -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr
 
   # ---------------------------------------
-  #
   # Hardware in the loop (HIL)
   # Run on PR only (hil-tinyusb), hil-hfp only run on non-forked PR
-  # ---------------------------------------
-
-  # ---------------------------------------
-  # Build arm-gcc
   # ---------------------------------------
   hil-build:
     if: |
