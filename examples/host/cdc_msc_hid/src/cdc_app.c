@@ -72,7 +72,10 @@ void tuh_cdc_rx_cb(uint8_t idx) {
   if (count) {
     buf[count] = 0;
     printf("%s", (char*) buf);
-    fflush(stdout);
+
+    #ifndef __ICCARM__     // TODO IAR doesn't support stream control ?
+    fflush(stdout);// flush right away, else nanolib will wait for newline
+    #endif
   }
 }
 

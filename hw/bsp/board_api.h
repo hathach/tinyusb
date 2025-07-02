@@ -41,7 +41,7 @@ extern "C" {
 #if CFG_TUSB_OS == OPT_OS_ZEPHYR
   #include <zephyr/kernel.h>
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  #if TUSB_MCU_VENDOR_ESPRESSIF
+  #ifdef ESP_PLATFORM
     // ESP-IDF need "freertos/" prefix in include path.
     // CFG_TUSB_OS_INC_PATH should be defined accordingly.
     #include "freertos/FreeRTOS.h"
@@ -195,6 +195,7 @@ static inline void board_delay(uint32_t ms) {
 
 // stdio getchar() is blocking, this is non-blocking version
 int board_getchar(void);
+void board_putchar(int c);
 
 #ifdef __cplusplus
 }

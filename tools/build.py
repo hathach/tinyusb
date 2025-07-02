@@ -101,10 +101,8 @@ def cmake_board(board, toolchain, build_flags_on):
             if build_utils.skip_example(example, board):
                 ret[2] += 1
             else:
-                rcmd = run_cmd(f'cmake examples/{example} -B {build_dir}/{example} -G Ninja '
-                               f'-DBOARD={board} {build_flags}')
-                if rcmd.returncode == 0:
-                    rcmd = run_cmd(f'cmake --build {build_dir}/{example}')
+                rcmd = run_cmd(f'idf.py -C examples/{example} -B {build_dir}/{example} -G Ninja '
+                               f'-DBOARD={board} {build_flags} build')
                 ret[0 if rcmd.returncode == 0 else 1] += 1
     else:
         rcmd = run_cmd(f'cmake examples -B {build_dir} -G Ninja -DBOARD={board} -DCMAKE_BUILD_TYPE=MinSizeRel '
@@ -156,16 +154,21 @@ def make_one_example(example, board, make_option):
 
 def make_board(board, toolchain):
     print(build_separator)
-    all_examples = get_examples(find_family(board))
+    family = find_family(board);
+    all_examples = get_examples(family)
     start_time = time.monotonic()
     ret = [0, 0, 0]
-    with Pool(processes=os.cpu_count()) as pool:
-        pool_args = list((map(lambda e, b=board, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_examples)))
-        r = pool.starmap(make_one_example, pool_args)
-        # sum all element of same index (column sum)
-        ret = list(map(sum, list(zip(*r))))
-    example = 'all'
-    print_build_result(board, example, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
+    if family == 'espressif' or family == 'rp2040':
+        # espressif and rp2040 do not support make, use cmake instead
+        final_status = 2
+    else:
+        with Pool(processes=os.cpu_count()) as pool:
+            pool_args = list((map(lambda e, b=board, o=f"TOOLCHAIN={toolchain}": [e, b, o], all_examples)))
+            r = pool.starmap(make_one_example, pool_args)
+            # sum all element of same index (column sum)
+            ret = list(map(sum, list(zip(*r))))
+        final_status = 0 if ret[1] == 0 else 1
+    print_build_result(board, 'all', final_status, time.monotonic() - start_time)
     return ret
 
 
