@@ -1,4 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/microchip
 ASF_DIR = hw/mcu/microchip/same70
 
 CFLAGS += \

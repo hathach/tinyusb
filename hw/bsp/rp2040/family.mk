@@ -1,8 +1,6 @@
 JLINK_DEVICE = rp2040_m0_0
 PYOCD_TARGET = rp2040
 
-DEPS_SUBMODULES += hw/mcu/raspberry_pi/Pico-PIO-USB
-
 ifeq ($(DEBUG), 1)
 CMAKE_DEFSYM += -DCMAKE_BUILD_TYPE=Debug
 endif
