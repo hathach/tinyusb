@@ -66,7 +66,7 @@ jobs:
               FAMILY_LARGE=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[])))')
               FAMILY=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[]) | not))')
 
-              if [[ $toolchain == esp-idf ]]; then
+              if [[ $toolchain == esp-idf || $toolchain == arm-iar ]]; then
                 gen_build_entry "$build_system" "$toolchain" "$FAMILY" "large"
               else
                 gen_build_entry "$build_system" "$toolchain" "$FAMILY" "medium+"
