@@ -256,8 +256,8 @@ Open ``Project -> Add project Connection ...``, click ``OK``, choose ``tinyusb\\
 2. Open ``Project -> Add project Connection ...``, click ``OK``, choose ``tinyusb\\examples\\(.ipcf of example)``.
    For example ``C:\\tinyusb\\examples\\device\\cdc_msc\\iar_cdc_msc.ipcf``
 
-Native CMake support (9.50.1+)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Native CMake support
+~~~~~~~~~~~~~~~~~~~~
 
 With 9.50.1 release, IAR added experimental native CMake support (strangely not mentioned in public release note). Now it's possible to import CMakeLists.txt then build and debug as a normal project.
 

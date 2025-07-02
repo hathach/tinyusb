@@ -52,6 +52,9 @@ int main(void) {
     int ch = board_getchar();
     if (ch > 0) {
       board_putchar(ch);
+      #ifndef LOGGER_UART
+      board_uart_write(&ch, 1);
+      #endif
     }
 
     // Blink and print every interval ms
@@ -61,7 +64,10 @@ int main(void) {
       if (ch < 0) {
         // skip if echoing
         printf(HELLO_STR);
+
+        #ifndef LOGGER_UART
         board_uart_write(HELLO_STR, strlen(HELLO_STR));
+        #endif
       }
 
       board_led_write(led_state);

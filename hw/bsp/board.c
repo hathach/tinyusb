@@ -60,7 +60,6 @@ int sys_read(int fhdl, char *buf, size_t count) {
   int rd = (int) SEGGER_RTT_Read(0, buf, count);
   return (rd > 0) ? rd : -1;
 }
-
 #endif
 
 #elif defined(LOGGER_SWO)
