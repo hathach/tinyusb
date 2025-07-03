@@ -102,16 +102,13 @@ void tud_umount_cb(void) {
 // USB CDC
 //--------------------------------------------------------------------+
 static void cdc_task(void) {
-  uint8_t itf;
-
-  for (itf = 0; itf < CFG_TUD_CDC; itf++) {
+  for (uint8_t itf = 0; itf < CFG_TUD_CDC; itf++) {
     // connected() check for DTR bit
     // Most but not all terminal client set this when making connection
     // if ( tud_cdc_n_connected(itf) )
     {
       if (tud_cdc_n_available(itf)) {
         uint8_t buf[64];
-
         uint32_t count = tud_cdc_n_read(itf, buf, sizeof(buf));
 
         // echo back to both serial ports
@@ -121,11 +118,11 @@ static void cdc_task(void) {
 
       // Press on-board button to send Uart status notification
       static uint32_t btn_prev = 0;
-      static cdc_uart_state_t state = {0};
-      uint32_t btn = board_button_read();
+      static cdc_notify_uart_state_t uart_state = { .value = 0 };
+      const uint32_t btn = board_button_read();
       if (!btn_prev && btn) {
-        state.bTxCarrier ^= 1;
-        tud_cdc_send_uart_state(state);
+        uart_state.dsr ^= 1;
+        tud_cdc_notify_uart_state(&uart_state);
       }
       btn_prev = btn;
     }

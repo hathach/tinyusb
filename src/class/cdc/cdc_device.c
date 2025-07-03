@@ -48,12 +48,11 @@
 typedef struct {
   uint8_t rhport;
   uint8_t itf_num;
-  uint8_t ep_notif;
   uint8_t ep_in;
   uint8_t ep_out;
 
-  // Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
-  uint8_t line_state;
+  uint8_t ep_notify;
+  uint8_t line_state; // Bit 0: DTR, Bit 1: RTS
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
   char wanted_char;
@@ -75,7 +74,10 @@ typedef struct {
 typedef struct {
   TUD_EPBUF_DEF(epout, CFG_TUD_CDC_EP_BUFSIZE);
   TUD_EPBUF_DEF(epin, CFG_TUD_CDC_EP_BUFSIZE);
-  TUD_EPBUF_TYPE_DEF(cdc_notif_serial_state_t, epnotif);
+
+  #if CFG_TUD_CDC_NOTIFY
+  TUD_EPBUF_TYPE_DEF(cdc_notify_msg_t, epnotify);
+  #endif
 } cdcd_epbuf_t;
 
 //--------------------------------------------------------------------+
@@ -120,7 +122,6 @@ static bool _prep_out_transaction(uint8_t itf) {
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-
 bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg) {
   TU_VERIFY(driver_cfg);
   _cdcd_cfg = *driver_cfg;
@@ -144,26 +145,41 @@ void tud_cdc_n_get_line_coding(uint8_t itf, cdc_line_coding_t* coding) {
   (*coding) = _cdcd_itf[itf].line_coding;
 }
 
-bool tud_cdc_n_send_uart_state (uint8_t itf, cdc_uart_state_t state) {
+#if CFG_TUD_CDC_NOTIFY
+bool tud_cdc_n_notify_uart_state (uint8_t itf, const cdc_notify_uart_state_t *state) {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
   cdcd_epbuf_t* p_epbuf = &_cdcd_epbuf[itf];
+  TU_VERIFY(tud_ready() && p_cdc->ep_notify != 0);
+  TU_VERIFY(usbd_edpt_claim(p_cdc->rhport, p_cdc->ep_notify));
 
-  // Skip if usb is not ready yet
-  TU_VERIFY(tud_ready(), 0);
+  cdc_notify_msg_t* notify_msg = &p_epbuf->epnotify;
+  notify_msg->request.bmRequestType = CDC_REQ_TYPE_NOTIF;
+  notify_msg->request.bRequest = CDC_NOTIF_SERIAL_STATE;
+  notify_msg->request.wValue = 0;
+  notify_msg->request.wIndex = p_cdc->itf_num;
+  notify_msg->request.wLength = sizeof(cdc_notify_uart_state_t);
+  notify_msg->serial_state = *state;
 
-  // claim endpoint
-  TU_VERIFY(usbd_edpt_claim(p_cdc->rhport, p_cdc->ep_notif));
-
-  p_epbuf->epnotif.bmRequestType = CDC_REQ_TYPE_NOTIF;
-  p_epbuf->epnotif.bNotification = CDC_NOTIF_SERIAL_STATE;
-  p_epbuf->epnotif.wValue = 0;
-  p_epbuf->epnotif.wIndex = p_cdc->itf_num;
-  p_epbuf->epnotif.wLength = 2;
-  p_epbuf->epnotif.bmUartState = state;
-
-  // transfer
-  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notif, (uint8_t *)&p_epbuf->epnotif, sizeof(cdc_notif_serial_state_t));
+  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *)notify_msg, 8 + sizeof(cdc_notify_uart_state_t));
 }
+
+bool tud_cdc_n_notify_conn_speed_change(uint8_t itf, const cdc_notify_conn_speed_change_t* conn_speed_change) {
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+  cdcd_epbuf_t* p_epbuf = &_cdcd_epbuf[itf];
+  TU_VERIFY(tud_ready() && p_cdc->ep_notify != 0);
+  TU_VERIFY(usbd_edpt_claim(p_cdc->rhport, p_cdc->ep_notify));
+
+  cdc_notify_msg_t* notify_msg = &p_epbuf->epnotify;
+  notify_msg->request.bmRequestType = CDC_REQ_TYPE_NOTIF;
+  notify_msg->request.bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE;
+  notify_msg->request.wValue = 0;
+  notify_msg->request.wIndex = p_cdc->itf_num;
+  notify_msg->request.wLength = sizeof(cdc_notify_conn_speed_change_t);
+  notify_msg->conn_speed_change = *conn_speed_change;
+
+  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *)notify_msg, 8 + sizeof(cdc_notify_conn_speed_change_t));
+}
+#endif
 
 void tud_cdc_n_set_wanted_char(uint8_t itf, char wanted) {
   _cdcd_itf[itf].wanted_char = wanted;
@@ -215,25 +231,20 @@ uint32_t tud_cdc_n_write(uint8_t itf, const void* buffer, uint32_t bufsize) {
 uint32_t tud_cdc_n_write_flush(uint8_t itf) {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
   cdcd_epbuf_t* p_epbuf = &_cdcd_epbuf[itf];
-
-  // Skip if usb is not ready yet
-  TU_VERIFY(tud_ready(), 0);
+  TU_VERIFY(tud_ready(), 0); // Skip if usb is not ready yet
 
   // No data to send
   if (!tu_fifo_count(&p_cdc->tx_ff)) {
     return 0;
   }
 
-  const uint8_t rhport = 0;
-
-  // Claim the endpoint
-  TU_VERIFY(usbd_edpt_claim(p_cdc->rhport, p_cdc->ep_in), 0);
+  TU_VERIFY(usbd_edpt_claim(p_cdc->rhport, p_cdc->ep_in), 0); // Claim the endpoint
 
   // Pull data from FIFO
   const uint16_t count = tu_fifo_read_n(&p_cdc->tx_ff, p_epbuf->epin, CFG_TUD_CDC_EP_BUFSIZE);
 
   if (count) {
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_cdc->ep_in, p_epbuf->epin, count), 0);
+    TU_ASSERT(usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_in, p_epbuf->epin, count), 0);
     return count;
   } else {
     // Release endpoint since we don't make any transfer
@@ -357,9 +368,8 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
   if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
     // notification endpoint
     const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
-
     TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
-    p_cdc->ep_notif = desc_ep->bEndpointAddress;
+    p_cdc->ep_notify = desc_ep->bEndpointAddress;
 
     drv_len += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
@@ -479,7 +489,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   // Identify which interface to use
   for (itf = 0; itf < CFG_TUD_CDC; itf++) {
     p_cdc = &_cdcd_itf[itf];
-    if ((ep_addr == p_cdc->ep_out) || (ep_addr == p_cdc->ep_in) || (ep_addr == p_cdc->ep_notif)) {
+    if ((ep_addr == p_cdc->ep_out) || (ep_addr == p_cdc->ep_in) || (ep_addr == p_cdc->ep_notify)) {
       break;
     }
   }
@@ -528,7 +538,12 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
   }
 
-  // nothing to do with notif endpoint for now
+  // Sent notification to host
+  if (ep_addr == p_cdc->ep_notify) {
+    if (tud_cdc_notify_complete_cb) {
+      tud_cdc_notify_complete_cb(itf);
+    }
+  }
 
   return true;
 }
