@@ -42,8 +42,7 @@
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
-{
+tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = USB_BCD,
@@ -68,16 +67,14 @@ tusb_desc_device_t const desc_device =
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
-uint8_t const * tud_descriptor_device_cb(void)
-{
+uint8_t const *tud_descriptor_device_cb(void) {
   return (uint8_t const *) &desc_device;
 }
 
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
-enum
-{
+enum {
   ITF_NUM_CDC_0 = 0,
   ITF_NUM_CDC_0_DATA,
   ITF_NUM_CDC_1,
@@ -193,7 +190,7 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
-  (void) index;// for multiple configurations
+  (void) index; // for multiple configurations
 
 #if TUD_OPT_HIGH_SPEED
   // Although we are highspeed, host may be fullspeed.
