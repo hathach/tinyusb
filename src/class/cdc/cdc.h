@@ -221,18 +221,20 @@ typedef enum {
 // Management Element Notification (Notification Endpoint)
 //--------------------------------------------------------------------+
 
+#define CDC_REQ_TYPE_NOTIF 0xA1 ///< Direction IN; Type Class; Recipient Interface
+
 /// 6.3 Notification Codes
 typedef enum {
-  CDC_NOTIF_NETWORK_CONNECTION               = 0x00, ///< This notification allows the device to notify the host about network connection status.
-  CDC_NOTIF_RESPONSE_AVAILABLE               = 0x01, ///< This notification allows the device to notify the hostthat a response is available. This response can be retrieved with a subsequent \ref CDC_REQUEST_GET_ENCAPSULATED_RESPONSE request.
+  CDC_NOTIF_NETWORK_CONNECTION               = 0x00, // notify the host about network connection status.
+  CDC_NOTIF_RESPONSE_AVAILABLE               = 0x01, // notify the host that a response is available.
   CDC_NOTIF_AUX_JACK_HOOK_STATE              = 0x08,
   CDC_NOTIF_RING_DETECT                      = 0x09,
   CDC_NOTIF_SERIAL_STATE                     = 0x20,
   CDC_NOTIF_CALL_STATE_CHANGE                = 0x28,
   CDC_NOTIF_LINE_STATE_CHANGE                = 0x29,
-  CDC_NOTIF_CONNECTION_SPEED_CHANGE          = 0x2A, ///< This notification allows the device to inform the host-networking driver that a change in either the upstream or the downstream bit rate of the connection has occurred
+  CDC_NOTIF_CONNECTION_SPEED_CHANGE          = 0x2A, // notify the host-networking driver that a change in either the upstream or the downstream bit rate of the connection has occurred
   CDC_NOTIF_MDLM_SEMANTIC_MODEL_NOTIFICATION = 0x40,
-}cdc_notification_request_t;
+} cdc_notify_request_t;
 
 //--------------------------------------------------------------------+
 // Class Specific Functional Descriptor (Communication Interface)
@@ -243,8 +245,7 @@ TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
 
 /// Header Functional Descriptor (Communication Interface)
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUNC_DESC_
@@ -252,8 +253,7 @@ typedef struct TU_ATTR_PACKED
 }cdc_desc_func_header_t;
 
 /// Union Functional Descriptor (Communication Interface)
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -271,14 +271,13 @@ typedef struct TU_ATTR_PACKED
 }
 
 /// Country Selection Functional Descriptor (Communication Interface)
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint8_t bLength             ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType     ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType  ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   uint8_t iCountryCodeRelDate ; ///< Index of a string giving the release date for the implemented ISO 3166 Country Codes.
   uint16_t wCountryCode       ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
-}cdc_desc_func_country_selection_t;
+} cdc_desc_func_country_selection_t;
 
 #define cdc_desc_func_country_selection_n_t(no_country) \
   struct TU_ATTR_PACKED {            \
@@ -295,8 +294,7 @@ typedef struct TU_ATTR_PACKED
 
 /// \brief Call Management Functional Descriptor
 /// \details This functional descriptor describes the processing of calls for the Communications Class interface.
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -310,8 +308,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t bDataInterface;
 }cdc_desc_func_call_management_t;
 
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
   uint8_t support_line_request                    : 1; ///< Device supports the request combination of Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding, and the notification Serial_State.
   uint8_t support_send_break                      : 1; ///< Device supports the request Send_Break
@@ -323,8 +320,7 @@ TU_VERIFY_STATIC(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compile
 
 /// Abstract Control Management Functional Descriptor
 /// This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -333,8 +329,7 @@ typedef struct TU_ATTR_PACKED
 
 /// \brief Direct Line Management Functional Descriptor
 /// \details This functional descriptor describes the commands supported by the Communications Class interface with SubClass code of \ref CDC_FUNC_DESC_DIRECT_LINE_MANAGEMENT
-typedef struct TU_ATTR_PACKED
-{
+typedef struct TU_ATTR_PACKED {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -396,8 +391,7 @@ typedef struct TU_ATTR_PACKED
 }cdc_desc_func_telephone_call_state_reporting_capabilities_t;
 
 // TODO remove
-static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc) {
   return p_desc[2];
 }
 
@@ -414,7 +408,7 @@ typedef struct TU_ATTR_PACKED {
 TU_VERIFY_STATIC(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
 typedef union TU_ATTR_PACKED {
-  struct {
+  struct TU_ATTR_PACKED {
     uint8_t dtr : 1;
     uint8_t rts : 1;
     uint8_t     : 6;
@@ -423,6 +417,48 @@ typedef union TU_ATTR_PACKED {
 } cdc_line_control_state_t;
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 1, "size is not correct");
+
+//--------------------------------------------------------------------+
+// Notifications
+//--------------------------------------------------------------------+
+// PSTN 1.2 section 6.5.4 table 31
+typedef union TU_ATTR_PACKED {
+  struct TU_ATTR_PACKED {
+    uint16_t bRxCarrier  : 1; // DCD
+    uint16_t bTxCarrier  : 1; // DSR
+    uint16_t bBreak      : 1; // Break Detected
+    uint16_t bRingSignal : 1;
+    uint16_t bFraming    : 1;
+    uint16_t bParity     : 1;
+    uint16_t bOverRun    : 1;
+    uint16_t             : 9;
+  };
+  struct TU_ATTR_PACKED {
+    uint16_t dcd : 1;
+    uint16_t dsr : 1;
+    uint16_t brk : 1;
+    uint16_t     :13;
+  };
+  uint16_t value;
+} cdc_notify_uart_state_t;
+
+TU_VERIFY_STATIC(sizeof(cdc_notify_uart_state_t) == 2, "size is not correct");
+
+// CDC 1.2 section 6.3.3 table 21
+typedef struct TU_ATTR_PACKED {
+  uint32_t upstream_bitrate;
+  uint32_t downstream_bitrate;
+} cdc_notify_conn_speed_change_t;
+
+typedef struct TU_ATTR_PACKED {
+  tusb_control_request_t request;
+  union {
+    cdc_notify_uart_state_t serial_state;
+    cdc_notify_conn_speed_change_t conn_speed_change;
+  };
+} cdc_notify_msg_t;
+
+TU_VERIFY_STATIC(sizeof(cdc_notify_msg_t) == 16, "size is not correct");
 
 TU_ATTR_PACKED_END  // End of all packed definitions
 TU_ATTR_BIT_FIELD_ORDER_END
