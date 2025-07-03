@@ -1003,20 +1003,22 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
                 ep_fb = desc_ep->bEndpointAddress;
               }
   #endif
-              // Data EP
-              if (desc_ep->bmAttributes.usage == 0) {
-                if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
-                  ep_in = desc_ep->bEndpointAddress;
-                  ep_in_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_in_size);
-  #endif
-                } else {
-  #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-                  ep_out = desc_ep->bEndpointAddress;
-                  ep_out_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_out_size);
-  #endif
-                }
+              // Data or data with implicit feedback IN EP
+              if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN
+                  && (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2)) {
+                ep_in = desc_ep->bEndpointAddress;
+                ep_in_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_in_size);
               }
+  #endif
+  #if CFG_TUD_AUDIO_ENABLE_EP_OUT
+              // Data OUT EP
+              if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT
+                  && desc_ep->bmAttributes.usage == 0) {
+                ep_out = desc_ep->bEndpointAddress;
+                ep_out_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_out_size);
+              }
+  #endif
             }
           }
 
@@ -1052,10 +1054,10 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
           if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT) {
             tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
             if (desc_ep->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) {
-              if (desc_ep->bmAttributes.usage == 0) {
-                if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-                  _audiod_fct[i].interval_tx = desc_ep->bInterval;
-                }
+              // For data or data with implicit feedback IN EP
+              if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN
+                  && (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2)) {
+                _audiod_fct[i].interval_tx = desc_ep->bInterval;
               }
             }
           } else if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AC_INTERFACE_OUTPUT_TERMINAL) {
@@ -1227,7 +1229,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
           usbd_edpt_clear_stall(rhport, ep_addr);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.usage == 0x00)// Check if usage is data EP
+          // For data or data with implicit feedback IN EP
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2))
           {
             // Save address
             audio->ep_in = ep_addr;

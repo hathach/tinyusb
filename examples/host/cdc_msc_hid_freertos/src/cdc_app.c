@@ -27,7 +27,7 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
   #define CDC_STACK_SZIE      2048
 #else
   #define CDC_STACK_SZIE     (3*configMINIMAL_STACK_SIZE/2)

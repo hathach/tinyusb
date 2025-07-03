@@ -71,9 +71,8 @@ int main(void)
   }
 }
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
-void app_main(void)
-{
+#ifdef ESP_PLATFORM
+void app_main(void) {
   main();
 }
 #endif

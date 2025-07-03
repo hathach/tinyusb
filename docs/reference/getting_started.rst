@@ -5,12 +5,12 @@ Getting Started
 Add TinyUSB to your project
 ---------------------------
 
-It is relatively simple to incorporate tinyusb to your project
+To incorporate tinyusb to your project
 
 * Copy or ``git submodule`` this repo into your project in a subfolder. Let's say it is ``your_project/tinyusb``
 * Add all the ``.c`` in the ``tinyusb/src`` folder to your project
 * Add ``your_project/tinyusb/src`` to your include path. Also make sure your current include path also contains the configuration file ``tusb_config.h``.
-* Make sure all required macros are all defined properly in ``tusb_config.h`` (configure file in demo application is sufficient, but you need to add a few more such as ``CFG_TUSB_MCU``, ``CFG_TUSB_OS`` since they are passed by IDE/compiler to maintain a unique configure for all boards).
+* Make sure all required macros are all defined properly in ``tusb_config.h`` (configure file in demo application is sufficient, but you need to add a few more such as ``CFG_TUSB_MCU``, ``CFG_TUSB_OS`` since they are passed by make/cmake to maintain a unique configure for all boards).
 * If you use the device stack, make sure you have created/modified usb descriptors for your own need. Ultimately you need to implement all **tud descriptor** callbacks for the stack to work.
 * Add ``tusb_init(rhport, role)`` call to your reset initialization code.
 * Call ``tusb_int_handler(rhport, in_isr)`` in your USB IRQ Handler
@@ -75,24 +75,36 @@ The hardware code is located in ``hw/bsp`` folder, and is organized by family/bo
 .. code-block:: bash
 
    $ cd examples/device/cdc_msc
-   $ make BOARD=raspberry_pi_pico get-deps
+   $ make BOARD=feather_nrf52840_express get-deps
 
 You only need to do this once per family. Check out `complete list of dependencies and their designated path here <dependencies.rst>`_
 
-Build
-^^^^^
+Build Examples
+^^^^^^^^^^^^^^
 
-To build example, first change directory to an example folder.
+Examples support make and cmake build system for most MCUs, however some MCU families such as espressif or rp2040 only support cmake. First change directory to an example folder.
 
 .. code-block:: bash
 
    $ cd examples/device/cdc_msc
 
-Then compile with ``make BOARD={board_name} all`` , for example
+Then compile with make or cmake
 
 .. code-block:: bash
 
-   $ make BOARD=raspberry_pi_pico all
+   $ # make
+   $ make BOARD=feather_nrf52840_express all
+
+   $ # cmake
+   $ mkdir build && cd build
+   $ cmake -DBOARD=raspberry_pi_pico ..
+   $ make
+
+To list all available targets with cmake
+
+.. code-block:: bash
+
+   $ cmake --build . --target help
 
 Note: some examples especially those that uses Vendor class (e.g webUSB) may requires udev permission on Linux (and/or macOS) to access usb device. It depends on your OS distro, typically copy ``99-tinyusb.rules`` and reload your udev is good to go
 
@@ -104,20 +116,24 @@ Note: some examples especially those that uses Vendor class (e.g webUSB) may req
 RootHub Port Selection
 ~~~~~~~~~~~~~~~~~~~~~~
 
-If a board has several ports, one port is chosen by default in the individual board.mk file. Use option ``PORT=x`` To choose another port. For example to select the HS port of a STM32F746Disco board, use:
+If a board has several ports, one port is chosen by default in the individual board.mk file. Use option ``RHPORT_DEVICE=x`` or ``RHPORT_HOST=x`` To choose another port. For example to select the HS port of a STM32F746Disco board, use:
 
 .. code-block:: bash
 
-   $ make BOARD=stm32f746disco PORT=1 all
+   $ make BOARD=stm32f746disco RHPORT_DEVICE=1 all
+
+   $ cmake -DBOARD=stm32f746disco -DRHPORT_DEVICE=1 ..
 
 Port Speed
 ~~~~~~~~~~
 
-A MCU can support multiple operational speed. By default, the example build system will use the fastest supported on the board. Use option ``SPEED=full/high`` e.g To force F723 operate at full instead of default high speed
+A MCU can support multiple operational speed. By default, the example build system will use the fastest supported on the board. Use option ``RHPORT_DEVICE_SPEED=OPT_MODE_FULL/HIGH_SPEED/`` or ``RHPORT_HOST_SPEED=OPT_MODE_FULL/HIGH_SPEED/`` e.g To force F723 operate at full instead of default high speed
 
 .. code-block:: bash
 
-   $ make BOARD=stm32f746disco SPEED=full all
+   $ make BOARD=stm32f746disco RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED all
+
+   $ cmake -DBOARD=stm32f746disco -DRHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED ..
 
 Size Analysis
 ~~~~~~~~~~~~~
@@ -137,6 +153,8 @@ To compile for debugging add ``DEBUG=1``\ , for example
 
    $ make BOARD=feather_nrf52840_express DEBUG=1 all
 
+   $ cmake -DBOARD=feather_nrf52840_express -DCMAKE_BUILD_TYPE=Debug ..
+
 Log
 ~~~
 
@@ -145,6 +163,8 @@ Should you have an issue running example and/or submitting an bug report. You co
 .. code-block:: bash
 
    $ make BOARD=feather_nrf52840_express LOG=2 all
+
+   $ cmake -DBOARD=feather_nrf52840_express -DLOG=2 ..
 
 Logger
 ~~~~~~
@@ -169,6 +189,9 @@ By default log message is printed via on-board UART which is slow and take lots 
    $ make BOARD=feather_nrf52840_express LOG=2 LOGGER=rtt all
    $ make BOARD=feather_nrf52840_express LOG=2 LOGGER=swo all
 
+   $ cmake -DBOARD=feather_nrf52840_express -DLOG=2 -DLOGGER=rtt ..
+   $ cmake -DBOARD=feather_nrf52840_express -DLOG=2 -DLOGGER=swo ..
+
 Flash
 ^^^^^
 
@@ -179,11 +202,15 @@ Flash
    $ make BOARD=feather_nrf52840_express flash
    $ make SERIAL=/dev/ttyACM0 BOARD=feather_nrf52840_express flash
 
-Since jlink can be used with most of the boards, there is also ``flash-jlink`` target for your convenience.
+Since jlink/openocd can be used with most of the boards, there is also ``flash-jlink/openocd`` (make) and ``EXAMPLE-jlink/openocd`` target for your convenience. Note for stm32 board with stlink, you can use ``flash-stlink`` target as well.
 
 .. code-block:: bash
 
    $ make BOARD=feather_nrf52840_express flash-jlink
+   $ make BOARD=feather_nrf52840_express flash-openocd
+
+   $ cmake --build . --target cdc_msc-jlink
+   $ cmake --build . --target cdc_msc-openocd
 
 Some board use uf2 bootloader for drag & drop in to mass storage device, uf2 can be generated with ``uf2`` target
 
@@ -191,16 +218,17 @@ Some board use uf2 bootloader for drag & drop in to mass storage device, uf2 can
 
    $ make BOARD=feather_nrf52840_express all uf2
 
+   $ cmake --build . --target cdc_msc-uf2
+
 IAR Support
------------
+^^^^^^^^^^^
 
 Use project connection
-^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~
 
 IAR Project Connection files are provided to import TinyUSB stack into your project.
 
 * A buildable project of your MCU need to be created in advance.
-
 
   * Take example of STM32F0:
 
@@ -212,15 +240,13 @@ IAR Project Connection files are provided to import TinyUSB stack into your proj
    Click ``New Group ...``, name it to ``TUSB``, Click ``Add Variable ...``, name it to ``TUSB_DIR``, change it's value to the path of your TinyUSB stack,
    for example ``C:\\tinyusb``
 
-Import stack only
-~~~~~~~~~~~~~~~~~
+**Import stack only**
 
-1. Open ``Project -> Add project Connection ...``, click ``OK``, choose ``tinyusb\\tools\\iar_template.ipcf``.
+Open ``Project -> Add project Connection ...``, click ``OK``, choose ``tinyusb\\tools\\iar_template.ipcf``.
 
-Run examples
-~~~~~~~~~~~~
+**Run examples**
 
-1. (Python3 is needed) Run ``iar_gen.py`` to generate .ipcf files of examples:
+1. Run ``iar_gen.py`` to generate .ipcf files of examples:
 
    .. code-block::
 
@@ -230,8 +256,8 @@ Run examples
 2. Open ``Project -> Add project Connection ...``, click ``OK``, choose ``tinyusb\\examples\\(.ipcf of example)``.
    For example ``C:\\tinyusb\\examples\\device\\cdc_msc\\iar_cdc_msc.ipcf``
 
-Native CMake support (9.50.1+)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Native CMake support
+~~~~~~~~~~~~~~~~~~~~
 
 With 9.50.1 release, IAR added experimental native CMake support (strangely not mentioned in public release note). Now it's possible to import CMakeLists.txt then build and debug as a normal project.
 

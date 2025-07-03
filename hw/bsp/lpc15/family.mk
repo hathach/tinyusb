@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m3
 

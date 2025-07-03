@@ -221,6 +221,8 @@ function(family_configure_common TARGET RTOS)
       target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
     endif ()
+  else ()
+    target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
   endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
