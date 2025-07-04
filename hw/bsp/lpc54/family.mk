@@ -1,5 +1,4 @@
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
@@ -36,7 +35,7 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c \
 	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
 	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
-	$(SDK_DIR)/drivers/flexcomm/fsl_usart.c \
+	$(SDK_DIR)/drivers/flexcomm/usart/fsl_usart.c \
 	$(SDK_DIR)/drivers/common/fsl_common_arm.c
 
 INC += \
@@ -46,6 +45,7 @@ INC += \
 	$(TOP)/$(MCU_DIR)/drivers \
 	$(TOP)/$(SDK_DIR)/drivers/common \
 	$(TOP)/$(SDK_DIR)/drivers/flexcomm \
+	$(TOP)/$(SDK_DIR)/drivers/flexcomm/usart \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
 	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio
 

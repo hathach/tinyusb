@@ -278,6 +278,8 @@ typedef enum {
   XFER_RESULT_INVALID
 } xfer_result_t;
 
+#define tusb_xfer_result_t xfer_result_t
+
 // TODO remove
 enum {
   DESC_OFFSET_LEN  = 0,
@@ -345,7 +347,6 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  iManufacturer      ; ///< Index of string descriptor describing manufacturer.
   uint8_t  iProduct           ; ///< Index of string descriptor describing product.
   uint8_t  iSerialNumber      ; ///< Index of string descriptor describing the device's serial number.
-
   uint8_t  bNumConfigurations ; ///< Number of possible configurations.
 } tusb_desc_device_t;
 
@@ -585,6 +586,12 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_type(void const* desc) {
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
   return ((uint8_t const*) desc)[DESC_OFFSET_SUBTYPE];
 }
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_is_valid(void const* desc, uint8_t const* desc_end) {
+  const uint8_t* desc8 = (uint8_t const*) desc;
+  return (desc8 < desc_end) && (tu_desc_next(desc) <= desc_end);
+}
+
 
 // find descriptor that match byte1 (type)
 uint8_t const * tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1);

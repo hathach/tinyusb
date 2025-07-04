@@ -30,13 +30,11 @@
 //--------------------------------------------------------------------+
 static scsi_inquiry_resp_t inquiry_resp;
 
-bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data)
-{
+static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_data) {
   msc_cbw_t const* cbw = cb_data->cbw;
   msc_csw_t const* csw = cb_data->csw;
 
-  if (csw->status != 0)
-  {
+  if (csw->status != 0) {
     printf("Inquiry failed\r\n");
     return false;
   }
@@ -55,16 +53,14 @@ bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const * cb_da
 }
 
 //------------- IMPLEMENTATION -------------//
-void tuh_msc_mount_cb(uint8_t dev_addr)
-{
+void tuh_msc_mount_cb(uint8_t dev_addr) {
   printf("A MassStorage device is mounted\r\n");
 
   uint8_t const lun = 0;
   tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb, 0);
 }
 
-void tuh_msc_umount_cb(uint8_t dev_addr)
-{
+void tuh_msc_umount_cb(uint8_t dev_addr) {
   (void) dev_addr;
   printf("A MassStorage device is unmounted\r\n");
 }

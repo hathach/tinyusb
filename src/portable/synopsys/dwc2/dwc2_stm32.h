@@ -77,6 +77,17 @@ extern "C" {
   #define EP_MAX_HS       9
   #define EP_FIFO_SIZE_HS 4096
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32N6
+  #include "stm32n6xx.h"
+  #define EP_MAX_FS       9
+  #define EP_FIFO_SIZE_FS 4096
+
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
+
+  #define USB_OTG_HS_PERIPH_BASE    USB1_OTG_HS_BASE
+  #define OTG_HS_IRQn               USB1_OTG_HS_IRQn
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
   #define EP_MAX_FS       6

@@ -340,15 +340,16 @@ TU_ATTR_ALWAYS_INLINE static inline usbd_class_driver_t const * get_driver(uint8
 enum { RHPORT_INVALID = 0xFFu };
 tu_static uint8_t _usbd_rhport = RHPORT_INVALID;
 
-// Event queue
-// usbd_int_set() is used as mutex in OS NONE config
+static OSAL_SPINLOCK_DEF(_usbd_spin, usbd_int_set);
+
+// Event queue: usbd_int_set() is used as mutex in OS NONE config
 OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
-tu_static osal_queue_t _usbd_q;
+static osal_queue_t _usbd_q;
 
 // Mutex for claiming endpoint
 #if OSAL_MUTEX_REQUIRED
-  tu_static osal_mutex_def_t _ubsd_mutexdef;
-  tu_static osal_mutex_t _usbd_mutex;
+  static osal_mutex_def_t _ubsd_mutexdef;
+  static osal_mutex_t _usbd_mutex;
 #else
   #define _usbd_mutex   NULL
 #endif
@@ -464,16 +465,35 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     return true; // skip if already initialized
   }
   TU_ASSERT(rh_init);
-
-  TU_LOG_USBD("USBD init on controller %u, speed = %s\r\n", rhport,
-    rh_init->speed == TUSB_SPEED_HIGH ? "High" : "Full");
+#if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
+  char const* speed_str = 0;
+            switch (rh_init->speed) {
+    case TUSB_SPEED_HIGH:
+      speed_str = "High";
+    break;
+    case TUSB_SPEED_FULL:
+      speed_str = "Full";
+    break;
+    case TUSB_SPEED_LOW:
+      speed_str = "Low";
+    break;
+    case TUSB_SPEED_AUTO:
+      speed_str = "Auto";
+    break;
+  default:
+    break;
+  }
+  TU_LOG_USBD("USBD init on controller %u, speed = %s\r\n", rhport, speed_str);
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(usbd_device_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(dcd_event_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_fifo_t));
   TU_LOG_INT(CFG_TUD_LOG_LEVEL, sizeof(tu_edpt_stream_t));
+#endif
 
   tu_varclr(&_usbd_dev);
   _usbd_queued_setup = 0;
+
+  osal_spin_init(&_usbd_spin);
 
 #if OSAL_MUTEX_REQUIRED
   // Init device mutex
@@ -561,8 +581,7 @@ static void usbd_reset(uint8_t rhport) {
 }
 
 bool tud_task_event_ready(void) {
-  // Skip if stack is not initialized
-  if (!tud_inited()) return false;
+  TU_VERIFY(tud_inited()); // Skip if stack is not initialized
   return !osal_queue_empty(_usbd_q);
 }
 
@@ -684,7 +703,9 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
       case USBD_EVENT_FUNC_CALL:
         TU_LOG_USBD("\r\n");
-        if (event.func_call.func) event.func_call.func(event.func_call.param);
+        if (event.func_call.func) {
+          event.func_call.func(event.func_call.param);
+        }
         break;
 
       case DCD_EVENT_SOF:
@@ -701,7 +722,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
 #if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
     // return if there is no more events, for application to run other background
-    if (osal_queue_empty(_usbd_q)) return;
+    if (osal_queue_empty(_usbd_q)) { return; }
 #endif
   }
 }
@@ -1241,15 +1262,19 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
 // USBD API For Class Driver
 //--------------------------------------------------------------------+
 
-void usbd_int_set(bool enabled)
-{
-  if (enabled)
-  {
+void usbd_int_set(bool enabled) {
+  if (enabled) {
     dcd_int_enable(_usbd_rhport);
-  }else
-  {
+  } else {
     dcd_int_disable(_usbd_rhport);
   }
+}
+
+void usbd_spin_lock(bool in_isr) {
+  osal_spin_lock(&_usbd_spin, in_isr);
+}
+void usbd_spin_unlock(bool in_isr) {
+  osal_spin_unlock(&_usbd_spin, in_isr);
 }
 
 // Parse consecutive endpoint descriptors (IN & OUT)

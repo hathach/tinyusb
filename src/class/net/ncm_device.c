@@ -110,6 +110,7 @@ typedef struct {
     NOTIFICATION_DONE
   } notification_xmit_state;                            // state of notification transmission
   bool notification_xmit_is_running;                    // notification is currently transmitted
+  bool link_is_up;                                      // current link state
 
   // misc
   bool tud_network_recv_renew_active;                   // tud_network_recv_renew() is active (avoid recursive invocations)
@@ -218,7 +219,7 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
           .direction = TUSB_DIR_IN
         },
         .bRequest = CDC_NOTIF_NETWORK_CONNECTION,
-        .wValue = 1 /* Connected */,
+        .wValue = ncm_interface.link_is_up ? 1 : 0,  /* Dynamic link state */
         .wIndex = ncm_interface.itf_num,
         .wLength = 0,
       },
@@ -232,6 +233,7 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
     ncm_interface.notification_xmit_is_running = true;
   } else {
     TU_LOG_DRV("  NOTIFICATION_FINISHED\n");
+    ncm_interface.notification_xmit_is_running = false;
   }
 } // notification_xmit
 
@@ -755,6 +757,32 @@ static void tud_network_recv_renew_r(uint8_t rhport) {
   tud_network_recv_renew();
 } // tud_network_recv_renew
 
+/**
+ * Set the link state and send notification to host
+ */
+void tud_network_link_state(uint8_t rhport, bool is_up) {
+  TU_LOG_DRV("tud_network_link_state(%d, %d)\n", rhport, is_up);
+
+  if (ncm_interface.link_is_up == is_up) {
+    // No change in link state
+    return;
+  }
+
+  ncm_interface.link_is_up = is_up;
+
+  // Only send notification if we have an active data interface
+  if (ncm_interface.itf_data_alt != 1) {
+    TU_LOG_DRV("  link state notification skipped (interface not active)\n");
+    return;
+  }
+
+  // Reset notification state to send link state update
+  ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
+
+  // Trigger notification transmission
+  notification_xmit(rhport, false);
+}
+
 //-----------------------------------------------------------------------------
 //
 // all the netd_*() stuff (interface TinyUSB -> driver)
@@ -774,6 +802,12 @@ void netd_init(void) {
   for (int i = 0; i < RECV_NTB_N; ++i) {
     ncm_interface.recv_free_ntb[i] = &ncm_epbuf.recv[i].ntb;
   }
+  // Default link state - can be configured via CFG_TUD_NCM_DEFAULT_LINK_UP
+  #ifdef CFG_TUD_NCM_DEFAULT_LINK_UP
+  ncm_interface.link_is_up = CFG_TUD_NCM_DEFAULT_LINK_UP;
+  #else
+  ncm_interface.link_is_up = true; // Default to link up if not set.
+  #endif
 } // netd_init
 
 /**

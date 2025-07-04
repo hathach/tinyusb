@@ -1,5 +1,4 @@
 CROSS_COMPILE = msp430-elf-
-DEPS_SUBMODULES += hw/mcu/ti
 SKIP_NANOLIB = 1
 
 SDK_DIR = hw/mcu/ti/msp430/msp430-gcc-support-files/include

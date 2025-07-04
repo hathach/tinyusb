@@ -170,8 +170,12 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature,
                           tuh_xfer_cb_t complete_cb, uintptr_t user_data);
 
 // Get port status
+// If hub_port != 0, resp is ignored. hub_port_get_status_local() can be used to retrieve the status
 bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void *resp,
                          tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
+// Get port status from local cache. This does not send a request to the device
+bool hub_port_get_status_local(uint8_t hub_addr, uint8_t hub_port, hub_port_status_response_t* resp);
 
 // Get status from Interrupt endpoint
 bool hub_edpt_status_xfer(uint8_t daddr);
@@ -188,7 +192,7 @@ bool hub_port_clear_reset_change(uint8_t hub_addr, uint8_t hub_port, tuh_xfer_cb
   return hub_port_clear_feature(hub_addr, hub_port, HUB_FEATURE_PORT_RESET_CHANGE, complete_cb, user_data);
 }
 
-// Get Hub status
+// Get Hub status (port = 0)
 TU_ATTR_ALWAYS_INLINE static inline
 bool hub_get_status(uint8_t hub_addr, void* resp, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   return hub_port_get_status(hub_addr, 0, resp, complete_cb, user_data);
@@ -205,7 +209,7 @@ bool hub_clear_feature(uint8_t hub_addr, uint8_t feature, tuh_xfer_cb_t complete
 bool hub_init       (void);
 bool hub_deinit     (void);
 bool hub_open       (uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
-bool hub_set_config (uint8_t dev_addr, uint8_t itf_num);
+bool hub_set_config (uint8_t daddr, uint8_t itf_num);
 bool hub_xfer_cb    (uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void hub_close      (uint8_t dev_addr);
 

@@ -34,6 +34,8 @@
 #define EMBEDDED_CLI_IMPL
 #include "embedded_cli.h"
 
+#include "msc_app.h"
+
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION

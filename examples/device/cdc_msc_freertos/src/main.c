@@ -30,7 +30,7 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
   #define USBD_STACK_SIZE     4096
 #else
   // Increase stack size when debug log is enabled
@@ -72,7 +72,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 static void usb_device_task(void *param);
 void led_blinking_task(void* param);
 void cdc_task(void *params);
-
+extern void msc_disk_init(void);
 //--------------------------------------------------------------------+
 // Main
 //--------------------------------------------------------------------+
@@ -91,15 +91,15 @@ int main(void) {
   xTaskCreate(cdc_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
 
-#if !TUSB_MCU_VENDOR_ESPRESSIF
-  // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
+#ifndef ESP_PLATFORM
+  // only start scheduler for non-espressif mcu
   vTaskStartScheduler();
 #endif
 
   return 0;
 }
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
 void app_main(void) {
   main();
 }
@@ -123,6 +123,7 @@ static void usb_device_task(void *param) {
     board_init_after_tusb();
   }
 
+  msc_disk_init();
   // RTOS forever loop
   while (1) {
     // put this thread to waiting state until there is new events
@@ -188,6 +189,16 @@ void cdc_task(void *params) {
       }
 
       tud_cdc_write_flush();
+
+      // Press on-board button to send Uart status notification
+      static uint32_t btn_prev = 0;
+      static cdc_notify_uart_state_t uart_state = { .value = 0 };
+      const uint32_t btn = board_button_read();
+      if (!btn_prev && btn) {
+        uart_state.dsr ^= 1;
+        tud_cdc_notify_uart_state(&uart_state);
+      }
+      btn_prev = btn;
     }
 
     // For ESP32-Sx this delay is essential to allow idle how to run and reset watchdog
