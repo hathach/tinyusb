@@ -51,5 +51,5 @@ place at address mem:__ICFEDIT_intvec_start__ { readonly section .intvec };
 
 place in ROM_region   { readonly };
 place in RAM_region   { readwrite };
-place in DTCM_region  { block CSTACK, block HEAP, section dtcm_data };
+place in DTCM_region  { block CSTACK, block HEAP };
 place in NONCACHEABLE_region { section noncacheable_buffer };

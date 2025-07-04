@@ -196,11 +196,6 @@ SECTIONS
     . = ALIGN(8);
   } >DTCM
 
-  .dtcm_data :
-  {
-    *(dtcm_data)
-  } >DTCM
-
   /* Remove information from the compiler libraries */
   /DISCARD/ :
   {

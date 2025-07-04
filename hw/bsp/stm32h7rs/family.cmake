@@ -87,7 +87,8 @@ function(add_board_target BOARD_TARGET)
     BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
     BOARD_TUH_RHPORT=${RHPORT_HOST}
     BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
-    SEGGER_RTT_SECTION=\"dtcm_data\"
+    SEGGER_RTT_SECTION=\"noncacheable_buffer\"
+    BUFFER_SIZE_UP=0x300
     )
 
   update_board(${BOARD_TARGET})

@@ -99,7 +99,6 @@ static void trace_etm_init(void) {
 
 void board_init(void) {
   SCB_EnableICache();
-  SCB_EnableDCache();
 
   HAL_Init();
 
