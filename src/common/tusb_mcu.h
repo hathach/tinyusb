@@ -503,11 +503,17 @@
   #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
-  // v20x support both FSDEV (USBD) and USBFS, default to FSDEV
+  // v20x support both port0 FSDEV (USBD) and port1 USBFS
   #define TUP_USBIP_WCH_USBFS
+
+  #ifndef CFG_TUH_WCH_USBIP_USBFS
+  #define CFG_TUH_WCH_USBIP_USBFS 1
+  #endif
+
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_CH32
 
+  // default to FSDEV for device
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
   #define CFG_TUD_WCH_USBIP_USBFS 0
   #endif
