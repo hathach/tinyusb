@@ -1,471 +1,512 @@
 'use strict';
 
-(() => {
-  const connectBtn = document.getElementById('connect');
-  const resetAllBtn = document.getElementById('reset_all');
-  const resetOutputBtn = document.getElementById('reset_output');
-  const senderLines = document.getElementById('sender_lines');
-  const receiverLines = document.getElementById('receiver_lines');
-  const commandLine = document.getElementById('command_line');
-  const status = document.getElementById('status');
-  const newlineModeSelect = document.getElementById('newline_mode');
-  const sendModeBtn = document.getElementById('send_mode');
-  const autoReconnectCheckbox = document.getElementById('auto_reconnect');
-  const forgetDeviceBtn = document.getElementById('forget_device');
-  const forgetAllDevicesBtn = document.getElementById('forget_all_devices');
+(async () => {
+  // bind to the html
+  const connectWebUsbSerialBtn = document.getElementById('connect_webusb_serial_btn');
+  const connectSerialBtn = document.getElementById('connect_serial_btn');
+  const disconnectBtn = document.getElementById('disconnect_btn');
+
+  const newlineModeSelect = document.getElementById('newline_mode_select');
+  const autoReconnectCheckbox = document.getElementById('auto_reconnect_checkbox');
+  const forgetDeviceBtn = document.getElementById('forget_device_btn');
+  const forgetAllDevicesBtn = document.getElementById('forget_all_devices_btn');
+  const resetAllBtn = document.getElementById('reset_all_btn');
+  const resetOutputBtn = document.getElementById('reset_output_btn');
+  const copyOutputBtn = document.getElementById('copy_output_btn');
+
+  const statusSpan = document.getElementById('status_span');
+
+  const commandHistoryScrollbox = document.getElementById('command_history_scrollbox');
+  const commandLineInput = document.getElementById('command_line_input');
+  const sendModeBtn = document.getElementById('send_mode_btn');
+
+  const receivedDataScrollbox = document.getElementById('received_data_scrollbox');
 
   const nearTheBottomThreshold = 100; // pixels from the bottom to trigger scroll
 
-  let port = null;
-  let lastPort = null; // for reconnecting and initial connection
+  class Application {
+    constructor() {
+      this.currentPort = null;
+      this.textEncoder = new TextEncoder();
+      this.textDecoder = new TextDecoder();
 
-  const history = [];
-  let historyIndex = -1;
-  let lastCommand = null;
-  let lastCommandCount = 0;
-  let lastCommandButton = null;
+      this.reconnectTimeoutId = null;
 
-  let sendMode = localStorage.getItem('sendMode') || 'command';
+      this.commandHistory = [];
+      this.commandHistoryIndex = -1;
+      this.lastCommandCount = 0;
+      this.lastCommand = null;
+      this.lastCommandBtn = null;
 
-  // track reconnect interval
-  let reconnectIntervalId = null;
+      // bind the UI elements
+      connectWebUsbSerialBtn.addEventListener('click', () => this.connectWebUsbSerialPort());
+      connectSerialBtn.addEventListener('click', () => this.connectSerialPort());
+      disconnectBtn.addEventListener('click', () => this.disconnectPort());
+      newlineModeSelect.addEventListener('change', () => this.setNewlineMode());
+      autoReconnectCheckbox.addEventListener('change', () => this.autoReconnectChanged());
+      forgetDeviceBtn.addEventListener('click', () => this.forgetPort());
+      forgetAllDevicesBtn.addEventListener('click', () => this.forgetAllPorts());
+      resetAllBtn.addEventListener('click', () => this.resetAll());
+      resetOutputBtn.addEventListener('click', () => this.resetOutput());
+      copyOutputBtn.addEventListener('click', () => this.copyOutput());
+      commandLineInput.addEventListener('keydown', (e) => this.handleCommandLineInput(e));
+      sendModeBtn.addEventListener('click', () => this.toggleSendMode());
 
-  // Append sent command to sender container as a clickable element
-  const appendCommandToSender = (container, text) => {
-    if (text === lastCommand) {
-      // Increment count and update button
-      lastCommandCount++;
-      lastCommandButton.textContent = `${text} ×${lastCommandCount}`;
-    } else {
-      // Reset count and add new button
-      lastCommand = text;
-      lastCommandCount = 1;
+      // restore state from localStorage
 
-      const commandEl = document.createElement('button');
-      commandEl.className = 'sender-entry';
-      commandEl.type = 'button';
-      commandEl.textContent = text;
-      commandEl.addEventListener('click', () => {
-        commandLine.value = text;
-        commandLine.focus();
-      });
-      container.appendChild(commandEl);
-      lastCommandButton = commandEl;
+      // Restore command history
+      let savedCommandHistory = JSON.parse(localStorage.getItem('commandHistory') || '[]');
+      for (const cmd of savedCommandHistory) {
+        this.appendCommandToHistory(cmd);
+      }
 
-      const distanceFromBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
+      this.sendMode = localStorage.getItem('sendMode') || 'command';
+      this.setSendMode(this.sendMode);
+
+      autoReconnectCheckbox.checked = localStorage.getItem('autoReconnect') === 'true';
+
+      let savedNewlineMode = localStorage.getItem('newlineMode');
+      if (savedNewlineMode) {
+        newlineModeSelect.value = savedNewlineMode;
+      }
+
+      this.connectWebUsbSerialPort(true);
+    }
+
+    appendCommandToHistory(text) {
+      if (text === this.lastCommand) {
+        // Increment count and update button
+        this.lastCommandCount++;
+        this.lastCommandBtn.textContent = `${text} ×${this.lastCommandCount}`;
+      } else {
+        // Add a new entry to the command history
+        this.commandHistory.push(text);
+        localStorage.setItem('commandHistory', JSON.stringify(this.commandHistory));
+        this.commandHistoryIndex = -1;
+
+        const commandHistoryEntryBtn = document.createElement('button');
+        commandHistoryEntryBtn.className = 'command-history-entry';
+        commandHistoryEntryBtn.type = 'button';
+        commandHistoryEntryBtn.textContent = text;
+        commandHistoryEntryBtn.addEventListener('click', () => {
+          if (commandLineInput.disabled) return;
+          commandLineInput.value = text;
+          commandLineInput.focus();
+        });
+        commandHistoryScrollbox.appendChild(commandHistoryEntryBtn);
+
+        this.lastCommand = text;
+        this.lastCommandBtn = commandHistoryEntryBtn;
+
+        // Scroll to the new entry if near the bottom
+        const distanceFromBottom = commandHistoryScrollbox.scrollHeight - (commandHistoryScrollbox.scrollTop + commandHistoryScrollbox.clientHeight);
+        if (distanceFromBottom < nearTheBottomThreshold) {
+          requestAnimationFrame(() => {
+            commandHistoryEntryBtn.scrollIntoView({ behavior: 'instant' });
+          });
+        }
+      }
+    }
+
+    appendLineToReceived(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      receivedDataScrollbox.appendChild(div);
+
+      // Scroll to the new entry if near the bottom
+      const distanceFromBottom = receivedDataScrollbox.scrollHeight - (receivedDataScrollbox.scrollTop + receivedDataScrollbox.clientHeight);
       if (distanceFromBottom < nearTheBottomThreshold) {
         requestAnimationFrame(() => {
-          commandEl.scrollIntoView({ behavior: 'instant' });
+          div.scrollIntoView({ behavior: 'instant' });
         });
       }
     }
-  };
 
-  // Restore command history
-  history.push(...(JSON.parse(localStorage.getItem('commandHistory') || '[]')));
-  for (const cmd of history) {
-    appendCommandToSender(senderLines, cmd);
-  }
-
-  // Restore auto reconnect checkbox
-  autoReconnectCheckbox.checked = localStorage.getItem('autoReconnect') === 'true';
-  // Restore newline mode
-  const savedNewlineMode = localStorage.getItem('newlineMode');
-  if (savedNewlineMode) newlineModeSelect.value = savedNewlineMode;
-
-  // Format incoming data
-  const decodeData = (() => {
-    const decoder = new TextDecoder();
-    return dataView => decoder.decode(dataView);
-  })();
-
-  const normalizeNewlines = (text, mode) => {
-    switch (mode) {
-      case 'CR':
-        // Only \r: Replace all \n with \r
-        return text.replace(/\r?\n/g, '\r');
-      case 'CRLF':
-        // Replace lone \r or \n with \r\n
-        return text.replace(/\r\n|[\r\n]/g, '\r\n');
-      case 'ANY':
-        // Accept any \r, \n, \r\n. Normalize as \n for display
-        return text.replace(/\r\n|\r/g, '\n');
-      default:
-        return text;
+    setStatus(msg, level = 'info') {
+      console.log(msg);
+      statusSpan.textContent = msg;
+      statusSpan.className = 'status status-' + level;
     }
-  };
 
-  // Append line to container, optionally scroll to bottom
-  const appendLineToReceiver = (container, text, className = '') => {
-    const div = document.createElement('div');
-    if (className) div.className = className;
-    div.textContent = text;
-    container.appendChild(div);
-
-    const distanceFromBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
-    if (distanceFromBottom < nearTheBottomThreshold) {
-      requestAnimationFrame(() => {
-        div.scrollIntoView({ behavior: "instant" });
-      });
-    }
-  };
-
-  // Update status text and style
-  const setStatus = (msg, level = 'info') => {
-    console.log(msg);
-    status.textContent = msg;
-    status.className = 'status status-' + level;
-  };
-
-  // Disconnect helper
-  const disconnectPort = async () => {
-    if (port) {
-      try {
-        await port.disconnect();
-      } catch (error) {
-        setStatus(`Disconnect error: ${error.message}`, 'error');
-      }
-      port = null;
-      connectBtn.textContent = 'Connect';
-      commandLine.disabled = true;
-    }
-  };
-
-  // Connect helper
-  const connectPort = async (initial = false) => {
-    try {
-      let grantedDevices = await serial.getPorts();
-      if (grantedDevices.length === 0 && initial) {
-        return false;
-      }
-      if (grantedDevices.length === 0) {
-        // No previously granted devices, request a new one
-        setStatus('Requesting device...', 'info');
-        port = await serial.requestPort();
+    updateUIConnectionState() {
+      if (this.currentPort && this.currentPort.isConnected) {
+        connectWebUsbSerialBtn.style.display = 'none';
+        connectSerialBtn.style.display = 'none';
+        disconnectBtn.style.display = 'block';
+        commandLineInput.disabled = false;
+        commandLineInput.focus();
       } else {
-        if (lastPort) {
-          // Try to reconnect to the last used port
-          const matchingPort = grantedDevices.find(p => p.portPointToSameDevice(lastPort));
-          if (matchingPort) {
-            port = matchingPort;
-            setStatus('Reconnecting to last device...', 'info');
-          } else {
-            return false;
-          }
-        } else {
-          // No last port, just use the first available
-          port = grantedDevices[0];
-          setStatus('Connecting to first device...', 'info');
+        if (serial.isWebUsbSupported()) {
+          connectWebUsbSerialBtn.style.display = 'block';
         }
+        if (serial.isWebSerialSupported()) {
+          connectSerialBtn.style.display = 'block';
+        }
+        if (!serial.isWebUsbSupported() && !serial.isWebSerialSupported()) {
+          this.setStatus('Your browser does not support WebUSB or WebSerial', 'error');
+        }
+        disconnectBtn.style.display = 'none';
+        commandLineInput.disabled = true;
+        commandLineInput.value = '';
+        commandLineInput.blur();
+      }
+    }
+
+    async disconnectPort() {
+      this.stopAutoReconnect();
+      if (!this.currentPort) return;
+
+      try {
+        await this.currentPort.disconnect();
+      }
+      catch (error) {
+        this.setStatus(`Disconnect error: ${error.message}`, 'error');
       }
 
-      await port.connect();
-      // save for reconnecting
-      lastPort = port;
-
-      setStatus(`Connected to ${port.device.productName || 'device'}`, 'info');
-      connectBtn.textContent = 'Disconnect';
-      commandLine.disabled = false;
-      commandLine.focus();
-
-      port.onReceiveError = async error => {
-        setStatus(`Read error: ${error.message}`, 'error');
-        await disconnectPort();
-        // Start auto reconnect on error if enabled
-        await tryAutoReconnect();
-      };
-
-      port.onReceive = dataView => {
-        let text = decodeData(dataView);
-        text = normalizeNewlines(text, newlineModeSelect.value);
-        appendLineToReceiver(receiverLines, text, 'received');
-      };
-
-      return true;
-    } catch (error) {
-      setStatus(`Connection failed: ${error.message}`, 'error');
-      port = null;
-      connectBtn.textContent = 'Connect';
-      commandLine.disabled = true;
-      return false;
+      this.updateUIConnectionState();
     }
-  };
 
-  // Start auto reconnect interval if checkbox is checked and not already running
-  const tryAutoReconnect = async () => {
-    if (!autoReconnectCheckbox.checked) return;
-    if (reconnectIntervalId !== null) return; // already trying
-    setStatus('Attempting to auto-reconnect...', 'info');
-    reconnectIntervalId = setInterval(async () => {
-      if (!autoReconnectCheckbox.checked) {
-        clearInterval(reconnectIntervalId);
-        reconnectIntervalId = null;
-        setStatus('Auto-reconnect stopped.', 'info');
+    async onReceive(dataView) {
+      this.updateUIConnectionState();
+      let text = this.textDecoder.decode(dataView);
+      text = this.normalizeNewlines(text);
+      this.appendLineToReceived(text);
+    }
+
+    async onReceiveError(error) {
+      this.setStatus(`Read error: ${error.message}`, 'error');
+      await this.disconnectPort();
+      // Start auto reconnect on error if enabled
+      this.tryAutoReconnect();
+    }
+
+    async connectSerialPort() {
+      if (!serial.isWebSerialSupported()) {
+        this.setStatus('Serial not supported on this browser', 'error');
         return;
       }
-      await disconnectPort();
-      const success = await connectPort();
-      if (success) {
-        clearInterval(reconnectIntervalId);
-        reconnectIntervalId = null;
-        setStatus('Reconnected successfully.', 'info');
-      }
-    }, 1000);
-  };
-
-  // Stop auto reconnect immediately
-  const stopAutoReconnect = () => {
-    if (reconnectIntervalId !== null) {
-      clearInterval(reconnectIntervalId);
-      reconnectIntervalId = null;
-      setStatus('Auto-reconnect stopped.', 'info');
-    }
-  };
-
-  // Connect button click handler
-  connectBtn.addEventListener('click', async () => {
-    if (!serial.isWebUsbSupported()) {
-      setStatus('WebUSB not supported on this browser', 'error');
-      return;
-    }
-
-    if (port) {
-      // Disconnect
-      stopAutoReconnect();
-      await disconnectPort();
-      setStatus('Disconnected', 'info');
-      return;
-    }
-
-    stopAutoReconnect();
-    try {
-      // Connect
-      const success = await connectPort();
-      if (success) {
-        setStatus('Connected', 'info');
-      }
-    } catch (error) {
-      setStatus(`Connection failed: ${error.message}`, 'error');
-      port = null;
-      connectBtn.textContent = 'Connect';
-      commandLine.disabled = true;
-    }
-  });
-
-  // Checkbox toggle stops auto reconnect if unchecked
-  autoReconnectCheckbox.addEventListener('change', async () => {
-    localStorage.setItem('autoReconnect', autoReconnectCheckbox.checked);
-    if (!autoReconnectCheckbox.checked) {
-      stopAutoReconnect();
-    } else {
-      // Start auto reconnect immediately if not connected
-      console.log(port);
-      console.log(lastPort);
-      if (!port && lastPort) {
-        await tryAutoReconnect();
+      try {
+        this.setStatus('Requesting device...', 'info');
+        this.currentPort = await serial.requestSerialPort();
+        this.currentPort.onReceiveError = error => this.onReceiveError(error);
+        this.currentPort.onReceive = dataView => this.onReceive(dataView);
+        await this.currentPort.connect();
+        this.setStatus('Connected', 'info');
+      } catch (error) {
+        this.setStatus(`Connection failed: ${error.message}`, 'error');
+        if (this.currentPort) {
+          await this.currentPort.forgetDevice();
+          this.currentPort = null;
+        }
       }
     }
-  });
 
-  sendModeBtn.addEventListener('click', () => {
-    if (sendMode === 'command') {
-      sendMode = 'instant';
-      sendModeBtn.classList.remove('send-mode-command');
-      sendModeBtn.classList.add('send-mode-instant');
-      sendModeBtn.textContent = 'Instant mode';
-      // In instant mode, we clear the command line
-      commandLine.value = '';
-    } else {
-      sendMode = 'command';
-      sendModeBtn.classList.remove('send-mode-instant');
-      sendModeBtn.classList.add('send-mode-command');
-      sendModeBtn.textContent = 'Command mode';
-    }
-    localStorage.setItem('sendMode', sendMode);
-  });
+    async connectWebUsbSerialPort(initial = false) {
+      if (!serial.isWebUsbSupported()) {
+        this.setStatus('WebUSB not supported on this browser', 'error');
+        return;
+      }
+      try {
+        let first_time_connection = false;
+        let grantedDevices = await serial.getWebUsbSerialPorts();
+        if (initial) {
+          if (!autoReconnectCheckbox.checked || grantedDevices.length === 0) {
+            return false;
+          }
 
-  // Set initial sendMode button state
-  if (sendMode === 'instant') {
-    sendModeBtn.classList.remove('send-mode-command');
-    sendModeBtn.classList.add('send-mode-instant');
-    sendModeBtn.textContent = 'Instant mode';
-  }
-
-  // Send command line input on Enter
-  commandLine.addEventListener('keydown', async e => {
-    if (!port) return;
-
-    // Instant mode: send key immediately including special keys like Backspace, arrows, enter, etc.
-    if (sendMode === 'instant') {
-      e.preventDefault();
-
-      // Ignore only pure modifier keys without text representation
-      if (e.key.length === 1 ||
-        e.key === 'Enter' ||
-        e.key === 'Backspace' ||
-        e.key === 'Tab' ||
-        e.key === 'Escape' ||
-        e.key === 'Delete' ) {
-
-        let sendText = '';
-        switch (e.key) {
-          case 'Enter':
-            switch (newlineModeSelect.value) {
-              case 'CR': sendText = '\r'; break;
-              case 'CRLF': sendText = '\r\n'; break;
-              default: sendText = '\n'; break;
+          // Connect to the device that was saved to localStorage otherwise use the first one
+          const savedPortInfo = JSON.parse(localStorage.getItem('webUSBSerialPort'));
+          if (savedPortInfo) {
+            for (const device of grantedDevices) {
+              if (device.device.vendorId === savedPortInfo.vendorId && device.device.productId === savedPortInfo.productId) {
+                this.currentPort = device;
+                break;
+              }
             }
-            break;
-          case 'Backspace':
-            // Usually no straightforward char to send for Backspace,
-            // but often ASCII DEL '\x7F' or '\b' (0x08) is sent.
-            sendText = '\x08'; // backspace
-            break;
-          case 'Tab':
-            sendText = '\t';
-            break;
-          case 'Escape':
-            // Ignore or send ESC control char if needed
-            sendText = '\x1B';
-            break;
-          case 'Delete':
-            sendText = '\x7F'; // DEL char
-            break;
-          default:
-            sendText = e.key;
+          }
+          if (!this.currentPort) {
+            this.currentPort = grantedDevices[0];
+          }
+
+          this.setStatus('Connecting to first device...', 'info');
+        } else {
+          // Prompt the user to select a device
+          this.setStatus('Requesting device...', 'info');
+          this.currentPort = await serial.requestWebUsbSerialPort();
+          first_time_connection = true;
         }
 
-        const encoder = new TextEncoder();
+        this.currentPort.onReceiveError = error => this.onReceiveError(error);
+        this.currentPort.onReceive = dataView => this.onReceive(dataView);
+
         try {
-          await port.send(encoder.encode(sendText));
+          await this.currentPort.connect();
+
+          // save the port to localStorage
+          const portInfo = {
+            vendorId: this.currentPort.device.vendorId,
+            productId: this.currentPort.device.productId,
+          }
+          localStorage.setItem('webUSBSerialPort', JSON.stringify(portInfo));
+
+          this.setStatus('Connected', 'info');
         } catch (error) {
-          setStatus(`Send error: ${error.message}`, 'error');
-          await disconnectPort();
-          await tryAutoReconnect();
+          if (first_time_connection) {
+            // Forget the device if a first time connection fails
+            await this.currentPort.forgetDevice();
+            this.currentPort = null;
+          }
+          throw error;
+        }
+
+        this.updateUIConnectionState();
+      } catch (error) {
+        this.setStatus(`Connection failed: ${error.message}`, 'error');
+      }
+    }
+
+    async reconnectPort() {
+      if (this.currentPort) {
+        this.setStatus('Reconnecting...', 'info');
+        try {
+          await this.currentPort.connect();
+          this.setStatus('Reconnected', 'info');
+        } catch (error) {
+          this.setStatus(`Reconnect failed: ${error.message}`, 'error');
         }
       }
-
-      return;
+      this.updateUIConnectionState();
     }
 
-    // Command mode: handle up/down arrow keys for history
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    async forgetPort() {
+      this.stopAutoReconnect();
+      if (this.currentPort) {
+        await this.currentPort.forgetDevice();
+        this.currentPort = null;
+        this.setStatus('Device forgotten', 'info');
+      } else {
+        this.setStatus('No device to forget', 'error');
+      }
+      this.updateUIConnectionState();
+    }
+
+    async forgetAllPorts() {
+      this.stopAutoReconnect();
+      await this.forgetPort();
+      if (serial.isWebUsbSupported()) {
+        let ports = await serial.getWebUsbSerialPorts();
+        for (const p of ports) {
+          await p.forgetDevice();
+        }
+      }
+      this.updateUIConnectionState();
+    }
+
+    setNewlineMode() {
+      localStorage.setItem('newlineMode', newlineModeSelect.value);
+    }
+
+    autoReconnectChanged() {
+      if (autoReconnectCheckbox.checked) {
+        this.setStatus('Auto-reconnect enabled', 'info');
+        this.tryAutoReconnect();
+      } else {
+        this.setStatus('Auto-reconnect disabled', 'info');
+        this.stopAutoReconnect();
+      }
+      localStorage.setItem('autoReconnect', autoReconnectCheckbox.checked);
+    }
+
+    stopAutoReconnect() {
+      if (this.reconnectTimeoutId !== null) {
+        clearTimeout(this.reconnectTimeoutId);
+        this.reconnectTimeoutId = null;
+        this.setStatus('Auto-reconnect stopped.', 'info');
+      }
+    }
+
+    tryAutoReconnect() {
+      this.updateUIConnectionState();
+      if (!autoReconnectCheckbox.checked) return;
+      if (this.reconnectTimeoutId !== null) return; // already trying
+      this.setStatus('Attempting to auto-reconnect...', 'info');
+      this.reconnectTimeoutId = setTimeout(async () => {
+        this.reconnectTimeoutId = null;
+        if (!autoReconnectCheckbox.checked) {
+          this.setStatus('Auto-reconnect stopped.', 'info');
+          return;
+        }
+        if (this.currentPort) {
+          try {
+            await this.currentPort.connect();
+          } finally {
+            this.updateUIConnectionState();
+          }
+        }
+      }, 1000);
+    }
+
+    async handleCommandLineInput(e) {
+      // Instant mode: send key immediately including special keys like Backspace, arrows, enter, etc.
+      if (this.sendMode === 'instant') {
+        e.preventDefault();
+
+        // Ignore only pure modifier keys without text representation
+        if (e.key.length === 1 ||
+          e.key === 'Enter' ||
+          e.key === 'Backspace' ||
+          e.key === 'Tab' ||
+          e.key === 'Escape' ||
+          e.key === 'Delete' ) {
+
+          let sendText = '';
+          switch (e.key) {
+            case 'Enter':
+              switch (newlineModeSelect.value) {
+                case 'CR': sendText = '\r'; break;
+                case 'CRLF': sendText = '\r\n'; break;
+                default: sendText = '\n'; break;
+              }
+              break;
+            case 'Backspace':
+              // Usually no straightforward char to send for Backspace,
+              // but often ASCII DEL '\x7F' or '\b' (0x08) is sent.
+              sendText = '\x08'; // backspace
+              break;
+            case 'Tab':
+              sendText = '\t';
+              break;
+            case 'Escape':
+              // Ignore or send ESC control char if needed
+              sendText = '\x1B';
+              break;
+            case 'Delete':
+              sendText = '\x7F'; // DEL char
+              break;
+            default:
+              sendText = e.key;
+          }
+          try {
+            await port.send(this.textEncoder.encode(sendText));
+          } catch (error) {
+            this.setStatus(`Send error: ${error.message}`, 'error');
+            this.tryAutoReconnect();
+          }
+        }
+
+        return;
+      }
+
+      // Command mode: handle up/down arrow keys for history
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (this.commandHistory.length === 0) return;
+        if (e.key === 'ArrowUp') {
+          if (this.commandHistoryIndex === -1) this.commandHistoryIndex = this.commandHistory.length - 1;
+          else if (this.commandHistoryIndex > 0) this.commandHistoryIndex--;
+        } else if (e.key === 'ArrowDown') {
+          if (this.commandHistoryIndex !== -1) this.commandHistoryIndex++;
+          if (this.commandHistoryIndex >= this.commandHistory.length) this.commandHistoryIndex = -1;
+        }
+        commandLineInput.value = this.commandHistoryIndex === -1 ? '' : this.commandHistory[this.commandHistoryIndex];
+        return;
+      }
+
+      if (e.key !== 'Enter' || !this.currentPort.isConnected) return;
       e.preventDefault();
-      if (history.length === 0) return;
-      if (e.key === 'ArrowUp') {
-        if (historyIndex === -1) historyIndex = history.length - 1;
-        else if (historyIndex > 0) historyIndex--;
-      } else if (e.key === 'ArrowDown') {
-        if (historyIndex !== -1) historyIndex++;
-        if (historyIndex >= history.length) historyIndex = -1;
+      const text = commandLineInput.value;
+      if (!text) return;
+
+      // Convert to Uint8Array with newline based on config
+      let sendText = text;
+      switch (newlineModeSelect.value) {
+        case 'CR':
+          sendText += '\r';
+          break;
+        case 'CRLF':
+          sendText += '\r\n';
+          break;
+        case 'ANY':
+          sendText += '\n';
+          break;
       }
-      commandLine.value = historyIndex === -1 ? '' : history[historyIndex];
-      return;
-    }
+      const data = this.textEncoder.encode(sendText);
 
-    if (e.key !== 'Enter' || !port) return;
-    e.preventDefault();
-    const text = commandLine.value;
-    if (!text) return;
-
-    // Add command to history, ignore duplicate consecutive
-    if (history.length === 0 || history[history.length - 1] !== text) {
-      history.push(text);
-      localStorage.setItem('commandHistory', JSON.stringify(history));
-    }
-    historyIndex = -1;
-
-    // Convert to Uint8Array with newline based on config
-    let sendText = text;
-    switch (newlineModeSelect.value) {
-      case 'CR':
-        sendText += '\r';
-        break;
-      case 'CRLF':
-        sendText += '\r\n';
-        break;
-      case 'ANY':
-        sendText += '\n';
-        break;
-    }
-    const encoder = new TextEncoder();
-    const data = encoder.encode(sendText);
-
-    try {
-      await port.send(data);
-      appendCommandToSender(senderLines, sendText.replace(/[\r\n]+$/, ''));
-      commandLine.value = '';
-    } catch (error) {
-      setStatus(`Send error: ${error.message}`, 'error');
-      await disconnectPort();
-      await tryAutoReconnect();
-    }
-  });
-
-  newlineModeSelect.addEventListener('change', () => {
-    localStorage.setItem('newlineMode', newlineModeSelect.value);
-  });
-
-  // Forget device button clears stored device info
-  forgetDeviceBtn.addEventListener('click', async () => {
-    if (port) {
-      // Disconnect first
-      await port.disconnect();
-      await port.forgetDevice();
-      stopAutoReconnect();
-      await disconnectPort();
-
-      setStatus('Device forgotten', 'info');
-    } else {
-      setStatus('No device to forget', 'error');
-    }
-  });
-
-  // Forget all devices button clears all stored device info
-  forgetAllDevicesBtn.addEventListener('click', async () => {
-    stopAutoReconnect();
-    await disconnectPort();
-    let ports = await serial.getPorts();
-    if (ports.length > 0) {
-      for (const p of ports) {
-        await p.forgetDevice();
+      try {
+        await this.currentPort.send(data);
+        this.commandHistoryIndex = -1;
+        this.appendCommandToHistory(sendText.replace(/[\r\n]+$/, ''));
+        commandLineInput.value = '';
+      } catch (error) {
+        this.setStatus(`Send error: ${error.message}`, 'error');
+        this.tryAutoReconnect();
       }
-      setStatus('All devices forgotten', 'info');
-    } else {
-      setStatus('No devices to forget', 'error');
     }
-  });
 
-  // Reset output button clears receiver
-  resetOutputBtn.addEventListener('click', () => {
-    receiverLines.innerHTML = '';
-  });
-
-  // Reset button clears sender and receiver
-  resetAllBtn.addEventListener('click', () => {
-    senderLines.innerHTML = '';
-    receiverLines.innerHTML = '';
-    lastCommand = null;
-    lastCommandCount = 0;
-    lastCommandButton = null;
-    history.length = 0;
-    historyIndex = -1;
-
-    // iterate and delete localStorage items
-    for (const key in localStorage) {
-      localStorage.removeItem(key);
+    toggleSendMode() {
+      if (this.sendMode === 'instant') {
+        this.setSendMode('command');
+      } else {
+        this.setSendMode('instant');
+      }
     }
-  });
 
+    setSendMode(mode) {
+      this.sendMode = mode;
+      if (mode === 'instant') {
+        sendModeBtn.classList.remove('send-mode-command');
+        sendModeBtn.classList.add('send-mode-instant');
+        sendModeBtn.textContent = 'Instant mode';
+      } else {
+        sendModeBtn.classList.remove('send-mode-instant');
+        sendModeBtn.classList.add('send-mode-command');
+        sendModeBtn.textContent = 'Command mode';
+      }
+      localStorage.setItem('sendMode', this.sendMode);
+    }
 
-  // Disable input on load
-  commandLine.disabled = true;
+    normalizeNewlines(text) {
+      switch (newlineModeSelect.value) {
+        case 'CR':
+          return text.replace(/\r?\n/g, '\r');
+        case 'CRLF':
+          return text.replace(/\r\n|[\r\n]/g, '\r\n');
+        case 'ANY':
+          return text.replace(/\r\n|\r/g, '\n');
+        default:
+          return text;
+      }
+    }
 
-  // Show warning if no WebUSB support
-  if (!serial.isWebUsbSupported()) {
-    setStatus('WebUSB not supported on this browser', 'error');
-  } else {
-    // try to connect to any available device
-    connectPort(true);
+    copyOutput() {
+      const text = receivedDataScrollbox.innerText;
+      if (text) {
+        navigator.clipboard.writeText(text).then(() => {
+          this.setStatus('Output copied to clipboard', 'info');
+        }, () => {
+          this.setStatus('Failed to copy output', 'error');
+        });
+      } else {
+        this.setStatus('No output to copy', 'error');
+      }
+    }
+
+    resetOutput() {
+      receivedDataScrollbox.innerHTML = '';
+    }
+
+    async resetAll() {
+      await this.forgetAllPorts();
+
+      // Clear localStorage
+      for (const key in localStorage) {
+        localStorage.removeItem(key);
+      }
+
+      // reload the page
+      window.location.reload();
+    }
   }
-})();
+
+  const app = new Application();
+})()
