@@ -25,47 +25,10 @@
   let lastCommandCount = 0;
   let lastCommandButton = null;
 
-  let sendMode = 'command'; // default mode
+  let sendMode = localStorage.getItem('sendMode') || 'command';
 
-  let reconnectIntervalId = null; // track reconnect interval
-
-  // Format incoming data to string based on newline mode
-  const decodeData = (() => {
-    const decoder = new TextDecoder();
-    return dataView => decoder.decode(dataView);
-  })();
-
-  // Normalize newline if mode is ANY
-  const normalizeNewlines = (text, mode) => {
-    switch (mode) {
-      case 'CR':
-        // Only \r: Replace all \n with \r
-        return text.replace(/\r?\n/g, '\r');
-      case 'CRLF':
-        // Replace lone \r or \n with \r\n
-        return text.replace(/\r\n|[\r\n]/g, '\r\n');
-      case 'ANY':
-        // Accept any \r, \n, \r\n. Normalize as \n for display
-        return text.replace(/\r\n|\r/g, '\n');
-      default:
-        return text;
-    }
-  };
-
-  // Append line to container, optionally scroll to bottom
-  const appendLineToReceiver = (container, text, className = '') => {
-    const div = document.createElement('div');
-    if (className) div.className = className;
-    div.textContent = text;
-    container.appendChild(div);
-
-    const distanceFromBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
-    if (distanceFromBottom < nearTheBottomThreshold) {
-      requestAnimationFrame(() => {
-        div.scrollIntoView({ behavior: "instant" });
-      });
-    }
-  };
+  // track reconnect interval
+  let reconnectIntervalId = null;
 
   // Append sent command to sender container as a clickable element
   const appendCommandToSender = (container, text) => {
@@ -98,6 +61,55 @@
     }
   };
 
+  // Restore command history
+  history.push(...(JSON.parse(localStorage.getItem('commandHistory') || '[]')));
+  for (const cmd of history) {
+    appendCommandToSender(senderLines, cmd);
+  }
+
+  // Restore auto reconnect checkbox
+  autoReconnectCheckbox.checked = localStorage.getItem('autoReconnect') === 'true';
+  // Restore newline mode
+  const savedNewlineMode = localStorage.getItem('newlineMode');
+  if (savedNewlineMode) newlineModeSelect.value = savedNewlineMode;
+
+  // Format incoming data
+  const decodeData = (() => {
+    const decoder = new TextDecoder();
+    return dataView => decoder.decode(dataView);
+  })();
+
+  const normalizeNewlines = (text, mode) => {
+    switch (mode) {
+      case 'CR':
+        // Only \r: Replace all \n with \r
+        return text.replace(/\r?\n/g, '\r');
+      case 'CRLF':
+        // Replace lone \r or \n with \r\n
+        return text.replace(/\r\n|[\r\n]/g, '\r\n');
+      case 'ANY':
+        // Accept any \r, \n, \r\n. Normalize as \n for display
+        return text.replace(/\r\n|\r/g, '\n');
+      default:
+        return text;
+    }
+  };
+
+  // Append line to container, optionally scroll to bottom
+  const appendLineToReceiver = (container, text, className = '') => {
+    const div = document.createElement('div');
+    if (className) div.className = className;
+    div.textContent = text;
+    container.appendChild(div);
+
+    const distanceFromBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
+    if (distanceFromBottom < nearTheBottomThreshold) {
+      requestAnimationFrame(() => {
+        div.scrollIntoView({ behavior: "instant" });
+      });
+    }
+  };
+
   // Update status text and style
   const setStatus = (msg, level = 'info') => {
     console.log(msg);
@@ -120,7 +132,7 @@
   };
 
   // Connect helper
-  const connectPort = async (initial=false) => {
+  const connectPort = async (initial = false) => {
     try {
       let grantedDevices = await serial.getPorts();
       if (grantedDevices.length === 0 && initial) {
@@ -148,12 +160,20 @@
       }
 
       await port.connect();
-      lastPort = port; // save for reconnecting
+      // save for reconnecting
+      lastPort = port;
 
       setStatus(`Connected to ${port.device.productName || 'device'}`, 'info');
       connectBtn.textContent = 'Disconnect';
       commandLine.disabled = false;
       commandLine.focus();
+
+      port.onReceiveError = async error => {
+        setStatus(`Read error: ${error.message}`, 'error');
+        await disconnectPort();
+        // Start auto reconnect on error if enabled
+        await tryAutoReconnect();
+      };
 
       port.onReceive = dataView => {
         let text = decodeData(dataView);
@@ -161,11 +181,6 @@
         appendLineToReceiver(receiverLines, text, 'received');
       };
 
-      port.onReceiveError = error => {
-        setStatus(`Read error: ${error.message}`, 'error');
-        // Start auto reconnect on error if enabled
-        tryAutoReconnect();
-      };
       return true;
     } catch (error) {
       setStatus(`Connection failed: ${error.message}`, 'error');
@@ -177,7 +192,7 @@
   };
 
   // Start auto reconnect interval if checkbox is checked and not already running
-  const tryAutoReconnect = () => {
+  const tryAutoReconnect = async () => {
     if (!autoReconnectCheckbox.checked) return;
     if (reconnectIntervalId !== null) return; // already trying
     setStatus('Attempting to auto-reconnect...', 'info');
@@ -238,13 +253,16 @@
   });
 
   // Checkbox toggle stops auto reconnect if unchecked
-  autoReconnectCheckbox.addEventListener('change', () => {
+  autoReconnectCheckbox.addEventListener('change', async () => {
+    localStorage.setItem('autoReconnect', autoReconnectCheckbox.checked);
     if (!autoReconnectCheckbox.checked) {
       stopAutoReconnect();
     } else {
       // Start auto reconnect immediately if not connected
-      if (!port) {
-        tryAutoReconnect();
+      console.log(port);
+      console.log(lastPort);
+      if (!port && lastPort) {
+        await tryAutoReconnect();
       }
     }
   });
@@ -263,7 +281,15 @@
       sendModeBtn.classList.add('send-mode-command');
       sendModeBtn.textContent = 'Command mode';
     }
+    localStorage.setItem('sendMode', sendMode);
   });
+
+  // Set initial sendMode button state
+  if (sendMode === 'instant') {
+    sendModeBtn.classList.remove('send-mode-command');
+    sendModeBtn.classList.add('send-mode-instant');
+    sendModeBtn.textContent = 'Instant mode';
+  }
 
   // Send command line input on Enter
   commandLine.addEventListener('keydown', async e => {
@@ -314,7 +340,8 @@
           await port.send(encoder.encode(sendText));
         } catch (error) {
           setStatus(`Send error: ${error.message}`, 'error');
-          tryAutoReconnect();
+          await disconnectPort();
+          await tryAutoReconnect();
         }
       }
 
@@ -344,6 +371,7 @@
     // Add command to history, ignore duplicate consecutive
     if (history.length === 0 || history[history.length - 1] !== text) {
       history.push(text);
+      localStorage.setItem('commandHistory', JSON.stringify(history));
     }
     historyIndex = -1;
 
@@ -369,8 +397,13 @@
       commandLine.value = '';
     } catch (error) {
       setStatus(`Send error: ${error.message}`, 'error');
-      tryAutoReconnect();
+      await disconnectPort();
+      await tryAutoReconnect();
     }
+  });
+
+  newlineModeSelect.addEventListener('change', () => {
+    localStorage.setItem('newlineMode', newlineModeSelect.value);
   });
 
   // Forget device button clears stored device info
@@ -415,6 +448,13 @@
     lastCommand = null;
     lastCommandCount = 0;
     lastCommandButton = null;
+    history.length = 0;
+    historyIndex = -1;
+
+    // iterate and delete localStorage items
+    for (const key in localStorage) {
+      localStorage.removeItem(key);
+    }
   });
 
 
