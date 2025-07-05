@@ -280,7 +280,7 @@ static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 }
 
 //------------- DCache -------------//
-#if (CFG_TUD_MEM_DCACHE_ENABLE && CFG_TUD_DWC2_DMA_ENABLE) || (CFG_TUH_MEM_DCACHE_ENABLE && CFG_TUH_DWC2_DMA_ENABLE)
+#if CFG_TUD_MEM_DCACHE_ENABLE || CFG_TUH_MEM_DCACHE_ENABLE
 
 typedef struct
 {

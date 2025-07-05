@@ -88,7 +88,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc
 //--------------------------------------------------------------------
 // DMA
 //--------------------------------------------------------------------
-#if CFG_TUD_MEM_DCACHE_ENABLE && CFG_TUD_DWC2_DMA_ENABLE
+#if CFG_TUD_MEM_DCACHE_ENABLE
 bool dcd_dcache_clean(const void* addr, uint32_t data_size) {
   TU_VERIFY(addr && data_size);
   return dwc2_dcache_clean(addr, data_size);
