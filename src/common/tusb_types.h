@@ -43,14 +43,14 @@
 #define TUD_EPBUF_DEF(_name, _size) \
   union { \
     CFG_TUD_MEM_ALIGN uint8_t _name[_size]; \
-    uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(_size)]; \
+    TU_ATTR_ALIGNED(CFG_TUD_MEM_DCACHE_ENABLE ? CFG_TUD_MEM_DCACHE_LINE_SIZE : 1) uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(_size)]; \
   }
 
 // Declare an endpoint buffer with a type
 #define TUD_EPBUF_TYPE_DEF(_type, _name) \
   union { \
     CFG_TUD_MEM_ALIGN _type _name; \
-    uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
+    TU_ATTR_ALIGNED(CFG_TUD_MEM_DCACHE_ENABLE ? CFG_TUD_MEM_DCACHE_LINE_SIZE : 1) uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
   }
 
 //------------- Host DCache declaration -------------//
@@ -61,14 +61,14 @@
 #define TUH_EPBUF_DEF(_name, _size) \
   union { \
     CFG_TUH_MEM_ALIGN uint8_t _name[_size]; \
-    uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(_size)]; \
+    TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 1) uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(_size)]; \
   }
 
 // Declare an endpoint buffer with a type
 #define TUH_EPBUF_TYPE_DEF(_type, _name) \
   union { \
     CFG_TUH_MEM_ALIGN _type _name; \
-    uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
+    TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 1) uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
   }
 
 

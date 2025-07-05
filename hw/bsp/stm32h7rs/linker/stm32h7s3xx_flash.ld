@@ -43,7 +43,7 @@ __FLASH_SIZE   = 0x00010000;
 
 __RAM_BEGIN    = 0x24000000;
 __RAM_SIZE     = 0x4FC00;
-__RAM_NONCACHEABLEBUFFER_SIZE = 0x4000;
+__RAM_NONCACHEABLEBUFFER_SIZE = 0x400;
 
 /* Memories definition */
 MEMORY
@@ -182,7 +182,7 @@ SECTIONS
   {
     __NONCACHEABLEBUFFER_BEGIN = .;/* create symbol for start of section */
     KEEP(*(noncacheable_buffer))
-    __NONCACHEABLEBUFFER_END = .;  /* create symbol for start of section */
+    __NONCACHEABLEBUFFER_END = .;  /* create symbol for end of section */
   } > RAM_NONCACHEABLEBUFFER
 
   /* User_heap_stack section, used to check that there is enough "DTCM" Ram  type memory left */

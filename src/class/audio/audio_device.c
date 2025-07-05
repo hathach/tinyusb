@@ -109,14 +109,14 @@
 
 // Put swap buffer in USB section only if necessary
 #if USE_LINEAR_BUFFER
-  #define IN_SW_BUF_MEM_ATTR TU_ATTR_ALIGNED(4)
+  #define IN_SW_BUF_MEM_ATTR
 #else
-  #define IN_SW_BUF_MEM_ATTR CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN
+  #define IN_SW_BUF_MEM_ATTR CFG_TUD_MEM_SECTION
 #endif
 #if USE_LINEAR_BUFFER
-  #define OUT_SW_BUF_MEM_ATTR TU_ATTR_ALIGNED(4)
+  #define OUT_SW_BUF_MEM_ATTR
 #else
-  #define OUT_SW_BUF_MEM_ATTR CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN
+  #define OUT_SW_BUF_MEM_ATTR CFG_TUD_MEM_SECTION
 #endif
 
 // EP IN software buffers and mutexes
