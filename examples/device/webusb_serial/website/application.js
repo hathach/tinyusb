@@ -304,10 +304,15 @@
 
     async disconnectPort() {
       this.stopAutoReconnect();
-      if (!this.currentPort) return;
+
+      if (!this.currentPort) {
+        this.updateUIConnectionState();
+        return;
+      };
 
       try {
         await this.currentPort.disconnect();
+        this.setStatus('Disconnected', 'info');
       }
       catch (error) {
         this.setStatus(`Disconnect error: ${error.message}`, 'error');
