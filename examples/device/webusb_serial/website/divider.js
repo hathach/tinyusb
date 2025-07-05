@@ -1,38 +1,47 @@
-const resizer = document.getElementById('resizer');
-const leftColumn = resizer.previousElementSibling;
-const rightColumn = resizer.nextElementSibling;
-const container = resizer.parentNode;
+(async () => {
 
-// Minimum and maximum width for left column in px
-const minLeftWidth = 100;
-const maxLeftWidth = container.clientWidth - 100;
+  const uiResizer = document.getElementById('resizer');
+  const uiLeftColumn = uiResizer.previousElementSibling;
+  const uiRightColumn = uiResizer.nextElementSibling;
+  const uiParent = uiResizer.parentElement;
 
-let isResizing = false;
+  let isResizing = false;
+  let abortSignal = null;
 
-resizer.addEventListener('mousedown', e => {
-  e.preventDefault();
-  isResizing = true;
-  document.body.style.userSelect = 'none'; // prevent text selection
-});
+  function onMouseMove(e) {
+    // we resize the columns by applying felx: <ratio> to the columns
 
-document.addEventListener('mousemove', e => {
-  if (!isResizing) return;
-
-  // Calculate new width of left column relative to container
-  const containerRect = container.getBoundingClientRect();
-  let newLeftWidth = e.clientX - containerRect.left;
-
-  // Clamp the width
-  newLeftWidth = Math.max(minLeftWidth, Math.min(newLeftWidth, containerRect.width - minLeftWidth));
-
-  // Set the left column's flex-basis (fixed width)
-  leftColumn.style.flex = '0 0 ' + newLeftWidth + 'px';
-  rightColumn.style.flex = '1 1 0'; // fill remaining space
-});
-
-document.addEventListener('mouseup', e => {
-  if (isResizing) {
-    isResizing = false;
-    document.body.style.userSelect = ''; // restore user selection
+    // compute the percentage the mouse is in the parent
+    const percentage = (e.clientX - uiParent.offsetLeft) / uiParent.clientWidth;
+    // clamp the percentage between 0.1 and 0.9
+    const clampedPercentage = Math.max(0.1, Math.min(0.9, percentage));
+    // set the flex property of the columns
+    uiLeftColumn.style.flex = `${clampedPercentage}`;
+    uiRightColumn.style.flex = `${1 - clampedPercentage}`;
   }
-});
+
+  function onMouseUp(e) {
+    // restore user selection
+    document.body.style.userSelect = '';
+
+    // remove the mousemove and mouseup events
+    if (abortSignal) {
+      abortSignal.abort();
+      abortSignal = null;
+    }
+  }
+
+  uiResizer.addEventListener('mousedown', e => {
+    e.preventDefault();
+    isResizing = true;
+
+    // prevent text selection
+    document.body.style.userSelect = 'none';
+
+    // register the mousemove and mouseup events
+    abortSignal = new AbortController();
+    document.addEventListener('mousemove', onMouseMove, { signal: abortSignal.signal });
+    document.addEventListener('mouseup', onMouseUp, { signal: abortSignal.signal });
+  });
+
+})();
