@@ -282,8 +282,7 @@ static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 //------------- DCache -------------//
 #if CFG_TUD_MEM_DCACHE_ENABLE || CFG_TUH_MEM_DCACHE_ENABLE
 
-typedef struct
-{
+typedef struct {
   uintptr_t start;
   uintptr_t end;
 } mem_region_t;
@@ -310,16 +309,15 @@ static mem_region_t uncached_regions[] = {
 };
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_t size) {
-  if (size & (CFG_TUD_MEM_DCACHE_LINE_SIZE-1)) {
-    size = (size & ~(CFG_TUD_MEM_DCACHE_LINE_SIZE-1)) + CFG_TUD_MEM_DCACHE_LINE_SIZE;
+  if (size & (CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT-1)) {
+    size = (size & ~(CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT-1)) + CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT;
   }
   return size;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool is_cache_mem(uintptr_t addr) {
   for (unsigned int i = 0; i < TU_ARRAY_SIZE(uncached_regions); i++) {
-    if (addr >= uncached_regions[i].start && addr <= uncached_regions[i].end)
-      return false;
+    if (uncached_regions[i].start <= addr && addr <= uncached_regions[i].end) { return false; }
   }
   return true;
 }

@@ -92,4 +92,4 @@ SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
 # Linker
 LD_FILE_GCC ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT)_flash.ld
-LD_FILE_IAR ?= $(FAMILY_PATH)/linker/$(MCU_VARIANT)_flash.icf
+LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash.icf
