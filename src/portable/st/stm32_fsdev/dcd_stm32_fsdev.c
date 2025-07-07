@@ -117,6 +117,8 @@
   #include "fsdev_stm32.h"
 #elif defined(TUP_USBIP_FSDEV_CH32)
   #include "fsdev_ch32.h"
+#elif defined(TUP_USBIP_FSDEV_AT32)
+  #include "fsdev_at32.h"
 #else
   #error "Unknown USB IP"
 #endif
