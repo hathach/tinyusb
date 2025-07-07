@@ -201,9 +201,10 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uin
 
   // Find available interface
   vendord_interface_t* p_vendor = NULL;
-  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++) {
-    if (!tud_vendor_n_mounted(i)) {
-      p_vendor = &_vendord_itf[i];
+  uint8_t itf;
+  for(itf=0; itf<CFG_TUD_VENDOR; itf++) {
+    if (!tud_vendor_n_mounted(itf)) {
+      p_vendor = &_vendord_itf[itf];
       break;
     }
   }
@@ -222,7 +223,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uin
       if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
         if (p_vendor->tx.stream.ep_addr == 0) {
           tu_edpt_stream_open(&p_vendor->tx.stream, desc_ep);
-          tud_vendor_n_write_flush((uint8_t)(p_vendor - _vendord_itf));
+          tud_vendor_n_write_flush(itf);
         }
       } else {
         if (p_vendor->rx.stream.ep_addr == 0) {
