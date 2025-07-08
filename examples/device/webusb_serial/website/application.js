@@ -755,9 +755,7 @@
       await this.forgetAllPorts();
 
       // Clear localStorage
-      for (const key in localStorage) {
-        localStorage.removeItem(key);
-      }
+      localStorage.clear();
 
       // reload the page
       window.location.reload();
