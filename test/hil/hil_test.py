@@ -533,7 +533,7 @@ def test_example(board, f1, example):
     if not os.path.exists(fw_dir):
         fw_dir = f'{TINYUSB_ROOT}/examples/cmake-build-{name}{f1_str}/{example}'
     fw_name = f'{fw_dir}/{os.path.basename(example)}'
-    print(f'{name+f1_str:40} {example:30} ... ', end='')
+    print(f'{name+f1_str:40} {example:30} ...', end='')
 
     if not os.path.exists(fw_dir) or not (os.path.exists(f'{fw_name}.elf') or os.path.exists(f'{fw_name}.bin')):
         print('Skip (no binary)')
@@ -544,29 +544,30 @@ def test_example(board, f1, example):
 
     # flash firmware. It may fail randomly, retry a few times
     max_rety = 3
+    start_s = time.time()
     for i in range(max_rety):
         ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
         if ret.returncode == 0:
             try:
                 globals()[f'test_{example.replace("/", "_")}'](board)
-                print('OK')
+                print('  OK', end='')
                 break
             except Exception as e:
                 if i == max_rety - 1:
                     err_count += 1
-                    print(STATUS_FAILED)
-                    print(f'  {e}')
+                    print(f'{STATUS_FAILED}: {e}')
                 else:
-                    print()
-                    print(f'  Test failed: {e}, retry {i+2}/{max_rety}')
-                    time.sleep(1)
+                    print(f'\n  Test failed: {e}, retry {i+2}/{max_rety}', end='')
+                    time.sleep(0.5)
         else:
-            print(f'Flashing failed, retry {i+2}/{max_rety}')
-            time.sleep(1)
+            print(f'\n  Flash failed, retry {i+2}/{max_rety}', end='')
+            time.sleep(0.5)
 
     if ret.returncode != 0:
         err_count += 1
-        print(f'Flash {STATUS_FAILED}')
+        print(f'  Flash {STATUS_FAILED}', end='')
+
+    print(f'  in {time.time() - start_s:.1f}s')
 
     return err_count
 
