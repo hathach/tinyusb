@@ -1275,6 +1275,12 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
           _usbd_dev.ep_status[epnum][ep_dir].claimed = 0;
 
           send = !driver->xfer_isr(event->rhport, ep_addr, (xfer_result_t) event->xfer_complete.result, event->xfer_complete.len);
+
+          // xfer_isr() is deferred to xfer_cb(), revert busy/claimed status
+          if (send) {
+            _usbd_dev.ep_status[epnum][ep_dir].busy = 1;
+            _usbd_dev.ep_status[epnum][ep_dir].claimed = 1;
+          }
         }
       }
       break;
