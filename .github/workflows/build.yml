@@ -200,6 +200,15 @@ jobs:
     steps:
       - name: Clean workspace
         run: |
+          # Skip boards that passed with previous run
+          if [ -f ${{ env.HIL_JSON }}.skip ]; then
+            SKIP_ARGS=$(cat "${HIL_JSON}.skip")
+          else
+            SKIP_ARGS=""
+          fi
+          echo "SKIP_ARGS=$SKIP_ARGS"
+          echo "SKIP_ARGS=$SKIP_ARGS" >> $GITHUB_ENV
+
           echo "Cleaning up previous run"
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
@@ -218,7 +227,7 @@ jobs:
       - name: Test on actual hardware
         run: |
           ls cmake-build/
-          python3 test/hil/hil_test.py ${{ env.HIL_JSON }}
+          python3 test/hil/hil_test.py ${{ env.HIL_JSON }} $SKIP_ARGS
 
   # ---------------------------------------
   # Hardware in the loop (HIL)

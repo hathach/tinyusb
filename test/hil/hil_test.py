@@ -606,7 +606,7 @@ def test_board(board):
     # flash board_test last to disable board's usb
     test_example(board, flags_on_list[0], 'device/board_test')
 
-    return err_count
+    return name, err_count
 
 
 def main():
@@ -620,11 +620,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config_file', help='Configuration JSON file')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
+    parser.add_argument('-s', '--skip', action='append', default=[], help='Skip boards from test')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
     config_file = args.config_file
     boards = args.board
+    skip_boards = args.skip
     verbose = args.verbose
 
     # if config file is not found, try to find it in the same directory as this script
@@ -634,12 +636,22 @@ def main():
         config = json.load(f)
 
     if len(boards) == 0:
-        config_boards = config['boards']
+        config_boards = [e for e in config['boards'] if e['name'] not in skip_boards]
     else:
         config_boards = [e for e in config['boards'] if e['name'] in boards]
 
+    err_count = 0
     with Pool(processes=os.cpu_count()) as pool:
-        err_count = sum(pool.map(test_board, config_boards))
+        mret = pool.map(test_board, config_boards)
+        err_count = sum(e[1] for e in mret)
+        # generate skip list for next re-run if failed
+        skip_fname = f'{config_file}.skip'
+        if err_count > 0:
+            skip_boards += [name for name, err in mret if err == 0]
+            with open(skip_fname, 'w') as f:
+                f.write(' '.join(f'-s {i}' for i in skip_boards))
+        elif os.path.exists(skip_fname):
+            os.remove(skip_fname)
 
     duration = time.time() - duration
     print()
