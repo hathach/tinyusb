@@ -123,27 +123,24 @@ endif
 ifeq (${MAX3421_HOST},1)
   SRC_C += src/portable/analog/max3421/hcd_max3421.c
   CFLAGS += -DCFG_TUH_MAX3421=1
-  CMAKE_DEFSYM +=	-DMAX3421_HOST=1
 endif
 
 # Log level is mapped to TUSB DEBUG option
 ifneq ($(LOG),)
-  CMAKE_DEFSYM +=	-DLOG=$(LOG)
   CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
 endif
 
 # Logger: default is uart, can be set to rtt or swo
-ifneq ($(LOGGER),)
-  CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
-endif
-
 ifeq ($(LOGGER),rtt)
-  CFLAGS += -DLOGGER_RTT -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
-  RTT_SRC = lib/SEGGER_RTT
-  INC   += $(TOP)/$(RTT_SRC)/RTT
-  SRC_C += $(RTT_SRC)/RTT/SEGGER_RTT.c
-else ifeq ($(LOGGER),swo)
+  CFLAGS += -DLOGGER_RTT
+  #CFLAGS += -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
+  INC   += $(TOP)/$(lib/SEGGER_RTT)/RTT
+  SRC_C += $(lib/SEGGER_RTT)/RTT/SEGGER_RTT.c
+endif
+ifeq ($(LOGGER),swo)
   CFLAGS += -DLOGGER_SWO
+else
+  CFLAGS += -DLOGGER_UART
 endif
 
 # CPU specific flags

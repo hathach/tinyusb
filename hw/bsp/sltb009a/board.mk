@@ -16,9 +16,6 @@ CFLAGS += \
 SILABS_FAMILY = efm32gg12b
 SILABS_CMSIS = hw/mcu/silabs/cmsis-dfp-$(SILABS_FAMILY)/Device/SiliconLabs/$(shell echo $(SILABS_FAMILY) | tr a-z A-Z)
 
-DEPS_SUBMODULES += hw/mcu/silabs/cmsis-dfp-$(SILABS_FAMILY)
-DEPS_SUBMODULES += lib/CMSIS_5
-
 LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 # All source paths should be relative to the top level.

@@ -31,8 +31,7 @@ static size_t get_console_inputs(uint8_t* buf, size_t bufsize) {
   size_t count = 0;
   while (count < bufsize) {
     int ch = board_getchar();
-    if (ch <= 0) break;
-
+    if (ch <= 0) { break; }
     buf[count] = (uint8_t) ch;
     count++;
   }
@@ -69,10 +68,15 @@ void tuh_cdc_rx_cb(uint8_t idx) {
   uint32_t const bufsize = sizeof(buf) - 1;
 
   // forward cdc interfaces -> console
-  uint32_t count = tuh_cdc_read(idx, buf, bufsize);
-  buf[count] = 0;
+  const uint32_t count = tuh_cdc_read(idx, buf, bufsize);
+  if (count) {
+    buf[count] = 0;
+    printf("%s", (char*) buf);
 
-  printf("%s", (char*) buf);
+    #ifndef __ICCARM__     // TODO IAR doesn't support stream control ?
+    fflush(stdout);// flush right away, else nanolib will wait for newline
+    #endif
+  }
 }
 
 // Invoked when a device with CDC interface is mounted
@@ -88,7 +92,7 @@ void tuh_cdc_mount_cb(uint8_t idx) {
   // If CFG_TUH_CDC_LINE_CODING_ON_ENUM is defined, line coding will be set by tinyusb stack
   // while eneumerating new cdc device
   cdc_line_coding_t line_coding = {0};
-  if (tuh_cdc_get_local_line_coding(idx, &line_coding)) {
+  if (tuh_cdc_get_line_coding_local(idx, &line_coding)) {
     printf("  Baudrate: %" PRIu32 ", Stop Bits : %u\r\n", line_coding.bit_rate, line_coding.stop_bits);
     printf("  Parity  : %u, Data Width: %u\r\n", line_coding.parity, line_coding.data_bits);
   }

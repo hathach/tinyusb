@@ -420,7 +420,7 @@
 
 #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE
   #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
-  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 1
   #endif
 
   #define CFG_TUSB_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
@@ -428,7 +428,7 @@
 
 // OS selection
 #ifndef CFG_TUSB_OS
-  #define CFG_TUSB_OS             OPT_OS_NONE
+  #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
@@ -602,9 +602,22 @@
 // List of product IDs that can use the FTDI CDC driver. 0x0403 is FTDI's VID
 #ifndef CFG_TUH_CDC_FTDI_VID_PID_LIST
   #define CFG_TUH_CDC_FTDI_VID_PID_LIST \
-    {0x0403, 0x6001}, {0x0403, 0x6006}, {0x0403, 0x6010}, {0x0403, 0x6011}, \
-    {0x0403, 0x6014}, {0x0403, 0x6015}, {0x0403, 0x8372}, {0x0403, 0xFBFA}, \
-    {0x0403, 0xCD18}
+    {0x0403, 0x6001}, /* Similar device to SIO above */ \
+    {0x0403, 0x6006}, /* FTDI's alternate PID for above */ \
+    {0x0403, 0x6010}, /* Dual channel device */ \
+    {0x0403, 0x6011}, /* Quad channel hi-speed device */ \
+    {0x0403, 0x6014}, /* Single channel hi-speed device */ \
+    {0x0403, 0x6015}, /* FT-X series (FT201X, FT230X, FT231X, etc) */ \
+    {0x0403, 0x6040}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6041}, /* Quad channel hi-speed device with PD */ \
+    {0x0403, 0x6042}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6043}, /* Quad channel hi-speed device with PD */ \
+    {0x0403, 0x6044}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6045}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6048}, /* Quad channel automotive grade hi-speed device */ \
+    {0x0403, 0x8372}, /* Product Id SIO application of 8U100AX */ \
+    {0x0403, 0xFBFA}, /* Product ID for FT232RL */ \
+    {0x0403, 0xCD18}, /* ??? */
 #endif
 
 // CP210X is not part of CDC class, only to re-use CDC driver API
@@ -615,7 +628,9 @@
 // List of product IDs that can use the CP210X CDC driver. 0x10C4 is Silicon Labs' VID
 #ifndef CFG_TUH_CDC_CP210X_VID_PID_LIST
   #define CFG_TUH_CDC_CP210X_VID_PID_LIST \
-    {0x10C4, 0xEA60}, {0x10C4, 0xEA70}
+  { 0x10C4, 0xEA60 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA61 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA70 }  /* Silicon Labs Dual Port factory default */
 #endif
 
 #ifndef CFG_TUH_CDC_CH34X
@@ -633,6 +648,24 @@
     { 0x4348, 0x5523 }, /* ch340 custom chip */ \
     { 0x2184, 0x0057 }, /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */ \
     { 0x9986, 0x7523 }  /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */
+#endif
+
+#ifndef CFG_TUH_CDC_PL2303
+  // PL2303 is not part of CDC class, only to re-use CDC driver API
+  #define CFG_TUH_CDC_PL2303 0
+#endif
+
+#ifndef CFG_TUH_CDC_PL2303_VID_PID_QUIRKS_LIST
+  // List of product IDs that can use the PL2303 CDC driver
+  #define CFG_TUH_CDC_PL2303_VID_PID_LIST \
+  { 0x067b, 0x2303 }, /* initial 2303 */ \
+  { 0x067b, 0x2304 }, /* TB */ \
+  { 0x067b, 0x23a3 }, /* GC */ \
+  { 0x067b, 0x23b3 }, /* GB */ \
+  { 0x067b, 0x23c3 }, /* GT */ \
+  { 0x067b, 0x23d3 }, /* GL */ \
+  { 0x067b, 0x23e3 }, /* GE */ \
+  { 0x067b, 0x23f3 }  /* GS */
 #endif
 
 #ifndef CFG_TUH_HID
