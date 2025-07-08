@@ -89,6 +89,8 @@
       uiSendModeBtn.addEventListener('click', () => this.toggleSendMode());
       uiReceivedDataClearBtn.addEventListener('click', () => this.clearReceivedData());
 
+      window.addEventListener('beforeunload', () => this.beforeUnloadHandler());
+
       // restore state from localStorage
       try {
         this.restoreState();
@@ -102,6 +104,12 @@
       this.connectWebUsbSerialPort(true);
     }
 
+    beforeUnloadHandler() {
+      // Save the scroll position of the command history and received data
+      localStorage.setItem('commandHistoryScrollTop', uiCommandHistoryScrollbox.scrollTop);
+      localStorage.setItem('receivedDataScrollTop', uiReceivedDataScrollbox.scrollTop);
+    }
+
     restoreState() {
       // Restore theme choice
       const savedTheme = localStorage.getItem('theme');
@@ -112,14 +120,24 @@
       // Restore command history
       let savedCommandHistory = JSON.parse(localStorage.getItem('commandHistory') || '[]');
       for (const cmd of savedCommandHistory) {
-        this.appendCommandToHistory(cmd);
+        this.addCommandToHistoryUI(cmd);
+      }
+      // Restore scroll position for command history
+      const commandHistoryScrollTop = localStorage.getItem('commandHistoryScrollTop');
+      if (commandHistoryScrollTop) {
+        uiCommandHistoryScrollbox.scrollTop = parseInt(commandHistoryScrollTop, 10);
       }
 
       // Restore received data
       let savedReceivedData = JSON.parse(localStorage.getItem('receivedData') || '[]');
       for (let line of savedReceivedData) {
         line.terminated = true;
-        this.appendReceivedData(line);
+        this.addReceivedDataEntryUI(line);
+      }
+      // Restore scroll position for received data
+      const receivedDataScrollTop = localStorage.getItem('receivedDataScrollTop');
+      if (receivedDataScrollTop) {
+        uiReceivedDataScrollbox.scrollTop = parseInt(receivedDataScrollTop, 10);
       }
 
       this.sendMode = localStorage.getItem('sendMode') || 'command';
@@ -165,9 +183,7 @@
       this.setTheme(nextTheme);
     }
 
-    appendCommandToHistory(commandHistoryEntry) {
-      const wasNearBottom = uiCommandHistoryScrollbox.scrollHeight - uiCommandHistoryScrollbox.scrollTop <= uiCommandHistoryScrollbox.clientHeight + uiNearTheBottomThreshold;
-
+    addCommandToHistoryUI(commandHistoryEntry) {
       let commandHistoryEntryBtn = null;
 
       let lastCommandMatched = false;
@@ -213,15 +229,19 @@
         this.commandHistory.shift();
         uiCommandHistoryScrollbox.removeChild(uiCommandHistoryScrollbox.firstElementChild);
       }
+    }
+
+    appendNewCommandToHistory(commandHistoryEntry) {
+      const wasNearBottom = this.isNearBottom(uiCommandHistoryScrollbox);
+
+      this.addCommandToHistoryUI(commandHistoryEntry);
 
       // Save the command history to localStorage
       localStorage.setItem('commandHistory', JSON.stringify(this.commandHistory));
 
       // Scroll to the new entry if near the bottom
       if (wasNearBottom) {
-        requestAnimationFrame(() => {
-          uiCommandHistoryScrollbox.scrollTop = uiCommandHistoryScrollbox.scrollHeight;
-        });
+        this.scrollToBottom(uiCommandHistoryScrollbox);
       }
     }
 
@@ -232,9 +252,17 @@
       this.setStatus('Command history cleared', 'info');
     }
 
-    appendReceivedData(receivedDataEntry) {
-      const wasNearBottom = uiReceivedDataScrollbox.scrollHeight - uiReceivedDataScrollbox.scrollTop <= uiReceivedDataScrollbox.clientHeight + uiNearTheBottomThreshold;
+    isNearBottom(container) {
+      return container.scrollHeight - container.scrollTop <= container.clientHeight + uiNearTheBottomThreshold;
+    }
 
+    scrollToBottom(container) {
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+    }
+
+    addReceivedDataEntryUI(receivedDataEntry) {
       let newReceivedDataEntries = [];
       let updateLastReceivedDataEntry = false;
       if (this.receivedData.length <= 0) {
@@ -306,15 +334,19 @@
         this.receivedData.shift();
         uiReceivedDataScrollbox.removeChild(uiReceivedDataScrollbox.firstElementChild);
       }
+    }
+
+    appendNewReceivedData(receivedDataEntry) {
+      const wasNearBottom = this.isNearBottom(uiReceivedDataScrollbox);
+
+      this.addReceivedDataEntryUI(receivedDataEntry);
 
       // Save the received data to localStorage
       localStorage.setItem('receivedData', JSON.stringify(this.receivedData));
 
       // Scroll to the new entry if near the bottom
       if (wasNearBottom) {
-        requestAnimationFrame(() => {
-          uiReceivedDataScrollbox.scrollTop = uiReceivedDataScrollbox.scrollHeight;
-        });
+        this.scrollToBottom(uiReceivedDataScrollbox);
       }
     }
 
@@ -382,7 +414,7 @@
 
       let text = this.textDecoder.decode(dataView);
       let receivedDataEntry = new ReceivedDataEntry(text);
-      this.appendReceivedData(receivedDataEntry);
+      this.appendNewReceivedData(receivedDataEntry);
     }
 
     async onReceiveError(error) {
@@ -651,7 +683,7 @@
         this.uiCommandHistoryIndex = -1;
         let history_cmd_text = sendText.replace(/[\r\n]+$/, '');
         let history_entry = new CommandHistoryEntry(history_cmd_text);
-        this.appendCommandToHistory(history_entry);
+        this.appendNewCommandToHistory(history_entry);
         uiCommandLineInput.value = '';
       } catch (error) {
         this.setStatus(`Send error: ${error.message}`, 'error');
