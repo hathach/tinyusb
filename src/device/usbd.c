@@ -1260,14 +1260,13 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       send = true;
       break;
 
-    case DCD_EVENT_XFER_COMPLETE:
-    {
-      send = true;
+    case DCD_EVENT_XFER_COMPLETE: {
       // Invoke the class callback associated with the endpoint address
       uint8_t const ep_addr = event->xfer_complete.ep_addr;
       uint8_t const epnum = tu_edpt_number(ep_addr);
       uint8_t const ep_dir = tu_edpt_dir(ep_addr);
 
+      send = true;
       if(epnum > 0) {
         usbd_class_driver_t const* driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
 

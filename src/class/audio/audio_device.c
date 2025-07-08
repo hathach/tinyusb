@@ -522,7 +522,9 @@ bool tud_audio_n_clear_ep_out_ff(uint8_t func_id) {
 }
 
 tu_fifo_t *tud_audio_n_get_ep_out_ff(uint8_t func_id) {
-  if (func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL) return &_audiod_fct[func_id].ep_out_ff;
+  if (func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL) {
+    return &_audiod_fct[func_id].ep_out_ff;
+  }
   return NULL;
 }
 
@@ -569,14 +571,15 @@ uint16_t tud_audio_n_write(uint8_t func_id, const void *data, uint16_t len) {
   return tu_fifo_write_n(&_audiod_fct[func_id].ep_in_ff, data, len);
 }
 
-bool tud_audio_n_clear_ep_in_ff(uint8_t func_id)// Delete all content in the EP IN FIFO
-{
+bool tud_audio_n_clear_ep_in_ff(uint8_t func_id) {
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
   return tu_fifo_clear(&_audiod_fct[func_id].ep_in_ff);
 }
 
 tu_fifo_t *tud_audio_n_get_ep_in_ff(uint8_t func_id) {
-  if (func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL) return &_audiod_fct[func_id].ep_in_ff;
+  if (func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL) {
+    return &_audiod_fct[func_id].ep_in_ff;
+  }
   return NULL;
 }
 
@@ -588,7 +591,7 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
   TU_VERIFY(audiod_get_AS_interface_index(audio->ep_in_as_intf_num, audio, &idxItf, &dummy2));
 
   // Only send something if current alternate interface is not 0 as in this case nothing is to be sent due to UAC2 specifications
-  if (audio->alt_setting[idxItf] == 0) return false;
+  if (audio->alt_setting[idxItf] == 0) { return false; }
 
   // Send everything in ISO EP FIFO
   uint16_t n_bytes_tx;
@@ -1459,8 +1462,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
   return false;
 }
 
-bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{
+bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
   (void) result;
   (void) xferred_bytes;
 
