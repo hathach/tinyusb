@@ -42,19 +42,9 @@ class SerialPort {
     }
   }
 
-  async _waitForReadLoopToFinish() {
-    if (this.readLoop) {
-      try {
-        await this.readLoop;
-      } catch (error) {}
-      this.readLoop = null;
-    }
-  }
-
   /// Stop reading and release port
   async disconnect() {
     this.isConnected = false;
-    await this._waitForReadLoopToFinish();
 
     if (this.reader) {
       try {
@@ -66,7 +56,8 @@ class SerialPort {
     if (this.writer) {
       try {
         await this.writer.close();
-      } catch (error) {}
+      } catch (error) { }
+      this.writer.releaseLock();
     }
 
     if (this.readableStreamClosed) {
@@ -160,15 +151,6 @@ class WebUsbSerialPort {
     this.readLoop = this._readLoop();
   }
 
-  async _waitForReadLoopToFinish() {
-    if (this.readLoop) {
-      try {
-        await this.readLoop;
-      } catch (error) {}
-      this.readLoop = null;
-    }
-  }
-
   /// Internal continuous read loop
   async _readLoop() {
     while (this.isConnected) {
@@ -189,7 +171,6 @@ class WebUsbSerialPort {
   /// Stop reading and release device
   async disconnect() {
     this.isConnected = false;
-    await this._waitForReadLoopToFinish();
     if (!this.device.opened) return;
     try {
       await this.device.controlTransferOut({
@@ -199,9 +180,7 @@ class WebUsbSerialPort {
         value: 0x00,
         index: this.interfaceNumber,
       });
-    } catch (error) {
-      console.log(error);
-    }
+    } catch (error) {}
     await this.device.close();
   }
 

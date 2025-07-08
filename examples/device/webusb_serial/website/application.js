@@ -331,8 +331,11 @@
       uiStatusSpan.className = 'status status-' + level;
     }
 
-    updateUIConnectionState() {
-      if (this.currentPort && this.currentPort.isConnected) {
+    /// force_connected is used to instantly change the UI to the connected state while the device is still connecting
+    /// Otherwise we would have to wait for the connection to be established.
+    /// This can take until the device sends the first data packet.
+    updateUIConnectionState(force_connected = false) {
+      if (force_connected || (this.currentPort && this.currentPort.isConnected)) {
         uiConnectWebUsbSerialBtn.style.display = 'none';
         uiConnectSerialBtn.style.display = 'none';
         uiDisconnectBtn.style.display = 'block';
@@ -397,6 +400,7 @@
       try {
         this.setStatus('Requesting device...', 'info');
         this.currentPort = await serial.requestSerialPort();
+        this.updateUIConnectionState(true);
         this.currentPort.onReceiveError = error => this.onReceiveError(error);
         this.currentPort.onReceive = dataView => this.onReceive(dataView);
         await this.currentPort.connect();
@@ -449,6 +453,7 @@
         this.currentPort.onReceive = dataView => this.onReceive(dataView);
 
         try {
+          this.updateUIConnectionState(true);
           await this.currentPort.connect();
 
           // save the port to localStorage
