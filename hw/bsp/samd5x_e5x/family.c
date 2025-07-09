@@ -30,7 +30,6 @@
 
 #include "sam.h"
 #include "bsp/board_api.h"
-#include "board.h"
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
@@ -47,6 +46,9 @@
 #pragma GCC diagnostic pop
 #endif
 
+static inline void board_vbus_set(uint8_t rhport, bool state) TU_ATTR_UNUSED;
+#include "board.h"
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -60,8 +62,7 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE inline void USB_Any_Handler(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline void USB_Any_Handler(void) {
 #if CFG_TUD_ENABLED
   tud_int_handler(0);
 #endif
@@ -72,11 +73,8 @@ TU_ATTR_ALWAYS_INLINE inline void USB_Any_Handler(void)
 }
 
 void USB_0_Handler(void) { USB_Any_Handler(); }
-
 void USB_1_Handler(void) { USB_Any_Handler(); }
-
 void USB_2_Handler(void) { USB_Any_Handler(); }
-
 void USB_3_Handler(void) { USB_Any_Handler(); }
 
 //--------------------------------------------------------------------+
@@ -84,10 +82,8 @@ void USB_3_Handler(void) { USB_Any_Handler(); }
 //--------------------------------------------------------------------+
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-
 #define MAX3421_SERCOM TU_XSTRCAT(SERCOM, MAX3421_SERCOM_ID)
 #define MAX3421_EIC_Handler TU_XSTRCAT3(EIC_, MAX3421_INTR_EIC_ID, _Handler)
-
 static void max3421_init(void);
 #endif
 
@@ -150,8 +146,7 @@ void board_init(void) {
     max3421_init();
   #else
     // VBUS Power
-    gpio_set_pin_direction(PIN_PA28, GPIO_DIRECTION_OUT);
-    gpio_set_pin_level(PIN_PA28, true);
+    board_vbus_set(0, true);
   #endif
 #endif
 }

@@ -171,7 +171,7 @@ static void samd_free_pipe(uint8_t pipe)
   USB->HOST.HostPipe[pipe].PSTATUSSET.reg = USB_HOST_PSTATUSSET_PFREEZE;
   USB->HOST.HostPipe[pipe].PCFG.reg &= ~USB_HOST_PCFG_PTYPE_Msk;
   USB->HOST.HostPipe[pipe].PINTENCLR.reg = USB_HOST_PINTENCLR_MASK;
-  memset((uint8_t*) &usb_pipe_table[pipe], 0, sizeof(usb_pipe_table[pipe]));
+  memset((uint8_t*)(uintptr_t) &usb_pipe_table[pipe], 0, sizeof(usb_pipe_table[pipe]));
 }
 
 static void samd_free_all_pipes(void)
@@ -197,8 +197,7 @@ static bool samd_on_xfer(uint8_t pipe, xfer_result_t xfer_result)
     xfer_delta = 0;
   }
 
-  TU_LOG3(
-      "samd_on_xfer(%d, result=%d, xdelta=%d, rem=%d)\r\n", xfer_result, pipe, xfer_delta, pipe_status->xfer_remaining);
+  TU_LOG3("samd_on_xfer(%d, result=%d, xdelta=%d, rem=%d)\r\n", xfer_result, pipe, xfer_delta, pipe_status->xfer_remaining);
 
   // update pipe status
   if (xfer_delta > pipe_status->xfer_remaining) {
@@ -390,10 +389,9 @@ void hcd_int_handler(uint8_t rhport, bool in_isr)
 }
 
 // Initialize controller to host mode
-bool hcd_init(uint8_t rhport)
-{
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   TU_ASSERT(rhport == 0);
-
+  (void) rh_init;
   fake_fnum = 0;
 
   // reset to get in a clean state.

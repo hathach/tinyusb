@@ -37,17 +37,23 @@
 #endif
 
 // LED
-#define LED_PIN               /*PA*/17 /*(D13)*/
+#define LED_PIN               17 // PA17 (D13)
 #define LED_STATE_ON          1
 
 // Button
-#define BUTTON_PIN            /*PA*/14 /*(D2)*/
+#define BUTTON_PIN            14 // PA14 (D2)
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
 #define UART_SERCOM           0
-#define UART_RX_PIN           /*PA*/11 /*(D0)*/
-#define UART_TX_PIN           /*PA*/10 /*(D1)*/
+#define UART_RX_PIN           11 // PA11 D0
+#define UART_TX_PIN           10 // PA10 D1
+
+static inline void board_vbus_set(uint8_t rhport, bool state) {
+  (void) rhport;
+  gpio_set_pin_direction(PIN_PA28, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(PIN_PA28, state);
+}
 
 #ifdef __cplusplus
  }
