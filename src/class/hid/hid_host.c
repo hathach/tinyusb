@@ -662,7 +662,10 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
 
     uint8_t const tag = header.tag;
     uint8_t const type = header.type;
-    uint8_t const size = (header.size == 3) ? 4 : header.size;
+    uint8_t size = header.size;
+    if (size == 3) {
+      size = 4;
+    }
 
     uint8_t const data8 = (size > 0) ? desc_report[0] : 0;
 
