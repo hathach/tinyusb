@@ -26,8 +26,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_AUDIO_DEVICE_H_
-#define _TUSB_AUDIO_DEVICE_H_
+#ifndef TUSB_AUDIO_DEVICE_H_
+#define TUSB_AUDIO_DEVICE_H_
 
 #include "audio.h"
 
@@ -219,19 +219,19 @@ extern "C" {
 // Application API (Multiple Interfaces)
 // CFG_TUD_AUDIO > 1
 //--------------------------------------------------------------------+
-bool     tud_audio_n_mounted    (uint8_t func_id);
+bool tud_audio_n_mounted(uint8_t func_id);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-uint16_t tud_audio_n_available                    (uint8_t func_id);
-uint16_t tud_audio_n_read                         (uint8_t func_id, void* buffer, uint16_t bufsize);
-bool     tud_audio_n_clear_ep_out_ff              (uint8_t func_id);                          // Delete all content in the EP OUT FIFO
-tu_fifo_t*   tud_audio_n_get_ep_out_ff            (uint8_t func_id);
+uint16_t   tud_audio_n_available       (uint8_t func_id);
+uint16_t   tud_audio_n_read            (uint8_t func_id, void* buffer, uint16_t bufsize);
+bool       tud_audio_n_clear_ep_out_ff (uint8_t func_id);
+tu_fifo_t* tud_audio_n_get_ep_out_ff   (uint8_t func_id);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-uint16_t tud_audio_n_write                        (uint8_t func_id, const void * data, uint16_t len);
-bool     tud_audio_n_clear_ep_in_ff               (uint8_t func_id);                          // Delete all content in the EP IN FIFO
-tu_fifo_t*   tud_audio_n_get_ep_in_ff             (uint8_t func_id);
+uint16_t   tud_audio_n_write          (uint8_t func_id, const void * data, uint16_t len);
+bool       tud_audio_n_clear_ep_in_ff (uint8_t func_id);
+tu_fifo_t* tud_audio_n_get_ep_in_ff   (uint8_t func_id);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
@@ -241,24 +241,19 @@ bool    tud_audio_int_n_write                     (uint8_t func_id, const audio_
 //--------------------------------------------------------------------+
 // Application API (Interface0)
 //--------------------------------------------------------------------+
-
 static inline bool         tud_audio_mounted                (void);
 
-// RX API
-
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-static inline uint16_t     tud_audio_available              (void);
-static inline bool         tud_audio_clear_ep_out_ff        (void);                       // Delete all content in the EP OUT FIFO
-static inline uint16_t     tud_audio_read                   (void* buffer, uint16_t bufsize);
-static inline tu_fifo_t*   tud_audio_get_ep_out_ff          (void);
+static inline uint16_t   tud_audio_available       (void);
+static inline bool       tud_audio_clear_ep_out_ff (void);
+static inline uint16_t   tud_audio_read            (void* buffer, uint16_t bufsize);
+static inline tu_fifo_t* tud_audio_get_ep_out_ff   (void);
 #endif
 
-// TX API
-
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-static inline uint16_t tud_audio_write                      (const void * data, uint16_t len);
-static inline bool 	   tud_audio_clear_ep_in_ff             (void);
-static inline tu_fifo_t* tud_audio_get_ep_in_ff             (void);
+static inline uint16_t   tud_audio_write          (const void * data, uint16_t len);
+static inline bool       tud_audio_clear_ep_in_ff (void);
+static inline tu_fifo_t* tud_audio_get_ep_in_ff   (void);
 #endif
 
 // INT CTR API
@@ -280,18 +275,18 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 //--------------------------------------------------------------------+
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
-bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
+// Invoked in ISR context once an audio packet was sent successfully.
+// Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock), call tud_audio_write() in I2S receive callback.
+bool tud_audio_tx_done_isr(uint8_t rhport, uint16_t n_bytes_sent, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
-bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
+// Invoked in ISR context once an audio packet was received successfully.
+// Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock), call tud_audio_read() in I2S transmit callback.
+bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-void tud_audio_fb_done_cb(uint8_t func_id);
-
 
 // Note about feedback calculation
 //
@@ -410,72 +405,56 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
 // Inline Functions
 //--------------------------------------------------------------------+
 
-static inline bool tud_audio_mounted(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_mounted(void) {
   return tud_audio_n_mounted(0);
 }
 
-// RX API
-
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 
-static inline uint16_t tud_audio_available(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_available(void) {
   return tud_audio_n_available(0);
 }
 
-static inline uint16_t tud_audio_read(void* buffer, uint16_t bufsize)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_read(void* buffer, uint16_t bufsize) {
   return tud_audio_n_read(0, buffer, bufsize);
 }
 
-static inline bool tud_audio_clear_ep_out_ff(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_clear_ep_out_ff(void) {
   return tud_audio_n_clear_ep_out_ff(0);
 }
 
-static inline tu_fifo_t* tud_audio_get_ep_out_ff(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline tu_fifo_t* tud_audio_get_ep_out_ff(void) {
   return tud_audio_n_get_ep_out_ff(0);
 }
 
 #endif
 
-// TX API
-
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
 
-static inline uint16_t tud_audio_write(const void * data, uint16_t len)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_write(const void * data, uint16_t len) {
   return tud_audio_n_write(0, data, len);
 }
 
-static inline bool tud_audio_clear_ep_in_ff(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_clear_ep_in_ff(void) {
   return tud_audio_n_clear_ep_in_ff(0);
 }
 
-static inline tu_fifo_t* tud_audio_get_ep_in_ff(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline tu_fifo_t* tud_audio_get_ep_in_ff(void) {
   return tud_audio_n_get_ep_in_ff(0);
 }
 
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-static inline bool tud_audio_int_write(const audio_interrupt_data_t * data)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_int_write(const audio_interrupt_data_t * data) {
   return tud_audio_int_n_write(0, data);
 }
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-
-static inline bool tud_audio_fb_set(uint32_t feedback)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_fb_set(uint32_t feedback) {
   return tud_audio_n_fb_set(0, feedback);
 }
-
 #endif
 
 //--------------------------------------------------------------------+
@@ -487,6 +466,7 @@ void     audiod_reset          (uint8_t rhport);
 uint16_t audiod_open           (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 bool     audiod_xfer_cb        (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
+bool     audiod_xfer_isr       (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
 void     audiod_sof_isr        (uint8_t rhport, uint32_t frame_count);
 
 #ifdef __cplusplus
