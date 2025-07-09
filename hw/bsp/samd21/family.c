@@ -30,7 +30,6 @@
 
 #include "sam.h"
 #include "bsp/board_api.h"
-#include "board.h"
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
@@ -50,6 +49,9 @@
 #pragma GCC diagnostic pop
 #endif
 
+static inline void board_vbus_set(uint8_t rhport, bool state) TU_ATTR_UNUSED;
+#include "board.h"
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -64,7 +66,13 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB_Handler(void) {
+#if CFG_TUD_ENABLED
   tud_int_handler(0);
+#endif
+
+#if CFG_TUH_ENABLED && !CFG_TUH_MAX3421
+  tuh_int_handler(0);
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -72,11 +80,9 @@ void USB_Handler(void) {
 //--------------------------------------------------------------------+
 static void uart_init(void);
 
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
+#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
 #define MAX3421_SERCOM TU_XSTRCAT(SERCOM, MAX3421_SERCOM_ID)
-
 static void max3421_init(void);
-
 #endif
 
 void board_init(void) {
@@ -144,8 +150,13 @@ void board_init(void) {
   gpio_set_pin_function(PIN_PA19, PINMUX_PA19F_TCC0_WO3);
   _gclk_enable_channel(TCC0_GCLK_ID, GCLK_CLKCTRL_GEN_GCLK0_Val);
 
-#if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
-  max3421_init();
+#if CFG_TUH_ENABLED
+  #if CFG_TUH_MAX3421
+    max3421_init();
+  #else
+    // VBUS Power
+    board_vbus_set(0, true);
+  #endif
 #endif
 }
 

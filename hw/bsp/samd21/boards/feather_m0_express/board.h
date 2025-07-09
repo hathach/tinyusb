@@ -63,6 +63,10 @@
 #define MAX3421_INTR_PIN        7      // D10
 #define MAX3421_INTR_EIC_ID     7      // EIC7
 
+static inline void board_vbus_set(uint8_t rhport, bool state) {
+ (void) rhport; (void) state;
+}
+
 #ifdef __cplusplus
  }
 #endif
