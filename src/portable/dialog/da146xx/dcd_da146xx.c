@@ -896,6 +896,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
 }
 
+void tusb_vbus_changed(bool present);
 void tusb_vbus_changed(bool present)
 {
   if (present && !_dcd.vbus_present)

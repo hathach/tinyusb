@@ -10,8 +10,8 @@ if (NOT DEFINED CMAKE_ASM_COMPILER)
   set(CMAKE_ASM_COMPILER "iasmarm")
 endif()
 
-set(CMAKE_SIZE "size" CACHE FILEPATH "")
-set(CMAKE_OBJCOPY "ielftool" CACHE FILEPATH "")
-set(CMAKE_OBJDUMP "iefdumparm" CACHE FILEPATH "")
+find_program(CMAKE_SIZE size)
+find_program(CMAKE_OBJCOPY ielftool)
+find_program(CMAKE_OBJDUMP iefdumparm)
 
 include(${CMAKE_CURRENT_LIST_DIR}/common.cmake)

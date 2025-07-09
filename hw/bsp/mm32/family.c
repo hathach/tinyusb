@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: MindMotion
+*/
+
 #include "hal_conf.h"
 #include "mm32_device.h"
 

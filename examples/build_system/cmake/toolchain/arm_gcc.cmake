@@ -1,3 +1,7 @@
+if (RTOS STREQUAL zephyr)
+  return()
+endif ()
+
 if (NOT DEFINED CMAKE_C_COMPILER)
   set(CMAKE_C_COMPILER "arm-none-eabi-gcc")
 endif ()
@@ -7,9 +11,9 @@ if (NOT DEFINED CMAKE_CXX_COMPILER)
 endif ()
 
 set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
-set(CMAKE_SIZE "arm-none-eabi-size" CACHE FILEPATH "")
-set(CMAKE_OBJCOPY "arm-none-eabi-objcopy" CACHE FILEPATH "")
-set(CMAKE_OBJDUMP "arm-none-eabi-objdump" CACHE FILEPATH "")
+find_program(CMAKE_SIZE arm-none-eabi-size)
+find_program(CMAKE_OBJCOPY arm-none-eabi-objcopy)
+find_program(CMAKE_OBJDUMP arm-none-eabi-objdump)
 
 include(${CMAKE_CURRENT_LIST_DIR}/common.cmake)
 

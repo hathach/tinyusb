@@ -155,9 +155,10 @@ typedef union TU_ATTR_PACKED {
   uint8_t data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
 } recv_ntb_t;
 
-struct ncm_notify_t {
+typedef struct {
   tusb_control_request_t header;
-  uint32_t downlink, uplink;
-};
+  uint32_t downlink;
+  uint32_t uplink;
+} ncm_notify_t;
 
 #endif

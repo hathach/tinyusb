@@ -8,8 +8,8 @@ endif ()
 
 set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
 
-set(CMAKE_SIZE "msp430-elf-size" CACHE FILEPATH "")
-set(CMAKE_OBJCOPY "msp430-elf-objcopy" CACHE FILEPATH "")
-set(CMAKE_OBJDUMP "msp430-elf-objdump" CACHE FILEPATH "")
+find_program(CMAKE_SIZE msp430-elf-size)
+find_program(CMAKE_OBJCOPY msp430-elf-objcopy)
+find_program(CMAKE_OBJDUMP msp430-elf-objdump)
 
 include(${CMAKE_CURRENT_LIST_DIR}/common.cmake)

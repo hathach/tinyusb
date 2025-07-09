@@ -1,1 +1,1 @@
-../../CONTRIBUTORS.rst
+.. include:: ../../CONTRIBUTORS.rst

@@ -7,7 +7,7 @@ set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_PROCESSOR cortex-m33 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS LPC55 CACHE INTERNAL "")
@@ -44,7 +44,7 @@ function(add_board_target BOARD_TARGET)
     ${SDK_DIR}/drivers/lpc_gpio/fsl_gpio.c
     ${SDK_DIR}/drivers/common/fsl_common_arm.c
     ${SDK_DIR}/drivers/flexcomm/fsl_flexcomm.c
-    ${SDK_DIR}/drivers/flexcomm/fsl_usart.c
+    ${SDK_DIR}/drivers/flexcomm/usart/fsl_usart.c
     # mcu
     ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
@@ -56,9 +56,9 @@ function(add_board_target BOARD_TARGET)
     # driver
     ${SDK_DIR}/drivers/common
     ${SDK_DIR}/drivers/flexcomm
+    ${SDK_DIR}/drivers/flexcomm/usart
     ${SDK_DIR}/drivers/lpc_iocon
     ${SDK_DIR}/drivers/lpc_gpio
-    ${SDK_DIR}/drivers/lpuart
     ${SDK_DIR}/drivers/sctimer
     # mcu
     ${SDK_DIR}/devices/${MCU_VARIANT}
@@ -140,16 +140,16 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_LPC55 ${RTOS})
-  target_sources(${TARGET}-tinyusb PUBLIC
+  family_add_tinyusb(${TARGET} OPT_MCU_LPC55)
+  target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
     )
-  target_link_libraries(${TARGET}-tinyusb PUBLIC board_${BOARD})
+  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-  # Link dependencies
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD} ${TARGET}-tinyusb)
+
 
   # Flashing
+  family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
   #family_flash_nxplink(${TARGET})
   #family_flash_pyocd(${TARGET})

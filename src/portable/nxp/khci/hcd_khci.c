@@ -36,6 +36,7 @@
 #endif
 
 #include "host/hcd.h"
+#include "host/usbh.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -140,7 +141,7 @@ typedef struct
 CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(512) static hcd_data_t _hcd;
 //CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(4) static uint8_t _rx_buf[1024];
 
-int find_pipe(uint8_t dev_addr, uint8_t ep_addr)
+static int find_pipe(uint8_t dev_addr, uint8_t ep_addr)
 {
   /* Find the target pipe */
   int num;
@@ -539,6 +540,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     q->data            = 1;
   }
   return true;
+}
+
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport; (void) daddr; (void) ep_addr;
+  return false; // TODO not implemented yet
 }
 
 /* The address of buffer must be aligned to 4 byte boundary. And it must be at least 4 bytes long.

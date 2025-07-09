@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: SAMD21 Curiosty Nano
+   url: https://www.microchip.com/en-us/development-tool/dm320119
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

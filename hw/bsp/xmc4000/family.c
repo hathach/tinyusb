@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Infineon
+*/
+
 #include "xmc_gpio.h"
 #include "xmc_scu.h"
 #include "xmc_uart.h"

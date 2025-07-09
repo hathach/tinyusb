@@ -31,11 +31,11 @@
 
 // Version is release as major.minor.revision eg 1.0.0
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     17
+#define TUSB_VERSION_MINOR     18
 #define TUSB_VERSION_REVISION  0
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
-#define TUSB_VERSION_STRING    TU_STRING(TUSB_VERSION_MAJOR) "." TU_STRING(TUSB_VERSION_MINOR) "." TU_STRING(TUSB_VERSION_REVISION)
+#define TUSB_VERSION_STRING    TU_XSTRING(TUSB_VERSION_MAJOR) "." TU_XSTRING(TUSB_VERSION_MINOR) "." TU_XSTRING(TUSB_VERSION_REVISION)
 
 //--------------------------------------------------------------------+
 // Supported MCUs
@@ -92,6 +92,9 @@
 #define OPT_MCU_STM32L5           314 ///< ST L5
 #define OPT_MCU_STM32H5           315 ///< ST H5
 #define OPT_MCU_STM32U0           316 ///< ST U0
+#define OPT_MCU_STM32H7RS         317 ///< ST F7RS
+#define OPT_MCU_STM32C0           318 ///< ST C0
+#define OPT_MCU_STM32N6           319 ///< ST N6
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -125,7 +128,8 @@
 #define OPT_MCU_ESP32C2           905 ///< Espressif ESP32-C2
 #define OPT_MCU_ESP32H2           906 ///< Espressif ESP32-H2
 #define OPT_MCU_ESP32P4           907 ///< Espressif ESP32-P4
-#define TUP_MCU_ESPRESSIF         (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
+#define TUSB_MCU_VENDOR_ESPRESSIF (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
+#define TUP_MCU_ESPRESSIF        TUSB_MCU_VENDOR_ESPRESSIF //  for backward compatibility
 
 // Dialog
 #define OPT_MCU_DA1469X          1000 ///< Dialog Semiconductor DA1469x
@@ -149,7 +153,7 @@
 #define OPT_MCU_RX63X            1400 ///< Renesas RX63N/631
 #define OPT_MCU_RX65X            1401 ///< Renesas RX65N/RX651
 #define OPT_MCU_RX72N            1402 ///< Renesas RX72N
-#define OPT_MCU_RAXXX            1403 ///< Renesas RAxxx families
+#define OPT_MCU_RAXXX            1403 ///< Renesas RA generic
 
 // Mind Motion
 #define OPT_MCU_MM32F327X        1500 ///< Mind Motion MM32F327
@@ -192,6 +196,7 @@
 
 // Analog Devices
 #define OPT_MCU_MAX32690         2400  ///< ADI MAX32690
+#define OPT_MCU_MAX32665         2401  ///< ADI MAX32666/5
 #define OPT_MCU_MAX32666         2401  ///< ADI MAX32666/5
 #define OPT_MCU_MAX32650         2402  ///< ADI MAX32650/1/2
 #define OPT_MCU_MAX78002         2403  ///< ADI MAX78002
@@ -212,6 +217,7 @@
 #define OPT_OS_PICO       5  ///< Raspberry Pi Pico SDK
 #define OPT_OS_RTTHREAD   6  ///< RT-Thread
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
+#define OPT_OS_ZEPHYR     8  ///< Zephyr
 
 //--------------------------------------------------------------------+
 // Mode and Speed
@@ -240,17 +246,54 @@
   #include "tusb_config.h"
 #endif
 
+#include "common/tusb_mcu.h"
+
 //--------------------------------------------------------------------+
 // USBIP
 //--------------------------------------------------------------------+
 
-// DWC2 controller: use DMA for data transfer
-// For processors with data cache enabled, USB endpoint buffer region
-// (defined by CFG_TUSB_MEM_SECTION) must be declared as non-cacheable.
-// For example, on Cortex-M7 the MPU region can be configured as normal
-// non-cacheable, with RASR register value: TEX=1 C=0 B=0 S=0.
-#ifndef CFG_TUD_DWC2_DMA
-  #define CFG_TUD_DWC2_DMA 0
+#ifndef CFG_TUD_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
+  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT 1
+  #endif
+
+  #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
+#endif
+
+// Enable DWC2 DMA for device
+#ifndef CFG_TUD_DWC2_DMA_ENABLE
+  #ifndef CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
+  #define CFG_TUD_DWC2_DMA_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
+#endif
+
+// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is insufficient).
+#ifndef CFG_TUD_CI_HS_VBUS_CHARGE
+  #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+  #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+#endif
+
+// Enable DWC2 Slave mode for host
+#ifndef CFG_TUH_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT 1
+  #endif
+
+  #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+#endif
+
+// Enable DWC2 DMA for host
+#ifndef CFG_TUH_DWC2_DMA_ENABLE
+  #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
+  #endif
+
+  #define CFG_TUH_DWC2_DMA_ENABLE   CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
 // Enable PIO-USB software host controller
@@ -267,7 +310,6 @@
   #define CFG_TUH_MAX3421  0
 #endif
 
-#include "common/tusb_mcu.h"
 
 //--------------------------------------------------------------------
 // RootHub Mode detection
@@ -376,13 +418,25 @@
   #define CFG_TUSB_MEM_ALIGN      TU_ATTR_ALIGNED(4)
 #endif
 
+#ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE
+  #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 1
+  #endif
+
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
+#endif
+
 // OS selection
 #ifndef CFG_TUSB_OS
-  #define CFG_TUSB_OS             OPT_OS_NONE
+  #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
-  #define CFG_TUSB_OS_INC_PATH
+  #ifndef CFG_TUSB_OS_INC_PATH_DEFAULT
+  #define CFG_TUSB_OS_INC_PATH_DEFAULT
+  #endif
+
+  #define CFG_TUSB_OS_INC_PATH  CFG_TUSB_OS_INC_PATH_DEFAULT
 #endif
 
 //--------------------------------------------------------------------
@@ -397,6 +451,18 @@
 // Attribute to align memory for device controller (default: CFG_TUSB_MEM_ALIGN)
 #ifndef CFG_TUD_MEM_ALIGN
   #define CFG_TUD_MEM_ALIGN       CFG_TUSB_MEM_ALIGN
+#endif
+
+#ifndef CFG_TUD_MEM_DCACHE_ENABLE
+  #ifndef CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  0
+  #endif
+
+  #define CFG_TUD_MEM_DCACHE_ENABLE   CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT
+#endif
+
+#ifndef CFG_TUD_MEM_DCACHE_LINE_SIZE
+  #define CFG_TUD_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
 #endif
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
@@ -506,6 +572,18 @@
   #define CFG_TUH_MEM_ALIGN     CFG_TUSB_MEM_ALIGN
 #endif
 
+#ifndef CFG_TUH_MEM_DCACHE_ENABLE
+  #ifndef CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  0
+  #endif
+
+  #define CFG_TUH_MEM_DCACHE_ENABLE   CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT
+#endif
+
+#ifndef CFG_TUH_MEM_DCACHE_LINE_SIZE
+  #define CFG_TUH_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
+#endif
+
 //------------- CLASS -------------//
 
 #ifndef CFG_TUH_HUB
@@ -524,9 +602,22 @@
 // List of product IDs that can use the FTDI CDC driver. 0x0403 is FTDI's VID
 #ifndef CFG_TUH_CDC_FTDI_VID_PID_LIST
   #define CFG_TUH_CDC_FTDI_VID_PID_LIST \
-    {0x0403, 0x6001}, {0x0403, 0x6006}, {0x0403, 0x6010}, {0x0403, 0x6011}, \
-    {0x0403, 0x6014}, {0x0403, 0x6015}, {0x0403, 0x8372}, {0x0403, 0xFBFA}, \
-    {0x0403, 0xCD18}
+    {0x0403, 0x6001}, /* Similar device to SIO above */ \
+    {0x0403, 0x6006}, /* FTDI's alternate PID for above */ \
+    {0x0403, 0x6010}, /* Dual channel device */ \
+    {0x0403, 0x6011}, /* Quad channel hi-speed device */ \
+    {0x0403, 0x6014}, /* Single channel hi-speed device */ \
+    {0x0403, 0x6015}, /* FT-X series (FT201X, FT230X, FT231X, etc) */ \
+    {0x0403, 0x6040}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6041}, /* Quad channel hi-speed device with PD */ \
+    {0x0403, 0x6042}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6043}, /* Quad channel hi-speed device with PD */ \
+    {0x0403, 0x6044}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6045}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6048}, /* Quad channel automotive grade hi-speed device */ \
+    {0x0403, 0x8372}, /* Product Id SIO application of 8U100AX */ \
+    {0x0403, 0xFBFA}, /* Product ID for FT232RL */ \
+    {0x0403, 0xCD18}, /* ??? */
 #endif
 
 // CP210X is not part of CDC class, only to re-use CDC driver API
@@ -537,7 +628,9 @@
 // List of product IDs that can use the CP210X CDC driver. 0x10C4 is Silicon Labs' VID
 #ifndef CFG_TUH_CDC_CP210X_VID_PID_LIST
   #define CFG_TUH_CDC_CP210X_VID_PID_LIST \
-    {0x10C4, 0xEA60}, {0x10C4, 0xEA70}
+  { 0x10C4, 0xEA60 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA61 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA70 }  /* Silicon Labs Dual Port factory default */
 #endif
 
 #ifndef CFG_TUH_CDC_CH34X
@@ -555,6 +648,24 @@
     { 0x4348, 0x5523 }, /* ch340 custom chip */ \
     { 0x2184, 0x0057 }, /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */ \
     { 0x9986, 0x7523 }  /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */
+#endif
+
+#ifndef CFG_TUH_CDC_PL2303
+  // PL2303 is not part of CDC class, only to re-use CDC driver API
+  #define CFG_TUH_CDC_PL2303 0
+#endif
+
+#ifndef CFG_TUH_CDC_PL2303_VID_PID_QUIRKS_LIST
+  // List of product IDs that can use the PL2303 CDC driver
+  #define CFG_TUH_CDC_PL2303_VID_PID_LIST \
+  { 0x067b, 0x2303 }, /* initial 2303 */ \
+  { 0x067b, 0x2304 }, /* TB */ \
+  { 0x067b, 0x23a3 }, /* GC */ \
+  { 0x067b, 0x23b3 }, /* GB */ \
+  { 0x067b, 0x23c3 }, /* GT */ \
+  { 0x067b, 0x23d3 }, /* GL */ \
+  { 0x067b, 0x23e3 }, /* GE */ \
+  { 0x067b, 0x23f3 }  /* GS */
 #endif
 
 #ifndef CFG_TUH_HID

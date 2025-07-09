@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Raspberry Zero2
+   url: https://www.raspberrypi.org/products/raspberry-pi-zero-2-w
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

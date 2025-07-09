@@ -335,7 +335,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 // Interrupt Handler
 //--------------------------------------------------------------------+
-void maybe_transfer_complete(void) {
+static void maybe_transfer_complete(void) {
   uint32_t epints = USB->DEVICE.EPINTSMRY.reg;
 
   for (uint8_t epnum = 0; epnum < USB_EPT_NUM; epnum++) {

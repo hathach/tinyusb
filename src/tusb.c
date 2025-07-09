@@ -39,14 +39,25 @@
 #include "host/usbh_pvt.h"
 #endif
 
-#define TUP_USBIP_CONTROLLER_NUM 2
+tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 
-static tusb_role_t _rhport_role[TUP_USBIP_CONTROLLER_NUM] = { 0 };
+//--------------------------------------------------------------------
+// Weak/Default API, can be overwritten by Application
+//--------------------------------------------------------------------
+
+TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
+#if CFG_TUSB_OS != OPT_OS_NONE
+  osal_task_delay(ms);
+#else
+  // delay using millis() (if implemented) and/or frame number if possible
+  const uint32_t time_ms = tusb_time_millis_api();
+  while ((tusb_time_millis_api() - time_ms) < ms) {}
+#endif
+}
 
 //--------------------------------------------------------------------+
 // Public API
 //--------------------------------------------------------------------+
-
 bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   //  backward compatible called with tusb_init(void)
   #if defined(TUD_OPT_RHPORT) || defined(TUH_OPT_RHPORT)
@@ -57,8 +68,8 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
       .role = TUSB_ROLE_DEVICE,
       .speed = TUD_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
     };
-    TU_ASSERT ( tud_rhport_init(rhport, &dev_init) );
-    _rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
+    TU_ASSERT ( tud_rhport_init(TUD_OPT_RHPORT, &dev_init) );
+    _tusb_rhport_role[TUD_OPT_RHPORT] = TUSB_ROLE_DEVICE;
     #endif
 
     #if CFG_TUH_ENABLED && defined(TUH_OPT_RHPORT)
@@ -68,7 +79,7 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
       .speed = TUH_OPT_HIGH_SPEED ? TUSB_SPEED_HIGH : TUSB_SPEED_FULL
     };
     TU_ASSERT( tuh_rhport_init(TUH_OPT_RHPORT, &host_init) );
-    _rhport_role[TUH_OPT_RHPORT] = TUSB_ROLE_HOST;
+    _tusb_rhport_role[TUH_OPT_RHPORT] = TUSB_ROLE_HOST;
     #endif
 
     return true;
@@ -77,6 +88,7 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // new API with explicit rhport and role
   TU_ASSERT(rhport < TUP_USBIP_CONTROLLER_NUM && rh_init->role != TUSB_ROLE_INVALID);
+  _tusb_rhport_role[rhport] = rh_init->role;
 
   #if CFG_TUD_ENABLED
   if (rh_init->role == TUSB_ROLE_DEVICE) {
@@ -90,7 +102,6 @@ bool tusb_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
   #endif
 
-  _rhport_role[rhport] = rh_init->role;
   return true;
 }
 
@@ -112,14 +123,14 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
   TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM,);
 
   #if CFG_TUD_ENABLED
-  if (_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
+  if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
     (void) in_isr;
     dcd_int_handler(rhport);
   }
   #endif
 
   #if CFG_TUH_ENABLED
-  if (_rhport_role[rhport] == TUSB_ROLE_HOST) {
+  if (_tusb_rhport_role[rhport] == TUSB_ROLE_HOST) {
     hcd_int_handler(rhport, in_isr);
   }
   #endif
@@ -131,7 +142,9 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
 
 uint8_t const* tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1) {
   while (desc + 1 < end) {
-    if (desc[1] == byte1) return desc;
+    if (desc[1] == byte1) {
+      return desc;
+    }
     desc += desc[DESC_OFFSET_LEN];
   }
   return NULL;
@@ -139,7 +152,9 @@ uint8_t const* tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byt
 
 uint8_t const* tu_desc_find2(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2) {
   while (desc + 2 < end) {
-    if (desc[1] == byte1 && desc[2] == byte2) return desc;
+    if (desc[1] == byte1 && desc[2] == byte2) {
+      return desc;
+    }
     desc += desc[DESC_OFFSET_LEN];
   }
   return NULL;
@@ -147,7 +162,9 @@ uint8_t const* tu_desc_find2(uint8_t const* desc, uint8_t const* end, uint8_t by
 
 uint8_t const* tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2, uint8_t byte3) {
   while (desc + 3 < end) {
-    if (desc[1] == byte1 && desc[2] == byte2 && desc[3] == byte3) return desc;
+    if (desc[1] == byte1 && desc[2] == byte2 && desc[3] == byte3) {
+      return desc;
+    }
     desc += desc[DESC_OFFSET_LEN];
   }
   return NULL;
@@ -188,7 +205,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   return ret;
 }
 
-bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed) {
+bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed, bool is_host) {
   uint16_t const max_packet_size = tu_edpt_packet_size(desc_ep);
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
 
@@ -204,8 +221,17 @@ bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed) {
         // Bulk highspeed must be EXACTLY 512
         TU_ASSERT(max_packet_size == 512);
       } else {
-        // TODO Bulk fullspeed can only be 8, 16, 32, 64
-        TU_ASSERT(max_packet_size <= 64);
+        // Bulk fullspeed can only be 8, 16, 32, 64
+        if (is_host && max_packet_size == 512) {
+          // HACK: while in host mode, some device incorrectly always report 512 regardless of link speed
+          // overwrite descriptor to force 64
+          TU_LOG1("  WARN: EP max packet size is 512 in fullspeed, force to 64\r\n");
+          tusb_desc_endpoint_t* hacked_ep = (tusb_desc_endpoint_t*) (uintptr_t) desc_ep;
+          hacked_ep->wMaxPacketSize = tu_htole16(64);
+        } else {
+          TU_ASSERT(max_packet_size == 8  || max_packet_size == 16 ||
+                    max_packet_size == 32 || max_packet_size == 64);
+        }
       }
       break;
 
@@ -247,6 +273,10 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
     p_desc = tu_desc_next(p_desc);
 
     while (len < max_len) {
+      if (tu_desc_len(p_desc) == 0) {
+        // Escape infinite loop
+        break;
+      }
       // return on IAD regardless of itf count
       if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
         return len;

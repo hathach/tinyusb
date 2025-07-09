@@ -90,28 +90,21 @@ typedef struct {
   };
 } hcd_event_t;
 
-typedef struct {
-  uint8_t rhport;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
-} hcd_devtree_info_t;
-
 //--------------------------------------------------------------------+
 // Memory API
 //--------------------------------------------------------------------+
 
 // clean/flush data cache: write cache -> memory.
 // Required before an DMA TX transfer to make sure data is in memory
-bool hcd_dcache_clean(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
+bool hcd_dcache_clean(void const* addr, uint32_t data_size);
 
 // invalidate data cache: mark cache as invalid, next read will read from memory
 // Required BOTH before and after an DMA RX transfer
-bool hcd_dcache_invalidate(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
+bool hcd_dcache_invalidate(void const* addr, uint32_t data_size);
 
 // clean and invalidate data cache
 // Required before an DMA transfer where memory is both read/write by DMA
-bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
+bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size);
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -163,7 +156,11 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 //--------------------------------------------------------------------+
 
 // Open an endpoint
+// return true if successfully opened or endpoint is currently opened
 bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * ep_desc);
+
+// Close an endpoint
+bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr);
 
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
@@ -181,13 +178,6 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 //--------------------------------------------------------------------+
 // USBH implemented API
 //--------------------------------------------------------------------+
-
-// Get device tree information of a device
-// USB device tree can be complicated and manged by USBH, this help HCD to retrieve
-// needed topology info to carry out its work
-extern void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_info);
-
-//------------- Event API -------------//
 
 // Called by HCD to notify stack
 extern void hcd_event_handler(hcd_event_t const* event, bool in_isr);
@@ -235,4 +225,4 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred
  }
 #endif
 
-#endif /* _TUSB_HCD_H_ */
+#endif

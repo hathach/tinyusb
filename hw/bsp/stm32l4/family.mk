@@ -1,5 +1,4 @@
 ST_FAMILY = l4
-DEPS_SUBMODULES += lib/CMSIS_5 hw/mcu/st/cmsis_device_$(ST_FAMILY) hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
@@ -32,6 +31,8 @@ LDFLAGS_GCC += \
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
+	src/portable/synopsys/dwc2/hcd_dwc2.c \
+	src/portable/synopsys/dwc2/dwc2_common.c \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \

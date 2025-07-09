@@ -2,11 +2,13 @@
 # Common make definition for all examples
 # ---------------------------------------
 
+# upper helper function
+to_upper = $(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,$(subst x,X,$(subst y,Y,$(subst z,Z,$(subst -,_,$(1))))))))))))))))))))))))))))
+
 #-------------------------------------------------------------
 # Toolchain
 # Can be changed via TOOLCHAIN=gcc|iar or CC=arm-none-eabi-gcc|iccarm|clang
 #-------------------------------------------------------------
-
 ifneq (,$(findstring clang,$(CC)))
   TOOLCHAIN = clang
 else ifneq (,$(findstring iccarm,$(CC)))
@@ -65,7 +67,9 @@ BUILD := _build/$(BOARD)
 PROJECT := $(notdir $(CURDIR))
 BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
-#-------------- Select the board to build for. ------------
+#-------------------------------------------------------------
+# Board / Family
+#-------------------------------------------------------------
 
 # Board without family
 ifneq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/board.mk),)
@@ -93,7 +97,9 @@ else
   SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 endif
 
-#-------------- Source files and compiler flags --------------
+#-------------------------------------------------------------
+# Source files and compiler flags
+#-------------------------------------------------------------
 # tinyusb makefile
 include $(TOP)/src/tinyusb.mk
 SRC_C += $(TINYUSB_SRC_C)
@@ -106,7 +112,7 @@ INC += \
   $(TOP)/$(FAMILY_PATH) \
   $(TOP)/src \
 
-BOARD_UPPER = $(subst a,A,$(subst b,B,$(subst c,C,$(subst d,D,$(subst e,E,$(subst f,F,$(subst g,G,$(subst h,H,$(subst i,I,$(subst j,J,$(subst k,K,$(subst l,L,$(subst m,M,$(subst n,N,$(subst o,O,$(subst p,P,$(subst q,Q,$(subst r,R,$(subst s,S,$(subst t,T,$(subst u,U,$(subst v,V,$(subst w,W,$(subst x,X,$(subst y,Y,$(subst z,Z,$(subst -,_,$(BOARD))))))))))))))))))))))))))))
+BOARD_UPPER = $(call to_upper,$(BOARD))
 CFLAGS += -DBOARD_$(BOARD_UPPER)
 
 ifdef CFLAGS_CLI
@@ -117,27 +123,24 @@ endif
 ifeq (${MAX3421_HOST},1)
   SRC_C += src/portable/analog/max3421/hcd_max3421.c
   CFLAGS += -DCFG_TUH_MAX3421=1
-  CMAKE_DEFSYM +=	-DMAX3421_HOST=1
 endif
 
 # Log level is mapped to TUSB DEBUG option
 ifneq ($(LOG),)
-  CMAKE_DEFSYM +=	-DLOG=$(LOG)
   CFLAGS += -DCFG_TUSB_DEBUG=$(LOG)
 endif
 
 # Logger: default is uart, can be set to rtt or swo
-ifneq ($(LOGGER),)
-  CMAKE_DEFSYM +=	-DLOGGER=$(LOGGER)
-endif
-
 ifeq ($(LOGGER),rtt)
-  CFLAGS += -DLOGGER_RTT -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
-  RTT_SRC = lib/SEGGER_RTT
-  INC   += $(TOP)/$(RTT_SRC)/RTT
-  SRC_C += $(RTT_SRC)/RTT/SEGGER_RTT.c
-else ifeq ($(LOGGER),swo)
+  CFLAGS += -DLOGGER_RTT
+  #CFLAGS += -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
+  INC   += $(TOP)/$(lib/SEGGER_RTT)/RTT
+  SRC_C += $(lib/SEGGER_RTT)/RTT/SEGGER_RTT.c
+endif
+ifeq ($(LOGGER),swo)
   CFLAGS += -DLOGGER_SWO
+else
+  CFLAGS += -DLOGGER_UART
 endif
 
 # CPU specific flags
@@ -148,7 +151,37 @@ endif
 # toolchain specific
 include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN).mk
 
-# Handy check parameter function
+#---------------------- FreeRTOS -----------------------
+FREERTOS_SRC = lib/FreeRTOS-Kernel
+FREERTOS_PORTABLE_PATH = $(FREERTOS_SRC)/portable/$(if $(findstring iar,$(TOOLCHAIN)),IAR,GCC)
+
+ifeq ($(RTOS),freertos)
+	SRC_C += \
+		$(FREERTOS_SRC)/list.c \
+		$(FREERTOS_SRC)/queue.c \
+		$(FREERTOS_SRC)/tasks.c \
+		$(FREERTOS_SRC)/timers.c \
+		$(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.c))
+
+	SRC_S += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FREERTOS_PORTABLE_SRC)/*.s))
+	INC += \
+		$(TOP)/hw/bsp/$(FAMILY)/FreeRTOSConfig \
+		$(TOP)/$(FREERTOS_SRC)/include \
+		$(TOP)/$(FREERTOS_PORTABLE_SRC)
+
+	CFLAGS += -DCFG_TUSB_OS=OPT_OS_FREERTOS
+
+	# Suppress FreeRTOSConfig.h warnings
+	CFLAGS_GCC += -Wno-error=redundant-decls
+
+	# Suppress FreeRTOS source warnings
+	CFLAGS_GCC += -Wno-error=cast-qual
+
+	# FreeRTOS (lto + Os) linker issue
+	LDFLAGS_GCC += -Wl,--undefined=vTaskSwitchContext
+endif
+
+#---------------- Helper ----------------
 check_defined = \
     $(strip $(foreach 1,$1, \
     $(call __check_defined,$1,$(strip $(value 2)))))

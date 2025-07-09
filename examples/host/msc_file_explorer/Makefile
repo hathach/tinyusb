@@ -22,6 +22,6 @@ SRC_C += \
   $(FATFS_PATH)/ffunicode.c \
 
 # suppress warning caused by fatfs
-CFLAGS += -Wno-error=cast-qual
+CFLAGS_GCC += -Wno-error=cast-qual
 
 include ../../build_system/make/rules.mk

@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: XMC4700 relax kit
+   url: https://www.infineon.com/cms/en/product/evaluation-boards/kit_xmc47_relax_v1/
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

@@ -31,6 +31,8 @@ CFLAGS += -Wno-error=unused-parameter
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
+	src/portable/synopsys/dwc2/hcd_dwc2.c \
+	src/portable/synopsys/dwc2/dwc2_common.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_gpio.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_rcu.c \
 	$(GD32VF103_SDK_DRIVER)/gd32vf103_usart.c \

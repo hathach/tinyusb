@@ -46,7 +46,6 @@
 /*------------------------------------------------------------------*/
 /* Low level controller
  *------------------------------------------------------------------*/
-
 // Init these in dcd_init
 static uint8_t* next_buffer_ptr;
 
@@ -66,58 +65,31 @@ TU_ATTR_ALWAYS_INLINE static inline struct hw_endpoint* hw_endpoint_get_by_addr(
   return hw_endpoint_get_by_num(num, dir);
 }
 
-static void _hw_endpoint_alloc(struct hw_endpoint* ep, uint8_t transfer_type) {
-  // size must be multiple of 64
-  uint size = tu_div_ceil(ep->wMaxPacketSize, 64) * 64u;
+// Allocate from the USB buffer space (max 3840 bytes)
+static void hw_endpoint_alloc(struct hw_endpoint* ep, size_t size) {
+  // round up size to multiple of 64
+  size = tu_round_up(ep->wMaxPacketSize, 64);
 
   // double buffered Bulk endpoint
-  if (transfer_type == TUSB_XFER_BULK) {
+  if (ep->transfer_type == TUSB_XFER_BULK) {
     size *= 2u;
   }
 
+  // assign buffer
   ep->hw_data_buf = next_buffer_ptr;
   next_buffer_ptr += size;
 
-  assert(((uintptr_t) next_buffer_ptr & 0b111111u) == 0);
-  uint dpram_offset = hw_data_offset(ep->hw_data_buf);
-  hard_assert(hw_data_offset(next_buffer_ptr) <= USB_DPRAM_MAX);
+  hard_assert(next_buffer_ptr < usb_dpram->epx_data + sizeof(usb_dpram->epx_data));
+  pico_info("  Allocated %d bytes (0x%p)\r\n", size,  ep->hw_data_buf);
+}
 
-  pico_info("  Allocated %d bytes at offset 0x%x (0x%p)\r\n", size, dpram_offset, ep->hw_data_buf);
-
-  // Fill in endpoint control register with buffer offset
-  uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint) transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
-
+// Enable endpoint
+TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_enable(struct hw_endpoint* ep) {
+  uint32_t const reg = EP_CTRL_ENABLE_BITS | ((uint) ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->hw_data_buf);
   *ep->endpoint_control = reg;
 }
 
-static void _hw_endpoint_close(struct hw_endpoint* ep) {
-  // Clear hardware registers and then zero the struct
-  // Clears endpoint enable
-  *ep->endpoint_control = 0;
-  // Clears buffer available, etc
-  *ep->buffer_control = 0;
-  // Clear any endpoint state
-  memset(ep, 0, sizeof(struct hw_endpoint));
-
-  // Reclaim buffer space if all endpoints are closed
-  bool reclaim_buffers = true;
-  for (uint8_t i = 1; i < USB_MAX_ENDPOINTS; i++) {
-    if (hw_endpoint_get_by_num(i, TUSB_DIR_OUT)->hw_data_buf != NULL ||
-        hw_endpoint_get_by_num(i, TUSB_DIR_IN)->hw_data_buf != NULL) {
-      reclaim_buffers = false;
-      break;
-    }
-  }
-  if (reclaim_buffers) {
-    next_buffer_ptr = &usb_dpram->epx_data[0];
-  }
-}
-
-static void hw_endpoint_close(uint8_t ep_addr) {
-  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
-  _hw_endpoint_close(ep);
-}
-
+// main processing for dcd_edpt_iso_activate
 static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
   struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
 
@@ -156,15 +128,50 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
     } else {
       ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].out;
     }
+  }
+}
 
-    // alloc a buffer and fill in endpoint control register
-    _hw_endpoint_alloc(ep, transfer_type);
+// Init, allocate buffer and enable endpoint
+static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
+  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
+  hw_endpoint_init(ep_addr, wMaxPacketSize, transfer_type);
+  const uint8_t num = tu_edpt_number(ep_addr);
+  if (num != 0) {
+    // EP0 is already enabled
+    hw_endpoint_alloc(ep, ep->wMaxPacketSize);
+    hw_endpoint_enable(ep);
   }
 }
 
 static void hw_endpoint_xfer(uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
   struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
   hw_endpoint_xfer_start(ep, buffer, total_bytes);
+}
+
+static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
+  // Abort any pending transfer
+  // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
+  // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
+  const uint8_t dir = tu_edpt_dir(ep->ep_addr);
+  const uint8_t epnum = tu_edpt_number(ep->ep_addr);
+  const uint32_t abort_mask = TU_BIT((epnum << 1) | (dir ? 0 : 1));
+  if (rp2040_chip_version() >= 2) {
+    usb_hw_set->abort = abort_mask;
+    while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
+  }
+
+  uint32_t buf_ctrl = USB_BUF_CTRL_SEL; // reset to buffer 0
+  if (ep->next_pid) {
+    buf_ctrl |= USB_BUF_CTRL_DATA1_PID;
+  }
+
+  _hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);
+  hw_endpoint_reset_transfer(ep);
+
+  if (rp2040_chip_version() >= 2) {
+    usb_hw_clear->abort_done = abort_mask;
+    usb_hw_clear->abort = abort_mask;
+  }
 }
 
 static void __tusb_irq_path_func(hw_handle_buff_status)(void) {
@@ -197,25 +204,10 @@ TU_ATTR_ALWAYS_INLINE static inline void reset_ep0(void) {
   // setup transfer. Also clear a stall in case
   for (uint8_t dir = 0; dir < 2; dir++) {
     struct hw_endpoint* ep = hw_endpoint_get_by_num(0, dir);
-    if (ep->active) {
-      // Abort any pending transfer from a prior control transfer per USB specs
-      // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
-      // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
-      uint32_t const abort_mask = (dir ? USB_EP_ABORT_EP0_IN_BITS : USB_EP_ABORT_EP0_OUT_BITS);
-      if (rp2040_chip_version() >= 2) {
-        usb_hw_set->abort = abort_mask;
-        while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
-      }
-
-      _hw_endpoint_buffer_control_set_value32(ep, USB_BUF_CTRL_DATA1_PID | USB_BUF_CTRL_SEL);
-      hw_endpoint_reset_transfer(ep);
-
-      if (rp2040_chip_version() >= 2) {
-        usb_hw_clear->abort_done = abort_mask;
-        usb_hw_clear->abort = abort_mask;
-      }
-    }
     ep->next_pid = 1u;
+    if (ep->active) {
+      hw_endpoint_abort_xfer(ep); // Abort any pending transfer per USB specs
+    }
   }
 }
 
@@ -387,8 +379,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // Init control endpoints
   tu_memclr(hw_endpoints[0], 2 * sizeof(hw_endpoint_t));
-  hw_endpoint_init(0x0, 64, TUSB_XFER_CONTROL);
-  hw_endpoint_init(0x80, 64, TUSB_XFER_CONTROL);
+  hw_endpoint_open(0x0, 64, TUSB_XFER_CONTROL);
+  hw_endpoint_open(0x80, 64, TUSB_XFER_CONTROL);
 
   // Init non-control endpoints
   reset_non_control_endpoints();
@@ -493,9 +485,36 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* req
   }
 }
 
-bool dcd_edpt_open(__unused uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
-  assert(rhport == 0);
-  hw_endpoint_init(desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt), desc_edpt->bmAttributes.xfer);
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
+  (void) rhport;
+  const uint8_t xfer_type = desc_edpt->bmAttributes.xfer;
+  TU_VERIFY(xfer_type != TUSB_XFER_ISOCHRONOUS);
+  hw_endpoint_open(desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt), xfer_type);
+  return true;
+}
+
+// New API: Allocate packet buffer used by ISO endpoints
+// Some MCU need manual packet buffer allocation, we allocate the largest size to avoid clustering
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void) rhport;
+  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_addr);
+  hw_endpoint_init(ep_addr, largest_packet_size, TUSB_XFER_ISOCHRONOUS);
+  hw_endpoint_alloc(ep, largest_packet_size);
+  return true;
+}
+
+// New API: Configure and enable an ISO endpoint according to descriptor
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc) {
+  (void) rhport;
+  struct hw_endpoint* ep = hw_endpoint_get_by_addr(ep_desc->bEndpointAddress);
+  TU_ASSERT(ep->hw_data_buf != NULL); // must be inited and allocated previously
+
+  if (ep->active) {
+    hw_endpoint_abort_xfer(ep); // abort any pending transfer
+  }
+
+  ep->wMaxPacketSize = ep_desc->wMaxPacketSize;
+  hw_endpoint_enable(ep);
   return true;
 }
 
@@ -538,12 +557,6 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     ep->next_pid = 0;
     _hw_endpoint_buffer_control_clear_mask32(ep, USB_BUF_CTRL_STALL);
   }
-}
-
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  (void) rhport;
-  pico_trace("dcd_edpt_close %02x\r\n", ep_addr);
-  hw_endpoint_close(ep_addr);
 }
 
 void __tusb_irq_path_func(dcd_int_handler)(uint8_t rhport) {

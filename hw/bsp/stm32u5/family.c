@@ -25,6 +25,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: STMicroelectronics
+*/
+
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
 #pragma GCC diagnostic push

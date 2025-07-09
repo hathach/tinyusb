@@ -37,8 +37,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef struct
-{
+typedef struct {
   uint8_t itf_num;
   uint8_t ep_ev;
   uint8_t ep_acl_in;
@@ -49,17 +48,18 @@ typedef struct
 
   // Previous amount of bytes sent when issuing ZLP
   uint32_t prev_xferred_bytes;
-
-  // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN bt_hci_cmd_t hci_cmd;
-  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_BTH_DATA_EPSIZE];
-
 } btd_interface_t;
+
+typedef struct {
+  TUD_EPBUF_DEF(epout_buf, CFG_TUD_BTH_DATA_EPSIZE);
+  TUD_EPBUF_TYPE_DEF(bt_hci_cmd_t, hci_cmd);
+} btd_epbuf_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUD_MEM_SECTION btd_interface_t _btd_itf;
+static btd_interface_t _btd_itf;
+CFG_TUD_MEM_SECTION static btd_epbuf_t _btd_epbuf;
 
 static bool bt_tx_data(uint8_t ep, void *data, uint16_t len)
 {
@@ -152,7 +152,7 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
   itf_desc = (tusb_desc_interface_t const *)tu_desc_next(tu_desc_next(desc_ep));
 
   // Prepare for incoming data from host
-  TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_itf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE), 0);
+  TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE), 0);
 
   drv_len = hci_itf_size;
 
@@ -243,14 +243,16 @@ bool btd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t c
     }
     else return false;
 
-    return tud_control_xfer(rhport, request, &_btd_itf.hci_cmd, sizeof(_btd_itf.hci_cmd));
+    return tud_control_xfer(rhport, request, &_btd_epbuf.hci_cmd, sizeof(bt_hci_cmd_t));
   }
   else if ( stage == CONTROL_STAGE_DATA )
   {
     // Handle class request only
     TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-    if (tud_bt_hci_cmd_cb) tud_bt_hci_cmd_cb(&_btd_itf.hci_cmd, tu_min16(request->wLength, sizeof(_btd_itf.hci_cmd)));
+    if (tud_bt_hci_cmd_cb) {
+      tud_bt_hci_cmd_cb(&_btd_epbuf.hci_cmd, tu_min16(request->wLength, sizeof(bt_hci_cmd_t)));
+      }
   }
 
   return true;
@@ -261,10 +263,10 @@ bool btd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
   // received new data from host
   if (ep_addr == _btd_itf.ep_acl_out)
   {
-    if (tud_bt_acl_data_received_cb) tud_bt_acl_data_received_cb(_btd_itf.epout_buf, xferred_bytes);
+    if (tud_bt_acl_data_received_cb) tud_bt_acl_data_received_cb(_btd_epbuf.epout_buf, xferred_bytes);
 
     // prepare for next data
-    TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_itf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE));
+    TU_ASSERT(usbd_edpt_xfer(rhport, _btd_itf.ep_acl_out, _btd_epbuf.epout_buf, CFG_TUD_BTH_DATA_EPSIZE));
   }
   else if (ep_addr == _btd_itf.ep_ev)
   {

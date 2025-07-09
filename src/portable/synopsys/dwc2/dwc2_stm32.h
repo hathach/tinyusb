@@ -69,6 +69,25 @@ extern "C" {
     #define OTG_FS_IRQn             OTG_HS_IRQn
   #endif
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7RS
+  #include "stm32h7rsxx.h"
+  #define EP_MAX_FS       6
+  #define EP_FIFO_SIZE_FS 1280
+
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32N6
+  #include "stm32n6xx.h"
+  #define EP_MAX_FS       9
+  #define EP_FIFO_SIZE_FS 4096
+
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
+
+  #define USB_OTG_HS_PERIPH_BASE    USB1_OTG_HS_BASE
+  #define OTG_HS_IRQn               USB1_OTG_HS_IRQn
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
   #define EP_MAX_FS       6
@@ -124,13 +143,19 @@ static const dwc2_controller_t _dwc2_controller[] = {
 // SystemCoreClock is already included by family header
 // extern uint32_t SystemCoreClock;
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_enable(uint8_t rhport) {
-  NVIC_EnableIRQ((IRQn_Type) _dwc2_controller[rhport].irqnum);
+TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_t role, bool enabled) {
+  (void) role;
+  const IRQn_Type irqn = (IRQn_Type) _dwc2_controller[rhport].irqnum;
+  if (enabled) {
+    NVIC_EnableIRQ(irqn);
+  } else {
+    NVIC_DisableIRQ(irqn);
+  }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void dwc2_dcd_int_disable(uint8_t rhport) {
-  NVIC_DisableIRQ((IRQn_Type) _dwc2_controller[rhport].irqnum);
-}
+#define dwc2_dcd_int_enable(_rhport)  dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, true)
+#define dwc2_dcd_int_disable(_rhport) dwc2_int_set(_rhport, TUSB_ROLE_DEVICE, false)
+
 
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   // try to delay for 1 ms
@@ -253,6 +278,77 @@ static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
     dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_TRDT_Msk) | (turnaround << GUSBCFG_TRDT_Pos);
   }
 }
+
+//------------- DCache -------------//
+#if CFG_TUD_MEM_DCACHE_ENABLE || CFG_TUH_MEM_DCACHE_ENABLE
+
+typedef struct {
+  uintptr_t start;
+  uintptr_t end;
+} mem_region_t;
+
+// Can be used to define additional uncached regions
+#ifndef CFG_DWC2_MEM_UNCACHED_REGIONS
+#define CFG_DWC2_MEM_UNCACHED_REGIONS
+#endif
+
+static mem_region_t uncached_regions[] = {
+  // DTCM (although USB DMA can't transfer to/from DTCM)
+#if CFG_TUSB_MCU == OPT_MCU_STM32H7
+  {.start = 0x20000000, .end = 0x2001FFFF},
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7RS
+  // DTCM (although USB DMA can't transfer to/from DTCM)
+  {.start = 0x20000000, .end = 0x2002FFFF},
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F7
+    // DTCM
+  {.start = 0x20000000, .end = 0x2000FFFF},
+#else
+#error "Cache maintenance is not supported yet"
+#endif
+  CFG_DWC2_MEM_UNCACHED_REGIONS
+};
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_t size) {
+  if (size & (CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT-1)) {
+    size = (size & ~(CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT-1)) + CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT;
+  }
+  return size;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool is_cache_mem(uintptr_t addr) {
+  for (unsigned int i = 0; i < TU_ARRAY_SIZE(uncached_regions); i++) {
+    if (uncached_regions[i].start <= addr && addr <= uncached_regions[i].end) { return false; }
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_InvalidateDCache_by_Addr((void*) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanInvalidateDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+#endif
 
 #ifdef __cplusplus
 }

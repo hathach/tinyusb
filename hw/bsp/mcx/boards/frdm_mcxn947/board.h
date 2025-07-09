@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: Freedom MCXN947
+   url: https://www.nxp.com/design/design-center/development-boards-and-designs/FRDM-MCXN947
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
@@ -44,17 +49,22 @@
 #define BUTTON_STATE_ACTIVE   0
 
 // UART
-#define UART_DEV              LPUART4
+#define UART_DEV                   LPUART4
+#define LP_FLEXCOMM_INST           4
+
+#include "fsl_lpflexcomm.h"
 
 static inline void board_uart_init_clock(void) {
+
   /* attach FRO 12M to FLEXCOMM4 */
+
+  LP_FLEXCOMM_Init(LP_FLEXCOMM_INST, LP_FLEXCOMM_PERIPH_LPUART);
+
   CLOCK_SetClkDiv(kCLOCK_DivFlexcom4Clk, 1u);
   CLOCK_AttachClk(kFRO12M_to_FLEXCOMM4);
   RESET_ClearPeripheralReset(kFC4_RST_SHIFT_RSTn);
-}
 
-//#define UART_RX_PINMUX        0, 24, IOCON_PIO_DIG_FUNC1_EN
-//#define UART_TX_PINMUX        0, 25, IOCON_PIO_DIG_FUNC1_EN
+}
 
 // XTAL
 #define XTAL0_CLK_HZ          (24 * 1000 * 1000U)

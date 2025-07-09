@@ -1,8 +1,6 @@
 UF2_FAMILY_ID = 0x00
 SDK_DIR = hw/mcu/infineon/mtb-xmclib-cat3
 
-DEPS_SUBMODULES += ${SDK_DIR}
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
 
@@ -16,6 +14,8 @@ CFLAGS += \
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
+	src/portable/synopsys/dwc2/hcd_dwc2.c \
+	src/portable/synopsys/dwc2/dwc2_common.c \
 	${SDK_DIR}/CMSIS/Infineon/COMPONENT_${MCU_VARIANT}/Source/system_${MCU_VARIANT}.c \
 	${SDK_DIR}/Newlib/syscalls.c \
 	${SDK_DIR}/XMCLib/src/xmc_gpio.c \

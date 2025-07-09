@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: SensorWatch
+   url: https://github.com/joeycastillo/Sensor-Watch
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

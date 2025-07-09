@@ -32,8 +32,8 @@
 #include "tusb_fifo.h"
 #include "tusb.h"
 #include "usbd.h"
-TEST_FILE("usbd_control.c")
-TEST_FILE("msc_device.c")
+TEST_SOURCE_FILE("usbd_control.c")
+TEST_SOURCE_FILE("msc_device.c")
 
 // Mock File
 #include "mock_dcd.h"
@@ -41,6 +41,10 @@ TEST_FILE("msc_device.c")
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
+
+uint32_t tusb_time_millis_api(void) {
+  return 0;
+}
 
 enum
 {

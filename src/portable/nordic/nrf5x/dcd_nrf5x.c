@@ -39,8 +39,8 @@
 #endif
 
 #include "nrf.h"
-#include "nrf_clock.h"
-#include "nrfx_usbd_errata.h"
+#include "nrfx_clock.h"
+#include "nrf_erratas.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -530,7 +530,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 /*------------------------------------------------------------------*/
 /* Interrupt Handler
  *------------------------------------------------------------------*/
-void bus_reset(void) {
+static void bus_reset(void) {
   // 6.35.6 USB controller automatically disabled all endpoints (except control)
   NRF_USBD->EPOUTEN = 1UL;
   NRF_USBD->EPINEN = 1UL;
@@ -901,6 +901,7 @@ static void hfclk_disable(void) {
 // Therefore this function must be called to handle USB power event by
 // - nrfx_power_usbevt_init() : if Softdevice is not used or enabled
 // - SoftDevice SOC event : if SD is used and enabled
+void tusb_hal_nrf_power_event(uint32_t event);
 void tusb_hal_nrf_power_event(uint32_t event) {
   // Value is chosen to be as same as NRFX_POWER_USB_EVT_* in nrfx_power.h
   enum {
@@ -925,7 +926,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
 
 #ifdef NRF52_SERIES // NRF53 does not need this errata
         // ERRATA 171, 187, 166
-        if (nrfx_usbd_errata_187()) {
+        if (nrf52_errata_187()) {
           // CRITICAL_REGION_ENTER();
           if (*((volatile uint32_t*) (0x4006EC00)) == 0x00000000) {
             *((volatile uint32_t*) (0x4006EC00)) = 0x00009375;
@@ -937,7 +938,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
           // CRITICAL_REGION_EXIT();
         }
 
-        if (nrfx_usbd_errata_171()) {
+        if (nrf52_errata_171()) {
           // CRITICAL_REGION_ENTER();
           if (*((volatile uint32_t*) (0x4006EC00)) == 0x00000000) {
             *((volatile uint32_t*) (0x4006EC00)) = 0x00009375;
@@ -973,7 +974,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
       __DSB(); // for sync
 
 #ifdef NRF52_SERIES
-      if (nrfx_usbd_errata_171()) {
+      if (nrf52_errata_171()) {
         // CRITICAL_REGION_ENTER();
         if (*((volatile uint32_t*) (0x4006EC00)) == 0x00000000) {
           *((volatile uint32_t*) (0x4006EC00)) = 0x00009375;
@@ -986,7 +987,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         // CRITICAL_REGION_EXIT();
       }
 
-      if (nrfx_usbd_errata_187()) {
+      if (nrf52_errata_187()) {
         // CRITICAL_REGION_ENTER();
         if (*((volatile uint32_t*) (0x4006EC00)) == 0x00000000) {
           *((volatile uint32_t*) (0x4006EC00)) = 0x00009375;
@@ -998,7 +999,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         // CRITICAL_REGION_EXIT();
       }
 
-      if (nrfx_usbd_errata_166()) {
+      if (nrf52_errata_166()) {
         *((volatile uint32_t*) (NRF_USBD_BASE + 0x800)) = 0x7E3;
         *((volatile uint32_t*) (NRF_USBD_BASE + 0x804)) = 0x40;
 
