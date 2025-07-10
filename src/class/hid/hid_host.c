@@ -444,7 +444,7 @@ bool hidh_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t
   hidh_epbuf_t* epbuf = get_hid_epbuf(idx);
 
   if (dir == TUSB_DIR_IN) {
-    TU_LOG_DRV("  Get Report callback (%u, %u)\r\n", daddr, idx);
+    TU_LOG_DRV("  [idx=%u] Get Report callback\r\n", idx);
     TU_LOG3_MEM(epbuf->epin, xferred_bytes, 2);
     tuh_hid_report_received_cb(daddr, idx, epbuf->epin, (uint16_t) xferred_bytes);
   } else {
@@ -461,7 +461,9 @@ void hidh_close(uint8_t daddr) {
     hidh_interface_t* p_hid = &_hidh_itf[i];
     if (p_hid->daddr == daddr) {
       TU_LOG_DRV("  HIDh close addr = %u index = %u\r\n", daddr, i);
-      if (tuh_hid_umount_cb) tuh_hid_umount_cb(daddr, i);
+      if (tuh_hid_umount_cb) {
+        tuh_hid_umount_cb(daddr, i);
+      }
       tu_memclr(p_hid, sizeof(hidh_interface_t));
     }
   }
@@ -660,9 +662,12 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
 
     uint8_t const tag = header.tag;
     uint8_t const type = header.type;
-    uint8_t const size = header.size;
+    uint8_t size = header.size;
+    if (size == 3) {
+      size = 4; // HID 1.11 6.2.2.2 3 is 4 bytes
+    }
 
-    uint8_t const data8 = desc_report[0];
+    uint8_t const data8 = (size > 0) ? desc_report[0] : 0;
 
     TU_LOG(3, "tag = %d, type = %d, size = %d, data = ", tag, type, size);
     for (uint32_t i = 0; i < size; i++) {

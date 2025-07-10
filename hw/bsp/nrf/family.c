@@ -44,10 +44,10 @@
 
 #include "nrfx.h"
 #include "hal/nrf_gpio.h"
-#include "drivers/include/nrfx_gpiote.h"
-#include "drivers/include/nrfx_power.h"
-#include "drivers/include/nrfx_uarte.h"
-#include "drivers/include/nrfx_spim.h"
+#include "nrfx_gpiote.h"
+#include "nrfx_power.h"
+#include "nrfx_uarte.h"
+#include "nrfx_spim.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -137,8 +137,20 @@ void board_init(void) {
   // Button
   nrf_gpio_cfg_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP);
 
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_ZEPHYR
+  #ifdef CONFIG_HAS_HW_NRF_USBREG
+  // IRQ_CONNECT(USBREGULATOR_IRQn, DT_IRQ(DT_INST(0, nordic_nrf_clock), priority), nrfx_isr, nrfx_usbreg_irq_handler, 0);
+  // irq_enable(USBREGULATOR_IRQn);
+  #endif
+
+  /* USB device controller access from devicetree */
+  #define DT_DRV_COMPAT nordic_nrf_usbd
+  IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), nrfx_isr, USBD_IRQHandler, 0);
+  irq_enable(DT_INST_IRQN(0));
+#endif
 
   // UART
   #if NRFX_VER <= 2
@@ -171,7 +183,7 @@ void board_init(void) {
   };
   #endif
 
-  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
+  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL);
 
   //------------- USB -------------//
 #if CFG_TUD_ENABLED
@@ -215,8 +227,12 @@ void board_init(void) {
 #endif
   }
 
-  if ( usb_reg & VBUSDETECT_Msk ) tusb_hal_nrf_power_event(USB_EVT_DETECTED);
-  if ( usb_reg & OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(USB_EVT_READY);
+  if ( usb_reg & VBUSDETECT_Msk ) {
+    tusb_hal_nrf_power_event(USB_EVT_DETECTED);
+  }
+  if ( usb_reg & OUTPUTRDY_Msk  ) {
+    tusb_hal_nrf_power_event(USB_EVT_READY);
+  }
 #endif
 
 #if CFG_TUH_ENABLED && defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421
@@ -228,7 +244,6 @@ void board_init(void) {
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-
 void board_led_write(bool state) {
   nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON));
 }

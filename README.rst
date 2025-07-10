@@ -15,10 +15,7 @@ TinyUSB Project
 .. figure:: docs/assets/logo.svg
    :alt: TinyUSB
 
-TinyUSB is an open-source cross-platform USB Host/Device stack for
-embedded system, designed to be memory-safe with no dynamic allocation
-and thread-safe with all interrupt events are deferred then handled in
-the non-ISR task function. Check out the online `documentation <https://docs.tinyusb.org/>`__ for more details.
+TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system, designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events are deferred then handled in the non-ISR task function. Check out the online `documentation <https://docs.tinyusb.org/>`__ for more details.
 
 .. figure:: docs/assets/stack.svg
    :width: 500px
@@ -32,7 +29,7 @@ the non-ISR task function. Check out the online `documentation <https://docs.tin
     ├── hw
     │   ├── bsp         # Supported boards source files
     │   └── mcu         # Low level mcu core & peripheral drivers
-    ├── lib             # Sources from 3rd party such as freeRTOS, fatfs ...
+    ├── lib             # Sources from 3rd party such as FreeRTOS, FatFs ...
     ├── src             # All sources files for TinyUSB stack itself.
     ├── test            # Tests: unit test, fuzzing, hardware test
     └── tools           # Files used internally
@@ -43,7 +40,7 @@ Getting started
 
 See the `online documentation <https://docs.tinyusb.org>`_ for information about using TinyUSB and how it is implemented.
 
-Check out `Getting Started`_ guide for adding TinyUSB to your project or building the examples. If you are new to TinyUSB, we recommend starting with the `cdc_msc` example. There is a handful of `Supported Boards`_ that should work out of the box.
+Check out `Getting Started`_ guide for adding TinyUSB to your project or building the examples. If you are new to TinyUSB, we recommend starting with the ``cdc_msc`` example. There is a handful of `Supported Boards`_ that should work out of the box.
 
 We use `GitHub Discussions <https://github.com/hathach/tinyusb/discussions>`_ as our forum. It is a great place to ask questions and advice from the community or to discuss your TinyUSB-based projects.
 
@@ -69,7 +66,7 @@ Supports multiple device configurations by dynamically changing USB descriptors,
 -  Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
 -  `WebUSB <https://github.com/WICG/webusb>`__ with vendor-specific class
 
-If you have a special requirement, `usbd_app_driver_get_cb()` can be used to write your own class driver without modifying the stack. Here is how the RPi team added their reset interface `raspberrypi/pico-sdk#197 <https://github.com/raspberrypi/pico-sdk/pull/197>`_
+If you have a special requirement, ``usbd_app_driver_get_cb()`` can be used to write your own class driver without modifying the stack. Here is how the RPi team added their reset interface `raspberrypi/pico-sdk#197 <https://github.com/raspberrypi/pico-sdk/pull/197>`_
 
 Host Stack
 ==========
@@ -77,10 +74,10 @@ Host Stack
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
 - Communication Device Class: CDC-ACM
-- Vendor serial over USB: FTDI, CP210x, CH34x
+- Vendor serial over USB: FTDI, CP210x, CH34x, PL2303
 - Hub with multiple-level support
 
-Similar to the Device Stack, if you have a special requirement, `usbh_app_driver_get_cb()` can be used to write your own class driver without modifying the stack.
+Similar to the Device Stack, if you have a special requirement, ``usbh_app_driver_get_cb()`` can be used to write your own class driver without modifying the stack.
 
 Power Delivery Stack
 ====================
@@ -170,7 +167,9 @@ Supported CPUs
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
 |              |         | 54, 55            | ✔      |      | ✔         | lpc_ip3511             |                   |
 |              +---------+-------------------+--------+------+-----------+------------------------+-------------------+
-|              | MCX     | N9, A15           | ✔      |      | ✔         | ci_fs, ci_hs           |                   |
+|              | MCX     | N9                | ✔      |      | ✔         | ci_fs, ci_hs           |                   |
+|              |         +-------------------+--------+------+-----------+------------------------+-------------------+
+|              |         | A15               | ✔      |      |           | ci_fs                  |                   |
 +--------------+---------+-------------------+--------+------+-----------+------------------------+-------------------+
 | Raspberry Pi | RP2040, RP2350              | ✔      | ✔    | ✖         | rp2040, pio_usb        |                   |
 +--------------+-----+-----------------------+--------+------+-----------+------------------------+-------------------+
@@ -184,15 +183,13 @@ Supported CPUs
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | Sony         | CXD56                       | ✔      | ✖    | ✔         | cxd56                  |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
-| ST STM32     | F0                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
+| ST STM32     | F0, F3, L0, L1, L5, WBx5    | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
 |              | F1 | 102, 103               | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
 |              |    | 105, 107               | ✔      | ✔    | ✖         | dwc2                   |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
-|              | F2, F4, F7, H7              | ✔      | ✔    | ✔         | dwc2                   |                   |
-|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | F3                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
+|              | F2, F4, F7, H7, H7RS        | ✔      | ✔    | ✔         | dwc2                   |                   |
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
 |              | C0, G0, H5                  | ✔      |      | ✖         | stm32_fsdev            |                   |
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
@@ -202,25 +199,19 @@ Supported CPUs
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
 |              | L4 | 4x2, 4x3               | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
-|              |    | 4x5, 4x6               | ✔      | ✔    | ✖         | dwc2                   |                   |
+|              |    | 4x5, 4x6, 4+           | ✔      | ✔    | ✖         | dwc2                   |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
-|              | L4+                         | ✔      | ✔    | ✖         | dwc2                   |                   |
-|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | L5                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
+|              | N6                          | ✔      | ✔    | ✔         | dwc2                   |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
 |              | U5 | 535, 545               | ✔      |      | ✖         | stm32_fsdev            |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
 |              |    | 575, 585               | ✔      | ✔    | ✖         | dwc2                   |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
 |              |    | 59x,5Ax,5Fx,5Gx        | ✔      | ✔    | ✔         | dwc2                   |                   |
-|              +----+------------------------+--------+------+-----------+------------------------+-------------------+
-|              | WBx5                        | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
-+--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
++--------------+----+------------------------+--------+------+-----------+------------------------+-------------------+
 | TI           | MSP430                      | ✔      | ✖    | ✖         | msp430x5xx             |                   |
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | MSP432E4                    | ✔      |      | ✖         | musb                   |                   |
-|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | TM4C123                     | ✔      |      | ✖         | musb                   |                   |
+|              | MSP432E4, TM4C123           | ✔      |      | ✖         | musb                   |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | ValentyUSB   | eptri                       | ✔      | ✖    | ✖         | eptri                  |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+

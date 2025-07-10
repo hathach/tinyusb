@@ -23,17 +23,25 @@ runs:
       if: steps.cache-toolchain-download.outputs.cache-hit != 'true'
       run: |
         mkdir -p ~/cache/${{ inputs.toolchain }}
-        wget --progress=dot:giga ${{ inputs.toolchain_url }} -O toolchain.tar.gz
+
         if [[ ${{ inputs.toolchain }} == rx-gcc ]]; then
-          mv toolchain.tar.gz toolchain.run
+          wget --progress=dot:giga ${{ inputs.toolchain_url }} -O toolchain.run
           chmod +x toolchain.run
           ./toolchain.run -p ~/cache/${{ inputs.toolchain }}/gnurx -y
+        elif [[ ${{ inputs.toolchain }} == arm-iar ]]; then
+          wget --progress=dot:giga ${{ inputs.toolchain_url }} -O ~/cache/${{ inputs.toolchain }}/cxarm.deb
         else
+          wget --progress=dot:giga ${{ inputs.toolchain_url }} -O toolchain.tar.gz
           tar -C ~/cache/${{ inputs.toolchain }} -xaf toolchain.tar.gz
         fi
       shell: bash
 
-    - name: Set Toolchain Path
+    - name: Setup Toolchain
       run: |
-        echo >> $GITHUB_PATH `echo ~/cache/${{ inputs.toolchain }}/*/bin`
+        if [[ ${{ inputs.toolchain }} == arm-iar ]]; then
+          sudo apt-get install -y ~/cache/${{ inputs.toolchain }}/cxarm.deb
+          echo >> $GITHUB_PATH "/opt/iar/cxarm/arm/bin"
+        else
+          echo >> $GITHUB_PATH `echo ~/cache/${{ inputs.toolchain }}/*/bin`
+        fi
       shell: bash

@@ -1,22 +1,17 @@
 ST_FAMILY = f3
-
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
-
-DEPS_SUBMODULES += \
-	lib/CMSIS_5 \
-	$(ST_CMSIS) \
-	$(ST_HAL_DRIVER)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
 
 CFLAGS += \
-  -flto \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F3
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter
+CFLAGS_GCC += \
+  -flto \
+  -Wno-error=unused-parameter
 
 LDFLAGS_GCC += \
   -nostdlib -nostartfiles \
@@ -36,3 +31,10 @@ INC += \
   $(TOP)/$(ST_CMSIS)/Include \
   $(TOP)/$(ST_HAL_DRIVER)/Inc \
   $(TOP)/$(BOARD_PATH)
+
+# Startup
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_${MCU_VARIANT}.s
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_${MCU_VARIANT}.s
+
+# Linker
+LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf

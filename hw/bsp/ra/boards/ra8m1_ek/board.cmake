@@ -1,4 +1,4 @@
-set(CMAKE_SYSTEM_PROCESSOR cortex-m85 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m85 CACHE INTERNAL "System Processor")
 set(MCU_VARIANT ra8m1)
 
 set(JLINK_DEVICE R7FA8M1AH)

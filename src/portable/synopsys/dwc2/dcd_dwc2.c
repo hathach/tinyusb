@@ -39,13 +39,8 @@
 #define DWC2_DEBUG    2
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h"
 #include "dwc2_common.h"
-
-#if TU_CHECK_MCU(OPT_MCU_GD32VF103)
-  #define DWC2_EP_COUNT(_dwc2)   DWC2_EP_MAX
-#else
-  #define DWC2_EP_COUNT(_dwc2)  ((_dwc2)->ghwcfg2_bm.num_dev_ep + 1)
-#endif
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
@@ -58,6 +53,7 @@ typedef struct {
   uint8_t interval;
 } xfer_ctl_t;
 
+// This variable is modified from ISR context, so it must be protected by critical section
 static xfer_ctl_t xfer_status[DWC2_EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) (&xfer_status[_ep][_dir])
 
@@ -78,6 +74,16 @@ static dcd_data_t _dcd_data;
 CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(setup_packet, 8);
 } _dcd_usbbuf;
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc2) {
+  #if TU_CHECK_MCU(OPT_MCU_GD32VF103)
+  return DWC2_EP_MAX;
+  #else
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  return ghwcfg2.num_dev_ep + 1;
+  #endif
+}
+
 
 //--------------------------------------------------------------------
 // DMA
@@ -102,7 +108,8 @@ bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
 TU_ATTR_ALWAYS_INLINE static inline bool dma_device_enabled(const dwc2_regs_t* dwc2) {
   (void) dwc2;
   // Internal DMA only
-  return CFG_TUD_DWC2_DMA_ENABLE && dwc2->ghwcfg2_bm.arch == GHWCFG2_ARCH_INTERNAL_DMA;
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  return CFG_TUD_DWC2_DMA_ENABLE && ghwcfg2.arch == GHWCFG2_ARCH_INTERNAL_DMA;
 }
 
 static void dma_setup_prepare(uint8_t rhport) {
@@ -250,20 +257,15 @@ static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint
   xfer->interval = p_endpoint_desc->bInterval;
 
   // Endpoint control
-  union {
-    uint32_t value;
-    dwc2_depctl_t bm;
-  } depctl;
-  depctl.value = 0;
-
-  depctl.bm.mps = xfer->max_size;
-  depctl.bm.active = 1;
-  depctl.bm.type = p_endpoint_desc->bmAttributes.xfer;
+  dwc2_depctl_t depctl = {.value = 0};
+  depctl.mps = xfer->max_size;
+  depctl.active = 1;
+  depctl.type = p_endpoint_desc->bmAttributes.xfer;
   if (p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS) {
-    depctl.bm.set_data0_iso_even = 1;
+    depctl.set_data0_iso_even = 1;
   }
   if (dir == TUSB_DIR_IN) {
-    depctl.bm.tx_fifo_num = epnum;
+    depctl.tx_fifo_num = epnum;
   }
 
   dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
@@ -321,6 +323,9 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   }
 }
 
+// Since this function returns void, it is not possible to return a boolean success message
+// We must make sure that this function is not called when the EP is disabled
+// Must be called from critical section
 static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uint8_t dir) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, dir);
@@ -343,31 +348,22 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   }
 
   // transfer size: A full OUT transfer (multiple packets, possibly) triggers XFRC.
-  union {
-    uint32_t value;
-    dwc2_ep_tsize_t bm;
-  } deptsiz;
-  deptsiz.value = 0;
-  deptsiz.bm.xfer_size =  total_bytes;
-  deptsiz.bm.packet_count = num_packets;
-
+  dwc2_ep_tsize_t deptsiz = {.value = 0};
+  deptsiz.xfer_size = total_bytes;
+  deptsiz.packet_count = num_packets;
   dep->tsiz = deptsiz.value;
 
   // control
-  union {
-    dwc2_depctl_t bm;
-    uint32_t value;
-  } depctl;
-  depctl.value = dep->ctl;
-
-  depctl.bm.clear_nak = 1;
-  depctl.bm.enable = 1;
-  if (depctl.bm.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
-    const uint32_t odd_now = (dwc2->dsts_bm.frame_number & 1u);
+  dwc2_depctl_t depctl = {.value = dep->ctl};
+  depctl.clear_nak = 1;
+  depctl.enable = 1;
+  if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
+    const dwc2_dsts_t dsts = {.value = dwc2->dsts};
+    const uint32_t odd_now = dsts.frame_number & 1u;
     if (odd_now) {
-      depctl.bm.set_data0_iso_even = 1;
+      depctl.set_data0_iso_even = 1;
     } else {
-      depctl.bm.set_data1_iso_odd = 1;
+      depctl.set_data1_iso_odd = 1;
     }
   }
 
@@ -410,7 +406,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
     // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
     // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
-    if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
+    const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+    if (ghwcfg2.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
       dcfg |= DCFG_XCVRDLY;
     }
   } else {
@@ -428,8 +425,13 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Clear A override, force B Valid
   dwc2->gotgctl = (dwc2->gotgctl & ~GOTGCTL_AVALOEN) | GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
 
+#if CFG_TUSB_MCU == OPT_MCU_STM32N6
+  // No hardware detection of Vbus B-session is available on the STM32N6
+  dwc2->stm32_gccfg |= STM32_GCCFG_VBVALOVAL;
+#endif
+
   // Enable required interrupts
-  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
+  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
   // TX FIFO empty level for interrupt is complete empty
   uint32_t gahbcfg = dwc2->gahbcfg;
@@ -539,6 +541,8 @@ void dcd_edpt_close_all(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   uint8_t const ep_count = _dwc2_controller[rhport].ep_count;
 
+  usbd_spin_lock(false);
+
   _dcd_data.allocated_epin_count = 0;
 
   // Disable non-control interrupt
@@ -556,8 +560,9 @@ void dcd_edpt_close_all(uint8_t rhport) {
 
   dfifo_flush_tx(dwc2, 0x10); // all tx fifo
   dfifo_flush_rx(dwc2);
-
   dfifo_device_init(rhport); // re-init dfifo
+
+  usbd_spin_unlock(false);
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
@@ -575,21 +580,31 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
-
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->buffer = buffer;
-  xfer->ff = NULL;
-  xfer->total_len = total_bytes;
+  bool ret;
 
-  // EP0 can only handle one packet
-  if (epnum == 0) {
-    _dcd_data.ep0_pending[dir] = total_bytes;
+  usbd_spin_lock(false);
+
+  if (xfer->max_size == 0) {
+    ret = false;  // Endpoint is closed
+  } else {
+    xfer->buffer = buffer;
+    xfer->ff = NULL;
+    xfer->total_len = total_bytes;
+
+    // EP0 can only handle one packet
+    if (epnum == 0) {
+      _dcd_data.ep0_pending[dir] = total_bytes;
+    }
+
+    // Schedule packets to be sent within interrupt
+    edpt_schedule_packets(rhport, epnum, dir);
+    ret = true;
   }
 
-  // Schedule packets to be sent within interrupt
-  edpt_schedule_packets(rhport, epnum, dir);
+  usbd_spin_unlock(false);
 
-  return true;
+  return ret;
 }
 
 // The number of bytes has to be given explicitly to allow more flexible control of how many
@@ -602,17 +617,27 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
-
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
-  xfer->buffer = NULL;
-  xfer->ff = ff;
-  xfer->total_len = total_bytes;
+  bool ret;
 
-  // Schedule packets to be sent within interrupt
-  // TODO xfer fifo may only available for slave mode
-  edpt_schedule_packets(rhport, epnum, dir);
+  usbd_spin_lock(false);
 
-  return true;
+  if (xfer->max_size == 0) {
+    ret = false;  // Endpoint is closed
+  } else {
+    xfer->buffer = NULL;
+    xfer->ff = ff;
+    xfer->total_len = total_bytes;
+
+    // Schedule packets to be sent within interrupt
+    // TODO xfer fifo may only available for slave mode
+    edpt_schedule_packets(rhport, epnum, dir);
+    ret = true;
+  }
+
+  usbd_spin_unlock(false);
+
+  return ret;
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -639,9 +664,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 //--------------------------------------------------------------------
 
 // 7.4.1 Initialization on USB Reset
+// Must be called from critical section
 static void handle_bus_reset(uint8_t rhport) {
   dwc2_regs_t *dwc2 = DWC2_REG(rhport);
-  const uint8_t ep_count =  DWC2_EP_COUNT(dwc2);
+  const uint8_t ep_count =  dwc2_ep_count(dwc2);
 
   tu_memclr(xfer_status, sizeof(xfer_status));
 
@@ -671,7 +697,9 @@ static void handle_bus_reset(uint8_t rhport) {
   dfifo_device_init(rhport);
 
   // 5. Reset device address
-  dwc2->dcfg_bm.address = 0;
+  dwc2_dcfg_t dcfg = {.value = dwc2->dcfg};
+  dcfg.address = 0;
+  dwc2->dcfg = dcfg.value;
 
   // Fixed both control EP0 size to 64 bytes
   dwc2->epin[0].ctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
@@ -691,8 +719,9 @@ static void handle_bus_reset(uint8_t rhport) {
 
 static void handle_enum_done(uint8_t rhport) {
   dwc2_regs_t *dwc2 = DWC2_REG(rhport);
+  const dwc2_dsts_t dsts = {.value = dwc2->dsts};
   tusb_speed_t speed;
-  switch (dwc2->dsts_bm.enum_speed) {
+  switch (dsts.enum_speed) {
     case DCFG_SPEED_HIGH:
       speed = TUSB_SPEED_HIGH;
     break;
@@ -737,12 +766,12 @@ static void handle_rxflvl_irq(uint8_t rhport) {
   const volatile uint32_t* rx_fifo = dwc2->fifo[0];
 
   // Pop control word off FIFO
-  const dwc2_grxstsp_t grxstsp_bm = dwc2->grxstsp_bm;
-  const uint8_t epnum = grxstsp_bm.ep_ch_num;
+  const dwc2_grxstsp_t grxstsp = {.value = dwc2->grxstsp};
+  const uint8_t epnum = grxstsp.ep_ch_num;
 
   dwc2_dep_t* epout = &dwc2->epout[epnum];
 
-  switch (grxstsp_bm.packet_status) {
+  switch (grxstsp.packet_status) {
     case GRXSTS_PKTSTS_GLOBAL_OUT_NAK:
       // Global OUT NAK: do nothing
       break;
@@ -764,7 +793,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
     case GRXSTS_PKTSTS_RX_DATA: {
       // Out packet received
-      const uint16_t byte_count = grxstsp_bm.byte_count;
+      const uint16_t byte_count = grxstsp.byte_count;
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
       if (byte_count) {
@@ -778,7 +807,8 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
         // short packet, minus remaining bytes (xfer_size)
         if (byte_count < xfer->max_size) {
-          xfer->total_len -= epout->tsiz_bm.xfer_size;
+          const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
+          xfer->total_len -= tsiz.xfer_size;
           if (epnum == 0) {
             xfer->total_len -= _dcd_data.ep0_pending[TUSB_DIR_OUT];
             _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
@@ -840,11 +870,13 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   // - 64 bytes or
   // - Half/Empty of TX FIFO size (configured by GAHBCFG.TXFELVL)
   if (diepint_bm.txfifo_empty && (dwc2->diepempmsk & (1 << epnum))) {
-    const uint16_t remain_packets = epin->tsiz_bm.packet_count;
+    dwc2_ep_tsize_t tsiz = {.value = epin->tsiz};
+    const uint16_t remain_packets = tsiz.packet_count;
 
     // Process every single packet (only whole packets can be written to fifo)
     for (uint16_t i = 0; i < remain_packets; i++) {
-      const uint16_t remain_bytes = (uint16_t) epin->tsiz_bm.xfer_size;
+      tsiz.value = epin->tsiz;
+      const uint16_t remain_bytes = (uint16_t) tsiz.xfer_size;
       const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
 
       // Check if dtxfsts has enough space available
@@ -863,7 +895,8 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
     }
 
     // Turn off TXFE if all bytes are written.
-    if (epin->tsiz_bm.xfer_size == 0) {
+    tsiz.value = epin->tsiz;
+    if (tsiz.xfer_size == 0) {
       dwc2->diepempmsk &= ~(1 << epnum);
     }
   }
@@ -894,7 +927,8 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
         xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
         // determine actual received bytes
-        const uint16_t remain = epout->tsiz_bm.xfer_size;
+        const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
+        const uint16_t remain = tsiz.xfer_size;
         xfer->total_len -= remain;
 
         // this is ZLP, so prepare EP0 for next setup
@@ -930,7 +964,7 @@ static void handle_epin_dma(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diepin
 static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const bool is_dma = dma_device_enabled(dwc2);
-  const uint8_t ep_count = DWC2_EP_COUNT(dwc2);
+  const uint8_t ep_count = dwc2_ep_count(dwc2);
   const uint8_t daint_offset = (dir == TUSB_DIR_IN) ? DAINT_IEPINT_Pos : DAINT_OEPINT_Pos;
   dwc2_dep_t* ep_base = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][0];
 
@@ -983,29 +1017,34 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
  */
 void dcd_int_handler(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
   const uint32_t gintmask = dwc2->gintmsk;
   const uint32_t gintsts = dwc2->gintsts & gintmask;
 
   if (gintsts & GINTSTS_USBRST) {
     // USBRST is start of reset.
     dwc2->gintsts = GINTSTS_USBRST;
+
+    usbd_spin_lock(true);
     handle_bus_reset(rhport);
+    usbd_spin_unlock(true);
   }
 
   if (gintsts & GINTSTS_ENUMDNE) {
     // ENUMDNE is the end of reset where speed of the link is detected
     dwc2->gintsts = GINTSTS_ENUMDNE;
+    dwc2->gintmsk |= GINTMSK_USBSUSPM;
     handle_enum_done(rhport);
   }
 
   if (gintsts & GINTSTS_USBSUSP) {
     dwc2->gintsts = GINTSTS_USBSUSP;
+    dwc2->gintmsk &= ~GINTMSK_USBSUSPM;
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
   if (gintsts & GINTSTS_WKUINT) {
     dwc2->gintsts = GINTSTS_WKUINT;
+    dwc2->gintmsk |= GINTMSK_USBSUSPM;
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
@@ -1025,6 +1064,7 @@ void dcd_int_handler(uint8_t rhport) {
 
   if(gintsts & GINTSTS_SOF) {
     dwc2->gintsts = GINTSTS_SOF;
+    dwc2->gintmsk |= GINTMSK_USBSUSPM;
     const uint32_t frame = (dwc2->dsts & DSTS_FNSOF) >> DSTS_FNSOF_Pos;
 
     // Disable SOF interrupt if SOF was not explicitly enabled since SOF was used for remote wakeup detection

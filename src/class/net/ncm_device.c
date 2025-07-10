@@ -110,6 +110,7 @@ typedef struct {
     NOTIFICATION_DONE
   } notification_xmit_state;                            // state of notification transmission
   bool notification_xmit_is_running;                    // notification is currently transmitted
+  bool link_is_up;                                      // current link state
 
   // misc
   bool tud_network_recv_renew_active;                   // tud_network_recv_renew() is active (avoid recursive invocations)
@@ -218,7 +219,7 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
           .direction = TUSB_DIR_IN
         },
         .bRequest = CDC_NOTIF_NETWORK_CONNECTION,
-        .wValue = 1 /* Connected */,
+        .wValue = ncm_interface.link_is_up ? 1 : 0,  /* Dynamic link state */
         .wIndex = ncm_interface.itf_num,
         .wLength = 0,
       },
@@ -232,6 +233,7 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
     ncm_interface.notification_xmit_is_running = true;
   } else {
     TU_LOG_DRV("  NOTIFICATION_FINISHED\n");
+    ncm_interface.notification_xmit_is_running = false;
   }
 } // notification_xmit
 
@@ -390,7 +392,7 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
   if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_IN_MAX_DATAGRAMS_PER_NTB) {
     return false;
   }
-  if (ncm_interface.xmit_glue_ntb->nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+  if (ncm_interface.xmit_glue_ntb->nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_IN_NTB_MAX_SIZE) {
     return false;
   }
   return true;
@@ -674,7 +676,7 @@ static void recv_transfer_datagram_to_glue_logic(void) {
 bool tud_network_can_xmit(uint16_t size) {
   TU_LOG_DRV("tud_network_can_xmit(%d)\n", size);
 
-  TU_ASSERT(size <= CFG_TUD_NCM_OUT_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)), false);
+  TU_ASSERT(size <= CFG_TUD_NCM_IN_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)), false);
 
   if (xmit_requested_datagram_fits_into_current_ntb(size) || xmit_setup_next_glue_ntb()) {
     // -> everything is fine
@@ -709,7 +711,7 @@ void tud_network_xmit(void *ref, uint16_t arg) {
 
   ntb->nth.wBlockLength += (uint16_t) (size + XMIT_ALIGN_OFFSET(size));
 
-  if (ntb->nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+  if (ntb->nth.wBlockLength > CFG_TUD_NCM_IN_NTB_MAX_SIZE) {
     TU_LOG_DRV("(EE) tud_network_xmit: buffer overflow\n"); // must not happen (really)
     return;
   }
@@ -755,6 +757,32 @@ static void tud_network_recv_renew_r(uint8_t rhport) {
   tud_network_recv_renew();
 } // tud_network_recv_renew
 
+/**
+ * Set the link state and send notification to host
+ */
+void tud_network_link_state(uint8_t rhport, bool is_up) {
+  TU_LOG_DRV("tud_network_link_state(%d, %d)\n", rhport, is_up);
+
+  if (ncm_interface.link_is_up == is_up) {
+    // No change in link state
+    return;
+  }
+
+  ncm_interface.link_is_up = is_up;
+
+  // Only send notification if we have an active data interface
+  if (ncm_interface.itf_data_alt != 1) {
+    TU_LOG_DRV("  link state notification skipped (interface not active)\n");
+    return;
+  }
+
+  // Reset notification state to send link state update
+  ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
+
+  // Trigger notification transmission
+  notification_xmit(rhport, false);
+}
+
 //-----------------------------------------------------------------------------
 //
 // all the netd_*() stuff (interface TinyUSB -> driver)
@@ -774,6 +802,12 @@ void netd_init(void) {
   for (int i = 0; i < RECV_NTB_N; ++i) {
     ncm_interface.recv_free_ntb[i] = &ncm_epbuf.recv[i].ntb;
   }
+  // Default link state - can be configured via CFG_TUD_NCM_DEFAULT_LINK_UP
+  #ifdef CFG_TUD_NCM_DEFAULT_LINK_UP
+  ncm_interface.link_is_up = CFG_TUD_NCM_DEFAULT_LINK_UP;
+  #else
+  ncm_interface.link_is_up = true; // Default to link up if not set.
+  #endif
 } // netd_init
 
 /**
@@ -857,7 +891,8 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     // - if there is a free receive buffer, initiate reception
     if (!recv_validate_datagram(ncm_interface.recv_tinyusb_ntb, xferred_bytes)) {
       // verification failed: ignore NTB and return it to free
-      TU_LOG_DRV("(EE) VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
+      TU_LOG_DRV("Invalid datatagram. Ignoring NTB\n");
+      recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
     } else {
       // packet ok -> put it into ready list
       recv_put_ntb_into_ready_list(ncm_interface.recv_tinyusb_ntb);

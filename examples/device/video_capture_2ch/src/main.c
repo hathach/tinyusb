@@ -300,7 +300,7 @@ void led_blinking_task(void* param) {
 #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
 #define VIDEO_STACK_SIZE    (configMINIMAL_STACK_SIZE*4)
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
   #define USBD_STACK_SIZE     4096
   int main(void);
   void app_main(void) {
@@ -359,8 +359,8 @@ void freertos_init_task(void) {
   xTaskCreate(video_task, "video", VIDEO_STACK_SZIE, NULL, configMAX_PRIORITIES - 2, NULL);
   #endif
 
-  // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
-  #if !TUSB_MCU_VENDOR_ESPRESSIF
+  // only start scheduler for non-espressif mcu
+  #ifndef ESP_PLATFORM
   vTaskStartScheduler();
   #endif
 }

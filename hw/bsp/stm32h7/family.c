@@ -80,7 +80,7 @@ void OTG_HS_IRQHandler(void) {
 }
 
 #ifdef TRACE_ETM
-void trace_etm_init(void) {
+static void trace_etm_init(void) {
   // H7 trace pin is PE2 to PE6
   GPIO_InitTypeDef  gpio_init;
   gpio_init.Pin       = GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
@@ -94,10 +94,14 @@ void trace_etm_init(void) {
   DBGMCU->CR |= DBGMCU_CR_DBG_TRACECKEN | DBGMCU_CR_DBG_CKD1EN | DBGMCU_CR_DBG_CKD3EN;
 }
 #else
-  #define trace_etm_init()
+#define trace_etm_init()
 #endif
 
 void board_init(void) {
+  SCB_EnableICache();
+
+  HAL_Init();
+
   // Implemented in board.h
   SystemClock_Config();
 
