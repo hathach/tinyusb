@@ -53,6 +53,7 @@ enum {
   TUD_MSC_RET_BUSY = 0,   // Busy, e.g disk I/O is not ready
   TUD_MSC_RET_ERROR = -1,
   TUD_MSC_RET_ASYNC = -2, // Asynchronous IO
+  TUD_MSC_RET_CALL_DEFAULT = -3, // Call default handler
 };
 
 TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE < UINT16_MAX, "Size is not correct");
@@ -114,7 +115,8 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
  * \param[in]   bufsize     Buffer's length.
  *
  * \return  Actual bytes processed, can be zero for no-data command.
- * \retval  negative   Fall back to built-in logic.
+ * \retval  TUD_MSC_RET_CALL_DEFAULT   Fall back to built-in logic.
+ * \retval  negative    Indicate error e.g unsupported command, see below.
  */
 TU_ATTR_WEAK int32_t tud_msc_scsi_pre_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 

@@ -484,7 +484,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           if (tud_msc_scsi_pre_cb) {
             resplen = tud_msc_scsi_pre_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, (uint16_t)p_msc->total_len);
           }
-          if (resplen < 0) {
+          if (resplen == TUD_MSC_RET_CALL_DEFAULT) {
             // Next, see if it is a built-in command
             resplen = proc_builtin_scsi(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, CFG_TUD_MSC_EP_BUFSIZE);
           }
