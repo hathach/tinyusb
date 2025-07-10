@@ -479,10 +479,17 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, (uint16_t) p_msc->total_len));
           }
         } else {
-          // First process if it is a built-in commands
-          int32_t resplen = proc_builtin_scsi(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, CFG_TUD_MSC_EP_BUFSIZE);
+          int32_t resplen = -1;
+          // Call the pre-callback to allow application to override any SCSI command
+          if (tud_msc_scsi_pre_cb) {
+            resplen = tud_msc_scsi_pre_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, (uint16_t)p_msc->total_len);
+          }
+          if (resplen < 0) {
+            // Next, see if it is a built-in command
+            resplen = proc_builtin_scsi(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, CFG_TUD_MSC_EP_BUFSIZE);
+          }
 
-          // Invoke user callback if not built-in
+          // Invoke the legacy user callback, if not built-in either
           if ((resplen < 0) && (p_msc->sense_key == 0)) {
             resplen = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, (uint16_t)p_msc->total_len);
           }

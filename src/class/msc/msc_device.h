@@ -103,6 +103,22 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun);
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size);
 
 /**
+ * Invoked *before* TinyUSB's built-in SCSI handling, to let the application
+ * override *any* command, including ones TinyUSB handles by default; see below.
+ *
+ * \param[in]   lun         Logical unit number
+ * \param[in]   scsi_cmd    SCSI command contents which application must examine to response accordingly
+ * \param[out]  buffer      Buffer for SCSI Data Stage.
+ *                            - For INPUT: application must fill this with response.
+ *                            - For OUTPUT it holds the Data from host
+ * \param[in]   bufsize     Buffer's length.
+ *
+ * \return  Actual bytes processed, can be zero for no-data command.
+ * \retval  negative   Fall back to built-in logic.
+ */
+TU_ATTR_WEAK int32_t tud_msc_scsi_pre_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
+
+/**
  * Invoked when received an SCSI command not in built-in list below.
  * - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, TEST_UNIT_READY, START_STOP_UNIT, MODE_SENSE6, REQUEST_SENSE
  * - READ10 and WRITE10 has their own callbacks
