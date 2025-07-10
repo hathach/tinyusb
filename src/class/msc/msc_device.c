@@ -479,7 +479,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             TU_ASSERT(usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, (uint16_t) p_msc->total_len));
           }
         } else {
-          int32_t resplen = -1;
+          int32_t resplen = -TUD_MSC_RET_CALL_DEFAULT;
           // Call the pre-callback to allow application to override any SCSI command
           if (tud_msc_scsi_pre_cb) {
             resplen = tud_msc_scsi_pre_cb(p_cbw->lun, p_cbw->command, _mscd_epbuf.buf, (uint16_t)p_msc->total_len);
