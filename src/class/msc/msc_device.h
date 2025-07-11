@@ -90,9 +90,14 @@ bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
 
-// Invoked when received SCSI_CMD_INQUIRY
+// Invoked when received SCSI_CMD_INQUIRY, v1, application should use v2 if possible
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]);
+
+// Invoked when received SCSI_CMD_INQUIRY, v2 with full inquiry response
+// Some inquiry_resp's fields are already filled with default values, application can update them
+// Return length of inquiry response, typically sizeof(scsi_inquiry_resp_t) (36 bytes), can be longer if included vendor data.
+uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t* inquiry_resp);
 
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted

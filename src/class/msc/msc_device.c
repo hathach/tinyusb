@@ -42,6 +42,17 @@
 #define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_MSC_LOG_LEVEL, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
+  (void) lun; (void) vendor_id; (void) product_id; (void) product_rev;
+}
+TU_ATTR_WEAK uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t* inquiry_resp) {
+  (void) lun; (void) inquiry_resp;
+  return 0;
+}
+
+//--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 enum {
@@ -731,22 +742,19 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
     break;
 
     case SCSI_CMD_INQUIRY: {
-      scsi_inquiry_resp_t inquiry_rsp = {
-        .is_removable = 1,
-        .version = 2,
-        .response_data_format = 2,
-        .additional_length = sizeof(scsi_inquiry_resp_t) - 5,
-      };
+      scsi_inquiry_resp_t *inquiry_rsp = (scsi_inquiry_resp_t *) buffer;
+      tu_memclr(inquiry_rsp, sizeof(scsi_inquiry_resp_t));
+      inquiry_rsp->is_removable = 1;
+      inquiry_rsp->version = 2;
+      inquiry_rsp->response_data_format = 2;
+      inquiry_rsp->additional_length = sizeof(scsi_inquiry_resp_t) - 5;
 
-      // vendor_id, product_id, product_rev is space padded string
-      memset(inquiry_rsp.vendor_id  , ' ', sizeof(inquiry_rsp.vendor_id));
-      memset(inquiry_rsp.product_id , ' ', sizeof(inquiry_rsp.product_id));
-      memset(inquiry_rsp.product_rev, ' ', sizeof(inquiry_rsp.product_rev));
-
-      tud_msc_inquiry_cb(lun, inquiry_rsp.vendor_id, inquiry_rsp.product_id, inquiry_rsp.product_rev);
-
-      resplen = sizeof(inquiry_rsp);
-      TU_VERIFY(0 == tu_memcpy_s(buffer, bufsize, &inquiry_rsp, (size_t) resplen));
+      resplen = (int32_t) tud_msc_inquiry2_cb(lun, inquiry_rsp);
+      if (resplen == 0) {
+        // stub callback with no response, use v1 callback
+        tud_msc_inquiry_cb(lun, inquiry_rsp->vendor_id, inquiry_rsp->product_id, inquiry_rsp->product_rev);
+        resplen = sizeof(scsi_inquiry_resp_t);
+      }
     }
     break;
 
