@@ -562,7 +562,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         {
           size_t packetLen = usbtmc_state.transfer_size_remaining;
           memcpy(usbtmc_epbuf.epin, usbtmc_state.devInBuffer, usbtmc_state.transfer_size_remaining);
-          usbtmc_state.transfer_size_sent += sizeof(usbtmc_state.transfer_size_remaining);
+          usbtmc_state.transfer_size_sent += packetLen;
           usbtmc_state.transfer_size_remaining = 0;
           usbtmc_state.devInBuffer = NULL;
           TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) packetLen));
