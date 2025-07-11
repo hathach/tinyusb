@@ -34,6 +34,17 @@
 
   const THEME_STATES = ['auto', 'light', 'dark'];
 
+  /// https://stackoverflow.com/a/6234804/4479969
+  const escapeHtml = unsafe => {
+    if (typeof unsafe !== 'string') unsafe = String(unsafe);
+    return unsafe
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  };
+
   class CommandHistoryEntry {
     constructor(text) {
       this.text = text;
@@ -211,9 +222,9 @@
         commandHistoryEntryBtn.type = 'button';
         let time_str = new Date(commandHistoryEntry.time).toLocaleString();
         commandHistoryEntryBtn.innerHTML = `
-          <span class="command-history-entry-time">${time_str}</span>
-          <span class="command-history-entry-text">${commandHistoryEntry.text}</span>
-          <span class="command-history-entry-count">×${commandHistoryEntry.count}</span>
+          <span class="command-history-entry-time">${escapeHtml(time_str)}</span>
+          <span class="command-history-entry-text">${escapeHtml(commandHistoryEntry.text)}</span>
+          <span class="command-history-entry-count">×${escapeHtml(commandHistoryEntry.count)}</span>
         `;
         commandHistoryEntryBtn.addEventListener('click', () => {
           if (uiCommandLineInput.disabled) return;
@@ -247,7 +258,7 @@
 
     clearCommandHistory() {
       this.commandHistory = [];
-      uiCommandHistoryScrollbox.innerHTML = '';
+      uiCommandHistoryScrollbox.textContent = '';
       localStorage.removeItem('commandHistory');
       this.setStatus('Command history cleared', 'info');
     }
@@ -322,8 +333,8 @@
         let receivedDataEntryBtn = document.createElement('div');
         receivedDataEntryBtn.className = 'received-data-entry';
         receivedDataEntryBtn.innerHTML = `
-          <span class="received-data-entry-time">${new Date(entry.time).toLocaleString()}</span>
-          <span class="received-data-entry-text">${entry.text}</span>
+          <span class="received-data-entry-time">${escapeHtml(new Date(entry.time).toLocaleString())}</span>
+          <span class="received-data-entry-text">${escapeHtml(entry.text)}</span>
         `;
         documentFragment.appendChild(receivedDataEntryBtn);
       }
@@ -352,7 +363,7 @@
 
     clearReceivedData() {
       this.receivedData = [];
-      uiReceivedDataScrollbox.innerHTML = '';
+      uiReceivedDataScrollbox.textContent = '';
       localStorage.removeItem('receivedData');
       this.setStatus('Received data cleared', 'info');
     }
