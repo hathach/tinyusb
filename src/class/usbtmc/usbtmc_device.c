@@ -45,7 +45,7 @@
  */
 
 //Limitations:
-// "vendor-specific" commands are handled similar to normal massages, except that the MsgID is changed to "vendor-specific".
+// "vendor-specific" commands are handled similar to normal messages, except that the MsgID is changed to "vendor-specific".
 // Dealing with "termchar" must be handled by the application layer,
 //    though additional error checking is does in this module.
 // talkOnly and listenOnly are NOT supported. They're not permitted
