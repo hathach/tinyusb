@@ -2,11 +2,6 @@ ST_FAMILY = f2
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
-DEPS_SUBMODULES += \
-	lib/CMSIS_5 \
-	$(ST_CMSIS) \
-	$(ST_HAL_DRIVER)
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m3
 

@@ -201,7 +201,6 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp,
 
 bool hub_port_get_status_local(uint8_t hub_addr, uint8_t hub_port, hub_port_status_response_t* resp) {
   (void) hub_port;
-  TU_VERIFY(hub_addr > CFG_TUH_DEVICE_MAX);
   hub_interface_t* p_hub = get_hub_itf(hub_addr);
   *resp = p_hub->port_status;
   return true;
@@ -459,7 +458,8 @@ static void process_new_status(tuh_xfer_t* xfer) {
         }
       };
       hcd_event_handler(&event, false);
-      processed = true; // usbh queue status after handled this in (de)enumeration
+      // skip status for attach event, usbh will do it after handled this enumeration
+      processed = (event.event_id == HCD_EVENT_DEVICE_ATTACH);
       break;
     }
 

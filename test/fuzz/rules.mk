@@ -142,7 +142,7 @@ endif
 # get depenecies
 .PHONY: get-deps
 get-deps:
-	$(PYTHON) $(TOP)/tools/get_deps.py $(DEPS_SUBMODULES)
+	$(PYTHON) $(TOP)/tools/get_deps.py $(FAMILY)
 
 size: $(BUILD)/$(PROJECT)
 	-@echo ''

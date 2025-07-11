@@ -38,6 +38,11 @@ if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
 
+# Optimization
+if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+  set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type" FORCE)
+endif ()
+
 #-------------------------------------------------------------
 # FAMILY and BOARD
 #-------------------------------------------------------------
@@ -208,13 +213,16 @@ function(family_configure_common TARGET RTOS)
 
   # LOGGER option
   if (DEFINED LOGGER)
+    string(TOUPPER ${LOGGER} LOGGER)
     target_compile_definitions(${TARGET} PUBLIC LOGGER_${LOGGER})
     # Add segger rtt to example
-    if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
+    if(LOGGER STREQUAL "RTT")
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
       target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
     endif ()
+  else ()
+    target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
   endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
@@ -482,7 +490,7 @@ function(family_flash_openocd TARGET)
   # note skip verify since it has issue with rp2040
   add_custom_target(${TARGET}-openocd
     DEPENDS ${TARGET}
-    COMMAND ${OPENOCD} -c "tcl_port disabled" -c "gdb_port disabled" ${OPTION_LIST} -c init -c halt -c "program $<TARGET_FILE:${TARGET}>" -c reset ${OPTION_LIST2} -c exit
+    COMMAND ${OPENOCD} -c "tcl_port disabled; gdb_port disabled" ${OPTION_LIST} -c "init; halt; program $<TARGET_FILE:${TARGET}>" -c reset ${OPTION_LIST2} -c exit
     VERBATIM
     )
 endfunction()
@@ -502,10 +510,16 @@ endfunction()
 # Add flash openocd adi (Analog Devices) target
 # included with msdk or compiled from release branch of https://github.com/analogdevicesinc/openocd
 function(family_flash_openocd_adi TARGET)
-  if (DEFINED $ENV{MAXIM_PATH})
-    # use openocd from msdk
-    set(OPENOCD ENV{MAXIM_PATH}/Tools/OpenOCD/openocd)
-    set(OPENOCD_OPTION2 "-s ENV{MAXIM_PATH}/Tools/OpenOCD/scripts")
+  if (DEFINED MAXIM_PATH)
+    # use openocd from msdk with MAXIM_PATH cmake variable first if the user specified it
+    set(OPENOCD ${MAXIM_PATH}/Tools/OpenOCD/openocd)
+    set(OPENOCD_OPTION2 "-s ${MAXIM_PATH}/Tools/OpenOCD/scripts")
+  elseif (DEFINED ENV{MAXIM_PATH})
+    # use openocd from msdk with MAXIM_PATH environment variable. Normalize
+    # since msdk can be Windows (MinGW) or Linux
+    file(TO_CMAKE_PATH "$ENV{MAXIM_PATH}" MAXIM_PATH_NORM)
+    set(OPENOCD ${MAXIM_PATH_NORM}/Tools/OpenOCD/openocd)
+    set(OPENOCD_OPTION2 "-s ${MAXIM_PATH_NORM}/Tools/OpenOCD/scripts")
   else()
     # compiled from source
     if (NOT DEFINED OPENOCD_ADI_PATH)

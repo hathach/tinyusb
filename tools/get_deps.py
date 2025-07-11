@@ -25,9 +25,9 @@ deps_optional = {
     'hw/mcu/allwinner': ['https://github.com/hathach/allwinner_driver.git',
                          '8e5e89e8e132c0fd90e72d5422e5d3d68232b756',
                          'fc100s'],
-    'hw/mcu/analog/max32' : ['https://github.com/analogdevicesinc/msdk.git',
+    'hw/mcu/analog/msdk' : ['https://github.com/analogdevicesinc/msdk.git',
                              'b20b398d3e5e2007594e54a74ba3d2a2e50ddd75',
-                             'max32650 max32666 max32690 max78002'],
+                             'maxim'],
     'hw/mcu/bridgetek/ft9xx/ft90x-sdk': ['https://github.com/BRTSG-FOSS/ft90x-sdk.git',
                                          '91060164afe239fcb394122e8bf9eb24d3194eb1',
                                          'brtmm90x'],
@@ -55,11 +55,11 @@ deps_optional = {
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
                            'b41cf930e65c734d8ec6de04f1d57d46787c76ae',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
-    'hw/mcu/nxp/mcux-sdk': ['https://github.com/hathach/mcux-sdk.git',
-                            '144f1eb7ea8c06512e12f12b27383601c0272410',
+    'hw/mcu/nxp/mcux-sdk': ['https://github.com/nxp-mcuxpresso/mcux-sdk',
+                            'a1bdae309a14ec95a4f64a96d3315a4f89c397c6',
                             'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
-    'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/hathach/Pico-PIO-USB.git',
-                                         '810653f66adadba3e0e4b4b56d5167ac4f7fdbf7',
+    'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
+                                         '3c1eec341a5232640e4c00628b889b641af34b28',
                                          'rp2040'],
     'hw/mcu/renesas/fsp': ['https://github.com/renesas/fsp.git',
                            'edcc97d684b6f716728a60d7a6fea049d9870bd6',
@@ -103,6 +103,9 @@ deps_optional = {
     'hw/mcu/st/cmsis_device_h7': ['https://github.com/STMicroelectronics/cmsis_device_h7.git',
                                   '60dc2c913203dc8629dc233d4384dcc41c91e77f',
                                   'stm32h7'],
+    'hw/mcu/st/cmsis_device_h7rs': ['https://github.com/STMicroelectronics/cmsis_device_h7rs.git',
+                                  '832649d1fd09bd901e9f68e979522e5c209ebf20',
+                                  'stm32h7rs'],
     'hw/mcu/st/cmsis_device_h5': ['https://github.com/STMicroelectronics/cmsis_device_h5.git',
                                   'cd2d1d579743de57b88ccaf61a968b9c05848ffc',
                                   'stm32h5'],
@@ -118,15 +121,21 @@ deps_optional = {
     'hw/mcu/st/cmsis_device_l5': ['https://github.com/STMicroelectronics/cmsis_device_l5.git',
                                   'd922865fc0326a102c26211c44b8e42f52c1e53d',
                                   'stm32l5'],
+    'hw/mcu/st/cmsis_device_n6': ['https://github.com/STMicroelectronics/cmsis-device-n6.git',
+                                  'f818b00f775444e8d19ef6cad822534c345e054f',
+                                  'stm32n6'],
     'hw/mcu/st/cmsis_device_u5': ['https://github.com/STMicroelectronics/cmsis_device_u5.git',
                                   '5ad9797c54ec3e55eff770fc9b3cd4a1aefc1309',
                                   'stm32u5'],
     'hw/mcu/st/cmsis_device_wb': ['https://github.com/STMicroelectronics/cmsis_device_wb.git',
-                                  '9c5d1920dd9fabbe2548e10561d63db829bb744f',
+                                  'd6a7fa2e7de084f5e5e47f2ab88b022fe9b50e5a',
                                   'stm32wb'],
     'hw/mcu/st/stm32-mfxstm32l152': ['https://github.com/STMicroelectronics/stm32-mfxstm32l152.git',
                                      '7f4389efee9c6a655b55e5df3fceef5586b35f9b',
                                      'stm32h7'],
+    'hw/mcu/st/stm32-tcpp0203': ['https://github.com/STMicroelectronics/stm32-tcpp0203.git',
+                                 '9918655bff176ac3046ccf378b5c7bbbc6a38d15',
+                                 'stm32h7rs stm32n6'],
     'hw/mcu/st/stm32c0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32c0xx_hal_driver.git',
                                        '41253e2f1d7ae4a4d0c379cf63f5bcf71fcf8eb3',
                                        'stm32c0'],
@@ -157,6 +166,9 @@ deps_optional = {
     'hw/mcu/st/stm32h7xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h7xx_hal_driver.git',
                                        'd8461b980b59b1625207d8c4f2ce0a9c2a7a3b04',
                                        'stm32h7'],
+    'hw/mcu/st/stm32h7rsxx_hal_driver': ['https://github.com/STMicroelectronics/stm32h7rsxx-hal-driver.git',
+                                       '7ca2e07ca21bc66b53654e845b4c85c884343b60',
+                                       'stm32h7rs'],
     'hw/mcu/st/stm32h5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32h5xx_hal_driver.git',
                                        '2cf77de584196d619cec1b4586c3b9e2820a254e',
                                        'stm32h5'],
@@ -172,6 +184,9 @@ deps_optional = {
     'hw/mcu/st/stm32l5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32l5xx_hal_driver.git',
                                        '675c32a75df37f39d50d61f51cb0dcf53f07e1cb',
                                        'stm32l5'],
+    'hw/mcu/st/stm32n6xx_hal_driver': ['https://github.com/STMicroelectronics/stm32n6xx-hal-driver.git',
+                                       '49f9989d10cf6817d4b07ac01848956b46bd0fd6',
+                                       'stm32n6'],
     'hw/mcu/st/stm32u5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git',
                                        '4d93097a67928e9377e655ddd14622adc31b9770',
                                        'stm32u5'],
@@ -198,7 +213,7 @@ deps_optional = {
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
-                    'stm32h7 stm32l0 stm32l1 stm32l4 stm32l5 stm32u5 stm32wb '
+                    'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32n6 stm32u5 stm32wb '
                     'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg '
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
@@ -271,6 +286,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to fetch')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
+    parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
     parser.add_argument('--print', action='store_true', help='Print commit hash only')
     args = parser.parse_args()

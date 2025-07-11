@@ -32,6 +32,10 @@
 //--------------------------------------------------------------------+
 // Class Driver Configuration
 //--------------------------------------------------------------------+
+#ifndef CFG_TUD_CDC_NOTIFY
+  #define CFG_TUD_CDC_NOTIFY    0
+#endif
+
 #if !defined(CFG_TUD_CDC_EP_BUFSIZE) && defined(CFG_TUD_CDC_EPSIZE)
   #warning CFG_TUD_CDC_EPSIZE is renamed to CFG_TUD_CDC_EP_BUFSIZE, please update to use the new name
   #define CFG_TUD_CDC_EP_BUFSIZE    CFG_TUD_CDC_EPSIZE
@@ -126,6 +130,23 @@ uint32_t tud_cdc_n_write_available(uint8_t itf);
 // Clear the transmit FIFO
 bool tud_cdc_n_write_clear(uint8_t itf);
 
+
+#if CFG_TUD_CDC_NOTIFY
+// Send UART status notification: DCD, DSR etc ..
+bool tud_cdc_n_notify_uart_state(uint8_t itf, const cdc_notify_uart_state_t *state);
+
+// Send connection speed change notification
+bool tud_cdc_n_notify_conn_speed_change(uint8_t itf, const cdc_notify_conn_speed_change_t* conn_speed_change);
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_notify_uart_state(const cdc_notify_uart_state_t* state) {
+ return tud_cdc_n_notify_uart_state(0, state);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_notify_conn_speed_change(const cdc_notify_conn_speed_change_t* conn_speed_change) {
+  return tud_cdc_n_notify_conn_speed_change(0, conn_speed_change);
+}
+#endif
+
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
@@ -195,7 +216,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_write_clear(void) {
 }
 
 //--------------------------------------------------------------------+
-// Application Callback API (weak is optional)
+// Application Callback API
 //--------------------------------------------------------------------+
 
 // Invoked when received new data
@@ -206,6 +227,9 @@ TU_ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
 
 // Invoked when a TX is complete and therefore space becomes available in TX buffer
 TU_ATTR_WEAK void tud_cdc_tx_complete_cb(uint8_t itf);
+
+// Invoked when a notification is sent to host
+TU_ATTR_WEAK void tud_cdc_notify_complete_cb(uint8_t itf);
 
 // Invoked when line state DTR & RTS are changed via SET_CONTROL_LINE_STATE
 TU_ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);

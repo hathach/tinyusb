@@ -16,9 +16,12 @@ set(FAMILY_MCUS CH32V20X CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
 
 # Port0 use FSDev, Port1 use USBFS
-if (NOT DEFINED PORT)
-  set(PORT 0)
-endif()
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 0)
+endif ()
+
+# only port1 support host mode
+set(RHPORT_HOST 1)
 
 #------------------------------------
 # BOARD_TARGET
@@ -56,18 +59,16 @@ function(add_board_target BOARD_TARGET)
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     CH32V20x_${MCU_VARIANT}
+    BOARD_TUD_RHPORT=${RHPORT_DEVICE}
+    BOARD_TUH_RHPORT=${RHPORT_HOST}
     )
 
-  if (PORT EQUAL 0)
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CFG_TUD_WCH_USBIP_FSDEV=1
-      )
-  elseif (PORT EQUAL 1)
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CFG_TUD_WCH_USBIP_USBFS=1
-      )
+  if (RHPORT_DEVICE EQUAL 0)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUD_WCH_USBIP_FSDEV=1)
+  elseif (RHPORT_DEVICE EQUAL 1)
+    target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUH_WCH_USBIP_USBFS=1)
   else()
-    message(FATAL_ERROR "Invalid PORT ${PORT}")
+    message(FATAL_ERROR "Invalid RHPORT_DEVICE ${RHPORT_DEVICE}")
   endif()
 
   update_board(${BOARD_TARGET})
@@ -127,11 +128,10 @@ function(family_configure_example TARGET RTOS)
 
   target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/wch/dcd_ch32_usbfs.c
+    ${TOP}/src/portable/wch/hcd_ch32_usbfs.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
   target_link_libraries(${TARGET} PUBLIC board_${BOARD})
-
-
 
   # Flashing
   family_add_bin_hex(${TARGET})

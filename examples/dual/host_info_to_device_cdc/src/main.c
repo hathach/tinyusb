@@ -78,6 +78,22 @@ static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_devi
 void led_blinking_task(void);
 void cdc_task(void);
 
+#define cdc_printf(...)                                           \
+  do {                                                            \
+    char _tempbuf[256];                                           \
+    char* _bufptr = _tempbuf;                                     \
+    uint32_t count = (uint32_t) sprintf(_tempbuf, __VA_ARGS__);   \
+    while (count > 0) {                                           \
+        uint32_t wr_count = tud_cdc_write(_bufptr, count);        \
+        count -= wr_count;                                        \
+        _bufptr += wr_count;                                      \
+        if (count > 0){                                           \
+          tud_task();                                             \
+          tud_cdc_write_flush();                                  \
+        }                                                         \
+    }                                                             \
+  } while(0)
+
 /*------------- MAIN -------------*/
 int main(void) {
   board_init();
@@ -160,22 +176,6 @@ void cdc_task(void) {
 //--------------------------------------------------------------------+
 // Host Get device information
 //--------------------------------------------------------------------+
-#define cdc_printf(...)                          \
-  do {                                           \
-    char _tempbuf[256];                          \
-    char* _bufptr = _tempbuf;                        \
-    uint32_t count = (uint32_t) sprintf(_tempbuf, __VA_ARGS__);  \
-    while (count > 0) { \
-        uint32_t wr_count = tud_cdc_write(_bufptr, count); \
-        count -= wr_count; \
-        _bufptr += wr_count; \
-        if (count > 0){ \
-          tud_task();\
-          tud_cdc_write_flush(); \
-        } \
-    } \
-  } while(0)
-
 static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_device) {
   // Get String descriptor using Sync API
   uint16_t serial[64];
@@ -232,12 +232,14 @@ void tuh_enum_descriptor_device_cb(uint8_t daddr, tusb_desc_device_t const* desc
 }
 
 void tuh_mount_cb(uint8_t daddr) {
-  printf("mounted device %u\r\n", daddr);
+  cdc_printf("mounted device %u\r\n", daddr);
+  tud_cdc_write_flush();
   is_print[daddr] = true;
 }
 
 void tuh_umount_cb(uint8_t daddr) {
-  printf("unmounted device %u\r\n", daddr);
+  cdc_printf("unmounted device %u\r\n", daddr);
+  tud_cdc_write_flush();
   is_print[daddr] = false;
 }
 
@@ -249,7 +251,9 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
+  if (board_millis() - start_ms < blink_interval_ms) {
+    return;// not enough time
+  }
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);
@@ -300,7 +304,9 @@ static int _count_utf8_bytes(const uint16_t *buf, size_t len) {
 }
 
 static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
-  if ((temp_buf[0] & 0xff) == 0) return;  // empty
+  if ((temp_buf[0] & 0xff) == 0) {
+    return;// empty
+  }
   size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(uint16_t);
   size_t utf8_len = (size_t) _count_utf8_bytes(temp_buf + 1, utf16_len);
   _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);

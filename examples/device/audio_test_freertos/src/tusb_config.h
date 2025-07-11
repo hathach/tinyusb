@@ -59,7 +59,7 @@ extern "C" {
 #endif
 
 // Espressif IDF requires "freertos/" prefix in include path
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
 #define CFG_TUSB_OS_INC_PATH  freertos/
 #endif
 
@@ -123,7 +123,7 @@ extern "C" {
 #define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX                            1                                       // Driver gets this info from the descriptors - we define it here to use it to setup the descriptors and to do calculations with it below - be aware: for different number of channels you need another descriptor!
 #define CFG_TUD_AUDIO_EP_SZ_IN                                        TUD_AUDIO_EP_SIZE(CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE, CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX, CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX)
 #define CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX                             CFG_TUD_AUDIO_EP_SZ_IN
-#define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ                          (TUD_OPT_HIGH_SPEED ? 8 : 1) * CFG_TUD_AUDIO_EP_SZ_IN // Example write FIFO every 1ms, so it should be 8 times larger for HS device
+#define CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ                          (TUD_OPT_HIGH_SPEED ? 32 : 4) * CFG_TUD_AUDIO_EP_SZ_IN // Example write FIFO every 1ms, so it should be 8 times larger for HS device
 
 #ifdef __cplusplus
 }

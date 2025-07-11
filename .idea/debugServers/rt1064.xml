@@ -1,5 +1,5 @@
 <component name="DebugServers">
-  <jlink-debug-target name="rt1064" uniqueID="9602472b-6ce8-4a2d-9636-1c03b5fcd6da" selected="true">
+  <jlink-debug-target name="rt1064" uniqueID="9602472b-6ce8-4a2d-9636-1c03b5fcd6da">
     <debugger version="1">
       <debugger kind="GDB" isBundled="true" />
       <env />

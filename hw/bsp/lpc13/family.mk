@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
-
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc13xx/lpc_chip_13xx
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m3

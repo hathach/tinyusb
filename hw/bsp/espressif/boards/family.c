@@ -49,7 +49,9 @@ static led_strip_handle_t led_strip;
 static void max3421_init(void);
 #endif
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32P4)
 static bool usb_init(void);
+#endif
 
 //--------------------------------------------------------------------+
 // Implementation
@@ -152,6 +154,10 @@ int board_uart_write(void const* buf, int len) {
 
 int board_getchar(void) {
   return getchar();
+}
+
+void board_putchar(int c) {
+  putchar(c);
 }
 
 //--------------------------------------------------------------------
