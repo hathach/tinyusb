@@ -833,8 +833,11 @@ static bool set_line_state_on_enum(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
   switch (state) {
     case ENUM_SET_LINE_CODING: {
       #ifdef CFG_TUH_CDC_LINE_CODING_ON_ENUM
+      #if CFG_TUH_CDC_CH34X
       // ch34x already set line coding in serial init
-      if (p_cdc->serial_drid != SERIAL_DRIVER_CH34X) {
+      if (p_cdc->serial_drid != SERIAL_DRIVER_CH34X)
+      #endif
+      {
         const cdc_line_coding_t line_coding = (cdc_line_coding_t) CFG_TUH_CDC_LINE_CODING_ON_ENUM;
         TU_ASSERT(tuh_cdc_set_line_coding(idx, &line_coding,
                                           cdch_process_line_state_on_enum, ENUM_SET_LINE_CONTROL));
