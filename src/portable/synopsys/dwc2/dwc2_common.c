@@ -121,6 +121,12 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
     // Set 16-bit interface if supported
     if (ghwcfg4.phy_data_width) {
       gusbcfg |= GUSBCFG_PHYIF16; // 16 bit
+
+      /* at32f402_405 does not actually support 16-bit */
+      #if CFG_TUSB_MCU == OPT_MCU_AT32F402_405
+        gusbcfg &= ~GUSBCFG_PHYIF16; // 8 bit
+      #endif
+
     } else {
       gusbcfg &= ~GUSBCFG_PHYIF16; // 8 bit
     }
@@ -139,7 +145,13 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
   // - 9 if using 8-bit PHY interface
   // - 5 if using 16-bit PHY interface
   gusbcfg &= ~GUSBCFG_TRDT_Msk;
-  gusbcfg |= (ghwcfg4.phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
+  gusbcfg |= (dwc2->ghwcfg4_bm.phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
+
+  /* at32f402_405 does not actually support 16-bit */
+  #if CFG_TUSB_MCU == OPT_MCU_AT32F402_405
+    gusbcfg |= (dwc2->ghwcfg4_bm.phy_data_width ? 9u : 9u) << GUSBCFG_TRDT_Pos;
+  #endif
+
   dwc2->gusbcfg = gusbcfg;
 
   // MCU specific PHY update post reset
