@@ -80,6 +80,8 @@ int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];// +1 for master channel 
 int32_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 4];
 // Buffer for speaker data
 int32_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 4];
+// Buffer for silent data
+int32_t silent_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 4];
 // Speaker data size received in the last frame
 int spk_data_size;
 // Resolution per format
@@ -363,7 +365,9 @@ void audio_task(void) {
       tud_audio_write((uint8_t *) mic_buf, (uint16_t) (spk_data_size / 2));
       spk_data_size = 0;
     }
-  }
+  } else {
+    tud_audio_write((uint8_t *)silent_buf, sizeof(silent_buf));
+   }
 }
 
 void audio_control_task(void) {
