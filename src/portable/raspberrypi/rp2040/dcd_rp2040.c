@@ -191,7 +191,9 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void) {
       if (done) {
         // Notify
         dcd_event_xfer_complete(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
-        hw_endpoint_reset_transfer(ep);
+        if (ep->transfer_type != TUSB_XFER_ISOCHRONOUS) {
+          hw_endpoint_reset_transfer(ep);
+        }
       }
       remaining_buffers &= ~bit;
     }
