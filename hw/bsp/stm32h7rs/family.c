@@ -329,7 +329,7 @@ void board_init(void) {
   HAL_PWREx_EnableUSBVoltageDetector();
   HAL_PWREx_EnableUSBReg();
 
-  __HAL_RCC_USB2_OTG_FS_CLK_ENABLE();
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
   // PM14 VUSB, PM10 ID, PM11 DM, PM12 DP
   // Configure DM DP Pins
