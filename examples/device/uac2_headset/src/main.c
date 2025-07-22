@@ -367,7 +367,7 @@ void audio_task(void) {
     }
   } else {
     tud_audio_write((uint8_t *)silent_buf, sizeof(silent_buf));
-  }
+   }
 }
 
 void audio_control_task(void) {
