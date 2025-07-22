@@ -252,7 +252,6 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   p_desc = tu_desc_next(p_desc); // next to CS Header
 
   bool found_new_interface = false;
-  printf("%p %p %p\r\n", p_desc, tu_desc_next(p_desc), p_end);
   while ((p_desc < p_end) && (tu_desc_next(p_desc) <= p_end) && !found_new_interface) {
     switch (tu_desc_type(p_desc)) {
       case TUSB_DESC_INTERFACE:
