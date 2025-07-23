@@ -243,7 +243,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
     TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
 }
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass);
-  
+  TU_LOG_DRV("MIDI opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
   p_midi->bInterfaceNumber = desc_itf->bInterfaceNumber;
   p_midi->iInterface = desc_itf->iInterface;
   p_midi->itf_count++;
