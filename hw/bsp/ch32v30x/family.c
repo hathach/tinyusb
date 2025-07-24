@@ -122,12 +122,13 @@ void board_init(void) {
   GPIO_Init(LED_PORT, &GPIO_InitStructure);
 
   // Button
+#ifdef BUTTON_PORT
   BUTTON_CLOCK_EN();
   GPIO_InitStructure.GPIO_Pin = BUTTON_PIN;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(BUTTON_PORT, &GPIO_InitStructure);
-
+#endif
   /* Enable interrupts globally */
   __enable_irq();
 
@@ -157,7 +158,11 @@ void board_led_write(bool state) {
 }
 
 uint32_t board_button_read(void) {
+#ifdef BUTTON_PORT
   return BUTTON_STATE_ACTIVE == GPIO_ReadInputDataBit(BUTTON_PORT, BUTTON_PIN);
+#else
+  return false;
+#endif
 }
 
 int board_uart_read(uint8_t* buf, int len) {
