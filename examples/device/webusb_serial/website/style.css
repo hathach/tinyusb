@@ -270,3 +270,24 @@ body.dark-mode .send-mode-command {
   background-color: #555;
   color: #f5f5f5;
 }
+
+body.dark-mode select {
+  background-color: #3c3c3c;
+  color: #f0f0f0;
+  border: 2px solid #555;
+}
+
+body.dark-mode select:focus {
+  background-color: #2a2d2e;
+  border-color: #0078d7;
+  outline: none;
+}
+
+body.dark-mode option {
+  background-color: #3c3c3c;
+  color: #f0f0f0;
+}
+
+body.dark-mode .scrollbox {
+  scrollbar-color: #555 #2e2e2e;
+}

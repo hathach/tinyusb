@@ -383,7 +383,14 @@
         uiConnectSerialBtn.style.display = 'none';
         uiDisconnectBtn.style.display = 'block';
         uiCommandLineInput.disabled = false;
-        uiCommandLineInput.focus();
+
+        if (this.currentPort instanceof SerialPort) {
+          uiDisconnectBtn.textContent = 'Disconnect from WebSerial';
+        } else if (this.currentPort instanceof WebUsbSerialPort) {
+          uiDisconnectBtn.textContent = 'Disconnect from WebUSB';
+        } else {
+          uiDisconnectBtn.textContent = 'Disconnect';
+        }
       } else {
         if (serial.isWebUsbSupported()) {
           uiConnectWebUsbSerialBtn.style.display = 'block';
@@ -454,6 +461,8 @@
           await this.currentPort.forgetDevice();
           this.currentPort = null;
         }
+      } finally {
+        this.updateUIConnectionState();
       }
     }
 
@@ -474,7 +483,7 @@
           const savedPortInfo = JSON.parse(localStorage.getItem('webUSBSerialPort'));
           if (savedPortInfo) {
             for (const device of grantedDevices) {
-              if (device.device.vendorId === savedPortInfo.vendorId && device.device.productId === savedPortInfo.productId) {
+              if (device._device.vendorId === savedPortInfo.vendorId && device._device.productId === savedPortInfo.productId) {
                 this.currentPort = device;
                 break;
               }
@@ -501,12 +510,13 @@
 
           // save the port to localStorage
           const portInfo = {
-            vendorId: this.currentPort.device.vendorId,
-            productId: this.currentPort.device.productId,
+            vendorId: this.currentPort._device.vendorId,
+            productId: this.currentPort._device.productId,
           }
           localStorage.setItem('webUSBSerialPort', JSON.stringify(portInfo));
 
           this.setStatus('Connected', 'info');
+          uiCommandLineInput.focus();
         } catch (error) {
           if (first_time_connection) {
             // Forget the device if a first time connection fails
@@ -514,6 +524,8 @@
             this.currentPort = null;
           }
           throw error;
+        } finally {
+          this.updateUIConnectionState();
         }
 
         this.updateUIConnectionState();
@@ -530,6 +542,8 @@
           this.setStatus('Reconnected', 'info');
         } catch (error) {
           this.setStatus(`Reconnect failed: ${error.message}`, 'error');
+        } finally {
+          this.updateUIConnectionState();
         }
       }
       this.updateUIConnectionState();

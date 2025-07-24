@@ -1,80 +1,117 @@
 'use strict';
 
 /// Web Serial API Implementation
+/// https://developer.mozilla.org/en-US/docs/Web/API/SerialPort
 class SerialPort {
   constructor(port) {
-    this.port = port;
-    this.reader = null;
-    this.writer = null;
-    this.readableStreamClosed = null;
+    this._port = port;
+    this._readLoopPromise = null;
+    this._reader = null;
+    this._writer = null;
+    this._initialized = false;
+    this._keepReading = true;
     this.isConnected = false;
-    this.readLoop = null;
-    this.initialized = false;
   }
 
   /// Connect and start reading loop
   async connect(options = { baudRate: 9600 }) {
-    if (this.initialized) {
-      return;
+    if (this._initialized) {
+      try {
+        await this.disconnect();
+      } catch (error) {
+        console.error('Error disconnecting previous port:', error);
+      }
+      await this._readLoopPromise;
+      this._readLoopPromise = null;
     }
-    this.initialized = true;
-    await this.port.open(options);
+    this._initialized = true;
 
-    this.readableStreamClosed = this.port.readable;
-    this.reader = this.port.readable.getReader();
-
-    this.writer = this.port.writable.getWriter();
     this.isConnected = true;
-    this.readLoop = this._readLoop();
+    this._keepReading = true;
+
+    try {
+      await this._port.open(options);
+    } catch (error) {
+      this.isConnected = false;
+      throw error;
+    }
+
+    this._readLoopPromise = this._readLoop();
   }
 
   /// Internal continuous read loop
   async _readLoop() {
-    while (this.isConnected) {
-      try {
-        const { value, done } = await this.reader.read();
-        if (done || !this.isConnected) break;
-        if (value && this.onReceive) this.onReceive(value);
-      } catch (error) {
-        this.isConnected = false;
-        if (this.onReceiveError) this.onReceiveError(error);
+    try {
+      while (this._port.readable && this._keepReading) {
+        this._reader = this._port.readable.getReader();
+        try {
+          while (true) {
+            const { value, done } = await this._reader.read();
+            if (done) {
+              // |reader| has been canceled.
+              break;
+            }
+            if (this.onReceive) {
+              this.onReceive(value);
+            }
+          }
+        } catch (error) {
+          if (this.onReceiveError) this.onReceiveError(error);
+        } finally {
+          this._reader.releaseLock();
+        }
       }
+    } finally {
+      this.isConnected = false;
+      await this._port.close();
     }
   }
 
   /// Stop reading and release port
   async disconnect() {
-    this.isConnected = false;
+    this._keepReading = false;
 
-    if (this.reader) {
+    if (this._reader) {
       try {
-        await this.reader.cancel();
-      } catch (error) {}
-      this.reader.releaseLock();
+        await this._reader.cancel();
+      } catch (error) {
+        console.error('Error cancelling reader:', error);
+      }
+      this._reader.releaseLock();
     }
 
-    if (this.writer) {
+    if (this._writer) {
       try {
-        await this.writer.close();
-      } catch (error) { }
-      this.writer.releaseLock();
-    }
-
-    if (this.readableStreamClosed) {
-      try {
-        await this.readableStreamClosed;
-      } catch (error) {}
+        await this._writer.abort();
+      } catch (error) {
+        console.error('Error closing writer:', error);
+      }
+      this._writer.releaseLock();
     }
 
     try {
-      await this.port.close();
-    } catch (error) {}
+      await this._port.close();
+    } catch (error) {
+      console.error('Error closing port:', error);
+    }
+
+    await this._readLoopPromise;
   }
 
   /// Send data to port
   send(data) {
-    if (!this.writer) throw new Error('Port not connected');
-    return this.writer.write(data);
+    if (!this._port.writable) {
+      throw new Error('Port is not writable');
+    }
+    this._writer = port.writeable.getWriter();
+    if (!this._writer) {
+      throw new Error('Failed to get writer from port');
+    }
+    try {
+      return this._writer.write(data);
+    } finally {
+      this._writer.releaseLock();
+    }
   }
 
   async forgetDevice() {}
@@ -83,115 +120,125 @@ class SerialPort {
 /// WebUSB Implementation
 class WebUsbSerialPort {
   constructor(device) {
-    this.device = device;
-    this.interfaceNumber = 0;
-    this.endpointIn = 0;
-    this.endpointOut = 0;
+    this._device = device;
+    this._interfaceNumber = 0;
+    this._endpointIn = 0;
+    this._endpointOut = 0;
     this.isConnected = false;
-    this.readLoop = null;
-    this.initialized = false;
-  }
-
-  isSameDevice(device) {
-    return this.device.vendorId === device.vendorId && this.device.productId === device.productId;
+    this._readLoopPromise = null;
+    this._initialized = false;
+    this._keepReading = true;
   }
 
   /// Connect and start reading loop
   async connect() {
-    if (this.initialized) {
-      const devices = await serial.getWebUsbSerialPorts();
-      const device = devices.find(d => this.isSameDevice(d.device));
-      if (device) {
-        this.device = device.device;
-      } else {
-        return false;
+    if (this._initialized) {
+      try {
+        await this.disconnect();
+      } catch (error) {
+        console.error('Error disconnecting previous device:', error);
       }
-      await this.device.open();
+      await this._readLoopPromise;
+      this._readLoopPromise = null;
     }
-    this.initialized = true;
-    await this.device.open();
+    this._initialized = true;
+
+    this.isConnected = true;
+    this._keepReading = true;
     try {
-      await this.device.reset();
-    } catch (error) { }
+      await this._device.open();
 
-    if (!this.device.configuration) {
-      await this.device.selectConfiguration(1);
-    }
+      if (!this._device.configuration) {
+        await this._device.selectConfiguration(1);
+      }
 
-    // Find interface with vendor-specific class (0xFF) and endpoints
-    for (const iface of this.device.configuration.interfaces) {
-      for (const alternate of iface.alternates) {
-        if (alternate.interfaceClass === 0xff) {
-          this.interfaceNumber = iface.interfaceNumber;
-          for (const endpoint of alternate.endpoints) {
-            if (endpoint.direction === 'out') this.endpointOut = endpoint.endpointNumber;
-            else if (endpoint.direction === 'in') this.endpointIn = endpoint.endpointNumber;
+      // Find interface with vendor-specific class (0xFF) and endpoints
+      for (const iface of this._device.configuration.interfaces) {
+        for (const alternate of iface.alternates) {
+          if (alternate.interfaceClass === 0xff) {
+            this._interfaceNumber = iface.interfaceNumber;
+            for (const endpoint of alternate.endpoints) {
+              if (endpoint.direction === 'out') this._endpointOut = endpoint.endpointNumber;
+              else if (endpoint.direction === 'in') this._endpointIn = endpoint.endpointNumber;
+            }
           }
         }
       }
+
+      if (this._interfaceNumber === undefined) {
+        throw new Error('No suitable interface found.');
+      }
+
+      await this._device.claimInterface(this._interfaceNumber);
+      await this._device.selectAlternateInterface(this._interfaceNumber, 0);
+
+      // Set device to ENABLE (0x22 = SET_CONTROL_LINE_STATE, value 0x01 = activate)
+      await this._device.controlTransferOut({
+        requestType: 'class',
+        recipient: 'interface',
+        request: 0x22,
+        value: 0x01,
+        index: this._interfaceNumber,
+      });
+    } catch (error) {
+      this.isConnected = false;
+      throw error;
     }
 
-    if (this.interfaceNumber === undefined) {
-      throw new Error('No suitable interface found.');
-    }
-
-    await this.device.claimInterface(this.interfaceNumber);
-    await this.device.selectAlternateInterface(this.interfaceNumber, 0);
-
-    // Set device to ENABLE (0x22 = SET_CONTROL_LINE_STATE, value 0x01 = activate)
-    await this.device.controlTransferOut({
-      requestType: 'class',
-      recipient: 'interface',
-      request: 0x22,
-      value: 0x01,
-      index: this.interfaceNumber,
-    });
-
-    this.isConnected = true;
-    this.readLoop = this._readLoop();
+    this._readLoopPromise = this._readLoop();
   }
 
   /// Internal continuous read loop
   async _readLoop() {
-    while (this.isConnected) {
-      try {
-        const result = await this.device.transferIn(this.endpointIn, 16384);
-        if (result.data && this.onReceive) {
-          this.onReceive(result.data);
-        }
-      } catch (error) {
-        this.isConnected = false;
-        if (this.onReceiveError) {
-          this.onReceiveError(error);
+    try {
+      while (this._keepReading && this.isConnected) {
+        try {
+          const result = await this._device.transferIn(this._endpointIn, 16384);
+          if (result.data && this.onReceive) {
+            this.onReceive(result.data);
+          }
+        } catch (error) {
+          this.isConnected = false;
+          if (this.onReceiveError) {
+            this.onReceiveError(error);
+          }
         }
       }
+    } finally {
+      this.isConnected = false;
+      await this._device.close();
     }
   }
 
   /// Stop reading and release device
   async disconnect() {
-    this.isConnected = false;
-    if (!this.device.opened) return;
+    this._keepReading = false;
+
     try {
-      await this.device.controlTransferOut({
+      await this._device.controlTransferOut({
         requestType: 'class',
         recipient: 'interface',
         request: 0x22,
         value: 0x00,
-        index: this.interfaceNumber,
+        index: this._interfaceNumber,
       });
-    } catch (error) {}
-    await this.device.close();
+    } catch (error) {
+      console.error('Error sending control transfer:', error);
+    }
+
+    await this._device.releaseInterface(this._interfaceNumber);
+
+    await this._readLoopPromise;
   }
 
   /// Send data to device
   send(data) {
-    return this.device.transferOut(this.endpointOut, data);
+    return this._device.transferOut(this._endpointOut, data);
   }
 
   async forgetDevice() {
     await this.disconnect();
-    await this.device.forget();
+    await this._device.forget();
   }
 }
 
