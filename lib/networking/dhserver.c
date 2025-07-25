@@ -234,14 +234,16 @@ int fill_options(void *dest,
 static ip_addr_t get_dhcp_destination(struct netif *netif, const DHCP_TYPE *dhcp,
                                 const ip4_addr_t *yiaddr, bool is_nak)
 {
-    bool giaddr_zero = ip4_addr_isany_val(*((ip4_addr_t*)dhcp->dp_giaddr));
-    bool ciaddr_zero = ip4_addr_isany_val(*((ip4_addr_t*)dhcp->dp_ciaddr));
+    ip4_addr_t giaddr = get_ip(dhcp->dp_giaddr);
+    ip4_addr_t ciaddr = get_ip(dhcp->dp_ciaddr);
+    bool giaddr_zero = ip4_addr_isany_val(giaddr);
+    bool ciaddr_zero = ip4_addr_isany_val(ciaddr);
     bool broadcast_flag = (dhcp->dp_flags & htons(0x8000)) != 0;
 	ip_addr_t dest_addr;
 
     if (!giaddr_zero) {
         // If giaddr is not zero, send to giaddr (relay agent)
-        ip_addr_set_ip4_u32(&dest_addr, get_ip(dhcp->dp_giaddr).addr);
+        ip_addr_set_ip4_u32(&dest_addr, giaddr.addr);
         return dest_addr;
     }
 
@@ -254,7 +256,7 @@ static ip_addr_t get_dhcp_destination(struct netif *netif, const DHCP_TYPE *dhcp
     if (!ciaddr_zero) {
         // RFC 2131: "If the 'giaddr' field is zero and the 'ciaddr' field is nonzero,
         // then the server unicasts DHCPOFFER and DHCPACK messages to the address in 'ciaddr'"
-        ip_addr_set_ip4_u32(&dest_addr, get_ip(dhcp->dp_ciaddr).addr);
+        ip_addr_set_ip4_u32(&dest_addr, ciaddr.addr);
         return dest_addr;
     }
 
