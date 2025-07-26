@@ -21,7 +21,14 @@ class SerialPort {
       } catch (error) {
         console.error('Error disconnecting previous port:', error);
       }
-      await this._readLoopPromise;
+
+      if (this._readLoopPromise) {
+        try {
+          await this._readLoopPromise;
+        } catch (error) {
+          console.error('Error in read loop:', error);
+        }
+      }
       this._readLoopPromise = null;
     }
     this._initialized = true;
@@ -95,7 +102,13 @@ class SerialPort {
       console.error('Error closing port:', error);
     }
 
-    await this._readLoopPromise;
+    if (this._readLoopPromise) {
+      try {
+        await this._readLoopPromise;
+      } catch (error) {
+        console.error('Error in read loop:', error);
+      }
+    }
   }
 
   /// Send data to port
@@ -138,7 +151,14 @@ class WebUsbSerialPort {
       } catch (error) {
         console.error('Error disconnecting previous device:', error);
       }
-      await this._readLoopPromise;
+
+      if (this._readLoopPromise) {
+        try {
+          await this._readLoopPromise;
+        } catch (error) {
+          console.error('Error in read loop:', error);
+        }
+      }
       this._readLoopPromise = null;
     }
     this._initialized = true;
@@ -228,7 +248,13 @@ class WebUsbSerialPort {
 
     await this._device.releaseInterface(this._interfaceNumber);
 
-    await this._readLoopPromise;
+    if (this._readLoopPromise) {
+      try {
+        await this._readLoopPromise;
+      } catch (error) {
+        console.error('Error in read loop:', error);
+      }
+    }
   }
 
   /// Send data to device
