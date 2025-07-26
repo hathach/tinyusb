@@ -54,8 +54,13 @@
 #endif
 
 #define FSDEV_PMA_SIZE (512u)
+#define FSDEV_USE_SBUF_ISO 0
 #define FSDEV_REG_BASE  (APB1PERIPH_BASE + 0x00005C00UL)
 #define FSDEV_PMA_BASE  (APB1PERIPH_BASE + 0x00006000UL)
+
+#ifndef CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP
+  #define CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP 0
+#endif
 
 /****************************  ISTR interrupt events  *************************/
 #define USB_ISTR_CTR                         ((uint16_t)0x8000U)               /*!< Correct TRansfer (clear-only bit) */
