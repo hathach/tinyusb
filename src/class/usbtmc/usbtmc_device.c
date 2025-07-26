@@ -165,7 +165,7 @@ tu_static uint8_t termChar;
 
 tu_static uint8_t termCharRequested = false;
 
-tu_static uint8_t usbtmcVendorSpecificRequested = false;
+tu_static bool usbtmcVendorSpecificRequested = false;
 
 #if OSAL_MUTEX_REQUIRED
 static OSAL_MUTEX_DEF(usbtmcLockBuffer);
