@@ -37,7 +37,7 @@
 #define LED_PORT              GPIOA
 #define LED_PIN               GPIO_Pin_3
 #define LED_STATE_ON          0
-#define LED_CLOCK_EN()        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE)
+#define LED_CLOCK_EN()        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE)
 
 // TODO UART port
 
