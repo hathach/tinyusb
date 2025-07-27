@@ -126,7 +126,8 @@
 #define USBFS_INT_EN_DEV_NAK  (1 << 6)
 #define USBFS_INT_EN_DEV_SOF  (1 << 7)
 */
-/*// INT_FG
+/*
+// INT_FG
 #define USBFS_INT_FG_BUS_RST  (1 << 0)
 #define USBFS_INT_FG_DETECT   (1 << 0)
 #define USBFS_INT_FG_TRANSFER (1 << 1)

@@ -239,19 +239,21 @@ void dcd_int_handler(uint8_t rhport) {
         break;
     }
 
-    R8_USB_INT_FG = RB_UIE_TRANSFER;
+    R8_USB_INT_FG = RB_UIF_TRANSFER;
   } else if (status & RB_UIF_BUS_RST) {
+    printf("BUS RESET\n");
     data.ep0_tog = true;
     data.xfer[0][TUSB_DIR_OUT].max_size = 64;
     data.xfer[0][TUSB_DIR_IN].max_size = 64;
 
-    dcd_event_bus_reset(rhport, (R8_UDEV_CTRL & RB_UH_LOW_SPEED) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL, true);
+    dcd_event_bus_reset(rhport, (R8_UDEV_CTRL & RB_UD_LOW_SPEED) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL, true);
 
     R8_USB_DEV_AD = 0x00;
     R8_UEP0_CTRL = (R8_UEP0_CTRL & ~(MASK_UEP_R_RES | RB_UEP_AUTO_TOG | RB_UEP_R_TOG | RB_UEP_T_TOG)) |
                    UEP_R_RES_ACK | (data.ep0_tog ? (RB_UEP_R_TOG | RB_UEP_T_TOG) : 0);
 
     R8_USB_INT_FG = RB_UIF_BUS_RST;
+    
   } else if (status & RB_UIF_SUSPEND ) {
     dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
     dcd_event_handler(&event, true);
@@ -282,12 +284,12 @@ void dcd_remote_wakeup(uint8_t rhport) {
 void dcd_connect(uint8_t rhport) {
   (void) rhport;
 
-  USBOTG_FS->USB_CTRL |= RB_UDP_PU_EN;
+  R8_USB_CTRL |= RB_UC_DEV_PU_EN;
 }
 
 void dcd_disconnect(uint8_t rhport) {
   (void) rhport;
-  R8_USB_CTRL &= ~RB_UDP_PU_EN;
+  R8_USB_CTRL &= ~ RB_UC_DEV_PU_EN;
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
@@ -325,6 +327,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
         set_endpoint_rx_ctrl(ep, UEP_T_RES_TOUT, true);
       } else {
         //EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_ACK;
+        set_endpoint_rx_ctrl(ep, UEP_R_RES_ACK, true);
       }
     } else {
       set_endpoint_t_len(ep, 0);
