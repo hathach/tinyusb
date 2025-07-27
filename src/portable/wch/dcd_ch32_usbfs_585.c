@@ -26,13 +26,21 @@
  */
 
 #include "CH585SFR.h"
+#include "CH58x_common.h"
 #include "tusb_option.h"
 
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBFS_585
 
 #include "device/dcd.h"
-#include "ch32_usbfs_reg_585.h"
 
+
+#define USBFS_INT_ST_MASK_UIS_ENDP(x)  (((x) >> 0) & 0x0F)
+#define USBFS_INT_ST_MASK_UIS_TOKEN(x) (((x) >> 4) & 0x03)
+
+#define PID_OUT   0
+#define PID_SOF   1
+#define PID_IN    2
+#define PID_SETUP 3
 
 /* private defines */
 #define EP_MAX (8)
@@ -190,8 +198,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init)
     R8_USB_INT_FG = 0xFF;                                          // clear interrupt
     R8_UDEV_CTRL = RB_UD_PD_DIS | RB_UD_PORT_EN;                   // configure USb device
     R8_USB_INT_EN = RB_UIE_SUSPEND | RB_UIE_BUS_RST | RB_UIE_TRANSFER;
-    printf("dcd_init: UDEV_CTRL=0x%02X\n", R8_UDEV_CTRL);
-    printf("EP0 R8_RX_CTRL=0x%02X\n", R8_UEP0_CTRL);
     dcd_connect(rhport);
     return 1;
 }
@@ -203,10 +209,7 @@ void dcd_int_handler(uint8_t rhport) {
   if (status & RB_UIF_TRANSFER) {
     uint8_t ep = USBFS_INT_ST_MASK_UIS_ENDP(R8_USB_INT_ST);
     uint8_t token = USBFS_INT_ST_MASK_UIS_TOKEN(R8_USB_INT_ST);
-    printf("Transfer: ep=%d, token=%d, RX_LEN=%d\n", ep, token, USBOTG_FS->USB_RX_LEN);
-    if (token == PID_SETUP && ep == 0) {
-      printf("SETUP data: %02X %02X\n", data.buffer[0][TUSB_DIR_OUT][0], data.buffer[0][TUSB_DIR_OUT][1]);
-    }
+    
     switch (token) {
       case PID_OUT: {
         uint16_t rx_len = R8_USB_RX_LEN;
@@ -228,7 +231,6 @@ void dcd_int_handler(uint8_t rhport) {
         break;
 
       case PID_SETUP:
-        printf("setup\n");
         // setup clears stall
         R8_UEP0_CTRL = (R8_UEP0_CTRL & ~(MASK_UEP_T_RES | MASK_UEP_R_RES | RB_UEP_AUTO_TOG)) |
                        UEP_T_RES_NAK | UEP_R_RES_ACK |
@@ -241,7 +243,6 @@ void dcd_int_handler(uint8_t rhport) {
 
     R8_USB_INT_FG = RB_UIF_TRANSFER;
   } else if (status & RB_UIF_BUS_RST) {
-    printf("BUS RESET\n");
     data.ep0_tog = true;
     data.xfer[0][TUSB_DIR_OUT].max_size = 64;
     data.xfer[0][TUSB_DIR_IN].max_size = 64;
@@ -326,7 +327,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
       if (data.isochronous[ep]) {
         set_endpoint_rx_ctrl(ep, UEP_T_RES_TOUT, true);
       } else {
-        //EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_ACK;
         set_endpoint_rx_ctrl(ep, UEP_R_RES_ACK, true);
       }
     } else {
