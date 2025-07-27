@@ -25,7 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 #if CFG_TUSB_MCU == OPT_MCU_CH585
-#include "CH585SFR.h"
+#include "CH585SFR.h" //WCH no longer use the structure + base address header, rather, they are using absolute address for everything.
+//it also included all register bit values.
 #include "CH58x_common.h"
 #include "tusb_option.h"
 #endif
