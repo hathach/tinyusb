@@ -38,11 +38,6 @@
 #define EP_MAX (8)
 
 
-//#define EP_DMA(ep)     ((&USBOTG_FS->UEP0_DMA)[ep])
-//#define EP_TX_LEN(ep)  ((&USBOTG_FS->UEP0_T_LEN)[ep])
-//#define EP_TX_CTRL(ep) ((&USBOTG_FS->UEP0_CTRL)[ep])
-//#define EP_RX_CTRL(ep) ((&USBOTG_FS->UEP0_CTRL)[ep]) // Same as TX_CTRL for CH58x
-
 
 static inline void set_endpoint_t_len(uint8_t ep, uint8_t len) {
   switch (ep) {
@@ -267,14 +262,12 @@ void dcd_int_handler(uint8_t rhport) {
 
 void dcd_int_enable(uint8_t rhport) {
   (void) rhport;
-  //printf("Enabling USB interrupt\n");
   PFIC_EnableIRQ(USB_IRQn); // Use CH58x interrupt
 }
 
 void dcd_int_disable(uint8_t rhport) {
   (void) rhport;
-  //printf("Disbling USB interrupt\n");
-  //PFIC_DisableIRQ(USB_IRQn); // Use CH58x interrupt
+  PFIC_DisableIRQ(USB_IRQn); // Use CH58x interrupt
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
@@ -313,8 +306,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* req
   }
   set_endpoint_tx_ctrl(0, UEP_T_RES_NAK, false);
   data.ep0_tog = !data.ep0_tog;
-  //EP_TX_CTRL(0) = (EP_TX_CTRL(0) & ~USBFS_EP_T_RES_MASK) | USBFS_EP_T_RES_NAK;
-  //EP_RX_CTRL(0) = (EP_RX_CTRL(0) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_RES_ACK;
   set_endpoint_rx_ctrl(0, UEP_R_RES_ACK, false);
   data.ep0_tog = !data.ep0_tog;
   
@@ -333,14 +324,12 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep) {
     if (dir == TUSB_DIR_OUT) {
       if (data.isochronous[ep]) {
         set_endpoint_rx_ctrl(ep, UEP_T_RES_TOUT, true);
-        //EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NYET;
       } else {
         //EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_ACK;
       }
     } else {
       set_endpoint_t_len(ep, 0);
       set_endpoint_tx_ctrl(ep, UEP_T_RES_NAK, 1);
-      //EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~USBFS_EP_T_RES_MASK) | USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK;
     }
   }
   return true;
@@ -382,7 +371,6 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t dir = tu_edpt_dir(ep_addr);
   if (ep == 0) {
     if (dir == TUSB_DIR_OUT) {
-      //EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_RES_STALL;
       set_endpoint_rx_ctrl(ep,UEP_R_RES_STALL , false);
       data.ep0_tog = !data.ep0_tog;
     } else {
@@ -390,14 +378,11 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       set_endpoint_t_len(ep, 0);
       set_endpoint_tx_ctrl(ep, UEP_T_RES_STALL, false);
       data.ep0_tog = !data.ep0_tog;
-      //EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~USBFS_EP_T_RES_MASK) | USBFS_EP_T_RES_STALL;
     }
   } else {
     if (dir == TUSB_DIR_OUT) {
-      //EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_RES_STALL;
       set_endpoint_rx_ctrl(ep,UEP_R_RES_STALL , true);
     } else {
-      //EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~USBFS_EP_T_RES_MASK) | USBFS_EP_T_RES_STALL;
       set_endpoint_tx_ctrl(ep, UEP_T_RES_STALL, true);
     }
   }
@@ -409,16 +394,13 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t dir = tu_edpt_dir(ep_addr);
   if (ep == 0) {
     if (dir == TUSB_DIR_OUT) {
-      //EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~USBFS_EP_R_RES_MASK) | USBFS_EP_R_RES_ACK;
       set_endpoint_rx_ctrl(ep,UEP_R_RES_ACK , false);
     }
   } else {
     if (dir == TUSB_DIR_OUT) {
       set_endpoint_rx_ctrl(ep,UEP_R_RES_ACK , true);
-      //EP_RX_CTRL(ep) = (EP_RX_CTRL(ep) & ~(USBFS_EP_R_RES_MASK | USBFS_EP_R_TOG)) | USBFS_EP_R_RES_ACK;
     } else {
       set_endpoint_tx_ctrl(ep, UEP_T_RES_NAK, true);
-      //EP_TX_CTRL(ep) = (EP_TX_CTRL(ep) & ~(USBFS_EP_T_RES_MASK | USBFS_EP_T_TOG)) | USBFS_EP_T_RES_NAK;
     }
   }
 }
