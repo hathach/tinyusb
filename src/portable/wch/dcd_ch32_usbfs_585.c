@@ -24,12 +24,17 @@
  *
  * This file is part of the TinyUSB stack.
  */
+
+#include "tusb_option.h"
+
 #if CFG_TUSB_MCU == OPT_MCU_CH585
+
 #include "CH585SFR.h" //WCH no longer use the structure + base address header, rather, they are using absolute address for everything.
 //it also included all register bit values.
 //all bit values have detailed comment in this header too.
 #include "CH58x_common.h"
 #include "tusb_option.h"
+
 #endif
 
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBFS_585
@@ -179,6 +184,7 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
 
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init)
 {
+    (void)rh_init;
     R8_USB_CTRL = 0x00; // clear RB_UC_CLR_ALL
 
     R8_UEP4_1_MOD = RB_UEP4_RX_EN | RB_UEP4_TX_EN | RB_UEP1_RX_EN | RB_UEP1_TX_EN; // endpoint 4 OUT+IN,endpoint1 OUT+IN

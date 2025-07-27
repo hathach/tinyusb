@@ -557,6 +557,10 @@
 
   #define TUP_RHPORT_HIGHSPEED    CFG_TUD_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX    (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
+#elif TU_CHECK_MCU(OPT_MCU_CH585)
+  #define CFG_TUD_WCH_USBIP_USBFS_585 1
+  #define TUP_DCD_ENDPOINT_MAX   8
+
 
 //--------------------------------------------------------------------+
 // Analog Devices
