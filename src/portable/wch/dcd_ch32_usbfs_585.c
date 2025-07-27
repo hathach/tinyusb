@@ -200,7 +200,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init)
 void dcd_int_handler(uint8_t rhport) {
   (void) rhport;
   uint8_t status = R8_USB_INT_FG;
-  if (status & USBFS_INT_FG_TRANSFER) {
+  if (status & RB_UIF_TRANSFER) {
     uint8_t ep = USBFS_INT_ST_MASK_UIS_ENDP(R8_USB_INT_ST);
     uint8_t token = USBFS_INT_ST_MASK_UIS_TOKEN(R8_USB_INT_ST);
     printf("Transfer: ep=%d, token=%d, RX_LEN=%d\n", ep, token, USBOTG_FS->USB_RX_LEN);
@@ -239,24 +239,23 @@ void dcd_int_handler(uint8_t rhport) {
         break;
     }
 
-    R8_USB_INT_FG = USBFS_INT_FG_TRANSFER;
-  } else if (status & USBFS_INT_FG_BUS_RST) {
+    R8_USB_INT_FG = RB_UIE_TRANSFER;
+  } else if (status & RB_UIF_BUS_RST) {
     data.ep0_tog = true;
     data.xfer[0][TUSB_DIR_OUT].max_size = 64;
     data.xfer[0][TUSB_DIR_IN].max_size = 64;
 
-    //dcd_event_bus_reset(rhport, (USBOTG_FS->BASE_CTRL & USBFS_CTRL_LOW_SPEED) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL, true);
-    dcd_event_bus_reset(rhport, (R8_UDEV_CTRL & USBFS_UDEV_CTRL_LOW_SPEED) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL, true);
+    dcd_event_bus_reset(rhport, (R8_UDEV_CTRL & RB_UH_LOW_SPEED) ? TUSB_SPEED_LOW : TUSB_SPEED_FULL, true);
 
     R8_USB_DEV_AD = 0x00;
     R8_UEP0_CTRL = (R8_UEP0_CTRL & ~(MASK_UEP_R_RES | RB_UEP_AUTO_TOG | RB_UEP_R_TOG | RB_UEP_T_TOG)) |
                    UEP_R_RES_ACK | (data.ep0_tog ? (RB_UEP_R_TOG | RB_UEP_T_TOG) : 0);
 
-    R8_USB_INT_FG = USBFS_INT_FG_BUS_RST;
-  } else if (status & USBFS_INT_FG_SUSPEND) {
+    R8_USB_INT_FG = RB_UIF_BUS_RST;
+  } else if (status & RB_UIF_SUSPEND ) {
     dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
     dcd_event_handler(&event, true);
-    R8_USB_INT_FG = USBFS_INT_FG_SUSPEND;
+    R8_USB_INT_FG = RB_UIF_SUSPEND;
   }
 }
 
@@ -283,12 +282,12 @@ void dcd_remote_wakeup(uint8_t rhport) {
 void dcd_connect(uint8_t rhport) {
   (void) rhport;
 
-  USBOTG_FS->USB_CTRL |= USBFS_CTRL_DEV_PUEN;
+  USBOTG_FS->USB_CTRL |= RB_UDP_PU_EN;
 }
 
 void dcd_disconnect(uint8_t rhport) {
   (void) rhport;
-  R8_USB_CTRL &= ~USBFS_CTRL_DEV_PUEN;
+  R8_USB_CTRL &= ~RB_UDP_PU_EN;
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {

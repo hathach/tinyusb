@@ -105,7 +105,7 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
-
+/*
 // CTRL
 #define USBFS_CTRL_DMA_EN    (1 << 0)
 #define USBFS_CTRL_CLR_ALL   (1 << 1)
@@ -114,8 +114,8 @@
 #define USBFS_CTRL_SYS_CTRL  (1 << 4)
 #define USBFS_CTRL_DEV_PUEN  (1 << 5)
 #define USBFS_CTRL_LOW_SPEED (1 << 6)
-#define USBFS_CTRL_HOST_MODE (1 << 7)
-
+#define USBFS_CTRL_HOST_MODE (1 << 7)*/
+/*
 // INT_EN
 #define USBFS_INT_EN_BUS_RST  (1 << 0)
 #define USBFS_INT_EN_DETECT   (1 << 0)
@@ -125,8 +125,8 @@
 #define USBFS_INT_EN_FIFO_OV  (1 << 4)
 #define USBFS_INT_EN_DEV_NAK  (1 << 6)
 #define USBFS_INT_EN_DEV_SOF  (1 << 7)
-
-// INT_FG
+*/
+/*// INT_FG
 #define USBFS_INT_FG_BUS_RST  (1 << 0)
 #define USBFS_INT_FG_DETECT   (1 << 0)
 #define USBFS_INT_FG_TRANSFER (1 << 1)
@@ -136,11 +136,12 @@
 #define USBFS_INT_FG_SIE_FREE (1 << 5)
 #define USBFS_INT_FG_TOG_OK   (1 << 6)
 #define USBFS_INT_FG_IS_NAK   (1 << 7)
+*/
 
 // INT_ST
 #define USBFS_INT_ST_MASK_UIS_ENDP(x)  (((x) >> 0) & 0x0F)
 #define USBFS_INT_ST_MASK_UIS_TOKEN(x) (((x) >> 4) & 0x03)
-
+/*
 // UDEV_CTRL
 #define USBFS_UDEV_CTRL_PORT_EN   (1 << 0)
 #define USBFS_UDEV_CTRL_GP_BIT    (1 << 1)
@@ -148,7 +149,8 @@
 #define USBFS_UDEV_CTRL_DM_PIN    (1 << 4)
 #define USBFS_UDEV_CTRL_DP_PIN    (1 << 5)
 #define USBFS_UDEV_CTRL_PD_DIS    (1 << 7)
-
+*/
+/*
 // TX_CTRL
 #define USBFS_EP_T_RES_MASK (3 << 0)
 #define USBFS_EP_T_TOG      (1 << 2)
@@ -158,7 +160,8 @@
 #define USBFS_EP_T_RES_NYET  (1 << 0)
 #define USBFS_EP_T_RES_NAK   (2 << 0)
 #define USBFS_EP_T_RES_STALL (3 << 0)
-
+*/
+/*
 // RX_CTRL
 #define USBFS_EP_R_RES_MASK (3 << 0)
 #define USBFS_EP_R_TOG      (1 << 2)
@@ -168,7 +171,7 @@
 #define USBFS_EP_R_RES_NYET  (1 << 0)
 #define USBFS_EP_R_RES_NAK   (2 << 0)
 #define USBFS_EP_R_RES_STALL (3 << 0)
-
+*/
 // token PID
 #define PID_OUT   0
 #define PID_SOF   1
