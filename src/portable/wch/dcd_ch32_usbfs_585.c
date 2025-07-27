@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2024 Matthew Tran
  * Copyright (c) 2024 hathach
+ * Copyright (c) 2025 AImproperCatGirl
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -189,17 +190,25 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init)
 
     R8_UEP4_1_MOD = RB_UEP4_RX_EN | RB_UEP4_TX_EN | RB_UEP1_RX_EN | RB_UEP1_TX_EN; // endpoint 4 OUT+IN,endpoint1 OUT+IN
     R8_UEP2_3_MOD = RB_UEP2_RX_EN | RB_UEP2_TX_EN | RB_UEP3_RX_EN | RB_UEP3_TX_EN; // endpoint2 OUT+IN,endpoint3 OUT+IN
+    R8_UEP567_MOD = RB_UEP7_RX_EN | RB_UEP7_TX_EN | RB_UEP6_RX_EN | RB_UEP6_TX_EN | RB_UEP5_RX_EN | RB_UEP5_TX_EN;
+
     R8_UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
     R8_UEP1_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
     R8_UEP2_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
     R8_UEP3_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
-    R8_UEP4_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
-
+    R8_UEP4_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK; // endpoint 4 again
+    R8_UEP5_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
+    R8_UEP6_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
+    R8_UEP7_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
 
     R32_UEP0_DMA = (uint32_t) &data.buffer[0];
     R32_UEP1_DMA = (uint32_t) &data.buffer[1];
     R32_UEP2_DMA = (uint32_t) &data.buffer[2];
     R32_UEP3_DMA = (uint32_t) &data.buffer[3];
+    //the fourth endpoint does not have DMA capability, as the datasheet suggets
+    R32_UEP5_DMA = (uint32_t) &data.buffer[5];
+    R32_UEP6_DMA = (uint32_t) &data.buffer[6];
+    R32_UEP7_DMA = (uint32_t) &data.buffer[7];
 
     R8_USB_DEV_AD = 0x00;
     R8_USB_CTRL = RB_UC_DEV_PU_EN | RB_UC_INT_BUSY | RB_UC_DMA_EN; // enable USB and DMA, 
