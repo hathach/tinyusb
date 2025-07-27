@@ -276,10 +276,10 @@ static ip_addr_t get_dhcp_destination(struct netif *netif, const DHCP_TYPE *dhcp
         goto dest_broadcast;
     }
 
-	dest_broadcast:
-		ip_addr_set_ip4_u32(&dest_addr,
-			ip4_addr_get_u32(netif_ip4_addr(netif)) | ~ip4_addr_get_u32(netif_ip4_netmask(netif)));
-		return dest_addr;
+dest_broadcast:
+    ip_addr_set_ip4_u32(&dest_addr,
+        ip4_addr_get_u32(netif_ip4_addr(netif)) | ~ip4_addr_get_u32(netif_ip4_netmask(netif)));
+    return dest_addr;
 
 }
 
