@@ -24,10 +24,11 @@
  *
  * This file is part of the TinyUSB stack.
  */
-
+#if CFG_TUSB_MCU == OPT_MCU_CH585
 #include "CH585SFR.h"
 #include "CH58x_common.h"
 #include "tusb_option.h"
+#endif
 
 #if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBFS_585
 
