@@ -3,6 +3,8 @@ include_guard()
 set(AT_FAMILY at32f423)
 set(AT_SDK_LIB ${TOP}/hw/mcu/artery/${AT_FAMILY}/libraries)
 
+string(TOUPPER ${AT_FAMILY} AT_FAMILY_UPPER)
+
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
@@ -10,7 +12,15 @@ include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS AT32F423 CACHE INTERNAL "")
+set(FAMILY_MCUS ${AT_FAMILY_UPPER} CACHE INTERNAL "")
+
+# extract variant linker name
+string(LENGTH ${MCU_VARIANT} MCU_VARIANT_LEN)
+math(EXPR MCU_FLASH_CODE_INDEX "${MCU_VARIANT_LEN} - 3")
+math(EXPR MCU_VARIANT_PREFIX_LEN "${MCU_FLASH_CODE_INDEX} - 1")
+string(SUBSTRING ${MCU_VARIANT} ${MCU_FLASH_CODE_INDEX} 1 MCU_FLASH_CODE)
+string(SUBSTRING ${MCU_VARIANT} 0 ${MCU_VARIANT_PREFIX_LEN} MCU_VARIANT_PREFIX)
+set(MCU_LINKER_NAME ${MCU_VARIANT_PREFIX}x${MCU_FLASH_CODE})
 
 #------------------------------------
 # BOARD_TARGET
@@ -26,7 +36,11 @@ function(add_board_target BOARD_TARGET)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
   set(STARTUP_FILE_IAR ${AT_SDK_LIB}/cmsis/cm4/device_support/startup/iar/startup_${AT_FAMILY}.s)
 
+  if (NOT DEFINED LD_FILE_GNU)
+    set(LD_FILE_GNU ${AT_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/linker/${MCU_LINKER_NAME}_FLASH.ld)
+  endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
+  set(LD_FILE_IAR ${AT_SDK_LIB}/cmsis/cm4/device_support/startup/iar/linker/${MCU_LINKER_NAME}.icf)
 
   add_library(${BOARD_TARGET} STATIC
     ${AT_SDK_LIB}/cmsis/cm4/device_support/system_${AT_FAMILY}.c
@@ -90,7 +104,7 @@ function(family_configure_example TARGET RTOS)
     )
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_AT32F423)
+  family_add_tinyusb(${TARGET} OPT_MCU_${AT_FAMILY_UPPER})
   target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c

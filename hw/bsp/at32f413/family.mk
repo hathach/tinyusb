@@ -15,7 +15,7 @@ CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_AT32F413
 
 LDFLAGS_GCC += \
-	-flto --specs=nosys.specs
+	-flto --specs=nosys.specs -nostdlib -nostartfiles
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \

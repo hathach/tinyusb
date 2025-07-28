@@ -262,8 +262,8 @@ void HardFault_Handler(void) {
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
-// void _init(void) {
-// }
+void _init(void) {
+}
 
 #ifdef USE_FULL_ASSERT
 void assert_failed(const char *file, uint32_t line) {

@@ -271,9 +271,13 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len)
   }
 #endif
 
-void HardFault_Handler(void)
-{
+void HardFault_Handler(void) {
   __asm("BKPT #0\n");
+}
+
+// Required by __libc_init_array in startup code if we are compiling using
+// -nostdlib/-nostartfiles.
+void _init(void) {
 }
 
 #ifdef  USE_FULL_ASSERT
