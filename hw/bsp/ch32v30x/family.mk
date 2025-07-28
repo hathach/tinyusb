@@ -57,6 +57,8 @@ INC += \
 	$(TOP)/$(SDK_SRC_DIR)/Core \
 	$(TOP)/$(SDK_SRC_DIR)/Peripheral/inc
 
+LD_FILE ?= $(FAMILY_PATH)/linker/ch32v30x.ld
+
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/RISC-V
 

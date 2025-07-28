@@ -29,7 +29,7 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ch32v307.ld)
+    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/ch32v30x.ld)
   endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
 
@@ -74,12 +74,14 @@ function(add_board_target BOARD_TARGET)
       -fsigned-char
       )
     target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
+      -Wl,--defsym=__FLASH_SIZE=${LD_FLASH_SIZE}
+      -Wl,--defsym=__RAM_SIZE=${LD_RAM_SIZE}
+      "LINKER:--script=${LD_FILE_GNU}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message(FATAL_ERROR "Clang is not supported for MSP432E4")
+    message(FATAL_ERROR "Clang is not supported for CH32v")
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${BOARD_TARGET} PUBLIC
       "LINKER:--config=${LD_FILE_IAR}"
@@ -120,9 +122,8 @@ function(family_configure_example TARGET RTOS)
     )
   target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
-
-
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_openocd_wch(${TARGET})
+  family_flash_wlink_rs(${TARGET})
 endfunction()
