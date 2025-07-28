@@ -1,6 +1,6 @@
-# Submodules
+JLINK_DEVICE = AT32F423VCT7
+
 AT32F423_SDK = hw/mcu/artery/at32f423
-DEPS_SUBMODULES += $(AT32F423_SDK)
 
 # AT32 SDK path
 AT32F423_SDK_SRC = $(AT32F423_SDK)/libraries
@@ -16,7 +16,7 @@ CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_AT32F423 \
 
 LDFLAGS_GCC += \
-	-flto --specs=nosys.specs
+	-flto --specs=nosys.specs -nostdlib -nostartfiles
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \

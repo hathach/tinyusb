@@ -121,7 +121,7 @@ void system_clock_config(void)
 #endif
 
 #ifdef AT32F402xx
-  /* reduce power comsumption */
+  /* reduce power consumption */
   reduce_power_consumption();
 #endif
 }

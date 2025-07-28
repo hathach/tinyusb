@@ -36,11 +36,11 @@ int inHandlerMode(void);
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void OTGFS1_IRQHandler(void) 
+void OTGFS1_IRQHandler(void)
 {
   tusb_int_handler(0, true);
 }
-void OTGFS2_IRQHandler(void) 
+void OTGFS2_IRQHandler(void)
 {
   tusb_int_handler(1, true);
 }
@@ -53,7 +53,7 @@ void OTGFS2_WKUP_IRQHandler(void)
   tusb_int_handler(1, true);
 }
 
-void board_init(void) 
+void board_init(void)
 {
   /* config nvic priority group */
   nvic_priority_group_config(NVIC_PRIORITY_GROUP_4);
@@ -185,7 +185,7 @@ void usb_clock48m_select(usb_clk48_s clk_s)
   }
 }
 
-void led_and_botton_init(void) 
+void led_and_botton_init(void)
 {
   /* LED */
   gpio_init_type gpio_led_init_struct;
@@ -245,7 +245,7 @@ void uart_print_init(uint32_t baudrate)
 }
 
 // Get characters from UART. Return number of read bytes
-int board_uart_read(uint8_t *buf, int len) 
+int board_uart_read(uint8_t *buf, int len)
 {
   (void) buf;
   (void) len;
@@ -257,7 +257,7 @@ int board_uart_write(void const *buf, int len)
   #if CFG_TUSB_OS == OPT_OS_NONE
     int txsize = len;
     u16 timeout = 0xffff;
-    while (txsize--) 
+    while (txsize--)
     {
       while(usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET)
       {
@@ -280,7 +280,7 @@ int board_uart_write(void const *buf, int len)
 
 int inHandlerMode(void)
 {
-   return __get_IPSR();  
+   return __get_IPSR();
 }
 
 void usb_gpio_config(void)
@@ -312,17 +312,17 @@ void usb_gpio_config(void)
   #endif
 }
 
-void board_led_write(bool state) 
+void board_led_write(bool state)
 {
   gpio_bits_write(LED_PORT, LED_PIN, state ^ (!LED_STATE_ON));
 }
 
-uint32_t board_button_read(void) 
+uint32_t board_button_read(void)
 {
   return gpio_input_data_bit_read(BUTTON_PORT, BUTTON_PIN);
 }
 
-size_t board_get_unique_id(uint8_t id[], size_t max_len) 
+size_t board_get_unique_id(uint8_t id[], size_t max_len)
 {
   (void) max_len;
   volatile uint32_t * at32_uuid = ((volatile uint32_t*)0x1FFFF7E8);
@@ -338,11 +338,11 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len)
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   volatile uint32_t system_ticks = 0;
-  void SysTick_Handler(void) 
+  void SysTick_Handler(void)
   {
     system_ticks++;
   }
-  uint32_t board_millis(void) 
+  uint32_t board_millis(void)
   {
     return system_ticks;
   }
@@ -354,7 +354,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len)
   }
 #endif
 
-void HardFault_Handler(void) 
+void HardFault_Handler(void)
 {
   __asm("BKPT #0\n");
 }

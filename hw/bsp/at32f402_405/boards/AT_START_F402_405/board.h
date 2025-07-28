@@ -55,7 +55,7 @@
 #define PRINT_UART_TX_PIN_SOURCE         GPIO_PINS_SOURCE9
 #define PRINT_UART_TX_PIN_MUX_NUM        GPIO_MUX_7
 
-//USB 
+//USB
 #ifdef BOARD_TUD_RHPORT
     #if BOARD_TUD_RHPORT == 0
         #define USB_ID                           USB_OTG1_ID

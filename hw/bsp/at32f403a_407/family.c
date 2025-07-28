@@ -25,8 +25,8 @@
  */
 
 #include "at32f403a_407_clock.h"
-#include "bsp/board_api.h"
 #include "board.h"
+#include "bsp/board_api.h"
 
 void usb_clock48m_select(usb_clk48_s clk_s);
 void uart_print_init(uint32_t baudrate);
@@ -50,8 +50,7 @@ void USBFSWakeUp_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void board_init(void) 
-{
+void board_init(void) {
   system_clock_config();
 
   /* config nvic priority group */
@@ -62,7 +61,7 @@ void board_init(void)
 
   /* configure systick */
   systick_clock_source_config(SYSTICK_CLOCK_SOURCE_AHBCLK_NODIV);
-  
+
   /* enable usb clock */
   crm_periph_clock_enable(CRM_USB_PERIPH_CLOCK, TRUE);
 
@@ -82,7 +81,7 @@ void board_init(void)
   gpio_default_para_init(&gpio_led_init_struct);
   /* configure the led gpio */
   gpio_led_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
-  gpio_led_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
+  gpio_led_init_struct.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
   gpio_led_init_struct.gpio_mode = GPIO_MODE_OUTPUT;
   gpio_led_init_struct.gpio_pins = LED_PIN;
   gpio_led_init_struct.gpio_pull = GPIO_PULL_NONE;
@@ -114,10 +113,8 @@ void board_init(void)
   * @param  clk_s:USB_CLK_HICK, USB_CLK_HEXT
   * @retval none
   */
-void usb_clock48m_select(usb_clk48_s clk_s)
-{
-  if(clk_s == USB_CLK_HICK)
-  {
+void usb_clock48m_select(usb_clk48_s clk_s) {
+  if (clk_s == USB_CLK_HICK) {
     crm_usb_clock_source_select(CRM_USB_CLOCK_SOURCE_HICK);
 
     /* enable the acc calibration ready interrupt */
@@ -130,11 +127,8 @@ void usb_clock48m_select(usb_clk48_s clk_s)
 
     /* open acc calibration */
     acc_calibration_mode_enable(ACC_CAL_HICKTRIM, TRUE);
-  }
-  else
-  {
-    switch(system_core_clock)
-    {
+  } else {
+    switch (system_core_clock) {
       /* 48MHz */
       case 48000000:
         crm_usb_clock_div_set(CRM_USB_DIV_1);
@@ -172,13 +166,11 @@ void usb_clock48m_select(usb_clk48_s clk_s)
 
       default:
         break;
-
     }
   }
 }
 
-void uart_print_init(uint32_t baudrate)
-{
+void uart_print_init(uint32_t baudrate) {
   gpio_init_type gpio_init_struct;
   /* enable the uart and gpio clock */
   crm_periph_clock_enable(PRINT_UART_CRM_CLK, TRUE);
@@ -186,7 +178,7 @@ void uart_print_init(uint32_t baudrate)
   gpio_default_para_init(&gpio_init_struct);
   /* configure the uart tx pin */
   gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
-  gpio_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
+  gpio_init_struct.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
   gpio_init_struct.gpio_mode = GPIO_MODE_MUX;
   gpio_init_struct.gpio_pins = PRINT_UART_TX_PIN;
   gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
@@ -207,8 +199,8 @@ uint32_t board_button_read(void) {
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   (void) max_len;
-  volatile uint32_t * at32_uuid = ((volatile uint32_t*)0x1FFFF7E8);
-  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
+  volatile uint32_t *at32_uuid = ((volatile uint32_t *) 0x1FFFF7E8);
+  uint32_t *id32 = (uint32_t *) (uintptr_t) id;
   uint8_t const len = 12;
 
   id32[0] = at32_uuid[0];
@@ -224,61 +216,57 @@ int board_uart_read(uint8_t *buf, int len) {
   return 0;
 }
 
-int board_uart_write(void const *buf, int len)
-{
-  #if CFG_TUSB_OS == OPT_OS_NONE
-    int txsize = len;
-    u16 timeout = 0xffff;
-    while (txsize--) 
-    {
-      while(usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET)
-      {
-        timeout--;
-        if(timeout == 0)
-        {
-          return 0;
-        }
+int board_uart_write(void const *buf, int len) {
+#if CFG_TUSB_OS == OPT_OS_NONE
+  int txsize = len;
+  u16 timeout = 0xffff;
+  while (txsize--) {
+    while (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET) {
+      timeout--;
+      if (timeout == 0) {
+        return 0;
       }
-      PRINT_UART->dt = (*((uint8_t const *)buf) & 0x01FF);
-      buf++;
     }
-    return len;
-  #else
-    (void) buf;
-    (void) len;
-    return 0;
-  #endif
+    PRINT_UART->dt = (*((uint8_t const *) buf) & 0x01FF);
+    buf++;
+  }
+  return len;
+#else
+  (void) buf;
+  (void) len;
+  return 0;
+#endif
 }
 
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  volatile uint32_t system_ticks = 0;
-  void SysTick_Handler(void) 
-  {
-    system_ticks++;
-  }
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler(void) {
+  system_ticks++;
+}
 
-  uint32_t board_millis(void) 
-  {
-    return system_ticks;
-  }
-  
-  void SVC_Handler(void)
-  {
-  }
+uint32_t board_millis(void) {
+  return system_ticks;
+}
 
-  void PendSV_Handler(void)
-  {
-  }
+void SVC_Handler(void) {
+}
+
+void PendSV_Handler(void) {
+}
 #endif
 
 void HardFault_Handler(void) {
   __asm("BKPT #0\n");
 }
 
-#ifdef  USE_FULL_ASSERT
-void assert_failed(const char *file, uint32_t line)
-{
+// Required by __libc_init_array in startup code if we are compiling using
+// -nostdlib/-nostartfiles.
+void _init(void) {
+}
+
+#ifdef USE_FULL_ASSERT
+void assert_failed(const char *file, uint32_t line) {
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */

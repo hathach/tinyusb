@@ -32,7 +32,7 @@ extern "C" {
 
 
 /**
-  * @brief in the following line adjust the value of high speed exernal crystal (hext)
+  * @brief in the following line adjust the value of high speed external crystal (hext)
   * used in your application
   *
   * tip: to avoid modifying this file each time you need to use different hext, you
@@ -40,11 +40,11 @@ extern "C" {
   *
   */
 #if !defined  HEXT_VALUE
-#define HEXT_VALUE               ((uint32_t)8000000) /*!< value of the high speed exernal crystal in hz */
+#define HEXT_VALUE               ((uint32_t)8000000) /*!< value of the high speed external crystal in hz */
 #endif
 
 /**
-  * @brief in the following line adjust the high speed exernal crystal (hext) startup
+  * @brief in the following line adjust the high speed external crystal (hext) startup
   * timeout value
   */
 #define HEXT_STARTUP_TIMEOUT     ((uint16_t)0x3000) /*!< time out for hext start up */

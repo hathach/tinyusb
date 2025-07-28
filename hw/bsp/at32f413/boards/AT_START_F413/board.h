@@ -52,7 +52,7 @@
 
 static inline void board_vbus_sense_init(void)
 {
-    
+
 }
 
 #ifdef __cplusplus

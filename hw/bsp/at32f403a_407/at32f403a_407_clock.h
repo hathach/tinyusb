@@ -41,4 +41,3 @@ void system_clock_config(void);
 #endif
 
 #endif /* __AT32F403A_407_CLOCK_H */
-

@@ -50,7 +50,7 @@ void USBFSWakeUp_IRQHandler(void) {
   tud_int_handler(0);
 }
 
-void board_init(void) 
+void board_init(void)
 {
   system_clock_config();
 
@@ -62,7 +62,7 @@ void board_init(void)
 
   /* configure systick */
   systick_clock_source_config(SYSTICK_CLOCK_SOURCE_AHBCLK_NODIV);
-  
+
   /* enable usb clock */
   crm_periph_clock_enable(CRM_USB_PERIPH_CLOCK, TRUE);
 
@@ -228,7 +228,7 @@ int board_uart_write(void const *buf, int len)
   #if CFG_TUSB_OS == OPT_OS_NONE
     int txsize = len;
     u16 timeout = 0xffff;
-    while (txsize--) 
+    while (txsize--)
     {
       while(usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET)
       {
@@ -252,16 +252,16 @@ int board_uart_write(void const *buf, int len)
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   volatile uint32_t system_ticks = 0;
-  void SysTick_Handler(void) 
+  void SysTick_Handler(void)
   {
     system_ticks++;
   }
 
-  uint32_t board_millis(void) 
+  uint32_t board_millis(void)
   {
     return system_ticks;
   }
-  
+
   void SVC_Handler(void)
   {
   }

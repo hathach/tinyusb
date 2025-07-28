@@ -109,13 +109,13 @@ static inline void dwc2_phy_init(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
 {
   (void) dwc2;
   // Enable on-chip HS PHY
-  if (hs_phy_type == GHWCFG2_HSPHY_UTMI || hs_phy_type == GHWCFG2_HSPHY_UTMI_ULPI) 
+  if (hs_phy_type == GHWCFG2_HSPHY_UTMI || hs_phy_type == GHWCFG2_HSPHY_UTMI_ULPI)
   {
-    
+
   }
   else if(hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED)
   {
-    
+
   }
 }
 

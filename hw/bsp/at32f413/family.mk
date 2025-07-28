@@ -1,6 +1,5 @@
 # Submodules
 AT32F413_SDK = hw/mcu/artery/at32f413
-DEPS_SUBMODULES += $(AT32F413_SDK)
 
 # AT32 SDK path
 AT32F413_SDK_SRC = $(AT32F413_SDK)/libraries
