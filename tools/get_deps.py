@@ -204,7 +204,7 @@ deps_optional = {
                             'ch32v20x'],
     'hw/mcu/wch/ch32v307': ['https://github.com/openwch/ch32v307.git',
                             '184f21b852cb95eed58e86e901837bc9fff68775',
-                            'ch32v307'],
+                            'ch32v30x'],
     'hw/mcu/wch/ch32f20x': ['https://github.com/openwch/ch32f20x.git',
                             '77c4095087e5ed2c548ec9058e655d0b8757663b',
                             'ch32f20x'],

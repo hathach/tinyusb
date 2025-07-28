@@ -1,20 +1,20 @@
-ENTRY( _start )
-
-__stack_size = 4096;
-
-PROVIDE( _stack_size = __stack_size );
-
+/* Define default values if not already defined */
+__flash_size = DEFINED(__FLASH_SIZE) ? __FLASH_SIZE : 128K;
+__ram_size = DEFINED(__RAM_SIZE) ? __RAM_SIZE : 32K;
+__stack_size = DEFINED(__STACK_SIZE) ? __STACK_SIZE : 2048;
 
 MEMORY
 {
-	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 288K
-	RAM (xrw) : ORIGIN = 0x20000000, LENGTH = 32K
+	FLASH (rx) : ORIGIN = 0x00000000, LENGTH = __flash_size
+	RAM (xrw) : ORIGIN = 0x20000000, LENGTH = __ram_size
 }
 
+ENTRY( _start )
+
+PROVIDE( _stack_size = __stack_size );
 
 SECTIONS
 {
-
 	.init :
 	{
 		_sinit = .;
