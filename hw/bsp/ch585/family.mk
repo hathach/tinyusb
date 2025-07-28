@@ -9,7 +9,7 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 
 #CPU_CORE ?= rv32imac-ilp32
 CFLAGS += \
-    -march=rv32imac_zicsr_zifencei \
+    -march=rv32imac_zicsr_zifencei \s
     -mabi=ilp32 \
 
 
@@ -20,8 +20,9 @@ LDFLAGS_GCC += \
     -mabi=ilp32 \
 
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=undef -Wno-error=cast-qual -Wno-error=unused-variable -Wno-error=pointer-sign
+#these flangs are used to supress WCH's low quality SDK, which is full of warnings that will otherwise stop the building process
 
-# default to use high speed port, unless specified in board.mk or command line
+
 SPEED ?= full
 
 CFLAGS += \
@@ -38,7 +39,7 @@ LDFLAGS_GCC += \
   --specs=nosys.specs --specs=nano.specs \
   -T $(TOP)/$(SDK_SRC_DIR)/Ld/Link.ld\
   -Wl,--start-group -L$(TOP)/$(SDK_SRC_DIR)/StdPeriphDriver \
-           -lISP585 \
+           -lISP585 \ # This part of the SDK is not open sourced.
 		   
 	-Wl,--trace-symbol=FLASH_EEPROM_CMD, --end-group
 		   
