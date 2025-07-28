@@ -415,6 +415,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   if (ep == 0) {
     if (dir == TUSB_DIR_OUT) {
       set_endpoint_rx_ctrl(ep,UEP_R_RES_ACK , false);
+      data.ep0_tog = !data.ep0_tog;
     }
   } else {
     if (dir == TUSB_DIR_OUT) {
