@@ -221,6 +221,12 @@ body.dark-mode {
   color: #d4d4d4;
 }
 
+body.dark-mode input[type="checkbox"] {
+  border-color: #888;
+  accent-color: #2e2e2e;
+  opacity: 0.8;
+}
+
 body.dark-mode .btn-theme {
   background-color: #b0b0b0;
   color: #000;
@@ -251,6 +257,7 @@ body.dark-mode .input:focus {
 
 body.dark-mode .scrollbox {
   background-color: #252526;
+  scrollbar-color: #555 #2e2e2e;
   border: 1px solid #444;
 }
 
@@ -286,8 +293,4 @@ body.dark-mode select:focus {
 body.dark-mode option {
   background-color: #3c3c3c;
   color: #f0f0f0;
-}
-
-body.dark-mode .scrollbox {
-  scrollbar-color: #555 #2e2e2e;
 }

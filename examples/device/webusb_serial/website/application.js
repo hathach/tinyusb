@@ -369,7 +369,7 @@
     }
 
     setStatus(msg, level = 'info') {
-      console.log(msg);
+      console.error(msg);
       uiStatusSpan.textContent = msg;
       uiStatusSpan.className = 'status status-' + level;
     }
@@ -596,24 +596,33 @@
       }
     }
 
+    async autoReconnectTimeout() {
+        this.reconnectTimeoutId = null;
+        if (!uiAutoReconnectCheckbox.checked) {
+          this.setStatus('Auto-reconnect stopped.', 'info');
+          return;
+        }
+        if (this.currentPort && !this.currentPort.isConnected) {
+          try {
+            await this.currentPort.connect();
+            this.setStatus('Reconnected successfully', 'info');
+          } catch (error) {
+            this.setStatus(`Reconnect failed: ${error.message}`, 'error');
+            // Try again after a delay
+            this.tryAutoReconnect();
+          } finally {
+            this.updateUIConnectionState();
+          }
+        }
+    }
+
     tryAutoReconnect() {
       this.updateUIConnectionState();
       if (!uiAutoReconnectCheckbox.checked) return;
       if (this.reconnectTimeoutId !== null) return; // already trying
       this.setStatus('Attempting to auto-reconnect...', 'info');
       this.reconnectTimeoutId = setTimeout(async () => {
-        this.reconnectTimeoutId = null;
-        if (!uiAutoReconnectCheckbox.checked) {
-          this.setStatus('Auto-reconnect stopped.', 'info');
-          return;
-        }
-        if (this.currentPort) {
-          try {
-            await this.currentPort.connect();
-          } finally {
-            this.updateUIConnectionState();
-          }
-        }
+        await this.autoReconnectTimeout();
       }, 1000);
     }
 
@@ -762,14 +771,15 @@
       // save <iso_date_time>,<received_line>
       let csvContent = 'data:text/csv;charset=utf-8,';
       for (const entry of this.receivedData) {
-        let line = new Date(entry.time).toISOString() + ',"' + entry.text.replace(/[\r\n]+$/, '') + '"';
+        let sanitizedText = entry.text.replace(/"/g, '""').replace(/[\r\n]+$/, '');
+        let line = new Date(entry.time).toISOString() + ',"' + sanitizedText + '"';
         csvContent += line + '\n';
       }
 
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      const filename = new Date().toISOString() + '_tinyusb_received_serial_data.csv';
+      const filename = new Date().toISOString().replace(/:/g, '-') + '_tinyusb_received_serial_data.csv';
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();

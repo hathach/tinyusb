@@ -116,7 +116,7 @@ class SerialPort {
     if (!this._port.writable) {
       throw new Error('Port is not writable');
     }
-    this._writer = port.writeable.getWriter();
+    this._writer = this._port.writable.getWriter();
     if (!this._writer) {
       throw new Error('Failed to get writer from port');
     }
@@ -141,6 +141,13 @@ class WebUsbSerialPort {
     this._readLoopPromise = null;
     this._initialized = false;
     this._keepReading = true;
+
+    this._vendorId = device.vendorId;
+    this._productId = device.productId;
+  }
+
+  _isSameWebUsbSerialPort(webUsbSerialPort) {
+    return this._vendorId === webUsbSerialPort._vendorId && this._productId === webUsbSerialPort._productId;
   }
 
   /// Connect and start reading loop
@@ -152,14 +159,9 @@ class WebUsbSerialPort {
         console.error('Error disconnecting previous device:', error);
       }
 
-      if (this._readLoopPromise) {
-        try {
-          await this._readLoopPromise;
-        } catch (error) {
-          console.error('Error in read loop:', error);
-        }
-      }
-      this._readLoopPromise = null;
+      const webUsbSerialPorts = await serial.getWebUsbSerialPorts();
+      const webUsbSerialPort = webUsbSerialPorts.find(serialPort => this._isSameWebUsbSerialPort(serialPort));
+      this._device = webUsbSerialPort ? webUsbSerialPort._device : this._device;
     }
     this._initialized = true;
 
