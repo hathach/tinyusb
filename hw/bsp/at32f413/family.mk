@@ -1,8 +1,5 @@
-# Submodules
-AT32F413_SDK = hw/mcu/artery/at32f413
-
-# AT32 SDK path
-AT32F413_SDK_SRC = $(AT32F413_SDK)/libraries
+AT32_FAMILY = at32f413
+AT32_SDK_LIB = hw/mcu/artery/${AT32_FAMILY}/libraries
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -19,21 +16,24 @@ LDFLAGS_GCC += \
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
-	$(AT32F413_SDK_SRC)/drivers/src/at32f413_gpio.c \
-	$(AT32F413_SDK_SRC)/drivers/src/at32f413_misc.c \
-	$(AT32F413_SDK_SRC)/drivers/src/at32f413_usart.c \
-	$(AT32F413_SDK_SRC)/drivers/src/at32f413_acc.c \
-	$(AT32F413_SDK_SRC)/drivers/src/at32f413_crm.c \
-	$(AT32F413_SDK_SRC)/cmsis/cm4/device_support/system_at32f413.c
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_gpio.c \
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_misc.c \
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_usart.c \
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_acc.c \
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_crm.c \
+	$(AT32_SDK_LIB)/cmsis/cm4/device_support/system_${AT32_FAMILY}.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(AT32F413_SDK_SRC)/drivers/inc \
-	$(TOP)/$(AT32F413_SDK_SRC)/cmsis/cm4/core_support \
-	$(TOP)/$(AT32F413_SDK_SRC)/cmsis/cm4/device_support
+	$(TOP)/$(AT32_SDK_LIB)/drivers/inc \
+	$(TOP)/$(AT32_SDK_LIB)/cmsis/cm4/core_support \
+	$(TOP)/$(AT32_SDK_LIB)/cmsis/cm4/device_support
 
-SRC_S += \
-	$(FAMILY_PATH)/startup_at32f413.s
+SRC_S_GCC += ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/startup_${AT32_FAMILY}.s
+SRC_S_IAR += ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/iar/startup_${AT32_FAMILY}.s
+
+LD_FILE_GCC ?= ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/linker/${MCU_LINKER_NAME}_FLASH.ld
+LD_FILE_IAR ?= ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/iar/linker/${MCU_LINKER_NAME}.icf
 
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F

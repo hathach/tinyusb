@@ -1,6 +1,6 @@
 include_guard()
 
-set(AT32_FAMILY at32f402_405)
+set(AT32_FAMILY at32f425)
 set(AT32_SDK_LIB ${TOP}/hw/mcu/artery/${AT32_FAMILY}/libraries)
 
 string(TOUPPER ${AT32_FAMILY} AT32_FAMILY_UPPER)
@@ -9,7 +9,7 @@ string(TOUPPER ${AT32_FAMILY} AT32_FAMILY_UPPER)
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
 # toolchain set up
-set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
+set(CMAKE_SYSTEM_CPU cortex-m4-nofpu CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 set(FAMILY_MCUS ${AT32_FAMILY_UPPER} CACHE INTERNAL "")
@@ -39,7 +39,6 @@ function(add_board_target BOARD_TARGET)
     ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_gpio.c
     ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_misc.c
     ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_usart.c
-    ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_acc.c
     ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_crm.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
@@ -49,11 +48,6 @@ function(add_board_target BOARD_TARGET)
     ${AT32_SDK_LIB}/cmsis/cm4/device_support
     ${AT32_SDK_LIB}/drivers/inc
     )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUD_RHPORT=0
-    BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
-    )
-
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

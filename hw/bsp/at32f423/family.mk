@@ -1,9 +1,5 @@
-JLINK_DEVICE = AT32F423VCT7
-
-AT32F423_SDK = hw/mcu/artery/at32f423
-
-# AT32 SDK path
-AT32F423_SDK_SRC = $(AT32F423_SDK)/libraries
+AT32_FAMILY = at32f423
+AT32_SDK_LIB = hw/mcu/artery/${AT32_FAMILY}/libraries
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -22,23 +18,23 @@ SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
 	src/portable/synopsys/dwc2/hcd_dwc2.c \
 	src/portable/synopsys/dwc2/dwc2_common.c \
-	$(AT32F423_SDK_SRC)/drivers/src/at32f423_gpio.c \
-	$(AT32F423_SDK_SRC)/drivers/src/at32f423_misc.c \
-	$(AT32F423_SDK_SRC)/drivers/src/at32f423_usart.c \
-	$(AT32F423_SDK_SRC)/drivers/src/at32f423_crm.c \
-	$(AT32F423_SDK_SRC)/drivers/src/at32f423_acc.c \
-	$(AT32F423_SDK_SRC)/cmsis/cm4/device_support/system_at32f423.c
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_gpio.c \
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_misc.c \
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_usart.c \
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_crm.c \
+	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_acc.c \
+	$(AT32_SDK_LIB)/cmsis/cm4/device_support/system_${AT32_FAMILY}.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/$(AT32F423_SDK_SRC)/drivers/inc \
-	$(TOP)/$(AT32F423_SDK_SRC)/cmsis/cm4/core_support \
-	$(TOP)/$(AT32F423_SDK_SRC)/cmsis/cm4/device_support
+	$(TOP)/$(AT32_SDK_LIB)/drivers/inc \
+	$(TOP)/$(AT32_SDK_LIB)/cmsis/cm4/core_support \
+	$(TOP)/$(AT32_SDK_LIB)/cmsis/cm4/device_support
 
-SRC_S += \
-	$(FAMILY_PATH)/startup_at32f423.s
+SRC_S_GCC += ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/startup_${AT32_FAMILY}.s
+SRC_S_IAR += ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/iar/startup_${AT32_FAMILY}.s
 
-# For freeRTOS port source
-#FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4
+LD_FILE_GCC ?= ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/gcc/linker/${MCU_LINKER_NAME}_FLASH.ld
+LD_FILE_IAR ?= ${AT32_SDK_LIB}/cmsis/cm4/device_support/startup/iar/linker/${MCU_LINKER_NAME}.icf
 
 flash: flash-atlink

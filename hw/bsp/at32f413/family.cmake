@@ -1,6 +1,6 @@
 include_guard()
 
-set(AT32_FAMILY at32f402_405)
+set(AT32_FAMILY at32f413)
 set(AT32_SDK_LIB ${TOP}/hw/mcu/artery/${AT32_FAMILY}/libraries)
 
 string(TOUPPER ${AT32_FAMILY} AT32_FAMILY_UPPER)
@@ -48,10 +48,6 @@ function(add_board_target BOARD_TARGET)
     ${AT32_SDK_LIB}/cmsis/cm4/core_support
     ${AT32_SDK_LIB}/cmsis/cm4/device_support
     ${AT32_SDK_LIB}/drivers/inc
-    )
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUD_RHPORT=0
-    BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
     )
 
   update_board(${BOARD_TARGET})
@@ -102,9 +98,7 @@ function(family_configure_example TARGET RTOS)
   # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} OPT_MCU_${AT32_FAMILY_UPPER})
   target_sources(${TARGET} PUBLIC
-    ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
-    ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
-    ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
+    ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     )
   target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 

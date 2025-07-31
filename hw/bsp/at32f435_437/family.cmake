@@ -1,6 +1,6 @@
 include_guard()
 
-set(AT32_FAMILY at32f402_405)
+set(AT32_FAMILY at32f435_437)
 set(AT32_SDK_LIB ${TOP}/hw/mcu/artery/${AT32_FAMILY}/libraries)
 
 string(TOUPPER ${AT32_FAMILY} AT32_FAMILY_UPPER)
@@ -41,6 +41,7 @@ function(add_board_target BOARD_TARGET)
     ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_usart.c
     ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_acc.c
     ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_crm.c
+    ${AT32_SDK_LIB}/drivers/src/${AT32_FAMILY}_exint.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
@@ -51,7 +52,6 @@ function(add_board_target BOARD_TARGET)
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     BOARD_TUD_RHPORT=0
-    BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
     )
 
   update_board(${BOARD_TARGET})
