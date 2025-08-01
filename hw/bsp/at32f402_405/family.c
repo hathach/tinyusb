@@ -24,6 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   manufacturer: Artery
+*/
+
 #include "at32f402_405_clock.h"
 #include "bsp/board_api.h"
 #include "board.h"

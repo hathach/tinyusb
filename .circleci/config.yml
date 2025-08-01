@@ -32,7 +32,7 @@ jobs:
               BUILDSYSTEM_TOOLCHAIN+=("cmake arm-iar")
             fi
 
-            RESOURCE_LARGE='["nrf", "imxrt", "stm32f4", "stm32h7"]'
+            RESOURCE_LARGE='["nrf", "imxrt", "stm32f4", "stm32h7 stm32h7rs"]'
 
             gen_build_entry() {
               local build_system="$1"

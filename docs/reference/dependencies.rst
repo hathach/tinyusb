@@ -9,6 +9,13 @@ Local Path                                Repo                                  
 ========================================  ================================================================  ========================================  ======================================================================================================================================================================================================================================================================================================================================================
 hw/mcu/allwinner                          https://github.com/hathach/allwinner_driver.git                   8e5e89e8e132c0fd90e72d5422e5d3d68232b756  fc100s
 hw/mcu/analog/msdk                        https://github.com/analogdevicesinc/msdk.git                      b20b398d3e5e2007594e54a74ba3d2a2e50ddd75  maxim
+hw/mcu/artery/at32f402_405                https://github.com/ArteryTek/AT32F402_405_Firmware_Library.git    4424515c2663e82438654e0947695295df2abdfe  at32f402_405
+hw/mcu/artery/at32f403a_407               https://github.com/ArteryTek/AT32F403A_407_Firmware_Library.git   f2cb360c3d28fada76b374308b8c4c61d37a090b  at32f403a_407
+hw/mcu/artery/at32f413                    https://github.com/ArteryTek/AT32F413_Firmware_Library.git        f6fe62dfec9fd40c5b63d92fc5ef2c2b5e77a450  at32f413
+hw/mcu/artery/at32f415                    https://github.com/ArteryTek/AT32F415_Firmware_Library.git        716f545aa1290ff144ccf023a8e797b951e1bc8e  at32f415
+hw/mcu/artery/at32f423                    https://github.com/ArteryTek/AT32F423_Firmware_Library.git        2afa7f12852e57a9e8aab3a892c641e1a8635a18  at32f423
+hw/mcu/artery/at32f425                    https://github.com/ArteryTek/AT32F425_Firmware_Library.git        620233e1357d5c1b7e2bde6b9dd5196822b91817  at32f425
+hw/mcu/artery/at32f435_437                https://github.com/ArteryTek/AT32F435_437_Firmware_Library.git    25439cc6650a8ae0345934e8707a5f38c7ae41f8  at32f435_437
 hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                       91060164afe239fcb394122e8bf9eb24d3194eb1  brtmm90x
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git              08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git                 7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103
@@ -44,6 +51,7 @@ hw/mcu/st/cmsis_device_n6                 https://github.com/STMicroelectronics/
 hw/mcu/st/cmsis_device_u5                 https://github.com/STMicroelectronics/cmsis_device_u5.git         5ad9797c54ec3e55eff770fc9b3cd4a1aefc1309  stm32u5
 hw/mcu/st/cmsis_device_wb                 https://github.com/STMicroelectronics/cmsis_device_wb.git         d6a7fa2e7de084f5e5e47f2ab88b022fe9b50e5a  stm32wb
 hw/mcu/st/stm32-mfxstm32l152              https://github.com/STMicroelectronics/stm32-mfxstm32l152.git      7f4389efee9c6a655b55e5df3fceef5586b35f9b  stm32h7
+hw/mcu/st/stm32-tcpp0203                  https://github.com/STMicroelectronics/stm32-tcpp0203.git          9918655bff176ac3046ccf378b5c7bbbc6a38d15  stm32h7rs stm32n6
 hw/mcu/st/stm32c0xx_hal_driver            https://github.com/STMicroelectronics/stm32c0xx_hal_driver.git    41253e2f1d7ae4a4d0c379cf63f5bcf71fcf8eb3  stm32c0
 hw/mcu/st/stm32f0xx_hal_driver            https://github.com/STMicroelectronics/stm32f0xx_hal_driver.git    0e95cd88657030f640a11e690a8a5186c7712ea5  stm32f0
 hw/mcu/st/stm32f1xx_hal_driver            https://github.com/STMicroelectronics/stm32f1xx_hal_driver.git    1dd9d3662fb7eb2a7f7d3bc0a4c1dc7537915a29  stm32f1
@@ -67,7 +75,7 @@ hw/mcu/ti                                 https://github.com/hathach/ti_driver.g
 hw/mcu/wch/ch32f20x                       https://github.com/openwch/ch32f20x.git                           77c4095087e5ed2c548ec9058e655d0b8757663b  ch32f20x
 hw/mcu/wch/ch32v103                       https://github.com/openwch/ch32v103.git                           7578cae0b21f86dd053a1f781b2fc6ab99d0ec17  ch32v10x
 hw/mcu/wch/ch32v20x                       https://github.com/openwch/ch32v20x.git                           c4c38f507e258a4e69b059ccc2dc27dde33cea1b  ch32v20x
-hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                           184f21b852cb95eed58e86e901837bc9fff68775  ch32v307
+hw/mcu/wch/ch32v307                       https://github.com/openwch/ch32v307.git                           184f21b852cb95eed58e86e901837bc9fff68775  ch32v30x
 lib/CMSIS_5                               https://github.com/ARM-software/CMSIS_5.git                       2b7495b8535bdcb306dac29b9ded4cfb679d7e5c  imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32n6 stm32u5 stm32wb sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg tm4c
 lib/CMSIS_6                               https://github.com/ARM-software/CMSIS_6.git                       b0bbb0423b278ca632cfe1474eb227961d835fd2  ra
 lib/FreeRTOS-Kernel                       https://github.com/FreeRTOS/FreeRTOS-Kernel.git                   cc0e0707c0c748713485b870bb980852b210877f  all
