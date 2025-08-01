@@ -212,7 +212,7 @@ uint8_t tud_msc_get_maxlun_cb(void) {
 // Return length of inquiry response, typically sizeof(scsi_inquiry_resp_t) (36 bytes), can be longer if included vendor data.
 uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uint32_t bufsize) {
   (void) lun;
-  uint32_t bufsize
+  (void) bufsize;
   const char vid[] = "TinyUSB";
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
