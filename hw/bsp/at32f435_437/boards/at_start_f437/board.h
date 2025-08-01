@@ -24,6 +24,11 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: AT-START-F437
+   url: https://www.arterychip.com/en/product/AT32F437.jsp
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 

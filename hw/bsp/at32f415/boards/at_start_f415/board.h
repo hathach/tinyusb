@@ -24,12 +24,19 @@
  * This file is part of the TinyUSB stack.
  */
 
+/* metadata:
+   name: AT-START-F415
+   url: https://www.arterychip.com/en/product/AT32F415.jsp
+*/
+
 #ifndef BOARD_H_
 #define BOARD_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+#define USB_VBUS_IGNORE
 
 // LED
 #define LED_PORT              GPIOC
@@ -43,16 +50,32 @@
 #define BUTTON_STATE_ACTIVE   0
 #define BUTTON_GPIO_CLK_EN()  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE)
 
-// UART
+// Usart
 #define PRINT_UART                       USART1
 #define PRINT_UART_CRM_CLK               CRM_USART1_PERIPH_CLOCK
 #define PRINT_UART_TX_PIN                GPIO_PINS_9
 #define PRINT_UART_TX_GPIO               GPIOA
 #define PRINT_UART_TX_GPIO_CRM_CLK       CRM_GPIOA_PERIPH_CLOCK
 
+//USB
+#define USB_ID                           0
+#define OTG_CLOCK                        CRM_OTGFS1_PERIPH_CLOCK
+#define OTG_IRQ                          OTGFS1_IRQn
+#define OTG_IRQ_HANDLER                  OTGFS1_IRQHandler
+#define OTG_WKUP_IRQ                     OTGFS1_WKUP_IRQn
+#define OTG_WKUP_HANDLER                 OTGFS1_WKUP_IRQHandler
+#define OTG_WKUP_EXINT_LINE              EXINT_LINE_18
+#define OTG_PIN_GPIO                     GPIOA
+#define OTG_PIN_GPIO_CLOCK               CRM_GPIOA_PERIPH_CLOCK
+#define OTG_PIN_VBUS                     GPIO_PINS_9
+#define OTG_PIN_ID                       GPIO_PINS_10
+#define OTG_PIN_SOF_GPIO                 GPIOA
+#define OTG_PIN_SOF_GPIO_CLOCK           CRM_GPIOA_PERIPH_CLOCK
+#define OTG_PIN_SOF                      GPIO_PINS_8
+
 static inline void board_vbus_sense_init(void)
 {
-
+    *(int*)(0x50000038) |= (1<<21);
 }
 
 #ifdef __cplusplus

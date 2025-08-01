@@ -27,6 +27,21 @@ max32690evkit  MAX32690 EVKIT    maxim     https://www.analog.com/en/resources/e
 max78002evkit  MAX78002 EVKIT    maxim     https://www.analog.com/en/resources/evaluation-hardware-and-software/evaluation-boards-kits/max78002evkit.html
 =============  ================  ========  =================================================================================================================  ======
 
+Artery
+-----
+
+==============  ==============  =============  ==================================================  ======
+Board           Name            Family         URL                                                 Note
+==============  ==============  =============  ==================================================  ======
+at_start_f405   AT-START-F405   at32f402_405   https://www.arterychip.com/en/product/AT32F405.jsp
+at_start_f403a  AT-START-F403a  at32f403a_407  https://www.arterychip.com/en/product/AT32F403.jsp
+at_start_f413   AT-START-F413   at32f413       https://www.arterychip.com/en/product/AT32F413.jsp
+at_start_f415   AT-START-F415   at32f415       https://www.arterychip.com/en/product/AT32F415.jsp
+at_start_f423   AT-START-F423   at32f423       https://www.arterychip.com/en/product/AT32F423.jsp
+at_start_f425   AT-START-F425   at32f425       https://www.arterychip.com/en/product/AT32F425.jsp
+at_start_f437   AT-START-F437   at32f435_437   https://www.arterychip.com/en/product/AT32F437.jsp
+==============  ==============  =============  ==================================================  ======
+
 Bridgetek
 ---------
 
@@ -326,6 +341,6 @@ ch32v103r_r1_1v0  CH32V103R-R1-1v1  ch32v10x  https://github.com/openwch/ch32v10
 ch32v203c_r0_1v0  CH32V203C-R0-1v0  ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
 ch32v203g_r0_1v0  CH32V203G-R0-1v0  ch32v20x  https://github.com/openwch/ch32v20x/tree/main/SCHPCB/CH32V203C-R0
 nanoch32v203      nanoCH32V203      ch32v20x  https://github.com/wuxx/nanoCH32V203
-nanoch32v305      nanoCH32V305      ch32v30x  https://github.com/wuxx/nanoCH32V305
 ch32v307v_r1_1v0  CH32V307V-R1-1v0  ch32v30x  https://github.com/openwch/ch32v307/tree/main/SCHPCB/CH32V307V-R1-1v0
+nanoch32v305      nanoCH32V305      ch32v30x  https://github.com/wuxx/nanoCH32V305
 ================  ================  ========  =====================================================================  ======
