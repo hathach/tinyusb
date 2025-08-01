@@ -15,6 +15,7 @@ toolchain_list = [
 
 # family: [supported toolchain]
 family_list = {
+    "at32f402_405 at32f403a_407 at32f413 at32f415 at32f423 at32f425 at32f435_437": ["arm-gcc"],
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
     "ch32v10x ch32v20x ch32v30x fomu gd32vf103": ["riscv-gcc"],
