@@ -324,6 +324,44 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_
             + TU_BIN8(dlsb))
 #endif
 
+//--------------------------------------------------------------------+
+// Descriptor helper
+//--------------------------------------------------------------------+
+
+// return next descriptor
+TU_ATTR_ALWAYS_INLINE static inline uint8_t const * tu_desc_next(void const* desc) {
+  uint8_t const* desc8 = (uint8_t const*) desc;
+  return desc8 + desc8[DESC_OFFSET_LEN];
+}
+
+// get descriptor length
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_len(void const* desc) {
+  return ((uint8_t const*) desc)[DESC_OFFSET_LEN];
+}
+
+// get descriptor type
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_type(void const* desc) {
+  return ((uint8_t const*) desc)[DESC_OFFSET_TYPE];
+}
+
+// get descriptor subtype
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
+  return ((uint8_t const*) desc)[DESC_OFFSET_SUBTYPE];
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_in_bounds(uint8_t const* p_desc, uint8_t const* desc_end) {
+  return (p_desc < desc_end) && (tu_desc_next(p_desc) <= desc_end);
+}
+
+// find descriptor that match byte1 (type)
+uint8_t const * tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1);
+
+// find descriptor that match byte1 (type) and byte2
+uint8_t const * tu_desc_find2(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2);
+
+// find descriptor that match byte1 (type) and byte2
+uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2, uint8_t byte3);
+
 #ifdef __cplusplus
  }
 #endif

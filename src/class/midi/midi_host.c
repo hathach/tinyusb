@@ -197,6 +197,7 @@ bool midih_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint
 //--------------------------------------------------------------------+
 bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *desc_itf, uint16_t max_len) {
   (void) rhport;
+
   TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
   const uint8_t *p_end = ((const uint8_t *) desc_itf) + max_len;
   const uint8_t *p_desc = (const uint8_t *) desc_itf;
@@ -210,9 +211,8 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   desc_cb.jack_num = 0;
 
   // There can be just a MIDI or an Audio + MIDI interface
-  // If there is Audio Control Interface + Audio Header descriptor, then skip it.
-  // If there is an Audio Control Interface + Audio Streaming Interface, then
-  // ignore the Audio Streaming Interface.
+  // - If there is Audio Control Interface + Audio Header descriptor, then skip it.
+  // - If there is an Audio Control Interface + Audio Streaming Interface, then ignore the Audio Streaming Interface.
   // Future:
   // Note that if this driver is used with an USB Audio Streaming host driver,
   // then call that driver first. If the MIDI interface comes before the
@@ -230,19 +230,20 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
     p_desc = tu_desc_next(p_desc);
     desc_itf = (const tusb_desc_interface_t *)p_desc;
     p_midi->itf_count = 1;
-    // See issue #3159
-    while ((p_desc < p_end) && (tu_desc_next(p_desc) <= p_end) && (desc_itf->bDescriptorType != TUSB_DESC_INTERFACE || (desc_itf->bInterfaceClass == TUSB_CLASS_AUDIO && desc_itf->bInterfaceSubClass != AUDIO_SUBCLASS_MIDI_STREAMING)))
-    {
+    // skip non-interface and non-midi streaming descriptors
+    while (tu_desc_in_bounds(p_desc, p_end) &&
+      (desc_itf->bDescriptorType != TUSB_DESC_INTERFACE || (desc_itf->bInterfaceClass == TUSB_CLASS_AUDIO && desc_itf->bInterfaceSubClass != AUDIO_SUBCLASS_MIDI_STREAMING))) {
       if (desc_itf->bDescriptorType == TUSB_DESC_INTERFACE && desc_itf->bAlternateSetting == 0) {
         p_midi->itf_count++;
       }
       p_desc = tu_desc_next(p_desc);
       desc_itf = (tusb_desc_interface_t const *)p_desc;
     }
-    TU_VERIFY(p_desc < p_end); // If MIDI interface comes after Audio Streaming, then max_len did not include the MIDI interface descriptor
+    TU_VERIFY(p_desc < p_end); // TODO: If MIDI interface comes after Audio Streaming, then max_len did not include the MIDI interface descriptor
     TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
-}
+  }
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass);
+
   TU_LOG_DRV("MIDI opening Interface %u (addr = %u)\r\n", desc_itf->bInterfaceNumber, dev_addr);
   p_midi->bInterfaceNumber = desc_itf->bInterfaceNumber;
   p_midi->iInterface = desc_itf->iInterface;
@@ -252,7 +253,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   p_desc = tu_desc_next(p_desc); // next to CS Header
 
   bool found_new_interface = false;
-  while ((p_desc < p_end) && (tu_desc_next(p_desc) <= p_end) && !found_new_interface) {
+  while (tu_desc_in_bounds(p_desc, p_end) && !found_new_interface) {
     switch (tu_desc_type(p_desc)) {
       case TUSB_DESC_INTERFACE:
         found_new_interface = true;
