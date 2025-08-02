@@ -47,8 +47,8 @@
 TU_ATTR_WEAK void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
   (void) lun; (void) vendor_id; (void) product_id; (void) product_rev;
 }
-TU_ATTR_WEAK uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t* inquiry_resp) {
-  (void) lun; (void) inquiry_resp;
+TU_ATTR_WEAK uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uint32_t bufsize) {
+  (void) lun; (void) inquiry_resp; (void) bufsize;
   return 0;
 }
 
@@ -749,7 +749,7 @@ static int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_
       inquiry_rsp->response_data_format = 2;
       inquiry_rsp->additional_length = sizeof(scsi_inquiry_resp_t) - 5;
 
-      resplen = (int32_t) tud_msc_inquiry2_cb(lun, inquiry_rsp);
+      resplen = (int32_t) tud_msc_inquiry2_cb(lun, inquiry_rsp, bufsize);
       if (resplen == 0) {
         // stub callback with no response, use v1 callback
         tud_msc_inquiry_cb(lun, inquiry_rsp->vendor_id, inquiry_rsp->product_id, inquiry_rsp->product_rev);
