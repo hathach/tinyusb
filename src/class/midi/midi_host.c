@@ -211,7 +211,14 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   desc_cb.jack_num = 0;
 
   // There can be just a MIDI or an Audio + MIDI interface
-  // If there is Audio Control Interface + Audio Header descriptor, skip it
+  // - If there is Audio Control Interface + Audio Header descriptor, then skip it.
+  // - If there is an Audio Control Interface + Audio Streaming Interface, then ignore the Audio Streaming Interface.
+  // Future:
+  // Note that if this driver is used with an USB Audio Streaming host driver,
+  // then call that driver first. If the MIDI interface comes before the
+  // audio streaming interface, then the audio driver will have to call this
+  // driver after parsing the audio control interface and then resume parsing
+  // the streaming audio interface.
   if (AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass) {
     TU_VERIFY(max_len > 2*sizeof(tusb_desc_interface_t) + sizeof(audio_desc_cs_ac_interface_t));
 
@@ -222,8 +229,18 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
 
     p_desc = tu_desc_next(p_desc);
     desc_itf = (const tusb_desc_interface_t *)p_desc;
-    TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
     p_midi->itf_count = 1;
+    // skip non-interface and non-midi streaming descriptors
+    while (tu_desc_in_bounds(p_desc, p_end) &&
+      (desc_itf->bDescriptorType != TUSB_DESC_INTERFACE || (desc_itf->bInterfaceClass == TUSB_CLASS_AUDIO && desc_itf->bInterfaceSubClass != AUDIO_SUBCLASS_MIDI_STREAMING))) {
+      if (desc_itf->bDescriptorType == TUSB_DESC_INTERFACE && desc_itf->bAlternateSetting == 0) {
+        p_midi->itf_count++;
+      }
+      p_desc = tu_desc_next(p_desc);
+      desc_itf = (tusb_desc_interface_t const *)p_desc;
+    }
+    TU_VERIFY(p_desc < p_end); // TODO: If MIDI interface comes after Audio Streaming, then max_len did not include the MIDI interface descriptor
+    TU_VERIFY(TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass);
   }
   TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == desc_itf->bInterfaceSubClass);
 
@@ -236,7 +253,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   p_desc = tu_desc_next(p_desc); // next to CS Header
 
   bool found_new_interface = false;
-  while ((p_desc < p_end) && (tu_desc_next(p_desc) <= p_end) && !found_new_interface) {
+  while (tu_desc_in_bounds(p_desc, p_end) && !found_new_interface) {
     switch (tu_desc_type(p_desc)) {
       case TUSB_DESC_INTERFACE:
         found_new_interface = true;

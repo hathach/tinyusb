@@ -211,7 +211,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uin
   TU_VERIFY(p_vendor, 0);
 
   p_vendor->itf_num = desc_itf->bInterfaceNumber;
-  while (tu_desc_is_valid(p_desc, desc_end)) {
+  while (tu_desc_in_bounds(p_desc, desc_end)) {
     const uint8_t desc_type = tu_desc_type(p_desc);
     if (desc_type == TUSB_DESC_INTERFACE || desc_type == TUSB_DESC_INTERFACE_ASSOCIATION) {
       break; // end of this interface
