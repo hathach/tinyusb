@@ -297,8 +297,9 @@ bool tud_audio_set_itf_close_ep_cb(uint8_t rhport, tusb_control_request_t const 
   uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
   uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
 
-  if (ITF_NUM_AUDIO_STREAMING_SPK == itf && alt == 0)
+  if (ITF_NUM_AUDIO_STREAMING_SPK == itf && alt == 0) {
     blink_interval_ms = BLINK_MOUNTED;
+  }
 
   return true;
 }
@@ -309,8 +310,9 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const *p_reques
   uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
 
   TU_LOG2("Set interface %d alt %d\r\n", itf, alt);
-  if (ITF_NUM_AUDIO_STREAMING_SPK == itf && alt != 0)
+  if (ITF_NUM_AUDIO_STREAMING_SPK == itf && alt != 0) {
     blink_interval_ms = BLINK_STREAMING;
+  }
 
   // Clear buffer when streaming format is changed
   spk_data_size = 0;
