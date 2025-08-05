@@ -402,7 +402,7 @@ TU_ATTR_WEAK bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t co
 }
 
 // Invoked when audio set interface request received which closes an EP
-TU_ATTR_WEAK bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const *p_request) {
+TU_ATTR_WEAK bool tud_audio_set_itf_close_ep_cb(uint8_t rhport, tusb_control_request_t const *p_request) {
   (void) rhport;
   (void) p_request;
   return true;
@@ -1078,7 +1078,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
     tu_fifo_clear(&audio->ep_in_ff);
 
     // Invoke callback - can be used to stop data sampling
-    TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
+    TU_VERIFY(tud_audio_set_itf_close_ep_cb(rhport, p_request));
 
     audio->ep_in = 0;// Necessary?
 
@@ -1101,7 +1101,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
     tu_fifo_clear(&audio->ep_out_ff);
 
     // Invoke callback - can be used to stop data sampling
-    TU_VERIFY(tud_audio_set_itf_close_EP_cb(rhport, p_request));
+    TU_VERIFY(tud_audio_set_itf_close_ep_cb(rhport, p_request));
 
     audio->ep_out = 0;// Necessary?
 
