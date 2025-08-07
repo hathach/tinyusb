@@ -45,11 +45,12 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec);
 //--------------------------------------------------------------------+
 typedef struct {
   void (* interrupt_set)(bool);
+  uint32_t nested_count;
 } osal_spinlock_t;
 
 // For SMP, spinlock must be locked by hardware, cannot just use interrupt
 #define OSAL_SPINLOCK_DEF(_name, _int_set) \
-  osal_spinlock_t _name = { .interrupt_set = _int_set }
+  osal_spinlock_t _name = { .interrupt_set = _int_set, .nested_count = 0 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
@@ -59,11 +60,16 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bo
   if (!in_isr) {
     ctx->interrupt_set(false);
   }
+  ctx->nested_count++;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
+  TU_ASSERT(ctx->nested_count,);
+  ctx->nested_count--;
   if (!in_isr) {
-    ctx->interrupt_set(true);
+    if (ctx->nested_count == 0) {
+      ctx->interrupt_set(true);
+    }
   }
 }
 
