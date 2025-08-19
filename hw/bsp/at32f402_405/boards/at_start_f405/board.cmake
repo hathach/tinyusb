@@ -3,6 +3,13 @@ set(MCU_LINKER_NAME AT32F405xC)
 
 set(JLINK_DEVICE ${MCU_VARIANT})
 
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 1)
+endif()
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 0)
+endif()
+
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC ${MCU_VARIANT})
 endfunction()

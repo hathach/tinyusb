@@ -51,9 +51,12 @@ function(add_board_target BOARD_TARGET)
     ${AT32_SDK_LIB}/drivers/inc
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUD_RHPORT=0
+    BOARD_TUD_RHPORT=1
+    BOARD_TUH_RHPORT=0
+    BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+    BOARD_TUH_MAX_SPEED=OPT_MODE_FULL_SPEED
     )
-
+    
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
