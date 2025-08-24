@@ -55,18 +55,18 @@ TU_ATTR_ALIGNED(4) static uint8_t USBFS_TX_Buf[USBFS_TX_BUF_LEN];
 #define LOG_CH32_USBFSH(...) TU_LOG3(__VA_ARGS__)
 
 // Busywait for delay microseconds/nanoseconds
-// static void loopdelay(uint32_t count)
-// {
-//     volatile uint32_t c = count / 3;
-//     if (c == 0) { return; }
-//     // while (c-- != 0);
-//     asm volatile(
-//       "1:                     \n" // loop label
-//       "    addi  %0, %0, -1   \n" // c--
-//       "    bne   %0, zero, 1b \n" // if (c != 0) goto loop
-//       : "+r"(c)            // c is input/output operand
-//   );
-// }
+static void loopdelay(uint32_t count)
+{
+    volatile uint32_t c = count / 3;
+    if (c == 0) { return; }
+    // while (c-- != 0);
+    asm volatile(
+      "1:                     \n" // loop label
+      "    addi  %0, %0, -1   \n" // c--
+      "    bne   %0, zero, 1b \n" // if (c != 0) goto loop
+      : "+r"(c)            // c is input/output operand
+  );
+}
 
 
 // Endpoint status
@@ -194,10 +194,13 @@ static bool hardware_start_xfer(uint8_t pid, uint8_t ep_addr, uint8_t data_toggl
                                                                 : "(other)",
                   pid, ep_addr, data_toggle);
 
-  // if (pid == USB_PID_IN)
-  // { // FIXME: long delay needed (at release build) about 30msec
-  //     loopdelay(SystemCoreClock / 1000 * 30);
-  // }
+  //WORKAROUND: For LowSpeed device, insert small delay
+  bool is_lowspeed_device = tuh_speed_get(usb_current_xfer_info.dev_addr) == TUSB_SPEED_LOW;
+  if (is_lowspeed_device) {
+    //NOTE: worked -> SystemCoreClock / 1000000 * 50, 25
+    //      NOT worked -> 20 and less  (at 144MHz internal clock)
+    loopdelay(SystemCoreClock / 1000000 * 40);
+  }
 
   uint8_t pid_edpt = (pid << 4) | (tu_edpt_number(ep_addr) & 0x0f);
   USBOTG_H_FS->HOST_TX_CTRL = (data_toggle != 0) ? USBFS_UH_T_TOG : 0;
