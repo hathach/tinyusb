@@ -120,9 +120,6 @@ static usb_edpt_t *get_empty_record_slot(void) {
 
 static usb_edpt_t *add_edpt_record(uint8_t dev_addr, uint8_t ep_addr, uint16_t max_packet_size, uint8_t xfer_type) {
   usb_edpt_t *slot = get_empty_record_slot();
-  if (slot == NULL) {
-    PANIC("add_edpt_record(0x%02x, 0x%02x, ...) no slot for new record\r\n", dev_addr, ep_addr);
-  }
   TU_ASSERT(slot != NULL, NULL);
 
   slot->dev_addr = dev_addr;
@@ -412,10 +409,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
           } else {
             LOG_CH32_USBFSH("USB_PID_OUT continue...\r\n");
             usb_current_xfer_info.buffer += tx_len;
-            uint16_t copylen = USBFS_TX_BUF_LEN;
-            if (copylen > usb_current_xfer_info.bufferlen) {
-              copylen = usb_current_xfer_info.bufferlen;
-            }
+            uint16_t copylen = TU_MIN(edpt_info->max_packet_size, usb_current_xfer_info.bufferlen);
             memcpy(USBFS_TX_Buf, usb_current_xfer_info.buffer, copylen);
             hardware_start_xfer(USB_PID_OUT, ep_addr, edpt_info->data_toggle);
             return;
@@ -445,7 +439,10 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
           }
         }
         default: {
-          PANIC("Unknown PID: 0x%02x\n", request_pid);
+          LOG_CH32_USBFSH("hcd_int_handler() L%d: unexpected response PID: 0x%02x\r\n", __LINE__, response_pid);
+          usb_current_xfer_info.is_busy = false;
+          hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_FAILED, true);
+          return;
         }
       }
     } else {
@@ -474,7 +471,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
         hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_FAILED, true);
         return;
       } else {
-        LOG_CH32_USBFSH("In USBHD_IRQHandler, unexpected response PID: 0x%02x\r\n", response_pid);
+        LOG_CH32_USBFSH("hcd_int_handler() L%d: unexpected response PID: 0x%02x\r\n", __LINE__, response_pid);
         usb_current_xfer_info.is_busy = false;
         hcd_event_xfer_complete(dev_addr, ep_addr, 0, XFER_RESULT_FAILED, true);
         return;
@@ -519,9 +516,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   usb_current_xfer_info.is_busy = true;
 
   usb_edpt_t *edpt_info = get_edpt_record(dev_addr, ep_addr);
-  if (edpt_info == NULL) {
-    PANIC("get_edpt_record() returned NULL in hcd_edpt_xfer()\r\n");
-  }
+  TU_ASSERT(edpt_info != NULL);
 
   hardware_set_port_address_speed(dev_addr);
 
@@ -537,10 +532,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
     return hardware_start_xfer(USB_PID_IN, ep_addr, edpt_info->data_toggle);
   } else {
     LOG_CH32_USBFSH("hcd_edpt_xfer(): WRITE, dev_addr=0x%02x, ep_addr=0x%02x, len=%d\r\n", dev_addr, ep_addr, buflen);
-    uint16_t copylen = USBFS_TX_BUF_LEN;
-    if (copylen > buflen) {
-      copylen = buflen;
-    }
+    uint16_t copylen = TU_MIN(edpt_info->max_packet_size, buflen);
     USBOTG_H_FS->HOST_TX_LEN = copylen;
     memcpy(USBFS_TX_Buf, buffer, copylen);
     return hardware_start_xfer(USB_PID_OUT, ep_addr, edpt_info->data_toggle);
@@ -596,7 +588,6 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
   (void) dev_addr;
   LOG_CH32_USBFSH("hcd_edpt_clear_stall(rhport=%d, dev_addr=0x%02x, ep_addr=0x%02x)\r\n", rhport, dev_addr, ep_addr);
-  // PANIC("\r\install\r\n");
   uint8_t edpt_num = tu_edpt_number(ep_addr);
   uint8_t setup_request_clear_stall[8] = {
       0x02, 0x01, 0x00, 0x00, edpt_num, 0x00, 0x00, 0x00
