@@ -84,6 +84,10 @@ typedef struct usb_edpt {
 
   // Data toggle (0 or not 0) for DATA0/1
   uint8_t data_toggle;
+
+  bool is_nak_pending;
+  uint16_t buflen;
+  uint8_t* buf;
 } usb_edpt_t;
 
 static usb_edpt_t usb_edpt_list[CFG_TUH_DEVICE_MAX * 6] = {};
@@ -130,6 +134,9 @@ static usb_edpt_t *add_edpt_record(uint8_t dev_addr, uint8_t ep_addr, uint16_t m
   slot->max_packet_size = max_packet_size;
   slot->xfer_type = xfer_type;
   slot->data_toggle = 0;
+  slot->is_nak_pending = false;
+  slot->buflen = 0;
+  slot->buf = NULL;
 
   slot->configured = true;
 
@@ -354,28 +361,22 @@ void hcd_int_disable(uint8_t rhport) {
   interrupt_enabled = false;
 }
 
-typedef struct {
-  uint8_t rhport;
-  uint8_t dev_addr;
-  uint8_t ep_addr;
-  uint16_t buflen;
-  uint8_t* buf;
-} xfer_retry_param_t;
 
 static void xfer_retry(void* _params) {
   LOG_CH32_USBFSH("xfer_retry()\r\n");
-  xfer_retry_param_t* params = (xfer_retry_param_t*)_params;
+  usb_edpt_t* edpt_info = (usb_edpt_t*)_params;
   if (usb_current_xfer_info.nak_pending) {
     usb_current_xfer_info.nak_pending = false;
+    edpt_info->is_nak_pending = false;
 
-    uint8_t dev_addr = params->dev_addr;
-    uint8_t ep_addr = params->ep_addr;
-    uint16_t buflen = params->buflen;
-    uint8_t* buf = params->buf;
-    free(params);
+    uint8_t dev_addr = edpt_info->dev_addr;
+    uint8_t ep_addr = edpt_info->ep_addr;
+    uint16_t buflen = edpt_info->buflen;
+    uint8_t* buf = edpt_info->buf;
 
-    usb_edpt_t* edpt_info = get_edpt_record(dev_addr, ep_addr);
-    if (edpt_info) {
+    // Check connectivity
+    usb_edpt_t* edpt_info_current = get_edpt_record(dev_addr, ep_addr);
+    if (edpt_info_current) {
         hcd_edpt_xfer(0, dev_addr, ep_addr, buf, buflen);
     }
   }
@@ -498,15 +499,10 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
           usb_current_xfer_info.is_busy = false;
           usb_current_xfer_info.nak_pending = true;
 
-          xfer_retry_param_t* param_buf = malloc(sizeof(xfer_retry_param_t));
-          xfer_retry_param_t param = {
-            .rhport = 0,
-            .dev_addr = dev_addr,
-            .ep_addr = ep_addr,
-            .buflen = usb_current_xfer_info.bufferlen,
-            .buf = usb_current_xfer_info.buffer
-          };
-          memcpy(param_buf, &param, sizeof(xfer_retry_param_t));
+
+          edpt_info->is_nak_pending = true;
+          edpt_info->buflen = usb_current_xfer_info.bufferlen;
+          edpt_info->buf = usb_current_xfer_info.buffer;
 
           hcd_event_t event = {
             .rhport = rhport,
@@ -514,7 +510,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
             .event_id = USBH_EVENT_FUNC_CALL,
             .func_call = {
                 .func = xfer_retry,
-                .param = param_buf
+                .param = edpt_info
             }
           };
           hcd_event_handler(&event, in_isr);
