@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2024 Ha Thach (tinyusb.org)
+ * Copyright (c) 2024-2025 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,11 +45,14 @@
 //
 //--------------------------------------------------------------------
 static void reset_core(dwc2_regs_t* dwc2) {
+  // load gsnpsid (it is not readable after reset is asserted)
+  uint32_t gsnpsid = dwc2->gsnpsid;
+
   // reset core
   dwc2->grstctl |= GRSTCTL_CSRST;
 
-  if ((dwc2->gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
-    // prior v42.0 CSRST is self-clearing
+  if ((gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
+    // prior v4.20a CSRST is self-clearing
     while (dwc2->grstctl & GRSTCTL_CSRST) {}
   } else {
     // From v4.20a CSRST bit is write only, CSRT_DONE (w1c) is introduced for checking.
