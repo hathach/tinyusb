@@ -57,19 +57,17 @@ TU_ATTR_ALIGNED(4) static uint8_t USBFS_TX_Buf[USBFS_TX_BUF_LEN];
 #define LOG_CH32_USBFSH(...) TU_LOG3(__VA_ARGS__)
 
 // Busywait for delay microseconds/nanoseconds
-static void loopdelay(uint32_t count)
-{
-    volatile uint32_t c = count / 3;
-    if (c == 0) { return; }
-    // while (c-- != 0);
-    asm volatile(
-      "1:                     \n" // loop label
-      "    addi  %0, %0, -1   \n" // c--
-      "    bne   %0, zero, 1b \n" // if (c != 0) goto loop
-      : "+r"(c)            // c is input/output operand
+TU_ATTR_ALWAYS_INLINE static inline void loopdelay(uint32_t count) {
+  volatile uint32_t c = count / 3;
+  if (c == 0) { return; }
+  // while (c-- != 0);
+  asm volatile(
+    "1:                     \n" // loop label
+    "    addi  %0, %0, -1   \n" // c--
+    "    bne   %0, zero, 1b \n" // if (c != 0) goto loop
+    : "+r"(c) // c is input/output operand
   );
 }
-
 
 // Endpoint status
 typedef struct usb_edpt {
@@ -346,7 +344,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 uint32_t hcd_frame_number(uint8_t rhport) {
   (void) rhport;
 
-  return board_millis();
+  return tusb_time_millis_api();
 }
 
 void hcd_int_enable(uint8_t rhport) {
@@ -489,7 +487,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
         return;
       } else if (response_pid == USB_PID_NAK) {
         LOG_CH32_USBFSH("NAK reposense\r\n");
-        uint32_t elapsed_time = board_millis() - usb_current_xfer_info.start_ms;
+        uint32_t elapsed_time = tusb_time_millis_api() - usb_current_xfer_info.start_ms;
         (void)elapsed_time;
         if (edpt_info->xfer_type == TUSB_XFER_INTERRUPT) {
           usb_current_xfer_info.is_busy = false;
@@ -577,7 +575,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   usb_current_xfer_info.ep_addr = ep_addr;
   usb_current_xfer_info.buffer = buffer;
   usb_current_xfer_info.bufferlen = buflen;
-  usb_current_xfer_info.start_ms = board_millis();
+  usb_current_xfer_info.start_ms = tusb_time_millis_api();
   usb_current_xfer_info.xferred_len = 0;
   usb_current_xfer_info.nak_pending = false;
 
@@ -628,7 +626,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   uint8_t ep_addr = (setup_packet[0] & 0x80) ? 0x80 : 0x00;
   usb_current_xfer_info.dev_addr = dev_addr;
   usb_current_xfer_info.ep_addr = ep_addr;
-  usb_current_xfer_info.start_ms = board_millis();
+  usb_current_xfer_info.start_ms = tusb_time_millis_api();
   usb_current_xfer_info.buffer = USBFS_TX_Buf;
   usb_current_xfer_info.bufferlen = setup_packet_datalen;
   usb_current_xfer_info.xferred_len = 0;
