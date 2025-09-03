@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: AT-START-F403a
-   url: https://www.arterychip.com/en/product/AT32F403.jsp
+   name: WeAct Studio BlackPill AT32F403ACGU7
+   url: https://github.com/WeActStudio/WeActStudio.BlackPill
 */
 
 #ifndef BOARD_H_
@@ -37,21 +37,16 @@
 #endif
 
 // LED
-#define LED_PORT              GPIOD
+#define LED_PORT              GPIOC
 #define LED_PIN               GPIO_PINS_13
 #define LED_STATE_ON          0 // Active Low
-#define LED_GPIO_CLK_EN()     crm_periph_clock_enable(CRM_GPIOD_PERIPH_CLOCK, TRUE)
-
-// #define LED_PORT              GPIOA
-// #define LED_PIN               GPIO_PINS_1
-// #define LED_STATE_ON          0 // Active Low
-// #define LED_GPIO_CLK_EN()     crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE)
+#define LED_GPIO_CLK_EN()     crm_periph_clock_enable(CRM_GPIOC_PERIPH_CLOCK, TRUE)
 
 // Button
 #define BUTTON_PORT           GPIOA
 #define BUTTON_PIN            GPIO_PINS_0
-#define BUTTON_PULL           GPIO_PULL_DOWN
-#define BUTTON_STATE_ACTIVE   1
+#define BUTTON_PULL           GPIO_PULL_UP
+#define BUTTON_STATE_ACTIVE   0
 #define BUTTON_GPIO_CLK_EN()  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE)
 
 // UART
