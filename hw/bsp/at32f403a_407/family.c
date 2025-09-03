@@ -29,8 +29,8 @@
 */
 
 #include "at32f403a_407_clock.h"
-#include "board.h"
 #include "bsp/board_api.h"
+#include "board.h"
 
 void usb_clock48m_select(usb_clk48_s clk_s);
 void uart_print_init(uint32_t baudrate);
