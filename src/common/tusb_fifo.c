@@ -428,7 +428,6 @@ static bool _tu_fifo_peek(tu_fifo_t* f, void * p_buffer, uint16_t wr_idx, uint16
   if ( cnt > f->depth )
   {
     rd_idx = _ff_correct_read_index(f, wr_idx);
-    cnt = f->depth;
   }
 
   uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
