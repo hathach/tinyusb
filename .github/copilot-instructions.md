@@ -53,13 +53,20 @@ python3 tools/build.py -b BOARD_NAME
 ## Validation
 
 ### ALWAYS Run These After Making Changes
-1. **Build validation**: Build at least one example that exercises your changes
+1. **Pre-commit validation** (RECOMMENDED): `pre-commit run --all-files`
+   - Install pre-commit: `pip install pre-commit && pre-commit install`
+   - Runs all quality checks, unit tests, spell checking, and formatting
+   - Takes 10-15 seconds. NEVER CANCEL. Set timeout to 15+ minutes.
+   - If pre-commit fails to install, use manual validation steps below
+2. **Build validation**: Build at least one example that exercises your changes
    ```bash
    cd examples/device/cdc_msc
    make BOARD=stm32f407disco all
    ```
-2. **Unit test validation**: `cd test/unit-test && ceedling` if you modified `src/` code
-3. **Format validation**: Run clang-format on any modified C files
+3. **Manual validation** (if pre-commit unavailable):
+   - Unit tests: `cd test/unit-test && ceedling` if you modified `src/` code
+   - Spell check: `codespell` (install with `pip install codespell`)
+   - Format check: Run clang-format on any modified C files
 
 ### Manual Testing Scenarios
 - **Device examples**: Cannot be fully tested without real hardware, but must build successfully
