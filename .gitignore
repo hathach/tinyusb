@@ -58,7 +58,7 @@ lib/FreeRTOS-Kernel/
 lib/lwip/
 lib/CMSIS_5/
 tools/uf2/
-test/unit-test/ceedling/
+test/unit-test/vendor/
 hw/mcu/raspberry_pi/Pico-PIO-USB/
 hw/mcu/st/cmsis_device_f4/
 hw/mcu/st/stm32f4xx_hal_driver/
