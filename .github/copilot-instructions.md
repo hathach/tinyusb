@@ -77,15 +77,15 @@ python3 tools/build.py -b BOARD_NAME
 
 ### Repository Structure Quick Reference
 ```
-├── src/                    # Core TinyUSB stack
-│   ├── class/             # USB device classes (CDC, HID, MSC, Audio, etc.)  
-│   ├── portable/          # MCU-specific drivers (organized by vendor)
+├── src/                  # Core TinyUSB stack
+│   ├── class/            # USB device classes (CDC, HID, MSC, Audio, etc.)
+│   ├── portable/         # MCU-specific drivers (organized by vendor)
 │   ├── device/           # USB device stack core
 │   ├── host/             # USB host stack core
 │   └── common/           # Shared utilities (FIFO, etc.)
-├── examples/              # Example applications
+├── examples/             # Example applications
 │   ├── device/           # Device examples (cdc_msc, hid_generic, etc.)
-│   ├── host/             # Host examples  
+│   ├── host/             # Host examples
 │   └── dual/             # Dual-role examples
 ├── hw/bsp/               # Board Support Packages
 │   └── FAMILY/boards/    # Board-specific configurations
@@ -96,7 +96,7 @@ python3 tools/build.py -b BOARD_NAME
 
 ### Build Time Reference
 - **Dependency fetch**: <1 second
-- **Single example build**: 1-3 seconds  
+- **Single example build**: 1-3 seconds
 - **Unit tests**: ~4 seconds
 - **Documentation build**: ~2.5 seconds
 - **Full board examples**: 15-20 seconds
@@ -119,7 +119,7 @@ python3 tools/build.py -b BOARD_NAME
 ### Working with USB Device Classes
 - **CDC (Serial)**: `src/class/cdc/` - Virtual serial port
 - **HID**: `src/class/hid/` - Human Interface Device (keyboard, mouse, etc.)
-- **MSC**: `src/class/msc/` - Mass Storage Class (USB drive)  
+- **MSC**: `src/class/msc/` - Mass Storage Class (USB drive)
 - **Audio**: `src/class/audio/` - USB Audio Class
 - Each class has device (`*_device.c`) and host (`*_host.c`) implementations
 
