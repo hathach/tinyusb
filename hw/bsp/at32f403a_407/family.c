@@ -102,7 +102,7 @@ void board_init(void) {
   gpio_button_init_struct.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
   gpio_button_init_struct.gpio_mode = GPIO_MODE_INPUT;
   gpio_button_init_struct.gpio_pins = BUTTON_PIN;
-  gpio_button_init_struct.gpio_pull = GPIO_PULL_DOWN;
+  gpio_button_init_struct.gpio_pull = BUTTON_PULL;
   gpio_init(BUTTON_PORT, &gpio_button_init_struct);
 
   uart_print_init(115200);
@@ -198,7 +198,7 @@ void board_led_write(bool state) {
 }
 
 uint32_t board_button_read(void) {
-  return gpio_input_data_bit_read(BUTTON_PORT, BUTTON_PIN);
+  return gpio_input_data_bit_read(BUTTON_PORT, BUTTON_PIN) == BUTTON_STATE_ACTIVE;
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {

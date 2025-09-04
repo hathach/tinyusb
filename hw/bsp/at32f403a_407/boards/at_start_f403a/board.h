@@ -50,7 +50,8 @@
 // Button
 #define BUTTON_PORT           GPIOA
 #define BUTTON_PIN            GPIO_PINS_0
-#define BUTTON_STATE_ACTIVE   0
+#define BUTTON_PULL           GPIO_PULL_DOWN
+#define BUTTON_STATE_ACTIVE   1
 #define BUTTON_GPIO_CLK_EN()  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE)
 
 // UART
