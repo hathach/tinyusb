@@ -66,10 +66,11 @@ void board_init(void)
   system_clock_config();
 
   /* config usb io*/
-  usb_gpio_config();
+  //usb_gpio_config();
 
   /* enable usb clock */
-  crm_periph_clock_enable(OTG_CLOCK, TRUE);
+  crm_periph_clock_enable(CRM_OTGFS1_PERIPH_CLOCK, TRUE);
+  crm_periph_clock_enable(CRM_OTGHS_PERIPH_CLOCK, TRUE);
 
   /* select usb 48m clcok source */
   usb_clock48m_select(USB_CLK_HEXT);
@@ -82,9 +83,11 @@ void board_init(void)
 
   #if CFG_TUSB_OS == OPT_OS_FREERTOS
     // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-    NVIC_SetPriority(OTG_IRQ, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+    NVIC_SetPriority(OTGHS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+    NVIC_SetPriority(OTGFS1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
   #else
-    NVIC_SetPriority(OTG_IRQ, 0);
+    NVIC_SetPriority(OTGHS_IRQn, 0);
+    NVIC_SetPriority(OTGFS1_IRQn, 0);
   #endif
 
   /* config led and key */
@@ -160,26 +163,7 @@ void usb_clock48m_select(usb_clk48_s clk_s)
 
 void usb_gpio_config(void)
 {
-  gpio_init_type gpio_init_struct;
-  crm_periph_clock_enable(OTG_PIN_GPIO_CLOCK, TRUE);
-  gpio_default_para_init(&gpio_init_struct);
-  gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
-  gpio_init_struct.gpio_out_type  = GPIO_OUTPUT_PUSH_PULL;
-  gpio_init_struct.gpio_mode = GPIO_MODE_MUX;
-  gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
-  #ifdef USB_SOF_OUTPUT_ENABLE
-    crm_periph_clock_enable(OTG_PIN_SOF_GPIO_CLOCK, TRUE);
-    gpio_init_struct.gpio_pins = OTG_PIN_SOF;
-    gpio_init(OTG_PIN_SOF_GPIO, &gpio_init_struct);
-    gpio_pin_mux_config(OTG_PIN_SOF_GPIO, OTG_PIN_SOF_SOURCE, OTG_PIN_MUX);
-  #endif
-  /* otgfs use vbus pin */
-  #ifndef USB_VBUS_IGNORE
-    gpio_init_struct.gpio_pins = OTG_PIN_VBUS;
-    gpio_init_struct.gpio_pull = GPIO_PULL_DOWN;
-    gpio_pin_mux_config(OTG_PIN_GPIO, OTG_PIN_VBUS_SOURCE, OTG_PIN_MUX);
-    gpio_init(OTG_PIN_GPIO, &gpio_init_struct);
-  #endif
+  /*if needed*/
 }
 
 /**

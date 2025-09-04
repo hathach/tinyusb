@@ -29,8 +29,8 @@
 */
 
 #include "at32f403a_407_clock.h"
-#include "board.h"
 #include "bsp/board_api.h"
+#include "board.h"
 
 void usb_clock48m_select(usb_clk48_s clk_s);
 void uart_print_init(uint32_t baudrate);
@@ -102,7 +102,7 @@ void board_init(void) {
   gpio_button_init_struct.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
   gpio_button_init_struct.gpio_mode = GPIO_MODE_INPUT;
   gpio_button_init_struct.gpio_pins = BUTTON_PIN;
-  gpio_button_init_struct.gpio_pull = BUTTON_PULL;
+  gpio_button_init_struct.gpio_pull = GPIO_PULL_DOWN;
   gpio_init(BUTTON_PORT, &gpio_button_init_struct);
 
   uart_print_init(115200);
