@@ -52,3 +52,4 @@ RelWithDebInfo
 Release
 BrowseInfo
 .cmake_build
+README_processed.rst
