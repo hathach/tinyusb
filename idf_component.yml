@@ -1,3 +1,4 @@
+name: tinyusb
 description: TinyUSB ported to Espressif's SoCs
 url: https://docs.tinyusb.org/en/latest/
 documentation: "https://docs.tinyusb.org/en/latest/"
@@ -9,3 +10,4 @@ targets:
   - esp32s2
   - esp32s3
   - esp32p4
+  - esp32h4

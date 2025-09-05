@@ -28,7 +28,7 @@
 
 #include "tusb_option.h"
 
-#if (((CFG_TUSB_MCU == OPT_MCU_ESP32S2) ||  (CFG_TUSB_MCU == OPT_MCU_ESP32S3)) && CFG_TUD_ENABLED)
+#if (((CFG_TUSB_MCU == OPT_MCU_ESP32S2) ||  (CFG_TUSB_MCU == OPT_MCU_ESP32S3) || (CFG_TUSB_MCU == OPT_MCU_ESP32H4)) && CFG_TUD_ENABLED)
 
 // Espressif
 #include "xtensa/xtensa_api.h"
@@ -886,4 +886,4 @@ void dcd_int_disable (uint8_t rhport)
   esp_intr_free(usb_ih);
 }
 
-#endif // #if OPT_MCU_ESP32S2 || OPT_MCU_ESP32S3
+#endif // #if OPT_MCU_ESP32S2 || OPT_MCU_ESP32S3 || OPT_MCU_ESP32H4

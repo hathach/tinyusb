@@ -363,7 +363,7 @@
 //--------------------------------------------------------------------+
 // Espressif
 //--------------------------------------------------------------------+
-#elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)
+#elif TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32H4)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_ESP32
   #define TUP_DCD_ENDPOINT_MAX    7 // only 5 TX FIFO for endpoint IN

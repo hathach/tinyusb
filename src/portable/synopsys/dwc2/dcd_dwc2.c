@@ -42,6 +42,17 @@
 #include "dwc2_common.h"
 #include "dwc2_critical.h"
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32H4)
+// H4's USB_WRAP register block uses "wrap_*" field names. Map them to the
+// names used by TinyUSB's DWC2 port to keep the source unchanged.
+#define otg_conf                wrap_otg_conf
+#define pad_pull_override       wrap_pad_pull_override
+#define dp_pullup               wrap_dp_pullup
+#define dp_pulldown             wrap_dp_pulldown
+#define dm_pullup               wrap_dm_pullup
+#define dm_pulldown             wrap_dm_pulldown
+#endif
+
 #if TU_CHECK_MCU(OPT_MCU_GD32VF103)
   #define DWC2_EP_COUNT(_dwc2)   DWC2_EP_MAX
 #else

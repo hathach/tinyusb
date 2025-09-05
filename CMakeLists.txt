@@ -1,5 +1,6 @@
 idf_build_get_property(target IDF_TARGET)
 
+
 if(${target} STREQUAL "esp32s3")
     set(tusb_mcu "OPT_MCU_ESP32S3")
     set(tusb_family "esp32sx")
@@ -9,7 +10,13 @@ elseif(${target} STREQUAL "esp32s2")
 elseif(${target} STREQUAL "esp32p4")
     set(tusb_mcu "OPT_MCU_ESP32P4")
     set(tusb_family "esp32px")
+elseif(${target} STREQUAL "esp32h4")
+    set(tusb_mcu OPT_MCU_ESP32H4)
+    set(tusb_family "esp32sx")
 endif()
+
+message(STATUS "tusb_mcu: ${tusb_mcu}")
+message(STATUS "tusb_family: ${tusb_family}")
 
 set(compile_options
     "-DCFG_TUSB_MCU=${tusb_mcu}"

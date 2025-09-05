@@ -47,6 +47,14 @@ static const dwc2_controller_t _dwc2_controller[] = {
   { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .ep_fifo_size = 1024 }
 };
 
+#elif TU_CHECK_MCU(OPT_MCU_ESP32H4)
+#define DWC2_FS_REG_BASE   0x60040000UL
+#define DWC2_EP_MAX        7
+
+static const dwc2_controller_t _dwc2_controller[] = {
+  { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_OTG11_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .ep_fifo_size = 1024 }
+};
+
 #elif TU_CHECK_MCU(OPT_MCU_ESP32P4)
 #define DWC2_FS_REG_BASE   0x50040000UL
 #define DWC2_HS_REG_BASE   0x50000000UL
