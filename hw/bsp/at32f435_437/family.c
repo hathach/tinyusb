@@ -64,13 +64,11 @@ void board_init(void) {
   usb_gpio_config();
 
   /* enable usb clock */
-  crm_periph_clock_enable(OTG_CLOCK, TRUE);
+  crm_periph_clock_enable(CRM_OTGFS1_PERIPH_CLOCK, TRUE);
+  crm_periph_clock_enable(CRM_OTGFS2_PERIPH_CLOCK, TRUE);
 
   /* select usb 48m clcok source */
   usb_clock48m_select(USB_CLK_HEXT);
-
-  /* enable otgfs irq */
-  //nvic_irq_enable(OTG_IRQ, 0, 0);
 
   /* vbus ignore */
   board_vbus_sense_init();
@@ -78,7 +76,11 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  NVIC_SetPriority(OTG_IRQ, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(OTGFS1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+  NVIC_SetPriority(OTGFS2_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+#else
+  NVIC_SetPriority(OTGFS1_IRQn, 0);
+  NVIC_SetPriority(OTGFS2_IRQn, 0);
 #endif
 
   /* config led and key */
@@ -271,30 +273,22 @@ int inHandlerMode(void) {
 
 void usb_gpio_config(void) {
   gpio_init_type gpio_init_struct;
-  crm_periph_clock_enable(OTG_PIN_GPIO_CLOCK, TRUE);
+  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE);
+  crm_periph_clock_enable(CRM_GPIOB_PERIPH_CLOCK, TRUE);
   gpio_default_para_init(&gpio_init_struct);
   gpio_init_struct.gpio_drive_strength = GPIO_DRIVE_STRENGTH_STRONGER;
   gpio_init_struct.gpio_out_type = GPIO_OUTPUT_PUSH_PULL;
   gpio_init_struct.gpio_mode = GPIO_MODE_MUX;
   gpio_init_struct.gpio_pull = GPIO_PULL_NONE;
   /* dp and dm */
-  gpio_init_struct.gpio_pins = OTG_PIN_DP | OTG_PIN_DM;
-  gpio_init(OTG_PIN_GPIO, &gpio_init_struct);
-  gpio_pin_mux_config(OTG_PIN_GPIO, OTG_PIN_DP_SOURCE, OTG_PIN_MUX);
-  gpio_pin_mux_config(OTG_PIN_GPIO, OTG_PIN_DM_SOURCE, OTG_PIN_MUX);
-#ifdef USB_SOF_OUTPUT_ENABLE
-  crm_periph_clock_enable(OTG_PIN_SOF_GPIO_CLOCK, TRUE);
-  gpio_init_struct.gpio_pins = OTG_PIN_SOF;
-  gpio_init(OTG_PIN_SOF_GPIO, &gpio_init_struct);
-  gpio_pin_mux_config(OTG_PIN_SOF_GPIO, OTG_PIN_SOF_SOURCE, OTG_PIN_MUX);
-#endif
-  /* otgfs use vbus pin */
-#ifndef USB_VBUS_IGNORE
-  gpio_init_struct.gpio_pins = OTG_PIN_VBUS;
-  gpio_init_struct.gpio_pull = GPIO_PULL_DOWN;
-  gpio_pin_mux_config(OTG_PIN_GPIO, OTG_PIN_VBUS_SOURCE, OTG_PIN_MUX);
-  gpio_init(OTG_PIN_GPIO, &gpio_init_struct);
-#endif
+  gpio_init_struct.gpio_pins = GPIO_PINS_11 | GPIO_PINS_12;
+  gpio_init(GPIOA, &gpio_init_struct);
+  gpio_init_struct.gpio_pins = GPIO_PINS_14 | GPIO_PINS_15;
+  gpio_init(GPIOB, &gpio_init_struct);
+  gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE11, GPIO_MUX_10);
+  gpio_pin_mux_config(GPIOA, GPIO_PINS_SOURCE12, GPIO_MUX_10);
+  gpio_pin_mux_config(GPIOB, GPIO_PINS_SOURCE14, GPIO_MUX_12);
+  gpio_pin_mux_config(GPIOB, GPIO_PINS_SOURCE15, GPIO_MUX_12);
 }
 
 void board_led_write(bool state) {
