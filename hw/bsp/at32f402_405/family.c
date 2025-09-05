@@ -163,7 +163,11 @@ void usb_clock48m_select(usb_clk48_s clk_s)
 
 void usb_gpio_config(void)
 {
-  /*if needed*/
+  /* When the USB clock is enabled, the hardware will automatically
+  configure the pins; but other special pins that need to be used,
+  such as the pins used to detect VBUS or the pins that output the
+  SOF signal, still need to be configured separately, and these pins
+  are usually not required */
 }
 
 /**

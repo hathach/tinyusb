@@ -41,7 +41,7 @@ at_start_f413   AT-START-F413   at32f413       https://www.arterychip.com/en/pro
 at_start_f415   AT-START-F415   at32f415       https://www.arterychip.com/en/product/AT32F415.jsp
 at_start_f423   AT-START-F423   at32f423       https://www.arterychip.com/en/product/AT32F423.jsp
 at_start_f425   AT-START-F425   at32f425       https://www.arterychip.com/en/product/AT32F425.jsp
-at_start_f435   AT-START-F435   at32f435_435   https://www.arterychip.com/en/product/AT32F435.jsp
+at_start_f435   AT-START-F435   at32f435_437   https://www.arterychip.com/en/product/AT32F435.jsp
 at_start_f437   AT-START-F437   at32f435_437   https://www.arterychip.com/en/product/AT32F437.jsp
 ==============  ==============  =============  ==================================================  ======
 
