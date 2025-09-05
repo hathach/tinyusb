@@ -56,7 +56,7 @@ function(add_board_target BOARD_TARGET)
     BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     BOARD_TUH_MAX_SPEED=OPT_MODE_FULL_SPEED
     )
-    
+
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
