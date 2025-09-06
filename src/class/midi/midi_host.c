@@ -575,6 +575,11 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
             }
           }
         }
+        else {
+          // bad packet discard
+          nread = tu_edpt_stream_read(p_midi->daddr, &p_midi->ep_stream.rx, p_midi->stream_read.buffer, 4);
+          continue;
+        }
       } else if (status < MIDI_STATUS_SYSEX_START) {
         // then it is a channel message either three bytes or two
         uint8_t fake_cin = (status & 0xf0) >> 4;
@@ -616,6 +621,11 @@ uint32_t tuh_midi_stream_read(uint8_t idx, uint8_t *p_cable_num, uint8_t *p_buff
         // so do don't clear cable_sysex_in_progress bit
         bytes_to_add_to_stream = 1;
       }
+    }
+    else {
+      // bad packet discard
+      nread = tu_edpt_stream_read(p_midi->daddr, &p_midi->ep_stream.rx, p_midi->stream_read.buffer, 4);
+      continue;
     }
 
     for (uint8_t i = 1; i <= bytes_to_add_to_stream; i++) {
