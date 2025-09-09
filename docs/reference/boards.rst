@@ -303,6 +303,7 @@ stm32u575eval        STM32 U575 Eval                    stm32u5    https://www.s
 stm32u575nucleo      STM32 U575 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u575zi-q.html
 stm32u5a5nucleo      STM32 U5a5 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u5a5zj-q.html
 stm32wb55nucleo      STM32 P-NUCLEO-WB55                stm32wb    https://www.st.com/en/evaluation-tools/p-nucleo-wb55.html
+stm32wba65nucleo     STM32 NUCLEO-WBA65RI               stm32wba   https://www.st.com/en/evaluation-tools/nucleo-wba65ri.html
 ===================  =================================  =========  =================================================================  ======
 
 Sunxi

@@ -49,6 +49,11 @@ static void reset_core(dwc2_regs_t* dwc2) {
   uint32_t gsnpsid = dwc2->gsnpsid;
 
   // reset core
+
+  // On the STM32WBA peripheral, the device seems to get stuck in reset unless
+  // this shadow register is utilized.
+  uint32_t gsnpsid = dwc2->gsnpsid;
+
   dwc2->grstctl |= GRSTCTL_CSRST;
 
   if ((gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
