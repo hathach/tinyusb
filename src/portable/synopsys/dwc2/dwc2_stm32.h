@@ -233,6 +233,9 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 
       // Enable PLL internal PHY
       USB_HS_PHYC->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
+
+      // Wait ~2ms until the PLL is ready (there's no RDY bit to query)
+      tusb_time_delay_ms_api(2);
       #else
 
       #endif
