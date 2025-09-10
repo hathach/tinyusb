@@ -34,8 +34,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_gpio.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_pcd.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_pcd_ex.c \
-	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_ll_usb.c \
-	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal.c
+	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_ll_usb.c
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
@@ -53,7 +52,7 @@ SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
 # Linker
 LD_FILE_GCC ?= ${ST_CMSIS}/Source/Templates/gcc/linker/${UPPERCASE_MCU_VARIANT}_FLASH_ns.ld
-LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash_cm33.icf
+LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash_ns.icf
 
 # flash target using on-board stlink
 flash: flash-stlink
