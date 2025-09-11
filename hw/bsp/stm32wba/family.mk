@@ -2,7 +2,7 @@ UF2_FAMILY_ID = 0x70d16657
 ST_FAMILY = wba
 
 ST_PREFIX = stm32${ST_FAMILY}xx
-ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
+ST_CMSIS = hw/mcu/st/cmsis-device-$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
 
 include $(TOP)/$(BOARD_PATH)/board.mk
