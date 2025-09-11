@@ -148,12 +148,6 @@
   /* ST provided header has incorrect value of USB_PMAADDR */
   #define FSDEV_PMA_BASE USB1_PMAADDR
 
-#elif defined(STM32WBA62xx) || defined(STM32WBA64xx) || defined(STM32WBA65xx)
-  // Available only on STM32WBA62/64/65xx devices
-  #include "stm32wbaxx.h"
-  #define FSDEV_PMA_SIZE (2048u)
-  #define USB USB_DRD_FS
-
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L4
   #include "stm32l4xx.h"
   #define FSDEV_PMA_SIZE (1024u)
@@ -295,8 +289,6 @@ static const IRQn_Type fsdev_irq[] = {
     USB_LP_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
     USB_IRQn,
-  #elif CFG_TUSB_MCU == OPT_MCU_STM32WBA
-    USB_OTG_HS_IRQn,
   #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
     USB_DRD_FS_IRQn,
   #else
