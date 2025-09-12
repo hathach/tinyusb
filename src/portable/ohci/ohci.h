@@ -97,9 +97,7 @@ typedef struct TU_ATTR_ALIGNED(16) {
 typedef struct TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 16)
 {
 	// Word 0
-	uint32_t used                    : 1;
-  uint32_t index                   : 8; // endpoint index the gtd belongs to, or device address in case of control xfer
-  uint32_t                         : 9; // can be used
+  uint32_t                         : 18; // can be used
   uint32_t buffer_rounding         : 1;
   uint32_t pid                     : 2;
   uint32_t delay_interrupt         : 3;
@@ -181,7 +179,11 @@ TU_VERIFY_STATIC( sizeof(ochi_itd_t) == CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_
 
 typedef struct {
   uint16_t expected_bytes; // up to 8192 bytes so max is 13 bits
+  uint8_t dev_addr  : 7;
+  uint8_t used      : 1;
+  uint8_t ep_addr;
 } gtd_extra_data_t;
+TU_VERIFY_STATIC( sizeof(gtd_extra_data_t) == 4, "size is not correct" );
 
 // structure with member alignment required from large to small
 typedef struct TU_ATTR_ALIGNED(256) {
