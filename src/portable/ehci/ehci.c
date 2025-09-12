@@ -184,7 +184,8 @@ static void ehci_enable_schedule(ehci_registers_t* regs, bool is_period) {
 //--------------------------------------------------------------------+
 uint32_t hcd_frame_number(uint8_t rhport) {
   (void) rhport;
-  return (ehci_data.uframe_number + ehci_data.regs->frame_index) >> 3;
+  uint32_t uframe = ehci_data.regs->frame_index;
+  return (ehci_data.uframe_number + uframe) >> 3;
 }
 
 void hcd_port_reset(uint8_t rhport) {
@@ -896,7 +897,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   p_qhd->used         = 1;
   p_qhd->removing     = 0;
   p_qhd->attached_qtd = NULL;
-  p_qhd->pid = tu_edpt_dir(ep_desc->bEndpointAddress) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
+  p_qhd->pid = tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
 
   //------------- active, but no TD list -------------//
   p_qhd->qtd_overlay.halted              = 0;

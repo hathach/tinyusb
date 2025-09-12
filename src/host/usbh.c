@@ -400,7 +400,7 @@ bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t* desc_dev
 tusb_speed_t tuh_speed_get(uint8_t daddr) {
   tuh_bus_info_t bus_info;
   tuh_bus_info_get(daddr, &bus_info);
-  return bus_info.speed;
+  return (tusb_speed_t)bus_info.speed;
 }
 
 bool tuh_rhport_is_active(uint8_t rhport) {
@@ -651,7 +651,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
               tuh_xfer_t xfer = {
                   .daddr       = event.dev_addr,
                   .ep_addr     = ep_addr,
-                  .result      = event.xfer_complete.result,
+                  .result      = (xfer_result_t)event.xfer_complete.result,
                   .actual_len  = event.xfer_complete.len,
                   .buflen      = 0,    // not available
                   .buffer      = NULL, // not available
@@ -832,18 +832,19 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
           }
           TU_ATTR_FALLTHROUGH;
 
-        case CONTROL_STAGE_DATA:
-          if (request->wLength) {
-            TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, daddr);
-            TU_LOG_MEM_USBH(ctrl_info->buffer, xferred_bytes, 2);
-          }
-          ctrl_info->actual_len = (uint16_t) xferred_bytes;
+        case CONTROL_STAGE_DATA: {
+            if (request->wLength) {
+              TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, daddr);
+              TU_LOG_MEM_USBH(ctrl_info->buffer, xferred_bytes, 2);
+            }
+            ctrl_info->actual_len = (uint16_t) xferred_bytes;
 
-          // ACK stage: toggle is always 1
-          _control_set_xfer_stage(CONTROL_STAGE_ACK);
-          const uint8_t ep_status = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
-          TU_ASSERT(hcd_edpt_xfer(rhport, daddr, ep_status, NULL, 0));
-          break;
+            // ACK stage: toggle is always 1
+            _control_set_xfer_stage(CONTROL_STAGE_ACK);
+            const uint8_t ep_status = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
+            TU_ASSERT(hcd_edpt_xfer(rhport, daddr, ep_status, NULL, 0));
+            break;
+          }   
 
         case CONTROL_STAGE_ACK: {
           // Abort all pending transfers if SET_CONFIGURATION request
