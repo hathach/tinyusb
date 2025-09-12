@@ -268,7 +268,10 @@
 #endif
 
 #ifndef CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP
-  // Defaults to double-buffered isochronous endpoints on devices with >1KB PMA
+  // Default configuration for double-buffered isochronous endpoints:
+  // - Enable double buffering on devices with >1KB Packet Memory Area (PMA)
+  //   to improve isochronous transfer reliability and performance
+  // - Disable on devices with limited PMA to conserve memory space
   #if FSDEV_PMA_SIZE > 1024u
     #define CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP 1
   #else
@@ -277,12 +280,16 @@
 #endif
 
 #if FSDEV_HAS_SBUF_ISO != 0 && CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP == 0
-  // If hardware has SBUF_ISO bit single-buffered endpoints consume only
-  // one half of endpoint pair register.
+  // SBUF_ISO configuration:
+  // - Some STM32 devices have special hardware support for single-buffered isochronous endpoints
+  // - When SBUF_ISO bit is available and double buffering is disabled:
+  //   Enable SBUF_ISO to optimize endpoint register usage (one half of endpoint pair register)
   #define FSDEV_USE_SBUF_ISO 1
 #else
-  // Otherwise it consumes entire endpoint pair but we can at least save
-  // memory by configuring the same buffer twice.
+  // When either:
+  // - Hardware doesn't support SBUF_ISO feature, or
+  // - Double buffering is enabled for isochronous endpoints
+  // We must use the entire endpoint pair register
   #define FSDEV_USE_SBUF_ISO 0
 #endif
 
