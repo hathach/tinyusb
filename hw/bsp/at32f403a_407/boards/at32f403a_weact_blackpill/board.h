@@ -25,7 +25,7 @@
  */
 
 /* metadata:
-   name: WeAct Studio BlackPill AT32F403ACGU7
+   name: WeAct BlackPill AT32F403ACGU7
    url: https://github.com/WeActStudio/WeActStudio.BlackPill
 */
 

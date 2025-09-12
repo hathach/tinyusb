@@ -25,7 +25,7 @@
  */
 
 /* metadata:
-   name: STM32N6570-DK
+   name: STM32 N6570-DK
    url: https://www.st.com/en/evaluation-tools/stm32n6570-dk.html
 */
 

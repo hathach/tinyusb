@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: AT-START-F405
-   url: https://www.arterychip.com/en/product/AT32F405.jsp
+   name: AT-START-F402
+   url: https://www.arterychip.com/en/product/AT32F402.jsp
 */
 
 #ifndef BOARD_H_

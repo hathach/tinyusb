@@ -150,7 +150,7 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 };
 
 #if CFG_EXAMPLE_MSC_ASYNC_IO
-void msc_disk_init() {
+void msc_disk_init(void) {
 
 #if configSUPPORT_STATIC_ALLOCATION
   io_queue = xQueueCreateStatic(1, sizeof(io_ops_t), io_queue_buf, &io_queue_static);

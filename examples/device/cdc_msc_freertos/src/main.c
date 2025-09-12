@@ -229,13 +229,11 @@ void tud_cdc_rx_cb(uint8_t itf) {
 //--------------------------------------------------------------------+
 void led_blinking_task(void* param) {
   (void) param;
-  static uint32_t start_ms = 0;
-  static bool led_state = false;
+    static bool led_state = false;
 
   while (1) {
     // Blink every interval ms
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
-    start_ms += blink_interval_ms;
 
     board_led_write(led_state);
     led_state = 1 - led_state; // toggle

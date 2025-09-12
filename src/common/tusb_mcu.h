@@ -295,6 +295,12 @@
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_DCD_ENDPOINT_MAX    8
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32WBA)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_STM32
+  #define TUP_DCD_ENDPOINT_MAX    9
+  #define TUP_RHPORT_HIGHSPEED    1
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32U5)
   #if defined (STM32U535xx) || defined (STM32U545xx)
     #define TUP_USBIP_FSDEV
