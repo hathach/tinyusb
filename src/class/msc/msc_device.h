@@ -48,6 +48,13 @@
   #error CFG_TUD_MSC_EP_BUFSIZE must be defined, value of a block size should work well, the more the better
 #endif
 
+// Return value of callback functions
+enum {
+  TUD_MSC_RET_BUSY = 0,   // Busy, e.g disk I/O is not ready
+  TUD_MSC_RET_ERROR = -1,
+  TUD_MSC_RET_ASYNC = -2, // Asynchronous IO
+};
+
 TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE < UINT16_MAX, "Size is not correct");
 
 //--------------------------------------------------------------------+
@@ -57,43 +64,40 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE < UINT16_MAX, "Size is not correct");
 // Set SCSI sense response
 bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, uint8_t add_sense_qualifier);
 
+// Called by Application once asynchronous I/O operation is done
+// bytes_io is number of bytes in I/O op, typically the bufsize in read/write_cb() or
+// TUD_MSC_RET_ERROR (-1) for error. Note TUD_MSC_RET_BUSY (0) will be treated as error as well.
+bool tud_msc_async_io_done(int32_t bytes_io, bool in_isr);
+
 //--------------------------------------------------------------------+
 // Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
 
-// Invoked when received SCSI READ10 command
-// - Address = lba * BLOCK_SIZE + offset
-//   - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
-//
-// - Application fill the buffer (up to bufsize) with address contents and return number of read byte. If
-//   - read < bufsize : These bytes are transferred first and callback invoked again for remaining data.
-//
-//   - read == 0      : Indicate application is not ready yet e.g disk I/O busy.
-//                      Callback invoked again with the same parameters later on.
-//
-//   - read < 0       : Indicate application error e.g invalid address. This request will be STALLed
-//                      and return failed status in command status wrapper phase.
+/*
+  Invoked when received SCSI READ10/WRITE10 command
+  - Address = lba * BLOCK_SIZE + offset
+    - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
+  - Application fill the buffer (up to bufsize) with address contents and return number of bytes read or status.
+    - 0 < ret < bufsize: These bytes are transferred first and callback will be invoked again for remaining data.
+    - TUD_MSC_RET_BUSY
+        Application is buys e.g disk I/O not ready. Callback will be invoked again with the same parameters later on.
+    - TUD_MSC_RET_ERROR
+        error such as invalid address. This request will be STALLed and scsi command will be failed
+    - TUD_MSC_RET_ASYNC
+        Data I/O will be done asynchronously in a background task. Application should return immediately.
+        tud_msc_async_io_done() must be called once IO/ is done to signal completion.
+*/
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
-
-// Invoked when received SCSI WRITE10 command
-// - Address = lba * BLOCK_SIZE + offset
-//   - offset is only needed if CFG_TUD_MSC_EP_BUFSIZE is smaller than BLOCK_SIZE.
-//
-// - Application write data from buffer to address contents (up to bufsize) and return number of written byte. If
-//   - write < bufsize : callback invoked again with remaining data later on.
-//
-//   - write == 0      : Indicate application is not ready yet e.g disk I/O busy.
-//                       Callback invoked again with the same parameters later on.
-//
-//   - write < 0       : Indicate application error e.g invalid address. This request will be STALLed
-//                       and return failed status in command status wrapper phase.
-//
-// TODO change buffer to const uint8_t*
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
 
-// Invoked when received SCSI_CMD_INQUIRY
+// Invoked when received SCSI_CMD_INQUIRY, v1, application should use v2 if possible
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]);
+
+// Invoked when received SCSI_CMD_INQUIRY, v2 with full inquiry response
+// Some inquiry_resp's fields are already filled with default values, application can update them
+// Return length of inquiry response, typically sizeof(scsi_inquiry_resp_t) (36 bytes), can be longer if included vendor data.
+uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uint32_t bufsize);
 
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted

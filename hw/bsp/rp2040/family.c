@@ -254,7 +254,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 int board_uart_read(uint8_t *buf, int len) {
 #ifdef UART_DEV
   int count = 0;
-  while ( (count < len) && uart_is_readable(uart_inst) ) {
+  while ((count < len) && uart_is_readable(uart_inst)) {
     buf[count] = uart_getc(uart_inst);
     count++;
   }
@@ -280,6 +280,10 @@ int board_uart_write(void const *buf, int len) {
 
 int board_getchar(void) {
   return getchar_timeout_us(0);
+}
+
+void board_putchar(int c) {
+  stdio_putchar(c);
 }
 
 //--------------------------------------------------------------------+

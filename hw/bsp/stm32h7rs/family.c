@@ -123,10 +123,159 @@ void log_swo_init(void)
   #define log_swo_init()
 #endif
 
+static void MPU_AdjustRegionAddressSize(uint32_t Address, uint32_t Size, MPU_Region_InitTypeDef* pInit);
+static void MPU_Config(void)
+{
+  MPU_Region_InitTypeDef MPU_InitStruct = {0};
+  uint32_t index = MPU_REGION_NUMBER0;
+  uint32_t address;
+  uint32_t size;
+
+  /* Disable the MPU */
+  HAL_MPU_Disable();
+
+  /* Initialize the background region */
+  MPU_InitStruct.Enable = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number = index;
+  MPU_InitStruct.BaseAddress = 0x0;
+  MPU_InitStruct.Size = MPU_REGION_SIZE_4GB;
+  MPU_InitStruct.SubRegionDisable = 0x87;
+  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_NO_ACCESS;
+  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable = MPU_ACCESS_SHAREABLE;
+  MPU_InitStruct.IsCacheable = MPU_ACCESS_CACHEABLE;
+  MPU_InitStruct.IsBufferable = MPU_ACCESS_BUFFERABLE;
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+  index++;
+
+  /* Initialize the non cacheable region */
+#if defined ( __ICCARM__ )
+  /* get the region attribute form the icf file */
+  extern uint32_t NONCACHEABLEBUFFER_start;
+  extern uint32_t NONCACHEABLEBUFFER_size;
+
+  address = (uint32_t)&NONCACHEABLEBUFFER_start;
+  size = (uint32_t)&NONCACHEABLEBUFFER_size;
+
+#elif defined (__CC_ARM) || defined(__ARMCC_VERSION)
+  extern uint32_t Image$$RW_NONCACHEABLEBUFFER$$Base;
+  extern uint32_t Image$$RW_NONCACHEABLEBUFFER$$Length;
+  extern uint32_t Image$$RW_NONCACHEABLEBUFFER$$ZI$$Length;
+
+  address = (uint32_t)&Image$$RW_NONCACHEABLEBUFFER$$Base;
+  size  = (uint32_t)&Image$$RW_NONCACHEABLEBUFFER$$Length + (uint32_t)&Image$$RW_NONCACHEABLEBUFFER$$ZI$$Length;
+#elif defined ( __GNUC__ )
+  extern int __NONCACHEABLEBUFFER_BEGIN;
+  extern int __NONCACHEABLEBUFFER_END;
+
+  address = (uint32_t)&__NONCACHEABLEBUFFER_BEGIN;
+  size  = (uint32_t)&__NONCACHEABLEBUFFER_END - (uint32_t)&__NONCACHEABLEBUFFER_BEGIN;
+#else
+#error "Compiler toolchain is unsupported"
+#endif
+
+  if (size != 0)
+  {
+    /* Configure the MPU attributes as Normal Non Cacheable */
+    MPU_InitStruct.Enable = MPU_REGION_ENABLE;
+    MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+    MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
+    MPU_InitStruct.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
+    MPU_InitStruct.IsShareable = MPU_ACCESS_NOT_SHAREABLE;
+    MPU_InitStruct.Number = index;
+    MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL1;
+    MPU_InitStruct.SubRegionDisable = 0x00;
+    MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
+    MPU_AdjustRegionAddressSize(address, size, &MPU_InitStruct);
+    HAL_MPU_ConfigRegion(&MPU_InitStruct);
+    index++;
+  }
+
+  /* Initialize the region corresponding to the execution area
+     (external or internal flash or external or internal RAM
+     depending on scatter file definition) */
+#if defined ( __ICCARM__ )
+  extern uint32_t __ICFEDIT_region_ROM_start__;
+  extern uint32_t __ICFEDIT_region_ROM_end__;
+  address = (uint32_t)&__ICFEDIT_region_ROM_start__;
+  size = (uint32_t)&__ICFEDIT_region_ROM_end__ - (uint32_t)&__ICFEDIT_region_ROM_start__ + 1;
+#elif defined (__CC_ARM) || defined(__ARMCC_VERSION)
+  extern uint32_t Image$$ER_ROM$$Base;
+  extern uint32_t Image$$ER_ROM$$Limit;
+  address = (uint32_t)&Image$$ER_ROM$$Base;
+  size    = (uint32_t)&Image$$ER_ROM$$Limit-(uint32_t)&Image$$ER_ROM$$Base;
+#elif defined ( __GNUC__ )
+  extern uint32_t __FLASH_BEGIN;
+  extern uint32_t __FLASH_SIZE;
+  address = (uint32_t)&__FLASH_BEGIN;
+  size  = (uint32_t)&__FLASH_SIZE;
+#else
+#error "Compiler toolchain is unsupported"
+#endif
+
+  MPU_InitStruct.Enable = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number = index;
+  MPU_InitStruct.SubRegionDisable = 0u;
+  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL1;
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_ENABLE;
+  MPU_InitStruct.IsShareable = MPU_ACCESS_SHAREABLE;
+  MPU_InitStruct.IsCacheable = MPU_ACCESS_CACHEABLE;
+  MPU_InitStruct.IsBufferable = MPU_ACCESS_BUFFERABLE;
+  MPU_AdjustRegionAddressSize(address, size, &MPU_InitStruct);
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+  index++;
+
+  /* Reset unused MPU regions */
+  for(; index < __MPU_REGIONCOUNT ; index++)
+  {
+    /* All unused regions disabled */
+    MPU_InitStruct.Enable = MPU_REGION_DISABLE;
+    MPU_InitStruct.Number = index;
+    HAL_MPU_ConfigRegion(&MPU_InitStruct);
+  }
+
+  /* Enable the MPU */
+  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
+}
+
+/**
+  * @brief This function adjusts the MPU region Address and Size within an MPU configuration.
+  * @param Address memory address
+  * @param Size memory size
+  * @param pInit pointer to an MPU initialization structure
+  * @retval None
+  */
+static void MPU_AdjustRegionAddressSize(uint32_t Address, uint32_t Size, MPU_Region_InitTypeDef* pInit)
+{
+  /* Compute the MPU region size */
+  pInit->Size = ((31 - __CLZ(Size)) - 1);
+  if (Size > (1u << (pInit->Size + 1)))
+  {
+    pInit->Size++;
+  }
+  uint32_t Modulo = Address % (1 << (pInit->Size - 1));
+  if (0 != Modulo)
+  {
+    /* Align address with MPU region size considering there is no need to increase the size */
+    pInit->BaseAddress = Address - Modulo;
+  }
+  else
+  {
+    pInit->BaseAddress = Address;
+  }
+}
+
 void board_init(void) {
   HAL_Init();
 
+  MPU_Config();
+  SCB_EnableICache();
+  SCB_EnableDCache();
+
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
+
   // Implemented in board.h
   SystemClock_Config();
 
@@ -180,7 +329,7 @@ void board_init(void) {
   HAL_PWREx_EnableUSBVoltageDetector();
   HAL_PWREx_EnableUSBReg();
 
-  __HAL_RCC_USB2_OTG_FS_CLK_ENABLE();
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 
   // PM14 VUSB, PM10 ID, PM11 DM, PM12 DP
   // Configure DM DP Pins

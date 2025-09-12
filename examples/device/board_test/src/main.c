@@ -49,25 +49,34 @@ int main(void) {
   while (1) {
     uint32_t interval_ms = board_button_read() ? BLINK_PRESSED : BLINK_UNPRESSED;
 
+    int ch = board_getchar();
+    if (ch > 0) {
+      board_putchar(ch);
+      #ifndef LOGGER_UART
+      board_uart_write(&ch, 1);
+      #endif
+    }
+
     // Blink and print every interval ms
     if (!(board_millis() - start_ms < interval_ms)) {
-      board_uart_write(HELLO_STR, strlen(HELLO_STR));
-
       start_ms = board_millis();
+
+      if (ch < 0) {
+        // skip if echoing
+        printf(HELLO_STR);
+
+        #ifndef LOGGER_UART
+        board_uart_write(HELLO_STR, strlen(HELLO_STR));
+        #endif
+      }
 
       board_led_write(led_state);
       led_state = 1 - led_state; // toggle
     }
-
-    // echo
-    uint8_t ch;
-    if (board_uart_read(&ch, 1) > 0) {
-      board_uart_write(&ch, 1);
-    }
   }
 }
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
 void app_main(void) {
   main();
 }

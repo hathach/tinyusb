@@ -1,6 +1,5 @@
 UF2_FAMILY_ID = 0x4fb2d5bd
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 

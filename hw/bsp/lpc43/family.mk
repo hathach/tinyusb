@@ -1,4 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 SDK_DIR = hw/mcu/nxp/lpcopen/lpc43xx/lpc_chip_43xx
 
 include ${TOP}/${BOARD_PATH}/board.mk

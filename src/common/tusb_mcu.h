@@ -117,9 +117,9 @@
   #define TUP_RHPORT_HIGHSPEED    1
 
   #if __CORTEX_M == 7
-  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  1
-  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  1
-  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE      32
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT        1
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT        1
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT   32
   #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_KINETIS_KL, OPT_MCU_KINETIS_K32L, OPT_MCU_KINETIS_K)
@@ -220,11 +220,24 @@
     #define TUP_RHPORT_HIGHSPEED  1 // Port0: FS, Port1: HS
   #endif
 
+  // Enable dcache if DMA is enabled
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT      CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT      CFG_TUH_DWC2_DMA_ENABLE
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT  32
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
+  #include "stm32h7xx.h"
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
 
   #define TUP_DCD_ENDPOINT_MAX    9
+
+  #if __CORTEX_M == 7
+    // Enable dcache if DMA is enabled
+    #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT      CFG_TUD_DWC2_DMA_ENABLE
+    #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT      CFG_TUH_DWC2_DMA_ENABLE
+    #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT  32
+  #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H5)
   #define TUP_USBIP_FSDEV
@@ -282,6 +295,12 @@
   #define TUP_USBIP_FSDEV_STM32
   #define TUP_DCD_ENDPOINT_MAX    8
 
+#elif TU_CHECK_MCU(OPT_MCU_STM32WBA)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_STM32
+  #define TUP_DCD_ENDPOINT_MAX    9
+  #define TUP_RHPORT_HIGHSPEED    1
+
 #elif TU_CHECK_MCU(OPT_MCU_STM32U5)
   #if defined (STM32U535xx) || defined (STM32U545xx)
     #define TUP_USBIP_FSDEV
@@ -321,6 +340,11 @@
 
   // MCU with on-chip HS Phy
   #define TUP_RHPORT_HIGHSPEED    1
+
+  // Enable dcache if DMA is enabled
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT     CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT     CFG_TUH_DWC2_DMA_ENABLE
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
 
 //--------------------------------------------------------------------+
 // Sony
@@ -392,11 +416,11 @@
   #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT  !CFG_TUH_DWC2_DMA_ENABLE
 
   // Enable dcache if DMA is enabled
-  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT  CFG_TUD_DWC2_DMA_ENABLE
-  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT  CFG_TUH_DWC2_DMA_ENABLE
+  #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT      CFG_TUD_DWC2_DMA_ENABLE
+  #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT      CFG_TUH_DWC2_DMA_ENABLE
   #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT  64
 
-#elif TU_CHECK_MCU(OPT_MCU_ESP32, OPT_MCU_ESP32C2, OPT_MCU_ESP32C3, OPT_MCU_ESP32C6, OPT_MCU_ESP32H2)
+#elif TU_CHECK_MCU(OPT_MCU_ESP32, OPT_MCU_ESP32C2, OPT_MCU_ESP32C3, OPT_MCU_ESP32C5, OPT_MCU_ESP32C6, OPT_MCU_ESP32C61, OPT_MCU_ESP32H2)
   #if (CFG_TUD_ENABLED || !(defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421))
   #error "MCUs are only supported with CFG_TUH_MAX3421 enabled"
   #endif
@@ -503,11 +527,17 @@
   #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X)
-  // v20x support both FSDEV (USBD) and USBFS, default to FSDEV
+  // v20x support both port0 FSDEV (USBD) and port1 USBFS
   #define TUP_USBIP_WCH_USBFS
+
+  #ifndef CFG_TUH_WCH_USBIP_USBFS
+  #define CFG_TUH_WCH_USBIP_USBFS 1
+  #endif
+
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_CH32
 
+  // default to FSDEV for device
   #if !defined(CFG_TUD_WCH_USBIP_USBFS)
   #define CFG_TUD_WCH_USBIP_USBFS 0
   #endif
@@ -543,6 +573,53 @@
   #define TUP_DCD_ENDPOINT_MAX    12
   #define TUP_RHPORT_HIGHSPEED    1
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
+
+//--------------------------------------------------------------------+
+// ArteryTek
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F403A_407)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F413)
+  #define TUP_USBIP_FSDEV
+  #define TUP_USBIP_FSDEV_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F415)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_AT32
+  #define TUP_DCD_ENDPOINT_MAX    4
+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F435_437)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F423)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F402_405)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
+
+  // AT32F405xx has on-chip HS PHY
+  #if defined(AT32F405CBT7) || defined(AT32F405CBU7) ||     \
+      defined(AT32F405CCT7) || defined(AT32F405CCU7) ||     \
+      defined(AT32F405KBU7_4) || defined(AT32F405KCU7_4) || \
+      defined(AT32F405RBT7_7) || defined(AT32F405RBT7) ||   \
+      defined(AT32F405RCT7_7) || defined(AT32F405RCT7)
+    #define TUP_RHPORT_HIGHSPEED  1 // Port0: FS, Port1: HS
+  #endif
+
+#elif TU_CHECK_MCU(OPT_MCU_AT32F425)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_AT32
+  #define TUP_DCD_ENDPOINT_MAX    8
 
 #endif
 

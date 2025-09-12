@@ -29,12 +29,12 @@ static tusb_desc_type_t desc_req_buf[2];
 static int desc_req_idx = 0;
 
 // Place at the start of tud_descriptor_device_cb()
-void quirk_os_guessing_desc_device_cb() {
+void quirk_os_guessing_desc_device_cb(void) {
   desc_req_idx = 0;
 }
 
 // Place at the start of tud_descriptor_configuration_cb()
-void quirk_os_guessing_desc_configuration_cb() {
+void quirk_os_guessing_desc_configuration_cb(void) {
   // Skip redundant request
   if (desc_req_idx == 0 || (desc_req_idx == 1 && desc_req_buf[0] != TUSB_DESC_CONFIGURATION)) {
     desc_req_buf[desc_req_idx++] = TUSB_DESC_CONFIGURATION;
@@ -42,7 +42,7 @@ void quirk_os_guessing_desc_configuration_cb() {
 }
 
 // Place at the start of tud_descriptor_bos_cb()
-void quirk_os_guessing_desc_bos_cb() {
+void quirk_os_guessing_desc_bos_cb(void) {
   // Skip redundant request
   if (desc_req_idx == 0 || (desc_req_idx == 1 && desc_req_buf[0] != TUSB_DESC_BOS)) {
     desc_req_buf[desc_req_idx++] = TUSB_DESC_BOS;
@@ -50,7 +50,7 @@ void quirk_os_guessing_desc_bos_cb() {
 }
 
 // Place at the start of tud_descriptor_string_cb()
-void quirk_os_guessing_desc_string_cb() {
+void quirk_os_guessing_desc_string_cb(void) {
   // Skip redundant request
   if (desc_req_idx == 0 || (desc_req_idx == 1 && desc_req_buf[0] != TUSB_DESC_STRING)) {
     desc_req_buf[desc_req_idx++] = TUSB_DESC_STRING;

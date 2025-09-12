@@ -1,5 +1,4 @@
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 MCU_DIR = $(SDK_DIR)/devices/${MCU_VARIANT}
 include $(TOP)/$(BOARD_PATH)/board.mk

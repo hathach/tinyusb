@@ -28,6 +28,37 @@
 
 #if CFG_TUD_MSC
 
+// Use async IO in example or not
+#define CFG_EXAMPLE_MSC_ASYNC_IO    1
+
+// Simulate read/write operation delay
+#define CFG_EXAMPLE_MSC_IO_DELAY_MS 0
+
+#if CFG_EXAMPLE_MSC_ASYNC_IO
+#define IO_STACK_SIZE      configMINIMAL_STACK_SIZE
+
+typedef struct {
+  uint8_t lun;
+  bool is_read;
+  uint32_t lba;
+  uint32_t offset;
+  void* buffer;
+  uint32_t bufsize;
+} io_ops_t;
+
+QueueHandle_t io_queue;
+#if configSUPPORT_STATIC_ALLOCATION
+uint8_t io_queue_buf[sizeof(io_ops_t)];
+StaticQueue_t io_queue_static;
+StackType_t  io_stack[IO_STACK_SIZE];
+StaticTask_t io_taskdef;
+#endif
+
+static void io_task(void *params);
+#endif
+
+void msc_disk_init(void);
+
 // whether host does safe-eject
 static bool ejected = false;
 
@@ -40,8 +71,7 @@ static bool ejected = false;
 If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
-enum
-{
+enum {
   DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
   DISK_BLOCK_SIZE = 512
 };
@@ -119,25 +149,65 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
   README_CONTENTS
 };
 
-// Invoked when received SCSI_CMD_INQUIRY
-// Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
-void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
-{
-  (void) lun;
+#if CFG_EXAMPLE_MSC_ASYNC_IO
+void msc_disk_init(void) {
 
+#if configSUPPORT_STATIC_ALLOCATION
+  io_queue = xQueueCreateStatic(1, sizeof(io_ops_t), io_queue_buf, &io_queue_static);
+  xTaskCreateStatic(io_task, "io", IO_STACK_SIZE, NULL, 2, io_stack, &io_taskdef);
+#else
+  io_queue = xQueueCreate(1, sizeof(io_ops_t));
+  xTaskCreate(io_task, "io", IO_STACK_SIZE, NULL, 2, NULL);
+#endif
+}
+
+static void io_task(void *params) {
+  (void) params;
+  io_ops_t io_ops;
+  while (1) {
+    if (xQueueReceive(io_queue, &io_ops, portMAX_DELAY)) {
+      uint8_t* addr = (uint8_t*) (uintptr_t) (msc_disk[io_ops.lba] + io_ops.offset);
+      int32_t nbytes = io_ops.bufsize;
+      if (io_ops.is_read) {
+        memcpy(io_ops.buffer, addr, io_ops.bufsize);
+      } else {
+#ifndef CFG_EXAMPLE_MSC_READONLY
+        memcpy((uint8_t*) addr, io_ops.buffer, io_ops.bufsize);
+#else
+        nbytes = -1; // failed to write
+#endif
+      }
+
+      tusb_time_delay_ms_api(CFG_EXAMPLE_MSC_IO_DELAY_MS);
+      tud_msc_async_io_done(nbytes, false);
+    }
+  }
+}
+
+#else
+void msc_disk_init() {}
+#endif
+
+// Invoked when received SCSI_CMD_INQUIRY, v2 with full inquiry response
+// Some inquiry_resp's fields are already filled with default values, application can update them
+// Return length of inquiry response, typically sizeof(scsi_inquiry_resp_t) (36 bytes), can be longer if included vendor data.
+uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t* inquiry_resp, uint32_t bufsize) {
+  (void) lun;
+  (void) bufsize;
   const char vid[] = "TinyUSB";
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
 
-  memcpy(vendor_id  , vid, strlen(vid));
-  memcpy(product_id , pid, strlen(pid));
-  memcpy(product_rev, rev, strlen(rev));
+  memcpy(inquiry_resp->vendor_id, vid, strlen(vid));
+  memcpy(inquiry_resp->product_id, pid, strlen(pid));
+  memcpy(inquiry_resp->product_rev, rev, strlen(rev));
+
+  return sizeof(scsi_inquiry_resp_t); // 36 bytes
 }
 
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted
-bool tud_msc_test_unit_ready_cb(uint8_t lun)
-{
+bool tud_msc_test_unit_ready_cb(uint8_t lun) {
   (void) lun;
 
   // RAM disk is ready until ejected
@@ -152,10 +222,8 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
 // Application update block count and block size
-void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
-{
+void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) {
   (void) lun;
-
   *block_count = DISK_BLOCK_NUM;
   *block_size  = DISK_BLOCK_SIZE;
 }
@@ -163,18 +231,14 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 // Invoked when received Start Stop Unit command
 // - Start = 0 : stopped power mode, if load_eject = 1 : unload disk storage
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
-bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
-{
+bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject) {
   (void) lun;
   (void) power_condition;
 
-  if ( load_eject )
-  {
-    if (start)
-    {
+  if (load_eject) {
+    if (start) {
       // load disk storage
-    }else
-    {
+    } else {
       // unload disk storage
       ejected = true;
     }
@@ -185,90 +249,107 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
-int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
-{
+int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
   (void) lun;
 
   // out of ramdisk
-  if ( lba >= DISK_BLOCK_NUM ) {
-    return -1;
+  if (lba >= DISK_BLOCK_NUM) {
+    return TUD_MSC_RET_ERROR;
   }
 
   // Check for overflow of offset + bufsize
-  if ( offset + bufsize > DISK_BLOCK_SIZE ) {
-    return -1;
+  if (lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE) {
+    return TUD_MSC_RET_ERROR;
   }
 
-  uint8_t const* addr = msc_disk[lba] + offset;
-  memcpy(buffer, addr, bufsize);
+  #if CFG_EXAMPLE_MSC_ASYNC_IO
+  io_ops_t io_ops = {.is_read = true, .lun = lun, .lba = lba, .offset = offset, .buffer = buffer, .bufsize = bufsize};
 
-  return (int32_t) bufsize;
+  // Send IO operation to IO task
+  TU_ASSERT(xQueueSend(io_queue, &io_ops, 0) == pdPASS);
+
+  return TUD_MSC_RET_ASYNC;
+  #else
+  uint8_t const *addr = msc_disk[lba] + offset;
+  memcpy(buffer, addr, bufsize);
+  return bufsize;
+  #endif
 }
 
-bool tud_msc_is_writable_cb (uint8_t lun)
-{
+bool tud_msc_is_writable_cb (uint8_t lun) {
   (void) lun;
 
-#ifdef CFG_EXAMPLE_MSC_READONLY
+  #ifdef CFG_EXAMPLE_MSC_READONLY
   return false;
-#else
+  #else
   return true;
-#endif
+  #endif
 }
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
-int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
-{
-  (void) lun;
-
+int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
   // out of ramdisk
-  if ( lba >= DISK_BLOCK_NUM ) return -1;
+  if (lba >= DISK_BLOCK_NUM) {
+    return TUD_MSC_RET_ERROR;
+  }
 
-#ifndef CFG_EXAMPLE_MSC_READONLY
-  uint8_t* addr = msc_disk[lba] + offset;
+  // Check for overflow of offset + bufsize
+  if (lba * DISK_BLOCK_SIZE + offset + bufsize > DISK_BLOCK_NUM * DISK_BLOCK_SIZE) {
+    return TUD_MSC_RET_ERROR;
+  }
+
+  #ifdef CFG_EXAMPLE_MSC_READONLY
+  (void) lun;
+  (void) buffer;
+  return bufsize;
+  #endif
+
+  #if CFG_EXAMPLE_MSC_ASYNC_IO
+  io_ops_t io_ops = {.is_read = false, .lun = lun, .lba = lba, .offset = offset, .buffer = buffer, .bufsize = bufsize};
+
+  // Send IO operation to IO task
+  TU_ASSERT(xQueueSend(io_queue, &io_ops, 0) == pdPASS);
+
+  return TUD_MSC_RET_ASYNC;
+  #else
+  uint8_t *addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
-#else
-  (void) lba; (void) offset; (void) buffer;
-#endif
+  tusb_time_delay_ms_api(CFG_EXAMPLE_MSC_IO_DELAY_MS);
 
-  return (int32_t) bufsize;
+  return bufsize;
+  #endif
 }
 
 // Callback invoked when received an SCSI command not in built-in list below
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
 // - READ10 and WRITE10 has their own callbacks
-int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
-{
+int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) {
   // read10 & write10 has their own callback and MUST not be handled here
 
-  void const* response = NULL;
+  void const *response = NULL;
   int32_t resplen = 0;
 
   // most scsi handled is input
   bool in_xfer = true;
 
-  switch (scsi_cmd[0])
-  {
+  switch (scsi_cmd[0]) {
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 
       // negative means error -> tinyusb could stall and/or response with failed status
       resplen = -1;
-    break;
+      break;
   }
 
   // return resplen must not larger than bufsize
-  if ( resplen > bufsize ) resplen = bufsize;
+  if (resplen > bufsize) { resplen = bufsize; }
 
-  if ( response && (resplen > 0) )
-  {
-    if(in_xfer)
-    {
+  if (response && (resplen > 0)) {
+    if (in_xfer) {
       memcpy(buffer, response, (size_t) resplen);
-    }else
-    {
+    } else {
       // SCSI output
     }
   }

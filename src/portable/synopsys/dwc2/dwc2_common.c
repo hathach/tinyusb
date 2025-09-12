@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2024 Ha Thach (tinyusb.org)
+ * Copyright (c) 2024-2025 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,11 +45,14 @@
 //
 //--------------------------------------------------------------------
 static void reset_core(dwc2_regs_t* dwc2) {
+  // load gsnpsid (it is not readable after reset is asserted)
+  uint32_t gsnpsid = dwc2->gsnpsid;
+
   // reset core
   dwc2->grstctl |= GRSTCTL_CSRST;
 
-  if ((dwc2->gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
-    // prior v42.0 CSRST is self-clearing
+  if ((gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
+    // prior v4.20a CSRST is self-clearing
     while (dwc2->grstctl & GRSTCTL_CSRST) {}
   } else {
     // From v4.20a CSRST bit is write only, CSRT_DONE (w1c) is introduced for checking.
@@ -92,6 +95,14 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
   const dwc2_ghwcfg4_t ghwcfg4 = {.value = dwc2->ghwcfg4};
 
+  uint8_t phy_width;
+  if (CFG_TUSB_MCU != OPT_MCU_AT32F402_405 && // at32f402_405 does not support 16-bit
+      ghwcfg4.phy_data_width) {
+    phy_width = 16; // 16-bit PHY interface if supported
+  } else {
+    phy_width = 8; // 8-bit PHY interface
+  }
+
   // De-select FS PHY
   gusbcfg &= ~GUSBCFG_PHYSEL;
 
@@ -119,10 +130,10 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
     gusbcfg &= ~GUSBCFG_ULPI_UTMI_SEL;
 
     // Set 16-bit interface if supported
-    if (ghwcfg4.phy_data_width) {
-      gusbcfg |= GUSBCFG_PHYIF16; // 16 bit
+    if (phy_width == 16) {
+      gusbcfg |= GUSBCFG_PHYIF16;
     } else {
-      gusbcfg &= ~GUSBCFG_PHYIF16; // 8 bit
+      gusbcfg &= ~GUSBCFG_PHYIF16;
     }
   }
 
@@ -139,7 +150,7 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
   // - 9 if using 8-bit PHY interface
   // - 5 if using 16-bit PHY interface
   gusbcfg &= ~GUSBCFG_TRDT_Msk;
-  gusbcfg |= (ghwcfg4.phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
+  gusbcfg |= (phy_width == 16 ? 5u : 9u) << GUSBCFG_TRDT_Pos;
   dwc2->gusbcfg = gusbcfg;
 
   // MCU specific PHY update post reset

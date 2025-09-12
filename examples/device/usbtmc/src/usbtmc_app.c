@@ -99,7 +99,7 @@ usbtmc_response_capabilities_488_t const *
 #else
 usbtmc_response_capabilities_t const *
 #endif
-tud_usbtmc_get_capabilities_cb()
+tud_usbtmc_get_capabilities_cb(void)
 {
   return &tud_usbtmc_app_capabilities;
 }
@@ -161,7 +161,7 @@ bool tud_usbtmc_msg_data_cb(void *data, size_t len, bool transfer_complete)
   return true;
 }
 
-bool tud_usbtmc_msgBulkIn_complete_cb()
+bool tud_usbtmc_msgBulkIn_complete_cb(void)
 {
   if((buffer_tx_ix == buffer_len) || idnQuery) // done
   {

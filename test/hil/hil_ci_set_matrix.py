@@ -28,14 +28,20 @@ def main():
         else:
             toolchain = 'arm-gcc'
 
-        if 'build' in board and 'flags_on' in board['build']:
-            for f in board['build']['flags_on']:
-                if f == '':
-                    matrix[toolchain].append(f'-b {name}')
-                else:
-                    matrix[toolchain].append(f'-b {name} -f1 {f.replace(" ", " -f1 ")}')
+        build_board = f'-b {name}'
+        if 'build' in board:
+            if 'args' in board['build']:
+                build_board += ' ' + ' '.join(f'-D{a}' for a in board['build']['args'])
+            if 'flags_on' in board['build']:
+                for f in board['build']['flags_on']:
+                    if f == '':
+                        matrix[toolchain].append(build_board)
+                    else:
+                        matrix[toolchain].append(f'{build_board} -f1 {f.replace(" ", " -f1 ")}')
+            else:
+                matrix[toolchain].append(build_board)
         else:
-            matrix[toolchain].append(f'-b {name}')
+            matrix[toolchain].append(build_board)
 
     print(json.dumps(matrix))
 

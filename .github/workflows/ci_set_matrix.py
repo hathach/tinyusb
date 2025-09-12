@@ -15,9 +15,10 @@ toolchain_list = [
 
 # family: [supported toolchain]
 family_list = {
+    "at32f402_405 at32f403a_407 at32f413 at32f415 at32f423 at32f425 at32f435_437": ["arm-gcc"],
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
-    "ch32v10x ch32v20x ch32v307 fomu gd32vf103": ["riscv-gcc"],
+    "ch32v10x ch32v20x ch32v30x fomu gd32vf103": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
@@ -44,6 +45,7 @@ family_list = {
     "stm32l0 stm32l4": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32n6": ["arm-gcc"],
     "stm32u5 stm32wb": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32wba": ["arm-gcc", "arm-clang"],
     "xmc4000": ["arm-gcc"],
     "-bespressif_s2_devkitc": ["esp-idf"],
     # S3, P4 will be built by hil test
