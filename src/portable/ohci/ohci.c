@@ -225,6 +225,8 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
   }
 
+  hcd_dcache_clean(&ohci_data, sizeof(ohci_data));
+
   // reset controller
   OHCI_REG->command_status_bit.controller_reset = 1;
   while( OHCI_REG->command_status_bit.controller_reset ) {} // should not take longer than 10 us
@@ -506,12 +508,15 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   ohci_ed_t* ed   = &ohci_data.control[dev_addr].ed;
   ohci_gtd_t *qtd = &ohci_data.control[dev_addr].gtd;
 
+  hcd_dcache_clean(setup_packet, 8);
+
   gtd_init(qtd, (uint8_t*)(uintptr_t) setup_packet, 8);
   gtd_get_extra_data(qtd)->dev_addr = dev_addr;
   gtd_get_extra_data(qtd)->ep_addr  = tu_edpt_addr(0, TUSB_DIR_OUT);
   qtd->pid             = PID_SETUP;
   qtd->data_toggle     = GTD_DT_DATA0;
   qtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+  hcd_dcache_clean(qtd, sizeof(ohci_gtd_t));
 
   //------------- Attach TDs list to Control Endpoint -------------//
   ed->td_head.address = (uint32_t) _phys_addr(qtd);
@@ -528,6 +533,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
+  // IN transfer: invalidate buffer, OUT transfer: clean buffer
+  if (dir) {
+    hcd_dcache_invalidate(buffer, buflen);
+  } else {
+    hcd_dcache_clean(buffer, buflen);
+  }
+
   if ( epnum == 0 )
   {
     ohci_ed_t*  ed  = &ohci_data.control[dev_addr].ed;
@@ -540,6 +552,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     gtd->pid             = dir ? PID_IN : PID_OUT;
     gtd->data_toggle     = GTD_DT_DATA1; // Both Data and Ack stage start with DATA1
     gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+    hcd_dcache_clean(gtd, sizeof(ohci_gtd_t));
 
     ed->td_head.address = (uint32_t) _phys_addr(gtd);
 
@@ -559,6 +572,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     TU_ASSERT(new_gtd);
 
     gtd->next = (uint32_t)_phys_addr(new_gtd);
+    hcd_dcache_clean(gtd, sizeof(ohci_gtd_t));
 
     hcd_dcache_uncached(ed->td_tail) = (uint32_t)_phys_addr(new_gtd);
 
@@ -603,6 +617,12 @@ static ohci_td_item_t* list_reverse(ohci_td_item_t* td_head)
   while(td_head != NULL)
   {
     td_head = _virt_addr(td_head);
+    // FIXME: This is not the correct object size.
+    // However, because we have hardcoded the assumption that
+    // a cache line is at least 32 bytes (in ohci.h), and
+    // because both types of TD structs are <= 32 bytes, this
+    // nonetheless still works without error.
+    hcd_dcache_invalidate(td_head, sizeof(ohci_td_item_t));
     uint32_t next = td_head->next;
 
     // make current's item become reverse's first item
