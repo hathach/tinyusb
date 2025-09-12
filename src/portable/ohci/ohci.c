@@ -144,6 +144,15 @@ enum {
 };
 
 //--------------------------------------------------------------------+
+// Support for explicit D-cache operations
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK bool hcd_dcache_clean(void const* addr, uint32_t data_size) { (void) addr; (void) data_size; return true; }
+TU_ATTR_WEAK bool hcd_dcache_invalidate(void const* addr, uint32_t data_size) { (void) addr; (void) data_size; return true; }
+#ifndef hcd_dcache_uncached
+#define hcd_dcache_uncached(x) (x)
+#endif
+
+//--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 CFG_TUH_MEM_SECTION TU_ATTR_ALIGNED(256) static ohci_data_t ohci_data;
