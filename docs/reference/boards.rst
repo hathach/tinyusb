@@ -28,22 +28,23 @@ max78002evkit  MAX78002 EVKIT    maxim     https://www.analog.com/en/resources/e
 =============  ================  ========  =================================================================================================================  ======
 
 Artery
------
+------
 
-==============  ==============  =============  ==================================================  ======
-Board           Name            Family         URL                                                 Note
-==============  ==============  =============  ==================================================  ======
-at_start_f402   AT-START-F402   at32f402_405   https://www.arterychip.com/en/product/AT32F402.jsp
-at_start_f405   AT-START-F405   at32f402_405   https://www.arterychip.com/en/product/AT32F405.jsp
-at_start_f403a  AT-START-F403a  at32f403a_407  https://www.arterychip.com/en/product/AT32F403A.jsp
-at_start_f407   AT-START-F407   at32f403a_407  https://www.arterychip.com/en/product/AT32F407.jsp
-at_start_f413   AT-START-F413   at32f413       https://www.arterychip.com/en/product/AT32F413.jsp
-at_start_f415   AT-START-F415   at32f415       https://www.arterychip.com/en/product/AT32F415.jsp
-at_start_f423   AT-START-F423   at32f423       https://www.arterychip.com/en/product/AT32F423.jsp
-at_start_f425   AT-START-F425   at32f425       https://www.arterychip.com/en/product/AT32F425.jsp
-at_start_f435   AT-START-F435   at32f435_437   https://www.arterychip.com/en/product/AT32F435.jsp
-at_start_f437   AT-START-F437   at32f435_437   https://www.arterychip.com/en/product/AT32F437.jsp
-==============  ==============  =============  ==================================================  ======
+=========================  =============================  =============  ====================================================  ======
+Board                      Name                           Family         URL                                                   Note
+=========================  =============================  =============  ====================================================  ======
+at_start_f402              AT-START-F402                  at32f402_405   https://www.arterychip.com/en/product/AT32F402.jsp
+at_start_f405              AT-START-F405                  at32f402_405   https://www.arterychip.com/en/product/AT32F405.jsp
+at32f403a_weact_blackpill  WeAct BlackPill AT32F403ACGU7  at32f403a_407  https://github.com/WeActStudio/WeActStudio.BlackPill
+at_start_f403a             AT-START-F403a                 at32f403a_407  https://www.arterychip.com/en/product/AT32F403.jsp
+at_start_f407              AT-START-F407                  at32f403a_407  https://www.arterychip.com/en/product/AT32F407.jsp
+at_start_f413              AT-START-F413                  at32f413       https://www.arterychip.com/en/product/AT32F413.jsp
+at_start_f415              AT-START-F415                  at32f415       https://www.arterychip.com/en/product/AT32F415.jsp
+at_start_f423              AT-START-F423                  at32f423       https://www.arterychip.com/en/product/AT32F423.jsp
+at_start_f425              AT-START-F425                  at32f425       https://www.arterychip.com/en/product/AT32F425.jsp
+at_start_f435              AT-START-F435                  at32f435_437   https://www.arterychip.com/en/product/AT32F435.jsp
+at_start_f437              AT-START-F437                  at32f435_437   https://www.arterychip.com/en/product/AT32F437.jsp
+=========================  =============================  =============  ====================================================  ======
 
 Bridgetek
 ---------
@@ -303,7 +304,7 @@ stm32u575eval        STM32 U575 Eval                    stm32u5    https://www.s
 stm32u575nucleo      STM32 U575 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u575zi-q.html
 stm32u5a5nucleo      STM32 U5a5 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u5a5zj-q.html
 stm32wb55nucleo      STM32 P-NUCLEO-WB55                stm32wb    https://www.st.com/en/evaluation-tools/p-nucleo-wb55.html
-stm32wba65nucleo     STM32 NUCLEO-WBA65RI               stm32wba   https://www.st.com/en/evaluation-tools/nucleo-wba65ri.html
+stm32wba_nucleo      STM32 NUCLEO-WBA65RI               stm32wba   https://www.st.com/en/evaluation-tools/nucleo-wba65ri.html
 ===================  =================================  =========  =================================================================  ======
 
 Sunxi
