@@ -117,34 +117,42 @@ typedef struct TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LI
 
 TU_VERIFY_STATIC( sizeof(ohci_gtd_t) == CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 16, "size is not correct" );
 
+typedef union {
+  struct {
+    uint32_t dev_addr          : 7;
+    uint32_t ep_number         : 4;
+    uint32_t pid               : 2;
+    uint32_t speed             : 1;
+    uint32_t skip              : 1;
+    uint32_t is_iso            : 1;
+    uint32_t max_packet_size   : 11;
+          // HCD: make use of 5 reserved bits
+    uint32_t used              : 1;
+    uint32_t is_interrupt_xfer : 1;
+    uint32_t                   : 3;
+  };
+  uint32_t u;
+} ohci_ed_word0;
+
+typedef union {
+  uint32_t address;
+  struct {
+    uint32_t halted : 1;
+    uint32_t toggle : 1;
+    uint32_t : 30;
+  };
+} ohci_ed_td_head;
+
 typedef struct TU_ATTR_ALIGNED(16)
 {
   // Word 0
-	uint32_t dev_addr          : 7;
-	uint32_t ep_number         : 4;
-	uint32_t pid               : 2;
-	uint32_t speed             : 1;
-	uint32_t skip              : 1;
-	uint32_t is_iso            : 1;
-	uint32_t max_packet_size   : 11;
-	      // HCD: make use of 5 reserved bits
-	uint32_t used              : 1;
-	uint32_t is_interrupt_xfer : 1;
-	uint32_t is_stalled        : 1;
-	uint32_t                   : 2;
+	ohci_ed_word0 w0;
 
 	// Word 1
 	uint32_t td_tail;
 
 	// Word 2
-	volatile union {
-		uint32_t address;
-		struct {
-			uint32_t halted : 1;
-			uint32_t toggle : 1;
-			uint32_t : 30;
-		};
-	}td_head;
+	volatile ohci_ed_td_head td_head;
 
 	// Word 3: next ED
 	uint32_t next;
