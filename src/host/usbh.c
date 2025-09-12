@@ -844,7 +844,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
             const uint8_t ep_status = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
             TU_ASSERT(hcd_edpt_xfer(rhport, daddr, ep_status, NULL, 0));
             break;
-          }   
+          }
 
         case CONTROL_STAGE_ACK: {
           // Abort all pending transfers if SET_CONFIGURATION request

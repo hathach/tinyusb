@@ -35,6 +35,7 @@
 
 #include "host/hcd.h"
 #include "host/usbh.h"
+#include "host/usbh_pvt.h"
 #include "ehci_api.h"
 #include "ehci.h"
 
@@ -866,14 +867,21 @@ static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
   }
 
   ehci_qhd_t *qhd_pool = ehci_data.qhd_pool;
+
+  // protect qhd_pool since 'used' and 'removing' can be changed in isr
+  ehci_qhd_t *result = NULL;
+  usbh_spin_lock(false);
   for (uint32_t i = 0; i < QHD_MAX; i++) {
     if ((qhd_pool[i].dev_addr == dev_addr) &&
-        ep_addr == qhd_ep_addr(&qhd_pool[i])) {
-      return &qhd_pool[i];
+        ep_addr == qhd_ep_addr(&qhd_pool[i]) &&
+        qhd_pool[i].used && !qhd_pool[i].removing) {
+      result = &qhd_pool[i];
+      break;
     }
   }
+  usbh_spin_unlock(false);
 
-  return NULL;
+  return result;
 }
 
 // Init queue head with endpoint descriptor
