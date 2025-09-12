@@ -38,6 +38,11 @@
 #include "ehci_api.h"
 #include "ehci.h"
 
+// NXP specific fixes
+#if TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX, OPT_MCU_LPC55, OPT_MCU_MCXN9)
+#include "fsl_device_registers.h"
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -179,6 +184,36 @@ static void ehci_enable_schedule(ehci_registers_t* regs, bool is_period) {
   }
 }
 
+#if ((defined FSL_FEATURE_SOC_USBPHY_COUNT) && (FSL_FEATURE_SOC_USBPHY_COUNT > 0U))
+static void nxp_usbphy_disconn_detector_set(uint8_t port, bool enable) {
+  // unify naming convention
+#if !defined(USBPHY1) && defined(USBPHY)
+  #define USBPHY1 USBPHY
+#endif
+
+  if (port == 0) {
+    if (enable) {
+      USBPHY1->CTRL_SET = USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
+    } else {
+      USBPHY1->CTRL_CLR = USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
+    }
+  }
+#if FSL_FEATURE_SOC_USBPHY_COUNT > 1U
+  else if (port == 1) {
+    if (enable) {
+      USBPHY2->CTRL_SET = USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
+    } else {
+      USBPHY2->CTRL_CLR = USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
+    }
+  }
+#endif
+
+#if !defined(USBPHY1) && defined(USBPHY)
+  #undef USBPHY1
+#endif
+}
+#endif
+
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
@@ -213,16 +248,21 @@ void hcd_port_reset_end(uint8_t rhport) {
   (void) rhport;
   ehci_registers_t* regs = ehci_data.regs;
 
-  // skip if reset is already complete
-  if (!regs->portsc_bm.port_reset) {
-    return;
+  // stop reset only if is not complete yet
+  if (regs->portsc_bm.port_reset) {
+    // mask out all change bits since they are Write 1 to clear
+    uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
+    portsc &= ~EHCI_PORTSC_MASK_PORT_RESET;
+
+    regs->portsc = portsc;
   }
 
-  // mask out all change bits since they are Write 1 to clear
-  uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
-  portsc &= ~EHCI_PORTSC_MASK_PORT_RESET;
-
-  regs->portsc = portsc;
+#if ((defined FSL_FEATURE_SOC_USBPHY_COUNT) && (FSL_FEATURE_SOC_USBPHY_COUNT > 0U))
+    // Enable disconnect detector for highspeed device only
+    if (hcd_port_speed_get(rhport) == TUSB_SPEED_HIGH) {
+      nxp_usbphy_disconn_detector_set(rhport, true);
+    }
+#endif
 }
 
 bool hcd_port_connect_status(uint8_t rhport) {
@@ -579,6 +619,10 @@ void port_connect_status_change_isr(uint8_t rhport) {
     hcd_event_device_attach(rhport, true);
   } else // device unplugged
   {
+#if ((defined FSL_FEATURE_SOC_USBPHY_COUNT) && (FSL_FEATURE_SOC_USBPHY_COUNT > 0U))
+    // Disable disconnect detector
+    nxp_usbphy_disconn_detector_set(rhport, false);
+#endif
     hcd_event_device_remove(rhport, true);
   }
 }
