@@ -68,8 +68,6 @@ function(add_board_target BOARD_TARGET)
 
   if (NOT M4 STREQUAL "1")
     target_compile_definitions(${BOARD_TARGET} PUBLIC
-      __ARMVFP__=0
-      __ARMFPV5__=0
       XIP_EXTERNAL_FLASH=1
       XIP_BOOT_HEADER_ENABLE=1
       )

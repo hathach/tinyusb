@@ -14,8 +14,6 @@ CFLAGS += \
 
 ifneq ($(M4), 1)
 CFLAGS += \
-  -D__ARMVFP__=0 \
-  -D__ARMFPV5__=0 \
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1
 endif
