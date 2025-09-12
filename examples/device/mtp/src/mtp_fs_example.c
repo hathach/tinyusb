@@ -130,17 +130,17 @@ mtp_response_t tud_mtp_storage_open_session(uint32_t *session_id)
     if (*session_id == 0)
     {
         TU_LOG1("Invalid session ID\r\n");
-        return MTP_RESC_INVALID_PARAMETER;
+        return MTP_RESP_INVALID_PARAMETER;
     }
     if (_fs_operation.session_id != 0)
     {
         *session_id = _fs_operation.session_id;
         TU_LOG1("ERR: Session %ld already open\r\n", _fs_operation.session_id);
-        return MTP_RESC_SESSION_ALREADY_OPEN;
+        return MTP_RESP_SESSION_ALREADY_OPEN;
     }
     _fs_operation.session_id = *session_id;
     TU_LOG1("Open session with id %ld\r\n", _fs_operation.session_id);
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_close_session(uint32_t session_id)
@@ -148,11 +148,11 @@ mtp_response_t tud_mtp_storage_close_session(uint32_t session_id)
     if (session_id != _fs_operation.session_id)
     {
         TU_LOG1("ERR: Session %ld not open\r\n", session_id);
-        return MTP_RESC_SESSION_NOT_OPEN;
+        return MTP_RESP_SESSION_NOT_OPEN;
     }
     _fs_operation.session_id = 0;
     TU_LOG1("Session closed\r\n");
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_get_storage_id(uint32_t *storage_id)
@@ -160,11 +160,11 @@ mtp_response_t tud_mtp_get_storage_id(uint32_t *storage_id)
     if (_fs_operation.session_id == 0)
     {
         TU_LOG1("ERR: Session not open\r\n");
-        return MTP_RESC_SESSION_NOT_OPEN;
+        return MTP_RESP_SESSION_NOT_OPEN;
     }
     *storage_id = STORAGE_ID(0x0001, 0x0001);
     TU_LOG1("Retrieved storage identifier %ld\r\n", *storage_id);
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_get_storage_info(uint32_t storage_id, mtp_storage_info_t *info)
@@ -172,12 +172,12 @@ mtp_response_t tud_mtp_get_storage_info(uint32_t storage_id, mtp_storage_info_t 
     if (_fs_operation.session_id == 0)
     {
         TU_LOG1("ERR: Session not open\r\n");
-        return MTP_RESC_SESSION_NOT_OPEN;
+        return MTP_RESP_SESSION_NOT_OPEN;
     }
     if (storage_id != STORAGE_ID(0x0001, 0x0001))
     {
         TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
-        return MTP_RESC_INVALID_STORAGE_ID;
+        return MTP_RESP_INVALID_STORAGE_ID;
     }
     info->storage_type = MTP_STORAGE_TYPE_FIXED_RAM;
     info->filesystem_type = MTP_FILESYSTEM_TYPE_GENERIC_HIERARCHICAL;
@@ -187,7 +187,7 @@ mtp_response_t tud_mtp_get_storage_info(uint32_t storage_id, mtp_storage_info_t 
     info->free_space_in_bytes = info->free_space_in_objects * FS_MAX_NODE_BYTES;
     mtpd_gct_append_wstring(MTPD_STORAGE_DESCRIPTION);
     mtpd_gct_append_wstring(MTPD_VOLUME_IDENTIFIER);
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_format(uint32_t storage_id)
@@ -195,19 +195,19 @@ mtp_response_t tud_mtp_storage_format(uint32_t storage_id)
     if (_fs_operation.session_id == 0)
     {
         TU_LOG1("ERR: Session not open\r\n");
-        return MTP_RESC_SESSION_NOT_OPEN;
+        return MTP_RESP_SESSION_NOT_OPEN;
     }
     if (storage_id != STORAGE_ID(0x0001, 0x0001))
     {
         TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
-        return MTP_RESC_INVALID_STORAGE_ID;
+        return MTP_RESP_INVALID_STORAGE_ID;
     }
 
     // Simply deallocate all entries
     for (unsigned int i=0; i<FS_MAX_NODES; i++)
         _fs_objects[i].allocated = false;
     TU_LOG1("Format completed\r\n");
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t storage_id, uint32_t parent_object_handle, uint32_t *next_child_handle)
@@ -217,13 +217,13 @@ mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t storage_id
     if (_fs_operation.session_id == 0)
     {
         TU_LOG1("ERR: Session not open\r\n");
-        return MTP_RESC_SESSION_NOT_OPEN;
+        return MTP_RESP_SESSION_NOT_OPEN;
     }
     // We just have one storage, same reply if querying all storages
     if (storage_id != 0xFFFFFFFF && storage_id != STORAGE_ID(0x0001, 0x0001))
     {
         TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
-        return MTP_RESC_INVALID_STORAGE_ID;
+        return MTP_RESP_INVALID_STORAGE_ID;
     }
 
     // Request for objects with no parent (0xFFFFFFFF) are considered root objects
@@ -245,13 +245,13 @@ mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t storage_id
             _fs_operation.traversal_index = i+1;
             *next_child_handle = obj->handle;
             TU_LOG1("Association %ld -> child %ld\r\n", parent_object_handle, obj->handle);
-            return MTP_RESC_OK;
+            return MTP_RESP_OK;
         }
     }
     TU_LOG1("Association traversal completed\r\n");
     _fs_operation.traversal_index = 0;
     *next_child_handle = 0;
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t parent_object, uint32_t *new_object_handle, const mtp_object_info_t *info)
@@ -261,19 +261,19 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
     if (_fs_operation.session_id == 0)
     {
         TU_LOG1("ERR: Session not open\r\n");
-        return MTP_RESC_SESSION_NOT_OPEN;
+        return MTP_RESP_SESSION_NOT_OPEN;
     }
     // Accept command on default storage
     if (storage_id != 0xFFFFFFFF && storage_id != STORAGE_ID(0x0001, 0x0001))
     {
         TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
-        return MTP_RESC_INVALID_STORAGE_ID;
+        return MTP_RESP_INVALID_STORAGE_ID;
     }
 
     if (info->object_compressed_size > FS_MAX_NODE_BYTES)
     {
         TU_LOG1("Object size %ld is more than maximum %ld\r\n", info->object_compressed_size, FS_MAX_NODE_BYTES);
-        return MTP_RESC_STORE_FULL;
+        return MTP_RESP_STORE_FULL;
     }
 
     // Request for objects with no parent (0xFFFFFFFF) are considered root objects
@@ -287,12 +287,12 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
         if (obj == NULL)
         {
             TU_LOG1("Parent %ld does not exist\r\n", parent_object);
-            return MTP_RESC_INVALID_PARENT_OBJECT;
+            return MTP_RESP_INVALID_PARENT_OBJECT;
         }
         if (!obj->association)
         {
             TU_LOG1("Parent %ld is not an association\r\n", parent_object);
-            return MTP_RESC_INVALID_PARENT_OBJECT;
+            return MTP_RESP_INVALID_PARENT_OBJECT;
         }
     }
 
@@ -309,7 +309,7 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
     if (obj == NULL)
     {
         TU_LOG1("No space left on device\r\n");
-        return MTP_RESC_STORE_FULL;
+        return MTP_RESP_STORE_FULL;
     }
 
     // Fill-in structure
@@ -317,7 +317,7 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
     obj->handle = ++_fs_operation.last_handle;
     obj->parent = parent_object;
     obj->size = info->object_compressed_size;
-    obj->association = info->object_format == MTP_OBJF_ASSOCIATION;
+    obj->association = info->object_format == MTP_OBJ_FORMAT_ASSOCIATION;
 
     // Extract variable data
     uint16_t offset_data = sizeof(mtp_object_info_t);
@@ -332,7 +332,7 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
     // Initialize operation
     _fs_operation.write_handle = obj->handle;
     _fs_operation.write_pos = 0;
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_object_read_info(uint32_t object_handle, mtp_object_info_t *info)
@@ -342,33 +342,33 @@ mtp_response_t tud_mtp_storage_object_read_info(uint32_t object_handle, mtp_obje
     if (_fs_operation.session_id == 0)
     {
         TU_LOG1("ERR: Session not open\r\n");
-        return MTP_RESC_SESSION_NOT_OPEN;
+        return MTP_RESP_SESSION_NOT_OPEN;
     }
 
     obj = fs_object_get_from_handle(object_handle);
     if (obj == NULL)
     {
         TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-        return MTP_RESC_INVALID_OBJECT_HANDLE;
+        return MTP_RESP_INVALID_OBJECT_HANDLE;
     }
 
     memset(info, 0, sizeof(mtp_object_info_t));
     info->storage_id = STORAGE_ID(0x0001, 0x0001);
     if (obj->association)
     {
-        info->object_format = MTP_OBJF_ASSOCIATION;
+        info->object_format = MTP_OBJ_FORMAT_ASSOCIATION;
         info->protection_status = MTP_PROTECTION_STATUS_NO_PROTECTION;
         info->object_compressed_size = 0;
         info->association_type = MTP_ASSOCIATION_UNDEFINED;
     }
     else
     {
-        info->object_format = MTP_OBJF_UNDEFINED;
+        info->object_format = MTP_OBJ_FORMAT_UNDEFINED;
         info->protection_status = MTP_PROTECTION_STATUS_NO_PROTECTION;
         info->object_compressed_size = obj->size;
         info->association_type = MTP_ASSOCIATION_UNDEFINED;
     }
-    info->thumb_format = MTP_OBJF_UNDEFINED;
+    info->thumb_format = MTP_OBJ_FORMAT_UNDEFINED;
     info->parent_object = obj->parent;
 
     mtpd_gct_append_wstring(obj->name);
@@ -378,7 +378,7 @@ mtp_response_t tud_mtp_storage_object_read_info(uint32_t object_handle, mtp_obje
 
     TU_LOG1("Retrieve object %s with handle %ld\r\n", obj->name, obj->handle);
 
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_object_write(uint32_t object_handle, const uint8_t *buffer, uint32_t size)
@@ -389,17 +389,17 @@ mtp_response_t tud_mtp_storage_object_write(uint32_t object_handle, const uint8_
     if (obj == NULL)
     {
         TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-        return MTP_RESC_INVALID_OBJECT_HANDLE;
+        return MTP_RESP_INVALID_OBJECT_HANDLE;
     }
     // It's a requirement that this command is preceded by a write info
     if (object_handle != _fs_operation.write_handle)
     {
         TU_LOG1("ERR: Object %ld not open for write\r\n", object_handle);
-        return MTP_RESC_NO_VALID_OBJECTINFO;
+        return MTP_RESP_NO_VALID_OBJECTINFO;
     }
 
     TU_LOG1("Write object %ld: data chunk at %ld/%ld bytes at offset %ld\r\n", object_handle, _fs_operation.write_pos, obj->size, size);
-    TU_ASSERT(obj->size >= _fs_operation.write_pos + size, MTP_RESC_INCOMPLETE_TRANSFER);
+    TU_ASSERT(obj->size >= _fs_operation.write_pos + size, MTP_RESP_INCOMPLETE_TRANSFER);
     if (_fs_operation.write_pos + size < FS_MAX_NODE_BYTES)
         memcpy(&obj->data[_fs_operation.write_pos], buffer, size);
     _fs_operation.write_pos += size;
@@ -409,7 +409,7 @@ mtp_response_t tud_mtp_storage_object_write(uint32_t object_handle, const uint8_
         _fs_operation.write_handle = 0;
         _fs_operation.write_pos = 0;
     }
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_object_size(uint32_t object_handle, uint32_t *size)
@@ -419,10 +419,10 @@ mtp_response_t tud_mtp_storage_object_size(uint32_t object_handle, uint32_t *siz
     if (obj == NULL)
     {
         TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-        return MTP_RESC_INVALID_OBJECT_HANDLE;
+        return MTP_RESP_INVALID_OBJECT_HANDLE;
     }
     *size = obj->size;
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_object_read(uint32_t object_handle, void *buffer, uint32_t buffer_size, uint32_t *read_count)
@@ -434,7 +434,7 @@ mtp_response_t tud_mtp_storage_object_read(uint32_t object_handle, void *buffer,
     if (obj == NULL)
     {
         TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-        return MTP_RESC_INVALID_OBJECT_HANDLE;
+        return MTP_RESP_INVALID_OBJECT_HANDLE;
     }
     // It's not a requirement that this command is preceded by a read info
     if (object_handle != _fs_operation.read_handle)
@@ -462,7 +462,7 @@ mtp_response_t tud_mtp_storage_object_read(uint32_t object_handle, void *buffer,
         _fs_operation.read_handle = 0;
         _fs_operation.read_pos = 0;
     }
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_object_move(uint32_t object_handle, uint32_t new_parent_object_handle)
@@ -479,12 +479,12 @@ mtp_response_t tud_mtp_storage_object_move(uint32_t object_handle, uint32_t new_
         if (obj == NULL)
         {
             TU_LOG1("Parent %ld does not exist\r\n", new_parent_object_handle);
-            return MTP_RESC_INVALID_PARENT_OBJECT;
+            return MTP_RESP_INVALID_PARENT_OBJECT;
         }
         if (!obj->association)
         {
             TU_LOG1("Parent %ld is not an association\r\n", new_parent_object_handle);
-            return MTP_RESC_INVALID_PARENT_OBJECT;
+            return MTP_RESP_INVALID_PARENT_OBJECT;
         }
     }
 
@@ -493,11 +493,11 @@ mtp_response_t tud_mtp_storage_object_move(uint32_t object_handle, uint32_t new_
     if (obj == NULL)
     {
         TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-        return MTP_RESC_INVALID_OBJECT_HANDLE;
+        return MTP_RESP_INVALID_OBJECT_HANDLE;
     }
     TU_LOG1("Move object %ld to new parent %ld\r\n", object_handle, new_parent_object_handle);
     obj->parent = new_parent_object_handle;
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 mtp_response_t tud_mtp_storage_object_delete(uint32_t object_handle)
@@ -507,7 +507,7 @@ mtp_response_t tud_mtp_storage_object_delete(uint32_t object_handle)
     if (_fs_operation.session_id == 0)
     {
         TU_LOG1("ERR: Session not open\r\n");
-        return MTP_RESC_SESSION_NOT_OPEN;
+        return MTP_RESP_SESSION_NOT_OPEN;
     }
 
     if (object_handle == 0xFFFFFFFF)
@@ -520,7 +520,7 @@ mtp_response_t tud_mtp_storage_object_delete(uint32_t object_handle)
         if (obj == NULL)
         {
             TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-            return MTP_RESC_INVALID_OBJECT_HANDLE;
+            return MTP_RESP_INVALID_OBJECT_HANDLE;
         }
         obj->allocated = false;
         TU_LOG1("Delete object with handle %ld\r\n", object_handle);
@@ -539,7 +539,7 @@ mtp_response_t tud_mtp_storage_object_delete(uint32_t object_handle)
         }
     }
 
-    return MTP_RESC_OK;
+    return MTP_RESP_OK;
 }
 
 void tud_mtp_storage_object_done(void)

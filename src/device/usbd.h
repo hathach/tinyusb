@@ -279,7 +279,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Interface number, string index, EP Out & EP In address, EP size
 #define TUD_MTP_DESCRIPTOR(_itfnum, _stridx, _ep_evt, _ep_evt_size, _ep_evt_polling_interval, _epout, _epin, _epsize) \
   /* Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 3, TUSB_CLASS_IMAGE, MTP_SUBCLASS, MTP_PROTOCOL_STILL_IMAGE, _stridx,\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 3, TUSB_CLASS_IMAGE, MTP_SUBCLASS_STILL_IMAGE, MTP_PROTOCOL_PIMA_15470, _stridx,\
   /* Endpoint Interrupt */\
   7, TUSB_DESC_ENDPOINT, _ep_evt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_evt_size), _ep_evt_polling_interval,\
   /* Endpoint Out */\
