@@ -13,10 +13,11 @@ CFLAGS += \
 
 CFLAGS_GCC += \
   -flto \
-  -nostdlib -nostartfiles \
   -Wno-error=cast-align -Wno-unused-parameter
 
-LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs -Wl,--gc-sections
+LDFLAGS_GCC += \
+  -nostdlib -nostartfiles \
+  -specs=nosys.specs -specs=nano.specs -Wl,--gc-sections
 
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \
@@ -44,14 +45,14 @@ INC += \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 
 # STM32WBA HAL uses uppercase MCU_VARIANT (excluding the x's) for linking and lowercase MCU_VARIANT for startup.
-UPPERCASE_MCU_VARIANT = $(shell echo $(MCU_VARIANT) | sed 's/\([^x]\)/\U\1/g')
+UPPERCASE_MCU_VARIANT = $(subst XX,xx,$(call to_upper,$(MCU_VARIANT)))
 
 # Startup - Manually specify lowercase version for startup file
 SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_$(MCU_VARIANT).s
 SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_$(MCU_VARIANT).s
 
 # Linker
-LD_FILE_GCC ?= ${ST_CMSIS}/Source/Templates/gcc/linker/${UPPERCASE_MCU_VARIANT}_FLASH_ns.ld
+LD_FILE_GCC ?= ${FAMILY_PATH}/linker/${UPPERCASE_MCU_VARIANT}_FLASH_ns.ld
 LD_FILE_IAR ?= $(ST_CMSIS)/Source/Templates/iar/linker/$(MCU_VARIANT)_flash_ns.icf
 
 # flash target using on-board stlink

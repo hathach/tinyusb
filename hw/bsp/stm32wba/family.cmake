@@ -4,7 +4,7 @@ set(ST_FAMILY wba)
 set(ST_PREFIX stm32${ST_FAMILY}xx)
 
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
-set(ST_CMSIS ${TOP}/hw/mcu/st/cmsis_device_${ST_FAMILY})
+set(ST_CMSIS ${TOP}/hw/mcu/st/cmsis-device-${ST_FAMILY})
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
 # include board specific
@@ -19,25 +19,12 @@ set(FAMILY_MCUS STM32WBA CACHE INTERNAL "")
 # ----------------------
 # Port & Speed Selection
 # ----------------------
-if (NOT DEFINED RHPORT_DEVICE)
-  set(RHPORT_DEVICE 0)
-endif ()
-if (NOT DEFINED RHPORT_HOST)
-  set(RHPORT_HOST 0)
-endif ()
+set(RHPORT_DEVICE 0)
+set(RHPORT_HOST 0)
 
-if (NOT DEFINED RHPORT_SPEED)
-  # WBA65/64/62 has built-in HS PHY
-  set(RHPORT_SPEED OPT_MODE_HIGH_SPEED OPT_MODE_HIGH_SPEED)
-endif ()
-if (NOT DEFINED RHPORT_DEVICE_SPEED)
-  list(GET RHPORT_SPEED ${RHPORT_DEVICE} RHPORT_DEVICE_SPEED)
-endif ()
-if (NOT DEFINED RHPORT_HOST_SPEED)
-  list(GET RHPORT_SPEED ${RHPORT_HOST} RHPORT_HOST_SPEED)
-endif ()
-
-cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
+# WBA65/64/62 has built-in HS PHY
+set(RHPORT_DEVICE_SPEED OPT_MODE_HIGH_SPEED)
+set(RHPORT_HOST_SPEED OPT_MODE_HIGH_SPEED)
 
 #------------------------------------
 # BOARD_TARGET
@@ -57,7 +44,7 @@ function(add_board_target BOARD_TARGET)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
   set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
 
-  set(LD_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/linker/${UPPERCASE_MCU_VARIANT}_FLASH_ns.ld)
+  set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${UPPERCASE_MCU_VARIANT}_FLASH_ns.ld)
   set(LD_FILE_Clang ${LD_FILE_GNU})
   set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash_ns.icf)
 
@@ -66,15 +53,15 @@ function(add_board_target BOARD_TARGET)
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_cortex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_icache.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pcd.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pcd_ex.c
-	${ST_HAL_DRIVER}/Src/${ST_PREFIX}_ll_usb.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pwr_ex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_rcc_ex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_gpio.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pcd.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_pcd_ex.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_ll_usb.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
