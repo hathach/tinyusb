@@ -1,0 +1,14 @@
+<component name="DebugServers">
+  <generic-debug-target name="wch-riscv" uniqueID="c471e2d0-3cb4-4e7e-aeb7-a33d0c8fdc08">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver dir="$CMakeProjectDir$" exe="$USER_HOME$/app/riscv-openocd-wch/src/openocd" args="-f hw/bsp/ch32v20x/wch-riscv.cfg">
+      <env />
+    </gdbserver>
+    <console enabled="true" port="4444" />
+    <target download-type="UPDATED_ONLY" reset-command="monitor reset init; resume 0x08000000" reset-before="false" />
+    <connection extended-remote="false" remote-string="tcp::3333" warmup-ms="500" />
+  </generic-debug-target>
+</component>

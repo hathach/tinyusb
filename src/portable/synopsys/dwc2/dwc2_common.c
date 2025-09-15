@@ -45,20 +45,26 @@
 //
 //--------------------------------------------------------------------
 static void reset_core(dwc2_regs_t* dwc2) {
+  // The software must check that bit 31 in this register is set to 1 (AHB Master is Idle) before starting any operation
+  while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {
+  }
+
   // load gsnpsid (it is not readable after reset is asserted)
-  uint32_t gsnpsid = dwc2->gsnpsid;
+  const uint32_t gsnpsid = dwc2->gsnpsid;
 
   // reset core
   dwc2->grstctl |= GRSTCTL_CSRST;
 
   if ((gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
-    // prior v4.20a CSRST is self-clearing
+    // prior v4.20a: CSRST is self-clearing and the core clears this bit after all the necessary logic is reset in
+    // the core, which can take several clocks, depending on the current state of the core. Once this bit has been
+    // cleared, the software must wait at least 3 PHY clocks before accessing the PHY domain (synchronization delay).
     while (dwc2->grstctl & GRSTCTL_CSRST) {}
   } else {
-    // From v4.20a CSRST bit is write only, CSRT_DONE (w1c) is introduced for checking.
-    // CSRST must also be explicitly cleared
+    // From v4.20a: CSRST bit is write only. The application must clear this bit after checking the bit 29 of this
+    // register i.e Core Soft Reset Done CSRT_DONE (w1c)
     while (!(dwc2->grstctl & GRSTCTL_CSRST_DONE)) {}
-    dwc2->grstctl =  (dwc2->grstctl & ~GRSTCTL_CSRST) | GRSTCTL_CSRST_DONE;
+    dwc2->grstctl = (dwc2->grstctl & ~GRSTCTL_CSRST) | GRSTCTL_CSRST_DONE;
   }
 
   while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {} // wait for AHB master IDLE

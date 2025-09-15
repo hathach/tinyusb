@@ -49,14 +49,11 @@
 #define UART_PORT             LPUART1
 #define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_LPUART10_CLK_ROOT
 
-// Additional board init for MPU configuration
-#define BOARD_INIT_2          1
-
 //--------------------------------------------------------------------
 // MPU configuration
 //--------------------------------------------------------------------
 #if __CORTEX_M == 7
-static void BOARD_ConfigMPU(void) {
+static inline void BOARD_ConfigMPU(void) {
   #if defined(__CC_ARM) || defined(__ARMCC_VERSION)
   extern uint32_t Image$$RW_m_ncache$$Base[];
   /* RW_m_ncache_unused is a auxiliary region which is used to get the whole size of noncache section */
@@ -434,8 +431,5 @@ static void BOARD_ConfigMPU(void) {
 }
 #endif
 
-static void board_init2() {
-   BOARD_ConfigMPU();
-}
 
 #endif
