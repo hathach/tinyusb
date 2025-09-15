@@ -448,16 +448,18 @@ mtp_response_t tud_mtp_storage_object_read(uint32_t object_handle, void *buffer,
     {
         TU_LOG1("Read object %ld: %ld bytes at offset %ld\r\n", object_handle, buffer_size, _fs_operation.read_pos);
         *read_count = buffer_size;
-        if (_fs_operation.read_pos + buffer_size < FS_MAX_NODE_BYTES)
+        if (_fs_operation.read_pos + buffer_size < FS_MAX_NODE_BYTES) {
             memcpy(buffer, &obj->data[_fs_operation.read_pos], *read_count);
+        }
         _fs_operation.read_pos += *read_count;
     }
     else
     {
         TU_LOG1("Read object %ld: %ld bytes at offset %ld\r\n", object_handle, obj->size - _fs_operation.read_pos, _fs_operation.read_pos);
         *read_count = obj->size - _fs_operation.read_pos;
-        if (_fs_operation.read_pos + buffer_size < FS_MAX_NODE_BYTES)
+        if (_fs_operation.read_pos + *read_count < FS_MAX_NODE_BYTES) {
             memcpy(buffer, &obj->data[_fs_operation.read_pos], *read_count);
+        }
         // Read operation completed
         _fs_operation.read_handle = 0;
         _fs_operation.read_pos = 0;
