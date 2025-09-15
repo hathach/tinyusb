@@ -68,8 +68,6 @@ function(add_board_target BOARD_TARGET)
 
   if (NOT M4 STREQUAL "1")
     target_compile_definitions(${BOARD_TARGET} PUBLIC
-      __ARMVFP__=0
-      __ARMFPV5__=0
       XIP_EXTERNAL_FLASH=1
       XIP_BOOT_HEADER_ENABLE=1
       )
@@ -123,8 +121,6 @@ function(family_configure_example TARGET RTOS)
   # Board target
   add_board_target(board_${BOARD})
 
-  #---------- Port Specific ----------
-  # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
     # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
@@ -145,8 +141,6 @@ function(family_configure_example TARGET RTOS)
     ${TOP}/src/portable/ehci/ehci.c
     )
   target_link_libraries(${TARGET} PUBLIC board_${BOARD})
-
-
 
   # Flashing
   family_add_bin_hex(${TARGET})

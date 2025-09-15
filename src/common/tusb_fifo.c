@@ -428,7 +428,6 @@ static bool _tu_fifo_peek(tu_fifo_t* f, void * p_buffer, uint16_t wr_idx, uint16
   if ( cnt > f->depth )
   {
     rd_idx = _ff_correct_read_index(f, wr_idx);
-    cnt = f->depth;
   }
 
   uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
@@ -916,8 +915,11 @@ bool tu_fifo_clear(tu_fifo_t *f)
                 Overwritable mode the fifo is set to
  */
 /******************************************************************************/
-bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable)
-{
+bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
+  if (f->overwritable == overwritable) {
+    return true;
+  }
+
   _ff_lock(f->mutex_wr);
   _ff_lock(f->mutex_rd);
 

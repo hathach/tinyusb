@@ -15,16 +15,17 @@ toolchain_list = [
 
 # family: [supported toolchain]
 family_list = {
+    "at32f402_405 at32f403a_407 at32f413 at32f415 at32f423 at32f425 at32f435_437": ["arm-gcc"],
     "broadcom_32bit": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
-    "ch32v10x ch32v20x ch32v307 fomu gd32vf103": ["riscv-gcc"],
+    "ch32v10x ch32v20x ch32v30x fomu gd32vf103": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
     "lpc11 lpc13 lpc15": ["arm-gcc", "arm-clang"],
     "lpc17 lpc18 lpc40 lpc43": ["arm-gcc", "arm-clang"],
     "lpc51 lpc54 lpc55": ["arm-gcc", "arm-clang"],
-    "max32650 max32666 max32690 max78002": ["arm-gcc"],
+    "maxim": ["arm-gcc"],
     "mcx": ["arm-gcc"],
     "mm32": ["arm-gcc"],
     "msp430": ["msp430-gcc"],
@@ -40,13 +41,16 @@ family_list = {
     "stm32f4": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32f7": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32g0 stm32g4 stm32h5": ["arm-gcc", "arm-clang", "arm-iar"],
-    "stm32h7": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32h7 stm32h7rs": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32l0 stm32l4": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32n6": ["arm-gcc"],
     "stm32u5 stm32wb": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32wba": ["arm-gcc", "arm-clang"],
     "xmc4000": ["arm-gcc"],
-    "-bespressif_kaluga_1": ["esp-idf"],
-    "-bespressif_s3_devkitm": ["esp-idf"],
-    "-bespressif_p4_function_ev": ["esp-idf"],
+    "-bespressif_s2_devkitc": ["esp-idf"],
+    # S3, P4 will be built by hil test
+    # "-bespressif_s3_devkitm": ["esp-idf"],
+    # "-bespressif_p4_function_ev": ["esp-idf"],
 }
 
 

@@ -55,8 +55,7 @@ If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
 
-MSC_CONST uint8_t msc_disk0[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
-{
+MSC_CONST uint8_t msc_disk0[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
   //------------- Block0: Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
   // sector_per_cluster = 1; reserved_sectors = 1;
@@ -208,18 +207,21 @@ uint8_t tud_msc_get_maxlun_cb(void) {
   return 2; // dual LUN
 }
 
-// Invoked when received SCSI_CMD_INQUIRY
-// Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
-void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
-  (void) lun; // use same ID for both LUNs
-
+// Invoked when received SCSI_CMD_INQUIRY, v2 with full inquiry response
+// Some inquiry_resp's fields are already filled with default values, application can update them
+// Return length of inquiry response, typically sizeof(scsi_inquiry_resp_t) (36 bytes), can be longer if included vendor data.
+uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uint32_t bufsize) {
+  (void) lun;
+  (void) bufsize;
   const char vid[] = "TinyUSB";
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
 
-  memcpy(vendor_id  , vid, strlen(vid));
-  memcpy(product_id , pid, strlen(pid));
-  memcpy(product_rev, rev, strlen(rev));
+  memcpy(inquiry_resp->vendor_id, vid, strlen(vid));
+  memcpy(inquiry_resp->product_id, pid, strlen(pid));
+  memcpy(inquiry_resp->product_rev, rev, strlen(rev));
+
+  return sizeof(scsi_inquiry_resp_t); // 36 bytes
 }
 
 // Invoked when received Test Unit Ready command.
@@ -283,9 +285,11 @@ bool tud_msc_is_writable_cb(uint8_t lun) {
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
   // out of ramdisk
-  if (lba >= DISK_BLOCK_NUM) return -1;
+  if (lba >= DISK_BLOCK_NUM) {
+    return -1;
+  }
 
-#if defined(CFG_EXAMPLE_MSC_READONLY) || defined(CFG_EXAMPLE_MSC_DUAL_READONLY)
+  #if defined(CFG_EXAMPLE_MSC_READONLY) || defined(CFG_EXAMPLE_MSC_DUAL_READONLY)
   (void) lun;
   (void) lba;
   (void) offset;
@@ -302,11 +306,8 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
 // - READ10 and WRITE10 has their own callbacks (MUST not be handled here)
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) {
-  void const* response = NULL;
-  int32_t resplen = 0;
-
-  // most scsi handled is input
-  bool in_xfer = true;
+  (void) buffer;
+  (void) bufsize;
 
   switch (scsi_cmd[0]) {
     default:
@@ -316,19 +317,6 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
       // negative means error -> tinyusb could stall and/or response with failed status
       return -1;
   }
-
-  // return resplen must not larger than bufsize
-  if (resplen > bufsize) resplen = bufsize;
-
-  if (response && (resplen > 0)) {
-    if (in_xfer) {
-      memcpy(buffer, response, (size_t) resplen);
-    } else {
-      // SCSI output
-    }
-  }
-
-  return resplen;
 }
 
 #endif

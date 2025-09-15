@@ -34,7 +34,7 @@ void msc_app_init(void) {
   // nothing to do
 }
 
-bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const *cb_data) {
+static bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const *cb_data) {
   msc_cbw_t const *cbw = cb_data->cbw;
   msc_csw_t const *csw = cb_data->csw;
 

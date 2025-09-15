@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TinyUSB WebUSB Serial</title>
+  <link rel="stylesheet" href="style.css" />
+  <script defer src="serial.js"></script>
+  <script defer src="application.js"></script>
+  <script defer src="divider.js"></script>
+</head>
+
+<body>
+  <header class="header">
+    <h1 class="app-title">TinyUSB - WebUSB Serial</h1>
+    <button id="theme-toggle" class="btn btn-theme">Theme: Auto</button>
+    <a class="github-link" href="https://github.com/hathach/tinyusb/tree/master/examples/device/webusb_serial/website"
+      target="_blank">
+      Find my source on GitHub
+    </a>
+  </header>
+  <main>
+    <section class="controls-section">
+      <button id="connect_webusb_serial_btn" class="controls btn good">Connect WebUSB</button>
+      <button id="connect_serial_btn" class="controls btn good">Connect Serial</button>
+      <button id="disconnect_btn" class="controls btn danger">Disconnect</button>
+      <label for="newline_mode_select" class="controls">
+        Command newline mode:
+        <select id="newline_mode_select">
+          <option value="CR">Only \r</option>
+          <option value="CRLF">\r\n</option>
+          <option value="ANY" selected>\r, \n or \r\n</option>
+        </select>
+      </label>
+      <label for="auto_reconnect_checkbox" class="controls">
+        <input type="checkbox" id="auto_reconnect_checkbox" />
+        Auto Reconnect WebUSB
+      </label>
+      <button id="forget_device_btn" class="controls btn danger">Forget Device</button>
+      <button id="forget_all_devices_btn" class="controls btn danger">Forget All Devices</button>
+      <button id="reset_all_btn" class="controls btn danger">Reset All</button>
+      <button id="copy_output_btn" class="controls btn good">Copy Output</button>
+      <button id="download_csv_output_btn" class="controls btn good">Download CSV</button>
+    </section>
+    <section class="status-section">
+      <span id="status_span" class="status">
+        Click "Connect" to start
+      </span>
+    </section>
+    <div class="io-container">
+      <section class="column">
+        <div class="heading-with-controls">
+          <h2>Command History</h2>
+          <button id="clear_command_history_btn" class="controls btn danger">Clear History</button>
+        </div>
+        <div class="scrollbox-wrapper">
+          <div id="command_history_scrollbox" class="scrollbox monospaced"></div>
+        </div>
+        <div class="send-container">
+          <input id="command_line_input" class="input" placeholder="Start typing..." autocomplete="off" disabled />
+          <button id="send_mode_btn" class="btn send-mode-command">Command Mode</button>
+        </div>
+      </section>
+      <div class="resizer" id="resizer"></div>
+      <section class="column">
+        <div class="heading-with-controls">
+          <h2>Received Data</h2>
+          <button id="clear_received_data_btn" class="controls btn danger">Clear Received</button>
+        </div>
+        <div class="scrollbox-wrapper">
+          <div id="received_data_scrollbox" class="scrollbox monospaced"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+
+</html>

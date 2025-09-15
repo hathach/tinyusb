@@ -13,7 +13,6 @@ else
 # The submodule BRTSG-FOSS/ft90x-sdk contains header files and source
 # code for the Bridgetek SDK. This can be used instead of the prebuilt
 # library.
-DEPS_SUBMODULES += hw/mcu/bridgetek/ft9xx/ft90x-sdk
 # The SDK can be used to load specific files from the Bridgetek SDK.
 FT9XX_SDK = hw/mcu/bridgetek/ft9xx/ft90x-sdk/Source
 INC += "$(TOP)/$(FT9XX_SDK)/include"

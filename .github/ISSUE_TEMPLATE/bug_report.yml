@@ -24,8 +24,15 @@ body:
 
   - type: input
     attributes:
+      label: Commit SHA
+      placeholder: e.g 3a042b37da28d0ba1e5593eb1068ca5645d77b56 or version bundled by esp-idf or pico-sdk
+    validations:
+      required: true
+
+  - type: input
+    attributes:
       label: Board
-      placeholder: e.g Feather nRF52840 Express
+      placeholder: e.g Adafruit Feather nRF52840 Express
     validations:
       required: true
 
@@ -79,8 +86,8 @@ body:
 
   - type: checkboxes
     attributes:
-      label: I have checked existing issues, dicussion and documentation
+      label: I have checked existing issues, discussion and documentation
       description: You agree to check all the resources above before opening a new issue.
       options:
-        - label: I confirm I have checked existing issues, dicussion and documentation.
+        - label: I confirm I have checked existing issues, discussion and documentation.
           required: true

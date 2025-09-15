@@ -49,4 +49,7 @@
 #define UART_PORT             LPUART6
 #define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 
+static inline void BOARD_ConfigMPU(void) {
+}
+
 #endif /* BOARD_H_ */

@@ -77,6 +77,17 @@ extern "C" {
   #define EP_MAX_HS       9
   #define EP_FIFO_SIZE_HS 4096
 
+#elif CFG_TUSB_MCU == OPT_MCU_STM32N6
+  #include "stm32n6xx.h"
+  #define EP_MAX_FS       9
+  #define EP_FIFO_SIZE_FS 4096
+
+  #define EP_MAX_HS       9
+  #define EP_FIFO_SIZE_HS 4096
+
+  #define USB_OTG_HS_PERIPH_BASE    USB1_OTG_HS_BASE
+  #define OTG_HS_IRQn               USB1_OTG_HS_IRQn
+
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
   #define EP_MAX_FS       6
@@ -102,6 +113,22 @@ extern "C" {
     #define EP_MAX_HS                 9
     #define EP_FIFO_SIZE_HS           4096
   #endif
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32WBA
+  #if defined(STM32WBA62xx)
+    #include "stm32wba62xx.h"
+  #elif defined(STM32WBA64xx)
+    #include "stm32wba64xx.h"
+  #elif defined(STM32WBA65xx)
+    #include "stm32wba65xx.h"
+  #else
+    #error "The selected STM32WBA series chip does not support OTG USB HS"
+  #endif
+
+  #define USB_OTG_HS_PERIPH_BASE    USB_OTG_HS_BASE_NS
+  #define OTG_HS_IRQn               USB_OTG_HS_IRQn
+  #define EP_MAX_HS                 9
+  #define EP_FIFO_SIZE_HS           4096
 #else
   #error "Unsupported MCUs"
 #endif
@@ -155,6 +182,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 // MCU specific PHY init, called BEFORE core reset
 // - dwc2 3.30a (H5) use USB_HS_PHYC
 // - dwc2 4.11a (U5) use femtoPHY
+// - dwc2 x.xxx (WBA) use USB_OTG_HS
 static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
     // Enable on-chip FS PHY
@@ -183,11 +211,10 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
     #endif
 
   } else {
-#if CFG_TUSB_MCU != OPT_MCU_STM32U5
+#if CFG_TUSB_MCU != OPT_MCU_STM32U5 && CFG_TUSB_MCU != OPT_MCU_STM32WBA
     // Disable FS PHY, TODO on U5A5 (dwc2 4.11a) 16th bit is 'Host CDP behavior enable'
     dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
 #endif
-
     // Enable on-chip HS PHY
     if (hs_phy_type == GHWCFG2_HSPHY_UTMI || hs_phy_type == GHWCFG2_HSPHY_UTMI_ULPI) {
       #ifdef USB_HS_PHYC
@@ -222,6 +249,9 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 
       // Enable PLL internal PHY
       USB_HS_PHYC->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
+
+      // Wait ~2ms until the PLL is ready (there's no RDY bit to query)
+      tusb_time_delay_ms_api(2);
       #else
 
       #endif
@@ -267,6 +297,77 @@ static inline void dwc2_phy_update(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
     dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_TRDT_Msk) | (turnaround << GUSBCFG_TRDT_Pos);
   }
 }
+
+//------------- DCache -------------//
+#if CFG_TUD_MEM_DCACHE_ENABLE || CFG_TUH_MEM_DCACHE_ENABLE
+
+typedef struct {
+  uintptr_t start;
+  uintptr_t end;
+} mem_region_t;
+
+// Can be used to define additional uncached regions
+#ifndef CFG_DWC2_MEM_UNCACHED_REGIONS
+#define CFG_DWC2_MEM_UNCACHED_REGIONS
+#endif
+
+static mem_region_t uncached_regions[] = {
+  // DTCM (although USB DMA can't transfer to/from DTCM)
+#if CFG_TUSB_MCU == OPT_MCU_STM32H7
+  {.start = 0x20000000, .end = 0x2001FFFF},
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7RS
+  // DTCM (although USB DMA can't transfer to/from DTCM)
+  {.start = 0x20000000, .end = 0x2002FFFF},
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F7
+    // DTCM
+  {.start = 0x20000000, .end = 0x2000FFFF},
+#else
+#error "Cache maintenance is not supported yet"
+#endif
+  CFG_DWC2_MEM_UNCACHED_REGIONS
+};
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t round_up_to_cache_line_size(uint32_t size) {
+  if (size & (CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT-1)) {
+    size = (size & ~(CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT-1)) + CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT;
+  }
+  return size;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool is_cache_mem(uintptr_t addr) {
+  for (unsigned int i = 0; i < TU_ARRAY_SIZE(uncached_regions); i++) {
+    if (uncached_regions[i].start <= addr && addr <= uncached_regions[i].end) { return false; }
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_InvalidateDCache_by_Addr((void*) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool dwc2_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+  const uintptr_t addr32 = (uintptr_t) addr;
+  if (is_cache_mem(addr32)) {
+    data_size = round_up_to_cache_line_size(data_size);
+    SCB_CleanInvalidateDCache_by_Addr((uint32_t *) addr32, (int32_t) data_size);
+  }
+  return true;
+}
+#endif
 
 #ifdef __cplusplus
 }

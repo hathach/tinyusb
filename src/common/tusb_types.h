@@ -43,14 +43,14 @@
 #define TUD_EPBUF_DEF(_name, _size) \
   union { \
     CFG_TUD_MEM_ALIGN uint8_t _name[_size]; \
-    uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(_size)]; \
+    TU_ATTR_ALIGNED(CFG_TUD_MEM_DCACHE_ENABLE ? CFG_TUD_MEM_DCACHE_LINE_SIZE : 1) uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(_size)]; \
   }
 
 // Declare an endpoint buffer with a type
 #define TUD_EPBUF_TYPE_DEF(_type, _name) \
   union { \
     CFG_TUD_MEM_ALIGN _type _name; \
-    uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
+    TU_ATTR_ALIGNED(CFG_TUD_MEM_DCACHE_ENABLE ? CFG_TUD_MEM_DCACHE_LINE_SIZE : 1) uint8_t _name##_dcache_padding[TUD_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
   }
 
 //------------- Host DCache declaration -------------//
@@ -61,14 +61,14 @@
 #define TUH_EPBUF_DEF(_name, _size) \
   union { \
     CFG_TUH_MEM_ALIGN uint8_t _name[_size]; \
-    uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(_size)]; \
+    TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 1) uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(_size)]; \
   }
 
 // Declare an endpoint buffer with a type
 #define TUH_EPBUF_TYPE_DEF(_type, _name) \
   union { \
     CFG_TUH_MEM_ALIGN _type _name; \
-    uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
+    TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 1) uint8_t _name##_dcache_padding[TUH_EPBUF_DCACHE_SIZE(sizeof(_type))]; \
   }
 
 
@@ -278,6 +278,8 @@ typedef enum {
   XFER_RESULT_INVALID
 } xfer_result_t;
 
+#define tusb_xfer_result_t xfer_result_t
+
 // TODO remove
 enum {
   DESC_OFFSET_LEN  = 0,
@@ -345,7 +347,6 @@ typedef struct TU_ATTR_PACKED {
   uint8_t  iManufacturer      ; ///< Index of string descriptor describing manufacturer.
   uint8_t  iProduct           ; ///< Index of string descriptor describing product.
   uint8_t  iSerialNumber      ; ///< Index of string descriptor describing the device's serial number.
-
   uint8_t  bNumConfigurations ; ///< Number of possible configurations.
 } tusb_desc_device_t;
 
@@ -560,40 +561,6 @@ TU_ATTR_ALWAYS_INLINE static inline const char *tu_edpt_type_str(tusb_xfer_type_
   return str[t];
 }
 #endif
-
-//--------------------------------------------------------------------+
-// Descriptor helper
-//--------------------------------------------------------------------+
-
-// return next descriptor
-TU_ATTR_ALWAYS_INLINE static inline uint8_t const * tu_desc_next(void const* desc) {
-  uint8_t const* desc8 = (uint8_t const*) desc;
-  return desc8 + desc8[DESC_OFFSET_LEN];
-}
-
-// get descriptor length
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_len(void const* desc) {
-  return ((uint8_t const*) desc)[DESC_OFFSET_LEN];
-}
-
-// get descriptor type
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_type(void const* desc) {
-  return ((uint8_t const*) desc)[DESC_OFFSET_TYPE];
-}
-
-// get descriptor subtype
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
-  return ((uint8_t const*) desc)[DESC_OFFSET_SUBTYPE];
-}
-
-// find descriptor that match byte1 (type)
-uint8_t const * tu_desc_find(uint8_t const* desc, uint8_t const* end, uint8_t byte1);
-
-// find descriptor that match byte1 (type) and byte2
-uint8_t const * tu_desc_find2(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2);
-
-// find descriptor that match byte1 (type) and byte2
-uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t byte1, uint8_t byte2, uint8_t byte3);
 
 #ifdef __cplusplus
  }

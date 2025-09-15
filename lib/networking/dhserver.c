@@ -227,12 +227,69 @@ int fill_options(void *dest,
 	return ptr - (uint8_t *)dest;
 }
 
+
+/*
+ * RFC 2131 Section 4.1 compliant destination address selection
+ */
+static ip_addr_t get_dhcp_destination(struct netif *netif, const DHCP_TYPE *dhcp,
+                                const ip4_addr_t *yiaddr, bool is_nak)
+{
+    ip4_addr_t giaddr = get_ip(dhcp->dp_giaddr);
+    ip4_addr_t ciaddr = get_ip(dhcp->dp_ciaddr);
+    bool giaddr_zero = ip4_addr_isany_val(giaddr);
+    bool ciaddr_zero = ip4_addr_isany_val(ciaddr);
+    bool broadcast_flag = (dhcp->dp_flags & htons(0x8000)) != 0;
+	ip_addr_t dest_addr;
+
+    if (!giaddr_zero) {
+        // If giaddr is not zero, send to giaddr (relay agent)
+        ip_addr_set_ip4_u32(&dest_addr, giaddr.addr);
+        return dest_addr;
+    }
+
+    if (is_nak) {
+        // RFC 2131: "In all cases, when 'giaddr' is zero,
+        // the server broadcasts any DHCPNAK messages to 0xffffffff"
+        goto dest_broadcast;
+    }
+
+    if (!ciaddr_zero) {
+        // RFC 2131: "If the 'giaddr' field is zero and the 'ciaddr' field is nonzero,
+        // then the server unicasts DHCPOFFER and DHCPACK messages to the address in 'ciaddr'"
+        ip_addr_set_ip4_u32(&dest_addr, ciaddr.addr);
+        return dest_addr;
+    }
+
+    if (broadcast_flag) {
+        // RFC 2131: "If 'giaddr' is zero and 'ciaddr' is zero, and the broadcast bit is set,
+        // then the server broadcasts DHCPOFFER and DHCPACK messages to 0xffffffff"
+        goto dest_broadcast;
+    }
+
+    // RFC 2131: "If the broadcast bit is not set and 'giaddr' is zero and 'ciaddr' is zero,
+    // then the server unicasts DHCPOFFER and DHCPACK messages to the client's hardware
+    // address and 'yiaddr' address"
+    if (yiaddr && !ip4_addr_isany(yiaddr)) {
+        ip_addr_set_ip4_u32(&dest_addr, yiaddr->addr);
+        // TODO: This requires ARP table manipulation to associate yiaddr with client MAC
+        // For now, fall back to broadcast as this is complex to implement correctly
+        goto dest_broadcast;
+    }
+
+dest_broadcast:
+    ip_addr_set_ip4_u32(&dest_addr,
+        ip4_addr_get_u32(netif_ip4_addr(netif)) | ~ip4_addr_get_u32(netif_ip4_netmask(netif)));
+    return dest_addr;
+
+}
+
 static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const ip_addr_t *addr, u16_t port)
 {
 	uint8_t *ptr;
 	dhcp_entry_t *entry;
 	struct pbuf *pp;
 	struct netif *netif = netif_get_by_index(p->if_idx);
+	ip_addr_t dest_addr;
 
 	(void)arg;
 	(void)addr;
@@ -254,7 +311,6 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 			entry = entry_by_mac(dhcp_data.dp_chaddr);
 			if (entry == NULL) entry = vacant_address();
 			if (entry == NULL) break;
-
 			dhcp_data.dp_op = 2; /* reply */
 			dhcp_data.dp_secs = 0;
 			dhcp_data.dp_flags = 0;
@@ -275,7 +331,9 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 			pp = pbuf_alloc(PBUF_TRANSPORT, sizeof(dhcp_data), PBUF_POOL);
 			if (pp == NULL) break;
 			memcpy(pp->payload, &dhcp_data, sizeof(dhcp_data));
-			udp_sendto(upcb, pp, IP_ADDR_BROADCAST, port);
+			// RFC 2131 compliant destination selection for DHCP OFFER
+			dest_addr = get_dhcp_destination(netif, &dhcp_data, &entry->addr, false);
+			udp_sendto(upcb, pp, &dest_addr, port);
 			pbuf_free(pp);
 			break;
 
@@ -319,7 +377,9 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
 			if (pp == NULL) break;
 			memcpy(entry->mac, dhcp_data.dp_chaddr, 6);
 			memcpy(pp->payload, &dhcp_data, sizeof(dhcp_data));
-			udp_sendto(upcb, pp, IP_ADDR_BROADCAST, port);
+			// RFC 2131 compliant destination selection for DHCP ACK
+			dest_addr = get_dhcp_destination(netif, &dhcp_data, &entry->addr, false);
+			udp_sendto(upcb, pp, &dest_addr, port);
 			pbuf_free(pp);
 			break;
 

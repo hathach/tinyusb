@@ -1,3 +1,4 @@
+mcu:CH32V20X
 mcu:ESP32S2
 mcu:ESP32S3
 mcu:ESP32P4
@@ -18,3 +19,7 @@ mcu:RAXXX
 mcu:STM32F4
 mcu:STM32F7
 mcu:STM32H7
+mcu:STM32H7RS
+mcu:STM32N6
+family:samd21
+family:samd5x_e5x

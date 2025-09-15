@@ -1,8 +1,6 @@
 UF2_FAMILY_ID = 0x00
 SDK_DIR = hw/mcu/infineon/mtb-xmclib-cat3
 
-DEPS_SUBMODULES += ${SDK_DIR}
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m4
 

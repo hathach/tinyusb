@@ -49,6 +49,11 @@
 #define MAX3421_CS_PIN   15
 #define MAX3421_INTR_PIN 14
 
+// For CI hardware test, to test both device and host on the same HS port with help of TS3USB30
+// https://www.adafruit.com/product/5871
+#define HIL_TS3USB30_MODE_PIN    47
+#define HIL_TS3USB30_MODE_DEVICE 1
+
 #ifdef __cplusplus
  }
 #endif

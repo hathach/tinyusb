@@ -45,14 +45,13 @@ processor_version: 0.13.0
  * Variables
  ******************************************************************************/
 /* System clock frequency. */
-//uint32_t SystemCoreClock;
+//extern uint32_t SystemCoreClock;
 
 /*******************************************************************************
  ************************ BOARD_InitBootClocks function ************************
  ******************************************************************************/
 void BOARD_InitBootClocks(void)
 {
-    BOARD_BootClockFRO96M();
 }
 
 /*******************************************************************************
@@ -386,7 +385,6 @@ void BOARD_BootClockFRO64M(void)
 /* TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!Configuration
 name: BOARD_BootClockFRO96M
-called_from_default_init: true
 outputs:
 - {id: CLK_1M_clock.outFreq, value: 1 MHz}
 - {id: CLK_48M_clock.outFreq, value: 48 MHz}

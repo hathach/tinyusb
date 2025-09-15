@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2024 Ha Thach (tinyusb.org)
+ * Copyright (c) 2024-2025 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,7 @@
 
 #if CFG_TUH_ENABLED
 #include "host/hcd.h"
+#include "host/usbh.h"
 #endif
 
 #include "dwc2_common.h"
@@ -44,17 +45,26 @@
 //
 //--------------------------------------------------------------------
 static void reset_core(dwc2_regs_t* dwc2) {
+  // The software must check that bit 31 in this register is set to 1 (AHB Master is Idle) before starting any operation
+  while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {
+  }
+
+  // load gsnpsid (it is not readable after reset is asserted)
+  const uint32_t gsnpsid = dwc2->gsnpsid;
+
   // reset core
   dwc2->grstctl |= GRSTCTL_CSRST;
 
-  if ((dwc2->gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
-    // prior v42.0 CSRST is self-clearing
+  if ((gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
+    // prior v4.20a: CSRST is self-clearing and the core clears this bit after all the necessary logic is reset in
+    // the core, which can take several clocks, depending on the current state of the core. Once this bit has been
+    // cleared, the software must wait at least 3 PHY clocks before accessing the PHY domain (synchronization delay).
     while (dwc2->grstctl & GRSTCTL_CSRST) {}
   } else {
-    // From v4.20a CSRST bit is write only, CSRT_DONE (w1c) is introduced for checking.
-    // CSRST must also be explicitly cleared
+    // From v4.20a: CSRST bit is write only. The application must clear this bit after checking the bit 29 of this
+    // register i.e Core Soft Reset Done CSRT_DONE (w1c)
     while (!(dwc2->grstctl & GRSTCTL_CSRST_DONE)) {}
-    dwc2->grstctl =  (dwc2->grstctl & ~GRSTCTL_CSRST) | GRSTCTL_CSRST_DONE;
+    dwc2->grstctl = (dwc2->grstctl & ~GRSTCTL_CSRST) | GRSTCTL_CSRST_DONE;
   }
 
   while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {} // wait for AHB master IDLE
@@ -88,11 +98,21 @@ static void phy_fs_init(dwc2_regs_t* dwc2) {
 
 static void phy_hs_init(dwc2_regs_t* dwc2) {
   uint32_t gusbcfg = dwc2->gusbcfg;
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  const dwc2_ghwcfg4_t ghwcfg4 = {.value = dwc2->ghwcfg4};
+
+  uint8_t phy_width;
+  if (CFG_TUSB_MCU != OPT_MCU_AT32F402_405 && // at32f402_405 does not support 16-bit
+      ghwcfg4.phy_data_width) {
+    phy_width = 16; // 16-bit PHY interface if supported
+  } else {
+    phy_width = 8; // 8-bit PHY interface
+  }
 
   // De-select FS PHY
   gusbcfg &= ~GUSBCFG_PHYSEL;
 
-  if (dwc2->ghwcfg2_bm.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
+  if (ghwcfg2.hs_phy_type == GHWCFG2_HSPHY_ULPI) {
     TU_LOG(DWC2_COMMON_DEBUG, "Highspeed ULPI PHY init\r\n");
 
     // Select ULPI PHY (external)
@@ -116,10 +136,10 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
     gusbcfg &= ~GUSBCFG_ULPI_UTMI_SEL;
 
     // Set 16-bit interface if supported
-    if (dwc2->ghwcfg4_bm.phy_data_width) {
-      gusbcfg |= GUSBCFG_PHYIF16; // 16 bit
+    if (phy_width == 16) {
+      gusbcfg |= GUSBCFG_PHYIF16;
     } else {
-      gusbcfg &= ~GUSBCFG_PHYIF16; // 8 bit
+      gusbcfg &= ~GUSBCFG_PHYIF16;
     }
   }
 
@@ -127,7 +147,7 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
   dwc2->gusbcfg = gusbcfg;
 
   // mcu specific phy init
-  dwc2_phy_init(dwc2, dwc2->ghwcfg2_bm.hs_phy_type);
+  dwc2_phy_init(dwc2, ghwcfg2.hs_phy_type);
 
   // Reset core after selecting PHY
   reset_core(dwc2);
@@ -136,11 +156,11 @@ static void phy_hs_init(dwc2_regs_t* dwc2) {
   // - 9 if using 8-bit PHY interface
   // - 5 if using 16-bit PHY interface
   gusbcfg &= ~GUSBCFG_TRDT_Msk;
-  gusbcfg |= (dwc2->ghwcfg4_bm.phy_data_width ? 5u : 9u) << GUSBCFG_TRDT_Pos;
+  gusbcfg |= (phy_width == 16 ? 5u : 9u) << GUSBCFG_TRDT_Pos;
   dwc2->gusbcfg = gusbcfg;
 
   // MCU specific PHY update post reset
-  dwc2_phy_update(dwc2, dwc2->ghwcfg2_bm.hs_phy_type);
+  dwc2_phy_update(dwc2, ghwcfg2.hs_phy_type);
 }
 
 static bool check_dwc2(dwc2_regs_t* dwc2) {
@@ -171,7 +191,6 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 //--------------------------------------------------------------------
 bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
   (void)dwc2;
-
 #if CFG_TUD_ENABLED
   if (role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
     return false;
@@ -183,7 +202,8 @@ bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
   }
 #endif
 
-  return dwc2->ghwcfg2_bm.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  return ghwcfg2.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
 }
 
 /* dwc2 has several PHYs option

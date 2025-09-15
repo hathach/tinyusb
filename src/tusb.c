@@ -136,6 +136,29 @@ void tusb_int_handler(uint8_t rhport, bool in_isr) {
   #endif
 }
 
+bool tusb_deinit(uint8_t rhport) {
+  TU_VERIFY(rhport < TUP_USBIP_CONTROLLER_NUM);
+  bool ret = false;
+
+  #if CFG_TUD_ENABLED
+  if (_tusb_rhport_role[rhport] == TUSB_ROLE_DEVICE) {
+    TU_ASSERT(tud_deinit(rhport));
+    _tusb_rhport_role[rhport] = TUSB_ROLE_INVALID;
+    ret = true;
+  }
+  #endif
+
+  #if CFG_TUH_ENABLED
+  if (_tusb_rhport_role[rhport] == TUSB_ROLE_HOST) {
+    TU_ASSERT(tuh_deinit(rhport));
+    _tusb_rhport_role[rhport] = TUSB_ROLE_INVALID;
+    ret = true;
+  }
+  #endif
+
+  return ret;
+}
+
 //--------------------------------------------------------------------+
 // Descriptor helper
 //--------------------------------------------------------------------+

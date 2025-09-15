@@ -49,16 +49,35 @@ uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];       // +1 for master channel 0
 int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];    // +1 for master channel 0
 
-// Buffer for microphone data
-int32_t mic_buf[CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ / 4];
 // Buffer for speaker data
 int32_t spk_buf[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 4];
 // Speaker data size received in the last frame
-int spk_data_size;
+uint16_t spk_data_size;
 // Resolution per format
 const uint8_t resolutions_per_format[CFG_TUD_AUDIO_FUNC_1_N_FORMATS] = {CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_RX};
 // Current resolution, update on format change
 uint8_t current_resolution;
+
+//--------------------------------------------------------------------+
+// AUDIO Task
+//--------------------------------------------------------------------+
+
+// This task simulates an audio transfer callback, one frame is sent/received every 1ms.
+// In a real application, this would be replaced with actual I2S send/receive callback.
+void audio_task(void) {
+  static uint32_t start_ms = 0;
+  uint32_t curr_ms = board_millis();
+  if (start_ms == curr_ms) return;// not enough time
+  start_ms = curr_ms;
+  // When new data arrived, copy data from speaker buffer, to microphone buffer
+  // and send it over
+  // Only support speaker & headphone both have the same resolution
+  // If one is 16bit another is 24bit be care of LOUD noise !
+  spk_data_size = tud_audio_read(spk_buf, sizeof(spk_buf));
+  if (spk_data_size) {
+      tud_audio_write((uint8_t *) spk_buf, spk_data_size);
+  }
+}
 
 // Helper for clock get requests
 static bool tud_audio_clock_get_request(uint8_t rhport, audio_control_request_t const *request)
@@ -238,7 +257,7 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   return false;
 }
 
-bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const * p_request)
+bool tud_audio_set_itf_close_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void)rhport;
 
@@ -265,37 +284,11 @@ bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_reque
     blink_interval_ms = BLINK_STREAMING;
   }
 
-  // Clear buffer when streaming format is changed
-  spk_data_size = 0;
   if(alt != 0)
   {
     current_resolution = resolutions_per_format[alt-1];
   }
 
-  return true;
-}
-
-bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting)
-{
-  (void)rhport;
-  (void)func_id;
-  (void)ep_out;
-  (void)cur_alt_setting;
-
-  spk_data_size = tud_audio_read(spk_buf, n_bytes_received);
-  tud_audio_write(spk_buf, n_bytes_received);
-
-  return true;
-}
-
-bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep_in, uint8_t cur_alt_setting)
-{
-  (void)rhport;
-  (void)itf;
-  (void)ep_in;
-  (void)cur_alt_setting;
-
-  // This callback could be used to fill microphone data separately
   return true;
 }
 

@@ -41,6 +41,33 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec);
 #endif
 
 //--------------------------------------------------------------------+
+// Spinlock API
+//--------------------------------------------------------------------+
+typedef struct {
+  void (* interrupt_set)(bool);
+} osal_spinlock_t;
+
+// For SMP, spinlock must be locked by hardware, cannot just use interrupt
+#define OSAL_SPINLOCK_DEF(_name, _int_set) \
+  osal_spinlock_t _name = { .interrupt_set = _int_set }
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
+  (void) ctx;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
+  if (!in_isr) {
+    ctx->interrupt_set(false);
+  }
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
+  if (!in_isr) {
+    ctx->interrupt_set(true);
+  }
+}
+
+//--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
 typedef struct {

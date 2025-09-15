@@ -1,0 +1,6 @@
+<component name="DebugServers">
+  <esp-idf-debug-target name="s3" uniqueID="e096f0d4-5923-482d-bcc3-169a2cfd7cdc">
+    <console enabled="false" />
+    <target />
+  </esp-idf-debug-target>
+</component>

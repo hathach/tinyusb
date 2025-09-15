@@ -49,7 +49,9 @@ static led_strip_handle_t led_strip;
 static void max3421_init(void);
 #endif
 
+#if TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3, OPT_MCU_ESP32P4)
 static bool usb_init(void);
+#endif
 
 //--------------------------------------------------------------------+
 // Implementation
@@ -92,10 +94,10 @@ void board_init(void) {
   usb_init();
 #endif
 
-#ifdef HIL_DEVICE_HOST_MUX_PIN
-  gpio_reset_pin(HIL_DEVICE_HOST_MUX_PIN);
-  gpio_set_direction(HIL_DEVICE_HOST_MUX_PIN, GPIO_MODE_OUTPUT);
-  gpio_set_level(HIL_DEVICE_HOST_MUX_PIN, CFG_TUD_ENABLED ? HIL_DEVICE_STATE : (1-HIL_DEVICE_STATE));
+#ifdef HIL_TS3USB30_MODE_PIN
+  gpio_reset_pin(HIL_TS3USB30_MODE_PIN);
+  gpio_set_direction(HIL_TS3USB30_MODE_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_level(HIL_TS3USB30_MODE_PIN, CFG_TUD_ENABLED ? HIL_TS3USB30_MODE_DEVICE : (1-HIL_TS3USB30_MODE_DEVICE));
 #endif
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
@@ -152,6 +154,10 @@ int board_uart_write(void const* buf, int len) {
 
 int board_getchar(void) {
   return getchar();
+}
+
+void board_putchar(int c) {
+  putchar(c);
 }
 
 //--------------------------------------------------------------------

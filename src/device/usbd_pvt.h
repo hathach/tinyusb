@@ -57,6 +57,7 @@ typedef struct {
   uint16_t (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t max_len);
   bool     (* control_xfer_cb  ) (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
   bool     (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+  bool     (* xfer_isr         ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes); // optional, return false to defer to xfer_cb()
   void     (* sof              ) (uint8_t rhport, uint32_t frame_count); // optional
 } usbd_class_driver_t;
 
@@ -68,6 +69,8 @@ usbd_class_driver_t const* usbd_app_driver_get_cb(uint8_t* driver_count) TU_ATTR
 typedef bool (*usbd_control_xfer_cb_t)(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
 void usbd_int_set(bool enabled);
+void usbd_spin_lock(bool in_isr);
+void usbd_spin_unlock(bool in_isr);
 
 //--------------------------------------------------------------------+
 // USBD Endpoint API

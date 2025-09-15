@@ -10,9 +10,12 @@ mcu:SAMD11
 mcu:STM32L0
 mcu:STM32F0
 mcu:KINETIS_KL
+mcu:STM32H7RS
+mcu:STM32N6
 family:broadcom_64bit
 family:broadcom_32bit
 family:espressif
+board:at_start_f425
 board:curiosity_nano
 board:frdm_kl25z
 # lpc55 has weird error 'ncm_interface' causes a section type conflict with 'ntb_parameters'

@@ -1,6 +1,5 @@
 UF2_FAMILY_ID = 0x4fb2d5bd
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 
@@ -15,8 +14,6 @@ CFLAGS += \
 
 ifneq ($(M4), 1)
 CFLAGS += \
-  -D__ARMVFP__=0 \
-  -D__ARMFPV5__=0 \
   -DXIP_EXTERNAL_FLASH=1 \
   -DXIP_BOOT_HEADER_ENABLE=1
 endif

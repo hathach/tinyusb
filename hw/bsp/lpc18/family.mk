@@ -1,4 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx
 
 include $(TOP)/$(BOARD_PATH)/board.mk
@@ -12,7 +11,7 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC18XX
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=cast-qual
+CFLAGS_GCC += -Wno-error=unused-parameter -Wno-error=cast-qual
 
 LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
 

@@ -69,7 +69,7 @@ typedef struct {
   const tusb_desc_endpoint_t* desc_epout; // endpoint OUT descriptor, CS_ENDPOINT is right after
 
   uint8_t jack_num;
-  const uint8_t* desc_jack[16]; // list of jack descriptors (embedded + external)
+  const uint8_t* desc_jack[32]; // list of jack descriptors (embedded + external)
 } tuh_midi_descriptor_cb_t;
 
 typedef struct {
@@ -89,6 +89,10 @@ bool tuh_midi_mounted(uint8_t idx);
 // Get Interface index from device address + interface number
 // return TUSB_INDEX_INVALID_8 (0xFF) if not found
 uint8_t tuh_midi_itf_get_index(uint8_t daddr, uint8_t itf_num);
+
+// Get Interface information
+// return true if index is correct and interface is currently mounted
+bool tuh_midi_itf_get_info(uint8_t idx, tuh_itf_info_t* info);
 
 // return the number of virtual midi cables on the device's IN endpoint
 uint8_t tuh_midi_get_rx_cable_count(uint8_t idx);

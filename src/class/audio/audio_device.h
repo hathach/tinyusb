@@ -26,8 +26,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_AUDIO_DEVICE_H_
-#define _TUSB_AUDIO_DEVICE_H_
+#ifndef TUSB_AUDIO_DEVICE_H_
+#define TUSB_AUDIO_DEVICE_H_
 
 #include "audio.h"
 
@@ -206,153 +206,6 @@
 // Audio control interrupt EP - 6 Bytes according to UAC 2 specification (p. 74)
 #define CFG_TUD_AUDIO_INTERRUPT_EP_SZ                       6
 
-// Use software encoding/decoding
-
-// The software coding feature of the driver is not mandatory. It is useful if, for instance, you have two I2S streams which need to be interleaved
-// into a single PCM stream as SAMPLE_1 | SAMPLE_2 | SAMPLE_3 | SAMPLE_4.
-//
-// Currently, only PCM type I encoding/decoding is supported!
-//
-// If the coding feature is to be used, support FIFOs need to be configured. Their sizes and numbers are defined below.
-
-// Encoding/decoding is done in software and thus time consuming. If you can encode/decode your stream more efficiently do not use the
-// support FIFOs but write/read directly into/from the EP_X_SW_BUFFER_FIFOs using
-// - tud_audio_n_write() or
-// - tud_audio_n_read().
-// To write/read to/from the support FIFOs use
-// - tud_audio_n_write_support_ff() or
-// - tud_audio_n_read_support_ff().
-//
-// The encoding/decoding format type done is defined below.
-//
-// The encoding/decoding starts when the private callback functions
-// - audio_tx_done_cb()
-// - audio_rx_done_cb()
-// are invoked. If support FIFOs are used, the corresponding encoding/decoding functions are called from there.
-// Once encoding/decoding is done the result is put directly into the EP_X_SW_BUFFER_FIFOs. You can use the public callback functions
-// - tud_audio_tx_done_pre_load_cb() or tud_audio_tx_done_post_load_cb()
-// - tud_audio_rx_done_pre_read_cb() or tud_audio_rx_done_post_read_cb()
-// if you want to get informed what happened.
-//
-// If you don't use the support FIFOs you may use the public callback functions
-// - tud_audio_tx_done_pre_load_cb() or tud_audio_tx_done_post_load_cb()
-// - tud_audio_rx_done_pre_read_cb() or tud_audio_rx_done_post_read_cb()
-// to write/read from/into the EP_X_SW_BUFFER_FIFOs at the right time.
-//
-// If you need a different encoding which is not support so far implement it in the
-// - audio_tx_done_cb()
-// - audio_rx_done_cb()
-// functions.
-
-// Enable encoding/decodings - for these to work, support FIFOs need to be setup in appropriate numbers and size
-// The actual coding parameters of active AS alternate interface is parsed from the descriptors
-
-// The item size of the FIFO is always fixed to one i.e. bytes! Furthermore, the actively used FIFO depth is reconfigured such that the depth is a multiple
-// of the current sample size in order to avoid samples to get split up in case of a wrap in the FIFO ring buffer (depth = (max_depth / sample_sz) * sample_sz)!
-// This is important to remind in case you use DMAs! If the sample sizes changes, the DMA MUST BE RECONFIGURED just like the FIFOs for a different depth!!!
-
-// For PCM encoding/decoding
-
-#ifndef CFG_TUD_AUDIO_ENABLE_ENCODING
-#define CFG_TUD_AUDIO_ENABLE_ENCODING                       0
-#endif
-
-#ifndef CFG_TUD_AUDIO_ENABLE_DECODING
-#define CFG_TUD_AUDIO_ENABLE_DECODING                       0
-#endif
-
-// This enabling allows to save the current coding parameters e.g. # of bytes per sample etc. - TYPE_I includes common PCM encoding
-#ifndef CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
-#define CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING                0
-#endif
-
-#ifndef CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
-#define CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING                0
-#endif
-
-// Type I Coding parameters not given within UAC2 descriptors
-// It would be possible to allow for a more flexible setting and not fix this parameter as done below. However, this is most often not needed and kept for later if really necessary. The more flexible setting could be implemented within set_interface(), however, how the values are saved per alternate setting is to be determined!
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING && CFG_TUD_AUDIO_ENABLE_TYPE_I_ENCODING
-#ifndef CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_TX
-#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
-#endif
-#if CFG_TUD_AUDIO > 1
-#ifndef CFG_TUD_AUDIO_FUNC_2_CHANNEL_PER_FIFO_TX
-#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
-#endif
-#endif
-#if CFG_TUD_AUDIO > 2
-#ifndef CFG_TUD_AUDIO_FUNC_3_CHANNEL_PER_FIFO_TX
-#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
-#endif
-#endif
-#endif
-
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING && CFG_TUD_AUDIO_ENABLE_TYPE_I_DECODING
-#ifndef CFG_TUD_AUDIO_FUNC_1_CHANNEL_PER_FIFO_RX
-#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
-#endif
-#if CFG_TUD_AUDIO > 1
-#ifndef CFG_TUD_AUDIO_FUNC_2_CHANNEL_PER_FIFO_RX
-#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
-#endif
-#endif
-#if CFG_TUD_AUDIO > 2
-#ifndef CFG_TUD_AUDIO_FUNC_3_CHANNEL_PER_FIFO_RX
-#error You must tell the driver the number of channels per FIFO for the interleaved encoding! E.g. for an I2S interface having two channels, CHANNEL_PER_FIFO = 2 as the I2S stream having two channels is usually saved within one FIFO
-#endif
-#endif
-#endif
-
-// Remaining types not support so far
-
-// Number of support FIFOs to set up - multiple channels can be handled by one FIFO - very common is two channels per FIFO stemming from one I2S interface
-#ifndef CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO
-#define CFG_TUD_AUDIO_FUNC_1_N_TX_SUPP_SW_FIFO              0
-#endif
-#ifndef CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO
-#define CFG_TUD_AUDIO_FUNC_2_N_TX_SUPP_SW_FIFO              0
-#endif
-#ifndef CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO
-#define CFG_TUD_AUDIO_FUNC_3_N_TX_SUPP_SW_FIFO              0
-#endif
-
-#ifndef CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO
-#define CFG_TUD_AUDIO_FUNC_1_N_RX_SUPP_SW_FIFO              0
-#endif
-#ifndef CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO
-#define CFG_TUD_AUDIO_FUNC_2_N_RX_SUPP_SW_FIFO              0
-#endif
-#ifndef CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO
-#define CFG_TUD_AUDIO_FUNC_3_N_RX_SUPP_SW_FIFO              0
-#endif
-
-// Size of support FIFOs IN BYTES - if size > 0 there are as many FIFOs set up as CFG_TUD_AUDIO_FUNC_X_N_TX_SUPP_SW_FIFO and CFG_TUD_AUDIO_FUNC_X_N_RX_SUPP_SW_FIFO
-#ifndef CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ
-#define CFG_TUD_AUDIO_FUNC_1_TX_SUPP_SW_FIFO_SZ             0         // FIFO size - minimum size: ceil(f_s/1000) * max(# of TX channels) / (# of TX support FIFOs) * max(# of bytes per sample)
-#endif
-#ifndef CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ
-#define CFG_TUD_AUDIO_FUNC_2_TX_SUPP_SW_FIFO_SZ             0
-#endif
-#ifndef CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ
-#define CFG_TUD_AUDIO_FUNC_3_TX_SUPP_SW_FIFO_SZ             0
-#endif
-
-#ifndef CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ
-#define CFG_TUD_AUDIO_FUNC_1_RX_SUPP_SW_FIFO_SZ             0         // FIFO size - minimum size: ceil(f_s/1000) * max(# of RX channels) / (# of RX support FIFOs) * max(# of bytes per sample)
-#endif
-#ifndef CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ
-#define CFG_TUD_AUDIO_FUNC_2_RX_SUPP_SW_FIFO_SZ             0
-#endif
-#ifndef CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ
-#define CFG_TUD_AUDIO_FUNC_3_RX_SUPP_SW_FIFO_SZ             0
-#endif
-
-//static_assert(sizeof(tud_audio_desc_lengths) != CFG_TUD_AUDIO, "Supply audio function descriptor pack length!");
-
-// Supported types of this driver:
-// AUDIO_DATA_FORMAT_TYPE_I_PCM     -   Required definitions: CFG_TUD_AUDIO_N_CHANNELS and CFG_TUD_AUDIO_BYTES_PER_CHANNEL
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -366,75 +219,41 @@ extern "C" {
 // Application API (Multiple Interfaces)
 // CFG_TUD_AUDIO > 1
 //--------------------------------------------------------------------+
-bool     tud_audio_n_mounted    (uint8_t func_id);
+bool tud_audio_n_mounted(uint8_t func_id);
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
-uint16_t tud_audio_n_available                    (uint8_t func_id);
-uint16_t tud_audio_n_read                         (uint8_t func_id, void* buffer, uint16_t bufsize);
-bool     tud_audio_n_clear_ep_out_ff              (uint8_t func_id);                          // Delete all content in the EP OUT FIFO
-tu_fifo_t*   tud_audio_n_get_ep_out_ff            (uint8_t func_id);
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+uint16_t   tud_audio_n_available       (uint8_t func_id);
+uint16_t   tud_audio_n_read            (uint8_t func_id, void* buffer, uint16_t bufsize);
+bool       tud_audio_n_clear_ep_out_ff (uint8_t func_id);
+tu_fifo_t* tud_audio_n_get_ep_out_ff   (uint8_t func_id);
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
-bool     tud_audio_n_clear_rx_support_ff          (uint8_t func_id, uint8_t ff_idx);       // Delete all content in the support RX FIFOs
-uint16_t tud_audio_n_available_support_ff         (uint8_t func_id, uint8_t ff_idx);
-uint16_t tud_audio_n_read_support_ff              (uint8_t func_id, uint8_t ff_idx, void* buffer, uint16_t bufsize);
-tu_fifo_t* tud_audio_n_get_rx_support_ff          (uint8_t func_id, uint8_t ff_idx);
-#endif
-
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
-uint16_t tud_audio_n_write                        (uint8_t func_id, const void * data, uint16_t len);
-bool     tud_audio_n_clear_ep_in_ff               (uint8_t func_id);                          // Delete all content in the EP IN FIFO
-tu_fifo_t*   tud_audio_n_get_ep_in_ff             (uint8_t func_id);
-#endif
-
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
-uint16_t tud_audio_n_flush_tx_support_ff          (uint8_t func_id);      // Force all content in the support TX FIFOs to be written into EP SW FIFO
-bool     tud_audio_n_clear_tx_support_ff          (uint8_t func_id, uint8_t ff_idx);
-uint16_t tud_audio_n_write_support_ff             (uint8_t func_id, uint8_t ff_idx, const void * data, uint16_t len);
-tu_fifo_t* tud_audio_n_get_tx_support_ff          (uint8_t func_id, uint8_t ff_idx);
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
+uint16_t   tud_audio_n_write          (uint8_t func_id, const void * data, uint16_t len);
+bool       tud_audio_n_clear_ep_in_ff (uint8_t func_id);
+tu_fifo_t* tud_audio_n_get_ep_in_ff   (uint8_t func_id);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
 bool    tud_audio_int_n_write                     (uint8_t func_id, const audio_interrupt_data_t * data);
 #endif
 
-
 //--------------------------------------------------------------------+
 // Application API (Interface0)
 //--------------------------------------------------------------------+
-
 static inline bool         tud_audio_mounted                (void);
 
-// RX API
-
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
-static inline uint16_t     tud_audio_available              (void);
-static inline bool         tud_audio_clear_ep_out_ff        (void);                       // Delete all content in the EP OUT FIFO
-static inline uint16_t     tud_audio_read                   (void* buffer, uint16_t bufsize);
-static inline tu_fifo_t*   tud_audio_get_ep_out_ff          (void);
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
+static inline uint16_t   tud_audio_available       (void);
+static inline bool       tud_audio_clear_ep_out_ff (void);
+static inline uint16_t   tud_audio_read            (void* buffer, uint16_t bufsize);
+static inline tu_fifo_t* tud_audio_get_ep_out_ff   (void);
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
-static inline bool     tud_audio_clear_rx_support_ff        (uint8_t ff_idx);
-static inline uint16_t tud_audio_available_support_ff       (uint8_t ff_idx);
-static inline uint16_t tud_audio_read_support_ff            (uint8_t ff_idx, void* buffer, uint16_t bufsize);
-static inline tu_fifo_t* tud_audio_get_rx_support_ff        (uint8_t ff_idx);
-#endif
-
-// TX API
-
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
-static inline uint16_t tud_audio_write                      (const void * data, uint16_t len);
-static inline bool 	   tud_audio_clear_ep_in_ff             (void);
-static inline tu_fifo_t* tud_audio_get_ep_in_ff             (void);
-#endif
-
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
-static inline uint16_t tud_audio_flush_tx_support_ff        (void);
-static inline uint16_t tud_audio_clear_tx_support_ff        (uint8_t ff_idx);
-static inline uint16_t tud_audio_write_support_ff           (uint8_t ff_idx, const void * data, uint16_t len);
-static inline tu_fifo_t* tud_audio_get_tx_support_ff        (uint8_t ff_idx);
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
+static inline uint16_t   tud_audio_write          (const void * data, uint16_t len);
+static inline bool       tud_audio_clear_ep_in_ff (void);
+static inline tu_fifo_t* tud_audio_get_ep_in_ff   (void);
 #endif
 
 // INT CTR API
@@ -456,18 +275,18 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 //--------------------------------------------------------------------+
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
-bool tud_audio_tx_done_post_load_cb(uint8_t rhport, uint16_t n_bytes_copied, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
+// Invoked in ISR context once an audio packet was sent successfully.
+// Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock), call tud_audio_write() in I2S receive callback.
+bool tud_audio_tx_done_isr(uint8_t rhport, uint16_t n_bytes_sent, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-bool tud_audio_rx_done_pre_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
-bool tud_audio_rx_done_post_read_cb(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
+// Invoked in ISR context once an audio packet was received successfully.
+// Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock), call tud_audio_read() in I2S transmit callback.
+bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-void tud_audio_fb_done_cb(uint8_t func_id);
-
 
 // Note about feedback calculation
 //
@@ -562,7 +381,10 @@ void tud_audio_int_done_cb(uint8_t rhport);
 bool tud_audio_set_itf_cb(uint8_t rhport, tusb_control_request_t const * p_request);
 
 // Invoked when audio set interface request received which closes an EP
-bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+bool tud_audio_set_itf_close_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request);
+
+// backward compatible for typo
+#define tud_audio_set_itf_close_EP_cb   tud_audio_set_itf_close_ep_cb
 
 // Invoked when audio class specific set request received for an EP
 bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const * p_request, uint8_t *pBuff);
@@ -586,120 +408,56 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const * 
 // Inline Functions
 //--------------------------------------------------------------------+
 
-static inline bool tud_audio_mounted(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_mounted(void) {
   return tud_audio_n_mounted(0);
 }
 
-// RX API
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_AUDIO_ENABLE_DECODING
-
-static inline uint16_t tud_audio_available(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_available(void) {
   return tud_audio_n_available(0);
 }
 
-static inline uint16_t tud_audio_read(void* buffer, uint16_t bufsize)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_read(void* buffer, uint16_t bufsize) {
   return tud_audio_n_read(0, buffer, bufsize);
 }
 
-static inline bool tud_audio_clear_ep_out_ff(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_clear_ep_out_ff(void) {
   return tud_audio_n_clear_ep_out_ff(0);
 }
 
-static inline tu_fifo_t* tud_audio_get_ep_out_ff(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline tu_fifo_t* tud_audio_get_ep_out_ff(void) {
   return tud_audio_n_get_ep_out_ff(0);
 }
 
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_DECODING
+#if CFG_TUD_AUDIO_ENABLE_EP_IN
 
-static inline bool tud_audio_clear_rx_support_ff(uint8_t ff_idx)
-{
-  return tud_audio_n_clear_rx_support_ff(0, ff_idx);
-}
-
-static inline uint16_t tud_audio_available_support_ff(uint8_t ff_idx)
-{
-  return tud_audio_n_available_support_ff(0, ff_idx);
-}
-
-static inline uint16_t tud_audio_read_support_ff(uint8_t ff_idx, void* buffer, uint16_t bufsize)
-{
-  return tud_audio_n_read_support_ff(0, ff_idx, buffer, bufsize);
-}
-
-static inline tu_fifo_t* tud_audio_get_rx_support_ff(uint8_t ff_idx)
-{
-  return tud_audio_n_get_rx_support_ff(0, ff_idx);
-}
-
-#endif
-
-// TX API
-
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_AUDIO_ENABLE_ENCODING
-
-static inline uint16_t tud_audio_write(const void * data, uint16_t len)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_write(const void * data, uint16_t len) {
   return tud_audio_n_write(0, data, len);
 }
 
-static inline bool tud_audio_clear_ep_in_ff(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_clear_ep_in_ff(void) {
   return tud_audio_n_clear_ep_in_ff(0);
 }
 
-static inline tu_fifo_t* tud_audio_get_ep_in_ff(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline tu_fifo_t* tud_audio_get_ep_in_ff(void) {
   return tud_audio_n_get_ep_in_ff(0);
 }
 
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_ENABLE_ENCODING
-
-static inline uint16_t tud_audio_flush_tx_support_ff(void)
-{
-  return tud_audio_n_flush_tx_support_ff(0);
-}
-
-static inline uint16_t tud_audio_clear_tx_support_ff(uint8_t ff_idx)
-{
-  return tud_audio_n_clear_tx_support_ff(0, ff_idx);
-}
-
-static inline uint16_t tud_audio_write_support_ff(uint8_t ff_idx, const void * data, uint16_t len)
-{
-  return tud_audio_n_write_support_ff(0, ff_idx, data, len);
-}
-
-static inline tu_fifo_t* tud_audio_get_tx_support_ff(uint8_t ff_idx)
-{
-  return tud_audio_n_get_tx_support_ff(0, ff_idx);
-}
-
-#endif
-
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-static inline bool tud_audio_int_write(const audio_interrupt_data_t * data)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_int_write(const audio_interrupt_data_t * data) {
   return tud_audio_int_n_write(0, data);
 }
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-
-static inline bool tud_audio_fb_set(uint32_t feedback)
-{
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_fb_set(uint32_t feedback) {
   return tud_audio_n_fb_set(0, feedback);
 }
-
 #endif
 
 //--------------------------------------------------------------------+
@@ -711,6 +469,7 @@ void     audiod_reset          (uint8_t rhport);
 uint16_t audiod_open           (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
 bool     audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 bool     audiod_xfer_cb        (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
+bool     audiod_xfer_isr       (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
 void     audiod_sof_isr        (uint8_t rhport, uint32_t frame_count);
 
 #ifdef __cplusplus
