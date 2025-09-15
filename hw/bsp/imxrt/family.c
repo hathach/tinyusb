@@ -111,10 +111,7 @@ void board_init(void) {
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
 
-  // Additional board init
-#if defined(BOARD_INIT_2) && BOARD_INIT_2
-  board_init2();
-#endif
+  BOARD_ConfigMPU(); // defined in board.h
 
 #ifdef TRACE_ETM
   //CLOCK_EnableClock(kCLOCK_Trace);

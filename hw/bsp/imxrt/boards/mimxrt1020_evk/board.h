@@ -49,4 +49,7 @@
 #define UART_PORT             LPUART1
 #define UART_CLK_ROOT         BOARD_BOOTCLOCKRUN_UART_CLK_ROOT
 
+static inline void BOARD_ConfigMPU(void) {
+}
+
 #endif
