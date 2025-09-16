@@ -331,6 +331,7 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .open             = mtpd_open,
         .control_xfer_cb  = mtpd_control_xfer_cb,
         .xfer_cb          = mtpd_xfer_cb,
+        .xfer_isr         = NULL,
         .sof              = NULL
     },
     #endif

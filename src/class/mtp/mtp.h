@@ -690,8 +690,8 @@ tu_static const uint16_t mtp_playback_formats[] = {
 
 // PTP/MTP Generic container
 typedef struct TU_ATTR_PACKED {
-  uint32_t container_length;
-  uint16_t container_type;
+  uint32_t len;
+  uint16_t type;
   uint16_t code;
   uint32_t transaction_id;
   uint32_t data[MTP_MAX_PACKET_SIZE / sizeof(uint32_t)];
