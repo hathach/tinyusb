@@ -60,9 +60,11 @@ typedef enum {
 typedef enum {
   MTP_PHASE_IDLE = 0,
   MTP_PHASE_COMMAND,
+  MTP_PHASE_DATA,
   MTP_PHASE_DATA_IN,
   MTP_PHASE_DATA_OUT,
   MTP_PHASE_RESPONSE,
+  MTP_PHASE_RESPONSE_QUEUED,
   MTP_PHASE_ERROR,
   MTP_PHASE_NONE,
 } mtp_phase_type_t;
@@ -685,8 +687,16 @@ tu_static const uint16_t mtp_playback_formats[] = {
 // Data structures
 //--------------------------------------------------------------------+
 
-#define MTP_GENERIC_DATA_BLOCK_LENGTH 12
+#define MTP_CONTAINER_HEADER_LENGTH 12
 #define MTP_MAX_PACKET_SIZE 512
+
+typedef struct TU_ATTR_PACKED {
+  uint32_t len;
+  uint16_t type;
+  uint16_t code;
+  uint32_t transaction_id;
+} mtp_container_header_t;
+TU_VERIFY_STATIC(sizeof(mtp_container_header_t) == 12, "size is not correct");
 
 // PTP/MTP Generic container
 typedef struct TU_ATTR_PACKED {
