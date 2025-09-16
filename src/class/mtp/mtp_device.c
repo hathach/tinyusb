@@ -53,7 +53,7 @@ typedef struct
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t ep_out;
-  uint8_t ep_evt;
+  uint8_t ep_event;
 
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  phase;
@@ -64,112 +64,95 @@ typedef struct
   uint32_t handled_len; // number of bytes already handled in the Data Stage
   bool     xfer_completed; // true when DATA-IN/DATA-OUT transfer is completed
 
+  struct {
+    uint32_t session_id;
+    uint32_t transaction_id;
+  } context;
 } mtpd_interface_t;
-
-typedef struct
-{
-  uint32_t session_id;
-  uint32_t transaction_id;
-} mtpd_context_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // Checker
-tu_static mtp_phase_type_t mtpd_chk_generic(const char *func_name, const bool err_cd, const uint16_t ret_code, const char *message);
-tu_static mtp_phase_type_t mtpd_chk_session_open(const char *func_name);
+static mtp_phase_type_t mtpd_chk_generic(const char *func_name, const bool err_cd, const uint16_t ret_code, const char *message);
+static mtp_phase_type_t mtpd_chk_session_open(const char *func_name);
 
 // MTP commands
-tu_static mtp_phase_type_t mtpd_handle_cmd(void);
-tu_static mtp_phase_type_t mtpd_handle_data(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_get_device_info(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_open_session(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_close_session(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_get_storage_info(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_get_storage_ids(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_get_object_handles(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_get_object_info(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_get_object(void);
-tu_static mtp_phase_type_t mtpd_handle_dti_get_object(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_delete_object(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_get_device_prop_desc(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_get_device_prop_value(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_send_object_info(void);
-tu_static mtp_phase_type_t mtpd_handle_dto_send_object_info(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_send_object(void);
-tu_static mtp_phase_type_t mtpd_handle_dto_send_object(void);
-tu_static mtp_phase_type_t mtpd_handle_cmd_format_store(void);
+static mtp_phase_type_t mtpd_handle_cmd(void);
+static mtp_phase_type_t mtpd_handle_data(void);
+static mtp_phase_type_t mtpd_handle_cmd_get_device_info(void);
+static mtp_phase_type_t mtpd_handle_cmd_open_session(void);
+static mtp_phase_type_t mtpd_handle_cmd_close_session(void);
+static mtp_phase_type_t mtpd_handle_cmd_get_storage_info(void);
+static mtp_phase_type_t mtpd_handle_cmd_get_storage_ids(void);
+static mtp_phase_type_t mtpd_handle_cmd_get_object_handles(void);
+static mtp_phase_type_t mtpd_handle_cmd_get_object_info(void);
+static mtp_phase_type_t mtpd_handle_cmd_get_object(void);
+static mtp_phase_type_t mtpd_handle_dti_get_object(void);
+static mtp_phase_type_t mtpd_handle_cmd_delete_object(void);
+static mtp_phase_type_t mtpd_handle_cmd_get_device_prop_desc(void);
+static mtp_phase_type_t mtpd_handle_cmd_get_device_prop_value(void);
+static mtp_phase_type_t mtpd_handle_cmd_send_object_info(void);
+static mtp_phase_type_t mtpd_handle_dto_send_object_info(void);
+static mtp_phase_type_t mtpd_handle_cmd_send_object(void);
+static mtp_phase_type_t mtpd_handle_dto_send_object(void);
+static mtp_phase_type_t mtpd_handle_cmd_format_store(void);
 
 //--------------------------------------------------------------------+
 // MTP variable declaration
 //--------------------------------------------------------------------+
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mtpd_interface_t _mtpd_itf;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mtp_generic_container_t _mtpd_gct;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mtpd_context_t _mtpd_ctx;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mtp_device_status_res_t _mtpd_device_status_res;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static uint32_t _mtpd_get_object_handle;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static mtp_basic_object_info_t _mtpd_soi;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static char _mtp_datestr[20];
+static mtpd_interface_t _mtpd_itf;
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static mtp_generic_container_t _mtpd_gct;
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static mtp_device_status_res_t _mtpd_device_status_res;
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint32_t _mtpd_get_object_handle;
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static mtp_basic_object_info_t _mtpd_soi;
+CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static char _mtp_datestr[20];
 
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+
 void mtpd_init(void) {
-  TU_LOG_DRV("  MTP mtpd_init\n");
   tu_memclr(&_mtpd_itf, sizeof(mtpd_interface_t));
-  tu_memclr(&_mtpd_ctx, sizeof(mtpd_context_t));
-  _mtpd_get_object_handle = 0;
   tu_memclr(&_mtpd_soi, sizeof(mtp_basic_object_info_t));
+  _mtpd_get_object_handle = 0;
 }
 
 bool mtpd_deinit(void) {
-  TU_LOG_DRV("  MTP mtpd_deinit\n");
-  // nothing to do
-  return true;
+  return true; // nothing to do
 }
 
-void mtpd_reset(uint8_t rhport)
-{
-  TU_LOG_DRV("  MTP mtpd_reset\n");
-  (void) rhport;
-
-  // Close all endpoints
-  dcd_edpt_close_all(rhport);
+void mtpd_reset(uint8_t rhport) {
   tu_memclr(&_mtpd_itf, sizeof(mtpd_interface_t));
-  tu_memclr(&_mtpd_ctx, sizeof(mtpd_context_t));
   tu_memclr(&_mtpd_gct, sizeof(mtp_generic_container_t));
-  _mtpd_get_object_handle = 0;
   tu_memclr(&_mtpd_soi, sizeof(mtp_basic_object_info_t));
+  _mtpd_get_object_handle = 0;
 }
 
-uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
-{
-  TU_LOG_DRV("  MTP mtpd_open\n");
-  tusb_desc_endpoint_t const *ep_desc;
-  // only support SCSI's BOT protocol
-  TU_VERIFY(TUSB_CLASS_IMAGE         == itf_desc->bInterfaceClass &&
+uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16_t max_len) {
+  // only support PIMA 15470 protocol
+  TU_VERIFY(TUSB_CLASS_IMAGE == itf_desc->bInterfaceClass &&
             MTP_SUBCLASS_STILL_IMAGE == itf_desc->bInterfaceSubClass &&
-            MTP_PROTOCOL_PIMA_15470  == itf_desc->bInterfaceProtocol, 0);
+            MTP_PROTOCOL_PIMA_15470 == itf_desc->bInterfaceProtocol, 0);
 
   // mtp driver length is fixed
   uint16_t const mtpd_itf_size = sizeof(tusb_desc_interface_t) + 3 * sizeof(tusb_desc_endpoint_t);
 
   // Max length must be at least 1 interface + 3 endpoints
   TU_ASSERT(itf_desc->bNumEndpoints == 3 && max_len >= mtpd_itf_size);
-
-  _mtpd_itf.itf_num = itf_desc->bInterfaceNumber;
+  mtpd_interface_t* p_mtp = &_mtpd_itf;
+  p_mtp->itf_num = itf_desc->bInterfaceNumber;
 
   // Open interrupt IN endpoint
-  ep_desc = (tusb_desc_endpoint_t const *)tu_desc_next(itf_desc);
+  const tusb_desc_endpoint_t* ep_desc = (const tusb_desc_endpoint_t*) tu_desc_next(itf_desc);
   TU_ASSERT(ep_desc->bDescriptorType == TUSB_DESC_ENDPOINT && ep_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT, 0);
   TU_ASSERT(usbd_edpt_open(rhport, ep_desc), 0);
-  _mtpd_itf.ep_evt = ep_desc->bEndpointAddress;
+  p_mtp->ep_event = ep_desc->bEndpointAddress;
 
   // Open endpoint pair
-  TU_ASSERT( usbd_open_edpt_pair(rhport, tu_desc_next(ep_desc), 2, TUSB_XFER_BULK, &_mtpd_itf.ep_out, &_mtpd_itf.ep_in), 0 );
+  TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(ep_desc), 2, TUSB_XFER_BULK, &p_mtp->ep_out, &p_mtp->ep_in), 0);
 
   // Prepare rx on bulk out EP
-  TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct)), CFG_MTP_EP_SIZE), 0);
+  TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_out, ((uint8_t *)(&_mtpd_gct)), CFG_MTP_EP_SIZE), 0);
 
   return mtpd_itf_size;
 }
@@ -177,115 +160,102 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
-{
-  TU_LOG_DRV("  MTP mtpd_control_xfer_cb: bmRequest=0x%2x, bRequest=0x%2x\n", request->bmRequestType, request->bRequest);
-  // nothing to do with DATA & ACK stage
-  if (stage != CONTROL_STAGE_SETUP) return true;
+bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
+  if (stage != CONTROL_STAGE_SETUP) {
+    return true; // nothing to do with DATA & ACK stage
+  }
 
-  uint16_t len = 0;
-
-  switch ( request->bRequest )
-  {
+  switch (request->bRequest) {
     case MTP_REQ_CANCEL:
       TU_LOG_DRV("  MTP request: MTP_REQ_CANCEL\n");
       tud_mtp_storage_cancel();
-    break;
+      break;
+
     case MTP_REQ_GET_EXT_EVENT_DATA:
       TU_LOG_DRV("  MTP request: MTP_REQ_GET_EXT_EVENT_DATA\n");
-    break;
+      break;
+
     case MTP_REQ_RESET:
       TU_LOG_DRV("  MTP request: MTP_REQ_RESET\n");
       tud_mtp_storage_reset();
       // Prepare for a new command
-      TU_ASSERT( usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct)), CFG_MTP_EP_SIZE) );
-    break;
-    case MTP_REQ_GET_DEVICE_STATUS:
+      TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct)), CFG_MTP_EP_SIZE));
+      break;
+
+    case MTP_REQ_GET_DEVICE_STATUS: {
       TU_LOG_DRV("  MTP request: MTP_REQ_GET_DEVICE_STATUS\n");
-      len = 4;
+      uint16_t len = 4;
       _mtpd_device_status_res.wLength = len;
       // Cancel is synchronous, always answer OK
       _mtpd_device_status_res.code = MTP_RESP_OK;
-      TU_ASSERT( tud_control_xfer(rhport, request, (uint8_t *)&_mtpd_device_status_res , len) );
-    break;
+      TU_ASSERT(tud_control_xfer(rhport, request, (uint8_t *)&_mtpd_device_status_res , len));
+      break;
+    }
 
     default:
       TU_LOG_DRV("  MTP request: invalid request\r\n");
       return false; // stall unsupported request
-    }
+  }
+
   return true;
 }
 
 // Transfer on bulk endpoints
-bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
-{
-  const unsigned dir = tu_edpt_dir(ep_addr);
+bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
+  TU_ASSERT(event == XFER_RESULT_SUCCESS);
 
-  if (event != XFER_RESULT_SUCCESS)
-    return false;
+  if (ep_addr == _mtpd_itf.ep_event) {
+    // nothing to do
+    return true;
+  }
 
   // IN transfer completed
-  if (dir == TUSB_DIR_IN)
-  {
-    if (_mtpd_itf.phase == MTP_PHASE_RESPONSE)
-    {
+  if (ep_addr == _mtpd_itf.ep_in) {
+    if (_mtpd_itf.phase == MTP_PHASE_RESPONSE) {
       // IN transfer completed, prepare for a new command
       TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct)), CFG_MTP_EP_SIZE), 0);
       _mtpd_itf.phase = MTP_PHASE_IDLE;
-    }
-    else if (_mtpd_itf.phase == MTP_PHASE_DATA_IN)
-    {
+    } else if (_mtpd_itf.phase == MTP_PHASE_DATA_IN) {
       _mtpd_itf.xferred_len += xferred_bytes;
       _mtpd_itf.handled_len = _mtpd_itf.xferred_len;
 
       // Check if transfer completed
-      if (_mtpd_itf.xferred_len >= _mtpd_itf.total_len && (xferred_bytes == 0 || (xferred_bytes % CFG_MTP_EP_SIZE) != 0))
-      {
+      if (_mtpd_itf.xferred_len >= _mtpd_itf.total_len && (xferred_bytes == 0 || (xferred_bytes % CFG_MTP_EP_SIZE) != 0)) {
         _mtpd_itf.phase = MTP_PHASE_RESPONSE;
         _mtpd_gct.container_type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
         _mtpd_gct.code = MTP_RESP_OK;
         _mtpd_gct.container_length = MTP_GENERIC_DATA_BLOCK_LENGTH;
-        _mtpd_gct.transaction_id = _mtpd_ctx.transaction_id;
-        if (_mtpd_ctx.session_id != 0)
-        {
-          _mtpd_gct.data[0] = _mtpd_ctx.session_id;
+        _mtpd_gct.transaction_id = _mtpd_itf.context.transaction_id;
+        if (_mtpd_itf.context.session_id != 0) {
+          _mtpd_gct.data[0] = _mtpd_itf.context.session_id;
           _mtpd_gct.container_length += sizeof(uint32_t);
         }
         TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_in, ((uint8_t *)(&_mtpd_gct)), (uint16_t)_mtpd_gct.container_length), 0);
-      }
-      else
-      // Send next block of DATA
-      {
-        // Send Zero-Lenght Packet
-        if (_mtpd_itf.xferred_len == _mtpd_itf.total_len)
-        {
+      } else {
+        // Send next block of DATA
+        // Send Zero-Length Packet
+        if (_mtpd_itf.xferred_len == _mtpd_itf.total_len) {
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_in, ((uint8_t *)(&_mtpd_gct.data)), 0 ));
-        }
-        else
-        {
+        } else {
           _mtpd_itf.phase = mtpd_handle_data();
-          if (_mtpd_itf.phase == MTP_PHASE_RESPONSE)
+          if (_mtpd_itf.phase == MTP_PHASE_RESPONSE) {
             TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_in, ((uint8_t *)(&_mtpd_gct)), (uint16_t)_mtpd_gct.container_length));
-          else
+          } else {
             TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_in, ((uint8_t *)(&_mtpd_gct.data)), (uint16_t)_mtpd_itf.queued_len));
+          }
         }
       }
-    }
-    else
-    {
+    } else {
       return false;
     }
   }
 
-  if (dir == TUSB_DIR_OUT)
-  {
-    if (_mtpd_itf.phase == MTP_PHASE_IDLE)
-    {
+  if (ep_addr == _mtpd_itf.ep_out) {
+    if (_mtpd_itf.phase == MTP_PHASE_IDLE) {
       // A new command has been received. Ensure this is the last of the sequence.
       _mtpd_itf.total_len = _mtpd_gct.container_length;
       // Stall in case of unexpected block
-      if (_mtpd_gct.container_type != MTP_CONTAINER_TYPE_COMMAND_BLOCK)
-      {
+      if (_mtpd_gct.container_type != MTP_CONTAINER_TYPE_COMMAND_BLOCK) {
         return false;
       }
       _mtpd_itf.phase = MTP_PHASE_COMMAND;
@@ -296,38 +266,27 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_ASSERT(_mtpd_itf.total_len < sizeof(mtp_generic_container_t));
     }
 
-    if (_mtpd_itf.phase == MTP_PHASE_COMMAND)
-    {
+    if (_mtpd_itf.phase == MTP_PHASE_COMMAND) {
       // A zero-length or a short packet termination is expected
-      if (xferred_bytes == CFG_MTP_EP_SIZE || (_mtpd_itf.total_len - _mtpd_itf.xferred_len) > 0 )
-      {
+      if (xferred_bytes == CFG_MTP_EP_SIZE || (_mtpd_itf.total_len - _mtpd_itf.xferred_len) > 0) {
         TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct)) + _mtpd_itf.xferred_len, (uint16_t)(_mtpd_itf.total_len - _mtpd_itf.xferred_len)));
-      }
-      else
-      {
+      } else {
         // Handle command block
         _mtpd_itf.phase = mtpd_handle_cmd();
-        if (_mtpd_itf.phase == MTP_PHASE_RESPONSE)
-        {
+        if (_mtpd_itf.phase == MTP_PHASE_RESPONSE) {
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_in, ((uint8_t *)(&_mtpd_gct)), (uint16_t)_mtpd_gct.container_length));
-        }
-        else if (_mtpd_itf.phase == MTP_PHASE_DATA_IN)
-        {
+        } else if (_mtpd_itf.phase == MTP_PHASE_DATA_IN) {
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_in, ((uint8_t *)(&_mtpd_gct)), (uint16_t)_mtpd_itf.queued_len));
           _mtpd_itf.total_len = _mtpd_gct.container_length;
           _mtpd_itf.xferred_len = 0;
           _mtpd_itf.handled_len = 0;
           _mtpd_itf.xfer_completed = false;
-        }
-        else if (_mtpd_itf.phase == MTP_PHASE_DATA_OUT)
-        {
+        } else if (_mtpd_itf.phase == MTP_PHASE_DATA_OUT) {
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct)), CFG_MTP_EP_SIZE), 0);
           _mtpd_itf.xferred_len = 0;
           _mtpd_itf.handled_len = 0;
           _mtpd_itf.xfer_completed = false;
-        }
-        else
-        {
+        } else {
           usbd_edpt_stall(rhport, _mtpd_itf.ep_out);
           usbd_edpt_stall(rhport, _mtpd_itf.ep_in);
         }
@@ -335,72 +294,54 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       return true;
     }
 
-    if (_mtpd_itf.phase == MTP_PHASE_DATA_OUT)
-    {
+    if (_mtpd_itf.phase == MTP_PHASE_DATA_OUT) {
       // First block of data
-      if (_mtpd_itf.xferred_len == 0)
-      {
+      if (_mtpd_itf.xferred_len == 0) {
         _mtpd_itf.total_len = _mtpd_gct.container_length;
         _mtpd_itf.handled_len = 0;
         _mtpd_itf.xfer_completed = false;
       }
       _mtpd_itf.xferred_len += xferred_bytes;
       // Stall in case of unexpected block
-      if (_mtpd_gct.container_type != MTP_CONTAINER_TYPE_DATA_BLOCK)
-      {
-        return false;
-      }
+      if (_mtpd_gct.container_type != MTP_CONTAINER_TYPE_DATA_BLOCK) { return false; }
 
       // A zero-length or a short packet termination
-      if (xferred_bytes < CFG_MTP_EP_SIZE)
-      {
+      if (xferred_bytes < CFG_MTP_EP_SIZE) {
         _mtpd_itf.xfer_completed = true;
         // Handle data block
         _mtpd_itf.phase = mtpd_handle_data();
-        if (_mtpd_itf.phase == MTP_PHASE_DATA_IN || _mtpd_itf.phase == MTP_PHASE_RESPONSE)
-        {
+        if (_mtpd_itf.phase == MTP_PHASE_DATA_IN || _mtpd_itf.phase == MTP_PHASE_RESPONSE) {
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_in, ((uint8_t *)(&_mtpd_gct)), (uint16_t)_mtpd_gct.container_length));
-        }
-        else if (_mtpd_itf.phase == MTP_PHASE_DATA_OUT)
-        {
+        } else if (_mtpd_itf.phase == MTP_PHASE_DATA_OUT) {
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct)), CFG_MTP_EP_SIZE), 0);
           _mtpd_itf.xferred_len = 0;
           _mtpd_itf.xfer_completed = false;
-        }
-        else
-        {
+        } else {
           usbd_edpt_stall(rhport, _mtpd_itf.ep_out);
           usbd_edpt_stall(rhport, _mtpd_itf.ep_in);
         }
-      }
-      else
-      {
+      } else {
         // Handle data block when container is full
-        if (_mtpd_itf.xferred_len - _mtpd_itf.handled_len >= MTP_MAX_PACKET_SIZE - CFG_MTP_EP_SIZE)
-        {
+        if (_mtpd_itf.xferred_len - _mtpd_itf.handled_len >= MTP_MAX_PACKET_SIZE - CFG_MTP_EP_SIZE) {
           _mtpd_itf.phase = mtpd_handle_data();
           _mtpd_itf.handled_len = _mtpd_itf.xferred_len;
         }
         // Transfer completed: wait for zero-lenght packet
         // Some platforms may not respect EP size and xferred_bytes may be more than CFG_MTP_EP_SIZE if
         // the OUT EP is waiting for more data. Ensure we are not waiting for more than CFG_MTP_EP_SIZE.
-        if (_mtpd_itf.total_len == _mtpd_itf.xferred_len)
-        {
+        if (_mtpd_itf.total_len == _mtpd_itf.xferred_len) {
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct.data)), CFG_MTP_EP_SIZE), 0);
-        }
-        // First data block includes container header + container data
-        else if (_mtpd_itf.handled_len == 0)
-        {
+        } else if (_mtpd_itf.handled_len == 0) {
+          // First data block includes container header + container data
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct)) + _mtpd_itf.xferred_len, (uint16_t)TU_MIN(_mtpd_itf.total_len - _mtpd_itf.xferred_len, CFG_MTP_EP_SIZE)));
-        }
-        else
-        // Successive data block includes only container data
-        {
+        } else {
+          // Successive data block includes only container data
           TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, ((uint8_t *)(&_mtpd_gct.data)) + _mtpd_itf.xferred_len - _mtpd_itf.handled_len, (uint16_t)TU_MIN(_mtpd_itf.total_len - _mtpd_itf.xferred_len, CFG_MTP_EP_SIZE)));
         }
       }
     }
   }
+
   return true;
 }
 
@@ -409,15 +350,14 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 //--------------------------------------------------------------------+
 
 // Decode command and prepare response
-mtp_phase_type_t mtpd_handle_cmd(void)
-{
+mtp_phase_type_t mtpd_handle_cmd(void) {
   TU_ASSERT(_mtpd_gct.container_type == MTP_CONTAINER_TYPE_COMMAND_BLOCK);
-  _mtpd_ctx.transaction_id = _mtpd_gct.transaction_id;
-  if (_mtpd_gct.code != MTP_OP_SEND_OBJECT)
+  _mtpd_itf.context.transaction_id = _mtpd_gct.transaction_id;
+  if (_mtpd_gct.code != MTP_OP_SEND_OBJECT) {
     _mtpd_soi.object_handle = 0;
+  }
 
-  switch(_mtpd_gct.code)
-  {
+  switch (_mtpd_gct.code) {
     case MTP_OP_GET_DEVICE_INFO:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_INFO\n");
       return mtpd_handle_cmd_get_device_info();
@@ -470,7 +410,7 @@ mtp_phase_type_t mtpd_handle_cmd(void)
 mtp_phase_type_t mtpd_handle_data(void)
 {
   TU_ASSERT(_mtpd_gct.container_type == MTP_CONTAINER_TYPE_DATA_BLOCK);
-  _mtpd_ctx.transaction_id = _mtpd_gct.transaction_id;
+  _mtpd_itf.context.transaction_id = _mtpd_gct.transaction_id;
 
   switch(_mtpd_gct.code)
   {
@@ -535,14 +475,14 @@ mtp_phase_type_t mtpd_handle_cmd_open_session(void)
     _mtpd_gct.code = res;
     _mtpd_gct.container_length += sizeof(_mtpd_gct.data[0]);
     _mtpd_gct.data[0] = session_id;
-    _mtpd_ctx.session_id = session_id;
+    _mtpd_itf.context.session_id = session_id;
     return MTP_PHASE_RESPONSE;
   }
 
   mtp_phase_type_t phase;
   if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) return phase;
 
-  _mtpd_ctx.session_id = session_id;
+  _mtpd_itf.context.session_id = session_id;
 
   _mtpd_gct.container_length = MTP_GENERIC_DATA_BLOCK_LENGTH;
   _mtpd_gct.container_type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
@@ -557,7 +497,7 @@ mtp_phase_type_t mtpd_handle_cmd_close_session(void)
 
   mtp_response_t res = tud_mtp_storage_close_session(session_id);
 
-  _mtpd_ctx.session_id = session_id;
+  _mtpd_itf.context.session_id = session_id;
 
   _mtpd_gct.container_length = MTP_GENERIC_DATA_BLOCK_LENGTH;
   _mtpd_gct.container_type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
@@ -873,7 +813,7 @@ mtp_phase_type_t mtpd_handle_cmd_format_store(void)
 mtp_phase_type_t mtpd_chk_session_open(const char *func_name)
 {
   (void)func_name;
-  if (_mtpd_ctx.session_id == 0)
+  if (_mtpd_itf.context.session_id == 0)
   {
     TU_LOG_DRV("  MTP error: %s session not open\n", func_name);
     _mtpd_gct.container_type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
