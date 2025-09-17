@@ -168,14 +168,12 @@ static gtd_extra_data_t *gtd_get_extra_data(ohci_gtd_t const * const gtd);
 // tusb_app_virt_to_phys and tusb_app_virt_to_phys in your application.
 TU_ATTR_ALWAYS_INLINE static inline void *_phys_addr(void *virtual_address)
 {
-  if (tusb_app_virt_to_phys) return tusb_app_virt_to_phys(virtual_address);
-  return virtual_address;
+  return tusb_app_virt_to_phys(virtual_address);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void *_virt_addr(void *physical_address)
 {
-  if (tusb_app_phys_to_virt) return tusb_app_phys_to_virt(physical_address);
-  return physical_address;
+  return tusb_app_phys_to_virt(physical_address);
 }
 
 // Initialization according to 5.1.1.4
