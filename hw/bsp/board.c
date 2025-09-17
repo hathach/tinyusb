@@ -156,6 +156,10 @@ TU_ATTR_WEAK void board_init_after_tusb(void) {
   // nothing to do
 }
 
+TU_ATTR_WEAK void board_reset_to_bootloader(void) {
+  // not implemented
+}
+
 //--------------------------------------------------------------------+
 // Board API
 //--------------------------------------------------------------------+
