@@ -393,6 +393,13 @@ void usbd_control_set_request(tusb_control_request_t const *request);
 void usbd_control_set_complete_callback( usbd_control_xfer_cb_t fp );
 bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
+//--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK usbd_class_driver_t const* usbd_app_driver_get_cb(uint8_t* driver_count) {
+  (void) driver_count;
+  return NULL;
+}
 
 //--------------------------------------------------------------------+
 // Debug
@@ -516,10 +523,8 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   TU_ASSERT(_usbd_q);
 
   // Get application driver if available
-  if (usbd_app_driver_get_cb) {
-    _app_driver = usbd_app_driver_get_cb(&_app_driver_count);
-    TU_ASSERT(_app_driver_count + BUILTIN_DRIVER_COUNT <= UINT8_MAX);
-  }
+  _app_driver = usbd_app_driver_get_cb(&_app_driver_count);
+  TU_ASSERT(_app_driver_count + BUILTIN_DRIVER_COUNT <= UINT8_MAX);
 
   // Init class drivers
   for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
