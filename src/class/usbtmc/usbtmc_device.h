@@ -83,7 +83,6 @@ bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *
 #if (CFG_TUD_USBTMC_ENABLE_488)
 uint8_t tud_usbtmc_get_stb_cb(uint8_t *tmcResult);
 bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg);
-//void tud_usbtmc_app_go_to_local_cb();
 #endif
 
 // Called from app
