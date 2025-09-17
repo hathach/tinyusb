@@ -152,6 +152,10 @@ TU_ATTR_WEAK size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   return 8;
 }
 
+TU_ATTR_WEAK void board_init_after_tusb(void) {
+  // nothing to do
+}
+
 //--------------------------------------------------------------------+
 // Board API
 //--------------------------------------------------------------------+
