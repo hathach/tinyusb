@@ -401,6 +401,11 @@ TU_ATTR_WEAK usbd_class_driver_t const* usbd_app_driver_get_cb(uint8_t* driver_c
   return NULL;
 }
 
+TU_ATTR_WEAK bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes) {
+  (void) rhport; (void) ep_addr; (void) ff; (void) total_bytes;
+  return false;
+}
+
 //--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
