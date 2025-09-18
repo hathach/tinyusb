@@ -89,7 +89,7 @@ TU_ATTR_WEAK bool hcd_dcache_clean_invalidate(const void* addr, uint32_t data_si
 }
 
 TU_ATTR_WEAK usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count) {
-  (void) driver_count;
+  *driver_count = 0;
   return NULL;
 }
 
