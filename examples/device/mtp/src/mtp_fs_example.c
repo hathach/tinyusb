@@ -34,50 +34,12 @@
 //--------------------------------------------------------------------+
 
 // device info string (including terminating null)
-static const uint16_t dev_info_manufacturer[] = { 'T', 'i', 'n', 'y', 'U', 'S', 'B', 0 };
-static const uint16_t dev_info_model[]        = { 'M', 'T', 'P', ' ', 'E', 'x', 'a', 'm', 'p', 'l', 'e', 0 };
-static const uint16_t dev_info_version[]      = { '1', '.', '0', 0 };
-static const uint16_t dev_info_serial[]       = { '1', '2', '3', '4', '5', '6', 0 };
+#define DEV_INFO_MANUFACTURER   "TinyUSB"
+#define DEV_INFO_MODEL          "MTP Example"
+#define DEV_INFO_VERSION        "1.0"
+#define DEV_INFO_SERIAL         "123456"
 
-static const uint16_t supported_operations[] = {
-  MTP_OP_GET_DEVICE_INFO,
-  MTP_OP_OPEN_SESSION,
-  MTP_OP_CLOSE_SESSION,
-  MTP_OP_GET_STORAGE_IDS,
-  MTP_OP_GET_STORAGE_INFO,
-  MTP_OP_GET_NUM_OBJECTS,
-  MTP_OP_GET_OBJECT_HANDLES,
-  MTP_OP_GET_OBJECT_INFO,
-  MTP_OP_GET_OBJECT,
-  MTP_OP_DELETE_OBJECT,
-  MTP_OP_SEND_OBJECT_INFO,
-  MTP_OP_SEND_OBJECT,
-  MTP_OP_FORMAT_STORE,
-  MTP_OP_RESET_DEVICE,
-  MTP_OP_GET_DEVICE_PROP_DESC,
-  MTP_OP_GET_DEVICE_PROP_VALUE,
-  MTP_OP_SET_DEVICE_PROP_VALUE
-};
-
-static const uint16_t supported_events[] = {
-  MTP_EVENT_OBJECT_ADDED,
-};
-
-static const uint16_t supported_device_properties[] = {
-  MTP_DEV_PROP_DEVICE_FRIENDLY_NAME,
-};
-
-static const uint16_t capture_formats[] = {
-  MTP_OBJ_FORMAT_UNDEFINED,
-  MTP_OBJ_FORMAT_ASSOCIATION,
-  MTP_OBJ_FORMAT_TEXT,
-};
-
-static const uint16_t playback_formats[] = {
-  MTP_OBJ_FORMAT_UNDEFINED,
-  MTP_OBJ_FORMAT_ASSOCIATION,
-  MTP_OBJ_FORMAT_TEXT,
-};
+#define DEV_PROP_FRIENDLY_NAME  "TinyUSB MTP"
 
 //--------------------------------------------------------------------+
 // RAM FILESYSTEM
@@ -137,6 +99,10 @@ storage_info_t storage_info = {
     .count = (TU_FIELD_SZIE(storage_info_t, volume_identifier)-1) / sizeof(uint16_t),
     .utf16 = VOLUME_IDENTIFIER
   }
+};
+
+enum {
+  SUPPORTED_STORAGE_ID = 0x00010001u // physical = 1, logical = 1
 };
 
 
@@ -205,15 +171,24 @@ int32_t tud_mtp_data_complete_cb(uint8_t idx, mtp_container_header_t* cmd_header
   return 0;
 }
 
+int32_t tud_mtp_response_complete_cb(uint8_t idx, mtp_container_header_t* cmd_header, mtp_generic_container_t* resp_block, tusb_xfer_result_t xfer_result, uint32_t xferred_bytes) {
+  (void) idx;
+  (void) cmd_header;
+  (void) resp_block;
+  (void) xfer_result;
+  (void) xferred_bytes;
+  return 0; // nothing to do
+}
+
 int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_block, mtp_generic_container_t* out_block) {
   (void)idx;
   switch (cmd_block->code) {
     case MTP_OP_GET_DEVICE_INFO: {
       // Device info is already prepared up to playback formats. Application only need to add string fields
-      mtp_container_add_string(out_block, TU_ARRAY_SIZE(dev_info_manufacturer), dev_info_manufacturer);
-      mtp_container_add_string(out_block, TU_ARRAY_SIZE(dev_info_model), dev_info_model);
-      mtp_container_add_string(out_block, TU_ARRAY_SIZE(dev_info_version), dev_info_version);
-      mtp_container_add_string(out_block, TU_ARRAY_SIZE(dev_info_serial), dev_info_serial);
+      mtp_container_add_cstring(out_block, DEV_INFO_MANUFACTURER);
+      mtp_container_add_cstring(out_block, DEV_INFO_MODEL);
+      mtp_container_add_cstring(out_block, DEV_INFO_VERSION);
+      mtp_container_add_cstring(out_block, DEV_INFO_SERIAL);
 
       tud_mtp_data_send(out_block);
       break;
@@ -225,13 +200,14 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
       break;
 
     case MTP_OP_GET_STORAGE_IDS: {
-      uint32_t storage_ids [] = { 0x00010001u }; // physical = 1, logical = 1
+      uint32_t storage_ids [] = { SUPPORTED_STORAGE_ID }; // physical = 1, logical = 1
       mtp_container_add_auint32(out_block, 1, storage_ids);
       tud_mtp_data_send(out_block);
       break;
     }
 
     case MTP_OP_GET_STORAGE_INFO: {
+      TU_VERIFY(SUPPORTED_STORAGE_ID == cmd_block->data[0], -1);
       // update storage info with current free space
       storage_info.free_space_in_objects = FS_MAX_NODES - fs_get_object_count();
       storage_info.free_space_in_bytes = storage_info.free_space_in_objects * FS_MAX_NODE_BYTES;
@@ -239,6 +215,20 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
       tud_mtp_data_send(out_block);
       break;
     }
+
+    case MTP_OP_GET_DEVICE_PROP_VALUE: {
+      const uint16_t dev_prop_code = (uint16_t) cmd_block->data[0];
+      switch (dev_prop_code) {
+        case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
+          mtp_container_add_cstring(out_block, DEV_PROP_FRIENDLY_NAME);
+          tud_mtp_data_send(out_block);
+          break;
+
+        default: return -1;
+      }
+      break;
+    }
+
 
     default: return -1;
   }

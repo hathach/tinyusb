@@ -466,11 +466,12 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
 
     case MTP_OP_GET_DEVICE_PROP_DESC:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_PROP_DESC\n");
-      return mtpd_handle_cmd_get_device_prop_desc();
+      break;
 
     case MTP_OP_GET_DEVICE_PROP_VALUE:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_PROP_VALUE\n");
-      return mtpd_handle_cmd_get_device_prop_value();
+      break;
+
     case MTP_OP_SEND_OBJECT_INFO:
       TU_LOG_DRV("  MTP command: MTP_OP_SEND_OBJECT_INFO\n");
       return mtpd_handle_cmd_send_object_info();
@@ -673,11 +674,11 @@ mtp_phase_type_t mtpd_handle_cmd_get_device_prop_desc(void)
   {
     case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
     {
-      TU_VERIFY_STATIC(sizeof(mtp_device_prop_desc_t) < MTP_MAX_PACKET_SIZE, "mtp_device_info_t shall fit in MTP_MAX_PACKET_SIZE");
+      TU_VERIFY_STATIC(sizeof(mtp_device_prop_desc_header_t) < MTP_MAX_PACKET_SIZE, "mtp_device_info_t shall fit in MTP_MAX_PACKET_SIZE");
       p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
       p_container->code = MTP_OP_GET_DEVICE_PROP_DESC;
-      p_container->len = MTP_CONTAINER_HEADER_LENGTH + sizeof(mtp_device_prop_desc_t);
-      mtp_device_prop_desc_t *d = (mtp_device_prop_desc_t *)p_container->data;
+      p_container->len = MTP_CONTAINER_HEADER_LENGTH + sizeof(mtp_device_prop_desc_header_t);
+      mtp_device_prop_desc_header_t *d = (mtp_device_prop_desc_header_t *)p_container->data;
       d->device_property_code = (uint16_t)(device_prop_code);
       d->datatype = MTP_DATA_TYPE_STR;
       d->get_set = MTP_MODE_GET;

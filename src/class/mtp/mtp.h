@@ -782,16 +782,29 @@ typedef struct TU_ATTR_PACKED {
 // - datetime_wstring date_modified;
 // - wstring keywords;
 
-// DevicePropDesc Dataset
+// Device property desc up to get/set
 typedef struct TU_ATTR_PACKED {
   uint16_t device_property_code;
   uint16_t datatype;
   uint8_t  get_set;
-} mtp_device_prop_desc_t;
+} mtp_device_prop_desc_header_t;
+
 // The following fields will be dynamically added to the struct at runtime:
 // - wstring factory_def_value;
 // - wstring current_value_len;
 // - uint8_t form_flag;
+
+// no form
+#define MTP_DEVICE_PROPERTIES_TYPEDEF(_type) \
+   struct TU_ATTR_PACKED { \
+     uint16_t device_property_code; \
+     uint16_t datatype; \
+     uint8_t get_set; \
+     _type factory_default; \
+     _type current_value; \
+     uint8_t form_flag; /* 0: none, 1: range, 2: enum */ \
+   };
+
 
 typedef struct TU_ATTR_PACKED {
   uint16_t wLength;
@@ -832,15 +845,28 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_field(mtp_generic
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_generic_container_t* p_container, uint8_t count, uint16_t* utf16) {
-  const uint32_t prev_len = p_container->len;
   uint8_t* container8 = (uint8_t*) p_container;
-  *(container8 + p_container->len) = count;
-  p_container->len += 1;
+  container8[p_container->len] = count;
+  p_container->len++;
 
   memcpy(container8 + p_container->len, utf16, 2 * count);
   p_container->len += 2 * count;
 
-  return p_container->len - prev_len;
+  return 1 + 2 * count;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_cstring(mtp_generic_container_t* p_container, const char* str) {
+  uint8_t* container8 = (uint8_t*) p_container;
+  const uint8_t len = (uint8_t) (strlen(str) + 1); // include null
+  container8[p_container->len] = len;
+  p_container->len++;
+
+  for (uint8_t i = 0; i < len; i++) {
+    container8[p_container->len] = str[i];
+    container8[p_container->len + 1] = 0;
+    p_container->len += 2;
+  }
+  return 1 + 2 * len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint8(mtp_generic_container_t* p_container, uint8_t data) {
