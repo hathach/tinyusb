@@ -34,11 +34,10 @@
 //--------------------------------------------------------------------+
 
 // device info string (including terminating null)
-const uint16_t dev_info_manufacturer[] = { 'T', 'i', 'n', 'y', 'U', 'S', 'B', 0 };
-const uint16_t dev_info_model[]        = { 'M', 'T', 'P', ' ', 'E', 'x', 'a', 'm', 'p', 'l', 'e', 0 };
-const uint16_t dev_info_version[]      = { '1', '.', '0', 0 };
-const uint16_t dev_info_serial[]       = { '1', '2', '3', '4', '5', '6', 0 };
-
+static const uint16_t dev_info_manufacturer[] = { 'T', 'i', 'n', 'y', 'U', 'S', 'B', 0 };
+static const uint16_t dev_info_model[]        = { 'M', 'T', 'P', ' ', 'E', 'x', 'a', 'm', 'p', 'l', 'e', 0 };
+static const uint16_t dev_info_version[]      = { '1', '.', '0', 0 };
+static const uint16_t dev_info_serial[]       = { '1', '2', '3', '4', '5', '6', 0 };
 
 static const uint16_t supported_operations[] = {
   MTP_OP_GET_DEVICE_INFO,
@@ -80,7 +79,6 @@ static const uint16_t playback_formats[] = {
   MTP_OBJ_FORMAT_TEXT,
 };
 
-
 //--------------------------------------------------------------------+
 // RAM FILESYSTEM
 //--------------------------------------------------------------------+
@@ -115,6 +113,32 @@ static fs_object_info_t _fs_objects[FS_MAX_NODES] = {
     .size = 34
   }
 };
+
+//------------- Storage Info -------------//
+#define STORAGE_DESCRIPTRION { 'd', 'i', 's', 'k', 0 }
+#define VOLUME_IDENTIFIER { 'v', 'o', 'l', 0 }
+
+typedef MTP_STORAGE_INFO_TYPEDEF(TU_ARRAY_SIZE((uint16_t[]) STORAGE_DESCRIPTRION),
+                                 TU_ARRAY_SIZE(((uint16_t[])VOLUME_IDENTIFIER))
+) storage_info_t;
+
+storage_info_t storage_info = {
+  .storage_type = MTP_STORAGE_TYPE_FIXED_RAM,
+  .filesystem_type = MTP_FILESYSTEM_TYPE_GENERIC_HIERARCHICAL,
+  .access_capability = MTP_ACCESS_CAPABILITY_READ_WRITE,
+  .max_capacity_in_bytes = FS_MAX_NODES * FS_MAX_NODE_BYTES,
+  .free_space_in_bytes = FS_MAX_NODES * FS_MAX_NODE_BYTES,
+  .free_space_in_objects = FS_MAX_NODES,
+  .storage_description = {
+    .count = (TU_FIELD_SZIE(storage_info_t, storage_description)-1) / sizeof(uint16_t),
+    .utf16 = STORAGE_DESCRIPTRION
+  },
+  .volume_identifier = {
+    .count = (TU_FIELD_SZIE(storage_info_t, volume_identifier)-1) / sizeof(uint16_t),
+    .utf16 = VOLUME_IDENTIFIER
+  }
+};
+
 
 //--------------------------------------------------------------------+
 // OPERATING STATUS
@@ -185,7 +209,7 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
   (void)idx;
   switch (cmd_block->code) {
     case MTP_OP_GET_DEVICE_INFO: {
-      // Device info is already prepared up to playback formats. Application need to add string fields
+      // Device info is already prepared up to playback formats. Application only need to add string fields
       mtp_container_add_string(out_block, TU_ARRAY_SIZE(dev_info_manufacturer), dev_info_manufacturer);
       mtp_container_add_string(out_block, TU_ARRAY_SIZE(dev_info_model), dev_info_model);
       mtp_container_add_string(out_block, TU_ARRAY_SIZE(dev_info_version), dev_info_version);
@@ -196,13 +220,25 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
     }
 
     case MTP_OP_OPEN_SESSION:
-      out_block->len = MTP_CONTAINER_HEADER_LENGTH;
-      out_block->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-      // TODO check if session is already opened
       out_block->code = MTP_RESP_OK;
-
       tud_mtp_response_send(out_block);
       break;
+
+    case MTP_OP_GET_STORAGE_IDS: {
+      uint32_t storage_ids [] = { 0x00010001u }; // physical = 1, logical = 1
+      mtp_container_add_auint32(out_block, 1, storage_ids);
+      tud_mtp_data_send(out_block);
+      break;
+    }
+
+    case MTP_OP_GET_STORAGE_INFO: {
+      // update storage info with current free space
+      storage_info.free_space_in_objects = FS_MAX_NODES - fs_get_object_count();
+      storage_info.free_space_in_bytes = storage_info.free_space_in_objects * FS_MAX_NODE_BYTES;
+      mtp_container_add_raw(out_block, &storage_info, sizeof(storage_info));
+      tud_mtp_data_send(out_block);
+      break;
+    }
 
     default: return -1;
   }
@@ -213,21 +249,6 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
 //--------------------------------------------------------------------+
 // API
 //--------------------------------------------------------------------+
-mtp_response_t tud_mtp_storage_open_session(uint32_t* session_id) {
-  if (*session_id == 0) {
-    TU_LOG1("Invalid session ID\r\n");
-    return MTP_RESP_INVALID_PARAMETER;
-  }
-  if (_fs_operation.session_id != 0) {
-    *session_id = _fs_operation.session_id;
-    TU_LOG1("ERR: Session %ld already open\r\n", _fs_operation.session_id);
-    return MTP_RESP_SESSION_ALREADY_OPEN;
-  }
-  _fs_operation.session_id = *session_id;
-  TU_LOG1("Open session with id %ld\r\n", _fs_operation.session_id);
-  return MTP_RESP_OK;
-}
-
 mtp_response_t tud_mtp_storage_close_session(uint32_t session_id) {
   if (session_id != _fs_operation.session_id) {
     TU_LOG1("ERR: Session %ld not open\r\n", session_id);
@@ -235,36 +256,6 @@ mtp_response_t tud_mtp_storage_close_session(uint32_t session_id) {
   }
   _fs_operation.session_id = 0;
   TU_LOG1("Session closed\r\n");
-  return MTP_RESP_OK;
-}
-
-mtp_response_t tud_mtp_get_storage_id(uint32_t* storage_id) {
-  if (_fs_operation.session_id == 0) {
-    TU_LOG1("ERR: Session not open\r\n");
-    return MTP_RESP_SESSION_NOT_OPEN;
-  }
-  *storage_id = STORAGE_ID(0x0001, 0x0001);
-  TU_LOG1("Retrieved storage identifier %ld\r\n", *storage_id);
-  return MTP_RESP_OK;
-}
-
-mtp_response_t tud_mtp_get_storage_info(uint32_t storage_id, mtp_storage_info_t* info) {
-  if (_fs_operation.session_id == 0) {
-    TU_LOG1("ERR: Session not open\r\n");
-    return MTP_RESP_SESSION_NOT_OPEN;
-  }
-  if (storage_id != STORAGE_ID(0x0001, 0x0001)) {
-    TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
-    return MTP_RESP_INVALID_STORAGE_ID;
-  }
-  info->storage_type = MTP_STORAGE_TYPE_FIXED_RAM;
-  info->filesystem_type = MTP_FILESYSTEM_TYPE_GENERIC_HIERARCHICAL;
-  info->access_capability = MTP_ACCESS_CAPABILITY_READ_WRITE;
-  info->max_capacity_in_bytes = FS_MAX_NODES * FS_MAX_NODE_BYTES;
-  info->free_space_in_objects = FS_MAX_NODES - fs_get_object_count();
-  info->free_space_in_bytes = info->free_space_in_objects * FS_MAX_NODE_BYTES;
-  mtpd_gct_append_wstring(MTPD_STORAGE_DESCRIPTION);
-  mtpd_gct_append_wstring(MTPD_VOLUME_IDENTIFIER);
   return MTP_RESP_OK;
 }
 

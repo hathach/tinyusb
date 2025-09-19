@@ -59,23 +59,9 @@
 //
 // The function shall check if the session is already opened and, in case, set session_id to the
 // ID of the current session.
-mtp_response_t tud_mtp_storage_open_session(uint32_t *session_id);
 
 // Close an open session
 mtp_response_t tud_mtp_storage_close_session(uint32_t session_id);
-
-// Get a storage ID valid within the current session
-//
-// TODO: while multiple storage IDs could be used, the implementation currently supports only 1.
-mtp_response_t tud_mtp_get_storage_id(uint32_t *storage_id);
-
-// Get storage information for the given ID
-//
-// The implementation shall fill all the fields required by the specification.
-// Note that the variable information (e.g. wstring file name, dates and tags shall be written by using the library functions)
-// In addition to the fixed mtp_storage_info_t structure, the function shall add storage descriptor string and
-// volume identifier string via tud_mtp_gct_append_wstring function.
-mtp_response_t tud_mtp_get_storage_info(uint32_t storage_id, mtp_storage_info_t *info);
 
 // Format the specified storage
 mtp_response_t tud_mtp_storage_format(uint32_t storage_id);

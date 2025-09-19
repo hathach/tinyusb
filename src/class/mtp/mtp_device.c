@@ -84,11 +84,7 @@ static mtp_phase_type_t mtpd_chk_session_open(const char *func_name);
 // MTP commands
 static mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp);
 static mtp_phase_type_t mtpd_handle_data(void);
-static mtp_phase_type_t mtpd_handle_cmd_get_device_info(void);
-static mtp_phase_type_t mtpd_handle_cmd_open_session(void);
 static mtp_phase_type_t mtpd_handle_cmd_close_session(void);
-static mtp_phase_type_t mtpd_handle_cmd_get_storage_info(void);
-static mtp_phase_type_t mtpd_handle_cmd_get_storage_ids(void);
 static mtp_phase_type_t mtpd_handle_cmd_get_object_handles(void);
 static mtp_phase_type_t mtpd_handle_cmd_get_object_info(void);
 static mtp_phase_type_t mtpd_handle_cmd_get_object(void);
@@ -390,7 +386,7 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
   mtp_generic_container_t cmd_block; // copy command block for callback
   memcpy(&cmd_block, p_container, p_container->len);
   memcpy(&p_mtp->cmd_header, p_container, sizeof(mtp_container_header_t));
-  // p_container->len = MTP_CONTAINER_HEADER_LENGTH; // default data/response length
+  p_container->len = MTP_CONTAINER_HEADER_LENGTH; // default data/response length
 
   if (p_container->code != MTP_OP_SEND_OBJECT) {
     _mtpd_soi.object_handle = 0;
@@ -453,11 +449,12 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
 
     case MTP_OP_GET_STORAGE_IDS:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_STORAGE_IDS\n");
-      return mtpd_handle_cmd_get_storage_ids();
+      break;
 
     case MTP_OP_GET_STORAGE_INFO:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_STORAGE_INFO for ID=%lu\n", p_container->data[0]);
-      return mtpd_handle_cmd_get_storage_info();
+      break;
+
     case MTP_OP_GET_OBJECT_HANDLES:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_OBJECT_HANDLES\n");
       return mtpd_handle_cmd_get_object_handles();
@@ -517,34 +514,6 @@ mtp_phase_type_t mtpd_handle_data(void)
   return true;
 }
 
-mtp_phase_type_t mtpd_handle_cmd_open_session(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  uint32_t session_id = p_container->data[0];
-
-  mtp_response_t res = tud_mtp_storage_open_session(&session_id);
-  if (res == MTP_RESP_SESSION_ALREADY_OPEN)
-  {
-    p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-    p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-    p_container->code = res;
-    p_container->len += sizeof(p_container->data[0]);
-    p_container->data[0] = session_id;
-    _mtpd_itf.session_id = session_id;
-    return MTP_PHASE_RESPONSE;
-  }
-
-  mtp_phase_type_t phase;
-  if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) return phase;
-
-  _mtpd_itf.session_id = session_id;
-
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-  p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->code = MTP_RESP_OK;
-
-  return MTP_PHASE_RESPONSE;
-}
 
 mtp_phase_type_t mtpd_handle_cmd_close_session(void)
 {
@@ -560,56 +529,6 @@ mtp_phase_type_t mtpd_handle_cmd_close_session(void)
   p_container->code = res;
 
   return MTP_PHASE_RESPONSE;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_get_storage_ids(void)
-{
-  TU_VERIFY_STATIC(sizeof(mtp_storage_ids_t) < MTP_MAX_PACKET_SIZE, "mtp_storage_ids_t shall fit in MTP_MAX_PACKET_SIZE");
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-
-  uint32_t storage_id;
-  mtp_response_t res = tud_mtp_get_storage_id(&storage_id);
-  mtp_phase_type_t phase;
-  if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) return phase;
-
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH + sizeof(mtp_storage_ids_t);
-  p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-  p_container->code = MTP_OP_GET_STORAGE_IDS;
-  mtp_storage_ids_t *d = (mtp_storage_ids_t *)p_container->data;
-  if (storage_id == 0)
-  {
-    // Storage not accessible
-    d->storage_ids_len = 0;
-    d->storage_ids[0] = 0;
-  }
-  else
-  {
-    d->storage_ids_len = 1;
-    d->storage_ids[0] = storage_id;
-  }
-
-  _mtpd_itf.queued_len = p_container->len;
-  return MTP_PHASE_DATA_IN;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_get_storage_info(void)
-{
-  TU_VERIFY_STATIC(sizeof(mtp_storage_info_t) < MTP_MAX_PACKET_SIZE, "mtp_storage_info_t shall fit in MTP_MAX_PACKET_SIZE");
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  uint32_t storage_id = p_container->data[0];
-
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH + sizeof(mtp_storage_info_t);
-  p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-  p_container->code = MTP_OP_GET_STORAGE_INFO;
-
-  mtp_response_t res = tud_mtp_get_storage_info(storage_id, (mtp_storage_info_t *)p_container->data);
-  mtp_phase_type_t phase;
-  if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) {
-    return phase;
-  }
-
-  _mtpd_itf.queued_len = p_container->len;
-  return MTP_PHASE_DATA_IN;
 }
 
 mtp_phase_type_t mtpd_handle_cmd_get_object_handles(void)

@@ -738,7 +738,16 @@ typedef struct TU_ATTR_PACKED {
   uint16_t utf16[];
 } mtp_flexible_string_t;
 
-// StorageInfo dataset
+ typedef union TU_ATTR_PACKED {
+  struct {
+    uint16_t physical; // physical location
+    uint16_t logical;  // logical within physical
+  };
+
+  uint32_t id;
+} mtp_storage_id_t;
+
+// StorageInfo dataset (excluding storage description and volume identifier)
 typedef struct TU_ATTR_PACKED {
   uint16_t storage_type;
   uint16_t filesystem_type;
@@ -746,10 +755,20 @@ typedef struct TU_ATTR_PACKED {
   uint64_t max_capacity_in_bytes;
   uint64_t free_space_in_bytes;
   uint32_t free_space_in_objects;
-} mtp_storage_info_t;
-// The following fields will be dynamically added to the struct at runtime:
-// - wstring storage_description
-// - wstring volume_identifier
+  // storage description and volume identifier are added dynamically
+} mtp_storage_info_nostring_t;
+
+#define MTP_STORAGE_INFO_TYPEDEF(_storage_desc_chars, _volume_id_chars) \
+  struct TU_ATTR_PACKED { \
+    uint16_t storage_type; \
+    uint16_t filesystem_type; \
+    uint16_t access_capability; \
+    uint64_t max_capacity_in_bytes; \
+    uint64_t free_space_in_bytes; \
+    uint32_t free_space_in_objects; \
+    mtp_string_t(_storage_desc_chars) storage_description; \
+    mtp_string_t(_volume_id_chars) volume_identifier; \
+  }
 
 // ObjectInfo Dataset
 typedef struct TU_ATTR_PACKED {
@@ -807,48 +826,27 @@ typedef struct TU_ATTR_PACKED {
 // Generic Container function
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add(mtp_generic_container_t* p_container, mtp_data_type_t type, const void* data) {
-  TU_VERIFY(type != MTP_DATA_TYPE_UNDEFINED, 0);
-  uint8_t scalar_size; // size of single scalar
-  uint8_t count_width; // size of count field (0, 1 or 4 bytes)
-
-  if (type == MTP_DATA_TYPE_STR) {
-    scalar_size = 2;
-    count_width = 1;
-  } else {
-    uint8_t scalar_type = type & 0x3F;
-    count_width = (type & 0x4000u) ? 4 : 0;
-    scalar_size = 1u << ((scalar_type - 1u) >> 1);
-  }
-
-  uint32_t data_len;
-  if (count_width) {
-    const uint32_t count = *(const uint32_t*) data;
-    data_len = count_width + count*scalar_size;
-  } else {
-    data_len = scalar_size;
-  }
-
-  memcpy(((uint8_t*)p_container) + p_container->len, data, data_len);
-  p_container->len += data_len;
-
-  return data_len;
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_raw(mtp_generic_container_t* p_container, const void* data, uint32_t len) {
+  memcpy((uint8_t*) p_container + p_container->len, data, len);
+  p_container->len += len;
+  return len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_field(mtp_generic_container_t* p_container, uint8_t scalar_size, uint32_t count, const void* data) {
-  const uint32_t prev_len = p_container->len;
-  uint8_t* container8 = (uint8_t*) p_container;
   if (count == 0) {
     // count = 0 means scalar
-    memcpy(container8 + p_container->len, data, scalar_size);
-    p_container->len += scalar_size;
+    return mtp_container_add_raw(p_container, data, scalar_size);
   } else {
+    uint8_t* container8 = (uint8_t*) p_container;
+
     tu_unaligned_write32(container8 + p_container->len, count);
     p_container->len += 4;
-    memcpy(container8 + p_container->len, data, count * scalar_size);
-  }
 
-  return p_container->len - prev_len;
+    memcpy(container8 + p_container->len, data, count * scalar_size);
+    p_container->len += count * scalar_size;
+
+    return 4 + count * scalar_size;
+  }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_generic_container_t* p_container, uint8_t count, uint16_t* utf16) {
