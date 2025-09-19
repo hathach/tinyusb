@@ -82,6 +82,9 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
 // Invoked when data phase is complete
 int32_t tud_mtp_data_complete_cb(uint8_t idx, mtp_container_header_t* cmd_header, mtp_generic_container_t* resp_block, tusb_xfer_result_t xfer_result, uint32_t xferred_bytes);
 
+// Invoked when response phase is complete
+int32_t tud_mtp_response_complete_cb(uint8_t idx, mtp_container_header_t* cmd_header, mtp_generic_container_t* resp_block, tusb_xfer_result_t xfer_result, uint32_t xferred_bytes);
+
 //--------------------------------------------------------------------+
 // Helper functions
 //--------------------------------------------------------------------+

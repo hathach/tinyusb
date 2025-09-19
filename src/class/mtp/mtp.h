@@ -743,20 +743,8 @@ typedef struct TU_ATTR_PACKED {
     uint16_t physical; // physical location
     uint16_t logical;  // logical within physical
   };
-
   uint32_t id;
 } mtp_storage_id_t;
-
-// StorageInfo dataset (excluding storage description and volume identifier)
-typedef struct TU_ATTR_PACKED {
-  uint16_t storage_type;
-  uint16_t filesystem_type;
-  uint16_t access_capability;
-  uint64_t max_capacity_in_bytes;
-  uint64_t free_space_in_bytes;
-  uint32_t free_space_in_objects;
-  // storage description and volume identifier are added dynamically
-} mtp_storage_info_nostring_t;
 
 #define MTP_STORAGE_INFO_TYPEDEF(_storage_desc_chars, _volume_id_chars) \
   struct TU_ATTR_PACKED { \
@@ -793,12 +781,6 @@ typedef struct TU_ATTR_PACKED {
 // - datetime_wstring date_created;
 // - datetime_wstring date_modified;
 // - wstring keywords;
-
-// Storage IDs
-typedef struct TU_ATTR_PACKED {
-  uint32_t storage_ids_len;
-  uint32_t storage_ids[CFG_MTP_STORAGE_ID_COUNT];
-} mtp_storage_ids_t;
 
 // DevicePropDesc Dataset
 typedef struct TU_ATTR_PACKED {

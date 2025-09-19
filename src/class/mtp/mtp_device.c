@@ -351,22 +351,18 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     case MTP_PHASE_RESPONSE_QUEUED:
       // response phase is complete -> prepare for new command
       TU_ASSERT(ep_addr == p_mtp->ep_in);
+      tud_mtp_response_complete_cb(0, &p_mtp->cmd_header, p_container, event, xferred_bytes);
       prepare_new_command(p_mtp);
       break;
 
     case MTP_PHASE_RESPONSE:
     case MTP_PHASE_ERROR:
-      // processed immediately after this switch, supposedly to be empty
+      // supposedly to be empty
       break;
     default: return false;
   }
 
-  if (p_mtp->phase == MTP_PHASE_RESPONSE) {
-    // p_mtp->phase = MTP_PHASE_RESPONSE_QUEUED;
-    // p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-    // p_container->transaction_id = p_mtp->cmd_header.transaction_id;
-    // TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_in, (uint8_t*) p_container, (uint16_t)p_container->len), 0);
-  } else if (p_mtp->phase == MTP_PHASE_ERROR) {
+   if (p_mtp->phase == MTP_PHASE_ERROR) {
     // stall both IN & OUT endpoints
     usbd_edpt_stall(rhport, p_mtp->ep_out);
     usbd_edpt_stall(rhport, p_mtp->ep_in);
@@ -467,9 +463,11 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
     case MTP_OP_DELETE_OBJECT:
       TU_LOG_DRV("  MTP command: MTP_OP_DELETE_OBJECT\n");
       return mtpd_handle_cmd_delete_object();
+
     case MTP_OP_GET_DEVICE_PROP_DESC:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_PROP_DESC\n");
       return mtpd_handle_cmd_get_device_prop_desc();
+
     case MTP_OP_GET_DEVICE_PROP_VALUE:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_PROP_VALUE\n");
       return mtpd_handle_cmd_get_device_prop_value();
