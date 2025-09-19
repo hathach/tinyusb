@@ -18,14 +18,14 @@
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN0
  * THE SOFTWARE.
  *
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MTP_DEVICE_H_
-#define _TUSB_MTP_DEVICE_H_
+#ifndef TUSB_MTP_DEVICE_H_
+#define TUSB_MTP_DEVICE_H_
 
 #include "common/tusb_common.h"
 #include "mtp.h"
@@ -36,15 +36,51 @@
  extern "C" {
 #endif
 
+typedef struct {
+  const mtp_container_header_t* cmd_header;
+  tusb_xfer_result_t xfer_result;
+  uint32_t xferred_bytes;
+} tud_mtp_cb_complete_data_t;
+
+// Number of supported operations, events, device properties, capture formats, playback formats
+// and max number of characters for strings manufacturer, model, device_version, serial_number
+#define MTP_DEVICE_INFO_TYPEDEF(_extension_nchars, _op_count, _event_count, _devprop_count, _capture_count, _playback_count) \
+  struct TU_ATTR_PACKED { \
+    uint16_t standard_version; \
+    uint32_t mtp_vendor_extension_id; \
+    uint16_t mtp_version; \
+    mtp_string_t(_extension_nchars) mtp_extensions; \
+    uint16_t functional_mode; \
+    mtp_auint16_t(_op_count) supported_operations; \
+    mtp_auint16_t(_event_count) supported_events; \
+    mtp_auint16_t(_devprop_count) supported_device_properties; \
+    mtp_auint16_t(_capture_count) capture_formats; \
+    mtp_auint16_t(_playback_count) playback_formats; \
+    /* string fields will be added using append function */ \
+  }
+
+typedef MTP_DEVICE_INFO_TYPEDEF(
+    sizeof(CFG_TUD_MTP_DEVICEINFO_EXTENSIONS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS),
+    TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_EVENTS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_DEVICE_PROPERTIES),
+    TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_CAPTURE_FORMATS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_PLAYBACK_FORMATS)
+  ) tud_mtp_device_info_t;
+
 //--------------------------------------------------------------------+
-// Internal Class Driver API
+// Application API
 //--------------------------------------------------------------------+
-void     mtpd_init            (void);
-bool     mtpd_deinit          (void);
-void     mtpd_reset           (uint8_t rhport);
-uint16_t mtpd_open            (uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
-bool     mtpd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const *p_request);
-bool     mtpd_xfer_cb         (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+bool tud_mtp_data_send(mtp_generic_container_t* data_block);
+// bool tud_mtp_block_data_receive();
+bool tud_mtp_response_send(mtp_generic_container_t* resp_block);
+
+//--------------------------------------------------------------------+
+// Application Callbacks
+//--------------------------------------------------------------------+
+
+// Invoked when new command is received
+int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_block, mtp_generic_container_t* out_block);
+
+// Invoked when data phase is complete
+int32_t tud_mtp_data_complete_cb(uint8_t idx, mtp_container_header_t* cmd_header, mtp_generic_container_t* resp_block, tusb_xfer_result_t xfer_result, uint32_t xferred_bytes);
 
 //--------------------------------------------------------------------+
 // Helper functions
@@ -66,10 +102,19 @@ bool mtpd_gct_append_array(uint32_t array_size, const void *data, size_t type_si
 // The function returns true if the data fits in the available buffer space.
 bool mtpd_gct_append_date(struct tm *timeinfo);
 
+//--------------------------------------------------------------------+
+// Internal Class Driver API
+//--------------------------------------------------------------------+
+void     mtpd_init            (void);
+bool     mtpd_deinit          (void);
+void     mtpd_reset           (uint8_t rhport);
+uint16_t mtpd_open            (uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
+bool     mtpd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const *p_request);
+bool     mtpd_xfer_cb         (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* CFG_TUD_ENABLED && CFG_TUD_MTP */
-
-#endif /* _TUSB_MTP_DEVICE_H_ */
+#endif
+#endif
