@@ -90,8 +90,6 @@ static mtp_phase_type_t mtpd_handle_cmd_get_object_info(void);
 static mtp_phase_type_t mtpd_handle_cmd_get_object(void);
 static mtp_phase_type_t mtpd_handle_dti_get_object(void);
 static mtp_phase_type_t mtpd_handle_cmd_delete_object(void);
-static mtp_phase_type_t mtpd_handle_cmd_get_device_prop_desc(void);
-static mtp_phase_type_t mtpd_handle_cmd_get_device_prop_value(void);
 static mtp_phase_type_t mtpd_handle_cmd_send_object_info(void);
 static mtp_phase_type_t mtpd_handle_dto_send_object_info(void);
 static mtp_phase_type_t mtpd_handle_cmd_send_object(void);
@@ -660,68 +658,6 @@ mtp_phase_type_t mtpd_handle_cmd_delete_object(void)
   p_container->code = MTP_RESP_OK;
   p_container->len = MTP_CONTAINER_HEADER_LENGTH;
   return MTP_PHASE_RESPONSE;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_get_device_prop_desc(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  uint32_t device_prop_code = p_container->data[0];
-
-  mtp_phase_type_t rt;
-  if ((rt = mtpd_chk_session_open(__func__)) != MTP_PHASE_NONE) return rt;
-
-  switch(device_prop_code)
-  {
-    case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
-    {
-      TU_VERIFY_STATIC(sizeof(mtp_device_prop_desc_header_t) < MTP_MAX_PACKET_SIZE, "mtp_device_info_t shall fit in MTP_MAX_PACKET_SIZE");
-      p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-      p_container->code = MTP_OP_GET_DEVICE_PROP_DESC;
-      p_container->len = MTP_CONTAINER_HEADER_LENGTH + sizeof(mtp_device_prop_desc_header_t);
-      mtp_device_prop_desc_header_t *d = (mtp_device_prop_desc_header_t *)p_container->data;
-      d->device_property_code = (uint16_t)(device_prop_code);
-      d->datatype = MTP_DATA_TYPE_STR;
-      d->get_set = MTP_MODE_GET;
-      mtpd_gct_append_wstring(CFG_TUD_MODEL); // factory_def_value
-      mtpd_gct_append_wstring(CFG_TUD_MODEL); // current_value_len
-      mtpd_gct_append_uint8(0x00); // form_flag
-      _mtpd_itf.queued_len = p_container->len;
-      return MTP_PHASE_DATA_IN;
-    }
-    default:
-      break;
-  }
-
-  p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->code = MTP_RESP_PARAMETER_NOT_SUPPORTED;
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-  return MTP_PHASE_RESPONSE;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_get_device_prop_value(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  uint32_t device_prop_code = p_container->data[0];
-
-  mtp_phase_type_t rt;
-  if ((rt = mtpd_chk_session_open(__func__)) != MTP_PHASE_NONE) return rt;
-
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-  p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-  p_container->code = MTP_OP_GET_DEVICE_PROP_VALUE;
-
-  switch(device_prop_code)
-  {
-    // TODO support more device properties
-    case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
-      mtpd_gct_append_wstring(CFG_TUD_MODEL);
-      _mtpd_itf.queued_len = p_container->len;
-      return MTP_PHASE_DATA_IN;
-    default:
-      p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-      p_container->code = MTP_RESP_PARAMETER_NOT_SUPPORTED;
-      return MTP_PHASE_RESPONSE;
-  }
 }
 
 mtp_phase_type_t mtpd_handle_cmd_send_object_info(void)

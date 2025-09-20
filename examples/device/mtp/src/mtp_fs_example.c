@@ -216,6 +216,26 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
       break;
     }
 
+    case MTP_OP_GET_DEVICE_PROP_DESC: {
+      const uint16_t dev_prop_code = (uint16_t) cmd_block->data[0];
+      mtp_device_prop_desc_header_t device_prop_header;
+      device_prop_header.device_property_code = dev_prop_code;
+      switch (dev_prop_code) {
+        case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
+          device_prop_header.datatype = MTP_DATA_TYPE_STR;
+          device_prop_header.get_set = MTP_MODE_GET;
+          mtp_container_add_raw(out_block, &device_prop_header, sizeof(device_prop_header));
+          mtp_container_add_cstring(out_block, DEV_PROP_FRIENDLY_NAME); // factory
+          mtp_container_add_cstring(out_block, DEV_PROP_FRIENDLY_NAME); // current
+          mtp_container_add_uint8(out_block, 0); // no form
+          tud_mtp_data_send(out_block);
+          break;
+
+        default: return MTP_RESP_PARAMETER_NOT_SUPPORTED;
+      }
+      break;
+    }
+
     case MTP_OP_GET_DEVICE_PROP_VALUE: {
       const uint16_t dev_prop_code = (uint16_t) cmd_block->data[0];
       switch (dev_prop_code) {
@@ -224,16 +244,19 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
           tud_mtp_data_send(out_block);
           break;
 
-        default: return -1;
+        default: return MTP_RESP_PARAMETER_NOT_SUPPORTED;
       }
       break;
     }
 
+    case MTP_OP_GET_OBJECT_HANDLES:
 
-    default: return -1;
+      break;
+
+    default: return MTP_RESP_OPERATION_NOT_SUPPORTED;
   }
 
-  return 0;
+  return MTP_RESP_OK;
 }
 
 //--------------------------------------------------------------------+
