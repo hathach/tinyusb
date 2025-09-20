@@ -321,6 +321,20 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
         .sof              = NULL
     },
     #endif
+
+    #if CFG_TUD_MTP
+    {
+        .name             = DRIVER_NAME("MTP"),
+        .init             = mtpd_init,
+        .deinit           = mtpd_deinit,
+        .reset            = mtpd_reset,
+        .open             = mtpd_open,
+        .control_xfer_cb  = mtpd_control_xfer_cb,
+        .xfer_cb          = mtpd_xfer_cb,
+        .xfer_isr         = NULL,
+        .sof              = NULL
+    },
+    #endif
 };
 
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
