@@ -160,6 +160,14 @@ void board_putchar(int c) {
   putchar(c);
 }
 
+void board_init_after_tusb(void) {
+  // nothing to do
+}
+
+void board_reset_to_bootloader(void) {
+  // not implemented
+}
+
 //--------------------------------------------------------------------
 // PHY Init
 //--------------------------------------------------------------------

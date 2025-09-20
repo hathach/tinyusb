@@ -77,6 +77,24 @@ static bool process_download_get_status(uint8_t rhport, uint8_t stage, const tus
 static bool process_manifest_get_status(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request);
 
 //--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_dfu_detach_cb(void) {
+}
+
+TU_ATTR_WEAK void tud_dfu_abort_cb(uint8_t alt) {
+  (void) alt;
+}
+
+TU_ATTR_WEAK uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length) {
+  (void) alt;
+  (void) block_num;
+  (void) data;
+  (void) length;
+  return 0;
+}
+
+//--------------------------------------------------------------------+
 // Debug
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 2
@@ -234,9 +252,7 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
         if (stage == CONTROL_STAGE_SETUP) {
           tud_control_status(rhport, request);
         } else if (stage == CONTROL_STAGE_ACK) {
-          if (tud_dfu_detach_cb) {
-            tud_dfu_detach_cb();
-          }
+          tud_dfu_detach_cb();
         }
         break;
 
@@ -258,16 +274,13 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
           reset_state();
           tud_control_status(rhport, request);
         } else if (stage == CONTROL_STAGE_ACK) {
-          if (tud_dfu_abort_cb) {
-            tud_dfu_abort_cb(_dfu_ctx.alt);
-          }
+          tud_dfu_abort_cb(_dfu_ctx.alt);
         }
         break;
 
       case DFU_REQUEST_UPLOAD:
         if (stage == CONTROL_STAGE_SETUP) {
           TU_VERIFY(_dfu_ctx.attrs & DFU_ATTR_CAN_UPLOAD);
-          TU_VERIFY(tud_dfu_upload_cb);
           TU_VERIFY(request->wLength <= CFG_TUD_DFU_XFER_BUFSIZE);
 
           const uint16_t xfer_len = tud_dfu_upload_cb(_dfu_ctx.alt, request->wValue, _dfu_epbuf.transfer_buf,

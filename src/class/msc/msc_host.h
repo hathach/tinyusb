@@ -109,10 +109,10 @@ bool tuh_msc_read_capacity(uint8_t dev_addr, uint8_t lun, scsi_read_capacity10_r
 //------------- Application Callback -------------//
 
 // Invoked when a device with MassStorage interface is mounted
-TU_ATTR_WEAK void tuh_msc_mount_cb(uint8_t dev_addr);
+void tuh_msc_mount_cb(uint8_t dev_addr);
 
 // Invoked when a device with MassStorage interface is unmounted
-TU_ATTR_WEAK void tuh_msc_umount_cb(uint8_t dev_addr);
+void tuh_msc_umount_cb(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

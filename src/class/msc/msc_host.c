@@ -88,6 +88,17 @@ TU_ATTR_ALWAYS_INLINE static inline msch_epbuf_t* get_epbuf(uint8_t daddr) {
 }
 
 //--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tuh_msc_mount_cb(uint8_t dev_addr) {
+  (void) dev_addr;
+}
+
+TU_ATTR_WEAK void tuh_msc_umount_cb(uint8_t dev_addr) {
+  (void) dev_addr;
+}
+
+//--------------------------------------------------------------------+
 // PUBLIC API
 //--------------------------------------------------------------------+
 uint8_t tuh_msc_get_maxlun(uint8_t dev_addr) {
@@ -304,9 +315,7 @@ void msch_close(uint8_t dev_addr) {
 
   // invoke Application Callback
   if (p_msc->mounted) {
-    if (tuh_msc_umount_cb) {
-      tuh_msc_umount_cb(dev_addr);
-    }
+    tuh_msc_umount_cb(dev_addr);
   }
 
   tu_memclr(p_msc, sizeof(msch_interface_t));
@@ -497,9 +506,7 @@ static bool config_read_capacity_complete(uint8_t dev_addr, tuh_msc_complete_dat
 
   // Mark enumeration is complete
   p_msc->mounted = true;
-  if (tuh_msc_mount_cb) {
-    tuh_msc_mount_cb(dev_addr);
-  }
+  tuh_msc_mount_cb(dev_addr);
 
   // notify usbh that driver enumeration is complete
   usbh_driver_set_config_complete(dev_addr, p_msc->itf_num);

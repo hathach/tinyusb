@@ -250,9 +250,7 @@ int main(void) {
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
   /* initialize lwip, dhcp-server, dns-server, and http */
   init_lwip();

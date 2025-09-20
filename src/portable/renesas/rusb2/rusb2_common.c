@@ -50,10 +50,6 @@ void tusb_rusb2_set_irqnum(uint8_t rhport, int32_t irqnum) {
   rusb2_controller[rhport].irqnum = irqnum;
 }
 
-//  void osal_task_delay(uint32_t msec) {
-//    R_BSP_SoftwareDelay(msec, BSP_DELAY_UNITS_MILLISECONDS);
-//  }
-
 #else
   #error "Unsupported MCU"
 #endif

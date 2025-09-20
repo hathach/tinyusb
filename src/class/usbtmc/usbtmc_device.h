@@ -75,15 +75,14 @@ bool tud_usbtmc_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp);
 
 // The interrupt-IN endpoint buffer was transmitted to the host. Use
 // tud_usbtmc_transmit_notification_data to send another notification.
-TU_ATTR_WEAK bool tud_usbtmc_notification_complete_cb(void);
+bool tud_usbtmc_notification_complete_cb(void);
 
 // Indicator pulse should be 0.5 to 1.0 seconds long
-TU_ATTR_WEAK bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult);
+bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult);
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
 uint8_t tud_usbtmc_get_stb_cb(uint8_t *tmcResult);
-TU_ATTR_WEAK bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg);
-//TU_ATTR_WEAK bool tud_usbtmc_app_go_to_local_cb();
+bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg);
 #endif
 
 // Called from app

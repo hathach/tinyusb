@@ -120,6 +120,42 @@ static bool _prep_out_transaction(uint8_t itf) {
 }
 
 //--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf) {
+  (void) itf;
+}
+
+TU_ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char) {
+  (void) itf;
+  (void) wanted_char;
+}
+
+TU_ATTR_WEAK void tud_cdc_tx_complete_cb(uint8_t itf) {
+  (void) itf;
+}
+
+TU_ATTR_WEAK void tud_cdc_notify_complete_cb(uint8_t itf) {
+  (void) itf;
+}
+
+TU_ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
+  (void) itf;
+  (void) dtr;
+  (void) rts;
+}
+
+TU_ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding) {
+  (void) itf;
+  (void) p_line_coding;
+}
+
+TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms) {
+  (void) itf;
+  (void) duration_ms;
+}
+
+//--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
 bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg) {
@@ -419,9 +455,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
         TU_LOG_DRV("  Set Line Coding\r\n");
         tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
       } else if (stage == CONTROL_STAGE_ACK) {
-        if (tud_cdc_line_coding_cb) {
-          tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
-        }
+        tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
       }
       break;
 
@@ -456,9 +490,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
         TU_LOG_DRV("  Set Control Line State: DTR = %d, RTS = %d\r\n", dtr, rts);
 
         // Invoke callback
-        if (tud_cdc_line_state_cb) {
-          tud_cdc_line_state_cb(itf, dtr, rts);
-        }
+        tud_cdc_line_state_cb(itf, dtr, rts);
       }
       break;
 
@@ -467,9 +499,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
         tud_control_status(rhport, request);
       } else if (stage == CONTROL_STAGE_ACK) {
         TU_LOG_DRV("  Send Break\r\n");
-        if (tud_cdc_send_break_cb) {
-          tud_cdc_send_break_cb(itf, request->wValue);
-        }
+        tud_cdc_send_break_cb(itf, request->wValue);
       }
       break;
 
@@ -501,7 +531,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     tu_fifo_write_n(&p_cdc->rx_ff, p_epbuf->epout, (uint16_t) xferred_bytes);
 
     // Check for wanted char and invoke callback if needed
-    if (tud_cdc_rx_wanted_cb && (((signed char) p_cdc->wanted_char) != -1)) {
+    if (((signed char) p_cdc->wanted_char) != -1) {
       for (uint32_t i = 0; i < xferred_bytes; i++) {
         if ((p_cdc->wanted_char == p_epbuf->epout[i]) && !tu_fifo_empty(&p_cdc->rx_ff)) {
           tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
@@ -510,7 +540,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
 
     // invoke receive callback (if there is still data)
-    if (tud_cdc_rx_cb && !tu_fifo_empty(&p_cdc->rx_ff)) {
+    if (!tu_fifo_empty(&p_cdc->rx_ff)) {
       tud_cdc_rx_cb(itf);
     }
 
@@ -523,9 +553,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   //       Though maybe the baudrate is not really important !!!
   if (ep_addr == p_cdc->ep_in) {
     // invoke transmit callback to possibly refill tx fifo
-    if (tud_cdc_tx_complete_cb) {
-      tud_cdc_tx_complete_cb(itf);
-    }
+    tud_cdc_tx_complete_cb(itf);
 
     if (0 == tud_cdc_n_write_flush(itf)) {
       // If there is no data left, a ZLP should be sent if
@@ -540,9 +568,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
   // Sent notification to host
   if (ep_addr == p_cdc->ep_notify) {
-    if (tud_cdc_notify_complete_cb) {
-      tud_cdc_notify_complete_cb(itf);
-    }
+    tud_cdc_notify_complete_cb(itf);
   }
 
   return true;

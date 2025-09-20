@@ -55,6 +55,14 @@ TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
 #endif
 }
 
+TU_ATTR_WEAK void* tusb_app_virt_to_phys(void *virt_addr) {
+  return virt_addr;
+}
+
+TU_ATTR_WEAK void* tusb_app_phys_to_virt(void *phys_addr) {
+  return phys_addr;
+}
+
 //--------------------------------------------------------------------+
 // Public API
 //--------------------------------------------------------------------+

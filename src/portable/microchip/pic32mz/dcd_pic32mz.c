@@ -162,13 +162,7 @@ void dcd_remote_wakeup(uint8_t rhport)
   (void) rhport;
 
   USB_REGS->POWERbits.RESUME = 1;
-#if CFG_TUSB_OS != OPT_OS_NONE
-  osal_task_delay(10);
-#else
-  // TODO: Wait in non blocking mode
-  unsigned cnt = 2000;
-  while (cnt--) __asm__("nop");
-#endif
+  tusb_time_delay_ms_api(10);
   USB_REGS->POWERbits.RESUME = 0;
 }
 

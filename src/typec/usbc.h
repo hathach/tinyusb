@@ -74,8 +74,8 @@ extern void tcd_int_handler(uint8_t rhport);
 // Callbacks
 //--------------------------------------------------------------------+
 
-TU_ATTR_WEAK bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t const* dobj, uint8_t const* p_end);
-TU_ATTR_WEAK bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header);
+bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t const* dobj, uint8_t const* p_end);
+bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header);
 
 //--------------------------------------------------------------------+
 //

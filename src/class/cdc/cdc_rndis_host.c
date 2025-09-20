@@ -103,7 +103,7 @@ static tusb_error_t rndis_body_subtask(void)
 
   }
 
-  osal_task_delay(100);
+  tusb_time_delay_ms_api(100);
 
   OSAL_SUBTASK_END
 }

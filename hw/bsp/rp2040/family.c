@@ -286,6 +286,14 @@ void board_putchar(int c) {
   stdio_putchar(c);
 }
 
+void board_init_after_tusb(void) {
+  // nothing to do
+}
+
+void board_reset_to_bootloader(void) {
+  // not implemented
+}
+
 //--------------------------------------------------------------------+
 // USB Interrupt Handler
 // rp2040 implementation will install appropriate handler when initializing

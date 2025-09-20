@@ -60,6 +60,23 @@ bool parse_msg_data(uint8_t rhport, pd_header_t const* header, uint8_t const* do
 bool parse_msg_control(uint8_t rhport, pd_header_t const* header);
 
 //--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK bool tuc_pd_data_received_cb(uint8_t rhport, pd_header_t const* header, uint8_t const* dobj, uint8_t const* p_end) {
+  (void) rhport;
+  (void) header;
+  (void) dobj;
+  (void) p_end;
+  return false;
+}
+
+TU_ATTR_WEAK bool tuc_pd_control_received_cb(uint8_t rhport, pd_header_t const* header) {
+  (void) rhport;
+  (void) header;
+  return false;
+}
+
+//--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 bool tuc_inited(uint8_t rhport) {
@@ -136,17 +153,13 @@ void tuc_task_ext(uint32_t timeout_ms, bool in_isr) {
 }
 
 bool parse_msg_data(uint8_t rhport, pd_header_t const* header, uint8_t const* dobj, uint8_t const* p_end) {
-  if (tuc_pd_data_received_cb) {
-    tuc_pd_data_received_cb(rhport, header, dobj, p_end);
-  }
+  tuc_pd_data_received_cb(rhport, header, dobj, p_end);
 
   return true;
 }
 
 bool parse_msg_control(uint8_t rhport, pd_header_t const* header) {
-  if (tuc_pd_control_received_cb) {
-    tuc_pd_control_received_cb(rhport, header);
-  }
+  tuc_pd_control_received_cb(rhport, header);
 
   return true;
 }
