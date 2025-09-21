@@ -65,7 +65,7 @@ typedef struct {
 static fs_object_info_t fs_objects[FS_MAX_NODES] = {
   {
     .handle = 1,
-    .parent = 0xffffffff,
+    .parent = 0,
     .allocated = true,
     .association = false,
     .name = "readme.txt",
@@ -80,7 +80,7 @@ static fs_object_info_t fs_objects[FS_MAX_NODES] = {
 #define STORAGE_DESCRIPTRION { 'd', 'i', 's', 'k', 0 }
 #define VOLUME_IDENTIFIER { 'v', 'o', 'l', 0 }
 
-typedef MTP_STORAGE_INFO_TYPEDEF(TU_ARRAY_SIZE((uint16_t[]) STORAGE_DESCRIPTRION),
+typedef MTP_STORAGE_INFO_STRUCT(TU_ARRAY_SIZE((uint16_t[]) STORAGE_DESCRIPTRION),
                                  TU_ARRAY_SIZE(((uint16_t[])VOLUME_IDENTIFIER))
 ) storage_info_t;
 
@@ -261,11 +261,46 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
       uint32_t handles[FS_MAX_NODES] = { 0 };
       uint32_t count = 0;
       for (uint8_t i = 0, h = 0; i < FS_MAX_NODES; i++) {
-        if (fs_objects[i].allocated && parent_handle == fs_objects[i].parent) {
+        if (fs_objects[i].allocated && parent_handle == fs_objects[i].parent ||
+            (parent_handle == 0xFFFFFFFF && fs_objects[i].parent == 0)) {
           handles[count++] = fs_objects[i].handle;
         }
       }
       mtp_container_add_auint32(out_block, count, handles);
+      tud_mtp_data_send(out_block);
+      break;
+    }
+
+    case MTP_OP_GET_OBJECT_INFO: {
+      const uint32_t object_handle = cmd_block->data[0];
+      fs_object_info_t* obj = fs_object_get_from_handle(object_handle);
+      if (obj == NULL) {
+        TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
+        return MTP_RESP_INVALID_OBJECT_HANDLE;
+      }
+      mtp_object_info_header_t object_info_header = {
+        .storage_id = SUPPORTED_STORAGE_ID,
+        .object_format = MTP_OBJ_FORMAT_TEXT,
+        .protection_status =  MTP_PROTECTION_STATUS_NO_PROTECTION,
+        .object_compressed_size = obj->size,
+        .thumb_format = MTP_OBJ_FORMAT_UNDEFINED,
+        .thumb_compressed_size = 0,
+        .thumb_pix_width = 0,
+        .thumb_pix_height = 0,
+        .image_pix_width = 0,
+        .image_pix_height = 0,
+        .image_bit_depth = 0,
+        .parent_object = obj->parent,
+        .association_type = MTP_ASSOCIATION_UNDEFINED,
+        .association_desc = 0,
+        .sequence_number = 0
+      };
+      mtp_container_add_raw(out_block, &object_info_header, sizeof(object_info_header));
+      mtp_container_add_cstring(out_block, obj->name);
+      mtp_container_add_cstring(out_block, obj->created);
+      mtp_container_add_cstring(out_block, obj->modified);
+      mtp_container_add_cstring(out_block, ""); // keywords, not used
+
       tud_mtp_data_send(out_block);
       break;
     }
@@ -346,7 +381,7 @@ mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t storage_id
 }
 
 mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t parent_object,
-                                                 uint32_t* new_object_handle, const mtp_object_info_t* info) {
+                                                 uint32_t* new_object_handle, const mtp_object_info_header_t* info) {
   fs_object_info_t* obj = NULL;
 
   if (_fs_operation.session_id == 0) {
@@ -402,7 +437,7 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
   obj->association = info->object_format == MTP_OBJ_FORMAT_ASSOCIATION;
 
   // Extract variable data
-  uint16_t offset_data = sizeof(mtp_object_info_t);
+  uint16_t offset_data = sizeof(mtp_object_info_header_t);
   mtpd_gct_get_string(&offset_data, obj->name, FS_MAX_NODE_NAME_LEN);
   mtpd_gct_get_string(&offset_data, obj->created, FS_ISODATETIME_LEN);
   mtpd_gct_get_string(&offset_data, obj->modified, FS_ISODATETIME_LEN);
@@ -414,46 +449,6 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
   // Initialize operation
   _fs_operation.write_handle = obj->handle;
   _fs_operation.write_pos = 0;
-  return MTP_RESP_OK;
-}
-
-mtp_response_t tud_mtp_storage_object_read_info(uint32_t object_handle, mtp_object_info_t* info) {
-  const fs_object_info_t* obj;
-
-  if (_fs_operation.session_id == 0) {
-    TU_LOG1("ERR: Session not open\r\n");
-    return MTP_RESP_SESSION_NOT_OPEN;
-  }
-
-  obj = fs_object_get_from_handle(object_handle);
-  if (obj == NULL) {
-    TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-    return MTP_RESP_INVALID_OBJECT_HANDLE;
-  }
-
-  memset(info, 0, sizeof(mtp_object_info_t));
-  info->storage_id = STORAGE_ID(0x0001, 0x0001);
-  if (obj->association) {
-    info->object_format = MTP_OBJ_FORMAT_ASSOCIATION;
-    info->protection_status = MTP_PROTECTION_STATUS_NO_PROTECTION;
-    info->object_compressed_size = 0;
-    info->association_type = MTP_ASSOCIATION_UNDEFINED;
-  } else {
-    info->object_format = MTP_OBJ_FORMAT_UNDEFINED;
-    info->protection_status = MTP_PROTECTION_STATUS_NO_PROTECTION;
-    info->object_compressed_size = obj->size;
-    info->association_type = MTP_ASSOCIATION_UNDEFINED;
-  }
-  info->thumb_format = MTP_OBJ_FORMAT_UNDEFINED;
-  info->parent_object = obj->parent;
-
-  mtpd_gct_append_wstring(obj->name);
-  mtpd_gct_append_wstring(obj->created); // date_created
-  mtpd_gct_append_wstring(obj->modified); // date_modified
-  mtpd_gct_append_wstring(""); // keywords, not used
-
-  TU_LOG1("Retrieve object %s with handle %ld\r\n", obj->name, obj->handle);
-
   return MTP_RESP_OK;
 }
 

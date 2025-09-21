@@ -647,11 +647,12 @@ typedef enum {
 typedef enum {
   MTP_ASSOCIATION_UNDEFINED            = 0x0000u,
   MTP_ASSOCIATION_GENERIC_FOLDER       = 0x0001u,
-  MTP_ASSOCIATION_GENERIC_ALBUM        = 0x0002u,
+  MTP_ASSOCIATION_ALBUM                = 0x0002u,
   MTP_ASSOCIATION_TIME_SEQUENCE        = 0x0003u,
   MTP_ASSOCIATION_HORIZONTAL_PANORAMIC = 0x0004u,
   MTP_ASSOCIATION_VERTICAL_PANORAMIC   = 0x0005u,
   MTP_ASSOCIATION_2D_PANORAMIC         = 0x0006u,
+  MTP_ASSOCIATION_ANCILLARY_DATA       = 0x0007u,
 } mtp_association_t;
 
 //--------------------------------------------------------------------+
@@ -705,7 +706,7 @@ typedef union TU_ATTR_PACKED {
   uint32_t id;
 } mtp_storage_id_t;
 
-#define MTP_STORAGE_INFO_TYPEDEF(_storage_desc_chars, _volume_id_chars) \
+#define MTP_STORAGE_INFO_STRUCT(_storage_desc_chars, _volume_id_chars) \
   struct TU_ATTR_PACKED { \
     uint16_t storage_type; \
     uint16_t filesystem_type; \
@@ -717,29 +718,24 @@ typedef union TU_ATTR_PACKED {
     mtp_string_t(_volume_id_chars) volume_identifier; \
   }
 
-// ObjectInfo Dataset
+// Object Info Dataset without dynamic string: filename, date_created, date_modified, keywords
 typedef struct TU_ATTR_PACKED {
   uint32_t storage_id;
   uint16_t object_format;
   uint16_t protection_status;
   uint32_t object_compressed_size;
-  uint16_t thumb_format; // unused
-  uint32_t thumb_compressed_size; // unused
-  uint32_t thumb_pix_width; // unused
-  uint32_t thumb_pix_height; // unused
-  uint32_t image_pix_width; // unused
-  uint32_t image_pix_height; // unused
-  uint32_t image_bit_depth; // unused
+  uint16_t thumb_format;
+  uint32_t thumb_compressed_size;
+  uint32_t thumb_pix_width;
+  uint32_t thumb_pix_height;
+  uint32_t image_pix_width;
+  uint32_t image_pix_height;
+  uint32_t image_bit_depth;
   uint32_t parent_object; // 0: root
   uint16_t association_type;
-  uint32_t association_description; // not used
-  uint32_t sequence_number; // not used
-} mtp_object_info_t;
-// The following fields will be dynamically added to the struct at runtime:
-// - wstring filename;
-// - datetime_wstring date_created;
-// - datetime_wstring date_modified;
-// - wstring keywords;
+  uint32_t association_desc;
+  uint32_t sequence_number;
+} mtp_object_info_header_t;
 
 // Device property desc up to get/set
 typedef struct TU_ATTR_PACKED {
@@ -754,7 +750,7 @@ typedef struct TU_ATTR_PACKED {
 // - uint8_t form_flag;
 
 // no form
-#define MTP_DEVICE_PROPERTIES_TYPEDEF(_type) \
+#define MTP_DEVICE_PROPERTIES_STRUCT(_type) \
    struct TU_ATTR_PACKED { \
      uint16_t device_property_code; \
      uint16_t datatype; \
@@ -763,7 +759,6 @@ typedef struct TU_ATTR_PACKED {
      _type current_value; \
      uint8_t form_flag; /* 0: none, 1: range, 2: enum */ \
    };
-
 
 typedef struct TU_ATTR_PACKED {
   uint16_t wLength;

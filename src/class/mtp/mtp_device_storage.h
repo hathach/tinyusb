@@ -77,7 +77,7 @@ mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t session_ha
 // The handle of the new object shall be returned in new_object_handle.
 // The structure info contains the information to be used for file creation, as passted by the host.
 // Note that the variable information (e.g. wstring file name, dates and tags shall be retrieved by using the library functions)
-mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t parent_object, uint32_t *new_object_handle, const mtp_object_info_t *info);
+mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t parent_object, uint32_t *new_object_handle, const mtp_object_info_header_t *info);
 
 // Get object information related to a given object handle
 //
@@ -89,7 +89,7 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
 // - Date modified (string, use tud_gct_append_date or empty string)
 // - Keywords (string containing list of kw, separated by space, use tud_mtp_gct_append_wstring)
 // Note that the variable information (e.g. wstring file name, dates and tags shall be written by using the library functions)
-mtp_response_t tud_mtp_storage_object_read_info(uint32_t object_handle, mtp_object_info_t *info);
+mtp_response_t tud_mtp_storage_object_read_info(uint32_t object_handle, mtp_object_info_header_t *info);
 
 // Get the object size.
 //
