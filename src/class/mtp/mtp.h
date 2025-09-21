@@ -654,47 +654,6 @@ typedef enum {
   MTP_ASSOCIATION_2D_PANORAMIC         = 0x0006u,
 } mtp_association_t;
 
-
-tu_static const uint16_t mtp_operations_supported[] = {
-  MTP_OP_GET_DEVICE_INFO,
-  MTP_OP_OPEN_SESSION,
-  MTP_OP_CLOSE_SESSION,
-  MTP_OP_GET_STORAGE_IDS,
-  MTP_OP_GET_STORAGE_INFO,
-  MTP_OP_GET_NUM_OBJECTS,
-  MTP_OP_GET_OBJECT_HANDLES,
-  MTP_OP_GET_OBJECT_INFO,
-  MTP_OP_GET_OBJECT,
-  MTP_OP_DELETE_OBJECT,
-  MTP_OP_SEND_OBJECT_INFO,
-  MTP_OP_SEND_OBJECT,
-  MTP_OP_FORMAT_STORE,
-  MTP_OP_RESET_DEVICE,
-  MTP_OP_GET_DEVICE_PROP_DESC,
-  MTP_OP_GET_DEVICE_PROP_VALUE,
-  MTP_OP_SET_DEVICE_PROP_VALUE,
-};
-
-tu_static const uint16_t mtp_events_supported[] = {
-  MTP_EVENT_OBJECT_ADDED,
-};
-
-tu_static const uint16_t mtp_device_properties_supported[] = {
-  MTP_DEV_PROP_DEVICE_FRIENDLY_NAME,
-};
-
-tu_static const uint16_t mtp_capture_formats[] = {
-  MTP_OBJ_FORMAT_UNDEFINED,
-  MTP_OBJ_FORMAT_ASSOCIATION,
-  MTP_OBJ_FORMAT_TEXT,
-};
-
-tu_static const uint16_t mtp_playback_formats[] = {
-  MTP_OBJ_FORMAT_UNDEFINED,
-  MTP_OBJ_FORMAT_ASSOCIATION,
-  MTP_OBJ_FORMAT_TEXT,
-};
-
 //--------------------------------------------------------------------+
 // Data structures
 //--------------------------------------------------------------------+
@@ -738,7 +697,7 @@ typedef struct TU_ATTR_PACKED {
   uint16_t utf16[];
 } mtp_flexible_string_t;
 
- typedef union TU_ATTR_PACKED {
+typedef union TU_ATTR_PACKED {
   struct {
     uint16_t physical; // physical location
     uint16_t logical;  // logical within physical
@@ -827,21 +786,16 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_raw(mtp_generic_c
   return len;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_field(mtp_generic_container_t* p_container, uint8_t scalar_size, uint32_t count, const void* data) {
-  if (count == 0) {
-    // count = 0 means scalar
-    return mtp_container_add_raw(p_container, data, scalar_size);
-  } else {
-    uint8_t* container8 = (uint8_t*) p_container;
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_array(mtp_generic_container_t* p_container, uint8_t scalar_size, uint32_t count, const void* data) {
+  uint8_t* container8 = (uint8_t*)p_container;
 
-    tu_unaligned_write32(container8 + p_container->len, count);
-    p_container->len += 4;
+  tu_unaligned_write32(container8 + p_container->len, count);
+  p_container->len += 4;
 
-    memcpy(container8 + p_container->len, data, count * scalar_size);
-    p_container->len += count * scalar_size;
+  memcpy(container8 + p_container->len, data, count * scalar_size);
+  p_container->len += count * scalar_size;
 
-    return 4 + count * scalar_size;
-  }
+  return 4 + count * scalar_size;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_generic_container_t* p_container, uint8_t count, uint16_t* utf16) {
@@ -870,33 +824,36 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_cstring(mtp_gener
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint8(mtp_generic_container_t* p_container, uint8_t data) {
-  return mtp_container_add_field(p_container, sizeof(uint8_t), 0, &data);
+  return mtp_container_add_raw(p_container, &data, 1);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint16(mtp_generic_container_t* p_container, uint16_t data) {
-  return mtp_container_add_field(p_container, sizeof(uint16_t), 0, &data);
+  return mtp_container_add_raw(p_container, &data, 2);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint32(mtp_generic_container_t* p_container, uint32_t data) {
-  return mtp_container_add_field(p_container, sizeof(uint32_t), 0, &data);
+  return mtp_container_add_raw(p_container, &data, 4);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint64(mtp_generic_container_t* p_container, uint64_t data) {
-  return mtp_container_add_field(p_container, 8, 0, &data);
+  return mtp_container_add_raw(p_container, &data, 8);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint128(mtp_generic_container_t* p_container, const void* data) {
+  return mtp_container_add_raw(p_container, data, 16);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint8(mtp_generic_container_t* p_container, uint32_t count, const uint8_t* data) {
-  return mtp_container_add_field(p_container, sizeof(uint8_t), count, data);
+  return mtp_container_add_array(p_container, sizeof(uint8_t), count, data);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint16(mtp_generic_container_t* p_container, uint32_t count, const uint16_t* data) {
-  return mtp_container_add_field(p_container, sizeof(uint16_t), count, data);
+  return mtp_container_add_array(p_container, sizeof(uint16_t), count, data);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint32(mtp_generic_container_t* p_container, uint32_t count, const uint32_t* data) {
-  return mtp_container_add_field(p_container, sizeof(uint32_t), count, data);
+  return mtp_container_add_array(p_container, sizeof(uint32_t), count, data);
 }
-
 
 #ifdef __cplusplus
  }

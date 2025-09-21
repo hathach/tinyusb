@@ -62,10 +62,10 @@ typedef struct {
 } fs_object_info_t;
 
 // Sample object file
-static fs_object_info_t _fs_objects[FS_MAX_NODES] = {
+static fs_object_info_t fs_objects[FS_MAX_NODES] = {
   {
     .handle = 1,
-    .parent = 0,
+    .parent = 0xffffffff,
     .allocated = true,
     .association = false,
     .name = "readme.txt",
@@ -142,7 +142,7 @@ unsigned int fs_get_object_count(void);
 fs_object_info_t* fs_object_get_from_handle(uint32_t handle) {
   fs_object_info_t* obj;
   for (unsigned int i = 0; i < FS_MAX_NODES; i++) {
-    obj = &_fs_objects[i];
+    obj = &fs_objects[i];
     if (obj->allocated && obj->handle == handle)
       return obj;
   }
@@ -152,7 +152,7 @@ fs_object_info_t* fs_object_get_from_handle(uint32_t handle) {
 unsigned int fs_get_object_count(void) {
   unsigned int s = 0;
   for (unsigned int i = 0; i < FS_MAX_NODES; i++) {
-    if (_fs_objects[i].allocated)
+    if (fs_objects[i].allocated)
       s++;
   }
   return s;
@@ -249,9 +249,26 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
       break;
     }
 
-    case MTP_OP_GET_OBJECT_HANDLES:
+    case MTP_OP_GET_OBJECT_HANDLES: {
+      const uint32_t storage_id = cmd_block->data[0];
+      const uint32_t obj_format = cmd_block->data[1]; // optional
+      (void) obj_format;
+      const uint32_t parent_handle = cmd_block->data[2]; // folder handle, 0xFFFFFFFF is root
+      if (storage_id != 0xFFFFFFFF && storage_id != SUPPORTED_STORAGE_ID) {
+        return MTP_RESP_INVALID_STORAGE_ID;
+      }
 
+      uint32_t handles[FS_MAX_NODES] = { 0 };
+      uint32_t count = 0;
+      for (uint8_t i = 0, h = 0; i < FS_MAX_NODES; i++) {
+        if (fs_objects[i].allocated && parent_handle == fs_objects[i].parent) {
+          handles[count++] = fs_objects[i].handle;
+        }
+      }
+      mtp_container_add_auint32(out_block, count, handles);
+      tud_mtp_data_send(out_block);
       break;
+    }
 
     default: return MTP_RESP_OPERATION_NOT_SUPPORTED;
   }
@@ -284,7 +301,7 @@ mtp_response_t tud_mtp_storage_format(uint32_t storage_id) {
 
   // Simply deallocate all entries
   for (unsigned int i = 0; i < FS_MAX_NODES; i++)
-    _fs_objects[i].allocated = false;
+    fs_objects[i].allocated = false;
   TU_LOG1("Format completed\r\n");
   return MTP_RESP_OK;
 }
@@ -314,7 +331,7 @@ mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t storage_id
   }
 
   for (unsigned int i = _fs_operation.traversal_index; i < FS_MAX_NODES; i++) {
-    obj = &_fs_objects[i];
+    obj = &fs_objects[i];
     if (obj->allocated && obj->parent == parent_object_handle) {
       _fs_operation.traversal_index = i + 1;
       *next_child_handle = obj->handle;
@@ -366,8 +383,8 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
 
   // Search for first free object
   for (unsigned int i = 0; i < FS_MAX_NODES; i++) {
-    if (!_fs_objects[i].allocated) {
-      obj = &_fs_objects[i];
+    if (!fs_objects[i].allocated) {
+      obj = &fs_objects[i];
       break;
     }
   }
@@ -572,7 +589,7 @@ mtp_response_t tud_mtp_storage_object_delete(uint32_t object_handle) {
   if (object_handle == 0 || obj->association) {
     // Delete also children
     for (unsigned int i = 0; i < FS_MAX_NODES; i++) {
-      obj = &_fs_objects[i];
+      obj = &fs_objects[i];
       if (obj->allocated && obj->parent == object_handle) {
         tud_mtp_storage_object_delete(obj->handle);
       }

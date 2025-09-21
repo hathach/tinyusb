@@ -85,7 +85,6 @@ static mtp_phase_type_t mtpd_chk_session_open(const char *func_name);
 static mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp);
 static mtp_phase_type_t mtpd_handle_data(void);
 static mtp_phase_type_t mtpd_handle_cmd_close_session(void);
-static mtp_phase_type_t mtpd_handle_cmd_get_object_handles(void);
 static mtp_phase_type_t mtpd_handle_cmd_get_object_info(void);
 static mtp_phase_type_t mtpd_handle_cmd_get_object(void);
 static mtp_phase_type_t mtpd_handle_dti_get_object(void);
@@ -451,7 +450,8 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
 
     case MTP_OP_GET_OBJECT_HANDLES:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_OBJECT_HANDLES\n");
-      return mtpd_handle_cmd_get_object_handles();
+      break;
+
     case MTP_OP_GET_OBJECT_INFO:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_OBJECT_INFO\n");
       return mtpd_handle_cmd_get_object_info();
@@ -526,46 +526,6 @@ mtp_phase_type_t mtpd_handle_cmd_close_session(void)
   p_container->code = res;
 
   return MTP_PHASE_RESPONSE;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_get_object_handles(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  uint32_t storage_id = p_container->data[0];
-  uint32_t object_format_code = p_container->data[1]; // optional, not managed
-  uint32_t parent_object_handle = p_container->data[2]; // folder specification, 0xffffffff=objects with no parent
-
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH + sizeof(uint32_t);
-  p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-  p_container->code = MTP_OP_GET_OBJECT_HANDLES;
-  p_container->data[0] = 0;
-
-  mtp_phase_type_t phase;
-  if ((phase = mtpd_chk_generic(__func__, (object_format_code != 0), MTP_RESP_SPECIFICATION_BY_FORMAT_UNSUPPORTED, "specification by format unsupported")) != MTP_PHASE_NONE) {
-    return phase;
-  }
-  //list of all object handles on all storages, not managed
-  if ((phase = mtpd_chk_generic(__func__, (storage_id == 0xFFFFFFFF), MTP_RESP_OPERATION_NOT_SUPPORTED, "list of all object handles on all storages unsupported")) != MTP_PHASE_NONE) {
-    return phase;
-  }
-
-  tud_mtp_storage_object_done();
-  uint32_t next_child_handle = 0;
-  while(true)
-  {
-    mtp_response_t res = tud_mtp_storage_association_get_object_handle(storage_id, parent_object_handle, &next_child_handle);
-    if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) {
-      return phase;
-    }
-    if (next_child_handle == 0) {
-      break;
-    }
-    mtpd_gct_append_object_handle(next_child_handle);
-  }
-  tud_mtp_storage_object_done();
-
-  _mtpd_itf.queued_len = p_container->len;
-  return MTP_PHASE_DATA_IN;
 }
 
 mtp_phase_type_t mtpd_handle_cmd_get_object_info(void)
