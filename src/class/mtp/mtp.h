@@ -38,7 +38,6 @@
  extern "C" {
 #endif
 
-#define STORAGE_ID(physical_id, logical_id) ( (((uint32_t)physical_id & 0xFFFF) << 16) | ((uint32_t)logical_id & 0x0000FFFF) )
 typedef uint16_t wchar16_t;
 
 //--------------------------------------------------------------------+

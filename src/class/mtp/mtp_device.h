@@ -44,7 +44,7 @@ typedef struct {
 
 // Number of supported operations, events, device properties, capture formats, playback formats
 // and max number of characters for strings manufacturer, model, device_version, serial_number
-#define MTP_DEVICE_INFO_TYPEDEF(_extension_nchars, _op_count, _event_count, _devprop_count, _capture_count, _playback_count) \
+#define MTP_DEVICE_INFO_STRUCT(_extension_nchars, _op_count, _event_count, _devprop_count, _capture_count, _playback_count) \
   struct TU_ATTR_PACKED { \
     uint16_t standard_version; \
     uint32_t mtp_vendor_extension_id; \
@@ -59,11 +59,34 @@ typedef struct {
     /* string fields will be added using append function */ \
   }
 
-typedef MTP_DEVICE_INFO_TYPEDEF(
-    sizeof(CFG_TUD_MTP_DEVICEINFO_EXTENSIONS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS),
+#define MTP_DEVICE_INFO_NO_EXTENSION_STRUCT(_op_count, _event_count, _devprop_count, _capture_count, _playback_count) \
+  struct TU_ATTR_PACKED { \
+    uint16_t standard_version; \
+    uint32_t mtp_vendor_extension_id; \
+    uint16_t mtp_version; \
+    uint8_t mtp_extensions; \
+    uint16_t functional_mode; \
+    mtp_auint16_t(_op_count) supported_operations; \
+    mtp_auint16_t(_event_count) supported_events; \
+    mtp_auint16_t(_devprop_count) supported_device_properties; \
+    mtp_auint16_t(_capture_count) capture_formats; \
+    mtp_auint16_t(_playback_count) playback_formats; \
+    /* string fields will be added using append function */ \
+  }
+
+#ifdef CFG_TUD_MTP_DEVICEINFO_EXTENSIONS
+   typedef MTP_DEVICE_INFO_STRUCT(
+     sizeof(CFG_TUD_MTP_DEVICEINFO_EXTENSIONS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS),
+     TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_EVENTS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_DEVICE_PROPERTIES),
+     TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_CAPTURE_FORMATS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_PLAYBACK_FORMATS)
+   ) tud_mtp_device_info_t;
+#else
+  typedef MTP_DEVICE_INFO_NO_EXTENSION_STRUCT(
+    TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS),
     TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_EVENTS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_DEVICE_PROPERTIES),
     TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_CAPTURE_FORMATS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_PLAYBACK_FORMATS)
   ) tud_mtp_device_info_t;
+#endif
 
 //--------------------------------------------------------------------+
 // Application API
@@ -76,7 +99,8 @@ bool tud_mtp_response_send(mtp_generic_container_t* resp_block);
 // Application Callbacks
 //--------------------------------------------------------------------+
 
-// Invoked when new command is received
+// Invoked when new command is received. Application fill the out_block with either DATA or RESPONSE container
+// return MTP response code
 int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_block, mtp_generic_container_t* out_block);
 
 // Invoked when data phase is complete

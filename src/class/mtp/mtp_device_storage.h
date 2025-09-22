@@ -54,24 +54,8 @@
  * Depending on the application, the handle could be also be the file name or a tag (i.e. host-only file access)
  */
 
-
-// Initialize MTP storage subsystem
-//
-// The function shall check if the session is already opened and, in case, set session_id to the
-// ID of the current session.
-
-// Close an open session
-mtp_response_t tud_mtp_storage_close_session(uint32_t session_id);
-
 // Format the specified storage
 mtp_response_t tud_mtp_storage_format(uint32_t storage_id);
-
-// Traverse the given parent object handle and return a child handle for each call
-//
-// If the parent object has not been opened (or closed before) the function returns the first handle.
-// When next_child_handle is 0 all the handles have been listed.
-// TODO: traverse by ObjectFormatCode and ObjectHandle association. For now they are unsupported.
-mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t session_handle, uint32_t parent_object_handle, uint32_t *next_child_handle);
 
 // Called with the creation of a new object is requested.
 // The handle of the new object shall be returned in new_object_handle.
@@ -79,37 +63,11 @@ mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t session_ha
 // Note that the variable information (e.g. wstring file name, dates and tags shall be retrieved by using the library functions)
 mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t parent_object, uint32_t *new_object_handle, const mtp_object_info_header_t *info);
 
-// Get object information related to a given object handle
-//
-// The structure info shall be filled according to MTP specifications. Note that
-// in addition to filling the fixed mtp_object_info_t structure, the caller must add the following fields via
-// library calls
-// - Filename (string, use tud_mtp_gct_append_wstring)
-// - Date created (string, use tud_gct_append_date or empty string)
-// - Date modified (string, use tud_gct_append_date or empty string)
-// - Keywords (string containing list of kw, separated by space, use tud_mtp_gct_append_wstring)
-// Note that the variable information (e.g. wstring file name, dates and tags shall be written by using the library functions)
-mtp_response_t tud_mtp_storage_object_read_info(uint32_t object_handle, mtp_object_info_header_t *info);
-
-// Get the object size.
-//
-// The object may be already open when this function is called.
-// The implementation shall not assume a specific call order between this function and tud_mtp_storage_object_read.
-// The function may leave the file open.
-mtp_response_t tud_mtp_storage_object_size(uint32_t object_handle, uint32_t *size);
-
 // Write object data
 //
 // The function shall open the object for writing if not already open.
 // The binary data shall be written to the file in full before this function is returned.
 mtp_response_t tud_mtp_storage_object_write(uint32_t object_handle, const uint8_t *buffer, uint32_t buffer_size);
-
-// Get object data
-//
-// The function shall open the object for reading if not already open.
-// The amount of data returned shall be the given size parameter.
-// read_count shall contain the effective number of bytes written. Iteration is terminated when read_count < buffer_size.
-mtp_response_t tud_mtp_storage_object_read(uint32_t object_handle, void *buffer, uint32_t buffer_size, uint32_t *read_count);
 
 // Move an object to a new parent
 mtp_response_t tud_mtp_storage_object_move(uint32_t object_handle, uint32_t new_parent_object_handle);

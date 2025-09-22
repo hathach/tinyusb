@@ -79,14 +79,10 @@ typedef struct {
 //--------------------------------------------------------------------+
 // Checker
 static mtp_phase_type_t mtpd_chk_generic(const char *func_name, const bool err_cd, const uint16_t ret_code, const char *message);
-static mtp_phase_type_t mtpd_chk_session_open(const char *func_name);
 
 // MTP commands
 static mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp);
 static mtp_phase_type_t mtpd_handle_data(void);
-static mtp_phase_type_t mtpd_handle_cmd_close_session(void);
-static mtp_phase_type_t mtpd_handle_cmd_get_object(void);
-static mtp_phase_type_t mtpd_handle_dti_get_object(void);
 static mtp_phase_type_t mtpd_handle_cmd_delete_object(void);
 static mtp_phase_type_t mtpd_handle_cmd_send_object_info(void);
 static mtp_phase_type_t mtpd_handle_dto_send_object_info(void);
@@ -272,6 +268,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       break;
     }
 
+#if 0
     case MTP_PHASE_DATA_IN:
       p_mtp->xferred_len += xferred_bytes;
       p_mtp->handled_len = p_mtp->xferred_len;
@@ -333,16 +330,17 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         } else if (p_mtp->handled_len == 0) {
           // First data block includes container header + container data
           TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_out,
-                             (uint8_t*) p_container + p_mtp->xferred_len,
+                                   (uint8_t*) p_container + p_mtp->xferred_len,
                                    (uint16_t)TU_MIN(p_mtp->total_len - p_mtp->xferred_len, CFG_MTP_EP_SIZE)));
         } else {
           // Successive data block includes only container data
           TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_out,
-                            ((uint8_t *)(&p_container->data)) + p_mtp->xferred_len - p_mtp->handled_len,
-                                  (uint16_t)TU_MIN(p_mtp->total_len - p_mtp->xferred_len, CFG_MTP_EP_SIZE)));
+                                   ((uint8_t *)(&p_container->data)) + p_mtp->xferred_len - p_mtp->handled_len,
+                                   (uint16_t)TU_MIN(p_mtp->total_len - p_mtp->xferred_len, CFG_MTP_EP_SIZE)));
         }
       }
       break;
+#endif
 
     case MTP_PHASE_RESPONSE_QUEUED:
       // response phase is complete -> prepare for new command
@@ -391,12 +389,16 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
       TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_INFO\n");
       tud_mtp_device_info_t dev_info = {
         .standard_version = 100,
-        .mtp_vendor_extension_id = 0xFFFFFFFFU,
+        .mtp_vendor_extension_id = 6, // MTP specs say 0xFFFFFFFF but libMTP check for value 6
         .mtp_version = 100,
+#ifdef CFG_TUD_MTP_DEVICEINFO_EXTENSIONS
         .mtp_extensions = {
           .count = sizeof(CFG_TUD_MTP_DEVICEINFO_EXTENSIONS),
           .utf16 = { 0 }
         },
+#else
+        .mtp_extensions = 0,
+#endif
         .functional_mode = 0x0000,
         .supported_operations = {
           .count = TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS),
@@ -419,9 +421,11 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
           .arr = { CFG_TUD_MTP_DEVICEINFO_PLAYBACK_FORMATS }
         }
       };
+#ifdef CFG_TUD_MTP_DEVICEINFO_EXTENSIONS
       for (uint8_t i=0; i < dev_info.mtp_extensions.count; i++) {
         dev_info.mtp_extensions.utf16[i] = (uint16_t)CFG_TUD_MTP_DEVICEINFO_EXTENSIONS[i];
       }
+#endif
       p_container->len = MTP_CONTAINER_HEADER_LENGTH + sizeof(tud_mtp_device_info_t);
       p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
       p_container->code = MTP_OP_GET_DEVICE_INFO;
@@ -437,7 +441,7 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
 
     case MTP_OP_CLOSE_SESSION:
       TU_LOG_DRV("  MTP command: MTP_OP_CLOSE_SESSION\n");
-      return mtpd_handle_cmd_close_session();
+      break;
 
     case MTP_OP_GET_STORAGE_IDS:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_STORAGE_IDS\n");
@@ -457,7 +461,8 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
 
     case MTP_OP_GET_OBJECT:
       TU_LOG_DRV("  MTP command: MTP_OP_GET_OBJECT\n");
-      return mtpd_handle_cmd_get_object();
+      break;
+
     case MTP_OP_DELETE_OBJECT:
       TU_LOG_DRV("  MTP command: MTP_OP_DELETE_OBJECT\n");
       return mtpd_handle_cmd_delete_object();
@@ -495,9 +500,6 @@ mtp_phase_type_t mtpd_handle_data(void)
 
   switch(p_container->code)
   {
-    case MTP_OP_GET_OBJECT:
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_OBJECT-DATA_IN\n");
-      return mtpd_handle_dti_get_object();
     case MTP_OP_SEND_OBJECT_INFO:
       TU_LOG_DRV("  MTP command: MTP_OP_SEND_OBJECT_INFO-DATA_OUT\n");
       return mtpd_handle_dto_send_object_info();
@@ -509,79 +511,6 @@ mtp_phase_type_t mtpd_handle_data(void)
       return false;
   }
   return true;
-}
-
-
-mtp_phase_type_t mtpd_handle_cmd_close_session(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  uint32_t session_id = p_container->data[0];
-
-  mtp_response_t res = tud_mtp_storage_close_session(session_id);
-
-  _mtpd_itf.session_id = session_id;
-
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-  p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->code = res;
-
-  return MTP_PHASE_RESPONSE;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_get_object(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  _mtpd_get_object_handle = p_container->data[0];
-
-  // Continue with DATA-IN
-  return mtpd_handle_dti_get_object();
-}
-
-mtp_phase_type_t mtpd_handle_dti_get_object(void)
-{
-  mtp_response_t res;
-  mtp_phase_type_t phase;
-  uint32_t file_size = 0;
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  res = tud_mtp_storage_object_size(_mtpd_get_object_handle, &file_size);
-  if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) {
-    return phase;
-  }
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH + file_size;
-  p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-  p_container->code = MTP_OP_GET_OBJECT;
-
-  uint32_t buffer_size;
-  uint32_t read_count;
-  // Data block must be multiple of EP size
-  if (_mtpd_itf.handled_len == 0)
-  {
-    // First data block: include container header
-    buffer_size = ((MTP_MAX_PACKET_SIZE + MTP_CONTAINER_HEADER_LENGTH) / CFG_MTP_EP_SIZE) * CFG_MTP_EP_SIZE - MTP_CONTAINER_HEADER_LENGTH;
-    res = tud_mtp_storage_object_read(_mtpd_get_object_handle, (void *)&p_container->data, buffer_size, &read_count);
-    if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) {
-      return phase;
-    }
-    _mtpd_itf.queued_len = MTP_CONTAINER_HEADER_LENGTH + read_count;
-  }
-  else
-  {
-    // Successive data block: consider only container data
-    buffer_size = (MTP_MAX_PACKET_SIZE / CFG_MTP_EP_SIZE) * CFG_MTP_EP_SIZE;
-    res = tud_mtp_storage_object_read(_mtpd_get_object_handle, (void *)&p_container->data, buffer_size, &read_count);
-    if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) {
-      return phase;
-    }
-    _mtpd_itf.queued_len = read_count;
-  }
-
-  // File completed
-  if (read_count < buffer_size)
-  {
-    tud_mtp_storage_object_done();
-  }
-
-  return MTP_PHASE_DATA_IN;
 }
 
 mtp_phase_type_t mtpd_handle_cmd_delete_object(void)
@@ -689,21 +618,6 @@ mtp_phase_type_t mtpd_handle_cmd_format_store(void)
 //--------------------------------------------------------------------+
 // Checker
 //--------------------------------------------------------------------+
-mtp_phase_type_t mtpd_chk_session_open(const char *func_name)
-{
-  (void)func_name;
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  if (_mtpd_itf.session_id == 0)
-  {
-    TU_LOG_DRV("  MTP error: %s session not open\n", func_name);
-    p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-    p_container->code = MTP_RESP_SESSION_NOT_OPEN;
-    p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-    return MTP_PHASE_RESPONSE;
-  }
-  return MTP_PHASE_NONE;
-}
-
 mtp_phase_type_t mtpd_chk_generic(const char *func_name, const bool err_cd, const uint16_t ret_code, const char *message)
 {
   (void)func_name;

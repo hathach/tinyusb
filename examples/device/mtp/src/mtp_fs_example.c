@@ -30,16 +30,24 @@
 #define MTPD_VOLUME_IDENTIFIER "volume"
 
 //--------------------------------------------------------------------+
-// Device Info
+// Dataset
 //--------------------------------------------------------------------+
 
-// device info string (including terminating null)
+//------------- device info -------------//
 #define DEV_INFO_MANUFACTURER   "TinyUSB"
 #define DEV_INFO_MODEL          "MTP Example"
 #define DEV_INFO_VERSION        "1.0"
 #define DEV_INFO_SERIAL         "123456"
 
 #define DEV_PROP_FRIENDLY_NAME  "TinyUSB MTP"
+
+//------------- storage info -------------//
+#define STORAGE_DESCRIPTRION { 'd', 'i', 's', 'k', 0 }
+#define VOLUME_IDENTIFIER { 'v', 'o', 'l', 0 }
+
+typedef MTP_STORAGE_INFO_STRUCT(TU_ARRAY_SIZE((uint16_t[]) STORAGE_DESCRIPTRION),
+                                 TU_ARRAY_SIZE(((uint16_t[])VOLUME_IDENTIFIER))
+) storage_info_t;
 
 //--------------------------------------------------------------------+
 // RAM FILESYSTEM
@@ -77,12 +85,7 @@ static fs_object_info_t fs_objects[FS_MAX_NODES] = {
 };
 
 //------------- Storage Info -------------//
-#define STORAGE_DESCRIPTRION { 'd', 'i', 's', 'k', 0 }
-#define VOLUME_IDENTIFIER { 'v', 'o', 'l', 0 }
 
-typedef MTP_STORAGE_INFO_STRUCT(TU_ARRAY_SIZE((uint16_t[]) STORAGE_DESCRIPTRION),
-                                 TU_ARRAY_SIZE(((uint16_t[])VOLUME_IDENTIFIER))
-) storage_info_t;
 
 storage_info_t storage_info = {
   .storage_type = MTP_STORAGE_TYPE_FIXED_RAM,
@@ -105,6 +108,7 @@ enum {
   SUPPORTED_STORAGE_ID = 0x00010001u // physical = 1, logical = 1
 };
 
+static bool is_session_opened = false;
 
 //--------------------------------------------------------------------+
 // OPERATING STATUS
@@ -160,14 +164,9 @@ unsigned int fs_get_object_count(void) {
 
 int32_t tud_mtp_data_complete_cb(uint8_t idx, mtp_container_header_t* cmd_header, mtp_generic_container_t* resp_block, tusb_xfer_result_t xfer_result, uint32_t xferred_bytes) {
   (void) idx;
-  // switch (cmd_header->code) {
-  //   default: break;
-  // }
   resp_block->len = MTP_CONTAINER_HEADER_LENGTH;
   resp_block->code = (xfer_result == XFER_RESULT_SUCCESS) ? MTP_RESP_OK : MTP_RESP_GENERAL_ERROR;
-
   tud_mtp_response_send(resp_block);
-
   return 0;
 }
 
@@ -195,7 +194,24 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
     }
 
     case MTP_OP_OPEN_SESSION:
-      out_block->code = MTP_RESP_OK;
+      if (is_session_opened) {
+        //return MTP_RESP_SESSION_ALREADY_OPEN;
+        out_block->code = MTP_RESP_SESSION_ALREADY_OPEN;
+      }else {
+        out_block->code = MTP_RESP_OK;
+      }
+      is_session_opened = true;
+      tud_mtp_response_send(out_block);
+      break;
+
+    case MTP_OP_CLOSE_SESSION:
+      if (!is_session_opened) {
+        // return MTP_RESP_SESSION_NOT_OPEN;
+        out_block->code = MTP_RESP_SESSION_NOT_OPEN;
+      } else {
+        out_block->code = MTP_RESP_OK;
+      }
+      is_session_opened = false;
       tud_mtp_response_send(out_block);
       break;
 
@@ -272,13 +288,12 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
     }
 
     case MTP_OP_GET_OBJECT_INFO: {
-      const uint32_t object_handle = cmd_block->data[0];
-      fs_object_info_t* obj = fs_object_get_from_handle(object_handle);
+      const uint32_t obj_handle = cmd_block->data[0];
+      fs_object_info_t* obj = fs_object_get_from_handle(obj_handle);
       if (obj == NULL) {
-        TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
         return MTP_RESP_INVALID_OBJECT_HANDLE;
       }
-      mtp_object_info_header_t object_info_header = {
+      mtp_object_info_header_t obj_info_header = {
         .storage_id = SUPPORTED_STORAGE_ID,
         .object_format = MTP_OBJ_FORMAT_TEXT,
         .protection_status =  MTP_PROTECTION_STATUS_NO_PROTECTION,
@@ -295,12 +310,24 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
         .association_desc = 0,
         .sequence_number = 0
       };
-      mtp_container_add_raw(out_block, &object_info_header, sizeof(object_info_header));
+      mtp_container_add_raw(out_block, &obj_info_header, sizeof(obj_info_header));
       mtp_container_add_cstring(out_block, obj->name);
       mtp_container_add_cstring(out_block, obj->created);
       mtp_container_add_cstring(out_block, obj->modified);
       mtp_container_add_cstring(out_block, ""); // keywords, not used
 
+      tud_mtp_data_send(out_block);
+      break;
+    }
+
+    case MTP_OP_GET_OBJECT: {
+      const uint32_t obj_handle = cmd_block->data[0];
+      fs_object_info_t* obj = fs_object_get_from_handle(obj_handle);
+      if (obj == NULL) {
+        return MTP_RESP_INVALID_OBJECT_HANDLE;
+      }
+
+      mtp_container_add_raw(out_block, obj->data, obj->size);
       tud_mtp_data_send(out_block);
       break;
     }
@@ -314,22 +341,12 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
 //--------------------------------------------------------------------+
 // API
 //--------------------------------------------------------------------+
-mtp_response_t tud_mtp_storage_close_session(uint32_t session_id) {
-  if (session_id != _fs_operation.session_id) {
-    TU_LOG1("ERR: Session %ld not open\r\n", session_id);
-    return MTP_RESP_SESSION_NOT_OPEN;
-  }
-  _fs_operation.session_id = 0;
-  TU_LOG1("Session closed\r\n");
-  return MTP_RESP_OK;
-}
-
 mtp_response_t tud_mtp_storage_format(uint32_t storage_id) {
   if (_fs_operation.session_id == 0) {
     TU_LOG1("ERR: Session not open\r\n");
     return MTP_RESP_SESSION_NOT_OPEN;
   }
-  if (storage_id != STORAGE_ID(0x0001, 0x0001)) {
+  if (storage_id != SUPPORTED_STORAGE_ID) {
     TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
     return MTP_RESP_INVALID_STORAGE_ID;
   }
@@ -338,45 +355,6 @@ mtp_response_t tud_mtp_storage_format(uint32_t storage_id) {
   for (unsigned int i = 0; i < FS_MAX_NODES; i++)
     fs_objects[i].allocated = false;
   TU_LOG1("Format completed\r\n");
-  return MTP_RESP_OK;
-}
-
-mtp_response_t tud_mtp_storage_association_get_object_handle(uint32_t storage_id, uint32_t parent_object_handle,
-                                                             uint32_t* next_child_handle) {
-  fs_object_info_t* obj;
-
-  if (_fs_operation.session_id == 0) {
-    TU_LOG1("ERR: Session not open\r\n");
-    return MTP_RESP_SESSION_NOT_OPEN;
-  }
-  // We just have one storage, same reply if querying all storages
-  if (storage_id != 0xFFFFFFFF && storage_id != STORAGE_ID(0x0001, 0x0001)) {
-    TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
-    return MTP_RESP_INVALID_STORAGE_ID;
-  }
-
-  // Request for objects with no parent (0xFFFFFFFF) are considered root objects
-  // Note: implementation may pass 0 as parent_object_handle
-  if (parent_object_handle == 0xFFFFFFFF)
-    parent_object_handle = 0;
-
-  if (parent_object_handle != _fs_operation.traversal_parent) {
-    _fs_operation.traversal_parent = parent_object_handle;
-    _fs_operation.traversal_index = 0;
-  }
-
-  for (unsigned int i = _fs_operation.traversal_index; i < FS_MAX_NODES; i++) {
-    obj = &fs_objects[i];
-    if (obj->allocated && obj->parent == parent_object_handle) {
-      _fs_operation.traversal_index = i + 1;
-      *next_child_handle = obj->handle;
-      TU_LOG1("Association %ld -> child %ld\r\n", parent_object_handle, obj->handle);
-      return MTP_RESP_OK;
-    }
-  }
-  TU_LOG1("Association traversal completed\r\n");
-  _fs_operation.traversal_index = 0;
-  *next_child_handle = 0;
   return MTP_RESP_OK;
 }
 
@@ -389,7 +367,7 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
     return MTP_RESP_SESSION_NOT_OPEN;
   }
   // Accept command on default storage
-  if (storage_id != 0xFFFFFFFF && storage_id != STORAGE_ID(0x0001, 0x0001)) {
+  if (storage_id != 0xFFFFFFFF && storage_id != SUPPORTED_STORAGE_ID) {
     TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
     return MTP_RESP_INVALID_STORAGE_ID;
   }
@@ -476,55 +454,6 @@ mtp_response_t tud_mtp_storage_object_write(uint32_t object_handle, const uint8_
   if (_fs_operation.write_pos == obj->size) {
     _fs_operation.write_handle = 0;
     _fs_operation.write_pos = 0;
-  }
-  return MTP_RESP_OK;
-}
-
-mtp_response_t tud_mtp_storage_object_size(uint32_t object_handle, uint32_t* size) {
-  const fs_object_info_t* obj;
-  obj = fs_object_get_from_handle(object_handle);
-  if (obj == NULL) {
-    TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-    return MTP_RESP_INVALID_OBJECT_HANDLE;
-  }
-  *size = obj->size;
-  return MTP_RESP_OK;
-}
-
-mtp_response_t tud_mtp_storage_object_read(uint32_t object_handle, void* buffer, uint32_t buffer_size,
-                                           uint32_t* read_count) {
-  const fs_object_info_t* obj;
-
-  obj = fs_object_get_from_handle(object_handle);
-
-  if (obj == NULL) {
-    TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-    return MTP_RESP_INVALID_OBJECT_HANDLE;
-  }
-  // It's not a requirement that this command is preceded by a read info
-  if (object_handle != _fs_operation.read_handle) {
-    TU_LOG1("ERR: Object %ld not open for read\r\n", object_handle);
-    _fs_operation.read_handle = object_handle;
-    _fs_operation.read_pos = 0;
-  }
-
-  if (obj->size - _fs_operation.read_pos > buffer_size) {
-    TU_LOG1("Read object %ld: %ld bytes at offset %ld\r\n", object_handle, buffer_size, _fs_operation.read_pos);
-    *read_count = buffer_size;
-    if (_fs_operation.read_pos + buffer_size < FS_MAX_NODE_BYTES) {
-      memcpy(buffer, &obj->data[_fs_operation.read_pos], *read_count);
-    }
-    _fs_operation.read_pos += *read_count;
-  } else {
-    TU_LOG1("Read object %ld: %ld bytes at offset %ld\r\n", object_handle, obj->size - _fs_operation.read_pos,
-            _fs_operation.read_pos);
-    *read_count = obj->size - _fs_operation.read_pos;
-    if (_fs_operation.read_pos + *read_count < FS_MAX_NODE_BYTES) {
-      memcpy(buffer, &obj->data[_fs_operation.read_pos], *read_count);
-    }
-    // Read operation completed
-    _fs_operation.read_handle = 0;
-    _fs_operation.read_pos = 0;
   }
   return MTP_RESP_OK;
 }
