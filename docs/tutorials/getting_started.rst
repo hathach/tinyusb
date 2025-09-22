@@ -2,20 +2,22 @@
 Getting Started
 ***************
 
+This tutorial will guide you through setting up TinyUSB for your first project. We'll cover the basic integration steps and build your first example.
+
 Add TinyUSB to your project
 ---------------------------
 
-To incorporate tinyusb to your project
+To incorporate TinyUSB into your project:
 
-* Copy or ``git submodule`` this repo into your project in a subfolder. Let's say it is ``your_project/tinyusb``
-* Add all the ``.c`` in the ``tinyusb/src`` folder to your project
-* Add ``your_project/tinyusb/src`` to your include path. Also make sure your current include path also contains the configuration file ``tusb_config.h``.
-* Make sure all required macros are all defined properly in ``tusb_config.h`` (configure file in demo application is sufficient, but you need to add a few more such as ``CFG_TUSB_MCU``, ``CFG_TUSB_OS`` since they are passed by make/cmake to maintain a unique configure for all boards).
-* If you use the device stack, make sure you have created/modified usb descriptors for your own need. Ultimately you need to implement all **tud descriptor** callbacks for the stack to work.
-* Add ``tusb_init(rhport, role)`` call to your reset initialization code.
-* Call ``tusb_int_handler(rhport, in_isr)`` in your USB IRQ Handler
-* Implement all enabled classes's callbacks.
-* If you don't use any RTOSes at all, you need to continuously and/or periodically call ``tud_task()``/``tuh_task()`` function. All of the callbacks and functionality are handled and invoked within the call of that task runner.
+* Copy or ``git submodule`` this repository into your project in a subfolder. Let's say it is ``your_project/tinyusb``
+* Add all the ``.c`` files in the ``tinyusb/src`` folder to your project
+* Add ``your_project/tinyusb/src`` to your include path. Also make sure your current include path contains the configuration file ``tusb_config.h``.
+* Make sure all required macros are defined properly in ``tusb_config.h`` (the configuration file in demo applications is sufficient, but you need to add a few more such as ``CFG_TUSB_MCU``, ``CFG_TUSB_OS`` since they are passed by make/cmake to maintain a unique configuration for all boards).
+* If you use the device stack, make sure you have created/modified USB descriptors for your own needs. Ultimately you need to implement all **tud descriptor** callbacks for the stack to work.
+* Add a ``tusb_init(rhport, role)`` call to your reset initialization code.
+* Call ``tusb_int_handler(rhport, in_isr)`` in your USB IRQ handler
+* Implement all enabled classes' callbacks.
+* If you don't use any RTOS at all, you need to continuously and/or periodically call the ``tud_task()``/``tuh_task()`` functions. All of the callbacks and functionality are handled and invoked within the call of that task runner.
 
 .. code-block:: c
 
@@ -57,20 +59,20 @@ For your convenience, TinyUSB contains a handful of examples for both host and d
    $ git clone https://github.com/hathach/tinyusb tinyusb
    $ cd tinyusb
 
-Some ports will also require a port-specific SDK (e.g. RP2040) or binary (e.g. Sony Spresense) to build examples. They are out of scope for tinyusb, you should download/install it first according to its manufacturer guide.
+Some ports will also require a port-specific SDK (e.g. RP2040) or binary (e.g. Sony Spresense) to build examples. They are out of scope for TinyUSB, you should download/install them first according to the manufacturer's guide.
 
 Dependencies
 ^^^^^^^^^^^^
 
-The hardware code is located in ``hw/bsp`` folder, and is organized by family/boards. e.g raspberry_pi_pico is located in ``hw/bsp/rp2040/boards/raspberry_pi_pico`` where ``FAMILY=rp2040`` and ``BOARD=raspberry_pi_pico``. Before building, we firstly need to download dependencies such as: MCU low-level peripheral driver and external libraries e.g FreeRTOS (required by some examples). We can do that by either ways:
+The hardware code is located in the ``hw/bsp`` folder, and is organized by family/boards. For example, raspberry_pi_pico is located in ``hw/bsp/rp2040/boards/raspberry_pi_pico`` where ``FAMILY=rp2040`` and ``BOARD=raspberry_pi_pico``. Before building, we first need to download dependencies such as: MCU low-level peripheral drivers and external libraries like FreeRTOS (required by some examples). We can do this in either of two ways:
 
-1. Run ``tools/get_deps.py {FAMILY}`` script to download all dependencies for a family as follow. Note: For TinyUSB developer to download all dependencies, use FAMILY=all.
+1. Run the ``tools/get_deps.py {FAMILY}`` script to download all dependencies for a family as follows. Note: For TinyUSB developers to download all dependencies, use FAMILY=all.
 
 .. code-block:: bash
 
    $ python tools/get_deps.py rp2040
 
-2. Or run the ``get-deps`` target in one of the example folder as follow.
+2. Or run the ``get-deps`` target in one of the example folders as follows.
 
 .. code-block:: bash
 
@@ -82,7 +84,7 @@ You only need to do this once per family. Check out :doc:`complete list of depen
 Build Examples
 ^^^^^^^^^^^^^^
 
-Examples support make and cmake build system for most MCUs, however some MCU families such as espressif or rp2040 only support cmake. First change directory to an example folder.
+Examples support make and cmake build systems for most MCUs, however some MCU families such as Espressif or RP2040 only support cmake. First change directory to an example folder.
 
 .. code-block:: bash
 
@@ -267,3 +269,25 @@ Following these steps:
 2. Create new project in IAR, in Tool chain dropdown menu, choose CMake for Arm then Import ``CMakeLists.txt`` from chosen example directory.
 3. Set up board option in ``Option - CMake/CMSIS-TOOLBOX - CMake``, for example ``-DBOARD=stm32f439nucleo -DTOOLCHAIN=iar``, **Uncheck 'Override tools in env'**.
 4. (For debug only) Choose correct CPU model in ``Option - General Options - Target``, to profit register and memory view.
+
+Common Issues and Solutions
+---------------------------
+
+**Build Errors**
+
+* **"arm-none-eabi-gcc: command not found"**: Install ARM GCC toolchain: ``sudo apt-get install gcc-arm-none-eabi``
+* **"Board 'X' not found"**: Check available boards in ``hw/bsp/FAMILY/boards/`` or run ``python tools/build.py -l``
+* **Missing dependencies**: Run ``python tools/get_deps.py FAMILY`` where FAMILY matches your board
+
+**Runtime Issues**
+
+* **Device not recognized**: Check USB descriptors implementation and ``tusb_config.h`` settings
+* **Enumeration failure**: Enable logging with ``LOG=2`` and check for USB protocol errors
+* **Hard faults/crashes**: Verify interrupt handler setup and stack size allocation
+
+Next Steps
+----------
+
+* Try the :doc:`first_device` tutorial to implement a simple USB device
+* Read about :doc:`../guides/integration` for production projects
+* Check :doc:`../reference/boards` for board-specific information
