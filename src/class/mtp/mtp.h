@@ -470,7 +470,7 @@ typedef enum {
   MTP_OP_DELETE_OBJECT              = 0x100Bu,
   MTP_OP_SEND_OBJECT_INFO           = 0x100Cu,
   MTP_OP_SEND_OBJECT                = 0x100Du,
-  MTP_OP_INITIAL_CAPTURE            = 0x100Eu,
+  MTP_OP_INITIATE_CAPTURE           = 0x100Eu,
   MTP_OP_FORMAT_STORE               = 0x100Fu,
   MTP_OP_RESET_DEVICE               = 0x1010u,
   MTP_OP_SELF_TEST                  = 0x1011u,
@@ -734,6 +734,10 @@ typedef struct TU_ATTR_PACKED {
   uint16_t association_type;
   uint32_t association_desc;
   uint32_t sequence_number;
+  // mtp_string_t() filename
+  // mtp_string_t() date_created
+  // mtp_string_t() date_modified
+  // mtp_string_t() keywords
 } mtp_object_info_header_t;
 
 // Device property desc up to get/set
@@ -775,12 +779,15 @@ typedef struct TU_ATTR_PACKED {
 //--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_raw(mtp_generic_container_t* p_container, const void* data, uint32_t len) {
+  TU_ASSERT(p_container->len + len < sizeof(mtp_generic_container_t), 0);
   memcpy((uint8_t*) p_container + p_container->len, data, len);
   p_container->len += len;
   return len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_array(mtp_generic_container_t* p_container, uint8_t scalar_size, uint32_t count, const void* data) {
+  const uint32_t added_len = 4 + count * scalar_size;
+  TU_ASSERT(p_container->len + added_len < sizeof(mtp_generic_container_t), 0);
   uint8_t* container8 = (uint8_t*)p_container;
 
   tu_unaligned_write32(container8 + p_container->len, count);
@@ -789,32 +796,43 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_array(mtp_generic
   memcpy(container8 + p_container->len, data, count * scalar_size);
   p_container->len += count * scalar_size;
 
-  return 4 + count * scalar_size;
+  return added_len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_generic_container_t* p_container, uint8_t count, uint16_t* utf16) {
+  const uint32_t added_len = 1 + 2 * count;
+  TU_ASSERT(p_container->len + added_len < sizeof(mtp_generic_container_t), 0);
   uint8_t* container8 = (uint8_t*) p_container;
+
   container8[p_container->len] = count;
   p_container->len++;
 
   memcpy(container8 + p_container->len, utf16, 2 * count);
   p_container->len += 2 * count;
 
-  return 1 + 2 * count;
+  return added_len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_cstring(mtp_generic_container_t* p_container, const char* str) {
-  uint8_t* container8 = (uint8_t*) p_container;
   const uint8_t len = (uint8_t) (strlen(str) + 1); // include null
+  TU_ASSERT(p_container->len + 1 + 2 * len < sizeof(mtp_generic_container_t), 0);
+
+  uint8_t* container8 = (uint8_t*) p_container;
   container8[p_container->len] = len;
   p_container->len++;
 
-  for (uint8_t i = 0; i < len; i++) {
-    container8[p_container->len] = str[i];
-    container8[p_container->len + 1] = 0;
-    p_container->len += 2;
+  if (len == 1) {
+    // empty string (null only)
+    container8[p_container->len] = 0;
+    return 1;
+  } else {
+    for (uint8_t i = 0; i < len; i++) {
+      container8[p_container->len] = str[i];
+      container8[p_container->len + 1] = 0;
+      p_container->len += 2;
+    }
+    return 1 + 2 * len;
   }
-  return 1 + 2 * len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint8(mtp_generic_container_t* p_container, uint8_t data) {

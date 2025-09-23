@@ -103,6 +103,65 @@ CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static char _mtp_datestr[20];
 
 
 //--------------------------------------------------------------------+
+// Debug
+//--------------------------------------------------------------------+
+#if CFG_TUSB_DEBUG >= CFG_TUD_MTP_LOG_LEVEL
+
+TU_ATTR_UNUSED static tu_lookup_entry_t const _mpt_op_lookup[] = {
+{.key = MTP_OP_UNDEFINED                    , .data = "Undefined"                 } ,
+{.key = MTP_OP_GET_DEVICE_INFO              , .data = "GetDeviceInfo"             } ,
+{.key = MTP_OP_OPEN_SESSION                 , .data = "OpenSession"               } ,
+{.key = MTP_OP_CLOSE_SESSION                , .data = "CloseSession"              } ,
+{.key = MTP_OP_GET_STORAGE_IDS              , .data = "GetStorageIDs"             } ,
+{.key = MTP_OP_GET_STORAGE_INFO             , .data = "GetStorageInfo"            } ,
+{.key = MTP_OP_GET_NUM_OBJECTS              , .data = "GetNumObjects"             } ,
+{.key = MTP_OP_GET_OBJECT_HANDLES           , .data = "GetObjectHandles"          } ,
+{.key = MTP_OP_GET_OBJECT_INFO              , .data = "GetObjectInfo"             } ,
+{.key = MTP_OP_GET_OBJECT                   , .data = "GetObject"                 } ,
+{.key = MTP_OP_GET_THUMB                    , .data = "GetThumb"                  } ,
+{.key = MTP_OP_DELETE_OBJECT                , .data = "DeleteObject"              } ,
+{.key = MTP_OP_SEND_OBJECT_INFO             , .data = "SendObjectInfo"            } ,
+{.key = MTP_OP_SEND_OBJECT                  , .data = "SendObject"                } ,
+{.key = MTP_OP_INITIATE_CAPTURE             , .data = "InitiateCapture"           } ,
+{.key = MTP_OP_FORMAT_STORE                 , .data = "FormatStore"               } ,
+{.key = MTP_OP_RESET_DEVICE                 , .data = "ResetDevice"               } ,
+{.key = MTP_OP_SELF_TEST                    , .data = "SelfTest"                  } ,
+{.key = MTP_OP_SET_OBJECT_PROTECTION        , .data = "SetObjectProtection"       } ,
+{.key = MTP_OP_POWER_DOWN                   , .data = "PowerDown"                 } ,
+{.key = MTP_OP_GET_DEVICE_PROP_DESC         , .data = "GetDevicePropDesc"         } ,
+{.key = MTP_OP_GET_DEVICE_PROP_VALUE        , .data = "GetDevicePropValue"        } ,
+{.key = MTP_OP_SET_DEVICE_PROP_VALUE        , .data = "SetDevicePropValue"        } ,
+{.key = MTP_OP_RESET_DEVICE_PROP_VALUE      , .data = "ResetDevicePropValue"      } ,
+{.key = MTP_OP_TERMINATE_OPEN_CAPTURE       , .data = "TerminateOpenCapture"      } ,
+{.key = MTP_OP_MOVE_OBJECT                  , .data = "MoveObject"                } ,
+{.key = MTP_OP_COPY_OBJECT                  , .data = "CopyObject"                } ,
+{.key = MTP_OP_GET_PARTIAL_OBJECT           , .data = "GetPartialObject"          } ,
+{.key = MTP_OP_INITIATE_OPEN_CAPTURE        , .data = "InitiateOpenCapture"       } ,
+{.key = MTP_OP_GET_OBJECT_PROPS_SUPPORTED   , .data = "GetObjectPropsSupported"   } ,
+{.key = MTP_OP_GET_OBJECT_PROP_DESC         , .data = "GetObjectPropDesc"         } ,
+{.key = MTP_OP_GET_OBJECT_PROP_VALUE        , .data = "GetObjectPropValue"        } ,
+{.key = MTP_OP_SET_OBJECT_PROP_VALUE        , .data = "SetObjectPropValue"        } ,
+{.key = MTP_OP_GET_OBJECT_PROPLIST          , .data = "GetObjectPropList"         } ,
+{.key = MTP_OP_GET_OBJECT_PROP_REFERENCES   , .data = "GetObjectPropReferences"   } ,
+{.key = MTP_OP_GET_SERVICE_IDS              , .data = "GetServiceIDs"             } ,
+{.key = MTP_OP_GET_SERVICE_INFO             , .data = "GetServiceInfo"            } ,
+{.key = MTP_OP_GET_SERVICE_CAPABILITIES     , .data = "GetServiceCapabilities"    } ,
+{.key = MTP_OP_GET_SERVICE_PROP_DESC        , .data = "GetServicePropDesc"        } ,
+{.key = MTP_OP_GET_OBJECT_PROP_LIST         , .data = "GetObjectPropList"         } ,
+{.key = MTP_OP_SET_OBJECT_PROP_LIST         , .data = "SetObjectPropList"         } ,
+{.key = MTP_OP_GET_INTERDEPENDENT_PROP_DESC , .data = "GetInterdependentPropDesc" } ,
+{.key = MTP_OP_SEND_OBJECT_PROP_LIST        , .data = "SendObjectPropList"        }
+};
+
+TU_ATTR_UNUSED static tu_lookup_table_t const _mtp_op_table = {
+  .count = TU_ARRAY_SIZE(_mpt_op_lookup),
+  .items = _mpt_op_lookup
+};
+
+#endif
+
+
+//--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
 
@@ -382,11 +441,12 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
     _mtpd_soi.object_handle = 0;
   }
 
-  mtp_phase_type_t ret = MTP_PHASE_RESPONSE;
+  tu_lookup_find(&_mtp_op_table, cmd_block.code);
+  TU_LOG_DRV("  MTP command: %s\r\n", (char const*) tu_lookup_find(&_mtp_op_table, cmd_block.code));
 
-  switch (p_container->code) {
+  mtp_phase_type_t ret = MTP_PHASE_RESPONSE;
+  switch (cmd_block.code) {
     case MTP_OP_GET_DEVICE_INFO: {
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_INFO\n");
       tud_mtp_device_info_t dev_info = {
         .standard_version = 100,
         .mtp_vendor_extension_id = 6, // MTP specs say 0xFFFFFFFF but libMTP check for value 6
@@ -435,63 +495,14 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
       break;
     }
 
-    case MTP_OP_OPEN_SESSION:
-      TU_LOG_DRV("  MTP command: MTP_OP_OPEN_SESSION\n");
-      break;
-
-    case MTP_OP_CLOSE_SESSION:
-      TU_LOG_DRV("  MTP command: MTP_OP_CLOSE_SESSION\n");
-      break;
-
-    case MTP_OP_GET_STORAGE_IDS:
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_STORAGE_IDS\n");
-      break;
-
-    case MTP_OP_GET_STORAGE_INFO:
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_STORAGE_INFO for ID=%lu\n", p_container->data[0]);
-      break;
-
-    case MTP_OP_GET_OBJECT_HANDLES:
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_OBJECT_HANDLES\n");
-      break;
-
-    case MTP_OP_GET_OBJECT_INFO:
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_OBJECT_INFO\n");
-      break;
-
-    case MTP_OP_GET_OBJECT:
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_OBJECT\n");
-      break;
-
-    case MTP_OP_DELETE_OBJECT:
-      TU_LOG_DRV("  MTP command: MTP_OP_DELETE_OBJECT\n");
-      return mtpd_handle_cmd_delete_object();
-
-    case MTP_OP_GET_DEVICE_PROP_DESC:
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_PROP_DESC\n");
-      break;
-
-    case MTP_OP_GET_DEVICE_PROP_VALUE:
-      TU_LOG_DRV("  MTP command: MTP_OP_GET_DEVICE_PROP_VALUE\n");
-      break;
-
-    case MTP_OP_SEND_OBJECT_INFO:
-      TU_LOG_DRV("  MTP command: MTP_OP_SEND_OBJECT_INFO\n");
-      return mtpd_handle_cmd_send_object_info();
-    case MTP_OP_SEND_OBJECT:
-      TU_LOG_DRV("  MTP command: MTP_OP_SEND_OBJECT\n");
-      return mtpd_handle_cmd_send_object();
-    case MTP_OP_FORMAT_STORE:
-      TU_LOG_DRV("  MTP command: MTP_OP_FORMAT_STORE\n");
-      return mtpd_handle_cmd_format_store();
     default:
-      TU_LOG_DRV("  MTP command: MTP_OP_UNKNOWN_COMMAND %x!!!!\n", p_container->code);
-      return false;
+      break;
   }
 
   tud_mtp_command_received_cb(0, &cmd_block, p_container);
   return ret;
 }
+#if 0
 
 mtp_phase_type_t mtpd_handle_data(void)
 {
@@ -614,6 +625,7 @@ mtp_phase_type_t mtpd_handle_cmd_format_store(void)
   p_container->len = MTP_CONTAINER_HEADER_LENGTH;
   return MTP_PHASE_RESPONSE;
 }
+#endif
 
 //--------------------------------------------------------------------+
 // Checker

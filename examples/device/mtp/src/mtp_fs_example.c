@@ -25,6 +25,7 @@
 
 #include "class/mtp/mtp_device_storage.h"
 #include "tusb.h"
+#include "tinyusb_logo_png.h"
 
 #define MTPD_STORAGE_DESCRIPTION "storage"
 #define MTPD_VOLUME_IDENTIFIER "volume"
@@ -52,48 +53,55 @@ typedef MTP_STORAGE_INFO_STRUCT(TU_ARRAY_SIZE((uint16_t[]) STORAGE_DESCRIPTRION)
 //--------------------------------------------------------------------+
 // RAM FILESYSTEM
 //--------------------------------------------------------------------+
-#define FS_MAX_NODES 5UL
-#define FS_MAX_NODE_BYTES 128UL
-#define FS_MAX_NODE_NAME_LEN 64UL
-#define FS_ISODATETIME_LEN 26UL
+#define FS_MAX_FILE_COUNT 5UL
+#define FS_MAX_CAPACITY_BYTES (2 * 1024UL)
+#define FS_MAX_FILENAME_LEN 16UL
+#define FS_FIXED_DATETIME "20250808T173500.0" // "YYYYMMDDTHHMMSS.s"
+
+#define README_TXT_CONTENT "TinyUSB MTP on RAM Filesystem example"
 
 typedef struct {
-  uint32_t handle;
+  // uint32_t handle;
+  char name[FS_MAX_FILENAME_LEN];
+  mtp_object_formats_t format;
   uint32_t parent;
-  uint32_t size;
-  bool allocated;
   bool association;
-  char name[FS_MAX_NODE_NAME_LEN];
-  char created[FS_ISODATETIME_LEN];
-  char modified[FS_ISODATETIME_LEN];
-  uint8_t data[FS_MAX_NODE_BYTES];
+  uint32_t size;
+  uint8_t* data;
 } fs_object_info_t;
 
-// Sample object file
-static fs_object_info_t fs_objects[FS_MAX_NODES] = {
+// object data buffer (excluding 2 predefined files)
+uint8_t fs_buf[FS_MAX_CAPACITY_BYTES];
+uint8_t fs_buf_head = 0; // simple allocation pointer
+
+// Files system, handle is index + 1
+static fs_object_info_t fs_objects[FS_MAX_FILE_COUNT] = {
   {
-    .handle = 1,
-    .parent = 0,
-    .allocated = true,
-    .association = false,
     .name = "readme.txt",
-    .created = "20240104T111134.0",
-    .modified = "20241214T121110.0",
-    .data = "USB MTP on RAM Filesystem example\n",
-    .size = 34
+    .format = MTP_OBJ_FORMAT_TEXT,
+    .parent = 0,
+    .association = false,
+    .data = (uint8_t*) README_TXT_CONTENT,
+    .size = sizeof(README_TXT_CONTENT)
+  },
+  {
+    .name = "tinyusb.png",
+    .format = MTP_OBJ_FORMAT_PNG,
+    .parent = 0,
+    .association = false,
+    .data = logo_bin,
+    .size = logo_len,
   }
 };
 
 //------------- Storage Info -------------//
-
-
 storage_info_t storage_info = {
   .storage_type = MTP_STORAGE_TYPE_FIXED_RAM,
   .filesystem_type = MTP_FILESYSTEM_TYPE_GENERIC_HIERARCHICAL,
   .access_capability = MTP_ACCESS_CAPABILITY_READ_WRITE,
-  .max_capacity_in_bytes = FS_MAX_NODES * FS_MAX_NODE_BYTES,
-  .free_space_in_bytes = FS_MAX_NODES * FS_MAX_NODE_BYTES,
-  .free_space_in_objects = FS_MAX_NODES,
+  .max_capacity_in_bytes = sizeof(README_TXT_CONTENT) + logo_len + FS_MAX_CAPACITY_BYTES,
+  .free_space_in_bytes = 0, // calculated at runtime
+  .free_space_in_objects = 0, // calculated at runtime
   .storage_description = {
     .count = (TU_FIELD_SZIE(storage_info_t, storage_description)-1) / sizeof(uint16_t),
     .utf16 = STORAGE_DESCRIPTRION
@@ -138,32 +146,27 @@ static fs_operation_t _fs_operation = {
 //--------------------------------------------------------------------+
 
 // Get pointer to object info from handle
-fs_object_info_t* fs_object_get_from_handle(uint32_t handle);
-
-// Get the number of allocated nodes in filesystem
-unsigned int fs_get_object_count(void);
-
-fs_object_info_t* fs_object_get_from_handle(uint32_t handle) {
-  fs_object_info_t* obj;
-  for (unsigned int i = 0; i < FS_MAX_NODES; i++) {
-    obj = &fs_objects[i];
-    if (obj->allocated && obj->handle == handle)
-      return obj;
+static inline fs_object_info_t* fs_get_object(uint32_t handle) {
+  if (handle == 0 || handle > FS_MAX_FILE_COUNT) {
+    return NULL;
   }
-  return NULL;
+  return &fs_objects[handle-1];
 }
 
-unsigned int fs_get_object_count(void) {
-  unsigned int s = 0;
-  for (unsigned int i = 0; i < FS_MAX_NODES; i++) {
-    if (fs_objects[i].allocated)
-      s++;
+// Get the number of allocated nodes in filesystem
+uint32_t fs_get_object_count(void) {
+  uint32_t count = 0;
+  for (unsigned int i = 0; i < FS_MAX_FILE_COUNT; i++) {
+    if (fs_objects[i].name[0] != 0) {
+      count++;
+    }
   }
-  return s;
+  return count;
 }
 
 int32_t tud_mtp_data_complete_cb(uint8_t idx, mtp_container_header_t* cmd_header, mtp_generic_container_t* resp_block, tusb_xfer_result_t xfer_result, uint32_t xferred_bytes) {
   (void) idx;
+  (void) cmd_header;
   resp_block->len = MTP_CONTAINER_HEADER_LENGTH;
   resp_block->code = (xfer_result == XFER_RESULT_SUCCESS) ? MTP_RESP_OK : MTP_RESP_GENERAL_ERROR;
   tud_mtp_response_send(resp_block);
@@ -225,8 +228,8 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
     case MTP_OP_GET_STORAGE_INFO: {
       TU_VERIFY(SUPPORTED_STORAGE_ID == cmd_block->data[0], -1);
       // update storage info with current free space
-      storage_info.free_space_in_objects = FS_MAX_NODES - fs_get_object_count();
-      storage_info.free_space_in_bytes = storage_info.free_space_in_objects * FS_MAX_NODE_BYTES;
+      storage_info.free_space_in_objects = FS_MAX_FILE_COUNT - fs_get_object_count();
+      storage_info.free_space_in_bytes = FS_MAX_CAPACITY_BYTES-fs_buf_head;
       mtp_container_add_raw(out_block, &storage_info, sizeof(storage_info));
       tud_mtp_data_send(out_block);
       break;
@@ -274,12 +277,13 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
         return MTP_RESP_INVALID_STORAGE_ID;
       }
 
-      uint32_t handles[FS_MAX_NODES] = { 0 };
+      uint32_t handles[FS_MAX_FILE_COUNT] = { 0 };
       uint32_t count = 0;
-      for (uint8_t i = 0, h = 0; i < FS_MAX_NODES; i++) {
-        if (fs_objects[i].allocated && parent_handle == fs_objects[i].parent ||
-            (parent_handle == 0xFFFFFFFF && fs_objects[i].parent == 0)) {
-          handles[count++] = fs_objects[i].handle;
+      for (uint8_t i = 0; i < FS_MAX_FILE_COUNT; i++) {
+        fs_object_info_t* obj = &fs_objects[i];
+        if (obj->name[0] != 0 &&
+           (parent_handle == obj->parent || (parent_handle == 0xFFFFFFFF && obj->parent == 0))) {
+          handles[count++] = i + 1; // handle is index + 1
         }
       }
       mtp_container_add_auint32(out_block, count, handles);
@@ -289,22 +293,22 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
 
     case MTP_OP_GET_OBJECT_INFO: {
       const uint32_t obj_handle = cmd_block->data[0];
-      fs_object_info_t* obj = fs_object_get_from_handle(obj_handle);
+      fs_object_info_t* obj = fs_get_object(obj_handle);
       if (obj == NULL) {
         return MTP_RESP_INVALID_OBJECT_HANDLE;
       }
       mtp_object_info_header_t obj_info_header = {
         .storage_id = SUPPORTED_STORAGE_ID,
-        .object_format = MTP_OBJ_FORMAT_TEXT,
+        .object_format = obj->format,
         .protection_status =  MTP_PROTECTION_STATUS_NO_PROTECTION,
         .object_compressed_size = obj->size,
         .thumb_format = MTP_OBJ_FORMAT_UNDEFINED,
         .thumb_compressed_size = 0,
         .thumb_pix_width = 0,
         .thumb_pix_height = 0,
-        .image_pix_width = 0,
-        .image_pix_height = 0,
-        .image_bit_depth = 0,
+        .image_pix_width = 128,
+        .image_pix_height = 64,
+        .image_bit_depth = 32,
         .parent_object = obj->parent,
         .association_type = MTP_ASSOCIATION_UNDEFINED,
         .association_desc = 0,
@@ -312,8 +316,8 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
       };
       mtp_container_add_raw(out_block, &obj_info_header, sizeof(obj_info_header));
       mtp_container_add_cstring(out_block, obj->name);
-      mtp_container_add_cstring(out_block, obj->created);
-      mtp_container_add_cstring(out_block, obj->modified);
+      mtp_container_add_cstring(out_block, FS_FIXED_DATETIME);
+      mtp_container_add_cstring(out_block, FS_FIXED_DATETIME);
       mtp_container_add_cstring(out_block, ""); // keywords, not used
 
       tud_mtp_data_send(out_block);
@@ -322,7 +326,7 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
 
     case MTP_OP_GET_OBJECT: {
       const uint32_t obj_handle = cmd_block->data[0];
-      fs_object_info_t* obj = fs_object_get_from_handle(obj_handle);
+      fs_object_info_t* obj = fs_get_object(obj_handle);
       if (obj == NULL) {
         return MTP_RESP_INVALID_OBJECT_HANDLE;
       }
@@ -341,6 +345,7 @@ int32_t tud_mtp_command_received_cb(uint8_t idx, mtp_generic_container_t* cmd_bl
 //--------------------------------------------------------------------+
 // API
 //--------------------------------------------------------------------+
+#if 0
 mtp_response_t tud_mtp_storage_format(uint32_t storage_id) {
   if (_fs_operation.session_id == 0) {
     TU_LOG1("ERR: Session not open\r\n");
@@ -383,7 +388,7 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
 
   // Ensure we are not creating an orphaned object outside root
   if (parent_object != 0) {
-    obj = fs_object_get_from_handle(parent_object);
+    obj = fs_get_object(parent_object);
     if (obj == NULL) {
       TU_LOG1("Parent %ld does not exist\r\n", parent_object);
       return MTP_RESP_INVALID_PARENT_OBJECT;
@@ -433,7 +438,7 @@ mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t p
 mtp_response_t tud_mtp_storage_object_write(uint32_t object_handle, const uint8_t* buffer, uint32_t size) {
   fs_object_info_t* obj;
 
-  obj = fs_object_get_from_handle(object_handle);
+  obj = fs_get_object(object_handle);
   if (obj == NULL) {
     TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
     return MTP_RESP_INVALID_OBJECT_HANDLE;
@@ -466,7 +471,7 @@ mtp_response_t tud_mtp_storage_object_move(uint32_t object_handle, uint32_t new_
 
   // Ensure we are not moving to an nonexisting parent
   if (new_parent_object_handle != 0) {
-    obj = fs_object_get_from_handle(new_parent_object_handle);
+    obj = fs_get_object(new_parent_object_handle);
     if (obj == NULL) {
       TU_LOG1("Parent %ld does not exist\r\n", new_parent_object_handle);
       return MTP_RESP_INVALID_PARENT_OBJECT;
@@ -477,7 +482,7 @@ mtp_response_t tud_mtp_storage_object_move(uint32_t object_handle, uint32_t new_
     }
   }
 
-  obj = fs_object_get_from_handle(object_handle);
+  obj = fs_get_object(object_handle);
 
   if (obj == NULL) {
     TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
@@ -500,7 +505,7 @@ mtp_response_t tud_mtp_storage_object_delete(uint32_t object_handle) {
     object_handle = 0;
 
   if (object_handle != 0) {
-    obj = fs_object_get_from_handle(object_handle);
+    obj = fs_get_object(object_handle);
 
     if (obj == NULL) {
       TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
@@ -525,6 +530,7 @@ mtp_response_t tud_mtp_storage_object_delete(uint32_t object_handle) {
 
 void tud_mtp_storage_object_done(void) {
 }
+#endif
 
 void tud_mtp_storage_cancel(void) {
   fs_object_info_t* obj;
@@ -535,9 +541,9 @@ void tud_mtp_storage_cancel(void) {
   _fs_operation.read_pos = 0;
   // If write operation is canceled, discard object
   if (_fs_operation.write_handle) {
-    obj = fs_object_get_from_handle(_fs_operation.write_handle);
-    if (obj)
-      obj->allocated = false;
+    obj = fs_get_object(_fs_operation.write_handle);
+    // if (obj)
+    //   obj->allocated = false;
   }
   _fs_operation.write_handle = 0;
   _fs_operation.write_pos = 0;
