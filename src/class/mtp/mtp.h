@@ -658,7 +658,6 @@ typedef enum {
 // Data structures
 //--------------------------------------------------------------------+
 
-#define MTP_CONTAINER_HEADER_LENGTH 12
 #define MTP_MAX_PACKET_SIZE 512
 
 typedef struct TU_ATTR_PACKED {
@@ -669,14 +668,33 @@ typedef struct TU_ATTR_PACKED {
 } mtp_container_header_t;
 TU_VERIFY_STATIC(sizeof(mtp_container_header_t) == 12, "size is not correct");
 
+typedef struct TU_ATTR_PACKED {
+  mtp_container_header_t header;
+  uint32_t params[5];
+} mtp_container_command_t;
+TU_VERIFY_STATIC(sizeof(mtp_container_command_t) == 32, "size is not correct");
+
 // PTP/MTP Generic container
 typedef struct TU_ATTR_PACKED {
   uint32_t len;
   uint16_t type;
   uint16_t code;
   uint32_t transaction_id;
-  uint32_t data[MTP_MAX_PACKET_SIZE / sizeof(uint32_t)];
+  // union {
+    uint32_t data[(CFG_TUD_MTP_EP_BUFSIZE - sizeof(mtp_container_header_t)) / sizeof(uint32_t)];
+    // uint8_t data[CFG_TUD_MTP_EP_BUFSIZE - sizeof(mtp_container_header_t)];
+  // };
 } mtp_generic_container_t;
+TU_VERIFY_STATIC(sizeof(mtp_generic_container_t) == CFG_TUD_MTP_EP_BUFSIZE, "size is not correct");
+
+typedef struct {
+  mtp_container_header_t* header;
+  union {
+    uint8_t*  payload;
+    uint16_t* payload16;
+    uint32_t* payload32;
+  };
+} mtp_container_info_t;
 
 #define mtp_string_t(_nchars) \
   struct TU_ATTR_PACKED { \
@@ -690,12 +708,10 @@ typedef struct TU_ATTR_PACKED {
      _type arr[_count];\
    }
 
+#define mtp_aint8_t(_count)  mtp_array_t(int8_t, _count)
 #define mtp_auint16_t(_count) mtp_array_t(uint16_t, _count)
-
-typedef struct TU_ATTR_PACKED {
-  uint8_t count;
-  uint16_t utf16[];
-} mtp_flexible_string_t;
+#define mtp_auint32_t(_count) mtp_array_t(uint32_t, _count)
+#define mtp_auint64_t(_count) mtp_array_t(uint64_t, _count)
 
 typedef union TU_ATTR_PACKED {
   struct {
@@ -775,95 +791,100 @@ typedef struct TU_ATTR_PACKED {
 } mtp_basic_object_info_t;
 
 //--------------------------------------------------------------------+
-// Generic Container function
+// Container helper function
+// return number of bytes added
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_raw(mtp_generic_container_t* p_container, const void* data, uint32_t len) {
-  TU_ASSERT(p_container->len + len < sizeof(mtp_generic_container_t), 0);
-  memcpy((uint8_t*) p_container + p_container->len, data, len);
-  p_container->len += len;
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_raw(mtp_container_info_t* p_container, const void* data, uint32_t len) {
+  TU_ASSERT(p_container->header->len + len < sizeof(mtp_generic_container_t), 0);
+  uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
+  memcpy(buf, data, len);
+  p_container->header->len += len;
   return len;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_array(mtp_generic_container_t* p_container, uint8_t scalar_size, uint32_t count, const void* data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_array(mtp_container_info_t* p_container, uint8_t scalar_size, uint32_t count, const void* data) {
   const uint32_t added_len = 4 + count * scalar_size;
-  TU_ASSERT(p_container->len + added_len < sizeof(mtp_generic_container_t), 0);
-  uint8_t* container8 = (uint8_t*)p_container;
+  TU_ASSERT(p_container->header->len + added_len < sizeof(mtp_generic_container_t), 0);
+  uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
 
-  tu_unaligned_write32(container8 + p_container->len, count);
-  p_container->len += 4;
+  tu_unaligned_write32(buf, count);
+  p_container->header->len += 4;
+  buf += 4;
 
-  memcpy(container8 + p_container->len, data, count * scalar_size);
-  p_container->len += count * scalar_size;
+  memcpy(buf, data, count * scalar_size);
+  p_container->header->len += count * scalar_size;
 
   return added_len;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_generic_container_t* p_container, uint8_t count, uint16_t* utf16) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_container_info_t* p_container, uint8_t count, uint16_t* utf16) {
   const uint32_t added_len = 1 + 2 * count;
-  TU_ASSERT(p_container->len + added_len < sizeof(mtp_generic_container_t), 0);
-  uint8_t* container8 = (uint8_t*) p_container;
+  TU_ASSERT(p_container->header->len + added_len < sizeof(mtp_generic_container_t), 0);
+  uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
 
-  container8[p_container->len] = count;
-  p_container->len++;
+  *buf++ = count;
+  p_container->header->len++;
 
-  memcpy(container8 + p_container->len, utf16, 2 * count);
-  p_container->len += 2 * count;
+  memcpy(buf, utf16, 2 * count);
+  p_container->header->len += 2 * count;
 
   return added_len;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_cstring(mtp_generic_container_t* p_container, const char* str) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_cstring(mtp_container_info_t* p_container, const char* str) {
   const uint8_t len = (uint8_t) (strlen(str) + 1); // include null
-  TU_ASSERT(p_container->len + 1 + 2 * len < sizeof(mtp_generic_container_t), 0);
-
-  uint8_t* container8 = (uint8_t*) p_container;
-  container8[p_container->len] = len;
-  p_container->len++;
+  TU_ASSERT(p_container->header->len + 1 + 2 * len < sizeof(mtp_generic_container_t), 0);
+  uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
 
   if (len == 1) {
-    // empty string (null only)
-    container8[p_container->len] = 0;
+    // empty string (null only): single zero byte
+    *buf = 0;
+    p_container->header->len++;
     return 1;
   } else {
+    *buf++ = len;
+    p_container->header->len++;
+
     for (uint8_t i = 0; i < len; i++) {
-      container8[p_container->len] = str[i];
-      container8[p_container->len + 1] = 0;
-      p_container->len += 2;
+      buf[0] = str[i];
+      buf[1] = 0;
+      buf += 2;
+      p_container->header->len += 2;
     }
     return 1 + 2 * len;
   }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint8(mtp_generic_container_t* p_container, uint8_t data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint8(mtp_container_info_t* p_container, uint8_t data) {
   return mtp_container_add_raw(p_container, &data, 1);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint16(mtp_generic_container_t* p_container, uint16_t data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint16(mtp_container_info_t* p_container, uint16_t data) {
   return mtp_container_add_raw(p_container, &data, 2);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint32(mtp_generic_container_t* p_container, uint32_t data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint32(mtp_container_info_t* p_container, uint32_t data) {
   return mtp_container_add_raw(p_container, &data, 4);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint64(mtp_generic_container_t* p_container, uint64_t data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint64(mtp_container_info_t* p_container, uint64_t data) {
   return mtp_container_add_raw(p_container, &data, 8);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint128(mtp_generic_container_t* p_container, const void* data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint128(mtp_container_info_t* p_container, const void* data) {
   return mtp_container_add_raw(p_container, data, 16);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint8(mtp_generic_container_t* p_container, uint32_t count, const uint8_t* data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint8(mtp_container_info_t* p_container, uint32_t count, const uint8_t* data) {
   return mtp_container_add_array(p_container, sizeof(uint8_t), count, data);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint16(mtp_generic_container_t* p_container, uint32_t count, const uint16_t* data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint16(mtp_container_info_t* p_container, uint32_t count, const uint16_t* data) {
   return mtp_container_add_array(p_container, sizeof(uint16_t), count, data);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint32(mtp_generic_container_t* p_container, uint32_t count, const uint32_t* data) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint32(mtp_container_info_t* p_container, uint32_t count, const uint32_t* data) {
   return mtp_container_add_array(p_container, sizeof(uint32_t), count, data);
 }
 

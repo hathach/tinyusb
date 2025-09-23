@@ -67,7 +67,8 @@ typedef struct {
   bool     xfer_completed; // true when DATA-IN/DATA-OUT transfer is completed
 
   uint32_t session_id;
-  mtp_container_header_t cmd_header;
+  mtp_container_command_t command;
+  // mtp_container_header_t reply_header;
 } mtpd_interface_t;
 
 typedef struct {
@@ -81,7 +82,7 @@ typedef struct {
 static mtp_phase_type_t mtpd_chk_generic(const char *func_name, const bool err_cd, const uint16_t ret_code, const char *message);
 
 // MTP commands
-static mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp);
+static mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data);
 static mtp_phase_type_t mtpd_handle_data(void);
 static mtp_phase_type_t mtpd_handle_cmd_delete_object(void);
 static mtp_phase_type_t mtpd_handle_cmd_send_object_info(void);
@@ -265,26 +266,24 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   return true;
 }
 
-bool tud_mtp_data_send(mtp_generic_container_t* data_block) {
+bool tud_mtp_data_send(mtp_container_info_t* p_container) {
   mtpd_interface_t* p_mtp = &_mtpd_itf;
   p_mtp->phase = MTP_PHASE_DATA;
-  p_mtp->total_len = data_block->len;
+  p_mtp->total_len = p_container->header->len;
   p_mtp->xferred_len = 0;
   p_mtp->handled_len = 0;
   p_mtp->xfer_completed = false;
 
-  data_block->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-  data_block->transaction_id = p_mtp->cmd_header.transaction_id;
-  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t*) data_block, (uint16_t)data_block->len));
+  p_container->header->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
+  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t *)(&_mtpd_epbuf.container), (uint16_t)p_container->header->len));
   return true;
 }
 
-bool tud_mtp_response_send(mtp_generic_container_t* resp_block) {
+bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   mtpd_interface_t* p_mtp = &_mtpd_itf;
   p_mtp->phase = MTP_PHASE_RESPONSE_QUEUED;
-  resp_block->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  resp_block->transaction_id = p_mtp->cmd_header.transaction_id;
-  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t*) resp_block, (uint16_t)resp_block->len));
+  p_container->header->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
+  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t *)(&_mtpd_epbuf.container), (uint16_t)p_container->header->len));
   return true;
 }
 
@@ -300,6 +299,13 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   mtpd_interface_t* p_mtp = &_mtpd_itf;
   mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
 
+  tud_mtp_cb_data_t cb_data;
+  cb_data.idx = 0;
+  cb_data.command = &p_mtp->command;
+  cb_data.reply.header = (mtp_container_header_t*) p_container;
+  cb_data.reply.payload32 = p_container->data;
+  cb_data.offset = 0;
+
   switch (p_mtp->phase) {
     case MTP_PHASE_IDLE:
       // received new command
@@ -308,7 +314,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_ATTR_FALLTHROUGH; // handle in the next case
 
     case MTP_PHASE_COMMAND: {
-      mtpd_handle_cmd(p_mtp);
+      memcpy(&p_mtp->command, p_container, sizeof(mtp_container_command_t)); // copy new command
+      mtpd_handle_cmd(p_mtp, &cb_data);
       break;
     }
 
@@ -320,7 +327,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if (xferred_bytes == 0 || // ZLP
           (xferred_bytes & (bulk_mps - 1)) || // short packet
           p_mtp->xferred_len > p_mtp->total_len) {
-        tud_mtp_data_complete_cb(0, &p_mtp->cmd_header, p_container, event, p_mtp->xferred_len);
+        tud_mtp_data_complete_cb(&cb_data);
       } else {
         TU_ASSERT(false);
       }
@@ -404,7 +411,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     case MTP_PHASE_RESPONSE_QUEUED:
       // response phase is complete -> prepare for new command
       TU_ASSERT(ep_addr == p_mtp->ep_in);
-      tud_mtp_response_complete_cb(0, &p_mtp->cmd_header, p_container, event, xferred_bytes);
+      tud_mtp_response_complete_cb(&cb_data);
       prepare_new_command(p_mtp);
       break;
 
@@ -429,23 +436,15 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 //--------------------------------------------------------------------+
 
 // Decode command and prepare response
-mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
+mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
   mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
+  p_container->len = sizeof(mtp_container_header_t); // default data/response length
 
-  mtp_generic_container_t cmd_block; // copy command block for callback
-  memcpy(&cmd_block, p_container, p_container->len);
-  memcpy(&p_mtp->cmd_header, p_container, sizeof(mtp_container_header_t));
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH; // default data/response length
+  tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code);
+  TU_LOG_DRV("  MTP command: %s\r\n", (char const*) tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code));
 
-  if (p_container->code != MTP_OP_SEND_OBJECT) {
-    _mtpd_soi.object_handle = 0;
-  }
-
-  tu_lookup_find(&_mtp_op_table, cmd_block.code);
-  TU_LOG_DRV("  MTP command: %s\r\n", (char const*) tu_lookup_find(&_mtp_op_table, cmd_block.code));
-
-  mtp_phase_type_t ret = MTP_PHASE_RESPONSE;
-  switch (cmd_block.code) {
+  // pre-processed commands
+  switch (p_mtp->command.header.code) {
     case MTP_OP_GET_DEVICE_INFO: {
       tud_mtp_device_info_t dev_info = {
         .standard_version = 100,
@@ -486,12 +485,8 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
         dev_info.mtp_extensions.utf16[i] = (uint16_t)CFG_TUD_MTP_DEVICEINFO_EXTENSIONS[i];
       }
 #endif
-      p_container->len = MTP_CONTAINER_HEADER_LENGTH + sizeof(tud_mtp_device_info_t);
+      mtp_container_add_raw(&cb_data->reply, &dev_info, sizeof(tud_mtp_device_info_t));
       p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-      p_container->code = MTP_OP_GET_DEVICE_INFO;
-      memcpy(p_container->data, &dev_info, sizeof(tud_mtp_device_info_t));
-
-      ret = MTP_PHASE_RESPONSE;
       break;
     }
 
@@ -499,8 +494,8 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp) {
       break;
   }
 
-  tud_mtp_command_received_cb(0, &cmd_block, p_container);
-  return ret;
+  tud_mtp_command_received_cb(cb_data);
+  return MTP_PHASE_RESPONSE;
 }
 #if 0
 
@@ -640,7 +635,7 @@ mtp_phase_type_t mtpd_chk_generic(const char *func_name, const bool err_cd, cons
     TU_LOG_DRV("  MTP error in %s: (%x) %s\n", func_name, ret_code, message);
     p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
     p_container->code = ret_code;
-    p_container->len = MTP_CONTAINER_HEADER_LENGTH;
+    p_container->len = sizeof(mtp_container_header_t);
      return MTP_PHASE_RESPONSE;
   }
   return MTP_PHASE_NONE;

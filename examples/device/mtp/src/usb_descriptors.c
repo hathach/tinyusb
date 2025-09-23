@@ -109,18 +109,16 @@ enum
 
 #define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_MTP_DESC_LEN)
 
-uint8_t const desc_fs_configuration[] =
-{
+uint8_t const desc_fs_configuration[] = {
   // Config number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
-    TUD_MTP_DESCRIPTOR(ITF_NUM_MTP, 4, EPNUM_MTP_EVT, CFG_MTP_EVT_EP_SIZE, CFG_MTP_EVT_INTERVAL, EPNUM_MTP_OUT, EPNUM_MTP_IN, CFG_MTP_EP_SIZE),
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+  TUD_MTP_DESCRIPTOR(ITF_NUM_MTP, 4, EPNUM_MTP_EVT, 64, 1, EPNUM_MTP_OUT, EPNUM_MTP_IN, 64),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
-uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
-{
+uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
   (void) index; // for multiple configurations
   return desc_fs_configuration;
 }
