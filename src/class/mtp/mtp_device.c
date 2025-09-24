@@ -69,17 +69,13 @@ typedef struct {
 } mtpd_interface_t;
 
 typedef struct {
-  TUD_EPBUF_TYPE_DEF(mtp_generic_container_t, container);
+  TUD_EPBUF_DEF(buf, CFG_TUD_MTP_EP_BUFSIZE);
 } mtpd_epbuf_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-// Checker
-static mtp_phase_type_t mtpd_chk_generic(const char *func_name, const bool err_cd, const uint16_t ret_code, const char *message);
-
-// MTP commands
-static mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data);
+static int32_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data);
 static mtp_phase_type_t mtpd_handle_data(void);
 static mtp_phase_type_t mtpd_handle_cmd_delete_object(void);
 static mtp_phase_type_t mtpd_handle_cmd_send_object_info(void);
@@ -95,10 +91,7 @@ static mtpd_interface_t _mtpd_itf;
 CFG_TUD_MEM_SECTION static mtpd_epbuf_t _mtpd_epbuf;
 
 CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static mtp_device_status_res_t _mtpd_device_status_res;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint32_t _mtpd_get_object_handle;
 CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static mtp_basic_object_info_t _mtpd_soi;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static char _mtp_datestr[20];
-
 
 //--------------------------------------------------------------------+
 // Debug
@@ -165,9 +158,8 @@ TU_ATTR_UNUSED static tu_lookup_table_t const _mtp_op_table = {
 
 static bool prepare_new_command(mtpd_interface_t* p_mtp) {
   p_mtp->phase = MTP_PHASE_IDLE;
-  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, (uint8_t *)(&_mtpd_epbuf.container), sizeof(mtp_generic_container_t));
+  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE);
 }
-
 
 //--------------------------------------------------------------------+
 // USBD Driver API
@@ -175,7 +167,6 @@ static bool prepare_new_command(mtpd_interface_t* p_mtp) {
 void mtpd_init(void) {
   tu_memclr(&_mtpd_itf, sizeof(mtpd_interface_t));
   tu_memclr(&_mtpd_soi, sizeof(mtp_basic_object_info_t));
-  _mtpd_get_object_handle = 0;
 }
 
 bool mtpd_deinit(void) {
@@ -187,7 +178,6 @@ void mtpd_reset(uint8_t rhport) {
   tu_memclr(&_mtpd_itf, sizeof(mtpd_interface_t));
   tu_memclr(&_mtpd_epbuf, sizeof(mtpd_epbuf_t));
   tu_memclr(&_mtpd_soi, sizeof(mtp_basic_object_info_t));
-  _mtpd_get_object_handle = 0;
 }
 
 uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16_t max_len) {
@@ -242,7 +232,7 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
       TU_LOG_DRV("  MTP request: MTP_REQ_RESET\n");
       tud_mtp_storage_reset();
       // Prepare for a new command
-      TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, (uint8_t *)(&_mtpd_epbuf.container), sizeof(mtp_generic_container_t)));
+      TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE));
       break;
 
     case MTP_REQ_GET_DEVICE_STATUS: {
@@ -272,7 +262,7 @@ bool tud_mtp_data_send(mtp_container_info_t* p_container) {
     p_mtp->xferred_len = 0;
 
     p_container->header->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-    p_container->header->transaction_id = p_mtp->command.header.transaction_id;
+    p_container->header->transaction_id = p_mtp->command.transaction_id;
     p_mtp->reply_header = *p_container->header; // save header for subsequent data
   } else {
     // subsequent data block: payload only
@@ -280,7 +270,7 @@ bool tud_mtp_data_send(mtp_container_info_t* p_container) {
   }
 
   const uint16_t xact_len = tu_min32(p_mtp->total_len - p_mtp->xferred_len, CFG_TUD_MTP_EP_BUFSIZE);
-  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t *)(&_mtpd_epbuf.container), xact_len));
+  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, xact_len));
 
   return true;
 }
@@ -289,22 +279,25 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   mtpd_interface_t* p_mtp = &_mtpd_itf;
   p_mtp->phase = MTP_PHASE_RESPONSE_QUEUED;
   p_container->header->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->header->transaction_id = p_mtp->command.header.transaction_id;
-  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, (uint8_t *)(&_mtpd_epbuf.container), (uint16_t)p_container->header->len));
+  p_container->header->transaction_id = p_mtp->command.transaction_id;
+  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, (uint16_t)p_container->header->len));
   return true;
 }
 
 // Transfer on bulk endpoints
 bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
-  TU_ASSERT(event == XFER_RESULT_SUCCESS);
-
   if (ep_addr == _mtpd_itf.ep_event) {
     // nothing to do
     return true;
   }
 
   mtpd_interface_t* p_mtp = &_mtpd_itf;
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
+  mtp_generic_container_t* p_container = (mtp_generic_container_t*) _mtpd_epbuf.buf;
+
+#if CFG_TUSB_DEBUG >= CFG_TUD_MTP_LOG_LEVEL
+  tu_lookup_find(&_mtp_op_table, p_mtp->command.code);
+  TU_LOG_DRV("  MTP %s phase = %u\r\n", (const char *) tu_lookup_find(&_mtp_op_table, p_mtp->command.code), p_mtp->phase);
+#endif
 
   tud_mtp_cb_data_t cb_data;
   cb_data.idx = 0;
@@ -323,8 +316,10 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_ATTR_FALLTHROUGH; // handle in the next case
 
     case MTP_PHASE_COMMAND: {
-      memcpy(&p_mtp->command, p_container, sizeof(mtp_container_command_t)); // copy new command
-      mtpd_handle_cmd(p_mtp, &cb_data);
+      memcpy(&p_mtp->command, p_container, sizeof(mtp_container_command_t)); // save new command
+      if (mtpd_handle_cmd(p_mtp, &cb_data) < 0) {
+        p_mtp->phase = MTP_PHASE_ERROR;
+      }
       break;
     }
 
@@ -337,6 +332,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       if (xferred_bytes == 0 || // ZLP
           (xferred_bytes & (bulk_mps - 1)) || // short packet
           p_mtp->xferred_len > p_mtp->total_len) {
+        cb_data.reply.header->len = sizeof(mtp_container_header_t);
         tud_mtp_data_complete_cb(&cb_data);
       } else {
         // payload only packet
@@ -450,15 +446,11 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 //--------------------------------------------------------------------+
 
 // Decode command and prepare response
-mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  p_container->len = sizeof(mtp_container_header_t); // default data/response length
-
-  tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code);
-  TU_LOG_DRV("  MTP command: %s\r\n", (char const*) tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code));
+int32_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
+  cb_data->reply.header->len = sizeof(mtp_container_header_t);
 
   // pre-processed commands
-  switch (p_mtp->command.header.code) {
+  switch (p_mtp->command.code) {
     case MTP_OP_GET_DEVICE_INFO: {
       tud_mtp_device_info_t dev_info = {
         .standard_version = 100,
@@ -500,7 +492,6 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_
       }
 #endif
       mtp_container_add_raw(&cb_data->reply, &dev_info, sizeof(tud_mtp_device_info_t));
-      p_container->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
       break;
     }
 
@@ -508,14 +499,13 @@ mtp_phase_type_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_
       break;
   }
 
-  tud_mtp_command_received_cb(cb_data);
-  return MTP_PHASE_RESPONSE;
+  return tud_mtp_command_received_cb(cb_data);
 }
 #if 0
 
 mtp_phase_type_t mtpd_handle_data(void)
 {
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
+  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
   TU_ASSERT(p_container->type == MTP_CONTAINER_TYPE_DATA_BLOCK);
 
   switch(p_container->code)
@@ -535,7 +525,7 @@ mtp_phase_type_t mtpd_handle_data(void)
 
 mtp_phase_type_t mtpd_handle_cmd_delete_object(void)
 {
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
+  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
   uint32_t object_handle = p_container->data[0];
   uint32_t object_code_format = p_container->data[1]; // not used
   (void) object_code_format;
@@ -552,7 +542,7 @@ mtp_phase_type_t mtpd_handle_cmd_delete_object(void)
 
 mtp_phase_type_t mtpd_handle_cmd_send_object_info(void)
 {
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
+  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
   _mtpd_soi.storage_id = p_container->data[0];
   _mtpd_soi.parent_object_handle = (p_container->data[1] == 0xFFFFFFFF ? 0 : p_container->data[1]);
 
@@ -562,7 +552,7 @@ mtp_phase_type_t mtpd_handle_cmd_send_object_info(void)
 
 mtp_phase_type_t mtpd_handle_dto_send_object_info(void)
 {
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
+  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
   uint32_t new_object_handle = 0;
   mtp_response_t res = tud_mtp_storage_object_write_info(_mtpd_soi.storage_id, _mtpd_soi.parent_object_handle, &new_object_handle, (mtp_object_info_header_t *)p_container->data);
   mtp_phase_type_t phase;
@@ -589,7 +579,7 @@ mtp_phase_type_t mtpd_handle_cmd_send_object(void)
 
 mtp_phase_type_t mtpd_handle_dto_send_object(void)
 {
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
+  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
   uint8_t *buffer = (uint8_t *)&p_container->data;
   uint32_t buffer_size = _mtpd_itf.xferred_len - _mtpd_itf.handled_len;
   // First block of DATA
@@ -622,7 +612,7 @@ mtp_phase_type_t mtpd_handle_dto_send_object(void)
 
 mtp_phase_type_t mtpd_handle_cmd_format_store(void)
 {
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
+  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
   uint32_t storage_id = p_container->data[0];
   uint32_t file_system_format = p_container->data[1]; // not used
   (void) file_system_format;
@@ -636,124 +626,4 @@ mtp_phase_type_t mtpd_handle_cmd_format_store(void)
 }
 #endif
 
-//--------------------------------------------------------------------+
-// Checker
-//--------------------------------------------------------------------+
-mtp_phase_type_t mtpd_chk_generic(const char *func_name, const bool err_cd, const uint16_t ret_code, const char *message)
-{
-  (void)func_name;
-  (void)message;
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  if (err_cd)
-  {
-    TU_LOG_DRV("  MTP error in %s: (%x) %s\n", func_name, ret_code, message);
-    p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-    p_container->code = ret_code;
-    p_container->len = sizeof(mtp_container_header_t);
-     return MTP_PHASE_RESPONSE;
-  }
-  return MTP_PHASE_NONE;
-}
-
-//--------------------------------------------------------------------+
-// Generic container data
-//--------------------------------------------------------------------+
-void mtpd_wc16cpy(uint8_t *dest, const char *src)
-{
-  wchar16_t s;
-  while(true)
-  {
-    s = *src;
-    memcpy(dest, &s, sizeof(wchar16_t));
-    if (*src == 0) break;
-    ++src;
-    dest += sizeof(wchar16_t);
-  }
-}
-
-//--------------------------------------------------------------------+
-// Generic container function
-//--------------------------------------------------------------------+
-bool mtpd_gct_append_uint8(const uint8_t value)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  uint8_t *p_value = ((uint8_t *)p_container) + p_container->len;
-  p_container->len += sizeof(uint8_t);
-  // Verify space requirement (8 bit string length, number of wide characters including terminator)
-  TU_ASSERT(p_container->len < sizeof(mtp_generic_container_t));
-  *p_value = value;
-  return true;
-}
-
-bool mtpd_gct_append_object_handle(const uint32_t object_handle)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  p_container->len += sizeof(uint32_t);
-  TU_ASSERT(p_container->len < sizeof(mtp_generic_container_t));
-  p_container->data[0]++;
-  p_container->data[p_container->data[0]] = object_handle;
-  return true;
-}
-
-bool mtpd_gct_append_wstring(const char *s)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  size_t len = strlen(s) + 1;
-  TU_ASSERT(len <= UINT8_MAX);
-  uint8_t *p_len = ((uint8_t *)p_container)+p_container->len;
-  p_container->len += sizeof(uint8_t) + sizeof(wchar16_t) * len;
-  // Verify space requirement (8 bit string length, number of wide characters including terminator)
-  TU_ASSERT(p_container->len < sizeof(mtp_generic_container_t));
-  *p_len = (uint8_t)len;
-  uint8_t *p_str = p_len + sizeof(uint8_t);
-  mtpd_wc16cpy(p_str, s);
-  return true;
-}
-
-bool mtpd_gct_get_string(uint16_t *offset_data, char *string, const uint16_t max_size)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  uint16_t size = *(((uint8_t *)&p_container->data) + *offset_data);
-  if (size > max_size)
-      size = max_size;
-  TU_ASSERT(*offset_data + size < sizeof(p_container->data));
-
-  uint8_t *s = ((uint8_t *)&p_container->data) + *offset_data + sizeof(uint8_t);
-  for(uint16_t i = 0; i < size; i++)
-  {
-    string[i] = *s;
-    s += sizeof(wchar16_t);
-  }
-  *offset_data += (uint16_t)(sizeof(uint8_t) + size * sizeof(wchar16_t));
-  return true;
-}
-
-bool mtpd_gct_append_array(uint32_t array_size, const void *data, size_t type_size)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  TU_ASSERT(p_container->len + sizeof(uint32_t) + array_size * type_size < sizeof(p_container->data));
-  uint8_t *p = ((uint8_t *)p_container) + p_container->len;
-  memcpy(p, &array_size, sizeof(uint32_t));
-  p += sizeof(uint32_t);
-  memcpy(p, data, array_size * type_size);
-  p_container->len += sizeof(uint32_t) + array_size * type_size;
-  return true;
-}
-
-bool mtpd_gct_append_date(struct tm *timeinfo)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.container;
-  // strftime is not supported by all platform, this implementation is just for reference
-  int len = snprintf(_mtp_datestr, sizeof(p_container->data) - p_container->len, "%04d%02d%02dT%02d%02d%02dZ",
-    timeinfo->tm_year + 1900,
-    timeinfo->tm_mon + 1,
-    timeinfo->tm_mday,
-    timeinfo->tm_hour,
-    timeinfo->tm_min,
-    timeinfo->tm_sec);
-  if (len == 0)
-    return false;
-  return mtpd_gct_append_wstring(_mtp_datestr);
-}
-
-#endif // (CFG_TUD_ENABLED && CFG_TUD_MTP)
+#endif

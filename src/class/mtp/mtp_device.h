@@ -107,9 +107,9 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container);
 // Bulk only protocol Callbacks
 //--------------------------------------------------------------------+
 
-// Invoked when new command is received. Application fill the out_block with either DATA or RESPONSE container
-// and call tud_mtp_data_send() or tud_mtp_response_send().
-// return MTP response code
+/* Invoked when new command is received. Application fill the cb_data->reply with either DATA or RESPONSE and call
+ * tud_mtp_data_send() or tud_mtp_response_send(). Return negative to stall the endpoints
+ */
 int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t * cb_data);
 
 // Invoked when a data packet is received/sent, and more data is expected
@@ -120,26 +120,6 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data);
 
 // Invoked when response phase is complete
 int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data);
-
-//--------------------------------------------------------------------+
-// Helper functions
-//--------------------------------------------------------------------+
-// Generic container function
-void mtpd_wc16cpy(uint8_t *dest, const char *src);
-bool mtpd_gct_append_uint8(const uint8_t value);
-bool mtpd_gct_append_object_handle(const uint32_t object_handle);
-bool mtpd_gct_append_wstring(const char *s);
-bool mtpd_gct_get_string(uint16_t *offset_data, char *string, const uint16_t max_size);
-
-// Append the given array to the global context buffer
-// The function returns true if the data fits in the available buffer space.
-bool mtpd_gct_append_array(uint32_t array_size, const void *data, size_t type_size);
-
-// Append an UTC date string to the global context buffer
-// Required format is 'YYYYMMDDThhmmss.s' optionally added 'Z' for UTC or +/-hhmm for time zone
-// This function is provided for reference and only supports UTC format without partial seconds
-// The function returns true if the data fits in the available buffer space.
-bool mtpd_gct_append_date(struct tm *timeinfo);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
