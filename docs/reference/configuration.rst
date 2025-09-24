@@ -173,15 +173,21 @@ Memory Management
 RTOS Configuration
 ------------------
 
-**FreeRTOS**:
+TinyUSB supports multiple operating systems through its OSAL (Operating System Abstraction Layer). Choose the appropriate configuration based on your target environment.
+
+**FreeRTOS Integration**:
+
+When using FreeRTOS, configure the task queue sizes to handle USB events efficiently:
 
 .. code-block:: c
 
    #define CFG_TUSB_OS                 OPT_OS_FREERTOS
-   #define CFG_TUD_TASK_QUEUE_SZ       16
-   #define CFG_TUH_TASK_QUEUE_SZ       16
+   #define CFG_TUD_TASK_QUEUE_SZ       16  // Device task queue size
+   #define CFG_TUH_TASK_QUEUE_SZ       16  // Host task queue size
 
-**RT-Thread**:
+**RT-Thread Integration**:
+
+RT-Thread requires only the OS selection, as it uses the RTOS's built-in primitives:
 
 .. code-block:: c
 

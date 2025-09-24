@@ -177,11 +177,7 @@ Slow Transfer Speeds
 
 **Symptoms**: Lower than expected USB transfer rates
 
-*Causes and solutions*:
-- **Task scheduling**: Call ``tud_task()``/``tuh_task()`` more frequently
-- **Endpoint buffer sizes**: Increase buffer sizes for bulk transfers
-- **DMA usage**: Enable DMA for USB transfers if supported
-- **USB speed**: Use High Speed (480 Mbps) instead of Full Speed (12 Mbps)
+*Causes and solutions*: Improve **task scheduling** by calling ``tud_task()``/``tuh_task()`` more frequently to ensure timely USB event processing. Consider increasing **endpoint buffer sizes** for bulk transfers to reduce the frequency of small transfers. Enable **DMA usage** for USB transfers if your hardware supports it to offload CPU processing. Finally, use **High Speed** (480 Mbps) instead of Full Speed (12 Mbps) when possible to achieve better throughput.
 
 High CPU Usage
 --------------
@@ -193,34 +189,6 @@ High CPU Usage
 - Reduce log level in production builds
 - Optimize descriptor parsing
 - Use DMA for data transfers
-
-Memory Issues
-=============
-
-Stack Overflow
---------------
-
-**Symptoms**: Hard faults, random crashes, especially during enumeration
-
-*Diagnosis*:
-- Build with ``DEBUG=1`` and use debugger
-- Check stack pointer before/after USB operations
-- Monitor stack usage with RTOS tools
-
-*Solutions*:
-- Increase stack size in linker script
-- Reduce local variable usage in callbacks
-- Use static buffers instead of large stack arrays
-
-Heap Issues
------------
-
-**Note**: TinyUSB doesn't use dynamic allocation, but your application might.
-
-*Check*:
-- Application code using malloc/free
-- RTOS heap usage
-- Third-party library allocations
 
 Hardware-Specific Issues
 ========================
@@ -246,10 +214,6 @@ RP2040 Issues
 - CPU overclocking may be needed for reliable operation
 - Timing-sensitive - avoid long interrupt disable periods
 
-**Flash/RAM constraints**:
-- Large USB applications may exceed RP2040 limits
-- Use code optimization and remove unused features
-
 ESP32 Issues
 ------------
 
@@ -272,6 +236,9 @@ For complex issues, hardware USB analyzers provide detailed protocol traces:
 
 Debugging with GDB
 ------------------
+
+Debugging with traditional debuggers is limited due to the real time nature of USB.
+However, especially for diagnosis of crashes, it can still be useful.
 
 .. code-block:: bash
 

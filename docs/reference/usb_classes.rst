@@ -268,10 +268,7 @@ Most classes require callback functions:
 Performance Considerations
 --------------------------
 
-- **Buffer Sizes**: Match endpoint buffer sizes to expected data rates
-- **Transfer Types**: Use appropriate USB transfer types (bulk, interrupt, isochronous)
-- **CPU Usage**: Minimize processing in interrupt context
-- **Memory Usage**: Static allocation only, no dynamic memory
+When implementing USB classes, match **buffer sizes** to expected data rates to avoid bottlenecks. Choose appropriate **transfer types** based on your application's requirements. Keep **callback processing** lightweight for optimal performance. Avoid **memory allocations in critical paths** where possible to maintain consistent performance.
 
 Testing and Validation
 ----------------------

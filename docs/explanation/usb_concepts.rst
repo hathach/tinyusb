@@ -134,27 +134,16 @@ Endpoint Basics
 Endpoint Configuration
 ----------------------
 
-Each endpoint is configured with:
-- **Transfer type**: Control, bulk, interrupt, or isochronous
-- **Direction**: IN, OUT, or bidirectional (control only)
-- **Maximum packet size**: Depends on USB speed and transfer type
-- **Interval**: For interrupt and isochronous endpoints
+Each endpoint is configured with a specific **transfer type** (control, bulk, interrupt, or isochronous), a **direction** (IN, OUT, or bidirectional for control only), a **maximum packet size** that depends on USB speed and transfer type, and an **interval** for interrupt and isochronous endpoints.
 
 **TinyUSB Configuration**: Endpoint characteristics are defined in descriptors (``usb_descriptors.c``) and automatically configured by the stack. Buffer sizes are set via ``CFG_TUD_*_EP_BUFSIZE`` macros.
 
 Error Handling and Flow Control
 -------------------------------
 
-**Transfer Results**: USB transfers can complete with different results:
-- **ACK**: Successful transfer
-- **NAK**: Device not ready (used for flow control)
-- **STALL**: Error condition or unsupported request
-- **Timeout**: Transfer failed to complete in time
+**Transfer Results**: USB transfers can complete with different results. An **ACK** indicates a successful transfer, while a **NAK** signals that the device is not ready (commonly used for flow control). A **STALL** response indicates an error condition or unsupported request, and **Timeout** occurs when a transfer fails to complete within the expected time frame.
 
-**Flow Control in USB**: Unlike network protocols, USB doesn't use congestion control. Instead:
-- Devices use NAK responses when not ready to receive data
-- Applications implement buffering and proper timing
-- Some classes (like CDC) support hardware flow control (RTS/CTS)
+**Flow Control in USB**: Unlike network protocols, USB doesn't use traditional congestion control. Instead, devices use NAK responses when not ready to receive data, applications implement buffering and proper timing strategies, and some classes (like CDC) support hardware flow control mechanisms such as RTS/CTS.
 
 **TinyUSB Handling**: Transfer results are represented as ``xfer_result_t`` enum values. The stack automatically handles NAK responses and timing. STALL conditions indicate application-level errors that should be addressed in class drivers.
 
@@ -278,11 +267,7 @@ Controller Fundamentals
 - Generate interrupts for USB events
 - Implement USB electrical specifications
 
-**Key Components**:
-- **Physical Layer**: USB signal drivers and receivers
-- **Protocol Engine**: Handles USB packets, ACK/NAK responses
-- **Endpoint Buffers**: Hardware FIFOs or RAM for data storage
-- **Interrupt Controller**: Generates events for software processing
+**Key Components**: USB controllers consist of several key components working together. The **Physical Layer** provides USB signal drivers and receivers for electrical interfacing. The **Protocol Engine** handles USB packets and ACK/NAK responses according to the USB specification. **Endpoint Buffers** provide hardware FIFOs or RAM for data storage during transfers. Finally, the **Interrupt Controller** generates events for software processing when USB activities occur.
 
 Controller Architecture Types
 -----------------------------

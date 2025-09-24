@@ -12,10 +12,7 @@ Memory Safety
 
 TinyUSB is designed for resource-constrained embedded systems with strict memory requirements:
 
-- **No dynamic allocation**: All memory is statically allocated at compile time
-- **Bounded buffers**: All buffers have compile-time defined sizes
-- **Stack-based design**: No heap usage in the core stack
-- **Predictable memory usage**: Memory consumption is deterministic
+TinyUSB uses **no dynamic allocation** - all memory is statically allocated at compile time for predictability. All buffers have bounded, compile-time defined sizes to prevent overflow issues. The TinyUSB core avoids heap allocation, resulting in **predictable memory usage** where consumption is fully deterministic.
 
 Thread Safety
 -------------
@@ -54,7 +51,7 @@ TinyUSB follows a layered architecture from hardware to application:
    ├─────────────────────────────────────────┤
    │        Device/Host Stack Core           │ ← USB protocol handling
    ├─────────────────────────────────────────┤
-   │      Hardware Abstraction (DCD/HCD)    │ ← MCU-specific drivers
+   │      Hardware Abstraction (DCD/HCD)     │ ← MCU-specific drivers
    ├─────────────────────────────────────────┤
    │         OS Abstraction (OSAL)           │ ← RTOS integration
    ├─────────────────────────────────────────┤
@@ -78,6 +75,8 @@ Component Overview
 
 Device Stack Architecture
 =========================
+
+This section is concerned with the **Device Stack**, i.e., the component of TinyUSB used in USB devices (that talk to a USB host).
 
 Core Components
 ---------------
@@ -137,6 +136,8 @@ TinyUSB uses a deferred interrupt model for thread safety:
 
 Host Stack Architecture
 =======================
+
+This section is concerned with the **Host Stack**, i.e., the component of TinyUSB used in USB hosts, managing connected USB devices.
 
 Core Components
 ---------------
@@ -223,12 +224,7 @@ Memory Management
 Static Allocation Model
 -----------------------
 
-TinyUSB uses only static memory allocation:
-
-- **Endpoint Buffers**: Fixed-size buffers for each endpoint
-- **Class Buffers**: Static buffers for class-specific data
-- **Control Buffers**: Fixed buffer for control transfers
-- **Queue Buffers**: Static event queues
+TinyUSB uses only static memory allocation; it allocates fixed-size endpoint buffers for each configured endpoint, static buffers for class-specific data handling, a fixed buffer dedicated to control transfers, and static event queues for deferred interrupt processing.
 
 Buffer Management
 -----------------
@@ -254,12 +250,7 @@ Threading Model
 Task-Based Design
 -----------------
 
-TinyUSB uses a cooperative task model:
-
-- **Main Tasks**: ``tud_task()`` for device, ``tuh_task()`` for host
-- **Regular Execution**: Tasks must be called regularly (< 1ms typical)
-- **Event Processing**: All USB events processed in task context
-- **Callback Execution**: Application callbacks run in task context
+TinyUSB uses a cooperative task model; it provides main tasks - ``tud_task()`` for device and ``tuh_task()`` for host operation. These tasks must be called regularly (typically less than 1ms intervals) to ensure all USB events are processed in task context, where application callbacks also execute.
 
 RTOS Integration
 ----------------

@@ -40,7 +40,7 @@ Key files in the example:
 * ``usb_descriptors.c`` - USB device descriptors
 * ``tusb_config.h`` - TinyUSB stack configuration
 
-**Main Loop Pattern**:
+The main loop follows a simple pattern that combines board initialization, TinyUSB initialization, and continuous task processing:
 
 .. code-block:: c
 
@@ -54,10 +54,12 @@ Key files in the example:
      }
    }
 
-**Device Task**: ``tud_task()`` must be called regularly to handle USB events and maintain the connection.
+The ``tud_task()`` function must be called regularly to handle USB events and maintain the connection with the host. This function processes all queued USB events and triggers appropriate callbacks in your application code.
 
 Step 3: Build and Test
 ======================
+
+With a clear understanding of the code structure, you're ready to build and test the example. This process involves fetching dependencies, compiling for your target board, and flashing the firmware:
 
 .. code-block:: bash
 
@@ -77,6 +79,8 @@ Step 3: Build and Test
 
 Step 4: Customize for Your Needs
 =================================
+
+Once you have the basic example working, you can customize it for your specific application. The following modifications demonstrate common customization patterns.
 
 **Simplify to CDC-only**:
 
