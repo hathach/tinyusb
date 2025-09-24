@@ -29,29 +29,14 @@ Documentation Structure
 
 .. toctree::
    :maxdepth: 2
-   :caption: Learning
-
-   tutorials/index
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Problem Solving
-
-   guides/index
-   faq
-   troubleshooting
-
-.. toctree::
-   :maxdepth: 2
    :caption: Information
 
-   reference/index
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Understanding
-
    explanation/index
+   tutorials/index
+   guides/index
+   reference/index
+   faq
+   troubleshooting
 
 .. toctree::
    :maxdepth: 1
@@ -67,3 +52,8 @@ Documentation Structure
    Source Code <https://github.com/hathach/tinyusb>
    Issue Tracker <https://github.com/hathach/tinyusb/issues>
    Discussions <https://github.com/hathach/tinyusb/discussions>
+
+GitHub Project Main README
+==========================
+
+.. include:: ../README_processed.rst
