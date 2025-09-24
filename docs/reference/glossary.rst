@@ -14,7 +14,7 @@ Glossary
       USB transfer type used for device configuration and control. All USB devices must support control transfers on endpoint 0.
 
    DCD
-      Device Controller Driver. The hardware abstraction layer for USB device controllers in TinyUSB.
+      Device Controller Driver. The hardware abstraction layer for USB device controllers in TinyUSB. See also HCD.
 
    Descriptor
       Data structures that describe USB device capabilities, configuration, and interfaces to the host.
@@ -32,7 +32,7 @@ Glossary
       Process where USB host discovers and configures a newly connected device.
 
    HCD
-      Host Controller Driver. The hardware abstraction layer for USB host controllers in TinyUSB.
+      Host Controller Driver. The hardware abstraction layer for USB host controllers in TinyUSB. See also DCD.
 
    HID
       Human Interface Device. USB class for input devices like keyboards, mice, and game controllers.
@@ -72,6 +72,12 @@ Glossary
 
    Super Speed
       USB 3.0 speed mode operating at 5 Gbps. Not supported by TinyUSB.
+
+   tud
+      TinyUSB Device. Function prefix for all device stack APIs (e.g., ``tud_task()``, ``tud_cdc_write()``).
+
+   tuh
+      TinyUSB Host. Function prefix for all host stack APIs (e.g., ``tuh_task()``, ``tuh_cdc_receive()``).
 
    UAC
       USB Audio Class. USB class for audio devices.

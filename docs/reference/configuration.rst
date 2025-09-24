@@ -106,6 +106,11 @@ Device Classes
 
    #define CFG_TUD_VENDOR              1    // Number of vendor interfaces
    #define CFG_TUD_VENDOR_EPSIZE       64   // Vendor endpoint size
+   #define CFG_TUD_VENDOR_RX_BUFSIZE   64   // RX buffer size (0 = no buffering)
+   #define CFG_TUD_VENDOR_TX_BUFSIZE   64   // TX buffer size (0 = no buffering)
+
+.. note::
+   Unlike other classes, vendor class supports setting buffer sizes to 0 to disable internal buffering. When disabled, data goes directly to ``tud_vendor_rx_cb()`` and the ``tud_vendor_read()``/``tud_vendor_write()`` functions are not available - applications must handle data directly in callbacks.
 
 Host Stack Configuration
 ========================

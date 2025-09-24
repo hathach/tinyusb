@@ -4,6 +4,18 @@ USB Concepts
 
 This document provides a brief introduction to USB protocol fundamentals that are essential for understanding TinyUSB development.
 
+TinyUSB API Naming Conventions
+===============================
+
+TinyUSB uses consistent function prefixes to organize its API:
+
+* **tusb_**: Core stack functions (initialization, interrupt handling)
+* **tud_**: Device stack functions (e.g., ``tud_task()``, ``tud_cdc_write()``)
+* **tuh_**: Host stack functions (e.g., ``tuh_task()``, ``tuh_cdc_receive()``)
+* **tu_**: Internal utility functions (generally not used by applications)
+
+This naming makes it easy to identify which part of the stack a function belongs to and ensures there are no naming conflicts when using both device and host stacks together.
+
 USB Protocol Basics
 ====================
 
@@ -252,10 +264,10 @@ USB supports multiple speed modes:
 
 **TinyUSB Speed Support**: Most TinyUSB ports support Full Speed and High Speed. Speed is typically auto-detected by hardware. Configure speed requirements in board configuration (``hw/bsp/FAMILY/boards/BOARD/board.mk``) and ensure your MCU supports the desired speed.
 
-USB Device Controllers
-======================
+USB Controller Abstraction
+===========================
 
-USB device controllers are hardware peripherals that handle the low-level USB protocol implementation. Understanding how they work helps explain TinyUSB's architecture and portability.
+USB controllers are hardware peripherals that handle the low-level USB protocol implementation. Understanding how they work helps explain TinyUSB's architecture and portability.
 
 Controller Fundamentals
 -----------------------
@@ -316,6 +328,42 @@ These internal details don't matter to users of TinyUSB typically; however, when
 - ``dcd_int_handler()`` - Process USB interrupts
 - ``dcd_connect()/dcd_disconnect()`` - Control USB bus connection
 
+Host Controller Driver (HCD)
+-----------------------------
+
+TinyUSB also abstracts USB host controllers through the **Host Controller Driver (HCD)** layer for host mode applications.
+
+**Portable Interface** (``src/host/usbh.h``):
+- Standardized interface for all host controllers
+- Common device enumeration and pipe management
+- Unified transfer scheduling and completion handling
+
+**Common HCD Functions**:
+- ``hcd_init()`` - Initialize host controller hardware
+- ``hcd_port_connect_status()`` - Check device connection status
+- ``hcd_port_reset()`` - Reset connected device
+- ``hcd_edpt_open()`` - Open communication pipe to device endpoint
+- ``hcd_edpt_xfer()`` - Transfer data to/from connected device
+
+**Host vs Device Architecture**: While DCD is reactive (responds to host requests), HCD is active (initiates all communication). Host controllers manage device enumeration, driver loading, and transfer scheduling to multiple connected devices.
+
+TinyUSB Event System & Thread Safety
+====================================
+
+Deferred Interrupt Processing
+-----------------------------
+
+**Core Architectural Principle**: TinyUSB uses a deferred interrupt processing model where all USB hardware events are captured in interrupt service routines (ISRs) but processed later in non-interrupt context.
+
+**Event Flow**:
+
+1. **Hardware Event**: USB controller generates interrupt (e.g., data received, transfer complete)
+2. **ISR Handling**: TinyUSB ISR captures the event and pushes it to a central event queue
+3. **Deferred Processing**: Application calls ``tud_task()`` or ``tuh_task()`` to process queued events
+4. **Class Driver Callbacks**: Events trigger appropriate class driver functions and user callbacks
+
+**Buffer Integration**: The deferred processing model works seamlessly with TinyUSB's buffer/FIFO design. Since callbacks run in task context (not ISR), it's safe and straightforward to enqueue TX data directly in RX callbacks - for example, processing incoming CDC data and immediately sending a response.
+
 Controller Event Flow
 ---------------------
 
@@ -328,6 +376,46 @@ Controller Event Flow
 5. **Task Processing**: ``tud_task()`` processes queued events
 6. **Class Notification**: Appropriate class drivers handle the event
 7. **Application Callback**: User code responds to the event
+
+USB Class Driver Architecture
+==============================
+
+TinyUSB implements USB classes through a standardized driver pattern that provides consistent integration with the core stack while allowing class-specific functionality.
+
+Class Driver Pattern
+---------------------
+
+**Standardized Entry Points**: Each class driver implements these core functions:
+
+- ``*_init()`` - Initialize class driver state and buffers
+- ``*_reset()`` - Reset to initial state on USB bus reset
+- ``*_open()`` - Parse and configure interfaces during enumeration
+- ``*_control_xfer_cb()`` - Handle class-specific control requests
+- ``*_xfer_cb()`` - Handle transfer completion callbacks
+
+**Multi-Instance Support**: Classes support multiple instances using ``_n`` suffixed APIs:
+
+.. code-block:: c
+
+   // Single instance (default instance 0)
+   tud_cdc_write(data, len);
+
+   // Multiple instances
+   tud_cdc_n_write(0, data, len);  // Instance 0
+   tud_cdc_n_write(1, data, len);  // Instance 1
+
+**Integration with Core Stack**: Class drivers are automatically discovered and integrated through function pointers in driver tables. The core stack calls class drivers during enumeration, control requests, and data transfers without requiring explicit registration.
+
+Class Driver Types
+-------------------
+
+TinyUSB classes have different architectural patterns based on their buffering capabilities and callback designs.
+
+Most classes like CDC, MIDI, and HID always use internal buffers for data management. These classes provide notification-only callbacks such as ``tud_cdc_rx_cb(uint8_t itf)`` that signal when data is available, requiring applications to use class-specific APIs like ``tud_cdc_read()`` and ``tud_cdc_write()`` to access the data. HID is slightly different in that it provides direct buffer access in some callbacks (``tud_hid_set_report_cb()`` receives buffer and size parameters), but it still maintains internal endpoint buffering that cannot be disabled.
+
+The **Vendor Class** is unique in that it supports both buffered and direct modes. When buffered, vendor class behaves like other classes with ``tud_vendor_read()`` and ``tud_vendor_write()`` APIs. However, when buffering is disabled by setting buffer size to 0, the vendor class provides direct buffer access through ``tud_vendor_rx_cb(itf, buffer, bufsize)`` callbacks, eliminating internal FIFO overhead and providing direct endpoint control.
+
+**Block-Oriented Classes** like MSC operate differently by handling large data blocks through callback interfaces. The application implements storage access functions such as ``tud_msc_read10_cb()`` and ``tud_msc_write10_cb()``, while the TinyUSB stack manages the USB protocol aspects and the application manages the underlying storage.
 
 Power Management
 ================

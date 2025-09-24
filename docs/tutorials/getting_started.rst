@@ -19,6 +19,9 @@ To incorporate TinyUSB into your project:
 * Implement all enabled classes' callbacks.
 * If you don't use any RTOS at all, you need to continuously and/or periodically call the ``tud_task()``/``tuh_task()`` functions. All of the callbacks and functionality are handled and invoked within the call of that task runner.
 
+.. note::
+   TinyUSB uses consistent naming prefixes: ``tud_`` for device stack functions and ``tuh_`` for host stack functions. See the :doc:`../reference/glossary` for more details.
+
 .. code-block:: c
 
    int main(void) {
