@@ -92,7 +92,7 @@
 
 //------------- CLASS -------------//
 #define CFG_TUD_MTP               1
-#define CFG_TUD_MTP_EP_BUFSIZE   512
+#define CFG_TUD_MTP_EP_BUFSIZE    512
 
 //------------- MTP device info -------------//
 #define CFG_TUD_MTP_DEVICEINFO_EXTENSIONS   "microsoft.com: 1.0; "

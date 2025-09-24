@@ -657,9 +657,6 @@ typedef enum {
 //--------------------------------------------------------------------+
 // Data structures
 //--------------------------------------------------------------------+
-
-#define MTP_MAX_PACKET_SIZE 512
-
 typedef struct TU_ATTR_PACKED {
   uint32_t len;
   uint16_t type;
@@ -694,6 +691,7 @@ typedef struct {
     uint16_t* payload16;
     uint32_t* payload32;
   };
+  uint32_t payload_size;
 } mtp_container_info_t;
 
 #define mtp_string_t(_nchars) \
@@ -712,14 +710,6 @@ typedef struct {
 #define mtp_auint16_t(_count) mtp_array_t(uint16_t, _count)
 #define mtp_auint32_t(_count) mtp_array_t(uint32_t, _count)
 #define mtp_auint64_t(_count) mtp_array_t(uint64_t, _count)
-
-typedef union TU_ATTR_PACKED {
-  struct {
-    uint16_t physical; // physical location
-    uint16_t logical;  // logical within physical
-  };
-  uint32_t id;
-} mtp_storage_id_t;
 
 #define MTP_STORAGE_INFO_STRUCT(_storage_desc_chars, _volume_id_chars) \
   struct TU_ATTR_PACKED { \
@@ -795,12 +785,25 @@ typedef struct TU_ATTR_PACKED {
 // return number of bytes added
 //--------------------------------------------------------------------+
 
+// return payload buffer for next write
+TU_ATTR_ALWAYS_INLINE static inline uint8_t* mtp_container_payload_next(mtp_container_info_t* p_container) {
+  // only 1st packet include header
+  uint32_t pos = p_container->header->len - sizeof(mtp_container_header_t);
+  while (pos > CFG_TUD_MTP_EP_BUFSIZE) {
+    pos -= CFG_TUD_MTP_EP_BUFSIZE;
+  }
+  return p_container->payload + pos;
+}
+
+// only add_raw does partial copy
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_raw(mtp_container_info_t* p_container, const void* data, uint32_t len) {
-  TU_ASSERT(p_container->header->len + len < sizeof(mtp_generic_container_t), 0);
-  uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
-  memcpy(buf, data, len);
-  p_container->header->len += len;
-  return len;
+  uint8_t* buf = mtp_container_payload_next(p_container);
+  const uint32_t added_len = tu_min32(len, sizeof(mtp_generic_container_t) - p_container->header->len);
+  if (added_len > 0) {
+    memcpy(buf, data, added_len);
+  }
+  p_container->header->len += len; // always increase len, even partial copy
+  return added_len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_array(mtp_container_info_t* p_container, uint8_t scalar_size, uint32_t count, const void* data) {

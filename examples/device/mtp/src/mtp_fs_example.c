@@ -177,6 +177,30 @@ int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data) {
   return 0; // nothing to do
 }
 
+int32_t tud_mtp_data_more_cb(tud_mtp_cb_data_t* cb_data) {
+  // only a few command that need more data e.g GetObject and SendObject
+  const mtp_container_command_t* command = cb_data->command;
+  mtp_container_info_t* reply = &cb_data->reply;
+  switch (command->header.code) {
+    case MTP_OP_GET_OBJECT: {
+      const uint32_t obj_handle = command->params[0];
+      fs_object_info_t* obj = fs_get_object(obj_handle);
+      if (obj == NULL) {
+        return MTP_RESP_INVALID_OBJECT_HANDLE;
+      }
+      // file contents offset is xferred byte minus header size
+      const uint32_t offset = cb_data->xferred_bytes - sizeof(mtp_container_header_t);
+      const uint32_t xact_len = tu_min32(obj->size - offset, reply->payload_size);
+      memcpy(reply->payload, obj->data + offset, xact_len);
+      tud_mtp_data_send(&cb_data->reply);
+    }
+
+    default: return MTP_RESP_OPERATION_NOT_SUPPORTED;
+  }
+
+  return MTP_RESP_OK;
+}
+
 int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command;
   mtp_container_info_t* reply = &cb_data->reply;
@@ -328,6 +352,8 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
         return MTP_RESP_INVALID_OBJECT_HANDLE;
       }
 
+      // If file contents is larger than CFG_TUD_MTP_EP_BUFSIZE, only partial data is added here
+      // the rest will be sent in tud_mtp_data_more_cb
       mtp_container_add_raw(&cb_data->reply, obj->data, obj->size);
       tud_mtp_data_send(&cb_data->reply);
       break;

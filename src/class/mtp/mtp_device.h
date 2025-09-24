@@ -41,15 +41,6 @@ typedef struct {
   const mtp_container_command_t* command;
   mtp_container_info_t reply;
 
-  union {
-    uint8_t* buffer;
-    uint16_t* buffer16;
-    uint32_t* buffer32;
-  };
-  uint32_t bufsize;
-  uint32_t offset; // offset from start of header, since data can span multiple xfers
-
-
   tusb_xfer_result_t xfer_result;
   uint32_t xferred_bytes;
 } tud_mtp_cb_data_t;
@@ -117,8 +108,12 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container);
 //--------------------------------------------------------------------+
 
 // Invoked when new command is received. Application fill the out_block with either DATA or RESPONSE container
+// and call tud_mtp_data_send() or tud_mtp_response_send().
 // return MTP response code
 int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t * cb_data);
+
+// Invoked when a data packet is received/sent, and more data is expected
+int32_t tud_mtp_data_more_cb(tud_mtp_cb_data_t* cb_data);
 
 // Invoked when data phase is complete
 int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data);
