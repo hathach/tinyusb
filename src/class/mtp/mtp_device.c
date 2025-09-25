@@ -65,7 +65,7 @@ typedef struct {
 
   uint32_t session_id;
   mtp_container_command_t command;
-  mtp_container_header_t reply_header;
+  mtp_container_header_t io_header;
 } mtpd_interface_t;
 
 typedef struct {
@@ -75,7 +75,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static int32_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data);
+static void process_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data);
 static mtp_phase_type_t mtpd_handle_data(void);
 static mtp_phase_type_t mtpd_handle_cmd_delete_object(void);
 static mtp_phase_type_t mtpd_handle_cmd_send_object_info(void);
@@ -253,26 +253,37 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   return true;
 }
 
-bool tud_mtp_data_send(mtp_container_info_t* p_container) {
+static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
   mtpd_interface_t* p_mtp = &_mtpd_itf;
   if (p_mtp->phase == MTP_PHASE_COMMAND) {
     // 1st data block: header + payload
     p_mtp->phase = MTP_PHASE_DATA;
-    p_mtp->total_len = p_container->header->len;
     p_mtp->xferred_len = 0;
 
-    p_container->header->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-    p_container->header->transaction_id = p_mtp->command.transaction_id;
-    p_mtp->reply_header = *p_container->header; // save header for subsequent data
+    if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
+      p_mtp->total_len = p_container->header->len;
+      p_container->header->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
+      p_container->header->transaction_id = p_mtp->command.transaction_id;
+      p_mtp->io_header = *p_container->header; // save header for subsequent data
+    } else {
+      p_mtp->total_len = CFG_TUD_MTP_EP_BUFSIZE;
+    }
   } else {
     // subsequent data block: payload only
     TU_ASSERT(p_mtp->phase == MTP_PHASE_DATA);
   }
 
   const uint16_t xact_len = tu_min32(p_mtp->total_len - p_mtp->xferred_len, CFG_TUD_MTP_EP_BUFSIZE);
-  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, xact_len));
-
+  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, xact_len));
   return true;
+}
+
+bool tud_mtp_data_send(mtp_container_info_t* p_container) {
+  return mtpd_data_xfer(p_container, _mtpd_itf.ep_in);
+}
+
+bool tud_mtp_data_receive(mtp_container_info_t* p_container) {
+  return mtpd_data_xfer(p_container, _mtpd_itf.ep_out);
 }
 
 bool tud_mtp_response_send(mtp_container_info_t* p_container) {
@@ -301,23 +312,25 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
   tud_mtp_cb_data_t cb_data;
   cb_data.idx = 0;
-  cb_data.command = &p_mtp->command;
-  cb_data.reply.header = (mtp_container_header_t*) p_container;
-  cb_data.reply.payload32 = p_container->data;
-  cb_data.reply.payload_size = CFG_TUD_MTP_EP_BUFSIZE - sizeof(mtp_container_header_t);
+  cb_data.command_container = &p_mtp->command;
+  cb_data.io_container.header = &p_container->header;
+  cb_data.io_container.payload32 = p_container->data;
+  cb_data.io_container.payload_size = CFG_TUD_MTP_EP_BUFSIZE - sizeof(mtp_container_header_t);
   cb_data.xferred_bytes = 0;
   cb_data.xfer_result = event;
 
   switch (p_mtp->phase) {
     case MTP_PHASE_IDLE:
       // received new command
-      TU_VERIFY(ep_addr == p_mtp->ep_out && p_container->type == MTP_CONTAINER_TYPE_COMMAND_BLOCK);
+      TU_VERIFY(ep_addr == p_mtp->ep_out && p_container->header.type == MTP_CONTAINER_TYPE_COMMAND_BLOCK);
       p_mtp->phase = MTP_PHASE_COMMAND;
       TU_ATTR_FALLTHROUGH; // handle in the next case
 
     case MTP_PHASE_COMMAND: {
       memcpy(&p_mtp->command, p_container, sizeof(mtp_container_command_t)); // save new command
-      if (mtpd_handle_cmd(p_mtp, &cb_data) < 0) {
+      p_container->header.len = sizeof(mtp_container_header_t); // default container to header only
+      process_cmd(p_mtp, &cb_data);
+      if (tud_mtp_command_received_cb(&cb_data) < 0) {
         p_mtp->phase = MTP_PHASE_ERROR;
       }
       break;
@@ -328,18 +341,44 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       p_mtp->xferred_len += xferred_bytes;
       cb_data.xferred_bytes = p_mtp->xferred_len;
 
-      // transfer complete if ZLP or short packet or overflow
+      bool is_complete = false;
+      // complete if ZLP or short packet or overflow
       if (xferred_bytes == 0 || // ZLP
           (xferred_bytes & (bulk_mps - 1)) || // short packet
           p_mtp->xferred_len > p_mtp->total_len) {
-        cb_data.reply.header->len = sizeof(mtp_container_header_t);
-        tud_mtp_data_complete_cb(&cb_data);
+        is_complete = true;
+      }
+
+      const mtp_container_info_t headerless_packet = {
+        .header = &p_mtp->io_header,
+        .payload = _mtpd_epbuf.buf,
+        .payload_size = CFG_TUD_MTP_EP_BUFSIZE
+      };
+
+      if (ep_addr == p_mtp->ep_in) {
+        // Data In
+        if (is_complete) {
+          cb_data.io_container.header->len = sizeof(mtp_container_header_t);
+          tud_mtp_data_complete_cb(&cb_data);
+        } else {
+          // 2nd+ packet: payload only
+          cb_data.io_container = headerless_packet;
+          tud_mtp_data_xfer_cb(&cb_data);
+        }
       } else {
-        // payload only packet
-        cb_data.reply.header = &p_mtp->reply_header;
-        cb_data.reply.payload = (uint8_t*) p_container;
-        cb_data.reply.payload_size = CFG_TUD_MTP_EP_BUFSIZE;
-        tud_mtp_data_more_cb(&cb_data);
+        // Data Out
+        if (p_mtp->xferred_len == xferred_bytes) {
+          // 1st OUT packet: header + payload
+          p_mtp->io_header = p_container->header; // save header for subsequent transaction
+        } else {
+          // 2nd+ packet: payload only
+          cb_data.io_container = headerless_packet;
+        }
+        tud_mtp_data_xfer_cb(&cb_data);
+        if (is_complete) {
+          cb_data.io_container.header->len = sizeof(mtp_container_header_t);
+          tud_mtp_data_complete_cb(&cb_data);
+        }
       }
       break;
     }
@@ -445,11 +484,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 // MTPD Internal functionality
 //--------------------------------------------------------------------+
 
-// Decode command and prepare response
-int32_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
-  cb_data->reply.header->len = sizeof(mtp_container_header_t);
-
-  // pre-processed commands
+// pre-processed commands
+void process_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
   switch (p_mtp->command.code) {
     case MTP_OP_GET_DEVICE_INFO: {
       tud_mtp_device_info_t dev_info = {
@@ -491,15 +527,13 @@ int32_t mtpd_handle_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
         dev_info.mtp_extensions.utf16[i] = (uint16_t)CFG_TUD_MTP_DEVICEINFO_EXTENSIONS[i];
       }
 #endif
-      mtp_container_add_raw(&cb_data->reply, &dev_info, sizeof(tud_mtp_device_info_t));
+      mtp_container_add_raw(&cb_data->io_container, &dev_info, sizeof(tud_mtp_device_info_t));
       break;
     }
 
     default:
       break;
   }
-
-  return tud_mtp_command_received_cb(cb_data);
 }
 #if 0
 

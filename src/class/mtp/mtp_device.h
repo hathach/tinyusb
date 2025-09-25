@@ -38,11 +38,11 @@
 
 typedef struct {
   uint8_t idx; // mtp instance
-  const mtp_container_command_t* command;
-  mtp_container_info_t reply;
+  const mtp_container_command_t* command_container;
+  mtp_container_info_t io_container;
 
   tusb_xfer_result_t xfer_result;
-  uint32_t xferred_bytes;
+  uint32_t xferred_bytes; // number of bytes transferred so far in this phase
 } tud_mtp_cb_data_t;
 
 // Number of supported operations, events, device properties, capture formats, playback formats
@@ -94,8 +94,14 @@ typedef struct {
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
+
+// send data phase
 bool tud_mtp_data_send(mtp_container_info_t* p_container);
-// bool tud_mtp_block_data_receive();
+
+// receive data phase
+bool tud_mtp_data_receive(mtp_container_info_t* p_container);
+
+// send response
 bool tud_mtp_response_send(mtp_container_info_t* p_container);
 
 //--------------------------------------------------------------------+
@@ -112,10 +118,10 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container);
  */
 int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t * cb_data);
 
-// Invoked when a data packet is received/sent, and more data is expected
-int32_t tud_mtp_data_more_cb(tud_mtp_cb_data_t* cb_data);
+// Invoked when a data packet is transferred, and more data is expected
+int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data);
 
-// Invoked when data phase is complete
+// Invoked when all bytes in DATA phase is complete. A response packet is expected
 int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data);
 
 // Invoked when response phase is complete
