@@ -1788,7 +1788,7 @@ enum {
   HID_USAGE_BATTERY_CHARGER_SPEC                   = 0xF1,
   HID_USAGE_BATTERY_LEVEL_2                        = 0xF2,
   HID_USAGE_BATTERY_LEVEL_3                        = 0xF3
-  // F2-CF Reserved
+  // F4-FF Reserved
 };
 
 /// HID Usage Table: FIDO Alliance Page (0xF1D0)
