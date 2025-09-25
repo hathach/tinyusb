@@ -82,7 +82,7 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
   {
     .name = { 'r', 'e', 'a', 'd', 'm', 'e', '.', 't', 'x', 't', 0 }, // readme.txt
     .object_format = MTP_OBJ_FORMAT_TEXT,
-    .protection_status = MTP_PROTECTION_STATUS_READ_ONLY,
+    .protection_status = MTP_PROTECTION_STATUS_NO_PROTECTION,
     .image_pix_width = 0,
     .image_pix_height = 0,
     .image_bit_depth = 0,
@@ -94,7 +94,7 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
   {
     .name = { 't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'p', 'n', 'g', 0 }, // "tinyusb.png"
     .object_format = MTP_OBJ_FORMAT_PNG,
-    .protection_status = MTP_PROTECTION_STATUS_READ_ONLY,
+    .protection_status = MTP_PROTECTION_STATUS_NO_PROTECTION,
     .image_pix_width = 128,
     .image_pix_height = 64,
     .image_bit_depth = 32,
@@ -356,6 +356,26 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
       } else {
         io_container->header->len += f->size;
         tud_mtp_data_receive(io_container);
+      }
+      break;
+    }
+
+    case MTP_OP_DELETE_OBJECT: {
+      if (!is_session_opened) {
+        resp_code = MTP_RESP_SESSION_NOT_OPEN;
+      } else {
+        const uint32_t obj_handle = command->params[0];
+        const uint32_t obj_format = command->params[1]; // optional
+        (void) obj_format;
+        fs_file_t* f = fs_get_file(obj_handle);
+        if (f == NULL) {
+          resp_code = MTP_RESP_INVALID_OBJECT_HANDLE;
+          break;
+        }
+
+        // delete object by clear the name
+        f->name[0] = 0;
+        resp_code = MTP_RESP_OK;
       }
       break;
     }
