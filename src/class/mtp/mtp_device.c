@@ -266,7 +266,8 @@ static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
       p_container->header->transaction_id = p_mtp->command.transaction_id;
       p_mtp->io_header = *p_container->header; // save header for subsequent data
     } else {
-      p_mtp->total_len = CFG_TUD_MTP_EP_BUFSIZE;
+      // OUT transfer: total length is at least max packet size
+      p_mtp->total_len = tu_max32(p_container->header->len, CFG_TUD_MTP_EP_BUFSIZE);
     }
   } else {
     // subsequent data block: payload only
@@ -274,7 +275,10 @@ static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
   }
 
   const uint16_t xact_len = tu_min32(p_mtp->total_len - p_mtp->xferred_len, CFG_TUD_MTP_EP_BUFSIZE);
-  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, xact_len));
+  if (xact_len) {
+    // already transferred all bytes in header's length. Application make an unnecessary extra call
+    TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, xact_len));
+  }
   return true;
 }
 
@@ -310,13 +314,23 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   TU_LOG_DRV("  MTP %s phase = %u\r\n", (const char *) tu_lookup_find(&_mtp_op_table, p_mtp->command.code), p_mtp->phase);
 #endif
 
+  const mtp_container_info_t headered_packet = {
+    .header = &p_container->header,
+    .payload32 = p_container->data,
+    .payload_bytes = CFG_TUD_MTP_EP_BUFSIZE - sizeof(mtp_container_header_t)
+  };
+
+  const mtp_container_info_t headerless_packet = {
+    .header = &p_mtp->io_header,
+    .payload = _mtpd_epbuf.buf,
+    .payload_bytes = CFG_TUD_MTP_EP_BUFSIZE
+  };
+
   tud_mtp_cb_data_t cb_data;
   cb_data.idx = 0;
   cb_data.command_container = &p_mtp->command;
-  cb_data.io_container.header = &p_container->header;
-  cb_data.io_container.payload32 = p_container->data;
-  cb_data.io_container.payload_size = CFG_TUD_MTP_EP_BUFSIZE - sizeof(mtp_container_header_t);
-  cb_data.xferred_bytes = 0;
+  cb_data.io_container = headered_packet;
+  cb_data.total_xferred_bytes = 0;
   cb_data.xfer_result = event;
 
   switch (p_mtp->phase) {
@@ -339,7 +353,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     case MTP_PHASE_DATA: {
       const uint16_t bulk_mps = (tud_speed_get() == TUSB_SPEED_HIGH) ? 512 : 64;
       p_mtp->xferred_len += xferred_bytes;
-      cb_data.xferred_bytes = p_mtp->xferred_len;
+      cb_data.total_xferred_bytes = p_mtp->xferred_len;
 
       bool is_complete = false;
       // complete if ZLP or short packet or overflow
@@ -348,12 +362,6 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
           p_mtp->xferred_len > p_mtp->total_len) {
         is_complete = true;
       }
-
-      const mtp_container_info_t headerless_packet = {
-        .header = &p_mtp->io_header,
-        .payload = _mtpd_epbuf.buf,
-        .payload_size = CFG_TUD_MTP_EP_BUFSIZE
-      };
 
       if (ep_addr == p_mtp->ep_in) {
         // Data In
@@ -370,92 +378,23 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         if (p_mtp->xferred_len == xferred_bytes) {
           // 1st OUT packet: header + payload
           p_mtp->io_header = p_container->header; // save header for subsequent transaction
+          cb_data.io_container.payload_bytes = xferred_bytes - sizeof(mtp_container_header_t);
         } else {
           // 2nd+ packet: payload only
           cb_data.io_container = headerless_packet;
+          cb_data.io_container.payload_bytes = xferred_bytes;
         }
         tud_mtp_data_xfer_cb(&cb_data);
+
         if (is_complete) {
+          // back to header + payload for response
+          cb_data.io_container = headered_packet;
           cb_data.io_container.header->len = sizeof(mtp_container_header_t);
           tud_mtp_data_complete_cb(&cb_data);
         }
       }
       break;
     }
-
-#if 0
-    case MTP_PHASE_DATA_IN:
-      p_mtp->xferred_len += xferred_bytes;
-      p_mtp->handled_len = p_mtp->xferred_len;
-
-      // Check if transfer completed TODO check ZLP with FS/HS bulk size
-      if (p_mtp->xferred_len >= p_mtp->total_len && (xferred_bytes == 0 || (xferred_bytes % CFG_MTP_EP_SIZE) != 0)) {
-        p_mtp->phase = MTP_PHASE_RESPONSE;
-        p_container->code = MTP_RESP_OK;
-        p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-        if (p_mtp->session_id != 0) { // is this needed ?
-          p_container->data[0] = p_mtp->session_id;
-          p_container->len += sizeof(uint32_t);
-        }
-      } else {
-        // Send next block of DATA
-        if (p_mtp->xferred_len == p_mtp->total_len) {
-          // send Zero-Length Packet
-          TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_in, NULL, 0 ));
-        } else {
-          p_mtp->phase = mtpd_handle_data();
-          if (p_mtp->phase == MTP_PHASE_DATA_IN) {
-            TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_in, ((uint8_t *)(&p_container->data)), (uint16_t)p_mtp->queued_len));
-          }
-        }
-      }
-      break;
-
-    case MTP_PHASE_DATA_OUT:
-      // First block of data
-      if (p_mtp->xferred_len == 0) {
-        p_mtp->total_len = p_container->len;
-        p_mtp->handled_len = 0;
-        p_mtp->xfer_completed = false;
-        TU_ASSERT(p_container->type == MTP_CONTAINER_TYPE_DATA_BLOCK);
-      }
-      p_mtp->xferred_len += xferred_bytes;
-
-      // A zero-length or a short packet termination
-      if (xferred_bytes < CFG_MTP_EP_SIZE) {
-        p_mtp->xfer_completed = true;
-        // Handle data block
-        p_mtp->phase = mtpd_handle_data();
-        if (p_mtp->phase == MTP_PHASE_DATA_OUT) {
-          TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_out, (uint8_t*) p_container, sizeof(mtp_generic_container_t)), 0);
-          p_mtp->xferred_len = 0;
-          p_mtp->xfer_completed = false;
-        }
-      } else {
-        // Handle data block when container is full
-        if (p_mtp->xferred_len - p_mtp->handled_len >= MTP_MAX_PACKET_SIZE - CFG_MTP_EP_SIZE) {
-          p_mtp->phase = mtpd_handle_data();
-          p_mtp->handled_len = p_mtp->xferred_len;
-        }
-        // Transfer completed: wait for zero-length packet
-        // Some platforms may not respect EP size and xferred_bytes may be more than CFG_MTP_EP_SIZE if
-        // the OUT EP is waiting for more data. Ensure we are not waiting for more than CFG_MTP_EP_SIZE.
-        if (p_mtp->total_len == p_mtp->xferred_len) {
-          TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_out, ((uint8_t *)(&p_container->data)), CFG_MTP_EP_SIZE), 0);
-        } else if (p_mtp->handled_len == 0) {
-          // First data block includes container header + container data
-          TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_out,
-                                   (uint8_t*) p_container + p_mtp->xferred_len,
-                                   (uint16_t)TU_MIN(p_mtp->total_len - p_mtp->xferred_len, CFG_MTP_EP_SIZE)));
-        } else {
-          // Successive data block includes only container data
-          TU_ASSERT(usbd_edpt_xfer(rhport, p_mtp->ep_out,
-                                   ((uint8_t *)(&p_container->data)) + p_mtp->xferred_len - p_mtp->handled_len,
-                                   (uint16_t)TU_MIN(p_mtp->total_len - p_mtp->xferred_len, CFG_MTP_EP_SIZE)));
-        }
-      }
-      break;
-#endif
 
     case MTP_PHASE_RESPONSE_QUEUED:
       // response phase is complete -> prepare for new command
@@ -571,76 +510,6 @@ mtp_phase_type_t mtpd_handle_cmd_delete_object(void)
   p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
   p_container->code = MTP_RESP_OK;
   p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-  return MTP_PHASE_RESPONSE;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_send_object_info(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
-  _mtpd_soi.storage_id = p_container->data[0];
-  _mtpd_soi.parent_object_handle = (p_container->data[1] == 0xFFFFFFFF ? 0 : p_container->data[1]);
-
-  // Enter OUT phase and wait for DATA BLOCK
-  return MTP_PHASE_DATA_OUT;
-}
-
-mtp_phase_type_t mtpd_handle_dto_send_object_info(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
-  uint32_t new_object_handle = 0;
-  mtp_response_t res = tud_mtp_storage_object_write_info(_mtpd_soi.storage_id, _mtpd_soi.parent_object_handle, &new_object_handle, (mtp_object_info_header_t *)p_container->data);
-  mtp_phase_type_t phase;
-  if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) return phase;
-
-  // Save send_object_info
-  _mtpd_soi.object_handle = new_object_handle;
-
-  // Response
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH +  3 * sizeof(uint32_t);
-  p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->code = MTP_RESP_OK;
-  p_container->data[0] = _mtpd_soi.storage_id;
-  p_container->data[1] = _mtpd_soi.parent_object_handle;
-  p_container->data[2] = _mtpd_soi.object_handle;
-  return MTP_PHASE_RESPONSE;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_send_object(void)
-{
-  // Enter OUT phase and wait for DATA BLOCK
-  return MTP_PHASE_DATA_OUT;
-}
-
-mtp_phase_type_t mtpd_handle_dto_send_object(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
-  uint8_t *buffer = (uint8_t *)&p_container->data;
-  uint32_t buffer_size = _mtpd_itf.xferred_len - _mtpd_itf.handled_len;
-  // First block of DATA
-  if (_mtpd_itf.handled_len == 0)
-  {
-    buffer_size -= MTP_CONTAINER_HEADER_LENGTH;
-  }
-
-  if (buffer_size > 0)
-  {
-    mtp_response_t res = tud_mtp_storage_object_write(_mtpd_soi.object_handle, buffer, buffer_size);
-    mtp_phase_type_t phase;
-    if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) return phase;
-  }
-
-  if (!_mtpd_itf.xfer_completed)
-  {
-    // Continue with next DATA BLOCK
-    return MTP_PHASE_DATA_OUT;
-  }
-
-  // Send completed
-  tud_mtp_storage_object_done();
-
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-  p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->code = MTP_RESP_OK;
   return MTP_PHASE_RESPONSE;
 }
 

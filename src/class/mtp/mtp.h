@@ -59,8 +59,6 @@ typedef enum {
   MTP_PHASE_IDLE = 0,
   MTP_PHASE_COMMAND,
   MTP_PHASE_DATA,
-  MTP_PHASE_DATA_IN,
-  MTP_PHASE_DATA_OUT,
   MTP_PHASE_RESPONSE,
   MTP_PHASE_RESPONSE_QUEUED,
   MTP_PHASE_ERROR,
@@ -690,7 +688,7 @@ typedef struct {
     uint16_t* payload16;
     uint32_t* payload32;
   };
-  uint32_t payload_size;
+  uint32_t payload_bytes; // available bytes for read/write
 } mtp_container_info_t;
 
 #define mtp_string_t(_nchars) \
@@ -899,7 +897,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_auint32(mtp_conta
 //--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_get_string(uint8_t* buf, uint16_t utf16[]) {
   uint8_t nchars = *buf++;
-  memcpy(buf, utf16, nchars * 2);
+  memcpy(utf16, buf, 2 * nchars);
   return 1 + nchars * 2;
 }
 

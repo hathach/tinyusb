@@ -42,7 +42,7 @@ typedef struct {
   mtp_container_info_t io_container;
 
   tusb_xfer_result_t xfer_result;
-  uint32_t xferred_bytes; // number of bytes transferred so far in this phase
+  uint32_t total_xferred_bytes; // number of bytes transferred so far in this phase
 } tud_mtp_cb_data_t;
 
 // Number of supported operations, events, device properties, capture formats, playback formats

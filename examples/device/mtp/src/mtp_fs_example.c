@@ -176,107 +176,6 @@ static inline uint8_t* fs_malloc(size_t size) {
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
-  const mtp_container_command_t* command = cb_data->command_container;
-  mtp_container_info_t* resp = &cb_data->io_container;
-  switch (command->code) {
-    case MTP_OP_SEND_OBJECT_INFO: {
-      fs_file_t* f = fs_get_file(send_obj_handle);
-      if (f == NULL) {
-        resp->header->code = MTP_RESP_GENERAL_ERROR;
-        break;
-      }
-      // parameter is: storage id, parent handle, new handle
-      mtp_container_add_uint32(resp, SUPPORTED_STORAGE_ID);
-      mtp_container_add_uint32(resp, f->parent);
-      mtp_container_add_uint32(resp, send_obj_handle);
-      resp->header->code = MTP_RESP_OK;
-      break;
-    }
-
-    default:
-      resp->header->code = (cb_data->xfer_result == XFER_RESULT_SUCCESS) ? MTP_RESP_OK : MTP_RESP_GENERAL_ERROR;
-      break;
-  }
-  tud_mtp_response_send(resp);
-  return 0;
-}
-
-int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data) {
-  (void) cb_data;
-  return 0; // nothing to do
-}
-
-int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
-  const mtp_container_command_t* command = cb_data->command_container;
-  mtp_container_info_t* io_container = &cb_data->io_container;
-  uint32_t resp_code = 0;
-  switch (command->code) {
-    case MTP_OP_GET_OBJECT: {
-      // File contents span over multiple xfers
-      const uint32_t obj_handle = command->params[0];
-      fs_file_t* f = fs_get_file(obj_handle);
-      if (f == NULL) {
-        resp_code = MTP_RESP_INVALID_OBJECT_HANDLE;
-      } else {
-        // file contents offset is xferred byte minus header size
-        const uint32_t offset = cb_data->xferred_bytes - sizeof(mtp_container_header_t);
-        const uint32_t xact_len = tu_min32(f->size - offset, io_container->payload_size);
-        memcpy(io_container->payload, f->data + offset, xact_len);
-        tud_mtp_data_send(&cb_data->io_container);
-      }
-      break;
-    }
-
-    case MTP_OP_SEND_OBJECT_INFO: {
-      mtp_object_info_header_t* obj_info = (mtp_object_info_header_t*) io_container->payload;
-      if (obj_info->storage_id != 0 && obj_info->storage_id != SUPPORTED_STORAGE_ID) {
-        resp_code = MTP_RESP_INVALID_STORAGE_ID;
-        break;
-      }
-
-      if (obj_info->parent_object) {
-        fs_file_t* parent = fs_get_file(obj_info->parent_object);
-        if (parent == NULL || !parent->association_type) {
-          resp_code = MTP_RESP_INVALID_PARENT_OBJECT;
-          break;
-        }
-      }
-
-      fs_file_t* f = fs_create_file();
-      f->object_format = obj_info->object_format;
-      f->protection_status = obj_info->protection_status;
-      f->image_pix_width = obj_info->image_pix_width;
-      f->image_pix_height = obj_info->image_pix_height;
-      f->image_bit_depth = obj_info->image_bit_depth;
-      f->parent = obj_info->parent_object;
-      f->association_type = obj_info->association_type;
-      f->size = obj_info->object_compressed_size;
-      f->data = fs_malloc(f->size);
-      if (f->data == NULL) {
-        resp_code = MTP_RESP_STORE_FULL;
-        break;
-      }
-      uint8_t* buf = io_container->payload + sizeof(mtp_object_info_header_t);
-      mtp_container_get_string(buf,f->name);
-      // ignore date created/modified/keywords
-      break;
-    }
-
-    default:
-      resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
-      break;
-  }
-
-  // send response if needed
-  if (resp_code != 0) {
-    io_container->header->code = resp_code;
-    tud_mtp_response_send(io_container);
-  }
-
-  return 0; // 0 mean data/response is sent already
-}
-
 int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command_container;
   mtp_container_info_t* io_container = &cb_data->io_container;
@@ -425,13 +324,13 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
 
     case MTP_OP_GET_OBJECT: {
       const uint32_t obj_handle = command->params[0];
-      fs_file_t* obj = fs_get_file(obj_handle);
-      if (obj == NULL) {
+      fs_file_t* f = fs_get_file(obj_handle);
+      if (f == NULL) {
         resp_code = MTP_RESP_INVALID_OBJECT_HANDLE;
       } else {
         // If file contents is larger than CFG_TUD_MTP_EP_BUFSIZE, only partial data is added here
         // the rest will be sent in tud_mtp_data_more_cb
-        mtp_container_add_raw(io_container, obj->data, obj->size);
+        mtp_container_add_raw(io_container, f->data, f->size);
         tud_mtp_data_send(io_container);
       }
       break;
@@ -450,8 +349,16 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
       break;
     }
 
-    case MTP_OP_SEND_OBJECT:
+    case MTP_OP_SEND_OBJECT: {
+      fs_file_t* f = fs_get_file(send_obj_handle);
+      if (f == NULL) {
+        resp_code = MTP_RESP_INVALID_OBJECT_HANDLE;
+      } else {
+        io_container->header->len += f->size;
+        tud_mtp_data_receive(io_container);
+      }
       break;
+    }
 
     default:
       resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
@@ -465,6 +372,125 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
   }
 
   return 0;
+}
+
+int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
+  const mtp_container_command_t* command = cb_data->command_container;
+  mtp_container_info_t* io_container = &cb_data->io_container;
+  uint32_t resp_code = 0;
+  switch (command->code) {
+    case MTP_OP_GET_OBJECT: {
+      // File contents span over multiple xfers
+      const uint32_t obj_handle = command->params[0];
+      fs_file_t* f = fs_get_file(obj_handle);
+      if (f == NULL) {
+        resp_code = MTP_RESP_INVALID_OBJECT_HANDLE;
+      } else {
+        // file contents offset is xferred byte minus header size
+        const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t);
+        const uint32_t xact_len = tu_min32(f->size - offset, io_container->payload_bytes);
+        memcpy(io_container->payload, f->data + offset, xact_len);
+        tud_mtp_data_send(io_container);
+      }
+      break;
+    }
+
+    case MTP_OP_SEND_OBJECT_INFO: {
+      mtp_object_info_header_t* obj_info = (mtp_object_info_header_t*) io_container->payload;
+      if (obj_info->storage_id != 0 && obj_info->storage_id != SUPPORTED_STORAGE_ID) {
+        resp_code = MTP_RESP_INVALID_STORAGE_ID;
+        break;
+      }
+
+      if (obj_info->parent_object) {
+        fs_file_t* parent = fs_get_file(obj_info->parent_object);
+        if (parent == NULL || !parent->association_type) {
+          resp_code = MTP_RESP_INVALID_PARENT_OBJECT;
+          break;
+        }
+      }
+
+      fs_file_t* f = fs_create_file();
+      f->object_format = obj_info->object_format;
+      f->protection_status = obj_info->protection_status;
+      f->image_pix_width = obj_info->image_pix_width;
+      f->image_pix_height = obj_info->image_pix_height;
+      f->image_bit_depth = obj_info->image_bit_depth;
+      f->parent = obj_info->parent_object;
+      f->association_type = obj_info->association_type;
+      f->size = obj_info->object_compressed_size;
+      f->data = fs_malloc(f->size);
+      if (f->data == NULL) {
+        resp_code = MTP_RESP_STORE_FULL;
+        break;
+      }
+      uint8_t* buf = io_container->payload + sizeof(mtp_object_info_header_t);
+      mtp_container_get_string(buf, f->name);
+      // ignore date created/modified/keywords
+      break;
+    }
+
+    case MTP_OP_SEND_OBJECT: {
+      fs_file_t* f = fs_get_file(send_obj_handle);
+      if (f == NULL) {
+        resp_code = MTP_RESP_INVALID_OBJECT_HANDLE;
+      } else {
+        // file contents offset is total xferred minus header size minus last received chunk
+        const uint32_t offset = cb_data->total_xferred_bytes - sizeof(mtp_container_header_t) - io_container->payload_bytes;
+        memcpy(f->data + offset, io_container->payload, io_container->payload_bytes);
+        tud_mtp_data_receive(io_container); // receive more data if needed
+      }
+      break;
+    }
+
+    default:
+      resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
+      break;
+  }
+
+  // send response if needed
+  if (resp_code != 0) {
+    io_container->header->code = resp_code;
+    tud_mtp_response_send(io_container);
+  }
+
+  return 0; // 0 mean data/response is sent already
+}
+
+int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
+  const mtp_container_command_t* command = cb_data->command_container;
+  mtp_container_info_t* resp = &cb_data->io_container;
+  switch (command->code) {
+    case MTP_OP_SEND_OBJECT_INFO: {
+      fs_file_t* f = fs_get_file(send_obj_handle);
+      if (f == NULL) {
+        resp->header->code = MTP_RESP_GENERAL_ERROR;
+        break;
+      }
+      // parameter is: storage id, parent handle, new handle
+      mtp_container_add_uint32(resp, SUPPORTED_STORAGE_ID);
+      mtp_container_add_uint32(resp, f->parent);
+      mtp_container_add_uint32(resp, send_obj_handle);
+      resp->header->code = MTP_RESP_OK;
+      break;
+    }
+
+    case MTP_OP_SEND_OBJECT:
+      resp->header->code = (cb_data->xfer_result == XFER_RESULT_SUCCESS) ? MTP_RESP_OK : MTP_RESP_GENERAL_ERROR;
+      break;
+
+    default:
+      resp->header->code = (cb_data->xfer_result == XFER_RESULT_SUCCESS) ? MTP_RESP_OK : MTP_RESP_GENERAL_ERROR;
+      break;
+  }
+
+  tud_mtp_response_send(resp);
+  return 0;
+}
+
+int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data) {
+  (void) cb_data;
+  return 0; // nothing to do
 }
 
 //--------------------------------------------------------------------+
@@ -485,106 +511,6 @@ mtp_response_t tud_mtp_storage_format(uint32_t storage_id) {
   for (unsigned int i = 0; i < FS_MAX_NODES; i++)
     fs_objects[i].allocated = false;
   TU_LOG1("Format completed\r\n");
-  return MTP_RESP_OK;
-}
-
-mtp_response_t tud_mtp_storage_object_write_info(uint32_t storage_id, uint32_t parent_object,
-                                                 uint32_t* new_object_handle, const mtp_object_info_header_t* info) {
-  fs_file_t* obj = NULL;
-
-  if (_fs_operation.session_id == 0) {
-    TU_LOG1("ERR: Session not open\r\n");
-    return MTP_RESP_SESSION_NOT_OPEN;
-  }
-  // Accept command on default storage
-  if (storage_id != 0xFFFFFFFF && storage_id != SUPPORTED_STORAGE_ID) {
-    TU_LOG1("ERR: Unexpected storage id %ld\r\n", storage_id);
-    return MTP_RESP_INVALID_STORAGE_ID;
-  }
-
-  if (info->object_compressed_size > FS_MAX_NODE_BYTES) {
-    TU_LOG1("Object size %ld is more than maximum %ld\r\n", info->object_compressed_size, FS_MAX_NODE_BYTES);
-    return MTP_RESP_STORE_FULL;
-  }
-
-  // Request for objects with no parent (0xFFFFFFFF) are considered root objects
-  if (parent_object == 0xFFFFFFFF)
-    parent_object = 0;
-
-  // Ensure we are not creating an orphaned object outside root
-  if (parent_object != 0) {
-    obj = fs_get_file(parent_object);
-    if (obj == NULL) {
-      TU_LOG1("Parent %ld does not exist\r\n", parent_object);
-      return MTP_RESP_INVALID_PARENT_OBJECT;
-    }
-    if (!obj->association_type) {
-      TU_LOG1("Parent %ld is not an association\r\n", parent_object);
-      return MTP_RESP_INVALID_PARENT_OBJECT;
-    }
-  }
-
-  // Search for first free object
-  for (unsigned int i = 0; i < FS_MAX_NODES; i++) {
-    if (!fs_objects[i].allocated) {
-      obj = &fs_objects[i];
-      break;
-    }
-  }
-
-  if (obj == NULL) {
-    TU_LOG1("No space left on device\r\n");
-    return MTP_RESP_STORE_FULL;
-  }
-
-  // Fill-in structure
-  obj->allocated = true;
-  obj->handle = ++_fs_operation.last_handle;
-  obj->parent = parent_object;
-  obj->size = info->object_compressed_size;
-  obj->association_type = info->object_format == MTP_OBJ_FORMAT_ASSOCIATION;
-
-  // Extract variable data
-  uint16_t offset_data = sizeof(mtp_object_info_header_t);
-  mtpd_gct_get_string(&offset_data, obj->name, FS_MAX_NODE_NAME_LEN);
-  mtpd_gct_get_string(&offset_data, obj->created, FS_ISODATETIME_LEN);
-  mtpd_gct_get_string(&offset_data, obj->modified, FS_ISODATETIME_LEN);
-
-  TU_LOG1("Create %s %s with handle %ld, parent %ld and size %ld\r\n",
-          obj->association_type ? "association" : "object",
-          obj->name, obj->handle, obj->parent, obj->size);
-  *new_object_handle = obj->handle;
-  // Initialize operation
-  _fs_operation.write_handle = obj->handle;
-  _fs_operation.write_pos = 0;
-  return MTP_RESP_OK;
-}
-
-mtp_response_t tud_mtp_storage_object_write(uint32_t object_handle, const uint8_t* buffer, uint32_t size) {
-  fs_file_t* obj;
-
-  obj = fs_get_file(object_handle);
-  if (obj == NULL) {
-    TU_LOG1("ERR: Object with handle %ld does not exist\r\n", object_handle);
-    return MTP_RESP_INVALID_OBJECT_HANDLE;
-  }
-  // It's a requirement that this command is preceded by a write info
-  if (object_handle != _fs_operation.write_handle) {
-    TU_LOG1("ERR: Object %ld not open for write\r\n", object_handle);
-    return MTP_RESP_NO_VALID_OBJECTINFO;
-  }
-
-  TU_LOG1("Write object %ld: data chunk at %ld/%ld bytes at offset %ld\r\n", object_handle, _fs_operation.write_pos,
-          obj->size, size);
-  TU_ASSERT(obj->size >= _fs_operation.write_pos + size, MTP_RESP_INCOMPLETE_TRANSFER);
-  if (_fs_operation.write_pos + size < FS_MAX_NODE_BYTES)
-    memcpy(&obj->data[_fs_operation.write_pos], buffer, size);
-  _fs_operation.write_pos += size;
-  // Write operation completed
-  if (_fs_operation.write_pos == obj->size) {
-    _fs_operation.write_handle = 0;
-    _fs_operation.write_pos = 0;
-  }
   return MTP_RESP_OK;
 }
 
