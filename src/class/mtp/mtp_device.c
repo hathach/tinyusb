@@ -76,13 +76,6 @@ typedef struct {
 // INTERNAL FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static void process_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data);
-static mtp_phase_type_t mtpd_handle_data(void);
-static mtp_phase_type_t mtpd_handle_cmd_delete_object(void);
-static mtp_phase_type_t mtpd_handle_cmd_send_object_info(void);
-static mtp_phase_type_t mtpd_handle_dto_send_object_info(void);
-static mtp_phase_type_t mtpd_handle_cmd_send_object(void);
-static mtp_phase_type_t mtpd_handle_dto_send_object(void);
-static mtp_phase_type_t mtpd_handle_cmd_format_store(void);
 
 //--------------------------------------------------------------------+
 // MTP variable declaration
@@ -474,59 +467,5 @@ void process_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
       break;
   }
 }
-#if 0
-
-mtp_phase_type_t mtpd_handle_data(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
-  TU_ASSERT(p_container->type == MTP_CONTAINER_TYPE_DATA_BLOCK);
-
-  switch(p_container->code)
-  {
-    case MTP_OP_SEND_OBJECT_INFO:
-      TU_LOG_DRV("  MTP command: MTP_OP_SEND_OBJECT_INFO-DATA_OUT\n");
-      return mtpd_handle_dto_send_object_info();
-    case MTP_OP_SEND_OBJECT:
-      TU_LOG_DRV("  MTP command: MTP_OP_SEND_OBJECT-DATA_OUT\n");
-      return mtpd_handle_dto_send_object();
-    default:
-      TU_LOG_DRV("  MTP command: MTP_OP_UNKNOWN_COMMAND %x!!!!\n", p_container->code);
-      return false;
-  }
-  return true;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_delete_object(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
-  uint32_t object_handle = p_container->data[0];
-  uint32_t object_code_format = p_container->data[1]; // not used
-  (void) object_code_format;
-
-  mtp_response_t res = tud_mtp_storage_object_delete(object_handle);
-  mtp_phase_type_t phase;
-  if ((phase = mtpd_chk_generic(__func__, (res != MTP_RESP_OK), res, "")) != MTP_PHASE_NONE) return phase;
-
-  p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->code = MTP_RESP_OK;
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-  return MTP_PHASE_RESPONSE;
-}
-
-mtp_phase_type_t mtpd_handle_cmd_format_store(void)
-{
-  mtp_generic_container_t* p_container = &_mtpd_epbuf.buf;
-  uint32_t storage_id = p_container->data[0];
-  uint32_t file_system_format = p_container->data[1]; // not used
-  (void) file_system_format;
-
-  mtp_response_t res = tud_mtp_storage_format(storage_id);
-
-  p_container->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->code = res;
-  p_container->len = MTP_CONTAINER_HEADER_LENGTH;
-  return MTP_PHASE_RESPONSE;
-}
-#endif
 
 #endif
