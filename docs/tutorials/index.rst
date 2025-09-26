@@ -8,5 +8,3 @@ Step-by-step learning guides for TinyUSB development.
    :maxdepth: 2
 
    getting_started
-   first_device
-   first_host

@@ -30,7 +30,7 @@ Host and Device Roles
 - Manages the USB bus
 - Enumerates and configures devices
 
-**TinyUSB Host Stack**: Enable with ``CFG_TUH_ENABLED=1`` in ``tusb_config.h``. Call ``tuh_task()`` regularly in your main loop. See :doc:`../tutorials/first_host` for implementation details.
+**TinyUSB Host Stack**: Enable with ``CFG_TUH_ENABLED=1`` in ``tusb_config.h``. Call ``tuh_task()`` regularly in your main loop. See the :doc:`../tutorials/getting_started` Quick Start Examples for implementation details.
 
 **USB Device**: The peripheral side (keyboard, mouse, storage device, etc.). Devices:
 - Respond to host requests
@@ -38,7 +38,7 @@ Host and Device Roles
 - Receive power from the host
 - Must be enumerated by the host before use
 
-**TinyUSB Device Stack**: Enable with ``CFG_TUD_ENABLED=1`` in ``tusb_config.h``. Call ``tud_task()`` regularly in your main loop. See :doc:`../tutorials/first_device` for implementation details.
+**TinyUSB Device Stack**: Enable with ``CFG_TUD_ENABLED=1`` in ``tusb_config.h``. Call ``tud_task()`` regularly in your main loop. See the :doc:`../tutorials/getting_started` Quick Start Examples for implementation details.
 
 **OTG (On-The-Go)**: Some devices can switch between host and device roles dynamically. **TinyUSB Support**: Both stacks can be enabled simultaneously on OTG-capable hardware. See ``examples/dual/`` for dual-role implementations.
 
@@ -422,4 +422,4 @@ Next Steps
 
 - Start with :doc:`../tutorials/getting_started` for basic setup
 - Review :doc:`../reference/configuration` for configuration options
-- Check :doc:`../guides/integration` for advanced integration scenarios
+- Explore :doc:`../examples` for advanced use cases

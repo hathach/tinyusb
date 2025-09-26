@@ -4,6 +4,9 @@ Glossary
 
 .. glossary::
 
+   BSP
+      Board Support Package. A collection of board-specific code that provides hardware abstraction for a particular development board, including pin mappings, clock settings, linker scripts, and hardware initialization routines. Located in ``hw/bsp/FAMILY/boards/BOARD_NAME``.
+
    Bulk Transfer
       USB transfer type used for large amounts of data that doesn't require guaranteed timing. Used by mass storage devices and CDC class.
 

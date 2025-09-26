@@ -38,7 +38,7 @@ Run ``python tools/get_deps.py FAMILY`` where FAMILY is your MCU family (e.g., s
 
 **Q: Can I use my own build system instead of Make/CMake?**
 
-Yes, just add all ``.c`` files from ``src/`` to your project and configure include paths. See :doc:`guides/integration` for details.
+Yes, just add all ``.c`` files from ``src/`` to your project and configure include paths. See :doc:`tutorials/getting_started` for details.
 
 **Q: Error: "tusb_config.h: No such file or directory"**
 
