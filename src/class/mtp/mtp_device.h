@@ -72,6 +72,9 @@ typedef MTP_DEVICE_INFO_STRUCT(
 // Application API
 //--------------------------------------------------------------------+
 
+// check if mtp interface is mounted
+bool tud_mtp_mounted(void);
+
 // send data phase
 bool tud_mtp_data_send(mtp_container_info_t* p_container);
 
@@ -80,6 +83,8 @@ bool tud_mtp_data_receive(mtp_container_info_t* p_container);
 
 // send response
 bool tud_mtp_response_send(mtp_container_info_t* p_container);
+
+bool tud_mtp_event_send(mtp_event_t* event);
 
 //--------------------------------------------------------------------+
 // Control request Callbacks

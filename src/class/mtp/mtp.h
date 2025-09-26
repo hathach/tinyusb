@@ -56,18 +56,14 @@ typedef enum {
 
 // PTP/MTP protocol phases
 typedef enum {
-  MTP_PHASE_IDLE = 0,
-  MTP_PHASE_COMMAND,
+  MTP_PHASE_COMMAND = 0,
   MTP_PHASE_DATA,
   MTP_PHASE_RESPONSE,
-  MTP_PHASE_RESPONSE_QUEUED,
-  MTP_PHASE_ERROR,
-  MTP_PHASE_NONE,
+  MTP_PHASE_ERROR
 } mtp_phase_type_t;
 
 // PTP/MTP Class requests, PIMA 15740-2000: D.5.2
-typedef enum
-{
+typedef enum {
   MTP_REQ_CANCEL             = 0x64,
   MTP_REQ_GET_EXT_EVENT_DATA = 0x65,
   MTP_REQ_RESET              = 0x66,
@@ -75,8 +71,7 @@ typedef enum
 } mtp_class_request_t;
 
 // PTP/MTP Container type
-typedef enum
-{
+typedef enum {
   MTP_CONTAINER_TYPE_UNDEFINED      = 0,
   MTP_CONTAINER_TYPE_COMMAND_BLOCK  = 1,
   MTP_CONTAINER_TYPE_DATA_BLOCK     = 2,
@@ -85,8 +80,7 @@ typedef enum
 } mtp_container_type_t;
 
 // MTP 1.1 Appendix A: Object formats
-typedef enum
-{
+typedef enum {
   // ---- Base formats ----
   MTP_OBJ_FORMAT_UNDEFINED        = 0x3000u, // Undefined object
   MTP_OBJ_FORMAT_ASSOCIATION      = 0x3001u, // Association (for example, a folder)
@@ -572,12 +566,6 @@ typedef enum {
   MTP_EVENT_OBJECT_REFERENCES_CHANGED = 0xC803u,
 } mtp_event_code_t;
 
-// Predefined Object handles
-typedef enum
-{
-  MTP_OBJH_ROOT = 0x0000,
-} mtp_object_handles_t;
-
 // Datatypes
 typedef enum {
   MTP_DATA_TYPE_UNDEFINED = 0x0000u,
@@ -607,8 +595,7 @@ typedef enum {
 } mtp_data_type_t;
 
 // Get/Set
-typedef enum
-{
+typedef enum {
   MTP_MODE_GET     = 0x00u,
   MTP_MODE_GET_SET = 0x01u,
 } mtp_mode_get_set_t;
@@ -687,6 +674,14 @@ typedef struct {
   };
   uint32_t payload_bytes; // available bytes for read/write
 } mtp_container_info_t;
+
+typedef struct TU_ATTR_PACKED {
+  uint16_t code;
+  uint32_t session_id;
+  uint32_t transaction_id;
+  uint32_t params[3];
+} mtp_event_t;
+TU_VERIFY_STATIC(sizeof(mtp_event_t) == 22, "size is not correct");
 
 #define mtp_string_t(_nchars) \
   struct TU_ATTR_PACKED { \
