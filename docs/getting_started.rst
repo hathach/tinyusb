@@ -63,12 +63,13 @@ For your convenience, TinyUSB contains a handful of examples for both host and d
    $ git clone https://github.com/hathach/tinyusb tinyusb
    $ cd tinyusb
 
-Some ports require additional port-specific SDKs (e.g., for RP2040) or binaries (e.g., for Sony Spresense) to build examples. These components are outside the scope of TinyUSB, so you should download and install them first according to the manufacturer's documentation.
+TinyUSB separates example applications from board-specific hardware configurations (Board Support Packages, BSP). The BSP provides hardware abstraction including pin mappings, clock settings, linker scripts, and hardware initialization routines.
+
+* Example applications live in ``examples/device``, ``examples/host``, and ``examples/dual`` directories.
+* BSP configurations are stored in ``hw/bsp/FAMILY/boards/BOARD_NAME``. For example, raspberry_pi_pico is located in ``hw/bsp/rp2040/boards/raspberry_pi_pico`` where ``FAMILY=rp2040`` and ``BOARD=raspberry_pi_pico``. When you build an example with ``BOARD=raspberry_pi_pico``, the build system automatically finds and uses the corresponding BSP.
 
 Dependencies
 ^^^^^^^^^^^^
-
-TinyUSB separates example applications from board-specific hardware configurations (Board Support Packages, BSP). Example applications live in ``examples/device``, ``examples/host``, and ``examples/dual`` directories, while BSP configurations are stored in ``hw/bsp/FAMILY/boards/BOARD_NAME``. The BSP provides hardware abstraction including pin mappings, clock settings, linker scripts, and hardware initialization routines. For example, raspberry_pi_pico is located in ``hw/bsp/rp2040/boards/raspberry_pi_pico`` where ``FAMILY=rp2040`` and ``BOARD=raspberry_pi_pico``. When you build an example with ``BOARD=raspberry_pi_pico``, the build system automatically finds and uses the corresponding BSP.
 
 Before building, you must first download dependencies including MCU low-level peripheral drivers and external libraries such as FreeRTOS (required by some examples). You can do this in either of two ways:
 
