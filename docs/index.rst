@@ -18,10 +18,8 @@ TinyUSB provides a complete USB stack implementation supporting both device and 
 
 **Quick Navigation:**
 
-* New to TinyUSB? Start with :doc:`tutorials/getting_started`
-* Need to solve a specific problem? Check :doc:`guides/index`
-* Looking for API details? See :doc:`reference/index`
-* Want to understand the design? Read :doc:`explanation/architecture`
+* New to TinyUSB? Start with :doc:`getting_started` and :doc:`reference/glossary`
+* Want to understand the design? Read :doc:`reference/architecture` and :doc:`reference/usb_concepts`
 * Having issues? Check :doc:`faq` and :doc:`troubleshooting`
 
 Documentation Structure
@@ -31,12 +29,10 @@ Documentation Structure
    :maxdepth: 2
    :caption: Information
 
-   explanation/index
-   tutorials/index
-   guides/index
-   reference/index
+   getting_started
    faq
    troubleshooting
+   reference/index
 
 .. toctree::
    :maxdepth: 1

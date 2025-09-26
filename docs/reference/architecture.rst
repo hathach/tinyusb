@@ -239,11 +239,6 @@ Buffer Management
 - Size defined by ``CFG_TUD_*_RX/TX_BUFSIZE`` macros
 - Separate read/write pointers
 
-**DMA Considerations**:
-- Buffers must be DMA-accessible on some MCUs
-- Alignment requirements vary by hardware
-- Cache coherency handled in portable drivers
-
 Threading Model
 ===============
 

@@ -7,9 +7,8 @@ Complete reference documentation for TinyUSB APIs, configuration, and supported 
 .. toctree::
    :maxdepth: 2
 
-   api/index
-   configuration
-   usb_classes
+   architecture
+   usb_concepts
    boards
    dependencies
    concurrency

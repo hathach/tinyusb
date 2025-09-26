@@ -30,7 +30,7 @@ Host and Device Roles
 - Manages the USB bus
 - Enumerates and configures devices
 
-**TinyUSB Host Stack**: Enable with ``CFG_TUH_ENABLED=1`` in ``tusb_config.h``. Call ``tuh_task()`` regularly in your main loop. See the :doc:`../tutorials/getting_started` Quick Start Examples for implementation details.
+**TinyUSB Host Stack**: Enable with ``CFG_TUH_ENABLED=1`` in ``tusb_config.h``. Call ``tuh_task()`` regularly in your main loop. See the :doc:`../getting_started` Quick Start Examples for implementation details.
 
 **USB Device**: The peripheral side (keyboard, mouse, storage device, etc.). Devices:
 - Respond to host requests
@@ -38,7 +38,7 @@ Host and Device Roles
 - Receive power from the host
 - Must be enumerated by the host before use
 
-**TinyUSB Device Stack**: Enable with ``CFG_TUD_ENABLED=1`` in ``tusb_config.h``. Call ``tud_task()`` regularly in your main loop. See the :doc:`../tutorials/getting_started` Quick Start Examples for implementation details.
+**TinyUSB Device Stack**: Enable with ``CFG_TUD_ENABLED=1`` in ``tusb_config.h``. Call ``tud_task()`` regularly in your main loop. See the :doc:`../getting_started` Quick Start Examples for implementation details.
 
 **OTG (On-The-Go)**: Some devices can switch between host and device roles dynamically. **TinyUSB Support**: Both stacks can be enabled simultaneously on OTG-capable hardware. See ``examples/dual/`` for dual-role implementations.
 
@@ -226,7 +226,10 @@ USB classes define standardized protocols for device types:
 - **DFU**: Device Firmware Update - Enable with ``CFG_TUD_DFU``
 - **Vendor**: Custom vendor classes - Enable with ``CFG_TUD_VENDOR``
 
-See :doc:`../reference/usb_classes` for detailed class information and :doc:`../reference/configuration` for configuration options.
+.. note::
+   **Vendor Class Buffer Configuration**: Unlike other USB classes, the vendor class supports setting buffer sizes to 0 in ``tusb_config.h`` (``CFG_TUD_VENDOR_RX_BUFSIZE = 0``) to disable internal buffering. When disabled, data goes directly to ``tud_vendor_rx_cb()`` and the ``tud_vendor_read()``/``tud_vendor_write()`` functions are not available - applications must handle data directly in callbacks.
+
+See ``examples/device/*/tusb_config.h`` for configuration examples.
 
 USB Speeds
 ==========
@@ -420,6 +423,6 @@ USB provides power to devices:
 Next Steps
 ==========
 
-- Start with :doc:`../tutorials/getting_started` for basic setup
-- Review :doc:`../reference/configuration` for configuration options
-- Explore :doc:`../examples` for advanced use cases
+- Start with :doc:`../getting_started` for basic setup
+- Review ``examples/device/*/tusb_config.h`` for configuration examples
+- Explore examples in ``examples/device/`` and ``examples/host/`` directories

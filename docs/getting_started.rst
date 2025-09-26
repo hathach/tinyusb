@@ -13,11 +13,11 @@ To incorporate TinyUSB into your project:
 * Add all the ``.c`` files in the ``tinyusb/src`` folder to your project
 * Add ``your_project/tinyusb/src`` to your include path. Also ensure that your include path contains the configuration file ``tusb_config.h``.
 * Ensure all required macros are properly defined in ``tusb_config.h``. The configuration file from the demo applications provides a good starting point, but you'll need to add additional macros such as ``CFG_TUSB_MCU`` and ``CFG_TUSB_OS``. These are typically passed by make/cmake to maintain unique configurations for different boards.
-* If you're using the device stack, ensure you have created or modified USB descriptors to meet your specific requirements. Ultimately you need to implement all **tud descriptor** callbacks for the stack to work.
+* If you're using the **device stack**, you need to implement all **tud descriptor** callbacks for the stack to work.
 * Add a ``tusb_init(rhport, role)`` call to your reset initialization code.
 * Call ``tusb_int_handler(rhport, in_isr)`` from your USB IRQ handler
 * Implement all enabled classes' callbacks.
-* If you're not using an RTOS, you must call the ``tud_task()``/``tuh_task()`` functions continuously or periodically. These task functions handle all callbacks and core functionality.
+* If you're not using an RTOS, you must call the ``tud_task()``/``tuh_task()`` functions periodically. These task functions handle all callbacks and core functionality.
 
 .. note::
    TinyUSB uses consistent naming prefixes: ``tud_`` for device stack functions and ``tuh_`` for host stack functions. See the :doc:`../reference/glossary` for more details.
@@ -29,6 +29,7 @@ To incorporate TinyUSB into your project:
         .role = TUSB_ROLE_DEVICE,
         .speed = TUSB_SPEED_AUTO
      };
+     // tud descriptor omitted here
      tusb_init(0, &dev_init); // initialize device stack on roothub port 0
 
      tusb_rhport_init_t host_init = {
@@ -67,7 +68,7 @@ Some ports require additional port-specific SDKs (e.g., for RP2040) or binaries 
 Dependencies
 ^^^^^^^^^^^^
 
-TinyUSB separates example applications from board-specific hardware configurations. Example applications live in ``examples/device``, ``examples/host``, and ``examples/dual`` directories, while Board Support Package (BSP) configurations are stored in ``hw/bsp/FAMILY/boards/BOARD_NAME``. The BSP provides hardware abstraction including pin mappings, clock settings, linker scripts, and hardware initialization routines. For example, raspberry_pi_pico is located in ``hw/bsp/rp2040/boards/raspberry_pi_pico`` where ``FAMILY=rp2040`` and ``BOARD=raspberry_pi_pico``. When you build an example with ``BOARD=raspberry_pi_pico``, the build system automatically finds and uses the corresponding BSP.
+TinyUSB separates example applications from board-specific hardware configurations (Board Support Packages, BSP). Example applications live in ``examples/device``, ``examples/host``, and ``examples/dual`` directories, while BSP configurations are stored in ``hw/bsp/FAMILY/boards/BOARD_NAME``. The BSP provides hardware abstraction including pin mappings, clock settings, linker scripts, and hardware initialization routines. For example, raspberry_pi_pico is located in ``hw/bsp/rp2040/boards/raspberry_pi_pico`` where ``FAMILY=rp2040`` and ``BOARD=raspberry_pi_pico``. When you build an example with ``BOARD=raspberry_pi_pico``, the build system automatically finds and uses the corresponding BSP.
 
 Before building, you must first download dependencies including MCU low-level peripheral drivers and external libraries such as FreeRTOS (required by some examples). You can do this in either of two ways:
 
@@ -352,5 +353,5 @@ The ``cdc_msc_hid`` example creates a USB host that can connect to USB devices w
 Next Steps
 ^^^^^^^^^^
 
-* Check :doc:`../reference/boards` for board-specific information
-* Explore more :doc:`../examples` for advanced use cases
+* Check :doc:`reference/boards` for board-specific information
+* Explore more examples in ``examples/device/`` and ``examples/host/`` directories
