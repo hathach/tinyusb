@@ -424,14 +424,10 @@ void process_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
         .standard_version = 100,
         .mtp_vendor_extension_id = 6, // MTP specs say 0xFFFFFFFF but libMTP check for value 6
         .mtp_version = 100,
-#ifdef CFG_TUD_MTP_DEVICEINFO_EXTENSIONS
         .mtp_extensions = {
           .count = sizeof(CFG_TUD_MTP_DEVICEINFO_EXTENSIONS),
           .utf16 = { 0 }
         },
-#else
-        .mtp_extensions = 0,
-#endif
         .functional_mode = 0x0000,
         .supported_operations = {
           .count = TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS),
@@ -454,11 +450,11 @@ void process_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
           .arr = { CFG_TUD_MTP_DEVICEINFO_PLAYBACK_FORMATS }
         }
       };
-#ifdef CFG_TUD_MTP_DEVICEINFO_EXTENSIONS
+
       for (uint8_t i=0; i < dev_info.mtp_extensions.count; i++) {
         dev_info.mtp_extensions.utf16[i] = (uint16_t)CFG_TUD_MTP_DEVICEINFO_EXTENSIONS[i];
       }
-#endif
+
       mtp_container_add_raw(&cb_data->io_container, &dev_info, sizeof(tud_mtp_device_info_t));
       break;
     }
