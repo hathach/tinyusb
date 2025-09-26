@@ -66,7 +66,7 @@ typedef struct {
   uint32_t image_bit_depth;
 
   uint32_t parent;
-  uint8_t association_type;
+  uint16_t association_type;
 
   uint32_t size;
   uint8_t* data;
@@ -74,8 +74,9 @@ typedef struct {
 } fs_file_t;
 
 // object data buffer (excluding 2 predefined files)
+// with simple allocation pointer
 uint8_t fs_buf[FS_MAX_CAPACITY_BYTES];
-uint8_t fs_buf_head = 0; // simple allocation pointer
+size_t fs_buf_head = 0;
 
 // Files system, handle is index + 1
 static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
@@ -88,7 +89,7 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
     .image_bit_depth = 0,
     .parent = 0,
     .association_type = MTP_ASSOCIATION_UNDEFINED,
-    .data = (uint8_t*) README_TXT_CONTENT,
+    .data = (uint8_t*) (uintptr_t) README_TXT_CONTENT,
     .size = sizeof(README_TXT_CONTENT)
   },
   {
@@ -100,7 +101,7 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
     .image_bit_depth = 32,
     .parent = 0,
     .association_type = MTP_ASSOCIATION_UNDEFINED,
-    .data = logo_bin,
+    .data = (uint8_t*) (uintptr_t) logo_bin,
     .size = logo_len,
   }
 };
@@ -161,6 +162,7 @@ static inline fs_file_t* fs_create_file(void) {
       return f;
     }
   }
+  return NULL;
 }
 
 // simple malloc
@@ -179,7 +181,7 @@ static inline uint8_t* fs_malloc(size_t size) {
 int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command_container;
   mtp_container_info_t* io_container = &cb_data->io_container;
-  uint32_t resp_code = 0;
+  uint16_t resp_code = 0;
   switch (command->code) {
     case MTP_OP_GET_DEVICE_INFO: {
       // Device info is already prepared up to playback formats. Application only need to add string fields
@@ -339,6 +341,7 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
     case MTP_OP_SEND_OBJECT_INFO: {
       const uint32_t storage_id = command->params[0];
       const uint32_t parent_handle = command->params[1]; // folder handle, 0xFFFFFFFF is root
+      (void) parent_handle;
       if (!is_session_opened) {
         resp_code = MTP_RESP_SESSION_NOT_OPEN;
       } else if (storage_id != 0xFFFFFFFF && storage_id != SUPPORTED_STORAGE_ID) {
@@ -397,7 +400,7 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
 int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command_container;
   mtp_container_info_t* io_container = &cb_data->io_container;
-  uint32_t resp_code = 0;
+  uint16_t resp_code = 0;
   switch (command->code) {
     case MTP_OP_GET_OBJECT: {
       // File contents span over multiple xfers
