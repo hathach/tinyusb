@@ -23,7 +23,6 @@
  *
  */
 
-#include "class/mtp/mtp_device_storage.h"
 #include "tusb.h"
 #include "tinyusb_logo_png.h"
 
@@ -186,6 +185,40 @@ static inline uint8_t* fs_malloc(size_t size) {
   fs_buf_head += size;
   return ptr;
 #endif
+}
+
+//--------------------------------------------------------------------+
+// Control Request callback
+//--------------------------------------------------------------------+
+bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
+  mtp_request_reset_cancel_data_t cancel_data;
+  memcpy(&cancel_data, cb_data->buf, sizeof(cancel_data));
+  (void) cancel_data.code;
+  (void ) cancel_data.transaction_id;
+  return true;
+}
+
+// Invoked when received Device Reset request
+// return false to stall the request
+bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data) {
+  (void) cb_data;
+  return true;
+}
+
+// Invoked when received Get Extended Event request. Application fill callback data's buffer for response
+// return negative to stall the request
+int32_t tud_mtp_request_get_extended_event_cb(tud_mtp_request_cb_data_t* cb_data) {
+  (void) cb_data;
+  return false; // not implemented yet
+}
+
+// Invoked when received Get DeviceStatus request. Application fill callback data's buffer for response
+// return negative to stall the request
+int32_t tud_mtp_request_get_device_status_cb(tud_mtp_request_cb_data_t* cb_data) {
+  uint16_t* buf16 = (uint16_t*)(uintptr_t) cb_data->buf;
+  buf16[0] = 4; // length
+  buf16[1] = MTP_RESP_OK; // status
+  return 4;
 }
 
 //--------------------------------------------------------------------+
@@ -530,10 +563,4 @@ int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
 int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data) {
   (void) cb_data;
   return 0; // nothing to do
-}
-
-void tud_mtp_storage_cancel(void) {
-}
-
-void tud_mtp_storage_reset(void) {
 }

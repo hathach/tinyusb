@@ -31,12 +31,11 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "device/dcd.h"         // for faking dcd_event_xfer_complete
+#include "device/dcd.h"
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
 #include "mtp_device.h"
-#include "mtp_device_storage.h"
 
 // Level where CFG_TUSB_DEBUG must be at least for this driver is logged
 #ifndef CFG_TUD_MTP_LOG_LEVEL
@@ -45,7 +44,45 @@
 
 #define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_MTP_LOG_LEVEL, __VA_ARGS__)
 
-#define BULK_PACKET_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+//--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data) {
+  (void) cb_data;
+  return false;
+}
+TU_ATTR_WEAK bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data) {
+  (void) cb_data;
+  return false;
+}
+TU_ATTR_WEAK int32_t tud_mtp_request_get_extended_event_cb(tud_mtp_request_cb_data_t* cb_data) {
+  (void) cb_data;
+  return -1;
+}
+TU_ATTR_WEAK int32_t tud_mtp_request_get_device_status_cb(tud_mtp_request_cb_data_t* cb_data) {
+  (void) cb_data;
+  return -1;
+}
+TU_ATTR_WEAK bool tud_mtp_request_vendor_cb(tud_mtp_request_cb_data_t* cb_data) {
+  (void) cb_data;
+  return false;
+}
+TU_ATTR_WEAK int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t * cb_data) {
+  (void) cb_data;
+  return -1;
+}
+TU_ATTR_WEAK int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
+  (void) cb_data;
+  return -1;
+}
+TU_ATTR_WEAK int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
+  (void) cb_data;
+  return -1;
+}
+TU_ATTR_WEAK int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data) {
+  (void) cb_data;
+  return -1;
+}
 
 //--------------------------------------------------------------------+
 // STRUCT
@@ -66,6 +103,8 @@ typedef struct {
   uint32_t session_id;
   mtp_container_command_t command;
   mtp_container_header_t io_header;
+
+  TU_ATTR_ALIGNED(4) uint8_t control_buf[CFG_TUD_MTP_EP_CONTROL_BUFSIZE];
 } mtpd_interface_t;
 
 typedef struct {
@@ -76,16 +115,10 @@ typedef struct {
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static void process_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data);
-
-//--------------------------------------------------------------------+
-// MTP variable declaration
-//--------------------------------------------------------------------+
 static mtpd_interface_t _mtpd_itf;
 CFG_TUD_MEM_SECTION static mtpd_epbuf_t _mtpd_epbuf;
 
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static mtp_device_status_res_t _mtpd_device_status_res;
-CFG_TUD_MEM_SECTION CFG_TUSB_MEM_ALIGN static mtp_basic_object_info_t _mtpd_soi;
+static void preprocess_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data);
 
 //--------------------------------------------------------------------+
 // Debug
@@ -226,7 +259,6 @@ bool tud_mtp_event_send(mtp_event_t* event) {
 //--------------------------------------------------------------------+
 void mtpd_init(void) {
   tu_memclr(&_mtpd_itf, sizeof(mtpd_interface_t));
-  tu_memclr(&_mtpd_soi, sizeof(mtp_basic_object_info_t));
 }
 
 bool mtpd_deinit(void) {
@@ -236,8 +268,6 @@ bool mtpd_deinit(void) {
 void mtpd_reset(uint8_t rhport) {
   (void) rhport;
   tu_memclr(&_mtpd_itf, sizeof(mtpd_interface_t));
-  tu_memclr(&_mtpd_epbuf, sizeof(mtpd_epbuf_t));
-  tu_memclr(&_mtpd_soi, sizeof(mtp_basic_object_info_t));
 }
 
 uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16_t max_len) {
@@ -264,7 +294,6 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
 
   // Open endpoint pair
   TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(ep_desc), 2, TUSB_XFER_BULK, &p_mtp->ep_out, &p_mtp->ep_in), 0);
-
   TU_ASSERT(prepare_new_command(p_mtp), 0);
 
   return mtpd_itf_size;
@@ -274,40 +303,63 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
 bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
-  if (stage != CONTROL_STAGE_SETUP) {
-    return true; // nothing to do with DATA & ACK stage
-  }
+  mtpd_interface_t* p_mtp = &_mtpd_itf;
+  tud_mtp_request_cb_data_t cb_data = {
+    .idx = 0,
+    .stage = stage,
+    .request = request,
+    .buf = p_mtp->control_buf,
+    .bufsize = tu_le16toh(request->wLength),
+  };
 
   switch (request->bRequest) {
     case MTP_REQ_CANCEL:
-      TU_LOG_DRV("  MTP request: MTP_REQ_CANCEL\n");
-      tud_mtp_storage_cancel();
+      TU_LOG_DRV("  MTP request: Cancel\n");
+      if (stage == CONTROL_STAGE_SETUP) {
+        return tud_control_xfer(rhport, request, p_mtp->control_buf, CFG_TUD_MTP_EP_CONTROL_BUFSIZE);
+      } else if (stage == CONTROL_STAGE_ACK) {
+        return tud_mtp_request_cancel_cb(&cb_data);
+      }
       break;
 
     case MTP_REQ_GET_EXT_EVENT_DATA:
-      TU_LOG_DRV("  MTP request: MTP_REQ_GET_EXT_EVENT_DATA\n");
+      TU_LOG_DRV("  MTP request: Get Extended Event Data\n");
+      if (stage == CONTROL_STAGE_SETUP) {
+        const int32_t len = tud_mtp_request_get_extended_event_cb(&cb_data);
+        TU_VERIFY(len > 0);
+        return tud_control_xfer(rhport,request, p_mtp->control_buf, (uint16_t) len);
+      }
       break;
 
     case MTP_REQ_RESET:
-      TU_LOG_DRV("  MTP request: MTP_REQ_RESET\n");
-      tud_mtp_storage_reset();
-      // Prepare for a new command
-      TU_ASSERT(usbd_edpt_xfer(rhport, _mtpd_itf.ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE));
+      TU_LOG_DRV("  MTP request: Device Reset\n");
+      // used by the host to return the Still Image Capture Device to the Idle state after the Bulk-pipe has stalled
+      if (stage == CONTROL_STAGE_SETUP) {
+        // clear stalled
+        if (usbd_edpt_stalled(rhport, p_mtp->ep_out)) {
+          usbd_edpt_clear_stall(rhport, p_mtp->ep_out);
+        }
+        if (usbd_edpt_stalled(rhport, p_mtp->ep_in)) {
+          usbd_edpt_clear_stall(rhport, p_mtp->ep_in);
+        }
+      } else if (stage == CONTROL_STAGE_ACK) {
+        prepare_new_command(p_mtp);
+        return tud_mtp_request_device_reset_cb(&cb_data);
+      }
       break;
 
     case MTP_REQ_GET_DEVICE_STATUS: {
-      TU_LOG_DRV("  MTP request: MTP_REQ_GET_DEVICE_STATUS\n");
-      uint16_t len = 4;
-      _mtpd_device_status_res.wLength = len;
-      // Cancel is synchronous, always answer OK
-      _mtpd_device_status_res.code = MTP_RESP_OK;
-      TU_ASSERT(tud_control_xfer(rhport, request, (uint8_t *)&_mtpd_device_status_res , len));
+      TU_LOG_DRV("  MTP request: Get Device Status\n");
+      if (stage == CONTROL_STAGE_SETUP) {
+        const int32_t len = tud_mtp_request_get_device_status_cb(&cb_data);
+        TU_VERIFY(len > 0);
+        return tud_control_xfer(rhport, request, p_mtp->control_buf, (uint16_t) len);
+      }
       break;
     }
 
     default:
-      TU_LOG_DRV("  MTP request: invalid request\r\n");
-      return false; // stall unsupported request
+      return tud_mtp_request_vendor_cb(&cb_data);
   }
 
   return true;
@@ -354,7 +406,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       TU_VERIFY(ep_addr == p_mtp->ep_out && p_container->header.type == MTP_CONTAINER_TYPE_COMMAND_BLOCK);
       memcpy(&p_mtp->command, p_container, sizeof(mtp_container_command_t)); // save new command
       p_container->header.len = sizeof(mtp_container_header_t); // default container to header only
-      process_cmd(p_mtp, &cb_data);
+      preprocess_cmd(p_mtp, &cb_data);
       if (tud_mtp_command_received_cb(&cb_data) < 0) {
         p_mtp->phase = MTP_PHASE_ERROR;
       }
@@ -435,7 +487,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 //--------------------------------------------------------------------+
 
 // pre-processed commands
-void process_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
+void preprocess_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
   switch (p_mtp->command.code) {
     case MTP_OP_GET_DEVICE_INFO: {
       tud_mtp_device_info_t dev_info = {

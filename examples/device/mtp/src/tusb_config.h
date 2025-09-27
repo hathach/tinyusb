@@ -93,6 +93,7 @@
 //------------- CLASS -------------//
 #define CFG_TUD_MTP               1
 #define CFG_TUD_MTP_EP_BUFSIZE    512
+#define CFG_TUD_MTP_EP_CONTROL_BUFSIZE  16 // should be enough to hold data in MTP control request
 
 //------------- MTP device info -------------//
 #define CFG_TUD_MTP_DEVICEINFO_EXTENSIONS   "microsoft.com: 1.0; "
@@ -130,10 +131,6 @@
     MTP_OBJ_FORMAT_ASSOCIATION, \
     MTP_OBJ_FORMAT_TEXT, \
     MTP_OBJ_FORMAT_PNG
-
-#define CFG_TUD_MANUFACTURER "TinyUsb Manufacturer"
-#define CFG_TUD_MODEL "TinyUsb Device"
-#define CFG_MTP_INTERFACE (CFG_TUD_MODEL " MTP")
 
 #ifdef __cplusplus
  }

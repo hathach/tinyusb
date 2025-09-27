@@ -140,10 +140,10 @@ enum {
 char const *string_desc_arr[] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-  CFG_TUD_MANUFACTURER,          // 1: Manufacturer
-  CFG_TUD_MODEL,                 // 2: Product
+  "TinyUsb",                     // 1: Manufacturer
+  "TinyUsb Device",              // 2: Product
   NULL,                          // 3: Serials will use unique ID if possible
-  CFG_MTP_INTERFACE,             // 4: MTP Interface
+  "TinyUSBB MTP",                // 4: MTP Interface
 };
 
 static uint16_t _desc_str[32 + 1];
@@ -168,7 +168,9 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
       // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
       // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
-      if ( !(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) ) return NULL;
+      if ( !(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) ) {
+        return NULL;
+      }
 
       const char *str = string_desc_arr[index];
 

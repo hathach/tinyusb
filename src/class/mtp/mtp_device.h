@@ -36,6 +36,7 @@
  extern "C" {
 #endif
 
+// callback data for Bulk Only Transfer (BOT) protocol
 typedef struct {
   uint8_t idx; // mtp instance
   const mtp_container_command_t* command_container;
@@ -44,6 +45,16 @@ typedef struct {
   tusb_xfer_result_t xfer_result;
   uint32_t total_xferred_bytes; // number of bytes transferred so far in this phase
 } tud_mtp_cb_data_t;
+
+// callback data for Control requests
+typedef struct {
+  uint8_t idx;
+  uint8_t stage; // control stage
+  const tusb_control_request_t* request;
+  // buffer for data stage
+  uint8_t* buf;
+  uint16_t bufsize;
+} tud_mtp_request_cb_data_t;
 
 // Number of supported operations, events, device properties, capture formats, playback formats
 // and max number of characters for strings manufacturer, model, device_version, serial_number
@@ -89,24 +100,47 @@ bool tud_mtp_event_send(mtp_event_t* event);
 //--------------------------------------------------------------------+
 // Control request Callbacks
 //--------------------------------------------------------------------+
-// bool tud_mtp_control_xfer_cb(uint8_t idx, uint8_t stage, tusb_control_request_t const *p_request);
+
+// Invoked when received Cancel request. Data is available in callback data's buffer
+// return false to stall the request
+bool tud_mtp_request_cancel_cb(tud_mtp_request_cb_data_t* cb_data);
+
+// Invoked when received Device Reset request
+// return false to stall the request
+bool tud_mtp_request_device_reset_cb(tud_mtp_request_cb_data_t* cb_data);
+
+// Invoked when received Get Extended Event request. Application fill callback data's buffer for response
+// return negative to stall the request
+int32_t tud_mtp_request_get_extended_event_cb(tud_mtp_request_cb_data_t* cb_data);
+
+// Invoked when received Get DeviceStatus request. Application fill callback data's buffer for response
+// return negative to stall the request
+int32_t tud_mtp_request_get_device_status_cb(tud_mtp_request_cb_data_t* cb_data);
+
+// Invoked when received vendor-specific request not in the above standard MTP requests
+// return false to stall the request
+bool tud_mtp_request_vendor_cb(tud_mtp_request_cb_data_t* cb_data);
 
 //--------------------------------------------------------------------+
 // Bulk only protocol Callbacks
 //--------------------------------------------------------------------+
 
-/* Invoked when new command is received. Application fill the cb_data->reply with either DATA or RESPONSE and call
- * tud_mtp_data_send() or tud_mtp_response_send(). Return negative to stall the endpoints
- */
+// Invoked when new command is received. Application fill the cb_data->io_container and call tud_mtp_data_send() or
+// tud_mtp_response_send() for Data or Response phase.
+// Return negative to stall the endpoints
 int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t * cb_data);
 
-// Invoked when a data packet is transferred, and more data is expected
+// Invoked when a data packet is transferred. If data spans over multiple packets, application can use
+// total_xferred_bytes and io_container's payload_bytes to determine the offset and remaining bytes to be transferred.
+// Return negative to stall the endpoints
 int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data);
 
 // Invoked when all bytes in DATA phase is complete. A response packet is expected
+// Return negative to stall the endpoints
 int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data);
 
 // Invoked when response phase is complete
+// Return negative to stall the endpoints
 int32_t tud_mtp_response_complete_cb(tud_mtp_cb_data_t* cb_data);
 
 //--------------------------------------------------------------------+

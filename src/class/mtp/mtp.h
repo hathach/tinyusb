@@ -38,8 +38,6 @@
  extern "C" {
 #endif
 
-typedef uint16_t wchar16_t;
-
 //--------------------------------------------------------------------+
 // Media Transfer Protocol Class Constant
 //--------------------------------------------------------------------+
@@ -759,15 +757,10 @@ typedef struct TU_ATTR_PACKED {
    };
 
 typedef struct TU_ATTR_PACKED {
-  uint16_t wLength;
   uint16_t code;
-} mtp_device_status_res_t;
-
-typedef struct TU_ATTR_PACKED {
-  uint32_t object_handle;
-  uint32_t storage_id;
-  uint32_t parent_object_handle;
-} mtp_basic_object_info_t;
+  uint32_t transaction_id;
+} mtp_request_reset_cancel_data_t;
+TU_VERIFY_STATIC(sizeof(mtp_request_reset_cancel_data_t) == 6, "size is not correct");
 
 //--------------------------------------------------------------------+
 // Container helper function
