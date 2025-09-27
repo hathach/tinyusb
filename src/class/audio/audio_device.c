@@ -283,7 +283,7 @@ typedef struct
 
 // Encoding parameters - parameters are set when alternate AS interface is set by host
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
-  audio_format_type_t format_type_tx;
+  audio20_format_type_t format_type_tx;
   uint8_t n_channels_tx;
   uint8_t n_bytes_per_sample_tx;
 #endif
@@ -597,7 +597,7 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
 // If no interrupt transmit is pending bytes get written into buffer and a transmit is scheduled - once transmit completed tud_audio_int_done_cb() is called in inform user
-bool tud_audio_int_n_write(uint8_t func_id, const audio_interrupt_data_t *data) {
+bool tud_audio_int_n_write(uint8_t func_id, const audio20_interrupt_data_t *data) {
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
 
   TU_VERIFY(_audiod_fct[func_id].ep_int != 0);
@@ -606,7 +606,7 @@ bool tud_audio_int_n_write(uint8_t func_id, const audio_interrupt_data_t *data) 
   TU_VERIFY(usbd_edpt_claim(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int));
 
   // Check length
-  if (tu_memcpy_s(int_ep_buf[func_id].buf, sizeof(int_ep_buf[func_id].buf), data, sizeof(audio_interrupt_data_t)) == 0) {
+  if (tu_memcpy_s(int_ep_buf[func_id].buf, sizeof(int_ep_buf[func_id].buf), data, sizeof(audio20_interrupt_data_t)) == 0) {
     // Schedule transmit
     TU_ASSERT(usbd_edpt_xfer(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int, int_ep_buf[func_id].buf, sizeof(int_ep_buf[func_id].buf)), 0);
   } else {
@@ -937,8 +937,8 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
                 _audiod_fct[i].interval_tx = desc_ep->bInterval;
               }
             }
-          } else if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AC_INTERFACE_OUTPUT_TERMINAL) {
-            if (tu_unaligned_read16(p_desc + 4) == AUDIO_TERM_TYPE_USB_STREAMING) {
+          } else if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL) {
+            if (tu_unaligned_read16(p_desc + 4) == AUDIO20_TERM_TYPE_USB_STREAMING) {
               _audiod_fct[i].bclock_id_tx = p_desc[8];
             }
           }
@@ -1277,7 +1277,7 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
           uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
-          if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO_CS_REQ_CUR) {
+          if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO20_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO20_CS_REQ_CUR) {
             _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(_audiod_fct[func_id].ctrl_buf);
           }
 #endif
@@ -1655,7 +1655,7 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
   if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS && p_request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE) {
     uint8_t entityID = TU_U16_HIGH(p_request->wIndex);
     uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
-    if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO_CS_REQ_CUR) {
+    if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO20_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO20_CS_REQ_CUR) {
       _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(_audiod_fct[func_id].ctrl_buf);
     }
   }
@@ -1673,7 +1673,7 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *
     if (_audiod_fct[i].p_desc && ((tusb_desc_interface_t const *) _audiod_fct[i].p_desc)->bInterfaceNumber == itf) {
       // Get pointers after class specific AC descriptors and end of AC descriptors - entities are defined in between
       uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);// Points to CS AC descriptor
-      uint8_t const *p_desc_end = ((audio_desc_cs_ac_interface_t const *) p_desc)->wTotalLength + p_desc;
+      uint8_t const *p_desc_end = ((audio20_desc_cs_ac_interface_t const *) p_desc)->wTotalLength + p_desc;
       p_desc = tu_desc_next(p_desc);// Get past CS AC descriptor
 
       // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
@@ -1719,7 +1719,7 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *func_id) {
 
       // Advance past AC descriptors - EP we look for are streaming EPs
       uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);
-      p_desc += ((audio_desc_cs_ac_interface_t const *) p_desc)->wTotalLength;
+      p_desc += ((audio20_desc_cs_ac_interface_t const *) p_desc)->wTotalLength;
 
       // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
       while (p_desc_end - p_desc > 0) {
@@ -1740,19 +1740,19 @@ static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t c
   p_desc = tu_desc_next(p_desc);// Exclude standard AS interface descriptor of current alternate interface descriptor
 
   // Look for a Class-Specific AS Interface Descriptor(4.9.2) to verify format type and format and also to get number of physical channels
-  if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AS_INTERFACE_AS_GENERAL) {
-    audio->n_channels_tx = ((audio_desc_cs_as_interface_t const *) p_desc)->bNrChannels;
-    audio->format_type_tx = (audio_format_type_t) (((audio_desc_cs_as_interface_t const *) p_desc)->bFormatType);
+  if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO20_CS_AS_INTERFACE_AS_GENERAL) {
+    audio->n_channels_tx = ((audio20_desc_cs_as_interface_t const *) p_desc)->bNrChannels;
+    audio->format_type_tx = (audio20_format_type_t) (((audio20_desc_cs_as_interface_t const *) p_desc)->bFormatType);
     // Look for a Type I Format Type Descriptor(2.3.1.6 - Audio Formats)
     p_desc = tu_desc_next(p_desc);
-    if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO_CS_AS_INTERFACE_FORMAT_TYPE && ((audio_desc_type_I_format_t const *) p_desc)->bFormatType == AUDIO_FORMAT_TYPE_I) {
-      audio->n_bytes_per_sample_tx = ((audio_desc_type_I_format_t const *) p_desc)->bSubslotSize;
+    if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO20_CS_AS_INTERFACE_FORMAT_TYPE && ((audio20_desc_type_I_format_t const *) p_desc)->bFormatType == AUDIO20_FORMAT_TYPE_I) {
+      audio->n_bytes_per_sample_tx = ((audio20_desc_type_I_format_t const *) p_desc)->bSubslotSize;
     }
   }
 }
 
 static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
-  TU_VERIFY(audio->format_type_tx == AUDIO_FORMAT_TYPE_I);
+  TU_VERIFY(audio->format_type_tx == AUDIO20_FORMAT_TYPE_I);
   TU_VERIFY(audio->n_channels_tx);
   TU_VERIFY(audio->n_bytes_per_sample_tx);
   TU_VERIFY(audio->interval_tx);

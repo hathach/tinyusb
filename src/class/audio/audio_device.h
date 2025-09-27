@@ -220,7 +220,7 @@ tu_fifo_t* tud_audio_n_get_ep_in_ff   (uint8_t func_id);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-bool    tud_audio_int_n_write                     (uint8_t func_id, const audio_interrupt_data_t * data);
+bool    tud_audio_int_n_write                     (uint8_t func_id, const audio20_interrupt_data_t * data);
 #endif
 
 //--------------------------------------------------------------------+
@@ -244,7 +244,7 @@ static inline tu_fifo_t* tud_audio_get_ep_in_ff   (void);
 // INT CTR API
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-static inline bool tud_audio_int_write                      (const audio_interrupt_data_t * data);
+static inline bool tud_audio_int_write                      (const audio20_interrupt_data_t * data);
 #endif
 
 // Buffer control EP data and schedule a transmit
@@ -434,7 +434,7 @@ TU_ATTR_ALWAYS_INLINE static inline tu_fifo_t* tud_audio_get_ep_in_ff(void) {
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_int_write(const audio_interrupt_data_t * data) {
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_int_write(const audio20_interrupt_data_t * data) {
   return tud_audio_int_n_write(0, data);
 }
 #endif
