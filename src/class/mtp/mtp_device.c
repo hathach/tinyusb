@@ -218,6 +218,7 @@ static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
   const uint16_t xact_len = tu_min16((uint16_t) (p_mtp->total_len - p_mtp->xferred_len), CFG_TUD_MTP_EP_BUFSIZE);
   if (xact_len) {
     // already transferred all bytes in header's length. Application make an unnecessary extra call
+    TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
     TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, xact_len));
   }
   return true;
@@ -236,8 +237,8 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   p_mtp->phase = MTP_PHASE_RESPONSE;
   p_container->header->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
   p_container->header->transaction_id = p_mtp->command.transaction_id;
-  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, (uint16_t)p_container->header->len));
-  return true;
+  TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in));
+  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, (uint16_t)p_container->header->len);
 }
 
 bool tud_mtp_mounted(void) {
@@ -250,7 +251,6 @@ bool tud_mtp_event_send(mtp_event_t* event) {
   TU_VERIFY(p_mtp->ep_event != 0);
   _mtpd_epbuf.buf_event = *event;
   TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_event)); // Claim the endpoint
-
   return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_event, (uint8_t*) &_mtpd_epbuf.buf_event, sizeof(mtp_event_t));
 }
 
