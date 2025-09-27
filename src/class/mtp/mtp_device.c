@@ -204,7 +204,7 @@ static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
     if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
       p_mtp->total_len = p_container->header->len;
       p_container->header->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-      p_container->header->transaction_id = p_mtp->command.transaction_id;
+      p_container->header->transaction_id = p_mtp->command.header.transaction_id;
       p_mtp->io_header = *p_container->header; // save header for subsequent data
     } else {
       // OUT transfer: total length is at least max packet size
@@ -236,7 +236,7 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   mtpd_interface_t* p_mtp = &_mtpd_itf;
   p_mtp->phase = MTP_PHASE_RESPONSE;
   p_container->header->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
-  p_container->header->transaction_id = p_mtp->command.transaction_id;
+  p_container->header->transaction_id = p_mtp->command.header.transaction_id;
   TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in));
   return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, (uint16_t)p_container->header->len);
 }
@@ -376,8 +376,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   mtp_generic_container_t* p_container = (mtp_generic_container_t*) _mtpd_epbuf.buf;
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_MTP_LOG_LEVEL
-  tu_lookup_find(&_mtp_op_table, p_mtp->command.code);
-  TU_LOG_DRV("  MTP %s: %s phase\r\n", (const char *) tu_lookup_find(&_mtp_op_table, p_mtp->command.code),
+  tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code);
+  TU_LOG_DRV("  MTP %s: %s phase\r\n", (const char *) tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code),
     _mtp_phase_str[p_mtp->phase]);
 #endif
 
@@ -488,7 +488,7 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
 // pre-processed commands
 void preprocess_cmd(mtpd_interface_t* p_mtp, tud_mtp_cb_data_t* cb_data) {
-  switch (p_mtp->command.code) {
+  switch (p_mtp->command.header.code) {
     case MTP_OP_GET_DEVICE_INFO: {
       tud_mtp_device_info_t dev_info = {
         .standard_version = 100,

@@ -228,7 +228,7 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command_container;
   mtp_container_info_t* io_container = &cb_data->io_container;
   uint16_t resp_code = 0;
-  switch (command->code) {
+  switch (command->header.code) {
     case MTP_OP_GET_DEVICE_INFO: {
       // Device info is already prepared up to playback formats. Application only need to add string fields
       mtp_container_add_cstring(io_container, DEV_INFO_MANUFACTURER);
@@ -452,7 +452,7 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command_container;
   mtp_container_info_t* io_container = &cb_data->io_container;
   uint16_t resp_code = 0;
-  switch (command->code) {
+  switch (command->header.code) {
     case MTP_OP_GET_OBJECT: {
       // File contents span over multiple xfers
       const uint32_t obj_handle = command->params[0];
@@ -540,7 +540,7 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
 int32_t tud_mtp_data_complete_cb(tud_mtp_cb_data_t* cb_data) {
   const mtp_container_command_t* command = cb_data->command_container;
   mtp_container_info_t* resp = &cb_data->io_container;
-  switch (command->code) {
+  switch (command->header.code) {
     case MTP_OP_SEND_OBJECT_INFO: {
       fs_file_t* f = fs_get_file(send_obj_handle);
       if (f == NULL) {

@@ -62,7 +62,6 @@
             <path>$TUSB_DIR$/src/class/mtp/mtp_device.c</path>
             <path>$TUSB_DIR$/src/class/mtp/mtp.h</path>
             <path>$TUSB_DIR$/src/class/mtp/mtp_device.h</path>
-            <path>$TUSB_DIR$/src/class/mtp/mtp_device_storage.h</path>
         </group>
         <group name="src/class/net">
             <path>$TUSB_DIR$/src/class/net/ecm_rndis_device.c</path>

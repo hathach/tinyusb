@@ -649,10 +649,7 @@ typedef struct TU_ATTR_PACKED {
 TU_VERIFY_STATIC(sizeof(mtp_container_header_t) == 12, "size is not correct");
 
 typedef struct TU_ATTR_PACKED {
-  uint32_t len;
-  uint16_t type;
-  uint16_t code;
-  uint32_t transaction_id;
+  mtp_container_header_t header;
   uint32_t params[5];
 } mtp_container_command_t;
 TU_VERIFY_STATIC(sizeof(mtp_container_command_t) == 32, "size is not correct");
