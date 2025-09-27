@@ -37,6 +37,7 @@ list(APPEND srcs
   ${tusb_src}/class/hid/hid_device.c
   ${tusb_src}/class/midi/midi_device.c
   ${tusb_src}/class/msc/msc_device.c
+  ${tusb_src}/class/mtp/mtp_device.c
   ${tusb_src}/class/net/ecm_rndis_device.c
   ${tusb_src}/class/net/ncm_device.c
   ${tusb_src}/class/usbtmc/usbtmc_device.c
