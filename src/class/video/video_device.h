@@ -61,7 +61,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
  *
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index */
-TU_ATTR_WEAK void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
+void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -72,7 +72,7 @@ TU_ATTR_WEAK void tud_video_frame_xfer_complete_cb(uint_fast8_t ctl_idx, uint_fa
  * @param[in] ctl_idx    Destination control interface index
  * @param[in] stm_idx    Destination streaming interface index
  * @return video_error_code_t */
-TU_ATTR_WEAK int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod);
+int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod);
 
 /** Invoked when VS_COMMIT_CONTROL(SET_CUR) request received
  *
@@ -80,7 +80,7 @@ TU_ATTR_WEAK int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod
  * @param[in] stm_idx     Destination streaming interface index
  * @param[in] parameters  Video streaming parameters
  * @return video_error_code_t */
-TU_ATTR_WEAK int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
+int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
                                      video_probe_and_commit_control_t const *parameters);
 
 //--------------------------------------------------------------------+

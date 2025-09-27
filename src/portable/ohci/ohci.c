@@ -168,14 +168,12 @@ static gtd_extra_data_t *gtd_get_extra_data(ohci_gtd_t const * const gtd);
 // tusb_app_virt_to_phys and tusb_app_virt_to_phys in your application.
 TU_ATTR_ALWAYS_INLINE static inline void *_phys_addr(void *virtual_address)
 {
-  if (tusb_app_virt_to_phys) return tusb_app_virt_to_phys(virtual_address);
-  return virtual_address;
+  return tusb_app_virt_to_phys(virtual_address);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void *_virt_addr(void *physical_address)
 {
-  if (tusb_app_phys_to_virt) return tusb_app_phys_to_virt(physical_address);
-  return physical_address;
+  return tusb_app_phys_to_virt(physical_address);
 }
 
 // Initialization according to 5.1.1.4
@@ -208,12 +206,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     //Wait 20 ms. (Ref Usb spec 7.1.7.7)
     OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_RESUME;
 
-#if CFG_TUSB_OS != OPT_OS_NONE
-    // os_none implement task delay using usb frame counter which is not started yet
-    // therefore cause infinite delay.
-    // TODO find a way to delay in case of os none e.g __nop
-    osal_task_delay(20);
-#endif
+    tusb_time_delay_ms_api(20);
   }
 
   // reset controller
@@ -241,10 +234,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // make HC's state to operational state TODO use this to suspend (save power)
   OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
 
-#if CFG_TUSB_OS != OPT_OS_NONE
-  // TODO as above delay
-  osal_task_delay(OHCI_REG->rh_descriptorA_bit.power_on_to_good_time * 2); // Wait POTG after power up
-#endif
+  tusb_time_delay_ms_api(OHCI_REG->rh_descriptorA_bit.power_on_to_good_time * 2); // Wait POTG after power up
 
   return true;
 }

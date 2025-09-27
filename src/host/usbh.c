@@ -88,6 +88,19 @@ TU_ATTR_WEAK bool hcd_dcache_clean_invalidate(const void* addr, uint32_t data_si
   return false;
 }
 
+TU_ATTR_WEAK usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count) {
+  *driver_count = 0;
+  return NULL;
+}
+
+TU_ATTR_WEAK void tuh_mount_cb(uint8_t daddr) {
+  (void) daddr;
+}
+
+TU_ATTR_WEAK void tuh_umount_cb(uint8_t daddr) {
+  (void) daddr;
+}
+
 //--------------------------------------------------------------------+
 // Data Structure
 //--------------------------------------------------------------------+
@@ -481,9 +494,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
 
     // Get application driver if available
-    if (usbh_app_driver_get_cb) {
-      _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
-    }
+    _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
 
     // Device
     tu_memclr(_usbh_devices, sizeof(_usbh_devices));
@@ -1319,9 +1330,7 @@ static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub
         #endif
         {
           // Invoke callback before closing driver (maybe call it later ?)
-          if (tuh_umount_cb) {
-            tuh_umount_cb(daddr);
-          }
+          tuh_umount_cb(daddr);
         }
 
         // Close class driver
@@ -1910,9 +1919,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
       TU_LOG_USBH("HUB address = %u is mounted\r\n", dev_addr);
     }else {
       // Invoke callback if available
-      if (tuh_mount_cb) {
-        tuh_mount_cb(dev_addr);
-      }
+      tuh_mount_cb(dev_addr);
     }
   }
 }

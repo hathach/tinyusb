@@ -230,16 +230,16 @@ TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_cdc_disconnect_sync(u
 
 // Invoked when a device with CDC interface is mounted
 // idx is index of cdc interface in the internal pool.
-TU_ATTR_WEAK extern void tuh_cdc_mount_cb(uint8_t idx);
+extern void tuh_cdc_mount_cb(uint8_t idx);
 
 // Invoked when a device with CDC interface is unmounted
-TU_ATTR_WEAK extern void tuh_cdc_umount_cb(uint8_t idx);
+extern void tuh_cdc_umount_cb(uint8_t idx);
 
 // Invoked when received new data
-TU_ATTR_WEAK extern void tuh_cdc_rx_cb(uint8_t idx);
+extern void tuh_cdc_rx_cb(uint8_t idx);
 
 // Invoked when a TX is complete and therefore space becomes available in TX buffer
-TU_ATTR_WEAK extern void tuh_cdc_tx_complete_cb(uint8_t idx);
+extern void tuh_cdc_tx_complete_cb(uint8_t idx);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

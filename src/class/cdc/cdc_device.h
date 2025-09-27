@@ -220,28 +220,28 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_write_clear(void) {
 //--------------------------------------------------------------------+
 
 // Invoked when received new data
-TU_ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf);
+void tud_cdc_rx_cb(uint8_t itf);
 
 // Invoked when received `wanted_char`
-TU_ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
+void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
 
 // Invoked when a TX is complete and therefore space becomes available in TX buffer
-TU_ATTR_WEAK void tud_cdc_tx_complete_cb(uint8_t itf);
+void tud_cdc_tx_complete_cb(uint8_t itf);
 
 // Invoked when a notification is sent to host
-TU_ATTR_WEAK void tud_cdc_notify_complete_cb(uint8_t itf);
+void tud_cdc_notify_complete_cb(uint8_t itf);
 
 // Invoked when line state DTR & RTS are changed via SET_CONTROL_LINE_STATE
-TU_ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 
 // Invoked when line coding is change via SET_LINE_CODING
-TU_ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
+void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
 
 // Invoked when received send break
 // \param[in]  itf  interface for which send break was received.
 // \param[in]  duration_ms  the length of time, in milliseconds, of the break signal. If a value of FFFFh, then the
 //                          device will send a break until another SendBreak request is received with value 0000h.
-TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms);
+void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms);
 
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
