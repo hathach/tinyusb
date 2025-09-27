@@ -2,285 +2,157 @@
 Getting Started
 ***************
 
-This tutorial will guide you through setting up TinyUSB for your first project. We'll cover the basic integration steps and build your first example application.
+This guide will get you up and running with TinyUSB quickly. We'll start with working examples, then show you how to integrate TinyUSB into your own projects.
 
-Add TinyUSB to your project
----------------------------
+Quick Start Examples
+====================
 
-To incorporate TinyUSB into your project:
+The fastest way to understand TinyUSB is to see it working. These examples demonstrate core functionality and can be built immediately. We'll assume you are using the stm32f407disco board.
 
-* Copy this repository or add it as a git submodule to a subfolder in your project. For example, place it at ``your_project/tinyusb``
-* Add all the ``.c`` files in the ``tinyusb/src`` folder to your project
-* Add ``your_project/tinyusb/src`` to your include path. Also ensure that your include path contains the configuration file ``tusb_config.h``.
-* Ensure all required macros are properly defined in ``tusb_config.h``. The configuration file from the demo applications provides a good starting point, but you'll need to add additional macros such as ``CFG_TUSB_MCU`` and ``CFG_TUSB_OS``. These are typically passed by make/cmake to maintain unique configurations for different boards.
-* If you're using the **device stack**, you need to implement all **tud descriptor** callbacks for the stack to work.
-* Add a ``tusb_init(rhport, role)`` call to your reset initialization code.
-* Call ``tusb_int_handler(rhport, in_isr)`` from your USB IRQ handler
-* Implement all enabled classes' callbacks.
-* If you're not using an RTOS, you must call the ``tud_task()``/``tuh_task()`` functions periodically. These task functions handle all callbacks and core functionality.
+Simple Device Example
+---------------------
 
-.. note::
-   TinyUSB uses consistent naming prefixes: ``tud_`` for device stack functions and ``tuh_`` for host stack functions. See the :doc:`../reference/glossary` for more details.
+The `cdc_msc <https://github.com/hathach/tinyusb/tree/master/examples/device/cdc_msc>`_ example creates a USB device with both a virtual serial port (CDC) and mass storage (MSC).
 
-.. code-block:: c
+**What it does:**
+* Appears as a serial port that echoes back any text you send
+* Appears as a small USB drive with a README.TXT file
+* Blinks an LED to show activity
 
-   int main(void) {
-     tusb_rhport_init_t dev_init = {
-        .role = TUSB_ROLE_DEVICE,
-        .speed = TUSB_SPEED_AUTO
-     };
-     // tud descriptor omitted here
-     tusb_init(0, &dev_init); // initialize device stack on roothub port 0
-
-     tusb_rhport_init_t host_init = {
-        .role = TUSB_ROLE_HOST,
-        .speed = TUSB_SPEED_AUTO
-     };
-     tusb_init(1, &host_init); // initialize host stack on roothub port 1
-
-     while(1) { // the mainloop
-       your_application_code();
-       tud_task(); // device task
-       tuh_task(); // host task
-     }
-   }
-
-   void USB0_IRQHandler(void) {
-     tusb_int_handler(0, true);
-   }
-
-   void USB1_IRQHandler(void) {
-     tusb_int_handler(1, true);
-   }
-
-Examples
---------
-
-For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API should be used. Most examples will work on most of :doc:`the supported boards <boards>`. Firstly we need to ``git clone`` if not already
+**Build and run:**
 
 .. code-block:: bash
 
    $ git clone https://github.com/hathach/tinyusb tinyusb
    $ cd tinyusb
-
-TinyUSB separates example applications from board-specific hardware configurations (Board Support Packages, BSP). The BSP provides hardware abstraction including pin mappings, clock settings, linker scripts, and hardware initialization routines.
-
-* Example applications live in ``examples/device``, ``examples/host``, and ``examples/dual`` directories.
-* BSP configurations are stored in ``hw/bsp/FAMILY/boards/BOARD_NAME``. For example, raspberry_pi_pico is located in ``hw/bsp/rp2040/boards/raspberry_pi_pico`` where ``FAMILY=rp2040`` and ``BOARD=raspberry_pi_pico``. When you build an example with ``BOARD=raspberry_pi_pico``, the build system automatically finds and uses the corresponding BSP.
-
-Dependencies
-^^^^^^^^^^^^
-
-Before building, you must first download dependencies including MCU low-level peripheral drivers and external libraries such as FreeRTOS (required by some examples). You can do this in either of two ways:
-
-1. Run the ``tools/get_deps.py {FAMILY}`` script to download all dependencies for a specific MCU family. To download dependencies for all families, use ``FAMILY=all``.
-
-.. code-block:: bash
-
-   $ python tools/get_deps.py rp2040
-
-2. Or run the ``get-deps`` target in one of the example folders as follows.
-
-.. code-block:: bash
-
+   $ python tools/get_deps.py stm32f4  # Download dependencies
    $ cd examples/device/cdc_msc
-   $ make BOARD=feather_nrf52840_express get-deps
+   $ make BOARD=stm32f407disco all flash
 
-You only need to do this once per family. Check out :doc:`complete list of dependencies and their designated path here <dependencies>`
+Connect to your computer and you'll see both a new serial port and a small USB drive appear.
 
-Build Examples
-^^^^^^^^^^^^^^
+Simple Host Example
+-------------------
 
-Examples support both Make and CMake build systems for most MCUs. However, some MCU families (such as Espressif and RP2040) only support CMake. First change directory to an example folder.
+The `cdc_msc_hid <https://github.com/hathach/tinyusb/tree/master/examples/host/cdc_msc_hid>`_ example creates a USB host that can connect to USB devices with CDC, MSC, or HID interfaces.
+
+**What it does:**
+* Detects and enumerates connected USB devices
+* Communicates with CDC devices (like USB-to-serial adapters)
+* Reads from MSC devices (like USB drives)
+* Receives input from HID devices (like keyboards and mice)
+
+**Build and run:**
 
 .. code-block:: bash
 
-   $ cd examples/device/cdc_msc
+   $ python tools/get_deps.py stm32f4  # If not done already
+   $ cd examples/host/cdc_msc_hid
+   $ make BOARD=stm32f407disco all flash
 
-Then compile with make or cmake
+Connect USB devices to see enumeration messages and device-specific interactions in the serial output.
+
+Project Structure
+-----------------
+
+TinyUSB separates example applications from board-specific hardware configurations:
+
+* **Example applications**: Located in `examples/device/ <https://github.com/hathach/tinyusb/tree/master/examples/device>`_, `examples/host/ <https://github.com/hathach/tinyusb/tree/master/examples/host>`_, and `examples/dual/ <https://github.com/hathach/tinyusb/tree/master/examples/dual>`_ directories
+* **Board Support Packages (BSP)**: Located in ``hw/bsp/FAMILY/boards/BOARD_NAME/`` with hardware abstraction including pin mappings, clock settings, and linker scripts
+
+For example, raspberry_pi_pico is located in `hw/bsp/rp2040/boards/raspberry_pi_pico <https://github.com/hathach/tinyusb/tree/master/hw/bsp/rp2040/boards/raspberry_pi_pico>`_ where ``FAMILY=rp2040`` and ``BOARD=raspberry_pi_pico``. When you build with ``BOARD=raspberry_pi_pico``, the build system automatically finds the corresponding BSP using the FAMILY.
+
+Add TinyUSB to Your Project
+============================
+
+Once you've seen TinyUSB working, here's how to integrate it into your own project:
+
+Integration Steps
+-----------------
+
+1. **Get TinyUSB**: Copy this repository or add it as a git submodule to your project at ``your_project/tinyusb``
+
+2. **Add source files**: Add all ``.c`` files from ``tinyusb/src/`` to your project
+
+3. **Configure include paths**: Add ``your_project/tinyusb/src`` to your include path. Ensure your include path contains ``tusb_config.h``
+
+4. **Configure TinyUSB**: Create ``tusb_config.h`` with required macros like ``CFG_TUSB_MCU`` and ``CFG_TUSB_OS``. Copy from ``examples/device/*/tusb_config.h`` as a starting point
+
+5. **Implement USB descriptors**: For device stack, implement all ``tud_descriptor_*_cb()`` callbacks
+
+6. **Initialize TinyUSB**: Add ``tusb_init()`` to your initialization code
+
+7. **Handle interrupts**: Call ``tusb_int_handler()`` from your USB IRQ handler
+
+8. **Run USB tasks**: Call ``tud_task()`` (device) or ``tuh_task()`` (host) periodically in your main loop
+
+9. **Implement class callbacks**: Implement callbacks for enabled USB classes
+
+Simple Integration Example
+--------------------------
+
+.. code-block:: c
+
+   #include "tusb.h"
+
+   int main(void) {
+     board_init();  // Your board initialization
+
+     tusb_rhport_init_t dev_init = {
+       .role = TUSB_ROLE_DEVICE,
+       .speed = TUSB_SPEED_AUTO
+     };
+     // tud_descriptor_* callbacks omitted here
+     tusb_init(0, &dev_init);
+
+     while(1) {
+       tud_task();           // TinyUSB device task
+       your_application();   // Your application code
+     }
+   }
+
+   void USB_IRQHandler(void) {
+     tusb_int_handler(0, true);
+   }
+
+.. note::
+   Unlike many libraries, TinyUSB callbacks don't need to be explicitly registered. The stack automatically calls functions with specific names (e.g., ``tud_cdc_rx_cb()``) when events occur. Simply implement the callbacks you need.
+
+.. note::
+   TinyUSB uses consistent naming prefixes: ``tud_`` for device stack functions and ``tuh_`` for host stack functions. See the :doc:`reference/glossary` for more details.
+
+Development Tips
+================
+
+**Debug builds and logging:**
 
 .. code-block:: bash
 
-   $ # make
-   $ make BOARD=feather_nrf52840_express all
+   $ make BOARD=stm32f407disco DEBUG=1 all        # Debug build
+   $ make BOARD=stm32f407disco LOG=2 all          # Enable detailed logging
 
-   $ # cmake
+**CMake build system:**
+
+.. code-block:: bash
+
    $ mkdir build && cd build
-   $ cmake -DBOARD=raspberry_pi_pico ..
+   $ cmake -DBOARD=stm32f407disco ..
    $ make
 
-To list all available targets with cmake
+**Alternative flash methods:**
 
 .. code-block:: bash
 
-   $ cmake --build . --target help
+   $ make BOARD=stm32f407disco flash-jlink        # Use J-Link
+   $ make BOARD=stm32f407disco flash-openocd      # Use OpenOCD
+   $ make BOARD=stm32f407disco all uf2            # Generate UF2 for drag-and-drop
 
-Note: Some examples, especially those that use Vendor class (e.g., webUSB), may require udev permissions on Linux (and/or macOS) to access USB devices. It depends on your OS distribution, but typically copying ``99-tinyusb.rules`` and reloading udev is sufficient
+**IAR Embedded Workbench:**
 
-.. code-block:: bash
-
-   $ cp examples/device/99-tinyusb.rules /etc/udev/rules.d/
-   $ sudo udevadm control --reload-rules && sudo udevadm trigger
-
-RootHub Port Selection
-~~~~~~~~~~~~~~~~~~~~~~
-
-If a board has several ports, one port is chosen by default in the individual board.mk file. Use option ``RHPORT_DEVICE=x`` or ``RHPORT_HOST=x`` To choose another port. For example to select the HS port of a STM32F746Disco board, use:
-
-.. code-block:: bash
-
-   $ make BOARD=stm32f746disco RHPORT_DEVICE=1 all
-
-   $ cmake -DBOARD=stm32f746disco -DRHPORT_DEVICE=1 ..
-
-Port Speed
-~~~~~~~~~~
-
-An MCU can support multiple operational speeds. By default, the example build system uses the fastest speed supported by the board. Use the option ``RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED/OPT_MODE_HIGH_SPEED`` or ``RHPORT_HOST_SPEED=OPT_MODE_FULL_SPEED/OPT_MODE_HIGH_SPEED``. For example, to force the F723 to operate at full speed instead of the default high speed:
-
-.. code-block:: bash
-
-   $ make BOARD=stm32f746disco RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED all
-
-   $ cmake -DBOARD=stm32f746disco -DRHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED ..
-
-Size Analysis
-~~~~~~~~~~~~~
-
-First install `linkermap tool <https://github.com/hathach/linkermap>`_ then ``linkermap`` target can be used to analyze code size. You may want to compile with ``NO_LTO=1`` since ``-flto`` merges code across ``.o`` files and make it difficult to analyze.
-
-.. code-block:: bash
-
-   $ make BOARD=feather_nrf52840_express NO_LTO=1 all linkermap
-
-Flashing the Device
-^^^^^^^^^^^^^^^^^^^
-
-The ``flash`` target uses the default on-board debugger (jlink/cmsisdap/stlink/dfu) to flash the binary. Please install the supporting software in advance. Some boards use bootloader/DFU via serial, which requires passing the serial port to the make command
-
-.. code-block:: bash
-
-   $ make BOARD=feather_nrf52840_express flash
-   $ make SERIAL=/dev/ttyACM0 BOARD=feather_nrf52840_express flash
-
-Since jlink/openocd can be used with most of the boards, there is also ``flash-jlink/openocd`` (make) and ``EXAMPLE-jlink/openocd`` target for your convenience. Note for stm32 board with stlink, you can use ``flash-stlink`` target as well.
-
-.. code-block:: bash
-
-   $ make BOARD=feather_nrf52840_express flash-jlink
-   $ make BOARD=feather_nrf52840_express flash-openocd
-
-   $ cmake --build . --target cdc_msc-jlink
-   $ cmake --build . --target cdc_msc-openocd
-
-Some boards use UF2 bootloader for drag-and-drop into a mass storage device. UF2 files can be generated with the ``uf2`` target
-
-.. code-block:: bash
-
-   $ make BOARD=feather_nrf52840_express all uf2
-
-   $ cmake --build . --target cdc_msc-uf2
-
-Debugging
-^^^^^^^^^
-
-To compile for debugging add ``DEBUG=1``\ , for example
-
-.. code-block:: bash
-
-   $ make BOARD=feather_nrf52840_express DEBUG=1 all
-
-   $ cmake -DBOARD=feather_nrf52840_express -DCMAKE_BUILD_TYPE=Debug ..
-
-Enable Logging
-~~~~~~~~~~~~~~
-
-If you encounter issues running examples or need to submit a bug report, you can enable TinyUSB's built-in debug logging with the optional ``LOG=`` parameter. ``LOG=1`` prints only error messages, while ``LOG=2`` prints more detailed information about ongoing events. ``LOG=3`` or higher is not used yet.
-
-.. code-block:: bash
-
-   $ make BOARD=feather_nrf52840_express LOG=2 all
-
-   $ cmake -DBOARD=feather_nrf52840_express -DLOG=2 ..
-
-Logging Performance Impact
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-By default, log messages are printed via the on-board UART, which is slow and consumes significant CPU time compared to USB speeds. If your board supports an on-board or external debugger, it would be more efficient to use it for logging. There are 2 protocols:
-
-
-* `LOGGER=rtt`: use `Segger RTT protocol <https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/>`_
-
-  * Cons: requires jlink as the debugger.
-  * Pros: work with most if not all MCUs
-  * Software viewer is JLink RTT Viewer/Client/Logger which is bundled with JLink driver package.
-
-* ``LOGGER=swo``\ : Use dedicated SWO pin of ARM Cortex SWD debug header.
-
-  * Cons: Only works with ARM Cortex MCUs except M0
-  * Pros: should be compatible with more debugger that support SWO.
-  * Software viewer should be provided along with your debugger driver.
-
-.. code-block:: bash
-
-   $ make BOARD=feather_nrf52840_express LOG=2 LOGGER=rtt all
-   $ make BOARD=feather_nrf52840_express LOG=2 LOGGER=swo all
-
-   $ cmake -DBOARD=feather_nrf52840_express -DLOG=2 -DLOGGER=rtt ..
-   $ cmake -DBOARD=feather_nrf52840_express -DLOG=2 -DLOGGER=swo ..
-
-IAR Support
-^^^^^^^^^^^
-
-IAR Embedded Workbench is a commercial IDE and toolchain for embedded development. TinyUSB provides integration support for IAR through project connection files and native CMake support.
-
-Use project connection
-~~~~~~~~~~~~~~~~~~~~~~
-
-IAR Project Connection files are provided to import TinyUSB stack into your project.
-
-* A buildable project for your MCU needs to be created in advance.
-
-  * Take example of STM32F0:
-
-    -  You need ``stm32f0xx.h``, ``startup_stm32f0xx.s``, and ``system_stm32f0xx.c``.
-
-    - ``STM32F0xx_HAL_Driver`` is only needed to run examples, TinyUSB stack itself doesn't rely on MCU's SDKs.
-
-* Open ``Tools -> Configure Custom Argument Variables`` (Switch to ``Global`` tab if you want to do it for all your projects)
-   Click ``New Group ...``, name it to ``TUSB``, Click ``Add Variable ...``, name it to ``TUSB_DIR``, change it's value to the path of your TinyUSB stack,
-   for example ``C:\\tinyusb``
-
-**Import stack only**
-
-Open ``Project -> Add project Connection ...``, click ``OK``, choose ``tinyusb\\tools\\iar_template.ipcf``.
-
-**Run examples**
-
-1. Run ``iar_gen.py`` to generate .ipcf files of examples:
-
-   .. code-block::
-
-      > cd C:\tinyusb\tools
-      > python iar_gen.py
-
-2. Open ``Project -> Add project Connection ...``, click ``OK``, choose ``tinyusb\\examples\\(.ipcf of example)``.
-   For example ``C:\\tinyusb\\examples\\device\\cdc_msc\\iar_cdc_msc.ipcf``
-
-Native CMake support
-~~~~~~~~~~~~~~~~~~~~
-
-With 9.50.1 release, IAR added experimental native CMake support (strangely not mentioned in public release note). Now it's possible to import CMakeLists.txt then build and debug as a normal project.
-
-Following these steps:
-
-1. Add IAR compiler binary path to system ``PATH`` environment variable, such as ``C:\Program Files\IAR Systems\Embedded Workbench 9.2\arm\bin``.
-2. Create new project in IAR, in Tool chain dropdown menu, choose CMake for Arm then Import ``CMakeLists.txt`` from chosen example directory.
-3. Set up board option in ``Option - CMake/CMSIS-TOOLBOX - CMake``, for example ``-DBOARD=stm32f439nucleo -DTOOLCHAIN=iar``, **Uncheck 'Override tools in env'**.
-4. (For debug only) Choose correct CPU model in ``Option - General Options - Target``, to profit register and memory view.
+For IAR users, project connection files are available. Import `tools/iar_template.ipcf <https://github.com/hathach/tinyusb/tree/master/tools/iar_template.ipcf>`_ or use native CMake support (IAR 9.50.1+). See `tools/iar_gen.py <https://github.com/hathach/tinyusb/tree/master/tools/iar_gen.py>`_ for automated project generation.
 
 Common Issues and Solutions
----------------------------
+===========================
 
 **Build Errors**
 
@@ -294,65 +166,18 @@ Common Issues and Solutions
 * **Enumeration failure**: Enable logging with ``LOG=2`` and check for USB protocol errors
 * **Hard faults/crashes**: Verify interrupt handler setup and stack size allocation
 
-Quick Start Examples
---------------------
+**Linux Permissions**
 
-Now that you have TinyUSB set up, you can try these examples to see it in action.
-
-Simple Device Example
-^^^^^^^^^^^^^^^^^^^^^
-
-The ``cdc_msc`` example creates a USB device with both a virtual serial port (CDC) and mass storage (MSC). This is the most commonly used example and demonstrates core device functionality.
-
-**What it does:**
-* Appears as a serial port that echoes back any text you send
-* Appears as a small USB drive with a README.TXT file
-* Blinks an LED to show activity
-
-**Build and run:**
+Some examples require udev permissions to access USB devices:
 
 .. code-block:: bash
 
-   $ cd examples/device/cdc_msc
-   $ make BOARD=stm32f407disco all
-   $ make BOARD=stm32f407disco flash
-
-**Key files:**
-* ``src/main.c`` - Main application with ``tud_task()`` loop
-* ``src/usb_descriptors.c`` - USB device descriptors
-* ``src/msc_disk.c`` - Mass storage implementation
-
-**Expected behavior:** Connect to your computer and you'll see both a new serial port and a small USB drive appear.
-
-Simple Host Example
-^^^^^^^^^^^^^^^^^^^
-
-The ``cdc_msc_hid`` example creates a USB host that can connect to USB devices with CDC, MSC, or HID interfaces.
-
-**What it does:**
-* Detects and enumerates connected USB devices
-* Communicates with CDC devices (like USB-to-serial adapters)
-* Reads from MSC devices (like USB drives)
-* Receives input from HID devices (like keyboards and mice)
-
-**Build and run:**
-
-.. code-block:: bash
-
-   $ cd examples/host/cdc_msc_hid
-   $ make BOARD=stm32f407disco all
-   $ make BOARD=stm32f407disco flash
-
-**Key files:**
-* ``src/main.c`` - Main application with ``tuh_task()`` loop
-* ``src/cdc_app.c`` - CDC host functionality
-* ``src/msc_app.c`` - Mass storage host functionality
-* ``src/hid_app.c`` - HID host functionality
-
-**Expected behavior:** Connect USB devices to see enumeration messages and device-specific interactions in the serial output.
+   $ cp `examples/device/99-tinyusb.rules <https://github.com/hathach/tinyusb/tree/master/examples/device/99-tinyusb.rules>`_ /etc/udev/rules.d/
+   $ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 Next Steps
-^^^^^^^^^^
+==========
 
 * Check :doc:`reference/boards` for board-specific information
-* Explore more examples in ``examples/device/`` and ``examples/host/`` directories
+* Explore more examples in `examples/device/ <https://github.com/hathach/tinyusb/tree/master/examples/device>`_ and `examples/host/ <https://github.com/hathach/tinyusb/tree/master/examples/host>`_ directories
+* Read :doc:`reference/usb_concepts` to understand USB fundamentals
