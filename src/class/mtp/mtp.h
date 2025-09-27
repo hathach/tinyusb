@@ -768,7 +768,7 @@ TU_VERIFY_STATIC(sizeof(mtp_request_reset_cancel_data_t) == 6, "size is not corr
 //--------------------------------------------------------------------+
 
 // return payload buffer for next write
-TU_ATTR_ALWAYS_INLINE static inline uint8_t* mtp_container_payload_next(mtp_container_info_t* p_container) {
+TU_ATTR_ALWAYS_INLINE static inline uint8_t* mtp_container_payload_ptr(mtp_container_info_t* p_container) {
   // only 1st packet include header
   uint32_t pos = p_container->header->len - sizeof(mtp_container_header_t);
   while (pos > CFG_TUD_MTP_EP_BUFSIZE) {
@@ -779,7 +779,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t* mtp_container_payload_next(mtp_cont
 
 // only add_raw does partial copy
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_raw(mtp_container_info_t* p_container, const void* data, uint32_t len) {
-  uint8_t* buf = mtp_container_payload_next(p_container);
+  uint8_t* buf = mtp_container_payload_ptr(p_container);
   const uint32_t added_len = tu_min32(len, CFG_TUD_MTP_EP_BUFSIZE - p_container->header->len);
   if (added_len > 0) {
     memcpy(buf, data, added_len);

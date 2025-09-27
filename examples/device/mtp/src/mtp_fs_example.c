@@ -23,7 +23,9 @@
  *
  */
 
+#include "bsp/board_api.h"
 #include "tusb.h"
+
 #include "tinyusb_logo_png.h"
 
 //--------------------------------------------------------------------+
@@ -68,7 +70,6 @@ storage_info_t storage_info = {
   }
 };
 
-
 //--------------------------------------------------------------------+
 // MTP FILESYSTEM
 //--------------------------------------------------------------------+
@@ -80,8 +81,7 @@ storage_info_t storage_info = {
 #else
   #define FS_MAX_CAPACITY_BYTES (4 * 1024UL)
 
-  // object data buffer (excluding 2 predefined files)
-  // with simple allocation pointer
+  // object data buffer (excluding 2 predefined files) with simple allocation pointer
   uint8_t fs_buf[FS_MAX_CAPACITY_BYTES];
 #endif
 size_t fs_buf_head = 0;
@@ -234,7 +234,11 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
       mtp_container_add_cstring(io_container, DEV_INFO_MANUFACTURER);
       mtp_container_add_cstring(io_container, DEV_INFO_MODEL);
       mtp_container_add_cstring(io_container, DEV_INFO_VERSION);
-      mtp_container_add_cstring(io_container, DEV_INFO_SERIAL);
+
+      uint16_t serial_utf16[32];
+      board_usb_get_serial(serial_utf16, 32);
+      serial_utf16[31] = 0; // ensure null termination
+      mtp_container_add_string(io_container, serial_utf16);
 
       tud_mtp_data_send(io_container);
       break;
