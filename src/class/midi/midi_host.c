@@ -93,8 +93,6 @@ typedef struct {
 static midih_interface_t _midi_host[CFG_TUH_MIDI];
 CFG_TUH_MEM_SECTION static midih_epbuf_t _midi_epbuf[CFG_TUH_MIDI];
 
-typedef audio10_desc_cs_ac_interface_n_t(1) midi10_desc_cs_ac_interface_t;
-
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
@@ -226,7 +224,7 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
 
     p_desc = tu_desc_next(p_desc);
     TU_VERIFY(tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE &&
-              tu_desc_subtype(p_desc) == AUDIO_CS_AC_INTERFACE_HEADER);
+              tu_desc_subtype(p_desc) == AUDIO10_CS_AC_INTERFACE_HEADER);
     desc_cb.desc_audio_control = desc_itf;
 
     p_desc = tu_desc_next(p_desc);

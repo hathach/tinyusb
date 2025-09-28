@@ -387,14 +387,14 @@ void audio_control_task(void) {
     }
 
     // 6.1 Interrupt Data Message
-    const audio20_interrupt_data_t data = {
+    const audio_interrupt_data_t data = {.v2 = {
         .bInfo = 0,                                      // Class-specific interrupt, originated from an interface
-        .bAttribute = AUDIO20_CS_REQ_CUR,                  // Caused by current settings
+        .bAttribute = AUDIO20_CS_REQ_CUR,                // Caused by current settings
         .wValue_cn_or_mcn = 0,                           // CH0: master volume
-        .wValue_cs = AUDIO20_FU_CTRL_VOLUME,               // Volume change
+        .wValue_cs = AUDIO20_FU_CTRL_VOLUME,             // Volume change
         .wIndex_ep_or_int = 0,                           // From the interface itself
         .wIndex_entity_id = UAC2_ENTITY_SPK_FEATURE_UNIT,// From feature unit
-    };
+    }};
 
     tud_audio_int_write(&data);
   }

@@ -45,6 +45,13 @@
 #define U16_TO_U8S_BE(_u16)   TU_U16_HIGH(_u16), TU_U16_LOW(_u16)
 #define U16_TO_U8S_LE(_u16)   TU_U16_LOW(_u16), TU_U16_HIGH(_u16)
 
+#define TU_U24(_high, _mid, _low)  ((uint32_t) (((_high) << 16) | ((_mid) << 8) | (_low)))
+#define TU_U24_HIGH(_u24)         ((uint8_t) (((_u24) >> 16) & 0x0000ff))
+#define TU_U24_MID(_u24)          ((uint8_t) (((_u24) >>  8) & 0x0000ff))
+#define TU_U24_LOW(_u24)          ((uint8_t) (((_u24)       ) & 0x0000ff))
+#define U24_TO_U8S_BE(_u24)       TU_U24_HIGH(_u24), TU_U24_MID(_u24), TU_U24_LOW(_u24)
+#define U24_TO_U8S_LE(_u24)       TU_U24_LOW(_u24), TU_U24_MID(_u24), TU_U24_HIGH(_u24)
+
 #define TU_U32_BYTE3(_u32)    ((uint8_t) ((((uint32_t) _u32) >> 24) & 0x000000ff)) // MSB
 #define TU_U32_BYTE2(_u32)    ((uint8_t) ((((uint32_t) _u32) >> 16) & 0x000000ff))
 #define TU_U32_BYTE1(_u32)    ((uint8_t) ((((uint32_t) _u32) >>  8) & 0x000000ff))

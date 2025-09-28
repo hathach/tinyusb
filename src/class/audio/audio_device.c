@@ -938,7 +938,7 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
               }
             }
           } else if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL) {
-            if (tu_unaligned_read16(p_desc + 4) == AUDIO20_TERM_TYPE_USB_STREAMING) {
+            if (tu_unaligned_read16(p_desc + 4) == AUDIO_TERM_TYPE_USB_STREAMING) {
               _audiod_fct[i].bclock_id_tx = p_desc[8];
             }
           }
@@ -1090,7 +1090,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
   // Open new EP if necessary - EPs are only to be closed or opened for AS interfaces - Look for AS interface with correct alternate interface
   uint8_t const *p_desc = tu_desc_next(audio->p_desc);
   // Skip entire AC descriptor block
-  p_desc += ((audio_desc_cs_ac_interface_t const *) p_desc)->wTotalLength;
+  p_desc += ((audio20_desc_cs_ac_interface_t const *) p_desc)->wTotalLength;
   // Get pointer at end
   uint8_t const *p_desc_end = audio->p_desc + audio->desc_length - TUD_AUDIO_DESC_IAD_LEN;
 
