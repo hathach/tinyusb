@@ -128,8 +128,6 @@ extern "C" {
 // AUDIO CLASS DRIVER CONFIGURATION
 //--------------------------------------------------------------------
 
-#define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                                TUD_AUDIO20_SPEAKER_STEREO_FB_DESC_LEN
-
 // Can be enabled with Full-Speed device on OSX, which forces feedback EP size to 3, in this case CFG_QUIRK_OS_GUESSING can be disabled
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION              0
 

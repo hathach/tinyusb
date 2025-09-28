@@ -37,20 +37,6 @@
 
 // All sizes are in bytes!
 
-#ifndef CFG_TUD_AUDIO_FUNC_1_DESC_LEN
-#error You must tell the driver the length of the audio function descriptor including IAD descriptor
-#endif
-#if CFG_TUD_AUDIO > 1
-#ifndef CFG_TUD_AUDIO_FUNC_2_DESC_LEN
-#error You must tell the driver the length of the audio function descriptor including IAD descriptor
-#endif
-#endif
-#if CFG_TUD_AUDIO > 2
-#ifndef CFG_TUD_AUDIO_FUNC_3_DESC_LEN
-#error You must tell the driver the length of the audio function descriptor including IAD descriptor
-#endif
-#endif
-
 // Size of control buffer used to receive and send control messages via EP0 - has to be big enough to hold your biggest request structure e.g. range requests with multiple intervals defined or cluster descriptors
 #ifndef CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ
 #error You must define an audio class control request buffer size!
@@ -205,6 +191,7 @@ extern "C" {
 // CFG_TUD_AUDIO > 1
 //--------------------------------------------------------------------+
 bool tud_audio_n_mounted(uint8_t func_id);
+uint8_t tud_audio_n_version(uint8_t func_id);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 uint16_t   tud_audio_n_available       (uint8_t func_id);
@@ -220,13 +207,14 @@ tu_fifo_t* tud_audio_n_get_ep_in_ff   (uint8_t func_id);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-bool    tud_audio_int_n_write                     (uint8_t func_id, const audio20_interrupt_data_t * data);
+bool    tud_audio_int_n_write                     (uint8_t func_id, const audio_interrupt_data_t * data);
 #endif
 
 //--------------------------------------------------------------------+
 // Application API (Interface0)
 //--------------------------------------------------------------------+
 static inline bool         tud_audio_mounted                (void);
+static inline uint8_t      tud_audio_version                (void);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 static inline uint16_t   tud_audio_available       (void);
@@ -244,7 +232,7 @@ static inline tu_fifo_t* tud_audio_get_ep_in_ff   (void);
 // INT CTR API
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-static inline bool tud_audio_int_write                      (const audio20_interrupt_data_t * data);
+static inline bool tud_audio_int_write                      (const audio_interrupt_data_t * data);
 #endif
 
 // Buffer control EP data and schedule a transmit
@@ -397,6 +385,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_mounted(void) {
   return tud_audio_n_mounted(0);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint8_t tud_audio_version(void) {
+  return tud_audio_n_version(0);
+}
+
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_available(void) {
@@ -434,7 +426,7 @@ TU_ATTR_ALWAYS_INLINE static inline tu_fifo_t* tud_audio_get_ep_in_ff(void) {
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_int_write(const audio20_interrupt_data_t * data) {
+TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_int_write(const audio_interrupt_data_t * data) {
   return tud_audio_int_n_write(0, data);
 }
 #endif

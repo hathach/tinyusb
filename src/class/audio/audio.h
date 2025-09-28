@@ -314,21 +314,21 @@ typedef enum {
 } audio10_channel_config_t;
 
 
-  //--------------------------------------------------------------------+
-  // USB AUDIO CLASS 1.0 (UAC1) DESCRIPTORS
-  //--------------------------------------------------------------------+
+//--------------------------------------------------------------------+
+// USB AUDIO CLASS 1.0 (UAC1) DESCRIPTORS
+//--------------------------------------------------------------------+
 
-  /// AUDIO Class-Specific AC Interface Header Descriptor UAC1 (4.3.2)
-  #define audio10_desc_cs_ac_interface_n_t(numInterfaces)                                                                                          \
-    struct TU_ATTR_PACKED {                                                                                                                        \
-      uint8_t bLength;                      /* Size of this descriptor in bytes: 8+n. */                                                           \
-      uint8_t bDescriptorType;              /* Descriptor Type. Value: TUSB_DESC_CS_INTERFACE. */                                                  \
-      uint8_t bDescriptorSubType;           /* Descriptor SubType. Value: AUDIO10_CS_AC_INTERFACE_HEADER. */                                       \
-      uint16_t bcdADC;                      /* Audio Device Class Specification Release Number in Binary-Coded Decimal. Value: 0x0100 for UAC1. */ \
-      uint16_t wTotalLength;                /* Total number of bytes returned for the class-specific AudioControl interface descriptor. */         \
-      uint8_t bInCollection;                /* The number of AudioStreaming and MIDIStreaming interfaces in the Audio Interface Collection. */     \
-      uint8_t baInterfaceNr[numInterfaces]; /* Interface number of the AudioStreaming or MIDIStreaming interface in the Collection. */             \
-    }
+/// AUDIO Class-Specific AC Interface Header Descriptor UAC1 (4.3.2)
+#define audio10_desc_cs_ac_interface_n_t(numInterfaces)                                                                                          \
+  struct TU_ATTR_PACKED {                                                                                                                        \
+    uint8_t bLength;                      /* Size of this descriptor in bytes: 8+n. */                                                           \
+    uint8_t bDescriptorType;              /* Descriptor Type. Value: TUSB_DESC_CS_INTERFACE. */                                                  \
+    uint8_t bDescriptorSubType;           /* Descriptor SubType. Value: AUDIO10_CS_AC_INTERFACE_HEADER. */                                       \
+    uint16_t bcdADC;                      /* Audio Device Class Specification Release Number in Binary-Coded Decimal. Value: 0x0100 for UAC1. */ \
+    uint16_t wTotalLength;                /* Total number of bytes returned for the class-specific AudioControl interface descriptor. */         \
+    uint8_t bInCollection;                /* The number of AudioStreaming and MIDIStreaming interfaces in the Audio Interface Collection. */     \
+    uint8_t baInterfaceNr[numInterfaces]; /* Interface number of the AudioStreaming or MIDIStreaming interface in the Collection. */             \
+  }
 
 /// AUDIO Input Terminal Descriptor UAC1 (4.3.2.1)
 typedef struct TU_ATTR_PACKED {
@@ -1014,7 +1014,7 @@ typedef enum {
 /// AUDIO Channel Cluster Descriptor UAC2 (4.1)
 typedef struct TU_ATTR_PACKED {
   uint8_t bNrChannels;                     ///< Number of channels currently connected.
-  audio20_channel_config_t bmChannelConfig;///< Bitmap according to 'audio20_channel_config_t' with a 1 set if channel is connected and 0 else. In case channels are non-predefined ignore them here (see UAC2 specification 4.1 Audio Channel Cluster Descriptor.
+  uint32_t bmChannelConfig;///< Bitmap according to 'audio20_channel_config_t' with a 1 set if channel is connected and 0 else. In case channels are non-predefined ignore them here (see UAC2 specification 4.1 Audio Channel Cluster Descriptor.
   uint8_t iChannelNames;                   ///< Index of a string descriptor, describing the name of the first inserted channel with a non-predefined spatial location.
 } audio20_desc_channel_cluster_t;
 

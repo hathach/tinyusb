@@ -108,8 +108,6 @@ extern "C" {
 // Allow volume controlled by on-baord button
 #define CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP                            1
 
-#define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                                TUD_AUDIO_HEADSET_STEREO_DESC_LEN
-
 // How many formats are used, need to adjust USB descriptor if changed
 #define CFG_TUD_AUDIO_FUNC_1_N_FORMATS                               2
 

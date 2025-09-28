@@ -443,7 +443,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // AUDIO simple descriptor (UAC1) for 1 microphone input
 // - 1 Input Terminal, 1 Feature Unit (Mute and Volume Control), 1 Output Terminal
 
-#define TUD_AUDIO10_MIC_ONE_CH_DESC_LEN (\
+#define TUD_AUDIO10_MIC_ONE_CH_DESC_LEN(_nfreqs) (\
   + TUD_AUDIO10_DESC_STD_AC_LEN\
   + TUD_AUDIO10_DESC_CS_AC_LEN(1)\
   + TUD_AUDIO10_DESC_INPUT_TERM_LEN\
@@ -452,7 +452,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   + TUD_AUDIO10_DESC_STD_AS_LEN\
   + TUD_AUDIO10_DESC_STD_AS_LEN\
   + TUD_AUDIO10_DESC_CS_AS_INT_LEN\
-  + TUD_AUDIO10_DESC_TYPE_I_FORMAT_LEN\
+  + TUD_AUDIO10_DESC_TYPE_I_FORMAT_LEN(_nfreqs)\
   + TUD_AUDIO10_DESC_STD_AS_ISO_EP_LEN\
   + TUD_AUDIO10_DESC_CS_AS_ISO_EP_LEN)
 
@@ -476,11 +476,11 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Class-Specific AS Interface Descriptor(4.5.2) */\
   TUD_AUDIO10_DESC_CS_AS_INT(/*_termid*/ 0x03, /*_delay*/ 0x00, /*_formattype*/ AUDIO10_DATA_FORMAT_TYPE_I_PCM),\
   /* Type I Format Type Descriptor(2.2.5) */\
-  TUD_AUDIO10_DESC_TYPE_I_FORMAT(/*_nrchannels*/ 0x01, /*_subframesize*/ _nBytesPerSample, /*_bitresolution*/ _nBitsUsedPerSample, /*_freqtype*/ 0x01, /*_freq*/ _freq),\
+  TUD_AUDIO10_DESC_TYPE_I_FORMAT(/*_nrchannels*/ 0x01, /*_subframesize*/ _nBytesPerSample, /*_bitresolution*/ _nBitsUsedPerSample, /*_freq*/ __VA_ARGS__),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.6.1.1) */\
   TUD_AUDIO10_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01, /* _sync_ep */ 0x00),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.6.1.2) */\
-  TUD_AUDIO10_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO10_CS_AS_ISO_DATA_EP_ATT_SAMPLING_FRQ, /*_lockdelayunits*/ AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_MILLISEC, /*_lockdelay*/ 0x0001)
+  TUD_AUDIO10_DESC_CS_AS_ISO_EP(/*_attr*/ 0x00, /*_lockdelayunits*/ AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_MILLISEC, /*_lockdelay*/ 0x0001)
 
 /* Audio v2.0 Descriptor Templates */
 

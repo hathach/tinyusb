@@ -108,7 +108,6 @@ extern "C" {
 // Have a look into audio_device.h for all configurations
 #define CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE                              48000
 
-#define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                                 TUD_AUDIO20_MIC_ONE_CH_DESC_LEN
 #define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ                              64                                      // Size of control request buffer
 
 #define CFG_TUD_AUDIO_ENABLE_EP_IN                                    1
