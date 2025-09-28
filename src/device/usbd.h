@@ -480,7 +480,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.6.1.1) */\
   TUD_AUDIO10_DESC_STD_AS_ISO_EP(/*_ep*/ _epin, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS), /*_maxEPsize*/ _epsize, /*_interval*/ 0x01, /* _sync_ep */ 0x00),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.6.1.2) */\
-  TUD_AUDIO10_DESC_CS_AS_ISO_EP(/*_attr*/ 0x00, /*_lockdelayunits*/ AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_MILLISEC, /*_lockdelay*/ 0x0001)
+  TUD_AUDIO10_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO10_CS_AS_ISO_DATA_EP_ATT_SAMPLING_FRQ, /*_lockdelayunits*/ AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_MILLISEC, /*_lockdelay*/ 0x0001)
 
 /* Audio v2.0 Descriptor Templates */
 

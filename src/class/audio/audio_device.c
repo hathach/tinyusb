@@ -376,7 +376,7 @@ TU_ATTR_WEAK TU_ATTR_FAST_FUNC void tud_audio_feedback_interval_isr(uint8_t func
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
-TU_ATTR_WEAK void tud_audio_int_xfer_cb(uint8_t rhport) {
+TU_ATTR_WEAK void tud_audio_int_done_cb(uint8_t rhport) {
   (void) rhport;
 }
 #endif
@@ -942,55 +942,44 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
         // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
         while (p_desc_end - p_desc > 0) {
           if (tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT) {
-            // UAC1
+            // Unified UAC1/UAC2 endpoint processing
+            tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+            bool is_feedback_ep = false;
+            bool is_data_ep = false;
+
             if (tud_audio_n_version(i) == 1) {
-              audio10_desc_as_iso_data_ep_t const *desc_ep = (audio10_desc_as_iso_data_ep_t const *) p_desc;
-    #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-                // Explicit feedback EP
-                if (desc_ep->bRefresh > 0) {
-                  ep_fb = desc_ep->bEndpointAddress;
-                }
-    #endif
-    #if CFG_TUD_AUDIO_ENABLE_EP_IN
-                // Data or data with implicit feedback IN EP
-                if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN && desc_ep->bRefresh == 0) {
-                  ep_in = desc_ep->bEndpointAddress;
-                  ep_in_size = TU_MAX(tu_edpt_packet_size((tusb_desc_endpoint_t*)desc_ep), ep_in_size);
-                }
-    #endif
-    #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-                // Data OUT EP
-                if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT && desc_ep->bRefresh == 0) {
-                  ep_out = desc_ep->bEndpointAddress;
-                  ep_out_size = TU_MAX(tu_edpt_packet_size((tusb_desc_endpoint_t*)desc_ep), ep_out_size);
-                }
-    #endif
+              // UAC1: Use bRefresh field to distinguish endpoint types
+              audio10_desc_as_iso_data_ep_t const *desc_ep_uac1 = (audio10_desc_as_iso_data_ep_t const *) p_desc;
+              is_feedback_ep = (desc_ep_uac1->bRefresh > 0);
+              is_data_ep = (desc_ep_uac1->bRefresh == 0);
             } else {
-              // UAC2
-              tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+              // UAC2: Use bmAttributes.usage to distinguish endpoint types
+              is_feedback_ep = (desc_ep->bmAttributes.usage == 1);
+              is_data_ep = (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2);
+            }
+
     #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-                // Explicit feedback EP
-                if (desc_ep->bmAttributes.usage == 1) {
-                  ep_fb = desc_ep->bEndpointAddress;
-                }
+            // Explicit feedback EP
+            if (is_feedback_ep) {
+              ep_fb = desc_ep->bEndpointAddress;
+            }
+    #else
+            (void) is_feedback_ep;
     #endif
     #if CFG_TUD_AUDIO_ENABLE_EP_IN
-                // Data or data with implicit feedback IN EP
-                if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN
-                    && (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2)) {
-                  ep_in = desc_ep->bEndpointAddress;
-                  ep_in_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_in_size);
-                }
+            // Data or data with implicit feedback IN EP
+            if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN && is_data_ep) {
+              ep_in = desc_ep->bEndpointAddress;
+              ep_in_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_in_size);
+            }
     #endif
     #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-                // Data OUT EP
-                if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT
-                    && desc_ep->bmAttributes.usage == 0) {
-                  ep_out = desc_ep->bEndpointAddress;
-                  ep_out_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_out_size);
-                }
-    #endif
+            // Data OUT EP
+            if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT && is_data_ep) {
+              ep_out = desc_ep->bEndpointAddress;
+              ep_out_size = TU_MAX(tu_edpt_packet_size(desc_ep), ep_out_size);
             }
+    #endif
           }
 
           p_desc = tu_desc_next(p_desc);
@@ -1216,12 +1205,26 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 #endif
           uint8_t const ep_addr = desc_ep->bEndpointAddress;
 
+          bool is_feedback_ep = false;
+          bool is_data_ep = false;
+
+          if (tud_audio_n_version(func_id) == 1) {
+            // UAC1: Use bRefresh field to distinguish endpoint types
+            audio10_desc_as_iso_data_ep_t const *desc_ep_uac1 = (audio10_desc_as_iso_data_ep_t const *) p_desc;
+            is_feedback_ep = (desc_ep_uac1->bRefresh > 0);
+            is_data_ep = (desc_ep_uac1->bRefresh == 0);
+          } else {
+            // UAC2: Use bmAttributes.usage to distinguish endpoint types
+            is_feedback_ep = (desc_ep->bmAttributes.usage == 1);
+            is_data_ep = (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2);
+          }
+
           //TODO: We need to set EP non busy since this is not taken care of right now in ep_close() - THIS IS A WORKAROUND!
           usbd_edpt_clear_stall(rhport, ep_addr);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
           // For data or data with implicit feedback IN EP
-          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2))
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && is_data_ep)
           {
             // Save address
             audio->ep_in = ep_addr;
@@ -1245,7 +1248,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
           // Checking usage not necessary
-          if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT) {
+          if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT && is_data_ep) {
             // Save address
             audio->ep_out = ep_addr;
             audio->ep_out_as_intf_num = itf;
@@ -1262,13 +1265,17 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
           // Check if usage is explicit data feedback
-          if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && desc_ep->bmAttributes.usage == 1) {
+          if (is_feedback_ep) {
             audio->ep_fb = ep_addr;
             audio->feedback.frame_shift = desc_ep->bInterval - 1;
             // Schedule first feedback transmit
             audiod_fb_send(audio);
           }
+  #else
+          (void) is_feedback_ep;
   #endif
+#else
+        (void) is_feedback_ep;
 #endif// CFG_TUD_AUDIO_ENABLE_EP_OUT
 
           foundEPs += 1;
@@ -1381,6 +1388,7 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
             uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
             if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO20_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO20_CS_REQ_CUR) {
               _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(_audiod_fct[func_id].ctrl_buf);
+              audiod_calc_tx_packet_sz(&_audiod_fct[func_id]);
             }
           }
 #endif
@@ -1402,6 +1410,17 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
         // Check if entity is present and get corresponding driver index
         TU_VERIFY(audiod_verify_ep_exists(ep, &func_id));
 
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
+          if (tud_audio_n_version(func_id) == 1) {
+            if (_audiod_fct[func_id].ep_in == ep) {
+              uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
+              if (ctrlSel == AUDIO10_EP_CTRL_SAMPLING_FREQ && p_request->bRequest == AUDIO10_CS_REQ_SET_CUR) {
+                _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(_audiod_fct[func_id].ctrl_buf) & 0x00FFFFFF;
+                audiod_calc_tx_packet_sz(&_audiod_fct[func_id]);
+              }
+            }
+          }
+#endif
         // Invoke callback
         return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
       } break;
@@ -1525,7 +1544,7 @@ bool audiod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
       // I assume here, that things above are handled by PHY
       // All transmission is done - what remains to do is to inform job was completed
 
-      tud_audio_int_xfer_cb(rhport);
+      tud_audio_int_done_cb(rhport);
       return true;
     }
 
@@ -1720,6 +1739,7 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
       uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
       if (_audiod_fct[func_id].bclock_id_tx == entityID && ctrlSel == AUDIO20_CS_CTRL_SAM_FREQ && p_request->bRequest == AUDIO20_CS_REQ_CUR) {
         _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(_audiod_fct[func_id].ctrl_buf);
+        audiod_calc_tx_packet_sz(&_audiod_fct[func_id]);
       }
     }
   }
@@ -1819,6 +1839,8 @@ static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t c
       if (audio->format_type_tx == AUDIO10_FORMAT_TYPE_I) {
         audio->n_channels_tx = ((audio10_desc_type_I_format_n_t(1) const *) p_desc)->bNrChannels;
         audio->n_bytes_per_sample_tx = ((audio10_desc_type_I_format_n_t(1) const *) p_desc)->bSubFrameSize;
+        // Save sample rate - needed when EP doesn't support setting sample rate
+        audio->sample_rate_tx = tu_unaligned_read32(((audio10_desc_type_I_format_n_t(1) const *) p_desc)->tSamFreq) & 0x00FFFFFF;
       }
     }
   } else {
