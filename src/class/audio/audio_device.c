@@ -218,6 +218,7 @@ typedef struct
 {
   uint8_t rhport;
   uint8_t const *p_desc;// Pointer pointing to Standard AC Interface Descriptor(4.7.1) - Audio Control descriptor defining audio function
+  uint8_t const *p_desc_as;// Pointer pointing to 1st Standard AS Interface Descriptor(4.9.1) - Audio Streaming descriptor defining audio function
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
   uint8_t ep_in;            // TX audio data EP.
@@ -629,8 +630,10 @@ bool tud_audio_int_n_write(uint8_t func_id, const audio_interrupt_data_t *data) 
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 // This function is called once a transmit of a feedback packet was successfully completed. Here, we get the next feedback value to be sent
-static inline bool audiod_fb_send(audiod_function_t *audio) {
-  bool apply_correction = (TUSB_SPEED_FULL == tud_speed_get()) && audio->feedback.format_correction;
+static inline bool audiod_fb_send(uint8_t func_id) {
+  audiod_function_t *audio = &_audiod_fct[func_id];
+  bool apply_correction = tud_audio_n_version(func_id) == 1 ||
+                          (TUSB_SPEED_FULL == tud_speed_get()) && audio->feedback.format_correction;
   // Format the feedback value
   if (apply_correction) {
     uint8_t *fb = (uint8_t *) audio->fb_buf;
@@ -910,11 +913,13 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
         p_desc = tu_desc_next(p_desc);
         while (p_desc_end - p_desc > 0) {
           // Stop if:
-          // - Non audio streaming interface descriptor found
+          // - Non audio interface descriptor found
           // - IAD found
-          if ((tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *) p_desc)->bInterfaceSubClass != AUDIO_SUBCLASS_STREAMING)
+          if ((tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass != TUSB_CLASS_AUDIO)
               || tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
             break;
+          } else if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *) p_desc)->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
+            _audiod_fct[i].p_desc_as = p_desc;
           }
           total_len += p_desc[0];
           p_desc = tu_desc_next(p_desc);
@@ -1174,13 +1179,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 #endif// CFG_TUD_AUDIO_ENABLE_EP_OUT
 
   // Open new EP if necessary - EPs are only to be closed or opened for AS interfaces - Look for AS interface with correct alternate interface
-  uint8_t const *p_desc = tu_desc_next(audio->p_desc);
-  // Skip entire AC descriptor block
-  if (tud_audio_n_version(func_id) == 1) {
-    p_desc += ((audio10_desc_cs_ac_interface_n_t(1) const *) p_desc)->wTotalLength;
-  } else {
-    p_desc += ((audio20_desc_cs_ac_interface_t const *) p_desc)->wTotalLength;
-  }
+
+  uint8_t const *p_desc = audio->p_desc_as;
   // Get pointer at end
   uint8_t const *p_desc_end = audio->p_desc + audio->desc_length;
 
@@ -1269,7 +1269,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             audio->ep_fb = ep_addr;
             audio->feedback.frame_shift = desc_ep->bInterval - 1;
             // Schedule first feedback transmit
-            audiod_fb_send(audio);
+            audiod_fb_send(func_id);
           }
   #else
           (void) is_feedback_ep;
@@ -1595,7 +1595,7 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     if (audio->ep_fb == ep_addr) {
       // Schedule a transmit with the new value if EP is not busy
       // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-      audiod_fb_send(audio);
+      audiod_fb_send(func_id);
       return true;
     }
   #endif
@@ -1757,16 +1757,9 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *
     if (_audiod_fct[i].p_desc && ((tusb_desc_interface_t const *) _audiod_fct[i].p_desc)->bInterfaceNumber == itf) {
       // Get pointers after class specific AC descriptors and end of AC descriptors - entities are defined in between
       uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);// Points to CS AC descriptor
-      uint8_t const *p_desc_end = p_desc;
-      if (tud_audio_n_version(i) == 1) {
-        p_desc_end += ((audio10_desc_cs_ac_interface_n_t(1) const *) p_desc)->wTotalLength;
-      } else {
-        p_desc_end += ((audio20_desc_cs_ac_interface_t const *) p_desc)->wTotalLength;
-      }
       p_desc = tu_desc_next(p_desc);// Get past CS AC descriptor
 
-      // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
-      while (p_desc_end - p_desc > 0) {
+      while (_audiod_fct[i].p_desc_as - p_desc > 0) {
         // Entity IDs are always at offset 3
         if (p_desc[3] == entityID) {
           *func_id = i;
@@ -1807,12 +1800,7 @@ static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *func_id) {
       uint8_t const *p_desc_end = _audiod_fct[i].p_desc + _audiod_fct[i].desc_length;
 
       // Advance past AC descriptors - EP we look for are streaming EPs
-      uint8_t const *p_desc = tu_desc_next(_audiod_fct[i].p_desc);
-      if (tud_audio_n_version(i) == 1) {
-        p_desc += ((audio10_desc_cs_ac_interface_n_t(1) const *) p_desc)->wTotalLength;
-      } else {
-        p_desc += ((audio20_desc_cs_ac_interface_t const *) p_desc)->wTotalLength;
-      }
+      uint8_t const *p_desc = _audiod_fct[i].p_desc_as;
 
       // Condition modified from p_desc < p_desc_end to prevent gcc>=12 strict-overflow warning
       while (p_desc_end - p_desc > 0) {
