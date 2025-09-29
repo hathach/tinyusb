@@ -200,7 +200,8 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
   #include "stm32u0xx.h"
-  #define FSDEV_PMA_SIZE (2048u)
+  #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_BUS_32BIT
   #define FSDEV_HAS_SBUF_ISO 1
   #define USB USB_DRD_FS
 
