@@ -678,6 +678,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   btable_set_addr(ep_idx, 1, pma_addr2);
 #else
   btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
+  (void) pma_addr2;
 #endif
 
   xfer_ctl_t* xfer = xfer_ctl_ptr(ep_num, dir);
