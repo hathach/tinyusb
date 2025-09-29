@@ -202,7 +202,8 @@
   #include "stm32u0xx.h"
   #define FSDEV_PMA_SIZE (1024u)
   #define FSDEV_BUS_32BIT
-  #define FSDEV_HAS_SBUF_ISO 1
+  // Disable SBUF_ISO on U0 for now due to bad performance (audio glitching)
+  #define FSDEV_HAS_SBUF_ISO 0
   #define USB USB_DRD_FS
 
   #define USB_EP_CTR_RX USB_EP_VTRX
