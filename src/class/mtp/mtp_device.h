@@ -39,6 +39,9 @@
 // callback data for Bulk Only Transfer (BOT) protocol
 typedef struct {
   uint8_t idx; // mtp instance
+  uint8_t phase; // current phase
+  uint32_t session_id;
+
   const mtp_container_command_t* command_container;
   mtp_container_info_t io_container;
 
@@ -50,6 +53,8 @@ typedef struct {
 typedef struct {
   uint8_t idx;
   uint8_t stage; // control stage
+  uint32_t session_id;
+
   const tusb_control_request_t* request;
   // buffer for data stage
   uint8_t* buf;
@@ -95,6 +100,7 @@ bool tud_mtp_data_receive(mtp_container_info_t* p_container);
 // send response
 bool tud_mtp_response_send(mtp_container_info_t* p_container);
 
+// send event notification on event endpoint
 bool tud_mtp_event_send(mtp_event_t* event);
 
 //--------------------------------------------------------------------+

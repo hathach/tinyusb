@@ -307,6 +307,7 @@ bool mtpd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   tud_mtp_request_cb_data_t cb_data = {
     .idx = 0,
     .stage = stage,
+    .session_id = p_mtp->session_id,
     .request = request,
     .buf = p_mtp->control_buf,
     .bufsize = tu_le16toh(request->wLength),
@@ -395,6 +396,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
   tud_mtp_cb_data_t cb_data;
   cb_data.idx = 0;
+  cb_data.phase = p_mtp->phase;
+  cb_data.session_id = p_mtp->session_id;
   cb_data.command_container = &p_mtp->command;
   cb_data.io_container = headered_packet;
   cb_data.total_xferred_bytes = 0;
