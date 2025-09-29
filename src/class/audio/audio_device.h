@@ -51,21 +51,6 @@
 #endif
 #endif
 
-// Number of Standard AS Interface Descriptors (4.9.1) defined per audio function - this is required to be able to remember the current alternate settings of these interfaces
-#ifndef CFG_TUD_AUDIO_FUNC_1_N_AS_INT
-#error You must tell the driver the number of Standard AS Interface Descriptors you have defined in the audio function descriptor!
-#endif
-#if CFG_TUD_AUDIO > 1
-#ifndef CFG_TUD_AUDIO_FUNC_2_N_AS_INT
-#error You must tell the driver the number of Standard AS Interface Descriptors you have defined in the audio function descriptor!
-#endif
-#endif
-#if CFG_TUD_AUDIO > 2
-#ifndef CFG_TUD_AUDIO_FUNC_3_N_AS_INT
-#error You must tell the driver the number of Standard AS Interface Descriptors you have defined in the audio function descriptor!
-#endif
-#endif
-
 // Size of control buffer used to receive and send control messages via EP0 - has to be big enough to hold your biggest request structure e.g. range requests with multiple intervals defined or cluster descriptors
 #ifndef CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ
 #error You must define an audio class control request buffer size!

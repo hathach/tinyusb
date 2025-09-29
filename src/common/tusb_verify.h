@@ -53,11 +53,11 @@
  * The difference in behavior is that ASSERT triggers a breakpoint while
  * verify does not.
  *
- *   #define TU_VERIFY(cond)                  if(cond) return false;
- *   #define TU_VERIFY(cond,ret)              if(cond) return ret;
+ *   #define TU_VERIFY(cond)                  if (!cond) return false;
+ *   #define TU_VERIFY(cond,ret)              if (!cond) return ret;
  *
- *   #define TU_ASSERT(cond)                  if(cond) {TU_MESS_FAILED(); TU_BREAKPOINT(), return false;}
- *   #define TU_ASSERT(cond,ret)              if(cond) {TU_MESS_FAILED(); TU_BREAKPOINT(), return ret;}
+ *   #define TU_ASSERT(cond)                  if (!cond) {TU_MESS_FAILED(); TU_BREAKPOINT(), return false;}
+ *   #define TU_ASSERT(cond,ret)              if (!cond) {TU_MESS_FAILED(); TU_BREAKPOINT(), return ret;}
  *------------------------------------------------------------------*/
 
 #ifdef __cplusplus
