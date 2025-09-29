@@ -703,8 +703,8 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   TUD_AUDIO20_DESC_STD_AS_ISO_FB_EP(/*_ep*/ _epfb, /*_epsize*/ _epfbsize, /*_interval*/ 1)
 
 //   Calculate wMaxPacketSize of Endpoints
-#define TUD_AUDIO_EP_SIZE(_maxFrequency, _nBytesPerSample, _nChannels) \
-    ((((_maxFrequency + (TUD_OPT_HIGH_SPEED ? 7999 : 999)) / (TUD_OPT_HIGH_SPEED ? 8000 : 1000)) + 1) * _nBytesPerSample * _nChannels)
+#define TUD_AUDIO_EP_SIZE(_is_highspeed, _maxFrequency, _nBytesPerSample, _nChannels) \
+    ((((_maxFrequency + (_is_highspeed ? 7999 : 999)) / (_is_highspeed ? 8000 : 1000)) + 1) * _nBytesPerSample * _nChannels)
 
 
 //--------------------------------------------------------------------+
