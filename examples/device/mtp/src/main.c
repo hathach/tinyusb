@@ -59,10 +59,7 @@ int main(void) {
     .speed = TUSB_SPEED_AUTO
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
-
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
   while (1) {
     tud_task(); // tinyusb device task

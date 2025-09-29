@@ -36,8 +36,6 @@
 #define DEV_INFO_MANUFACTURER   "TinyUSB"
 #define DEV_INFO_MODEL          "MTP Example"
 #define DEV_INFO_VERSION        "1.0"
-#define DEV_INFO_SERIAL         "123456"
-
 #define DEV_PROP_FRIENDLY_NAME  "TinyUSB MTP"
 
 //------------- storage info -------------//
