@@ -164,7 +164,7 @@
   *        of HAL callback registration/unregistration feature for the HAL
   *        driver(s). This allows user application to provide specific callback
   *        functions thanks to HAL_PPP_RegisterCallback() rather than overwriting
-  *        the default weak callback functions (see each stm32n6xx_hal_ppp.h file
+  *        the default weak callback functions (see each stm32u0xx_hal_ppp.h file
   *        for possible callback identifiers defined in HAL_PPP_CallbackIDTypeDef
   *        for each PPP peripheral).
   */
@@ -254,7 +254,7 @@
 
 #ifdef HAL_LCD_MODULE_ENABLED
 #include "stm32u0xx_hal_lcd.h"
-#endif /* HAL_LTDC_MODULE_ENABLED */
+#endif /* HAL_LCD_MODULE_ENABLED */
 
 #ifdef HAL_OPAMP_MODULE_ENABLED
 #include "stm32u0xx_hal_opamp.h"
@@ -335,4 +335,3 @@
 #endif
 
 #endif /* __STM32U0xx_HAL_CONF_H */
-
