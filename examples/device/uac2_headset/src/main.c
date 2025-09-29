@@ -142,7 +142,7 @@ void tud_resume_cb(void) {
 }
 
 // Helper for clock get requests
-static bool tud_audio_clock_get_request(uint8_t rhport, audio20_control_request_t const *request) {
+static bool tud_audio20_clock_get_request(uint8_t rhport, audio20_control_request_t const *request) {
   TU_ASSERT(request->bEntityID == UAC2_ENTITY_CLOCK);
 
   if (request->bControlSelector == AUDIO20_CS_CTRL_SAM_FREQ) {
@@ -177,7 +177,7 @@ static bool tud_audio_clock_get_request(uint8_t rhport, audio20_control_request_
 }
 
 // Helper for clock set requests
-static bool tud_audio_clock_set_request(uint8_t rhport, audio20_control_request_t const *request, uint8_t const *buf) {
+static bool tud_audio20_clock_set_request(uint8_t rhport, audio20_control_request_t const *request, uint8_t const *buf) {
   (void) rhport;
 
   TU_ASSERT(request->bEntityID == UAC2_ENTITY_CLOCK);
@@ -199,7 +199,7 @@ static bool tud_audio_clock_set_request(uint8_t rhport, audio20_control_request_
 }
 
 // Helper for feature unit get requests
-static bool tud_audio_feature_unit_get_request(uint8_t rhport, audio20_control_request_t const *request) {
+static bool tud_audio20_feature_unit_get_request(uint8_t rhport, audio20_control_request_t const *request) {
   TU_ASSERT(request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT);
 
   if (request->bControlSelector == AUDIO20_FU_CTRL_MUTE && request->bRequest == AUDIO20_CS_REQ_CUR) {
@@ -227,7 +227,7 @@ static bool tud_audio_feature_unit_get_request(uint8_t rhport, audio20_control_r
 }
 
 // Helper for feature unit set requests
-static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio20_control_request_t const *request, uint8_t const *buf) {
+static bool tud_audio20_feature_unit_set_request(uint8_t rhport, audio20_control_request_t const *request, uint8_t const *buf) {
   (void) rhport;
 
   TU_ASSERT(request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT);
@@ -262,16 +262,21 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio20_control_r
 
 // Invoked when audio class specific get request received for an entity
 bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request) {
-  audio20_control_request_t const *request = (audio20_control_request_t const *) p_request;
+  if (tud_audio_version() == 1) {
+    // No entity in UAC1
+  } else {
+    audio20_control_request_t const *request = (audio20_control_request_t const *) p_request;
 
-  if (request->bEntityID == UAC2_ENTITY_CLOCK)
-    return tud_audio_clock_get_request(rhport, request);
-  if (request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT)
-    return tud_audio_feature_unit_get_request(rhport, request);
-  else {
-    TU_LOG1("Get request not handled, entity = %d, selector = %d, request = %d\r\n",
-            request->bEntityID, request->bControlSelector, request->bRequest);
+    if (request->bEntityID == UAC2_ENTITY_CLOCK)
+      return tud_audio20_clock_get_request(rhport, request);
+    if (request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT)
+      return tud_audio20_feature_unit_get_request(rhport, request);
+    else {
+      TU_LOG1("Get request not handled, entity = %d, selector = %d, request = %d\r\n",
+              request->bEntityID, request->bControlSelector, request->bRequest);
+    }
   }
+
   return false;
 }
 
@@ -280,9 +285,9 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   audio20_control_request_t const *request = (audio20_control_request_t const *) p_request;
 
   if (request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT)
-    return tud_audio_feature_unit_set_request(rhport, request, buf);
+    return tud_audio20_feature_unit_set_request(rhport, request, buf);
   if (request->bEntityID == UAC2_ENTITY_CLOCK)
-    return tud_audio_clock_set_request(rhport, request, buf);
+    return tud_audio20_clock_set_request(rhport, request, buf);
   TU_LOG1("Set request not handled, entity = %d, selector = %d, request = %d\r\n",
           request->bEntityID, request->bControlSelector, request->bRequest);
 

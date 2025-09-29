@@ -433,6 +433,11 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 #define TUD_AUDIO10_DESC_CS_AS_ISO_EP(_attr, _lockdelayunits, _lockdelay) \
   TUD_AUDIO10_DESC_CS_AS_ISO_EP_LEN, TUSB_DESC_CS_ENDPOINT, AUDIO10_CS_EP_SUBTYPE_GENERAL, _attr, _lockdelayunits, U16_TO_U8S_LE(_lockdelay)
 
+/* Standard AS Isochronous Synch Endpoint Descriptor UAC1 (4.6.2.1) */
+#define TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP_LEN 9
+#define TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP(_ep, _bRefresh) \
+  TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP_LEN, TUSB_DESC_ENDPOINT, _ep, TUSB_XFER_ISOCHRONOUS, U16_TO_U8S_LE(3), 1, _bRefresh, 0x00
+
 /* Standard AC Interrupt Endpoint Descriptor UAC1 (4.4.2) */
 #define TUD_AUDIO10_DESC_STD_AC_INT_EP_LEN 9
 #define TUD_AUDIO10_DESC_STD_AC_INT_EP(_ep, _interval) \
@@ -460,7 +465,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Standard AC Interface Descriptor(4.3.1) */\
   TUD_AUDIO10_DESC_STD_AC(/*_itfnum*/ _itfnum, /*_nEPs*/ 0x00, /*_stridx*/ _stridx),\
   /* Class-Specific AC Interface Header Descriptor(4.3.2) */\
-  TUD_AUDIO10_DESC_CS_AC(/*_bcdADC*/ 0x0100, /*_totallen*/ TUD_AUDIO10_DESC_INPUT_TERM_LEN+TUD_AUDIO10_DESC_OUTPUT_TERM_LEN+TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(1), /*_itf*/ ((_itfnum)+1)),\
+  TUD_AUDIO10_DESC_CS_AC(/*_bcdADC*/ 0x0100, /*_totallen*/ (TUD_AUDIO10_DESC_INPUT_TERM_LEN+TUD_AUDIO10_DESC_OUTPUT_TERM_LEN+TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(1)), /*_itf*/ ((_itfnum)+1)),\
   /* Input Terminal Descriptor(4.3.2.1) */\
   TUD_AUDIO10_DESC_INPUT_TERM(/*_termid*/ 0x01, /*_termtype*/ AUDIO_TERM_TYPE_IN_GENERIC_MIC, /*_assocTerm*/ 0x03, /*_nchannels*/ 0x01, /*_channelcfg*/ AUDIO10_CHANNEL_CONFIG_NON_PREDEFINED, /*_idxchannelnames*/ 0x00, /*_stridx*/ 0x00),\
   /* Output Terminal Descriptor(4.3.2.2) */\
@@ -474,7 +479,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   /* Interface 1, Alternate 1 - alternate interface for data streaming */\
   TUD_AUDIO10_DESC_STD_AS_INT(/*_itfnum*/ (uint8_t)((_itfnum)+1), /*_altset*/ 0x01, /*_nEPs*/ 0x01, /*_stridx*/ 0x00),\
   /* Class-Specific AS Interface Descriptor(4.5.2) */\
-  TUD_AUDIO10_DESC_CS_AS_INT(/*_termid*/ 0x03, /*_delay*/ 0x00, /*_formattype*/ AUDIO10_DATA_FORMAT_TYPE_I_PCM),\
+  TUD_AUDIO10_DESC_CS_AS_INT(/*_termid*/ 0x03, /*_delay*/ 0x01, /*_formattype*/ AUDIO10_DATA_FORMAT_TYPE_I_PCM),\
   /* Type I Format Type Descriptor(2.2.5) */\
   TUD_AUDIO10_DESC_TYPE_I_FORMAT(/*_nrchannels*/ 0x01, /*_subframesize*/ _nBytesPerSample, /*_bitresolution*/ _nBitsUsedPerSample, /*_freq*/ __VA_ARGS__),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.6.1.1) */\

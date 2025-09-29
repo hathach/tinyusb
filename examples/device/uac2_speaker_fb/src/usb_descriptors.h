@@ -26,6 +26,10 @@
 #ifndef _USB_DESCRIPTORS_H_
 #define _USB_DESCRIPTORS_H_
 
+//--------------------------------------------------------------------+
+// UAC2 DESCRIPTOR TEMPLATES
+//--------------------------------------------------------------------+
+
 // Defined in TUD_AUDIO20_SPEAKER_STEREO_FB_DESCRIPTOR
 #define UAC2_ENTITY_CLOCK               0x04
 #define UAC2_ENTITY_INPUT_TERMINAL      0x01
@@ -89,13 +93,13 @@
 #define UAC1_ENTITY_OUTPUT_TERMINAL     0x03
 
 #define TUD_AUDIO10_SPEAKER_STEREO_FB_DESC_LEN(_nfreqs) (\
-  + TUD_AUDIO_DESC_STD_AC_LEN\
+  + TUD_AUDIO10_DESC_STD_AC_LEN\
   + TUD_AUDIO10_DESC_CS_AC_LEN(1)\
   + TUD_AUDIO10_DESC_INPUT_TERM_LEN\
   + TUD_AUDIO10_DESC_OUTPUT_TERM_LEN\
   + TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(2)\
-  + TUD_AUDIO20_DESC_STD_AS_LEN\
-  + TUD_AUDIO20_DESC_STD_AS_LEN\
+  + TUD_AUDIO10_DESC_STD_AS_LEN\
+  + TUD_AUDIO10_DESC_STD_AS_LEN\
   + TUD_AUDIO10_DESC_CS_AS_INT_LEN\
   + TUD_AUDIO10_DESC_TYPE_I_FORMAT_LEN(_nfreqs)\
   + TUD_AUDIO10_DESC_STD_AS_ISO_EP_LEN\
@@ -124,9 +128,9 @@
   /* Type I Format Type Descriptor(2.2.5) */\
   TUD_AUDIO10_DESC_TYPE_I_FORMAT(/*_nrchannels*/ 0x02, /*_subframesize*/ _nBytesPerSample, /*_bitresolution*/ _nBitsUsedPerSample, /*_freqs*/ __VA_ARGS__),\
   /* Standard AS Isochronous Audio Data Endpoint Descriptor(4.6.1.1) */\
-  TUD_AUDIO10_DESC_STD_AS_ISO_EP(/*_ep*/ _epout, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_DATA), /*_maxEPsize*/ _epoutsize, /*_interval*/ 0x01, /*_sync_ep*/ _epfb),\
+  TUD_AUDIO10_DESC_STD_AS_ISO_EP(/*_ep*/ _epout, /*_attr*/ (uint8_t) ((uint8_t)TUSB_XFER_ISOCHRONOUS | (uint8_t)TUSB_ISO_EP_ATT_ASYNCHRONOUS), /*_maxEPsize*/ _epoutsize, /*_interval*/ 0x01, /*_sync_ep*/ _epfb),\
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.6.1.2) */\
-  TUD_AUDIO10_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO10_CS_AS_ISO_DATA_EP_ATT_SAMPLING_FRQ, /*_lockdelayunits*/ AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_MILLISEC, /*_lockdelay*/ 0x0001),\
+  TUD_AUDIO10_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO10_CS_AS_ISO_DATA_EP_ATT_SAMPLING_FRQ, /*_lockdelayunits*/ AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000),\
   /* Standard AS Isochronous Synch Endpoint Descriptor (4.6.2.1) */\
   TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP(/*_ep*/ _epfb, /*_bRefresh*/ 4)
 
