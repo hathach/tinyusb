@@ -107,7 +107,6 @@ extern "C" {
 
 #define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                 TUD_AUDIO_MIC_FOUR_CH_DESC_LEN
 
-#define CFG_TUD_AUDIO_FUNC_1_N_AS_INT                 1
 #define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ              64
 
 #define CFG_TUD_AUDIO_ENABLE_EP_IN                    1
