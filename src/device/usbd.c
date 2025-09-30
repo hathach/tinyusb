@@ -1101,7 +1101,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
                     AUDIO10_CS_AC_INTERFACE_HEADER == ((audio10_desc_cs_ac_interface_1_t const *) p)->bDescriptorSubType) {
                   audio10_desc_cs_ac_interface_1_t const * p_header = (audio10_desc_cs_ac_interface_1_t const *) p;
                   // AC + AS interfaces
-                  assoc_itf_count = tu_le16toh(p_header->bInCollection) + 1;
+                  assoc_itf_count = p_header->bInCollection + 1;
                   break;
                 }
                 p = tu_desc_next(p);

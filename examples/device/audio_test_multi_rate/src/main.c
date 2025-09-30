@@ -60,7 +60,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 // Audio controls
 // Current states
 bool mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];      // +1 for master channel 0
-uint16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];// +1 for master channel 0
+int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];// +1 for master channel 0
 uint32_t sampFreq;
 uint8_t bytesPerSample;
 uint8_t clkValid;
@@ -367,7 +367,7 @@ static bool audio20_set_req_entity(tusb_control_request_t const *p_request, uint
         // Request uses format layout 2
         TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_2_t));
 
-        volume[channelNum] = (uint16_t) ((audio20_control_cur_2_t *) pBuff)->bCur;
+        volume[channelNum] = (int16_t) ((audio20_control_cur_2_t *) pBuff)->bCur;
 
         TU_LOG2("    Set Volume: %d dB of channel: %u\r\n", volume[channelNum], channelNum);
         return true;

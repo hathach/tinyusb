@@ -460,7 +460,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *func_id);
 static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *func_id);
 static bool audiod_verify_ep_exists(uint8_t ep, uint8_t *func_id);
-static uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
+static inline uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
 static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t const *p_desc);
@@ -1810,7 +1810,7 @@ static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t c
 
   p_desc = tu_desc_next(p_desc);// Exclude standard AS interface descriptor of current alternate interface descriptor
 
-  if (tud_audio_n_version(audio - _audiod_fct) == 1) {
+  if (tud_audio_n_version(audiod_get_audio_fct_idx(audio)) == 1) {
     p_desc = tu_desc_next(p_desc);// Exclude Class-Specific AS Interface Descriptor(4.5.2) to get to format type descriptor
     if (tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE && tu_desc_subtype(p_desc) == AUDIO10_CS_AS_INTERFACE_FORMAT_TYPE) {
       audio->format_type_tx = ((audio10_desc_type_I_format_n_t(1) const *) p_desc)->bFormatType;
@@ -1910,11 +1910,8 @@ static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t da
 #endif
 
 // No security checks here - internal function only which should always succeed
-static uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio) {
-  for (uint8_t cnt = 0; cnt < CFG_TUD_AUDIO; cnt++) {
-    if (&_audiod_fct[cnt] == audio) return cnt;
-  }
-  return 0;
+static inline uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio) {
+  return (uint8_t) (audio - _audiod_fct);
 }
 
 #endif // (CFG_TUD_ENABLED && CFG_TUD_AUDIO)

@@ -74,7 +74,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 // Audio controls
 // Current states
-int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];   // +1 for master channel 0
+uint8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];   // +1 for master channel 0
 int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];// +1 for master channel 0
 
 // Buffer for speaker data
@@ -212,7 +212,7 @@ static bool audio10_set_req_entity(tusb_control_request_t const *p_request, uint
         switch (p_request->bRequest) {
           case AUDIO10_CS_REQ_SET_CUR:
             // Only 1st form is supported
-            TU_VERIFY(p_request->wLength ==1);
+            TU_VERIFY(p_request->wLength == 1);
 
             mute[channelNum] = pBuff[0];
 

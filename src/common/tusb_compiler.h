@@ -118,7 +118,7 @@
 #define _TU_ARGS_APPLY_7(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1) _s _TU_ARGS_APPLY_6(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7)
 #define _TU_ARGS_APPLY_8(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1) _s _TU_ARGS_APPLY_7(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
 
-// Apply an macro X to each of the arguments and expand the result wtih comma
+// Apply an macro X to each of the arguments and expand the result with comma
 #define TU_ARGS_APPLY_EXPAND(_X, ...)   TU_XSTRCAT(_TU_ARGS_APPLY_EXPAND_, TU_ARGS_NUM(__VA_ARGS__))(_X, __VA_ARGS__)
 
 #define _TU_ARGS_APPLY_EXPAND_1(_X, _a1)                                    _X(_a1)
