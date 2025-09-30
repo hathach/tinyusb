@@ -36,7 +36,9 @@ function(add_board_target BOARD_TARGET)
     set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT_UPPER}_FLASH.ld)
   endif ()
   set(LD_FILE_Clang ${LD_FILE_GNU})
-  set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+  if (NOT DEFINED LD_FILE_IAR)
+    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+  endif ()
 
   add_library(${BOARD_TARGET} STATIC
     ${ST_CMSIS}/Source/Templates/system_${ST_PREFIX}.c
