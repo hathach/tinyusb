@@ -1087,6 +1087,28 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
           #if CFG_TUD_BTH && CFG_TUD_BTH_ISO_ALT_COUNT
           if ( driver->open == btd_open ) assoc_itf_count = 2;
           #endif
+
+          #if CFG_TUD_AUDIO
+          if (driver->open == audiod_open) {
+            // UAC1 device doesn't have IAD, needs to read AS interface count from CS AC descriptor
+            if (TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
+                AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
+                AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol) {
+              uint8_t const* p = tu_desc_next(p_desc);
+              uint8_t const* const itf_end = p_desc + remaining_len;
+              while (p < itf_end) {
+                if (TUSB_DESC_CS_INTERFACE == tu_desc_type(p) &&
+                    AUDIO10_CS_AC_INTERFACE_HEADER == ((audio10_desc_cs_ac_interface_1_t const *) p)->bDescriptorSubType) {
+                  audio10_desc_cs_ac_interface_1_t const * p_header = (audio10_desc_cs_ac_interface_1_t const *) p;
+                  // AC + AS interfaces
+                  assoc_itf_count = tu_le16toh(p_header->bInCollection) + 1;
+                  break;
+                }
+                p = tu_desc_next(p);
+              }
+            }
+          }
+          #endif
         }
 
         // bind (associated) interfaces to found driver
