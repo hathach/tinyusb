@@ -38,6 +38,16 @@ import glob
 from multiprocessing import Pool
 import fs
 
+import ctypes
+from pymtp import MTP, LIBMTP_MTPDevice, LIBMTP_RawDevice
+mtp = MTP()
+lib = mtp.mtp
+
+# # tell ctypes that Open_Raw_Device returns MTPDevice*
+lib.LIBMTP_Open_Raw_Device.restype = ctypes.POINTER(LIBMTP_MTPDevice)
+lib.LIBMTP_Open_Raw_Device.argtypes = [ctypes.POINTER(LIBMTP_RawDevice)]
+
+
 ENUM_TIMEOUT = 30
 
 STATUS_OK = "\033[32mOK\033[0m"
@@ -456,7 +466,6 @@ def test_device_dfu(board):
 
 def test_device_dfu_runtime(board):
     uid = board['uid']
-
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout > 0:
@@ -491,6 +500,19 @@ def test_device_hid_composite_freertos(id):
     pass
 
 
+def test_device_mtp(board):
+    uid = board['uid']
+    for raw in mtp.detect_devices():
+        mtp.device = lib.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
+        if mtp.device and mtp.get_serialnumber().decode('utf-8') == uid:
+            break
+        else:
+            mtp.device = None
+    if mtp.device is None:
+        assert False, 'MTP device not found'
+
+
+
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
@@ -503,6 +525,7 @@ device_tests = [
     'device/dfu_runtime',
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
+    'device/mtp'
 ]
 
 dual_tests = [

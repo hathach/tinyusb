@@ -354,8 +354,8 @@ static int32_t fs_get_device_info(tud_mtp_cb_data_t* cb_data) {
   mtp_container_add_cstring(io_container, DEV_INFO_VERSION);
 
   uint16_t serial_utf16[32];
-  board_usb_get_serial(serial_utf16, 32);
-  serial_utf16[31] = 0; // ensure null termination
+  size_t nchars = board_usb_get_serial(serial_utf16, 32);
+  serial_utf16[tu_min32(nchars, 31u)] = 0; // ensure null termination
   mtp_container_add_string(io_container, serial_utf16);
 
   tud_mtp_data_send(io_container);
