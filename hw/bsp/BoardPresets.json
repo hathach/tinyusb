@@ -13,30 +13,32 @@
       }
     },
     {
-      "name": "default single",
-      "hidden": true,
-      "description": "Configure preset for the ${presetName} board",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "BOARD": "${presetName}"
-      }
-    },
-    {
       "name": "adafruit_clue",
       "inherits": "default"
     },
     {
       "name": "adafruit_feather_esp32_v2",
-      "inherits": "default single"
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_feather_esp32c6",
+      "inherits": "default"
     },
     {
       "name": "adafruit_feather_esp32s2",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "adafruit_feather_esp32s3",
-      "inherits": "default single"
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_feather_rp2040_usb_host",
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_fruit_jam",
+      "inherits": "default"
     },
     {
       "name": "adafruit_magtag_29gray",
@@ -44,7 +46,11 @@
     },
     {
       "name": "adafruit_metro_esp32s2",
-      "inherits": "default single"
+      "inherits": "default"
+    },
+    {
+      "name": "adafruit_metro_rp2350",
+      "inherits": "default"
     },
     {
       "name": "apard32690",
@@ -52,6 +58,50 @@
     },
     {
       "name": "arduino_nano33_ble",
+      "inherits": "default"
+    },
+    {
+      "name": "at32f403a_weact_blackpill",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f402",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f403a",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f405",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f407",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f413",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f415",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f423",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f425",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f435",
+      "inherits": "default"
+    },
+    {
+      "name": "at_start_f437",
       "inherits": "default"
     },
     {
@@ -140,39 +190,39 @@
     },
     {
       "name": "espressif_addax_1",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "espressif_c3_devkitc",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "espressif_c6_devkitc",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "espressif_kaluga_1",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "espressif_p4_function_ev",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "espressif_s2_devkitc",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "espressif_s3_devkitc",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "espressif_s3_devkitm",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "espressif_saola_1",
-      "inherits": "default single"
+      "inherits": "default"
     },
     {
       "name": "f1c100s",
@@ -224,6 +274,10 @@
     },
     {
       "name": "frdm_mcxa153",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_mcxa156",
       "inherits": "default"
     },
     {
@@ -411,6 +465,10 @@
       "inherits": "default"
     },
     {
+      "name": "nanoch32v305",
+      "inherits": "default"
+    },
+    {
       "name": "pca10056",
       "inherits": "default"
     },
@@ -480,6 +538,10 @@
     },
     {
       "name": "raspberry_pi_pico2",
+      "inherits": "default"
+    },
+    {
+      "name": "raspberry_pi_pico_w",
       "inherits": "default"
     },
     {
@@ -695,6 +757,18 @@
       "inherits": "default"
     },
     {
+      "name": "stm32n6570dk",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32n657nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32u083cdk",
+      "inherits": "default"
+    },
+    {
       "name": "stm32u545nucleo",
       "inherits": "default"
     },
@@ -712,6 +786,10 @@
     },
     {
       "name": "stm32wb55nucleo",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32wba_nucleo",
       "inherits": "default"
     },
     {
@@ -759,6 +837,11 @@
       "configurePreset": "adafruit_feather_esp32_v2"
     },
     {
+      "name": "adafruit_feather_esp32c6",
+      "description": "Build preset for the adafruit_feather_esp32c6 board",
+      "configurePreset": "adafruit_feather_esp32c6"
+    },
+    {
       "name": "adafruit_feather_esp32s2",
       "description": "Build preset for the adafruit_feather_esp32s2 board",
       "configurePreset": "adafruit_feather_esp32s2"
@@ -767,6 +850,16 @@
       "name": "adafruit_feather_esp32s3",
       "description": "Build preset for the adafruit_feather_esp32s3 board",
       "configurePreset": "adafruit_feather_esp32s3"
+    },
+    {
+      "name": "adafruit_feather_rp2040_usb_host",
+      "description": "Build preset for the adafruit_feather_rp2040_usb_host board",
+      "configurePreset": "adafruit_feather_rp2040_usb_host"
+    },
+    {
+      "name": "adafruit_fruit_jam",
+      "description": "Build preset for the adafruit_fruit_jam board",
+      "configurePreset": "adafruit_fruit_jam"
     },
     {
       "name": "adafruit_magtag_29gray",
@@ -779,6 +872,11 @@
       "configurePreset": "adafruit_metro_esp32s2"
     },
     {
+      "name": "adafruit_metro_rp2350",
+      "description": "Build preset for the adafruit_metro_rp2350 board",
+      "configurePreset": "adafruit_metro_rp2350"
+    },
+    {
       "name": "apard32690",
       "description": "Build preset for the apard32690 board",
       "configurePreset": "apard32690"
@@ -787,6 +885,61 @@
       "name": "arduino_nano33_ble",
       "description": "Build preset for the arduino_nano33_ble board",
       "configurePreset": "arduino_nano33_ble"
+    },
+    {
+      "name": "at32f403a_weact_blackpill",
+      "description": "Build preset for the at32f403a_weact_blackpill board",
+      "configurePreset": "at32f403a_weact_blackpill"
+    },
+    {
+      "name": "at_start_f402",
+      "description": "Build preset for the at_start_f402 board",
+      "configurePreset": "at_start_f402"
+    },
+    {
+      "name": "at_start_f403a",
+      "description": "Build preset for the at_start_f403a board",
+      "configurePreset": "at_start_f403a"
+    },
+    {
+      "name": "at_start_f405",
+      "description": "Build preset for the at_start_f405 board",
+      "configurePreset": "at_start_f405"
+    },
+    {
+      "name": "at_start_f407",
+      "description": "Build preset for the at_start_f407 board",
+      "configurePreset": "at_start_f407"
+    },
+    {
+      "name": "at_start_f413",
+      "description": "Build preset for the at_start_f413 board",
+      "configurePreset": "at_start_f413"
+    },
+    {
+      "name": "at_start_f415",
+      "description": "Build preset for the at_start_f415 board",
+      "configurePreset": "at_start_f415"
+    },
+    {
+      "name": "at_start_f423",
+      "description": "Build preset for the at_start_f423 board",
+      "configurePreset": "at_start_f423"
+    },
+    {
+      "name": "at_start_f425",
+      "description": "Build preset for the at_start_f425 board",
+      "configurePreset": "at_start_f425"
+    },
+    {
+      "name": "at_start_f435",
+      "description": "Build preset for the at_start_f435 board",
+      "configurePreset": "at_start_f435"
+    },
+    {
+      "name": "at_start_f437",
+      "description": "Build preset for the at_start_f437 board",
+      "configurePreset": "at_start_f437"
     },
     {
       "name": "atsamd21_xpro",
@@ -1002,6 +1155,11 @@
       "name": "frdm_mcxa153",
       "description": "Build preset for the frdm_mcxa153 board",
       "configurePreset": "frdm_mcxa153"
+    },
+    {
+      "name": "frdm_mcxa156",
+      "description": "Build preset for the frdm_mcxa156 board",
+      "configurePreset": "frdm_mcxa156"
     },
     {
       "name": "frdm_mcxn947",
@@ -1234,6 +1392,11 @@
       "configurePreset": "nanoch32v203"
     },
     {
+      "name": "nanoch32v305",
+      "description": "Build preset for the nanoch32v305 board",
+      "configurePreset": "nanoch32v305"
+    },
+    {
       "name": "pca10056",
       "description": "Build preset for the pca10056 board",
       "configurePreset": "pca10056"
@@ -1322,6 +1485,11 @@
       "name": "raspberry_pi_pico2",
       "description": "Build preset for the raspberry_pi_pico2 board",
       "configurePreset": "raspberry_pi_pico2"
+    },
+    {
+      "name": "raspberry_pi_pico_w",
+      "description": "Build preset for the raspberry_pi_pico_w board",
+      "configurePreset": "raspberry_pi_pico_w"
     },
     {
       "name": "raspberrypi_cm4",
@@ -1589,6 +1757,21 @@
       "configurePreset": "stm32l4r5nucleo"
     },
     {
+      "name": "stm32n6570dk",
+      "description": "Build preset for the stm32n6570dk board",
+      "configurePreset": "stm32n6570dk"
+    },
+    {
+      "name": "stm32n657nucleo",
+      "description": "Build preset for the stm32n657nucleo board",
+      "configurePreset": "stm32n657nucleo"
+    },
+    {
+      "name": "stm32u083cdk",
+      "description": "Build preset for the stm32u083cdk board",
+      "configurePreset": "stm32u083cdk"
+    },
+    {
       "name": "stm32u545nucleo",
       "description": "Build preset for the stm32u545nucleo board",
       "configurePreset": "stm32u545nucleo"
@@ -1612,6 +1795,11 @@
       "name": "stm32wb55nucleo",
       "description": "Build preset for the stm32wb55nucleo board",
       "configurePreset": "stm32wb55nucleo"
+    },
+    {
+      "name": "stm32wba_nucleo",
+      "description": "Build preset for the stm32wba_nucleo board",
+      "configurePreset": "stm32wba_nucleo"
     },
     {
       "name": "teensy_35",
@@ -1682,6 +1870,19 @@
       ]
     },
     {
+      "name": "adafruit_feather_esp32c6",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_feather_esp32c6"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_feather_esp32c6"
+        }
+      ]
+    },
+    {
       "name": "adafruit_feather_esp32s2",
       "steps": [
         {
@@ -1704,6 +1905,32 @@
         {
           "type": "build",
           "name": "adafruit_feather_esp32s3"
+        }
+      ]
+    },
+    {
+      "name": "adafruit_feather_rp2040_usb_host",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_feather_rp2040_usb_host"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_feather_rp2040_usb_host"
+        }
+      ]
+    },
+    {
+      "name": "adafruit_fruit_jam",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_fruit_jam"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_fruit_jam"
         }
       ]
     },
@@ -1734,6 +1961,19 @@
       ]
     },
     {
+      "name": "adafruit_metro_rp2350",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "adafruit_metro_rp2350"
+        },
+        {
+          "type": "build",
+          "name": "adafruit_metro_rp2350"
+        }
+      ]
+    },
+    {
       "name": "apard32690",
       "steps": [
         {
@@ -1756,6 +1996,149 @@
         {
           "type": "build",
           "name": "arduino_nano33_ble"
+        }
+      ]
+    },
+    {
+      "name": "at32f403a_weact_blackpill",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at32f403a_weact_blackpill"
+        },
+        {
+          "type": "build",
+          "name": "at32f403a_weact_blackpill"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f402",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f402"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f402"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f403a",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f403a"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f403a"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f405",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f405"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f405"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f407",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f407"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f407"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f413",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f413"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f413"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f415",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f415"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f415"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f423",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f423"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f423"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f425",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f425"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f425"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f435",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f435"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f435"
+        }
+      ]
+    },
+    {
+      "name": "at_start_f437",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "at_start_f437"
+        },
+        {
+          "type": "build",
+          "name": "at_start_f437"
         }
       ]
     },
@@ -2315,6 +2698,19 @@
         {
           "type": "build",
           "name": "frdm_mcxa153"
+        }
+      ]
+    },
+    {
+      "name": "frdm_mcxa156",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_mcxa156"
+        },
+        {
+          "type": "build",
+          "name": "frdm_mcxa156"
         }
       ]
     },
@@ -2917,6 +3313,19 @@
       ]
     },
     {
+      "name": "nanoch32v305",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nanoch32v305"
+        },
+        {
+          "type": "build",
+          "name": "nanoch32v305"
+        }
+      ]
+    },
+    {
       "name": "pca10056",
       "steps": [
         {
@@ -3147,6 +3556,19 @@
         {
           "type": "build",
           "name": "raspberry_pi_pico2"
+        }
+      ]
+    },
+    {
+      "name": "raspberry_pi_pico_w",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "raspberry_pi_pico_w"
+        },
+        {
+          "type": "build",
+          "name": "raspberry_pi_pico_w"
         }
       ]
     },
@@ -3840,6 +4262,45 @@
       ]
     },
     {
+      "name": "stm32n6570dk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32n6570dk"
+        },
+        {
+          "type": "build",
+          "name": "stm32n6570dk"
+        }
+      ]
+    },
+    {
+      "name": "stm32n657nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32n657nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32n657nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32u083cdk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32u083cdk"
+        },
+        {
+          "type": "build",
+          "name": "stm32u083cdk"
+        }
+      ]
+    },
+    {
       "name": "stm32u545nucleo",
       "steps": [
         {
@@ -3901,6 +4362,19 @@
         {
           "type": "build",
           "name": "stm32wb55nucleo"
+        }
+      ]
+    },
+    {
+      "name": "stm32wba_nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32wba_nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32wba_nucleo"
         }
       ]
     },
