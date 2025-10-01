@@ -948,12 +948,12 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
             if (tud_audio_n_version(i) == 1) {
               // UAC1: Use bRefresh field to distinguish endpoint types
               audio10_desc_as_iso_data_ep_t const *desc_ep_uac1 = (audio10_desc_as_iso_data_ep_t const *) p_desc;
-              is_feedback_ep = (desc_ep_uac1->bRefresh > 0);
-              is_data_ep = (desc_ep_uac1->bRefresh == 0);
+              is_data_ep = (desc_ep_uac1->bmAttributes.sync != TUSB_ISO_EP_ATT_NO_SYNC);
+              is_feedback_ep = (desc_ep_uac1->bmAttributes.sync == TUSB_ISO_EP_ATT_NO_SYNC);
             } else {
               // UAC2: Use bmAttributes.usage to distinguish endpoint types
-              is_feedback_ep = (desc_ep->bmAttributes.usage == 1);
               is_data_ep = (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2);
+              is_feedback_ep = (desc_ep->bmAttributes.usage == 1);
             }
 
     #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -1204,12 +1204,12 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
           if (tud_audio_n_version(func_id) == 1) {
             // UAC1: Use bRefresh field to distinguish endpoint types
             audio10_desc_as_iso_data_ep_t const *desc_ep_uac1 = (audio10_desc_as_iso_data_ep_t const *) p_desc;
-            is_feedback_ep = (desc_ep_uac1->bRefresh > 0);
-            is_data_ep = (desc_ep_uac1->bRefresh == 0);
+            is_data_ep = (desc_ep_uac1->bmAttributes.sync != TUSB_ISO_EP_ATT_NO_SYNC);
+            is_feedback_ep = (desc_ep_uac1->bmAttributes.sync == TUSB_ISO_EP_ATT_NO_SYNC);
           } else {
             // UAC2: Use bmAttributes.usage to distinguish endpoint types
-            is_feedback_ep = (desc_ep->bmAttributes.usage == 1);
             is_data_ep = (desc_ep->bmAttributes.usage == 0 || desc_ep->bmAttributes.usage == 2);
+            is_feedback_ep = (desc_ep->bmAttributes.usage == 1);
           }
 
           //TODO: We need to set EP non busy since this is not taken care of right now in ep_close() - THIS IS A WORKAROUND!

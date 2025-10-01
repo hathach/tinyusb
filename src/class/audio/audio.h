@@ -489,7 +489,12 @@ typedef struct TU_ATTR_PACKED {
   uint8_t bLength;         ///< Size of this descriptor in bytes: 9.
   uint8_t bDescriptorType; ///< Descriptor Type. Value: TUSB_DESC_ENDPOINT.
   uint8_t bEndpointAddress;///< The address of the endpoint on the USB device described by this descriptor.
-  uint8_t bmAttributes;    ///< Endpoint attributes when configured using the bEndpointAddress field.
+  struct TU_ATTR_PACKED {
+    uint8_t xfer  : 2;        // Control, ISO, Bulk, Interrupt
+    uint8_t sync  : 2;        // None, Asynchronous, Adaptive, Synchronous
+    uint8_t usage : 2;        // Data, Feedback, Implicit feedback
+    uint8_t       : 2;
+  } bmAttributes;
   uint16_t wMaxPacketSize; ///< Maximum packet size this endpoint is capable of sending or receiving when this configuration is selected.
   uint8_t bInterval;       ///< Interval for polling endpoint for data transfers.
   uint8_t bRefresh;        ///< The rate at which the endpoint is refreshed.
