@@ -28,6 +28,7 @@
 
 import argparse
 import os
+import random
 import re
 import sys
 import time
@@ -37,16 +38,11 @@ import json
 import glob
 from multiprocessing import Pool
 import fs
-
+import hashlib
 import ctypes
-from pymtp import MTP, LIBMTP_MTPDevice, LIBMTP_RawDevice
+from pymtp import MTP
+
 mtp = MTP()
-lib = mtp.mtp
-
-# # tell ctypes that Open_Raw_Device returns MTPDevice*
-lib.LIBMTP_Open_Raw_Device.restype = ctypes.POINTER(LIBMTP_MTPDevice)
-lib.LIBMTP_Open_Raw_Device.argtypes = [ctypes.POINTER(LIBMTP_RawDevice)]
-
 
 ENUM_TIMEOUT = 30
 
@@ -502,14 +498,63 @@ def test_device_hid_composite_freertos(id):
 
 def test_device_mtp(board):
     uid = board['uid']
+
+    # --- BEFORE: mute C-level stderr for libmtp vid/pid warnings ---
+    fd = sys.stderr.fileno()
+    _saved = os.dup(fd)
+    _null = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(_null, fd)
+
     for raw in mtp.detect_devices():
-        mtp.device = lib.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
+        mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
         if mtp.device and mtp.get_serialnumber().decode('utf-8') == uid:
             break
         else:
             mtp.device = None
+
+    # --- AFTER: restore stderr ---
+    os.dup2(_saved, fd)
+    os.close(_null)
+    os.close(_saved)
+
     if mtp.device is None:
         assert False, 'MTP device not found'
+
+    assert b"TinyUSB" == mtp.get_manufacturer(), 'MTP wrong manufacturer'
+    assert b"MTP Example" == mtp.get_modelname(), 'MTP wrong model'
+    assert b'1.0' == mtp.get_deviceversion(), 'MTP wrong version'
+    assert b'TinyUSB MTP' == mtp.get_devicename(), 'MTP wrong device name'
+
+    # read and compare readme.txt and logo.png
+    f1_expect = b'TinyUSB MTP Filesystem example'
+    f2_md5_expect = '40ef23fc2891018d41a05d4a0d5f822f' # md5sum of logo.png
+    f1 = uid.encode("utf-8") + b'_file1'
+    f2 = uid.encode("utf-8") + b'_file2'
+    f3 = uid.encode("utf-8") + b'_file3'
+    mtp.get_file_to_file(1, f1)
+    with open(f1, 'rb') as file:
+        f1_data = file.read()
+        os.remove(f1)
+        assert f1_data == f1_expect, 'MTP file1 wrong data'
+    mtp.get_file_to_file(2, f2)
+    with open(f2, 'rb') as file:
+        f2_data = file.read()
+        os.remove(f2)
+        assert f2_md5_expect == hashlib.md5(f2_data).hexdigest(), 'MTP file2 wrong data'
+    # test send file
+    with open(f3, "wb") as file:
+        f3_data = os.urandom(random.randint(1024, 3*1024))
+        file.write(f3_data)
+        file.close()
+        fid = mtp.send_file_from_file(f3, b'file3')
+        f3_readback = f3 + b'_readback'
+        mtp.get_file_to_file(fid, f3_readback)
+        with open(f3_readback, 'rb') as f:
+            f3_rb_data = f.read()
+            os.remove(f3_readback)
+            assert f3_rb_data == f3_data, 'MTP file3 wrong data'
+        os.remove(f3)
+        mtp.delete_object(fid)
 
 
 

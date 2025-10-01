@@ -71,7 +71,8 @@ storage_info_t storage_info = {
 //--------------------------------------------------------------------+
 // MTP FILESYSTEM
 //--------------------------------------------------------------------+
-#define FS_MAX_FILE_COUNT 5UL
+// only allow to add 1 more object to make it simpler to manage memory
+#define FS_MAX_FILE_COUNT 3UL
 #define FS_MAX_FILENAME_LEN 16
 
 #ifdef CFG_EXAMPLE_MTP_READONLY
@@ -82,14 +83,13 @@ storage_info_t storage_info = {
   // object data buffer (excluding 2 predefined files) with simple allocation pointer
   uint8_t fs_buf[FS_MAX_CAPACITY_BYTES];
 #endif
-size_t fs_buf_head = 0;
 
 #define FS_FIXED_DATETIME "20250808T173500.0" // "YYYYMMDDTHHMMSS.s"
 #define README_TXT_CONTENT "TinyUSB MTP Filesystem example"
 
 typedef struct {
   uint16_t name[FS_MAX_FILENAME_LEN];
-  mtp_object_formats_t object_format;
+  uint16_t object_format;
   uint16_t protection_status;
   uint32_t image_pix_width;
   uint32_t image_pix_height;
@@ -112,7 +112,7 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
     .parent = 0,
     .association_type = MTP_ASSOCIATION_UNDEFINED,
     .data = (uint8_t*) (uintptr_t) README_TXT_CONTENT,
-    .size = sizeof(README_TXT_CONTENT)
+    .size = sizeof(README_TXT_CONTENT)-1
   },
   {
     .name = { 't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'p', 'n', 'g', 0 }, // "tinyusb.png"
@@ -212,12 +212,10 @@ static inline uint8_t* fs_malloc(size_t size) {
   (void) size;
   return NULL;
 #else
-  if (fs_buf_head + size > FS_MAX_CAPACITY_BYTES) {
+  if (size > FS_MAX_CAPACITY_BYTES)  {
     return NULL;
   }
-  uint8_t* ptr = &fs_buf[fs_buf_head];
-  fs_buf_head += size;
-  return ptr;
+  return fs_buf;
 #endif
 }
 
@@ -394,7 +392,7 @@ static int32_t fs_get_storage_info(tud_mtp_cb_data_t* cb_data) {
   // update storage info with current free space
   storage_info.max_capacity_in_bytes = sizeof(README_TXT_CONTENT) + logo_len + FS_MAX_CAPACITY_BYTES;
   storage_info.free_space_in_objects = FS_MAX_FILE_COUNT - fs_get_file_count();
-  storage_info.free_space_in_bytes = FS_MAX_CAPACITY_BYTES-fs_buf_head;
+  storage_info.free_space_in_bytes = storage_info.free_space_in_objects ? FS_MAX_CAPACITY_BYTES : 0;
   mtp_container_add_raw(io_container, &storage_info, sizeof(storage_info));
   tud_mtp_data_send(io_container);
   return 0;
