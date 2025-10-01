@@ -132,6 +132,39 @@
   /* Class-Specific AS Isochronous Audio Data Endpoint Descriptor(4.6.1.2) */\
   TUD_AUDIO10_DESC_CS_AS_ISO_EP(/*_attr*/ AUDIO10_CS_AS_ISO_DATA_EP_ATT_SAMPLING_FRQ, /*_lockdelayunits*/ AUDIO10_CS_AS_ISO_DATA_EP_LOCK_DELAY_UNIT_UNDEFINED, /*_lockdelay*/ 0x0000),\
   /* Standard AS Isochronous Synch Endpoint Descriptor (4.6.2.1) */\
-  TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP(/*_ep*/ _epfb, /*_bRefresh*/ 4)
+  TUD_AUDIO10_DESC_STD_AS_ISO_SYNC_EP(/*_ep*/ _epfb, /*_bRefresh*/ 0)
+
+//---------------------------------------------------------------------------+
+//          UAC1 Isochronous Synch Endpoint bRefresh Workaround
+//
+// bRefresh value is set to 0, while UAC1 spec requires it to be between
+// 1 (2 ms) and 9 (512 ms)
+//
+// This value has been tested to work with Windows, macOS and Linux.
+//
+// Rationale:
+// Some USB device controllers (e.g. Synopsys DWC2) require a known transfer
+// interval to manually schedule isochronous IN transfers. For data isochronous
+// endpoints, the bInterval field in the endpoint descriptor is used. However,
+// for synch endpoint it's unclear which field the host uses to determine the
+// transfer interval. Windows and macOS use bRefresh, while Linux uses bInterval.
+//
+// Since bInterval is fixed to 1, if bRefresh is set to 2 then Windows and macOS
+// will schedule the feedback transfer every 4 ms, but Linux will schedule it
+// every 1 ms. DWC2 controller cannot handle this discrepancy without knwowing
+// the actual interval, therefore we set bRefresh to 0 to let the transfer
+// execute every 1 ms, which is the same as bInterval.
+//
+// Rant:
+// WTF USB-IF? Why have two fields that mean the same thing? Why not just use
+// bInterval for both data and synch endpoints? Why is bRefresh even necessary?
+//
+// Note:
+// For the moment DWC2 driver doesn't have proper support for bInterval > 1
+// for isochronous IN endpoints. The implementation would be complex and CPU
+// intensive (cfr.
+// https://github.com/torvalds/linux/blob/master/drivers/usb/dwc2/gadget.c)
+// It MAY work in some cases if you are lucky, but it's not guaranteed.
+//---------------------------------------------------------------------------+
 
 #endif
