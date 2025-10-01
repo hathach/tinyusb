@@ -143,7 +143,7 @@ char const *string_desc_arr[] =
   "TinyUsb",                     // 1: Manufacturer
   "TinyUsb Device",              // 2: Product
   NULL,                          // 3: Serials will use unique ID if possible
-  "TinyUSBB MTP",                // 4: MTP Interface
+  "TinyUSB MTP",                 // 4: MTP Interface
 };
 
 static uint16_t _desc_str[32 + 1];

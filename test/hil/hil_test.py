@@ -42,8 +42,6 @@ import hashlib
 import ctypes
 from pymtp import MTP
 
-mtp = MTP()
-
 ENUM_TIMEOUT = 30
 
 STATUS_OK = "\033[32mOK\033[0m"
@@ -137,6 +135,19 @@ def read_disk_file(uid, lun, fname):
         timeout -= 1
 
     assert timeout > 0, f'Storage {dev} not existed'
+    return None
+
+
+def open_mtp_dev(uid):
+    mtp = MTP()
+    timeout = ENUM_TIMEOUT
+    while timeout > 0:
+        for raw in mtp.detect_devices():
+            mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
+            if mtp.device and mtp.get_serialnumber().decode('utf-8') == uid:
+                return mtp
+        time.sleep(1)
+        timeout -= 1
     return None
 
 
@@ -505,19 +516,14 @@ def test_device_mtp(board):
     _null = os.open(os.devnull, os.O_WRONLY)
     os.dup2(_null, fd)
 
-    for raw in mtp.detect_devices():
-        mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
-        if mtp.device and mtp.get_serialnumber().decode('utf-8') == uid:
-            break
-        else:
-            mtp.device = None
+    mtp = open_mtp_dev(uid)
 
     # --- AFTER: restore stderr ---
     os.dup2(_saved, fd)
     os.close(_null)
     os.close(_saved)
 
-    if mtp.device is None:
+    if mtp is None or mtp.device is None:
         assert False, 'MTP device not found'
 
     assert b"TinyUSB" == mtp.get_manufacturer(), 'MTP wrong manufacturer'
