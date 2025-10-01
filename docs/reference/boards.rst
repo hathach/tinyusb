@@ -299,6 +299,7 @@ stm32l4r5nucleo      STM32 L4R5 Nucleo                  stm32l4    https://www.s
 stm32n6570dk         STM32 N6570-DK                     stm32n6    https://www.st.com/en/evaluation-tools/stm32n6570-dk.html
 stm32n657nucleo      STM32 N657X0-Q Nucleo              stm32n6    https://www.st.com/en/evaluation-tools/nucleo-n657x0-q.html
 b_u585i_iot2a        STM32 B-U585i IOT2A Discovery kit  stm32u5    https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html
+stm32u083cdk         STM32 U083C Discovery Kit          stm32u0    https://www.st.com/en/evaluation-tools/stm32u083c-dk.html
 stm32u545nucleo      STM32 U545 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u545re-q.html
 stm32u575eval        STM32 U575 Eval                    stm32u5    https://www.st.com/en/evaluation-tools/stm32u575i-ev.html
 stm32u575nucleo      STM32 U575 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u575zi-q.html
