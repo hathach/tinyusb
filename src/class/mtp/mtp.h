@@ -24,13 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MTP_H_
-#define _TUSB_MTP_H_
+#ifndef TUSB_MTP_H_
+#define TUSB_MTP_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <time.h>
-#include "tusb_option.h"
+#include "common/tusb_common.h"
 
 #if (CFG_TUD_ENABLED && CFG_TUD_MTP)
 
@@ -887,6 +884,5 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_get_string(uint8_t* b
  }
 #endif
 
-#endif /* CFG_TUD_ENABLED && CFG_TUD_MTP */
-
-#endif /* _TUSB_MTP_H_ */
+#endif
+#endif
