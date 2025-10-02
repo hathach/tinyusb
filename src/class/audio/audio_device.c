@@ -469,6 +469,7 @@ static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t da
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt);
 static bool audiod_set_fb_params_freq(audiod_function_t *audio, uint32_t sample_freq, uint32_t mclk_freq);
 static void audiod_fb_fifo_count_update(audiod_function_t *audio, uint16_t lvl_new);
 #endif
@@ -1282,47 +1283,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
       TU_VERIFY(tud_audio_set_itf_cb(rhport, p_request));
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-      // Prepare feedback computation if endpoint is available
-      if (audio->ep_fb != 0) {
-        audio_feedback_params_t fb_param;
-
-        tud_audio_feedback_params_cb(func_id, alt, &fb_param);
-        audio->feedback.compute_method = fb_param.method;
-
-        // Minimal/Maximum value in 16.16 format for full speed (1ms per frame) or high speed (125 us per frame)
-        uint32_t const frame_div = (TUSB_SPEED_FULL == tud_speed_get()) ? 1000 : 8000;
-        audio->feedback.min_value = ((fb_param.sample_freq - 1) / frame_div) << 16;
-        audio->feedback.max_value = (fb_param.sample_freq / frame_div + 1) << 16;
-
-        switch (fb_param.method) {
-          case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED:
-          case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
-          case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
-            audiod_set_fb_params_freq(audio, fb_param.sample_freq, fb_param.frequency.mclk_freq);
-            break;
-
-          case AUDIO_FEEDBACK_METHOD_FIFO_COUNT: {
-            // Initialize the threshold level to half filled
-            uint16_t fifo_lvl_thr = tu_fifo_depth(&audio->ep_out_ff) / 2;
-            audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_lvl_thr;
-            audio->feedback.compute.fifo_count.fifo_lvl_avg = ((uint32_t) fifo_lvl_thr) << 16;
-            // Avoid 64bit division
-            uint32_t nominal = ((fb_param.sample_freq / 100) << 16) / (frame_div / 100);
-            audio->feedback.compute.fifo_count.nom_value = nominal;
-            audio->feedback.compute.fifo_count.rate_const[0] = (uint16_t) ((audio->feedback.max_value - nominal) / fifo_lvl_thr);
-            audio->feedback.compute.fifo_count.rate_const[1] = (uint16_t) ((nominal - audio->feedback.min_value) / fifo_lvl_thr);
-            // On HS feedback is more sensitive since packet size can vary every MSOF, could cause instability
-            if (tud_speed_get() == TUSB_SPEED_HIGH) {
-              audio->feedback.compute.fifo_count.rate_const[0] /= 8;
-              audio->feedback.compute.fifo_count.rate_const[1] /= 8;
-            }
-          } break;
-
-          // nothing to do
-          default:
-            break;
-        }
-      }
+      // Prepare feedback computation parameters
+      TU_VERIFY(audiod_fb_params_prepare(func_id, alt));
 #endif// CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
       // We are done - abort loop
@@ -1407,6 +1369,16 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
               if (ctrlSel == AUDIO10_EP_CTRL_SAMPLING_FREQ && p_request->bRequest == AUDIO10_CS_REQ_SET_CUR) {
                 _audiod_fct[func_id].sample_rate_tx = tu_unaligned_read32(_audiod_fct[func_id].ctrl_buf) & 0x00FFFFFF;
                 audiod_calc_tx_packet_sz(&_audiod_fct[func_id]);
+              }
+            }
+          }
+#endif
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+          if (tud_audio_n_version(func_id) == 1) {
+            if (_audiod_fct[func_id].ep_out == ep) {
+              uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
+              if (ctrlSel == AUDIO10_EP_CTRL_SAMPLING_FREQ && p_request->bRequest == AUDIO10_CS_REQ_SET_CUR) {
+                audiod_fb_params_prepare(func_id, _audiod_fct[func_id].ep_out_alt);
               }
             }
           }
@@ -1596,6 +1568,54 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 }
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
+
+static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
+  audiod_function_t *audio = &_audiod_fct[func_id];
+
+  // Prepare feedback computation if endpoint is available
+  if (audio->ep_fb != 0) {
+    audio_feedback_params_t fb_param;
+
+    tud_audio_feedback_params_cb(func_id, alt, &fb_param);
+    audio->feedback.compute_method = fb_param.method;
+
+    // Minimal/Maximum value in 16.16 format for full speed (1ms per frame) or high speed (125 us per frame)
+    uint32_t const frame_div = (TUSB_SPEED_FULL == tud_speed_get()) ? 1000 : 8000;
+    audio->feedback.min_value = ((fb_param.sample_freq - 1) / frame_div) << 16;
+    audio->feedback.max_value = (fb_param.sample_freq / frame_div + 1) << 16;
+
+    switch (fb_param.method) {
+      case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED:
+      case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
+      case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
+        TU_VERIFY(audiod_set_fb_params_freq(audio, fb_param.sample_freq, fb_param.frequency.mclk_freq));
+        break;
+
+      case AUDIO_FEEDBACK_METHOD_FIFO_COUNT: {
+        // Initialize the threshold level to half filled
+        uint16_t fifo_lvl_thr = tu_fifo_depth(&audio->ep_out_ff) / 2;
+        audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_lvl_thr;
+        audio->feedback.compute.fifo_count.fifo_lvl_avg = ((uint32_t) fifo_lvl_thr) << 16;
+        // Avoid 64bit division
+        uint32_t nominal = ((fb_param.sample_freq / 100) << 16) / (frame_div / 100);
+        audio->feedback.compute.fifo_count.nom_value = nominal;
+        audio->feedback.compute.fifo_count.rate_const[0] = (uint16_t) ((audio->feedback.max_value - nominal) / fifo_lvl_thr);
+        audio->feedback.compute.fifo_count.rate_const[1] = (uint16_t) ((nominal - audio->feedback.min_value) / fifo_lvl_thr);
+        // On HS feedback is more sensitive since packet size can vary every MSOF, could cause instability
+        if (tud_speed_get() == TUSB_SPEED_HIGH) {
+          audio->feedback.compute.fifo_count.rate_const[0] /= 8;
+          audio->feedback.compute.fifo_count.rate_const[1] /= 8;
+        }
+      } break;
+
+      // nothing to do
+      default:
+        break;
+    }
+  }
+
+  return true;
+}
 
 static bool audiod_set_fb_params_freq(audiod_function_t *audio, uint32_t sample_freq, uint32_t mclk_freq) {
   // Check if frame interval is within sane limits
