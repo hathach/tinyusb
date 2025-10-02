@@ -1372,8 +1372,12 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
             }
           }
 #endif
+
+          // Invoke callback
+          bool ret = tud_audio_set_req_ep_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
+
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-          if (tud_audio_n_version(func_id) == 1) {
+          if (ret && tud_audio_n_version(func_id) == 1) {
             if (_audiod_fct[func_id].ep_out == ep) {
               uint8_t ctrlSel = TU_U16_HIGH(p_request->wValue);
               if (ctrlSel == AUDIO10_EP_CTRL_SAMPLING_FREQ && p_request->bRequest == AUDIO10_CS_REQ_SET_CUR) {
@@ -1382,8 +1386,7 @@ static bool audiod_control_complete(uint8_t rhport, tusb_control_request_t const
             }
           }
 #endif
-        // Invoke callback
-        return tud_audio_set_req_ep_cb(rhport, p_request, _audiod_fct[func_id].ctrl_buf);
+        return ret;
       } break;
       // Unknown/Unsupported recipient
       default:
