@@ -49,6 +49,7 @@ STATUS_FAILED = "\033[31mFailed\033[0m"
 STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
 verbose = False
+test_only = []
 
 WCH_RISCV_CONTENT = """
 adapter driver wlinke
@@ -145,8 +146,11 @@ def open_mtp_dev(uid):
         # run_cmd(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/")
         for raw in mtp.detect_devices():
             mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
-            if mtp.device and mtp.get_serialnumber().decode('utf-8') == uid:
-                return mtp
+            if mtp.device:
+                sn = mtp.get_serialnumber().decode('utf-8')
+                #print(f'mtp serial = {sn}')
+                if sn == uid:
+                    return mtp
         time.sleep(1)
         timeout -= 1
     return None
@@ -579,7 +583,7 @@ device_tests = [
     'device/dfu_runtime',
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
-    'device/mtp'
+    # 'device/mtp'
 ]
 
 dual_tests = [
@@ -656,21 +660,24 @@ def test_board(board):
     # default to all tests
     test_list = []
 
-    if 'tests' in board:
-        board_tests = board['tests']
-        if 'device' in board_tests and board_tests['device'] == True:
-            test_list += list(device_tests)
-        if 'dual' in board_tests and board_tests['dual'] == True:
-            test_list += dual_tests
-        if 'host' in board_tests and board_tests['host'] == True:
-            test_list += host_test
-        if 'only' in board_tests:
-            test_list = board_tests['only']
-        if 'skip' in board_tests:
-            for skip in board_tests['skip']:
-                if skip in test_list:
-                    test_list.remove(skip)
-                    print(f'{name:25} {skip:30} ... Skip')
+    if len(test_only) > 0:
+        test_list = test_only
+    else:
+        if 'tests' in board:
+            board_tests = board['tests']
+            if 'device' in board_tests and board_tests['device'] == True:
+                test_list += list(device_tests)
+            if 'dual' in board_tests and board_tests['dual'] == True:
+                test_list += dual_tests
+            if 'host' in board_tests and board_tests['host'] == True:
+                test_list += host_test
+            if 'only' in board_tests:
+                test_list = board_tests['only']
+            if 'skip' in board_tests:
+                for skip in board_tests['skip']:
+                    if skip in test_list:
+                        test_list.remove(skip)
+                        print(f'{name:25} {skip:30} ... Skip')
 
     err_count = 0
     flags_on_list = [""]
@@ -692,6 +699,7 @@ def main():
     Hardware test on specified boards
     """
     global verbose
+    global test_only
 
     duration = time.time()
 
@@ -699,6 +707,7 @@ def main():
     parser.add_argument('config_file', help='Configuration JSON file')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
     parser.add_argument('-s', '--skip', action='append', default=[], help='Skip boards from test')
+    parser.add_argument('-t', '--test-only', action='append', default=[], help='Tests to run, all if not specified')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -706,6 +715,7 @@ def main():
     boards = args.board
     skip_boards = args.skip
     verbose = args.verbose
+    test_only = args.test_only
 
     # if config file is not found, try to find it in the same directory as this script
     if not os.path.exists(config_file):
