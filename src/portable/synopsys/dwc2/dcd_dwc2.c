@@ -51,6 +51,7 @@ typedef struct {
   uint16_t total_len;
   uint16_t max_size;
   uint8_t interval;
+  uint8_t iso_retry; // ISO retry counter
 } xfer_ctl_t;
 
 // This variable is modified from ISR context, so it must be protected by critical section
@@ -357,7 +358,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   dwc2_depctl_t depctl = {.value = dep->ctl};
   depctl.clear_nak = 1;
   depctl.enable = 1;
-  if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
+  if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS) {
     const dwc2_dsts_t dsts = {.value = dwc2->dsts};
     const uint32_t odd_now = dsts.frame_number & 1u;
     if (odd_now) {
@@ -597,6 +598,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
       _dcd_data.ep0_pending[dir] = total_bytes;
     }
 
+    // Reset ISO retry counter to max frame interval value
+    xfer->iso_retry = 255;
+
     // Schedule packets to be sent within interrupt
     edpt_schedule_packets(rhport, epnum, dir);
     ret = true;
@@ -628,6 +632,9 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     xfer->buffer = NULL;
     xfer->ff = ff;
     xfer->total_len = total_bytes;
+
+    // Reset ISO retry counter to max frame interval value
+    xfer->iso_retry = 255;
 
     // Schedule packets to be sent within interrupt
     // TODO xfer fifo may only available for slave mode
@@ -714,7 +721,7 @@ static void handle_bus_reset(uint8_t rhport) {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
   }
 
-  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
+  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
 }
 
 static void handle_enum_done(uint8_t rhport) {
@@ -1099,6 +1106,36 @@ void dcd_int_handler(uint8_t rhport) {
   if (gintsts & GINTSTS_IEPINT) {
     // IEPINT bit read-only, clear using DIEPINTn
     handle_ep_irq(rhport, TUSB_DIR_IN);
+  }
+
+  // Incomplete isochronous IN transfer interrupt handling.
+  if (gintsts & GINTSTS_IISOIXFR) {
+    dwc2->gintsts = GINTSTS_IISOIXFR;
+    // Loop over all IN endpoints
+    const uint8_t ep_count = dwc2_ep_count(dwc2);
+    for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
+      dwc2_dep_t* epin = &dwc2->epin[epnum];
+      dwc2_depctl_t depctl = {.value = epin->diepctl};
+      // Find enabled ISO endpoints
+      if (depctl.enable && depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS) {
+        // Disable endpoint, flush fifo and restart transfer
+        depctl.set_nak = 1;
+        epin->diepctl = depctl.value;
+        depctl.disable = 1;
+        epin->diepctl = depctl.value;
+        while ((epin->diepint & DIEPINT_EPDISD_Msk) == 0) {}
+        epin->diepint = DIEPINT_EPDISD;
+        dfifo_flush_tx(dwc2, epnum);
+        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
+        if (xfer->iso_retry) {
+          xfer->iso_retry--;
+          edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN);
+        } else {
+          // too many retries, give up
+          dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, 0, XFER_RESULT_FAILED, true);
+        }
+      }
+    }
   }
 }
 
