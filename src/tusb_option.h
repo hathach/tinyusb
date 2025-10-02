@@ -31,7 +31,7 @@
 
 // Version is release as major.minor.revision eg 1.0.0
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     18
+#define TUSB_VERSION_MINOR     19
 #define TUSB_VERSION_REVISION  0
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
