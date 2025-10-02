@@ -912,7 +912,9 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
               || tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
             break;
           } else if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *) p_desc)->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
-            _audiod_fct[i].p_desc_as = p_desc;
+            if (_audiod_fct[i].p_desc_as == 0) {
+              _audiod_fct[i].p_desc_as = p_desc;
+            }
           }
           total_len += p_desc[0];
           p_desc = tu_desc_next(p_desc);

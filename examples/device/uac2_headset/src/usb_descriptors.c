@@ -110,14 +110,76 @@ uint8_t const * tud_descriptor_device_cb(void)
   #define EPNUM_AUDIO_INT   0x02
 #endif
 
-uint8_t const desc_configuration[] =
+#define CONFIG_UAC1_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + TUD_AUDIO10_HEADSET_STEREO_DESC_LEN(2))
+
+uint8_t const desc_uac1_configuration[] =
 {
     // Config number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC1_TOTAL_LEN, 0x00, 100),
+
+    // Interface number, string index, bytes per sample RX/TX, bits used per sample RX/TX, EP Out & EP In address, EP sizes, sample rate
+    TUD_AUDIO10_HEADSET_STEREO_DESCRIPTOR(ITF_NUM_AUDIO_CONTROL, 2, \
+      CFG_TUD_AUDIO_FUNC_1_FORMAT_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_RX, \
+      CFG_TUD_AUDIO_FUNC_1_FORMAT_1_N_BYTES_PER_SAMPLE_TX, CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_TX, \
+      EPNUM_AUDIO_OUT, CFG_TUD_AUDIO10_FUNC_1_FORMAT_1_EP_SZ_OUT, \
+      EPNUM_AUDIO_IN | 0x80, CFG_TUD_AUDIO10_FUNC_1_FORMAT_1_EP_SZ_IN, \
+      44100, 48000)
+};
+
+TU_VERIFY_STATIC(sizeof(desc_uac1_configuration) == CONFIG_UAC1_TOTAL_LEN, "Incorrect size");
+
+#if TUD_OPT_HIGH_SPEED
+
+#define CONFIG_UAC2_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + TUD_AUDIO20_HEADSET_STEREO_DESC_LEN)
+
+uint8_t const desc_uac2_configuration[] =
+{
+    // Config number, interface count, string index, total length, attribute, power in mA
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC2_TOTAL_LEN, 0x00, 100),
 
     // Interface number, string index, EP Out & EP In address, EP size
-    TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR(2, EPNUM_AUDIO_OUT, EPNUM_AUDIO_IN | 0x80, EPNUM_AUDIO_INT | 0x80)
+    TUD_AUDIO20_HEADSET_STEREO_DESCRIPTOR(2, EPNUM_AUDIO_OUT, EPNUM_AUDIO_IN | 0x80, EPNUM_AUDIO_INT | 0x80)
 };
+
+TU_VERIFY_STATIC(sizeof(desc_uac2_configuration) == CONFIG_UAC2_TOTAL_LEN, "Incorrect size");
+
+
+// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
+tusb_desc_device_qualifier_t const desc_device_qualifier =
+{
+  .bLength            = sizeof(tusb_desc_device_qualifier_t),
+  .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
+  .bcdUSB             = 0x0200,
+
+  .bDeviceClass       = TUSB_CLASS_MISC,
+  .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+  .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+
+  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bNumConfigurations = 0x01,
+  .bReserved          = 0x00
+};
+
+// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
+// device_qualifier descriptor describes information about a high-speed capable device that would
+// change if the device were operating at the other speed. If not highspeed capable stall this request.
+uint8_t const *tud_descriptor_device_qualifier_cb(void)
+{
+  return (uint8_t const *) &desc_device_qualifier;
+}
+
+// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
+uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index)
+{
+  (void) index; // for multiple configurations
+
+  // if link speed is high return fullspeed config, and vice versa
+  return (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_uac1_configuration : desc_uac2_configuration;
+}
+#endif
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -125,7 +187,16 @@ uint8_t const desc_configuration[] =
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void)index; // for multiple configurations
-  return desc_configuration;
+#if TUD_OPT_HIGH_SPEED
+  // Although we are highspeed, host may be fullspeed.
+  if(tud_speed_get() == TUSB_SPEED_FULL) {
+    return desc_uac1_configuration;
+  } else {
+    return desc_uac2_configuration;
+  }
+#else
+  return desc_uac1_configuration;
+#endif
 }
 
 //--------------------------------------------------------------------+
