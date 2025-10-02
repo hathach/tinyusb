@@ -199,22 +199,27 @@ jobs:
     runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
     steps:
       - name: Clean workspace
-        if: github.run_attempt == '1'
         run: |
           echo "Cleaning up for the first run"
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
       - name: Checkout TinyUSB
-        if: github.run_attempt == '1'
         uses: actions/checkout@v4
 
       - name: Download Artifacts
-        if: github.run_attempt == '1'
         uses: actions/download-artifact@v4
         with:
           path: cmake-build
           merge-multiple: true
+
+      - name: Cache skip list
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HIL_JSON }}.skip
+          key: hil-skip-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            hil-skip-${{ github.run_id }}-
 
       - name: Test on actual hardware
         run: |
