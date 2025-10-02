@@ -378,9 +378,21 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   } else {
     dep->diepctl = depctl.value; // enable endpoint
 
-    // Enable tx fifo empty interrupt only if there is data. Note must after depctl enable
+    // FIFO must be written after depctl enable
     if (dir == TUSB_DIR_IN && total_bytes != 0) {
-      dwc2->diepempmsk |= (1 << epnum);
+      // For num_packets = 1 we write the packet directly
+      if (num_packets == 1) {
+        // Push packet to Tx-FIFO
+        if (xfer->ff) {
+          volatile uint32_t* tx_fifo = dwc2->fifo[epnum];
+          tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*)(uintptr_t)tx_fifo, total_bytes);
+        } else {
+          dfifo_write_packet(dwc2, epnum, xfer->buffer, total_bytes);
+        }
+      } else {
+        // Enable TXFE interrupt for multi-packet transfer
+        dwc2->diepempmsk |= (1 << epnum);
+      }
     }
   }
 }
