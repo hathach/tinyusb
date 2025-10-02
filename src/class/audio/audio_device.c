@@ -470,7 +470,6 @@ static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t da
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt);
-static bool audiod_set_fb_params_freq(audiod_function_t *audio, uint32_t sample_freq, uint32_t mclk_freq);
 static void audiod_fb_fifo_count_update(audiod_function_t *audio, uint16_t lvl_new);
 #endif
 
@@ -1587,9 +1586,32 @@ static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
     switch (fb_param.method) {
       case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED:
       case AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT:
-      case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2:
-        TU_VERIFY(audiod_set_fb_params_freq(audio, fb_param.sample_freq, fb_param.frequency.mclk_freq));
-        break;
+      case AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2: {
+        // Check if frame interval is within sane limits
+        // The interval value n_frames was taken from the descriptors within audiod_set_interface()
+
+        // n_frames_min is ceil(2^10 * f_s / f_m) for full speed and ceil(2^13 * f_s / f_m) for high speed
+        // this lower limit ensures the measures feedback value has sufficient precision
+        uint32_t const k = (TUSB_SPEED_FULL == tud_speed_get()) ? 10 : 13;
+        uint32_t const n_frame = (1UL << audio->feedback.frame_shift);
+
+        if ((((1UL << k) * fb_param.sample_freq / fb_param.frequency.mclk_freq) + 1) > n_frame) {
+          TU_LOG1("  UAC2 feedback interval too small\r\n");
+          TU_BREAKPOINT();
+          return false;
+        }
+
+        // Check if parameters really allow for a power of two division
+        if ((fb_param.frequency.mclk_freq % fb_param.sample_freq) == 0 && tu_is_power_of_two(fb_param.frequency.mclk_freq / fb_param.sample_freq)) {
+          audio->feedback.compute_method = AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2;
+          audio->feedback.compute.power_of_2 = (uint8_t) (16 - (audio->feedback.frame_shift - 1) - tu_log2(fb_param.frequency.mclk_freq / fb_param.sample_freq));
+        } else if (audio->feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT) {
+          audio->feedback.compute.float_const = (float) fb_param.sample_freq / (float) fb_param.frequency.mclk_freq * (1UL << (16 - (audio->feedback.frame_shift - 1)));
+        } else {
+          audio->feedback.compute.fixed.sample_freq = fb_param.sample_freq;
+          audio->feedback.compute.fixed.mclk_freq = fb_param.frequency.mclk_freq;
+        }
+      } break;
 
       case AUDIO_FEEDBACK_METHOD_FIFO_COUNT: {
         // Initialize the threshold level to half filled
@@ -1612,35 +1634,6 @@ static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
       default:
         break;
     }
-  }
-
-  return true;
-}
-
-static bool audiod_set_fb_params_freq(audiod_function_t *audio, uint32_t sample_freq, uint32_t mclk_freq) {
-  // Check if frame interval is within sane limits
-  // The interval value n_frames was taken from the descriptors within audiod_set_interface()
-
-  // n_frames_min is ceil(2^10 * f_s / f_m) for full speed and ceil(2^13 * f_s / f_m) for high speed
-  // this lower limit ensures the measures feedback value has sufficient precision
-  uint32_t const k = (TUSB_SPEED_FULL == tud_speed_get()) ? 10 : 13;
-  uint32_t const n_frame = (1UL << audio->feedback.frame_shift);
-
-  if ((((1UL << k) * sample_freq / mclk_freq) + 1) > n_frame) {
-    TU_LOG1("  UAC2 feedback interval too small\r\n");
-    TU_BREAKPOINT();
-    return false;
-  }
-
-  // Check if parameters really allow for a power of two division
-  if ((mclk_freq % sample_freq) == 0 && tu_is_power_of_two(mclk_freq / sample_freq)) {
-    audio->feedback.compute_method = AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2;
-    audio->feedback.compute.power_of_2 = (uint8_t) (16 - (audio->feedback.frame_shift - 1) - tu_log2(mclk_freq / sample_freq));
-  } else if (audio->feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT) {
-    audio->feedback.compute.float_const = (float) sample_freq / (float) mclk_freq * (1UL << (16 - (audio->feedback.frame_shift - 1)));
-  } else {
-    audio->feedback.compute.fixed.sample_freq = sample_freq;
-    audio->feedback.compute.fixed.mclk_freq = mclk_freq;
   }
 
   return true;
