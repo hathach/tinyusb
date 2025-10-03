@@ -118,7 +118,7 @@ uint8_t const desc_uac1_configuration[] =
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC1_TOTAL_LEN, 0x00, 100),
 
     // Interface number, string index, bytes per sample RX/TX, bits used per sample RX/TX, EP Out & EP In address, EP sizes, sample rate
-    TUD_AUDIO10_HEADSET_STEREO_DESCRIPTOR(ITF_NUM_AUDIO_CONTROL, 2, \
+    TUD_AUDIO10_HEADSET_STEREO_DESCRIPTOR(ITF_NUM_AUDIO_CONTROL, 4, \
       CFG_TUD_AUDIO_FUNC_1_FORMAT_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_RX, \
       CFG_TUD_AUDIO_FUNC_1_FORMAT_1_N_BYTES_PER_SAMPLE_TX, CFG_TUD_AUDIO_FUNC_1_FORMAT_1_RESOLUTION_TX, \
       EPNUM_AUDIO_OUT, CFG_TUD_AUDIO10_FUNC_1_FORMAT_1_EP_SZ_OUT, \
@@ -137,8 +137,8 @@ uint8_t const desc_uac2_configuration[] =
     // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC2_TOTAL_LEN, 0x00, 100),
 
-    // Interface number, string index, EP Out & EP In address, EP size
-    TUD_AUDIO20_HEADSET_STEREO_DESCRIPTOR(2, EPNUM_AUDIO_OUT, EPNUM_AUDIO_IN | 0x80, EPNUM_AUDIO_INT | 0x80)
+    // String index, EP Out & EP In address, EP Interrupt address
+    TUD_AUDIO20_HEADSET_STEREO_DESCRIPTOR(5, EPNUM_AUDIO_OUT, EPNUM_AUDIO_IN | 0x80, EPNUM_AUDIO_INT | 0x80)
 };
 
 TU_VERIFY_STATIC(sizeof(desc_uac2_configuration) == CONFIG_UAC2_TOTAL_LEN, "Incorrect size");
@@ -216,10 +216,10 @@ char const *string_desc_arr[] =
 {
   (const char[]) { 0x09, 0x04 },  // 0: is supported language is English (0x0409)
   "TinyUSB",                      // 1: Manufacturer
-  "TinyUSB headset",              // 2: Product
+  "TinyUSB Headset",              // 2: Product
   NULL,                           // 3: Serials will use unique ID if possible
-  "TinyUSB Speakers",             // 4: Audio Interface
-  "TinyUSB Microphone",           // 5: Audio Interface
+  "TinyUSB UAC1 Headset",         // 4: Function
+  "TinyUSB UAC2 Headset",         // 5: Function
 };
 
 static uint16_t _desc_str[32 + 1];

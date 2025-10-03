@@ -73,7 +73,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 // Audio controls
 // Current states
-int8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];   // +1 for master channel 0
+uint8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];   // +1 for master channel 0
 int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];// +1 for master channel 0
 
 // Buffer for microphone data
@@ -609,6 +609,10 @@ void audio_control_task(void) {
   start_ms += interval_ms;
 
   uint32_t btn = board_button_read();
+
+  // Even UAC1 spec have status interrupt support like UAC2, most host do not support it
+  // So you have to either use UAC2 or use old day HID volume control
+  TU_VERIFY((tud_audio_version() == 1),);
 
   if (!btn_prev && btn) {
     // Adjust volume between 0dB (100%) and -30dB (10%)
