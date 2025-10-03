@@ -178,7 +178,7 @@ By default log message is printed via on-board UART which is slow and take lots 
   * Pros: work with most if not all MCUs
   * Software viewer is JLink RTT Viewer/Client/Logger which is bundled with JLink driver package.
 
-* ``LOGGER=swo``\ : Use dedicated SWO pin of ARM Cortex SWD debug header.
+* ``LOGGER=swo`` : Use dedicated SWO pin of ARM Cortex SWD debug header.
 
   * Cons: only work with ARM Cortex MCUs minus M0
   * Pros: should be compatible with more debugger that support SWO.
