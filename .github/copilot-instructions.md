@@ -18,15 +18,23 @@ Choose ONE of these approaches:
 ```bash
 cd examples/device/cdc_msc
 mkdir -p build && cd build
-cmake -DBOARD=stm32f407disco -DCMAKE_BUILD_TYPE=MinSizeRel ..
+cmake -DBOARD=raspberry_pi_pico -DCMAKE_BUILD_TYPE=MinSizeRel ..
 cmake --build . -j4
 ```
 -- takes 1-2 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
+**CMake with Ninja (Alternative)**
+```bash
+cd examples/device/cdc_msc
+mkdir build && cd build
+cmake -G Ninja -DBOARD=raspberry_pi_pico ..
+ninja
+```
+
 **Option 2: Individual Example with Make**
 ```bash
 cd examples/device/cdc_msc
-make BOARD=stm32f407disco all
+make BOARD=raspberry_pi_pico all
 ```
 -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
@@ -36,9 +44,39 @@ python3 tools/build.py -b BOARD_NAME
 ```
 -- takes 15-20 seconds, may have some objcopy failures that are non-critical. NEVER CANCEL. Set timeout to 30+ minutes.
 
+### Build Options
+- **Debug build**:
+  - CMake: `-DCMAKE_BUILD_TYPE=Debug`
+  - Make: `DEBUG=1`
+- **With logging**:
+  - CMake: `-DLOG=2`
+  - Make: `LOG=2`
+- **With RTT logger**:
+  - CMake: `-DLOG=2 -DLOGGER=rtt`
+  - Make: `LOG=2 LOGGER=rtt`
+- **RootHub port selection**:
+  - CMake: `-DRHPORT_DEVICE=1`
+  - Make: `RHPORT_DEVICE=1`
+- **Port speed**:
+  - CMake: `-DRHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
+  - Make: `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
+
+### Flashing and Deploymen
+- **Flash with JLink**:1
+  - CMake: `ninja cdc_msc-jlink`
+  - Make: `make BOARD=raspberry_pi_pico flash-jlink`
+- **Flash with OpenOCD**:
+  - CMake: `ninja cdc_msc-openocd`
+  - Make: `make BOARD=raspberry_pi_pico flash-openocd`
+- **Generate UF2**:
+  - CMake: `ninja cdc_msc-uf2`
+  - Make: `make BOARD=raspberry_pi_pico all uf2`
+- **List all targets** (CMake/Ninja): `ninja -t targets`
+
 ### Unit Testing
 - Install Ceedling: `sudo gem install ceedling`
-- Run all unit tests: `cd test/unit-test && ceedling` -- takes 4 seconds. NEVER CANCEL. Set timeout to 10+ minutes.
+- Run all unit tests: `cd test/unit-test && ceedling` or `cd test/unit-test && ceedling test:all` -- takes 4 seconds. NEVER CANCEL. Set timeout to 10+ minutes.
+- Run specific test: `cd test/unit-test && ceedling test:test_fifo`
 - Tests use Unity framework with CMock for mocking
 
 ### Documentation
@@ -60,7 +98,7 @@ python3 tools/build.py -b BOARD_NAME
 2. **Build validation**: Build at least one example that exercises your changes
    ```bash
    cd examples/device/cdc_msc
-   make BOARD=stm32f407disco all
+   make BOARD=raspberry_pi_pico all
    ```
 
 ### Manual Testing Scenarios
@@ -70,7 +108,7 @@ python3 tools/build.py -b BOARD_NAME
 
 ### Board Selection for Testing
 - **STM32F4**: `stm32f407disco` - no external SDK required, good for testing
-- **RP2040**: `pico_sdk` - requires Pico SDK, commonly used
+- **RP2040**: `raspberry_pi_pico` - requires Pico SDK, commonly used
 - **Other families**: Check `hw/bsp/FAMILY/boards/` for available boards
 
 ## Common Tasks and Time Expectations
@@ -129,5 +167,24 @@ python3 tools/build.py -b BOARD_NAME
 - **NXP**: iMXRT, Kinetis, LPC families
 - **Microchip**: SAM D/E/G/L families
 - Check `hw/bsp/` for complete list and `docs/reference/boards.rst` for details
+
+## Code Style Guidelines
+
+### General Coding Standards
+- Use C99 standard
+- Memory-safe: no dynamic allocation
+- Thread-safe: defer all interrupt events to non-ISR task functions
+- 2-space indentation, no tabs
+- Use snake_case for variables/functions
+- Use UPPER_CASE for macros and constants
+- Follow existing variable naming patterns in files you're modifying
+- Include proper header comments with MIT license
+- Add descriptive comments for non-obvious functions
+
+### Best Practices
+- When including headers, group in order: C stdlib, tusb common, drivers, classes
+- Always check return values from functions that can fail
+- Use TU_ASSERT() for error checking with return statements
+- Follow the existing code patterns in the files you're modifying
 
 Remember: TinyUSB is designed for embedded systems - builds are fast, tests are focused, and the codebase is optimized for resource-constrained environments.

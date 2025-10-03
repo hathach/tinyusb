@@ -111,8 +111,8 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
     .image_bit_depth = 0,
     .parent = 0,
     .association_type = MTP_ASSOCIATION_UNDEFINED,
+    .size = sizeof(README_TXT_CONTENT)-1,
     .data = (uint8_t*) (uintptr_t) README_TXT_CONTENT,
-    .size = sizeof(README_TXT_CONTENT)-1
   },
   {
     .name = { 't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'p', 'n', 'g', 0 }, // "tinyusb.png"
@@ -123,8 +123,8 @@ static fs_file_t fs_objects[FS_MAX_FILE_COUNT] = {
     .image_bit_depth = 32,
     .parent = 0,
     .association_type = MTP_ASSOCIATION_UNDEFINED,
-    .data = (uint8_t*) (uintptr_t) logo_bin,
-    .size = logo_len,
+    .size = LOGO_LEN,
+    .data = (uint8_t*) (uintptr_t) logo_bin
   }
 };
 
@@ -391,7 +391,7 @@ static int32_t fs_get_storage_info(tud_mtp_cb_data_t* cb_data) {
   const uint32_t storage_id = command->params[0];
   TU_VERIFY(SUPPORTED_STORAGE_ID == storage_id, -1);
   // update storage info with current free space
-  storage_info.max_capacity_in_bytes = sizeof(README_TXT_CONTENT) + logo_len + FS_MAX_CAPACITY_BYTES;
+  storage_info.max_capacity_in_bytes = sizeof(README_TXT_CONTENT) + LOGO_LEN + FS_MAX_CAPACITY_BYTES;
   storage_info.free_space_in_objects = FS_MAX_FILE_COUNT - fs_get_file_count();
   storage_info.free_space_in_bytes = storage_info.free_space_in_objects ? FS_MAX_CAPACITY_BYTES : 0;
   mtp_container_add_raw(io_container, &storage_info, sizeof(storage_info));
