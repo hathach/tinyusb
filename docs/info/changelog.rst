@@ -87,7 +87,6 @@ Controller Driver (DCD & HCD)
 
 - Chipidea/NXP
   - Fix race condition with spinlock
-  - Add async I/O support for MSC
   - Improve iMXRT support: fix build, disable BOARD_ConfigMPU, fix attach debouncing on port1 highspeed
   - Fix iMXRT1064 and add to HIL test pool
 
@@ -135,8 +134,8 @@ Device Stack
   - Skip RX data with all zeroes
 
 - MSC
+  - Add async I/O support for MSC using ``tud_msc_async_io_done()``
   - Add ``tud_msc_inquiry2_cb()`` with bufsize for full inquiry response
-  - Refactor async I/O: add ``in_isr`` argument to ``tud_msc_async_io_done()``
 
 - MTP
   - Add new Media Transfer Protocol (MTP) device class driver
