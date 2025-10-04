@@ -164,9 +164,6 @@ extern "C" {
 // Example read FIFO every 1ms (8 HS frames), so buffer size should be 8 times larger for HS device
 #define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ     TU_MAX(4 * CFG_TUD_AUDIO10_FUNC_1_FORMAT_1_EP_SZ_OUT, TU_MAX(32 * CFG_TUD_AUDIO20_FUNC_1_FORMAT_1_EP_SZ_OUT, 32 * CFG_TUD_AUDIO20_FUNC_1_FORMAT_2_EP_SZ_OUT))
 
-// Size of control request buffer
-#define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ	64
-
 #ifdef __cplusplus
 }
 #endif

@@ -105,8 +105,6 @@ extern "C" {
 // Have a look into audio_device.h for all configurations
 #define CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE              48000
 
-#define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ              64
-
 #define CFG_TUD_AUDIO_ENABLE_EP_IN                    1
 #define CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX    2         // This value is not required by the driver, it parses this information from the descriptor once the alternate interface is set by the host - we use it for the setup
 #define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX            4         // This value is not required by the driver, it parses this information from the descriptor once the alternate interface is set by the host - we use it for the setup

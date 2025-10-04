@@ -37,21 +37,10 @@
 
 // All sizes are in bytes!
 
-// Size of control buffer used to receive and send control messages via EP0 - has to be big enough to hold your biggest request structure e.g. range requests with multiple intervals defined or cluster descriptors
-#ifndef CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ
-#error You must define an audio class control request buffer size!
-#endif
-
-#if CFG_TUD_AUDIO > 1
-#ifndef CFG_TUD_AUDIO_FUNC_2_CTRL_BUF_SZ
-#error You must define an audio class control request buffer size!
-#endif
-#endif
-
-#if CFG_TUD_AUDIO > 2
-#ifndef CFG_TUD_AUDIO_FUNC_3_CTRL_BUF_SZ
-#error You must define an audio class control request buffer size!
-#endif
+// Size of control buffer used to receive and send control messages via EP0 - has to be big enough to hold your
+// biggest request structure e.g. range requests with multiple intervals defined or cluster descriptors
+#ifndef CFG_TUD_AUDIO_CTRL_BUF_SZ
+#define CFG_TUD_AUDIO_CTRL_BUF_SZ    64
 #endif
 
 // End point sizes IN BYTES - Limits: Full Speed <= 1023, High Speed <= 1024
@@ -153,7 +142,8 @@
 #endif
 #endif
 
-// (For TYPE-I format only) Flow control is necessary to allow IN ep send correct amount of data, unless it's a virtual device where data is perfectly synchronized to USB clock.
+// (For TYPE-I format only) Flow control is necessary to allow IN ep send correct amount of data, unless it's a
+// virtual device where data is perfectly synchronized to USB clock.
 #ifndef CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
 #define CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL  1
 #endif
@@ -230,12 +220,15 @@ static inline bool tud_audio_int_write                      (const audio_interru
 #endif
 
 // Buffer control EP data and schedule a transmit
-// This function is intended to be used if you do not have a persistent buffer or memory location available (e.g. non-local variables) and need to answer onto a
-// get request. This function buffers your answer request frame into the control buffer of the corresponding audio driver and schedules a transmit for sending it.
-// Since transmission is triggered via interrupts, a persistent memory location is required onto which the buffer pointer in pointing. If you already have such
-// available you may directly use 'tud_control_xfer(...)'. In this case data does not need to be copied into an additional buffer and you save some time.
+// This function is intended to be used if you do not have a persistent buffer or memory location available
+// (e.g. non-local variables) and need to answer onto a get request. This function buffers your answer request
+// frame into the control buffer of the corresponding audio driver and schedules a transmit for sending it.
+// Since transmission is triggered via interrupts, a persistent memory location is required onto which the buffer
+// pointer in pointing. If you already have such available you may directly use 'tud_control_xfer(...)'. In this
+// case data does not need to be copied into an additional buffer and you save some time.
 // If the request's wLength is zero, a status packet is sent instead.
-bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_request_t const * p_request, void* data, uint16_t len);
+bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_request_t const * p_request,
+                                                 void* data, uint16_t len);
 
 //--------------------------------------------------------------------+
 // Application Callback API
@@ -243,14 +236,18 @@ bool tud_audio_buffer_and_schedule_control_xfer(uint8_t rhport, tusb_control_req
 
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
 // Invoked in ISR context once an audio packet was sent successfully.
-// Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock), call tud_audio_write() in I2S receive callback.
-bool tud_audio_tx_done_isr(uint8_t rhport, uint16_t n_bytes_sent, uint8_t func_id, uint8_t ep_in, uint8_t cur_alt_setting);
+// Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock),
+// call tud_audio_write() in I2S receive callback.
+bool tud_audio_tx_done_isr(uint8_t rhport, uint16_t n_bytes_sent, uint8_t func_id, uint8_t ep_in,
+                           uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 // Invoked in ISR context once an audio packet was received successfully.
-// Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock), call tud_audio_read() in I2S transmit callback.
-bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out, uint8_t cur_alt_setting);
+// Normally this function is not needed, since the data transfer should be driven by audio clock (i.e. I2S clock),
+// call tud_audio_read() in I2S transmit callback.
+bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t func_id, uint8_t ep_out,
+                           uint8_t cur_alt_setting);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -259,41 +256,55 @@ bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t fu
 //
 // Option 1 - AUDIO_FEEDBACK_METHOD_FIFO_COUNT
 // Feedback value is calculated within the audio driver by regulating the FIFO level to half fill.
-// Advantage: No ISR interrupt is enabled, hence the CPU need not to handle an ISR every 1ms or 125us and thus less CPU load, well tested
-// (Windows, Linux, OSX) with a reliable result so far.
-// Disadvantage: A FIFO of minimal 4 frames is needed to compensate for jitter, an average delay of 2 frames is introduced.
+// Advantage: No SOF interrupt is enabled, hence the CPU need not to handle an ISR every 1ms or 125us and thus
+// less CPU load, well tested (Windows, Linux, OSX) with a reliable result so far.
+// Disadvantage: A FIFO of minimal 4 frames is needed to compensate for jitter, an average delay of 2 frames is
+// introduced.
 //
 // Option 2 - AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED / AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT
-// Feedback value is calculated within the audio driver by use of SOF interrupt. The driver needs information about the master clock f_m from
-// which the audio sample frequency f_s is derived, f_s itself, and the cycle count of f_m at time of the SOF interrupt (e.g. by use of a hardware counter).
+// Feedback value is calculated within the audio driver by use of SOF interrupt. The driver needs information
+// about the master clock f_m from which the audio sample frequency f_s is derived, f_s itself, and the cycle
+// count of f_m at time of the SOF interrupt (e.g. by use of a hardware counter).
 // See tud_audio_set_fb_params() and tud_audio_feedback_update()
-// Advantage: Reduced jitter in the feedback value computation, hence, the receive FIFO can be smaller and thus a smaller delay is possible.
-// Disadvantage: higher CPU load due to SOF ISR handling every frame i.e. 1ms or 125us. (The most critical point is the reading of the cycle counter value of f_m.
-// It is read from within the SOF ISR - see: audiod_sof() -, hence, the ISR must has a high priority such that no software dependent "random" delay i.e. jitter is introduced).
-// Long-term drift could occur since error is accumulated.
+// Advantage: Reduced jitter in the feedback value computation, hence, the receive FIFO can be smaller and thus a
+// smaller delay is possible.
+// Disadvantage: higher CPU load due to SOF ISR handling every frame i.e. 1ms or 125us. (The most critical point
+// is the reading of the cycle counter value of f_m. It is read from within the SOF ISR - see: audiod_sof() -,
+// hence, the ISR must has a high priority such that no software dependent "random" delay i.e. jitter is
+// introduced). Long-term drift will cause the FIFO under/overflow, you still needs to correct it somehow.
 //
 // Option 3 - manual
-// Determined by the user itself and set by use of tud_audio_n_fb_set(). The feedback value may be determined e.g. from some fill status of some FIFO buffer.
-// Advantage: No ISR interrupt is enabled, hence the CPU need not to handle an ISR every 1ms or 125us and thus less CPU load.
-// Disadvantage: typically a larger FIFO is needed to compensate for jitter (e.g. 6 frames), i.e. a larger delay is introduced.
+// Determined by the user itself and set by use of tud_audio_n_fb_set(). The feedback value may be determined
+// e.g. from some fill status of some FIFO buffer.
+// Advantage: No ISR interrupt is enabled, hence the CPU need not to handle an ISR every 1ms or 125us and thus
+// less CPU load.
+// Disadvantage: typically a larger FIFO is needed to compensate for jitter (e.g. 6 frames), i.e. a larger delay
+// is introduced.
 
 
-// This function is used to provide data rate feedback from an asynchronous sink. Feedback value will be sent at FB endpoint interval till it's changed.
+// This function is used to provide data rate feedback from an asynchronous sink. Feedback value will be sent at
+// FB endpoint interval till it's changed.
 //
-// The feedback format is specified to be 16.16 for HS and 10.14 for FS devices (see Universal Serial Bus Specification Revision 2.0 5.12.4.2).
-// For simplicity, this function always uses 16.16 format. For FS devices, the driver will automatically convert the value to 10.14 format.
+// The feedback format is specified to be 16.16 for HS and 10.14 for FS devices (see Universal Serial Bus
+// Specification Revision 2.0 5.12.4.2). For simplicity, this function always uses 16.16 format. For FS devices,
+// the driver will automatically convert the value to 10.14 format.
 //
-// Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0 devices. On Linux and it seems the
-// driver can work with either format.
+// Note that due to a bug in its USB Audio 2.0 driver, Windows currently requires 16.16 format for _all_ USB 2.0
+// devices. On Linux and it seems the driver can work with either format.
 //
-// Feedback value can be determined from within the SOF ISR of the audio driver. This should reduce jitter. If the feature is used, the user can not set the feedback value.
+// Feedback value can be determined from within the SOF ISR of the audio driver. This should reduce jitter. If the
+// feature is used, the user can not set the feedback value.
 //
 // Determine feedback value - The feedback method is described in 5.12.4.2 of the USB 2.0 spec
 // Boiled down, the feedback value Ff = n_samples / (micro)frame.
-// Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_m) frames need to be measured, where K = 10 for full speed and K = 13
-// for high speed, f_s is the sampling frequency e.g. 48 kHz and f_m is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is available and locked to f_s)
-// The update interval in the (4.10.2.1) Feedback Endpoint Descriptor must be less or equal to 2^(K - P), where P = min( ceil(log2(f_m / f_s)), K)
-// feedback = n_cycles / n_frames * f_s / f_m in 16.16 format, where n_cycles are the number of main clock cycles within fb_n_frames
+// Since an accuracy of less than 1 Sample / second is desired, at least n_frames = ceil(2^K * f_s / f_m) frames
+// need to be measured, where K = 10 for full speed and K = 13 for high speed, f_s is the sampling frequency
+// e.g. 48 kHz and f_m is the cpu clock frequency e.g. 100 MHz (or any other master clock whose clock count is
+// available and locked to f_s)
+// The update interval in the (4.10.2.1) Feedback Endpoint Descriptor must be less or equal to 2^(K - P), where
+// P = min( ceil(log2(f_m / f_s)), K)
+// feedback = n_cycles / n_frames * f_s / f_m in 16.16 format, where n_cycles are the number of main clock cycles
+// within fb_n_frames
 bool tud_audio_n_fb_set(uint8_t func_id, uint32_t feedback);
 
 // Update feedback value with passed MCLK cycles since last time this update function is called.

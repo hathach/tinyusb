@@ -145,9 +145,6 @@ extern "C" {
 // Enable feedback EP
 #define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP            1
 
-// Size of control request buffer
-#define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ            64
-
 #ifdef __cplusplus
 }
 #endif
