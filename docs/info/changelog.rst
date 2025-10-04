@@ -11,20 +11,10 @@ General
 - New MCUs and Boards:
 
   - Add ESP32-H4, ESP32-C5, ESP32-C61 support
-  - Add STM32U083C-DK, STM32WBA, STM32N6570-DK, STM32N657 Nucleo
+  - Add STM32U0, STM32WBA, STM32N6
   - Add AT32F405, AT32F403A, AT32F415, AT32F423 support
   - Add CH32V305 support and CH32V20x USB host support
   - Add MCXA156 SDK 2.16 support and FRDM-MCXA156 board
-  - Update all STM32 HAL and CMSIS dependencies to latest versions
-
-- Build System and CI Improvements
-  - Improve build system with GCC 14 support
-  - Add ARM IAR toolchain build support via CircleCI and GitHub Actions
-  - Add comprehensive CMake build documentation
-  - Improve hardware-in-the-loop (HIL) testing infrastructure
-  - Add Claude Code AI assistant workflows and documentation
-
-- Add ``tusb_deinit()`` function for stack cleanup
 
 API Changes
 -----------
@@ -37,7 +27,7 @@ API Changes
   - Introduce ``xfer_isr()`` callback for ISO transfer optimization in device classes
 
 - Device APIs
-  - CDC: Add ``tud_cdc_configure()``, ``tud_cdc_n_notify_uart_state()``,
+  - CDC: Add notification support ``tud_cdc_configure()``, ``tud_cdc_n_notify_uart_state()``,
     ``tud_cdc_n_notify_conn_speed_change()``, ``tud_cdc_notify_complete_cb()``
   - MSC: Add ``tud_msc_inquiry2_cb()`` with bufsize parameter, update ``tud_msc_async_io_done()``
     with ``in_isr`` parameter
@@ -184,16 +174,10 @@ Host Stack
 
 - CDC Serial Host
   - Major refactor to generalize CDC serial drivers (FTDI, CP210x, CH34x, PL2303, ACM)
-  - Add common 2-stage set line coding for drivers without direct support
-  - Add ``cdch_process_line_state_on_enum()`` for line state configuration during enumeration
-  - Refactor control transfer handling with ``cdch_internal_control_complete()``
   - Add explicit ``sync()`` API with ``TU_API_SYNC()`` returning ``tusb_xfer_result_t``
   - Rename ``tuh_cdc_get_local_line_coding()`` to ``tuh_cdc_get_line_coding_local()``
   - Add ``tuh_cdc_get_control_line_state_local()``
   - Implement ``tuh_cdc_get/set_dtr/rts()`` as inline functions
-  - Add ``get_itf_by_xfer()`` for better CDC interface determination
-  - Union FTDI/PL2303/ACM data structures to save memory
-  - Remove local device descriptor storage
 
 - MIDI Host
   - Major API changes:
@@ -201,12 +185,8 @@ Host Stack
     - Add ``tuh_midi_packet_read_n()`` and ``tuh_midi_packet_write_n()``
     - Add ``CFG_TUH_MIDI_STREAM_API`` to opt out of stream API
     - Change API to use index instead of device address (supports multiple MIDI per device)
-  - Add ``tuh_midi_mount_cb_t`` struct for mount callback
-  - Change ``tuh_midi_rx/tx_cb()`` to include ``xferred_bytes``
   - Rename ``tuh_midi_get_num_rx/tx_cables()`` to ``tuh_midi_get_rx/tx_cable_count()``
   - Add ``tuh_midi_descriptor_cb()`` and ``tuh_midi_itf_get_info()``
-  - Fix ``iInterface`` value in ``tuh_midi_itf_get_info()``
-  - Remove ``CFG_MIDI_HOST_DEVSTRINGS`` support
 
 - MSC Host
   - Continue async I/O improvements
