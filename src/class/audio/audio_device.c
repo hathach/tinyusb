@@ -906,9 +906,10 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
         p_desc = tu_desc_next(p_desc);
         while (p_desc_end - p_desc > 0) {
           // Stop if:
-          // - Non audio interface descriptor found
+          // - Non audio streaming interface descriptor found
           // - IAD found
-          if ((tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass != TUSB_CLASS_AUDIO)
+          if ((tu_desc_type(p_desc) == TUSB_DESC_INTERFACE &&
+              !(((tusb_desc_interface_t const *) p_desc)->bInterfaceClass == TUSB_CLASS_AUDIO && ((tusb_desc_interface_t const *) p_desc)->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING))
               || tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
             break;
           } else if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *) p_desc)->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
