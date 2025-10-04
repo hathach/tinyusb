@@ -67,3 +67,12 @@ Before building, it's recommended to run pre-commit to ensure code quality:
 - hw/: Board support packages and MCU drivers
 - examples/: Reference examples for device/host/dual
 - test/: Unit tests and hardware integration tests
+
+## Release Process
+To prepare a new release:
+1. Update the `version` variable in `tools/make_release.py` to the new version number
+2. Run the release script: `python tools/make_release.py`
+   - This will update version numbers in `src/tusb_option.h`, `repository.yml`, and `library.json`
+   - It will also regenerate documentation
+3. Update `docs/info/changelog.rst` with release notes
+4. Commit changes and create release tag

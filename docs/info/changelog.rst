@@ -2,6 +2,198 @@
 Changelog
 *********
 
+0.19.0
+======
+
+General
+-------
+
+- New MCUs and Boards:
+
+  - Add ESP32-H4, ESP32-C5, ESP32-C61 support
+  - Add STM32U0, STM32WBA, STM32N6
+  - Add AT32F405, AT32F403A, AT32F415, AT32F423 support
+  - Add CH32V305 support and CH32V20x USB host support
+  - Add MCXA156 SDK 2.16 support and FRDM-MCXA156 board
+
+API Changes
+-----------
+
+- Core APIs
+  - Add weak callbacks with new syntax for better compiler compatibility
+  - Add ``tusb_deinit()`` to cleanup stack
+  - Add time functions: ``tusb_time_millis_api()`` and ``tusb_time_delay_ms_api()``
+  - Add ``osal_critical`` APIs for critical section handling
+  - Introduce ``xfer_isr()`` callback for ISO transfer optimization in device classes
+
+- Device APIs
+  - CDC: Add notification support ``tud_cdc_configure()``, ``tud_cdc_n_notify_uart_state()``,
+    ``tud_cdc_n_notify_conn_speed_change()``, ``tud_cdc_notify_complete_cb()``
+  - MSC: Add ``tud_msc_inquiry2_cb()`` with bufsize parameter, update ``tud_msc_async_io_done()``
+    with ``in_isr`` parameter
+  - Audio: Add ``tud_audio_n_mounted()`` and various FIFO access functions
+  - MTP: Add ``tud_mtp_mounted()``, ``tud_mtp_data_send()``, ``tud_mtp_data_receive()``,
+    ``tud_mtp_response_send()``, ``tud_mtp_event_send()``
+
+- Host APIs
+  - Core: Add ``tuh_edpt_close()``, ``tuh_address_set()``, ``tuh_descriptor_get_device_local()``,
+    ``tuh_descriptor_get_string_langid()``, ``tuh_connected()``, ``tuh_bus_info_get()``
+  - Add enumeration callbacks: ``tuh_enum_descriptor_device_cb()``,
+    ``tuh_enum_descriptor_configuration_cb()``
+  - CDC: Add ``tuh_cdc_get_control_line_state_local()``, ``tuh_cdc_get/set_dtr/rts()``,
+    ``tuh_cdc_connect/disconnect()`` and sync versions of all control APIs
+  - MIDI: Add ``tuh_midi_itf_get_info()``, ``tuh_midi_packet_read_n()``,
+    ``tuh_midi_packet_write_n()``, ``tuh_midi_read_available()``, ``tuh_midi_write_flush()``,
+    ``tuh_midi_descriptor_cb()``
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- DWC2
+  - Support DWC2 v4.30a with improved reset procedure
+  - Fix core reset: wait for AHB idle before reset
+  - Add STM32 DWC2 data cache support with proper alignment
+  - Host improvements:
+    - Fix disconnect detection and SOF flag handling
+    - Fix HFIR timing off-by-one error
+    - Retry IN token immediately for bInterval=1
+    - Proper attach debouncing (200ms)
+    - Fix all retry intervals
+    - Resume OUT transfer when PING ACKed
+  - Fix enumeration racing conditions
+  - Refactor bitfields for better code generation
+
+- FSDEV (STM32)
+  - Fix AT32 compile issues after single-buffered endpoint changes
+  - Add configurable single-buffered isochronous endpoints
+  - Fix STM32H7 recurrent suspend ISR
+  - Fix STM32L4 GPIOD clock enable for variants without GPIOD
+  - Fix STM32 PHYC PLL stability wait
+  - Improve PMA size handling for STM32U0
+
+- EHCI
+  - Fix removed QHD getting reused
+  - Fix NXP USBPHY disconnection detection
+
+- Chipidea/NXP
+  - Fix race condition with spinlock
+  - Improve iMXRT support: fix build, disable BOARD_ConfigMPU, fix attach debouncing on port1 highspeed
+  - Fix iMXRT1064 and add to HIL test pool
+
+- MAX3421E
+  - Use spinlock for thread safety instead of atomic flag
+  - Implement ``hcd_edpt_close()``
+
+- RP2040
+  - Fix audio ISO transfer: reset state before notifying stack
+  - Fix CMake RTOS cache variable
+  - Abort transfer if active in ``iso_activate()``
+
+- SAMD
+  - Add host controller driver support
+
+Device Stack
+------------
+
+- USBD Core
+  - Introduce ``xfer_isr()`` callback for interrupt-time transfer handling
+  - Add ``usbd_edpt_xfer_fifo()`` stub
+  - Revert endpoint busy/claim status if ``xfer_isr()`` defers to ``xfer_cb()``
+
+- Audio
+  - Major simplification of UAC driver and alt settings management
+  - Move ISO transfers into ``xfer_isr()`` for better performance
+  - Remove FIFO mutex (single producer/consumer optimization)
+  - Add implicit feedback support for data IN endpoints
+  - Fix alignment issues
+  - Update buffer macros with cache line size alignment
+
+- CDC
+  - Add notification support: ``CFG_TUD_CDC_NOTIFY``, ``tud_cdc_n_notify_conn_speed_change()``, ``tud_cdc_notify_complete_cb()``
+  - Reduce default bInterval from 16ms to 1ms for better responsiveness
+  - Rename ``tud_cdc_configure_fifo()`` to ``tud_cdc_configure()`` and add ``tx_overwritable_if_not_connected`` option
+  - Fix web serial robustness with major overhaul and logic cleanup
+
+- HID
+  - Add Usage Page and Table for Power Devices (0x84 - 0x85)
+  - Fix HID descriptor parser variable size and 4-byte item handling
+  - Add consumer page configurations
+
+- MIDI
+  - Fix MIDI interface descriptor handling after audio streaming interface
+  - Skip RX data with all zeroes
+
+- MSC
+  - Add async I/O support for MSC using ``tud_msc_async_io_done()``
+  - Add ``tud_msc_inquiry2_cb()`` with bufsize for full inquiry response
+
+- MTP
+  - Add new Media Transfer Protocol (MTP) device class driver
+  - Support MTP operations: GetDeviceInfo, SendObjectInfo, SendObject
+  - Add MTP event support with ``tud_mtp_event_send()``
+  - Implement filesystem example with callbacks
+  - Add hardware-in-the-loop testing support
+
+- NCM
+  - Add USB NCM link state control support
+  - Fix DHCP offer/ACK destination
+
+- USBTMC
+  - Add vendor-specific message support
+
+- Vendor
+  - Fix vendor device reset and open issues
+  - Fix descriptor parsing for ``CFG_TUD_VENDOR > 1``
+  - Fix vendor FIFO argument calculation
+
+Host Stack
+----------
+
+- USBH Core
+  - Major enumeration improvements:
+    - Fix enumeration racing conditions
+    - Add proper attach debouncing with hub/rootport handling (200ms delay)
+    - Reduce ``ENUM_DEBOUNCING_DELAY_MS`` to 200ms
+    - Always get language ID, manufacturer, product, and serial strings during enumeration
+    - Always get first 2 bytes of string descriptor to determine length (prevents buffer overflow)
+    - Support devices with multiple configurations
+  - Add ``tuh_enum_descriptor_device_cb()`` and ``tuh_enum_descriptor_configuration_cb()`` callbacks
+  - Add ``tuh_descriptor_get_string_langid()`` API
+  - Hub improvements:
+    - Check status before getting first device descriptor
+    - Properly handle port status and change detection
+    - Queue status endpoint for detach/remove events
+    - Fix hub status change endpoint handling
+  - Fix endpoint management:
+    - ``hcd_edpt_open()`` returns false if endpoint already opened
+    - Add ``hcd_edpt_close()`` implementation
+    - Abort pending transfers on close
+  - Add roothub debouncing flag to ignore attach/remove during debouncing
+  - Move address setting and bus info management to separate structures
+  - Force removed devices in same bus info before setting address
+
+- CDC Serial Host
+  - Major refactor to generalize CDC serial drivers (FTDI, CP210x, CH34x, PL2303, ACM)
+  - Add explicit ``sync()`` API with ``TU_API_SYNC()`` returning ``tusb_xfer_result_t``
+  - Rename ``tuh_cdc_get_local_line_coding()`` to ``tuh_cdc_get_line_coding_local()``
+  - Add ``tuh_cdc_get_control_line_state_local()``
+  - Implement ``tuh_cdc_get/set_dtr/rts()`` as inline functions
+
+- MIDI Host
+  - Major API changes:
+    - Rename ``tuh_midi_stream_flush()`` to ``tuh_midi_write_flush()``
+    - Add ``tuh_midi_packet_read_n()`` and ``tuh_midi_packet_write_n()``
+    - Add ``CFG_TUH_MIDI_STREAM_API`` to opt out of stream API
+    - Change API to use index instead of device address (supports multiple MIDI per device)
+  - Rename ``tuh_midi_get_num_rx/tx_cables()`` to ``tuh_midi_get_rx/tx_cable_count()``
+  - Add ``tuh_midi_descriptor_cb()`` and ``tuh_midi_itf_get_info()``
+
+- MSC Host
+  - Continue async I/O improvements
+
+- HID Host
+  - Fix version string to actually show version
+
 0.18.0
 ======
 
