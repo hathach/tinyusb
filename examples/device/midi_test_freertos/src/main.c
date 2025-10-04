@@ -48,7 +48,7 @@
 #endif
 
 #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
-#define MIDI_STACK_SIZE     configMINIMAL_STACK_SIZE
+#define MIDI_STACK_SIZE     2*configMINIMAL_STACK_SIZE
 
 // static task
 #if configSUPPORT_STATIC_ALLOCATION
