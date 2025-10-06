@@ -168,7 +168,7 @@ static void dma_setup_prepare(uint8_t rhport) {
   - All EP OUT shared a unique OUT FIFO which uses (for Slave or Buffer DMA, Scatt/Gather DMA use different formula):
     - 13 for setup packets + control words (up to 3 setup packets).
     - 1 for global NAK (not required/used here).
-    - Largest-EPsize/4 + 1. ( FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4 + 1)"
+    - Largest-EPsize/4 + 1. (FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4 + 1)"
     - 2 for each used OUT endpoint
 
     Therefore GRXFSIZ = 13 + 1 + 2 x (Largest-EPsize/4 + 1) + 2 x EPOUTnum
@@ -701,12 +701,23 @@ static void handle_bus_reset(uint8_t rhport) {
   dcfg.address = 0;
   dwc2->dcfg = dcfg.value;
 
-  // Fixed both control EP0 size to 64 bytes
-  dwc2->epin[0].ctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
-  dwc2->epout[0].ctl &= ~(0x03 << DOEPCTL_MPSIZ_Pos);
+  // 6. Configure maximum packet size for EP0
+  uint8_t mps = 0;
+  switch (CFG_TUD_ENDPOINT0_SIZE) {
+    case 8: mps = 3; break;
+    case 16: mps = 2; break;
+    case 32: mps = 1; break;
+    case 64: mps = 0; break;
+    default: mps = 0; break;
+  }
 
-  xfer_status[0][TUSB_DIR_OUT].max_size = 64;
-  xfer_status[0][TUSB_DIR_IN].max_size = 64;
+  dwc2->epin[0].ctl &= ~DIEPCTL0_MPSIZ_Msk;
+  dwc2->epout[0].ctl &= ~DOEPCTL0_MPSIZ_Msk;
+  dwc2->epin[0].ctl |= mps << DIEPCTL0_MPSIZ_Pos;
+  dwc2->epout[0].ctl |= mps << DOEPCTL0_MPSIZ_Pos;
+
+  xfer_status[0][TUSB_DIR_OUT].max_size = CFG_TUD_ENDPOINT0_SIZE;
+  xfer_status[0][TUSB_DIR_IN].max_size = CFG_TUD_ENDPOINT0_SIZE;
 
   if(dma_device_enabled(dwc2)) {
     dma_setup_prepare(rhport);
