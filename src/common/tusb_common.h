@@ -35,7 +35,7 @@
 // Macros Helper
 //--------------------------------------------------------------------+
 #define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
-#define TU_FIELD_SZIE(_type, _field)  (sizeof(((_type *)0)->_field))
+#define TU_FIELD_SIZE(_type, _field)  (sizeof(((_type *)0)->_field))
 #define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
 #define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
 #define TU_DIV_CEIL(n, d)     (((n) + (d) - 1) / (d))

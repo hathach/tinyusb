@@ -59,11 +59,11 @@ storage_info_t storage_info = {
   .free_space_in_bytes = 0, // calculated at runtime
   .free_space_in_objects = 0, // calculated at runtime
   .storage_description = {
-    .count = (TU_FIELD_SZIE(storage_info_t, storage_description)-1) / sizeof(uint16_t),
+    .count = (TU_FIELD_SIZE(storage_info_t, storage_description)-1) / sizeof(uint16_t),
     .utf16 = STORAGE_DESCRIPTRION
   },
   .volume_identifier = {
-    .count = (TU_FIELD_SZIE(storage_info_t, volume_identifier)-1) / sizeof(uint16_t),
+    .count = (TU_FIELD_SIZE(storage_info_t, volume_identifier)-1) / sizeof(uint16_t),
     .utf16 = VOLUME_IDENTIFIER
   }
 };
