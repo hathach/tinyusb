@@ -267,14 +267,14 @@ void tud_hid_report_failed_cb(uint8_t instance, hid_report_type_t report_type, u
 // Stylus Pen Report Descriptor Template
 #define TUD_HID_REPORT_DESC_STYLUS_PEN(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DIGITIZER )                     , \
-  HID_USAGE      ( HID_USAGE_DIGITIZER_TOUCH_SCREEN )             , \
+  HID_USAGE      ( HID_USAGE_DIGITIZER_PEN )                      , \
   HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                  , \
     /* Report ID if any */\
     __VA_ARGS__ \
-    HID_USAGE    ( HID_USAGE_DIGITIZER_STYLUS )                   , \
-    HID_COLLECTION ( HID_COLLECTION_PHYSICAL   )                  , \
-      HID_USAGE_PAGE  ( HID_USAGE_DIGITIZER_TIP_SWITCH )          , \
-      HID_USAGE_PAGE  ( HID_USAGE_DIGITIZER_IN_RANGE )            , \
+    HID_USAGE    ( HID_USAGE_DIGITIZER_STYLUS                    ), \
+    HID_COLLECTION ( HID_COLLECTION_PHYSICAL                     ), \
+        HID_USAGE  ( HID_USAGE_DIGITIZER_TIP_SWITCH              ), \
+        HID_USAGE  ( HID_USAGE_DIGITIZER_IN_RANGE                ), \
         HID_LOGICAL_MIN ( 0                                      ), \
         HID_LOGICAL_MAX ( 1                                      ), \
         HID_REPORT_SIZE ( 1                                      ), \

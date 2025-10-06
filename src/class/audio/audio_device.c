@@ -79,10 +79,9 @@
 // Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer
 // is available or driver is would need to be changed dramatically
 
-// Only STM32 and dcd_transdimension use non-linear buffer for now
-// dwc2 except esp32sx (since it may use dcd_esp32sx)
+// Only STM32 and ChipIdea HS use non-linear buffer for now
 // Ring buffer is incompatible with dcache, since neither address nor size is aligned to cache line
-#if (defined(TUP_USBIP_DWC2) && !TU_CHECK_MCU(OPT_MCU_ESP32S2, OPT_MCU_ESP32S3)) || \
+#if defined(TUP_USBIP_DWC2) || \
     defined(TUP_USBIP_FSDEV) ||                                                     \
     CFG_TUSB_MCU == OPT_MCU_RX63X ||                                                \
     CFG_TUSB_MCU == OPT_MCU_RX65X ||                                                \
