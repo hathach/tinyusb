@@ -215,7 +215,7 @@ static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
     TU_ASSERT(p_mtp->phase == MTP_PHASE_DATA);
   }
 
-  const uint16_t xact_len = tu_min16((uint16_t) (p_mtp->total_len - p_mtp->xferred_len), CFG_TUD_MTP_EP_BUFSIZE);
+  const uint16_t xact_len = (uint16_t) tu_min32(p_mtp->total_len - p_mtp->xferred_len, CFG_TUD_MTP_EP_BUFSIZE);
   if (xact_len) {
     // already transferred all bytes in header's length. Application make an unnecessary extra call
     TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
