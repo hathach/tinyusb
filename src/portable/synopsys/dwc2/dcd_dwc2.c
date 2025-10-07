@@ -282,8 +282,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
 
   if (dir == TUSB_DIR_IN) {
-    // Only disable currently enabled non-control endpoint
-    if ((epnum == 0) || !(dep->diepctl & DIEPCTL_EPENA)) {
+    if (!(dep->diepctl & DIEPCTL_EPENA)) {
       dep->diepctl |= DIEPCTL_SNAK | (stall ? DIEPCTL_STALL : 0);
     } else {
       // Stop transmitting packets and NAK IN xfers.
@@ -841,6 +840,11 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
 static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
   if (doepint_bm.setup_phase_done) {
+    // Cleanup previous pending EP0 IN transfer if any
+    dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
+    if (epin0->diepctl & DIEPCTL_EPENA) {
+      edpt_disable(rhport, 0x80, false);
+    }
     dcd_event_setup_received(rhport, _dcd_usbbuf.setup_packet, true);
     return;
   }
@@ -919,6 +923,11 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   if (doepint_bm.setup_phase_done) {
+    // Cleanup previous pending EP0 IN transfer if any
+    dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
+    if (epin0->diepctl & DIEPCTL_EPENA) {
+      edpt_disable(rhport, 0x80, false);
+    }
     dma_setup_prepare(rhport);
     dcd_dcache_invalidate(_dcd_usbbuf.setup_packet, 8);
     dcd_event_setup_received(rhport, _dcd_usbbuf.setup_packet, true);
