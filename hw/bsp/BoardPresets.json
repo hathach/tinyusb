@@ -13,23 +13,17 @@
       }
     },
     {
+      "name": "default single config",
+      "hidden": true,
+      "description": "Configure preset for the ${presetName} board",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "BOARD": "${presetName}"
+      }
+    },
+    {
       "name": "adafruit_clue",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_feather_esp32_v2",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_feather_esp32c6",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_feather_esp32s2",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_feather_esp32s3",
       "inherits": "default"
     },
     {
@@ -38,14 +32,6 @@
     },
     {
       "name": "adafruit_fruit_jam",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_magtag_29gray",
-      "inherits": "default"
-    },
-    {
-      "name": "adafruit_metro_esp32s2",
       "inherits": "default"
     },
     {
@@ -186,42 +172,6 @@
     },
     {
       "name": "ek_tm4c123gxl",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_addax_1",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_c3_devkitc",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_c6_devkitc",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_kaluga_1",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_p4_function_ev",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_s2_devkitc",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_s3_devkitc",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_s3_devkitm",
-      "inherits": "default"
-    },
-    {
-      "name": "espressif_saola_1",
       "inherits": "default"
     },
     {
@@ -823,6 +773,66 @@
     {
       "name": "xmc4700_relax",
       "inherits": "default"
+    },
+    {
+      "name": "adafruit_feather_esp32_v2",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_feather_esp32c6",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_feather_esp32s2",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_feather_esp32s3",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_magtag_29gray",
+      "inherits": "default single config"
+    },
+    {
+      "name": "adafruit_metro_esp32s2",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_addax_1",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_c3_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_c6_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_kaluga_1",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_p4_function_ev",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_s2_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_s3_devkitc",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_s3_devkitm",
+      "inherits": "default single config"
+    },
+    {
+      "name": "espressif_saola_1",
+      "inherits": "default single config"
     }
   ],
   "buildPresets": [
