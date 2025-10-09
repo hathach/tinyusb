@@ -79,12 +79,6 @@ TU_VERIFY_STATIC( sizeof(ohci_hcca_t) == 256, "size is not correct" );
 // the _smallest_ amount that can be read/written at a time. If there were to be multiple TDs
 // in the same cache line, they would be required to always have the same logical ownership.
 // This ends up being impossible to guarantee, so we choose a design which avoids the situation entirely.
-//
-// TDs have a minimum alignment requirement according to the OHCI specification. This is 16 bytes for
-// a general TD but 32 bytes for an isochronous TD. It happens that typical CPU cache line sizes are usually
-// a power of 2 at least 32. In order to simplify code later in this file, we assume this
-// as an additional requirement.
-TU_VERIFY_STATIC( (CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 0) % 32 == 0, "cache line not multiple of 32" );
 
 // common link item for gtd and itd for list travel
 // use as pointer only
@@ -94,10 +88,12 @@ typedef struct TU_ATTR_ALIGNED(16) {
   uint32_t reserved2;
 }ohci_td_item_t;
 
-typedef struct TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 16)
+typedef struct TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16))
 {
 	// Word 0
-  uint32_t                         : 18; // can be used
+	uint32_t used                    : 1;
+  uint32_t index                   : 8; // endpoint index the gtd belongs to, or device address in case of control xfer
+  uint32_t                         : 9; // can be used
   uint32_t buffer_rounding         : 1;
   uint32_t pid                     : 2;
   uint32_t delay_interrupt         : 3;
@@ -114,8 +110,7 @@ typedef struct TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LI
 	// Word 3
 	uint8_t* buffer_end;
 } ohci_gtd_t;
-
-TU_VERIFY_STATIC( sizeof(ohci_gtd_t) == CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 16, "size is not correct" );
+TU_VERIFY_STATIC(sizeof(ohci_gtd_t) == TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE,16), "size is not correct" );
 
 typedef union {
   struct {
@@ -126,13 +121,14 @@ typedef union {
     uint32_t skip              : 1;
     uint32_t is_iso            : 1;
     uint32_t max_packet_size   : 11;
-          // HCD: make use of 5 reserved bits
+    // HCD: make use of 5 reserved bits
     uint32_t used              : 1;
     uint32_t is_interrupt_xfer : 1;
     uint32_t                   : 3;
   };
-  uint32_t u;
-} ohci_ed_word0;
+  uint32_t value;
+} ohci_ed_word0_t;
+TU_VERIFY_STATIC(sizeof(ohci_ed_word0_t) == 4, "size is not correct" );
 
 typedef union {
   uint32_t address;
@@ -141,26 +137,18 @@ typedef union {
     uint32_t toggle : 1;
     uint32_t : 30;
   };
-} ohci_ed_td_head;
+} ohci_ed_word2_t;
+TU_VERIFY_STATIC(sizeof(ohci_ed_word2_t) == 4, "size is not correct" );
 
-typedef struct TU_ATTR_ALIGNED(16)
-{
-  // Word 0
-	ohci_ed_word0 w0;
-
-	// Word 1
-	uint32_t td_tail;
-
-	// Word 2
-	volatile ohci_ed_td_head td_head;
-
-	// Word 3: next ED
-	uint32_t next;
+typedef struct TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16)) {
+  ohci_ed_word0_t w0; // Word 0
+  uint32_t td_tail; // Word 1
+  volatile ohci_ed_word2_t td_head; // Word 2
+  uint32_t next; // Word 3
 } ohci_ed_t;
+TU_VERIFY_STATIC(sizeof(ohci_ed_t) == TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16), "size is not correct" );
 
-TU_VERIFY_STATIC( sizeof(ohci_ed_t) == 16, "size is not correct" );
-
-typedef struct TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 32)
+typedef struct TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 32))
 {
 	/*---------- Word 1 ----------*/
   uint32_t starting_frame          : 16;
@@ -183,15 +171,12 @@ typedef struct TU_ATTR_ALIGNED(CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LI
 	volatile uint16_t offset_packetstatus[8];
 } ochi_itd_t;
 
-TU_VERIFY_STATIC( sizeof(ochi_itd_t) == CFG_TUH_MEM_DCACHE_ENABLE ? CFG_TUH_MEM_DCACHE_LINE_SIZE : 32, "size is not correct" );
+TU_VERIFY_STATIC(sizeof(ochi_itd_t) == TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 32), "size is not correct" );
 
 typedef struct {
   uint16_t expected_bytes; // up to 8192 bytes so max is 13 bits
-  uint8_t dev_addr  : 7;
-  uint8_t used      : 1;
-  uint8_t ep_addr;
 } gtd_extra_data_t;
-TU_VERIFY_STATIC( sizeof(gtd_extra_data_t) == 4, "size is not correct" );
+TU_VERIFY_STATIC(sizeof(gtd_extra_data_t) == 2, "size is not correct" );
 
 // structure with member alignment required from large to small
 typedef struct TU_ATTR_ALIGNED(256) {
