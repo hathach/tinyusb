@@ -36,6 +36,7 @@
   #include "stm32f0xx.h"
   #define FSDEV_PMA_SIZE (1024u)
   #define FSDEV_REG_BASE USB_BASE
+  #define FSDEV_HAS_SBUF_ISO 0
   // F0x2 models are crystal-less
   // All have internal D+ pull-up
   // 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
@@ -44,6 +45,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F1
   #include "stm32f1xx.h"
   #define FSDEV_PMA_SIZE (512u)
+  #define FSDEV_HAS_SBUF_ISO 0
   // NO internal Pull-ups
   //         *B, and *C:    2 x 16 bits/word
 
@@ -55,6 +57,7 @@
       defined(STM32F373xC)
   #include "stm32f3xx.h"
   #define FSDEV_PMA_SIZE (512u)
+  #define FSDEV_HAS_SBUF_ISO 0
   // NO internal Pull-ups
   //         *B, and *C:    1 x 16 bits/word
   // PMA dedicated to USB (no sharing with CAN)
@@ -64,6 +67,7 @@
       defined(STM32F303xD) || defined(STM32F303xE)
   #include "stm32f3xx.h"
   #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_HAS_SBUF_ISO 0
   // NO internal Pull-ups
   // *6, *8, *D, and *E:    2 x 16 bits/word     LPM Support
   // When CAN clock is enabled, USB can use first 768 bytes ONLY.
@@ -71,18 +75,22 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L0
   #include "stm32l0xx.h"
   #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_HAS_SBUF_ISO 0
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L1
   #include "stm32l1xx.h"
   #define FSDEV_PMA_SIZE (512u)
+  #define FSDEV_HAS_SBUF_ISO 0
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32G4
   #include "stm32g4xx.h"
   #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_HAS_SBUF_ISO 0
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32G0
   #include "stm32g0xx.h"
   #define FSDEV_PMA_SIZE (2048u)
+  #define FSDEV_HAS_SBUF_ISO 1
   #define USB USB_DRD_FS
 
   #define USB_EP_CTR_RX USB_EP_VTRX
@@ -107,6 +115,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32C0
   #include "stm32c0xx.h"
   #define FSDEV_PMA_SIZE (2048u)
+  #define FSDEV_HAS_SBUF_ISO 1
   #define USB USB_DRD_FS
   #define USB_EP_CTR_RX USB_CHEP_VTRX
   #define USB_EP_CTR_TX USB_CHEP_VTTX
@@ -121,6 +130,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H5
   #include "stm32h5xx.h"
   #define FSDEV_PMA_SIZE (2048u)
+  #define FSDEV_HAS_SBUF_ISO 1
   #define USB USB_DRD_FS
 
   #define USB_EP_CTR_RX USB_EP_VTRX
@@ -145,16 +155,19 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32WB
   #include "stm32wbxx.h"
   #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_HAS_SBUF_ISO 0
   /* ST provided header has incorrect value of USB_PMAADDR */
   #define FSDEV_PMA_BASE USB1_PMAADDR
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L4
   #include "stm32l4xx.h"
   #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_HAS_SBUF_ISO 0
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32L5
   #include "stm32l5xx.h"
   #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_HAS_SBUF_ISO 0
 
   #ifndef USB_PMAADDR
     #define USB_PMAADDR (USB_BASE + (USB_PMAADDR_NS - USB_BASE_NS))
@@ -163,6 +176,7 @@
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U5
   #include "stm32u5xx.h"
   #define FSDEV_PMA_SIZE (2048u)
+  #define FSDEV_HAS_SBUF_ISO 1
   #define USB USB_DRD_FS
 
   #define USB_EP_CTR_RX USB_EP_VTRX
@@ -186,7 +200,10 @@
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32U0
   #include "stm32u0xx.h"
-  #define FSDEV_PMA_SIZE (2048u)
+  #define FSDEV_PMA_SIZE (1024u)
+  #define FSDEV_BUS_32BIT
+  // Disable SBUF_ISO on U0 for now due to bad performance (audio glitching)
+  #define FSDEV_HAS_SBUF_ISO 0
   #define USB USB_DRD_FS
 
   #define USB_EP_CTR_RX USB_EP_VTRX
@@ -247,6 +264,36 @@
 
 #define USB_ISTR_ALL_EVENTS (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_WKUP | USB_ISTR_SUSP | \
      USB_ISTR_RESET | USB_ISTR_SOF | USB_ISTR_ESOF | USB_ISTR_L1REQ_FORCED )
+
+#ifndef FSDEV_HAS_SBUF_ISO
+  #error "FSDEV_HAS_SBUF_ISO not defined"
+#endif
+
+#ifndef CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP
+  // Default configuration for double-buffered isochronous endpoints:
+  // - Enable double buffering on devices with >1KB Packet Memory Area (PMA)
+  //   to improve isochronous transfer reliability and performance
+  // - Disable on devices with limited PMA to conserve memory space
+  #if FSDEV_PMA_SIZE > 1024u
+    #define CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP 1
+  #else
+    #define CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP 0
+  #endif
+#endif
+
+#if FSDEV_HAS_SBUF_ISO != 0 && CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP == 0
+  // SBUF_ISO configuration:
+  // - Some STM32 devices have special hardware support for single-buffered isochronous endpoints
+  // - When SBUF_ISO bit is available and double buffering is disabled:
+  //   Enable SBUF_ISO to optimize endpoint register usage (one half of endpoint pair register)
+  #define FSDEV_USE_SBUF_ISO 1
+#else
+  // When either:
+  // - Hardware doesn't support SBUF_ISO feature, or
+  // - Double buffering is enabled for isochronous endpoints
+  // We must use the entire endpoint pair register
+  #define FSDEV_USE_SBUF_ISO 0
+#endif
 
 //--------------------------------------------------------------------+
 //

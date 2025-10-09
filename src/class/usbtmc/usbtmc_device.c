@@ -159,6 +159,25 @@ TU_VERIFY_STATIC(USBTMCD_BUFFER_SIZE >= 32u, "USBTMC dev buffer size too small")
 static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len);
 static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen);
 
+
+// USBTMC Device Callbacks weak implementations
+TU_ATTR_WEAK bool tud_usbtmc_notification_complete_cb(void) {
+  return true;
+}
+
+TU_ATTR_WEAK bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult) {
+  (void) msg;
+  (void) tmcResult;
+  return true;
+}
+
+#if (CFG_TUD_USBTMC_ENABLE_488)
+TU_ATTR_WEAK bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg) {
+  (void) msg;
+  return true;
+}
+#endif
+
 #ifndef NDEBUG
 tu_static uint8_t termChar;
 #endif
@@ -262,16 +281,10 @@ void usbtmcd_init_cb(void) {
   usbtmc_state.capabilities = tud_usbtmc_get_capabilities_cb();
 #ifndef NDEBUG
   #if CFG_TUD_USBTMC_ENABLE_488
-  if (usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger) {
-    TU_ASSERT(&tud_usbtmc_msg_trigger_cb != NULL, );
-  }
   // Per USB488 spec: table 8
   TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.listenOnly, );
   TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.talkOnly, );
   #endif
-  if (usbtmc_state.capabilities->bmIntfcCapabilities.supportsIndicatorPulse) {
-    TU_ASSERT(&tud_usbtmc_indicator_pulse_cb != NULL, );
-  }
 #endif
 
   usbtmcLock = osal_mutex_create(&usbtmcLockBuffer);
@@ -587,9 +600,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         TU_ASSERT(false);
     }
   } else if (ep_addr == usbtmc_state.ep_int_in) {
-    if (tud_usbtmc_notification_complete_cb) {
-      TU_VERIFY(tud_usbtmc_notification_complete_cb());
-    }
+    TU_VERIFY(tud_usbtmc_notification_complete_cb());
     return true;
   }
   return false;

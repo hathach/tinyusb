@@ -107,6 +107,14 @@ static void _prep_out_transaction(uint8_t idx) {
   }
 }
 
+
+//--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_midi_rx_cb(uint8_t itf) {
+  (void) itf;
+}
+
 //--------------------------------------------------------------------+
 // READ API
 //--------------------------------------------------------------------+
@@ -528,9 +536,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
     tu_fifo_write_n(&p_midi->rx_ff, _midid_epbuf[idx].epout, (uint16_t)xferred_bytes);
 
     // invoke receive callback if available
-    if (tud_midi_rx_cb) {
-      tud_midi_rx_cb(idx);
-    }
+    tud_midi_rx_cb(idx);
 
     // prepare for next
     // TODO for now ep_out is not used by public API therefore there is no race condition,

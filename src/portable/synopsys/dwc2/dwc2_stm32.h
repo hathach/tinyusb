@@ -113,6 +113,22 @@ extern "C" {
     #define EP_MAX_HS                 9
     #define EP_FIFO_SIZE_HS           4096
   #endif
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32WBA
+  #if defined(STM32WBA62xx)
+    #include "stm32wba62xx.h"
+  #elif defined(STM32WBA64xx)
+    #include "stm32wba64xx.h"
+  #elif defined(STM32WBA65xx)
+    #include "stm32wba65xx.h"
+  #else
+    #error "The selected STM32WBA series chip does not support OTG USB HS"
+  #endif
+
+  #define USB_OTG_HS_PERIPH_BASE    USB_OTG_HS_BASE_NS
+  #define OTG_HS_IRQn               USB_OTG_HS_IRQn
+  #define EP_MAX_HS                 9
+  #define EP_FIFO_SIZE_HS           4096
 #else
   #error "Unsupported MCUs"
 #endif
@@ -166,6 +182,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
 // MCU specific PHY init, called BEFORE core reset
 // - dwc2 3.30a (H5) use USB_HS_PHYC
 // - dwc2 4.11a (U5) use femtoPHY
+// - dwc2 x.xxx (WBA) use USB_OTG_HS
 static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
   if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
     // Enable on-chip FS PHY
@@ -194,11 +211,10 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
     #endif
 
   } else {
-#if CFG_TUSB_MCU != OPT_MCU_STM32U5
+#if CFG_TUSB_MCU != OPT_MCU_STM32U5 && CFG_TUSB_MCU != OPT_MCU_STM32WBA
     // Disable FS PHY, TODO on U5A5 (dwc2 4.11a) 16th bit is 'Host CDP behavior enable'
     dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
 #endif
-
     // Enable on-chip HS PHY
     if (hs_phy_type == GHWCFG2_HSPHY_UTMI || hs_phy_type == GHWCFG2_HSPHY_UTMI_ULPI) {
       #ifdef USB_HS_PHYC
@@ -233,6 +249,9 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 
       // Enable PLL internal PHY
       USB_HS_PHYC->USB_HS_PHYC_PLL |= USB_HS_PHYC_PLL_PLLEN;
+
+      // Wait ~2ms until the PLL is ready (there's no RDY bit to query)
+      tusb_time_delay_ms_api(2);
       #else
 
       #endif

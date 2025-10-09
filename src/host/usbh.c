@@ -88,6 +88,19 @@ TU_ATTR_WEAK bool hcd_dcache_clean_invalidate(const void* addr, uint32_t data_si
   return false;
 }
 
+TU_ATTR_WEAK usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count) {
+  *driver_count = 0;
+  return NULL;
+}
+
+TU_ATTR_WEAK void tuh_mount_cb(uint8_t daddr) {
+  (void) daddr;
+}
+
+TU_ATTR_WEAK void tuh_umount_cb(uint8_t daddr) {
+  (void) daddr;
+}
+
 //--------------------------------------------------------------------+
 // Data Structure
 //--------------------------------------------------------------------+
@@ -400,7 +413,7 @@ bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t* desc_dev
 tusb_speed_t tuh_speed_get(uint8_t daddr) {
   tuh_bus_info_t bus_info;
   tuh_bus_info_get(daddr, &bus_info);
-  return bus_info.speed;
+  return (tusb_speed_t)bus_info.speed;
 }
 
 bool tuh_rhport_is_active(uint8_t rhport) {
@@ -481,9 +494,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
 
     // Get application driver if available
-    if (usbh_app_driver_get_cb) {
-      _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
-    }
+    _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
 
     // Device
     tu_memclr(_usbh_devices, sizeof(_usbh_devices));
@@ -651,7 +662,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
               tuh_xfer_t xfer = {
                   .daddr       = event.dev_addr,
                   .ep_addr     = ep_addr,
-                  .result      = event.xfer_complete.result,
+                  .result      = (xfer_result_t)event.xfer_complete.result,
                   .actual_len  = event.xfer_complete.len,
                   .buflen      = 0,    // not available
                   .buffer      = NULL, // not available
@@ -832,18 +843,19 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
           }
           TU_ATTR_FALLTHROUGH;
 
-        case CONTROL_STAGE_DATA:
-          if (request->wLength) {
-            TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, daddr);
-            TU_LOG_MEM_USBH(ctrl_info->buffer, xferred_bytes, 2);
-          }
-          ctrl_info->actual_len = (uint16_t) xferred_bytes;
+        case CONTROL_STAGE_DATA: {
+            if (request->wLength) {
+              TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, daddr);
+              TU_LOG_MEM_USBH(ctrl_info->buffer, xferred_bytes, 2);
+            }
+            ctrl_info->actual_len = (uint16_t) xferred_bytes;
 
-          // ACK stage: toggle is always 1
-          _control_set_xfer_stage(CONTROL_STAGE_ACK);
-          const uint8_t ep_status = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
-          TU_ASSERT(hcd_edpt_xfer(rhport, daddr, ep_status, NULL, 0));
-          break;
+            // ACK stage: toggle is always 1
+            _control_set_xfer_stage(CONTROL_STAGE_ACK);
+            const uint8_t ep_status = tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction);
+            TU_ASSERT(hcd_edpt_xfer(rhport, daddr, ep_status, NULL, 0));
+            break;
+          }
 
         case CONTROL_STAGE_ACK: {
           // Abort all pending transfers if SET_CONFIGURATION request
@@ -1318,9 +1330,7 @@ static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub
         #endif
         {
           // Invoke callback before closing driver (maybe call it later ?)
-          if (tuh_umount_cb) {
-            tuh_umount_cb(daddr);
-          }
+          tuh_umount_cb(daddr);
         }
 
         // Close class driver
@@ -1909,9 +1919,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
       TU_LOG_USBH("HUB address = %u is mounted\r\n", dev_addr);
     }else {
       // Invoke callback if available
-      if (tuh_mount_cb) {
-        tuh_mount_cb(dev_addr);
-      }
+      tuh_mount_cb(dev_addr);
     }
   }
 }

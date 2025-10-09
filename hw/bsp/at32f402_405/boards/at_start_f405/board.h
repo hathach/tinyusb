@@ -48,7 +48,7 @@
 // Button
 #define BUTTON_PORT           GPIOA
 #define BUTTON_PIN            GPIO_PINS_0
-#define BUTTON_STATE_ACTIVE   0
+#define BUTTON_STATE_ACTIVE   1
 #define BUTTON_GPIO_CLK_EN()  crm_periph_clock_enable(CRM_GPIOA_PERIPH_CLOCK, TRUE)
 
 //USART
@@ -60,111 +60,11 @@
 #define PRINT_UART_TX_PIN_SOURCE         GPIO_PINS_SOURCE9
 #define PRINT_UART_TX_PIN_MUX_NUM        GPIO_MUX_7
 
-//USB
-#ifdef BOARD_TUD_RHPORT
-    #if BOARD_TUD_RHPORT == 0
-        #define USB_ID                           USB_OTG1_ID
-        #define OTG_CLOCK                        CRM_OTGFS1_PERIPH_CLOCK
-        #define OTG_IRQ                          OTGFS1_IRQn
-        #define OTG_IRQ_HANDLER                  OTGFS1_IRQHandler
-        #define OTG_WKUP_IRQ                     OTGFS1_WKUP_IRQn
-        #define OTG_WKUP_HANDLER                 OTGFS1_WKUP_IRQHandler
-        #define OTG_WKUP_EXINT_LINE              EXINT_LINE_18
-        #define OTG_PIN_GPIO                     GPIOA
-        #define OTG_PIN_GPIO_CLOCK               CRM_GPIOA_PERIPH_CLOCK
-        #define OTG_PIN_VBUS                     GPIO_PINS_9
-        #define OTG_PIN_VBUS_SOURCE              GPIO_PINS_SOURCE9
-        #define OTG_PIN_ID                       GPIO_PINS_10
-        #define OTG_PIN_ID_SOURCE                GPIO_PINS_SOURCE10
-        #define OTG_PIN_SOF_GPIO                 GPIOA
-        #define OTG_PIN_SOF_GPIO_CLOCK           CRM_GPIOA_PERIPH_CLOCK
-        #define OTG_PIN_SOF                      GPIO_PINS_8
-        #define OTG_PIN_SOF_SOURCE               GPIO_PINS_SOURCE8
-        #define OTG_PIN_MUX                      GPIO_MUX_10
-        #define USB_SPEED_CORE_ID                USB_FULL_SPEED_CORE_ID
-    #elif BOARD_TUD_RHPORT == 1
-        #define USB_ID                           USB_OTG2_ID
-        #define OTG_CLOCK                        CRM_OTGHS_PERIPH_CLOCK
-        #define OTG_IRQ                          OTGHS_IRQn
-        #define OTG_IRQ_HANDLER                  OTGHS_IRQHandler
-        #define OTG_WKUP_IRQ                     OTGHS_WKUP_IRQn
-        #define OTG_WKUP_HANDLER                 OTGHS_WKUP_IRQHandler
-        #define OTG_WKUP_EXINT_LINE              EXINT_LINE_20
-        #define OTG_PIN_GPIO                     GPIOB
-        #define OTG_PIN_GPIO_CLOCK               CRM_GPIOB_PERIPH_CLOCK
-        #define OTG_PIN_VBUS                     GPIO_PINS_13
-        #define OTG_PIN_VBUS_SOURCE              GPIO_PINS_SOURCE13
-        #define OTG_PIN_ID                       GPIO_PINS_12
-        #define OTG_PIN_ID_SOURCE                GPIO_PINS_SOURCE12
-        #define OTG_PIN_SOF_GPIO                 GPIOA
-        #define OTG_PIN_SOF_GPIO_CLOCK           CRM_GPIOA_PERIPH_CLOCK
-        #define OTG_PIN_SOF                      GPIO_PINS_4
-        #define OTG_PIN_SOF_SOURCE               GPIO_PINS_SOURCE4
-        #define OTG_PIN_MUX                      GPIO_MUX_10
-        #define USB_SPEED_CORE_ID                USB_HIGH_SPEED_CORE_ID
-    #endif
-#endif
-#ifdef BOARD_TUH_RHPORT
-    #if BOARD_TUH_RHPORT == 0
-        #define USB_ID                           USB_OTG1_ID
-        #define OTG_CLOCK                        CRM_OTGFS1_PERIPH_CLOCK
-        #define OTG_IRQ                          OTGFS1_IRQn
-        #define OTG_IRQ_HANDLER                  OTGFS1_IRQHandler
-        #define OTG_WKUP_IRQ                     OTGFS1_WKUP_IRQn
-        #define OTG_WKUP_HANDLER                 OTGFS1_WKUP_IRQHandler
-        #define OTG_WKUP_EXINT_LINE              EXINT_LINE_18
-        #define OTG_PIN_GPIO                     GPIOA
-        #define OTG_PIN_GPIO_CLOCK               CRM_GPIOA_PERIPH_CLOCK
-        #define OTG_PIN_VBUS                     GPIO_PINS_9
-        #define OTG_PIN_VBUS_SOURCE              GPIO_PINS_SOURCE9
-        #define OTG_PIN_ID                       GPIO_PINS_10
-        #define OTG_PIN_ID_SOURCE                GPIO_PINS_SOURCE10
-        #define OTG_PIN_SOF_GPIO                 GPIOA
-        #define OTG_PIN_SOF_GPIO_CLOCK           CRM_GPIOA_PERIPH_CLOCK
-        #define OTG_PIN_SOF                      GPIO_PINS_8
-        #define OTG_PIN_SOF_SOURCE               GPIO_PINS_SOURCE8
-        #define OTG_PIN_MUX                      GPIO_MUX_10
-        #define USB_SPEED_CORE_ID                USB_FULL_SPEED_CORE_ID
-    #elif BOARD_TUH_RHPORT == 1
-        #define USB_ID                           USB_OTG2_ID
-        #define OTG_CLOCK                        CRM_OTGHS_PERIPH_CLOCK
-        #define OTG_IRQ                          OTGHS_IRQn
-        #define OTG_IRQ_HANDLER                  OTGHS_IRQHandler
-        #define OTG_WKUP_IRQ                     OTGHS_WKUP_IRQn
-        #define OTG_WKUP_HANDLER                 OTGHS_WKUP_IRQHandler
-        #define OTG_WKUP_EXINT_LINE              EXINT_LINE_20
-        #define OTG_PIN_GPIO                     GPIOB
-        #define OTG_PIN_GPIO_CLOCK               CRM_GPIOB_PERIPH_CLOCK
-        #define OTG_PIN_VBUS                     GPIO_PINS_13
-        #define OTG_PIN_VBUS_SOURCE              GPIO_PINS_SOURCE13
-        #define OTG_PIN_ID                       GPIO_PINS_12
-        #define OTG_PIN_ID_SOURCE                GPIO_PINS_SOURCE12
-        #define OTG_PIN_SOF_GPIO                 GPIOA
-        #define OTG_PIN_SOF_GPIO_CLOCK           CRM_GPIOA_PERIPH_CLOCK
-        #define OTG_PIN_SOF                      GPIO_PINS_4
-        #define OTG_PIN_SOF_SOURCE               GPIO_PINS_SOURCE4
-        #define OTG_PIN_MUX                      GPIO_MUX_10
-        #define USB_SPEED_CORE_ID                USB_HIGH_SPEED_CORE_ID
-    #endif
-#endif
-
 //Vbus
 static inline void board_vbus_sense_init(void)
 {
-    #ifdef BOARD_TUD_RHPORT
-        #if BOARD_TUD_RHPORT == 0
-            *(int*)(0x50000038) |= (1<<21);
-        #elif BOARD_TUD_RHPORT == 1
-            *(int*)(0x40040038) |= (1<<21);
-        #endif
-    #endif
-    #ifdef BOARD_TUH_RHPORT
-        #if BOARD_TUH_RHPORT == 0
-            *(int*)(0x50000038) |= (1<<21);
-        #elif BOARD_TUH_RHPORT == 1
-            *(int*)(0x40040038) |= (1<<21);
-        #endif
-    #endif
+    *(int*)(0x50000038) |= (1<<21);
+    *(int*)(0x40040038) |= (1<<21);
 }
 
 #ifdef __cplusplus

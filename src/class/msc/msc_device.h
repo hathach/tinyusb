@@ -128,30 +128,30 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 /*------------- Optional callbacks -------------*/
 
 // Invoked when received GET_MAX_LUN request, required for multiple LUNs implementation
-TU_ATTR_WEAK uint8_t tud_msc_get_maxlun_cb(void);
+uint8_t tud_msc_get_maxlun_cb(void);
 
 // Invoked when received Start Stop Unit command
 // - Start = 0 : stopped power mode, if load_eject = 1 : unload disk storage
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
-TU_ATTR_WEAK bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject);
+bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject);
 
 //Invoked when we receive the Prevent / Allow Medium Removal command
-TU_ATTR_WEAK bool tud_msc_prevent_allow_medium_removal_cb(uint8_t lun, uint8_t prohibit_removal, uint8_t control);
+bool tud_msc_prevent_allow_medium_removal_cb(uint8_t lun, uint8_t prohibit_removal, uint8_t control);
 
 // Invoked when received REQUEST_SENSE
-TU_ATTR_WEAK int32_t tud_msc_request_sense_cb(uint8_t lun, void* buffer, uint16_t bufsize);
+int32_t tud_msc_request_sense_cb(uint8_t lun, void* buffer, uint16_t bufsize);
 
 // Invoked when Read10 command is complete
-TU_ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t lun);
+void tud_msc_read10_complete_cb(uint8_t lun);
 
 // Invoke when Write10 command is complete, can be used to flush flash caching
-TU_ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t lun);
+void tud_msc_write10_complete_cb(uint8_t lun);
 
 // Invoked when command in tud_msc_scsi_cb is complete
-TU_ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[16]);
+void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[16]);
 
 // Invoked to check if device is writable as part of SCSI WRITE10
-TU_ATTR_WEAK bool tud_msc_is_writable_cb(uint8_t lun);
+bool tud_msc_is_writable_cb(uint8_t lun);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

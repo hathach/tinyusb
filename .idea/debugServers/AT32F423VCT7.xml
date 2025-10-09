@@ -1,0 +1,13 @@
+<component name="DebugServers">
+  <jlink-debug-target name="AT32F423VCT7" uniqueID="de4ea1de-6dcf-413e-a21f-aaeaeb0f3dbc">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
+    <console port="19021" />
+    <target device="AT32F423VCT7" reset-before="false" frequency="16000" />
+    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <swo />
+  </jlink-debug-target>
+</component>

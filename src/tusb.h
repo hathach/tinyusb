@@ -88,6 +88,10 @@
     #include "class/msc/msc_device.h"
   #endif
 
+  #if CFG_TUD_MTP
+    #include "class/mtp/mtp_device.h"
+  #endif
+
   #if CFG_TUD_AUDIO
     #include "class/audio/audio_device.h"
   #endif
@@ -169,16 +173,6 @@ bool tusb_deinit(uint8_t rhport);
 #define tusb_deinit(...) (false)
 
 #endif
-
-//--------------------------------------------------------------------+
-// API Implemented by user
-//--------------------------------------------------------------------+
-
-// Get current milliseconds, required by some port/configuration without RTOS
-uint32_t tusb_time_millis_api(void);
-
-// Delay in milliseconds, use tusb_time_millis_api() by default. required by some port/configuration with no RTOS
-void tusb_time_delay_ms_api(uint32_t ms);
 
 #ifdef __cplusplus
  }

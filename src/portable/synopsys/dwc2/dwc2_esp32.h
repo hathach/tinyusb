@@ -47,6 +47,23 @@ static const dwc2_controller_t _dwc2_controller[] = {
   { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .ep_fifo_size = 1024 }
 };
 
+#elif TU_CHECK_MCU(OPT_MCU_ESP32H4)
+// H4's USB_WRAP register block uses "wrap_*" field names. Map them to the
+// names used by TinyUSB's DWC2 port to keep the source unchanged.
+#define otg_conf                wrap_otg_conf
+#define pad_pull_override       wrap_pad_pull_override
+#define dp_pullup               wrap_dp_pullup
+#define dp_pulldown             wrap_dp_pulldown
+#define dm_pullup               wrap_dm_pullup
+#define dm_pulldown             wrap_dm_pulldown
+
+#define DWC2_FS_REG_BASE   0x60040000UL
+#define DWC2_EP_MAX        7
+
+static const dwc2_controller_t _dwc2_controller[] = {
+  { .reg_base = DWC2_FS_REG_BASE, .irqnum = ETS_USB_OTG11_INTR_SOURCE, .ep_count = 7, .ep_in_count = 5, .ep_fifo_size = 1024 }
+};
+
 #elif TU_CHECK_MCU(OPT_MCU_ESP32P4)
 #define DWC2_FS_REG_BASE   0x50040000UL
 #define DWC2_HS_REG_BASE   0x50000000UL
