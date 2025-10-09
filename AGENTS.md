@@ -30,6 +30,9 @@
 ## Claude Agent Notes (`CLAUDE.md`)
 - Default to CMake+Ninja for builds, but align with Make workflows when users rely on legacy scripts; provide DEBUG/LOG/LOGGER knobs consistently.
 - Highlight dependency helpers (`tools/get_deps.py rp2040`) and reference core locations: `src/`, `hw/`, `examples/`, `test/`.
-- Enforce code quality: clang-format on touched files, TU_ASSERT for fallible calls, header comments retaining MIT notice, and descriptive comments for non-trivial code paths.
+- Run `clang-format` on all touched files to ensure consistent formatting.
+- Use `TU_ASSERT` for all fallible calls to enforce runtime checks.
+- Ensure header comments retain the MIT license notice.
+- Add descriptive comments for non-trivial code paths to aid maintainability.
 - Release flow primer: bump `tools/make_release.py` version, run the script (updates `src/tusb_option.h`, `repository.yml`, `library.json`), refresh `docs/info/changelog.rst`, then tag.
 - Testing reminders: Ceedling full or targeted runs, specify board/OS context, and ensure logging of manual hardware outcomes when available.
