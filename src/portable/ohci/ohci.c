@@ -571,20 +571,18 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 //--------------------------------------------------------------------+
 // OHCI Interrupt Handler
 //--------------------------------------------------------------------+
-static ohci_td_item_t* list_reverse(ohci_td_item_t* td_head)
-{
-  ohci_td_item_t* td_reverse_head = NULL;
+TU_ATTR_ALWAYS_INLINE static inline bool is_itd(ohci_td_item_t* item) {
+  (void) item;
+  return false; // ISO not supported yet
+}
 
-  while(td_head != NULL)
-  {
+static ohci_td_item_t* list_reverse(ohci_td_item_t* td_head) {
+  ohci_td_item_t* td_reverse_head = NULL;
+  while(td_head != NULL) {
     td_head = _virt_addr(td_head);
-    // FIXME: This is not the correct object size.
-    // However, because we have hardcoded the assumption that
-    // a cache line is at least 32 bytes (in ohci.h), and
-    // because both types of TD structs are <= 32 bytes, this
-    // nonetheless still works without error.
-    hcd_dcache_invalidate(td_head, sizeof(ohci_td_item_t));
-    uint32_t next = td_head->next;
+    const uint32_t item_size = is_itd(td_head) ? sizeof(ohci_itd_t) : sizeof(ohci_gtd_t);
+    hcd_dcache_invalidate(td_head, item_size);
+    const uint32_t next = td_head->next;
 
     // make current's item become reverse's first item
     td_head->next = (uint32_t) td_reverse_head;

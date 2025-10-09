@@ -48,6 +48,10 @@ enum {
 // tinyUSB's OHCI implementation caps number of EDs to 8 bits
 TU_VERIFY_STATIC (ED_MAX <= 256, "Reduce CFG_TUH_DEVICE_MAX or CFG_TUH_ENDPOINT_MAX");
 
+#define GTD_ALIGN_SIZE TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16)
+#define ED_ALIGN_SIZE  TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16)
+#define ITD_ALIGN_SIZE TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 32)
+
 //--------------------------------------------------------------------+
 // OHCI Data Structure
 //--------------------------------------------------------------------+
@@ -81,17 +85,15 @@ TU_VERIFY_STATIC( sizeof(ohci_hcca_t) == 256, "size is not correct" );
 // This ends up being impossible to guarantee, so we choose a design which avoids the situation entirely.
 
 // common link item for gtd and itd for list travel
-// use as pointer only
 typedef struct TU_ATTR_ALIGNED(16) {
   uint32_t reserved[2];
   volatile uint32_t next;
   uint32_t reserved2;
 }ohci_td_item_t;
 
-typedef struct TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16))
-{
-	// Word 0
-	uint32_t used                    : 1;
+typedef struct TU_ATTR_ALIGNED(GTD_ALIGN_SIZE) {
+  // Word 0
+  uint32_t used                    : 1;
   uint32_t index                   : 8; // endpoint index the gtd belongs to, or device address in case of control xfer
   uint32_t                         : 9; // can be used
   uint32_t buffer_rounding         : 1;
@@ -101,16 +103,16 @@ typedef struct TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16))
   volatile uint32_t error_count    : 2;
   volatile uint32_t condition_code : 4;
 
-	// Word 1
-	uint8_t* volatile current_buffer_pointer;
+  // Word 1
+  uint8_t* volatile current_buffer_pointer;
 
-	// Word 2 : next TD
-	volatile uint32_t next;
+  // Word 2 : next TD
+  volatile uint32_t next;
 
-	// Word 3
-	uint8_t* buffer_end;
+  // Word 3
+  uint8_t* buffer_end;
 } ohci_gtd_t;
-TU_VERIFY_STATIC(sizeof(ohci_gtd_t) == TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE,16), "size is not correct" );
+TU_VERIFY_STATIC(sizeof(ohci_gtd_t) == GTD_ALIGN_SIZE, "size is not correct" );
 
 typedef union {
   struct {
@@ -140,17 +142,16 @@ typedef union {
 } ohci_ed_word2_t;
 TU_VERIFY_STATIC(sizeof(ohci_ed_word2_t) == 4, "size is not correct" );
 
-typedef struct TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16)) {
+typedef struct TU_ATTR_ALIGNED(ED_ALIGN_SIZE) {
   ohci_ed_word0_t w0; // Word 0
   uint32_t td_tail; // Word 1
   volatile ohci_ed_word2_t td_head; // Word 2
   uint32_t next; // Word 3
 } ohci_ed_t;
-TU_VERIFY_STATIC(sizeof(ohci_ed_t) == TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 16), "size is not correct" );
+TU_VERIFY_STATIC(sizeof(ohci_ed_t) == ED_ALIGN_SIZE, "size is not correct" );
 
-typedef struct TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 32))
-{
-	/*---------- Word 1 ----------*/
+typedef struct TU_ATTR_ALIGNED(ITD_ALIGN_SIZE) {
+  /*---------- Word 1 ----------*/
   uint32_t starting_frame          : 16;
   uint32_t                         : 5; // can be used
   uint32_t delay_interrupt         : 3;
@@ -158,20 +159,20 @@ typedef struct TU_ATTR_ALIGNED(TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 32))
   uint32_t                         : 1; // can be used
   volatile uint32_t condition_code : 4;
 
-	/*---------- Word 2 ----------*/
-	uint32_t buffer_page0;	// 12 lsb bits can be used
 
-	/*---------- Word 3 ----------*/
-	volatile uint32_t next;
+  /*---------- Word 2 ----------*/
+  uint32_t buffer_page0; // 12 lsb bits can be used
 
-	/*---------- Word 4 ----------*/
-	uint32_t buffer_end;
+  /*---------- Word 3 ----------*/
+  volatile uint32_t next;
 
-	/*---------- Word 5-8 ----------*/
-	volatile uint16_t offset_packetstatus[8];
-} ochi_itd_t;
+  /*---------- Word 4 ----------*/
+  uint32_t buffer_end;
 
-TU_VERIFY_STATIC(sizeof(ochi_itd_t) == TU_MAX(CFG_TUH_MEM_DCACHE_LINE_SIZE, 32), "size is not correct" );
+  /*---------- Word 5-8 ----------*/
+  volatile uint16_t offset_packetstatus[8];
+} ohci_itd_t;
+TU_VERIFY_STATIC(sizeof(ohci_itd_t) == ITD_ALIGN_SIZE, "size is not correct" );
 
 typedef struct {
   uint16_t expected_bytes; // up to 8192 bytes so max is 13 bits
