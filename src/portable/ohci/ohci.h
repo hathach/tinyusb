@@ -192,10 +192,10 @@ typedef struct TU_ATTR_ALIGNED(256) {
 //--------------------------------------------------------------------+
 typedef volatile struct
 {
-  uint32_t revision;
+  uint32_t revision;                               // 0x00
 
   union {
-    uint32_t control;
+    uint32_t control;                              // 0x04
     struct {
       uint32_t control_bulk_service_ratio : 2;
       uint32_t periodic_list_enable       : 1;
@@ -211,7 +211,7 @@ typedef volatile struct
   };
 
   union {
-    uint32_t command_status;
+    uint32_t command_status;                       // 0x08
     struct {
       uint32_t controller_reset         : 1;
       uint32_t control_list_filled      : 1;
@@ -222,26 +222,24 @@ typedef volatile struct
     }command_status_bit;
   };
 
-  uint32_t interrupt_status;
-  uint32_t interrupt_enable;
-  uint32_t interrupt_disable;
-
-  uint32_t hcca;
-  uint32_t period_current_ed;
-  uint32_t control_head_ed;
-  uint32_t control_current_ed;
-  uint32_t bulk_head_ed;
-  uint32_t bulk_current_ed;
-  uint32_t done_head;
-
-  uint32_t frame_interval;
-  uint32_t frame_remaining;
-  uint32_t frame_number;
-  uint32_t periodic_start;
-  uint32_t lowspeed_threshold;
+  uint32_t interrupt_status;                       // 0x0C
+  uint32_t interrupt_enable;                       // 0x10
+  uint32_t interrupt_disable;                      // 0x14
+  uint32_t hcca;                                   // 0x18
+  uint32_t period_current_ed;                      // 0x1C
+  uint32_t control_head_ed;                        // 0x20
+  uint32_t control_current_ed;                     // 0x24
+  uint32_t bulk_head_ed;                           // 0x28
+  uint32_t bulk_current_ed;                        // 0x2C
+  uint32_t done_head;                              // 0x30
+  uint32_t frame_interval;                         // 0x34
+  uint32_t frame_remaining;                        // 0x38
+  uint32_t frame_number;                           // 0x3C
+  uint32_t periodic_start;                         // 0x40
+  uint32_t lowspeed_threshold;                     // 0x44
 
   union {
-    uint32_t rh_descriptorA;
+    uint32_t rh_descriptorA;                       // 0x48
     struct {
       uint32_t number_downstream_ports     : 8;
       uint32_t power_switching_mode        : 1;
@@ -255,7 +253,7 @@ typedef volatile struct
   };
 
   union {
-    uint32_t rh_descriptorB;
+    uint32_t rh_descriptorB;                       // 0x4C
     struct {
       uint32_t device_removable        : 16;
       uint32_t port_power_control_mask : 16;
@@ -263,9 +261,9 @@ typedef volatile struct
   };
 
   union {
-    uint32_t rh_status;
+    uint32_t rh_status;                            // 0x50
     struct {
-      uint32_t local_power_status            : 1; // read Local Power Status; write: Clear Global Power
+      uint32_t local_power_status            : 1;  // read Local Power Status; write: Clear Global Power
       uint32_t over_current_indicator        : 1;
       uint32_t                               : 13;
       uint32_t device_remote_wakeup_enable   : 1;
@@ -277,7 +275,8 @@ typedef volatile struct
   };
 
   union {
-    uint32_t rhport_status[TUP_OHCI_RHPORTS];
+    uint32_t rhport_status[TUP_OHCI_RHPORTS];      // 0x54
+
     struct {
       uint32_t current_connect_status             : 1;
       uint32_t port_enable_status                 : 1;
