@@ -482,6 +482,10 @@
   #define CFG_TUD_ENDPOINT0_SIZE  64
 #endif
 
+#ifndef CFG_TUD_EP0_BUFSIZE
+  #define CFG_TUD_EP0_BUFSIZE  CFG_TUD_ENDPOINT0_SIZE
+#endif
+
 #ifndef CFG_TUD_INTERFACE_MAX
   #define CFG_TUD_INTERFACE_MAX   16
 #endif
