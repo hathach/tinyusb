@@ -335,7 +335,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
 
   // EP0 is limited to one packet per xfer
   if (epnum == 0) {
-    total_bytes = tu_min16(_dcd_data.ep0_pending[dir], xfer->max_size);
+    total_bytes = tu_min16(_dcd_data.ep0_pending[dir], CFG_TUD_ENDPOINT0_SIZE);
     _dcd_data.ep0_pending[dir] -= total_bytes;
     num_packets = 1;
   } else {
@@ -373,12 +373,29 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     }
     dep->diepdma = (uintptr_t) xfer->buffer;
     dep->diepctl = depctl.value; // enable endpoint
+    // Advance buffer pointer for EP0
+    if (epnum == 0) {
+      xfer->buffer += total_bytes;
+    }
   } else {
     dep->diepctl = depctl.value; // enable endpoint
 
     // Enable tx fifo empty interrupt only if there is data. Note must after depctl enable
     if (dir == TUSB_DIR_IN && total_bytes != 0) {
-      dwc2->diepempmsk |= (1 << epnum);
+      // For num_packets = 1 we write the packet directly
+      if (num_packets == 1) {
+        // Push packet to Tx-FIFO
+        if (xfer->ff) {
+          volatile uint32_t* tx_fifo = dwc2->fifo[epnum];
+          tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*)(uintptr_t)tx_fifo, total_bytes);
+        } else {
+          dfifo_write_packet(dwc2, epnum, xfer->buffer, total_bytes);
+          xfer->buffer += total_bytes;
+        }
+      } else {
+        // Enable TXFE interrupt for multi-packet transfer
+        dwc2->diepempmsk |= (1 << epnum);
+      }
     }
   }
 }
@@ -820,7 +837,6 @@ static void handle_rxflvl_irq(uint8_t rhport) {
           const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
           xfer->total_len -= tsiz.xfer_size;
           if (epnum == 0) {
-            xfer->total_len -= _dcd_data.ep0_pending[TUSB_DIR_OUT];
             _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
           }
         }
