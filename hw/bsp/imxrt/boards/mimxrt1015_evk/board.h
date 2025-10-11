@@ -53,4 +53,7 @@
 #define UART_RX_PINMUX        IOMUXC_GPIO_AD_B0_07_LPUART1_RX
 #define UART_TX_PINMUX        IOMUXC_GPIO_AD_B0_06_LPUART1_TX
 
+static inline void BOARD_ConfigMPU(void) {
+}
+
 #endif

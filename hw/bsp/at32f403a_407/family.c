@@ -29,8 +29,8 @@
 */
 
 #include "at32f403a_407_clock.h"
-#include "board.h"
 #include "bsp/board_api.h"
+#include "board.h"
 
 void usb_clock48m_select(usb_clk48_s clk_s);
 void uart_print_init(uint32_t baudrate);
@@ -198,7 +198,7 @@ void board_led_write(bool state) {
 }
 
 uint32_t board_button_read(void) {
-  return gpio_input_data_bit_read(BUTTON_PORT, BUTTON_PIN);
+  return gpio_input_data_bit_read(BUTTON_PORT, BUTTON_PIN) == BUTTON_STATE_ACTIVE;
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {

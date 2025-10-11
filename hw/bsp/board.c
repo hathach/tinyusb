@@ -141,6 +141,26 @@ __strong_reference(stdin, stderr);
 #endif
 
 //--------------------------------------------------------------------+
+// Weak board API (to be optionally implemented by board)
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK size_t board_get_unique_id(uint8_t id[], size_t max_len) {
+  (void) max_len;
+  // fixed serial string is 01234567889ABCDEF
+  uint32_t* uid32 = (uint32_t*) (uintptr_t)id;
+  uid32[0] = 0x67452301;
+  uid32[1] = 0xEFCDAB89;
+  return 8;
+}
+
+TU_ATTR_WEAK void board_init_after_tusb(void) {
+  // nothing to do
+}
+
+TU_ATTR_WEAK void board_reset_to_bootloader(void) {
+  // not implemented
+}
+
+//--------------------------------------------------------------------+
 // Board API
 //--------------------------------------------------------------------+
 int board_getchar(void) {

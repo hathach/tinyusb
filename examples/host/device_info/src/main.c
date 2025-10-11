@@ -89,9 +89,7 @@ static void init_tinyusb(void) {
   };
   tusb_init(BOARD_TUH_RHPORT, &host_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 }
 
 int main(void) {

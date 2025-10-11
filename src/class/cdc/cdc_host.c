@@ -392,6 +392,25 @@ static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t cons
 static bool open_ep_stream_pair(cdch_interface_t * p_cdc , tusb_desc_endpoint_t const *desc_ep);
 
 //--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tuh_cdc_mount_cb(uint8_t idx) {
+  (void) idx;
+}
+
+TU_ATTR_WEAK void tuh_cdc_umount_cb(uint8_t idx) {
+  (void) idx;
+}
+
+TU_ATTR_WEAK void tuh_cdc_rx_cb(uint8_t idx) {
+  (void) idx;
+}
+
+TU_ATTR_WEAK void tuh_cdc_tx_complete_cb(uint8_t idx) {
+  (void) idx;
+}
+
+//--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
 
@@ -657,9 +676,7 @@ void cdch_close(uint8_t daddr) {
       TU_LOG_CDC(p_cdc, "close");
 
       // Invoke application callback
-      if (tuh_cdc_umount_cb) {
-        tuh_cdc_umount_cb(idx);
-      }
+      tuh_cdc_umount_cb(idx);
 
       p_cdc->daddr = 0;
       p_cdc->bInterfaceNumber = 0;
@@ -680,9 +697,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 
   if (ep_addr == p_cdc->stream.tx.ep_addr) {
     // invoke tx complete callback to possibly refill tx fifo
-    if (tuh_cdc_tx_complete_cb) {
-      tuh_cdc_tx_complete_cb(idx);
-    }
+    tuh_cdc_tx_complete_cb(idx);
 
     if (0 == tu_edpt_stream_write_xfer(daddr, &p_cdc->stream.tx)) {
       // If there is no data left, a ZLP should be sent if:
@@ -697,18 +712,14 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
       if (xferred_bytes > 2) {
         tu_edpt_stream_read_xfer_complete_with_buf(&p_cdc->stream.rx, p_cdc->stream.rx.ep_buf + 2, xferred_bytes - 2);
 
-        if (tuh_cdc_rx_cb) {
-          tuh_cdc_rx_cb(idx); // invoke receive callback
-        }
+        tuh_cdc_rx_cb(idx); // invoke receive callback
       }
     } else
     #endif
     {
       tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
 
-      if (tuh_cdc_rx_cb) {
-        tuh_cdc_rx_cb(idx); // invoke receive callback
-      }
+      tuh_cdc_rx_cb(idx); // invoke receive callback
     }
 
     // prepare for next transfer if needed
@@ -794,9 +805,7 @@ static void set_config_complete(cdch_interface_t *p_cdc, bool success) {
   if (success) {
     const uint8_t idx = get_idx_by_ptr(p_cdc);
     p_cdc->mounted = true;
-    if (tuh_cdc_mount_cb) {
-      tuh_cdc_mount_cb(idx);
-    }
+    tuh_cdc_mount_cb(idx);
     // Prepare for incoming data
     tu_edpt_stream_read_xfer(p_cdc->daddr, &p_cdc->stream.rx);
   } else {

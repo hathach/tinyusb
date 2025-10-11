@@ -14,3 +14,4 @@ mcu:VALENTYUSB_EPTRI
 mcu:RAXXX
 family:broadcom_32bit
 family:broadcom_64bit
+board:stm32l0538disco

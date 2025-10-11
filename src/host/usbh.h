@@ -123,13 +123,13 @@ void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc
 bool tuh_enum_descriptor_configuration_cb(uint8_t daddr, uint8_t cfg_index, const tusb_desc_configuration_t *desc_config);
 
 // Invoked when a device is mounted (configured)
-TU_ATTR_WEAK void tuh_mount_cb (uint8_t daddr);
+void tuh_mount_cb (uint8_t daddr);
 
 // Invoked when a device failed to mount during enumeration process
-// TU_ATTR_WEAK void tuh_mount_failed_cb (uint8_t daddr);
+// void tuh_mount_failed_cb (uint8_t daddr);
 
 // Invoked when a device is unmounted (detached)
-TU_ATTR_WEAK void tuh_umount_cb(uint8_t daddr);
+void tuh_umount_cb(uint8_t daddr);
 
 // Invoked when there is a new usb event, which need to be processed by tuh_task()/tuh_task_ext()
 void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);

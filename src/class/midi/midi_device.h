@@ -116,9 +116,9 @@ static inline bool tud_midi_receive(uint8_t packet[4])
 }
 
 //--------------------------------------------------------------------+
-// Application Callback API (weak is optional)
+// Application Callback API (optional)
 //--------------------------------------------------------------------+
-TU_ATTR_WEAK void tud_midi_rx_cb(uint8_t itf);
+void tud_midi_rx_cb(uint8_t itf);
 
 //--------------------------------------------------------------------+
 // Inline Functions

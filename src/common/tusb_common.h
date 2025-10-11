@@ -35,6 +35,7 @@
 // Macros Helper
 //--------------------------------------------------------------------+
 #define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
+#define TU_FIELD_SIZE(_type, _field)  (sizeof(((_type *)0)->_field))
 #define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
 #define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
 #define TU_DIV_CEIL(n, d)     (((n) + (d) - 1) / (d))
@@ -78,19 +79,25 @@
 #include "tusb_debug.h"
 
 //--------------------------------------------------------------------+
-// Optional API implemented by application if needed
+// API implemented by application if needed
 // TODO move to a more obvious place/file
 //--------------------------------------------------------------------+
 
+// Get current milliseconds, required by some port/configuration without RTOS
+extern uint32_t tusb_time_millis_api(void);
+
+// Delay in milliseconds, use tusb_time_millis_api() by default. required by some port/configuration with no RTOS
+extern void tusb_time_delay_ms_api(uint32_t ms);
+
 // flush data cache
-TU_ATTR_WEAK extern void tusb_app_dcache_flush(uintptr_t addr, uint32_t data_size);
+extern void tusb_app_dcache_flush(uintptr_t addr, uint32_t data_size);
 
 // invalidate data cache
-TU_ATTR_WEAK extern void tusb_app_dcache_invalidate(uintptr_t addr, uint32_t data_size);
+extern void tusb_app_dcache_invalidate(uintptr_t addr, uint32_t data_size);
 
 // Optional physical <-> virtual address translation
-TU_ATTR_WEAK extern void* tusb_app_virt_to_phys(void *virt_addr);
-TU_ATTR_WEAK extern void* tusb_app_phys_to_virt(void *phys_addr);
+extern void* tusb_app_virt_to_phys(void *virt_addr);
+extern void* tusb_app_phys_to_virt(void *phys_addr);
 
 //--------------------------------------------------------------------+
 // Internal Inline Functions
@@ -162,8 +169,8 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_u16_high(uint16_t ui16) { return 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_u16_low (uint16_t ui16) { return TU_U16_LOW(ui16); }
 
 //------------- Bits -------------//
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_bit_set  (uint32_t value, uint8_t pos) { return value | TU_BIT(pos);                  }
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_bit_clear(uint32_t value, uint8_t pos) { return value & (~TU_BIT(pos));               }
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_bit_set  (uint32_t value, uint8_t pos) { return value | TU_BIT(pos); }
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_bit_clear(uint32_t value, uint8_t pos) { return value & (~TU_BIT(pos)); }
 TU_ATTR_ALWAYS_INLINE static inline bool     tu_bit_test (uint32_t value, uint8_t pos) { return (value & TU_BIT(pos)) ? true : false; }
 
 //------------- Min -------------//

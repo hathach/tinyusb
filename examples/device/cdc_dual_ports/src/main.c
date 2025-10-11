@@ -58,9 +58,7 @@ int main(void) {
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
   while (1) {
     tud_task(); // tinyusb device task
@@ -141,9 +139,7 @@ void tud_cdc_line_state_cb(uint8_t instance, bool dtr, bool rts) {
       cdc_line_coding_t coding;
       tud_cdc_get_line_coding(&coding);
       if (coding.bit_rate == 1200) {
-        if (board_reset_to_bootloader) {
-          board_reset_to_bootloader();
-        }
+        board_reset_to_bootloader();
       }
     }
   }

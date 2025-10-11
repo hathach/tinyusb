@@ -153,7 +153,7 @@ uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index)
 {
   (void) index; // for multiple configurations
 
-  // other speed config is basically configuration with type = OHER_SPEED_CONFIG
+  // other speed config is basically configuration with type = OTHER_SPEED_CONFIG
   memcpy(desc_other_speed_config, desc_configuration, CONFIG_TOTAL_LEN);
   desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
 
