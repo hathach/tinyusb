@@ -79,7 +79,6 @@ static inline void board_clock_init(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
@@ -125,6 +124,7 @@ static inline void board_clock_init(void)
   //
   // /** Configures CRS
   // */
+  // RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
   // RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
   // RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_USB;
   // RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
