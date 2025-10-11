@@ -90,7 +90,6 @@ function(family_configure_example TARGET RTOS)
   family_add_tinyusb(${TARGET} OPT_MCU_LPC40XX)
   target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/nxp/lpc17_40/dcd_lpc17_40.c
-    ${TOP}/src/portable/nxp/lpc17_40/hcd_lpc17_40.c
     ${TOP}/src/portable/ohci/ohci.c
     )
   target_link_libraries(${TARGET} PUBLIC board_${BOARD})

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019, Ha Thach (tinyusb.org)
+ * Copyright (c) 2025 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,26 +23,48 @@
  *
  * This file is part of the TinyUSB stack.
  */
+#ifndef TUSB_OHCI_NXP_H
+#define TUSB_OHCI_NXP_H
 
-#include "tusb_option.h"
-
-#if CFG_TUH_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
+#if TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
 
 #include "chip.h"
-#include "host/hcd.h"
-#include "host/usbh.h"
+#define OHCI_REG   ((ohci_registers_t *) LPC_USB_BASE)
 
-void hcd_int_enable(uint8_t rhport)
-{
-  (void) rhport;
+void hcd_int_enable(uint8_t rhport) {
+  (void)rhport;
   NVIC_EnableIRQ(USB_IRQn);
 }
 
-void hcd_int_disable(uint8_t rhport)
-{
-  (void) rhport;
+void hcd_int_disable(uint8_t rhport) {
+  (void)rhport;
   NVIC_DisableIRQ(USB_IRQn);
 }
+
+static void ohci_phy_init(uint8_t rhport) {
+  (void) rhport;
+}
+
+#else
+
+#include "fsl_device_registers.h"
+
+// for LPC55 USB0 controller
+#define OHCI_REG  ((ohci_registers_t *) USBFSH_BASE)
+
+static void ohci_phy_init(uint8_t rhport) {
+  (void) rhport;
+}
+
+void hcd_int_enable(uint8_t rhport) {
+  (void)rhport;
+  NVIC_EnableIRQ(USB0_IRQn);
+}
+
+void hcd_int_disable(uint8_t rhport) {
+  (void)rhport;
+  NVIC_DisableIRQ(USB0_IRQn);
+}
+#endif
 
 #endif
