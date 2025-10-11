@@ -50,7 +50,7 @@ To incorporate tinyusb to your project
 Examples
 --------
 
-For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API should be used. Most examples will work on most of `the supported boards <boards.rst>`_. Firstly we need to ``git clone`` if not already
+For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API should be used. Most examples will work on most of :doc:`the supported boards <boards>`. Firstly we need to ``git clone`` if not already
 
 .. code-block:: bash
 
@@ -77,7 +77,7 @@ The hardware code is located in ``hw/bsp`` folder, and is organized by family/bo
    $ cd examples/device/cdc_msc
    $ make BOARD=feather_nrf52840_express get-deps
 
-You only need to do this once per family. Check out `complete list of dependencies and their designated path here <dependencies.rst>`_
+You only need to do this once per family. Check out :doc:`complete list of dependencies and their designated path here <dependencies>`
 
 Build Examples
 ^^^^^^^^^^^^^^
@@ -178,7 +178,7 @@ By default log message is printed via on-board UART which is slow and take lots 
   * Pros: work with most if not all MCUs
   * Software viewer is JLink RTT Viewer/Client/Logger which is bundled with JLink driver package.
 
-* ``LOGGER=swo``\ : Use dedicated SWO pin of ARM Cortex SWD debug header.
+* ``LOGGER=swo`` : Use dedicated SWO pin of ARM Cortex SWD debug header.
 
   * Cons: only work with ARM Cortex MCUs minus M0
   * Pros: should be compatible with more debugger that support SWO.

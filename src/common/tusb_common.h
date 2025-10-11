@@ -35,6 +35,7 @@
 // Macros Helper
 //--------------------------------------------------------------------+
 #define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
+#define TU_FIELD_SIZE(_type, _field)  (sizeof(((_type *)0)->_field))
 #define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
 #define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
 #define TU_DIV_CEIL(n, d)     (((n) + (d) - 1) / (d))
@@ -108,20 +109,35 @@ extern void* tusb_app_phys_to_virt(void *phys_addr);
 
 // This is a backport of memset_s from c11
 TU_ATTR_ALWAYS_INLINE static inline int tu_memset_s(void *dest, size_t destsz, int ch, size_t count) {
-  // TODO may check if desst and src is not NULL
-  if ( count > destsz ) {
+  // Validate parameters
+  if (dest == NULL) {
     return -1;
   }
+
+  if (count > destsz) {
+    return -1;
+  }
+
   memset(dest, ch, count);
   return 0;
 }
 
 // This is a backport of memcpy_s from c11
 TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, const void *src, size_t count) {
-  // TODO may check if desst and src is not NULL
-  if ( count > destsz ) {
+  // Validate parameters
+  if (dest == NULL) {
     return -1;
   }
+
+  // For memcpy, src may be NULL only if count == 0. Reject otherwise.
+  if (src == NULL && count != 0) {
+    return -1;
+  }
+
+  if (count > destsz) {
+    return -1;
+  }
+
   memcpy(dest, src, count);
   return 0;
 }

@@ -28,6 +28,7 @@
 
 import argparse
 import os
+import random
 import re
 import sys
 import time
@@ -37,6 +38,9 @@ import json
 import glob
 from multiprocessing import Pool
 import fs
+import hashlib
+import ctypes
+from pymtp import MTP
 
 ENUM_TIMEOUT = 30
 
@@ -45,6 +49,7 @@ STATUS_FAILED = "\033[31mFailed\033[0m"
 STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
 verbose = False
+test_only = []
 
 WCH_RISCV_CONTENT = """
 adapter driver wlinke
@@ -131,6 +136,24 @@ def read_disk_file(uid, lun, fname):
         timeout -= 1
 
     assert timeout > 0, f'Storage {dev} not existed'
+    return None
+
+
+def open_mtp_dev(uid):
+    mtp = MTP()
+    # MTP seems to take a while to enumerate
+    timeout = 2*ENUM_TIMEOUT
+    while timeout > 0:
+        # run_cmd(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/")
+        for raw in mtp.detect_devices():
+            mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
+            if mtp.device:
+                sn = mtp.get_serialnumber().decode('utf-8')
+                #print(f'mtp serial = {sn}')
+                if sn == uid:
+                    return mtp
+        time.sleep(1)
+        timeout -= 1
     return None
 
 
@@ -456,7 +479,6 @@ def test_device_dfu(board):
 
 def test_device_dfu_runtime(board):
     uid = board['uid']
-
     # Wait device enum
     timeout = ENUM_TIMEOUT
     while timeout > 0:
@@ -491,6 +513,65 @@ def test_device_hid_composite_freertos(id):
     pass
 
 
+def test_device_mtp(board):
+    uid = board['uid']
+
+    # --- BEFORE: mute C-level stderr for libmtp vid/pid warnings ---
+    fd = sys.stderr.fileno()
+    _saved = os.dup(fd)
+    _null = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(_null, fd)
+
+    mtp = open_mtp_dev(uid)
+
+    # --- AFTER: restore stderr ---
+    os.dup2(_saved, fd)
+    os.close(_null)
+    os.close(_saved)
+
+    if mtp is None or mtp.device is None:
+        assert False, 'MTP device not found'
+
+    try:
+        assert b"TinyUSB" == mtp.get_manufacturer(), 'MTP wrong manufacturer'
+        assert b"MTP Example" == mtp.get_modelname(), 'MTP wrong model'
+        assert b'1.0' == mtp.get_deviceversion(), 'MTP wrong version'
+        assert b'TinyUSB MTP' == mtp.get_devicename(), 'MTP wrong device name'
+
+        # read and compare readme.txt and logo.png
+        f1_expect = b'TinyUSB MTP Filesystem example'
+        f2_md5_expect = '40ef23fc2891018d41a05d4a0d5f822f' # md5sum of logo.png
+        f1 = uid.encode("utf-8") + b'_file1'
+        f2 = uid.encode("utf-8") + b'_file2'
+        f3 = uid.encode("utf-8") + b'_file3'
+        mtp.get_file_to_file(1, f1)
+        with open(f1, 'rb') as file:
+            f1_data = file.read()
+            os.remove(f1)
+            assert f1_data == f1_expect, 'MTP file1 wrong data'
+        mtp.get_file_to_file(2, f2)
+        with open(f2, 'rb') as file:
+            f2_data = file.read()
+            os.remove(f2)
+            assert f2_md5_expect == hashlib.md5(f2_data).hexdigest(), 'MTP file2 wrong data'
+        # test send file
+        with open(f3, "wb") as file:
+            f3_data = os.urandom(random.randint(1024, 3*1024))
+            file.write(f3_data)
+            file.close()
+            fid = mtp.send_file_from_file(f3, b'file3')
+            f3_readback = f3 + b'_readback'
+            mtp.get_file_to_file(fid, f3_readback)
+            with open(f3_readback, 'rb') as f:
+                f3_rb_data = f.read()
+                os.remove(f3_readback)
+                assert f3_rb_data == f3_data, 'MTP file3 wrong data'
+            os.remove(f3)
+            mtp.delete_object(fid)
+    finally:
+        mtp.disconnect()
+
+
 # -------------------------------------------------------------
 # Main
 # -------------------------------------------------------------
@@ -503,6 +584,7 @@ device_tests = [
     'device/dfu_runtime',
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
+    'device/mtp'
 ]
 
 dual_tests = [
@@ -579,21 +661,24 @@ def test_board(board):
     # default to all tests
     test_list = []
 
-    if 'tests' in board:
-        board_tests = board['tests']
-        if 'device' in board_tests and board_tests['device'] == True:
-            test_list += list(device_tests)
-        if 'dual' in board_tests and board_tests['dual'] == True:
-            test_list += dual_tests
-        if 'host' in board_tests and board_tests['host'] == True:
-            test_list += host_test
-        if 'only' in board_tests:
-            test_list = board_tests['only']
-        if 'skip' in board_tests:
-            for skip in board_tests['skip']:
-                if skip in test_list:
-                    test_list.remove(skip)
-                    print(f'{name:25} {skip:30} ... Skip')
+    if len(test_only) > 0:
+        test_list = test_only
+    else:
+        if 'tests' in board:
+            board_tests = board['tests']
+            if 'device' in board_tests and board_tests['device'] == True:
+                test_list += list(device_tests)
+            if 'dual' in board_tests and board_tests['dual'] == True:
+                test_list += dual_tests
+            if 'host' in board_tests and board_tests['host'] == True:
+                test_list += host_test
+            if 'only' in board_tests:
+                test_list = board_tests['only']
+            if 'skip' in board_tests:
+                for skip in board_tests['skip']:
+                    if skip in test_list:
+                        test_list.remove(skip)
+                        print(f'{name:25} {skip:30} ... Skip')
 
     err_count = 0
     flags_on_list = [""]
@@ -615,6 +700,7 @@ def main():
     Hardware test on specified boards
     """
     global verbose
+    global test_only
 
     duration = time.time()
 
@@ -622,6 +708,7 @@ def main():
     parser.add_argument('config_file', help='Configuration JSON file')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
     parser.add_argument('-s', '--skip', action='append', default=[], help='Skip boards from test')
+    parser.add_argument('-t', '--test-only', action='append', default=[], help='Tests to run, all if not specified')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -629,6 +716,7 @@ def main():
     boards = args.board
     skip_boards = args.skip
     verbose = args.verbose
+    test_only = args.test_only
 
     # if config file is not found, try to find it in the same directory as this script
     if not os.path.exists(config_file):

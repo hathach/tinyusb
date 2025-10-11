@@ -169,7 +169,7 @@ static void dma_setup_prepare(uint8_t rhport) {
   - All EP OUT shared a unique OUT FIFO which uses (for Slave or Buffer DMA, Scatt/Gather DMA use different formula):
     - 13 for setup packets + control words (up to 3 setup packets).
     - 1 for global NAK (not required/used here).
-    - Largest-EPsize/4 + 1. ( FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4 + 1)"
+    - Largest-EPsize/4 + 1. (FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4 + 1)"
     - 2 for each used OUT endpoint
 
     Therefore GRXFSIZ = 13 + 1 + 2 x (Largest-EPsize/4 + 1) + 2 x EPOUTnum
@@ -283,8 +283,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
 
   if (dir == TUSB_DIR_IN) {
-    // Only disable currently enabled non-control endpoint
-    if ((epnum == 0) || !(dep->diepctl & DIEPCTL_EPENA)) {
+    if (!(dep->diepctl & DIEPCTL_EPENA)) {
       dep->diepctl |= DIEPCTL_SNAK | (stall ? DIEPCTL_STALL : 0);
     } else {
       // Stop transmitting packets and NAK IN xfers.
@@ -708,12 +707,23 @@ static void handle_bus_reset(uint8_t rhport) {
   dcfg.address = 0;
   dwc2->dcfg = dcfg.value;
 
-  // Fixed both control EP0 size to 64 bytes
-  dwc2->epin[0].ctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
-  dwc2->epout[0].ctl &= ~(0x03 << DOEPCTL_MPSIZ_Pos);
+  // 6. Configure maximum packet size for EP0
+  uint8_t mps = 0;
+  switch (CFG_TUD_ENDPOINT0_SIZE) {
+    case 8: mps = 3; break;
+    case 16: mps = 2; break;
+    case 32: mps = 1; break;
+    case 64: mps = 0; break;
+    default: mps = 0; break;
+  }
 
-  xfer_status[0][TUSB_DIR_OUT].max_size = 64;
-  xfer_status[0][TUSB_DIR_IN].max_size = 64;
+  dwc2->epin[0].ctl &= ~DIEPCTL0_MPSIZ_Msk;
+  dwc2->epout[0].ctl &= ~DOEPCTL0_MPSIZ_Msk;
+  dwc2->epin[0].ctl |= mps << DIEPCTL0_MPSIZ_Pos;
+  dwc2->epout[0].ctl |= mps << DOEPCTL0_MPSIZ_Pos;
+
+  xfer_status[0][TUSB_DIR_OUT].max_size = CFG_TUD_ENDPOINT0_SIZE;
+  xfer_status[0][TUSB_DIR_IN].max_size = CFG_TUD_ENDPOINT0_SIZE;
 
   if(dma_device_enabled(dwc2)) {
     dma_setup_prepare(rhport);
@@ -811,17 +821,18 @@ static void handle_rxflvl_irq(uint8_t rhport) {
           dfifo_read_packet(dwc2, xfer->buffer, byte_count);
           xfer->buffer += byte_count;
         }
+      }
 
-        // short packet, minus remaining bytes (xfer_size)
-        if (byte_count < xfer->max_size) {
-          const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
-          xfer->total_len -= tsiz.xfer_size;
-          if (epnum == 0) {
-            xfer->total_len -= _dcd_data.ep0_pending[TUSB_DIR_OUT];
-            _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
-          }
+      // short packet (including ZLP when byte_count == 0), minus remaining bytes (xfer_size)
+      if (byte_count < xfer->max_size) {
+        const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
+        xfer->total_len -= tsiz.xfer_size;
+        if (epnum == 0) {
+          xfer->total_len -= _dcd_data.ep0_pending[TUSB_DIR_OUT];
+          _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
         }
       }
+
       break;
     }
 
@@ -837,6 +848,11 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
 static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
   if (doepint_bm.setup_phase_done) {
+    // Cleanup previous pending EP0 IN transfer if any
+    dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
+    if (epin0->diepctl & DIEPCTL_EPENA) {
+      edpt_disable(rhport, 0x80, false);
+    }
     dcd_event_setup_received(rhport, _dcd_usbbuf.setup_packet, true);
     return;
   }
@@ -915,6 +931,11 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   if (doepint_bm.setup_phase_done) {
+    // Cleanup previous pending EP0 IN transfer if any
+    dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
+    if (epin0->diepctl & DIEPCTL_EPENA) {
+      edpt_disable(rhport, 0x80, false);
+    }
     dma_setup_prepare(rhport);
     dcd_dcache_invalidate(_dcd_usbbuf.setup_packet, 8);
     dcd_event_setup_received(rhport, _dcd_usbbuf.setup_packet, true);
