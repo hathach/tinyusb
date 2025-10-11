@@ -141,7 +141,8 @@ def read_disk_file(uid, lun, fname):
 
 def open_mtp_dev(uid):
     mtp = MTP()
-    timeout = ENUM_TIMEOUT
+    # MTP seems to take a while to enumerate
+    timeout = 2*ENUM_TIMEOUT
     while timeout > 0:
         # run_cmd(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/")
         for raw in mtp.detect_devices():

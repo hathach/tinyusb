@@ -831,14 +831,14 @@ static void handle_rxflvl_irq(uint8_t rhport) {
           dfifo_read_packet(dwc2, xfer->buffer, byte_count);
           xfer->buffer += byte_count;
         }
+      }
 
-        // short packet, minus remaining bytes (xfer_size)
-        if (byte_count < xfer->max_size) {
-          const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
-          xfer->total_len -= tsiz.xfer_size;
-          if (epnum == 0) {
-            _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
-          }
+      // short packet (including ZLP when byte_count == 0), minus remaining bytes (xfer_size)
+      if (byte_count < xfer->max_size) {
+        const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
+        xfer->total_len -= tsiz.xfer_size;
+        if (epnum == 0) {
+          _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
         }
       }
       break;
