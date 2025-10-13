@@ -10,17 +10,21 @@ if (NOT board_cmake_included)
 endif ()
 
 # toolchain set up
-if (MCU_VARIANT STREQUAL "nrf5340_application")
+if (MCU_VARIANT STREQUAL nrf5340 OR MCU_VARIANT STREQUAL nrf54h20)
   set(CMAKE_SYSTEM_CPU cortex-m33 CACHE INTERNAL "System Processor")
-  set(JLINK_DEVICE nrf5340_xxaa_app)
+  set(JLINK_DEVICE ${MCU_VARIANT}_xxaa_app)
 else ()
   set(CMAKE_SYSTEM_CPU cortex-m4 CACHE INTERNAL "System Processor")
   set(JLINK_DEVICE ${MCU_VARIANT}_xxaa)
 endif ()
 
-set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
+if (MCU_VARIANT STREQUAL "nrf54h20")
+  set(FAMILY_MCUS NRF54 CACHE INTERNAL "")
+else ()
+  set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
+endif ()
 
-set(FAMILY_MCUS NRF5X CACHE INTERNAL "")
+set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 
 #------------------------------------
 # BOARD_TARGET
@@ -31,36 +35,46 @@ function(add_board_target BOARD_TARGET)
     return()
   endif ()
 
-  if (MCU_VARIANT STREQUAL "nrf5340_application")
-    set(MCU_VARIANT_XXAA "nrf5340_xxaa_application")
-  else ()
-    set(MCU_VARIANT_XXAA "${MCU_VARIANT}_xxaa")
-  endif ()
-
-  if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT_XXAA}.ld)
-  endif ()
-
-  if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-    set(STARTUP_FILE_GNU ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}.S)
-    set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-  endif ()
-
   add_library(${BOARD_TARGET} STATIC
     ${NRFX_PATH}/helpers/nrfx_flag32_allocator.c
     ${NRFX_PATH}/drivers/src/nrfx_gpiote.c
     ${NRFX_PATH}/drivers/src/nrfx_power.c
     ${NRFX_PATH}/drivers/src/nrfx_spim.c
     ${NRFX_PATH}/drivers/src/nrfx_uarte.c
-    ${NRFX_PATH}/mdk/system_${MCU_VARIANT}.c
     ${NRFX_PATH}/soc/nrfx_atomic.c
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
-  string(TOUPPER "${MCU_VARIANT_XXAA}" MCU_VARIANT_XXAA_UPPER)
+
+  if (MCU_VARIANT STREQUAL nrf54h20)
+    set(LD_FILE_GNU_DEFAULT ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa_application.ld)
+    target_sources(${BOARD_TARGET} PUBLIC
+      ${NRFX_PATH}/mdk/system_nrf54h.c
+      ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}_application.S
+    )
+  elseif (MCU_VARIANT STREQUAL nrf5340)
+    set(LD_FILE_GNU_DEFAULT ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa_application.ld)
+    target_sources(${BOARD_TARGET} PUBLIC
+      ${NRFX_PATH}/mdk/system_${MCU_VARIANT}_application.c
+      ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}_application.S
+      )
+    target_compile_definitions(${BOARD_TARGET} PUBLIC NRF5340_XXAA_APPLICATION)
+  else()
+    set(LD_FILE_GNU_DEFAULT ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa.ld)
+    target_sources(${BOARD_TARGET} PUBLIC
+      ${NRFX_PATH}/mdk/system_${MCU_VARIANT}.c
+      ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}.S
+      )
+  endif ()
+
+  if (NOT DEFINED LD_FILE_GNU)
+    set(LD_FILE_GNU ${LD_FILE_GNU_DEFAULT})
+  endif ()
+
+  string(TOUPPER ${MCU_VARIANT} MCU_VARIANT_UPPER)
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     __STARTUP_CLEAR_BSS
     CONFIG_GPIO_AS_PINRESET
-    ${MCU_VARIANT_XXAA_UPPER}
+    ${MCU_VARIANT_UPPER}_XXAA
+    NRF_APPLICATION
     )
 
   if (TRACE_ETM STREQUAL "1")
@@ -137,13 +151,16 @@ function(family_configure_example TARGET RTOS)
   endif ()
 
   # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_NRF5X)
+  family_add_tinyusb(${TARGET} OPT_MCU_${FAMILY_MCUS})
   target_sources(${TARGET} PRIVATE
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
+    ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
+    ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
+    ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
     )
 
   # Flashing
-#  family_add_bin_hex(${TARGET})
+  #  family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
-#  family_flash_adafruit_nrfutil(${TARGET})
+  #  family_flash_adafruit_nrfutil(${TARGET})
 endfunction()

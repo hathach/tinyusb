@@ -1,5 +1,5 @@
-MCU_VARIANT = nrf5340_application
-CFLAGS += -DNRF5340_XXAA -DNRF5340_XXAA_APPLICATION
+MCU_VARIANT = nrf54h20_application
+CFLAGS += -DNRF54H20_XXAA
 
 # enable max3421 host driver for this board
 MAX3421_HOST = 1

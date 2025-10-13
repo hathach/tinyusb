@@ -137,6 +137,12 @@
   // 8 CBI + 1 ISO
   #define TUP_DCD_ENDPOINT_MAX    9
 
+#elif TU_CHECK_MCU(OPT_MCU_NRF54)
+  #define TUP_USBIP_DWC2
+  #define TUP_USBIP_DWC2_NRF
+  #define TUP_DCD_ENDPOINT_MAX    16
+  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
+
 //--------------------------------------------------------------------+
 // Microchip
 //--------------------------------------------------------------------+

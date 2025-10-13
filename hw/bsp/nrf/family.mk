@@ -5,7 +5,15 @@ NRFX_PATH = hw/mcu/nordic/nrfx
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 # nRF52 is cortex-m4, nRF53 is cortex-m33
-CPU_CORE ?= cortex-m4
+ifeq (${MCU_VARIANT},nrf5340_application)
+	CPU_CORE = cortex-m33
+else
+ifeq (${MCU_VARIANT},nrf54h20_application)
+	CPU_CORE = cortex-m33
+else
+	CPU_CORE = cortex-m4
+endif
+endif
 
 CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_NRF5X \

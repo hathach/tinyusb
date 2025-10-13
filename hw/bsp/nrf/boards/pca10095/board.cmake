@@ -1,4 +1,5 @@
-set(MCU_VARIANT nrf5340_application)
+#set(MCU_VARIANT nrf5340_application)
+set(MCU_VARIANT nrf5340)
 
 function(update_board TARGET)
   target_sources(${TARGET} PRIVATE
