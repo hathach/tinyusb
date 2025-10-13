@@ -66,20 +66,6 @@
   #error "Example requires nrfx v3.0.0 or later"
 #endif
 
-//--------------------------------------------------------------------+
-// Forward USB interrupt events to TinyUSB IRQ Handler
-//--------------------------------------------------------------------+
-#if defined(NRF54H20_XXAA)
-#define USBD_IRQn  USBHS_IRQn
-void USBHS_IRQHandler(void) {
-  tusb_int_handler(0, true);
-}
-
-#else
-void USBD_IRQHandler(void) {
-  tud_int_handler(0);
-}
-#endif
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -92,18 +78,37 @@ enum {
   USB_EVT_READY = 2
 };
 
-#ifdef NRF5340_XXAA
-  #define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_LFRC
-  #define VBUSDETECT_Msk USBREG_USBREGSTATUS_VBUSDETECT_Msk
-  #define OUTPUTRDY_Msk USBREG_USBREGSTATUS_OUTPUTRDY_Msk
-  #define GPIOTE_IRQn GPIOTE1_IRQn
+// Forward USB interrupt events to TinyUSB IRQ Handler
+#if defined(NRF54H20_XXAA)
+#define USBD_IRQn  USBHS_IRQn
+void USBHS_IRQHandler(void) {
+  tusb_int_handler(0, true);
+}
+
+static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(120);
+
 #else
-  #define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_RC
-  #define VBUSDETECT_Msk POWER_USBREGSTATUS_VBUSDETECT_Msk
-  #define OUTPUTRDY_Msk POWER_USBREGSTATUS_OUTPUTRDY_Msk
+
+#ifdef NRF5340_XXAA
+#define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_LFRC
+#define VBUSDETECT_Msk USBREG_USBREGSTATUS_VBUSDETECT_Msk
+#define OUTPUTRDY_Msk USBREG_USBREGSTATUS_OUTPUTRDY_Msk
+#define GPIOTE_IRQn GPIOTE1_IRQn
+#else
+#define LFCLK_SRC_RC CLOCK_LFCLKSRC_SRC_RC
+#define VBUSDETECT_Msk POWER_USBREGSTATUS_VBUSDETECT_Msk
+#define OUTPUTRDY_Msk POWER_USBREGSTATUS_OUTPUTRDY_Msk
 #endif
 
-static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(CFG_NRFX_UARTE_INSTANCE_ID);
+static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
+
+void USBD_IRQHandler(void) {
+  tud_int_handler(0);
+}
+#endif
+
+
+
 
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
