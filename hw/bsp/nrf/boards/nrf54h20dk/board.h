@@ -25,7 +25,7 @@
  */
 
 /* metadata:
-   name: Nordic nRF5340 DK
+   name: Nordic nRF54H20 DK
    url: https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
 */
 
