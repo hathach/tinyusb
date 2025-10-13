@@ -55,6 +55,7 @@ function(add_board_target BOARD_TARGET)
     target_sources(${BOARD_TARGET} PUBLIC
       ${NRFX_PATH}/mdk/system_${MCU_VARIANT}_application.c
       ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}_application.S
+      ${NRFX_PATH}/drivers/src/nrfx_usbreg.c
       )
     target_compile_definitions(${BOARD_TARGET} PUBLIC NRF5340_XXAA_APPLICATION)
   else()
