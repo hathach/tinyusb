@@ -246,8 +246,8 @@ Development Tools
 
 The following tools are provided freely to support the development of the TinyUSB project:
 
-- `IAR Build Tools (CX) <https://iar.com>`_ Professional IDE and compiler for embedded development
-- `JetBrains CLion <https://www.jetbrains.com/clion/>`_ Cross-platform IDE for C and C++ development
+- `IAR Build Tools (CX) <https://iar.com>`_ Professional IDE and compiler for embedded development.
+- `JetBrains CLion <https://www.jetbrains.com/clion/>`_ Cross-platform IDE for C and C++ development.
 - `PVS-Studio <https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source>`_ static analyzer for C, C++, C#, and Java code.
 
 
