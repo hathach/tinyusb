@@ -27,7 +27,7 @@ target_sources(${PROJECT} PUBLIC
   )
 
 # Suppress warnings on fatfs
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
   set_source_files_properties(
     ${TOP}/lib/fatfs/source/ff.c
     PROPERTIES
