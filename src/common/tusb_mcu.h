@@ -146,8 +146,8 @@
 //--------------------------------------------------------------------+
 // Microchip
 //--------------------------------------------------------------------+
-#elif TU_CHECK_MCU(OPT_MCU_SAMD21, OPT_MCU_SAMD51, OPT_MCU_SAME5X) || \
-      TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAML21, OPT_MCU_SAML22)
+#elif TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAML2X, OPT_MCU_SAMD21) || \
+      TU_CHECK_MCU(OPT_MCU_SAMD51, OPT_MCU_SAME5X)
   #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMG)
