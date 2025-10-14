@@ -25,23 +25,14 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "../board_api.h"
+#include "bsp/board_api.h"
+#include "board.h"
 
 #include "em_device.h"
 
 /*--------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM                                        */
 /*--------------------------------------------------------------------*/
-
-#define LED_PORT              0     // A
-#define LED_PIN_R             12    // 12
-#define LED_PIN_B             13    // 13
-#define LED_PIN_G             14    // 14
-#define LED_STATE_ON          0     // active-low
-
-#define BUTTON_PORT           3     // D
-#define BUTTON_PIN            5     // 5
-#define BUTTON_STATE_ACTIVE   0     // active-low
 
 /*--------------------------------------------------------------------*/
 /* Forward USB interrupt events to TinyUSB IRQ Handler                */
@@ -82,6 +73,7 @@ void UsageFault_Handler(void)
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
+void _init(void);
 void _init(void)
 {
 
@@ -91,12 +83,12 @@ void _init(void)
 /* Initing Funcs                                                      */
 /*--------------------------------------------------------------------*/
 
-void emu_init(uint8_t immediate_switch)
+static void emu_init(uint8_t immediate_switch)
 {
   EMU->PWRCTRL = (immediate_switch ? EMU_PWRCTRL_IMMEDIATEPWRSWITCH : 0) | EMU_PWRCTRL_REGPWRSEL_DVDD | EMU_PWRCTRL_ANASW_AVDD;
 }
 
-void emu_reg_init(float target_voltage)
+static void emu_reg_init(float target_voltage)
 {
     if(target_voltage < 2300.f || target_voltage >= 3800.f)
         return;
@@ -108,7 +100,7 @@ void emu_reg_init(float target_voltage)
     EMU->R5VOUTLEVEL = level; /* Reg output to 3.3V*/
 }
 
-void emu_dcdc_init(float target_voltage, float max_ln_current, float max_lp_current, float max_reverse_current)
+static void emu_dcdc_init(float target_voltage, float max_ln_current, float max_lp_current, float max_reverse_current)
 {
     if(target_voltage < 1800.f || target_voltage >= 3000.f)
         return;
@@ -279,7 +271,7 @@ void emu_dcdc_init(float target_voltage, float max_ln_current, float max_lp_curr
     EMU->PWRCTRL = EMU_PWRCTRL_REGPWRSEL_DVDD | EMU_PWRCTRL_ANASW_AVDD;
 }
 
-void cmu_hfxo_startup_calib(uint16_t ib_trim, uint16_t c_tune)
+static void cmu_hfxo_startup_calib(uint16_t ib_trim, uint16_t c_tune)
 {
   if(CMU->STATUS & CMU_STATUS_HFXOENS)
       return;
@@ -287,7 +279,7 @@ void cmu_hfxo_startup_calib(uint16_t ib_trim, uint16_t c_tune)
   CMU->HFXOSTARTUPCTRL = (CMU->HFXOSTARTUPCTRL & ~(_CMU_HFXOSTARTUPCTRL_CTUNE_MASK | _CMU_HFXOSTARTUPCTRL_IBTRIMXOCORE_MASK)) | (((uint32_t)c_tune << _CMU_HFXOSTARTUPCTRL_CTUNE_SHIFT) & _CMU_HFXOSTARTUPCTRL_CTUNE_MASK) | (((uint32_t)ib_trim << _CMU_HFXOSTARTUPCTRL_IBTRIMXOCORE_SHIFT) & _CMU_HFXOSTARTUPCTRL_IBTRIMXOCORE_MASK);
 }
 
-void cmu_hfxo_steady_calib(uint16_t ib_trim, uint16_t c_tune)
+static void cmu_hfxo_steady_calib(uint16_t ib_trim, uint16_t c_tune)
 {
   if(CMU->STATUS & CMU_STATUS_HFXOENS)
       return;
@@ -295,7 +287,7 @@ void cmu_hfxo_steady_calib(uint16_t ib_trim, uint16_t c_tune)
   CMU->HFXOSTEADYSTATECTRL = (CMU->HFXOSTEADYSTATECTRL & ~(_CMU_HFXOSTEADYSTATECTRL_CTUNE_MASK | _CMU_HFXOSTEADYSTATECTRL_IBTRIMXOCORE_MASK)) | (((uint32_t)c_tune << _CMU_HFXOSTEADYSTATECTRL_CTUNE_SHIFT) & _CMU_HFXOSTEADYSTATECTRL_CTUNE_MASK) | (((uint32_t)ib_trim << _CMU_HFXOSTEADYSTATECTRL_IBTRIMXOCORE_SHIFT) & _CMU_HFXOSTEADYSTATECTRL_IBTRIMXOCORE_MASK);
 }
 
-void cmu_hfrco_calib(uint32_t calibration)
+static void cmu_hfrco_calib(uint32_t calibration)
 {
     if(CMU->STATUS & CMU_STATUS_DPLLENS)
         return;
@@ -307,7 +299,7 @@ void cmu_hfrco_calib(uint32_t calibration)
     while(CMU->SYNCBUSY & CMU_SYNCBUSY_HFRCOBSY);
 }
 
-void cmu_ushfrco_calib(uint8_t enable, uint32_t calibration)
+static void cmu_ushfrco_calib(uint8_t enable, uint32_t calibration)
 {
     if(CMU->USBCRCTRL & CMU_USBCRCTRL_USBCREN)
         return;
@@ -334,7 +326,7 @@ void cmu_ushfrco_calib(uint8_t enable, uint32_t calibration)
     }
 }
 
-void cmu_auxhfrco_calib(uint8_t enable, uint32_t calibration)
+static void cmu_auxhfrco_calib(uint8_t enable, uint32_t calibration)
 {
     if(!enable)
     {
@@ -359,7 +351,7 @@ void cmu_auxhfrco_calib(uint8_t enable, uint32_t calibration)
 }
 
 
-void cmu_init(void)
+static void cmu_init(void)
 {
     // Change SDIO clock to HFXO if HFRCO selected and disable it
     CMU->SDIOCTRL = CMU_SDIOCTRL_SDIOCLKDIS | CMU_SDIOCTRL_SDIOCLKSEL_HFXO;
@@ -441,7 +433,7 @@ void cmu_init(void)
     CMU->LFECLKSEL = CMU_LFECLKSEL_LFE_ULFRCO;
 }
 
-void systick_init(void)
+static void systick_init(void)
 {
     SysTick->LOAD = (72000000 / 1000) - 1;
     SysTick->VAL = 0;
@@ -450,7 +442,7 @@ void systick_init(void)
     SCB->SHP[11] = 7 << (8 - __NVIC_PRIO_BITS); // Set priority 3,1 (min)
 }
 
-void gpio_init(void)
+static void gpio_init(void)
 {
     CMU->HFBUSCLKEN0 |= CMU_HFBUSCLKEN0_GPIO;
 
