@@ -1,5 +1,5 @@
 RTOS = freertos
-include ../../build_system/make/make.mk
+include ../../../hw/bsp/family_support.mk
 
 INC += \
 	src \

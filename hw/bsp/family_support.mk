@@ -28,15 +28,13 @@ endif
 # $(lastword $(MAKEFILE_LIST)) returns the name of this makefile relative to where make was invoked.
 THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
-# strip off /examples/build_system/make to get for example ../../..
-# and Set TOP to an absolute path
-TOP = $(abspath $(subst make.mk,../../..,$(THIS_MAKEFILE)))
+# Set TOP to an absolute path
+TOP = $(abspath $(subst family_support.mk,../..,$(THIS_MAKEFILE)))
 
 # Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
 CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
 
 #-------------- Linux/Windows ------------
-
 # Detect whether shell style is windows or not
 # https://stackoverflow.com/questions/714100/os-detecting-makefile/52062069#52062069
 ifeq '$(findstring ;,$(PATH))' ';'
@@ -59,7 +57,6 @@ else
   MKDIR = mkdir
   PYTHON = python3
 endif
-
 
 # Build directory
 BUILD := _build/$(BOARD)

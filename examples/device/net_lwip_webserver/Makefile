@@ -1,4 +1,4 @@
-include ../../build_system/make/make.mk
+include ../../../hw/bsp/family_support.mk
 
 # suppress warning caused by lwip
 CFLAGS_GCC += \

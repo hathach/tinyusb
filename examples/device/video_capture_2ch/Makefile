@@ -1,4 +1,4 @@
-include ../../build_system/make/make.mk
+include ../../../hw/bsp/family_support.mk
 
 ifeq ($(DISABLE_MJPEG),1)
 CFLAGS += -DCFG_EXAMPLE_VIDEO_DISABLE_MJPEG

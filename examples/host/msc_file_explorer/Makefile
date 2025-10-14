@@ -1,4 +1,4 @@
-include ../../build_system/make/make.mk
+include ../../../hw/bsp/family_support.mk
 
 FATFS_PATH = lib/fatfs/source
 
