@@ -171,24 +171,6 @@ DSLITE ?= dslite.sh
 flash-uniflash: $(BUILD)/$(PROJECT).hex
 	${DSLITE} ${UNIFLASH_OPTION} -f $<
 
-#-------------- Artifacts --------------
-
-# Create binary directory
-$(BIN):
-ifeq ($(CMDEXE),1)
-	@$(MKDIR) $(subst /,\,$@)
-else
-	@$(MKDIR) -p $@
-endif
-
-# Copy binaries .elf, .bin, .hex, .uf2 to BIN for upload
-# due to large size of combined artifacts, only uf2 is uploaded for now
-copy-artifact: $(BIN)
-	@$(CP) $(BUILD)/$(PROJECT).uf2 $(BIN)
-	#@$(CP) $(BUILD)/$(PROJECT).bin $(BIN)
-	#@$(CP) $(BUILD)/$(PROJECT).hex $(BIN)
-	#@$(CP) $(BUILD)/$(PROJECT).elf $(BIN)
-
 # Print out the value of a make variable.
 # https://stackoverflow.com/questions/16467718/how-to-print-out-a-variable-in-makefile
 print-%:

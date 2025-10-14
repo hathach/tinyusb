@@ -22,7 +22,7 @@ ifndef TOOLCHAIN
   TOOLCHAIN = gcc
 endif
 
-#-------------- TOP and CURRENT_PATH ------------
+#-------------- TOP and EXAMPLE_PATH ------------
 
 # Set TOP to be the path to get from the current directory (where make was invoked) to the top of the tree.
 # $(lastword $(MAKEFILE_LIST)) returns the name of this makefile relative to where make was invoked.
@@ -31,8 +31,8 @@ THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 # Set TOP to an absolute path
 TOP = $(abspath $(subst family_support.mk,../..,$(THIS_MAKEFILE)))
 
-# Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
-CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
+# Set EXAMPLE_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc
+EXAMPLE_PATH = $(subst $(TOP)/,,$(abspath .))
 
 #-------------- Linux/Windows ------------
 # Detect whether shell style is windows or not
@@ -62,7 +62,6 @@ endif
 BUILD := _build/$(BOARD)
 
 PROJECT := $(notdir $(CURDIR))
-BIN := $(TOP)/_bin/$(BOARD)/$(notdir $(CURDIR))
 
 #-------------------------------------------------------------
 # Board / Family
@@ -108,6 +107,7 @@ SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(BOARD_PATH)/*.c))
 INC += \
   $(TOP)/$(FAMILY_PATH) \
   $(TOP)/src \
+  $(TOP)/hw \
 
 BOARD_UPPER = $(call to_upper,$(BOARD))
 CFLAGS += -DBOARD_$(BOARD_UPPER)
