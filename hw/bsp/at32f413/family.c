@@ -29,6 +29,7 @@
 */
 
 #include "at32f413_clock.h"
+#include "at32f413_int.h"
 #include "board.h"
 #include "bsp/board_api.h"
 
@@ -266,6 +267,7 @@ void HardFault_Handler(void) {
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
+void _init(void);
 void _init(void) {
 }
 

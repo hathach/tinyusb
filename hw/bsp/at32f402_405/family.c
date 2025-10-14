@@ -29,6 +29,8 @@
 */
 
 #include "at32f402_405_clock.h"
+#include "at32f402_405_int.h"
+#include "at32f403a_407_usb.h"
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -40,20 +42,16 @@ void usb_gpio_config(void);
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void OTGFS1_IRQHandler(void)
-{
+void OTGFS1_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
-void OTGHS_IRQHandler(void)
-{
+void OTGHS_IRQHandler(void) {
   tusb_int_handler(1, true);
 }
-void OTGFS1_WKUP_IRQHandler(void)
-{
+void OTGFS1_WKUP_IRQHandler(void) {
   tusb_int_handler(0, true);
 }
-void OTGHS_WKUP_IRQHandler(void)
-{
+void OTGHS_WKUP_IRQHandler(void) {
   tusb_int_handler(1, true);
 }
 
@@ -278,6 +276,7 @@ void HardFault_Handler(void) {
 
 // Required by __libc_init_array in startup code if we are compiling using
 // -nostdlib/-nostartfiles.
+void _init(void);
 void _init(void) {
 }
 
