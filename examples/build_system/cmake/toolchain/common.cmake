@@ -20,11 +20,11 @@ include(${CMAKE_CURRENT_LIST_DIR}/../cpu/${CMAKE_SYSTEM_CPU}.cmake)
 # ----------------------------------------------------------------------------
 # Compile flags
 # ----------------------------------------------------------------------------
-if (TOOLCHAIN STREQUAL "gcc")
+if (TOOLCHAIN STREQUAL "gcc" OR TOOLCHAIN STREQUAL "clang")
   list(APPEND TOOLCHAIN_COMMON_FLAGS
     -fdata-sections
     -ffunction-sections
-    -fsingle-precision-constant
+#    -fsingle-precision-constant # not supported by clang
     -fno-strict-aliasing
     )
   list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
@@ -34,21 +34,8 @@ if (TOOLCHAIN STREQUAL "gcc")
     )
 
 elseif (TOOLCHAIN STREQUAL "iar")
-  #list(APPEND TOOLCHAIN_COMMON_FLAGS)
   list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
     --diag_suppress=Li065
-    )
-
-elseif (TOOLCHAIN STREQUAL "clang")
-  list(APPEND TOOLCHAIN_COMMON_FLAGS
-    -fdata-sections
-    -ffunction-sections
-    -fno-strict-aliasing
-    )
-  list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
-    -Wl,--print-memory-usage
-    -Wl,--gc-sections
-    -Wl,--cref
     )
 endif ()
 

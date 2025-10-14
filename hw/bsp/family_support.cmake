@@ -38,6 +38,35 @@ if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
 
+set(WARN_FLAGS_GNU
+  -Wall
+  -Wextra
+  -Werror
+  -Wfatal-errors
+  -Wdouble-promotion
+  -Wstrict-prototypes
+  -Wstrict-overflow
+  -Werror-implicit-function-declaration
+  -Wfloat-equal
+  -Wundef
+  -Wshadow
+  -Wwrite-strings
+  -Wsign-compare
+  -Wmissing-format-attribute
+  -Wunreachable-code
+  -Wcast-align
+  -Wcast-function-type
+  -Wcast-qual
+  -Wnull-dereference
+  -Wuninitialized
+  -Wunused
+  -Wunused-function
+  -Wreturn-type
+  -Wredundant-decls
+  -Wmissing-prototypes
+  )
+set(WARN_FLAGS_Clang ${WARN_FLAGS_GNU})
+
 # Optimization
 if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type" FORCE)
@@ -48,8 +77,8 @@ endif ()
 #-------------------------------------------------------------
 if (NOT DEFINED FAMILY)
   if (NOT DEFINED BOARD)
-    message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, espressif).
-    You can do this via -DFAMILY=xxx on the cmake command line")
+    message(FATAL_ERROR "You must set a BOARD variable for the build (e.g. metro_m4_express, raspberry_pi_pico).
+    You can do this via -DBOARD=xxx on the cmake command line")
   endif ()
 
   # Find path contains BOARD
@@ -226,33 +255,7 @@ function(family_configure_common TARGET RTOS)
   endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(${TARGET} PRIVATE
-      -Wall
-      -Wextra
-      #-Werror
-      -Wfatal-errors
-      -Wdouble-promotion
-      -Wstrict-prototypes
-      -Wstrict-overflow
-      -Werror-implicit-function-declaration
-      -Wfloat-equal
-      -Wundef
-      -Wshadow
-      -Wwrite-strings
-      -Wsign-compare
-      -Wmissing-format-attribute
-      -Wunreachable-code
-      -Wcast-align
-      -Wcast-function-type
-      -Wcast-qual
-      -Wnull-dereference
-      -Wuninitialized
-      -Wunused
-      -Wunused-function
-      -Wreturn-type
-      -Wredundant-decls
-      -Wmissing-prototypes
-      )
+    target_compile_options(${TARGET} PRIVATE ${WARN_FLAGS_${CMAKE_C_COMPILER_ID}})
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0
       AND NO_WARN_RWX_SEGMENTS_SUPPORTED AND (NOT RTOS STREQUAL zephyr))

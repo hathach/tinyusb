@@ -25,6 +25,7 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 /* From https://www.kernel.org/doc/html/latest/input/gamepad.html
           ____________________________              __

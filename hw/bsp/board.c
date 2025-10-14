@@ -180,9 +180,11 @@ uint32_t tusb_time_millis_api(void) {
 // FreeRTOS hooks
 //--------------------------------------------------------------------
 #if CFG_TUSB_OS == OPT_OS_FREERTOS && !defined(ESP_PLATFORM)
+
 #include "FreeRTOS.h"
 #include "task.h"
 
+void vApplicationMallocFailedHook(void); // missing prototype
 void vApplicationMallocFailedHook(void) {
   taskDISABLE_INTERRUPTS();
   TU_ASSERT(false, );
@@ -199,7 +201,7 @@ void vApplicationStackOverflowHook(xTaskHandle pxTask, char *pcTaskName) {
 /* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an
  * implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
  * used by the Idle task. */
-void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize ) {
+void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize) {
   /* If the buffers to be provided to the Idle task are declared inside this
    * function then they must be declared static - otherwise they will be allocated on
    * the stack and so not exists after this function exits. */
@@ -243,6 +245,8 @@ void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, Stack
 }
 
 #if CFG_TUSB_MCU == OPT_MCU_RX63X || CFG_TUSB_MCU == OPT_MCU_RX65X
+void vApplicationSetupTimerInterrupt(void);
+
 #include "iodefine.h"
 void vApplicationSetupTimerInterrupt(void) {
   /* Enable CMT0 */

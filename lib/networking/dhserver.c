@@ -145,7 +145,7 @@ static __inline void free_entry(dhcp_entry_t *entry)
 	memset(entry->mac, 0, 6);
 }
 
-uint8_t *find_dhcp_option(uint8_t *attrs, int size, uint8_t attr)
+static uint8_t *find_dhcp_option(uint8_t *attrs, int size, uint8_t attr)
 {
 	int i = 0;
 	while ((i + 1) < size)
@@ -159,7 +159,7 @@ uint8_t *find_dhcp_option(uint8_t *attrs, int size, uint8_t attr)
 	return NULL;
 }
 
-int fill_options(void *dest,
+static int fill_options(void *dest,
 	uint8_t msg_type,
 	const char *domain,
 	ip4_addr_t dns,
