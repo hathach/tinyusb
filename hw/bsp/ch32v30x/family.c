@@ -40,6 +40,7 @@
 
 #include "debug_uart.h"
 #include "ch32v30x.h"
+#include "ch32v30x_it.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -70,7 +71,7 @@ __attribute__((interrupt)) void OTG_FS_IRQHandler(void) {
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 
-uint32_t SysTick_Config(uint32_t ticks) {
+static uint32_t SysTick_Config(uint32_t ticks) {
   NVIC_EnableIRQ(SysTicK_IRQn);
   SysTick->CTLR = 0;
   SysTick->SR = 0;

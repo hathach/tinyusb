@@ -30,7 +30,6 @@
 
 #include "at32f402_405_clock.h"
 #include "at32f402_405_int.h"
-#include "at32f403a_407_usb.h"
 #include "bsp/board_api.h"
 #include "board.h"
 

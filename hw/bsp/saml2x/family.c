@@ -167,6 +167,7 @@ uint32_t board_millis(void) {
 
 #endif
 
+void _init(void);
 void _init(void) {
 
 }

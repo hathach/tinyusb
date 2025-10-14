@@ -126,6 +126,10 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     )
 
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+
   # https://github.com/gsteiert/sct_neopixel/pull/1
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     set_source_files_properties(${TOP}/lib/sct_neopixel/sct_neopixel.c PROPERTIES

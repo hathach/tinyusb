@@ -97,6 +97,18 @@ function(family_configure_example TARGET RTOS)
     ${SOC_DIR}/Common/Source/Stubs/lseek.c
     ${SOC_DIR}/Common/Source/Stubs/read.c
     )
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
+      ${SOC_DIR}/Common/Source/Stubs/sbrk.c
+      ${SOC_DIR}/Common/Source/Stubs/close.c
+      ${SOC_DIR}/Common/Source/Stubs/isatty.c
+      ${SOC_DIR}/Common/Source/Stubs/fstat.c
+      ${SOC_DIR}/Common/Source/Stubs/lseek.c
+      ${SOC_DIR}/Common/Source/Stubs/read.c
+      PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}

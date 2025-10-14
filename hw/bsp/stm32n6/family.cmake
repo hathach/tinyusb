@@ -76,7 +76,7 @@ function(add_board_target BOARD_TARGET)
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-    ${CMSIS_5}/CMSIS/Core/Include
+    ${TOP}/lib/CMSIS_6/CMSIS/Core/Include
     ${ST_CMSIS}/Include
     ${ST_HAL_DRIVER}/Inc
     )
@@ -125,6 +125,12 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     )
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
+      PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}

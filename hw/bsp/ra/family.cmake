@@ -127,6 +127,11 @@ function(family_configure_example TARGET RTOS)
     # Explicitly added bsp_rom_registers here, otherwise MCU can be bricked if g_bsp_rom_registers is dropped by linker
     ${FSP_RA}/src/bsp/mcu/all/bsp_rom_registers.c
     )
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${FSP_RA}/src/bsp/mcu/all/bsp_rom_registers.c PROPERTIES COMPILE_FLAGS "-Wno-undef")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
