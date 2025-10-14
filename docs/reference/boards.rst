@@ -202,10 +202,11 @@ circuitplayground_bluefruit  Adafruit Circuit Playground Bluefruit  nrf       ht
 feather_nrf52840_express     Adafruit Feather nRF52840 Express      nrf       https://www.adafruit.com/product/4062
 feather_nrf52840_sense       Adafruit Feather nRF52840 Sense        nrf       https://www.adafruit.com/product/4516
 itsybitsy_nrf52840           Adafruit ItsyBitsy nRF52840 Express    nrf       https://www.adafruit.com/product/4481
-pca10056                     Nordic nRF52840DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK
-pca10059                     Nordic nRF52840 Dongle                 nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle
-pca10095                     Nordic nRF5340 DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
-pca10100                     Nordic nRF52833 DK                     nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK
+nrf52833dk                   Nordic nRF52833 DK                     nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK
+nrf52840dk                   Nordic nRF52840DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK
+nrf52840dongle               Nordic nRF52840 Dongle                 nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle
+nrf5340dk                    Nordic nRF5340 DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
+nrf54h20dk                   Nordic nRF54H20 DK                     nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
 ===========================  =====================================  ========  ==============================================================================  ======
 
 Raspberry Pi
@@ -298,8 +299,8 @@ stm32l4p5nucleo      STM32 L4P5 Nucleo                  stm32l4    https://www.s
 stm32l4r5nucleo      STM32 L4R5 Nucleo                  stm32l4    https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html
 stm32n6570dk         STM32 N6570-DK                     stm32n6    https://www.st.com/en/evaluation-tools/stm32n6570-dk.html
 stm32n657nucleo      STM32 N657X0-Q Nucleo              stm32n6    https://www.st.com/en/evaluation-tools/nucleo-n657x0-q.html
+stm32u083cdk         STM32U083C-DK Discovery Kit        stm32u0    https://www.st.com/en/evaluation-tools/stm32u083c-dk.html
 b_u585i_iot2a        STM32 B-U585i IOT2A Discovery kit  stm32u5    https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html
-stm32u083cdk         STM32 U083C Discovery Kit          stm32u0    https://www.st.com/en/evaluation-tools/stm32u083c-dk.html
 stm32u545nucleo      STM32 U545 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u545re-q.html
 stm32u575eval        STM32 U575 Eval                    stm32u5    https://www.st.com/en/evaluation-tools/stm32u575i-ev.html
 stm32u575nucleo      STM32 U575 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u575zi-q.html
