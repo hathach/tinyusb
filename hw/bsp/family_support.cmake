@@ -121,6 +121,11 @@ if (RTOS STREQUAL zephyr)
   set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
   set(ZEPHYR_BOARD_ALIASES ${CMAKE_CURRENT_LIST_DIR}/zephyr_board_aliases.cmake)
   find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
+  list(REMOVE_ITEM WARN_FLAGS_GNU
+    -Wredundant-decls
+    -Wundef
+    -Wcast-align
+    )
 endif ()
 
 #-------------------------------------------------------------
