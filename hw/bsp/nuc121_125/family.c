@@ -25,6 +25,8 @@
  */
 
 #include "bsp/board_api.h"
+#include "board.h"
+
 #include "NuMicro.h"
 #include "clk.h"
 #include "sys.h"
@@ -38,12 +40,8 @@ void USBD_IRQHandler(void)
 }
 
 //--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM
+// Board Initialization
 //--------------------------------------------------------------------+
-#define LED_PORT              PB
-#define LED_PIN               4
-#define LED_PIN_IO            PB4
-#define LED_STATE_ON          0
 
 void board_init(void)
 {

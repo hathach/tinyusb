@@ -31,7 +31,7 @@
 #ifdef __ICCARM__
   #define sys_write   __write
   #define sys_read    __read
-#elif defined(__MSP430__) || defined(__RX__)
+#elif defined(__MSP430__) || defined(__RX__) || TU_CHECK_MCU(OPT_MCU_NUC121)
   #define sys_write   write
   #define sys_read    read
 #else

@@ -1,19 +1,13 @@
 include_guard(GLOBAL)
 
 include(CMakePrintHelpers)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # TOP is path to root directory
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
 get_filename_component(TOP ${TOP} ABSOLUTE)
 
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
-
-#-------------------------------------------------------------
-# RTOS
-#-------------------------------------------------------------
-if (NOT DEFINED RTOS)
-  set(RTOS noos CACHE STRING "RTOS")
-endif ()
 
 #-------------------------------------------------------------
 # Toolchain
@@ -62,8 +56,8 @@ set(WARN_FLAGS_GNU
   -Wunused
   -Wunused-function
   -Wreturn-type
-  -Wredundant-decls
-  -Wmissing-prototypes
+  #-Wredundant-decls
+  #-Wmissing-prototypes
   )
 set(WARN_FLAGS_Clang ${WARN_FLAGS_GNU})
 
@@ -115,8 +109,12 @@ if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
 endif()
 
 #----------------------------------
-# Zephyr
+# RTOS
 #----------------------------------
+if (NOT DEFINED RTOS)
+  set(RTOS noos CACHE STRING "RTOS")
+endif ()
+
 if (RTOS STREQUAL zephyr)
   set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
   set(ZEPHYR_BOARD_ALIASES ${CMAKE_CURRENT_LIST_DIR}/zephyr_board_aliases.cmake)
@@ -539,6 +537,18 @@ function(family_flash_openocd_adi TARGET)
 
   family_flash_openocd(${TARGET})
 endfunction()
+
+# Add flash openocd-nuvoton target
+# compiled from https://github.com/OpenNuvoton/OpenOCD-Nuvoton
+function(family_flash_openocd_nuvoton TARGET)
+  if (NOT DEFINED OPENOCD)
+    set(OPENOCD $ENV{HOME}/app/OpenOCD-Nuvoton/src/openocd)
+    set(OPENOCD_OPTION2 "-s $ENV{HOME}/app/OpenOCD-Nuvoton/tcl")
+  endif ()
+
+  family_flash_openocd(${TARGET})
+endfunction()
+
 
 # Add flash with https://github.com/ch32-rs/wlink
 function(family_flash_wlink_rs TARGET)
