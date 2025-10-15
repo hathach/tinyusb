@@ -382,6 +382,7 @@
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_NUC121, OPT_MCU_NUC126)
   #define TUP_DCD_ENDPOINT_MAX    8
+  #define TUP_DCD_EDPT_ISO_ALLOC
 
 #elif TU_CHECK_MCU(OPT_MCU_NUC120)
   #define TUP_DCD_ENDPOINT_MAX    6

@@ -26,7 +26,10 @@ SRC_C += \
   src/portable/nuvoton/nuc121/dcd_nuc121.c \
   hw/mcu/nuvoton/nuc121_125/Device/Nuvoton/NUC121/Source/system_NUC121.c \
   hw/mcu/nuvoton/nuc121_125/StdDriver/src/clk.c \
-  hw/mcu/nuvoton/nuc121_125/StdDriver/src/gpio.c
+  hw/mcu/nuvoton/nuc121_125/StdDriver/src/gpio.c \
+  hw/mcu/nuvoton/nuc121_125/StdDriver/src/fmc.c \
+  hw/mcu/nuvoton/nuc121_125/StdDriver/src/sys.c \
+  hw/mcu/nuvoton/nuc121_125/StdDriver/src/timer.c
 
 # Additional sources are added in board.mk if needed (e.g., fmc, sys, timer, uart for NUC121)
 
@@ -41,3 +44,9 @@ INC += \
 
 # For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
+
+# Flash using Nuvoton's openocd fork at https://github.com/OpenNuvoton/OpenOCD-Nuvoton
+# Please compile and install it from github source
+OPENOCD_NUVOTON_PATH ?= $(HOME)/app/OpenOCD-Nuvoton
+flash: $(BUILD)/$(PROJECT).elf
+	$(OPENOCD_NUVOTON_PATH)/src/openocd -s $(OPENOCD_NUVOTON_PATH)/tcl -f interface/nulink.cfg -f target/numicroM0.cfg -c "program $< reset exit"

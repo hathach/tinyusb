@@ -11,7 +11,7 @@ set(CMAKE_SYSTEM_CPU cortex-m0 CACHE INTERNAL "System Processor")
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOLCHAIN}.cmake)
 set(OPENOCD_OPTION "-f interface/nulink.cfg -f target/numicroM0.cfg")
 
-set(FAMILY_MCUS NUC121 NUC125 CACHE INTERNAL "")
+set(FAMILY_MCUS NUC121 CACHE INTERNAL "")
 
 #------------------------------------
 # BOARD_TARGET
@@ -31,19 +31,15 @@ function(add_board_target BOARD_TARGET)
   set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
   # Common sources for all NUC12x
-  set(COMMON_SOURCES
+  add_library(${BOARD_TARGET} STATIC
     ${SDK_DIR}/Device/Nuvoton/NUC121/Source/system_NUC121.c
     ${SDK_DIR}/StdDriver/src/clk.c
     ${SDK_DIR}/StdDriver/src/gpio.c
+    ${SDK_DIR}/StdDriver/src/fmc.c
+    ${SDK_DIR}/StdDriver/src/sys.c
+    ${SDK_DIR}/StdDriver/src/timer.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
   )
-
-  # Add board-specific sources if defined
-  if(DEFINED BOARD_SOURCES)
-    list(APPEND COMMON_SOURCES ${BOARD_SOURCES})
-  endif()
-
-  add_library(${BOARD_TARGET} STATIC ${COMMON_SOURCES})
 
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${SDK_DIR}/Device/Nuvoton/NUC121/Include
