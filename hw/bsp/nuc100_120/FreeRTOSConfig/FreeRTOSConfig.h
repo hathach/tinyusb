@@ -44,7 +44,7 @@
 
 // skip if included from IAR assembler
 #ifndef __IASMARM__
-  #include "NuMicro.h"
+#include "NUC100Series.h"
 #endif
 
 /* Cortex-M0 port configuration. */
