@@ -25,9 +25,8 @@
  */
 
 #include "bsp/board_api.h"
-#include "NUC100Series.h"
-#include "clk.h"
-#include "sys.h"
+#include "board.h"
+#include "NUC505Series.h"
 
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
@@ -40,47 +39,46 @@ void USBD_IRQHandler(void)
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#define LED_PORT     PB
-#define LED_PIN      0
-#define LED_PIN_IO   PB0
-#define LED_STATE_ON 0
 
 void board_init(void)
 {
-  SYS_UnlockReg();
+  /* Enable XTAL */
+  CLK->PWRCTL |= CLK_PWRCTL_HXTEN_Msk;
 
-  /* Enable Internal RC 22.1184 MHz clock */
-  CLK_EnableXtalRC(CLK_PWRCON_OSC22M_EN_Msk);
+  CLK_SetCoreClock(96000000);
 
-  /* Waiting for Internal RC clock ready */
-  CLK_WaitClockReady(CLK_CLKSTATUS_OSC22M_STB_Msk);
+  /* Set PCLK divider */
+  CLK_SetModuleClock(PCLK_MODULE, 0, 1);
 
-  /* Switch HCLK clock source to Internal RC and HCLK source divide 1 */
-  CLK_SetHCLK(CLK_CLKSEL0_HCLK_S_HIRC, CLK_CLKDIV_HCLK(1));
+  /* Update System Core Clock */
+  SystemCoreClockUpdate();
 
-  /* Enable external XTAL 12 MHz clock */
-  CLK_EnableXtalRC(CLK_PWRCON_XTL12M_EN_Msk);
-
-  /* Waiting for external XTAL clock ready */
-  CLK_WaitClockReady(CLK_CLKSTATUS_XTL12M_STB_Msk);
-
-  /* Set core clock */
-  CLK_SetCoreClock(48000000);
-
-  /* Enable module clock */
+  /* Enable USB IP clock */
   CLK_EnableModuleClock(USBD_MODULE);
 
-  /* Select module clock source */
-  CLK_SetModuleClock(USBD_MODULE, 0, CLK_CLKDIV_USB(1));
+  /* Select USB IP clock source */
+  CLK_SetModuleClock(USBD_MODULE, CLK_USBD_SRC_EXT, 0);
 
-  SYS_LockReg();
+  CLK_SetModuleClock(PCLK_MODULE, 0, 1);
+
+  /* Enable PHY */
+  USBD_ENABLE_PHY();
+  /* wait PHY clock ready */
+  while (1) {
+      USBD->EP[EPA].EPMPS = 0x20;
+      if (USBD->EP[EPA].EPMPS == 0x20)
+          break;
+  }
+
+  /* Force SE0, and then clear it to connect*/
+  USBD_SET_SE0();
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
-  SysTick_Config(48000000 / 1000);
+  SysTick_Config(96000000 / 1000);
 #endif
 
-  GPIO_SetMode(LED_PORT, 1UL << LED_PIN, GPIO_PMD_OUTPUT);
+  GPIO_SetMode(LED_PORT, 1UL << LED_PIN, GPIO_MODE_OUTPUT);
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
@@ -102,17 +100,13 @@ uint32_t board_millis(void)
 
 void board_led_write(bool state)
 {
-#if 0
-  /* this would be the simplest solution... *IF* the part supported the pin data interface */
-  LED_PIN_IO = (state) ? LED_STATE_ON : (1-LED_STATE_ON);
-#else
-  /* if the part's *PDIO pin data registers don't work, a more elaborate approach is needed */
+  uint32_t current = (state) ? LED_STATE_ON : (1-LED_STATE_ON);
+  current <<= LED_PIN;
   uint32_t irq_state = __get_PRIMASK();
   __disable_irq();
-  uint32_t current = LED_PORT->DOUT & ~(1UL << LED_PIN);
-  LED_PORT->DOUT = current | (((state) ? LED_STATE_ON : (1UL-LED_STATE_ON)) << LED_PIN);
+  current |= LED_PORT->DOUT & ~(1UL << LED_PIN);
+  LED_PORT->DOUT = current;
   __set_PRIMASK(irq_state);
-#endif
 }
 
 uint32_t board_button_read(void)

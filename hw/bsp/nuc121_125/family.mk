@@ -2,9 +2,6 @@ include $(TOP)/$(BOARD_PATH)/board.mk
 
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs-linux \
-  -mcpu=cortex-m0 \
   -D__ARM_FEATURE_DSP=0 \
   -DUSE_ASSERT=0 \
   -DCFG_EXAMPLE_MSC_READONLY \

@@ -1,16 +1,16 @@
+include $(TOP)/$(BOARD_PATH)/board.mk
+
 CFLAGS += \
   -flto \
-  -mthumb \
-  -mabi=aapcs-linux \
-  -mcpu=cortex-m0 \
   -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_EXAMPLE_VIDEO_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_NUC120
 
+CPU_CORE ?= cortex-m0
+
 LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
-# All source paths should be relative to the top level.
-LD_FILE = hw/bsp/nutiny_sdk_nuc120/nuc120_flash.ld
+# LD_FILE is defined in board.mk
 
 SRC_C += \
   src/portable/nuvoton/nuc120/dcd_nuc120.c \
@@ -27,15 +27,13 @@ SRC_S += \
 INC += \
   $(TOP)/hw/mcu/nuvoton/nuc100_120/Device/Nuvoton/NUC100Series/Include \
   $(TOP)/hw/mcu/nuvoton/nuc100_120/StdDriver/inc \
-  $(TOP)/hw/mcu/nuvoton/nuc100_120/CMSIS/Include
+  $(TOP)/hw/mcu/nuvoton/nuc100_120/CMSIS/Include \
+  $(TOP)/$(BOARD_PATH)
 
-# For freeRTOS port source
 FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM0
-
-# For flash-jlink target
-JLINK_DEVICE = NUC120LE3
 
 # Flash using Nuvoton's openocd fork at https://github.com/OpenNuvoton/OpenOCD-Nuvoton
 # Please compile and install it from github source
+OPENOCD_NUVOTON_PATH ?= $(HOME)/app/OpenOCD-Nuvoton
 flash: $(BUILD)/$(PROJECT).elf
-	openocd -f interface/nulink.cfg -f target/numicroM0.cfg -c "program $< reset exit"
+	$(OPENOCD_NUVOTON_PATH)/src/openocd -s $(OPENOCD_NUVOTON_PATH)/tcl -f interface/nulink.cfg -f target/numicroM0.cfg -c "program $< reset exit"

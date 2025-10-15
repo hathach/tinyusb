@@ -386,10 +386,12 @@
 
 #elif TU_CHECK_MCU(OPT_MCU_NUC120)
   #define TUP_DCD_ENDPOINT_MAX    6
+  #define TUP_DCD_EDPT_ISO_ALLOC
 
 #elif TU_CHECK_MCU(OPT_MCU_NUC505)
   #define TUP_DCD_ENDPOINT_MAX    12
   #define TUP_RHPORT_HIGHSPEED    1
+  #define TUP_DCD_EDPT_ISO_ALLOC
 
 //--------------------------------------------------------------------+
 // Espressif

@@ -25,6 +25,8 @@
  */
 
 #include "bsp/board_api.h"
+#include "board.h"
+
 #include "NuMicro.h"
 #include "clk.h"
 #include "sys.h"
@@ -37,17 +39,6 @@ void USBD_IRQHandler(void)
 {
   tud_int_handler(0);
 }
-
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM
-//--------------------------------------------------------------------+
-#define LED_PORT              PC
-#define LED_PIN               9
-#define LED_PIN_IO            PC9
-#define LED_STATE_ON          0
-
-#define CRYSTAL_LESS /* system will be 48MHz when defined, otherwise, system is 72MHz */
-#define HIRC48_AUTO_TRIM    SYS_IRCTCTL1_REFCKSEL_Msk | (1UL << SYS_IRCTCTL1_LOOPSEL_Pos) | (2UL << SYS_IRCTCTL1_FREQSEL_Pos)
 #define TRIM_INIT           (SYS_BASE+0x118)
 
 void board_init(void)
