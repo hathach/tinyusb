@@ -51,7 +51,7 @@ deps_optional = {
                            'nrf'],
     'hw/mcu/nuvoton': ['https://github.com/majbthrd/nuc_driver.git',
                        '2204191ec76283371419fbcec207da02e1bc22fa',
-                       'nuc'],
+                       'nuc100_120 nuc121_125 nuc126 nuc505'],
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
                            'b41cf930e65c734d8ec6de04f1d57d46787c76ae',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
