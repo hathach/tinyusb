@@ -186,9 +186,13 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/mentor/musb/dcd_musb.c
     )
-  target_compile_options(${TARGET} PRIVATE
-    -Wno-error=strict-prototypes
-    )
+
+  # warnings caused by MSDK headers
+  target_compile_options(${TARGET} PRIVATE -Wno-error=strict-prototypes)
+  if (${MAX_DEVICE} STREQUAL "max78002")
+    target_compile_options(${TARGET} PRIVATE -Wno-error=redundant-decls)
+  endif ()
+
   target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
   # Flashing
