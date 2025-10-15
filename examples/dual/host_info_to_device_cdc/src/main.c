@@ -218,9 +218,7 @@ static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_devi
   cdc_printf("\r\n");
 
   cdc_printf("  iSerialNumber       %u     "     , desc_device->iSerialNumber);
-  cdc_printf((char*)serial); // serial is already to UTF-8
-  cdc_printf("\r\n");
-
+  cdc_printf("%s \r\n", (char*)serial); // serial is already to UTF-8
   cdc_printf("  bNumConfigurations  %u\r\n"     , desc_device->bNumConfigurations);
 }
 
@@ -310,5 +308,5 @@ static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
   _convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (uint8_t *) temp_buf, sizeof(uint16_t) * buf_len);
   ((uint8_t*) temp_buf)[utf8_len] = '\0';
 
-  cdc_printf((char*) temp_buf);
+  cdc_printf("%s", (char*) temp_buf);
 }
