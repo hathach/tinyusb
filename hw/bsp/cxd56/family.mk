@@ -1,3 +1,5 @@
+include $(TOP)/$(BOARD_PATH)/board.mk
+
 # Platforms are: Linux, Darwin, MSYS, CYGWIN
 PLATFORM := $(firstword $(subst _, ,$(shell uname -s 2>/dev/null)))
 
@@ -12,25 +14,19 @@ else
   MKSPK = $(TOP)/hw/mcu/sony/cxd56/mkspk/mkspk.exe
 endif
 
-SERIAL ?= /dev/ttyUSB0
-
 CFLAGS += \
 	-DCONFIG_HAVE_DOUBLE \
 	-Dmain=spresense_main \
 	-pipe \
 	-std=gnu11 \
-	-mcpu=cortex-m4 \
-	-mthumb \
-	-mfpu=fpv4-sp-d16 \
-	-mfloat-abi=hard \
-	-mabi=aapcs \
-	-fno-builtin \
 	-fno-strength-reduce \
 	-fomit-frame-pointer \
 	-Wno-error=undef \
 	-Wno-error=cast-align \
 	-Wno-error=unused-parameter \
 	-DCFG_TUSB_MCU=OPT_MCU_CXD56 \
+
+CPU_CORE ?= cortex-m4
 
 # suppress following warnings from mcu driver
 # lwip/src/core/raw.c:334:43: error: declaration of 'recv' shadows a global declaration
@@ -48,6 +44,7 @@ INC += \
 	$(SPRESENSE_SDK)/nuttx/arch/chip \
 	$(SPRESENSE_SDK)/nuttx/arch/os \
 	$(SPRESENSE_SDK)/sdk/include \
+	$(TOP)/$(BOARD_PATH)
 
 LIBS += \
 	$(SPRESENSE_SDK)/nuttx/libs/libapps.a \
@@ -69,7 +66,5 @@ $(BUILD)/$(PROJECT).spk: $(MKSPK)
 	@echo CREATE $@
 	@$(MKSPK) -c 2 $(BUILD)/$(PROJECT).elf nuttx $@
 
-# flash
-flash: $(BUILD)/$(PROJECT).spk
-	@echo FLASH $<
-	@$(PYTHON) $(TOP)/hw/mcu/sony/cxd56/tools/flash_writer.py -s -c $(SERIAL) -d -b 115200 -n $<
+# For freeRTOS port source
+FREERTOS_PORTABLE_SRC = $(FREERTOS_PORTABLE_PATH)/ARM_CM4F

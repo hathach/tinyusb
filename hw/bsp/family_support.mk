@@ -64,34 +64,20 @@ BUILD := _build/$(BOARD)
 PROJECT := $(notdir $(CURDIR))
 
 #-------------------------------------------------------------
-# Board / Family
+# Family and Board
 #-------------------------------------------------------------
-
-# Board without family
-ifneq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/board.mk),)
-  BOARD_PATH := hw/bsp/$(BOARD)
-  FAMILY :=
-endif
-
-# Board within family
-ifeq ($(BOARD_PATH),)
-  BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
-  FAMILY := $(word 3, $(subst /, ,$(BOARD_PATH)))
-  FAMILY_PATH = hw/bsp/$(FAMILY)
-endif
+BOARD_PATH := $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/*/boards/$(BOARD)))
+FAMILY := $(word 3, $(subst /, ,$(BOARD_PATH)))
+FAMILY_PATH = hw/bsp/$(FAMILY)
 
 ifeq ($(BOARD_PATH),)
   $(info You must provide a BOARD parameter with 'BOARD=')
   $(error Invalid BOARD specified)
 endif
 
-ifeq ($(FAMILY),)
-  include $(TOP)/hw/bsp/$(BOARD)/board.mk
-else
-  # Include Family and Board specific defs
-  include $(TOP)/$(FAMILY_PATH)/family.mk
-  SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
-endif
+# Include Family and Board specific defs
+include $(TOP)/$(FAMILY_PATH)/family.mk
+SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/$(FAMILY_PATH)/*.c))
 
 #-------------------------------------------------------------
 # Source files and compiler flags

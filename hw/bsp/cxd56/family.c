@@ -25,18 +25,21 @@
  */
 
 #include <sys/boardctl.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #include <nuttx/arch.h>
 #include <arch/board/board.h>
-#include <arch/chip/pin.h>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 #include "bsp/board_api.h"
-
-/*------------------------------------------------------------------*/
-/* MACRO TYPEDEF CONSTANT ENUM
- *------------------------------------------------------------------*/
-#define LED_PIN         PIN_I2S1_BCK
-
-#define BUTTON_PIN      PIN_HIF_IRQ_OUT
+#include "board.h"
 
 // Initialize on-board peripherals : led, button, uart and USB
 void board_init(void)
@@ -49,6 +52,10 @@ void board_init(void)
   board_gpio_write(PIN_HIF_IRQ_OUT, -1);
   board_gpio_config(PIN_HIF_IRQ_OUT, 0, true, true, PIN_FLOAT);
 };
+
+void board_late_initialize(void) {
+
+}
 
 //--------------------------------------------------------------------+
 // Board porting API

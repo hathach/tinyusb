@@ -359,6 +359,7 @@
   #define TUP_DCD_ENDPOINT_MAX    7
   #define TUP_RHPORT_HIGHSPEED    1
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
+  #define TUP_DCD_EDPT_ISO_ALLOC
 
 //--------------------------------------------------------------------+
 // TI

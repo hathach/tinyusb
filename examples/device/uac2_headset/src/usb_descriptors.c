@@ -87,9 +87,9 @@ uint8_t const * tud_descriptor_device_cb(void)
 #elif CFG_TUSB_MCU == OPT_MCU_CXD56
   // CXD56 USB driver has fixed endpoint type (bulk/interrupt/iso) and direction (IN/OUT) by its number
   // 0 control (IN/OUT), 1 Bulk (IN), 2 Bulk (OUT), 3 In (IN), 4 Bulk (IN), 5 Bulk (OUT), 6 In (IN)
-  // #define EPNUM_AUDIO_IN    0x01
-  // #define EPNUM_AUDIO_OUT   0x02
-  // #define EPNUM_AUDIO_INT   0x03
+  #define EPNUM_AUDIO_IN    0x01
+  #define EPNUM_AUDIO_OUT   0x02
+  #define EPNUM_AUDIO_INT   0x03
 
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
   // ISO endpoints for NRF5x are fixed to 0x08 (0x88)
