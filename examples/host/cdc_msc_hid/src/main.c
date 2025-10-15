@@ -29,13 +29,12 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
-extern void cdc_app_task(void);
-extern void hid_app_task(void);
 
 /*------------- MAIN -------------*/
 int main(void) {

@@ -146,8 +146,8 @@
 //--------------------------------------------------------------------+
 // Microchip
 //--------------------------------------------------------------------+
-#elif TU_CHECK_MCU(OPT_MCU_SAMD21, OPT_MCU_SAMD51, OPT_MCU_SAME5X) || \
-      TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAML21, OPT_MCU_SAML22)
+#elif TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAML2X, OPT_MCU_SAMD21) || \
+      TU_CHECK_MCU(OPT_MCU_SAMD51, OPT_MCU_SAME5X)
   #define TUP_DCD_ENDPOINT_MAX    8
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMG)
@@ -359,6 +359,7 @@
   #define TUP_DCD_ENDPOINT_MAX    7
   #define TUP_RHPORT_HIGHSPEED    1
   #define TUD_ENDPOINT_ONE_DIRECTION_ONLY
+  #define TUP_DCD_EDPT_ISO_ALLOC
 
 //--------------------------------------------------------------------+
 // TI
@@ -382,13 +383,16 @@
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_NUC121, OPT_MCU_NUC126)
   #define TUP_DCD_ENDPOINT_MAX    8
+  #define TUP_DCD_EDPT_ISO_ALLOC
 
 #elif TU_CHECK_MCU(OPT_MCU_NUC120)
   #define TUP_DCD_ENDPOINT_MAX    6
+  #define TUP_DCD_EDPT_ISO_ALLOC
 
 #elif TU_CHECK_MCU(OPT_MCU_NUC505)
   #define TUP_DCD_ENDPOINT_MAX    12
   #define TUP_RHPORT_HIGHSPEED    1
+  #define TUP_DCD_EDPT_ISO_ALLOC
 
 //--------------------------------------------------------------------+
 // Espressif

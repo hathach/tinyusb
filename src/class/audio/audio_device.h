@@ -360,6 +360,7 @@ bool tud_audio_feedback_format_correction_cb(uint8_t func_id);
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
 void tud_audio_int_done_cb(uint8_t rhport);
+void tud_audio_int_xfer_cb(uint8_t rhport);
 #endif
 
 // Invoked when audio set interface request received

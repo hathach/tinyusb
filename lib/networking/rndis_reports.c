@@ -29,7 +29,10 @@
 
 #include <stdalign.h>
 #include <string.h>
-#include "class/net/net_device.h"
+#include "tusb.h"
+
+#if CFG_TUD_ECM_RNDIS
+
 #include "rndis_protocol.h"
 #include "netif/ethernet.h"
 
@@ -299,3 +302,5 @@ void rndis_class_set_handler(uint8_t *data, int size)
       break;
   }
 }
+
+#endif

@@ -26,6 +26,7 @@
 
 #include "tusb.h"
 #include "bsp/board_api.h"
+#include "app.h"
 
 #ifdef ESP_PLATFORM
   #define CDC_STACK_SZIE      2048

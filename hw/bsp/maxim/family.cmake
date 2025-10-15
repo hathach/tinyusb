@@ -160,6 +160,10 @@ endfunction()
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
 
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+
   # Board target
   add_board_target(board_${BOARD})
 
@@ -182,9 +186,13 @@ function(family_configure_example TARGET RTOS)
   target_sources(${TARGET} PUBLIC
     ${TOP}/src/portable/mentor/musb/dcd_musb.c
     )
-  target_compile_options(${TARGET} PRIVATE
-    -Wno-error=strict-prototypes
-    )
+
+  # warnings caused by MSDK headers
+  target_compile_options(${TARGET} PRIVATE -Wno-error=strict-prototypes)
+  if (${MAX_DEVICE} STREQUAL "max78002")
+    target_compile_options(${TARGET} PRIVATE -Wno-error=redundant-decls)
+  endif ()
+
   target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
   # Flashing

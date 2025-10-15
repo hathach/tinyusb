@@ -176,7 +176,7 @@ static void USBC_ForceVbusValidToHigh(void)
 	USBC_Writel(reg_val, USBC_REG_ISCR(USBC0_BASE));
 }
 
-void USBC_SelectBus(u32 io_type, u32 ep_type, u32 ep_index)
+static void USBC_SelectBus(u32 io_type, u32 ep_type, u32 ep_index)
 {
 	u32 reg_val = 0;
 
@@ -952,7 +952,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
   USBC_REG_set_bit_b(USBC_BP_POWER_D_RESUME, USBC_REG_PCTL(USBC0_BASE));
-  delay_ms(10);
+  tusb_time_delay_ms_api(10);
   USBC_REG_clear_bit_b(USBC_BP_POWER_D_RESUME, USBC_REG_PCTL(USBC0_BASE));
 }
 

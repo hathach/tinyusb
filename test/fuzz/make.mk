@@ -2,7 +2,7 @@
 # Common make definition for all examples
 # ---------------------------------------
 
-#-------------- TOP and CURRENT_PATH ------------
+#-------------- TOP and EXAMPLE_PATH ------------
 
 # Set TOP to be the path to get from the current directory (where make was
 # invoked) to the top of the tree. $(lastword $(MAKEFILE_LIST)) returns
@@ -13,8 +13,8 @@ THIS_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 # and Set TOP to an absolute path
 TOP = $(abspath $(subst make.mk,../..,$(THIS_MAKEFILE)))
 
-# Set CURRENT_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
-CURRENT_PATH = $(subst $(TOP)/,,$(abspath .))
+# Set EXAMPLE_PATH to the relative path from TOP to the current directory, ie examples/device/cdc_msc_freertos
+EXAMPLE_PATH = $(subst $(TOP)/,,$(abspath .))
 
 # Detect whether shell style is windows or not
 # https://stackoverflow.com/questions/714100/os-detecting-makefile/52062069#52062069

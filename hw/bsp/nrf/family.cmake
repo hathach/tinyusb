@@ -46,13 +46,13 @@ function(add_board_target BOARD_TARGET)
 
   if (MCU_VARIANT STREQUAL nrf54h20)
     set(LD_FILE_GNU_DEFAULT ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa_application.ld)
-    target_sources(${BOARD_TARGET} PUBLIC
+    target_sources(${BOARD_TARGET} PRIVATE
       ${NRFX_PATH}/mdk/system_nrf54h.c
       ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}_application.S
     )
   elseif (MCU_VARIANT STREQUAL nrf5340)
     set(LD_FILE_GNU_DEFAULT ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa_application.ld)
-    target_sources(${BOARD_TARGET} PUBLIC
+    target_sources(${BOARD_TARGET} PRIVATE
       ${NRFX_PATH}/mdk/system_${MCU_VARIANT}_application.c
       ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}_application.S
       ${NRFX_PATH}/drivers/src/nrfx_usbreg.c
@@ -60,7 +60,7 @@ function(add_board_target BOARD_TARGET)
     target_compile_definitions(${BOARD_TARGET} PUBLIC NRF5340_XXAA_APPLICATION)
   else()
     set(LD_FILE_GNU_DEFAULT ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MCU_VARIANT}_xxaa.ld)
-    target_sources(${BOARD_TARGET} PUBLIC
+    target_sources(${BOARD_TARGET} PRIVATE
       ${NRFX_PATH}/mdk/system_${MCU_VARIANT}.c
       ${NRFX_PATH}/mdk/gcc_startup_${MCU_VARIANT}.S
       )
@@ -141,6 +141,10 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     )
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}

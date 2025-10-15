@@ -10,7 +10,19 @@
 #ifndef __CH32V30x_IT_H
 #define __CH32V30x_IT_H
 
-// #include "debug.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "ch32v30x.h"
+
+void USBHS_IRQHandler(void);
+void OTG_FS_IRQHandler(void);
+void SysTick_Handler(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif /* __CH32V30x_IT_H */

@@ -108,8 +108,6 @@ void USBD_IRQHandler(void) {
 #endif
 
 
-
-
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);

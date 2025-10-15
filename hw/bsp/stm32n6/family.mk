@@ -76,7 +76,7 @@ SRC_C += \
 
 INC += \
 	$(TOP)/$(BOARD_PATH) \
-	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
+	$(TOP)/lib/CMSIS_6/CMSIS/Core/Include \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc
 

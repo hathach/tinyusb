@@ -64,6 +64,10 @@ endfunction()
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
 
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+
   # Board target
   add_board_target(board_${BOARD})
 

@@ -299,13 +299,11 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
     return TUD_MSC_RET_ERROR;
   }
 
-  #ifdef CFG_EXAMPLE_MSC_READONLY
+#ifdef CFG_EXAMPLE_MSC_READONLY
   (void) lun;
   (void) buffer;
   return bufsize;
-  #endif
-
-  #if CFG_EXAMPLE_MSC_ASYNC_IO
+#elif CFG_EXAMPLE_MSC_ASYNC_IO
   io_ops_t io_ops = {.is_read = false, .lun = lun, .lba = lba, .offset = offset, .buffer = buffer, .bufsize = bufsize};
 
   // Send IO operation to IO task
@@ -318,7 +316,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
   tusb_time_delay_ms_api(CFG_EXAMPLE_MSC_IO_DELAY_MS);
 
   return bufsize;
-  #endif
+#endif
 }
 
 // Callback invoked when received an SCSI command not in built-in list below

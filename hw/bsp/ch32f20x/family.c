@@ -32,6 +32,7 @@
 #include "debug_uart.h"
 
 #include "ch32f20x.h"
+#include "ch32f20x_it.h"
 
 #include "bsp/board_api.h"
 #include "board.h"

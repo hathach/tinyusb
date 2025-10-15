@@ -27,10 +27,8 @@ target_sources(${PROJECT} PUBLIC
   )
 
 # Suppress warnings on fatfs
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-  set_source_files_properties(
-    ${TOP}/lib/fatfs/source/ff.c
-    PROPERTIES
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  set_source_files_properties(${TOP}/lib/fatfs/source/ff.c PROPERTIES
     COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual"
     )
 endif ()
