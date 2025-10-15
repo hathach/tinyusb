@@ -31,6 +31,7 @@ family_list = {
     "msp430": ["msp430-gcc"],
     "msp432e4 tm4c": ["arm-gcc"],
     "nrf": ["arm-gcc", "arm-clang"],
+    "nuc100_120 nuc121_125 nuc126 nuc505": ["arm-gcc"],
     "ra": ["arm-gcc"],
     "rp2040": ["arm-gcc"],
     "rx": ["rx-gcc"],
