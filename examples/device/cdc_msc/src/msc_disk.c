@@ -126,9 +126,9 @@ uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uin
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
 
-  memcpy(inquiry_resp->vendor_id, vid, strlen(vid));
-  memcpy(inquiry_resp->product_id, pid, strlen(pid));
-  memcpy(inquiry_resp->product_rev, rev, strlen(rev));
+  strncpy((char*) inquiry_resp->vendor_id, vid, 8);
+  strncpy((char*) inquiry_resp->product_id, pid, 16);
+  strncpy((char*) inquiry_resp->product_rev, rev, 4);
 
   return sizeof(scsi_inquiry_resp_t); // 36 bytes
 }
@@ -242,6 +242,8 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, u
       // negative means error -> tinyusb could stall and/or response with failed status
       return -1;
   }
+
+  return -1;
 }
 
 #endif

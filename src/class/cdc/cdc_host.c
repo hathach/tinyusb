@@ -1136,7 +1136,6 @@ static inline bool ftdi_sio_reset(cdch_interface_t *p_cdc, tuh_xfer_cb_t complet
 
 // internal control complete to update state such as line state, line_coding
 static void ftdi_internal_control_complete(cdch_interface_t* p_cdc, tuh_xfer_t *xfer) {
-  TU_VERIFY(xfer->result == XFER_RESULT_SUCCESS,);
   const tusb_control_request_t * setup = xfer->setup;
   if (xfer->result == XFER_RESULT_SUCCESS) {
     if (setup->bRequest      == FTDI_SIO_SET_MODEM_CTRL_REQUEST &&
