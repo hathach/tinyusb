@@ -17,11 +17,7 @@ set(FAMILY_MCUS LPC40XX CACHE INTERNAL "")
 # BOARD_TARGET
 #------------------------------------
 # only need to be built ONCE for all examples
-function(add_board_target BOARD_TARGET)
-  if (TARGET ${BOARD_TARGET})
-    return()
-  endif ()
-
+function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     ${SDK_DIR}/../gcc/cr_startup_lpc40xx.c
     ${SDK_DIR}/src/chip_17xx_40xx.c
@@ -69,8 +65,6 @@ endfunction()
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
 
-  # Board target
-  add_board_target(board_${BOARD})
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
@@ -98,7 +92,6 @@ function(family_configure_example TARGET RTOS)
     ${TOP}/src/portable/nxp/lpc17_40/hcd_lpc17_40.c
     ${TOP}/src/portable/ohci/ohci.c
     )
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
 
 
 

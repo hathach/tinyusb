@@ -45,7 +45,6 @@ int main(void) {
 
   uint32_t start_ms = 0;
   bool led_state = false;
-  const size_t hello_len = strlen(HELLO_STR);
 
   while (1) {
     uint32_t interval_ms = board_button_read() ? BLINK_PRESSED : BLINK_UNPRESSED;
@@ -67,12 +66,12 @@ int main(void) {
         printf(HELLO_STR);
 
         #ifndef LOGGER_UART
-        board_uart_write(HELLO_STR, hello_len);
+        board_uart_write(HELLO_STR, sizeof(HELLO_STR)-1);
         #endif
       }
 
       board_led_write(led_state);
-      led_state = 1 - led_state; // toggle
+      led_state = !led_state; // toggle
     }
   }
 }
