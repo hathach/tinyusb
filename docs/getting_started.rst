@@ -7,7 +7,9 @@ This guide will get you up and running with TinyUSB quickly. We'll start with wo
 Quick Start Examples
 ====================
 
-The fastest way to understand TinyUSB is to see it working. These examples demonstrate core functionality and can be built immediately. We'll assume you are using the stm32f407disco board.
+The fastest way to understand TinyUSB is to see it working. These examples demonstrate core functionality and can be built immediately.
+
+We'll assume you are using the stm32f407disco board. For other boards, see ``Board Support Packages`` below.
 
 Simple Device Example
 ---------------------
@@ -27,7 +29,7 @@ The `cdc_msc <https://github.com/hathach/tinyusb/tree/master/examples/device/cdc
    $ cd tinyusb
    $ python tools/get_deps.py stm32f4  # Download dependencies
    $ cd examples/device/cdc_msc
-   $ make BOARD=stm32f407disco all flash
+   $ make BOARD=stm32f407disco all flash  # for CMake based platforms see note below
 
 Connect to your computer and you'll see both a new serial port and a small USB drive appear.
 
@@ -48,7 +50,7 @@ The `cdc_msc_hid <https://github.com/hathach/tinyusb/tree/master/examples/host/c
 
    $ python tools/get_deps.py stm32f4  # If not done already
    $ cd examples/host/cdc_msc_hid
-   $ make BOARD=stm32f407disco all flash
+   $ make BOARD=stm32f407disco all flash  # for CMake platforms see note below
 
 Connect USB devices to see enumeration messages and device-specific interactions in the serial output.
 
@@ -132,6 +134,8 @@ Development Tips
    $ make BOARD=stm32f407disco LOG=2 all          # Enable detailed logging
 
 **CMake build system:**
+
+Used by, e.g., RP2040.
 
 .. code-block:: bash
 
