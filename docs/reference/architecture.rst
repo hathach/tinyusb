@@ -199,6 +199,8 @@ All USB classes follow a similar architecture:
 Class Driver Interface
 ----------------------
 
+See ``usbd.c``.
+
 **Required Functions**:
 - ``init()``: Initialize class driver
 - ``reset()``: Reset class state
@@ -208,7 +210,9 @@ Class Driver Interface
 
 **Optional Functions**:
 - ``close()``: Clean up class resources
-- ``sof_cb()``: Start-of-frame processing
+- ``deinit()``: Deinitialize class driver
+- ``sof()``: Start-of-frame processing
+- ``xfer_isr()``: Called from USB ISR context on transfer completion. Data will get queued for ``xfer_cb()`` only if this returns ``false``.
 
 Descriptor Management
 ---------------------
