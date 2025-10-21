@@ -27,11 +27,12 @@ The `cdc_msc <https://github.com/hathach/tinyusb/tree/master/examples/device/cdc
 
    $ git clone https://github.com/hathach/tinyusb tinyusb
    $ cd tinyusb
-   $ python tools/get_deps.py stm32f4  # Download dependencies
+   $ python tools/get_deps.py stm32f4  # download dependencies, note ESP and RP2 need their SDKs, too
    $ cd examples/device/cdc_msc
-   $ make BOARD=stm32f407disco all flash  # for CMake based platforms see note below
+   $ cmake -DBOARD=stm32f407disco -B build  # add "-G Ninja ." on Windows
+   $ cmake --build build  # add "--target cdc_msc-jlink" for flashing using J-Link, "--target help" to list targets
 
-Connect to your computer and you'll see both a new serial port and a small USB drive appear.
+Connect the device to your computer and you'll see both a new serial port and a small USB drive appear.
 
 Simple Host Example
 -------------------
@@ -48,9 +49,10 @@ The `cdc_msc_hid <https://github.com/hathach/tinyusb/tree/master/examples/host/c
 
 .. code-block:: bash
 
-   $ python tools/get_deps.py stm32f4  # If not done already
+   $ # initial setup see previous example
    $ cd examples/host/cdc_msc_hid
-   $ make BOARD=stm32f407disco all flash  # for CMake platforms see note below
+   $ cmake -DBOARD=stm32f407disco -B build  # add "-G Ninja ." on Windows
+   $ cmake --build build  # add "--target cdc_msc_hid-jlink" for flashing using J-Link, "--target help" to list targets
 
 Connect USB devices to see enumeration messages and device-specific interactions in the serial output.
 
@@ -130,26 +132,8 @@ Development Tips
 
 .. code-block:: bash
 
-   $ make BOARD=stm32f407disco DEBUG=1 all        # Debug build
-   $ make BOARD=stm32f407disco LOG=2 all          # Enable detailed logging
-
-**CMake build system:**
-
-Used by, e.g., RP2040.
-
-.. code-block:: bash
-
-   $ mkdir build && cd build
-   $ cmake -DBOARD=stm32f407disco ..
-   $ make
-
-**Alternative flash methods:**
-
-.. code-block:: bash
-
-   $ make BOARD=stm32f407disco flash-jlink        # Use J-Link
-   $ make BOARD=stm32f407disco flash-openocd      # Use OpenOCD
-   $ make BOARD=stm32f407disco all uf2            # Generate UF2 for drag-and-drop
+   $ cmake -DBOARD=stm32f407disco -DDEBUG=1 ...   # Debug build
+   $ cmake -DBOARD=stm32f407disco -DLOG=2 ...     # Enable detailed logging
 
 **IAR Embedded Workbench:**
 
