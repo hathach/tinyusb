@@ -1410,7 +1410,7 @@ bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr) {
   return tu_edpt_release(ep_state, _usbd_mutex);
 }
 
-bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
   rhport = _usbd_rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -1433,7 +1433,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   // could return and USBD task can preempt and clear the busy
   _usbd_dev.ep_status[epnum][dir].busy = 1;
 
-  if (dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes, false)) {
+  if (dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr)) {
     return true;
   } else {
     // DCD error, mark endpoint as ready to allow next transfer
@@ -1449,7 +1449,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 // bytes should be written and second to keep the return value free to give back a boolean
 // success message. If total_bytes is too big, the FIFO will copy only what is available
 // into the USB buffer!
-bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes) {
+bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes, bool is_isr) {
   rhport = _usbd_rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -1464,7 +1464,7 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_
   // and usbd task can preempt and clear the busy
   _usbd_dev.ep_status[epnum][dir].busy = 1;
 
-  if (dcd_edpt_xfer_fifo(rhport, ep_addr, ff, total_bytes, false)) {
+  if (dcd_edpt_xfer_fifo(rhport, ep_addr, ff, total_bytes, is_isr)) {
     TU_LOG_USBD("OK\r\n");
     return true;
   } else {

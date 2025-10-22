@@ -520,10 +520,10 @@ static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_
   TU_VERIFY(tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
 
   // Schedule for next receive
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz), false);
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, true), false);
   #else
   // Data is already placed in EP FIFO, schedule for next receive
-  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz), false);
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, true), false);
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -580,10 +580,10 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
   #endif
   #if USE_LINEAR_BUFFER_TX
   tu_fifo_read_n(&audio->ep_in_ff, audio->lin_buf_in, n_bytes_tx);
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx));
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx, true));
   #else
   // Send everything in ISO EP FIFO
-  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx));
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, n_bytes_tx, true));
   #endif
 
   // Call a weak callback here - a possibility for user to get informed former TX was completed and data gets now loaded into EP in buffer

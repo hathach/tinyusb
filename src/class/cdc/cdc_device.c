@@ -111,7 +111,7 @@ static bool _prep_out_transaction(uint8_t itf) {
   available = tu_fifo_remaining(&p_cdc->rx_ff);
 
   if (available >= CFG_TUD_CDC_EP_BUFSIZE) {
-    return usbd_edpt_xfer(rhport, p_cdc->ep_out, p_epbuf->epout, CFG_TUD_CDC_EP_BUFSIZE);
+    return usbd_edpt_xfer(rhport, p_cdc->ep_out, p_epbuf->epout, CFG_TUD_CDC_EP_BUFSIZE, false);
   } else {
     // Release endpoint since we don't make any transfer
     usbd_edpt_release(p_cdc->rhport, p_cdc->ep_out);
@@ -196,7 +196,7 @@ bool tud_cdc_n_notify_uart_state (uint8_t itf, const cdc_notify_uart_state_t *st
   notify_msg->request.wLength = sizeof(cdc_notify_uart_state_t);
   notify_msg->serial_state = *state;
 
-  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *)notify_msg, 8 + sizeof(cdc_notify_uart_state_t));
+  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *, false)notify_msg, 8 + sizeof(cdc_notify_uart_state_t));
 }
 
 bool tud_cdc_n_notify_conn_speed_change(uint8_t itf, const cdc_notify_conn_speed_change_t* conn_speed_change) {
@@ -213,7 +213,7 @@ bool tud_cdc_n_notify_conn_speed_change(uint8_t itf, const cdc_notify_conn_speed
   notify_msg->request.wLength = sizeof(cdc_notify_conn_speed_change_t);
   notify_msg->conn_speed_change = *conn_speed_change;
 
-  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *)notify_msg, 8 + sizeof(cdc_notify_conn_speed_change_t));
+  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *, false)notify_msg, 8 + sizeof(cdc_notify_conn_speed_change_t));
 }
 #endif
 
@@ -280,7 +280,7 @@ uint32_t tud_cdc_n_write_flush(uint8_t itf) {
   const uint16_t count = tu_fifo_read_n(&p_cdc->tx_ff, p_epbuf->epin, CFG_TUD_CDC_EP_BUFSIZE);
 
   if (count) {
-    TU_ASSERT(usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_in, p_epbuf->epin, count), 0);
+    TU_ASSERT(usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_in, p_epbuf->epin, count, false), 0);
     return count;
   } else {
     // Release endpoint since we don't make any transfer
@@ -560,7 +560,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
       // xferred_bytes is multiple of EP Packet size and not zero
       if (!tu_fifo_count(&p_cdc->tx_ff) && xferred_bytes && (0 == (xferred_bytes & (BULK_PACKET_SIZE - 1)))) {
         if (usbd_edpt_claim(rhport, p_cdc->ep_in)) {
-          TU_ASSERT(usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0));
+          TU_ASSERT(usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0, false));
         }
       }
     }

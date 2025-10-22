@@ -378,7 +378,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_xfer(uint8_t hwid, tu_edpt_strea
     #endif
   } else {
     #if CFG_TUD_ENABLED
-    return usbd_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count);
+    return usbd_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count, false);
     #endif
   }
   return false;

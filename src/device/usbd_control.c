@@ -71,7 +71,7 @@ CFG_TUD_MEM_SECTION static struct {
 static inline bool status_stage_xact(uint8_t rhport, const tusb_control_request_t* request) {
   // Opposite to endpoint in Data Phase
   const uint8_t ep_addr = request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN;
-  return usbd_edpt_xfer(rhport, ep_addr, NULL, 0);
+  return usbd_edpt_xfer(rhport, ep_addr, NULL, 0, false);
 }
 
 // Status phase
@@ -98,7 +98,7 @@ static bool data_stage_xact(uint8_t rhport) {
     }
   }
 
-  return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _ctrl_epbuf.buf : NULL, xact_len);
+  return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _ctrl_epbuf.buf : NULL, xact_len, false);
 }
 
 // Transmit data to/from the control endpoint.
