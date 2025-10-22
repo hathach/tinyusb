@@ -23,7 +23,7 @@ set(FAMILY_MCUS LPC11UXX CACHE INTERNAL "")
 # only need to be built ONCE for all examples
 function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
-
+    ${SDK_DIR}/../gcc/cr_startup_lpc${LPC_FAMILY}.c
     ${SDK_DIR}/src/chip_${LPC_FAMILY}.c
     ${SDK_DIR}/src/clock_${LPC_FAMILY}.c
     ${SDK_DIR}/src/iap.c
@@ -43,6 +43,8 @@ function(family_add_board BOARD_TARGET)
     )
 
   update_board(${BOARD_TARGET})
+
+  set_target_properties(${BOARD_TARGET} PROPERTIES COMPILE_FLAGS "-Wno-incompatible-pointer-types")
 endfunction()
 
 
@@ -59,7 +61,6 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
-    ${SDK_DIR}/../gcc/cr_startup_lpc${LPC_FAMILY}.c
     )
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board

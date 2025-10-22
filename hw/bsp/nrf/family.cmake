@@ -43,6 +43,7 @@ endif ()
 if (NOT DEFINED LD_FILE_GNU)
 set(LD_FILE_GNU ${LD_FILE_GNU_DEFAULT})
 endif ()
+set(LD_FILE_Clang ${LD_FILE_GNU})
 
 #------------------------------------
 # Board Target
@@ -112,14 +113,13 @@ function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_${FAMILY_MCUS})
 
-  target_sources(${TARGET} PUBLIC
+  target_sources(${TARGET} PRIVATE
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/src/portable/nordic/nrf5x/dcd_nrf5x.c
     ${TOP}/src/portable/synopsys/dwc2/dcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
@@ -127,22 +127,26 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -L${NRFX_PATH}/mdk
-      --specs=nosys.specs --specs=nano.specs
-      -nostartfiles
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -L${NRFX_PATH}/mdk
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
-      )
+  if (NOT RTOS STREQUAL zephyr)
+    target_sources(${TARGET} PRIVATE ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}})
+
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+      target_link_options(${TARGET} PUBLIC
+        "LINKER:--script=${LD_FILE_GNU}"
+        -L${NRFX_PATH}/mdk
+        --specs=nosys.specs --specs=nano.specs
+        -nostartfiles
+        )
+    elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+      target_link_options(${TARGET} PUBLIC
+        "LINKER:--script=${LD_FILE_GNU}"
+        -L${NRFX_PATH}/mdk
+        )
+    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+      target_link_options(${TARGET} PUBLIC
+        "LINKER:--config=${LD_FILE_IAR}"
+        )
+    endif ()
   endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")

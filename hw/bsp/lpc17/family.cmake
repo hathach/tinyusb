@@ -63,14 +63,14 @@ endfunction()
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_LPC175X_6X)
 
-
-  #---------- Port Specific ----------
-  # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/nxp/lpc17_40/dcd_lpc17_40.c
+    ${TOP}/src/portable/nxp/lpc17_40/hcd_lpc17_40.c
+    ${TOP}/src/portable/ohci/ohci.c
     )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
@@ -83,16 +83,6 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
-
-  # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_LPC175X_6X)
-  target_sources(${TARGET} PUBLIC
-    ${TOP}/src/portable/nxp/lpc17_40/dcd_lpc17_40.c
-    ${TOP}/src/portable/nxp/lpc17_40/hcd_lpc17_40.c
-    ${TOP}/src/portable/ohci/ohci.c
-    )
-
-
 
   # Flashing
   family_add_bin_hex(${TARGET})
