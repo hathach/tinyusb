@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -314,7 +315,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   _dcd.addr = dev_addr & 0x7F;
   /* Response with status first before changing device address */
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -428,8 +429,9 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
   const unsigned epn      = tu_edpt_number(ep_addr);
   const unsigned dir      = tu_edpt_dir(ep_addr);

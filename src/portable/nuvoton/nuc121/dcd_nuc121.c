@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -323,8 +324,9 @@ void dcd_edpt_close_all (uint8_t rhport)
   // TODO implement dcd_edpt_close_all()
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
 
   /* mine the data for the information we need */
@@ -355,8 +357,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 }
 
 #if 0 // TODO support dcd_edpt_xfer_fifo API
-bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
 
   /* mine the data for the information we need */

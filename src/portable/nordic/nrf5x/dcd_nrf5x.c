@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -426,7 +427,8 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   __DSB();
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   (void) rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);

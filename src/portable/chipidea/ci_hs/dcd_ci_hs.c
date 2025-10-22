@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -277,7 +278,7 @@ void dcd_int_disable(uint8_t rhport)
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   // Response with status first before changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
@@ -465,8 +466,9 @@ static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir)
   dcd_reg->ENDPTPRIME = TU_BIT(epnum + (dir ? 16 : 0));
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
@@ -486,8 +488,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 #if !CFG_TUD_MEM_DCACHE_ENABLE
 // fifo has to be aligned to 4k boundary
 // It's incompatible with dcache enabled transfer, since neither address nor size is aligned to cache line
-bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 

@@ -1,3 +1,4 @@
+
 /*
 * The MIT License (MIT)
 *
@@ -132,7 +133,7 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   // do it at dcd_edpt0_status_complete()
 
   // Response with zlp status
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 // Wake up host
@@ -605,8 +606,9 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -666,8 +668,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 // bytes should be written and second to keep the return value free to give back a boolean
 // success message. If total_bytes is too big, the FIFO will copy only what is available
 // into the USB buffer!
-bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);

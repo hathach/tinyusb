@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -837,7 +838,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // Set default address for one ZLP
   USB->USB_EPC0_REG = USB_USB_EPC0_REG_USB_DEF_Msk;
   USB->USB_FAR_REG = (dev_addr & USB_USB_FAR_REG_USB_AD_Msk) | USB_USB_FAR_REG_USB_AD_EN_Msk;
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -1025,8 +1026,9 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   tu_memclr(xfer, sizeof(*xfer));
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);

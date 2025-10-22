@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -772,8 +773,9 @@ void dcd_edpt_close_all(uint8_t rhport)
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   bool ret;
   // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
@@ -794,8 +796,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack
 // - optional, however, must be listed in usbd.c
-bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   bool ret;
   // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);

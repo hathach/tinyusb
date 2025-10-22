@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -322,7 +323,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // Response with status first before changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 
   dcd_reg->DEVCMDSTAT &= ~DEVCMDSTAT_DEVICE_ADDR_MASK;
   dcd_reg->DEVCMDSTAT |= dev_addr;
@@ -464,7 +465,8 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
   ep_cs[0].cmd_sts.active = 1;
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   uint8_t const ep_id = ep_addr2id(ep_addr);
 
   if (!buffer || total_bytes == 0) {
@@ -486,6 +488,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 //--------------------------------------------------------------------+
 static void bus_reset(uint8_t rhport)
 {
+  (void) is_isr;
   tu_memclr(&_dcd, sizeof(dcd_data_t));
   edpt_reset_all(rhport);
 

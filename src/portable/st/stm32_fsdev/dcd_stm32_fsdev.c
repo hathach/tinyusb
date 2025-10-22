@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -246,7 +247,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   (void)dev_addr;
 
   // Respond with status
-  dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK | 0x00, NULL, 0);
+  dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK | 0x00, NULL, 0, false);
 
   // DCD can only set address after status for this request is complete.
   // do it at dcd_edpt0_status_complete()
@@ -788,7 +789,8 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
   return true;
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   tusb_dir_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
@@ -801,7 +803,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   return edpt_xfer(rhport, ep_num, dir);
 }
 
-bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes) {
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   tusb_dir_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
