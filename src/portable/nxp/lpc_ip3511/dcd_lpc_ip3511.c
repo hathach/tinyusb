@@ -488,7 +488,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 static void bus_reset(uint8_t rhport)
 {
-  (void) is_isr;
   tu_memclr(&_dcd, sizeof(dcd_data_t));
   edpt_reset_all(rhport);
 

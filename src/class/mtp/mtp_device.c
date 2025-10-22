@@ -251,7 +251,7 @@ bool tud_mtp_event_send(mtp_event_t* event) {
   TU_VERIFY(p_mtp->ep_event != 0);
   _mtpd_epbuf.buf_event = *event;
   TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_event)); // Claim the endpoint
-  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_event, (uint8_t*, false) &_mtpd_epbuf.buf_event, sizeof(mtp_event_t));
+  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_event, (uint8_t*) &_mtpd_epbuf.buf_event, sizeof(mtp_event_t), false);
 }
 
 //--------------------------------------------------------------------+

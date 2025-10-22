@@ -128,7 +128,7 @@ static void prepare_next_setup_packet(uint8_t rhport)
   _dcd.bdt[0][1][in_odd].data      = 1;
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT),
-                _dcd.setup_packet, sizeof(_dcd.setup_packet));
+                _dcd.setup_packet, sizeof(_dcd.setup_packet), false);
 }
 
 static void process_stall(uint8_t rhport)

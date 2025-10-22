@@ -841,7 +841,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
                   },
                   .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))};
           // Must be queued before control request response sent (USB488v1.0 4.3.1.2)
-          usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void *, false) &intMsg, sizeof(intMsg));
+          usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void *) &intMsg, sizeof(intMsg), false);
         }
       } else {
         rsp.statusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status));

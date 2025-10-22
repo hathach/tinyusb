@@ -196,7 +196,7 @@ bool tud_cdc_n_notify_uart_state (uint8_t itf, const cdc_notify_uart_state_t *st
   notify_msg->request.wLength = sizeof(cdc_notify_uart_state_t);
   notify_msg->serial_state = *state;
 
-  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *, false)notify_msg, 8 + sizeof(cdc_notify_uart_state_t));
+  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *)notify_msg, 8 + sizeof(cdc_notify_uart_state_t), false);
 }
 
 bool tud_cdc_n_notify_conn_speed_change(uint8_t itf, const cdc_notify_conn_speed_change_t* conn_speed_change) {
@@ -213,7 +213,7 @@ bool tud_cdc_n_notify_conn_speed_change(uint8_t itf, const cdc_notify_conn_speed
   notify_msg->request.wLength = sizeof(cdc_notify_conn_speed_change_t);
   notify_msg->conn_speed_change = *conn_speed_change;
 
-  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *, false)notify_msg, 8 + sizeof(cdc_notify_conn_speed_change_t));
+  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *)notify_msg, 8 + sizeof(cdc_notify_conn_speed_change_t), false);
 }
 #endif
 

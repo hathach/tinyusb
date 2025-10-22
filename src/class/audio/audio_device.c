@@ -520,10 +520,10 @@ static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_
   TU_VERIFY(tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
 
   // Schedule for next receive
-  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, true), false);
+  TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, true));
   #else
   // Data is already placed in EP FIFO, schedule for next receive
-  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, true), false);
+  TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, true));
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -607,7 +607,7 @@ bool tud_audio_int_n_write(uint8_t func_id, const audio_interrupt_data_t *data) 
   // Check length
   if (tu_memcpy_s(int_ep_buf[func_id].buf, sizeof(int_ep_buf[func_id].buf), data, sizeof(audio_interrupt_data_t)) == 0) {
     // Schedule transmit
-    TU_ASSERT(usbd_edpt_xfer(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int, int_ep_buf[func_id].buf, sizeof(int_ep_buf[func_id].buf)), 0);
+    TU_ASSERT(usbd_edpt_xfer(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int, int_ep_buf[func_id].buf, sizeof(int_ep_buf[func_id].buf), false));
   } else {
     // Release endpoint since we don't make any transfer
     usbd_edpt_release(_audiod_fct[func_id].rhport, _audiod_fct[func_id].ep_int);
@@ -619,7 +619,7 @@ bool tud_audio_int_n_write(uint8_t func_id, const audio_interrupt_data_t *data) 
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 // This function is called once a transmit of a feedback packet was successfully completed. Here, we get the next feedback value to be sent
-static inline bool audiod_fb_send(audiod_function_t *audio) {
+static inline bool audiod_fb_send(audiod_function_t *audio, bool is_isr) {
   bool apply_correction = (TUSB_SPEED_FULL == tud_speed_get()) && audio->feedback.format_correction;
   // Format the feedback value
   if (apply_correction) {
@@ -647,7 +647,7 @@ static inline bool audiod_fb_send(audiod_function_t *audio) {
   //              10.14    3            3          Linux, OSX
   //
   // We send 3 bytes since sending packet larger than wMaxPacketSize is pretty ugly
-  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) audio->fb_buf, apply_correction ? 3 : 4);
+  return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) audio->fb_buf, apply_correction ? 3 : 4, is_isr);
 }
 #endif
 
@@ -1133,10 +1133,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
   #endif
             // Schedule first transmit if alternate interface is not zero, as sample data is available a ZLP is loaded
   #if USE_LINEAR_BUFFER_TX
-            TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, 0));
+            TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, 0, false));
   #else
             // Send everything in ISO EP FIFO
-            TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, 0));
+            TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_in, &audio->ep_in_ff, 0, false));
   #endif
           }
 #endif// CFG_TUD_AUDIO_ENABLE_EP_IN
@@ -1152,9 +1152,9 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 
             // Prepare for incoming data
   #if USE_LINEAR_BUFFER_RX
-            TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz), false);
+            TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, false));
   #else
-            TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz), false);
+            TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, false));
   #endif
           }
 
@@ -1164,7 +1164,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             audio->ep_fb = ep_addr;
             audio->feedback.frame_shift = desc_ep->bInterval - 1;
             // Schedule first feedback transmit
-            audiod_fb_send(audio);
+            audiod_fb_send(audio, false);
           }
   #endif
 #endif// CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -1472,7 +1472,7 @@ bool audiod_xfer_isr(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     if (audio->ep_fb == ep_addr) {
       // Schedule a transmit with the new value if EP is not busy
       // Schedule next transmission - value is changed bytud_audio_n_fb_set() in the meantime or the old value gets sent
-      audiod_fb_send(audio);
+      audiod_fb_send(audio, true);
       return true;
     }
   #endif
