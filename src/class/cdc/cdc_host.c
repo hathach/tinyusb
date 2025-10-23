@@ -1136,7 +1136,6 @@ static inline bool ftdi_sio_reset(cdch_interface_t *p_cdc, tuh_xfer_cb_t complet
 
 // internal control complete to update state such as line state, line_coding
 static void ftdi_internal_control_complete(cdch_interface_t* p_cdc, tuh_xfer_t *xfer) {
-  TU_VERIFY(xfer->result == XFER_RESULT_SUCCESS,);
   const tusb_control_request_t * setup = xfer->setup;
   if (xfer->result == XFER_RESULT_SUCCESS) {
     if (setup->bRequest      == FTDI_SIO_SET_MODEM_CTRL_REQUEST &&
@@ -1365,7 +1364,7 @@ static uint32_t ftdi_232bm_baud_base_to_divisor(uint32_t baud, uint32_t base) {
   uint8_t divfrac[8] = {0, 3, 2, 4, 1, 5, 6, 7};
   uint32_t divisor;
   /* divisor shifted 3 bits to the left */
-  uint32_t divisor3 = DIV_ROUND_CLOSEST(base, 2 * baud);
+  uint32_t divisor3 = tu_div_round_nearest(base, 2 * baud);
   divisor = divisor3 >> 3;
   divisor |= (uint32_t) divfrac[divisor3 & 0x7] << 14;
   /* Deal with special cases for highest baud rates. */
@@ -1387,7 +1386,7 @@ static uint32_t ftdi_2232h_baud_base_to_divisor(uint32_t baud, uint32_t base) {
   uint32_t divisor3;
 
   /* hi-speed baud rate is 10-bit sampling instead of 16-bit */
-  divisor3 = DIV_ROUND_CLOSEST(8 * base, 10 * baud);
+  divisor3 = tu_div_round_nearest(8 * base, 10 * baud);
 
   divisor = divisor3 >> 3;
   divisor |= (uint32_t) divfrac[divisor3 & 0x7] << 14;

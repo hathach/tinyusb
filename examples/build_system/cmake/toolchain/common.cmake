@@ -32,7 +32,6 @@ if (TOOLCHAIN STREQUAL "gcc" OR TOOLCHAIN STREQUAL "clang")
     -Wl,--gc-sections
     -Wl,--cref
     )
-
 elseif (TOOLCHAIN STREQUAL "iar")
   list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
     --diag_suppress=Li065
@@ -47,6 +46,11 @@ foreach (LANG IN ITEMS C CXX ASM)
   #set(CMAKE_${LANG}_FLAGS_RELEASE_INIT "-Os")
   #set(CMAKE_${LANG}_FLAGS_DEBUG_INIT "-O0")
 endforeach ()
+
+# Assembler
+if (DEFINED TOOLCHAIN_ASM_FLAGS)
+  set(CMAKE_ASM_FLAGS_INIT "${CMAKE_ASM_FLAGS_INIT} ${TOOLCHAIN_ASM_FLAGS}")
+endif ()
 
 # Linker
 list(JOIN TOOLCHAIN_EXE_LINKER_FLAGS " " CMAKE_EXE_LINKER_FLAGS_INIT)

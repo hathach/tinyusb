@@ -34,30 +34,31 @@
 //--------------------------------------------------------------------+
 // Macros Helper
 //--------------------------------------------------------------------+
-#define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
+#define TU_ARRAY_SIZE(_arr)           ( sizeof(_arr) / sizeof(_arr[0]) )
 #define TU_FIELD_SIZE(_type, _field)  (sizeof(((_type *)0)->_field))
-#define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
-#define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
-#define TU_DIV_CEIL(n, d)     (((n) + (d) - 1) / (d))
+#define TU_MIN(_x, _y)                ( ( (_x) < (_y) ) ? (_x) : (_y) )
+#define TU_MAX(_x, _y)                ( ( (_x) > (_y) ) ? (_x) : (_y) )
+#define TU_DIV_CEIL(n, d)             (((n) + (d) - 1) / (d))
+#define TU_DIV_ROUND_NEAREST(v, d)    (((v) + (d)/2) / (d) ) // round to nearest integer
 
-#define TU_U16(_high, _low)   ((uint16_t) (((_high) << 8) | (_low)))
-#define TU_U16_HIGH(_u16)     ((uint8_t) (((_u16) >> 8) & 0x00ff))
-#define TU_U16_LOW(_u16)      ((uint8_t) ((_u16)       & 0x00ff))
-#define U16_TO_U8S_BE(_u16)   TU_U16_HIGH(_u16), TU_U16_LOW(_u16)
-#define U16_TO_U8S_LE(_u16)   TU_U16_LOW(_u16), TU_U16_HIGH(_u16)
+#define TU_U16(_high, _low)           ((uint16_t) (((_high) << 8) | (_low)))
+#define TU_U16_HIGH(_u16)             ((uint8_t) (((_u16) >> 8) & 0x00ff))
+#define TU_U16_LOW(_u16)              ((uint8_t) ((_u16)       & 0x00ff))
+#define U16_TO_U8S_BE(_u16)           TU_U16_HIGH(_u16), TU_U16_LOW(_u16)
+#define U16_TO_U8S_LE(_u16)           TU_U16_LOW(_u16), TU_U16_HIGH(_u16)
 
-#define TU_U32_BYTE3(_u32)    ((uint8_t) ((((uint32_t) _u32) >> 24) & 0x000000ff)) // MSB
-#define TU_U32_BYTE2(_u32)    ((uint8_t) ((((uint32_t) _u32) >> 16) & 0x000000ff))
-#define TU_U32_BYTE1(_u32)    ((uint8_t) ((((uint32_t) _u32) >>  8) & 0x000000ff))
-#define TU_U32_BYTE0(_u32)    ((uint8_t) (((uint32_t)  _u32)        & 0x000000ff)) // LSB
+#define TU_U32_BYTE3(_u32)            ((uint8_t) ((((uint32_t) _u32) >> 24) & 0x000000ff)) // MSB
+#define TU_U32_BYTE2(_u32)            ((uint8_t) ((((uint32_t) _u32) >> 16) & 0x000000ff))
+#define TU_U32_BYTE1(_u32)            ((uint8_t) ((((uint32_t) _u32) >>  8) & 0x000000ff))
+#define TU_U32_BYTE0(_u32)            ((uint8_t) (((uint32_t)  _u32)        & 0x000000ff)) // LSB
 
-#define U32_TO_U8S_BE(_u32)   TU_U32_BYTE3(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE0(_u32)
-#define U32_TO_U8S_LE(_u32)   TU_U32_BYTE0(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE3(_u32)
+#define U32_TO_U8S_BE(_u32)           TU_U32_BYTE3(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE0(_u32)
+#define U32_TO_U8S_LE(_u32)           TU_U32_BYTE0(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE3(_u32)
 
-#define TU_BIT(n)             (1UL << (n))
+#define TU_BIT(n)                     (1UL << (n))
 
 // Generate a mask with bit from high (31) to low (0) set, e.g TU_GENMASK(3, 0) = 0b1111
-#define TU_GENMASK(h, l)      ( (UINT32_MAX << (l)) & (UINT32_MAX >> (31 - (h))) )
+#define TU_GENMASK(h, l)              ( (UINT32_MAX << (l)) & (UINT32_MAX >> (31 - (h))) )
 
 //--------------------------------------------------------------------+
 // Includes
@@ -215,6 +216,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_is_aligned64(uint64_t value) { retur
 
 //------------- Mathematics -------------//
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_ceil(uint32_t v, uint32_t d) { return TU_DIV_CEIL(v, d); }
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_round_nearest(uint32_t v, uint32_t d) { return TU_DIV_ROUND_NEAREST(v, d); }
+
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_round_up(uint32_t v, uint32_t f) { return tu_div_ceil(v, f) * f; }
 
 // log2 of a value is its MSB's position
