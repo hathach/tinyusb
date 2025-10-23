@@ -79,7 +79,7 @@ function(family_configure_example TARGET RTOS)
       --specs=nosys.specs --specs=nano.specs
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${BOARD_TARGET} PUBLIC
+    target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")

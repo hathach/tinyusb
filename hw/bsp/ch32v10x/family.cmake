@@ -48,7 +48,7 @@ function(family_add_board BOARD_TARGET)
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(${TARGET} PUBLIC -mcmodel=medany)
+    target_compile_options(${BOARD_TARGET} PUBLIC -mcmodel=medany)
   endif()
 endfunction()
 
