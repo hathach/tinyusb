@@ -77,6 +77,7 @@ CFG_TUD_MEM_SECTION static struct {
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc2) {
   #if TU_CHECK_MCU(OPT_MCU_GD32VF103)
+  (void) dwc2;
   return DWC2_EP_MAX;
   #else
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};

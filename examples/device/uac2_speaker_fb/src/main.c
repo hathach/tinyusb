@@ -322,7 +322,7 @@ static bool audio20_clock_get_request(uint8_t rhport, audio20_control_request_t 
 
   if (request->bControlSelector == AUDIO20_CS_CTRL_SAM_FREQ) {
     if (request->bRequest == AUDIO20_CS_REQ_CUR) {
-      TU_LOG1("Clock get current freq %lu\r\n", current_sample_rate);
+      TU_LOG1("Clock get current freq %" PRIu32 "\r\n", current_sample_rate);
 
       audio20_control_cur_4_t curf = {(int32_t) tu_htole32(current_sample_rate)};
       return tud_audio_buffer_and_schedule_control_xfer(rhport, (tusb_control_request_t const *) request, &curf, sizeof(curf));
@@ -360,7 +360,7 @@ static bool audio20_clock_set_request(audio20_control_request_t const *request, 
 
     current_sample_rate = (uint32_t) ((audio20_control_cur_4_t const *) buf)->bCur;
 
-    TU_LOG1("Clock set current freq: %ld\r\n", current_sample_rate);
+    TU_LOG1("Clock set current freq: %" PRIu32 "\r\n", current_sample_rate);
 
     return true;
   } else {

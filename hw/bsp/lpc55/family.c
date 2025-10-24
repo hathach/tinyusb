@@ -333,6 +333,7 @@ TU_ATTR_UNUSED void _start(void) {
 
 #ifdef __clang__
 void	_exit (int __status) {
+  (void) __status;
   while (1) {}
 }
 #endif

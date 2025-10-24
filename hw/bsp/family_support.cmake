@@ -1,6 +1,8 @@
 include_guard(GLOBAL)
 
 include(CMakePrintHelpers)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+#set(CMAKE_C_STANDARD 11)
 
 # TOP is path to root directory
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
@@ -9,34 +11,62 @@ get_filename_component(TOP ${TOP} ABSOLUTE)
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 
 #-------------------------------------------------------------
-# RTOS
-#-------------------------------------------------------------
-if (NOT DEFINED RTOS)
-  set(RTOS noos CACHE STRING "RTOS")
-endif ()
-
-#-------------------------------------------------------------
 # Toolchain
 # Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
 #-------------------------------------------------------------
-# Detect toolchain based on CMAKE_C_COMPILER
-if (DEFINED CMAKE_C_COMPILER)
-  string(FIND ${CMAKE_C_COMPILER} "iccarm" IS_IAR)
-  string(FIND ${CMAKE_C_COMPILER} "clang" IS_CLANG)
-  string(FIND ${CMAKE_C_COMPILER} "gcc" IS_GCC)
+function(detect_compiler COMPILER_PATH RESULT)
+  string(FIND ${COMPILER_PATH} "iccarm" IS_IAR)
+  string(FIND ${COMPILER_PATH} "clang" IS_CLANG)
+  string(FIND ${COMPILER_PATH} "gcc" IS_GCC)
 
   if (NOT IS_IAR EQUAL -1)
-    set(TOOLCHAIN iar)
+    set(${RESULT} iar PARENT_SCOPE)
   elseif (NOT IS_CLANG EQUAL -1)
-    set(TOOLCHAIN clang)
+    set(${RESULT} clang PARENT_SCOPE)
   elseif (NOT IS_GCC EQUAL -1)
-    set(TOOLCHAIN gcc)
+    set(${RESULT} gcc PARENT_SCOPE)
   endif ()
+endfunction()
+
+# Detect toolchain based on CMAKE_C_COMPILER or ENV{CC}
+if (DEFINED CMAKE_C_COMPILER)
+  detect_compiler(${CMAKE_C_COMPILER} TOOLCHAIN)
+elseif (DEFINED ENV{CC})
+  detect_compiler($ENV{CC} TOOLCHAIN)
 endif ()
 
 if (NOT DEFINED TOOLCHAIN)
   set(TOOLCHAIN gcc)
 endif ()
+
+set(WARN_FLAGS_GNU
+  -Wall
+  -Wextra
+  -Werror
+  -Wfatal-errors
+  -Wdouble-promotion
+  -Wstrict-prototypes
+  -Wstrict-overflow
+  -Werror-implicit-function-declaration
+  -Wfloat-equal
+  -Wundef
+  -Wshadow
+  -Wwrite-strings
+  -Wsign-compare
+  -Wmissing-format-attribute
+  -Wunreachable-code
+  -Wcast-align
+  -Wcast-function-type
+  -Wcast-qual
+  -Wnull-dereference
+  -Wuninitialized
+  -Wunused
+  -Wunused-function
+  -Wreturn-type
+  #-Wredundant-decls
+  #-Wmissing-prototypes
+  )
+set(WARN_FLAGS_Clang ${WARN_FLAGS_GNU})
 
 # Optimization
 if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
@@ -48,8 +78,8 @@ endif ()
 #-------------------------------------------------------------
 if (NOT DEFINED FAMILY)
   if (NOT DEFINED BOARD)
-    message(FATAL_ERROR "You must set a FAMILY variable for the build (e.g. rp2040, espressif).
-    You can do this via -DFAMILY=xxx on the cmake command line")
+    message(FATAL_ERROR "You must set a BOARD variable for the build (e.g. metro_m4_express, raspberry_pi_pico).
+    You can do this via -DBOARD=xxx on the cmake command line")
   endif ()
 
   # Find path contains BOARD
@@ -86,12 +116,21 @@ if (NOT NO_WARN_RWX_SEGMENTS_SUPPORTED)
 endif()
 
 #----------------------------------
-# Zephyr
+# RTOS
 #----------------------------------
+if (NOT DEFINED RTOS)
+  set(RTOS noos CACHE STRING "RTOS")
+endif ()
+
 if (RTOS STREQUAL zephyr)
   set(BOARD_ROOT ${TOP}/hw/bsp/${FAMILY})
   set(ZEPHYR_BOARD_ALIASES ${CMAKE_CURRENT_LIST_DIR}/zephyr_board_aliases.cmake)
   find_package(Zephyr REQUIRED HINTS ${TOP}/zephyr)
+  list(REMOVE_ITEM WARN_FLAGS_GNU
+    -Wredundant-decls
+    -Wundef
+    -Wcast-align
+    )
 endif ()
 
 #-------------------------------------------------------------
@@ -166,6 +205,9 @@ endfunction()
 # Common Target Configure
 # Most families use these settings except rp2040 and espressif
 #-------------------------------------------------------------
+function(family_add_board BOARD_TARGET)
+  # empty function, should be redefined in FAMILY/family.cmake
+endfunction()
 
 # Add RTOS to example
 function(family_add_rtos TARGET RTOS)
@@ -191,6 +233,17 @@ endfunction()
 
 # Add common configuration to example
 function(family_configure_common TARGET RTOS)
+  # Add board target
+  set(BOARD_TARGET board_${BOARD})
+  if (NOT RTOS STREQUAL zephyr)
+    if (NOT TARGET ${BOARD_TARGET})
+      family_add_board(${BOARD_TARGET})
+      set_target_properties(${BOARD_TARGET} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+      set_target_properties(${BOARD_TARGET} PROPERTIES SKIP_LINTING ON)
+    endif ()
+    target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET})
+  endif ()
+
   family_add_rtos(${TARGET} ${RTOS})
 
   # Add BOARD_${BOARD} define
@@ -220,39 +273,16 @@ function(family_configure_common TARGET RTOS)
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
       target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
+      set_source_files_properties(${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c PROPERTIES
+        SKIP_LINTING ON
+        )
     endif ()
   else ()
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
   endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(${TARGET} PRIVATE
-      -Wall
-      -Wextra
-      #-Werror
-      -Wfatal-errors
-      -Wdouble-promotion
-      -Wstrict-prototypes
-      -Wstrict-overflow
-      -Werror-implicit-function-declaration
-      -Wfloat-equal
-      -Wundef
-      -Wshadow
-      -Wwrite-strings
-      -Wsign-compare
-      -Wmissing-format-attribute
-      -Wunreachable-code
-      -Wcast-align
-      -Wcast-function-type
-      -Wcast-qual
-      -Wnull-dereference
-      -Wuninitialized
-      -Wunused
-      -Wunused-function
-      -Wreturn-type
-      -Wredundant-decls
-      -Wmissing-prototypes
-      )
+    target_compile_options(${TARGET} PRIVATE ${WARN_FLAGS_${CMAKE_C_COMPILER_ID}})
     target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0
       AND NO_WARN_RWX_SEGMENTS_SUPPORTED AND (NOT RTOS STREQUAL zephyr))
@@ -260,6 +290,19 @@ function(family_configure_common TARGET RTOS)
     endif ()
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
+
+    # link time analysis with C-STAT
+#    add_custom_command(TARGET ${TARGET} POST_BUILD
+#      COMMAND ${CMAKE_C_ICSTAT}
+#      --db=${CMAKE_BINARY_DIR}/cstat.db
+#      link_analyze -- ${CMAKE_LINKER} $<TARGET_OBJECTS:${TARGET}>
+#      COMMAND_EXPAND_LISTS
+#      )
+#    # generate C-STAT report
+#    add_custom_command(TARGET ${TARGET} POST_BUILD
+#      COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cstat_report
+#      COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/${TARGET}.html
+#      )
   endif ()
 
   # run size after build
@@ -531,6 +574,18 @@ function(family_flash_openocd_adi TARGET)
 
   family_flash_openocd(${TARGET})
 endfunction()
+
+# Add flash openocd-nuvoton target
+# compiled from https://github.com/OpenNuvoton/OpenOCD-Nuvoton
+function(family_flash_openocd_nuvoton TARGET)
+  if (NOT DEFINED OPENOCD)
+    set(OPENOCD $ENV{HOME}/app/OpenOCD-Nuvoton/src/openocd)
+    set(OPENOCD_OPTION2 "-s $ENV{HOME}/app/OpenOCD-Nuvoton/tcl")
+  endif ()
+
+  family_flash_openocd(${TARGET})
+endfunction()
+
 
 # Add flash with https://github.com/ch32-rs/wlink
 function(family_flash_wlink_rs TARGET)

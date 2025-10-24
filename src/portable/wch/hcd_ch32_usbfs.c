@@ -36,7 +36,17 @@
 
 #include "bsp/board_api.h"
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+#endif
+
 #include "ch32v20x.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 #include "ch32v20x_usb.h"
 
 #define USBFS_RX_BUF_LEN 64

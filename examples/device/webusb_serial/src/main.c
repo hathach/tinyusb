@@ -107,7 +107,7 @@ int main(void) {
 }
 
 // send characters to both CDC and WebUSB
-void echo_all(const uint8_t buf[], uint32_t count) {
+static void echo_all(const uint8_t buf[], uint32_t count) {
   // echo to web serial
   if (web_serial_connected) {
     tud_vendor_write(buf, count);

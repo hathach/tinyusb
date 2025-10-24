@@ -347,6 +347,7 @@ TU_ATTR_FAST_FUNC void tud_audio_feedback_interval_isr(uint8_t func_id, uint32_t
 #endif // CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
+// Invoked when an interrupt notification transfer is complete
 void tud_audio_int_done_cb(uint8_t rhport);
 #endif
 
