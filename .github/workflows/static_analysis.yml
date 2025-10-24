@@ -29,15 +29,40 @@ jobs:
 #          args: >
 #            --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
   PVS-Studio:
-    uses: ./.github/workflows/build_util.yml
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         board:
           - 'stm32h743eval'
-    with:
-      build-system: 'cmake'
-      toolchain: 'arm-gcc'
-      build-args: '-b${{ matrix.board }}'
-      one-per-family: true
-      analyze-pvs: true
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: -b${{ matrix.board }}
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'arm-gcc'
+
+      - name: Analyze
+        run: |
+          wget -q -O - https://files.pvs-studio.com/etc/pubkey.txt | sudo apt-key add -
+          sudo wget -O /etc/apt/sources.list.d/viva64.list https://files.pvs-studio.com/etc/viva64.list
+          sudo apt update
+          sudo apt install pvs-studio
+          pvs-studio-analyzer credentials ${{ secrets.PVS_STUDIO_CREDENTIALS }}
+          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake --build build
+          pvs-studio-analyzer analyze -f build/compile_commands.json -j --exclude-path hw/mcu/ --exclude-path lib/
+          plog-converter -t sarif -o pvs.sarif PVS-Studio.log
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: pvs.sarif
+          category: PVS-Studio
