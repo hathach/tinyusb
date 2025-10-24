@@ -45,10 +45,11 @@ enum {
   DISK_BLOCK_SIZE = 512
 };
 
+static
 #ifdef CFG_EXAMPLE_MSC_READONLY
 const
 #endif
-static uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
+uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
   //------------- Block0: Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
   // sector_per_cluster = 1; reserved_sectors = 1;

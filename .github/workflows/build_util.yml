@@ -20,6 +20,10 @@ on:
         required: false
         default: false
         type: boolean
+      analyze-pvs:
+        required: false
+        default: false
+        type: boolean
       os:
         required: false
         type: string
@@ -67,6 +71,28 @@ jobs:
             python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
           fi
         shell: bash
+
+      - name: PVS-Studio analyze
+        if: ${{ inputs.analyze-pvs }}
+        run: |
+          wget -q -O - https://files.pvs-studio.com/etc/pubkey.txt | sudo apt-key add -
+          sudo wget -O /etc/apt/sources.list.d/viva64.list https://files.pvs-studio.com/etc/viva64.list
+          sudo apt update
+          sudo apt install pvs-studio
+          pvs-studio-analyzer credentials ${{ secrets.PVS_STUDIO_CREDENTIALS }}
+          mkdir -p sarif-reports
+          for build_dir in cmake-build/cmake-build-*; do
+            BOARD=${build_dir#cmake-build/cmake-build-}
+            pvs-studio-analyzer analyze -f ${build_dir}/compile_commands.json -j -o ${build_dir}/pvs-report.log --exclude-path hw/mcu/ --exclude-path lib/
+            plog-converter -t sarif -o sarif-reports/${BOARD}.sarif ${build_dir}/pvs-report.log
+          done
+
+      - name: PVS-Studio upload SARIF
+        if: ${{ inputs.analyze-pvs }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif-reports/
+          category: PVS-Studio
 
       - name: Upload Artifacts for Hardware Testing
         if: ${{ inputs.upload-artifacts }}
