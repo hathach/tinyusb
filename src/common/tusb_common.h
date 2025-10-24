@@ -131,7 +131,7 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, c
   }
 
   // For memcpy, src may be NULL only if count == 0. Reject otherwise.
-  if (src == NULL && count != 0) {
+  if (src == NULL && count != 0u) {
     return -1;
   }
 

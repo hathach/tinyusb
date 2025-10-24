@@ -48,7 +48,7 @@ enum {
 #ifdef CFG_EXAMPLE_MSC_READONLY
 const
 #endif
-uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
+static uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
   //------------- Block0: Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
   // sector_per_cluster = 1; reserved_sectors = 1;
@@ -213,7 +213,9 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t *
   (void) lun;
 
   // out of ramdisk
-  if (lba >= DISK_BLOCK_NUM) return -1;
+  if (lba >= DISK_BLOCK_NUM) {
+    return -1;
+  }
 
   #ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t *addr = msc_disk[lba] + offset;
