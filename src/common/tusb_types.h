@@ -77,9 +77,9 @@
  *------------------------------------------------------------------*/
 
 typedef enum {
-  TUSB_ROLE_INVALID = 0,
-  TUSB_ROLE_DEVICE  = 0x1,
-  TUSB_ROLE_HOST    = 0x2,
+  TUSB_ROLE_INVALID = 0u,
+  TUSB_ROLE_DEVICE  = 0x1u,
+  TUSB_ROLE_HOST    = 0x2u,
 } tusb_role_t;
 
 /// defined base on EHCI specs value for Endpoint Speed
@@ -178,7 +178,7 @@ typedef enum {
 } tusb_request_feature_selector_t;
 
 typedef enum {
-  TUSB_REQ_TYPE_STANDARD = 0,
+  TUSB_REQ_TYPE_STANDARD = 0u,
   TUSB_REQ_TYPE_CLASS,
   TUSB_REQ_TYPE_VENDOR,
   TUSB_REQ_TYPE_INVALID

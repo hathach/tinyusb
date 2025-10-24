@@ -33,7 +33,7 @@
 
 #include "common/tusb_common.h"
 
-typedef void (*osal_task_func_t)( void * );
+typedef void (*osal_task_func_t)(void* param);
 
 // Timeout
 #define OSAL_TIMEOUT_NOTIMEOUT     (0)          // Return immediately
