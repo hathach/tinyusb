@@ -202,23 +202,34 @@ jobs:
         with:
           toolchain: 'arm-iar'
 
-      - name: Run IAR C-STAT Analysis
+      - name: Install CMake 4.2
+        run: |
+          # IAR CSTAT requires CMake >= 4.1
+          wget -q https://github.com/Kitware/CMake/releases/download/v4.2.0-rc1/cmake-4.2.0-rc1-linux-x86_64.tar.gz
+          tar -xzf cmake-4.2.0-rc1-linux-x86_64.tar.gz
+          echo "${{ github.workspace }}/cmake-4.2.0-rc1-linux-x86_64/bin" >> $GITHUB_PATH
+
+      - name: Build and run IAR C-STAT Analysis
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
         run: |
           # CMake run post build to generate C-STAT SARIF report
+          cmake --version
           mkdir -p build
-          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DTOOLCHAIN=iar -DIAR_CSTAT=1 -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake examples/device/cdc_msc -B build -G Ninja -DBOARD=${{ matrix.board }} -DTOOLCHAIN=iar -DIAR_CSTAT=1 -DCMAKE_BUILD_TYPE=MinSizeRel
           cmake --build build
+          # Merge sarif files for codeql upload
+          npm i -g @microsoft/sarif-multitool
+          npx @microsoft/sarif-multitool merge --merge-runs --output-file iar-cstat-${{ matrix.board }}.sarif build/cstat_sarif/*.sarif
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: build/cstat_sarif
+          sarif_file: iar-cstat-${{ matrix.board }}.sarif
           category: IAR-CStat
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
           name: iar-cstat-${{ matrix.board }}
-          path: build/cstat_sarif
+          path: iar-cstat-${{ matrix.board }}.sarif

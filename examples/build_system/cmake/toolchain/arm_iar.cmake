@@ -19,6 +19,7 @@ find_program(CMAKE_IAR_CHECKS ichecks)
 find_program(CMAKE_IAR_REPORT ireport)
 
 if (IAR_CSTAT)
+cmake_minimum_required(VERSION 4.1)
 set(CMAKE_C_ICSTAT ${CMAKE_IAR_CSTAT} --checks=${CMAKE_CURRENT_LIST_DIR}/cstat_sel_checks.txt --db=${CMAKE_BINARY_DIR}/cstat.db --sarif_dir=${CMAKE_BINARY_DIR}/cstat_sarif)
 endif ()
 
