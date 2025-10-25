@@ -45,6 +45,7 @@ enum {
   DISK_BLOCK_SIZE = 512
 };
 
+static
 #ifdef CFG_EXAMPLE_MSC_READONLY
 const
 #endif
@@ -213,7 +214,9 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t *
   (void) lun;
 
   // out of ramdisk
-  if (lba >= DISK_BLOCK_NUM) return -1;
+  if (lba >= DISK_BLOCK_NUM) {
+    return -1;
+  }
 
   #ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t *addr = msc_disk[lba] + offset;

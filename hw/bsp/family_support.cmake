@@ -238,8 +238,10 @@ function(family_configure_common TARGET RTOS)
   if (NOT RTOS STREQUAL zephyr)
     if (NOT TARGET ${BOARD_TARGET})
       family_add_board(${BOARD_TARGET})
-      set_target_properties(${BOARD_TARGET} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-      set_target_properties(${BOARD_TARGET} PROPERTIES SKIP_LINTING ON)
+      set_target_properties(${BOARD_TARGET} PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+        SKIP_LINTING ON # need cmake 4.2
+        )
     endif ()
     target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET})
   endif ()
@@ -273,9 +275,7 @@ function(family_configure_common TARGET RTOS)
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
       target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
-      set_source_files_properties(${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c PROPERTIES
-        SKIP_LINTING ON
-        )
+      set_source_files_properties(${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c PROPERTIES SKIP_LINTING ON)
     endif ()
   else ()
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
@@ -291,18 +291,20 @@ function(family_configure_common TARGET RTOS)
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
 
-    # link time analysis with C-STAT
-#    add_custom_command(TARGET ${TARGET} POST_BUILD
-#      COMMAND ${CMAKE_C_ICSTAT}
-#      --db=${CMAKE_BINARY_DIR}/cstat.db
-#      link_analyze -- ${CMAKE_LINKER} $<TARGET_OBJECTS:${TARGET}>
-#      COMMAND_EXPAND_LISTS
-#      )
-#    # generate C-STAT report
-#    add_custom_command(TARGET ${TARGET} POST_BUILD
-#      COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cstat_report
-#      COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/${TARGET}.html
-#      )
+    if (IAR_CSTAT)
+      # link time analysis with C-STAT
+      add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_C_ICSTAT}
+        --db=${CMAKE_BINARY_DIR}/cstat.db
+        link_analyze -- ${CMAKE_LINKER} $<TARGET_OBJECTS:${TARGET}>
+        COMMAND_EXPAND_LISTS
+        )
+      # generate C-STAT report
+#      add_custom_command(TARGET ${TARGET} POST_BUILD
+#        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cstat_report
+#        COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/index.html
+#        )
+    endif ()
   endif ()
 
   # run size after build

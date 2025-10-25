@@ -58,8 +58,10 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent);
   #define tu_printf    printf
 #endif
 
-static inline void tu_print_buf(uint8_t const* buf, uint32_t bufsize) {
-  for(uint32_t i=0; i<bufsize; i++) tu_printf("%02X ", buf[i]);
+TU_ATTR_ALWAYS_INLINE static inline void tu_print_buf(uint8_t const* buf, uint32_t bufsize) {
+  for(uint32_t i=0; i<bufsize; i++) {
+    tu_printf("%02X ", buf[i]);
+  }
   tu_printf("\r\n");
 }
 
@@ -109,7 +111,9 @@ typedef struct {
 
 static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint32_t key) {
   for(uint16_t i=0; i<p_table->count; i++) {
-    if (p_table->items[i].key == key) { return p_table->items[i].data; }
+    if (p_table->items[i].key == key) {
+      return p_table->items[i].data;
+    }
   }
 
   // not found return the key value in hex
@@ -129,8 +133,6 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
   #define TU_LOG_LOCATION()
   #define TU_LOG_FAILED()
 #endif
-
-// TODO replace all TU_LOGn with TU_LOG(n)
 
 #define TU_LOG0(...)
 #define TU_LOG0_MEM(...)

@@ -19,7 +19,10 @@ runs:
     - name: Linux dependencies
       if: runner.os == 'Linux'
       run: |
-        sudo apt install -y ninja-build
+        NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip
+        wget $NINJA_URL -O ninja-linux.zip
+        unzip ninja-linux.zip -d ninja-bin
+        echo >> $GITHUB_PATH "${{ github.workspace }}/ninja-bin"
       shell: bash
 
     - name: Get Dependencies

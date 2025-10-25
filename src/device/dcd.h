@@ -79,7 +79,7 @@ typedef struct TU_ATTR_ALIGNED(4) {
 
     // FUNC_CALL
     struct {
-      void (*func) (void*);
+      void (*func) (void* param);
       void* param;
     }func_call;
   };

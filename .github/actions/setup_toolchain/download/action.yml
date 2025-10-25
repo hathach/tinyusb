@@ -29,6 +29,7 @@ runs:
           chmod +x toolchain.run
           ./toolchain.run -p ~/cache/${{ inputs.toolchain }}/gnurx -y
         elif [[ ${{ inputs.toolchain }} == arm-iar ]]; then
+          wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/${{ inputs.toolchain }}/iar-lmsc-tools.deb
           wget --progress=dot:giga ${{ inputs.toolchain_url }} -O ~/cache/${{ inputs.toolchain }}/cxarm.deb
         else
           wget --progress=dot:giga ${{ inputs.toolchain_url }} -O toolchain.tar.gz
@@ -39,7 +40,8 @@ runs:
     - name: Setup Toolchain
       run: |
         if [[ ${{ inputs.toolchain }} == arm-iar ]]; then
-          sudo apt-get install -y ~/cache/${{ inputs.toolchain }}/cxarm.deb
+          sudo dpkg -i ~/cache/${{ inputs.toolchain }}/iar-lmsc-tools.deb
+          sudo apt install -y ~/cache/${{ inputs.toolchain }}/cxarm.deb
           echo >> $GITHUB_PATH "/opt/iar/cxarm/arm/bin"
         else
           echo >> $GITHUB_PATH `echo ~/cache/${{ inputs.toolchain }}/*/bin`

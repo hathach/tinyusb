@@ -244,11 +244,11 @@
 #define OPT_MODE_HOST           0x0002 ///< Host Mode
 
 // High byte is max operational speed (corresponding to tusb_speed_t)
-#define OPT_MODE_DEFAULT_SPEED  0x0000 ///< Default (max) speed supported by MCU
-#define OPT_MODE_LOW_SPEED      0x0100 ///< Low Speed
-#define OPT_MODE_FULL_SPEED     0x0200 ///< Full Speed
-#define OPT_MODE_HIGH_SPEED     0x0400 ///< High Speed
-#define OPT_MODE_SPEED_MASK     0xff00
+#define OPT_MODE_DEFAULT_SPEED  0x0000u ///< Default (max) speed supported by MCU
+#define OPT_MODE_LOW_SPEED      0x0100u ///< Low Speed
+#define OPT_MODE_FULL_SPEED     0x0200u ///< Full Speed
+#define OPT_MODE_HIGH_SPEED     0x0400u ///< High Speed
+#define OPT_MODE_SPEED_MASK     0xff00u
 
 //--------------------------------------------------------------------+
 // Include tusb_config.h
