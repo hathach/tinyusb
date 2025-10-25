@@ -1054,6 +1054,8 @@ void dcd_int_handler(uint8_t rhport) {
   if (gintsts & GINTSTS_ENUMDNE) {
     // ENUMDNE is the end of reset where speed of the link is detected
     dwc2->gintsts = GINTSTS_ENUMDNE;
+    // There may be a pending suspend event, so we clear it first
+    dwc2->gintsts = GINTSTS_USBSUSP;
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
     handle_enum_done(rhport);
   }
