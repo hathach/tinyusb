@@ -50,7 +50,7 @@ jobs:
         with:
           category: CodeQL
           upload: always
-        id: step1
+        id: analyze
 
 #      - name: Filter out unwanted errors and warnings
 #        uses: advanced-security/filter-sarif@v1
@@ -71,14 +71,20 @@ jobs:
 #            -**/third*party/**
 #            -**/3rd*party/**
 #            -**/external/**
-#          input: ${{ steps.step1.outputs.sarif-output }}/cpp.sarif
-#          output: ${{ steps.step1.outputs.sarif-output }}/cpp.sarif
+#          input: ${{ steps.analyze.outputs.sarif-output }}/cpp.sarif
+#          output: ${{ steps.analyze.outputs.sarif-output }}/cpp.sarif
 #
 #      - name: Upload SARIF
 #        uses: github/codeql-action/upload-sarif@v4
 #        with:
-#          sarif_file: ${{ steps.step1.outputs.sarif-output }}
+#          sarif_file: ${{ steps.analyze.outputs.sarif-output }}
 #          category: CodeQL
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: codeql-${{ matrix.board }}
+          path: ${{ steps.analyze.outputs.sarif-output }}
 
   PVS-Studio:
     runs-on: ubuntu-latest
@@ -114,13 +120,20 @@ jobs:
           cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=MinSizeRel
           cmake --build build
           pvs-studio-analyzer analyze -f build/compile_commands.json -j --exclude-path hw/mcu/ --exclude-path lib/
-          plog-converter -t sarif -o pvs.sarif PVS-Studio.log
+          plog-converter -t sarif -o pvs-${{ matrix.board }}.sarif PVS-Studio.log
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: pvs.sarif
+          sarif_file: pvs-${{ matrix.board }}.sarif
           category: PVS-Studio
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: pvs-${{ matrix.board }}
+          path: pvs-${{ matrix.board }}.sarif
+
 
 #  SonarQube:
 #    name: Build and analyze
