@@ -127,7 +127,7 @@ jobs:
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: pvs-${{ matrix.board }}.sarif
+          sarif_file: pvs-studio-${{ matrix.board }}.sarif
           category: PVS-Studio
 
       - name: Upload artifact
@@ -173,8 +173,7 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_ROOT_CERT: ${{ secrets.SONAR_ROOT_CERT }}
         with:
           # Consult https://docs.sonarsource.com/sonarqube-server/latest/analyzing-source-code/scanners/sonarscanner/ for more information and options
           args: >
-            --define sonar.cfamily.compile-commands="${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
+            --define sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
