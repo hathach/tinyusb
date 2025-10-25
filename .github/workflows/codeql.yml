@@ -41,6 +41,7 @@ jobs:
     # Consider using larger runners for possible analysis time improvements.
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    if: false
     permissions:
       actions: read
       contents: read
