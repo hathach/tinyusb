@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         board:
-          - 'raspberry_pi_pico'
+          - 'metro_m4_express'
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -88,12 +88,13 @@ jobs:
           path: ${{ steps.analyze.outputs.sarif-output }}
 
   PVS-Studio:
+    if: github.repository_owner == 'hathach'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         board:
-          - 'stm32h743eval'
+          - 'raspberry_pi_pico'
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -119,7 +120,7 @@ jobs:
       - name: Analyze
         run: |
           mkdir -p build
-          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_BUILD_TYPE=MinSizeRel
           cmake --build build
           pvs-studio-analyzer analyze -f build/compile_commands.json -j --exclude-path hw/mcu/ --exclude-path lib/
           plog-converter -t sarif -o pvs-studio-${{ matrix.board }}.sarif PVS-Studio.log
@@ -137,6 +138,7 @@ jobs:
           path: pvs-studio-${{ matrix.board }}.sarif
 
   SonarQube:
+    if: github.repository_owner == 'hathach'
     runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
@@ -144,7 +146,7 @@ jobs:
       fail-fast: false
       matrix:
         board:
-          - 'metro_m4_express'
+          - 'stm32h743eval'
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
@@ -166,7 +168,7 @@ jobs:
 
       - name: Run Build Wrapper
         run: |
-          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_BUILD_TYPE=MinSizeRel
           build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build/
 
       - name: SonarQube Scan
@@ -177,3 +179,46 @@ jobs:
           # Consult https://docs.sonarsource.com/sonarqube-server/latest/analyzing-source-code/scanners/sonarscanner/ for more information and options
           args: >
             --define sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
+
+  IAR-CStat:
+    if: github.repository_owner == 'hathach'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - 'b_g474e_dpow1'
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: -b${{ matrix.board }}
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'arm-iar'
+
+      - name: Run IAR C-STAT Analysis
+        env:
+          IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+        run: |
+          # CMake run post build to generate C-STAT SARIF report
+          mkdir -p build
+          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DTOOLCHAIN=iar -DIAR_CSTAT=1 -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake --build build
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: build/cstat_sarif
+          category: IAR-CStat
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: iar-cstat-${{ matrix.board }}
+          path: build/cstat_sarif
