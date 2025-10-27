@@ -2,15 +2,30 @@ name: Static Analysis
 on:
   workflow_dispatch:
   push:
-    branches:
-      - master
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'hw/bsp/**'
+      - '.github/workflows/static_analysis.yml'
   pull_request:
-    types: [opened, synchronize, reopened]
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'hw/bsp/**'
+      - '.github/workflows/static_analysis.yml'
 
 permissions:
   actions: read
   contents: read
   security-events: write
+#  pull-requests: write
+#  checks: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   CodeQL:
