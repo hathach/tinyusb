@@ -97,7 +97,9 @@ function(family_configure_example TARGET RTOS)
     set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
   endif ()
 
-  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES SKIP_LINTING ON)
+    set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
 
   # Flashing
   family_add_bin_hex(${TARGET})

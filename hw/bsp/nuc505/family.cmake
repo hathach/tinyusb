@@ -82,6 +82,8 @@ function(family_configure_example TARGET RTOS)
   endif ()
 
 
-  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES SKIP_LINTING ON)
+    set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
   family_flash_openocd_nuvoton(${TARGET})
 endfunction()
