@@ -137,7 +137,7 @@ jobs:
           mkdir -p build
           cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_BUILD_TYPE=MinSizeRel
           cmake --build build
-          pvs-studio-analyzer analyze -f build/compile_commands.json -j --exclude-path hw/mcu/ --exclude-path lib/
+          pvs-studio-analyzer analyze -R .PVS-Studio/.pvsconfig -f build/compile_commands.json --exclude-path hw/mcu/ --exclude-path lib/ -j
           plog-converter -t sarif -o pvs-studio-${{ matrix.board }}.sarif PVS-Studio.log
 
       - name: Upload SARIF
