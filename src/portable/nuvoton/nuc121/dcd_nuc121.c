@@ -38,7 +38,17 @@
 #if CFG_TUD_ENABLED && ( (CFG_TUSB_MCU == OPT_MCU_NUC121) || (CFG_TUSB_MCU == OPT_MCU_NUC126) )
 
 #include "device/dcd.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
 #include "NuMicro.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on

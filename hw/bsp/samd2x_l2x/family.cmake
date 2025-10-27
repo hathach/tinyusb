@@ -137,10 +137,10 @@ function(family_configure_example TARGET RTOS)
       "LINKER:--config=${LD_FILE_IAR}"
       )
   endif ()
-
-    set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
     SKIP_LINTING ON
     COMPILE_OPTIONS -w)
+
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
