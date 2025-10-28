@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_OPTION_H_
-#define _TUSB_OPTION_H_
+#ifndef TUSB_OPTION_H_
+#define TUSB_OPTION_H_
 
 #include "common/tusb_compiler.h"
 
@@ -727,6 +727,6 @@
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
 typedef int make_iso_compilers_happy;
 
-#endif /* _TUSB_OPTION_H_ */
+#endif /* TUSB_OPTION_H_ */
 
 /** @} */

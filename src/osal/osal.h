@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_OSAL_H_
-#define _TUSB_OSAL_H_
+#ifndef TUSB_OSAL_H_
+#define TUSB_OSAL_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -101,4 +101,4 @@ typedef void (*osal_task_func_t)(void* param);
  }
 #endif
 
-#endif /* _TUSB_OSAL_H_ */
+#endif

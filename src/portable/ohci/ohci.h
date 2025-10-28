@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_OHCI_H_
-#define _TUSB_OHCI_H_
+#ifndef TUSB_OHCI_H_
+#define TUSB_OHCI_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -304,4 +304,4 @@ TU_VERIFY_STATIC( sizeof(ohci_registers_t) == (0x54 + (4 * TUP_OHCI_RHPORTS)), "
  }
 #endif
 
-#endif /* _TUSB_OHCI_H_ */
+#endif /* TUSB_OHCI_H_ */

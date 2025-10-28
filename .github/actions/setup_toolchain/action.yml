@@ -33,7 +33,7 @@ runs:
       env:
         TOOLCHAIN: ${{ inputs.toolchain }}
       run: |
-        TOOLCHAIN_URL=$(jq -r '."$TOOLCHAIN"' .github/actions/setup_toolchain/toolchain.json)
+        TOOLCHAIN_URL=$(jq -r --arg tc "$TOOLCHAIN" '.[$tc]' .github/actions/setup_toolchain/toolchain.json)
         echo "toolchain_url=$TOOLCHAIN_URL"
         echo "toolchain_url=$TOOLCHAIN_URL" >> $GITHUB_OUTPUT
       shell: bash

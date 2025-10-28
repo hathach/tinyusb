@@ -75,14 +75,14 @@ function(family_configure_example TARGET RTOS)
       "LINKER:--script=${LD_FILE_GNU}"
       --specs=nosys.specs --specs=nano.specs
       )
+    target_compile_options(${TARGET} PRIVATE -Wno-redundant-decls)
+
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_Clang}"
-      )
+    target_link_options(${TARGET} PUBLIC "LINKER:--script=${LD_FILE_Clang}")
+    target_compile_options(${TARGET} PRIVATE -Wno-redundant-decls)
+
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
-      )
+    target_link_options(${TARGET} PUBLIC "LINKER:--config=${LD_FILE_IAR}")
   endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")

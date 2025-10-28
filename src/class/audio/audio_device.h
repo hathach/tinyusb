@@ -462,7 +462,7 @@ void     audiod_sof_isr        (uint8_t rhport, uint32_t frame_count);
 }
 #endif
 
-#endif /* _TUSB_AUDIO_DEVICE_H_ */
+#endif /* TUSB_AUDIO_DEVICE_H_ */
 
 /** @} */
 /** @} */
