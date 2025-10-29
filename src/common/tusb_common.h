@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_COMMON_H_
-#define _TUSB_COMMON_H_
+#ifndef TUSB_COMMON_H_
+#define TUSB_COMMON_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -391,4 +391,4 @@ uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t b
  }
 #endif
 
-#endif /* _TUSB_COMMON_H_ */
+#endif /* TUSB_COMMON_H_ */

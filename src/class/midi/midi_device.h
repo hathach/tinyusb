@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MIDI_DEVICE_H_
-#define _TUSB_MIDI_DEVICE_H_
+#ifndef TUSB_MIDI_DEVICE_H_
+#define TUSB_MIDI_DEVICE_H_
 
 #include "class/audio/audio.h"
 #include "midi.h"
@@ -168,7 +168,7 @@ bool     midid_xfer_cb         (uint8_t rhport, uint8_t edpt_addr, xfer_result_t
  }
 #endif
 
-#endif /* _TUSB_MIDI_DEVICE_H_ */
+#endif /* TUSB_MIDI_DEVICE_H_ */
 
 /** @} */
 /** @} */

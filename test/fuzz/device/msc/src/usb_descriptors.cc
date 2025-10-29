@@ -30,10 +30,10 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]         HID | MSC | CDC          [LSB]
  */
-#define _PID_MAP(itf, n) ((CFG_TUD_##itf) << (n))
+#define PID_MAP(itf, n) ((CFG_TUD_##itf) << (n))
 #define USB_PID                                                                \
-  (0x4000 | _PID_MAP(MSC, 0) | _PID_MAP(HID, 1) | _PID_MAP(MIDI, 2) |          \
-   _PID_MAP(VENDOR, 3))
+  (0x4000 | PID_MAP(MSC, 0) | PID_MAP(HID, 1) | PID_MAP(MIDI, 2) |          \
+   PID_MAP(VENDOR, 3))
 #define USB_VID 0xCafe
 #define USB_BCD 0x0200
 

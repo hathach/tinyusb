@@ -100,8 +100,22 @@ function(family_configure_example TARGET RTOS)
       )
   endif ()
 
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
+      ${SOC_DIR}/Common/Source/Stubs/sbrk.c
+      ${SOC_DIR}/Common/Source/Stubs/close.c
+      ${SOC_DIR}/Common/Source/Stubs/isatty.c
+      ${SOC_DIR}/Common/Source/Stubs/fstat.c
+      ${SOC_DIR}/Common/Source/Stubs/lseek.c
+      ${SOC_DIR}/Common/Source/Stubs/read.c
+      PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes"
+    )
+  endif ()
+  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
 
-  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES SKIP_LINTING ON)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})

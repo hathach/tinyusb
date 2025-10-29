@@ -29,8 +29,8 @@
  *  \brief Group_Compiler brief
  *  @{ */
 
-#ifndef _TUSB_COMPILER_H_
-#define _TUSB_COMPILER_H_
+#ifndef TUSB_COMPILER_H_
+#define TUSB_COMPILER_H_
 
 #define TU_TOKEN(x)           x
 #define TU_STRING(x)          #x                  ///< stringify without expand
@@ -45,9 +45,9 @@
 #define TU_INCLUDE_PATH(_dir,_file) TU_XSTRING( TU_TOKEN(_dir)TU_TOKEN(_file) )
 
 #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
-  #define _TU_COUNTER_ __COUNTER__
+  #define TU_COUNTER __COUNTER__
 #else
-  #define _TU_COUNTER_ __LINE__
+  #define TU_COUNTER __LINE__
 #endif
 
 // Compile-time Assert
@@ -56,9 +56,9 @@
 #elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
   #define TU_VERIFY_STATIC   _Static_assert
 #elif defined(__CCRX__)
-  #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(_verify_static_, _TU_COUNTER_)[(const_expr) ? 1 : 0];
+  #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(_verify_static_, TU_COUNTER)[(const_expr) ? 1 : 0];
 #else
-  #define TU_VERIFY_STATIC(const_expr, _mess) enum { TU_XSTRCAT(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
+  #define TU_VERIFY_STATIC(const_expr, _mess) enum { TU_XSTRCAT(_verify_static_, TU_COUNTER) = 1/(!!(const_expr)) }
 #endif
 
 /* --------------------- Fuzzing types -------------------------------------- */
@@ -68,8 +68,8 @@
   #define tu_static static
 #endif
 
-// for declaration of reserved field, make use of _TU_COUNTER_
-#define TU_RESERVED           TU_XSTRCAT(reserved, _TU_COUNTER_)
+// for declaration of reserved field, make use of TU_COUNTER
+#define TU_RESERVED           TU_XSTRCAT(reserved, TU_COUNTER)
 
 #define TU_LITTLE_ENDIAN (0x12u)
 #define TU_BIG_ENDIAN (0x21u)
@@ -305,6 +305,6 @@
   #error Byte order is undefined
 #endif
 
-#endif /* _TUSB_COMPILER_H_ */
+#endif /* TUSB_COMPILER_H_ */
 
 /// @}

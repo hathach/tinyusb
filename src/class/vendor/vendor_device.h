@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_VENDOR_DEVICE_H_
-#define _TUSB_VENDOR_DEVICE_H_
+#ifndef TUSB_VENDOR_DEVICE_H_
+#define TUSB_VENDOR_DEVICE_H_
 
 #include "common/tusb_common.h"
 
@@ -141,4 +141,4 @@ bool     vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, u
  }
 #endif
 
-#endif /* _TUSB_VENDOR_DEVICE_H_ */
+#endif /* TUSB_VENDOR_DEVICE_H_ */

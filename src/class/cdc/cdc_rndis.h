@@ -30,8 +30,8 @@
  *  \defgroup CDC_RNDIS_Common Common Definitions
  *  @{ */
 
-#ifndef _TUSB_CDC_RNDIS_H_
-#define _TUSB_CDC_RNDIS_H_
+#ifndef TUSB_CDC_RNDIS_H_
+#define TUSB_CDC_RNDIS_H_
 
 #include "cdc.h"
 
@@ -295,7 +295,7 @@ typedef enum
  }
 #endif
 
-#endif /* _TUSB_CDC_RNDIS_H_ */
+#endif /* TUSB_CDC_RNDIS_H_ */
 
 /** @} */
 /** @} */

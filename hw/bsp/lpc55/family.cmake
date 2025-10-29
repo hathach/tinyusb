@@ -128,8 +128,10 @@ function(family_configure_example TARGET RTOS)
     set_source_files_properties(${TOP}/lib/sct_neopixel/sct_neopixel.c
       PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes -Wno-unused-parameter")
   endif ()
+  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
 
-  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES SKIP_LINTING ON)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_jlink(${TARGET})
