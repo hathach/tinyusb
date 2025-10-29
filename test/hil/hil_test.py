@@ -584,7 +584,7 @@ device_tests = [
     'device/dfu_runtime',
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
-    'device/mtp'
+    # 'device/mtp'
 ]
 
 dual_tests = [

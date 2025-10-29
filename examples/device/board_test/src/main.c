@@ -66,12 +66,12 @@ int main(void) {
         printf(HELLO_STR);
 
         #ifndef LOGGER_UART
-        board_uart_write(HELLO_STR, strlen(HELLO_STR));
+        board_uart_write(HELLO_STR, sizeof(HELLO_STR)-1);
         #endif
       }
 
       board_led_write(led_state);
-      led_state = 1 - led_state; // toggle
+      led_state = !led_state; // toggle
     }
   }
 }

@@ -33,42 +33,42 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]         HID | MSC | CDC          [LSB]
  */
-#define _PID_MAP(itf, n) ((CFG_TUD_##itf) << (n))
-#define USB_PID (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                 _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4))
+#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
+#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
+                           PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4) )
 
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
-    {
-        .bLength = sizeof(tusb_desc_device_t),
-        .bDescriptorType = TUSB_DESC_DEVICE,
-        .bcdUSB = 0x0201,
+static tusb_desc_device_t const desc_device = {
+  .bLength = sizeof(tusb_desc_device_t),
+  .bDescriptorType = TUSB_DESC_DEVICE,
+  .bcdUSB = 0x0201,
 
 #if CFG_TUD_CDC
-        // Use Interface Association Descriptor (IAD) for CDC
-        // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
-        .bDeviceClass = TUSB_CLASS_MISC,
-        .bDeviceSubClass = MISC_SUBCLASS_COMMON,
-        .bDeviceProtocol = MISC_PROTOCOL_IAD,
+  // Use Interface Association Descriptor (IAD) for CDC
+  // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+  .bDeviceClass = TUSB_CLASS_MISC,
+  .bDeviceSubClass = MISC_SUBCLASS_COMMON,
+  .bDeviceProtocol = MISC_PROTOCOL_IAD,
 #else
-        .bDeviceClass = 0x00,
-        .bDeviceSubClass = 0x00,
-        .bDeviceProtocol = 0x00,
+  .bDeviceClass = 0x00,
+  .bDeviceSubClass = 0x00,
+  .bDeviceProtocol = 0x00,
 #endif
 
-        .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
+  .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
 
-        .idVendor = 0xCafe,
-        .idProduct = USB_PID,
-        .bcdDevice = 0x0100,
+  .idVendor = 0xCafe,
+  .idProduct = USB_PID,
+  .bcdDevice = 0x0100,
 
-        .iManufacturer = 0x01,
-        .iProduct = 0x02,
-        .iSerialNumber = 0x03,
+  .iManufacturer = 0x01,
+  .iProduct = 0x02,
+  .iSerialNumber = 0x03,
 
-        .bNumConfigurations = 0x01};
+  .bNumConfigurations = 0x01
+};
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
@@ -92,13 +92,12 @@ enum {
 
 #define FUNC_ATTRS (DFU_ATTR_CAN_UPLOAD | DFU_ATTR_CAN_DOWNLOAD | DFU_ATTR_MANIFESTATION_TOLERANT)
 
-uint8_t const desc_configuration[] =
-    {
-        // Config number, interface count, string index, total length, attribute, power in mA
-        TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+uint8_t const desc_configuration[] = {
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-        // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
-        TUD_DFU_DESCRIPTOR(ITF_NUM_DFU_MODE, ALT_COUNT, 4, FUNC_ATTRS, 1000, CFG_TUD_DFU_XFER_BUFSIZE),
+  // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
+  TUD_DFU_DESCRIPTOR(ITF_NUM_DFU_MODE, ALT_COUNT, 4, FUNC_ATTRS, 1000, CFG_TUD_DFU_XFER_BUFSIZE),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -210,14 +209,13 @@ enum {
 };
 
 // array of pointer to string descriptors
-char const *string_desc_arr[] =
-    {
-        (const char[]){0x09, 0x04},// 0: is supported language is English (0x0409)
-        "TinyUSB",                 // 1: Manufacturer
-        "TinyUSB Device",          // 2: Product
-        NULL,                      // 3: Serials will use unique ID if possible
-        "FLASH",                   // 4: DFU Partition 1
-        "EEPROM",                  // 5: DFU Partition 2
+static char const *string_desc_arr[] = {
+  (const char[]){0x09, 0x04},// 0: is supported language is English (0x0409)
+  "TinyUSB",                 // 1: Manufacturer
+  "TinyUSB Device",          // 2: Product
+  NULL,                      // 3: Serials will use unique ID if possible
+  "FLASH",                   // 4: DFU Partition 1
+  "EEPROM",                  // 5: DFU Partition 2
 };
 
 static uint16_t _desc_str[32 + 1];
@@ -242,14 +240,18 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
       // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
       // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
-      if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0]))) return NULL;
+      if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0]))) {
+        return NULL;
+      }
 
       const char *str = string_desc_arr[index];
 
       // Cap at max char
       chr_count = strlen(str);
       size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1;// -1 for string type
-      if (chr_count > max_count) chr_count = max_count;
+      if (chr_count > max_count) {
+        chr_count = max_count;
+      }
 
       // Convert ASCII string into UTF-16
       for (size_t i = 0; i < chr_count; i++) {

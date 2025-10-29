@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _TUSB_CONFIG_H_
-#define _TUSB_CONFIG_H_
+#ifndef TUSB_CONFIG_H_
+#define TUSB_CONFIG_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -88,7 +88,7 @@ extern "C" {
 #ifndef USE_ECM
 #if TU_CHECK_MCU(OPT_MCU_LPC15XX, OPT_MCU_LPC40XX, OPT_MCU_LPC51UXX, OPT_MCU_LPC54)
   #define USE_ECM 1
-#elif TU_CHECK_MCU(OPT_MCU_SAMD21, OPT_MCU_SAML21, OPT_MCU_SAML22)
+#elif TU_CHECK_MCU(OPT_MCU_SAMD21, OPT_MCU_SAML2X)
   #define USE_ECM 1
 #elif TU_CHECK_MCU(OPT_MCU_STM32F0, OPT_MCU_STM32F1)
   #define USE_ECM 1
@@ -141,4 +141,4 @@ extern "C" {
 }
 #endif
 
-#endif /* _TUSB_CONFIG_H_ */
+#endif /* TUSB_CONFIG_H_ */

@@ -161,8 +161,8 @@ jobs:
 
       - name: Build
         run: |
-          west build -b pca10056 -d examples/device/cdc_msc/build examples/device/cdc_msc -- -DRTOS=zephyr
-          west build -b pca10056 -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr
+          west build -b nrf52840dk -d examples/device/cdc_msc/build examples/device/cdc_msc -- -DRTOS=zephyr
+          west build -b nrf52840dk -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -219,7 +219,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: cmake-build
           merge-multiple: true

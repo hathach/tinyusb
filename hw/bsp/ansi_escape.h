@@ -28,8 +28,8 @@
  *  \defgroup group_ansi_esc ANSI Escape Code
  *  @{ */
 
-#ifndef _TUSB_ANSI_ESC_CODE_H_
-#define _TUSB_ANSI_ESC_CODE_H_
+#ifndef TUSB_ANSI_ESC_CODE_H_
+#define TUSB_ANSI_ESC_CODE_H_
 
 
 #ifdef __cplusplus
@@ -92,6 +92,6 @@
  }
 #endif
 
-#endif /* _TUSB_ANSI_ESC_CODE_H_ */
+#endif /* TUSB_ANSI_ESC_CODE_H_ */
 
 /** @} */

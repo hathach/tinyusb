@@ -36,9 +36,3 @@ SECTIONS
 } INSERT AFTER .data;
 
 INCLUDE "nrf_common.ld"
-
-/* nrfx v2 linker does not define __tbss_start/end__ __sbss_start/end__*/
-__tbss_start__ = __tbss_start;
-__tbss_end__ = __tbss_end;
-__sbss_start__ = __sbss_start;
-__sbss_end__ = __sbss_end;

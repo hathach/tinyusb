@@ -92,7 +92,7 @@ static uart_inst_t *uart_inst;
 //
 // This doesn't work if others are trying to access flash at the same time,
 // e.g. XIP streamer, or the other core.
-bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
+static bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
   const uint CS_PIN_INDEX = 1;
 
   // Must disable interrupts, as interrupt handlers may be in flash, and we

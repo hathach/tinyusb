@@ -1,4 +1,4 @@
-include ../../build_system/make/make.mk
+include ../../../hw/bsp/family_support.mk
 
 # suppress warning caused by lwip
 CFLAGS_GCC += \
@@ -8,7 +8,6 @@ CFLAGS_GCC += \
 
 INC += \
   src \
-  $(TOP)/hw \
   $(TOP)/lib/lwip/src/include \
   $(TOP)/lib/lwip/src/include/ipv4 \
   $(TOP)/lib/lwip/src/include/lwip/apps \
@@ -16,7 +15,7 @@ INC += \
 
 # Example source
 EXAMPLE_SOURCE += $(wildcard src/*.c)
-SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
+SRC_C += $(addprefix $(EXAMPLE_PATH)/, $(EXAMPLE_SOURCE))
 
 # lwip sources
 SRC_C += \
@@ -66,4 +65,4 @@ SRC_C += \
   lib/networking/dnserver.c \
   lib/networking/rndis_reports.c
 
-include ../../build_system/make/rules.mk
+include ../../../hw/bsp/family_rules.mk

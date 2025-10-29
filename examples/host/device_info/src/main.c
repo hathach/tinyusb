@@ -171,9 +171,7 @@ void tuh_mount_cb(uint8_t daddr) {
   printf("\r\n");
 
   printf("  iSerialNumber       %u     ", desc.device.iSerialNumber);
-  printf((char*)desc.serial); // serial is already to UTF-8
-  printf("\r\n");
-
+  printf("%s\r\n", (char*)desc.serial); // serial is already to UTF-8
   printf("  bNumConfigurations  %u\r\n", desc.device.bNumConfigurations);
 }
 

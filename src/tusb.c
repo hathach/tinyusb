@@ -576,8 +576,12 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
     if (i % item_per_line == 0) {
       // Print Ascii
-      if (i != 0) dump_str_line(buf8 - 16, 16);
-      for (uint8_t s = 0; s < indent; s++) tu_printf(" ");
+      if (i != 0) {
+        dump_str_line(buf8 - 16, 16);
+      }
+      for (uint8_t s = 0; s < indent; s++) {
+        tu_printf(" ");
+      }
       // print offset or absolute address
       tu_printf("%04X: ", 16 * i / item_per_line);
     }
