@@ -255,7 +255,13 @@ static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint
 
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = tu_edpt_packet_size(p_endpoint_desc);
-  xfer->interval = p_endpoint_desc->bInterval;
+
+  const dwc2_dsts_t dsts = {.value = dwc2->dsts};
+  if (dsts.enum_speed == DCFG_SPEED_HIGH) {
+    xfer->interval = 1 << (p_endpoint_desc->bInterval - 1);
+  } else {
+    xfer->interval =  p_endpoint_desc->bInterval;
+  }
 
   // Endpoint control
   dwc2_depctl_t depctl = {.value = 0};
@@ -597,8 +603,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
       _dcd_data.ep0_pending[dir] = total_bytes;
     }
 
-    // Reset ISO retry counter to max frame interval value
-    xfer->iso_retry = 255;
+    // Reset ISO retry counter to interval value
+    xfer->iso_retry = xfer->interval;
 
     // Schedule packets to be sent within interrupt
     edpt_schedule_packets(rhport, epnum, dir);
@@ -632,8 +638,8 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     xfer->ff = ff;
     xfer->total_len = total_bytes;
 
-    // Reset ISO retry counter to max frame interval value
-    xfer->iso_retry = 255;
+    // Reset ISO retry counter to interval value
+    xfer->iso_retry = xfer->interval;
 
     // Schedule packets to be sent within interrupt
     // TODO xfer fifo may only available for slave mode
