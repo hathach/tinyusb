@@ -131,25 +131,25 @@ void tud_resume_cb(void) {
   #error Demo only supports YUV2 please define CFG_EXAMPLE_VIDEO_DISABLE_MJPEG
 #endif
 
-void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void* payload_buf, size_t payload_size, size_t offset)
+void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, tud_video_payload_request_t* request)
 {
   static uint32_t frame_counter = 0;
   (void)ctl_idx;
   (void)stm_idx;
 
   /* Offset will be zero at the start of a new frame */
-  if (!offset) frame_counter++; 
+  if (!request->offset) frame_counter++; 
 
-  for (size_t buf_pos = 0; buf_pos < payload_size; buf_pos += 2) {
+  for (size_t buf_pos = 0; buf_pos < request->length; buf_pos += 2) {
 
     /* Position within the current line (pixel relative) */
-    int line_pos = ((offset + buf_pos)>>1) % FRAME_WIDTH; 
+    int line_pos = ((request->offset + buf_pos)>>1) % FRAME_WIDTH; 
     
     /* Choose color based on the position and change the table offset every 4 frames */
     const uint8_t* color = bar_color[(line_pos/(FRAME_WIDTH / 8) + (frame_counter>>2)) % 8]; 
 
     /* Copy pixel data for odd or even pixels */
-    memcpy(&((uint8_t*)payload_buf)[buf_pos], &color[(line_pos & 1) ? 2 : 0], 2);
+    memcpy(&((uint8_t*)request->buf)[buf_pos], &color[(line_pos & 1) ? 2 : 0], 2);
   }
 
 }

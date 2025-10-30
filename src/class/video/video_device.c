@@ -214,12 +214,10 @@ TU_ATTR_WEAK int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
   return VIDEO_ERROR_NONE;
 }
 
-TU_ATTR_WEAK void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void* payload_buf, size_t payload_size, size_t offset) {
+TU_ATTR_WEAK void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, tud_video_payload_request_t* request) {
   (void) ctl_idx;
   (void) stm_idx;
-  (void) payload_buf;
-  (void) payload_size;
-  (void) offset;
+  (void) request;
 }
 
 //--------------------------------------------------------------------+
@@ -871,7 +869,12 @@ static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm, uint
   if (stm->buffer) {
     memcpy(&ep_buf[hdr_len], stm->buffer + stm->offset, data_len);
   } else {
-    tud_video_prepare_payload_cb(stm->index_vc, stm->index_vs, &ep_buf[hdr_len], data_len, stm->offset);
+    tud_video_payload_request_t rqst = {
+      .buf = &ep_buf[hdr_len], 
+      .length = data_len, 
+      .offset = stm->offset 
+    };
+    tud_video_prepare_payload_cb(stm->index_vc, stm->index_vs, &rqst);
   }
   stm->offset += data_len;
   remaining -= data_len;
