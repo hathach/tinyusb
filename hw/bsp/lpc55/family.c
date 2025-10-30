@@ -214,7 +214,7 @@ void board_init(void) {
   RESET_PeripheralReset(kUSB0HSL_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB0HMR_RST_SHIFT_RSTn);
 
-  if (BOARD_TUD_RHPORT == 0) {
+  if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0) {
     // Enable USB Clock Adjustments to trim the FRO for the full speed controller
     ANACTRL->FRO192M_CTRL |= ANACTRL_FRO192M_CTRL_USBCLKADJ_MASK;
     CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
