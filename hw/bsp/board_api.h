@@ -154,11 +154,13 @@ static inline size_t board_usb_get_serial(uint16_t desc_str1[], size_t max_chars
   // TODO work with make, but not working with esp32s3 cmake
   uid_len = board_get_unique_id(uid, sizeof(uid));
 
-  if ( uid_len > max_chars / 2 ) uid_len = max_chars / 2;
+  if ( uid_len > max_chars / 2u ) {
+    uid_len = max_chars / 2u;
+  }
 
   for ( size_t i = 0; i < uid_len; i++ ) {
     for ( size_t j = 0; j < 2; j++ ) {
-      const char nibble_to_hex[16] = {
+      const unsigned char nibble_to_hex[16] = {
           '0', '1', '2', '3', '4', '5', '6', '7',
           '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
       };

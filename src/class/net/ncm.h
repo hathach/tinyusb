@@ -25,8 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_NCM_H_
-#define _TUSB_NCM_H_
+#ifndef TUSB_NCM_H_
+#define TUSB_NCM_H_
 
 #include "common/tusb_common.h"
 

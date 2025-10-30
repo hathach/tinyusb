@@ -25,8 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_NET_DEVICE_H_
-#define _TUSB_NET_DEVICE_H_
+#ifndef TUSB_NET_DEVICE_H_
+#define TUSB_NET_DEVICE_H_
 
 #include <stdint.h>
 #include "class/cdc/cdc.h"
@@ -114,4 +114,4 @@ void     netd_report          (uint8_t *buf, uint16_t len);
  }
 #endif
 
-#endif /* _TUSB_NET_DEVICE_H_ */
+#endif /* TUSB_NET_DEVICE_H_ */

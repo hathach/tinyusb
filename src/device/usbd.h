@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_USBD_H_
-#define _TUSB_USBD_H_
+#ifndef TUSB_USBD_H_
+#define TUSB_USBD_H_
 
 #include "common/tusb_common.h"
 
@@ -1014,6 +1014,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 }
 #endif
 
-#endif /* _TUSB_USBD_H_ */
+#endif /* TUSB_USBD_H_ */
 
 /** @} */

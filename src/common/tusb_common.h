@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_COMMON_H_
-#define _TUSB_COMMON_H_
+#ifndef TUSB_COMMON_H_
+#define TUSB_COMMON_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -138,7 +138,7 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, c
   }
 
   // For memcpy, src may be NULL only if count == 0. Reject otherwise.
-  if (src == NULL && count != 0) {
+  if (src == NULL && count != 0u) {
     return -1;
   }
 
@@ -398,4 +398,4 @@ uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t b
  }
 #endif
 
-#endif /* _TUSB_COMMON_H_ */
+#endif /* TUSB_COMMON_H_ */

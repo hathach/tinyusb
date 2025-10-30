@@ -30,8 +30,8 @@
  *            Currently only MIDI subclass is supported
  *  @{ */
 
-#ifndef _TUSB_AUDIO_H__
-#define _TUSB_AUDIO_H__
+#ifndef TUSB_AUDIO_H__
+#define TUSB_AUDIO_H__
 
 #include "common/tusb_common.h"
 

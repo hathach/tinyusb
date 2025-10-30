@@ -379,7 +379,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
 
     // Enable tx fifo empty interrupt only if there is data. Note must after depctl enable
     if (dir == TUSB_DIR_IN && total_bytes != 0) {
-      dwc2->diepempmsk |= (1 << epnum);
+      dwc2->diepempmsk |= (1u << epnum);
     }
   }
 }
@@ -402,7 +402,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Set device max speed
   uint32_t dcfg = dwc2->dcfg & ~DCFG_DSPD_Msk;
   if (is_highspeed) {
-    dcfg |= DCFG_DSPD_HS << DCFG_DSPD_Pos;
+    // dcfg Highspeed's mask is 0
 
     // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
     // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
@@ -914,7 +914,7 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
     // Turn off TXFE if all bytes are written.
     tsiz.value = epin->tsiz;
     if (tsiz.xfer_size == 0) {
-      dwc2->diepempmsk &= ~(1 << epnum);
+      dwc2->diepempmsk &= ~(1u << epnum);
     }
   }
 }
@@ -1054,6 +1054,8 @@ void dcd_int_handler(uint8_t rhport) {
   if (gintsts & GINTSTS_ENUMDNE) {
     // ENUMDNE is the end of reset where speed of the link is detected
     dwc2->gintsts = GINTSTS_ENUMDNE;
+    // There may be a pending suspend event, so we clear it first
+    dwc2->gintsts = GINTSTS_USBSUSP;
     dwc2->gintmsk |= GINTMSK_USBSUSPM;
     handle_enum_done(rhport);
   }

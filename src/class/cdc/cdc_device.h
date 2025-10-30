@@ -257,4 +257,4 @@ bool     cdcd_xfer_cb         (uint8_t rhport, uint8_t ep_addr, xfer_result_t re
  }
 #endif
 
-#endif /* _TUSB_CDC_DEVICE_H_ */
+#endif /* TUSB_CDC_DEVICE_H_ */

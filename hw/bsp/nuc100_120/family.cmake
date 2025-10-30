@@ -69,16 +69,21 @@ function(family_configure_example TARGET RTOS)
       "LINKER:--script=${LD_FILE_GNU}"
       --specs=nosys.specs --specs=nano.specs
       )
+    target_compile_options(${TARGET} PRIVATE -Wno-redundant-decls)
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_Clang}"
-      )
+    target_link_options(${TARGET} PUBLIC "LINKER:--script=${LD_FILE_Clang}")
+    target_compile_options(${TARGET} PRIVATE -Wno-redundant-decls)
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
-      )
+    target_link_options(${TARGET} PUBLIC "LINKER:--config=${LD_FILE_IAR}")
   endif ()
 
-  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES SKIP_LINTING ON)
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES
+      COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
+
   family_flash_openocd_nuvoton(${TARGET})
 endfunction()

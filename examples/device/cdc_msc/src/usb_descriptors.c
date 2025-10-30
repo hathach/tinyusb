@@ -32,9 +32,9 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]         HID | MSC | CDC          [LSB]
  */
-#define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
+#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
+#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
+                           PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4) )
 
 #define USB_VID   0xCafe
 #define USB_BCD   0x0200
@@ -42,7 +42,7 @@
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device = {
+static tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = USB_BCD,
@@ -125,7 +125,7 @@ enum {
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_MSC_DESC_LEN)
 
 // full speed configuration
-uint8_t const desc_fs_configuration[] = {
+static uint8_t const desc_fs_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
@@ -140,7 +140,7 @@ uint8_t const desc_fs_configuration[] = {
 // Per USB specs: high speed capable device must report device_qualifier and other_speed_configuration
 
 // high speed configuration
-uint8_t const desc_hs_configuration[] = {
+static uint8_t const desc_hs_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
@@ -152,10 +152,10 @@ uint8_t const desc_hs_configuration[] = {
 };
 
 // other speed configuration
-uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
+static uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
 
 // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
-tusb_desc_device_qualifier_t const desc_device_qualifier = {
+static tusb_desc_device_qualifier_t const desc_device_qualifier = {
     .bLength            = sizeof(tusb_desc_device_qualifier_t),
     .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
     .bcdUSB             = USB_BCD,
@@ -223,7 +223,7 @@ enum {
 };
 
 // array of pointer to string descriptors
-char const *string_desc_arr[] = {
+static char const *string_desc_arr[] = {
     (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
     "TinyUSB",                     // 1: Manufacturer
     "TinyUSB Device",              // 2: Product

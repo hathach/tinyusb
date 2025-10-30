@@ -76,6 +76,7 @@ enum {
   DISK_BLOCK_SIZE = 512
 };
 
+static
 #ifdef CFG_EXAMPLE_MSC_READONLY
 const
 #endif

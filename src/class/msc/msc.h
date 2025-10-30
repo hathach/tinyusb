@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MSC_H_
-#define _TUSB_MSC_H_
+#ifndef TUSB_MSC_H_
+#define TUSB_MSC_H_
 
 #include "common/tusb_common.h"
 
@@ -398,4 +398,4 @@ TU_VERIFY_STATIC(sizeof(scsi_write10_t) == 10, "size is not correct");
  }
 #endif
 
-#endif /* _TUSB_MSC_H_ */
+#endif /* TUSB_MSC_H_ */
