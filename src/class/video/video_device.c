@@ -214,6 +214,14 @@ TU_ATTR_WEAK int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
   return VIDEO_ERROR_NONE;
 }
 
+TU_ATTR_WEAK void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void* payload_buf, size_t payload_size, size_t offset) {
+  (void) ctl_idx;
+  (void) stm_idx;
+  (void) payload_buf;
+  (void) payload_size;
+  (void) offset;
+}
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
@@ -860,7 +868,11 @@ static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm, uint
   }
   TU_ASSERT(pkt_len >= hdr_len);
   uint_fast16_t data_len = pkt_len - hdr_len;
-  memcpy(&ep_buf[hdr_len], stm->buffer + stm->offset, data_len);
+  if (stm->buffer) {
+    memcpy(&ep_buf[hdr_len], stm->buffer + stm->offset, data_len);
+  } else {
+    tud_video_prepare_payload_cb(stm->index_vc, stm->index_vs, &ep_buf[hdr_len], data_len, stm->offset);
+  }
   stm->offset += data_len;
   remaining -= data_len;
   if (!remaining) {
@@ -1235,11 +1247,11 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   TU_ASSERT(ctl_idx < CFG_TUD_VIDEO);
   TU_ASSERT(stm_idx < CFG_TUD_VIDEO_STREAMING);
 
-  if (!buffer || !bufsize) return false;
+  if (!bufsize) return false;
   videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
   videod_streaming_epbuf_t *stm_epbuf = &_videod_streaming_epbuf[ctl_idx];
 
-  if (!stm || !stm->desc.ep[0] || stm->buffer) return false;
+  if (!stm || !stm->desc.ep[0] || stm->bufsize) return false;
   if (stm->state == VS_STATE_PROBING) return false;
 
   /* Find EP address */

@@ -83,6 +83,16 @@ int tud_video_power_mode_cb(uint_fast8_t ctl_idx, uint8_t power_mod);
 int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
                                      video_probe_and_commit_control_t const *parameters);
 
+/** Invoked if buffer is set to NULL (allows bufferless on the fly data generation)
+ *
+ * @param[in]   ctl_idx       Destination control interface index
+ * @param[in]   stm_idx       Destination streaming interface index
+ * @param[out]  payload_buf   Payload storage buffer (target buffer for requested data)
+ * @param[in]   payload_size  Size of payload_buf (requested data size)
+ * @param[in]   offset        Current byte offset relative to given bufsize from tud_video_n_frame_xfer (framesize)
+ * @return video_error_code_t */
+void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void* payload_buf, size_t payload_size, size_t offset);
+
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
