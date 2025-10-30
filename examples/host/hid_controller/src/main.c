@@ -34,18 +34,15 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
 
-extern void cdc_task(void);
-extern void hid_app_task(void);
-
 /*------------- MAIN -------------*/
-int main(void)
-{
+int main(void) {
   board_init();
 
   printf("TinyUSB Host HID Controller Example\r\n");
@@ -60,19 +57,11 @@ int main(void)
 
   board_init_after_tusb();
 
-  while (1)
-  {
+  while (1) {
     // tinyusb host task
     tuh_task();
     led_blinking_task();
-
-#if CFG_TUH_CDC
-    cdc_task();
-#endif
-
-#if CFG_TUH_HID
     hid_app_task();
-#endif
   }
 }
 
@@ -83,8 +72,7 @@ int main(void)
 //--------------------------------------------------------------------+
 // Blinking Task
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
+void led_blinking_task(void) {
   const uint32_t interval_ms = 1000;
   static uint32_t start_ms = 0;
 

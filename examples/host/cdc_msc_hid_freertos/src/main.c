@@ -29,6 +29,7 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 #ifdef ESP_PLATFORM
   #define USBH_STACK_SIZE     4096
@@ -65,9 +66,6 @@ TimerHandle_t blinky_tm;
 static void led_blinky_cb(TimerHandle_t xTimer);
 static void usb_host_task(void* param);
 
-extern void cdc_app_init(void);
-extern void hid_app_init(void);
-extern void msc_app_init(void);
 
 /*------------- MAIN -------------*/
 int main(void) {

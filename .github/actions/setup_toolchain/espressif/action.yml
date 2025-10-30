@@ -13,8 +13,10 @@ runs:
   using: "composite"
   steps:
     - name: Set DOCKER_ESP_IDF
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
       run: |
-        DOCKER_ESP_IDF=$HOME/cache/${{ inputs.toolchain }}/docker_image.tar
+        DOCKER_ESP_IDF=$HOME/cache/${TOOLCHAIN}/docker_image.tar
         echo "DOCKER_ESP_IDF=$DOCKER_ESP_IDF" >> $GITHUB_ENV
       shell: bash
 
@@ -27,10 +29,12 @@ runs:
 
     - name: Pull and Save Docker Image
       if: steps.cache-toolchain-espressif.outputs.cache-hit != 'true'
+      env:
+        TOOLCHAIN_VERSION: ${{ inputs.toolchain_version }}
       run: |
-        docker pull espressif/idf:${{ inputs.toolchain_version }}
+        docker pull espressif/idf:${TOOLCHAIN_VERSION}
         mkdir -p $(dirname $DOCKER_ESP_IDF)
-        docker save -o $DOCKER_ESP_IDF espressif/idf:${{ inputs.toolchain_version }}
+        docker save -o $DOCKER_ESP_IDF espressif/idf:${TOOLCHAIN_VERSION}
         du -sh $DOCKER_ESP_IDF
       shell: bash
 
@@ -42,7 +46,9 @@ runs:
       shell: bash
 
     - name: Tag Local Image
+      env:
+        TOOLCHAIN_VERSION: ${{ inputs.toolchain_version }}
       run: |
-        docker tag espressif/idf:${{ inputs.toolchain_version }} espressif/idf:tinyusb
+        docker tag espressif/idf:${TOOLCHAIN_VERSION} espressif/idf:tinyusb
         docker images
       shell: bash

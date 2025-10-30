@@ -34,9 +34,9 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]         HID | MSC | CDC          [LSB]
  */
-#define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
+#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
+#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
+                           PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4) )
 
 #define USB_VID   0xcafe
 #define USB_BCD   0x0200
@@ -44,7 +44,7 @@
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
+static tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
@@ -112,7 +112,7 @@ enum
 
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_USBTMC_DESC_LEN)
 
-uint8_t const desc_fs_configuration[] =
+static uint8_t const desc_fs_configuration[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
@@ -122,7 +122,7 @@ uint8_t const desc_fs_configuration[] =
 
 #if TUD_OPT_HIGH_SPEED
 
-uint8_t const desc_hs_configuration[] =
+static uint8_t const desc_hs_configuration[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
@@ -131,10 +131,10 @@ uint8_t const desc_hs_configuration[] =
 };
 
 // other speed configuration
-uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
+static uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
 
 // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
-tusb_desc_device_qualifier_t const desc_device_qualifier =
+static tusb_desc_device_qualifier_t const desc_device_qualifier =
 {
   .bLength            = sizeof(tusb_desc_device_qualifier_t),
   .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
@@ -156,6 +156,23 @@ tusb_desc_device_qualifier_t const desc_device_qualifier =
 uint8_t const* tud_descriptor_device_qualifier_cb(void)
 {
   return (uint8_t const*) &desc_device_qualifier;
+}
+
+// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
+uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  (void) index; // for multiple configurations
+
+  // if link speed is high return fullspeed config, and vice versa
+  // Note: the descriptor type is OTHER_SPEED_CONFIG instead of CONFIG
+  memcpy(desc_other_speed_config,
+         (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_fs_configuration : desc_hs_configuration,
+         CONFIG_TOTAL_LEN);
+
+  desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
+
+  return desc_other_speed_config;
 }
 
 #endif
@@ -187,7 +204,7 @@ enum {
 };
 
 // array of pointer to string descriptors
-char const *string_desc_arr[] =
+static char const *string_desc_arr[] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
   "TinyUSB",                     // 1: Manufacturer

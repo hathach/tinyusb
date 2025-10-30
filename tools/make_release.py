@@ -45,6 +45,17 @@ with open(f_library_json, 'w') as f:
     f.write(fdata)
 
 ###################
+# sonar-project.properties
+###################
+f_sonar_properties = 'sonar-project.properties'
+with open(f_sonar_properties) as f:
+    fdata = f.read()
+    fdata = re.sub(r'(sonar\.projectVersion=)\d+\.\d+\.\d+', rf'\1{version}', fdata)
+
+with open(f_sonar_properties, 'w') as f:
+    f.write(fdata)
+
+###################
 # docs/info/changelog.rst
 ###################
 

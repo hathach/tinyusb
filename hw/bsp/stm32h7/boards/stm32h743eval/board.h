@@ -61,7 +61,7 @@ static board_pindef_t board_pindef[] = {
   { // LED
     .port = GPIOA,
     .pin_init = { .Pin = GPIO_PIN_4, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLDOWN, .Speed = GPIO_SPEED_HIGH, .Alternate = 0 },
-    .active_state = 1
+    .active_state = 0
   },
   { // Button
     .port = GPIOC,
@@ -214,6 +214,10 @@ static int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint
   return 0;
 }
 
+static int32_t i2c_get_tick(void) {
+  return (int32_t) HAL_GetTick();
+}
+
 static inline void board_init2(void) {
   // IO control via MFX
   MFXSTM32L152_IO_t io_ctx;
@@ -221,7 +225,7 @@ static inline void board_init2(void) {
   io_ctx.DeInit      = board_i2c_deinit;
   io_ctx.ReadReg     = i2c_readreg;
   io_ctx.WriteReg    = i2c_writereg;
-  io_ctx.GetTick     = (MFXSTM32L152_GetTick_Func) HAL_GetTick;
+  io_ctx.GetTick     = i2c_get_tick;
 
   uint16_t i2c_addr[] = { 0x84, 0x86 };
   for(uint8_t i = 0U; i < 2U; i++) {

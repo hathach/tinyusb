@@ -35,8 +35,8 @@
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
-void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
-{
+void USB_UBM_ISR(void) __attribute__ ((interrupt(USB_UBM_VECTOR)));
+void USB_UBM_ISR(void) {
   tud_int_handler(0);
 }
 
@@ -200,8 +200,9 @@ int board_uart_write(void const * buf, int len)
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) TIMER0_A0_ISR (void)
-{
+
+void TIMER0_A0_ISR (void) __attribute__ ((interrupt(TIMER0_A0_VECTOR)));
+void TIMER0_A0_ISR (void) {
   system_ticks++;
   // TAxCCR0 CCIFG resets itself as soon as interrupt is invoked.
 }

@@ -26,6 +26,7 @@
 
 #include "tusb.h"
 #include "bsp/board_api.h"
+#include "app.h"
 
 static size_t get_console_inputs(uint8_t* buf, size_t bufsize) {
   size_t count = 0;

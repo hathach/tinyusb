@@ -7,6 +7,8 @@ if (NOT DEFINED CMAKE_CXX_COMPILER)
 endif ()
 
 set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
+set(TOOLCHAIN_ASM_FLAGS "-x assembler-with-cpp")
+
 find_program(CMAKE_SIZE llvm-size)
 find_program(CMAKE_OBJCOPY llvm-objcopy)
 find_program(CMAKE_OBJDUMP llvm-objdump)

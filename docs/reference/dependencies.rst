@@ -22,7 +22,7 @@ hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuc
 hw/mcu/infineon/mtb-xmclib-cat3           https://github.com/Infineon/mtb-xmclib-cat3.git                   daf5500d03cba23e68c2f241c30af79cd9d63880  xmc4000
 hw/mcu/microchip                          https://github.com/hathach/microchip_driver.git                   9e8b37e307d8404033bb881623a113931e1edf27  sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg
 hw/mcu/mindmotion/mm32sdk                 https://github.com/hathach/mm32sdk.git                            b93e856211060ae825216c6a1d6aa347ec758843  mm32
-hw/mcu/nordic/nrfx                        https://github.com/NordicSemiconductor/nrfx.git                   7c47cc0a56ce44658e6da2458e86cd8783ccc4a2  nrf
+hw/mcu/nordic/nrfx                        https://github.com/NordicSemiconductor/nrfx.git                   11f57e578c7feea13f21c79ea0efab2630ac68c7  nrf
 hw/mcu/nuvoton                            https://github.com/majbthrd/nuc_driver.git                        2204191ec76283371419fbcec207da02e1bc22fa  nuc
 hw/mcu/nxp/lpcopen                        https://github.com/hathach/nxp_lpcopen.git                        b41cf930e65c734d8ec6de04f1d57d46787c76ae  lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43
 hw/mcu/nxp/mcux-sdk                       https://github.com/nxp-mcuxpresso/mcux-sdk                        a1bdae309a14ec95a4f64a96d3315a4f89c397c6  kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt

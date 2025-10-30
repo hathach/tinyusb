@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_TCD_H_
-#define _TUSB_TCD_H_
+#ifndef TUSB_TCD_H_
+#define TUSB_TCD_H_
 
 #include "common/tusb_common.h"
 #include "pd_types.h"

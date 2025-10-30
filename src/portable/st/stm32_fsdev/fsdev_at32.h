@@ -175,9 +175,9 @@ void dcd_int_enable(uint8_t rhport) {
   // shared USB/CAN IRQs to separate CAN and USB IRQs.
   // This dynamically checks if this remap is active to enable the right IRQs.
   if (CRM->intmap_bit.usbintmap) {
-    NVIC_DisableIRQ(USBFS_MAPH_IRQn);
-    NVIC_DisableIRQ(USBFS_MAPL_IRQn);
-    NVIC_DisableIRQ(USBFSWakeUp_IRQn);
+    NVIC_EnableIRQ(USBFS_MAPH_IRQn);
+    NVIC_EnableIRQ(USBFS_MAPL_IRQn);
+    NVIC_EnableIRQ(USBFSWakeUp_IRQn);
   } else
   #endif
   {

@@ -10,28 +10,24 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 set(FAMILY_MCUS DA1469X CACHE INTERNAL "")
 
 #------------------------------------
-# BOARD_TARGET
+# Startup & Linker script
 #------------------------------------
-# only need to be built ONCE for all examples
-function(add_board_target BOARD_TARGET)
-  if (TARGET ${BOARD_TARGET})
-    return()
-  endif ()
+if (NOT DEFINED LD_FILE_GNU)
+set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/linker/da1469x.ld)
+endif ()
+if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
+set(STARTUP_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/gcc_startup_da1469x.S)
+set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+endif ()
 
-  if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/da1469x.ld)
-  endif ()
-
-  if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-    set(STARTUP_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/gcc_startup_da1469x.S)
-    set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-  endif ()
-
+#------------------------------------
+# Board Target
+#------------------------------------
+function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     ${MCU_DIR}/src/system_da1469x.c
     ${MCU_DIR}/src/da1469x_clock.c
     ${MCU_DIR}/src/hal_gpio.c
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_compile_options(${BOARD_TARGET} PUBLIC -mthumb-interwork)
   target_compile_definitions(${BOARD_TARGET} PUBLIC
@@ -46,31 +42,11 @@ function(add_board_target BOARD_TARGET)
     )
 
   update_board(${BOARD_TARGET})
-
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -L${NRFX_DIR}/mdk
-      --specs=nosys.specs --specs=nano.specs
-      -nostartfiles
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -L${NRFX_DIR}/mdk
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
-      )
-  endif ()
 endfunction()
-
 
 #------------------------------------
 # Functions
 #------------------------------------
-
 function(family_flash_jlink_dialog TARGET)
   set(JLINKEXE JLinkExe)
   set(JLINK_IF swd)
@@ -107,32 +83,42 @@ endfunction()
 
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_DA1469X)
 
-  # Board target
-  add_board_target(board_${BOARD})
-
-  #---------- Port Specific ----------
-  # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/dialog/da146xx/dcd_da146xx.c
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC
-    # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_DA1469X)
-  target_sources(${TARGET} PUBLIC
-    ${TOP}/src/portable/dialog/da146xx/dcd_da146xx.c
-    )
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      --specs=nosys.specs --specs=nano.specs
+      -nostartfiles
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
+  endif ()
 
-
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
 
   # Flashing
   family_add_bin_hex(${TARGET})

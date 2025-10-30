@@ -28,8 +28,8 @@
  * \defgroup CDC_RNSID_Host Host
  *  @{ */
 
-#ifndef _TUSB_CDC_RNDIS_HOST_H_
-#define _TUSB_CDC_RNDIS_HOST_H_
+#ifndef TUSB_CDC_RNDIS_HOST_H_
+#define TUSB_CDC_RNDIS_HOST_H_
 
 #include "common/tusb_common.h"
 #include "host/usbh.h"
@@ -58,6 +58,6 @@ void rndish_close(uint8_t dev_addr);
  }
 #endif
 
-#endif /* _TUSB_CDC_RNDIS_HOST_H_ */
+#endif /* TUSB_CDC_RNDIS_HOST_H_ */
 
 /** @} */

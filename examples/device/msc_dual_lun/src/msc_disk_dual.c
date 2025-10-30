@@ -217,9 +217,9 @@ uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uin
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
 
-  memcpy(inquiry_resp->vendor_id, vid, strlen(vid));
-  memcpy(inquiry_resp->product_id, pid, strlen(pid));
-  memcpy(inquiry_resp->product_rev, rev, strlen(rev));
+  strncpy((char*) inquiry_resp->vendor_id, vid, 8);
+  strncpy((char*) inquiry_resp->product_id, pid, 16);
+  strncpy((char*) inquiry_resp->product_rev, rev, 4);
 
   return sizeof(scsi_inquiry_resp_t); // 36 bytes
 }
@@ -227,9 +227,7 @@ uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uin
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted
 bool tud_msc_test_unit_ready_cb(uint8_t lun) {
-  if ( lun == 1 && board_button_read() ) return false;
-
-  return true; // RAM disk is always ready
+  return ( lun == 1 && board_button_read() ) ? false : true;
 }
 
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size

@@ -54,7 +54,7 @@ void OTG_HS_IRQHandler(void) {
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
 #ifdef UART_DEV
-UART_HandleTypeDef UartHandle = {
+static UART_HandleTypeDef UartHandle = {
     .Instance = UART_DEV,
     .Init = {
       .BaudRate   = CFG_BOARD_UART_BAUDRATE,
