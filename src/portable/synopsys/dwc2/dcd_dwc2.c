@@ -1138,27 +1138,34 @@ void dcd_int_handler(uint8_t rhport) {
   // Incomplete isochronous IN transfer interrupt handling.
   if (gintsts & GINTSTS_IISOIXFR) {
     dwc2->gintsts = GINTSTS_IISOIXFR;
+    const dwc2_dsts_t dsts = {.value = dwc2->dsts};
+    const uint32_t odd_now = dsts.frame_number & 1u;
     // Loop over all IN endpoints
     const uint8_t ep_count = dwc2_ep_count(dwc2);
     for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
       dwc2_dep_t* epin = &dwc2->epin[epnum];
       dwc2_depctl_t depctl = {.value = epin->diepctl};
-      // Find enabled ISO endpoints
-      if (depctl.enable && depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS) {
-        // Disable endpoint, flush fifo and restart transfer
-        depctl.set_nak = 1;
-        epin->diepctl = depctl.value;
-        depctl.disable = 1;
-        epin->diepctl = depctl.value;
-        while ((epin->diepint & DIEPINT_EPDISD_Msk) == 0) {}
-        epin->diepint = DIEPINT_EPDISD;
-        dfifo_flush_tx(dwc2, epnum);
+      // Read DSTS and DIEPCTLn for all isochronous endpoints. If the current EP is enabled
+      // and the read value of DSTS.SOFFN is the targeted uframe number for this EP, then
+      // this EP has an incomplete transfer.
+      if (depctl.enable && depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && depctl.dpid_iso_odd == odd_now) {
         xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
         if (xfer->iso_retry) {
           xfer->iso_retry--;
-          edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN);
+          // Restart ISO transfer
+          dwc2_ep_tsize_t deptsiz = {.value = 0};
+          deptsiz.xfer_size = xfer->total_len;
+          deptsiz.packet_count = tu_div_ceil(xfer->total_len, xfer->max_size);
+          epin->tsiz = deptsiz.value;
+          if (odd_now) {
+            depctl.set_data0_iso_even = 1;
+          } else {
+            depctl.set_data1_iso_odd = 1;
+          }
+          epin->diepctl = depctl.value;
         } else {
           // too many retries, give up
+          edpt_disable(rhport, epnum | TUSB_DIR_IN_MASK, false);
           dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, 0, XFER_RESULT_FAILED, true);
         }
       }
