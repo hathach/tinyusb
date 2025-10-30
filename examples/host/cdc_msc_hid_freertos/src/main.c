@@ -34,7 +34,7 @@
   #define USBH_STACK_SIZE     4096
 #else
   // Increase stack size when debug log is enabled
-  #define USBH_STACK_SIZE    (4*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 4 : 2))
 #endif
 
 
