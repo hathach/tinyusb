@@ -187,7 +187,9 @@ uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint1
   (void) block_num;
   (void) length;
 
-  uint16_t const xfer_len = (uint16_t) strlen(upload_image[alt]);
+  TU_VERIFY(block_num == 0, 0); // for this example we only support single block upload
+
+  uint16_t const xfer_len = tu_min16((uint16_t) strlen(upload_image[alt]), length);
   memcpy(data, upload_image[alt], xfer_len);
 
   return xfer_len;
