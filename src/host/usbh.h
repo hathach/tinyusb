@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_USBH_H_
-#define _TUSB_USBH_H_
+#ifndef TUSB_USBH_H_
+#define TUSB_USBH_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -179,7 +179,7 @@ TU_ATTR_ALWAYS_INLINE static inline void tuh_task(void) {
 // Check if there is pending events need processing by tuh_task()
 bool tuh_task_event_ready(void);
 
-#ifndef _TUSB_HCD_H_
+#ifndef TUSB_HCD_H_
 extern void hcd_int_handler(uint8_t rhport, bool in_isr);
 #endif
 

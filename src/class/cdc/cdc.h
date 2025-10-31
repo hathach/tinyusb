@@ -29,8 +29,8 @@
  *            Currently only Abstract Control Model subclass is supported
  *  @{ */
 
-#ifndef _TUSB_CDC_H__
-#define _TUSB_CDC_H__
+#ifndef TUSB_CDC_H__
+#define TUSB_CDC_H__
 
 #include "common/tusb_common.h"
 

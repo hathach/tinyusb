@@ -50,7 +50,7 @@ To incorporate tinyusb to your project
 Examples
 --------
 
-For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API should be used. Most examples will work on most of `the supported boards <boards.rst>`_. Firstly we need to ``git clone`` if not already
+For your convenience, TinyUSB contains a handful of examples for both host and device with/without RTOS to quickly test the functionality as well as demonstrate how API should be used. Most examples will work on most of :doc:`the supported boards <boards>`. Firstly we need to ``git clone`` if not already
 
 .. code-block:: bash
 
@@ -77,7 +77,7 @@ The hardware code is located in ``hw/bsp`` folder, and is organized by family/bo
    $ cd examples/device/cdc_msc
    $ make BOARD=feather_nrf52840_express get-deps
 
-You only need to do this once per family. Check out `complete list of dependencies and their designated path here <dependencies.rst>`_
+You only need to do this once per family. Check out :doc:`complete list of dependencies and their designated path here <dependencies>`
 
 Build Examples
 ^^^^^^^^^^^^^^

@@ -55,6 +55,7 @@
 #define IOCON_PIO_MODE_INACT     0x00u   // No addition pin function
 #define IOCON_PIO_OPENDRAIN_DI   0x00u   // Open drain is disabled
 #define IOCON_PIO_SLEW_STANDARD  0x00u   // Standard mode, output slew rate control is enabled
+#define IOCON_PIO_MODE_PULLUP    0x20u   /*!<@brief Selects pull-up function */
 
 #define IOCON_PIO_DIG_FUNC0_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC0) // Digital pin function 0 enabled
 #define IOCON_PIO_DIG_FUNC1_EN   (IOCON_PIO_DIGITAL_EN | IOCON_PIO_FUNC1) // Digital pin function 1 enabled
@@ -197,12 +198,13 @@ void board_init(void) {
   USART_Init(UART_DEV, &uart_config, 12000000);
 #endif
 
-  // USB VBUS
+#if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 0)
   /* PORT0 PIN22 configured as USB0_VBUS */
   IOCON_PinMuxSet(IOCON, 0U, 22U, IOCON_PIO_DIG_FUNC7_EN);
-
-#if defined(BOARD_TUD_RHPORT)  && BOARD_TUD_RHPORT == 0
   // Port0 is Full Speed
+
+  NVIC_ClearPendingIRQ(USB0_IRQn);
+  NVIC_ClearPendingIRQ(USB0_NEEDCLK_IRQn);
 
   /* Turn on USB0 Phy */
   POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY);
@@ -212,21 +214,55 @@ void board_init(void) {
   RESET_PeripheralReset(kUSB0HSL_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB0HMR_RST_SHIFT_RSTn);
 
-  // Enable USB Clock Adjustments to trim the FRO for the full speed controller
-  ANACTRL->FRO192M_CTRL |= ANACTRL_FRO192M_CTRL_USBCLKADJ_MASK;
-  CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
-  CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
+  if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0) {
+    // Enable USB Clock Adjustments to trim the FRO for the full speed controller
+    ANACTRL->FRO192M_CTRL |= ANACTRL_FRO192M_CTRL_USBCLKADJ_MASK;
+    CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
+    CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
 
-  /*According to reference manual, device mode setting has to be set by access usb host register */
-  CLOCK_EnableClock(kCLOCK_Usbhsl0);  // enable usb0 host clock
-  USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
-  CLOCK_DisableClock(kCLOCK_Usbhsl0); // disable usb0 host clock
+    /*According to reference manual, device mode setting has to be set by access usb host register */
+    CLOCK_EnableClock(kCLOCK_Usbhsl0);  // enable usb0 host clock
+    USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
+    CLOCK_DisableClock(kCLOCK_Usbhsl0); // disable usb0 host clock
+    /* enable USB Device clock */
+    CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf));
+  } else {
+    const uint32_t port1_pin12_config = (/* Pin is configured as USB0_PORTPWRN */
+                                         IOCON_PIO_FUNC4 |
+                                         /* Selects pull-up function */
+                                         IOCON_PIO_MODE_PULLUP |
+                                         /* Standard mode, output slew rate control is enabled */
+                                         IOCON_PIO_SLEW_STANDARD |
+                                         /* Input function is not inverted */
+                                         IOCON_PIO_INV_DI |
+                                         /* Enables digital function */
+                                         IOCON_PIO_DIGITAL_EN |
+                                         /* Open drain is disabled */
+                                         IOCON_PIO_OPENDRAIN_DI);
+    /* PORT1 PIN12 (coords: 67) is configured as USB0_PORTPWRN */
+    IOCON_PinMuxSet(IOCON, 1U, 12U, port1_pin12_config);
 
-  /* enable USB Device clock */
-  CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf));
+    const uint32_t port0_pin28_config = (/* Pin is configured as USB0_OVERCURRENTN */
+                                         IOCON_PIO_FUNC7 |
+                                         /* Selects pull-up function */
+                                         IOCON_PIO_MODE_PULLUP |
+                                         /* Standard mode, output slew rate control is enabled */
+                                         IOCON_PIO_SLEW_STANDARD |
+                                         /* Input function is not inverted */
+                                         IOCON_PIO_INV_DI |
+                                         /* Enables digital function */
+                                         IOCON_PIO_DIGITAL_EN |
+                                         /* Open drain is disabled */
+                                         IOCON_PIO_OPENDRAIN_DI);
+    /* PORT0 PIN28 (coords: 66) is configured as USB0_OVERCURRENTN */
+    IOCON_PinMuxSet(IOCON, 0U, 28U, port0_pin28_config);
+
+    CLOCK_EnableUsbfs0HostClock(kCLOCK_UsbfsSrcPll1, 48000000U);
+    USBFSH->PORTMODE &= ~USBFSH_PORTMODE_DEV_ENABLE_MASK;
+  }
 #endif
 
-#if defined(BOARD_TUD_RHPORT)  && BOARD_TUD_RHPORT == 1
+#if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 1)
   // Port1 is High Speed
 
   /* Turn on USB1 Phy */
@@ -266,9 +302,9 @@ void board_init(void) {
 //  phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
 //  USBPHY->TX = phytx;
 
-    ARM_MPU_SetMemAttr(0, 0x44); // Normal memory, non-cacheable (inner and outer)
-    ARM_MPU_SetRegion(0, ARM_MPU_RBAR(0x40100000, ARM_MPU_SH_NON, 0, 1, 1), ARM_MPU_RLAR(0x40104000, 0));
-    ARM_MPU_Enable(MPU_CTRL_PRIVDEFENA_Msk | MPU_CTRL_HFNMIENA_Msk);
+  ARM_MPU_SetMemAttr(0, 0x44); // Normal memory, non-cacheable (inner and outer)
+  ARM_MPU_SetRegion(0, ARM_MPU_RBAR(0x40100000, ARM_MPU_SH_NON, 0, 1, 1), ARM_MPU_RLAR(0x40104000, 0));
+  ARM_MPU_Enable(MPU_CTRL_PRIVDEFENA_Msk | MPU_CTRL_HFNMIENA_Msk);
 #endif
 }
 
@@ -333,6 +369,7 @@ TU_ATTR_UNUSED void _start(void) {
 
 #ifdef __clang__
 void	_exit (int __status) {
+  (void) __status;
   while (1) {}
 }
 #endif

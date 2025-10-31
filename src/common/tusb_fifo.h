@@ -25,8 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_FIFO_H_
-#define _TUSB_FIFO_H_
+#ifndef TUSB_FIFO_H_
+#define TUSB_FIFO_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -196,4 +196,4 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 }
 #endif
 
-#endif /* _TUSB_FIFO_H_ */
+#endif

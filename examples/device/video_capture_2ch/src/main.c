@@ -180,7 +180,7 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
 }
 #endif
 
-size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, void **fb) {
+static size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, void **fb) {
   uint32_t idx = ctl_idx + stm_idx;
 
   if (idx == 0) {
@@ -205,8 +205,7 @@ size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, voi
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-
-void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+static void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   static unsigned start_ms[CFG_TUD_VIDEO_STREAMING] = {0, };
   static unsigned already_sent = 0;
 

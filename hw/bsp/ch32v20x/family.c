@@ -12,6 +12,7 @@ manufacturer: WCH
 #endif
 
 #include "ch32v20x.h"
+#include "ch32v20x_it.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -74,7 +75,7 @@ __attribute__((interrupt)) void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t SysTick_Config(uint32_t ticks) {
+static uint32_t SysTick_Config(uint32_t ticks) {
   NVIC_EnableIRQ(SysTicK_IRQn);
   SysTick->CTLR = 0;
   SysTick->SR = 0;

@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_USBH_PVT_H_
-#define _TUSB_USBH_PVT_H_
+#ifndef TUSB_USBH_PVT_H_
+#define TUSB_USBH_PVT_H_
 
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"

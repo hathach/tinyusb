@@ -38,26 +38,21 @@ else()
 endif()
 
 #------------------------------------
+# Startup & Linker script
+#------------------------------------
+set(STARTUP_FILE_GNU ${MSDK_LIB}/CMSIS/Device/Maxim/${MAX_DEVICE_UPPER}/Source/GCC/startup_${MAX_DEVICE}.S)
+set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+if (NOT DEFINED LD_FILE_GNU)
+set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/linker/${MAX_DEVICE}.ld)
+endif ()
+set(LD_FILE_Clang ${LD_FILE_GNU})
+
+#------------------------------------
 # BOARD_TARGET
 #------------------------------------
-# only need to be built ONCE for all examples
-function(add_board_target BOARD_TARGET)
-  if (TARGET ${BOARD_TARGET})
-    return()
-  endif ()
-
-  # Startup & Linker script
-  set(STARTUP_FILE_GNU ${MSDK_LIB}/CMSIS/Device/Maxim/${MAX_DEVICE_UPPER}/Source/GCC/startup_${MAX_DEVICE}.S)
-  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-
-  if (NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/linker/${MAX_DEVICE}.ld)
-  endif ()
-  set(LD_FILE_Clang ${LD_FILE_GNU})
-
+function(family_add_board BOARD_TARGET)
   # Common
   add_library(${BOARD_TARGET} STATIC
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     ${MSDK_LIB}/CMSIS/Device/Maxim/${MAX_DEVICE_UPPER}/Source/heap.c
     ${MSDK_LIB}/CMSIS/Device/Maxim/${MAX_DEVICE_UPPER}/Source/system_${MAX_DEVICE}.c
     ${MSDK_LIB}/PeriphDrivers/Source/SYS/mxc_assert.c
@@ -139,53 +134,51 @@ function(add_board_target BOARD_TARGET)
     -Wno-error=strict-prototypes
   )
   update_board(${BOARD_TARGET})
-
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -nostartfiles
-      --specs=nosys.specs --specs=nano.specs
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_Clang}"
-      )
-  endif ()
 endfunction()
-
 
 #------------------------------------
 # Functions
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_${MAX_DEVICE_UPPER})
 
-  # Board target
-  add_board_target(board_${BOARD})
-
-  #---------- Port Specific ----------
-  # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/mentor/musb/dcd_musb.c
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC
-    # family, hw, board
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_${MAX_DEVICE_UPPER})
-  target_sources(${TARGET} PUBLIC
-    ${TOP}/src/portable/mentor/musb/dcd_musb.c
-    )
-  target_compile_options(${TARGET} PRIVATE
-    -Wno-error=strict-prototypes
-    )
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      -nostartfiles
+      --specs=nosys.specs --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
+      )
+  endif ()
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    # warnings caused by MSDK headers
+    target_compile_options(${TARGET} PRIVATE -Wno-error=strict-prototypes)
+    if (${MAX_DEVICE} STREQUAL "max78002")
+      target_compile_options(${TARGET} PRIVATE -Wno-error=redundant-decls)
+    endif ()
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
+
 
   # Flashing
   family_add_bin_hex(${TARGET})

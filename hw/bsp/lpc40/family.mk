@@ -18,7 +18,6 @@ LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
 # All source paths should be relative to the top level.
 SRC_C += \
 	src/portable/nxp/lpc17_40/dcd_lpc17_40.c \
-	src/portable/nxp/lpc17_40/hcd_lpc17_40.c \
 	src/portable/ohci/ohci.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc40xx.c \
 	$(MCU_DIR)/src/chip_17xx_40xx.c \

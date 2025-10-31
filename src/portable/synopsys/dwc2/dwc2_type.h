@@ -1847,6 +1847,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define HPTXFSIZ_PTXFD                   HPTXFSIZ_PTXFD_Msk                       // Host periodic TxFIFO depth
 
 /********************  Bit definition for DIEPCTL register  ********************/
+#define DIEPCTL0_MPSIZ_Pos               (0U)
+#define DIEPCTL0_MPSIZ_Msk               (0x3UL << DIEPCTL0_MPSIZ_Pos)            // 0x00000003
+#define DIEPCTL0_MPSIZ                   DIEPCTL0_MPSIZ_Msk                       // Maximum packet size(endpoint 0)
 #define DIEPCTL_MPSIZ_Pos                (0U)
 #define DIEPCTL_MPSIZ_Msk                (0x7FFUL << DIEPCTL_MPSIZ_Pos)           // 0x000007FF
 #define DIEPCTL_MPSIZ                    DIEPCTL_MPSIZ_Msk                        // Maximum packet size
@@ -2155,6 +2158,9 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define EPCTL_EPENA                    EPCTL_EPENA_Msk                        // Endpoint enable
 
 /********************  Bit definition for DOEPCTL register  ********************/
+#define DOEPCTL0_MPSIZ_Pos               (0U)
+#define DOEPCTL0_MPSIZ_Msk               (0x3UL << DOEPCTL0_MPSIZ_Pos)            // 0x00000003
+#define DOEPCTL0_MPSIZ                   DOEPCTL0_MPSIZ_Msk                       // Maximum packet size(endpoint 0)
 #define DOEPCTL_MPSIZ_Pos                (0U)
 #define DOEPCTL_MPSIZ_Msk                (0x7FFUL << DOEPCTL_MPSIZ_Pos)           // 0x000007FF
 #define DOEPCTL_MPSIZ                    DOEPCTL_MPSIZ_Msk                        // Maximum packet size          //Bit 1

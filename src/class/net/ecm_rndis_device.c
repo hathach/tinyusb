@@ -35,8 +35,6 @@
 #include "net_device.h"
 #include "rndis_protocol.h"
 
-extern void rndis_class_set_handler(uint8_t *data, int size); /* found in ./misc/networking/rndis_reports.c */
-
 #define CFG_TUD_NET_PACKET_PREFIX_LEN sizeof(rndis_data_packet_t)
 #define CFG_TUD_NET_PACKET_SUFFIX_LEN 0
 
