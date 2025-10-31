@@ -419,7 +419,8 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
       const uint16_t xferred_bytes = epin_write_tx_fifo(rhport, epnum);
 
       // Enable TXFE interrupt if there are still data to be sent
-      if (xfer->total_len - xferred_bytes > 0) {
+      // EP0 only sends one packet at a time, so no need to check for EP0
+      if ((epnum != 0) && (xfer->total_len - xferred_bytes > 0)) {
          dwc2->diepempmsk |= (1u << epnum);
       }
     }
