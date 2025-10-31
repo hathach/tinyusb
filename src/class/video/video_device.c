@@ -870,9 +870,9 @@ static uint_fast16_t _prepare_in_payload(videod_streaming_interface_t *stm, uint
     memcpy(&ep_buf[hdr_len], stm->buffer + stm->offset, data_len);
   } else {
     tud_video_payload_request_t rqst = {
-      .buf = &ep_buf[hdr_len], 
-      .length = data_len, 
-      .offset = stm->offset 
+      .buf = &ep_buf[hdr_len],
+      .length = data_len,
+      .offset = stm->offset
     };
     tud_video_prepare_payload_cb(stm->index_vc, stm->index_vs, &rqst);
   }

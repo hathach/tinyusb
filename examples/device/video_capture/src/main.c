@@ -138,15 +138,15 @@ void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, tu
   (void)stm_idx;
 
   /* Offset will be zero at the start of a new frame */
-  if (!request->offset) frame_counter++; 
+  if (!request->offset) frame_counter++;
 
   for (size_t buf_pos = 0; buf_pos < request->length; buf_pos += 2) {
 
     /* Position within the current line (pixel relative) */
-    int line_pos = ((request->offset + buf_pos)>>1) % FRAME_WIDTH; 
-    
+    int line_pos = ((request->offset + buf_pos)>>1) % FRAME_WIDTH;
+
     /* Choose color based on the position and change the table offset every 4 frames */
-    const uint8_t* color = bar_color[(line_pos/(FRAME_WIDTH / 8) + (frame_counter>>2)) % 8]; 
+    const uint8_t* color = bar_color[(line_pos/(FRAME_WIDTH / 8) + (frame_counter>>2)) % 8];
 
     /* Copy pixel data for odd or even pixels */
     memcpy(&((uint8_t*)request->buf)[buf_pos], &color[(line_pos & 1) ? 2 : 0], 2);
@@ -233,7 +233,7 @@ static void video_send_frame(void) {
     tx_busy = 1;
     start_ms = board_millis();
 #if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
-    tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);    
+    tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
 #elif defined (CFG_EXAMPLE_VIDEO_READONLY)
     #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
     tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
@@ -254,14 +254,14 @@ static void video_send_frame(void) {
   tx_busy = 1;
 
 #if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
-  tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);  
+  tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
 #elif defined(CFG_EXAMPLE_VIDEO_READONLY)
   #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
   tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                          FRAME_WIDTH * FRAME_HEIGHT * 16/8);
   #else
   tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)frames[frame_num % 8].buffer, frames[frame_num % 8].size);
-  #endif  
+  #endif
 #else
   fill_color_bar(frame_buffer, frame_num);
   tud_video_n_frame_xfer(0, 0, (void*) frame_buffer, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
