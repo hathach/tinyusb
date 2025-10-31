@@ -533,7 +533,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     // Check for wanted char and invoke callback if needed
     if (((signed char) p_cdc->wanted_char) != -1) {
       for (uint32_t i = 0; i < xferred_bytes; i++) {
-        if ((p_cdc->wanted_char == p_epbuf->epout[i]) && !tu_fifo_empty(&p_cdc->rx_ff)) {
+        if ((p_cdc->wanted_char == (char) p_epbuf->epout[i]) && !tu_fifo_empty(&p_cdc->rx_ff)) {
           tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
         }
       }

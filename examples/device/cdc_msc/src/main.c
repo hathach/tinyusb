@@ -42,6 +42,7 @@ enum {
 };
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
+static bool blink_enable = true;
 
 void led_blinking_task(void);
 void cdc_task(void);
@@ -135,11 +136,13 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
   (void) itf;
   (void) rts;
 
-  // TODO set some indicator
   if (dtr) {
     // Terminal connected
+    blink_enable = false;
+    board_led_write(true);
   } else {
     // Terminal disconnected
+    blink_enable = true;
   }
 }
 
@@ -155,10 +158,14 @@ void led_blinking_task(void) {
   static uint32_t start_ms = 0;
   static bool led_state = false;
 
-  // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
-  start_ms += blink_interval_ms;
+  if (blink_enable) {
+    // Blink every interval ms
+    if (board_millis() - start_ms < blink_interval_ms) {
+      return; // not enough time
+    }
+    start_ms += blink_interval_ms;
 
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+    board_led_write(led_state);
+    led_state = !led_state;
+  }
 }

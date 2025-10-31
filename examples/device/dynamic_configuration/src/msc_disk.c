@@ -43,6 +43,7 @@ enum
   DISK_BLOCK_SIZE = 512
 };
 
+static
 #ifdef CFG_EXAMPLE_MSC_READONLY
 const
 #endif
@@ -126,9 +127,9 @@ uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uin
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
 
-  memcpy(inquiry_resp->vendor_id, vid, strlen(vid));
-  memcpy(inquiry_resp->product_id, pid, strlen(pid));
-  memcpy(inquiry_resp->product_rev, rev, strlen(rev));
+  strncpy((char*) inquiry_resp->vendor_id, vid, 8);
+  strncpy((char*) inquiry_resp->product_id, pid, 16);
+  strncpy((char*) inquiry_resp->product_rev, rev, 4);
 
   return sizeof(scsi_inquiry_resp_t); // 36 bytes
 }
@@ -211,42 +212,21 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 // Callback invoked when received an SCSI command not in built-in list below
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
 // - READ10 and WRITE10 has their own callbacks
-int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
-{
+int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) {
   // read10 & write10 has their own callback and MUST not be handled here
+  (void) buffer;
+  (void) bufsize;
 
-  void const* response = NULL;
-  int32_t resplen = 0;
-
-  // most scsi handled is input
-  bool in_xfer = true;
-
-  switch (scsi_cmd[0])
-  {
+  switch (scsi_cmd[0]) {
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 
       // negative means error -> tinyusb could stall and/or response with failed status
-      resplen = -1;
-    break;
+      return -1;
   }
 
-  // return resplen must not larger than bufsize
-  if ( resplen > bufsize ) resplen = bufsize;
-
-  if ( response && (resplen > 0) )
-  {
-    if(in_xfer)
-    {
-      memcpy(buffer, response, (size_t) resplen);
-    }else
-    {
-      // SCSI output
-    }
-  }
-
-  return resplen;
+  return -1;
 }
 
 #endif

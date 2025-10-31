@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_EHCI_API_H_
-#define _TUSB_EHCI_API_H_
+#ifndef TUSB_EHCI_API_H_
+#define TUSB_EHCI_API_H_
 
 #ifdef __cplusplus
  extern "C" {
