@@ -110,6 +110,7 @@
 
 //#define CFG_EXAMPLE_VIDEO_READONLY
 //#define CFG_EXAMPLE_VIDEO_DISABLE_MJPEG
+//#define CFG_EXAMPLE_VIDEO_BUFFERLESS
 
 #ifdef __cplusplus
  }
