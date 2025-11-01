@@ -99,7 +99,7 @@ static void _prep_out_transaction(uint8_t idx) {
   available = tu_fifo_remaining(&p_midi->rx_ff);
 
   if ( available >= CFG_TUD_MIDI_EP_BUFSIZE )  {
-    usbd_edpt_xfer(rhport, p_midi->ep_out, _midid_epbuf[idx].epout, CFG_TUD_MIDI_EP_BUFSIZE);
+    usbd_edpt_xfer(rhport, p_midi->ep_out, _midid_epbuf[idx].epout, CFG_TUD_MIDI_EP_BUFSIZE, false);
   }else
   {
     // Release endpoint since we don't make any transfer
@@ -228,7 +228,7 @@ static uint32_t write_flush(uint8_t idx) {
   uint16_t count = tu_fifo_read_n(&midi->tx_ff, _midid_epbuf[idx].epin, CFG_TUD_MIDI_EP_BUFSIZE);
 
   if (count) {
-    TU_ASSERT( usbd_edpt_xfer(rhport, midi->ep_in, _midid_epbuf[idx].epin, count), 0 );
+    TU_ASSERT( usbd_edpt_xfer(rhport, midi->ep_in, _midid_epbuf[idx].epin, count, false), 0 );
     return count;
   }else {
     // Release endpoint since we don't make any transfer
@@ -548,7 +548,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
       // xferred_bytes is multiple of EP size and not zero
       if (!tu_fifo_count(&p_midi->tx_ff) && xferred_bytes && (0 == (xferred_bytes % CFG_TUD_MIDI_EP_BUFSIZE))) {
         if (usbd_edpt_claim(rhport, p_midi->ep_in)) {
-          usbd_edpt_xfer(rhport, p_midi->ep_in, NULL, 0);
+          usbd_edpt_xfer(rhport, p_midi->ep_in, NULL, 0, false);
         }
       }
     }

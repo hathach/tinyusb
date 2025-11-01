@@ -104,7 +104,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   UNUSED(rhport);
   state.address = dev_addr;
   // Respond with status.
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
   return;
 }
 
@@ -160,10 +160,11 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to
 // notify the stack
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer,
-                   uint16_t total_bytes) {
+                   uint16_t total_bytes, bool is_isr) {
   UNUSED(rhport);
   UNUSED(buffer);
   UNUSED(total_bytes);
+  UNUSED(is_isr);
 
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
