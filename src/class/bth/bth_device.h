@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_BTH_DEVICE_H_
-#define _TUSB_BTH_DEVICE_H_
+#ifndef TUSB_BTH_DEVICE_H_
+#define TUSB_BTH_DEVICE_H_
 
 #include <common/tusb_common.h>
 #include <device/usbd.h>
@@ -114,4 +114,4 @@ bool     btd_xfer_cb         (uint8_t rhport, uint8_t edpt_addr, xfer_result_t r
  }
 #endif
 
-#endif /* _TUSB_BTH_DEVICE_H_ */
+#endif /* TUSB_BTH_DEVICE_H_ */

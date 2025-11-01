@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_HID_HOST_H_
-#define _TUSB_HID_HOST_H_
+#ifndef TUSB_HID_HOST_H_
+#define TUSB_HID_HOST_H_
 
 #include "hid.h"
 
@@ -182,4 +182,4 @@ void hidh_close(uint8_t dev_addr);
 }
 #endif
 
-#endif /* _TUSB_HID_HOST_H_ */
+#endif /* TUSB_HID_HOST_H_ */

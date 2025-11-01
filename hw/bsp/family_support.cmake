@@ -63,8 +63,9 @@ set(WARN_FLAGS_GNU
   -Wunused
   -Wunused-function
   -Wreturn-type
-  #-Wredundant-decls
-  #-Wmissing-prototypes
+  -Wredundant-decls
+  -Wmissing-prototypes
+#  -Wconversion
   )
 set(WARN_FLAGS_Clang ${WARN_FLAGS_GNU})
 
@@ -389,56 +390,6 @@ endfunction()
 
 function(family_example_missing_dependency TARGET DEPENDENCY)
   message(WARNING "${DEPENDENCY} submodule needed by ${TARGET} not found, please run 'python tools/get_deps.py ${DEPENDENCY}' to fetch it")
-endfunction()
-
-#----------------------------------
-# RPI specific: refactor later
-#----------------------------------
-function(family_add_default_example_warnings TARGET)
-  target_compile_options(${TARGET} PUBLIC
-    -Wall
-    -Wextra
-    -Werror
-    -Wfatal-errors
-    -Wdouble-promotion
-    -Wfloat-equal
-    # FIXME commented out because of https://github.com/raspberrypi/pico-sdk/issues/1468
-    #-Wshadow
-    -Wwrite-strings
-    -Wsign-compare
-    -Wmissing-format-attribute
-    -Wunreachable-code
-    -Wcast-align
-    -Wcast-qual
-    -Wnull-dereference
-    -Wuninitialized
-    -Wunused
-    -Wredundant-decls
-    #-Wstrict-prototypes
-    #-Werror-implicit-function-declaration
-    #-Wundef
-    )
-
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
-      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
-    endif()
-
-    # GCC 10
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
-      target_compile_options(${TARGET} PUBLIC -Wconversion)
-    endif()
-
-    # GCC 8
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
-      target_compile_options(${TARGET} PUBLIC -Wcast-function-type -Wstrict-overflow)
-    endif()
-
-    # GCC 6
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 6.0)
-      target_compile_options(${TARGET} PUBLIC -Wno-strict-aliasing)
-    endif()
-  endif()
 endfunction()
 
 #----------------------------------

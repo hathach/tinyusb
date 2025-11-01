@@ -220,11 +220,11 @@ bool midih_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *d
   // driver after parsing the audio control interface and then resume parsing
   // the streaming audio interface.
   if (AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass) {
-    TU_VERIFY(max_len > 2*sizeof(tusb_desc_interface_t) + sizeof(audio_desc_cs_ac_interface_t));
+    TU_VERIFY(max_len > 2*sizeof(tusb_desc_interface_t) + sizeof(midi10_desc_cs_ac_interface_t));
 
     p_desc = tu_desc_next(p_desc);
     TU_VERIFY(tu_desc_type(p_desc) == TUSB_DESC_CS_INTERFACE &&
-              tu_desc_subtype(p_desc) == AUDIO_CS_AC_INTERFACE_HEADER);
+              tu_desc_subtype(p_desc) == AUDIO10_CS_AC_INTERFACE_HEADER);
     desc_cb.desc_audio_control = desc_itf;
 
     p_desc = tu_desc_next(p_desc);

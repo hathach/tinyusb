@@ -24,8 +24,8 @@
  *
  */
 
-#ifndef _TUSB_CONFIG_H_
-#define _TUSB_CONFIG_H_
+#ifndef TUSB_CONFIG_H_
+#define TUSB_CONFIG_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,14 +87,6 @@ extern "C" {
 #define CFG_TUSB_MEM_ALIGN        __attribute__ ((aligned(4)))
 #endif
 
-/* (Needed for Full-Speed only)
- * Enable host OS guessing to workaround UAC2 compatibility issues between Windows and OS X
- * The default configuration only support Windows and Linux, enable this option for OS X
- * support. Otherwise if you don't need Windows support you can make OS X's configuration as
- * default.
- */
-#define CFG_QUIRK_OS_GUESSING   1
-
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
@@ -128,38 +120,33 @@ extern "C" {
 // AUDIO CLASS DRIVER CONFIGURATION
 //--------------------------------------------------------------------
 
-#define CFG_TUD_AUDIO_FUNC_1_DESC_LEN                                TUD_AUDIO_SPEAKER_STEREO_FB_DESC_LEN
+#define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX              2
 
-// Can be enabled with Full-Speed device on OSX, which forces feedback EP size to 3, in this case CFG_QUIRK_OS_GUESSING can be disabled
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_FORMAT_CORRECTION              0
+// 16bit data in 16bit slots
+#define CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX      2
+#define CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX              16
 
-// Audio format type I specifications
-#if defined(__RX__)
-#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         48000
-#else
-#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE                         96000
-#endif
+// UAC1 Full-Speed endpoint size
+#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE_FS     48000
+#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_FS           TUD_AUDIO_EP_SIZE(false, CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE_FS, CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX)
+// UAC2 High-Speed endpoint size
+#define CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE_HS     96000
+#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_HS           TUD_AUDIO_EP_SIZE(true, CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE_HS, CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX)
 
-#define CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX                           2
+#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX          TU_MAX(CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_FS, CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_HS)
 
-// 16bit in 16bit slots
-#define CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX                   2
-#define CFG_TUD_AUDIO_FUNC_1_RESOLUTION_RX                           16
+// AUDIO_FEEDBACK_METHOD_FIFO_COUNT needs buffer size >= 4* EP size to work correctly
+// Example read FIFO every 1ms (8 HS frames), so buffer size should be 8 times larger for HS device
+#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ       TU_MAX(4 * CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_FS, 32 * CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_HS)
 
-// EP and buffer size - for isochronous EP´s, the buffer and EP size are equal (different sizes would not make sense)
-#define CFG_TUD_AUDIO_ENABLE_EP_OUT                                  1
-
-#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX        TUD_AUDIO_EP_SIZE(CFG_TUD_AUDIO_FUNC_1_MAX_SAMPLE_RATE, CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX, CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX)
-#define CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ     (TUD_OPT_HIGH_SPEED ? 32 : 4) * CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX // Example read FIFO every 1ms, so it should be 8 times larger for HS device
+// Enable OUT EP
+#define CFG_TUD_AUDIO_ENABLE_EP_OUT                 1
 
 // Enable feedback EP
-#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP                             1
-
-// Size of control request buffer
-#define CFG_TUD_AUDIO_FUNC_1_CTRL_BUF_SZ	                         64
+#define CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP            1
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _TUSB_CONFIG_H_ */
+#endif /* TUSB_CONFIG_H_ */

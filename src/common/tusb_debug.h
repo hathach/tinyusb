@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DEBUG_H_
-#define _TUSB_DEBUG_H_
+#ifndef TUSB_DEBUG_H_
+#define TUSB_DEBUG_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -168,4 +168,4 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
  }
 #endif
 
-#endif /* _TUSB_DEBUG_H_ */
+#endif

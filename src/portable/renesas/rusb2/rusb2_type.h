@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_RUSB2_TYPE_H_
-#define _TUSB_RUSB2_TYPE_H_
+#ifndef TUSB_RUSB2_TYPE_H_
+#define TUSB_RUSB2_TYPE_H_
 
 #include <stdint.h>
 #include <stddef.h>
@@ -1777,4 +1777,4 @@ TU_VERIFY_STATIC(offsetof(rusb2_reg_t, DPUSR1R_FS ) == 0x0404, "incorrect offset
 }
 #endif
 
-#endif /* _TUSB_RUSB2_TYPE_H_ */
+#endif /* TUSB_RUSB2_TYPE_H_ */
