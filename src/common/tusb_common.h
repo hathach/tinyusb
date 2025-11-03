@@ -77,7 +77,6 @@
 #include <inttypes.h>
 #include <stddef.h>
 #include <string.h>
-#include <stdio.h>
 
 // Tinyusb Common Headers
 #include "tusb_option.h"
@@ -126,7 +125,7 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memset_s(void *dest, size_t destsz, i
     return -1;
   }
 
-  memset(dest, ch, count);
+  (void) memset(dest, ch, count);
   return 0;
 }
 
@@ -146,7 +145,7 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, c
     return -1;
   }
 
-  memcpy(dest, src, count);
+  (void) memcpy(dest, src, count);
   return 0;
 }
 
@@ -231,7 +230,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_round_up(uint32_t v, uint32_t f)
 // TODO use clz TODO remove
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_log2(uint32_t value) {
   uint8_t result = 0;
-  while (value >>= 1) { result++; }
+  while ((value >>= 1) != 0) {
+    result++;
+  }
   return result;
 }
 

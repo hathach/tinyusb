@@ -67,10 +67,8 @@
 //--------------------------------------------------------------------+
 // TU_VERIFY Helper
 //--------------------------------------------------------------------+
-
 #if CFG_TUSB_DEBUG
-  #include <stdio.h>
-  #define TU_MESS_FAILED()    tu_printf("%s %d: ASSERT FAILED\r\n", __func__, __LINE__)
+  #define TU_MESS_FAILED()    TU_LOG1("%s %d: ASSERT FAILED\r\n", __func__, __LINE__)
 #else
   #define TU_MESS_FAILED() do {} while (0)
 #endif

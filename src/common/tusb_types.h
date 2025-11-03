@@ -252,8 +252,8 @@ typedef enum {
 } device_capability_type_t;
 
 enum {
-  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = 1u << 5,
-  TUSB_DESC_CONFIG_ATT_SELF_POWERED  = 1u << 6,
+  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = 1 << 5,
+  TUSB_DESC_CONFIG_ATT_SELF_POWERED  = 1 << 6,
 };
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
@@ -311,7 +311,7 @@ enum {
 };
 
 enum {
-  TUSB_INDEX_INVALID_8 = 0xFFu
+  TUSB_INDEX_INVALID_8 = 0xFF
 };
 
 //--------------------------------------------------------------------+
