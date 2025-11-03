@@ -127,7 +127,7 @@ enum {
 
 enum {
   OHCI_INT_ON_COMPLETE_YES = 0,
-  OHCI_INT_ON_COMPLETE_NO  = TU_BIN8(111)
+  OHCI_INT_ON_COMPLETE_NO  = 0x7 // 0b111
 };
 
 enum {

@@ -278,14 +278,12 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_
 // We have to manually pick up bytes since tu_unaligned_uint32_t will still generate unaligned code
 // NOTE: volatile cast to memory to prevent compiler to optimize and generate unaligned code
 // TODO Big Endian may need minor changes
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_unaligned_read32(const void* mem)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_unaligned_read32(const void* mem) {
   volatile uint8_t const* buf8 = (uint8_t const*) mem;
   return tu_u32(buf8[3], buf8[2], buf8[1], buf8[0]);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void* mem, uint32_t value)
-{
+TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void* mem, uint32_t value) {
   volatile uint8_t* buf8 = (uint8_t*) mem;
   buf8[0] = tu_u32_byte0(value);
   buf8[1] = tu_u32_byte1(value);
@@ -293,19 +291,16 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void* mem, uint32_
   buf8[3] = tu_u32_byte3(value);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_unaligned_read16(const void* mem)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_unaligned_read16(const void* mem) {
   volatile uint8_t const* buf8 = (uint8_t const*) mem;
   return tu_u16(buf8[1], buf8[0]);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void* mem, uint16_t value)
-{
+TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void* mem, uint16_t value) {
   volatile uint8_t* buf8 = (uint8_t*) mem;
   buf8[0] = tu_u16_low(value);
   buf8[1] = tu_u16_high(value);
 }
-
 
 #else
 
@@ -326,35 +321,6 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_
   *((uint16_t *) mem) = value;
 }
 
-#endif
-
-// To be removed
-//------------- Binary constant -------------//
-#if defined(__GNUC__) && !defined(__CC_ARM)
-
-#define TU_BIN8(x)               ((uint8_t)  (0b##x))
-#define TU_BIN16(b1, b2)         ((uint16_t) (0b##b1##b2))
-#define TU_BIN32(b1, b2, b3, b4) ((uint32_t) (0b##b1##b2##b3##b4))
-
-#else
-
-//  internal macro of B8, B16, B32
-#define _B8__(x) (((x&0x0000000FUL)?1:0) \
-                +((x&0x000000F0UL)?2:0) \
-                +((x&0x00000F00UL)?4:0) \
-                +((x&0x0000F000UL)?8:0) \
-                +((x&0x000F0000UL)?16:0) \
-                +((x&0x00F00000UL)?32:0) \
-                +((x&0x0F000000UL)?64:0) \
-                +((x&0xF0000000UL)?128:0))
-
-#define TU_BIN8(d) ((uint8_t) _B8__(0x##d##UL))
-#define TU_BIN16(dmsb,dlsb) (((uint16_t)TU_BIN8(dmsb)<<8) + TU_BIN8(dlsb))
-#define TU_BIN32(dmsb,db2,db3,dlsb) \
-            (((uint32_t)TU_BIN8(dmsb)<<24) \
-            + ((uint32_t)TU_BIN8(db2)<<16) \
-            + ((uint32_t)TU_BIN8(db3)<<8) \
-            + TU_BIN8(dlsb))
 #endif
 
 //--------------------------------------------------------------------+
