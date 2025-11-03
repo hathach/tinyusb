@@ -76,7 +76,7 @@
 
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__
- * - reference https://stackoverflow.com/questions/2124339/c-preprocessor-va-args-number-of-arguments
+ * - reference www.stackoverflow.com/questions/2124339/c-preprocessor-va-args-number-of-arguments
  * - _GET_NTH_ARG() takes args >= N (64) but only expand to Nth one (64th)
  * - _RSEQ_N() is reverse sequential to N to add padding to have
  * Nth position is the same as the number of arguments
@@ -106,29 +106,29 @@
          19,18,17,16,15,14,13,12,11,10, \
          9,8,7,6,5,4,3,2,1,0
 
-// Apply an macro X to each of the arguments with an separated of choice
-#define TU_ARGS_APPLY(_X, _s, ...)   TU_XSTRCAT(_TU_ARGS_APPLY_, TU_ARGS_NUM(__VA_ARGS__))(_X, _s, __VA_ARGS__)
+// Apply a macro X to each of the arguments with a selected separation/delimiter
+#define TU_ARGS_APPLY(_X, _s, ...)   TU_XSTRCAT(TU_ARGS_APPLY_, TU_ARGS_NUM(__VA_ARGS__))(_X, _s, __VA_ARGS__)
 
-#define _TU_ARGS_APPLY_1(_X, _s, _a1)                                    _X(_a1)
-#define _TU_ARGS_APPLY_2(_X, _s, _a1, _a2)                               _X(_a1) _s _X(_a2)
-#define _TU_ARGS_APPLY_3(_X, _s, _a1, _a2, _a3)                          _X(_a1) _s _TU_ARGS_APPLY_2(_X, _s, _a2, _a3)
-#define _TU_ARGS_APPLY_4(_X, _s, _a1, _a2, _a3, _a4)                     _X(_a1) _s _TU_ARGS_APPLY_3(_X, _s, _a2, _a3, _a4)
-#define _TU_ARGS_APPLY_5(_X, _s, _a1, _a2, _a3, _a4, _a5)                _X(_a1) _s _TU_ARGS_APPLY_4(_X, _s, _a2, _a3, _a4, _a5)
-#define _TU_ARGS_APPLY_6(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6)           _X(_a1) _s _TU_ARGS_APPLY_5(_X, _s, _a2, _a3, _a4, _a5, _a6)
-#define _TU_ARGS_APPLY_7(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1) _s _TU_ARGS_APPLY_6(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7)
-#define _TU_ARGS_APPLY_8(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1) _s _TU_ARGS_APPLY_7(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
+#define TU_ARGS_APPLY_1(_X, _s, _a1)                                    _X(_a1)
+#define TU_ARGS_APPLY_2(_X, _s, _a1, _a2)                               _X(_a1) _s _X(_a2)
+#define TU_ARGS_APPLY_3(_X, _s, _a1, _a2, _a3)                          _X(_a1) _s TU_ARGS_APPLY_2(_X, _s, _a2, _a3)
+#define TU_ARGS_APPLY_4(_X, _s, _a1, _a2, _a3, _a4)                     _X(_a1) _s TU_ARGS_APPLY_3(_X, _s, _a2, _a3, _a4)
+#define TU_ARGS_APPLY_5(_X, _s, _a1, _a2, _a3, _a4, _a5)                _X(_a1) _s TU_ARGS_APPLY_4(_X, _s, _a2, _a3, _a4, _a5)
+#define TU_ARGS_APPLY_6(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6)           _X(_a1) _s TU_ARGS_APPLY_5(_X, _s, _a2, _a3, _a4, _a5, _a6)
+#define TU_ARGS_APPLY_7(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1) _s TU_ARGS_APPLY_6(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7)
+#define TU_ARGS_APPLY_8(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1) _s TU_ARGS_APPLY_7(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
 
-// Apply an macro X to each of the arguments and expand the result with comma
-#define TU_ARGS_APPLY_EXPAND(_X, ...)   TU_XSTRCAT(_TU_ARGS_APPLY_EXPAND_, TU_ARGS_NUM(__VA_ARGS__))(_X, __VA_ARGS__)
+// Apply a macro X to each of the arguments and expand the result with comma
+#define TU_ARGS_APPLY_EXPAND(_X, ...)   TU_XSTRCAT(TU_ARGS_APPLY_EXPAND_, TU_ARGS_NUM(__VA_ARGS__))(_X, __VA_ARGS__)
 
-#define _TU_ARGS_APPLY_EXPAND_1(_X, _a1)                                    _X(_a1)
-#define _TU_ARGS_APPLY_EXPAND_2(_X, _a1, _a2)                               _X(_a1), _X(_a2)
-#define _TU_ARGS_APPLY_EXPAND_3(_X, _a1, _a2, _a3)                          _X(_a1), _TU_ARGS_APPLY_EXPAND_2(_X, _a2, _a3)
-#define _TU_ARGS_APPLY_EXPAND_4(_X, _a1, _a2, _a3, _a4)                     _X(_a1), _TU_ARGS_APPLY_EXPAND_3(_X, _a2, _a3, _a4)
-#define _TU_ARGS_APPLY_EXPAND_5(_X, _a1, _a2, _a3, _a4, _a5)                _X(_a1), _TU_ARGS_APPLY_EXPAND_4(_X, _a2, _a3, _a4, _a5)
-#define _TU_ARGS_APPLY_EXPAND_6(_X, _a1, _a2, _a3, _a4, _a5, _a6)           _X(_a1), _TU_ARGS_APPLY_EXPAND_5(_X, _a2, _a3, _a4, _a5, _a6)
-#define _TU_ARGS_APPLY_EXPAND_7(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1), _TU_ARGS_APPLY_EXPAND_6(_X, _a2, _a3, _a4, _a5, _a6, _a7)
-#define _TU_ARGS_APPLY_EXPAND_8(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1), _TU_ARGS_APPLY_EXPAND_7(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
+#define TU_ARGS_APPLY_EXPAND_1(_X, _a1)                                    _X(_a1)
+#define TU_ARGS_APPLY_EXPAND_2(_X, _a1, _a2)                               _X(_a1), _X(_a2)
+#define TU_ARGS_APPLY_EXPAND_3(_X, _a1, _a2, _a3)                          _X(_a1), TU_ARGS_APPLY_EXPAND_2(_X, _a2, _a3)
+#define TU_ARGS_APPLY_EXPAND_4(_X, _a1, _a2, _a3, _a4)                     _X(_a1), TU_ARGS_APPLY_EXPAND_3(_X, _a2, _a3, _a4)
+#define TU_ARGS_APPLY_EXPAND_5(_X, _a1, _a2, _a3, _a4, _a5)                _X(_a1), TU_ARGS_APPLY_EXPAND_4(_X, _a2, _a3, _a4, _a5)
+#define TU_ARGS_APPLY_EXPAND_6(_X, _a1, _a2, _a3, _a4, _a5, _a6)           _X(_a1), TU_ARGS_APPLY_EXPAND_5(_X, _a2, _a3, _a4, _a5, _a6)
+#define TU_ARGS_APPLY_EXPAND_7(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1), TU_ARGS_APPLY_EXPAND_6(_X, _a2, _a3, _a4, _a5, _a6, _a7)
+#define TU_ARGS_APPLY_EXPAND_8(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1), TU_ARGS_APPLY_EXPAND_7(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
 
 //--------------------------------------------------------------------+
 // Macro for function default arguments

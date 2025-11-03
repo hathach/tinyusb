@@ -544,11 +544,11 @@ TU_ATTR_ALWAYS_INLINE static inline tusb_dir_t tu_edpt_dir(uint8_t addr) {
 
 // Get Endpoint number from address
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_number(uint8_t addr) {
-  return (uint8_t)(addr & (~TUSB_DIR_IN_MASK));
+  return (uint8_t) (addr & (~TUSB_DIR_IN_MASK));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir) {
-  return (uint8_t)(num | (dir ? TUSB_DIR_IN_MASK : 0));
+  return (uint8_t) (num | (dir ? TUSB_DIR_IN_MASK : 0));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_edpt_packet_size(tusb_desc_endpoint_t const* desc_ep) {

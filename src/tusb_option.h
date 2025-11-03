@@ -217,9 +217,9 @@
 #define OPT_MCU_AT32F413         2506  ///< ArteryTek AT32F413
 
 // Check if configured MCU is one of listed
-// Apply _TU_CHECK_MCU with || as separator to list of input
-#define _TU_CHECK_MCU(_m)    (CFG_TUSB_MCU == _m)
-#define TU_CHECK_MCU(...)    (TU_ARGS_APPLY(_TU_CHECK_MCU, ||, __VA_ARGS__))
+// Apply TU_MCU_IS_EQUAL with || as separator to list of input
+#define TU_MCU_IS_EQUAL(_m)  (CFG_TUSB_MCU == (_m))
+#define TU_CHECK_MCU(...)    (TU_ARGS_APPLY(TU_MCU_IS_EQUAL, ||, __VA_ARGS__))
 
 //--------------------------------------------------------------------+
 // Supported OS

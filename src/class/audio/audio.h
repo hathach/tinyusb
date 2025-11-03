@@ -905,7 +905,7 @@ typedef enum {
   AUDIO20_CHANNEL_CONFIG_BOTTOM_CENTER = 0x01000000,
   AUDIO20_CHANNEL_CONFIG_BACK_LEFT_OF_CENTER = 0x02000000,
   AUDIO20_CHANNEL_CONFIG_BACK_RIGHT_OF_CENTER = 0x04000000,
-  AUDIO20_CHANNEL_CONFIG_RAW_DATA = 0x80000000,
+  AUDIO20_CHANNEL_CONFIG_RAW_DATA = 0x80000000u,
 } audio20_channel_config_t;
 
 /// All remaining definitions are taken from the descriptor descriptions in the UAC2 main specification
