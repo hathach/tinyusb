@@ -111,7 +111,7 @@ extern void* tusb_app_phys_to_virt(void *phys_addr);
 //--------------------------------------------------------------------+
 
 //------------- Mem -------------//
-#define tu_memclr(buffer, size)  memset((buffer), 0, (size))
+#define tu_memclr(buffer, size)  (void) memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 
 // This is a backport of memset_s from c11
@@ -119,6 +119,10 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memset_s(void *dest, size_t destsz, i
   // Validate parameters
   if (dest == NULL) {
     return -1;
+  }
+
+  if (count == 0u) {
+    return 0;
   }
 
   if (count > destsz) {
@@ -131,13 +135,15 @@ TU_ATTR_ALWAYS_INLINE static inline int tu_memset_s(void *dest, size_t destsz, i
 
 // This is a backport of memcpy_s from c11
 TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, const void *src, size_t count) {
-  // Validate parameters
   if (dest == NULL) {
     return -1;
   }
 
-  // For memcpy, src may be NULL only if count == 0. Reject otherwise.
-  if (src == NULL && count != 0u) {
+  if (count == 0u) {
+    return 0;
+  }
+
+  if (src == NULL) {
     return -1;
   }
 
@@ -230,7 +236,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_round_up(uint32_t v, uint32_t f)
 // TODO use clz TODO remove
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_log2(uint32_t value) {
   uint8_t result = 0;
-  while ((value >>= 1) != 0) {
+  while (value >>= 1) {
     result++;
   }
   return result;

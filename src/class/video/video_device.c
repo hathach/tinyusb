@@ -464,7 +464,9 @@ static bool _update_streaming_parameters(videod_streaming_interface_t const *stm
   uint_fast8_t fmtnum = param->bFormatIndex;
   TU_ASSERT(vs && fmtnum <= vs->stm.bNumFormats);
   if (0 == fmtnum) {
-    if (1 < vs->stm.bNumFormats) return true; /* Need to negotiate all variables. */
+    if (1 < vs->stm.bNumFormats) {
+      return true; /* Need to negotiate all variables. */
+    }
     fmtnum = 1;
     param->bFormatIndex = 1;
   }
@@ -1259,7 +1261,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   videod_streaming_interface_t *stm = _get_instance_streaming(ctl_idx, stm_idx);
   videod_streaming_epbuf_t *stm_epbuf = &_videod_streaming_epbuf[ctl_idx];
 
-  if ( NULL == stm || 0 == stm->desc.ep[0] || stm->buffer) {
+  if (NULL == stm || 0 == stm->desc.ep[0] || stm->buffer) {
     return false;
   }
   if (stm->state == VS_STATE_PROBING) {

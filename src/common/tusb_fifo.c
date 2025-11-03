@@ -38,14 +38,16 @@
 
 #if OSAL_MUTEX_REQUIRED
 
-TU_ATTR_ALWAYS_INLINE static inline void _ff_lock(osal_mutex_t mutex)
-{
-  if (mutex) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+TU_ATTR_ALWAYS_INLINE static inline void _ff_lock(osal_mutex_t mutex) {
+  if (mutex) {
+    osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _ff_unlock(osal_mutex_t mutex)
-{
-  if (mutex) osal_mutex_unlock(mutex);
+TU_ATTR_ALWAYS_INLINE static inline void _ff_unlock(osal_mutex_t mutex) {
+  if (mutex) {
+    osal_mutex_unlock(mutex);
+  }
 }
 
 #else
@@ -59,8 +61,7 @@ TU_ATTR_ALWAYS_INLINE static inline void _ff_unlock(osal_mutex_t mutex)
  * \brief Write modes intended to allow special read and write functions to be able to
  *        copy data to and from USB hardware FIFOs as needed for e.g. STM32s and others
  */
-typedef enum
-{
+typedef enum {
   TU_FIFO_COPY_INC,            ///< Copy from/to an increasing source/destination address - default mode
 #ifdef TUP_MEM_CONST_ADDR
   TU_FIFO_COPY_CST_FULL_WORDS, ///< Copy from/to a constant source/destination address - required for e.g. STM32 to write into USB hardware FIFO
@@ -72,7 +73,9 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   // Limit index space to 2*depth - this allows for a fast "modulo" calculation
   // but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable
   // only if overflow happens once (important for unsupervised DMA applications)
-  if (depth > 0x8000) return false;
+  if (depth > 0x8000) {
+    return false;
+  }
 
   _ff_lock(f->mutex_wr);
   _ff_lock(f->mutex_rd);
@@ -98,22 +101,19 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 // Intended to be used to read from hardware USB FIFO in e.g. STM32 where all data is read from a constant address
 // Code adapted from dcd_synopsys.c
 // TODO generalize with configurable 1 byte or 4 byte each read
-static void _ff_push_const_addr(uint8_t * ff_buf, const void * app_buf, uint16_t len)
-{
+static void _ff_push_const_addr(uint8_t * ff_buf, const void * app_buf, uint16_t len) {
   volatile const uint32_t * reg_rx = (volatile const uint32_t *) app_buf;
 
   // Reading full available 32 bit words from const app address
   uint16_t full_words = len >> 2;
-  while(full_words--)
-  {
+  while(full_words--) {
     tu_unaligned_write32(ff_buf, *reg_rx);
     ff_buf += 4;
   }
 
   // Read the remaining 1-3 bytes from const app address
   uint8_t const bytes_rem = len & 0x03;
-  if ( bytes_rem )
-  {
+  if (bytes_rem) {
     uint32_t tmp32 = *reg_rx;
     memcpy(ff_buf, &tmp32, bytes_rem);
   }
@@ -121,22 +121,19 @@ static void _ff_push_const_addr(uint8_t * ff_buf, const void * app_buf, uint16_t
 
 // Intended to be used to write to hardware USB FIFO in e.g. STM32
 // where all data is written to a constant address in full word copies
-static void _ff_pull_const_addr(void * app_buf, const uint8_t * ff_buf, uint16_t len)
-{
+static void _ff_pull_const_addr(void * app_buf, const uint8_t * ff_buf, uint16_t len) {
   volatile uint32_t * reg_tx = (volatile uint32_t *) app_buf;
 
   // Write full available 32 bit words to const address
   uint16_t full_words = len >> 2;
-  while(full_words--)
-  {
+  while(full_words--) {
     *reg_tx = tu_unaligned_read32(ff_buf);
     ff_buf += 4;
   }
 
   // Write the remaining 1-3 bytes into const address
   uint8_t const bytes_rem = len & 0x03;
-  if ( bytes_rem )
-  {
+  if (bytes_rem) {
     uint32_t tmp32 = 0;
     memcpy(&tmp32, ff_buf, bytes_rem);
 
@@ -146,8 +143,7 @@ static void _ff_pull_const_addr(void * app_buf, const uint8_t * ff_buf, uint16_t
 #endif
 
 // send one item to fifo WITHOUT updating write pointer
-static inline void _ff_push(tu_fifo_t* f, void const * app_buf, uint16_t rel)
-{
+static inline void _ff_push(tu_fifo_t* f, void const * app_buf, uint16_t rel) {
   memcpy(f->buffer + (rel * f->item_size), app_buf, f->item_size);
 }
 

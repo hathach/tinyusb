@@ -117,7 +117,9 @@ bool usbd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endp
 // Check if endpoint is ready (not busy and not stalled)
 TU_ATTR_ALWAYS_INLINE static inline
 bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr) {
-  return !usbd_edpt_busy(rhport, ep_addr) && !usbd_edpt_stalled(rhport, ep_addr);
+  const bool is_busy = usbd_edpt_busy(rhport, ep_addr);
+  const bool is_stalled = usbd_edpt_stalled(rhport, ep_addr);
+  return !is_busy && !is_stalled;
 }
 
 // Enable SOF interrupt

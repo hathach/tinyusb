@@ -141,7 +141,7 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s);
 // Complete read transfer by writing EP -> FIFO. Must be called in the transfer complete callback
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_bytes) {
-  if (tu_fifo_depth(&s->ff)) {
+  if (0 != tu_fifo_depth(&s->ff)) {
     tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t) xferred_bytes);
   }
 }
@@ -149,7 +149,7 @@ void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_byt
 // Complete read transfer with provided buffer
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete_with_buf(tu_edpt_stream_t* s, const void * buf, uint32_t xferred_bytes) {
-  if (tu_fifo_depth(&s->ff)) {
+  if (0 != tu_fifo_depth(&s->ff)) {
     tu_fifo_write_n(&s->ff, buf, (uint16_t) xferred_bytes);
   }
 }
