@@ -494,8 +494,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   return true;
 }
 
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
-{
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen) {
   (void) rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -509,11 +508,10 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
 
   ohci_ed_t * ed = ed_from_addr(dev_addr, ep_addr);
+  TU_ASSERT(ed);
   if (epnum == 0) {
     ohci_gtd_t* gtd = &ohci_data.control[dev_addr].gtd;
-
     gtd_init(gtd, buffer, buflen);
-
     gtd->index           = dev_addr;
     gtd->pid = dir ? PID_IN : PID_OUT;
     gtd->data_toggle = GTD_DT_DATA1; // Both Data and Ack stage start with DATA1
