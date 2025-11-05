@@ -78,7 +78,7 @@
     defined(__ARM7M__) || defined (__ARM7EM__) || defined(__ARM8M_MAINLINE__) || defined(__ARM8EM_MAINLINE__)
   #define TU_BREAKPOINT() do {                                                                              \
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
-    if (0 != ((*ARM_CM_DHCSR) & 1UL)) { __asm("BKPT #0\n"); } /* Only halt mcu if debugger is attached */   \
+    if (0u != ((*ARM_CM_DHCSR) & 1UL)) { __asm("BKPT #0\n"); } /* Only halt mcu if debugger is attached */   \
   } while(0)
 
 #elif defined(__riscv) && !TUSB_MCU_VENDOR_ESPRESSIF

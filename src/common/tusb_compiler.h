@@ -106,7 +106,7 @@
          19,18,17,16,15,14,13,12,11,10, \
          9,8,7,6,5,4,3,2,1,0
 
-// Apply a macro X to each of the arguments with a selected separation/delimiter
+// Apply a macro X to each of the arguments with a separation/delimiter
 #define TU_ARGS_APPLY(_X, _s, ...)   TU_XSTRCAT(TU_ARGS_APPLY_, TU_ARGS_NUM(__VA_ARGS__))(_X, _s, __VA_ARGS__)
 
 #define TU_ARGS_APPLY_1(_X, _s, _a1)                                    _X(_a1)
