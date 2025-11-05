@@ -75,10 +75,14 @@ static void echo_serial_port(uint8_t itf, uint8_t buf[], uint32_t count) {
   for (uint32_t i = 0; i < count; i++) {
     if (itf == 0) {
       // echo back 1st port as lower case
-      if (isupper(buf[i])) buf[i] += case_diff;
+      if (isupper(buf[i])) {
+        buf[i] += case_diff;
+      }
     } else {
       // echo back 2nd port as upper case
-      if (islower(buf[i])) buf[i] -= case_diff;
+      if (islower(buf[i])) {
+        buf[i] -= case_diff;
+      }
     }
 
     tud_cdc_n_write_char(itf, buf[i]);
@@ -153,7 +157,9 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
+  if (board_millis() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);

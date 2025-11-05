@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _USB_DESCRIPTORS_H_
-#define _USB_DESCRIPTORS_H_
+#ifndef USB_DESCRIPTORS_H_
+#define USB_DESCRIPTORS_H_
 
 //--------------------------------------------------------------------+
 // UAC2 DESCRIPTOR TEMPLATES

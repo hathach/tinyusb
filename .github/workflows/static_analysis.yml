@@ -183,7 +183,8 @@ jobs:
             --define sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
 
   IAR-CStat:
-    if: github.repository_owner == 'hathach'
+    #if: github.repository_owner == 'hathach'
+    if: false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

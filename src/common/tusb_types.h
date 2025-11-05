@@ -252,8 +252,8 @@ typedef enum {
 } device_capability_type_t;
 
 enum {
-  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = 1u << 5,
-  TUSB_DESC_CONFIG_ATT_SELF_POWERED  = 1u << 6,
+  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = 1 << 5,
+  TUSB_DESC_CONFIG_ATT_SELF_POWERED  = 1 << 6,
 };
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
@@ -311,7 +311,7 @@ enum {
 };
 
 enum {
-  TUSB_INDEX_INVALID_8 = 0xFFu
+  TUSB_INDEX_INVALID_8 = 0xFF
 };
 
 //--------------------------------------------------------------------+
@@ -544,11 +544,11 @@ TU_ATTR_ALWAYS_INLINE static inline tusb_dir_t tu_edpt_dir(uint8_t addr) {
 
 // Get Endpoint number from address
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_number(uint8_t addr) {
-  return (uint8_t)(addr & (~TUSB_DIR_IN_MASK));
+  return (uint8_t) (addr & (~TUSB_DIR_IN_MASK));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir) {
-  return (uint8_t)(num | (dir ? TUSB_DIR_IN_MASK : 0));
+  return (uint8_t) (num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0u));
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_edpt_packet_size(tusb_desc_endpoint_t const* desc_ep) {

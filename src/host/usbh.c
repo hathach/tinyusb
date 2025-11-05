@@ -1314,7 +1314,7 @@ static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub
   do {
     for (uint8_t dev_id = 0; dev_id < TOTAL_DEVICES; dev_id++) {
       usbh_device_t* dev = &_usbh_devices[dev_id];
-      uint8_t const daddr = dev_id + 1;
+      uint8_t const daddr = dev_id + 1u;
 
       // hub_addr = 0 means roothub, hub_port = 0 means all devices of downstream hub
       if (dev->bus_info.rhport == rhport && dev->connected &&
@@ -1336,7 +1336,7 @@ static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub
         // Close class driver
         for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
           usbh_class_driver_t const* driver = get_driver(drv_id);
-          if (driver) {
+          if (driver != NULL) {
             driver->close(daddr);
           }
         }
@@ -1354,7 +1354,7 @@ static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub
 
     // find a marked hub to process
     for (uint8_t h_id = 0; h_id < CFG_TUH_HUB; h_id++) {
-      if (removing_hubs[h_id]) {
+      if (0 != removing_hubs[h_id]) {
         removing_hubs[h_id] = 0;
 
         // update hub_addr and hub_port for next loop
@@ -1513,7 +1513,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       hub_port_status_response_t port_status;
       hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status);
 
-      if (!port_status.status.connection) {
+      if (0 == port_status.status.connection) {
         TU_LOG_USBH("Device unplugged from hub while debouncing\r\n");
         enum_full_complete();
         return;
@@ -1535,7 +1535,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       hub_port_status_response_t port_status;
       hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status);
 
-      if (port_status.change.reset) {
+      if (1 == port_status.change.reset) {
         // Acknowledge Port Reset Change
         TU_ASSERT(hub_port_clear_reset_change(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration, ENUM_HUB_CLEAR_RESET_COMPLETE),);
       } else {
@@ -1550,7 +1550,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       hub_port_status_response_t port_status;
       hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status);
 
-      if (!port_status.status.connection) {
+      if (0 == port_status.status.connection) {
         TU_LOG_USBH("Device unplugged from hub (not addressed yet)\r\n");
         enum_full_complete();
         return;
@@ -1748,7 +1748,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     case ENUM_SET_CONFIG: {
       uint8_t config_idx = (uint8_t) tu_le16toh(xfer->setup->wIndex);
       if (tuh_enum_descriptor_configuration_cb(daddr, config_idx, (const tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
-        TU_ASSERT(tuh_configuration_set(daddr, config_idx+1, process_enumeration, ENUM_CONFIG_DRIVER),);
+        TU_ASSERT(tuh_configuration_set(daddr, config_idx+1u, process_enumeration, ENUM_CONFIG_DRIVER),);
       } else {
         config_idx++;
         TU_ASSERT(config_idx < dev->bNumConfigurations,);
@@ -1794,7 +1794,7 @@ static uint8_t enum_get_new_address(bool is_hub) {
   }
 
   for (uint8_t idx = start; idx < end; idx++) {
-    if (!_usbh_devices[idx].connected) {
+    if (0 == _usbh_devices[idx].connected) {
       return (idx + 1);
     }
   }
@@ -1904,7 +1904,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
     // with usbh_driver_set_config_complete()
     uint8_t const drv_id = dev->itf2drv[itf_num];
     usbh_class_driver_t const * driver = get_driver(drv_id);
-    if (driver) {
+    if (driver != NULL) {
       TU_LOG_USBH("%s set config: itf = %u\r\n", driver->name, itf_num);
       driver->set_config(dev_addr, itf_num);
       break;

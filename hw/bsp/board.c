@@ -51,8 +51,7 @@ int sys_read(int fhdl, char *buf, size_t count) TU_ATTR_USED;
 
 int sys_write(int fhdl, const char *buf, size_t count) {
   (void) fhdl;
-  SEGGER_RTT_Write(0, buf, (int) count);
-  return (int) count;
+  return (int) SEGGER_RTT_Write(0, buf, (int) count);
 }
 
 int sys_read(int fhdl, char *buf, size_t count) {
@@ -159,7 +158,7 @@ int board_getchar(void) {
 }
 
 void board_putchar(int c) {
-  sys_write(0, (const char*)&c, 1);
+  (void) sys_write(0, (const char*)&c, 1);
 }
 
 uint32_t tusb_time_millis_api(void) {

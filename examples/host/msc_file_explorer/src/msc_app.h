@@ -27,6 +27,7 @@
 #define MSC_APP_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 bool msc_app_init(void);
 void msc_app_task(void);

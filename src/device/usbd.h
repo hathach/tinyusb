@@ -95,7 +95,9 @@ bool tud_suspended(void);
 // Check if device is ready to transfer
 TU_ATTR_ALWAYS_INLINE static inline
 bool tud_ready(void) {
-  return tud_mounted() && !tud_suspended();
+  const bool is_mounted = tud_mounted();
+  const bool is_suspended = tud_suspended();
+  return is_mounted && !is_suspended;
 }
 
 // Remote wake up host, only if suspended and enabled by host
@@ -421,7 +423,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   TUD_AUDIO10_DESC_SELECTOR_UNIT_ONE_PIN_LEN, TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_SELECTOR_UNIT, _unitid, 1, _srcid, _stridx
 
 /* Feature Unit Descriptor UAC1 (4.3.2.5) - Variable Channels */
-#define TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(_nchannels) (7 + (_nchannels + 1) * 2)
+#define TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(_nchannels) (7 + ((_nchannels) + 1) * 2)
 // Feature Unit descriptor, take list of control bitmaps for master channel + each channel as variable arguments
 #define TUD_AUDIO10_DESC_FEATURE_UNIT(_unitid, _srcid, _stridx, ...) \
   TUD_AUDIO10_DESC_FEATURE_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__) - 1), TUSB_DESC_CS_INTERFACE, AUDIO10_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, 2, TU_ARGS_APPLY_EXPAND(U16_TO_U8S_LE, __VA_ARGS__), _stridx
@@ -539,7 +541,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   TUD_AUDIO20_DESC_OUTPUT_TERM_LEN, TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_OUTPUT_TERMINAL, _termid, U16_TO_U8S_LE(_termtype), _assocTerm, _srcid, _clkid, U16_TO_U8S_LE(_ctrl), _stridx
 
 /* Feature Unit Descriptor(4.7.2.8) */
-#define TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(_nchannels) (6 + (_nchannels + 1) * 4)
+#define TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(_nchannels) (6 + ((_nchannels) + 1) * 4)
 #define TUD_AUDIO20_DESC_FEATURE_UNIT(_unitid, _srcid, _stridx, ...) \
   TUD_AUDIO20_DESC_FEATURE_UNIT_LEN(TU_ARGS_NUM(__VA_ARGS__) - 1), TUSB_DESC_CS_INTERFACE, AUDIO20_CS_AC_INTERFACE_FEATURE_UNIT, _unitid, _srcid, TU_ARGS_APPLY_EXPAND(U32_TO_U8S_LE, __VA_ARGS__), _stridx
 
@@ -728,7 +730,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 
 //   Calculate wMaxPacketSize of Endpoints
 #define TUD_AUDIO_EP_SIZE(_is_highspeed, _maxFrequency, _nBytesPerSample, _nChannels) \
-    ((((_maxFrequency + (_is_highspeed ? 7999 : 999)) / (_is_highspeed ? 8000 : 1000)) + 1) * _nBytesPerSample * _nChannels)
+    (((((_maxFrequency) + ((_is_highspeed) ? 7999 : 999)) / ((_is_highspeed) ? 8000 : 1000)) + 1) * (_nBytesPerSample) * (_nChannels))
 
 
 //--------------------------------------------------------------------+
@@ -807,44 +809,44 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Interface number, Alternate count, starting string index, attributes, detach timeout, transfer size
 // Note: Alternate count must be numeric or macro, string index is increased by one for each Alt interface
 #define TUD_DFU_DESCRIPTOR(_itfnum, _alt_count, _stridx, _attr, _timeout, _xfer_size) \
-  TU_XSTRCAT(_TUD_DFU_ALT_,_alt_count)(_itfnum, 0, _stridx), \
+  TU_XSTRCAT(TUD_DFU_ALT_,_alt_count)(_itfnum, 0, _stridx), \
   /* Function */ \
   9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0101)
 
-#define _TUD_DFU_ALT(_itfnum, _alt, _stridx) \
+#define TUD_DFU_ALT(_itfnum, _alt, _stridx) \
   /* Interface */ \
   9, TUSB_DESC_INTERFACE, _itfnum, _alt, 0, TUD_DFU_APP_CLASS, TUD_DFU_APP_SUBCLASS, DFU_PROTOCOL_DFU, _stridx
 
-#define _TUD_DFU_ALT_1(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx)
+#define TUD_DFU_ALT_1(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx)
 
-#define _TUD_DFU_ALT_2(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_1(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_2(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_1(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_3(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_2(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_3(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_2(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_4(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_3(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_4(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_3(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_5(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_4(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_5(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_4(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_6(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_5(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_6(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_5(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_7(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_6(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_7(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_6(_itfnum, _alt_count+1, _stridx+1)
 
-#define _TUD_DFU_ALT_8(_itfnum, _alt_count, _stridx) \
-  _TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
-  _TUD_DFU_ALT_7(_itfnum, _alt_count+1, _stridx+1)
+#define TUD_DFU_ALT_8(_itfnum, _alt_count, _stridx) \
+  TUD_DFU_ALT(_itfnum, _alt_count, _stridx),      \
+  TUD_DFU_ALT_7(_itfnum, _alt_count+1, _stridx+1)
 
 //--------------------------------------------------------------------+
 // CDC-ECM Descriptor Templates

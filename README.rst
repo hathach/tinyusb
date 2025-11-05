@@ -1,4 +1,4 @@
-|Build Status| |CircleCI Status| |Documentation Status| |Fuzzing Status| |License|
+|Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |License|
 
 Sponsors
 ========
@@ -252,11 +252,13 @@ The following tools are provided freely to support the development of the TinyUS
 
 
 .. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/build.yml/badge.svg
-   :target: https://github.com/hathach/tinyusb/actions
+   :target: https://github.com/hathach/tinyusb/actions/workflows/build.yml
 .. |CircleCI Status| image:: https://dl.circleci.com/status-badge/img/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master.svg?style=svg
    :target: https://dl.circleci.com/status-badge/redirect/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
    :target: https://docs.tinyusb.org/en/latest/?badge=latest
+.. |Static Analysis| image:: https://github.com/hathach/tinyusb/actions/workflows/static_analysis.yml/badge.svg
+   :target: https://github.com/hathach/tinyusb/actions/workflows/static_analysis.yml
 .. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
    :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg

@@ -301,10 +301,10 @@ function(family_configure_common TARGET RTOS)
         COMMAND_EXPAND_LISTS
         )
       # generate C-STAT report
-#      add_custom_command(TARGET ${TARGET} POST_BUILD
-#        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cstat_report
-#        COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/index.html
-#        )
+      add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cstat_report
+        COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/index.html
+        )
     endif ()
   endif ()
 
