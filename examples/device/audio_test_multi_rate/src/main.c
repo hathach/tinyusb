@@ -147,7 +147,9 @@ void tud_resume_cb(void) {
 void audio_task(void) {
   static uint32_t start_ms = 0;
   uint32_t curr_ms = board_millis();
-  if (start_ms == curr_ms) return;// not enough time
+  if (start_ms == curr_ms) {
+    return; // not enough time
+  }
   start_ms = curr_ms;
   // 16bit
   if (bytesPerSample == 2) {
@@ -612,7 +614,9 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return;// not enough time
+  if (board_millis() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);

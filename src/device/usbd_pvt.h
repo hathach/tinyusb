@@ -125,13 +125,8 @@ bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr) {
 // Enable SOF interrupt
 void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en);
 
-/*------------------------------------------------------------------*/
-/* Helper
- *------------------------------------------------------------------*/
-
 bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
 void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr);
-
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
 void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);

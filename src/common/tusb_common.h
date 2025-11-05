@@ -236,7 +236,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_round_up(uint32_t v, uint32_t f)
 // TODO use clz TODO remove
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_log2(uint32_t value) {
   uint8_t result = 0;
-  while (value >>= 1) {
+  while ((value >>= 1u) != 0u) {
     result++;
   }
   return result;
@@ -355,7 +355,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_in_bounds(uint8_t const* p_desc, uint8_t const* desc_end) {
-  return (p_desc < desc_end) && (tu_desc_next(p_desc) <= desc_end);
+  if (p_desc >= desc_end) {
+    return false;
+  }
+  return tu_desc_next(p_desc) <= desc_end;
 }
 
 // find descriptor that match byte1 (type)

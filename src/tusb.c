@@ -599,7 +599,9 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
   if (remain) {
     for (uint32_t i = 0; i < 16 - remain; i++) {
       tu_printf(" ");
-      for (int j = 0; j < 2 * size; j++) tu_printf(" ");
+      for (int j = 0; j < 2 * size; j++) {
+        tu_printf(" ");
+      }
     }
   }
 

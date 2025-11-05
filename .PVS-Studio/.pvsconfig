@@ -1,3 +1,10 @@
-//-V::2506
-//-V::2514
-//-V::2614
+//V_EXCLUDE_PATH */iar/cxarm*
+//V_EXCLUDE_PATH */pico-sdk/*
+
+//-V::2506 MISRA. A function should have a single point of exit at the end.
+//-V::2514 MISRA. Unions should not be used.
+//-V:memcpy:2547 [MISRA-C-17.7] The return value of non-void function 'memcpy' should be used.
+//-V:printf:2547 [MISRA-C-17.7] The return value of non-void function 'printf' should be used.
+//-V::2600 [MISRA-C-21.6] The function with the 'printf' name should not be used.
+//+V2614 DISABLE_LENGHT_LIMIT_CHECK:YES
+//-V:memcpy:2628 Pointer arguments to the 'memcpy' function should be pointers to qualified or unqualified versions of compatible types.
