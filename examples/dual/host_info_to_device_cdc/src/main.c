@@ -401,8 +401,8 @@ void freertos_init(void) {
   xTaskCreateStatic(main_task, "main", MAIN_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, main_stack, &main_taskdef);
   #else
   xTaskCreate(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
-  xTaskCreate(usb_host_task, "usbh", USBH_STACK_SZE, NULL, configMAX_PRIORITIES - 1, NULL);
-  xTaskCreate(main_task, "main", MAIN_STACK_SZIE, NULL, configMAX_PRIORITIES - 2, NULL);
+  xTaskCreate(usb_host_task, "usbh", USBH_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, NULL);
+  xTaskCreate(main_task, "main", MAIN_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
   #endif
 
   // only start scheduler for non-espressif mcu
