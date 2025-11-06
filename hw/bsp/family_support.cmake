@@ -12,7 +12,7 @@ set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 
 #-------------------------------------------------------------
 # Toolchain
-# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
+# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER= or ENV{CC}=
 #-------------------------------------------------------------
 function(detect_compiler COMPILER_PATH RESULT)
   string(FIND ${COMPILER_PATH} "iccarm" IS_IAR)
@@ -319,8 +319,8 @@ endfunction()
 
 # Add tinyusb to target
 function(family_add_tinyusb TARGET OPT_MCU)
-  # tinyusb's CMakeList.txt
-  add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+  # tinyusb's CMakeLists.txt
+  include(${TOP}/src/CMakeLists.txt)
 
   # Add TinyUSB sources, include and common define
   tinyusb_target_add(${TARGET})
