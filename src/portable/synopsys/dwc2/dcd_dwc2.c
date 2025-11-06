@@ -1050,7 +1050,6 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
   Note: when OTG_MULTI_PROC_INTRPT = 1, Device Each endpoint interrupt deachint/deachmsk/diepeachmsk/doepeachmsk
   are combined to generate dedicated interrupt line for each endpoint.
  */
-//-V::2584::{gintsts} PVS-Studio suppression
 void dcd_int_handler(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const uint32_t gintmask = dwc2->gintmsk;
