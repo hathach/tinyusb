@@ -30,6 +30,14 @@
 #include "common/tusb_common.h"
 #include "dwc2_type.h"
 
+#if CFG_TUD_ENABLED
+#include "device/dcd.h"
+#endif
+
+#if CFG_TUH_ENABLED
+#include "host/hcd.h"
+#endif
+
 // Following symbols must be defined by port header
 // - _dwc2_controller[]: array of controllers
 // - DWC2_EP_MAX: largest EP counts of all controllers
