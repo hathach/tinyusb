@@ -14,7 +14,7 @@ set(compile_definitions
   BOARD_TUH_RHPORT=${RHPORT_HOST}
   BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
   )
-cmake_print_variables(compile_definitions)
+
 if (target STREQUAL esp32p4)
   # P4 change alignment to 64 (DCache line size) for possible DMA configuration
   list(APPEND compile_definitions
