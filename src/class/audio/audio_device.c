@@ -452,7 +452,7 @@ static inline uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
 static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t const *p_desc);
 static bool audiod_calc_tx_packet_sz(audiod_function_t *audio);
-static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_size);
+static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_size);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -1858,22 +1858,22 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
   return true;
 }
 
-static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
+static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
   // Flow control need a FIFO size of at least 4*Navg
-  if (norminal_size[1] && norminal_size[1] <= fifo_depth * 4) {
+  if (nominal_size[1] && nominal_size[1] <= fifo_depth * 4) {
     // Use blackout to prioritize normal size packet
     static int ctrl_blackout = 0;
     uint16_t packet_size;
-    uint16_t slot_size = norminal_size[2] - norminal_size[1];
-    if (data_count < norminal_size[0]) {
+    uint16_t slot_size = nominal_size[2] - nominal_size[1];
+    if (data_count < nominal_size[0]) {
       // If you get here frequently, then your I2S clock deviation is too big !
       packet_size = 0;
     } else if (data_count < (fifo_threshold - slot_size) && !ctrl_blackout) {
-      packet_size = norminal_size[0];
+      packet_size = nominal_size[0];
       ctrl_blackout = 10;
     } else if (data_count > (fifo_threshold + slot_size) && !ctrl_blackout) {
-      packet_size = norminal_size[2];
-      if (norminal_size[0] == norminal_size[1]) {
+      packet_size = nominal_size[2];
+      if (nominal_size[0] == nominal_size[1]) {
         // nav > INT(nav), eg. 44.1k, 88.2k
         ctrl_blackout = 0;
       } else {
@@ -1881,7 +1881,7 @@ static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t da
         ctrl_blackout = 10;
       }
     } else {
-      packet_size = norminal_size[1];
+      packet_size = nominal_size[1];
       if (ctrl_blackout) {
         ctrl_blackout--;
       }
