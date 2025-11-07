@@ -41,13 +41,16 @@
 #include "host/usbh.h"
 #include "ohci.h"
 
-// TODO remove
-#include "chip.h"
+#if defined(TUP_USBIP_OHCI_NXP)
+  #include "ohci_nxp.h"
+#else
+  #error Unsupported OHCI IP
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define OHCI_REG               ((ohci_registers_t *) LPC_USB_BASE)
+
 
 enum {
   OHCI_CONTROL_FUNCSTATE_RESET = 0,
@@ -180,6 +183,8 @@ TU_ATTR_ALWAYS_INLINE static inline void *_virt_addr(void *physical_address)
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rhport;
   (void) rh_init;
+
+  ohci_phy_init(rhport);
 
   //------------- Data Structure init -------------//
   tu_memclr(&ohci_data, sizeof(ohci_data_t));
