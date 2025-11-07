@@ -188,6 +188,8 @@ tu_fifo_t* tud_audio_n_get_ep_out_ff   (uint8_t func_id);
 uint16_t   tud_audio_n_write          (uint8_t func_id, const void * data, uint16_t len);
 bool       tud_audio_n_clear_ep_in_ff (uint8_t func_id);
 tu_fifo_t* tud_audio_n_get_ep_in_ff   (uint8_t func_id);
+uint16_t   tud_audio_n_get_ep_in_fifo_threshold(uint8_t func_id);
+void       tud_audio_n_set_ep_in_fifo_threshold(uint8_t func_id, uint16_t threshold);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
@@ -331,10 +333,12 @@ typedef struct {
   union {
     struct {
       uint32_t mclk_freq; // Main clock frequency in Hz i.e. master clock to which sample clock is based on
-    }frequency;
-
+    } frequency;
+    struct {
+      uint16_t fifo_threshold;  // Target FIFO threshold level, default to half FIFO if not set
+    } fifo_count;
   };
-}audio_feedback_params_t;
+} audio_feedback_params_t;
 
 // Invoked when needed to set feedback parameters
 void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedback_params_t* feedback_param);
@@ -422,6 +426,16 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_audio_clear_ep_in_ff(void) {
 
 TU_ATTR_ALWAYS_INLINE static inline tu_fifo_t* tud_audio_get_ep_in_ff(void) {
   return tud_audio_n_get_ep_in_ff(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_get_ep_in_fifo_threshold(void)
+{
+  return tud_audio_n_get_ep_in_fifo_threshold(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void tud_audio_set_ep_in_fifo_threshold(uint16_t threshold)
+{
+  tud_audio_n_set_ep_in_fifo_threshold(0, threshold);
 }
 
 #endif

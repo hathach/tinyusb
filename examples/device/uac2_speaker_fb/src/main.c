@@ -35,13 +35,6 @@
 // MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 
-// List of supported sample rates for UAC2
-const uint32_t sample_rates[] = {44100, 48000, 88200, 96000};
-
-#define N_SAMPLE_RATES TU_ARRAY_SIZE(sample_rates)
-
-uint32_t current_sample_rate = 44100;
-
 /* Blink pattern
  * - 25 ms   : streaming data
  * - 250 ms  : device not mounted
@@ -76,6 +69,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 // Current states
 uint8_t mute[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];   // +1 for master channel 0
 int16_t volume[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX + 1];// +1 for master channel 0
+uint32_t current_sample_rate = 44100;
 
 // Buffer for speaker data
 uint16_t i2s_dummy_buffer[CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ / 2];
@@ -316,6 +310,10 @@ static bool audio10_get_req_entity(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 
 #if TUD_OPT_HIGH_SPEED
+// List of supported sample rates for UAC2
+const uint32_t sample_rates[] = {44100, 48000, 88200, 96000};
+
+#define N_SAMPLE_RATES TU_ARRAY_SIZE(sample_rates)
 
 static bool audio20_clock_get_request(uint8_t rhport, audio20_control_request_t const *request) {
   TU_ASSERT(request->bEntityID == UAC2_ENTITY_CLOCK);
@@ -548,6 +546,17 @@ void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedba
   // Set feedback method to fifo counting
   feedback_param->method = AUDIO_FEEDBACK_METHOD_FIFO_COUNT;
   feedback_param->sample_freq = current_sample_rate;
+
+  // About FIFO threshold:
+  //
+  // By default the threshold is set to half FIFO size, which works well in most cases,
+  // you can reduce the threshold to have less latency.
+  //
+  // For example, here we could set the threshold to 2 ms of audio data, as audio_task() read audio data every 1 ms,
+  // having 2 ms threshold allows some margin and a quick response:
+  //
+  // feedback_param->fifo_count.fifo_threshold =
+  //    current_sample_rate * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_RX * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_RX / 1000 * 2;
 }
 
 #if CFG_AUDIO_DEBUG
