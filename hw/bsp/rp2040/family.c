@@ -105,7 +105,9 @@ static bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
                   IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
 
   // Note we can't call into any sleep functions in flash right now
-  for (volatile int i = 0; i < 1000; ++i) {}
+  for (volatile int i = 0; i < 1000; ++i) {
+    __nop();
+  }
 
   // The HI GPIO registers in SIO can observe and control the 6 QSPI pins.
   // Note the button pulls the pin *low* when pressed.

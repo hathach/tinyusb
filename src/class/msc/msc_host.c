@@ -191,7 +191,7 @@ bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* respons
       .cmd_code     = SCSI_CMD_INQUIRY,
       .alloc_length = sizeof(scsi_inquiry_resp_t)
   };
-  memcpy(cbw.command, &cmd_inquiry, cbw.cmd_len);
+  memcpy(cbw.command, &cmd_inquiry, cbw.cmd_len); //-V1086
 
   return tuh_msc_scsi_command(dev_addr, &cbw, response, complete_cb, arg);
 }
@@ -225,7 +225,7 @@ bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void* response,
       .cmd_code     = SCSI_CMD_REQUEST_SENSE,
       .alloc_length = 18
   };
-  memcpy(cbw.command, &cmd_request_sense, cbw.cmd_len);
+  memcpy(cbw.command, &cmd_request_sense, cbw.cmd_len); //-V1086
 
   return tuh_msc_scsi_command(dev_addr, &cbw, response, complete_cb, arg);
 }
@@ -247,7 +247,7 @@ bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void* buffer, uint32_t lba, u
       .lba         = tu_htonl(lba),
       .block_count = tu_htons(block_count)
   };
-  memcpy(cbw.command, &cmd_read10, cbw.cmd_len);
+  memcpy(cbw.command, &cmd_read10, cbw.cmd_len); //-V1086
 
   return tuh_msc_scsi_command(dev_addr, &cbw, buffer, complete_cb, arg);
 }
@@ -269,7 +269,7 @@ bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const* buffer, uint32_t
       .lba         = tu_htonl(lba),
       .block_count = tu_htons(block_count)
   };
-  memcpy(cbw.command, &cmd_write10, cbw.cmd_len);
+  memcpy(cbw.command, &cmd_write10, cbw.cmd_len); //-V1086
 
   return tuh_msc_scsi_command(dev_addr, &cbw, (void*) (uintptr_t) buffer, complete_cb, arg);
 }

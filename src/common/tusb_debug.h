@@ -61,9 +61,9 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent);
 
 TU_ATTR_ALWAYS_INLINE static inline void tu_print_buf(uint8_t const* buf, uint32_t bufsize) {
   for(uint32_t i=0; i<bufsize; i++) {
-    tu_printf("%02X ", buf[i]);
+    (void) tu_printf("%02X ", buf[i]);
   }
-  tu_printf("\r\n");
+  (void) tu_printf("\r\n");
 }
 
 // Log with Level
@@ -72,15 +72,15 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_print_buf(uint8_t const* buf, uint32
 #define TU_LOG_BUF(n, ...)    TU_XSTRCAT3(TU_LOG, n, _BUF)(__VA_ARGS__)
 #define TU_LOG_INT(n, ...)    TU_XSTRCAT3(TU_LOG, n, _INT)(__VA_ARGS__)
 #define TU_LOG_HEX(n, ...)    TU_XSTRCAT3(TU_LOG, n, _HEX)(__VA_ARGS__)
-#define TU_LOG_LOCATION()     tu_printf("%s: %d:\r\n", __PRETTY_FUNCTION__, __LINE__)
-#define TU_LOG_FAILED()       tu_printf("%s: %d: Failed\r\n", __PRETTY_FUNCTION__, __LINE__)
+#define TU_LOG_LOCATION()     (void) tu_printf("%s: %d:\r\n", __PRETTY_FUNCTION__, __LINE__)
+#define TU_LOG_FAILED()       (void) tu_printf("%s: %d: Failed\r\n", __PRETTY_FUNCTION__, __LINE__)
 
 // Log Level 1: Error
-#define TU_LOG1               tu_printf
+#define TU_LOG1               (void) tu_printf
 #define TU_LOG1_MEM           tu_print_mem
 #define TU_LOG1_BUF(_x, _n)   tu_print_buf((uint8_t const*)(_x), _n)
-#define TU_LOG1_INT(_x)       tu_printf(#_x " = %ld\r\n", (unsigned long) (_x) )
-#define TU_LOG1_HEX(_x)       tu_printf(#_x " = 0x%lX\r\n", (unsigned long) (_x) )
+#define TU_LOG1_INT(_x)       (void) tu_printf(#_x " = %ld\r\n", (unsigned long) (_x) )
+#define TU_LOG1_HEX(_x)       (void) tu_printf(#_x " = 0x%lX\r\n", (unsigned long) (_x) )
 
 // Log Level 2: Warn
 #if CFG_TUSB_DEBUG >= 2
