@@ -414,7 +414,7 @@ static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data) {
     // get describing dataset
     mtp_device_prop_desc_header_t device_prop_header;
     device_prop_header.device_property_code = dev_prop_code;
-    switch (dev_prop_code) { //-V2520 //-V2659
+    switch (dev_prop_code) {
       case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
         device_prop_header.datatype = MTP_DATA_TYPE_STR;
         device_prop_header.get_set = MTP_MODE_GET;
@@ -430,7 +430,7 @@ static int32_t fs_get_device_properties(tud_mtp_cb_data_t* cb_data) {
     }
   } else {
     // get value
-    switch (dev_prop_code) { //-V2520 //-V2659
+    switch (dev_prop_code) {
       case MTP_DEV_PROP_DEVICE_FRIENDLY_NAME:
         (void) mtp_container_add_cstring(io_container, DEV_PROP_FRIENDLY_NAME);
         tud_mtp_data_send(io_container);

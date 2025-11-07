@@ -56,10 +56,9 @@ function(family_add_board BOARD_TARGET)
     endif()
   endforeach()
 
-
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     __STARTUP_CLEAR_BSS
-    CFG_TUSB_MEM_SECTION=__attribute__\(\(section\(\"NonCacheable\"\)\)\)
+    [=[CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
     )
 
   if (NOT M4 STREQUAL "1")
