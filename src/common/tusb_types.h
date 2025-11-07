@@ -103,6 +103,7 @@ typedef enum {
   TUSB_DIR_OUT = 0,
   TUSB_DIR_IN  = 1,
 
+  TUSB_EPNUM_MASK = 0x0F,
   TUSB_DIR_IN_MASK = 0x80
 } tusb_dir_t;
 
@@ -544,7 +545,7 @@ TU_ATTR_ALWAYS_INLINE static inline tusb_dir_t tu_edpt_dir(uint8_t addr) {
 
 // Get Endpoint number from address
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_number(uint8_t addr) {
-  return (uint8_t) (addr & (~TUSB_DIR_IN_MASK));
+  return (uint8_t) (addr & TUSB_EPNUM_MASK);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir) {
