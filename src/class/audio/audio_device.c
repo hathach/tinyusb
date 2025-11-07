@@ -270,10 +270,6 @@ typedef struct
   uint16_t packet_sz_tx[3];
   uint8_t bclock_id_tx;
   uint8_t interval_tx;
-#endif
-
-// Encoding parameters - parameters are set when alternate AS interface is set by host
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   uint8_t format_type_tx;
   uint8_t n_channels_tx;
   uint8_t n_bytes_per_sample_tx;
@@ -642,19 +638,6 @@ static inline bool audiod_fb_send(uint8_t func_id) {
     *audio->fb_buf = audio->feedback.value;
   }
 
-  // About feedback format on FS
-  //
-  // 3 variables: Format | packetSize | sendSize | Working OS:
-  //              16.16    4            4          Linux, Windows
-  //              16.16    4            3          Linux
-  //              16.16    3            4          Linux
-  //              16.16    3            3          Linux
-  //              10.14    4            4          Linux
-  //              10.14    4            3          Linux
-  //              10.14    3            4          Linux, OSX
-  //              10.14    3            3          Linux, OSX
-  //
-  // We send 3 bytes since sending packet larger than wMaxPacketSize is pretty ugly
   return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) audio->fb_buf, uac_version == 1 ? 3 : 4);
 }
 
