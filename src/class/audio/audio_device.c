@@ -1546,7 +1546,7 @@ static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
 
   // Prepare feedback computation if endpoint is available
   if (audio->ep_fb != 0) {
-    audio_feedback_params_t fb_param;
+    audio_feedback_params_t fb_param = {0};
 
     tud_audio_feedback_params_cb(func_id, alt, &fb_param);
     audio->feedback.compute_method = fb_param.method;
@@ -1587,15 +1587,15 @@ static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
       } break;
 
       case AUDIO_FEEDBACK_METHOD_FIFO_COUNT: {
-        // Initialize the threshold level to half filled
-        uint16_t fifo_lvl_thr = tu_fifo_depth(&audio->ep_out_ff) / 2;
-        audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_lvl_thr;
-        audio->feedback.compute.fifo_count.fifo_lvl_avg = ((uint32_t) fifo_lvl_thr) << 16;
+        // Determine FIFO threshold
+        uint16_t fifo_threshold = fb_param.fifo_count.fifo_threshold ? fb_param.fifo_count.fifo_threshold : tu_fifo_depth(&audio->ep_out_ff) / 2;
+        audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_threshold;
+        audio->feedback.compute.fifo_count.fifo_lvl_avg = ((uint32_t) fifo_threshold) << 16;
         // Avoid 64bit division
         uint32_t nominal = ((fb_param.sample_freq / 100) << 16) / (frame_div / 100);
         audio->feedback.compute.fifo_count.nom_value = nominal;
-        audio->feedback.compute.fifo_count.rate_const[0] = (uint16_t) ((audio->feedback.max_value - nominal) / fifo_lvl_thr);
-        audio->feedback.compute.fifo_count.rate_const[1] = (uint16_t) ((nominal - audio->feedback.min_value) / fifo_lvl_thr);
+        audio->feedback.compute.fifo_count.rate_const[0] = (uint16_t) ((audio->feedback.max_value - nominal) / fifo_threshold);
+        audio->feedback.compute.fifo_count.rate_const[1] = (uint16_t) ((nominal - audio->feedback.min_value) / fifo_threshold);
         // On HS feedback is more sensitive since packet size can vary every MSOF, could cause instability
         if (tud_speed_get() == TUSB_SPEED_HIGH) {
           audio->feedback.compute.fifo_count.rate_const[0] /= 8;

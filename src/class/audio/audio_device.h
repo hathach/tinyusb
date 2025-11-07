@@ -333,10 +333,12 @@ typedef struct {
   union {
     struct {
       uint32_t mclk_freq; // Main clock frequency in Hz i.e. master clock to which sample clock is based on
-    }frequency;
-
+    } frequency;
+    struct {
+      uint16_t fifo_threshold;  // Target FIFO threshold level, default to half FIFO if not set
+    } fifo_count;
   };
-}audio_feedback_params_t;
+} audio_feedback_params_t;
 
 // Invoked when needed to set feedback parameters
 void tud_audio_feedback_params_cb(uint8_t func_id, uint8_t alt_itf, audio_feedback_params_t* feedback_param);
