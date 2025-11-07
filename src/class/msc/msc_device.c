@@ -114,7 +114,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool send_csw(mscd_interface_t* p_msc) {
   uint8_t rhport = p_msc->rhport;
   p_msc->csw.data_residue = p_msc->cbw.total_bytes - p_msc->xferred_len;
   p_msc->stage = MSC_STAGE_STATUS_SENT;
-  memcpy(_mscd_epbuf.buf, (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)); //-V1086
+  memcpy(_mscd_epbuf.buf, &p_msc->csw, sizeof(msc_csw_t)); //-V1086
   return usbd_edpt_xfer(rhport, p_msc->ep_in , _mscd_epbuf.buf, sizeof(msc_csw_t));
 }
 
@@ -444,7 +444,7 @@ bool mscd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
   // From this point only handle class request only
   TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  switch (request->bRequest) {
+  switch ( request->bRequest ) {
     case MSC_REQ_RESET:
       TU_LOG_DRV("  MSC BOT Reset\r\n");
       TU_VERIFY(request->wValue == 0 && request->wLength == 0);

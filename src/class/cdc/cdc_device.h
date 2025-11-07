@@ -62,7 +62,7 @@ TU_VERIFY_STATIC(sizeof(tud_cdc_configure_t) == 1, "size is not correct");
 #define TUD_CDC_CONFIGURE_DEFAULT() { \
   .rx_persistent = false, \
   .tx_persistent = false, \
-  .tx_overwritabe_if_not_connected = false, \
+  .tx_overwritabe_if_not_connected = true, \
 }
 
 // Configure CDC driver behavior

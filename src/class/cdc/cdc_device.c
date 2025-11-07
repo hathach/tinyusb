@@ -449,7 +449,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
   }
   TU_VERIFY(itf < CFG_TUD_CDC);
 
-  switch (request->bRequest) {
+  switch (request->bRequest) { //-V2520 //-V2659
     case CDC_REQUEST_SET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP) {
         TU_LOG_DRV("  Set Line Coding\r\n");
