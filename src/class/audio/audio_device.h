@@ -188,8 +188,8 @@ tu_fifo_t* tud_audio_n_get_ep_out_ff   (uint8_t func_id);
 uint16_t   tud_audio_n_write          (uint8_t func_id, const void * data, uint16_t len);
 bool       tud_audio_n_clear_ep_in_ff (uint8_t func_id);
 tu_fifo_t* tud_audio_n_get_ep_in_ff   (uint8_t func_id);
-uint16_t   tud_audio_n_get_ep_in_target_fifo_size(uint8_t func_id);
-void       tud_audio_n_set_ep_in_target_fifo_size(uint8_t func_id, uint16_t target_fifo_size);
+uint16_t   tud_audio_n_get_ep_in_fifo_threshold(uint8_t func_id);
+void       tud_audio_n_set_ep_in_fifo_threshold(uint8_t func_id, uint16_t threshold);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP
@@ -426,14 +426,14 @@ TU_ATTR_ALWAYS_INLINE static inline tu_fifo_t* tud_audio_get_ep_in_ff(void) {
   return tud_audio_n_get_ep_in_ff(0);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_get_ep_in_target_fifo_size(void)
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tud_audio_get_ep_in_fifo_threshold(void)
 {
-  return tud_audio_n_get_ep_in_target_fifo_size(0);
+  return tud_audio_n_get_ep_in_fifo_threshold(0);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void tud_audio_set_ep_in_target_fifo_size(uint16_t target_fifo_size)
+TU_ATTR_ALWAYS_INLINE static inline void tud_audio_set_ep_in_fifo_threshold(uint16_t threshold)
 {
-  tud_audio_n_set_ep_in_target_fifo_size(0, target_fifo_size);
+  tud_audio_n_set_ep_in_fifo_threshold(0, threshold);
 }
 
 #endif

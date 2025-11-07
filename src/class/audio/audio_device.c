@@ -217,7 +217,7 @@ typedef struct
   uint16_t ep_in_sz;        // Current size of TX EP
   uint8_t ep_in_as_intf_num;// Corresponding Standard AS Interface Descriptor (4.9.1) belonging to output terminal to which this EP belongs - 0 is invalid (this fits to UAC2 specification since AS interfaces can not have interface number equal to zero)
   uint8_t ep_in_alt;        // Current alternate setting of TX EP
-  uint16_t ep_in_target_fifo_size;// Target size for the EP IN FIFO.
+  uint16_t ep_in_fifo_threshold;// Target size for the EP IN FIFO.
   #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -456,7 +456,7 @@ static inline uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
 static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t const *p_desc);
 static bool audiod_calc_tx_packet_sz(audiod_function_t *audio);
-static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t target_fifo_size, uint16_t max_size);
+static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_size);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -550,14 +550,14 @@ tu_fifo_t *tud_audio_n_get_ep_in_ff(uint8_t func_id) {
   return NULL;
 }
 
-uint16_t tud_audio_n_get_ep_in_target_fifo_size(uint8_t func_id) {
-  if (func_id < CFG_TUD_AUDIO) return _audiod_fct[func_id].ep_in_target_fifo_size;
+uint16_t tud_audio_n_get_ep_in_fifo_threshold(uint8_t func_id) {
+  if (func_id < CFG_TUD_AUDIO) return _audiod_fct[func_id].ep_in_fifo_threshold;
   return 0;
 }
 
-void tud_audio_n_set_ep_in_target_fifo_size(uint8_t func_id, uint16_t target_fifo_size) {
-  if (func_id < CFG_TUD_AUDIO && target_fifo_size < _audiod_fct[func_id].ep_in_ff.depth) {
-    _audiod_fct[func_id].ep_in_target_fifo_size = target_fifo_size;
+void tud_audio_n_set_ep_in_fifo_threshold(uint8_t func_id, uint16_t threshold) {
+  if (func_id < CFG_TUD_AUDIO && threshold < _audiod_fct[func_id].ep_in_ff.depth) {
+    _audiod_fct[func_id].ep_in_fifo_threshold = threshold;
   }
 }
 
@@ -572,7 +572,7 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
 
   #if CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   // packet_sz_tx is based on total packet size, here we want size for each support buffer.
-  n_bytes_tx = audiod_tx_packet_size(audio->packet_sz_tx, tu_fifo_count(&audio->ep_in_ff), audio->ep_in_ff.depth, audio->ep_in_target_fifo_size, audio->ep_in_sz);
+  n_bytes_tx = audiod_tx_packet_size(audio->packet_sz_tx, tu_fifo_count(&audio->ep_in_ff), audio->ep_in_ff.depth, audio->ep_in_fifo_threshold, audio->ep_in_sz);
   #else
   n_bytes_tx = tu_min16(tu_fifo_count(&audio->ep_in_ff), audio->ep_in_sz);// Limit up to max packet size, more can not be done for ISO
   #endif
@@ -1209,8 +1209,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             audio->ep_in_as_intf_num = itf;
             audio->ep_in_alt = alt;
             audio->ep_in_sz = tu_edpt_packet_size(desc_ep);
-            // Set the default EP IN target size to half the fifo depth.
-            audio->ep_in_target_fifo_size = audio->ep_in_ff.depth / 2;
+            // Set the default EP IN FIFO threshold to half fifo depth.
+            audio->ep_in_fifo_threshold = audio->ep_in_ff.depth / 2;
 
             // If flow control is enabled, parse for the corresponding parameters - doing this here means only AS interfaces with EPs get scanned for parameters
   #if  CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
@@ -1875,7 +1875,7 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
   return true;
 }
 
-static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t target_fifo_size, uint16_t max_depth) {
+static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
   // Flow control need a FIFO size of at least 4*Navg
   if (norminal_size[1] && norminal_size[1] <= fifo_depth * 4) {
     // Use blackout to prioritize normal size packet
@@ -1885,10 +1885,10 @@ static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t da
     if (data_count < norminal_size[0]) {
       // If you get here frequently, then your I2S clock deviation is too big !
       packet_size = 0;
-    } else if (data_count < (target_fifo_size - slot_size) - slot_size && !ctrl_blackout) {
+    } else if (data_count < (fifo_threshold - slot_size) && !ctrl_blackout) {
       packet_size = norminal_size[0];
       ctrl_blackout = 10;
-    } else if (data_count > (target_fifo_size - slot_size) + slot_size && !ctrl_blackout) {
+    } else if (data_count > (fifo_threshold + slot_size) && !ctrl_blackout) {
       packet_size = norminal_size[2];
       if (norminal_size[0] == norminal_size[1]) {
         // nav > INT(nav), eg. 44.1k, 88.2k
