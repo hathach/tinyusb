@@ -114,7 +114,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool send_csw(mscd_interface_t* p_msc) {
   uint8_t rhport = p_msc->rhport;
   p_msc->csw.data_residue = p_msc->cbw.total_bytes - p_msc->xferred_len;
   p_msc->stage = MSC_STAGE_STATUS_SENT;
-  memcpy(_mscd_epbuf.buf, (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)); //-V1086
+  memcpy(_mscd_epbuf.buf, &p_msc->csw, sizeof(msc_csw_t)); //-V1086
   return usbd_edpt_xfer(rhport, p_msc->ep_in , _mscd_epbuf.buf, sizeof(msc_csw_t));
 }
 
