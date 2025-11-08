@@ -143,6 +143,13 @@ typedef struct {
 tu_static usbd_device_t _usbd_dev;
 static volatile uint8_t _usbd_queued_setup;
 
+// Get a validated endpoint number
+static uint8_t tud_edpt_number(uint8_t addr) {
+  uint8_t epnum = tu_edpt_number(addr);
+  TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX);
+  return epnum;
+}
+
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+
@@ -699,7 +706,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
       case DCD_EVENT_XFER_COMPLETE: {
         // Invoke the class callback associated with the endpoint address
         uint8_t const ep_addr = event.xfer_complete.ep_addr;
-        uint8_t const epnum = tu_edpt_number(ep_addr);
+        uint8_t const epnum = tud_edpt_number(ep_addr);
         uint8_t const ep_dir = tu_edpt_dir(ep_addr);
 
         TU_LOG_USBD("on EP %02X with %u bytes\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
@@ -964,7 +971,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
     //------------- Endpoint Request -------------//
     case TUSB_REQ_RCPT_ENDPOINT: {
       uint8_t const ep_addr = tu_u16_low(p_request->wIndex);
-      uint8_t const ep_num  = tu_edpt_number(ep_addr);
+      uint8_t const ep_num  = tud_edpt_number(ep_addr);
       uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
       TU_ASSERT(ep_num < TU_ARRAY_SIZE(_usbd_dev.ep2drv) );
@@ -1306,7 +1313,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
     case DCD_EVENT_XFER_COMPLETE: {
       // Invoke the class callback associated with the endpoint address
       uint8_t const ep_addr = event->xfer_complete.ep_addr;
-      uint8_t const epnum = tu_edpt_number(ep_addr);
+      uint8_t const epnum = tud_edpt_number(ep_addr);
       uint8_t const ep_dir = tu_edpt_dir(ep_addr);
 
       send = true;
@@ -1413,7 +1420,7 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr) {
   // TODO add this check later, also make sure we don't starve an out endpoint while suspending
   // TU_VERIFY(tud_ready());
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   tu_edpt_state_t* ep_state = &_usbd_dev.ep_status[epnum][dir];
 
@@ -1423,7 +1430,7 @@ bool usbd_edpt_claim(uint8_t rhport, uint8_t ep_addr) {
 bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   tu_edpt_state_t* ep_state = &_usbd_dev.ep_status[epnum][dir];
 
@@ -1433,7 +1440,7 @@ bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr) {
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
   rhport = _usbd_rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   // TODO skip ready() check for now since enumeration also use this API
@@ -1472,7 +1479,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes) {
   rhport = _usbd_rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   TU_LOG_USBD("  Queue ISO EP %02X with %u bytes ... ", ep_addr, total_bytes);
@@ -1500,7 +1507,7 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_
 bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   return _usbd_dev.ep_status[epnum][dir].busy;
@@ -1509,7 +1516,7 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr) {
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   rhport = _usbd_rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   // only stalled if currently cleared
@@ -1522,7 +1529,7 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   rhport = _usbd_rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   // only clear if currently stalled
@@ -1535,7 +1542,7 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   return _usbd_dev.ep_status[epnum][dir].stalled;
@@ -1554,7 +1561,7 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
 
   TU_LOG_USBD("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
 
-  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const epnum = tud_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
   dcd_edpt_close(rhport, ep_addr);
@@ -1599,7 +1606,7 @@ bool usbd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const* desc_ep)
 #ifdef TUP_DCD_EDPT_ISO_ALLOC
   rhport = _usbd_rhport;
 
-  uint8_t const epnum = tu_edpt_number(desc_ep->bEndpointAddress);
+  uint8_t const epnum = tud_edpt_number(desc_ep->bEndpointAddress);
   uint8_t const dir = tu_edpt_dir(desc_ep->bEndpointAddress);
 
   TU_ASSERT(epnum < CFG_TUD_ENDPPOINT_MAX);
