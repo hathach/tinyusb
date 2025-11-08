@@ -84,7 +84,7 @@ typedef struct {
 
     // FUNC_CALL
     struct {
-      void (*func) (void*);
+      void (*func) (void* param);
       void* param;
     }func_call;
   };

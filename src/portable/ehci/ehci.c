@@ -920,7 +920,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
           // sub millisecond interval
           p_qhd->interval_ms = 0;
           p_qhd->int_smask = (interval == 1) ? 0xff : // 0b11111111
-                             (interval == 2) ? 0xaa /* 0b10101010 */ : 0x44 /* 01000100 */;
+                             (interval == 2) ? 0xaa /* 0b10101010 */ : 0x44 /* 0b01000100 */;
         } else {
           p_qhd->interval_ms = (uint8_t) tu_min16(1 << (interval - 4), 255);
           p_qhd->int_smask = TU_BIT(interval % 8);

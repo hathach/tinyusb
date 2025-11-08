@@ -500,7 +500,7 @@ static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_
 
   #if USE_LINEAR_BUFFER_RX
   // Data currently is in linear buffer, copy into EP OUT FIFO
-  TU_VERIFY(tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
+  TU_VERIFY(0 < tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
 
   // Schedule for next receive
   TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz), false);
@@ -667,8 +667,12 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles) {
   // The size of isochronous packets created by the device must be within the limits specified in FMT-2.0 section 2.3.1.1.
   // This means that the deviation of actual packet size from nominal size must not exceed +/- one audio slot
   // (audio slot = channel count samples).
-  if (feedback > audio->feedback.max_value) feedback = audio->feedback.max_value;
-  if (feedback < audio->feedback.min_value) feedback = audio->feedback.min_value;
+  if (feedback > audio->feedback.max_value) {
+    feedback = audio->feedback.max_value;
+  }
+  if (feedback < audio->feedback.min_value) {
+    feedback = audio->feedback.min_value;
+  }
 
   tud_audio_n_fb_set(func_id, feedback);
 
@@ -709,7 +713,6 @@ void audiod_init(void) {
 
       // Initialize IN EP FIFO if required
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-
     switch (i) {
   #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ > 0
       case 0:
@@ -878,9 +881,11 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
               || tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
             break;
           } else if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *) p_desc)->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
-            if (_audiod_fct[i].p_desc_as == 0) {
+            if (_audiod_fct[i].p_desc_as == NULL) {
               _audiod_fct[i].p_desc_as = p_desc;
             }
+          } else {
+            // nothing to do
           }
           total_len += p_desc[0];
           p_desc = tu_desc_next(p_desc);
@@ -952,19 +957,19 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
         }
 
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
-        if (ep_in) {
+        if (ep_in != 0) {
           usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size);
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-        if (ep_out) {
+        if (ep_out != 0) {
           usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size);
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-        if (ep_fb) {
+        if (ep_fb != 0) {
           usbd_edpt_iso_alloc(rhport, ep_fb, 4);
         }
   #endif
@@ -993,6 +998,8 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
             if (tu_unaligned_read16(p_desc + 4) == AUDIO_TERM_TYPE_USB_STREAMING) {
               _audiod_fct[i].bclock_id_tx = p_desc[8];
             }
+          } else {
+            // nothing to do
           }
           p_desc = tu_desc_next(p_desc);
         }
@@ -1455,6 +1462,8 @@ bool audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
     return audiod_control_request(rhport, request);
   } else if (stage == CONTROL_STAGE_DATA) {
     return audiod_control_complete(rhport, request);
+  } else {
+    // nothing to do
   }
 
   return true;
@@ -1630,8 +1639,12 @@ static void audiod_fb_fifo_count_update(audiod_function_t *audio, uint16_t lvl_n
     feedback = audio->feedback.compute.fifo_count.nom_value - (ff_lvl - ff_thr) * rate[1];
   }
 
-  if (feedback > audio->feedback.max_value) feedback = audio->feedback.max_value;
-  if (feedback < audio->feedback.min_value) feedback = audio->feedback.min_value;
+  if (feedback > audio->feedback.max_value) {
+    feedback = audio->feedback.max_value;
+  }
+  if (feedback < audio->feedback.min_value) {
+    feedback = audio->feedback.min_value;
+  }
   audio->feedback.value = feedback;
 }
 
@@ -1751,7 +1764,7 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *
 static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *func_id) {
   uint8_t i;
   for (i = 0; i < CFG_TUD_AUDIO; i++) {
-    if (_audiod_fct[i].p_desc) {
+    if (_audiod_fct[i].p_desc != NULL) {
       // Get pointer at beginning and end
       uint8_t const *p_desc = _audiod_fct[i].p_desc;
       uint8_t const *p_desc_end = _audiod_fct[i].p_desc + _audiod_fct[i].desc_length;
