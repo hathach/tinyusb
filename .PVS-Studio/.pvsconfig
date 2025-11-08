@@ -10,6 +10,7 @@
 //-V::2520 [MISRA-C-16.3] Every switch-clause should be terminated by an unconditional 'break' statement
 //-V:memcpy:2547 [MISRA-C-17.7] The return value of non-void function 'memcpy' should be used.
 //-V:memmove:2547 [MISRA-C-17.7] The return value of non-void function 'memmove' should be used.
+//-V:printf:2547 [MISRA-C-17.7]
 //-V::2584::{gintsts} dwc2
 //-V::2600 [MISRA-C-21.6] The function with the 'printf' name should not be used.
 //+V2614 DISABLE_LENGHT_LIMIT_CHECK:YES

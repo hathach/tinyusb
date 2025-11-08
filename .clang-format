@@ -87,5 +87,6 @@ SpacesInAngles: false
 SpacesInConditionalStatement: false
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
+SortIncludes: false
 TabWidth: 2
 ...

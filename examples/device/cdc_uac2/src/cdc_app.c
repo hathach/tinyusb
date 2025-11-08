@@ -48,7 +48,7 @@ void tud_cdc_rx_cb(uint8_t itf) {
   // connected() check for DTR bit
   // Most but not all terminal client set this when making connection
   if (tud_cdc_connected()) {
-    if (tud_cdc_available()) {
+    if (tud_cdc_available() > 0) {
       count = tud_cdc_n_read(itf, buf, sizeof(buf));
       (void) count;
 
