@@ -38,7 +38,17 @@
 #if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC505)
 
 #include "device/dcd.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
 #include "NUC505Series.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /*
  * The DMA functionality of the USBD peripheral does not appear to succeed with

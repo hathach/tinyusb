@@ -33,9 +33,9 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]  VIDEO | AUDIO | MIDI | HID | MSC | CDC          [LSB]
  */
-#define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-    _PID_MAP(MIDI, 3) | _PID_MAP(AUDIO, 4) | _PID_MAP(VIDEO, 5) | _PID_MAP(VENDOR, 6) )
+#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
+#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
+    PID_MAP(MIDI, 3) | PID_MAP(AUDIO, 4) | PID_MAP(VIDEO, 5) | PID_MAP(VENDOR, 6) )
 
 #define USB_VID   0xCafe
 #define USB_BCD   0x0200
@@ -68,7 +68,7 @@ char const* string_desc_arr[] = {
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device = {
+static tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = USB_BCD,
@@ -551,7 +551,7 @@ static uint8_t * get_hs_configuration_desc(void) {
 }
 
 // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
-tusb_desc_device_qualifier_t const desc_device_qualifier = {
+static tusb_desc_device_qualifier_t const desc_device_qualifier = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = USB_BCD,

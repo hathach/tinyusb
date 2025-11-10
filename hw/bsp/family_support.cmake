@@ -2,6 +2,7 @@ include_guard(GLOBAL)
 
 include(CMakePrintHelpers)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+#set(CMAKE_C_STANDARD 11)
 
 # TOP is path to root directory
 set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
@@ -11,21 +12,27 @@ set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 
 #-------------------------------------------------------------
 # Toolchain
-# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
+# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER= or ENV{CC}=
 #-------------------------------------------------------------
-# Detect toolchain based on CMAKE_C_COMPILER
-if (DEFINED CMAKE_C_COMPILER)
-  string(FIND ${CMAKE_C_COMPILER} "iccarm" IS_IAR)
-  string(FIND ${CMAKE_C_COMPILER} "clang" IS_CLANG)
-  string(FIND ${CMAKE_C_COMPILER} "gcc" IS_GCC)
+function(detect_compiler COMPILER_PATH RESULT)
+  string(FIND ${COMPILER_PATH} "iccarm" IS_IAR)
+  string(FIND ${COMPILER_PATH} "clang" IS_CLANG)
+  string(FIND ${COMPILER_PATH} "gcc" IS_GCC)
 
   if (NOT IS_IAR EQUAL -1)
-    set(TOOLCHAIN iar)
+    set(${RESULT} iar PARENT_SCOPE)
   elseif (NOT IS_CLANG EQUAL -1)
-    set(TOOLCHAIN clang)
+    set(${RESULT} clang PARENT_SCOPE)
   elseif (NOT IS_GCC EQUAL -1)
-    set(TOOLCHAIN gcc)
+    set(${RESULT} gcc PARENT_SCOPE)
   endif ()
+endfunction()
+
+# Detect toolchain based on CMAKE_C_COMPILER or ENV{CC}
+if (DEFINED CMAKE_C_COMPILER)
+  detect_compiler(${CMAKE_C_COMPILER} TOOLCHAIN)
+elseif (DEFINED ENV{CC})
+  detect_compiler($ENV{CC} TOOLCHAIN)
 endif ()
 
 if (NOT DEFINED TOOLCHAIN)
@@ -56,8 +63,9 @@ set(WARN_FLAGS_GNU
   -Wunused
   -Wunused-function
   -Wreturn-type
-  #-Wredundant-decls
-  #-Wmissing-prototypes
+  -Wredundant-decls
+  -Wmissing-prototypes
+#  -Wconversion
   )
 set(WARN_FLAGS_Clang ${WARN_FLAGS_GNU})
 
@@ -198,6 +206,9 @@ endfunction()
 # Common Target Configure
 # Most families use these settings except rp2040 and espressif
 #-------------------------------------------------------------
+function(family_add_board BOARD_TARGET)
+  # empty function, should be redefined in FAMILY/family.cmake
+endfunction()
 
 # Add RTOS to example
 function(family_add_rtos TARGET RTOS)
@@ -223,6 +234,19 @@ endfunction()
 
 # Add common configuration to example
 function(family_configure_common TARGET RTOS)
+  # Add board target
+  set(BOARD_TARGET board_${BOARD})
+  if (NOT RTOS STREQUAL zephyr)
+    if (NOT TARGET ${BOARD_TARGET})
+      family_add_board(${BOARD_TARGET})
+      set_target_properties(${BOARD_TARGET} PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+        SKIP_LINTING ON # need cmake 4.2
+        )
+    endif ()
+    target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET})
+  endif ()
+
   family_add_rtos(${TARGET} ${RTOS})
 
   # Add BOARD_${BOARD} define
@@ -252,6 +276,7 @@ function(family_configure_common TARGET RTOS)
       target_sources(${TARGET} PUBLIC ${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c)
       target_include_directories(${TARGET}  PUBLIC ${TOP}/lib/SEGGER_RTT/RTT)
 #      target_compile_definitions(${TARGET}  PUBLIC SEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL)
+      set_source_files_properties(${TOP}/lib/SEGGER_RTT/RTT/SEGGER_RTT.c PROPERTIES SKIP_LINTING ON)
     endif ()
   else ()
     target_compile_definitions(${TARGET} PUBLIC LOGGER_UART)
@@ -266,6 +291,21 @@ function(family_configure_common TARGET RTOS)
     endif ()
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
+
+    if (IAR_CSTAT)
+      # link time analysis with C-STAT
+      add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_C_ICSTAT}
+        --db=${CMAKE_BINARY_DIR}/cstat.db
+        link_analyze -- ${CMAKE_LINKER} $<TARGET_OBJECTS:${TARGET}>
+        COMMAND_EXPAND_LISTS
+        )
+      # generate C-STAT report
+      add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cstat_report
+        COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/index.html
+        )
+    endif ()
   endif ()
 
   # run size after build
@@ -279,8 +319,8 @@ endfunction()
 
 # Add tinyusb to target
 function(family_add_tinyusb TARGET OPT_MCU)
-  # tinyusb's CMakeList.txt
-  add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+  # tinyusb's CMakeLists.txt
+  include(${TOP}/src/CMakeLists.txt)
 
   # Add TinyUSB sources, include and common define
   tinyusb_target_add(${TARGET})
@@ -350,56 +390,6 @@ endfunction()
 
 function(family_example_missing_dependency TARGET DEPENDENCY)
   message(WARNING "${DEPENDENCY} submodule needed by ${TARGET} not found, please run 'python tools/get_deps.py ${DEPENDENCY}' to fetch it")
-endfunction()
-
-#----------------------------------
-# RPI specific: refactor later
-#----------------------------------
-function(family_add_default_example_warnings TARGET)
-  target_compile_options(${TARGET} PUBLIC
-    -Wall
-    -Wextra
-    -Werror
-    -Wfatal-errors
-    -Wdouble-promotion
-    -Wfloat-equal
-    # FIXME commented out because of https://github.com/raspberrypi/pico-sdk/issues/1468
-    #-Wshadow
-    -Wwrite-strings
-    -Wsign-compare
-    -Wmissing-format-attribute
-    -Wunreachable-code
-    -Wcast-align
-    -Wcast-qual
-    -Wnull-dereference
-    -Wuninitialized
-    -Wunused
-    -Wredundant-decls
-    #-Wstrict-prototypes
-    #-Werror-implicit-function-declaration
-    #-Wundef
-    )
-
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
-      target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
-    endif()
-
-    # GCC 10
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
-      target_compile_options(${TARGET} PUBLIC -Wconversion)
-    endif()
-
-    # GCC 8
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
-      target_compile_options(${TARGET} PUBLIC -Wcast-function-type -Wstrict-overflow)
-    endif()
-
-    # GCC 6
-    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 6.0)
-      target_compile_options(${TARGET} PUBLIC -Wno-strict-aliasing)
-    endif()
-  endif()
 endfunction()
 
 #----------------------------------

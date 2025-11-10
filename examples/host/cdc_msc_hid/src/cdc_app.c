@@ -51,7 +51,7 @@ void cdc_app_task(void) {
   for (uint8_t idx = 0; idx < CFG_TUH_CDC; idx++) {
     if (tuh_cdc_mounted(idx)) {
       // console --> cdc interfaces
-      if (count) {
+      if (count > 0) {
         tuh_cdc_write(idx, buf, count);
         tuh_cdc_write_flush(idx);
       }

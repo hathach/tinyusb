@@ -1,5 +1,5 @@
 set(MCU_VARIANT stm32h7s3xx)
-set(JLINK_DEVICE stm32h7s3xx)
+set(JLINK_DEVICE stm32h7s3l8)
 
 set(LD_FILE_Clang ${LD_FILE_GNU})
 

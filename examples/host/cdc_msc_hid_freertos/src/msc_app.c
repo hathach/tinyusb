@@ -23,6 +23,8 @@
  *
  */
 
+#include <stdio.h>
+
 #include "tusb.h"
 #include "app.h"
 

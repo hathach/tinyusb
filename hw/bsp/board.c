@@ -51,8 +51,7 @@ int sys_read(int fhdl, char *buf, size_t count) TU_ATTR_USED;
 
 int sys_write(int fhdl, const char *buf, size_t count) {
   (void) fhdl;
-  SEGGER_RTT_Write(0, (const char *) buf, (int) count);
-  return (int) count;
+  return (int) SEGGER_RTT_Write(0, buf, (int) count);
 }
 
 int sys_read(int fhdl, char *buf, size_t count) {
@@ -111,16 +110,6 @@ int sys_read (int fhdl, char *buf, size_t count) {
 
 #endif
 
-//int _close(int fhdl) {
-//  (void) fhdl;
-//  return 0;
-//}
-
-//int _fstat(int file, struct stat *st) {
-//  memset(st, 0, sizeof(*st));
-//  st->st_mode = S_IFCHR;
-//}
-
 // Clang use picolibc
 #if defined(__clang__)
 static int cl_putc(char c, FILE *f) {
@@ -147,8 +136,8 @@ TU_ATTR_WEAK size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   (void) max_len;
   // fixed serial string is 01234567889ABCDEF
   uint32_t* uid32 = (uint32_t*) (uintptr_t)id;
-  uid32[0] = 0x67452301;
-  uid32[1] = 0xEFCDAB89;
+  uid32[0] = 0x67452301u;
+  uid32[1] = 0xEFCDAB89u;
   return 8;
 }
 
@@ -169,7 +158,7 @@ int board_getchar(void) {
 }
 
 void board_putchar(int c) {
-  sys_write(0, (const char*)&c, 1);
+  (void) sys_write(0, (const char*)&c, 1);
 }
 
 uint32_t tusb_time_millis_api(void) {

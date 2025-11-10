@@ -35,7 +35,7 @@ extern "C" {
 // Spinlock API
 //--------------------------------------------------------------------+
 typedef struct {
-  void (* interrupt_set)(bool);
+  void (* interrupt_set)(bool enabled);
 } osal_spinlock_t;
 
 // For SMP, spinlock must be locked by hardware, cannot just use interrupt
@@ -141,7 +141,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hd
 #include "common/tusb_fifo.h"
 
 typedef struct {
-  void (* interrupt_set)(bool);
+  void (* interrupt_set)(bool enabled);
   tu_fifo_t ff;
 } osal_queue_def_t;
 
@@ -156,7 +156,7 @@ typedef osal_queue_def_t* osal_queue_t;
   }
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
-  tu_fifo_clear(&qdef->ff);
+  (void) tu_fifo_clear(&qdef->ff);
   return (osal_queue_t) qdef;
 }
 

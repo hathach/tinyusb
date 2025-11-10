@@ -1,12 +1,12 @@
 idf_build_get_property(target IDF_TARGET)
+include(CMakePrintHelpers)
 
-set(srcs)
-set(includes_public)
-set(compile_options)
-set(tusb_src "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../src")
+set(tusb_src ${CMAKE_CURRENT_LIST_DIR}/../../../../../src)
+get_filename_component(tusb_src ${tusb_src} ABSOLUTE)
+include(${tusb_src}/CMakeLists.txt)
 
 string(TOUPPER OPT_MCU_${target} tusb_mcu)
-list(APPEND compile_definitions
+set(compile_definitions
   CFG_TUSB_MCU=${tusb_mcu}
   CFG_TUSB_OS=OPT_OS_FREERTOS
   BOARD_TUD_RHPORT=${RHPORT_DEVICE}
@@ -23,36 +23,11 @@ if (target STREQUAL esp32p4)
     )
 endif ()
 
+tinyusb_sources_get(srcs)
 list(APPEND srcs
-  # common
-  ${tusb_src}/tusb.c
-  ${tusb_src}/common/tusb_fifo.c
-  # device
-  ${tusb_src}/device/usbd.c
-  ${tusb_src}/device/usbd_control.c
-  ${tusb_src}/class/audio/audio_device.c
-  ${tusb_src}/class/cdc/cdc_device.c
-  ${tusb_src}/class/dfu/dfu_device.c
-  ${tusb_src}/class/dfu/dfu_rt_device.c
-  ${tusb_src}/class/hid/hid_device.c
-  ${tusb_src}/class/midi/midi_device.c
-  ${tusb_src}/class/msc/msc_device.c
-  ${tusb_src}/class/mtp/mtp_device.c
-  ${tusb_src}/class/net/ecm_rndis_device.c
-  ${tusb_src}/class/net/ncm_device.c
-  ${tusb_src}/class/usbtmc/usbtmc_device.c
-  ${tusb_src}/class/vendor/vendor_device.c
-  ${tusb_src}/class/video/video_device.c
   ${tusb_src}/portable/synopsys/dwc2/dcd_dwc2.c
   ${tusb_src}/portable/synopsys/dwc2/hcd_dwc2.c
   ${tusb_src}/portable/synopsys/dwc2/dwc2_common.c
-  # host
-  ${tusb_src}/host/usbh.c
-  ${tusb_src}/host/hub.c
-  ${tusb_src}/class/cdc/cdc_host.c
-  ${tusb_src}/class/hid/hid_host.c
-  ${tusb_src}/class/msc/msc_host.c
-  ${tusb_src}/class/vendor/vendor_host.c
   )
 
 # use max3421 as host controller
@@ -74,7 +49,6 @@ if(DEFINED CFLAGS_CLI)
   list(APPEND compile_definitions ${CFLAGS_CLI})
 endif()
 
-
 idf_component_register(SRCS ${srcs}
   INCLUDE_DIRS ${tusb_src}
   REQUIRES src
@@ -82,4 +56,3 @@ idf_component_register(SRCS ${srcs}
   )
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC ${compile_definitions})
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=format)

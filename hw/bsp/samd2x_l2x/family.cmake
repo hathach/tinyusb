@@ -21,28 +21,21 @@ set(FAMILY_MCUS SAMD21 SAML2X CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f interface/cmsis-dap.cfg -c \"transport select swd\" -f target/at91samdXX.cfg")
 
 #------------------------------------
-# BOARD_TARGET
+# Startup & Linker script
 #------------------------------------
-# only need to be built ONCE for all examples
-function(add_board_target BOARD_TARGET)
-  if (TARGET ${BOARD_TARGET})
-    return()
-  endif ()
+set(LD_FILE_Clang ${LD_FILE_GNU})
+set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_${SAM_FAMILY}.c)
+set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
-  set(LD_FILE_Clang ${LD_FILE_GNU})
-  if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-    message(FATAL_ERROR "LD_FILE_${CMAKE_C_COMPILER_ID} not defined")
-  endif ()
-
-  set(STARTUP_FILE_GNU ${SDK_DIR}/gcc/gcc/startup_${SAM_FAMILY}.c)
-  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-
+#------------------------------------
+# Board Target
+#------------------------------------
+function(family_add_board BOARD_TARGET)
   # Common sources for all SAM families
   set(COMMON_SOURCES
     ${SDK_DIR}/gcc/system_${SAM_FAMILY}.c
     ${SDK_DIR}/hal/src/hal_atomic.c
     ${SDK_DIR}/hpl/gclk/hpl_gclk.c
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
   )
 
   # Family-specific sources
@@ -89,47 +82,13 @@ function(add_board_target BOARD_TARGET)
   endif()
 
   update_board(${BOARD_TARGET})
-
-  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -nostartfiles
-      --specs=nosys.specs --specs=nano.specs
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_Clang}"
-      )
-  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${BOARD_TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
-      )
-  endif ()
 endfunction()
-
 
 #------------------------------------
 # Functions
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
-
-  # Board target
-  add_board_target(board_${BOARD})
-
-  #---------- Port Specific ----------
-  # These files are built for each example since it depends on example's tusb_config.h
-  target_sources(${TARGET} PUBLIC
-    # BSP
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    )
-  target_include_directories(${TARGET} PUBLIC
-    # family, hw, board
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    )
 
   # Determine MCU option based on SAM_FAMILY
   if(SAM_FAMILY STREQUAL "samd21")
@@ -141,21 +100,46 @@ function(family_configure_example TARGET RTOS)
   else()
     message(FATAL_ERROR "Unknown SAM_FAMILY: ${SAM_FAMILY}")
   endif()
-
-  # Add TinyUSB target and port source
   family_add_tinyusb(${TARGET} ${MCU_OPTION})
-  target_sources(${TARGET} PUBLIC
-    ${TOP}/src/portable/microchip/samd/dcd_samd.c
-  )
 
+  target_sources(${TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/microchip/samd/dcd_samd.c
+    ${TOP}/src/portable/microchip/samd/hcd_samd.c
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    )
   # Add HCD support for SAMD21 (has host capability)
   if(SAM_FAMILY STREQUAL "samd21")
     target_sources(${TARGET} PUBLIC
       ${TOP}/src/portable/microchip/samd/hcd_samd.c
-    )
+      )
   endif()
 
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+  target_include_directories(${TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    )
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      -nostartfiles
+      --specs=nosys.specs --specs=nano.specs
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
+  endif ()
+  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
 
   # Flashing
   family_add_bin_hex(${TARGET})

@@ -79,7 +79,7 @@ typedef struct TU_ATTR_ALIGNED(4) {
 
     // FUNC_CALL
     struct {
-      void (*func) (void*);
+      void (*func) (void* param);
       void* param;
     }func_call;
   };
@@ -214,7 +214,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport
   dcd_event_t event;
   event.rhport = rhport;
   event.event_id = DCD_EVENT_SETUP_RECEIVED;
-  memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
+  (void) memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
   dcd_event_handler(&event, in_isr);
 }
 

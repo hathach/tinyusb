@@ -19,11 +19,16 @@ runs:
     - name: Linux dependencies
       if: runner.os == 'Linux'
       run: |
-        sudo apt install -y ninja-build
+        NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip
+        wget $NINJA_URL -O ninja-linux.zip
+        unzip ninja-linux.zip -d ninja-bin
+        echo >> $GITHUB_PATH "${{ github.workspace }}/ninja-bin"
       shell: bash
 
     - name: Get Dependencies
+      env:
+        ARG: ${{ inputs.arg }}
       run: |
-        python3 tools/get_deps.py ${{ inputs.arg }}
+        python3 tools/get_deps.py ${ARG}
         echo "PICO_SDK_PATH=${{ github.workspace }}/pico-sdk" >> $GITHUB_ENV
       shell: bash

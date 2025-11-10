@@ -602,7 +602,7 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const *line_coding,
   p_cdc->requested_line.coding = *line_coding;
   p_cdc->user_complete_cb = complete_cb;
 
-  if (driver->set_line_coding) {
+  if (driver->set_line_coding != NULL) {
     // driver support set_line_coding request
     TU_VERIFY(driver->set_line_coding(p_cdc, complete_cb ? cdch_internal_control_complete : NULL, user_data));
 
@@ -611,7 +611,7 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const *line_coding,
     }
   } else {
     // driver does not support set_line_coding and need 2 stage to set baudrate and data format separately
-    if (complete_cb) {
+    if (complete_cb != NULL) {
       // non-blocking
       TU_VERIFY(driver->set_baudrate(p_cdc, cdch_set_line_coding_stage1_baudrate_complete, user_data));
     } else {
@@ -619,7 +619,7 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const *line_coding,
       xfer_result_t result = XFER_RESULT_INVALID;
 
       TU_VERIFY(driver->set_baudrate(p_cdc, NULL, (uintptr_t) &result));
-      if (user_data) {
+      if (user_data != 0) {
         *((xfer_result_t *) user_data) = result;
       }
       TU_VERIFY(result == XFER_RESULT_SUCCESS);
@@ -627,7 +627,7 @@ bool tuh_cdc_set_line_coding(uint8_t idx, cdc_line_coding_t const *line_coding,
 
       result = XFER_RESULT_INVALID;
       TU_VERIFY(driver->set_data_format(p_cdc, NULL, (uintptr_t) &result));
-      if (user_data) {
+      if (user_data != 0) {
         *((xfer_result_t *) user_data) = result;
       }
       TU_VERIFY(result == XFER_RESULT_SUCCESS);
@@ -777,6 +777,8 @@ bool cdch_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const *itf_d
         }
       }
     }
+  } else {
+    // not supported class
   }
 
   return false;
@@ -894,7 +896,7 @@ static void cdch_internal_control_complete(tuh_xfer_t *xfer) {
 
   // Invoke application callback
   xfer->complete_cb = p_cdc->user_complete_cb;
-  if (xfer->complete_cb) {
+  if (xfer->complete_cb != NULL) {
     xfer->complete_cb(xfer);
   }
 }
@@ -910,7 +912,7 @@ static void cdch_set_line_coding_stage1_baudrate_complete(tuh_xfer_t *xfer) {
     TU_ASSERT(driver->set_data_format(p_cdc, cdch_set_line_coding_stage2_data_format_complete, xfer->user_data),);
   } else {
     xfer->complete_cb = p_cdc->user_complete_cb;
-    if (xfer->complete_cb) {
+    if (xfer->complete_cb != NULL) {
       xfer->complete_cb(xfer);
     }
   }
@@ -926,7 +928,7 @@ static void cdch_set_line_coding_stage2_data_format_complete(tuh_xfer_t *xfer) {
   }
 
   xfer->complete_cb = p_cdc->user_complete_cb;
-  if (xfer->complete_cb) {
+  if (xfer->complete_cb != NULL) {
     xfer->complete_cb(xfer);
   }
 }
@@ -950,12 +952,12 @@ static void acm_internal_control_complete(cdch_interface_t *p_cdc, tuh_xfer_t *x
       break;
 
     default:
-      break;
+      break; // unknown request
   }
 }
 
 static bool acm_set_control_line_state(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(p_cdc->acm.capability.support_line_request);
+  TU_VERIFY(p_cdc->acm.capability.support_line_request != 0);
 
   const tusb_control_request_t request = {
     .bmRequestType_bit = {
@@ -982,7 +984,7 @@ static bool acm_set_control_line_state(cdch_interface_t *p_cdc, tuh_xfer_cb_t co
 }
 
 static bool acm_set_line_coding(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
-  TU_VERIFY(p_cdc->acm.capability.support_line_request);
+  TU_VERIFY(p_cdc->acm.capability.support_line_request != 0);
   TU_VERIFY((p_cdc->requested_line.coding.data_bits >= 5 && p_cdc->requested_line.coding.data_bits <= 8) ||
             p_cdc->requested_line.coding.data_bits == 16);
 
@@ -1136,7 +1138,6 @@ static inline bool ftdi_sio_reset(cdch_interface_t *p_cdc, tuh_xfer_cb_t complet
 
 // internal control complete to update state such as line state, line_coding
 static void ftdi_internal_control_complete(cdch_interface_t* p_cdc, tuh_xfer_t *xfer) {
-  TU_VERIFY(xfer->result == XFER_RESULT_SUCCESS,);
   const tusb_control_request_t * setup = xfer->setup;
   if (xfer->result == XFER_RESULT_SUCCESS) {
     if (setup->bRequest      == FTDI_SIO_SET_MODEM_CTRL_REQUEST &&
@@ -1168,10 +1169,10 @@ static bool ftdi_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete
 
 static bool ftdi_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   uint32_t index_value = ftdi_get_divisor(p_cdc);
-  TU_VERIFY(index_value);
+  TU_VERIFY(index_value != 0);
   uint16_t value = (uint16_t) index_value;
   uint16_t index = (uint16_t) (index_value >> 16);
-  if (p_cdc->ftdi.channel) {
+  if (p_cdc->ftdi.channel != 0) {
     index = (uint16_t) ((index << 8) | p_cdc->ftdi.channel);
   }
 
@@ -1365,7 +1366,7 @@ static uint32_t ftdi_232bm_baud_base_to_divisor(uint32_t baud, uint32_t base) {
   uint8_t divfrac[8] = {0, 3, 2, 4, 1, 5, 6, 7};
   uint32_t divisor;
   /* divisor shifted 3 bits to the left */
-  uint32_t divisor3 = DIV_ROUND_CLOSEST(base, 2 * baud);
+  uint32_t divisor3 = tu_div_round_nearest(base, 2 * baud);
   divisor = divisor3 >> 3;
   divisor |= (uint32_t) divfrac[divisor3 & 0x7] << 14;
   /* Deal with special cases for highest baud rates. */
@@ -1373,6 +1374,8 @@ static uint32_t ftdi_232bm_baud_base_to_divisor(uint32_t baud, uint32_t base) {
     divisor = 0;
   } else if (divisor == 0x4001) /* 1.5 */ {
     divisor = 1;
+  } else {
+    // nothing to do
   }
   return divisor;
 }
@@ -1387,7 +1390,7 @@ static uint32_t ftdi_2232h_baud_base_to_divisor(uint32_t baud, uint32_t base) {
   uint32_t divisor3;
 
   /* hi-speed baud rate is 10-bit sampling instead of 16-bit */
-  divisor3 = DIV_ROUND_CLOSEST(8 * base, 10 * baud);
+  divisor3 = tu_div_round_nearest(8 * base, 10 * baud);
 
   divisor = divisor3 >> 3;
   divisor |= (uint32_t) divfrac[divisor3 & 0x7] << 14;
@@ -1396,12 +1399,13 @@ static uint32_t ftdi_2232h_baud_base_to_divisor(uint32_t baud, uint32_t base) {
     divisor = 0;
   } else if (divisor == 0x4001) /* 1.5 */ {
     divisor = 1;
+  } else {
+    // nothing to do
   }
-  /*
-   * Set this bit to turn off a divide by 2.5 on baud rate generator
+
+  /* Set this bit to turn off a divide by 2.5 on baud rate generator
    * This enables baud rates up to 12Mbaud but cannot reach below 1200
-   * baud with this bit set
-   */
+   * baud with this bit set */
   divisor |= 0x00020000;
   return divisor;
 }
@@ -1413,7 +1417,7 @@ static inline uint32_t ftdi_2232h_baud_to_divisor(uint32_t baud) {
 static inline uint32_t ftdi_get_divisor(cdch_interface_t *p_cdc) {
   uint32_t baud = p_cdc->requested_line.coding.bit_rate;
   uint32_t div_value = 0;
-  TU_VERIFY(baud);
+  TU_VERIFY(baud != 0);
 
   switch (p_cdc->ftdi.chip_type) {
     case FTDI_UNKNOWN:
@@ -1553,7 +1557,8 @@ static void cp210x_internal_control_complete(cdch_interface_t *p_cdc, tuh_xfer_t
       p_cdc->line.coding.bit_rate = p_cdc->requested_line.coding.bit_rate;
       break;
 
-    default: break;
+    default:
+      break; // unsupported request
   }
 }
 
@@ -1714,7 +1719,8 @@ static void ch34x_internal_control_complete(cdch_interface_t *p_cdc, tuh_xfer_t 
           p_cdc->line.coding.data_bits = p_cdc->requested_line.coding.data_bits;
           break;
 
-        default: break;
+        default:
+          break; // unsupported
       }
       break;
 
@@ -1722,19 +1728,20 @@ static void ch34x_internal_control_complete(cdch_interface_t *p_cdc, tuh_xfer_t 
       p_cdc->line.control_state = p_cdc->requested_line.control_state;
       break;
 
-    default: break;
+    default:
+      break; // unsupported request
   }
 }
 
 static bool ch34x_set_data_format(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   const uint8_t lcr = ch34x_get_lcr(p_cdc);
-  TU_VERIFY(lcr);
+  TU_VERIFY(lcr > 0);
   return ch34x_write_reg(p_cdc, CH32X_REG16_LCR2_LCR, lcr, complete_cb, user_data);
 }
 
 static bool ch34x_set_baudrate(cdch_interface_t *p_cdc, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   const uint16_t div_ps = ch34x_get_divisor_prescaler(p_cdc);
-  TU_VERIFY(div_ps);
+  TU_VERIFY(div_ps > 0);
   return ch34x_write_reg(p_cdc, CH34X_REG16_DIVISOR_PRESCALER, div_ps, complete_cb, user_data);
 }
 
@@ -1917,7 +1924,8 @@ static uint8_t ch34x_get_lcr(cdch_interface_t *p_cdc) {
       lcr |= CH34X_LCR_ENABLE_PAR | CH34X_LCR_MARK_SPACE | CH34X_LCR_PAR_EVEN;
       break;
 
-    default: break;
+    default:
+      break; // invalid parity
   }
 
   // 1.5 stop bits not supported
@@ -2000,13 +2008,15 @@ static inline bool pl2303_supports_hx_status(cdch_interface_t *p_cdc, tuh_xfer_c
 //  return pl2303_set_request(p_cdc, PL2303_BREAK_REQUEST, PL2303_BREAK_REQUEST_TYPE, state, 0, NULL, 0);
 //}
 
-static inline int pl2303_clear_halt(cdch_interface_t *p_cdc, uint8_t endp, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static inline bool
+pl2303_clear_halt(cdch_interface_t *p_cdc, uint8_t endp, tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   /* we don't care if it wasn't halted first. in fact some devices
    * (like some ibmcam model 1 units) seem to expect hosts to make
    * this request for iso endpoints, which can't halt!
    */
-  return pl2303_set_request(p_cdc, TUSB_REQ_CLEAR_FEATURE, PL2303_CLEAR_HALT_REQUEST_TYPE, TUSB_REQ_FEATURE_EDPT_HALT, endp,
-                            NULL, 0, complete_cb, user_data);
+  return pl2303_set_request(
+      p_cdc, TUSB_REQ_CLEAR_FEATURE, PL2303_CLEAR_HALT_REQUEST_TYPE, TUSB_REQ_FEATURE_EDPT_HALT, endp, NULL, 0,
+      complete_cb, user_data);
 }
 
 //------------- Driver API -------------//
@@ -2131,10 +2141,9 @@ static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer)
       if (type == PL2303_TYPE_NEED_SUPPORTS_HX_STATUS) {
         TU_ASSERT(pl2303_supports_hx_status(p_cdc, cdch_process_set_config, CONFIG_PL2303_READ1));
         break;
-      } else {
-        // no transfer triggered and continue with CONFIG_PL2303_READ1
-        TU_ATTR_FALLTHROUGH;
       }
+      // no transfer triggered and continue with CONFIG_PL2303_READ1
+      TU_ATTR_FALLTHROUGH;
 
     case CONFIG_PL2303_READ1:
       // get supports_hx_status, type and quirks (step 2), do special read
@@ -2379,10 +2388,12 @@ static pl2303_type_t pl2303_detect_type(cdch_interface_t *p_cdc, uint8_t step) {
           return PL2303_TYPE_HXN;
 
         default:
-          break;
+          break; // unknown device
       }
       break;
-    default: break;
+
+    default:
+      break; // unknown device
   }
 
   TU_LOG_CDC(p_cdc, "unknown device type bcdUSB = 0x%04x", desc_dev.bcdUSB);
@@ -2444,8 +2455,9 @@ static uint32_t pl2303_encode_baud_rate_divisor(uint8_t buf[PL2303_LINE_CODING_B
    */
   baseline = 12000000 * 32;
   mantissa = baseline / baud;
-  if (mantissa == 0)
+  if (mantissa == 0) {
     mantissa = 1; /* Avoid dividing by zero if baud > 32 * 12M. */
+  }
   exponent = 0;
   while (mantissa >= 512) {
     if (exponent < 7) {
@@ -2517,7 +2529,7 @@ static bool pl2303_encode_baud_rate(cdch_interface_t *p_cdc, uint8_t buf[PL2303_
    * Use direct method for supported baud rates, otherwise use divisors.
    * Newer chip types do not support divisor encoding.
    */
-  if (type_data->no_divisors) {
+  if (type_data->no_divisors != 0) {
     baud_sup = baud;
   } else {
     baud_sup = pl2303_get_supported_baud_rate(baud);
@@ -2525,7 +2537,7 @@ static bool pl2303_encode_baud_rate(cdch_interface_t *p_cdc, uint8_t buf[PL2303_
 
   if (baud == baud_sup) {
     baud = pl2303_encode_baud_rate_direct(buf, baud);
-  } else if (type_data->alt_divisors) {
+  } else if (type_data->alt_divisors != 0) {
     baud = pl2303_encode_baud_rate_divisor_alt(buf, baud);
   } else {
     baud = pl2303_encode_baud_rate_divisor(buf, baud);

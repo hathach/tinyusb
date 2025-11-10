@@ -29,8 +29,19 @@
 #if CFG_TUH_ENABLED && (CFG_TUSB_MCU == OPT_MCU_RP2040) && CFG_TUH_RPI_PIO_USB
 
 #include "pico.h"
+
 #include "pio_usb.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#endif
+
 #include "pio_usb_ll.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 //--------------------------------------------------------------------+
 // INCLUDE

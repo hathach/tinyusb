@@ -1,4 +1,4 @@
-|Build Status| |CircleCI Status| |Documentation Status| |Fuzzing Status| |License|
+|Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |License|
 
 Sponsors
 ========
@@ -160,7 +160,7 @@ Supported CPUs
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
 |              | NUC505                      | ✔      |      | ✔         | nuc505                 |                   |
 +--------------+---------+-------------------+--------+------+-----------+------------------------+-------------------+
-| NXP          | iMXRT   | RT 10xx, 11xx     | ✔      | ✔    | ✔         | ci_hs                  |                   |
+| NXP          | iMXRT   | RT 10xx, 11xx     | ✔      | ✔    | ✔         | ci_hs, ehci            |                   |
 |              +---------+-------------------+--------+------+-----------+------------------------+-------------------+
 |              | Kinetis | KL                | ✔      | ⚠    | ✖         | ci_fs, khci            |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
@@ -168,15 +168,15 @@ Supported CPUs
 |              +---------+-------------------+--------+------+-----------+------------------------+-------------------+
 |              | LPC     | 11u, 13, 15       | ✔      | ✖    | ✖         | lpc_ip3511             |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
-|              |         | 17, 40            | ✔      | ⚠    | ✖         | lpc17_40               |                   |
+|              |         | 17, 40            | ✔      | ⚠    | ✖         | lpc17_40, ohci         |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
-|              |         | 18, 43            | ✔      | ✔    | ✔         | ci_hs                  |                   |
+|              |         | 18, 43            | ✔      | ✔    | ✔         | ci_hs, ehci            |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
 |              |         | 51u               | ✔      | ✖    | ✖         | lpc_ip3511             |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
 |              |         | 54, 55            | ✔      |      | ✔         | lpc_ip3511             |                   |
 |              +---------+-------------------+--------+------+-----------+------------------------+-------------------+
-|              | MCX     | N9                | ✔      |      | ✔         | ci_fs, ci_hs           |                   |
+|              | MCX     | N9                | ✔      |      | ✔         | ci_fs, ci_hs, ehci     |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
 |              |         | A15               | ✔      |      |           | ci_fs                  |                   |
 +--------------+---------+-------------------+--------+------+-----------+------------------------+-------------------+
@@ -211,6 +211,8 @@ Supported CPUs
 |              | N6                          | ✔      | ✔    | ✔         | dwc2                   |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
 |              | U0                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
+|              +----+------------------------+--------+------+-----------+------------------------+-------------------+
+|              | U3                          | ✔      |      | ✖         | stm32_fsdev            |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
 |              | U5 | 535, 545               | ✔      |      | ✖         | stm32_fsdev            |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
@@ -252,11 +254,13 @@ The following tools are provided freely to support the development of the TinyUS
 
 
 .. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/build.yml/badge.svg
-   :target: https://github.com/hathach/tinyusb/actions
+   :target: https://github.com/hathach/tinyusb/actions/workflows/build.yml
 .. |CircleCI Status| image:: https://dl.circleci.com/status-badge/img/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master.svg?style=svg
    :target: https://dl.circleci.com/status-badge/redirect/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
    :target: https://docs.tinyusb.org/en/latest/?badge=latest
+.. |Static Analysis| image:: https://github.com/hathach/tinyusb/actions/workflows/static_analysis.yml/badge.svg
+   :target: https://github.com/hathach/tinyusb/actions/workflows/static_analysis.yml
 .. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
    :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg

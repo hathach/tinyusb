@@ -26,6 +26,8 @@
 #ifndef TUSB_TINYUSB_EXAMPLES_APP_H
 #define TUSB_TINYUSB_EXAMPLES_APP_H
 
+#include <stdio.h>
+
 void cdc_app_task(void);
 void hid_app_task(void);
 

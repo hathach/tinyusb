@@ -29,8 +29,8 @@
  *  \brief Group_Compiler brief
  *  @{ */
 
-#ifndef _TUSB_COMPILER_H_
-#define _TUSB_COMPILER_H_
+#ifndef TUSB_COMPILER_H_
+#define TUSB_COMPILER_H_
 
 #define TU_TOKEN(x)           x
 #define TU_STRING(x)          #x                  ///< stringify without expand
@@ -45,9 +45,9 @@
 #define TU_INCLUDE_PATH(_dir,_file) TU_XSTRING( TU_TOKEN(_dir)TU_TOKEN(_file) )
 
 #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
-  #define _TU_COUNTER_ __COUNTER__
+  #define TU_COUNTER __COUNTER__
 #else
-  #define _TU_COUNTER_ __LINE__
+  #define TU_COUNTER __LINE__
 #endif
 
 // Compile-time Assert
@@ -56,9 +56,9 @@
 #elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
   #define TU_VERIFY_STATIC   _Static_assert
 #elif defined(__CCRX__)
-  #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(_verify_static_, _TU_COUNTER_)[(const_expr) ? 1 : 0];
+  #define TU_VERIFY_STATIC(const_expr, _mess) typedef char TU_XSTRCAT(_verify_static_, TU_COUNTER)[(const_expr) ? 1 : 0];
 #else
-  #define TU_VERIFY_STATIC(const_expr, _mess) enum { TU_XSTRCAT(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
+  #define TU_VERIFY_STATIC(const_expr, _mess) enum { TU_XSTRCAT(_verify_static_, TU_COUNTER) = 1/(!!(const_expr)) }
 #endif
 
 /* --------------------- Fuzzing types -------------------------------------- */
@@ -68,28 +68,28 @@
   #define tu_static static
 #endif
 
-// for declaration of reserved field, make use of _TU_COUNTER_
-#define TU_RESERVED           TU_XSTRCAT(reserved, _TU_COUNTER_)
+// for declaration of reserved field, make use of TU_COUNTER
+#define TU_RESERVED           TU_XSTRCAT(reserved, TU_COUNTER)
 
 #define TU_LITTLE_ENDIAN (0x12u)
 #define TU_BIG_ENDIAN (0x21u)
 
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__
- * - reference https://stackoverflow.com/questions/2124339/c-preprocessor-va-args-number-of-arguments
- * - _GET_NTH_ARG() takes args >= N (64) but only expand to Nth one (64th)
- * - _RSEQ_N() is reverse sequential to N to add padding to have
+ * - reference www.stackoverflow.com/questions/2124339/c-preprocessor-va-args-number-of-arguments
+ * - TU_GET_NTH_ARG() takes args >= N (64) but only expand to Nth one (64th)
+ * - TU_NARG_RSEQ_N() is reverse sequential to N to add padding to have
  * Nth position is the same as the number of arguments
  * - ##__VA_ARGS__ is used to deal with 0 paramerter (swallows comma)
  *------------------------------------------------------------------*/
-#if !defined(__CCRX__)
-#define TU_ARGS_NUM(...)   _TU_NARG(_0, ##__VA_ARGS__, _RSEQ_N())
+#if defined(__CCRX__)
+#define TU_ARGS_NUM(...)   TU_NARG_IMPL(_0, __VA_ARGS__, TU_NARG_RSEQ_N())
 #else
-#define TU_ARGS_NUM(...)   _TU_NARG(_0, __VA_ARGS__, _RSEQ_N())
+#define TU_ARGS_NUM(...)   TU_NARG_IMPL(_0, ##__VA_ARGS__, TU_NARG_RSEQ_N())
 #endif
 
-#define _TU_NARG(...)      _GET_NTH_ARG(__VA_ARGS__)
-#define _GET_NTH_ARG( \
+#define TU_NARG_IMPL(...)      TU_GET_NTH_ARG(__VA_ARGS__)
+#define TU_GET_NTH_ARG( \
           _1, _2, _3, _4, _5, _6, _7, _8, _9,_10, \
          _11,_12,_13,_14,_15,_16,_17,_18,_19,_20, \
          _21,_22,_23,_24,_25,_26,_27,_28,_29,_30, \
@@ -97,7 +97,7 @@
          _41,_42,_43,_44,_45,_46,_47,_48,_49,_50, \
          _51,_52,_53,_54,_55,_56,_57,_58,_59,_60, \
          _61,_62,_63,N,...) N
-#define _RSEQ_N() \
+#define TU_NARG_RSEQ_N() \
          62,61,60,                      \
          59,58,57,56,55,54,53,52,51,50, \
          49,48,47,46,45,44,43,42,41,40, \
@@ -106,17 +106,29 @@
          19,18,17,16,15,14,13,12,11,10, \
          9,8,7,6,5,4,3,2,1,0
 
-// Apply an macro X to each of the arguments with an separated of choice
-#define TU_ARGS_APPLY(_X, _s, ...)   TU_XSTRCAT(_TU_ARGS_APPLY_, TU_ARGS_NUM(__VA_ARGS__))(_X, _s, __VA_ARGS__)
+// Apply a macro X to each of the arguments with a separation/delimiter
+#define TU_ARGS_APPLY(_X, _s, ...)   TU_XSTRCAT(TU_ARGS_APPLY_, TU_ARGS_NUM(__VA_ARGS__))(_X, _s, __VA_ARGS__)
 
-#define _TU_ARGS_APPLY_1(_X, _s, _a1)                                    _X(_a1)
-#define _TU_ARGS_APPLY_2(_X, _s, _a1, _a2)                               _X(_a1) _s _X(_a2)
-#define _TU_ARGS_APPLY_3(_X, _s, _a1, _a2, _a3)                          _X(_a1) _s _TU_ARGS_APPLY_2(_X, _s, _a2, _a3)
-#define _TU_ARGS_APPLY_4(_X, _s, _a1, _a2, _a3, _a4)                     _X(_a1) _s _TU_ARGS_APPLY_3(_X, _s, _a2, _a3, _a4)
-#define _TU_ARGS_APPLY_5(_X, _s, _a1, _a2, _a3, _a4, _a5)                _X(_a1) _s _TU_ARGS_APPLY_4(_X, _s, _a2, _a3, _a4, _a5)
-#define _TU_ARGS_APPLY_6(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6)           _X(_a1) _s _TU_ARGS_APPLY_5(_X, _s, _a2, _a3, _a4, _a5, _a6)
-#define _TU_ARGS_APPLY_7(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1) _s _TU_ARGS_APPLY_6(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7)
-#define _TU_ARGS_APPLY_8(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1) _s _TU_ARGS_APPLY_7(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
+#define TU_ARGS_APPLY_1(_X, _s, _a1)                                    _X(_a1)
+#define TU_ARGS_APPLY_2(_X, _s, _a1, _a2)                               _X(_a1) _s _X(_a2)
+#define TU_ARGS_APPLY_3(_X, _s, _a1, _a2, _a3)                          _X(_a1) _s TU_ARGS_APPLY_2(_X, _s, _a2, _a3)
+#define TU_ARGS_APPLY_4(_X, _s, _a1, _a2, _a3, _a4)                     _X(_a1) _s TU_ARGS_APPLY_3(_X, _s, _a2, _a3, _a4)
+#define TU_ARGS_APPLY_5(_X, _s, _a1, _a2, _a3, _a4, _a5)                _X(_a1) _s TU_ARGS_APPLY_4(_X, _s, _a2, _a3, _a4, _a5)
+#define TU_ARGS_APPLY_6(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6)           _X(_a1) _s TU_ARGS_APPLY_5(_X, _s, _a2, _a3, _a4, _a5, _a6)
+#define TU_ARGS_APPLY_7(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1) _s TU_ARGS_APPLY_6(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7)
+#define TU_ARGS_APPLY_8(_X, _s, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1) _s TU_ARGS_APPLY_7(_X, _s, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
+
+// Apply a macro X to each of the arguments and expand the result with comma
+#define TU_ARGS_APPLY_EXPAND(_X, ...)   TU_XSTRCAT(TU_ARGS_APPLY_EXPAND_, TU_ARGS_NUM(__VA_ARGS__))(_X, __VA_ARGS__)
+
+#define TU_ARGS_APPLY_EXPAND_1(_X, _a1)                                    _X(_a1)
+#define TU_ARGS_APPLY_EXPAND_2(_X, _a1, _a2)                               _X(_a1), _X(_a2)
+#define TU_ARGS_APPLY_EXPAND_3(_X, _a1, _a2, _a3)                          _X(_a1), TU_ARGS_APPLY_EXPAND_2(_X, _a2, _a3)
+#define TU_ARGS_APPLY_EXPAND_4(_X, _a1, _a2, _a3, _a4)                     _X(_a1), TU_ARGS_APPLY_EXPAND_3(_X, _a2, _a3, _a4)
+#define TU_ARGS_APPLY_EXPAND_5(_X, _a1, _a2, _a3, _a4, _a5)                _X(_a1), TU_ARGS_APPLY_EXPAND_4(_X, _a2, _a3, _a4, _a5)
+#define TU_ARGS_APPLY_EXPAND_6(_X, _a1, _a2, _a3, _a4, _a5, _a6)           _X(_a1), TU_ARGS_APPLY_EXPAND_5(_X, _a2, _a3, _a4, _a5, _a6)
+#define TU_ARGS_APPLY_EXPAND_7(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7)      _X(_a1), TU_ARGS_APPLY_EXPAND_6(_X, _a2, _a3, _a4, _a5, _a6, _a7)
+#define TU_ARGS_APPLY_EXPAND_8(_X, _a1, _a2, _a3, _a4, _a5, _a6, _a7, _a8) _X(_a1), TU_ARGS_APPLY_EXPAND_7(_X, _a2, _a3, _a4, _a5, _a6, _a7, _a8)
 
 //--------------------------------------------------------------------+
 // Macro for function default arguments
@@ -305,6 +317,6 @@
   #error Byte order is undefined
 #endif
 
-#endif /* _TUSB_COMPILER_H_ */
+#endif /* TUSB_COMPILER_H_ */
 
 /// @}
