@@ -1,14 +1,21 @@
-:hide-toc:
-
 .. include:: ../README_processed.rst
 
 .. toctree::
-   :caption: Index
-   :hidden:
+   :maxdepth: 2
+   :caption: Information
 
-   Info <info/index>
-   Reference <reference/index>
-   Contributing <contributing/index>
+   getting_started
+   integration
+   porting
+   reference/index
+   faq
+   troubleshooting
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Project Info
+
+   info/index
 
 .. toctree::
    :caption: External Links

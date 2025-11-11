@@ -67,7 +67,9 @@ uint8_t current_resolution;
 void audio_task(void) {
   static uint32_t start_ms = 0;
   uint32_t curr_ms = board_millis();
-  if (start_ms == curr_ms) return;// not enough time
+  if (start_ms == curr_ms) {
+    return; // not enough time
+  }
   start_ms = curr_ms;
   // When new data arrived, copy data from speaker buffer, to microphone buffer
   // and send it over
@@ -226,16 +228,15 @@ static bool tud_audio_feature_unit_set_request(uint8_t rhport, audio20_control_r
 //--------------------------------------------------------------------+
 
 // Invoked when audio class specific get request received for an entity
-bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request)
-{
+bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request) {
   audio20_control_request_t const *request = (audio20_control_request_t const *)p_request;
 
-  if (request->bEntityID == UAC2_ENTITY_CLOCK)
+  if (request->bEntityID == UAC2_ENTITY_CLOCK) {
     return tud_audio_clock_get_request(rhport, request);
-  if (request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT)
+  }
+  if (request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT) {
     return tud_audio_feature_unit_get_request(rhport, request);
-  else
-  {
+  } else {
     TU_LOG1("Get request not handled, entity = %d, selector = %d, request = %d\r\n",
             request->bEntityID, request->bControlSelector, request->bRequest);
   }
@@ -243,14 +244,15 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
 }
 
 // Invoked when audio class specific set request received for an entity
-bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *buf)
-{
+bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p_request, uint8_t *buf) {
   audio20_control_request_t const *request = (audio20_control_request_t const *)p_request;
 
-  if (request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT)
+  if (request->bEntityID == UAC2_ENTITY_SPK_FEATURE_UNIT) {
     return tud_audio_feature_unit_set_request(rhport, request, buf);
-  if (request->bEntityID == UAC2_ENTITY_CLOCK)
+  }
+  if (request->bEntityID == UAC2_ENTITY_CLOCK) {
     return tud_audio_clock_set_request(rhport, request, buf);
+  }
   TU_LOG1("Set request not handled, entity = %d, selector = %d, request = %d\r\n",
           request->bEntityID, request->bControlSelector, request->bRequest);
 
@@ -301,7 +303,9 @@ void led_blinking_task(void)
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return;
+  if (board_millis() - start_ms < blink_interval_ms) {
+    return;
+  }
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);

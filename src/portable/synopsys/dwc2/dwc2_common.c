@@ -29,16 +29,6 @@
 #define DWC2_COMMON_DEBUG   2
 
 #if defined(TUP_USBIP_DWC2) && (CFG_TUH_ENABLED || CFG_TUD_ENABLED)
-
-#if CFG_TUD_ENABLED
-#include "device/dcd.h"
-#endif
-
-#if CFG_TUH_ENABLED
-#include "host/hcd.h"
-#include "host/usbh.h"
-#endif
-
 #include "dwc2_common.h"
 
 //--------------------------------------------------------------------

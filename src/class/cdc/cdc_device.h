@@ -53,15 +53,16 @@
 // Driver Configuration
 //--------------------------------------------------------------------+
 typedef struct TU_ATTR_PACKED {
-  uint8_t rx_persistent : 1; // keep rx fifo data even with bus reset or disconnect
-  uint8_t tx_persistent : 1; // keep tx fifo data even with reset or disconnect
-  uint8_t tx_overwritabe_if_not_connected : 1; // if not connected, tx fifo can be overwritten
+  bool rx_persistent : 1; // keep rx fifo data even with bus reset or disconnect
+  bool tx_persistent : 1; // keep tx fifo data even with reset or disconnect
+  bool tx_overwritabe_if_not_connected : 1; // if not connected, tx fifo can be overwritten
 } tud_cdc_configure_t;
+TU_VERIFY_STATIC(sizeof(tud_cdc_configure_t) == 1, "size is not correct");
 
 #define TUD_CDC_CONFIGURE_DEFAULT() { \
-  .rx_persistent = 0, \
-  .tx_persistent = 0, \
-  .tx_overwritabe_if_not_connected = 1, \
+  .rx_persistent = false, \
+  .tx_persistent = false, \
+  .tx_overwritabe_if_not_connected = true, \
 }
 
 // Configure CDC driver behavior

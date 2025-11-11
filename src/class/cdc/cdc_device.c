@@ -270,7 +270,7 @@ uint32_t tud_cdc_n_write_flush(uint8_t itf) {
   TU_VERIFY(tud_ready(), 0); // Skip if usb is not ready yet
 
   // No data to send
-  if (!tu_fifo_count(&p_cdc->tx_ff)) {
+  if (0 == tu_fifo_count(&p_cdc->tx_ff)) {
     return 0;
   }
 
@@ -279,7 +279,7 @@ uint32_t tud_cdc_n_write_flush(uint8_t itf) {
   // Pull data from FIFO
   const uint16_t count = tu_fifo_read_n(&p_cdc->tx_ff, p_epbuf->epin, CFG_TUD_CDC_EP_BUFSIZE);
 
-  if (count) {
+  if (count > 0) {
     TU_ASSERT(usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_in, p_epbuf->epin, count, false), 0);
     return count;
   } else {
@@ -337,15 +337,15 @@ bool cdcd_deinit(void) {
   #if OSAL_MUTEX_REQUIRED
   for(uint8_t i=0; i<CFG_TUD_CDC; i++) {
     cdcd_interface_t* p_cdc = &_cdcd_itf[i];
-    osal_mutex_t mutex_rd = p_cdc->rx_ff.mutex_rd;
-    osal_mutex_t mutex_wr = p_cdc->tx_ff.mutex_wr;
+    const osal_mutex_t mutex_rd = p_cdc->rx_ff.mutex_rd;
+    const osal_mutex_t mutex_wr = p_cdc->tx_ff.mutex_wr;
 
-    if (mutex_rd) {
+    if (mutex_rd != NULL) {
       osal_mutex_delete(mutex_rd);
       tu_fifo_config_mutex(&p_cdc->rx_ff, NULL, NULL);
     }
 
-    if (mutex_wr) {
+    if (mutex_wr != NULL) {
       osal_mutex_delete(mutex_wr);
       tu_fifo_config_mutex(&p_cdc->tx_ff, NULL, NULL);
     }
@@ -449,13 +449,15 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
   }
   TU_VERIFY(itf < CFG_TUD_CDC);
 
-  switch (request->bRequest) {
+  switch (request->bRequest) { //-V2520 //-V2659
     case CDC_REQUEST_SET_LINE_CODING:
       if (stage == CONTROL_STAGE_SETUP) {
         TU_LOG_DRV("  Set Line Coding\r\n");
         tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
       } else if (stage == CONTROL_STAGE_ACK) {
         tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
+      } else {
+        // nothing to do
       }
       break;
 
@@ -491,6 +493,8 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
 
         // Invoke callback
         tud_cdc_line_state_cb(itf, dtr, rts);
+      } else {
+        // nothing to do
       }
       break;
 
@@ -500,7 +504,10 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
       } else if (stage == CONTROL_STAGE_ACK) {
         TU_LOG_DRV("  Send Break\r\n");
         tud_cdc_send_break_cb(itf, request->wValue);
+      } else {
+        // nothing to do
       }
+
       break;
 
     default:
@@ -558,7 +565,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     if (0 == tud_cdc_n_write_flush(itf)) {
       // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP Packet size and not zero
-      if (!tu_fifo_count(&p_cdc->tx_ff) && xferred_bytes && (0 == (xferred_bytes & (BULK_PACKET_SIZE - 1)))) {
+      if (0 == tu_fifo_count(&p_cdc->tx_ff) && xferred_bytes > 0 && (0 == (xferred_bytes & (BULK_PACKET_SIZE - 1)))) {
         if (usbd_edpt_claim(rhport, p_cdc->ep_in)) {
           TU_ASSERT(usbd_edpt_xfer(rhport, p_cdc->ep_in, NULL, 0, false));
         }

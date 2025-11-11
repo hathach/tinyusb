@@ -217,6 +217,7 @@ typedef struct
   uint16_t ep_in_sz;        // Current size of TX EP
   uint8_t ep_in_as_intf_num;// Corresponding Standard AS Interface Descriptor (4.9.1) belonging to output terminal to which this EP belongs - 0 is invalid (this fits to UAC2 specification since AS interfaces can not have interface number equal to zero)
   uint8_t ep_in_alt;        // Current alternate setting of TX EP
+  uint16_t ep_in_fifo_threshold;// Target size for the EP IN FIFO.
   #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -269,10 +270,6 @@ typedef struct
   uint16_t packet_sz_tx[3];
   uint8_t bclock_id_tx;
   uint8_t interval_tx;
-#endif
-
-// Encoding parameters - parameters are set when alternate AS interface is set by host
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   uint8_t format_type_tx;
   uint8_t n_channels_tx;
   uint8_t n_bytes_per_sample_tx;
@@ -455,7 +452,7 @@ static inline uint8_t audiod_get_audio_fct_idx(audiod_function_t *audio);
 #if CFG_TUD_AUDIO_ENABLE_EP_IN && CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
 static void audiod_parse_flow_control_params(audiod_function_t *audio, uint8_t const *p_desc);
 static bool audiod_calc_tx_packet_sz(audiod_function_t *audio);
-static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t max_size);
+static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_size);
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT && CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
@@ -503,7 +500,7 @@ static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_
 
   #if USE_LINEAR_BUFFER_RX
   // Data currently is in linear buffer, copy into EP OUT FIFO
-  TU_VERIFY(tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
+  TU_VERIFY(0 < tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
 
   // Schedule for next receive
   TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, true));
@@ -549,6 +546,17 @@ tu_fifo_t *tud_audio_n_get_ep_in_ff(uint8_t func_id) {
   return NULL;
 }
 
+uint16_t tud_audio_n_get_ep_in_fifo_threshold(uint8_t func_id) {
+  if (func_id < CFG_TUD_AUDIO) return _audiod_fct[func_id].ep_in_fifo_threshold;
+  return 0;
+}
+
+void tud_audio_n_set_ep_in_fifo_threshold(uint8_t func_id, uint16_t threshold) {
+  if (func_id < CFG_TUD_AUDIO && threshold < _audiod_fct[func_id].ep_in_ff.depth) {
+    _audiod_fct[func_id].ep_in_fifo_threshold = threshold;
+  }
+}
+
 static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16_t n_bytes_sent) {
   uint8_t idx_audio_fct = audiod_get_audio_fct_idx(audio);
 
@@ -560,7 +568,7 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
 
   #if CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
   // packet_sz_tx is based on total packet size, here we want size for each support buffer.
-  n_bytes_tx = audiod_tx_packet_size(audio->packet_sz_tx, tu_fifo_count(&audio->ep_in_ff), audio->ep_in_ff.depth, audio->ep_in_sz);
+  n_bytes_tx = audiod_tx_packet_size(audio->packet_sz_tx, tu_fifo_count(&audio->ep_in_ff), audio->ep_in_ff.depth, audio->ep_in_fifo_threshold, audio->ep_in_sz);
   #else
   n_bytes_tx = tu_min16(tu_fifo_count(&audio->ep_in_ff), audio->ep_in_sz);// Limit up to max packet size, more can not be done for ISO
   #endif
@@ -630,19 +638,6 @@ static inline bool audiod_fb_send(uint8_t func_id, bool is_isr) {
     *audio->fb_buf = audio->feedback.value;
   }
 
-  // About feedback format on FS
-  //
-  // 3 variables: Format | packetSize | sendSize | Working OS:
-  //              16.16    4            4          Linux, Windows
-  //              16.16    4            3          Linux
-  //              16.16    3            4          Linux
-  //              16.16    3            3          Linux
-  //              10.14    4            4          Linux
-  //              10.14    4            3          Linux
-  //              10.14    3            4          Linux, OSX
-  //              10.14    3            3          Linux, OSX
-  //
-  // We send 3 bytes since sending packet larger than wMaxPacketSize is pretty ugly
   return usbd_edpt_xfer(audio->rhport, audio->ep_fb, (uint8_t *) audio->fb_buf, uac_version == 1 ? 3 : 4, is_isr);
 }
 
@@ -672,8 +667,12 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles) {
   // The size of isochronous packets created by the device must be within the limits specified in FMT-2.0 section 2.3.1.1.
   // This means that the deviation of actual packet size from nominal size must not exceed +/- one audio slot
   // (audio slot = channel count samples).
-  if (feedback > audio->feedback.max_value) feedback = audio->feedback.max_value;
-  if (feedback < audio->feedback.min_value) feedback = audio->feedback.min_value;
+  if (feedback > audio->feedback.max_value) {
+    feedback = audio->feedback.max_value;
+  }
+  if (feedback < audio->feedback.min_value) {
+    feedback = audio->feedback.min_value;
+  }
 
   tud_audio_n_fb_set(func_id, feedback);
 
@@ -714,7 +713,6 @@ void audiod_init(void) {
 
       // Initialize IN EP FIFO if required
 #if CFG_TUD_AUDIO_ENABLE_EP_IN
-
     switch (i) {
   #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SW_BUF_SZ > 0
       case 0:
@@ -883,9 +881,11 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
               || tu_desc_type(p_desc) == TUSB_DESC_INTERFACE_ASSOCIATION) {
             break;
           } else if (tu_desc_type(p_desc) == TUSB_DESC_INTERFACE && ((tusb_desc_interface_t const *) p_desc)->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING) {
-            if (_audiod_fct[i].p_desc_as == 0) {
+            if (_audiod_fct[i].p_desc_as == NULL) {
               _audiod_fct[i].p_desc_as = p_desc;
             }
+          } else {
+            // nothing to do
           }
           total_len += p_desc[0];
           p_desc = tu_desc_next(p_desc);
@@ -957,19 +957,19 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
         }
 
   #if CFG_TUD_AUDIO_ENABLE_EP_IN
-        if (ep_in) {
+        if (ep_in != 0) {
           usbd_edpt_iso_alloc(rhport, ep_in, ep_in_size);
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-        if (ep_out) {
+        if (ep_out != 0) {
           usbd_edpt_iso_alloc(rhport, ep_out, ep_out_size);
         }
   #endif
 
   #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
-        if (ep_fb) {
+        if (ep_fb != 0) {
           usbd_edpt_iso_alloc(rhport, ep_fb, 4);
         }
   #endif
@@ -998,6 +998,8 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
             if (tu_unaligned_read16(p_desc + 4) == AUDIO_TERM_TYPE_USB_STREAMING) {
               _audiod_fct[i].bclock_id_tx = p_desc[8];
             }
+          } else {
+            // nothing to do
           }
           p_desc = tu_desc_next(p_desc);
         }
@@ -1197,6 +1199,8 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             audio->ep_in_as_intf_num = itf;
             audio->ep_in_alt = alt;
             audio->ep_in_sz = tu_edpt_packet_size(desc_ep);
+            // Set the default EP IN FIFO threshold to half fifo depth.
+            audio->ep_in_fifo_threshold = audio->ep_in_ff.depth / 2;
 
             // If flow control is enabled, parse for the corresponding parameters - doing this here means only AS interfaces with EPs get scanned for parameters
   #if  CFG_TUD_AUDIO_EP_IN_FLOW_CONTROL
@@ -1458,6 +1462,8 @@ bool audiod_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_
     return audiod_control_request(rhport, request);
   } else if (stage == CONTROL_STAGE_DATA) {
     return audiod_control_complete(rhport, request);
+  } else {
+    // nothing to do
   }
 
   return true;
@@ -1549,7 +1555,7 @@ static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
 
   // Prepare feedback computation if endpoint is available
   if (audio->ep_fb != 0) {
-    audio_feedback_params_t fb_param;
+    audio_feedback_params_t fb_param = {0};
 
     tud_audio_feedback_params_cb(func_id, alt, &fb_param);
     audio->feedback.compute_method = fb_param.method;
@@ -1590,15 +1596,15 @@ static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
       } break;
 
       case AUDIO_FEEDBACK_METHOD_FIFO_COUNT: {
-        // Initialize the threshold level to half filled
-        uint16_t fifo_lvl_thr = tu_fifo_depth(&audio->ep_out_ff) / 2;
-        audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_lvl_thr;
-        audio->feedback.compute.fifo_count.fifo_lvl_avg = ((uint32_t) fifo_lvl_thr) << 16;
+        // Determine FIFO threshold
+        uint16_t fifo_threshold = fb_param.fifo_count.fifo_threshold ? fb_param.fifo_count.fifo_threshold : tu_fifo_depth(&audio->ep_out_ff) / 2;
+        audio->feedback.compute.fifo_count.fifo_lvl_thr = fifo_threshold;
+        audio->feedback.compute.fifo_count.fifo_lvl_avg = ((uint32_t) fifo_threshold) << 16;
         // Avoid 64bit division
         uint32_t nominal = ((fb_param.sample_freq / 100) << 16) / (frame_div / 100);
         audio->feedback.compute.fifo_count.nom_value = nominal;
-        audio->feedback.compute.fifo_count.rate_const[0] = (uint16_t) ((audio->feedback.max_value - nominal) / fifo_lvl_thr);
-        audio->feedback.compute.fifo_count.rate_const[1] = (uint16_t) ((nominal - audio->feedback.min_value) / fifo_lvl_thr);
+        audio->feedback.compute.fifo_count.rate_const[0] = (uint16_t) ((audio->feedback.max_value - nominal) / fifo_threshold);
+        audio->feedback.compute.fifo_count.rate_const[1] = (uint16_t) ((nominal - audio->feedback.min_value) / fifo_threshold);
         // On HS feedback is more sensitive since packet size can vary every MSOF, could cause instability
         if (tud_speed_get() == TUSB_SPEED_HIGH) {
           audio->feedback.compute.fifo_count.rate_const[0] /= 8;
@@ -1633,8 +1639,12 @@ static void audiod_fb_fifo_count_update(audiod_function_t *audio, uint16_t lvl_n
     feedback = audio->feedback.compute.fifo_count.nom_value - (ff_lvl - ff_thr) * rate[1];
   }
 
-  if (feedback > audio->feedback.max_value) feedback = audio->feedback.max_value;
-  if (feedback < audio->feedback.min_value) feedback = audio->feedback.min_value;
+  if (feedback > audio->feedback.max_value) {
+    feedback = audio->feedback.max_value;
+  }
+  if (feedback < audio->feedback.min_value) {
+    feedback = audio->feedback.min_value;
+  }
   audio->feedback.value = feedback;
 }
 
@@ -1754,7 +1764,7 @@ static bool audiod_verify_entity_exists(uint8_t itf, uint8_t entityID, uint8_t *
 static bool audiod_verify_itf_exists(uint8_t itf, uint8_t *func_id) {
   uint8_t i;
   for (i = 0; i < CFG_TUD_AUDIO; i++) {
-    if (_audiod_fct[i].p_desc) {
+    if (_audiod_fct[i].p_desc != NULL) {
       // Get pointer at beginning and end
       uint8_t const *p_desc = _audiod_fct[i].p_desc;
       uint8_t const *p_desc_end = _audiod_fct[i].p_desc + _audiod_fct[i].desc_length;
@@ -1861,22 +1871,22 @@ static bool audiod_calc_tx_packet_sz(audiod_function_t *audio) {
   return true;
 }
 
-static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t max_depth) {
+static uint16_t audiod_tx_packet_size(const uint16_t *nominal_size, uint16_t data_count, uint16_t fifo_depth, uint16_t fifo_threshold, uint16_t max_depth) {
   // Flow control need a FIFO size of at least 4*Navg
-  if (norminal_size[1] && norminal_size[1] <= fifo_depth * 4) {
+  if (nominal_size[1] && nominal_size[1] <= fifo_depth * 4) {
     // Use blackout to prioritize normal size packet
     static int ctrl_blackout = 0;
     uint16_t packet_size;
-    uint16_t slot_size = norminal_size[2] - norminal_size[1];
-    if (data_count < norminal_size[0]) {
+    uint16_t slot_size = nominal_size[2] - nominal_size[1];
+    if (data_count < nominal_size[0]) {
       // If you get here frequently, then your I2S clock deviation is too big !
       packet_size = 0;
-    } else if (data_count < fifo_depth / 2 - slot_size && !ctrl_blackout) {
-      packet_size = norminal_size[0];
+    } else if (data_count < (fifo_threshold - slot_size) && !ctrl_blackout) {
+      packet_size = nominal_size[0];
       ctrl_blackout = 10;
-    } else if (data_count > fifo_depth / 2 + slot_size && !ctrl_blackout) {
-      packet_size = norminal_size[2];
-      if (norminal_size[0] == norminal_size[1]) {
+    } else if (data_count > (fifo_threshold + slot_size) && !ctrl_blackout) {
+      packet_size = nominal_size[2];
+      if (nominal_size[0] == nominal_size[1]) {
         // nav > INT(nav), eg. 44.1k, 88.2k
         ctrl_blackout = 0;
       } else {
@@ -1884,7 +1894,7 @@ static uint16_t audiod_tx_packet_size(const uint16_t *norminal_size, uint16_t da
         ctrl_blackout = 10;
       }
     } else {
-      packet_size = norminal_size[1];
+      packet_size = nominal_size[1];
       if (ctrl_blackout) {
         ctrl_blackout--;
       }

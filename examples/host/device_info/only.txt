@@ -1,7 +1,4 @@
 mcu:CH32V20X
-mcu:ESP32S2
-mcu:ESP32S3
-mcu:ESP32P4
 mcu:KINETIS_KL
 mcu:LPC175X_6X
 mcu:LPC177X_8X
@@ -21,5 +18,6 @@ mcu:STM32F7
 mcu:STM32H7
 mcu:STM32H7RS
 mcu:STM32N6
+family:espressif
 family:samd21
 family:samd5x_e5x

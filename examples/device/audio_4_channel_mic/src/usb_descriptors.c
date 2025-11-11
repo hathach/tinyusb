@@ -126,7 +126,7 @@ enum {
 };
 
 // array of pointer to string descriptors
-char const* string_desc_arr [] = {
+static char const* string_desc_arr [] = {
     (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
     "PaniRCorp",                   // 1: Manufacturer
     "MicNode_4_Ch",                // 2: Product
@@ -156,18 +156,22 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
       // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
       // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
-      if ( !(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) ) return NULL;
+      if ( !(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) ) {
+        return NULL;
+      }
 
       const char *str = string_desc_arr[index];
 
       // Cap at max char
       chr_count = strlen(str);
       size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1; // -1 for string type
-      if ( chr_count > max_count ) chr_count = max_count;
+      if ( chr_count > max_count ) {
+        chr_count = max_count;
+      }
 
       // Convert ASCII string into UTF-16
       for ( size_t i = 0; i < chr_count; i++ ) {
-        _desc_str[1 + i] = str[i];
+        _desc_str[1 + i] = (uint16_t) str[i];
       }
       break;
   }

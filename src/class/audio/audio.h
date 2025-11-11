@@ -867,11 +867,11 @@ typedef enum {
 
 // A.2.1 - Audio Class-Audio Data Format Type I UAC2
 typedef enum {
-  AUDIO20_DATA_FORMAT_TYPE_I_PCM = (uint32_t) (1 << 0),
-  AUDIO20_DATA_FORMAT_TYPE_I_PCM8 = (uint32_t) (1 << 1),
-  AUDIO20_DATA_FORMAT_TYPE_I_IEEE_FLOAT = (uint32_t) (1 << 2),
-  AUDIO20_DATA_FORMAT_TYPE_I_ALAW = (uint32_t) (1 << 3),
-  AUDIO20_DATA_FORMAT_TYPE_I_MULAW = (uint32_t) (1 << 4),
+  AUDIO20_DATA_FORMAT_TYPE_I_PCM = 1 << 0,
+  AUDIO20_DATA_FORMAT_TYPE_I_PCM8 = 1 << 1,
+  AUDIO20_DATA_FORMAT_TYPE_I_IEEE_FLOAT = 1 << 2,
+  AUDIO20_DATA_FORMAT_TYPE_I_ALAW = 1 << 3,
+  AUDIO20_DATA_FORMAT_TYPE_I_MULAW = 1 << 4,
   AUDIO20_DATA_FORMAT_TYPE_I_RAW_DATA = 0x80000000u,
 } audio20_data_format_type_I_t;
 
@@ -905,7 +905,7 @@ typedef enum {
   AUDIO20_CHANNEL_CONFIG_BOTTOM_CENTER = 0x01000000,
   AUDIO20_CHANNEL_CONFIG_BACK_LEFT_OF_CENTER = 0x02000000,
   AUDIO20_CHANNEL_CONFIG_BACK_RIGHT_OF_CENTER = 0x04000000,
-  AUDIO20_CHANNEL_CONFIG_RAW_DATA = 0x80000000,
+  AUDIO20_CHANNEL_CONFIG_RAW_DATA = 0x80000000u,
 } audio20_channel_config_t;
 
 /// All remaining definitions are taken from the descriptor descriptions in the UAC2 main specification
