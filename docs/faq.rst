@@ -7,7 +7,7 @@ General Questions
 
 **Q: What microcontrollers does TinyUSB support?**
 
-TinyUSB supports 30+ MCU families including STM32, RP2040, NXP (iMXRT, Kinetis, LPC), Microchip SAM, Nordic nRF5x, ESP32, and many others. See :doc:`reference/boards` for the complete list.
+TinyUSB supports 50+ MCU families including STM32, RP2040, NXP (iMXRT, Kinetis, LPC), Microchip SAM, Nordic nRF5x, ESP32, and many others. See :doc:`reference/boards` for the complete list.
 
 **Q: Can I use TinyUSB in commercial projects?**
 
@@ -178,33 +178,3 @@ ESP32-S3 has specific USB implementation challenges:
 - Check power supply requirements for host mode
 - Some features may be limited compared to other MCUs
 - Use ESP32-S3 specific examples and documentation
-
-STM32CubeIDE Integration
-========================
-
-**Q: How do I integrate TinyUSB with STM32CubeIDE?**
-
-1. In STM32CubeMX, enable USB_OTG_FS/HS under Connectivity, set to "Device_Only" mode
-2. Enable the USB global interrupt in NVIC Settings
-3. Add ``tusb.h`` include and call ``tusb_init()`` in main.c
-4. Call ``tud_task()`` in your main loop
-5. In the generated ``stm32xxx_it.c``, modify the USB IRQ handler to call ``tud_int_handler(0)``
-6. Create ``tusb_config.h`` and ``usb_descriptors.c`` files
-
-**Q: STM32CubeIDE generated code conflicts with TinyUSB**
-
-Don't use STM32's built-in USB middleware (USB Device Library) when using TinyUSB. Disable USB code generation in STM32CubeMX and let TinyUSB handle all USB functionality.
-
-**Q: STM32 USB interrupt handler setup**
-
-Replace the generated USB interrupt handler with a call to TinyUSB:
-
-.. code-block:: c
-
-   void OTG_FS_IRQHandler(void) {
-     tud_int_handler(0);
-   }
-
-**Q: Which STM32 families work best with TinyUSB?**
-
-STM32F4, F7, and H7 families have the most mature TinyUSB support. STM32F0, F1, F3, L4 families are also supported but may have more limitations. Check the supported boards list for your specific variant.

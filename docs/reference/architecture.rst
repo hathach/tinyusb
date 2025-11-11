@@ -42,36 +42,23 @@ Layer Structure
 
 TinyUSB follows a layered architecture from hardware to application:
 
-.. code-block:: none
+.. figure:: ../assets/stack.svg
+   :width: 500px
+   :align: left
+   :alt: stackup
 
-   ┌─────────────────────────────────────────┐
-   │           Application Layer             │ ← Your code
-   ├─────────────────────────────────────────┤
-   │         USB Class Drivers               │ ← CDC, HID, MSC, etc.
-   ├─────────────────────────────────────────┤
-   │        Device/Host Stack Core           │ ← USB protocol handling
-   ├─────────────────────────────────────────┤
-   │      Hardware Abstraction (DCD/HCD)     │ ← MCU-specific drivers
-   ├─────────────────────────────────────────┤
-   │         OS Abstraction (OSAL)           │ ← RTOS integration
-   ├─────────────────────────────────────────┤
-   │       Common Utilities & FIFO           │ ← Shared components
-   └─────────────────────────────────────────┘
+.. raw:: html
+
+   <div class="clear-both"></div>
 
 Component Overview
 ------------------
 
-**Application Layer**: Your main application code that uses TinyUSB APIs.
-
-**Class Drivers**: Implement specific USB device classes (CDC, HID, MSC, etc.) and handle class-specific requests.
-
-**Device/Host Core**: Implements USB protocol state machines, endpoint management, and core USB functionality.
-
-**Hardware Abstraction**: MCU-specific code that interfaces with USB peripheral hardware.
-
-**OS Abstraction**: Provides threading primitives and synchronization for different RTOS environments.
-
-**Common Utilities**: Shared code including FIFO implementations, binary helpers, and utility functions.
+- **Application Layer**: Your main application code that uses TinyUSB APIs.
+- **Class Drivers**: Implement specific USB device classes (CDC, HID, MSC, etc.) and handle class-specific requests.
+- **Device/Host Core**: Implements USB protocol state machines, endpoint management, and core USB functionality.
+- **OS Abstraction**: Provides threading primitives and synchronization for different RTOS environments.
+- **Device/Host Controller Driver**: drivers that interface with MCU USB peripherals. Several MCUs may share a common driver.
 
 Device Stack Architecture
 =========================
@@ -85,7 +72,7 @@ Core Components
 - MCU-specific USB device peripheral driver
 - Handles endpoint configuration and data transfers
 - Abstracts hardware differences between MCU families
-- Located in ``src/portable/VENDOR/FAMILY/``
+- Located in ``src/portable/VENDOR/USBIP/``
 
 **USB Device Core (USBD)**:
 - Implements USB device state machine

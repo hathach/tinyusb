@@ -10,6 +10,40 @@ get_filename_component(TOP ${TOP} ABSOLUTE)
 
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 
+function(family_resolve_board BOARD_NAME BOARD_PATH_OUT)
+  if ("${BOARD_NAME}" STREQUAL "")
+    message(FATAL_ERROR "You must set BOARD (e.g. metro_m4_express, raspberry_pi_pico). Use -DBOARD=xxx on the cmake command line.")
+  endif()
+
+  file(GLOB _board_paths
+    LIST_DIRECTORIES true
+    RELATIVE ${TOP}/hw/bsp
+    ${TOP}/hw/bsp/*/boards/*
+    )
+
+  set(_hint_names "")
+  foreach(_board_path ${_board_paths})
+    get_filename_component(_board_name ${_board_path} NAME)
+    if (_board_name STREQUAL "${BOARD_NAME}")
+      set(${BOARD_PATH_OUT} ${_board_path} PARENT_SCOPE)
+      return()
+    endif()
+    string(FIND "${_board_name}" "${BOARD_NAME}" _pos)
+    if (_pos EQUAL 0)
+      list(APPEND _hint_names ${_board_name})
+    endif()
+  endforeach()
+
+  if (_hint_names)
+    list(REMOVE_DUPLICATES _hint_names)
+    list(SORT _hint_names)
+    list(JOIN _hint_names ", " _hint_str)
+    message(FATAL_ERROR "BOARD '${BOARD_NAME}' not found. Boards with the same prefix:\n${_hint_str}")
+  else()
+    message(FATAL_ERROR "BOARD '${BOARD_NAME}' not found under hw/bsp/*/boards")
+  endif()
+endfunction()
+
 #-------------------------------------------------------------
 # Toolchain
 # Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER= or ENV{CC}=
@@ -78,21 +112,8 @@ endif ()
 # FAMILY and BOARD
 #-------------------------------------------------------------
 if (NOT DEFINED FAMILY)
-  if (NOT DEFINED BOARD)
-    message(FATAL_ERROR "You must set a BOARD variable for the build (e.g. metro_m4_express, raspberry_pi_pico).
-    You can do this via -DBOARD=xxx on the cmake command line")
-  endif ()
+  family_resolve_board("${BOARD}" BOARD_PATH)
 
-  # Find path contains BOARD
-  file(GLOB BOARD_PATH LIST_DIRECTORIES true
-    RELATIVE ${TOP}/hw/bsp
-    ${TOP}/hw/bsp/*/boards/${BOARD}
-    )
-  if (NOT BOARD_PATH)
-    message(FATAL_ERROR "Could not detect FAMILY from BOARD=${BOARD}")
-  endif ()
-
-  # replace / with ; so that we can get the first element as FAMILY
   string(REPLACE "/" ";" BOARD_PATH ${BOARD_PATH})
   list(GET BOARD_PATH 0 FAMILY)
   set(FAMILY ${FAMILY} CACHE STRING "Board family")
