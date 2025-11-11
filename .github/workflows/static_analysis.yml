@@ -90,7 +90,8 @@ jobs:
           path: ${{ steps.analyze.outputs.sarif-output }}
 
   PVS-Studio:
-    if: github.repository_owner == 'hathach'
+    # Only run on non-forked PR since secrets token is required
+    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -141,7 +142,8 @@ jobs:
           path: pvs-studio-${{ matrix.board }}.sarif
 
   SonarQube:
-    if: github.repository_owner == 'hathach'
+    # Only run on non-forked PR since secrets token is required
+    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
@@ -184,7 +186,8 @@ jobs:
             --define sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
 
   IAR-CStat:
-    #if: github.repository_owner == 'hathach'
+    # Only run on non-forked PR since secrets token is required
+    #if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     if: false
     runs-on: ubuntu-latest
     strategy:
