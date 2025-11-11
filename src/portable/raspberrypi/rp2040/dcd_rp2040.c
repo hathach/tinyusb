@@ -526,7 +526,8 @@ void dcd_edpt_close_all(uint8_t rhport) {
   reset_non_control_endpoints();
 }
 
-bool dcd_edpt_xfer(__unused uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+bool dcd_edpt_xfer(__unused uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   assert(rhport == 0);
   hw_endpoint_xfer(ep_addr, buffer, total_bytes);
   return true;
