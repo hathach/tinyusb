@@ -424,7 +424,7 @@ uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
   TU_VERIFY(stream_claim(hwid, s), 0);
 
   // Pull data from FIFO -> EP buf
-  uint16_t const count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
+  const uint16_t count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
 
   if (count > 0) {
     TU_ASSERT(stream_xfer(hwid, s, count), 0);
@@ -437,7 +437,7 @@ uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
   }
 }
 
-uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t* s, void const* buffer, uint32_t bufsize) {
+uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize > 0); // TODO support ZLP
 
   if (0 == tu_fifo_depth(&s->ff)) {
