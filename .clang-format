@@ -1,7 +1,7 @@
 ---
 Language: Cpp
 BasedOnStyle: LLVM
-AlignAfterOpenBracket: AlwaysBreak
+AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments:
   Enabled: true
   AcrossEmptyLines: false
@@ -38,6 +38,7 @@ AllowShortEnumsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: Never
 AlwaysBreakTemplateDeclarations: Yes
+BinPackArguments: true
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterCaseLabel: false
@@ -57,8 +58,10 @@ BraceWrapping:
   SplitEmptyRecord: true
   SplitEmptyNamespace: true
 BracedInitializerIndentWidth: 2
+BreakBeforeBinaryOperators: None
 BreakConstructorInitializers: AfterColon
 BreakConstructorInitializersBeforeComma: false
+ContinuationIndentWidth: 2
 ColumnLimit: 120
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 Cpp11BracedListStyle: true
@@ -78,6 +81,8 @@ MacroBlockBegin: ''
 MacroBlockEnd: ''
 MaxEmptyLinesToKeep: 2
 NamespaceIndentation: All
+PenaltyBreakBeforeFirstCallParameter: 1000000
+PenaltyBreakOpenParenthesis: 1000000
 QualifierAlignment: Custom
 QualifierOrder: ['static', 'const', 'volatile', 'restrict', 'type']
 ReflowComments: false

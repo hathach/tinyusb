@@ -405,8 +405,10 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uint1
 
       if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
         tu_edpt_stream_open(&p_midi->ep_stream.tx, desc_ep);
+        tu_edpt_stream_clear(&p_midi->ep_stream.tx);
       } else {
         tu_edpt_stream_open(&p_midi->ep_stream.rx, desc_ep);
+        tu_edpt_stream_clear(&p_midi->ep_stream.rx);
         TU_ASSERT(tu_edpt_stream_read_xfer(rhport, &p_midi->ep_stream.rx) > 0, 0); // prepare to receive data
       }
 
