@@ -105,6 +105,10 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_open(tu_edpt_stream_t* s
   s->is_mps512 = tu_edpt_packet_size(desc_ep) == 512;
 }
 
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_is_opened(const tu_edpt_stream_t *s) {
+  return s->ep_addr != 0;
+}
+
 TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_close(tu_edpt_stream_t* s) {
   s->ep_addr = 0;
 }
@@ -121,7 +125,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_clear(tu_edpt_stream_t* 
 // Write to stream
 uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t* s, void const *buffer, uint32_t bufsize);
 
-// Start an usb transfer if endpoint is not busy
+// Start an usb transfer if endpoint is not busy. Return number of queued bytes
 uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s);
 
 // Start an zero-length packet if needed
@@ -151,20 +155,18 @@ void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_byt
 
 // Complete read transfer with provided buffer
 TU_ATTR_ALWAYS_INLINE static inline
-void tu_edpt_stream_read_xfer_complete_with_buf(tu_edpt_stream_t* s, const void * buf, uint32_t xferred_bytes) {
+void tu_edpt_stream_read_xfer_complete_with_buf(tu_edpt_stream_t *s, const void *buf, uint32_t xferred_bytes) {
   if (0u != tu_fifo_depth(&s->ff)) {
     tu_fifo_write_n(&s->ff, buf, (uint16_t) xferred_bytes);
   }
 }
 
 // Get the number of bytes available for reading
-TU_ATTR_ALWAYS_INLINE static inline
-uint32_t tu_edpt_stream_read_available(tu_edpt_stream_t* s) {
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_edpt_stream_read_available(const tu_edpt_stream_t *s) {
   return (uint32_t) tu_fifo_count(&s->ff);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline
-bool tu_edpt_stream_peek(tu_edpt_stream_t* s, uint8_t* ch) {
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_peek(tu_edpt_stream_t *s, uint8_t *ch) {
   return tu_fifo_peek(&s->ff, ch);
 }
 
