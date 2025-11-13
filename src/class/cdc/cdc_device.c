@@ -290,7 +290,7 @@ void cdcd_init(void) {
 }
 
 bool cdcd_deinit(void) {
-  for(uint8_t i=0; i<CFG_TUD_CDC; i++) {
+  for (uint8_t i = 0; i < CFG_TUD_CDC; i++) {
     cdcd_interface_t* p_cdc = &_cdcd_itf[i];
     tu_edpt_stream_deinit(&p_cdc->stream.rx);
     tu_edpt_stream_deinit(&p_cdc->stream.tx);
@@ -305,7 +305,7 @@ void cdcd_reset(uint8_t rhport) {
     cdcd_interface_t* p_cdc = &_cdcd_itf[i];
     tu_memclr(p_cdc, ITF_MEM_RESET_SIZE);
 
-    tu_fifo_set_overwritable(&p_cdc->stream.tx.ff, _cdcd_cfg.tx_overwritabe_if_not_connected); // // back to default
+    tu_fifo_set_overwritable(&p_cdc->stream.tx.ff, _cdcd_cfg.tx_overwritabe_if_not_connected); // back to default
     tu_edpt_stream_close(&p_cdc->stream.rx);
     tu_edpt_stream_close(&p_cdc->stream.tx);
   }
