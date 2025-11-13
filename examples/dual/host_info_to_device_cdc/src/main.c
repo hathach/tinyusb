@@ -106,6 +106,9 @@ static void usb_device_init(void) {
     .speed = TUSB_SPEED_AUTO
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
+  tud_cdc_configure_t cdc_cfg = TUD_CDC_CONFIGURE_DEFAULT();
+  cdc_cfg.tx_persistent       = true;
+  tud_cdc_configure(&cdc_cfg);
   board_init_after_tusb();
 }
 
@@ -206,13 +209,6 @@ void tud_resume_cb(void) {
 }
 
 void cdc_task(void) {
-  if (!tud_cdc_connected()) {
-    // delay a bit otherwise we can outpace host's terminal. Linux will set LineState (DTR) then Line Coding.
-    // If we send data before Linux's terminal set Line Coding, it can be ignored --> missing data with hardware test loop
-    tusb_time_delay_ms_api(20);
-    return;
-  }
-
   for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
     if (tuh_mounted(daddr)) {
       if (is_print[daddr]) {

@@ -65,6 +65,7 @@ ContinuationIndentWidth: 2
 ColumnLimit: 120
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 Cpp11BracedListStyle: true
+IncludeBlocks: Preserve
 IncludeCategories:
   - Regex: '^<.*'
     Priority: 1
