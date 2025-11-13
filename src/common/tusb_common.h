@@ -354,7 +354,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
   return ((uint8_t const*) desc)[DESC_OFFSET_SUBTYPE];
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_in_bounds(uint8_t const* p_desc, uint8_t const* desc_end) {
+TU_ATTR_ALWAYS_INLINE static inline bool tu_desc_in_bounds(const uint8_t *p_desc, const uint8_t *desc_end) {
   if (p_desc >= desc_end) {
     return false;
   }

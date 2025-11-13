@@ -141,7 +141,7 @@ bool tud_cdc_configure(const tud_cdc_configure_t* driver_cfg) {
 bool tud_cdc_n_ready(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC);
   TU_VERIFY(tud_ready());
-  cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
+  const cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
 
   const bool in_opened  = tu_edpt_stream_is_opened(&p_cdc->stream.tx);
   const bool out_opened = tu_edpt_stream_is_opened(&p_cdc->stream.rx);
@@ -151,9 +151,8 @@ bool tud_cdc_n_ready(uint8_t itf) {
 bool tud_cdc_n_connected(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC);
   TU_VERIFY(tud_ready());
-  cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
   // DTR (bit 0) active  is considered as connected
-  return tu_bit_test(p_cdc->line_state, 0);
+  return tu_bit_test(_cdcd_itf[itf].line_state, 0);
 }
 
 uint8_t tud_cdc_n_get_line_state(uint8_t itf) {
@@ -214,8 +213,7 @@ void tud_cdc_n_set_wanted_char(uint8_t itf, char wanted) {
 //--------------------------------------------------------------------+
 uint32_t tud_cdc_n_available(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
-  cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_read_available(&p_cdc->stream.rx);
+  return tu_edpt_stream_read_available(&_cdcd_itf[itf].stream.rx);
 }
 
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize) {
@@ -226,8 +224,7 @@ uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize) {
 
 bool tud_cdc_n_peek(uint8_t itf, uint8_t *chr) {
   TU_VERIFY(itf < CFG_TUD_CDC);
-  cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_peek(&p_cdc->stream.rx, chr);
+  return tu_edpt_stream_peek(&_cdcd_itf[itf].stream.rx, chr);
 }
 
 void tud_cdc_n_read_flush(uint8_t itf) {
@@ -362,8 +359,8 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
         if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_t *stream_tx = &p_cdc->stream.tx;
-          tu_edpt_stream_open(stream_tx, desc_ep);
 
+          tu_edpt_stream_open(stream_tx, desc_ep);
           if (_cdcd_cfg.tx_persistent) {
             tu_edpt_stream_write_xfer(rhport, stream_tx); // flush pending data
           } else {
@@ -384,7 +381,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
     }
   }
 
-  return p_desc - (const uint8_t *)itf_desc;
+  return (uint16_t)(p_desc - (const uint8_t *)itf_desc);
 }
 
 // Invoked when a control transfer occurred on an interface of this class

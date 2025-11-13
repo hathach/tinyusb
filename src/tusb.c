@@ -517,7 +517,7 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
 }
 
 uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, uint32_t bufsize) {
-  uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t) bufsize);
+  const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
   tu_edpt_stream_read_xfer(hwid, s);
   return num_read;
 }

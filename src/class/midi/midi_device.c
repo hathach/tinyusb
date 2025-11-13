@@ -404,15 +404,17 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uint1
       const uint8_t ep_addr = ((const tusb_desc_endpoint_t *)p_desc)->bEndpointAddress;
 
       if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
-        tu_edpt_stream_open(&p_midi->ep_stream.tx, desc_ep);
-        tu_edpt_stream_clear(&p_midi->ep_stream.tx);
+        tu_edpt_stream_t *stream_tx = &p_midi->ep_stream.tx;
+        tu_edpt_stream_open(stream_tx, desc_ep);
+        tu_edpt_stream_clear(stream_tx);
       } else {
-        tu_edpt_stream_open(&p_midi->ep_stream.rx, desc_ep);
-        tu_edpt_stream_clear(&p_midi->ep_stream.rx);
-        TU_ASSERT(tu_edpt_stream_read_xfer(rhport, &p_midi->ep_stream.rx) > 0, 0); // prepare to receive data
+        tu_edpt_stream_t *stream_rx = &p_midi->ep_stream.rx;
+        tu_edpt_stream_open(stream_rx, desc_ep);
+        tu_edpt_stream_clear(stream_rx);
+        TU_ASSERT(tu_edpt_stream_read_xfer(rhport, stream_rx) > 0, 0); // prepare to receive data
       }
 
-      p_desc = tu_desc_next(p_desc);                                               // skip CS Endpoint descriptor
+      p_desc = tu_desc_next(p_desc);                                   // skip CS Endpoint descriptor
       found_ep++;
     }
 

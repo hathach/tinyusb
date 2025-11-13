@@ -120,7 +120,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_empty(tu_edpt_stream_t *
   return tu_fifo_empty(&s->ff);
 }
 
-
 //--------------------------------------------------------------------+
 // Stream Write
 //--------------------------------------------------------------------+
