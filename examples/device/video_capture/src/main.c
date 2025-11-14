@@ -53,7 +53,7 @@ void usb_device_task(void *param);
 void video_task(void* param);
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-void freertos_init_task(void);
+void freertos_init(void);
 #endif
 
 #if !defined(CFG_EXAMPLE_VIDEO_READONLY) || defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
@@ -79,7 +79,7 @@ int main(void) {
 
   // If using FreeRTOS: create blinky, tinyusb device, video task
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-  freertos_init_task();
+  freertos_init();
 #else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
@@ -248,8 +248,12 @@ static void video_send_frame(void) {
   }
 
   unsigned cur = board_millis();
-  if (cur - start_ms < interval_ms) return; // not enough time
-  if (tx_busy) return;
+  if (cur - start_ms < interval_ms) {
+    return; // not enough time
+  }
+  if (tx_busy) {
+    return;
+  }
   start_ms += interval_ms;
   tx_busy = 1;
 
@@ -312,7 +316,9 @@ void led_blinking_task(void* param) {
     #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
     #else
-    if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
+    if (board_millis() - start_ms < blink_interval_ms) {
+      return; // not enough time
+    }
     #endif
 
     start_ms += blink_interval_ms;
@@ -375,7 +381,7 @@ void usb_device_task(void *param) {
   }
 }
 
-void freertos_init_task(void) {
+void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
   xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);

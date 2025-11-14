@@ -919,8 +919,8 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
         if (interval < 4) {
           // sub millisecond interval
           p_qhd->interval_ms = 0;
-          p_qhd->int_smask = (interval == 1) ? TU_BIN8(11111111) :
-                             (interval == 2) ? TU_BIN8(10101010): TU_BIN8(01000100);
+          p_qhd->int_smask = (interval == 1) ? 0xff : // 0b11111111
+                             (interval == 2) ? 0xaa /* 0b10101010 */ : 0x44 /* 0b01000100 */;
         } else {
           p_qhd->interval_ms = (uint8_t) tu_min16(1 << (interval - 4), 255);
           p_qhd->int_smask = TU_BIT(interval % 8);
@@ -929,7 +929,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
         TU_ASSERT(0 != interval, );
         // Full/Low: 4.12.2.1 (EHCI) case 1 schedule start split at 1 us & complete split at 2,3,4 uframes
         p_qhd->int_smask = 0x01;
-        p_qhd->fl_int_cmask = TU_BIN8(11100);
+        p_qhd->fl_int_cmask = 0x1c; // 0b11100
         p_qhd->interval_ms = interval;
       }
       break;

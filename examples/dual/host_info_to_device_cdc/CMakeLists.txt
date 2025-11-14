@@ -10,6 +10,11 @@ project(${PROJECT} C CXX ASM)
 # Checks this example is valid for the family and initializes the project
 family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
 
+# Espressif has its own cmake build system
+if(FAMILY STREQUAL "espressif")
+  return()
+endif()
+
 add_executable(${PROJECT})
 
 # Example source
@@ -25,7 +30,7 @@ target_include_directories(${PROJECT} PUBLIC
 
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
-family_configure_dual_usb_example(${PROJECT} noos)
+family_configure_dual_usb_example(${PROJECT} ${RTOS})
 
 # due to warnings from Pico-PIO-USB
 if (FAMILY STREQUAL rp2040)

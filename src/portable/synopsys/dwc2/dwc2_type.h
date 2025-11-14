@@ -1435,7 +1435,7 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define DAINTMSK_OEPM_Msk                (0xFFFFUL << DAINTMSK_OEPM_Pos)          // 0xFFFF0000
 #define DAINTMSK_OEPM                    DAINTMSK_OEPM_Msk                        // OUT EP interrupt mask bits
 
-#define DAINT_SHIFT(_dir)            ((_dir == TUSB_DIR_IN) ? 0 : 16)
+#define DAINT_SHIFT(_dir)                (((_dir) == TUSB_DIR_IN) ? 0 : 16)
 
 #if 0
 /********************  Bit definition for OTG register  ********************/

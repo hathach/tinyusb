@@ -90,7 +90,8 @@ jobs:
           path: ${{ steps.analyze.outputs.sarif-output }}
 
   PVS-Studio:
-    if: github.repository_owner == 'hathach'
+    # Only run on non-forked PR since secrets token is required
+    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -118,13 +119,14 @@ jobs:
           sudo apt update
           sudo apt install pvs-studio
           pvs-studio-analyzer credentials ${{ secrets.PVS_STUDIO_CREDENTIALS }}
+          pvs-studio-analyzer --version
 
       - name: Analyze
         run: |
           mkdir -p build
           cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_BUILD_TYPE=MinSizeRel
           cmake --build build
-          pvs-studio-analyzer analyze -R .PVS-Studio/.pvsconfig -f build/compile_commands.json --exclude-path hw/mcu/ --exclude-path lib/ -j
+          pvs-studio-analyzer analyze -f build/compile_commands.json -R .PVS-Studio/.pvsconfig -j4 --security-related-issues --misra-cpp-version 2008 --misra-c-version 2023 --use-old-parser -e lib/ -e hw/mcu/ -e */iar/cxarm/ -e pico-sdk/
           plog-converter -t sarif -o pvs-studio-${{ matrix.board }}.sarif PVS-Studio.log
 
       - name: Upload SARIF
@@ -140,7 +142,8 @@ jobs:
           path: pvs-studio-${{ matrix.board }}.sarif
 
   SonarQube:
-    if: github.repository_owner == 'hathach'
+    # Only run on non-forked PR since secrets token is required
+    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
@@ -183,7 +186,9 @@ jobs:
             --define sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
 
   IAR-CStat:
-    if: github.repository_owner == 'hathach'
+    # Only run on non-forked PR since secrets token is required
+    #if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
+    if: false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

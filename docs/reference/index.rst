@@ -1,10 +1,15 @@
-Index
-=====
+*********
+Reference
+*********
+
+Complete reference documentation for TinyUSB APIs, configuration, and supported hardware.
 
 .. toctree::
    :maxdepth: 2
 
-   getting_started
+   architecture
+   usb_concepts
    boards
    dependencies
    concurrency
+   glossary

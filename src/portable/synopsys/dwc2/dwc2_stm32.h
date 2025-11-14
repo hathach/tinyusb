@@ -176,7 +176,9 @@ TU_ATTR_ALWAYS_INLINE static inline void dwc2_int_set(uint8_t rhport, tusb_role_
 TU_ATTR_ALWAYS_INLINE static inline void dwc2_remote_wakeup_delay(void) {
   // try to delay for 1 ms
   uint32_t count = SystemCoreClock / 1000;
-  while (count--) __NOP();
+  while (count--) {
+    __NOP();
+  }
 }
 
 // MCU specific PHY init, called BEFORE core reset

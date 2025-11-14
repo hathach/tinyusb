@@ -50,10 +50,6 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_NCM)
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
