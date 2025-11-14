@@ -354,8 +354,8 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
   return true;
 }
 
-bool tu_edpt_stream_deinit(tu_edpt_stream_t* s) {
-  (void) s;
+bool tu_edpt_stream_deinit(tu_edpt_stream_t *s) {
+  (void)s;
   #if OSAL_MUTEX_REQUIRED
   if (s->ff.mutex_wr) {
     osal_mutex_delete(s->ff.mutex_wr);
@@ -363,7 +363,7 @@ bool tu_edpt_stream_deinit(tu_edpt_stream_t* s) {
   if (s->ff.mutex_rd) {
     osal_mutex_delete(s->ff.mutex_rd);
   }
-#endif
+  #endif
   return true;
 }
 
@@ -412,7 +412,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_release(uint8_t hwid, tu_edpt_st
 bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint32_t last_xferred_bytes) {
   // ZLP condition: no pending data, last transferred bytes is multiple of packet size
   const uint16_t mps = s->is_mps512 ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
-  TU_VERIFY(!tu_fifo_count(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (mps - 1))));
+  TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (mps - 1))));
   TU_VERIFY(stream_claim(hwid, s));
   TU_ASSERT(stream_xfer(hwid, s, 0));
   return true;
@@ -517,7 +517,7 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
 }
 
 uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, uint32_t bufsize) {
-  uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t) bufsize);
+  const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
   tu_edpt_stream_read_xfer(hwid, s);
   return num_read;
 }

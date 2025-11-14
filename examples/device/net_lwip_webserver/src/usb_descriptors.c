@@ -270,7 +270,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_contro
 
   switch (request->bmRequestType_bit.type) {
     case TUSB_REQ_TYPE_VENDOR:
-      switch (request->bRequest) { //-V2520 //-V2659
+      switch (request->bRequest) {
         case 1:
           if (request->wIndex == 7) {
             // Get Microsoft OS 2.0 compatible descriptor

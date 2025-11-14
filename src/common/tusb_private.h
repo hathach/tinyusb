@@ -100,7 +100,6 @@ bool tu_edpt_stream_deinit(tu_edpt_stream_t* s);
 
 // Open an stream for an endpoint
 TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_open(tu_edpt_stream_t* s, tusb_desc_endpoint_t const *desc_ep) {
-  tu_fifo_clear(&s->ff);
   s->ep_addr = desc_ep->bEndpointAddress;
   s->is_mps512 = tu_edpt_packet_size(desc_ep) == 512;
 }
@@ -113,9 +112,12 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_close(tu_edpt_stream_t* 
   s->ep_addr = 0;
 }
 
-// Clear fifo
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_clear(tu_edpt_stream_t* s) {
   return tu_fifo_clear(&s->ff);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_empty(tu_edpt_stream_t *s) {
+  return tu_fifo_empty(&s->ff);
 }
 
 //--------------------------------------------------------------------+

@@ -298,6 +298,7 @@ TU_VERIFY_STATIC(TU_ARRAY_SIZE(serial_drivers) == SERIAL_DRIVER_COUNT, "Serial d
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+static bool open_ep_stream_pair(cdch_interface_t *p_cdc, const tusb_desc_endpoint_t *desc_ep);
 
 TU_ATTR_ALWAYS_INLINE static inline cdch_interface_t * get_itf(uint8_t idx) {
   TU_ASSERT(idx < CFG_TUH_CDC, NULL);
@@ -364,7 +365,7 @@ static cdch_interface_t* get_itf_by_xfer(const tuh_xfer_t * xfer) {
         #endif
 
         default:
-          break;
+          break; // unknown driver
       }
     }
   }
@@ -388,8 +389,6 @@ static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t cons
 
   return NULL;
 }
-
-static bool open_ep_stream_pair(cdch_interface_t * p_cdc , tusb_desc_endpoint_t const *desc_ep);
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
@@ -519,7 +518,7 @@ bool tuh_cdc_read_clear (uint8_t idx) {
   TU_VERIFY(p_cdc);
 
   bool ret = tu_edpt_stream_clear(&p_cdc->stream.rx);
-  tu_edpt_stream_read_xfer(p_cdc->daddr, &p_cdc->stream.rx);
+  (void)tu_edpt_stream_read_xfer(p_cdc->daddr, &p_cdc->stream.rx);
   return ret;
 }
 
@@ -648,13 +647,10 @@ bool cdch_init(void) {
   for (size_t i = 0; i < CFG_TUH_CDC; i++) {
     cdch_interface_t *p_cdc = &cdch_data[i];
     cdch_epbuf_t *epbuf = &cdch_epbuf[i];
-    tu_edpt_stream_init(&p_cdc->stream.tx, true, true, false,
-                        p_cdc->stream.tx_ff_buf, CFG_TUH_CDC_TX_BUFSIZE,
-                        epbuf->tx, CFG_TUH_CDC_TX_EPSIZE);
-
-    tu_edpt_stream_init(&p_cdc->stream.rx, true, false, false,
-                        p_cdc->stream.rx_ff_buf, CFG_TUH_CDC_RX_BUFSIZE,
-                        epbuf->rx, CFG_TUH_CDC_RX_EPSIZE);
+    TU_ASSERT(tu_edpt_stream_init(&p_cdc->stream.tx, true, true, false, p_cdc->stream.tx_ff_buf, CFG_TUH_CDC_TX_BUFSIZE,
+                                  epbuf->tx, CFG_TUH_CDC_TX_EPSIZE));
+    TU_ASSERT(tu_edpt_stream_init(&p_cdc->stream.rx, true, false, false, p_cdc->stream.rx_ff_buf,
+                                  CFG_TUH_CDC_RX_BUFSIZE, epbuf->rx, CFG_TUH_CDC_RX_EPSIZE));
   }
 
   return true;
@@ -663,8 +659,8 @@ bool cdch_init(void) {
 bool cdch_deinit(void) {
   for (size_t i = 0; i < CFG_TUH_CDC; i++) {
     cdch_interface_t *p_cdc = &cdch_data[i];
-    tu_edpt_stream_deinit(&p_cdc->stream.tx);
-    tu_edpt_stream_deinit(&p_cdc->stream.rx);
+    (void)tu_edpt_stream_deinit(&p_cdc->stream.tx);
+    (void)tu_edpt_stream_deinit(&p_cdc->stream.rx);
   }
   return true;
 }
@@ -674,11 +670,9 @@ void cdch_close(uint8_t daddr) {
     cdch_interface_t *p_cdc = &cdch_data[idx];
     if (p_cdc->daddr == daddr) {
       TU_LOG_CDC(p_cdc, "close");
+      tuh_cdc_umount_cb(idx); // invoke callback
 
-      // Invoke application callback
-      tuh_cdc_umount_cb(idx);
-
-      p_cdc->daddr = 0;
+      p_cdc->daddr            = 0;
       p_cdc->bInterfaceNumber = 0;
       p_cdc->mounted = false;
       tu_edpt_stream_close(&p_cdc->stream.tx);
@@ -696,13 +690,12 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
   TU_ASSERT(p_cdc);
 
   if (ep_addr == p_cdc->stream.tx.ep_addr) {
-    // invoke tx complete callback to possibly refill tx fifo
-    tuh_cdc_tx_complete_cb(idx);
+    tuh_cdc_tx_complete_cb(idx); // invoke transmit complete callback
 
     if (0 == tu_edpt_stream_write_xfer(daddr, &p_cdc->stream.tx)) {
       // If there is no data left, a ZLP should be sent if:
       // - xferred_bytes is multiple of EP Packet size and not zero
-      tu_edpt_stream_write_zlp_if_needed(daddr, &p_cdc->stream.tx, xferred_bytes);
+      (void)tu_edpt_stream_write_zlp_if_needed(daddr, &p_cdc->stream.tx, xferred_bytes);
     }
   } else if (ep_addr == p_cdc->stream.rx.ep_addr) {
     #if CFG_TUH_CDC_FTDI
@@ -718,7 +711,6 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
     #endif
     {
       tu_edpt_stream_read_xfer_complete(&p_cdc->stream.rx, xferred_bytes);
-
       tuh_cdc_rx_cb(idx); // invoke receive callback
     }
 
@@ -727,7 +719,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
   } else if (ep_addr == p_cdc->ep_notif) {
     // TODO handle notification endpoint
   } else {
-    TU_ASSERT(false);
+    return false;
   }
 
   return true;
@@ -736,20 +728,17 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 //--------------------------------------------------------------------+
 // Enumeration
 //--------------------------------------------------------------------+
-
 static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t const *desc_ep) {
   for (size_t i = 0; i < 2; i++) {
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType &&
               TUSB_XFER_BULK == desc_ep->bmAttributes.xfer);
     TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
+    tu_edpt_stream_t *stream =
+      (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
+    tu_edpt_stream_open(stream, desc_ep);
+    tu_edpt_stream_clear(stream);
 
-    if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      tu_edpt_stream_open(&p_cdc->stream.rx, desc_ep);
-    } else {
-      tu_edpt_stream_open(&p_cdc->stream.tx, desc_ep);
-    }
-
-    desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep);
+    desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(desc_ep);
   }
 
   return true;
@@ -832,6 +821,7 @@ static void cdch_process_set_config(tuh_xfer_t *xfer) {
   }
 }
 
+// return false if there is no active transfer
 static bool set_line_state_on_enum(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
   enum {
     ENUM_SET_LINE_CODING = 0,
