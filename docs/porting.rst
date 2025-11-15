@@ -173,11 +173,21 @@ Also make sure to enable endpoint specific interrupts.
 ``dcd_edpt_close()``
 """"""""""""""""""""
 
+.. warning::
+   This function is deprecated, ISO transfer should implement dcd_edpt_iso_alloc() and dcd_edpt_iso_activate() instead.
+
 Close an endpoint. his function is used for implementing alternate settings.
 
 After calling this, the device should not respond to any packets directed towards this endpoint. When called, this function must abort any transfers in progress through this endpoint, before returning.
 
 Implementation is optional. Must be called from the USB task. Interrupts could be disabled or enabled during the call.
+
+``dcd_edpt_iso_alloc() / dcd_edpt_iso_activate()``
+""""""""""""""""""""""""""""""""""""""""""""""""""
+
+dcd_edpt_iso_alloc() is used to allocate largest buffer (for all alternative interfaces) for ISO endpoints when device is enumerated. This allows DCD to allocate necessary resources for ISO endpoints in the future.
+
+dcd_edpt_iso_activate() is used to activate or deactivate ISO endpoint when alternate setting is set with active max packet size.
 
 ``dcd_edpt_xfer()``
 """""""""""""""""""

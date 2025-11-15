@@ -113,6 +113,19 @@ void dcd_edpt_close_all (uint8_t rhport)
   (void) rhport;
 }
 
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
@@ -207,5 +220,4 @@ void __no_inline_not_in_flash_func(pio_usb_device_irq_handler)(uint8_t root_id)
   // clear all
   rport->ints &= ~ints;
 }
-
 #endif

@@ -559,15 +559,17 @@ void dcd_edpt_close_all (uint8_t rhport)
   // TODO implement dcd_edpt_close_all()
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void) rhport;
-  uint8_t const epnum  = tu_edpt_number(ep_addr);
+  (void) ep_addr;
+  (void) largest_packet_size;
+  return false;
+}
 
-  // Disable endpoint interrupt
-  USB_REG->DEVIDR = 1 << (DEVIDR_PEP_0_Pos + epnum);
-  // Disable EP
-  USB_REG->DEVEPT &=~(1 << (DEVEPT_EPEN0_Pos + epnum));
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep) {
+  (void) rhport;
+  (void) desc_ep;
+  return false;
 }
 
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
@@ -773,5 +775,4 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   USB_REG->DEVEPTIDR[epnum] = DEVEPTIDR_CTRL_STALLRQC;
   USB_REG->DEVEPTIER[epnum] = HSTPIPIER_RSTDTS;
 }
-
 #endif

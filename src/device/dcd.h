@@ -171,17 +171,18 @@ void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
 // This API never calls with control endpoints, since it is auto cleared when receiving setup packet
 void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 
-#ifdef TUP_DCD_EDPT_ISO_ALLOC
+#ifdef TUP_DCD_EDPT_CLOSE_API
+// Close an endpoint.
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr);
+
+#else
+
 // Allocate packet buffer used by ISO endpoints
 // Some MCU need manual packet buffer allocation, we allocate the largest size to avoid clustering
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
 bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
-
-#else
-// Close an endpoint.
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr);
 
 #endif
 
