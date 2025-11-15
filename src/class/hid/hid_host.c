@@ -507,6 +507,27 @@ void hidh_close(uint8_t daddr) {
 // Enumeration
 //--------------------------------------------------------------------+
 
+// Helper: locate the first HID descriptor (0x21) after the interface
+static tusb_hid_descriptor_hid_t const* find_hid_desc(uint8_t const* p, uint16_t remaining_len)
+{
+  while (remaining_len >= 2)
+  {
+    uint8_t len  = p[0];
+    uint8_t type = p[1];
+
+    if (len == 0) break;           // Invalid descriptor
+    if (type == HID_DESC_TYPE_HID) // Found it
+      return (tusb_hid_descriptor_hid_t const*)p;
+
+    // Move to next descriptor
+    if (remaining_len < len) break;
+    p += len;
+    remaining_len -= len;
+  }
+
+  return NULL; // not found
+}
+
 bool hidh_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const* desc_itf, uint16_t max_len) {
   (void) rhport;
   (void) max_len;
@@ -519,36 +540,56 @@ bool hidh_open(uint8_t rhport, uint8_t daddr, tusb_desc_interface_t const* desc_
                                        desc_itf->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_ASSERT(max_len >= drv_len);
   uint8_t const* p_desc = (uint8_t const*) desc_itf;
+  uint16_t       len_left = max_len;
 
-  //------------- HID descriptor -------------//
-  p_desc = tu_desc_next(p_desc);
-  tusb_hid_descriptor_hid_t const* desc_hid = (tusb_hid_descriptor_hid_t const*) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType);
+  // Move past Interface descriptor
+  uint16_t itf_len = p_desc[0];
+  p_desc += itf_len;
+  len_left -= itf_len;
+
+  // Find the descriptor anywhere in the report
+  tusb_hid_descriptor_hid_t const* desc_hid = find_hid_desc(p_desc, len_left);
+
+  // Did not find the descriptor in the report
+  TU_ASSERT(desc_hid != NULL);
+
+  // Open endpoints, scan all descs
+  p_desc = (uint8_t const*)desc_itf + desc_itf->bLength;
+  len_left = max_len - desc_itf->bLength;
 
   hidh_interface_t* p_hid = find_new_itf();
   TU_ASSERT(p_hid); // not enough interface, try to increase CFG_TUH_HID
   p_hid->daddr = daddr;
 
-  //------------- Endpoint Descriptors -------------//
-  p_desc = tu_desc_next(p_desc);
-  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) p_desc;
+  p_hid->ep_in   = 0;
+  p_hid->ep_out  = 0;
 
-  for (int i = 0; i < desc_itf->bNumEndpoints; i++) {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType);
-    TU_ASSERT(tuh_edpt_open(daddr, desc_ep));
+  while (len_left >= 2)
+  {
+    uint8_t len  = p_desc[0];
+    uint8_t type = p_desc[1];
+    
+    if (len == 0) break;
 
-    if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-      p_hid->ep_in = desc_ep->bEndpointAddress;
-      p_hid->epin_size = tu_edpt_packet_size(desc_ep);
-    } else {
-      p_hid->ep_out = desc_ep->bEndpointAddress;
-      p_hid->epout_size = tu_edpt_packet_size(desc_ep);
+    if (type == TUSB_DESC_ENDPOINT)
+    {
+      tusb_desc_endpoint_t const* ep = (tusb_desc_endpoint_t const*)p_desc;
+      TU_ASSERT(tuh_edpt_open(daddr, ep));
+
+      if (tu_edpt_dir(ep->bEndpointAddress) == TUSB_DIR_IN) {
+        p_hid->ep_in = ep->bEndpointAddress;
+        p_hid->epin_size = tu_edpt_packet_size(ep);
+      } else {
+        p_hid->ep_out = ep->bEndpointAddress;
+        p_hid->epout_size = tu_edpt_packet_size(ep);
+      }
     }
 
-    p_desc = tu_desc_next(p_desc);
-    desc_ep = (tusb_desc_endpoint_t const*) p_desc;
+    p_desc += len;
+    len_left -= len;
   }
 
+  // Store HID report info
   p_hid->itf_num = desc_itf->bInterfaceNumber;
 
   // Assume bNumDescriptors = 1
