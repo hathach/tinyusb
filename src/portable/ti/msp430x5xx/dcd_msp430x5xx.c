@@ -333,10 +333,19 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  (void) rhport; (void) ep_addr;
-  // TODO implement dcd_edpt_close()
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
 }
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+
 
 void dcd_edpt_close_all (uint8_t rhport)
 {
@@ -821,5 +830,4 @@ void dcd_int_handler(uint8_t rhport)
   }
 
 }
-
 #endif

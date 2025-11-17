@@ -6,6 +6,14 @@ CPU_CORE = cortex-m33-nodsp-nofp
 CFLAGS += \
 	-DCPU_MCXA153VLH \
 	-DCFG_TUSB_MCU=OPT_MCU_MCXA15 \
+	-DCFG_EXAMPLE_VIDEO_READONLY
+
+SRC_C += \
+  ${BOARD_PATH}/board/clock_config.c \
+  ${BOARD_PATH}/board/pin_mux.c
+
+INC += \
+	$(TOP)/$(BOARD_PATH)/board
 
 JLINK_DEVICE = MCXA153
 PYOCD_TARGET = MCXA153
