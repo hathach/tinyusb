@@ -61,13 +61,8 @@ void USB0_IRQHandler(void) {
 
 void board_init(void) {
 
-  BOARD_InitPins();
-
+   BOARD_InitBootPins();
   BOARD_InitBootClocks();
-
-  #ifdef XTAL0_CLK_HZ
-  CLOCK_SetupExtClocking(XTAL0_CLK_HZ);
-  #endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer

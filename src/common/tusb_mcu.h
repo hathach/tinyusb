@@ -543,6 +543,10 @@
   #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
 
+  #if CFG_TUD_WCH_USBIP_USBHS
+    #define TUP_DCD_EDPT_CLOSE_API
+  #endif
+
 #elif TU_CHECK_MCU(OPT_MCU_CH32V103)
   #define TUP_USBIP_WCH_USBFS
 
@@ -589,6 +593,10 @@
 
   #define TUP_RHPORT_HIGHSPEED CFG_TUD_WCH_USBIP_USBHS
   #define TUP_DCD_ENDPOINT_MAX (CFG_TUD_WCH_USBIP_USBHS ? 16 : 8)
+
+  #if CFG_TUD_WCH_USBIP_USBHS
+    #define TUP_DCD_EDPT_CLOSE_API
+  #endif
 
 //--------------------------------------------------------------------+
 // Analog Devices
@@ -681,8 +689,7 @@
   #define TU_ATTR_FAST_FUNC
 #endif
 
-#if defined(TUP_USBIP_CHIPIDEA_FS) || defined(TUP_USBIP_IP3511) || defined(TUP_USBIP_RUSB2) || \
-  (defined(TUP_USBIP_WCH_USBFS) && CFG_TUD_WCH_USBIP_USBFS)
+#if defined(TUP_USBIP_IP3511) || defined(TUP_USBIP_RUSB2)
   #define TUP_DCD_EDPT_CLOSE_API
 #endif
 
