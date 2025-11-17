@@ -32,8 +32,6 @@ jobs:
               BUILDSYSTEM_TOOLCHAIN+=("cmake arm-iar")
             fi
 
-            RESOURCE_LARGE='["nrf", "imxrt", "stm32f4", "stm32h7 stm32h7rs"]'
-
             gen_build_entry() {
               local build_system="$1"
               local toolchain="$2"
@@ -61,21 +59,7 @@ jobs:
               FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\"")
               echo "FAMILY_${toolchain}=$FAMILY"
 
-              # FAMILY_LARGE = FAMILY - RESOURCE_LARGE
-              # Separate large from medium+ resources
-              FAMILY_LARGE=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[])))')
-              FAMILY=$(jq -n --argjson family "$FAMILY" --argjson resource "$RESOURCE_LARGE" '$family | map(select(IN($resource[]) | not))')
-
-              if [[ $toolchain == esp-idf || $toolchain == arm-iar ]]; then
-                gen_build_entry "$build_system" "$toolchain" "$FAMILY" "large"
-              else
-                gen_build_entry "$build_system" "$toolchain" "$FAMILY" "medium+"
-
-                # add large resources if available
-                if [ "$(echo $FAMILY_LARGE | jq 'length')" -gt 0 ]; then
-                    gen_build_entry "$build_system" "$toolchain" "$FAMILY_LARGE" "large"
-                fi
-              fi
+              gen_build_entry "$build_system" "$toolchain" "$FAMILY" "large"
             done
 
       - continuation/continue:
