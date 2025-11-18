@@ -202,8 +202,9 @@ void vendord_reset(uint8_t rhport) {
     vendord_interface_t* p_itf = &_vendord_itf[i];
     tu_memclr(p_itf, ITF_MEM_RESET_SIZE);
     tu_edpt_stream_clear(&p_itf->rx.stream);
-    tu_edpt_stream_clear(&p_itf->tx.stream);
     tu_edpt_stream_close(&p_itf->rx.stream);
+
+    tu_edpt_stream_clear(&p_itf->tx.stream);
     tu_edpt_stream_close(&p_itf->tx.stream);
   }
 }
@@ -233,16 +234,18 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uin
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
-      // open endpoint stream, skip if already opened
+      // open endpoint stream, skip if already opened (multiple IN/OUT endpoints)
       if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
-        if (p_vendor->tx.stream.ep_addr == 0) {
-          tu_edpt_stream_open(&p_vendor->tx.stream, desc_ep);
-          tud_vendor_n_write_flush(itf);
+        tu_edpt_stream_t *stream_tx = &p_vendor->tx.stream;
+        if (stream_tx->ep_addr == 0) {
+          tu_edpt_stream_open(stream_tx, desc_ep);
+          tu_edpt_stream_write_xfer(rhport, stream_tx); // flush pending data
         }
       } else {
-        if (p_vendor->rx.stream.ep_addr == 0) {
-          tu_edpt_stream_open(&p_vendor->rx.stream, desc_ep);
-          TU_ASSERT(tu_edpt_stream_read_xfer(rhport, &p_vendor->rx.stream) > 0, 0); // prepare for incoming data
+        tu_edpt_stream_t *stream_rx = &p_vendor->rx.stream;
+        if (stream_rx->ep_addr == 0) {
+          tu_edpt_stream_open(stream_rx, desc_ep);
+          TU_ASSERT(tu_edpt_stream_read_xfer(rhport, stream_rx) > 0, 0); // prepare for incoming data
         }
       }
     }

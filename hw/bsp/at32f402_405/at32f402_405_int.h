@@ -48,6 +48,12 @@ void DebugMon_Handler(void);
 void PendSV_Handler(void);
 void SysTick_Handler(void);
 
+void OTGFS1_IRQHandler(void);
+void OTGHS_IRQHandler(void);
+void OTGFS1_WKUP_IRQHandler(void);
+void OTGHS_WKUP_IRQHandler(void);
+
+
 #ifdef __cplusplus
 }
 #endif

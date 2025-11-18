@@ -34,6 +34,7 @@ commands:
                 chmod +x toolchain.run
                 ./toolchain.run -p ~/cache/<< parameters.toolchain >>/gnurx -y
               elif [[ << parameters.toolchain >> == arm-iar ]]; then
+                wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/<< parameters.toolchain >>/iar-lmsc-tools.deb
                 wget --progress=dot:giga $toolchain_url -O ~/cache/<< parameters.toolchain >>/toolchain.deb
               else
                 wget --progress=dot:giga $toolchain_url -O toolchain.tar.gz
@@ -44,6 +45,7 @@ commands:
             # Add toolchain to PATH
             if [[ << parameters.toolchain >> == arm-iar ]]; then
               # Install IAR since we only cache deb file
+              sudo dpkg -i ~/cache/<< parameters.toolchain >>/iar-lmsc-tools.deb
               sudo dpkg --ignore-depends=libusb-1.0-0 -i ~/cache/<< parameters.toolchain >>/toolchain.deb
               echo "export PATH=$PATH:/opt/iar/cxarm/arm/bin" >> $BASH_ENV
             else
@@ -102,6 +104,7 @@ commands:
 
       - run:
           name: Build
+          no_output_timeout: 20m
           command: |
             if [ << parameters.toolchain >> == esp-idf ]; then
               docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.family >>
@@ -125,7 +128,7 @@ jobs:
     parameters:
       resource_class:
         type: string
-        default: medium+
+        default: large
       build-system:
         type: string
       toolchain:

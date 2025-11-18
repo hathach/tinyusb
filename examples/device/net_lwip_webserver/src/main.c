@@ -58,6 +58,7 @@ try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00
 #include "lwip/ethip6.h"
 #include "lwip/init.h"
 #include "lwip/timeouts.h"
+#include "lwip/sys.h"
 
 #ifdef INCLUDE_IPERF
   #include "lwip/apps/lwiperf.h"
@@ -172,7 +173,7 @@ static void init_lwip(void) {
 }
 
 /* handle any DNS requests from dns-server */
-bool dns_query_proc(const char *name, ip4_addr_t *addr) {
+static bool dns_query_proc(const char *name, ip4_addr_t *addr) {
   if (0 == strcmp(name, "tiny.usb")) {
     *addr = ipaddr;
     return true;

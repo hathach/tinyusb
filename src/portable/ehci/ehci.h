@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_EHCI_H_
-#define _TUSB_EHCI_H_
+#ifndef TUSB_EHCI_H_
+#define TUSB_EHCI_H_
 
 
 /* Abbreviation
@@ -458,4 +458,4 @@ TU_VERIFY_STATIC(sizeof(ehci_cap_registers_t) == 16, "size is not correct");
  }
 #endif
 
-#endif /* _TUSB_EHCI_H_ */
+#endif /* TUSB_EHCI_H_ */

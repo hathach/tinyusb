@@ -179,7 +179,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
   for (int i = 0; i < 4; i++) {
     uint32_t did = *((uint32_t const*) did_addr[i]);
     did = TU_BSWAP32(did); // swap endian to match samd51 uf2 bootloader
-    memcpy(id + i * 4, &did, 4);
+    memcpy(id + i * 4, &did, sizeof(uint32_t));
   }
 
   return 16;

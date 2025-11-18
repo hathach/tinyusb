@@ -16,29 +16,25 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 set(FAMILY_MCUS MIMXRT1XXX CACHE INTERNAL "")
 
 #------------------------------------
-# BOARD_TARGET
+# Startup & Linker script
 #------------------------------------
-# only need to be built ONCE for all examples
-function(add_board_target BOARD_TARGET)
-  if (TARGET ${BOARD_TARGET})
-    return()
-  endif ()
+if (NOT DEFINED LD_FILE_GNU)
+set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx${MCU_CORE}_flexspi_nor.ld)
+endif ()
+set(LD_FILE_Clang ${LD_FILE_GNU})
+if (NOT DEFINED LD_FILE_IAR)
+set(LD_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/iar/${MCU_VARIANT}xxxxx${MCU_CORE}_flexspi_nor.icf)
+endif ()
 
-  # LD_FILE and STARTUP_FILE can be defined in board.cmake
-  if (NOT DEFINED LD_FILE_${CMAKE_C_COMPILER_ID})
-    set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_VARIANT}xxxxx${MCU_CORE}_flexspi_nor.ld)
-    set(LD_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/iar/${MCU_VARIANT}xxxxx${MCU_CORE}_flexspi_nor.icf)
-  endif ()
-  set(LD_FILE_Clang ${LD_FILE_GNU})
+set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT_WITH_CORE}.S)
+set(STARTUP_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/iar/startup_${MCU_VARIANT_WITH_CORE}.s)
+set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 
-  if (NOT DEFINED STARTUP_FILE_${CMAKE_C_COMPILER_ID})
-    set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_VARIANT_WITH_CORE}.S)
-    set(STARTUP_FILE_IAR ${SDK_DIR}/devices/${MCU_VARIANT}/iar/startup_${MCU_VARIANT_WITH_CORE}.s)
-  endif ()
-  set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
-
+#------------------------------------
+# Board Target
+#------------------------------------
+function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
-    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board/clock_config.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}/board/pin_mux.c
     ${SDK_DIR}/drivers/common/fsl_common.c
@@ -60,10 +56,9 @@ function(add_board_target BOARD_TARGET)
     endif()
   endforeach()
 
-
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     __STARTUP_CLEAR_BSS
-    CFG_TUSB_MEM_SECTION=__attribute__\(\(section\(\"NonCacheable\"\)\)\)
+    [=[CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
     )
 
   if (NOT M4 STREQUAL "1")
@@ -88,9 +83,31 @@ function(add_board_target BOARD_TARGET)
     )
 
   update_board(${BOARD_TARGET})
+endfunction()
+
+#------------------------------------
+# Functions
+#------------------------------------
+function(family_configure_example TARGET RTOS)
+  family_configure_common(${TARGET} ${RTOS})
+  family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT1XXX)
+
+  target_sources(${TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
+    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
+    ${TOP}/src/portable/ehci/ehci.c
+    ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
+    )
+  target_include_directories(${TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
+    )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(${BOARD_TARGET} PUBLIC
+    target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
@@ -99,48 +116,23 @@ function(add_board_target BOARD_TARGET)
       -Wl,-ug_boot_data
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${BOARD_TARGET} PUBLIC
+    target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       -Wl,-uimage_vector_table
       -Wl,-ug_boot_data
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${BOARD_TARGET} PUBLIC
+    target_link_options(${TARGET} PUBLIC
       "LINKER:--config=${LD_FILE_IAR}"
       )
   endif ()
-endfunction()
 
-
-#------------------------------------
-# Functions
-#------------------------------------
-function(family_configure_example TARGET RTOS)
-  family_configure_common(${TARGET} ${RTOS})
-
-  # Board target
-  add_board_target(board_${BOARD})
-
-  target_sources(${TARGET} PUBLIC
-    # BSP
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
-    )
-  target_include_directories(${TARGET} PUBLIC
-    # family, hw, board
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
-    )
-
-  # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT1XXX)
-  target_sources(${TARGET} PRIVATE
-    ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
-    ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
-    ${TOP}/src/portable/ehci/ehci.c
-    )
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
+  endif ()
+  set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES
+    SKIP_LINTING ON
+    COMPILE_OPTIONS -w)
 
   # Flashing
   family_add_bin_hex(${TARGET})

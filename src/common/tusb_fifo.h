@@ -25,8 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_FIFO_H_
-#define _TUSB_FIFO_H_
+#ifndef TUSB_FIFO_H_
+#define TUSB_FIFO_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,16 +104,16 @@ extern "C" {
  *      | R | 1 | 2 | W | 4 | 5 |
  */
 typedef struct {
-  uint8_t* buffer          ; // buffer pointer
-  uint16_t depth           ; // max items
+  uint8_t *buffer;              // buffer pointer
+  uint16_t depth;               // max items
 
   struct TU_ATTR_PACKED {
-    uint16_t item_size : 15; // size of each item
-    bool overwritable  : 1 ; // ovwerwritable when full
+    uint16_t item_size    : 15; // size of each item
+    bool     overwritable : 1;  // ovwerwritable when full
   };
 
-  volatile uint16_t wr_idx ; // write index
-  volatile uint16_t rd_idx ; // read index
+  volatile uint16_t wr_idx;     // write index
+  volatile uint16_t rd_idx;     // read index
 
 #if OSAL_MUTEX_REQUIRED
   osal_mutex_t mutex_wr;
@@ -129,12 +129,13 @@ typedef struct {
   void * ptr_wrap   ; ///< wrapped part start pointer
 } tu_fifo_buffer_info_t;
 
-#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable){\
-  .buffer               = _buffer,                          \
-  .depth                = _depth,                           \
-  .item_size            = sizeof(_type),                    \
-  .overwritable         = _overwritable,                    \
-}
+#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
+  {                                                         \
+    .buffer       = _buffer,                                \
+    .depth        = _depth,                                 \
+    .item_size    = sizeof(_type),                          \
+    .overwritable = _overwritable,                          \
+  }
 
 #define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                      \
     uint8_t _name##_buf[_depth*sizeof(_type)];                                \
@@ -154,32 +155,34 @@ void tu_fifo_config_mutex(tu_fifo_t *f, osal_mutex_t wr_mutex, osal_mutex_t rd_m
 #define tu_fifo_config_mutex(_f, _wr_mutex, _rd_mutex)
 #endif
 
-bool     tu_fifo_write                  (tu_fifo_t* f, void const * data);
-uint16_t tu_fifo_write_n                (tu_fifo_t* f, void const * data, uint16_t n);
+bool     tu_fifo_write(tu_fifo_t *f, void const *data);
+uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n);
+
+bool     tu_fifo_read(tu_fifo_t *f, void *buffer);
+uint16_t tu_fifo_read_n(tu_fifo_t *f, void *buffer, uint16_t n);
+
 #ifdef TUP_MEM_CONST_ADDR
-uint16_t tu_fifo_write_n_const_addr_full_words    (tu_fifo_t* f, const void * data, uint16_t n);
+uint16_t tu_fifo_write_n_const_addr_full_words(tu_fifo_t *f, const void *data, uint16_t n);
+uint16_t tu_fifo_read_n_const_addr_full_words(tu_fifo_t *f, void *buffer, uint16_t n);
 #endif
 
-bool     tu_fifo_read                   (tu_fifo_t* f, void * buffer);
-uint16_t tu_fifo_read_n                 (tu_fifo_t* f, void * buffer, uint16_t n);
-#ifdef TUP_MEM_CONST_ADDR
-uint16_t tu_fifo_read_n_const_addr_full_words     (tu_fifo_t* f, void * buffer, uint16_t n);
-#endif
+bool     tu_fifo_peek(tu_fifo_t *f, void *p_buffer);
+uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n);
 
-bool     tu_fifo_peek                   (tu_fifo_t* f, void * p_buffer);
-uint16_t tu_fifo_peek_n                 (tu_fifo_t* f, void * p_buffer, uint16_t n);
+uint16_t tu_fifo_count(const tu_fifo_t *f);
+uint16_t tu_fifo_remaining(const tu_fifo_t *f);
+bool     tu_fifo_full(const tu_fifo_t *f);
+bool     tu_fifo_overflowed(const tu_fifo_t *f);
 
-uint16_t tu_fifo_count                  (tu_fifo_t* f);
-uint16_t tu_fifo_remaining              (tu_fifo_t* f);
-bool     tu_fifo_empty                  (tu_fifo_t* f);
-bool     tu_fifo_full                   (tu_fifo_t* f);
-bool     tu_fifo_overflowed             (tu_fifo_t* f);
-void     tu_fifo_correct_read_pointer   (tu_fifo_t* f);
+TU_ATTR_ALWAYS_INLINE static inline bool tu_fifo_empty(const tu_fifo_t *f) {
+  return f->wr_idx == f->rd_idx;
+}
 
-TU_ATTR_ALWAYS_INLINE static inline
-uint16_t tu_fifo_depth(tu_fifo_t* f) {
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_depth(const tu_fifo_t *f) {
   return f->depth;
 }
+
+void tu_fifo_correct_read_pointer(tu_fifo_t *f);
 
 // Pointer modifications intended to be used in combinations with DMAs.
 // USE WITH CARE - NO SAFETY CHECKS CONDUCTED HERE! NOT MUTEX PROTECTED!
@@ -196,4 +199,4 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 }
 #endif
 
-#endif /* _TUSB_FIFO_H_ */
+#endif

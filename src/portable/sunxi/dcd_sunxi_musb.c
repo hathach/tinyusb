@@ -176,7 +176,7 @@ static void USBC_ForceVbusValidToHigh(void)
 	USBC_Writel(reg_val, USBC_REG_ISCR(USBC0_BASE));
 }
 
-void USBC_SelectBus(u32 io_type, u32 ep_type, u32 ep_index)
+static void USBC_SelectBus(u32 io_type, u32 ep_type, u32 ep_index)
 {
 	u32 reg_val = 0;
 
@@ -952,7 +952,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
   USBC_REG_set_bit_b(USBC_BP_POWER_D_RESUME, USBC_REG_PCTL(USBC0_BASE));
-  delay_ms(10);
+  tusb_time_delay_ms_api(10);
   USBC_REG_clear_bit_b(USBC_BP_POWER_D_RESUME, USBC_REG_PCTL(USBC0_BASE));
 }
 
@@ -1082,6 +1082,21 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   musb_int_unmask();
 }
 
+  #if 0
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+  #endif
+
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
@@ -1210,5 +1225,4 @@ void dcd_int_handler(uint8_t rhport)
     rxis &= ~TU_BIT(num);
   }
 }
-
 #endif

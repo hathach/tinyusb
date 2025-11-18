@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_CDC_HOST_H_
-#define _TUSB_CDC_HOST_H_
+#ifndef TUSB_CDC_HOST_H_
+#define TUSB_CDC_HOST_H_
 
 #include "cdc.h"
 
@@ -255,4 +255,4 @@ void cdch_close      (uint8_t dev_addr);
  }
 #endif
 
-#endif /* _TUSB_CDC_HOST_H_ */
+#endif /* TUSB_CDC_HOST_H_ */

@@ -6,7 +6,6 @@ mcu:CH32V103
 mcu:CH32V20X
 mcu:CH32V307
 mcu:STM32L0
-mcu:MCXA15
 family:espressif
 board:curiosity_nano
 board:kuiic

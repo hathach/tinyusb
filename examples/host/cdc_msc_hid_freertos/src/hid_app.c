@@ -25,6 +25,7 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -160,7 +161,7 @@ static void process_kbd_report(hid_keyboard_report_t const *report) {
 // Mouse
 //--------------------------------------------------------------------+
 
-void cursor_movement(int8_t x, int8_t y, int8_t wheel) {
+static void cursor_movement(int8_t x, int8_t y, int8_t wheel) {
 #if USE_ANSI_ESCAPE
   // Move X using ansi escape
   if ( x < 0) {
@@ -210,6 +211,7 @@ static void process_mouse_report(hid_mouse_report_t const *report) {
 //--------------------------------------------------------------------+
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len) {
   (void) dev_addr;
+  (void) len;
 
   uint8_t const rpt_count = hid_info[instance].report_count;
   tuh_hid_report_info_t *rpt_info_arr = hid_info[instance].report_info;

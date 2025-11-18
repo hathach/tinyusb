@@ -81,8 +81,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_delete(osal_semaphore_t 
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr) {
   (void) in_isr;
-  sem_release(sem_hdl);
-  return true;
+  return sem_release(sem_hdl);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec) {
@@ -139,7 +138,7 @@ typedef osal_queue_def_t* osal_queue_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
   critical_section_init(&qdef->critsec);
-  tu_fifo_clear(&qdef->ff);
+  (void) tu_fifo_clear(&qdef->ff);
   return (osal_queue_t) qdef;
 }
 

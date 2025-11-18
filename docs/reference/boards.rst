@@ -107,17 +107,20 @@ olimex_emz64               Olimex PIC32-EMZ64                   pic32mz     http
 olimex_hmz144              Olimex PIC32-HMZ144                  pic32mz     https://www.olimex.com/Products/PIC/Development/PIC32-HMZ144/open-source-hardware
 cynthion_d11               Great Scott Gadgets Cynthion         samd11      https://greatscottgadgets.com/cynthion/
 samd11_xplained            SAMD11 Xplained Pro                  samd11      https://www.microchip.com/en-us/development-tool/ATSAMD11-XPRO
-atsamd21_xpro              SAMD21 Xplained Pro                  samd21      https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMD21-XPRO
-circuitplayground_express  Adafruit Circuit Playground Express  samd21      https://www.adafruit.com/product/3333
-curiosity_nano             SAMD21 Curiosty Nano                 samd21      https://www.microchip.com/en-us/development-tool/dm320119
-cynthion_d21               Great Scott Gadgets Cynthion         samd21      https://greatscottgadgets.com/cynthion/
-feather_m0_express         Adafruit Feather M0 Express          samd21      https://www.adafruit.com/product/3403
-itsybitsy_m0               Adafruit ItsyBitsy M0                samd21      https://www.adafruit.com/product/3727
-metro_m0_express           Adafruit Metro M0 Express            samd21      https://www.adafruit.com/product/3505
-qtpy                       Adafruit QT Py                       samd21      https://www.adafruit.com/product/4600
-seeeduino_xiao             Seeeduino XIAO                       samd21      https://wiki.seeedstudio.com/Seeeduino-XIAO/
-sparkfun_samd21_mini_usb   SparkFun SAMD21 Mini                 samd21      https://www.sparkfun.com/products/13664
-trinket_m0                 Adafruit Trinket M0                  samd21      https://www.adafruit.com/product/3500
+atsamd21_xpro              SAMD21 Xplained Pro                  samd2x_l2x  https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMD21-XPRO
+atsaml21_xpro              SAML21 Xplained Pro                  samd2x_l2x  https://www.microchip.com/en-us/development-tool/atsaml21-xpro-b
+circuitplayground_express  Adafruit Circuit Playground Express  samd2x_l2x  https://www.adafruit.com/product/3333
+curiosity_nano             SAMD21 Curiosty Nano                 samd2x_l2x  https://www.microchip.com/en-us/development-tool/dm320119
+cynthion_d21               Great Scott Gadgets Cynthion         samd2x_l2x  https://greatscottgadgets.com/cynthion/
+feather_m0_express         Adafruit Feather M0 Express          samd2x_l2x  https://www.adafruit.com/product/3403
+itsybitsy_m0               Adafruit ItsyBitsy M0                samd2x_l2x  https://www.adafruit.com/product/3727
+metro_m0_express           Adafruit Metro M0 Express            samd2x_l2x  https://www.adafruit.com/product/3505
+qtpy                       Adafruit QT Py                       samd2x_l2x  https://www.adafruit.com/product/4600
+saml22_feather             SAML22 Feather                       samd2x_l2x  https://github.com/joeycastillo/Feather-Projects/tree/main/SAML22%20Feather
+seeeduino_xiao             Seeeduino XIAO                       samd2x_l2x  https://wiki.seeedstudio.com/Seeeduino-XIAO/
+sensorwatch_m0             SensorWatch                          samd2x_l2x  https://github.com/joeycastillo/Sensor-Watch
+sparkfun_samd21_mini_usb   SparkFun SAMD21 Mini                 samd2x_l2x  https://www.sparkfun.com/products/13664
+trinket_m0                 Adafruit Trinket M0                  samd2x_l2x  https://www.adafruit.com/product/3500
 d5035_01                   D5035-01                             samd5x_e5x  https://github.com/RudolphRiedel/USB_CAN-FD
 feather_m4_express         Adafruit Feather M4 Express          samd5x_e5x  https://www.adafruit.com/product/3857
 itsybitsy_m4               Adafruit ItsyBitsy M4                samd5x_e5x  https://www.adafruit.com/product/3800
@@ -125,10 +128,9 @@ metro_m4_express           Adafruit Metro M4 Express            samd5x_e5x  http
 pybadge                    Adafruit PyBadge                     samd5x_e5x  https://www.adafruit.com/product/4200
 pyportal                   Adafruit PyPortal                    samd5x_e5x  https://www.adafruit.com/product/4116
 same54_xplained            SAME54 Xplained Pro                  samd5x_e5x  https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAME54-XPRO
+same70_qmtech              SAME70 QMTech                        same7x      https://www.aliexpress.com/item/1005003173783268.html
+same70_xplained            SAME70 Xplained                      same7x      https://www.microchip.com/en-us/development-tool/atsame70-xpld
 samg55_xplained            SAMG55 Xplained Pro                  samg        https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMG55-XPRO
-atsaml21_xpro              SAML21 Xplained Pro                  saml2x      https://www.microchip.com/en-us/development-tool/atsaml21-xpro-b
-saml22_feather             SAML22 Feather                       saml2x      https://github.com/joeycastillo/Feather-Projects/tree/main/SAML22%20Feather
-sensorwatch_m0             SensorWatch                          saml2x      https://github.com/joeycastillo/Sensor-Watch
 =========================  ===================================  ==========  =================================================================================  ======
 
 MindMotion
@@ -202,10 +204,11 @@ circuitplayground_bluefruit  Adafruit Circuit Playground Bluefruit  nrf       ht
 feather_nrf52840_express     Adafruit Feather nRF52840 Express      nrf       https://www.adafruit.com/product/4062
 feather_nrf52840_sense       Adafruit Feather nRF52840 Sense        nrf       https://www.adafruit.com/product/4516
 itsybitsy_nrf52840           Adafruit ItsyBitsy nRF52840 Express    nrf       https://www.adafruit.com/product/4481
-pca10056                     Nordic nRF52840DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK
-pca10059                     Nordic nRF52840 Dongle                 nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle
-pca10095                     Nordic nRF5340 DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
-pca10100                     Nordic nRF52833 DK                     nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK
+nrf52833dk                   Nordic nRF52833 DK                     nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52833-DK
+nrf52840dk                   Nordic nRF52840DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK
+nrf52840dongle               Nordic nRF52840 Dongle                 nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle
+nrf5340dk                    Nordic nRF5340 DK                      nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
+nrf54h20dk                   Nordic nRF54H20 DK                     nrf       https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF5340-DK
 ===========================  =====================================  ========  ==============================================================================  ======
 
 Raspberry Pi
@@ -294,12 +297,13 @@ stm32l052dap52       STM32 L052 DAP                     stm32l0    n/a
 stm32l0538disco      STM32 L0538 Discovery              stm32l0    https://www.st.com/en/evaluation-tools/32l0538discovery.html
 stm32l412nucleo      STM32 L412 Nucleo                  stm32l4    https://www.st.com/en/evaluation-tools/nucleo-l412kb.html
 stm32l476disco       STM32 L476 Disco                   stm32l4    https://www.st.com/en/evaluation-tools/32l476gdiscovery.html
+stm32l496nucleo      STM32 L496 Nucleo                  stm32l4    https://www.st.com/en/evaluation-tools/nucleo-l496ZG-P.html
 stm32l4p5nucleo      STM32 L4P5 Nucleo                  stm32l4    https://www.st.com/en/evaluation-tools/nucleo-l4p5zg.html
 stm32l4r5nucleo      STM32 L4R5 Nucleo                  stm32l4    https://www.st.com/en/evaluation-tools/nucleo-l4r5zi.html
 stm32n6570dk         STM32 N6570-DK                     stm32n6    https://www.st.com/en/evaluation-tools/stm32n6570-dk.html
 stm32n657nucleo      STM32 N657X0-Q Nucleo              stm32n6    https://www.st.com/en/evaluation-tools/nucleo-n657x0-q.html
+stm32u083cdk         STM32U083C-DK Discovery Kit        stm32u0    https://www.st.com/en/evaluation-tools/stm32u083c-dk.html
 b_u585i_iot2a        STM32 B-U585i IOT2A Discovery kit  stm32u5    https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html
-stm32u083cdk         STM32 U083C Discovery Kit          stm32u0    https://www.st.com/en/evaluation-tools/stm32u083c-dk.html
 stm32u545nucleo      STM32 U545 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u545re-q.html
 stm32u575eval        STM32 U575 Eval                    stm32u5    https://www.st.com/en/evaluation-tools/stm32u575i-ev.html
 stm32u575nucleo      STM32 U575 Nucleo                  stm32u5    https://www.st.com/en/evaluation-tools/nucleo-u575zi-q.html

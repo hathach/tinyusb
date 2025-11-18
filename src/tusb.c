@@ -117,11 +117,15 @@ bool tusb_inited(void) {
   bool ret = false;
 
   #if CFG_TUD_ENABLED
-  ret = ret || tud_inited();
+  if (tud_inited()) {
+    ret = true;
+  }
   #endif
 
   #if CFG_TUH_ENABLED
-  ret = ret || tuh_inited();
+  if (tuh_inited()) {
+    ret = true;
+  }
   #endif
 
   return ret;
@@ -209,7 +213,8 @@ bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   (void) mutex;
 
   // pre-check to help reducing mutex lock
-  TU_VERIFY((ep_state->busy == 0) && (ep_state->claimed == 0));
+  TU_VERIFY(ep_state->busy == 0);
+  TU_VERIFY(ep_state->claimed == 0);
   (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
 
   // can only claim the endpoint if it is not busy and not claimed yet.
@@ -298,7 +303,7 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
   uint8_t const* p_desc = (uint8_t const*) desc_itf;
   uint16_t len = 0;
 
-  while (itf_count--) {
+  while ((itf_count--) > 0) {
     // Next on interface desc
     len += tu_desc_len(desc_itf);
     p_desc = tu_desc_next(p_desc);
@@ -337,7 +342,7 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
   tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);
 
   #if OSAL_MUTEX_REQUIRED
-  if (ff_buf && ff_bufsize) {
+  if (ff_buf != NULL && ff_bufsize > 0) {
     osal_mutex_t new_mutex = osal_mutex_create(&s->ff_mutexdef);
     tu_fifo_config_mutex(&s->ff, is_tx ? new_mutex : NULL, is_tx ? NULL : new_mutex);
   }
@@ -349,11 +354,15 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
   return true;
 }
 
-bool tu_edpt_stream_deinit(tu_edpt_stream_t* s) {
-  (void) s;
+bool tu_edpt_stream_deinit(tu_edpt_stream_t *s) {
+  (void)s;
   #if OSAL_MUTEX_REQUIRED
-  if (s->ff.mutex_wr) osal_mutex_delete(s->ff.mutex_wr);
-  if (s->ff.mutex_rd) osal_mutex_delete(s->ff.mutex_rd);
+  if (s->ff.mutex_wr) {
+    osal_mutex_delete(s->ff.mutex_wr);
+  }
+  if (s->ff.mutex_rd) {
+    osal_mutex_delete(s->ff.mutex_rd);
+  }
   #endif
   return true;
 }
@@ -403,7 +412,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_release(uint8_t hwid, tu_edpt_st
 bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint32_t last_xferred_bytes) {
   // ZLP condition: no pending data, last transferred bytes is multiple of packet size
   const uint16_t mps = s->is_mps512 ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
-  TU_VERIFY(!tu_fifo_count(&s->ff) && last_xferred_bytes && (0 == (last_xferred_bytes & (mps - 1))));
+  TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (mps - 1))));
   TU_VERIFY(stream_claim(hwid, s));
   TU_ASSERT(stream_xfer(hwid, s, 0));
   return true;
@@ -411,14 +420,13 @@ bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint3
 
 uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
   // skip if no data
-  TU_VERIFY(tu_fifo_count(&s->ff), 0);
-
+  TU_VERIFY(tu_fifo_count(&s->ff) > 0, 0);
   TU_VERIFY(stream_claim(hwid, s), 0);
 
   // Pull data from FIFO -> EP buf
-  uint16_t const count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
+  const uint16_t count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
 
-  if (count) {
+  if (count > 0) {
     TU_ASSERT(stream_xfer(hwid, s, count), 0);
     return count;
   } else {
@@ -429,8 +437,8 @@ uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
   }
 }
 
-uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t* s, void const* buffer, uint32_t bufsize) {
-  TU_VERIFY(bufsize); // TODO support ZLP
+uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
+  TU_VERIFY(bufsize > 0); // TODO support ZLP
 
   if (0 == tu_fifo_depth(&s->ff)) {
     // no fifo for buffered
@@ -453,7 +461,7 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t* s, void const* buf
 }
 
 uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s) {
-  if (tu_fifo_depth(&s->ff)) {
+  if (tu_fifo_depth(&s->ff) > 0) {
     return (uint32_t) tu_fifo_remaining(&s->ff);
   } else {
     bool is_busy = true;
@@ -509,7 +517,7 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
 }
 
 uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, uint32_t bufsize) {
-  uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t) bufsize);
+  const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
   tu_edpt_stream_read_xfer(hwid, s);
   return num_read;
 }
@@ -576,8 +584,12 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
 
     if (i % item_per_line == 0) {
       // Print Ascii
-      if (i != 0) dump_str_line(buf8 - 16, 16);
-      for (uint8_t s = 0; s < indent; s++) tu_printf(" ");
+      if (i != 0) {
+        dump_str_line(buf8 - 16, 16);
+      }
+      for (uint8_t s = 0; s < indent; s++) {
+        tu_printf(" ");
+      }
       // print offset or absolute address
       tu_printf("%04X: ", 16 * i / item_per_line);
     }
@@ -592,10 +604,12 @@ void tu_print_mem(void const* buf, uint32_t count, uint8_t indent) {
   // fill up last row to 16 for printing ascii
   const uint32_t remain = count % 16;
   uint8_t nback = (uint8_t) (remain ? remain : 16);
-  if (remain) {
+  if (remain > 0) {
     for (uint32_t i = 0; i < 16 - remain; i++) {
       tu_printf(" ");
-      for (int j = 0; j < 2 * size; j++) tu_printf(" ");
+      for (int j = 0; j < 2 * size; j++) {
+        tu_printf(" ");
+      }
     }
   }
 
