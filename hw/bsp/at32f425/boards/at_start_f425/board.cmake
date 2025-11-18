@@ -1,0 +1,12 @@
+set(MCU_VARIANT AT32F425R8T7)
+set(MCU_LINKER_NAME AT32F425x8)
+
+set(JLINK_DEVICE ${MCU_VARIANT})
+
+function(update_board TARGET)
+  target_compile_definitions(${TARGET} PUBLIC
+    ${MCU_VARIANT}
+    CFG_EXAMPLE_VIDEO_READONLY
+    CFG_EXAMPLE_MSC_READONLY
+    )
+endfunction()

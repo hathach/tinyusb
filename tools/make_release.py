@@ -2,7 +2,7 @@
 import re
 import gen_doc
 
-version = '0.18.0'
+version = '0.19.0'
 
 print('version {}'.format(version))
 ver_id = version.split('.')
@@ -42,6 +42,17 @@ with open(f_library_json) as f:
     fdata = re.sub(r'( {4}"version":) "\d+\.\d+\.\d+"', rf'\1 "{version}"', fdata)
 
 with open(f_library_json, 'w') as f:
+    f.write(fdata)
+
+###################
+# sonar-project.properties
+###################
+f_sonar_properties = 'sonar-project.properties'
+with open(f_sonar_properties) as f:
+    fdata = f.read()
+    fdata = re.sub(r'(sonar\.projectVersion=)\d+\.\d+\.\d+', rf'\1{version}', fdata)
+
+with open(f_sonar_properties, 'w') as f:
     f.write(fdata)
 
 ###################

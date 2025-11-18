@@ -53,11 +53,11 @@
  * The difference in behavior is that ASSERT triggers a breakpoint while
  * verify does not.
  *
- *   #define TU_VERIFY(cond)                  if(cond) return false;
- *   #define TU_VERIFY(cond,ret)              if(cond) return ret;
+ *   #define TU_VERIFY(cond)                  if (!cond) return false;
+ *   #define TU_VERIFY(cond,ret)              if (!cond) return ret;
  *
- *   #define TU_ASSERT(cond)                  if(cond) {TU_MESS_FAILED(); TU_BREAKPOINT(), return false;}
- *   #define TU_ASSERT(cond,ret)              if(cond) {TU_MESS_FAILED(); TU_BREAKPOINT(), return ret;}
+ *   #define TU_ASSERT(cond)                  if (!cond) {TU_MESS_FAILED(); TU_BREAKPOINT(), return false;}
+ *   #define TU_ASSERT(cond,ret)              if (!cond) {TU_MESS_FAILED(); TU_BREAKPOINT(), return ret;}
  *------------------------------------------------------------------*/
 
 #ifdef __cplusplus
@@ -67,10 +67,8 @@
 //--------------------------------------------------------------------+
 // TU_VERIFY Helper
 //--------------------------------------------------------------------+
-
 #if CFG_TUSB_DEBUG
-  #include <stdio.h>
-  #define TU_MESS_FAILED()    tu_printf("%s %d: ASSERT FAILED\r\n", __func__, __LINE__)
+  #define TU_MESS_FAILED()    TU_LOG1("%s %d: ASSERT FAILED\r\n", __func__, __LINE__)
 #else
   #define TU_MESS_FAILED() do {} while (0)
 #endif
@@ -80,7 +78,7 @@
     defined(__ARM7M__) || defined (__ARM7EM__) || defined(__ARM8M_MAINLINE__) || defined(__ARM8EM_MAINLINE__)
   #define TU_BREAKPOINT() do {                                                                              \
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
-    if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
+    if (0u != ((*ARM_CM_DHCSR) & 1UL)) { __asm("BKPT #0\n"); } /* Only halt mcu if debugger is attached */   \
   } while(0)
 
 #elif defined(__riscv) && !TUSB_MCU_VENDOR_ESPRESSIF
@@ -100,7 +98,7 @@
  *------------------------------------------------------------------*/
 #define TU_VERIFY_DEFINE(_cond, _ret)    \
   do {                                   \
-    if ( !(_cond) ) { return _ret; }     \
+    if (!(_cond)) { return _ret; }     \
   } while(0)
 
 #define TU_VERIFY_1ARGS(_cond)         TU_VERIFY_DEFINE(_cond, false)

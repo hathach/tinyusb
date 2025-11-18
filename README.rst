@@ -1,25 +1,54 @@
-|Build Status| |CircleCI Status| |Documentation Status| |Fuzzing Status| |License|
+TinyUSB
+=======
+
+|Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |License|
 
 Sponsors
-========
+--------
 
 TinyUSB is funded by: Adafruit. Purchasing products from them helps to support this project.
 
 .. figure:: docs/assets/adafruit_logo.svg
    :alt: Adafruit Logo
+   :align: left
    :target: https://www.adafruit.com
 
-TinyUSB Project
-===============
+.. raw:: html
+
+   <div class="clear-both"></div>
+
+Overview
+--------
 
 .. figure:: docs/assets/logo.svg
    :alt: TinyUSB
+   :align: left
 
-TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system, designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events are deferred then handled in the non-ISR task function. Check out the online `documentation <https://docs.tinyusb.org/>`__ for more details.
+.. raw:: html
+
+   <div class="clear-both"></div>
+
+TinyUSB is an open-source cross-platform USB Host/Device stack for embedded systems. It’s designed for memory safety
+(no dynamic allocation) and thread safety (all interrupts deferred to non-ISR task functions). The stack emphasizes portability,
+small footprint, and real-time performance across 50+ MCU families.
+
+Key Features
+------------
+
+* **Thread-safe:** USB interrupts deferred to task context
+* **Memory-safe:** No dynamic allocation, all buffers static
+* **Portable:** Supports 50+ MCU families
+* **Comprehensive:** Includes CDC, HID, MSC, Audio, and Host support
+* **RTOS-friendly:** Works with bare metal, FreeRTOS, RT-Thread, and Mynewt
 
 .. figure:: docs/assets/stack.svg
    :width: 500px
+   :align: left
    :alt: stackup
+
+.. raw:: html
+
+   <div class="clear-both"></div>
 
 ::
 
@@ -36,7 +65,7 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 
 
 Getting started
-===============
+---------------
 
 See the `online documentation <https://docs.tinyusb.org>`_ for information about using TinyUSB and how it is implemented.
 
@@ -49,7 +78,7 @@ For bugs and feature requests, please `raise an issue <https://github.com/hathac
 See `Porting`_ guide for adding support for new MCUs and boards.
 
 Device Stack
-============
+------------
 
 Supports multiple device configurations by dynamically changing USB descriptors, low power functions such like suspend, resume, and remote wakeup. The following device classes are supported:
 
@@ -60,6 +89,7 @@ Supports multiple device configurations by dynamically changing USB descriptors,
 -  Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 -  Mass Storage Class (MSC): with multiple LUNs
 -  Musical Instrument Digital Interface (MIDI)
+-  Media Transfer Protocol (MTP/PTP)
 -  Network with RNDIS, Ethernet Control Model (ECM), Network Control Model (NCM)
 -  Test and Measurement Class (USBTMC)
 -  Video class 1.5 (UVC): work in progress
@@ -69,25 +99,25 @@ Supports multiple device configurations by dynamically changing USB descriptors,
 If you have a special requirement, ``usbd_app_driver_get_cb()`` can be used to write your own class driver without modifying the stack. Here is how the RPi team added their reset interface `raspberrypi/pico-sdk#197 <https://github.com/raspberrypi/pico-sdk/pull/197>`_
 
 Host Stack
-==========
+----------
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
 - Communication Device Class: CDC-ACM
-- Vendor serial over USB: FTDI, CP210x, CH34x
+- Vendor serial over USB: FTDI, CP210x, CH34x, PL2303
 - Hub with multiple-level support
 
 Similar to the Device Stack, if you have a special requirement, ``usbh_app_driver_get_cb()`` can be used to write your own class driver without modifying the stack.
 
 Power Delivery Stack
-====================
+--------------------
 
 - Power Delivery 3.0 (PD3.0) with USB Type-C support (WIP)
 - Super early stage, only for testing purpose
 - Only support STM32 G4
 
 OS Abstraction layer
-====================
+--------------------
 
 TinyUSB is completely thread-safe by pushing all Interrupt Service Request (ISR) events into a central queue, then processing them later in the non-ISR context task function. It also uses semaphore/mutex to access shared resources such as Communication Device Class (CDC) FIFO. Therefore the stack needs to use some of the OS's basic APIs. Following OSes are already supported out of the box.
 
@@ -97,7 +127,7 @@ TinyUSB is completely thread-safe by pushing all Interrupt Service Request (ISR)
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its `own repo <https://github.com/hathach/mynewt-tinyusb-example>`_
 
 Supported CPUs
-==============
+--------------
 
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | Manufacturer | Family                      | Device | Host | Highspeed | Driver                 | Note              |
@@ -109,16 +139,24 @@ Supported CPUs
 |              | MAX32 650, 666, 690,        | ✔      |      | ✔         | musb                   | 1-dir ep          |
 |              | MAX78002                    |        |      |           |                        |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
-| Brigetek     | FT90x                       | ✔      |      | ✔         | ft9xx                  | 1-dir ep          |
+| Artery AT32  | F403a_407, F413             | ✔      |      |           | fsdev                  |                   |
+|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
+|              | F415, F435_437, F423, F425  | ✔      | ✔    |           | dwc2                   |                   |
+|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
+|              | F402_F405                   | ✔      | ✔    | ✔         | dwc2                   | F405 is HS        |
++--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
+| Bridgetek    | FT90x                       | ✔      |      | ✔         | ft9xx                  | 1-dir ep          |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | Broadcom     | BCM2711, BCM2837            | ✔      |      | ✔         | dwc2                   |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | Dialog       | DA1469x                     | ✔      | ✖    | ✖         | da146xx                |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
-| Espressif    | S2, S3                      | ✔      | ✔    | ✖         | dwc2 or esp32sx        |                   |
-|   ESP32      +-----------------------------+--------+------+-----------+------------------------+-------------------+
+| Espressif    | S2, S3                      | ✔      | ✔    | ✖         | dwc2                   |                   |
+| ESP32        +-----------------------------+--------+------+-----------+------------------------+-------------------+
 |              | P4                          | ✔      | ✔    | ✔         | dwc2                   |                   |
-+--------------+----+------------------------+--------+------+-----------+------------------------+-------------------+
+|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
+|              | H4                          | ✔      | ✔    | ✖         | dwc2                   |                   |
++--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | GigaDevice   | GD32VF103                   | ✔      |      | ✖         | dwc2                   |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | Infineon     | XMC4500                     | ✔      | ✔    | ✖         | dwc2                   |                   |
@@ -139,7 +177,7 @@ Supported CPUs
 |              |     +-----------------------+--------+------+-----------+------------------------+-------------------+
 |              |     | 32mz                  | ✔      |      |           | pic32mz                | musb variant      |
 +--------------+-----+-----------------------+--------+------+-----------+------------------------+-------------------+
-| Mind Montion | mm32                        | ✔      |      | ✖         | mm32f327x_otg          | ci_fs variant     |
+| MindMotion   | mm32                        | ✔      |      | ✖         | mm32f327x_otg          | ci_fs variant     |
 +--------------+-----+-----------------------+--------+------+-----------+------------------------+-------------------+
 | NordicSemi   | nRF 52833, 52840, 5340      | ✔      | ✖    | ✖         | nrf5x                  | only ep8 is ISO   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
@@ -151,7 +189,7 @@ Supported CPUs
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
 |              | NUC505                      | ✔      |      | ✔         | nuc505                 |                   |
 +--------------+---------+-------------------+--------+------+-----------+------------------------+-------------------+
-| NXP          | iMXRT   | RT 10xx, 11xx     | ✔      | ✔    | ✔         | ci_hs                  |                   |
+| NXP          | iMXRT   | RT 10xx, 11xx     | ✔      | ✔    | ✔         | ci_hs, ehci            |                   |
 |              +---------+-------------------+--------+------+-----------+------------------------+-------------------+
 |              | Kinetis | KL                | ✔      | ⚠    | ✖         | ci_fs, khci            |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
@@ -159,15 +197,17 @@ Supported CPUs
 |              +---------+-------------------+--------+------+-----------+------------------------+-------------------+
 |              | LPC     | 11u, 13, 15       | ✔      | ✖    | ✖         | lpc_ip3511             |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
-|              |         | 17, 40            | ✔      | ⚠    | ✖         | lpc17_40               |                   |
+|              |         | 17, 40            | ✔      | ⚠    | ✖         | lpc17_40, ohci         |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
-|              |         | 18, 43            | ✔      | ✔    | ✔         | ci_hs                  |                   |
+|              |         | 18, 43            | ✔      | ✔    | ✔         | ci_hs, ehci            |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
 |              |         | 51u               | ✔      | ✖    | ✖         | lpc_ip3511             |                   |
 |              |         +-------------------+--------+------+-----------+------------------------+-------------------+
 |              |         | 54, 55            | ✔      |      | ✔         | lpc_ip3511             |                   |
 |              +---------+-------------------+--------+------+-----------+------------------------+-------------------+
-|              | MCX     | N9, A15           | ✔      |      | ✔         | ci_fs, ci_hs           |                   |
+|              | MCX     | N9                | ✔      |      | ✔         | ci_fs, ci_hs, ehci     |                   |
+|              |         +-------------------+--------+------+-----------+------------------------+-------------------+
+|              |         | A15               | ✔      |      |           | ci_fs                  |                   |
 +--------------+---------+-------------------+--------+------+-----------+------------------------+-------------------+
 | Raspberry Pi | RP2040, RP2350              | ✔      | ✔    | ✖         | rp2040, pio_usb        |                   |
 +--------------+-----+-----------------------+--------+------+-----------+------------------------+-------------------+
@@ -181,43 +221,37 @@ Supported CPUs
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | Sony         | CXD56                       | ✔      | ✖    | ✔         | cxd56                  |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
-| ST STM32     | F0                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
+| ST STM32     | F0, F3, L0, L1, L5, WBx5    | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
 |              | F1 | 102, 103               | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
 |              |    | 105, 107               | ✔      | ✔    | ✖         | dwc2                   |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
-|              | F2, F4, F7, H7              | ✔      | ✔    | ✔         | dwc2                   |                   |
-|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | F3                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
+|              | F2, F4, F7, H7, H7RS        | ✔      | ✔    | ✔         | dwc2                   |                   |
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
 |              | C0, G0, H5                  | ✔      |      | ✖         | stm32_fsdev            |                   |
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
 |              | G4                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
-|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | L0, L1                      | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
 |              | L4 | 4x2, 4x3               | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
-|              |    | 4x5, 4x6               | ✔      | ✔    | ✖         | dwc2                   |                   |
+|              |    | 4x5, 4x6, 4+           | ✔      | ✔    | ✖         | dwc2                   |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
-|              | L4+                         | ✔      | ✔    | ✖         | dwc2                   |                   |
-|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | L5                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
+|              | N6                          | ✔      | ✔    | ✔         | dwc2                   |                   |
+|              +----+------------------------+--------+------+-----------+------------------------+-------------------+
+|              | U0                          | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
+|              +----+------------------------+--------+------+-----------+------------------------+-------------------+
+|              | U3                          | ✔      |      | ✖         | stm32_fsdev            |                   |
 |              +----+------------------------+--------+------+-----------+------------------------+-------------------+
 |              | U5 | 535, 545               | ✔      |      | ✖         | stm32_fsdev            |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
 |              |    | 575, 585               | ✔      | ✔    | ✖         | dwc2                   |                   |
 |              |    +------------------------+--------+------+-----------+------------------------+-------------------+
 |              |    | 59x,5Ax,5Fx,5Gx        | ✔      | ✔    | ✔         | dwc2                   |                   |
-|              +----+------------------------+--------+------+-----------+------------------------+-------------------+
-|              | WBx5                        | ✔      | ✖    | ✖         | stm32_fsdev            |                   |
-+--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
++--------------+----+------------------------+--------+------+-----------+------------------------+-------------------+
 | TI           | MSP430                      | ✔      | ✖    | ✖         | msp430x5xx             |                   |
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | MSP432E4                    | ✔      |      | ✖         | musb                   |                   |
-|              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | TM4C123                     | ✔      |      | ✖         | musb                   |                   |
+|              | MSP432E4, TM4C123           | ✔      |      | ✖         | musb                   |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 | ValentyUSB   | eptri                       | ✔      | ✖    | ✖         | eptri                  |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
@@ -225,11 +259,11 @@ Supported CPUs
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
 |              | CH32V20x                    | ✔      |      | ✖         | stm32_fsdev/ch32_usbfs |                   |
 |              +-----------------------------+--------+------+-----------+------------------------+-------------------+
-|              | CH32V307                    | ✔      |      | ✔         | ch32_usbfs/hs          |                   |
+|              | CH32V305, CH32V307          | ✔      |      | ✔         | ch32_usbfs/hs          |                   |
 +--------------+-----------------------------+--------+------+-----------+------------------------+-------------------+
 
 Table Legend
-------------
+^^^^^^^^^^^^
 
 ========= =========================
 ✔         Supported
@@ -238,13 +272,24 @@ Table Legend
 \[empty\] Unknown
 ========= =========================
 
+Development Tools
+-----------------
+
+The following tools are provided freely to support the development of the TinyUSB project:
+
+- `IAR Build Tools (CX) <https://iar.com>`_ Professional IDE and compiler for embedded development.
+- `JetBrains CLion <https://www.jetbrains.com/clion/>`_ Cross-platform IDE for C and C++ development.
+- `PVS-Studio <https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source>`_ static analyzer for C, C++, C#, and Java code.
+
 
 .. |Build Status| image:: https://github.com/hathach/tinyusb/actions/workflows/build.yml/badge.svg
-   :target: https://github.com/hathach/tinyusb/actions
+   :target: https://github.com/hathach/tinyusb/actions/workflows/build.yml
 .. |CircleCI Status| image:: https://dl.circleci.com/status-badge/img/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master.svg?style=svg
    :target: https://dl.circleci.com/status-badge/redirect/circleci/4AYHvUhFxdnY4rA7LEsdqW/QmrpoL2AjGqetvFQNqtWyq/tree/master
 .. |Documentation Status| image:: https://readthedocs.org/projects/tinyusb/badge/?version=latest
    :target: https://docs.tinyusb.org/en/latest/?badge=latest
+.. |Static Analysis| image:: https://github.com/hathach/tinyusb/actions/workflows/static_analysis.yml/badge.svg
+   :target: https://github.com/hathach/tinyusb/actions/workflows/static_analysis.yml
 .. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
    :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
@@ -257,6 +302,5 @@ Table Legend
 .. _Supported Boards: docs/reference/boards.rst
 .. _Dependencies: docs/reference/dependencies.rst
 .. _Concurrency: docs/reference/concurrency.rst
-.. _Contributing: docs/contributing/index.rst
 .. _Code of Conduct: CODE_OF_CONDUCT.rst
-.. _Porting: docs/contributing/porting.rst
+.. _Porting: docs/porting.rst

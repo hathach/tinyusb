@@ -24,14 +24,14 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_OPTION_H_
-#define _TUSB_OPTION_H_
+#ifndef TUSB_OPTION_H_
+#define TUSB_OPTION_H_
 
 #include "common/tusb_compiler.h"
 
 // Version is release as major.minor.revision eg 1.0.0
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     18
+#define TUSB_VERSION_MINOR     19
 #define TUSB_VERSION_REVISION  0
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
@@ -62,7 +62,8 @@
 #define OPT_MCU_LPC55XX            OPT_MCU_LPC55
 
 // NRF
-#define OPT_MCU_NRF5X             100 ///< Nordic nRF5x series
+#define OPT_MCU_NRF5X             100 ///< Nordic nRF 52,53 series
+#define OPT_MCU_NRF54             101 ///< Nordic nRF54 series
 
 // SAM
 #define OPT_MCU_SAMD21            200 ///< MicroChip SAMD21
@@ -70,8 +71,9 @@
 #define OPT_MCU_SAMG              202 ///< MicroChip SAMDG series
 #define OPT_MCU_SAME5X            203 ///< MicroChip SAM E5x
 #define OPT_MCU_SAMD11            204 ///< MicroChip SAMD11
-#define OPT_MCU_SAML22            205 ///< MicroChip SAML22
-#define OPT_MCU_SAML21            206 ///< MicroChip SAML21
+#define OPT_MCU_SAML2X            205 ///< MicroChip SAML2x
+#define OPT_MCU_SAML21            OPT_MCU_SAML2X ///< SAML21 backward compatibility
+#define OPT_MCU_SAML22            OPT_MCU_SAML2X ///< SAML22 backward compatibility
 #define OPT_MCU_SAMX7X            207 ///< MicroChip SAME70, S70, V70, V71 family
 
 // STM32
@@ -94,6 +96,9 @@
 #define OPT_MCU_STM32U0           316 ///< ST U0
 #define OPT_MCU_STM32H7RS         317 ///< ST F7RS
 #define OPT_MCU_STM32C0           318 ///< ST C0
+#define OPT_MCU_STM32N6           319 ///< ST N6
+#define OPT_MCU_STM32WBA          320 ///< ST WBA
+#define OPT_MCU_STM32U3           321 ///< ST U3
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -127,6 +132,9 @@
 #define OPT_MCU_ESP32C2           905 ///< Espressif ESP32-C2
 #define OPT_MCU_ESP32H2           906 ///< Espressif ESP32-H2
 #define OPT_MCU_ESP32P4           907 ///< Espressif ESP32-P4
+#define OPT_MCU_ESP32C5           908 ///< Espressif ESP32-C5
+#define OPT_MCU_ESP32C61          909 ///< Espressif ESP32-C61
+#define OPT_MCU_ESP32H4           910 ///< Espressif ESP32-H4
 #define TUSB_MCU_VENDOR_ESPRESSIF (CFG_TUSB_MCU >= 900 && CFG_TUSB_MCU < 1000) // check if Espressif MCU
 #define TUP_MCU_ESPRESSIF        TUSB_MCU_VENDOR_ESPRESSIF //  for backward compatibility
 
@@ -195,14 +203,24 @@
 
 // Analog Devices
 #define OPT_MCU_MAX32690         2400  ///< ADI MAX32690
+#define OPT_MCU_MAX32665         2401  ///< ADI MAX32666/5
 #define OPT_MCU_MAX32666         2401  ///< ADI MAX32666/5
 #define OPT_MCU_MAX32650         2402  ///< ADI MAX32650/1/2
 #define OPT_MCU_MAX78002         2403  ///< ADI MAX78002
 
+// ArteryTek
+#define OPT_MCU_AT32F403A_407    2500  ///< ArteryTek AT32F403A_AT32F407
+#define OPT_MCU_AT32F415         2501  ///< ArteryTek AT32F415
+#define OPT_MCU_AT32F435_437     2502  ///< ArteryTek AT32F435_AT32F437
+#define OPT_MCU_AT32F423         2503  ///< ArteryTek AT32F423
+#define OPT_MCU_AT32F402_405     2504  ///< ArteryTek AT32F402_405
+#define OPT_MCU_AT32F425         2505  ///< ArteryTek AT32F425
+#define OPT_MCU_AT32F413         2506  ///< ArteryTek AT32F413
+
 // Check if configured MCU is one of listed
-// Apply _TU_CHECK_MCU with || as separator to list of input
-#define _TU_CHECK_MCU(_m)    (CFG_TUSB_MCU == _m)
-#define TU_CHECK_MCU(...)    (TU_ARGS_APPLY(_TU_CHECK_MCU, ||, __VA_ARGS__))
+// Apply TU_MCU_IS_EQUAL with || as separator to list of input
+#define TU_MCU_IS_EQUAL(_m)  (CFG_TUSB_MCU == (_m))
+#define TU_CHECK_MCU(...)    (TU_ARGS_APPLY(TU_MCU_IS_EQUAL, ||, __VA_ARGS__))
 
 //--------------------------------------------------------------------+
 // Supported OS
@@ -227,11 +245,11 @@
 #define OPT_MODE_HOST           0x0002 ///< Host Mode
 
 // High byte is max operational speed (corresponding to tusb_speed_t)
-#define OPT_MODE_DEFAULT_SPEED  0x0000 ///< Default (max) speed supported by MCU
-#define OPT_MODE_LOW_SPEED      0x0100 ///< Low Speed
-#define OPT_MODE_FULL_SPEED     0x0200 ///< Full Speed
-#define OPT_MODE_HIGH_SPEED     0x0400 ///< High Speed
-#define OPT_MODE_SPEED_MASK     0xff00
+#define OPT_MODE_DEFAULT_SPEED  0x0000u ///< Default (max) speed supported by MCU
+#define OPT_MODE_LOW_SPEED      0x0100u ///< Low Speed
+#define OPT_MODE_FULL_SPEED     0x0200u ///< Full Speed
+#define OPT_MODE_HIGH_SPEED     0x0400u ///< High Speed
+#define OPT_MODE_SPEED_MASK     0xff00u
 
 //--------------------------------------------------------------------+
 // Include tusb_config.h
@@ -265,6 +283,15 @@
   #endif
 
   #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
+#endif
+
+// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is insufficient).
+#ifndef CFG_TUD_CI_HS_VBUS_CHARGE
+  #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+  #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
 #endif
 
 // Enable DWC2 Slave mode for host
@@ -409,7 +436,7 @@
 
 #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE
   #ifndef CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
-  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
+  #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 1
   #endif
 
   #define CFG_TUSB_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT
@@ -417,7 +444,7 @@
 
 // OS selection
 #ifndef CFG_TUSB_OS
-  #define CFG_TUSB_OS             OPT_OS_NONE
+  #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
@@ -491,6 +518,10 @@
 
 #ifndef CFG_TUD_MSC
   #define CFG_TUD_MSC             0
+#endif
+
+#ifndef CFG_TUD_MTP
+  #define CFG_TUD_MTP             0
 #endif
 
 #ifndef CFG_TUD_HID
@@ -591,9 +622,22 @@
 // List of product IDs that can use the FTDI CDC driver. 0x0403 is FTDI's VID
 #ifndef CFG_TUH_CDC_FTDI_VID_PID_LIST
   #define CFG_TUH_CDC_FTDI_VID_PID_LIST \
-    {0x0403, 0x6001}, {0x0403, 0x6006}, {0x0403, 0x6010}, {0x0403, 0x6011}, \
-    {0x0403, 0x6014}, {0x0403, 0x6015}, {0x0403, 0x8372}, {0x0403, 0xFBFA}, \
-    {0x0403, 0xCD18}
+    {0x0403, 0x6001}, /* Similar device to SIO above */ \
+    {0x0403, 0x6006}, /* FTDI's alternate PID for above */ \
+    {0x0403, 0x6010}, /* Dual channel device */ \
+    {0x0403, 0x6011}, /* Quad channel hi-speed device */ \
+    {0x0403, 0x6014}, /* Single channel hi-speed device */ \
+    {0x0403, 0x6015}, /* FT-X series (FT201X, FT230X, FT231X, etc) */ \
+    {0x0403, 0x6040}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6041}, /* Quad channel hi-speed device with PD */ \
+    {0x0403, 0x6042}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6043}, /* Quad channel hi-speed device with PD */ \
+    {0x0403, 0x6044}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6045}, /* Dual channel hi-speed device with PD */ \
+    {0x0403, 0x6048}, /* Quad channel automotive grade hi-speed device */ \
+    {0x0403, 0x8372}, /* Product Id SIO application of 8U100AX */ \
+    {0x0403, 0xFBFA}, /* Product ID for FT232RL */ \
+    {0x0403, 0xCD18}, /* ??? */
 #endif
 
 // CP210X is not part of CDC class, only to re-use CDC driver API
@@ -604,7 +648,9 @@
 // List of product IDs that can use the CP210X CDC driver. 0x10C4 is Silicon Labs' VID
 #ifndef CFG_TUH_CDC_CP210X_VID_PID_LIST
   #define CFG_TUH_CDC_CP210X_VID_PID_LIST \
-    {0x10C4, 0xEA60}, {0x10C4, 0xEA70}
+  { 0x10C4, 0xEA60 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA61 }, /* Silicon Labs factory default */ \
+  { 0x10C4, 0xEA70 }  /* Silicon Labs Dual Port factory default */
 #endif
 
 #ifndef CFG_TUH_CDC_CH34X
@@ -622,6 +668,24 @@
     { 0x4348, 0x5523 }, /* ch340 custom chip */ \
     { 0x2184, 0x0057 }, /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */ \
     { 0x9986, 0x7523 }  /* overtaken from Linux Kernel driver /drivers/usb/serial/ch341.c */
+#endif
+
+#ifndef CFG_TUH_CDC_PL2303
+  // PL2303 is not part of CDC class, only to re-use CDC driver API
+  #define CFG_TUH_CDC_PL2303 0
+#endif
+
+#ifndef CFG_TUH_CDC_PL2303_VID_PID_QUIRKS_LIST
+  // List of product IDs that can use the PL2303 CDC driver
+  #define CFG_TUH_CDC_PL2303_VID_PID_LIST \
+  { 0x067b, 0x2303 }, /* initial 2303 */ \
+  { 0x067b, 0x2304 }, /* TB */ \
+  { 0x067b, 0x23a3 }, /* GC */ \
+  { 0x067b, 0x23b3 }, /* GB */ \
+  { 0x067b, 0x23c3 }, /* GT */ \
+  { 0x067b, 0x23d3 }, /* GL */ \
+  { 0x067b, 0x23e3 }, /* GE */ \
+  { 0x067b, 0x23f3 }  /* GS */
 #endif
 
 #ifndef CFG_TUH_HID
@@ -664,6 +728,6 @@
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
 typedef int make_iso_compilers_happy;
 
-#endif /* _TUSB_OPTION_H_ */
+#endif /* TUSB_OPTION_H_ */
 
 /** @} */

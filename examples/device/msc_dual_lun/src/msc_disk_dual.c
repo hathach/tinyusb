@@ -207,26 +207,27 @@ uint8_t tud_msc_get_maxlun_cb(void) {
   return 2; // dual LUN
 }
 
-// Invoked when received SCSI_CMD_INQUIRY
-// Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
-void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
-  (void) lun; // use same ID for both LUNs
-
+// Invoked when received SCSI_CMD_INQUIRY, v2 with full inquiry response
+// Some inquiry_resp's fields are already filled with default values, application can update them
+// Return length of inquiry response, typically sizeof(scsi_inquiry_resp_t) (36 bytes), can be longer if included vendor data.
+uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uint32_t bufsize) {
+  (void) lun;
+  (void) bufsize;
   const char vid[] = "TinyUSB";
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
 
-  memcpy(vendor_id  , vid, strlen(vid));
-  memcpy(product_id , pid, strlen(pid));
-  memcpy(product_rev, rev, strlen(rev));
+  strncpy((char*) inquiry_resp->vendor_id, vid, 8);
+  strncpy((char*) inquiry_resp->product_id, pid, 16);
+  strncpy((char*) inquiry_resp->product_rev, rev, 4);
+
+  return sizeof(scsi_inquiry_resp_t); // 36 bytes
 }
 
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted
 bool tud_msc_test_unit_ready_cb(uint8_t lun) {
-  if ( lun == 1 && board_button_read() ) return false;
-
-  return true; // RAM disk is always ready
+  return ( lun == 1 && board_button_read() ) ? false : true;
 }
 
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size

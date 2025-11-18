@@ -44,6 +44,27 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
 }
 
 //--------------------------------------------------------------------+
+// Spinlock API
+//--------------------------------------------------------------------+
+typedef critical_section_t osal_spinlock_t; // pico implement critical section with spinlock
+#define OSAL_SPINLOCK_DEF(_name, _int_set) \
+  osal_spinlock_t _name
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
+  critical_section_init(ctx);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
+  (void) in_isr;
+  critical_section_enter_blocking(ctx);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
+  (void) in_isr;
+  critical_section_exit(ctx);
+}
+
+//--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
 typedef struct semaphore osal_semaphore_def_t, * osal_semaphore_t;
@@ -60,8 +81,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_delete(osal_semaphore_t 
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr) {
   (void) in_isr;
-  sem_release(sem_hdl);
-  return true;
+  return sem_release(sem_hdl);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec) {
@@ -118,7 +138,7 @@ typedef osal_queue_def_t* osal_queue_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
   critical_section_init(&qdef->critsec);
-  tu_fifo_clear(&qdef->ff);
+  (void) tu_fifo_clear(&qdef->ff);
   return (osal_queue_t) qdef;
 }
 

@@ -1,4 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc18xx/lpc_chip_18xx
 
 include $(TOP)/$(BOARD_PATH)/board.mk

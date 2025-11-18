@@ -36,11 +36,6 @@ env:
   HIL_JSON: test/hil/tinyusb.json
 
 jobs:
-  # ---------------------------------------
-  #
-  # Build
-  #
-  # ---------------------------------------
   set-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -63,28 +58,31 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
-  # Build CMake
+  # Build CMake: only build on push with one-per-family.
+  # Full built is done by CircleCI in PR
   # ---------------------------------------
   cmake:
+    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
       matrix:
         toolchain:
-          # - 'arm-clang' is built by circle-ci in PR
           - 'aarch64-gcc'
+          #- 'arm-clang'
           - 'arm-gcc'
+          - 'esp-idf'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      one-per-family: ${{ github.event_name == 'push' }}
+      one-per-family: true
 
   # ---------------------------------------
-  # Build Make (built by circle-ci in PR, only build on push here)
+  # Build Make: only build on push with one-per-family
   # ---------------------------------------
   make:
     if: github.event_name == 'push'
@@ -94,34 +92,16 @@ jobs:
       fail-fast: false
       matrix:
         toolchain:
-          # 'arm-clang'
-          - 'arm-gcc'
           - 'aarch64-gcc'
+          #- 'arm-clang'
+          - 'arm-gcc'
           - 'msp430-gcc'
           - 'riscv-gcc'
           - 'rx-gcc'
-          - 'esp-idf'
     with:
       build-system: 'make'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      one-per-family: true
-
-  # ---------------------------------------
-  # Build Make on Windows/MacOS
-  # ---------------------------------------
-  make-os:
-    if: github.event_name == 'pull_request'
-    uses: ./.github/workflows/build_util.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-    with:
-      os: ${{ matrix.os }}
-      build-system: 'make'
-      toolchain: 'arm-gcc'
-      build-args: '["stm32h7"]'
       one-per-family: true
 
   # ---------------------------------------
@@ -147,6 +127,23 @@ jobs:
       one-per-family: true
 
   # ---------------------------------------
+  # Build Make on Windows/MacOS
+  # ---------------------------------------
+  make-os:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/build_util.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    with:
+      os: ${{ matrix.os }}
+      build-system: 'make'
+      toolchain: 'arm-gcc'
+      build-args: '["stm32h7"]'
+      one-per-family: true
+
+  # ---------------------------------------
   # Zephyr
   # ---------------------------------------
   zephyr:
@@ -164,17 +161,12 @@ jobs:
 
       - name: Build
         run: |
-          west build -b pca10056 -d examples/device/cdc_msc/build examples/device/cdc_msc -- -DRTOS=zephyr
-          west build -b pca10056 -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr
+          west build -b nrf52840dk -d examples/device/cdc_msc/build examples/device/cdc_msc -- -DRTOS=zephyr
+          west build -b nrf52840dk -d examples/device/msc_dual_lun/build examples/device/msc_dual_lun -- -DRTOS=zephyr
 
   # ---------------------------------------
-  #
   # Hardware in the loop (HIL)
   # Run on PR only (hil-tinyusb), hil-hfp only run on non-forked PR
-  # ---------------------------------------
-
-  # ---------------------------------------
-  # Build arm-gcc
   # ---------------------------------------
   hil-build:
     if: |
@@ -206,27 +198,35 @@ jobs:
     needs: hil-build
     runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
     steps:
+      - name: Get Skip Boards from previous run
+        if: github.run_attempt != '1'
+        run: |
+          if [ -f "${{ env.HIL_JSON }}.skip" ]; then
+            SKIP_BOARDS=$(cat "${{ env.HIL_JSON }}.skip")
+          else
+            SKIP_BOARDS=""
+          fi
+          echo "SKIP_BOARDS=$SKIP_BOARDS"
+          echo "SKIP_BOARDS=$SKIP_BOARDS" >> $GITHUB_ENV
+
       - name: Clean workspace
         run: |
-          echo "Cleaning up previous run"
+          echo "Cleaning up for the first run"
           rm -rf "${{ github.workspace }}"
           mkdir -p "${{ github.workspace }}"
 
       - name: Checkout TinyUSB
         uses: actions/checkout@v4
-        with:
-          sparse-checkout: test/hil
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: cmake-build
           merge-multiple: true
 
       - name: Test on actual hardware
         run: |
-          ls cmake-build/
-          python3 test/hil/hil_test.py ${{ env.HIL_JSON }}
+          python3 test/hil/hil_test.py ${{ env.HIL_JSON }} $SKIP_BOARDS
 
   # ---------------------------------------
   # Hardware in the loop (HIL)
@@ -266,7 +266,7 @@ jobs:
         run: python3 tools/get_deps.py $BUILD_ARGS
 
       - name: Build
-        run: python3 tools/build.py --toolchain iar $BUILD_ARGS
+        run: python3 tools/build.py -j 4 --toolchain iar $BUILD_ARGS
 
       - name: Test on actual hardware (hardware in the loop)
         run: python3 test/hil/hil_test.py hfp.json

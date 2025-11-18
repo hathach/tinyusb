@@ -25,8 +25,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_NET_DEVICE_H_
-#define _TUSB_NET_DEVICE_H_
+#ifndef TUSB_NET_DEVICE_H_
+#define TUSB_NET_DEVICE_H_
 
 #include <stdint.h>
 #include "class/cdc/cdc.h"
@@ -53,6 +53,13 @@ typedef enum
 
 #ifdef __cplusplus
  extern "C" {
+#endif
+
+//--------------------------------------------------------------------+
+// Implemented by Application
+//--------------------------------------------------------------------+
+#if CFG_TUD_ECM_RNDIS
+extern void rndis_class_set_handler(uint8_t *data, int size);
 #endif
 
 //--------------------------------------------------------------------+
@@ -87,6 +94,11 @@ void tud_network_init_cb(void);
 // TODO removed later since it is not part of tinyusb stack
 extern uint8_t tud_network_mac_address[6];
 
+//------------- NCM -------------//
+
+// Set the network link state (up/down) and notify the host
+void tud_network_link_state(uint8_t rhport, bool is_up);
+
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
@@ -102,4 +114,4 @@ void     netd_report          (uint8_t *buf, uint16_t len);
  }
 #endif
 
-#endif /* _TUSB_NET_DEVICE_H_ */
+#endif /* TUSB_NET_DEVICE_H_ */

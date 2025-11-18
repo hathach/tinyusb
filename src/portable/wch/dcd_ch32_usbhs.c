@@ -27,13 +27,14 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS) && CFG_TUD_WCH_USBIP_USBHS
-#include "ch32_usbhs_reg.h"
+#if CFG_TUD_ENABLED && defined(TUP_USBIP_WCH_USBHS) && defined(CFG_TUD_WCH_USBIP_USBHS) && \
+  (CFG_TUD_WCH_USBIP_USBHS == 1)
+  #include "ch32_usbhs_reg.h"
 
-#include "device/dcd.h"
+  #include "device/dcd.h"
 
-// Max number of bi-directional endpoints including EP0
-#define EP_MAX  16
+  // Max number of bi-directional endpoints including EP0
+  #define EP_MAX 16
 
 typedef struct {
   uint8_t* buffer;
@@ -288,6 +289,21 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   }
 }
 
+  #if 0
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void) rhport;
+  (void) ep_addr;
+  (void) largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep) {
+  (void) rhport;
+  (void) desc_ep;
+  return false;
+}
+  #endif
+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   (void) rhport;
 
@@ -419,5 +435,4 @@ void dcd_int_handler(uint8_t rhport) {
     USBHSD->INT_FG = USBHS_SUSPEND_FLAG; /* Clear flag */
   }
 }
-
 #endif

@@ -1,4 +1,4 @@
-include ../../build_system/make/make.mk
+include ../../../hw/bsp/family_support.mk
 
 ifeq ($(DISABLE_MJPEG),1)
 CFLAGS += -DCFG_EXAMPLE_VIDEO_DISABLE_MJPEG
@@ -9,10 +9,10 @@ endif
 
 INC += \
 	src \
-	$(TOP)/hw \
+
 
 # Example source
 EXAMPLE_SOURCE += $(wildcard src/*.c)
-SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
+SRC_C += $(addprefix $(EXAMPLE_PATH)/, $(EXAMPLE_SOURCE))
 
-include ../../build_system/make/rules.mk
+include ../../../hw/bsp/family_rules.mk

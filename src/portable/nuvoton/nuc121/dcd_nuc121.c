@@ -38,7 +38,17 @@
 #if CFG_TUD_ENABLED && ( (CFG_TUSB_MCU == OPT_MCU_NUC121) || (CFG_TUSB_MCU == OPT_MCU_NUC126) )
 
 #include "device/dcd.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
 #include "NuMicro.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 // Since TinyUSB doesn't use SOF for now, and this interrupt too often (1ms interval)
 // We disable SOF for now until needed later on
@@ -293,14 +303,28 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   /* construct USB Configuration Register value and then write it */
   uint32_t cfg = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   cfg |= (TUSB_DIR_IN == dir) ? USBD_CFG_EPMODE_IN : USBD_CFG_EPMODE_OUT;
-  if (TUSB_XFER_ISOCHRONOUS == type)
+  if (TUSB_XFER_ISOCHRONOUS == type) {
     cfg |= USBD_CFG_TYPE_ISO;
+  }
   ep->CFG = cfg;
 
   /* make a note of the endpoint size */
   xfer->max_packet_size = size;
 
   return true;
+}
+
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void) rhport;
+  (void) ep_addr;
+  (void) largest_packet_size;
+  return false; // TODO not implemented yet
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
+  (void) rhport;
+  (void) desc_ep;
+  return false; // TODO not implemented yet
 }
 
 void dcd_edpt_close_all (uint8_t rhport)

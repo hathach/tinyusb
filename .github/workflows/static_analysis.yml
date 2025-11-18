@@ -1,0 +1,242 @@
+name: Static Analysis
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'hw/bsp/**'
+      - '.github/workflows/static_analysis.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'hw/bsp/**'
+      - '.github/workflows/static_analysis.yml'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+#  pull-requests: write
+#  checks: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  CodeQL:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - 'metro_m4_express'
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: -b${{ matrix.board }}
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'arm-gcc'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: 'c-cpp'
+          queries: security-and-quality
+
+      - name: Build
+        run: |
+          mkdir -p build
+          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake --build build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: CodeQL
+          upload: false
+        id: analyze
+
+      - name: Filter SARIF report
+        uses: advanced-security/filter-sarif@v1
+        with:
+          patterns: |
+            -hw/mcu/**
+            -lib/**
+          input: ${{ steps.analyze.outputs.sarif-output }}/cpp.sarif
+          output: ${{ steps.analyze.outputs.sarif-output }}/cpp.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.analyze.outputs.sarif-output }}
+          category: CodeQL
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: codeql-${{ matrix.board }}
+          path: ${{ steps.analyze.outputs.sarif-output }}
+
+  PVS-Studio:
+    # Only run on non-forked PR since secrets token is required
+    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - 'raspberry_pi_pico'
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: -b${{ matrix.board }}
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'arm-gcc'
+
+      - name: Install Tools
+        run: |
+          wget -q -O - https://files.pvs-studio.com/etc/pubkey.txt | sudo apt-key add -
+          sudo wget -O /etc/apt/sources.list.d/viva64.list https://files.pvs-studio.com/etc/viva64.list
+          sudo apt update
+          sudo apt install pvs-studio
+          pvs-studio-analyzer credentials ${{ secrets.PVS_STUDIO_CREDENTIALS }}
+          pvs-studio-analyzer --version
+
+      - name: Analyze
+        run: |
+          mkdir -p build
+          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake --build build
+          pvs-studio-analyzer analyze -f build/compile_commands.json -R .PVS-Studio/.pvsconfig -j4 --security-related-issues --misra-cpp-version 2008 --misra-c-version 2023 --use-old-parser -e lib/ -e hw/mcu/ -e */iar/cxarm/ -e pico-sdk/
+          plog-converter -t sarif -o pvs-studio-${{ matrix.board }}.sarif PVS-Studio.log
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: pvs-studio-${{ matrix.board }}.sarif
+          category: PVS-Studio
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: pvs-studio-${{ matrix.board }}
+          path: pvs-studio-${{ matrix.board }}.sarif
+
+  SonarQube:
+    # Only run on non-forked PR since secrets token is required
+    if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - 'stm32h743eval'
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: -b${{ matrix.board }}
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'arm-gcc'
+
+      - name: Install Build Wrapper
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v6
+
+      - name: Run Build Wrapper
+        run: |
+          cmake examples -B build -G Ninja -DBOARD=${{ matrix.board }} -DCMAKE_BUILD_TYPE=MinSizeRel
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build/
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          # Consult https://docs.sonarsource.com/sonarqube-server/latest/analyzing-source-code/scanners/sonarscanner/ for more information and options
+          args: >
+            --define sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
+
+  IAR-CStat:
+    # Only run on non-forked PR since secrets token is required
+    #if: github.repository_owner == 'hathach' && github.event.pull_request.head.repo.fork == false
+    if: false
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - 'b_g474e_dpow1'
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Get Dependencies
+        uses: ./.github/actions/get_deps
+        with:
+          arg: -b${{ matrix.board }}
+
+      - name: Setup Toolchain
+        uses: ./.github/actions/setup_toolchain
+        with:
+          toolchain: 'arm-iar'
+
+      - name: Install CMake 4.2
+        run: |
+          # IAR CSTAT requires CMake >= 4.1
+          wget -q https://github.com/Kitware/CMake/releases/download/v4.2.0-rc1/cmake-4.2.0-rc1-linux-x86_64.tar.gz
+          tar -xzf cmake-4.2.0-rc1-linux-x86_64.tar.gz
+          echo "${{ github.workspace }}/cmake-4.2.0-rc1-linux-x86_64/bin" >> $GITHUB_PATH
+
+      - name: Build and run IAR C-STAT Analysis
+        env:
+          IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+        run: |
+          # CMake run post build to generate C-STAT SARIF report
+          cmake --version
+          mkdir -p build
+          cmake examples/device/cdc_msc -B build -G Ninja -DBOARD=${{ matrix.board }} -DTOOLCHAIN=iar -DIAR_CSTAT=1 -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake --build build
+          # Merge sarif files for codeql upload
+          npm i -g @microsoft/sarif-multitool
+          npx @microsoft/sarif-multitool merge --merge-runs --output-file iar-cstat-${{ matrix.board }}.sarif build/cstat_sarif/*.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: iar-cstat-${{ matrix.board }}.sarif
+          category: IAR-CStat
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: iar-cstat-${{ matrix.board }}
+          path: iar-cstat-${{ matrix.board }}.sarif

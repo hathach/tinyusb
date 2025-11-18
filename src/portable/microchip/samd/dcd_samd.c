@@ -26,10 +26,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUD_ENABLED && \
-    (CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
-     CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X || \
-     CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21)
+#if CFG_TUD_ENABLED && TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAMD21, OPT_MCU_SAML2X, OPT_MCU_SAMD51, OPT_MCU_SAME5X)
 
 #include "sam.h"
 #include "device/dcd.h"
@@ -106,10 +103,8 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
-#if CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X
-
-void dcd_int_enable(uint8_t rhport)
-{
+#if TU_CHECK_MCU(OPT_MCU_SAMD51, OPT_MCU_SAME5X)
+void dcd_int_enable(uint8_t rhport) {
   (void) rhport;
   NVIC_EnableIRQ(USB_0_IRQn);
   NVIC_EnableIRQ(USB_1_IRQn);
@@ -117,8 +112,7 @@ void dcd_int_enable(uint8_t rhport)
   NVIC_EnableIRQ(USB_3_IRQn);
 }
 
-void dcd_int_disable(uint8_t rhport)
-{
+void dcd_int_disable(uint8_t rhport) {
   (void) rhport;
   NVIC_DisableIRQ(USB_3_IRQn);
   NVIC_DisableIRQ(USB_2_IRQn);
@@ -126,17 +120,13 @@ void dcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB_0_IRQn);
 }
 
-#elif CFG_TUSB_MCU == OPT_MCU_SAMD11 || CFG_TUSB_MCU == OPT_MCU_SAMD21 || \
-      CFG_TUSB_MCU == OPT_MCU_SAML22 || CFG_TUSB_MCU == OPT_MCU_SAML21
-
-void dcd_int_enable(uint8_t rhport)
-{
+#elif TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAMD21, OPT_MCU_SAML2X)
+void dcd_int_enable(uint8_t rhport) {
   (void) rhport;
   NVIC_EnableIRQ(USB_IRQn);
 }
 
-void dcd_int_disable(uint8_t rhport)
-{
+void dcd_int_disable(uint8_t rhport) {
   (void) rhport;
   NVIC_DisableIRQ(USB_IRQn);
 }
@@ -255,11 +245,17 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
-void dcd_edpt_close (uint8_t rhport, uint8_t ep_addr) {
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void) rhport;
   (void) ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
 
-  // TODO: implement if necessary?
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
 }
 
 void dcd_edpt_close_all (uint8_t rhport)
@@ -437,5 +433,4 @@ void dcd_int_handler (uint8_t rhport)
   // Handle complete transfer
   maybe_transfer_complete();
 }
-
 #endif

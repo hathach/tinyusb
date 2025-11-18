@@ -34,15 +34,14 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]     AUDIO | MIDI | HID | MSC | CDC          [LSB]
  */
-#define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-    _PID_MAP(MIDI, 3) | _PID_MAP(AUDIO, 4) | _PID_MAP(VENDOR, 5) )
+#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
+#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
+    PID_MAP(MIDI, 3) | PID_MAP(AUDIO, 4) | PID_MAP(VENDOR, 5) )
 
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
-{
+static tusb_desc_device_t const desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
@@ -67,22 +66,18 @@ tusb_desc_device_t const desc_device =
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
-uint8_t const * tud_descriptor_device_cb(void)
-{
+uint8_t const * tud_descriptor_device_cb(void) {
   return (uint8_t const *) &desc_device;
 }
 
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
-enum
-{
+enum {
   ITF_NUM_AUDIO_CONTROL = 0,
   ITF_NUM_AUDIO_STREAMING,
   ITF_NUM_TOTAL
 };
-
-#define CONFIG_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + CFG_TUD_AUDIO * TUD_AUDIO_MIC_ONE_CH_2_FORMAT_DESC_LEN)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -97,24 +92,81 @@ enum
   #define EPNUM_AUDIO   0x01
 #endif
 
-uint8_t const desc_configuration[] =
-{
-    // Config number, interface count, string index, total length, attribute, power in mA
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+#define CONFIG_UAC1_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + TUD_AUDIO10_MIC_ONE_CH_DESC_LEN(3))
 
-    // Interface number, string index, EP Out & EP In address, EP size
-    TUD_AUDIO_MIC_ONE_CH_2_FORMAT_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ 0, /*_epin*/ 0x80 | EPNUM_AUDIO)
+uint8_t const desc_uac1_configuration[] = {
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC1_TOTAL_LEN, 0x00, 100),
+
+  // Interface number, string index, EP Out & EP In address, EP size
+  TUD_AUDIO10_MIC_ONE_CH_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ 0, /*_nBytesPerSample*/ 2, /*_nBitsUsedPerSample*/ 16, /*_epin*/ 0x80 | EPNUM_AUDIO, /*_epsize*/ CFG_TUD_AUDIO10_FUNC_1_FORMAT_1_EP_SZ_IN, 32000, 48000, 96000)
 };
 
-TU_VERIFY_STATIC(sizeof(desc_configuration) == CONFIG_TOTAL_LEN, "Incorrect size");
+TU_VERIFY_STATIC(sizeof(desc_uac1_configuration) == CONFIG_UAC1_TOTAL_LEN, "Incorrect size");
+
+#if TUD_OPT_HIGH_SPEED
+#define CONFIG_UAC2_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + TUD_AUDIO20_MIC_ONE_CH_2_FORMAT_DESC_LEN)
+
+uint8_t const desc2_uac2_configuration[] = {
+    // Config number, interface count, string index, total length, attribute, power in mA
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_UAC2_TOTAL_LEN, 0x00, 100),
+
+    // Interface number, string index, EP Out & EP In address, EP size
+    TUD_AUDIO20_MIC_ONE_CH_2_FORMAT_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ 0, /*_epin*/ 0x80 | EPNUM_AUDIO)
+};
+
+TU_VERIFY_STATIC(sizeof(desc2_uac2_configuration) == CONFIG_UAC2_TOTAL_LEN, "Incorrect size");
+
+// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
+tusb_desc_device_qualifier_t const desc_device_qualifier = {
+  .bLength            = sizeof(tusb_desc_device_t),
+  .bDescriptorType    = TUSB_DESC_DEVICE,
+  .bcdUSB             = 0x0200,
+
+  .bDeviceClass       = TUSB_CLASS_MISC,
+  .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+  .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+
+  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bNumConfigurations = 0x01,
+  .bReserved          = 0x00
+};
+
+// Invoked when received GET DEVICE QUALIFIER DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete.
+// device_qualifier descriptor describes information about a high-speed capable device that would
+// change if the device were operating at the other speed. If not highspeed capable stall this request.
+uint8_t const *tud_descriptor_device_qualifier_cb(void) {
+  return (uint8_t const *) &desc_device_qualifier;
+}
+
+// Invoked when received GET OTHER SEED CONFIGURATION DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+// Configuration descriptor in the other speed e.g if high speed then this is for full speed and vice versa
+uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  (void) index;// for multiple configurations
+
+  // if link speed is high return fullspeed config, and vice versa
+  return (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_uac1_configuration : desc2_uac2_configuration;
+}
+
+#endif// highspeed
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
-{
+uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
   (void) index; // for multiple configurations
-  return desc_configuration;
+#if TUD_OPT_HIGH_SPEED
+  // Although we are highspeed, host may be fullspeed.
+  if(tud_speed_get() == TUSB_SPEED_FULL) {
+    return desc_uac1_configuration;
+  } else {
+    return desc2_uac2_configuration;
+  }
+#else
+    return desc_uac1_configuration;
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -130,8 +182,7 @@ enum {
 };
 
 // array of pointer to string descriptors
-char const* string_desc_arr [] =
-{
+char const* string_desc_arr [] = {
     (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
     "PaniRCorp",                   // 1: Manufacturer
     "MicNode",                     // 2: Product
@@ -162,14 +213,18 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
       // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
       // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
-      if ( !(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])) ) return NULL;
+      if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0]))) {
+        return NULL;
+      }
 
       const char *str = string_desc_arr[index];
 
       // Cap at max char
       chr_count = strlen(str);
       size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1; // -1 for string type
-      if ( chr_count > max_count ) chr_count = max_count;
+      if (chr_count > max_count) {
+        chr_count = max_count;
+      }
 
       // Convert ASCII string into UTF-16
       for ( size_t i = 0; i < chr_count; i++ ) {

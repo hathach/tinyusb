@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_USBH_H_
-#define _TUSB_USBH_H_
+#ifndef TUSB_USBH_H_
+#define TUSB_USBH_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -42,7 +42,7 @@
 //--------------------------------------------------------------------+
 
 // Endpoint Bulk size depending on host mx speed
-#define TUH_EPSIZE_BULK_MPS   (TUD_OPT_HIGH_SPEED ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS)
+#define TUH_EPSIZE_BULK_MPS   (TUH_OPT_HIGH_SPEED ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS)
 
 // forward declaration
 struct tuh_xfer_s;
@@ -123,13 +123,13 @@ void tuh_enum_descriptor_device_cb(uint8_t daddr, const tusb_desc_device_t *desc
 bool tuh_enum_descriptor_configuration_cb(uint8_t daddr, uint8_t cfg_index, const tusb_desc_configuration_t *desc_config);
 
 // Invoked when a device is mounted (configured)
-TU_ATTR_WEAK void tuh_mount_cb (uint8_t daddr);
+void tuh_mount_cb (uint8_t daddr);
 
 // Invoked when a device failed to mount during enumeration process
-// TU_ATTR_WEAK void tuh_mount_failed_cb (uint8_t daddr);
+// void tuh_mount_failed_cb (uint8_t daddr);
 
 // Invoked when a device is unmounted (detached)
-TU_ATTR_WEAK void tuh_umount_cb(uint8_t daddr);
+void tuh_umount_cb(uint8_t daddr);
 
 // Invoked when there is a new usb event, which need to be processed by tuh_task()/tuh_task_ext()
 void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
@@ -179,7 +179,7 @@ TU_ATTR_ALWAYS_INLINE static inline void tuh_task(void) {
 // Check if there is pending events need processing by tuh_task()
 bool tuh_task_event_ready(void);
 
-#ifndef _TUSB_HCD_H_
+#ifndef TUSB_HCD_H_
 extern void hcd_int_handler(uint8_t rhport, bool in_isr);
 #endif
 
@@ -203,6 +203,9 @@ bool tuh_rhport_reset_bus(uint8_t rhport, bool active);
 
 // Get VID/PID of device
 bool tuh_vid_pid_get(uint8_t daddr, uint16_t* vid, uint16_t* pid);
+
+// Get local (cached) device descriptor once device is enumerated
+bool tuh_descriptor_get_device_local(uint8_t daddr, tusb_desc_device_t* desc_device);
 
 // Get speed of device
 tusb_speed_t tuh_speed_get(uint8_t daddr);
@@ -231,7 +234,17 @@ bool tuh_bus_info_get(uint8_t daddr, tuh_bus_info_t* bus_info);
 
 //--------------------------------------------------------------------+
 // Transfer API
+// Each Function will make a USB transfer request to device. If
+// - complete_cb != NULL, the function will return immediately and invoke the callback when request is complete.
+// - complete_cb == NULL, the function will block until request is complete.
+// In this case, user_data should be tusb_xfer_result_t* to hold the transfer result.
 //--------------------------------------------------------------------+
+
+// Helper to make Sync API from async one
+#define TU_API_SYNC(_async_api, ...) \
+   xfer_result_t result = XFER_RESULT_INVALID;\
+   TU_VERIFY(_async_api(__VA_ARGS__, NULL, (uintptr_t) &result), XFER_RESULT_TIMEOUT); \
+   return result
 
 // Submit a control transfer
 //  - async: complete callback invoked when finished.
@@ -324,45 +337,54 @@ bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void*
 
 //--------------------------------------------------------------------+
 // Descriptors Synchronous (blocking)
+// Sync API which is blocking until transfer is complete.
+// return transfer result
 //--------------------------------------------------------------------+
 
-// Sync (blocking) version of tuh_descriptor_get()
-// return transfer result
-uint8_t tuh_descriptor_get_sync(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len);
+// Sync version of tuh_descriptor_get()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_sync(uint8_t daddr, uint8_t type, uint8_t index, void* buffer, uint16_t len) {
+  TU_API_SYNC(tuh_descriptor_get, daddr, type, index, buffer, len);
+}
 
-// Sync (blocking) version of tuh_descriptor_get_device()
-// return transfer result
-uint8_t tuh_descriptor_get_device_sync(uint8_t daddr, void* buffer, uint16_t len);
+// Sync version of tuh_descriptor_get_device()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_device_sync(uint8_t daddr, void* buffer, uint16_t len) {
+  TU_API_SYNC(tuh_descriptor_get_device, daddr, buffer, len);
+}
 
-// Sync (blocking) version of tuh_descriptor_get_configuration()
-// return transfer result
-uint8_t tuh_descriptor_get_configuration_sync(uint8_t daddr, uint8_t index, void* buffer, uint16_t len);
+// Sync version of tuh_descriptor_get_configuration()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_configuration_sync(uint8_t daddr, uint8_t index, void* buffer, uint16_t len) {
+  TU_API_SYNC(tuh_descriptor_get_configuration, daddr, index, buffer, len);
+}
 
-// Sync (blocking) version of tuh_descriptor_get_hid_report()
-// return transfer result
-uint8_t tuh_descriptor_get_hid_report_sync(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len);
+// Sync version of tuh_descriptor_get_hid_report()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_hid_report_sync(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len) {
+  TU_API_SYNC(tuh_descriptor_get_hid_report, daddr, itf_num, desc_type, index, buffer, len);
+}
 
-// Sync (blocking) version of tuh_descriptor_get_string()
-// return transfer result
-uint8_t tuh_descriptor_get_string_sync(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len);
+// Sync version of tuh_descriptor_get_string()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_string_sync(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len) {
+  TU_API_SYNC(tuh_descriptor_get_string, daddr, index, language_id, buffer, len);
+}
 
-// Sync (blocking) version of tuh_descriptor_get_string_langid()
-TU_ATTR_ALWAYS_INLINE static inline
-uint8_t tuh_descriptor_get_string_langid_sync(uint8_t daddr, void* buffer, uint16_t len) {
+// Sync version of tuh_descriptor_get_string_langid()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_string_langid_sync(uint8_t daddr, void* buffer, uint16_t len) {
   return tuh_descriptor_get_string_sync(daddr, 0, 0, buffer, len);
 }
 
-// Sync (blocking) version of tuh_descriptor_get_manufacturer_string()
-// return transfer result
-uint8_t tuh_descriptor_get_manufacturer_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len);
+// Sync version of tuh_descriptor_get_manufacturer_string()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_manufacturer_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len) {
+  TU_API_SYNC(tuh_descriptor_get_manufacturer_string, daddr, language_id, buffer, len);
+}
 
-// Sync (blocking) version of tuh_descriptor_get_product_string()
-// return transfer result
-uint8_t tuh_descriptor_get_product_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len);
+// Sync version of tuh_descriptor_get_product_string()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_product_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len) {
+  TU_API_SYNC(tuh_descriptor_get_product_string, daddr, language_id, buffer, len);
+}
 
-// Sync (blocking) version of tuh_descriptor_get_serial_string()
-// return transfer result
-uint8_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len);
+// Sync version of tuh_descriptor_get_serial_string()
+TU_ATTR_ALWAYS_INLINE static inline tusb_xfer_result_t tuh_descriptor_get_serial_string_sync(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len) {
+  TU_API_SYNC(tuh_descriptor_get_serial_string, daddr, language_id, buffer, len);
+}
 
 #ifdef __cplusplus
  }

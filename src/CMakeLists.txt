@@ -1,11 +1,8 @@
-# TODO more docs and example on how to use this file
-# TINYUSB_TARGET_PREFIX and TINYUSB_TARGET_SUFFIX can be used to change the name of the target
-
 cmake_minimum_required(VERSION 3.20)
 
-# Add tinyusb to a existing target
-function(tinyusb_target_add TARGET)
-  target_sources(${TARGET} PRIVATE
+# Get TinyUSB sources. Note: DCD and HCD drivers are not included
+function(tinyusb_sources_get OUTPUT_VAR)
+  set(${OUTPUT_VAR}
     # common
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/tusb.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/common/tusb_fifo.c
@@ -19,6 +16,7 @@ function(tinyusb_target_add TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/hid/hid_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/midi/midi_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/msc/msc_device.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/mtp/mtp_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/net/ecm_rndis_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/net/ncm_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/usbtmc/usbtmc_device.c
@@ -34,7 +32,14 @@ function(tinyusb_target_add TARGET)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/vendor/vendor_host.c
     # typec
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/typec/usbc.c
+    PARENT_SCOPE
     )
+endfunction()
+
+# Add tinyusb to a existing target
+function(tinyusb_target_add TARGET)
+  tinyusb_sources_get(TINYUSB_SRC)
+  target_sources(${TARGET} PRIVATE ${TINYUSB_SRC})
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     # TODO for net driver, should be removed/changed

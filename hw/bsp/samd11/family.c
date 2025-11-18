@@ -155,12 +155,11 @@ uint32_t board_millis(void)
   return system_ticks;
 }
 
-void _init(void)
-{
+void _init(void);
+void _init(void) {
   // This _init() standin makes certain GCC environments happier.
   // They expect the main binary to have a constructor called _init; but don't provide a weak default.
   // Providing an empty constructor satisfies this odd case, and doesn't harm anything.
 }
-
 
 #endif

@@ -46,7 +46,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 
 #ifdef UART_DEV
-UART_HandleTypeDef UartHandle = {
+static UART_HandleTypeDef UartHandle = {
   .Instance = UART_DEV,
   .Init = {
     .BaudRate = CFG_BOARD_UART_BAUDRATE,
@@ -78,6 +78,10 @@ void OTG_HS_IRQHandler(void) {
 //--------------------------------------------------------------------+
 
 void board_init(void) {
+  SCB_EnableICache();
+
+  HAL_Init();
+
   board_clock_init();
 
   // Enable All GPIOs clocks

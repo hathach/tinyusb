@@ -23,7 +23,7 @@ def gen_deps_doc():
 Dependencies
 ************
 
-MCU low-level peripheral driver and external libraries for building TinyUSB examples
+MCU low-level peripheral drivers and external libraries for building TinyUSB examples
 
 {tabulate(df, headers="keys", tablefmt='rst')}
 """

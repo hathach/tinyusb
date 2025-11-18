@@ -38,7 +38,17 @@
 #if CFG_TUD_ENABLED && (CFG_TUSB_MCU == OPT_MCU_NUC505)
 
 #include "device/dcd.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
+#endif
+
 #include "NUC505Series.h"
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 /*
  * The DMA functionality of the USBD peripheral does not appear to succeed with
@@ -355,6 +365,19 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   xfer->ep_addr = p_endpoint_desc->bEndpointAddress;
 
   return true;
+}
+
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void) rhport;
+  (void) ep_addr;
+  (void) largest_packet_size;
+  return false; // TODO not implemented yet
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) {
+  (void) rhport;
+  (void) desc_ep;
+  return false; // TODO not implemented yet
 }
 
 void dcd_edpt_close_all (uint8_t rhport)

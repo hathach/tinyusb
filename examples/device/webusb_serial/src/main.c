@@ -97,9 +97,7 @@ int main(void) {
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
   while (1) {
     tud_task(); // tinyusb device task
@@ -109,7 +107,7 @@ int main(void) {
 }
 
 // send characters to both CDC and WebUSB
-void echo_all(const uint8_t buf[], uint32_t count) {
+static void echo_all(const uint8_t buf[], uint32_t count) {
   // echo to web serial
   if (web_serial_connected) {
     tud_vendor_write(buf, count);

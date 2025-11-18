@@ -23,7 +23,10 @@
  *
  */
 
+#include <stdio.h>
+
 #include "tusb.h"
+#include "app.h"
 
 // define the buffer to be place in USB/DMA memory with correct alignment/cache line size
 CFG_TUH_MEM_SECTION static struct {

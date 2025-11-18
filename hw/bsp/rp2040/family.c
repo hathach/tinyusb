@@ -92,7 +92,7 @@ static uart_inst_t *uart_inst;
 //
 // This doesn't work if others are trying to access flash at the same time,
 // e.g. XIP streamer, or the other core.
-bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
+static bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
   const uint CS_PIN_INDEX = 1;
 
   // Must disable interrupts, as interrupt handlers may be in flash, and we
@@ -105,7 +105,9 @@ bool __no_inline_not_in_flash_func(get_bootsel_button)(void) {
                   IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
 
   // Note we can't call into any sleep functions in flash right now
-  for (volatile int i = 0; i < 1000; ++i) {}
+  for (volatile int i = 0; i < 1000; ++i) {
+    __nop();
+  }
 
   // The HI GPIO registers in SIO can observe and control the 6 QSPI pins.
   // Note the button pulls the pin *low* when pressed.
@@ -254,7 +256,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 int board_uart_read(uint8_t *buf, int len) {
 #ifdef UART_DEV
   int count = 0;
-  while ( (count < len) && uart_is_readable(uart_inst) ) {
+  while ((count < len) && uart_is_readable(uart_inst)) {
     buf[count] = uart_getc(uart_inst);
     count++;
   }
@@ -280,6 +282,18 @@ int board_uart_write(void const *buf, int len) {
 
 int board_getchar(void) {
   return getchar_timeout_us(0);
+}
+
+void board_putchar(int c) {
+  stdio_putchar(c);
+}
+
+void board_init_after_tusb(void) {
+  // nothing to do
+}
+
+void board_reset_to_bootloader(void) {
+  // not implemented
 }
 
 //--------------------------------------------------------------------+

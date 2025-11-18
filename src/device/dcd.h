@@ -79,7 +79,7 @@ typedef struct TU_ATTR_ALIGNED(4) {
 
     // FUNC_CALL
     struct {
-      void (*func) (void*);
+      void (*func) (void* param);
       void* param;
     }func_call;
   };
@@ -162,7 +162,7 @@ bool dcd_edpt_xfer            (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer
 
 // Submit an transfer using fifo, When complete dcd_event_xfer_complete() is invoked to notify the stack
 // This API is optional, may be useful for register-based for transferring data.
-bool dcd_edpt_xfer_fifo       (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes) TU_ATTR_WEAK;
+bool dcd_edpt_xfer_fifo       (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes);
 
 // Stall endpoint, any queuing transfer should be removed from endpoint
 void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
@@ -171,17 +171,18 @@ void dcd_edpt_stall           (uint8_t rhport, uint8_t ep_addr);
 // This API never calls with control endpoints, since it is auto cleared when receiving setup packet
 void dcd_edpt_clear_stall     (uint8_t rhport, uint8_t ep_addr);
 
-#ifdef TUP_DCD_EDPT_ISO_ALLOC
+#ifdef TUP_DCD_EDPT_CLOSE_API
+// Close an endpoint.
+void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr);
+
+#else
+
 // Allocate packet buffer used by ISO endpoints
 // Some MCU need manual packet buffer allocation, we allocate the largest size to avoid clustering
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
 bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
-
-#else
-// Close an endpoint.
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr);
 
 #endif
 
@@ -214,7 +215,7 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_event_setup_received(uint8_t rhport
   dcd_event_t event;
   event.rhport = rhport;
   event.event_id = DCD_EVENT_SETUP_RECEIVED;
-  memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
+  (void) memcpy(&event.setup_received, setup, sizeof(tusb_control_request_t));
   dcd_event_handler(&event, in_isr);
 }
 

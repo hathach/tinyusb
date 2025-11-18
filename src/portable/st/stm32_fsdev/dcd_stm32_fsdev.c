@@ -117,6 +117,8 @@
   #include "fsdev_stm32.h"
 #elif defined(TUP_USBIP_FSDEV_CH32)
   #include "fsdev_ch32.h"
+#elif defined(TUP_USBIP_FSDEV_AT32)
+  #include "fsdev_at32.h"
 #else
   #error "Unknown USB IP"
 #endif
@@ -331,8 +333,13 @@ static void handle_ctr_rx(uint32_t ep_id) {
   xfer_ctl_t* xfer = xfer_ctl_ptr(ep_num, TUSB_DIR_OUT);
 
   uint8_t buf_id;
-  if (is_iso) {
-    buf_id = (ep_reg & USB_EP_DTOG_RX) ? 0 : 1; // ISO are double buffered
+#if FSDEV_USE_SBUF_ISO == 0
+  bool const dbl_buf = is_iso;
+#else
+  bool const dbl_buf = false;
+#endif
+  if (dbl_buf) {
+    buf_id = (ep_reg & USB_EP_DTOG_RX) ? 0 : 1;
   } else {
     buf_id = BTABLE_BUF_RX;
   }
@@ -527,10 +534,16 @@ static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type)
       return i;
     }
 
+#if FSDEV_USE_SBUF_ISO == 0
+    bool const dbl_buf = ep_type == TUSB_XFER_ISOCHRONOUS;
+#else
+    bool const dbl_buf = false;
+#endif
+
     // If EP of current direction is not allocated
-    // Except for ISO endpoint, both direction should be free
+    // For double-buffered mode both directions needs to be free
     if (!ep_alloc_status[i].allocated[dir] &&
-        (ep_type != TUSB_XFER_ISOCHRONOUS || !ep_alloc_status[i].allocated[dir ^ 1])) {
+        (!dbl_buf || !ep_alloc_status[i].allocated[dir ^ 1])) {
       // Check if EP number is the same
       if (ep_alloc_status[i].ep_num == 0xFF || ep_alloc_status[i].ep_num == epnum) {
         // One EP pair has to be the same type
@@ -652,9 +665,7 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   uint8_t const dir = tu_edpt_dir(ep_addr);
   uint8_t const ep_idx = dcd_ep_alloc(ep_addr, TUSB_XFER_ISOCHRONOUS);
 
-  /* Create a packet memory buffer area. Enable double buffering for devices with 2048 bytes PMA,
-     for smaller devices double buffering occupy too much space. */
-#if FSDEV_PMA_SIZE > 1024u
+#if CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP != 0
   uint32_t pma_addr = dcd_pma_alloc(largest_packet_size, true);
   uint16_t pma_addr2 = pma_addr >> 16;
 #else
@@ -662,8 +673,13 @@ bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet
   uint16_t pma_addr2 = pma_addr;
 #endif
 
+#if FSDEV_USE_SBUF_ISO == 0
   btable_set_addr(ep_idx, 0, pma_addr);
   btable_set_addr(ep_idx, 1, pma_addr2);
+#else
+  btable_set_addr(ep_idx, dir == TUSB_DIR_IN ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
+  (void) pma_addr2;
+#endif
 
   xfer_ctl_t* xfer = xfer_ctl_ptr(ep_num, dir);
   xfer->ep_idx = ep_idx;
@@ -684,10 +700,23 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const *desc_ep) 
 
   uint32_t ep_reg = ep_read(ep_idx) & ~USB_EPREG_MASK;
   ep_reg |= tu_edpt_number(ep_addr) | USB_EP_ISOCHRONOUS | USB_EP_CTR_TX | USB_EP_CTR_RX;
+#if FSDEV_USE_SBUF_ISO != 0
+  ep_reg |= USB_EP_KIND;
+
+  ep_change_status(&ep_reg, dir, EP_STAT_DISABLED);
+  ep_change_dtog(&ep_reg, dir, 0);
+
+  if (dir == TUSB_DIR_IN) {
+    ep_reg &= ~(USB_EPRX_STAT | USB_EP_DTOG_RX);
+  } else {
+    ep_reg &= ~(USB_EPTX_STAT | USB_EP_DTOG_TX);
+  }
+#else
   ep_change_status(&ep_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
   ep_change_status(&ep_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
   ep_change_dtog(&ep_reg, dir, 0);
   ep_change_dtog(&ep_reg, (tusb_dir_t)(1 - dir), 1);
+#endif
 
   ep_write(ep_idx, ep_reg, true);
 
@@ -702,7 +731,12 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   bool const is_iso = ep_is_iso(ep_reg);
 
   uint8_t buf_id;
-  if (is_iso) {
+#if FSDEV_USE_SBUF_ISO == 0
+  bool const dbl_buf = is_iso;
+#else
+  bool const dbl_buf = false;
+#endif
+  if (dbl_buf) {
     buf_id = (ep_reg & USB_EP_DTOG_TX) ? 1 : 0;
   } else {
     buf_id = BTABLE_BUF_TX;

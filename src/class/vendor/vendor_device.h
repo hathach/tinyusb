@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_VENDOR_DEVICE_H_
-#define _TUSB_VENDOR_DEVICE_H_
+#ifndef TUSB_VENDOR_DEVICE_H_
+#define TUSB_VENDOR_DEVICE_H_
 
 #include "common/tusb_common.h"
 
@@ -119,9 +119,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
 //--------------------------------------------------------------------+
 
 // Invoked when received new data
-TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
+void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
 // Invoked when last rx transfer finished
-TU_ATTR_WEAK void tud_vendor_tx_cb(uint8_t itf, uint32_t sent_bytes);
+void tud_vendor_tx_cb(uint8_t itf, uint32_t sent_bytes);
 
 //--------------------------------------------------------------------+
 // Inline Functions
@@ -141,4 +141,4 @@ bool     vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, u
  }
 #endif
 
-#endif /* _TUSB_VENDOR_DEVICE_H_ */
+#endif /* TUSB_VENDOR_DEVICE_H_ */

@@ -382,6 +382,10 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // force host mode and wait for mode switch
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FDMOD) | GUSBCFG_FHMOD;
+#if CFG_TUSB_MCU == OPT_MCU_STM32N6
+  // No hardware detection of Vbus B-session is available on the STM32N6
+  dwc2->stm32_gccfg &= ~STM32_GCCFG_VBVALOVAL;
+#endif
   while ((dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
 
   // configure fixed-allocated fifo scheme
@@ -1157,7 +1161,6 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
   dwc2_channel_t* channel = &dwc2->channel[ch_id];
   hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
-  const dwc2_channel_char_t hcchar = {.value = channel->hcchar};
   dwc2_channel_split_t hcsplt = {.value = channel->hcsplt};
 
   bool is_done = false;

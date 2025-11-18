@@ -29,6 +29,7 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "main.h"
 #include "usbtmc_app.h"
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -61,9 +62,7 @@ int main(void)
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
   while (1)
   {

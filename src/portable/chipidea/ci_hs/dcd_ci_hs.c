@@ -65,15 +65,18 @@ bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
 
 // ENDPTCTRL
 enum {
-  ENDPTCTRL_STALL          = TU_BIT(0),
-  ENDPTCTRL_TOGGLE_INHIBIT = TU_BIT(5), // used for test only
-  ENDPTCTRL_TOGGLE_RESET   = TU_BIT(6),
-  ENDPTCTRL_ENABLE         = TU_BIT(7)
+  ENDPTCTRL_TYPE_POS = 2, // Endpoint type is 2-bit field
 };
 
 enum {
-  ENDPTCTRL_TYPE_POS  = 2, // Endpoint type is 2-bit field
+  ENDPTCTRL_STALL          = TU_BIT(0),
+  ENDPTCTRL_TOGGLE_INHIBIT = TU_BIT(5), // used for test only
+  ENDPTCTRL_TOGGLE_RESET   = TU_BIT(6),
+  ENDPTCTRL_ENABLE         = TU_BIT(7),
 };
+
+#define ENDPTCTRL_TYPE(_type) ((_type) << ENDPTCTRL_TYPE_POS)
+  #define ENDPTCTRL_RESET_MASK  (ENDPTCTRL_TYPE(TUSB_XFER_BULK) | (ENDPTCTRL_TYPE(TUSB_XFER_BULK) << 16u))
 
 // USBSTS, USBINTR
 enum {
@@ -170,9 +173,7 @@ static dcd_data_t _dcd_data;
 // Prototypes and Helper Functions
 //--------------------------------------------------------------------+
 
-TU_ATTR_ALWAYS_INLINE
-static inline uint8_t ci_ep_count(ci_hs_regs_t const* dcd_reg)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint8_t ci_ep_count(const ci_hs_regs_t *dcd_reg) {
   return dcd_reg->DCCPARAMS & DCCPARAMS_DEN_MASK;
 }
 
@@ -191,9 +192,8 @@ static void bus_reset(uint8_t rhport)
   // type (e.g. bulk). Leaving an un-configured endpoint control will cause undefined behavior
   // for the data PID tracking on the active endpoint.
   uint8_t const ep_count = ci_ep_count(dcd_reg);
-  for( uint8_t i=1; i < ep_count; i++)
-  {
-    dcd_reg->ENDPTCTRL[i] = (TUSB_XFER_BULK << ENDPTCTRL_TYPE_POS) | (TUSB_XFER_BULK << (16+ENDPTCTRL_TYPE_POS));
+  for (uint8_t i = 1; i < ep_count; i++) {
+    dcd_reg->ENDPTCTRL[i] = ENDPTCTRL_RESET_MASK;
   }
 
   //------------- Clear All Registers -------------//
@@ -239,7 +239,11 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   usbmode |= USBMODE_CM_DEVICE;
   dcd_reg->USBMODE = usbmode;
 
+#ifdef CFG_TUD_CI_HS_VBUS_CHARGE
+  dcd_reg->OTGSC = OTGSC_VBUS_CHARGE | OTGSC_OTG_TERMINATION;
+#else
   dcd_reg->OTGSC = OTGSC_VBUS_DISCHARGE | OTGSC_OTG_TERMINATION;
+#endif
 
 #if !TUD_OPT_HIGH_SPEED
   dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
@@ -311,26 +315,25 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 // HELPER
 //--------------------------------------------------------------------+
 
-static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
-{
-  dcd_dcache_clean_invalidate((uint32_t*) tu_align((uint32_t) data_ptr, 4), total_bytes);
+static void qtd_init(dcd_qtd_t *p_qtd, void *data_ptr, uint16_t total_bytes) {
+  dcd_dcache_clean_invalidate((uint32_t *)tu_align((uint32_t)data_ptr, 4), total_bytes);
 
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
-  p_qtd->next            = QTD_NEXT_INVALID;
-  p_qtd->active          = 1;
-  p_qtd->total_bytes     = p_qtd->expected_bytes = total_bytes;
-  p_qtd->int_on_complete = true;
+  p_qtd->next        = QTD_NEXT_INVALID;
+  p_qtd->active      = 1;
+  p_qtd->total_bytes = p_qtd->expected_bytes = total_bytes;
+  p_qtd->int_on_complete                     = true;
 
-  if (data_ptr != NULL)
-  {
-    p_qtd->buffer[0] = (uint32_t) data_ptr;
+  if (data_ptr != NULL) {
+    p_qtd->buffer[0] = (uint32_t)data_ptr;
 
-    uint32_t const bufend = p_qtd->buffer[0] + total_bytes;
-    for(uint8_t i=1; i<5; i++)
-    {
-      uint32_t const next_page = tu_align4k( p_qtd->buffer[i-1] ) + 4096;
-      if ( bufend <= next_page ) break;
+    const uint32_t bufend = p_qtd->buffer[0] + total_bytes;
+    for (uint8_t i = 1; i < 5; i++) {
+      const uint32_t next_page = tu_align4k(p_qtd->buffer[i - 1]) + 4096;
+      if (bufend <= next_page) {
+        break;
+      }
 
       p_qtd->buffer[i] = next_page;
 
@@ -342,6 +345,35 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
+TU_ATTR_ALWAYS_INLINE static inline void ep_ctrl_write(volatile uint32_t *epctrl, uint8_t dir, uint32_t value) {
+  if (dir == TUSB_DIR_OUT) {
+    *epctrl = (*epctrl & 0xFFFF0000u) | value;
+  } else {
+    *epctrl = (*epctrl & 0x0000FFFFu) | (value << 16);
+  }
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void ep_ctrl_mask(volatile uint32_t *epctrl, uint8_t dir, uint32_t and_mask,
+                                                      uint32_t or_mask) {
+  uint32_t value = *epctrl;
+  if (and_mask != 0) {
+    value &= (dir == TUSB_DIR_OUT) ? and_mask : (and_mask << 16u);
+  }
+  if (or_mask != 0) {
+    value |= (dir == TUSB_DIR_OUT) ? or_mask : (or_mask << 16u);
+  }
+
+  *epctrl = value;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void ep_ctrl_set(volatile uint32_t *epctrl, uint8_t dir, uint32_t mask) {
+  ep_ctrl_mask(epctrl, dir, 0, mask);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void ep_ctrl_clear(volatile uint32_t *epctrl, uint8_t dir, uint32_t mask) {
+  ep_ctrl_mask(epctrl, dir, ~mask, 0);
+}
+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const epnum  = tu_edpt_number(ep_addr);
@@ -362,80 +394,91 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   // data toggle also need to be reset
   ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
   dcd_reg->ENDPTCTRL[epnum] |= ENDPTCTRL_TOGGLE_RESET << ( dir ? 16 : 0 );
-  dcd_reg->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_STALL << ( dir  ? 16 : 0));
+  dcd_reg->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_STALL << (dir ? 16 : 0));
 }
 
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
-{
-  uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
-  uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
+static void qhd_init(dcd_qhd_t *p_qhd, uint16_t max_packet_size, uint8_t iso_mult) {
+  tu_memclr(p_qhd, sizeof(dcd_qhd_t));
+  p_qhd->zero_length_termination = 1;
+  p_qhd->max_packet_size         = max_packet_size;
+  p_qhd->iso_mult                = iso_mult;
+  p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
+  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
+}
 
-  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
-
-  // Must not exceed max endpoint number
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *endpoint_desc) {
+  ci_hs_regs_t *dcd_reg   = CI_HS_REG(rhport);
+  const uint8_t epnum     = tu_edpt_number(endpoint_desc->bEndpointAddress);
+  const uint8_t dir       = tu_edpt_dir(endpoint_desc->bEndpointAddress);
+  const uint8_t xfer_type = endpoint_desc->bmAttributes.xfer;
   TU_ASSERT(epnum < ci_ep_count(dcd_reg));
 
-  //------------- Prepare Queue Head -------------//
-  dcd_qhd_t * p_qhd = &_dcd_data.qhd[epnum][dir];
-  tu_memclr(p_qhd, sizeof(dcd_qhd_t));
+  dcd_qhd_t *p_qhd = &_dcd_data.qhd[epnum][dir];
+  qhd_init(p_qhd, tu_edpt_packet_size(endpoint_desc), 0u);
 
-  p_qhd->zero_length_termination = 1;
-  p_qhd->max_packet_size         = tu_edpt_packet_size(p_endpoint_desc);
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
-  {
-    p_qhd->iso_mult = 1;
-  }
-
-  p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
-
-  dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
-
-  // Enable EP Control
-  uint32_t const epctrl = (p_endpoint_desc->bmAttributes.xfer << ENDPTCTRL_TYPE_POS) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
-
-  if ( dir == TUSB_DIR_OUT )
-  {
-    dcd_reg->ENDPTCTRL[epnum] = (dcd_reg->ENDPTCTRL[epnum] & 0xFFFF0000u) | epctrl;
-  }else
-  {
-    dcd_reg->ENDPTCTRL[epnum] = (dcd_reg->ENDPTCTRL[epnum] & 0x0000FFFFu) | (epctrl << 16);
-  }
+  // EP Control
+  const uint32_t epctrl = ENDPTCTRL_TYPE(xfer_type) | ENDPTCTRL_ENABLE | ENDPTCTRL_TOGGLE_RESET;
+  ep_ctrl_write(&dcd_reg->ENDPTCTRL[epnum], dir, epctrl);
 
   return true;
 }
 
-void dcd_edpt_close_all (uint8_t rhport)
-{
-  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+
+  ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
+  const uint8_t epnum   = tu_edpt_number(ep_addr);
+  const uint8_t dir     = tu_edpt_dir(ep_addr);
+  TU_ASSERT(epnum < ci_ep_count(dcd_reg));
+
+  // EP Control: set type but not enabled yet
+  const uint32_t epctrl = ENDPTCTRL_TYPE(TUSB_XFER_ISOCHRONOUS) | ENDPTCTRL_TOGGLE_RESET;
+  ep_ctrl_write(&dcd_reg->ENDPTCTRL[epnum], dir, epctrl);
+
+  return true;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  const uint8_t epnum   = tu_edpt_number(desc_ep->bEndpointAddress);
+  const uint8_t dir     = tu_edpt_dir(desc_ep->bEndpointAddress);
+  ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
+  TU_ASSERT(epnum < ci_ep_count(dcd_reg));
+
+  dcd_qhd_t         *p_qhd     = &_dcd_data.qhd[epnum][dir];
+  volatile uint32_t *endptctrl = &dcd_reg->ENDPTCTRL[epnum];
+
+  // _dcd_data.qhd[epnum][dir].qtd_overlay.halted = 1;
+  // dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
+
+  // Flush EP
+  const uint32_t flush_mask = TU_BIT(epnum + (dir ? 16 : 0));
+  dcd_reg->ENDPTFLUSH       = flush_mask;
+  while (dcd_reg->ENDPTFLUSH & flush_mask) {}
+
+  // disable to change max packet size
+  ep_ctrl_clear(endptctrl, dir, ENDPTCTRL_ENABLE);
+
+  qhd_init(p_qhd, tu_edpt_packet_size(desc_ep), 1u);
+
+  ep_ctrl_set(endptctrl, dir, ENDPTCTRL_ENABLE);
+
+  return true;
+}
+
+void dcd_edpt_close_all(uint8_t rhport) {
+  ci_hs_regs_t *dcd_reg = CI_HS_REG(rhport);
 
   // Disable all non-control endpoints
   uint8_t const ep_count = ci_ep_count(dcd_reg);
-  for (uint8_t epnum = 1; epnum < ep_count; epnum++)
-  {
+  for (uint8_t epnum = 1; epnum < ep_count; epnum++) {
     _dcd_data.qhd[epnum][TUSB_DIR_OUT].qtd_overlay.halted = 1;
-    _dcd_data.qhd[epnum][TUSB_DIR_IN ].qtd_overlay.halted = 1;
+    _dcd_data.qhd[epnum][TUSB_DIR_IN].qtd_overlay.halted  = 1;
 
-    dcd_reg->ENDPTFLUSH = TU_BIT(epnum) |  TU_BIT(epnum+16);
-    dcd_reg->ENDPTCTRL[epnum] = (TUSB_XFER_BULK << ENDPTCTRL_TYPE_POS) | (TUSB_XFER_BULK << (16+ENDPTCTRL_TYPE_POS));
+    dcd_reg->ENDPTFLUSH       = TU_BIT(epnum) | TU_BIT(epnum + 16);
+    dcd_reg->ENDPTCTRL[epnum] = ENDPTCTRL_RESET_MASK;
   }
-}
-
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
-  uint8_t const epnum  = tu_edpt_number(ep_addr);
-  uint8_t const dir    = tu_edpt_dir(ep_addr);
-
-  ci_hs_regs_t* dcd_reg = CI_HS_REG(rhport);
-
-  _dcd_data.qhd[epnum][dir].qtd_overlay.halted = 1;
-
-  // Flush EP
-  uint32_t const flush_mask = TU_BIT(epnum + (dir ? 16 : 0));
-  dcd_reg->ENDPTFLUSH = flush_mask;
-  while(dcd_reg->ENDPTFLUSH & flush_mask);
-
-  // Clear EP enable
-  dcd_reg->ENDPTCTRL[epnum] &=~(ENDPTCTRL_ENABLE << (dir ? 16 : 0));
 }
 
 static void qhd_start_xfer(uint8_t rhport, uint8_t epnum, uint8_t dir)
@@ -674,5 +717,4 @@ void dcd_int_handler(uint8_t rhport)
     dcd_event_sof(rhport, frame, true);
   }
 }
-
 #endif
