@@ -382,7 +382,16 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
       p_msc->ep_out = ep_desc->bEndpointAddress;
     }
 
-    ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+    // For SS devices, the EP descriptor structure is different from normal EP descriptors.
+    if( tuh_speed_get(dev_addr) == TUSB_SPEED_SS)
+    {
+      ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+      ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+    }
+    else
+    {
+      ep_desc = (tusb_desc_endpoint_t const*) tu_desc_next(ep_desc);
+     }
   }
 
   p_msc->itf_num = desc_itf->bInterfaceNumber;

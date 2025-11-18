@@ -68,6 +68,7 @@ typedef enum {
   TUSB_SPEED_FULL = 0,
   TUSB_SPEED_LOW  = 1,
   TUSB_SPEED_HIGH = 2,
+  TUSB_SPEED_SS   = 3,
   TUSB_SPEED_AUTO = 0xaa,
   TUSB_SPEED_INVALID = 0xff,
 } tusb_speed_t;

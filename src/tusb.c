@@ -253,7 +253,10 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
       if (speed == TUSB_SPEED_HIGH) {
         // Bulk highspeed must be EXACTLY 512
         TU_ASSERT(max_packet_size == 512);
-      } else {
+      } else if (speed == TUSB_SPEED_SS) {
+        // Bulk highspeed must be EXACTLY 1024
+        TU_ASSERT(max_packet_size == 1024);
+      }else {
         // Bulk fullspeed can only be 8, 16, 32, 64
         TU_ASSERT(max_packet_size == 8 || max_packet_size == 16 || max_packet_size == 32 || max_packet_size == 64);
       }
