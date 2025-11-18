@@ -210,6 +210,8 @@
 // Geehy
 #define OPT_MCU_APM32F0XX        2800  ///< Geehy APM32F0xx
 
+#define OPT_MCU_SOCFPGA          2600  ///< Altera Agilex5 SoC FPGA
+
 // Check if configured MCU is one of listed
 // Apply TU_MCU_IS_EQUAL with || as separator to list of input
 #define TU_MCU_IS_EQUAL(_m)  (CFG_TUSB_MCU == (_m))
