@@ -298,7 +298,7 @@ The following tools are provided freely to support the development of the TinyUS
 
 .. _Changelog: docs/info/changelog.rst
 .. _Contributors: CONTRIBUTORS.rst
-.. _Getting Started: docs/reference/getting_started.rst
+.. _Getting Started: docs/getting_started.rst
 .. _Supported Boards: docs/reference/boards.rst
 .. _Dependencies: docs/reference/dependencies.rst
 .. _Concurrency: docs/reference/concurrency.rst
