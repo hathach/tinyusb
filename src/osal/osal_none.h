@@ -61,13 +61,8 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bo
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  // Check for underflow - unlock without lock
   if (ctx->nested_count == 0) {
-    // Re-enable interrupts before asserting to avoid leaving interrupts disabled
-    if (!in_isr) {
-      ctx->interrupt_set(true);
-    }
-    TU_ASSERT(0,);
+    return; // spin is not locked to begin with
   }
 
   ctx->nested_count--;
