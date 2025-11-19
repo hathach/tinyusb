@@ -650,14 +650,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     xfer->buffer = buffer;
     xfer->ff = NULL;
     xfer->total_len = total_bytes;
+    xfer->iso_retry = xfer->interval; // Reset ISO retry counter to interval value
 
     // EP0 can only handle one packet
     if (epnum == 0) {
       _dcd_data.ep0_pending[dir] = total_bytes;
     }
-
-    // Reset ISO retry counter to interval value
-    xfer->iso_retry = xfer->interval;
 
     // Schedule packets to be sent within interrupt
     edpt_schedule_packets(rhport, epnum, dir);
@@ -690,9 +688,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     xfer->buffer = NULL;
     xfer->ff = ff;
     xfer->total_len = total_bytes;
-
-    // Reset ISO retry counter to interval value
-    xfer->iso_retry = xfer->interval;
+    xfer->iso_retry = xfer->interval; // Reset ISO retry counter to interval value
 
     // Schedule packets to be sent within interrupt
     // TODO xfer fifo may only available for slave mode
@@ -1070,6 +1066,43 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
   }
 }
 
+static void handle_incomplete_iso_in(uint8_t rhport) {
+  dwc2_regs_t      *dwc2    = DWC2_REG(rhport);
+  const dwc2_dsts_t dsts    = {.value = dwc2->dsts};
+  const uint32_t    odd_now = dsts.frame_number & 1u;
+
+  // Loop over all IN endpoints
+  const uint8_t ep_count = dwc2_ep_count(dwc2);
+  for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
+    dwc2_dep_t   *epin   = &dwc2->epin[epnum];
+    dwc2_depctl_t depctl = {.value = epin->diepctl};
+    // Read DSTS and DIEPCTLn for all isochronous endpoints. If the current EP is enabled and the read value of
+    // DSTS.SOFFN is the targeted uframe number for this EP, then this EP has an incomplete transfer.
+    if (depctl.enable && depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && depctl.dpid_iso_odd == odd_now) {
+      xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
+      if (xfer->iso_retry > 0) {
+        xfer->iso_retry--;
+        // Restart ISO transfe: re-write TSIZ and CTL
+        dwc2_ep_tsize_t deptsiz = {.value = 0};
+        deptsiz.xfer_size       = xfer->total_len;
+        deptsiz.packet_count    = tu_div_ceil(xfer->total_len, xfer->max_size);
+        epin->tsiz              = deptsiz.value;
+
+        if (odd_now) {
+          depctl.set_data0_iso_even = 1;
+        } else {
+          depctl.set_data1_iso_odd = 1;
+        }
+        epin->diepctl = depctl.value;
+      } else {
+        // too many retries, give up
+        edpt_disable(rhport, epnum | TUSB_DIR_IN_MASK, false);
+        dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, 0, XFER_RESULT_FAILED, true);
+      }
+    }
+  }
+}
+
 /* Interrupt Hierarchy
                  DIEPINT  DIEPINT
                     \       /
@@ -1173,38 +1206,7 @@ void dcd_int_handler(uint8_t rhport) {
   // Incomplete isochronous IN transfer interrupt handling.
   if (gintsts & GINTSTS_IISOIXFR) {
     dwc2->gintsts = GINTSTS_IISOIXFR;
-    const dwc2_dsts_t dsts = {.value = dwc2->dsts};
-    const uint32_t odd_now = dsts.frame_number & 1u;
-    // Loop over all IN endpoints
-    const uint8_t ep_count = dwc2_ep_count(dwc2);
-    for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
-      dwc2_dep_t* epin = &dwc2->epin[epnum];
-      dwc2_depctl_t depctl = {.value = epin->diepctl};
-      // Read DSTS and DIEPCTLn for all isochronous endpoints. If the current EP is enabled
-      // and the read value of DSTS.SOFFN is the targeted uframe number for this EP, then
-      // this EP has an incomplete transfer.
-      if (depctl.enable && depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && depctl.dpid_iso_odd == odd_now) {
-        xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
-        if (xfer->iso_retry) {
-          xfer->iso_retry--;
-          // Restart ISO transfer
-          dwc2_ep_tsize_t deptsiz = {.value = 0};
-          deptsiz.xfer_size = xfer->total_len;
-          deptsiz.packet_count = tu_div_ceil(xfer->total_len, xfer->max_size);
-          epin->tsiz = deptsiz.value;
-          if (odd_now) {
-            depctl.set_data0_iso_even = 1;
-          } else {
-            depctl.set_data1_iso_odd = 1;
-          }
-          epin->diepctl = depctl.value;
-        } else {
-          // too many retries, give up
-          edpt_disable(rhport, epnum | TUSB_DIR_IN_MASK, false);
-          dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, 0, XFER_RESULT_FAILED, true);
-        }
-      }
-    }
+    handle_incomplete_iso_in(rhport);
   }
 }
 
