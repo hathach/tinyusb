@@ -1,52 +1,43 @@
-# Agent Handbook
+# TinyUSB Agent Instructions
 
-## Shared TinyUSB Ground Rules
+TinyUSB is an open-source cross-platform USB Host/Device stack for embedded systems, designed to be memory-safe with no
+dynamic allocation and thread-safe with all interrupt events deferred to non-ISR task functions.
+
+Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected
+information that does not match the info here.
+
+## Shared Ground Rules
 - Keep TinyUSB memory-safe: avoid dynamic allocation, defer ISR work to task context, and follow C99 with two-space indentation/no tabs.
 - Match file organization: core stack under `src`, MCU/BSP support in `hw/{mcu,bsp}`, examples under `examples/{device,host,dual}`, docs in `docs`, tests under `test/{unit-test,fuzz,hil}`.
 - Use descriptive snake_case for helpers, reserve `tud_`/`tuh_` for public APIs, `TU_` for macros, and keep headers self-contained with `#if CFG_TUSB_MCU` guards where needed.
 - Prefer `.clang-format` for C/C++ formatting, run `pre-commit run --all-files` before submitting, and document board/HIL coverage when applicable.
 - Commit in imperative mood, keep changes scoped, and supply PRs with linked issues plus test/build evidence.
 
-## Build and Test Cheatsheet
-- Fetch dependencies once with `python3 tools/get_deps.py [FAMILY]`; assets land in `lib/` and `hw/mcu/`.
-- CMake (preferred): `cmake -G Ninja -DBOARD=<board> -DCMAKE_BUILD_TYPE={MinSizeRel|Debug}` inside an example `build/` dir, then `ninja` or `cmake --build .`.
-- Make (alt): `make BOARD=<board> [DEBUG=1] [LOG=2 LOGGER=rtt] all` from the example root; add `uf2`, `flash-openocd`, or `flash-jlink` targets as needed.
-- Bulk builds: `python3 tools/build.py -b <board>` to sweep all examples; expect occasional non-critical objcopy warnings.
-- Unit tests: `cd test/unit-test && ceedling test:all` (or a specific `test_<module>`), honor Unity/CMock fixtures under `test/support`.
-- Docs: `pip install -r docs/requirements.txt` then `sphinx-build -b html . _build` from `docs/`.
 
-## Validation Checklist
-1. `pre-commit run --all-files` after edits (install with `pip install pre-commit && pre-commit install`).
-2. Build at least one representative example (e.g., `examples/device/cdc_msc`) via CMake+Ninja or Make.
-3. Run unit tests relevant to touched modules; add fuzz/HIL coverage when modifying parsers or protocol state machines.
+## Bootstrap and Build Setup
 
-## Copilot Agent Notes (`.github/copilot-instructions.md`)
-# TinyUSB
-TinyUSB is an open-source cross-platform USB Host/Device stack for embedded systems, designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events deferred to non-ISR task functions.
-
-Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
-
-### Working Effectively
-
-#### Bootstrap and Build Setup
 - Install ARM GCC toolchain: `sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi`
 - Fetch core dependencies: `python3 tools/get_deps.py` -- takes <1 second. NEVER CANCEL.
 - For specific board families: `python3 tools/get_deps.py FAMILY_NAME` (e.g., rp2040, stm32f4)
 - Dependencies are cached in `lib/` and `hw/mcu/` directories
 
-#### Build Examples
+## Build Examples
+
 Choose ONE of these approaches:
 
 **Option 1: Individual Example with CMake (RECOMMENDED)**
+
 ```bash
 cd examples/device/cdc_msc
 mkdir -p build && cd build
 cmake -DBOARD=raspberry_pi_pico -DCMAKE_BUILD_TYPE=MinSizeRel ..
 cmake --build . -j4
 ```
+
 -- takes 1-2 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
 **CMake with Ninja (Alternative)**
+
 ```bash
 cd examples/device/cdc_msc
 mkdir build && cd build
@@ -55,63 +46,74 @@ ninja
 ```
 
 **Option 2: Individual Example with Make**
+
 ```bash
 cd examples/device/cdc_msc
 make BOARD=raspberry_pi_pico all
 ```
+
 -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
 **Option 3: All Examples for a Board**
+
 ```bash
 python3 tools/build.py -b BOARD_NAME
 ```
+
 -- takes 15-20 seconds, may have some objcopy failures that are non-critical. NEVER CANCEL. Set timeout to 30+ minutes.
 
-#### Build Options
-- **Debug build**:
-  - CMake: `-DCMAKE_BUILD_TYPE=Debug`
-  - Make: `DEBUG=1`
-- **With logging**:
-  - CMake: `-DLOG=2`
-  - Make: `LOG=2`
-- **With RTT logger**:
-  - CMake: `-DLOG=2 -DLOGGER=rtt`
-  - Make: `LOG=2 LOGGER=rtt`
-- **RootHub port selection**:
-  - CMake: `-DRHPORT_DEVICE=1`
-  - Make: `RHPORT_DEVICE=1`
-- **Port speed**:
-  - CMake: `-DRHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
-  - Make: `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
+## Build Options
 
-#### Flashing and Deployment
+- **Debug build**:
+    - CMake: `-DCMAKE_BUILD_TYPE=Debug`
+    - Make: `DEBUG=1`
+- **With logging**:
+    - CMake: `-DLOG=2`
+    - Make: `LOG=2`
+- **With RTT logger**:
+    - CMake: `-DLOG=2 -DLOGGER=rtt`
+    - Make: `LOG=2 LOGGER=rtt`
+- **RootHub port selection**:
+    - CMake: `-DRHPORT_DEVICE=1`
+    - Make: `RHPORT_DEVICE=1`
+- **Port speed**:
+    - CMake: `-DRHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
+    - Make: `RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED`
+
+## Flashing and Deployment
+
 - **Flash with JLink**:
-  - CMake: `ninja cdc_msc-jlink`
-  - Make: `make BOARD=raspberry_pi_pico flash-jlink`
+    - CMake: `ninja cdc_msc-jlink`
+    - Make: `make BOARD=raspberry_pi_pico flash-jlink`
 - **Flash with OpenOCD**:
-  - CMake: `ninja cdc_msc-openocd`
-  - Make: `make BOARD=raspberry_pi_pico flash-openocd`
+    - CMake: `ninja cdc_msc-openocd`
+    - Make: `make BOARD=raspberry_pi_pico flash-openocd`
 - **Generate UF2**:
-  - CMake: `ninja cdc_msc-uf2`
-  - Make: `make BOARD=raspberry_pi_pico all uf2`
+    - CMake: `ninja cdc_msc-uf2`
+    - Make: `make BOARD=raspberry_pi_pico all uf2`
 - **List all targets** (CMake/Ninja): `ninja -t targets`
 
-#### Unit Testing
+## Unit Testing
+
 - Install Ceedling: `sudo gem install ceedling`
-- Run all unit tests: `cd test/unit-test && ceedling` or `cd test/unit-test && ceedling test:all` -- takes 4 seconds. NEVER CANCEL. Set timeout to 10+ minutes.
+- Run all unit tests: `cd test/unit-test && ceedling` or `cd test/unit-test && ceedling test:all` -- takes 4 seconds.
+  NEVER CANCEL. Set timeout to 10+ minutes.
 - Run specific test: `cd test/unit-test && ceedling test:test_fifo`
 - Tests use Unity framework with CMock for mocking
 
-#### Documentation
+## Documentation
+
 - Install requirements: `pip install -r docs/requirements.txt`
 - Build docs: `cd docs && sphinx-build -b html . _build` -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 10+ minutes.
 
-#### Code Quality and Validation
+## Code Quality and Validation
+
 - Format code: `clang-format -i path/to/file.c` (uses `.clang-format` config)
 - Check spelling: `pip install codespell && codespell` (uses `.codespellrc` config)
 - Pre-commit hooks validate unit tests and code quality automatically
 
-#### Static Analysis with PVS-Studio
+## Static Analysis with PVS-Studio
+
 - **Analyze whole project**:
   ```bash
   pvs-studio-analyzer analyze -f examples/cmake-build-raspberry_pi_pico/compile_commands.json -R .PVS-Studio/.pvsconfig -o pvs-report.log -j12 --dump-files --misra-cpp-version 2008 --misra-c-version 2023 --use-old-parser
@@ -135,32 +137,65 @@ python3 tools/build.py -b BOARD_NAME
 - Analysis takes ~10-30 seconds depending on project size. Set timeout to 5+ minutes.
 - View results: `plog-converter -a GA:1,2 -t errorfile pvs-report.log` or open in PVS-Studio GUI
 
-### Validation
+## Validation Checklist
 
-#### ALWAYS Run These After Making Changes
+### ALWAYS Run These After Making Changes
+
 1. **Pre-commit validation** (RECOMMENDED): `pre-commit run --all-files`
-   - Install pre-commit: `pip install pre-commit && pre-commit install`
-   - Runs all quality checks, unit tests, spell checking, and formatting
-   - Takes 10-15 seconds. NEVER CANCEL. Set timeout to 15+ minutes.
+    - Install pre-commit: `pip install pre-commit && pre-commit install`
+    - Runs all quality checks, unit tests, spell checking, and formatting
+    - Takes 10-15 seconds. NEVER CANCEL. Set timeout to 15+ minutes.
 2. **Build validation**: Build at least one example that exercises your changes
    ```bash
    cd examples/device/cdc_msc
    make BOARD=raspberry_pi_pico all
    ```
+3. Run unit tests relevant to touched modules; add fuzz/HIL coverage when modifying parsers or protocol state machines.
 
-#### Manual Testing Scenarios
+### Manual Testing Scenarios
 - **Device examples**: Cannot be fully tested without real hardware, but must build successfully
 - **Unit tests**: Exercise core stack functionality - ALL tests must pass
 - **Build system**: Must be able to build examples for multiple board families
 
-#### Board Selection for Testing
+### Board Selection for Testing
 - **STM32F4**: `stm32f407disco` - no external SDK required, good for testing
 - **RP2040**: `raspberry_pi_pico` - requires Pico SDK, commonly used
 - **Other families**: Check `hw/bsp/FAMILY/boards/` for available boards
 
-### Common Tasks and Time Expectations
+## Release Instructions
 
-#### Repository Structure Quick Reference
+**DO NOT commit files automatically - only modify files and let the maintainer review before committing.**
+
+1. Bump the release version variable at the top of `tools/make_release.py`.
+2. Execute `python3 tools/make_release.py` to refresh:
+   - `src/tusb_option.h` (version defines)
+   - `repository.yml` (version mapping)
+   - `library.json` (PlatformIO version)
+   - `sonar-project.properties` (SonarQube version)
+   - `docs/reference/boards.rst` (generated board documentation)
+   - `hw/bsp/BoardPresets.json` (CMake presets)
+3. Generate release notes for `docs/info/changelog.rst`:
+   - Get commit list: `git log <last-release-tag>..HEAD --oneline`
+   - **Visit GitHub PRs** for merged pull requests to understand context and gather details
+   - Use GitHub tools to search/read PRs: `github-mcp-server-list_pull_requests`, `github-mcp-server-pull_request_read`
+   - Extract key changes, API modifications, bug fixes, and new features from PR descriptions
+   - Add new changelog entry following the existing format:
+     - Version heading with equals underline (e.g., `0.20.0` followed by `======`)
+     - Release date in italics (e.g., `*November 19, 2024*`)
+     - Major sections: General, API Changes, Controller Driver (DCD & HCD), Device Stack, Host Stack, Testing
+     - Use bullet lists with descriptive categorization
+     - Reference function names, config macros, and file paths using RST inline code (double backticks)
+     - Include meaningful descriptions, not just commit messages
+4. **Validation before commit**:
+   - Run unit tests: `cd test/unit-test && ceedling test:all`
+   - Build at least one example: `cd examples/device/cdc_msc && make BOARD=stm32f407disco all`
+   - Verify changed files look correct: `git diff --stat`
+5. **Leave files unstaged** for maintainer to review, modify if needed, and commit with message: `Bump version to X.Y.Z`
+6. **After maintainer commits**: Create annotated tag with `git tag -a vX.Y.Z -m "Release X.Y.Z"`
+7. Push commit and tag: `git push origin <branch> && git push origin vX.Y.Z`
+8. Create GitHub release from the tag with changelog content
+
+## Repository Structure Quick Reference
 ```
 ├── src/                  # Core TinyUSB stack
 │   ├── class/            # USB device classes (CDC, HID, MSC, Audio, etc.)
@@ -235,13 +270,3 @@ python3 tools/build.py -b BOARD_NAME
 - Follow the existing code patterns in the files you're modifying
 
 Remember: TinyUSB is designed for embedded systems - builds are fast, tests are focused, and the codebase is optimized for resource-constrained environments.
-
-## Claude Agent Notes (`CLAUDE.md`)
-- Default to CMake+Ninja for builds, but align with Make workflows when users rely on legacy scripts; provide DEBUG/LOG/LOGGER knobs consistently.
-- Highlight dependency helpers (`tools/get_deps.py rp2040`) and reference core locations: `src/`, `hw/`, `examples/`, `test/`.
-- Run `clang-format` on all touched files to ensure consistent formatting.
-- Use `TU_ASSERT` for all fallible calls to enforce runtime checks.
-- Ensure header comments retain the MIT license notice.
-- Add descriptive comments for non-trivial code paths to aid maintainability.
-- Release flow primer: bump `tools/make_release.py` version, run the script (updates `src/tusb_option.h`, `repository.yml`, `library.json`), refresh `docs/info/changelog.rst`, then tag.
-- Testing reminders: Ceedling full or targeted runs, specify board/OS context, and ensure logging of manual hardware outcomes when available.

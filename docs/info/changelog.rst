@@ -2,6 +2,99 @@
 Changelog
 *********
 
+0.20.0
+======
+
+*November 19, 2024*
+
+General
+-------
+
+- New MCUs and Boards:
+
+  - Add STM32U3 device support (adjusted from STM32U0)
+  - Add nRF54H20 support with initial board configuration
+  - Rename board names: pca10056→nrf52840dk, pca10059→nrf52840dongle, pca10095→nrf5340dk
+  - Improve CMake: Move startup and linker files from board target to executable. Enhance target warning flags and fix various build warnings
+
+- Code Quality and Static Analysis:
+
+  - Add PVS-Studio static analysis to CI
+  - Add SonarQube scan support
+  - Add IAR C-Stat analysis capability
+  - Add ``.clang-format`` for consistent code formatting
+  - Fix numerous alerts and warnings found by static analysis tools
+
+- Documentation:
+
+  - Improve Getting Started documentation structure and flow
+  - Add naming conventions and buffer handling documentation
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- DWC2
+
+  - Fix incorrect handling of Zero-Length Packets (ZLP) in the DWC2 driver when receiving data (OUT transfers)
+  - Improve EP0 multi-packet logic
+  - Support EP0 with max packet size = 8
+  - For IN endpoint, write initial packet directly to FIFO and only use TXFE interrupt for subsequent packets
+  - Fix ISO with bInterval > 2 using incomplete IN interrupt handling.
+  - Fix compile issues when enabling both host and device
+  - Clear pending suspend interrupt after USB reset (enum end)
+  - Improve host closing endpoint and channel handling when device is unplugged
+
+- FSDEV (STM32)
+
+  - Fix AT32 USB interrupt remapping in ``dcd_int_enable()``
+
+- OHCI
+
+  - Add initial LPC55 OHCI support
+  - Improve data cache support
+
+Device Stack
+------------
+
+- USBD Core
+
+  - Support configurable EP0 buffer size CFG_TUD_ENDPOINT0_BUFSIZE
+  - Make dcd_edpt_iso_alloc/activate as default API for ISO endpoint
+
+- Audio
+
+  - Add UAC1 support
+  - Implement RX FIFO threshold adjustment with `tud_audio_get/set_ep_in_fifo_threshold()`
+
+- CDC
+
+  - Migrate to endpoint stream API
+
+- HID
+
+  - Fix HID stylus descriptor
+
+- MIDI
+
+  - Migrate to endpoint stream API
+  - Add ``tud_midi_n_packet_write_n()`` and ``tud_midi_n_packet_read_n()``
+
+- MTP
+
+  - Fix incorrect MTP xact_len calculation
+
+- Video
+
+  - Add bufferless operation callback for dynamic frame generation with tud_video_prepare_payload_cb()
+
+
+Host Stack
+----------
+
+- USBH Core
+
+  - Improve transfer closing and channel management
+
 0.19.0
 ======
 
