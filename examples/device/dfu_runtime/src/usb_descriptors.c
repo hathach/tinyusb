@@ -32,9 +32,8 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]         HID | MSC | CDC          [LSB]
  */
-#define PID_MAP(itf, n)  ((CFG_TUD_##itf) ? (1 << (n)) : 0)
-#define USB_PID           (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | \
-                           PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4) )
+#define PID_MAP(itf, n) ((CFG_TUD_##itf) ? (1 << (n)) : 0)
+#define USB_PID         (0x4000 | PID_MAP(CDC, 0) | PID_MAP(MSC, 1) | PID_MAP(HID, 2) | PID_MAP(MIDI, 3) | PID_MAP(VENDOR, 4))
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -108,33 +107,30 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
 //--------------------------------------------------------------------+
 
 /* Microsoft OS 2.0 registry property descriptor
-Per MS requirements https://msdn.microsoft.com/en-us/library/windows/hardware/hh450799(v=vs.85).aspx
-device should create DeviceInterfaceGUIDs. It can be done by driver and
-in case of real PnP solution device should expose MS "Microsoft OS 2.0
-registry property descriptor". Such descriptor can insert any record
-into Windows registry per device/configuration/interface. In our case it
-will insert "DeviceInterfaceGUIDs" multistring property.
-GUID is freshly generated and should be OK to use.
-https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
-(Section Microsoft OS compatibility descriptors)
+  Per MS requirements https://msdn.microsoft.com/en-us/library/windows/hardware/hh450799(v=vs.85).aspx
+  device should create DeviceInterfaceGUIDs. It can be done by driver and
+  in case of real PnP solution device should expose MS "Microsoft OS 2.0
+  registry property descriptor". Such descriptor can insert any record
+  into Windows registry per device/configuration/interface. In our case it
+  will insert "DeviceInterfaceGUIDs" multistring property.
+  GUID is freshly generated and should be OK to use.
+  https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
+  (Section Microsoft OS compatibility descriptors)
 */
 
 #define BOS_TOTAL_LEN (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
-
 #define MS_OS_20_DESC_LEN 0xA2
-
 #define VENDOR_REQUEST_MICROSOFT 1
 
 // BOS Descriptor is required for webUSB
-uint8_t const desc_bos[] = {
-    // total length, number of device caps
-    TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
+const uint8_t desc_bos[] = {
+  // total length, number of device caps
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
 
-    // Microsoft OS 2.0 descriptor
-    TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, 1)
-};
+  // Microsoft OS 2.0 descriptor
+  TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, 1)};
 
-uint8_t const *tud_descriptor_bos_cb(void) {
+const uint8_t *tud_descriptor_bos_cb(void) {
   return desc_bos;
 }
 
@@ -168,6 +164,16 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   // nothing to with DATA & ACK stage
   if (stage != CONTROL_STAGE_SETUP) {
     return true;
+  }
+
+  if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR) {
+    if (request->bRequest == VENDOR_REQUEST_MICROSOFT) {
+      if (request->wIndex == 7) {
+        return tud_control_xfer(rhport, request, (void *)(uintptr_t)desc_ms_os_20, MS_OS_20_DESC_LEN);
+      } else {
+        return false;
+      }
+    }
   }
 
   switch (request->bmRequestType_bit.type) {
@@ -218,8 +224,8 @@ static uint16_t _desc_str[32 + 1];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
-  (void) langid;
+const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
+  (void)langid;
   size_t chr_count;
 
   switch (index) {
@@ -243,8 +249,8 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
       const char *str = string_desc_arr[index];
 
       // Cap at max char
-      chr_count = strlen(str);
-      size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1; // -1 for string type
+      chr_count              = strlen(str);
+      const size_t max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1; // -1 for string type
       if (chr_count > max_count) {
         chr_count = max_count;
       }
@@ -257,7 +263,7 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
   }
 
   // first byte is length (including header), second byte is string type
-  _desc_str[0] = (uint16_t) ((TUSB_DESC_STRING << 8) | (2 * chr_count + 2));
+  _desc_str[0] = (uint16_t)((TUSB_DESC_STRING << 8) | (2 * chr_count + 2));
 
   return _desc_str;
 }
