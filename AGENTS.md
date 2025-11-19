@@ -164,11 +164,36 @@ python3 tools/build.py -b BOARD_NAME
 
 ## Release Instructions
 
+**DO NOT commit files automatically - only modify files and let the maintainer review before committing.**
+
 1. Bump the release version variable at the top of `tools/make_release.py`.
-2. Execute `python tools/make_release.py` to refresh `src/tusb_option.h`, `repository.yml`, and `library.json`.
-3. Generate release notes by running `git log <last-release-tag>..HEAD`, then add a new entry to
-   `docs/info/changelog.rst` that follows the existing format (heading, date, highlights, categorized bullet lists).
-4. Proceed with tagging/publishing once builds and tests succeed.
+2. Execute `python3 tools/make_release.py` to refresh:
+   - `src/tusb_option.h` (version defines)
+   - `repository.yml` (version mapping)
+   - `library.json` (PlatformIO version)
+   - `sonar-project.properties` (SonarQube version)
+   - `docs/reference/boards.rst` (generated board documentation)
+   - `hw/bsp/BoardPresets.json` (CMake presets)
+3. Generate release notes for `docs/info/changelog.rst`:
+   - Get commit list: `git log <last-release-tag>..HEAD --oneline`
+   - **Visit GitHub PRs** for merged pull requests to understand context and gather details
+   - Use GitHub tools to search/read PRs: `github-mcp-server-list_pull_requests`, `github-mcp-server-pull_request_read`
+   - Extract key changes, API modifications, bug fixes, and new features from PR descriptions
+   - Add new changelog entry following the existing format:
+     - Version heading with equals underline (e.g., `0.20.0` followed by `======`)
+     - Release date in italics (e.g., `*November 19, 2024*`)
+     - Major sections: General, API Changes, Controller Driver (DCD & HCD), Device Stack, Host Stack, Testing
+     - Use bullet lists with descriptive categorization
+     - Reference function names, config macros, and file paths using RST inline code (double backticks)
+     - Include meaningful descriptions, not just commit messages
+4. **Validation before commit**:
+   - Run unit tests: `cd test/unit-test && ceedling test:all`
+   - Build at least one example: `cd examples/device/cdc_msc && make BOARD=stm32f407disco all`
+   - Verify changed files look correct: `git diff --stat`
+5. **Leave files unstaged** for maintainer to review, modify if needed, and commit with message: `Bump version to X.Y.Z`
+6. **After maintainer commits**: Create annotated tag with `git tag -a vX.Y.Z -m "Release X.Y.Z"`
+7. Push commit and tag: `git push origin <branch> && git push origin vX.Y.Z`
+8. Create GitHub release from the tag with changelog content
 
 ## Repository Structure Quick Reference
 ```
