@@ -50,19 +50,17 @@
 typedef struct {
   uint8_t attrs;
   uint8_t alt;
+  uint8_t state;
+  uint8_t status;
 
-  dfu_state_t state;
-  dfu_status_t status;
-
-  bool flashing_in_progress;
+  bool     flashing_in_progress;
   uint16_t block;
   uint16_t length;
 } dfu_state_ctx_t;
 
-// Only a single dfu state is allowed
 static dfu_state_ctx_t _dfu_ctx;
 
-CFG_TUD_MEM_ALIGN uint8_t _transfer_buf[CFG_TUD_DFU_XFER_BUFSIZE];
+TU_ATTR_ALIGNED(4) uint8_t _transfer_buf[CFG_TUD_DFU_XFER_BUFSIZE];
 
 static void reset_state(void) {
   _dfu_ctx.state = DFU_IDLE;
