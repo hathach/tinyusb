@@ -51,6 +51,7 @@ typedef struct {
   uint16_t total_len;
   uint16_t max_size;
   uint8_t interval;
+  uint8_t iso_retry; // ISO retry counter
 } xfer_ctl_t;
 
 // This variable is modified from ISR context, so it must be protected by critical section
@@ -261,7 +262,13 @@ static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint
 
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = tu_edpt_packet_size(p_endpoint_desc);
-  xfer->interval = p_endpoint_desc->bInterval;
+
+  const dwc2_dsts_t dsts = {.value = dwc2->dsts};
+  if (dsts.enum_speed == DCFG_SPEED_HIGH) {
+    xfer->interval = 1 << (p_endpoint_desc->bInterval - 1);
+  } else {
+    xfer->interval =  p_endpoint_desc->bInterval;
+  }
 
   // Endpoint control
   dwc2_depctl_t depctl = {.value = 0};
@@ -400,7 +407,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   dwc2_depctl_t depctl = {.value = dep->ctl};
   depctl.clear_nak = 1;
   depctl.enable = 1;
-  if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
+  if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS) {
     const dwc2_dsts_t dsts = {.value = dwc2->dsts};
     const uint32_t odd_now = dsts.frame_number & 1u;
     if (odd_now != 0) {
@@ -643,6 +650,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     xfer->buffer = buffer;
     xfer->ff = NULL;
     xfer->total_len = total_bytes;
+    xfer->iso_retry = xfer->interval; // Reset ISO retry counter to interval value
 
     // EP0 can only handle one packet
     if (epnum == 0) {
@@ -680,6 +688,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     xfer->buffer = NULL;
     xfer->ff = ff;
     xfer->total_len = total_bytes;
+    xfer->iso_retry = xfer->interval; // Reset ISO retry counter to interval value
 
     // Schedule packets to be sent within interrupt
     // TODO xfer fifo may only available for slave mode
@@ -782,7 +791,7 @@ static void handle_bus_reset(uint8_t rhport) {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
   }
 
-  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
+  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
 }
 
 static void handle_enum_done(uint8_t rhport) {
@@ -1057,6 +1066,43 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
   }
 }
 
+static void handle_incomplete_iso_in(uint8_t rhport) {
+  dwc2_regs_t      *dwc2    = DWC2_REG(rhport);
+  const dwc2_dsts_t dsts    = {.value = dwc2->dsts};
+  const uint32_t    odd_now = dsts.frame_number & 1u;
+
+  // Loop over all IN endpoints
+  const uint8_t ep_count = dwc2_ep_count(dwc2);
+  for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
+    dwc2_dep_t   *epin   = &dwc2->epin[epnum];
+    dwc2_depctl_t depctl = {.value = epin->diepctl};
+    // Read DSTS and DIEPCTLn for all isochronous endpoints. If the current EP is enabled and the read value of
+    // DSTS.SOFFN is the targeted uframe number for this EP, then this EP has an incomplete transfer.
+    if (depctl.enable && depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && depctl.dpid_iso_odd == odd_now) {
+      xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
+      if (xfer->iso_retry > 0) {
+        xfer->iso_retry--;
+        // Restart ISO transfe: re-write TSIZ and CTL
+        dwc2_ep_tsize_t deptsiz = {.value = 0};
+        deptsiz.xfer_size       = xfer->total_len;
+        deptsiz.packet_count    = tu_div_ceil(xfer->total_len, xfer->max_size);
+        epin->tsiz              = deptsiz.value;
+
+        if (odd_now) {
+          depctl.set_data0_iso_even = 1;
+        } else {
+          depctl.set_data1_iso_odd = 1;
+        }
+        epin->diepctl = depctl.value;
+      } else {
+        // too many retries, give up
+        edpt_disable(rhport, epnum | TUSB_DIR_IN_MASK, false);
+        dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, 0, XFER_RESULT_FAILED, true);
+      }
+    }
+  }
+}
+
 /* Interrupt Hierarchy
                  DIEPINT  DIEPINT
                     \       /
@@ -1155,6 +1201,12 @@ void dcd_int_handler(uint8_t rhport) {
   if (gintsts & GINTSTS_IEPINT) {
     // IEPINT bit read-only, clear using DIEPINTn
     handle_ep_irq(rhport, TUSB_DIR_IN);
+  }
+
+  // Incomplete isochronous IN transfer interrupt handling.
+  if (gintsts & GINTSTS_IISOIXFR) {
+    dwc2->gintsts = GINTSTS_IISOIXFR;
+    handle_incomplete_iso_in(rhport);
   }
 }
 
