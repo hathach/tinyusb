@@ -20,7 +20,7 @@
 2. Build at least one representative example (e.g., `examples/device/cdc_msc`) via CMake+Ninja or Make.
 3. Run unit tests relevant to touched modules; add fuzz/HIL coverage when modifying parsers or protocol state machines.
 
-## Copilot Agent Notes (`./github/copilot-instruction.md`)
+## Copilot Agent Notes (`.github/copilot-instructions.md`)
 # TinyUSB
 TinyUSB is an open-source cross-platform USB Host/Device stack for embedded systems, designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events deferred to non-ISR task functions.
 
