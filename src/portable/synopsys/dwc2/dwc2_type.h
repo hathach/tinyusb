@@ -92,6 +92,16 @@ enum {
 };
 
 enum {
+  GUSBCFG_PHYSEL_HIGHSPEED = 0,
+  GUSBCFG_PHYSEL_FULLSPEED = 1,
+};
+
+enum {
+  GUSBCFG_PHYHS_UTMI = 0,
+  GUSBCFG_PHYHS_ULPI = 1,
+};
+
+enum {
   GHWCFG2_OPMODE_HNP_SRP         = 0,
   GHWCFG2_OPMODE_SRP             = 1,
   GHWCFG2_OPMODE_NON_HNP_NON_SRP = 2,

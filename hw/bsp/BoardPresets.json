@@ -363,6 +363,10 @@
       "inherits": "default"
     },
     {
+      "name": "metro_nrf52840",
+      "inherits": "default"
+    },
+    {
       "name": "mimxrt1010_evk",
       "inherits": "default"
     },
@@ -419,19 +423,43 @@
       "inherits": "default"
     },
     {
-      "name": "pca10056",
+      "name": "nrf52833dk",
       "inherits": "default"
     },
     {
-      "name": "pca10059",
+      "name": "nrf52840dk",
       "inherits": "default"
     },
     {
-      "name": "pca10095",
+      "name": "nrf52840dongle",
       "inherits": "default"
     },
     {
-      "name": "pca10100",
+      "name": "nrf5340dk",
+      "inherits": "default"
+    },
+    {
+      "name": "nrf54h20dk",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_nuc126v",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_sdk_nuc120",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_sdk_nuc121",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_sdk_nuc125",
+      "inherits": "default"
+    },
+    {
+      "name": "nutiny_sdk_nuc505",
       "inherits": "default"
     },
     {
@@ -491,6 +519,10 @@
       "inherits": "default"
     },
     {
+      "name": "raspberry_pi_pico2_riscv",
+      "inherits": "default"
+    },
+    {
       "name": "raspberry_pi_pico_w",
       "inherits": "default"
     },
@@ -515,6 +547,14 @@
       "inherits": "default"
     },
     {
+      "name": "same70_qmtech",
+      "inherits": "default"
+    },
+    {
+      "name": "same70_xplained",
+      "inherits": "default"
+    },
+    {
       "name": "samg55_xplained",
       "inherits": "default"
     },
@@ -535,7 +575,15 @@
       "inherits": "default"
     },
     {
+      "name": "sltb009a",
+      "inherits": "default"
+    },
+    {
       "name": "sparkfun_samd21_mini_usb",
+      "inherits": "default"
+    },
+    {
+      "name": "spresense",
       "inherits": "default"
     },
     {
@@ -696,6 +744,10 @@
     },
     {
       "name": "stm32l476disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32l496nucleo",
       "inherits": "default"
     },
     {
@@ -1337,6 +1389,11 @@
       "configurePreset": "metro_m7_1011_sd"
     },
     {
+      "name": "metro_nrf52840",
+      "description": "Build preset for the metro_nrf52840 board",
+      "configurePreset": "metro_nrf52840"
+    },
+    {
       "name": "mimxrt1010_evk",
       "description": "Build preset for the mimxrt1010_evk board",
       "configurePreset": "mimxrt1010_evk"
@@ -1407,24 +1464,54 @@
       "configurePreset": "nanoch32v305"
     },
     {
-      "name": "pca10056",
-      "description": "Build preset for the pca10056 board",
-      "configurePreset": "pca10056"
+      "name": "nrf52833dk",
+      "description": "Build preset for the nrf52833dk board",
+      "configurePreset": "nrf52833dk"
     },
     {
-      "name": "pca10059",
-      "description": "Build preset for the pca10059 board",
-      "configurePreset": "pca10059"
+      "name": "nrf52840dk",
+      "description": "Build preset for the nrf52840dk board",
+      "configurePreset": "nrf52840dk"
     },
     {
-      "name": "pca10095",
-      "description": "Build preset for the pca10095 board",
-      "configurePreset": "pca10095"
+      "name": "nrf52840dongle",
+      "description": "Build preset for the nrf52840dongle board",
+      "configurePreset": "nrf52840dongle"
     },
     {
-      "name": "pca10100",
-      "description": "Build preset for the pca10100 board",
-      "configurePreset": "pca10100"
+      "name": "nrf5340dk",
+      "description": "Build preset for the nrf5340dk board",
+      "configurePreset": "nrf5340dk"
+    },
+    {
+      "name": "nrf54h20dk",
+      "description": "Build preset for the nrf54h20dk board",
+      "configurePreset": "nrf54h20dk"
+    },
+    {
+      "name": "nutiny_nuc126v",
+      "description": "Build preset for the nutiny_nuc126v board",
+      "configurePreset": "nutiny_nuc126v"
+    },
+    {
+      "name": "nutiny_sdk_nuc120",
+      "description": "Build preset for the nutiny_sdk_nuc120 board",
+      "configurePreset": "nutiny_sdk_nuc120"
+    },
+    {
+      "name": "nutiny_sdk_nuc121",
+      "description": "Build preset for the nutiny_sdk_nuc121 board",
+      "configurePreset": "nutiny_sdk_nuc121"
+    },
+    {
+      "name": "nutiny_sdk_nuc125",
+      "description": "Build preset for the nutiny_sdk_nuc125 board",
+      "configurePreset": "nutiny_sdk_nuc125"
+    },
+    {
+      "name": "nutiny_sdk_nuc505",
+      "description": "Build preset for the nutiny_sdk_nuc505 board",
+      "configurePreset": "nutiny_sdk_nuc505"
     },
     {
       "name": "pico_sdk",
@@ -1497,6 +1584,11 @@
       "configurePreset": "raspberry_pi_pico2"
     },
     {
+      "name": "raspberry_pi_pico2_riscv",
+      "description": "Build preset for the raspberry_pi_pico2_riscv board",
+      "configurePreset": "raspberry_pi_pico2_riscv"
+    },
+    {
       "name": "raspberry_pi_pico_w",
       "description": "Build preset for the raspberry_pi_pico_w board",
       "configurePreset": "raspberry_pi_pico_w"
@@ -1527,6 +1619,16 @@
       "configurePreset": "same54_xplained"
     },
     {
+      "name": "same70_qmtech",
+      "description": "Build preset for the same70_qmtech board",
+      "configurePreset": "same70_qmtech"
+    },
+    {
+      "name": "same70_xplained",
+      "description": "Build preset for the same70_xplained board",
+      "configurePreset": "same70_xplained"
+    },
+    {
       "name": "samg55_xplained",
       "description": "Build preset for the samg55_xplained board",
       "configurePreset": "samg55_xplained"
@@ -1552,9 +1654,19 @@
       "configurePreset": "sipeed_longan_nano"
     },
     {
+      "name": "sltb009a",
+      "description": "Build preset for the sltb009a board",
+      "configurePreset": "sltb009a"
+    },
+    {
       "name": "sparkfun_samd21_mini_usb",
       "description": "Build preset for the sparkfun_samd21_mini_usb board",
       "configurePreset": "sparkfun_samd21_mini_usb"
+    },
+    {
+      "name": "spresense",
+      "description": "Build preset for the spresense board",
+      "configurePreset": "spresense"
     },
     {
       "name": "stlinkv3mini",
@@ -1755,6 +1867,11 @@
       "name": "stm32l476disco",
       "description": "Build preset for the stm32l476disco board",
       "configurePreset": "stm32l476disco"
+    },
+    {
+      "name": "stm32l496nucleo",
+      "description": "Build preset for the stm32l496nucleo board",
+      "configurePreset": "stm32l496nucleo"
     },
     {
       "name": "stm32l4p5nucleo",
@@ -3154,6 +3271,19 @@
       ]
     },
     {
+      "name": "metro_nrf52840",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "metro_nrf52840"
+        },
+        {
+          "type": "build",
+          "name": "metro_nrf52840"
+        }
+      ]
+    },
+    {
       "name": "mimxrt1010_evk",
       "steps": [
         {
@@ -3336,54 +3466,132 @@
       ]
     },
     {
-      "name": "pca10056",
+      "name": "nrf52833dk",
       "steps": [
         {
           "type": "configure",
-          "name": "pca10056"
+          "name": "nrf52833dk"
         },
         {
           "type": "build",
-          "name": "pca10056"
+          "name": "nrf52833dk"
         }
       ]
     },
     {
-      "name": "pca10059",
+      "name": "nrf52840dk",
       "steps": [
         {
           "type": "configure",
-          "name": "pca10059"
+          "name": "nrf52840dk"
         },
         {
           "type": "build",
-          "name": "pca10059"
+          "name": "nrf52840dk"
         }
       ]
     },
     {
-      "name": "pca10095",
+      "name": "nrf52840dongle",
       "steps": [
         {
           "type": "configure",
-          "name": "pca10095"
+          "name": "nrf52840dongle"
         },
         {
           "type": "build",
-          "name": "pca10095"
+          "name": "nrf52840dongle"
         }
       ]
     },
     {
-      "name": "pca10100",
+      "name": "nrf5340dk",
       "steps": [
         {
           "type": "configure",
-          "name": "pca10100"
+          "name": "nrf5340dk"
         },
         {
           "type": "build",
-          "name": "pca10100"
+          "name": "nrf5340dk"
+        }
+      ]
+    },
+    {
+      "name": "nrf54h20dk",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nrf54h20dk"
+        },
+        {
+          "type": "build",
+          "name": "nrf54h20dk"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_nuc126v",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_nuc126v"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_nuc126v"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_sdk_nuc120",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_sdk_nuc120"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_sdk_nuc120"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_sdk_nuc121",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_sdk_nuc121"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_sdk_nuc121"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_sdk_nuc125",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_sdk_nuc125"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_sdk_nuc125"
+        }
+      ]
+    },
+    {
+      "name": "nutiny_sdk_nuc505",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nutiny_sdk_nuc505"
+        },
+        {
+          "type": "build",
+          "name": "nutiny_sdk_nuc505"
         }
       ]
     },
@@ -3570,6 +3778,19 @@
       ]
     },
     {
+      "name": "raspberry_pi_pico2_riscv",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "raspberry_pi_pico2_riscv"
+        },
+        {
+          "type": "build",
+          "name": "raspberry_pi_pico2_riscv"
+        }
+      ]
+    },
+    {
       "name": "raspberry_pi_pico_w",
       "steps": [
         {
@@ -3648,6 +3869,32 @@
       ]
     },
     {
+      "name": "same70_qmtech",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "same70_qmtech"
+        },
+        {
+          "type": "build",
+          "name": "same70_qmtech"
+        }
+      ]
+    },
+    {
+      "name": "same70_xplained",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "same70_xplained"
+        },
+        {
+          "type": "build",
+          "name": "same70_xplained"
+        }
+      ]
+    },
+    {
       "name": "samg55_xplained",
       "steps": [
         {
@@ -3713,6 +3960,19 @@
       ]
     },
     {
+      "name": "sltb009a",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sltb009a"
+        },
+        {
+          "type": "build",
+          "name": "sltb009a"
+        }
+      ]
+    },
+    {
       "name": "sparkfun_samd21_mini_usb",
       "steps": [
         {
@@ -3722,6 +3982,19 @@
         {
           "type": "build",
           "name": "sparkfun_samd21_mini_usb"
+        }
+      ]
+    },
+    {
+      "name": "spresense",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "spresense"
+        },
+        {
+          "type": "build",
+          "name": "spresense"
         }
       ]
     },
@@ -4242,6 +4515,19 @@
         {
           "type": "build",
           "name": "stm32l476disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32l496nucleo",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32l496nucleo"
+        },
+        {
+          "type": "build",
+          "name": "stm32l496nucleo"
         }
       ]
     },

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 NXP
+ * Copyright 2025 NXP
  * All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -25,11 +25,12 @@
 /* clang-format off */
 /* TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!GlobalInfo
-product: Clocks v12.0
+product: Clocks v18.0
 processor: MCXA153
 package_id: MCXA153VLH
 mcu_data: ksdk2_0
-processor_version: 0.13.0
+processor_version: 25.09.10
+board: FRDM-MCXA153
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
 /* clang-format on */
 
@@ -45,13 +46,14 @@ processor_version: 0.13.0
  * Variables
  ******************************************************************************/
 /* System clock frequency. */
-//extern uint32_t SystemCoreClock;
+extern uint32_t SystemCoreClock;
 
 /*******************************************************************************
  ************************ BOARD_InitBootClocks function ************************
  ******************************************************************************/
 void BOARD_InitBootClocks(void)
 {
+    BOARD_BootClockFRO96M();
 }
 
 /*******************************************************************************
@@ -68,9 +70,13 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 12 MHz}
 - {id: Slow_clock.outFreq, value: 3 MHz}
 - {id: System_clock.outFreq, value: 12 MHz}
+- {id: TRACE_clock.outFreq, value: 12 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
+- {id: WWDT0_clock.outFreq, value: 1 MHz}
 settings:
 - {id: SCGMode, value: SIRC}
-- {id: FRO_HF_PERIPHERALS_EN_CFG, value: Disabled}
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
 - {id: SCG.SCSSEL.sel, value: SCG.SIRC}
 - {id: SCG_FIRCCSR_FIRCEN_CFG, value: Disabled}
@@ -106,6 +112,9 @@ void BOARD_BootClockFRO12M(void)
         (void)SPC_SetSRAMOperateVoltage(SPC0, &sramOption);
     }
 
+
+    /*!< Set up system dividers */
+    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);               /* !< Set AHBCLKDIV divider to value 1 */
     CLOCK_SetupFRO12MClocking();                /*!< Setup FRO12M clock */
 
     CLOCK_AttachClk(kFRO12M_to_MAIN_CLK);       /* !< Switch MAIN_CLK to FRO12M */
@@ -125,9 +134,11 @@ void BOARD_BootClockFRO12M(void)
     }
 
     /*!< Set up clock selectors - Attach clocks to the peripheries */
+    CLOCK_AttachClk(kCPU_CLK_to_TRACE);                    /* !< Switch TRACE to CPU_CLK */
 
     /*!< Set up dividers */
-    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);               /* !< Set AHBCLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivTRACE, 1U);                /* !< Set TRACECLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivWWDT0, 1U);                /* !< Set WWDT0CLKDIV divider to value 1 */
 
     /* Set SystemCoreClock variable */
     SystemCoreClock = BOARD_BOOTCLOCKFRO12M_CORE_CLOCK;
@@ -149,9 +160,14 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 48 MHz}
 - {id: Slow_clock.outFreq, value: 6 MHz}
 - {id: System_clock.outFreq, value: 24 MHz}
+- {id: TRACE_clock.outFreq, value: 24 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
+- {id: WWDT0_clock.outFreq, value: 1 MHz}
 settings:
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
-- {id: SYSCON.AHBCLKDIV.scale, value: '2', locked: true}
+- {id: SYSCON.AHBCLKDIV.scale, value: '2'}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
 /* clang-format on */
 
@@ -184,6 +200,11 @@ void BOARD_BootClockFRO24M(void)
         (void)SPC_SetSRAMOperateVoltage(SPC0, &sramOption);
     }
 
+
+    /*!< Set up system dividers */
+    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 2U);               /* !< Set AHBCLKDIV divider to value 2 */
+    CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U);           /* !< Set FROHFDIV divider to value 1 */
+
     CLOCK_SetupFROHFClocking(48000000U);               /*!< Enable FRO HF(48MHz) output */
 
     CLOCK_SetupFRO12MClocking();                /*!< Setup FRO12M clock */
@@ -205,10 +226,21 @@ void BOARD_BootClockFRO24M(void)
     }
 
     /*!< Set up clock selectors - Attach clocks to the peripheries */
+    CLOCK_AttachClk(kCPU_CLK_to_TRACE);                    /* !< Switch TRACE to CPU_CLK */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPSPI0);                /* !< Switch LPSPI0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPSPI1);                /* !< Switch LPSPI1 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPI2C0);                /* !< Switch LPI2C0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART0);               /* !< Switch LPUART0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART1);               /* !< Switch LPUART1 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART2);               /* !< Switch LPUART2 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPTMR0);                /* !< Switch LPTMR0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_I3C0FCLK);              /* !< Switch I3C0FCLK to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_CMP0);                  /* !< Switch CMP0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_CMP1);                  /* !< Switch CMP1 to FRO_HF_DIV */
 
     /*!< Set up dividers */
-    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 2U);               /* !< Set AHBCLKDIV divider to value 2 */
-    CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U);           /* !< Set FROHFDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivTRACE, 1U);                /* !< Set TRACECLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivWWDT0, 1U);                /* !< Set WWDT0CLKDIV divider to value 1 */
 
     /* Set SystemCoreClock variable */
     SystemCoreClock = BOARD_BOOTCLOCKFRO24M_CORE_CLOCK;
@@ -230,7 +262,12 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 48 MHz}
 - {id: Slow_clock.outFreq, value: 12 MHz}
 - {id: System_clock.outFreq, value: 48 MHz}
+- {id: TRACE_clock.outFreq, value: 48 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
+- {id: WWDT0_clock.outFreq, value: 1 MHz}
 settings:
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
 /* clang-format on */
@@ -264,6 +301,11 @@ void BOARD_BootClockFRO48M(void)
         (void)SPC_SetSRAMOperateVoltage(SPC0, &sramOption);
     }
 
+
+    /*!< Set up system dividers */
+    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);               /* !< Set AHBCLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U);           /* !< Set FROHFDIV divider to value 1 */
+
     CLOCK_SetupFROHFClocking(48000000U);               /*!< Enable FRO HF(48MHz) output */
 
     CLOCK_SetupFRO12MClocking();                /*!< Setup FRO12M clock */
@@ -285,10 +327,21 @@ void BOARD_BootClockFRO48M(void)
     }
 
     /*!< Set up clock selectors - Attach clocks to the peripheries */
+    CLOCK_AttachClk(kCPU_CLK_to_TRACE);                    /* !< Switch TRACE to CPU_CLK */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPSPI0);                /* !< Switch LPSPI0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPSPI1);                /* !< Switch LPSPI1 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPI2C0);                /* !< Switch LPI2C0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART0);               /* !< Switch LPUART0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART1);               /* !< Switch LPUART1 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART2);               /* !< Switch LPUART2 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPTMR0);                /* !< Switch LPTMR0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_I3C0FCLK);              /* !< Switch I3C0FCLK to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_CMP0);                  /* !< Switch CMP0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_CMP1);                  /* !< Switch CMP1 to FRO_HF_DIV */
 
     /*!< Set up dividers */
-    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);               /* !< Set AHBCLKDIV divider to value 1 */
-    CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U);           /* !< Set FROHFDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivTRACE, 1U);                /* !< Set TRACECLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivWWDT0, 1U);                /* !< Set WWDT0CLKDIV divider to value 1 */
 
     /* Set SystemCoreClock variable */
     SystemCoreClock = BOARD_BOOTCLOCKFRO48M_CORE_CLOCK;
@@ -310,8 +363,13 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 64 MHz}
 - {id: Slow_clock.outFreq, value: 16 MHz}
 - {id: System_clock.outFreq, value: 64 MHz}
+- {id: TRACE_clock.outFreq, value: 64 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
+- {id: WWDT0_clock.outFreq, value: 1 MHz}
 settings:
 - {id: VDD_CORE, value: voltage_1v1}
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.FROHFDIV.scale, value: '1', locked: true}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
 - {id: SYSCON.AHBCLKDIV.scale, value: '1', locked: true}
@@ -349,6 +407,11 @@ void BOARD_BootClockFRO64M(void)
         (void)SPC_SetSRAMOperateVoltage(SPC0, &sramOption);
     }
 
+
+    /*!< Set up system dividers */
+    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);               /* !< Set AHBCLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U);           /* !< Set FROHFDIV divider to value 1 */
+
     CLOCK_SetupFROHFClocking(64000000U);               /*!< Enable FRO HF(64MHz) output */
 
     CLOCK_SetupFRO12MClocking();                /*!< Setup FRO12M clock */
@@ -370,10 +433,21 @@ void BOARD_BootClockFRO64M(void)
     }
 
     /*!< Set up clock selectors - Attach clocks to the peripheries */
+    CLOCK_AttachClk(kCPU_CLK_to_TRACE);                    /* !< Switch TRACE to CPU_CLK */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPSPI0);                /* !< Switch LPSPI0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPSPI1);                /* !< Switch LPSPI1 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPI2C0);                /* !< Switch LPI2C0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART0);               /* !< Switch LPUART0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART1);               /* !< Switch LPUART1 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART2);               /* !< Switch LPUART2 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPTMR0);                /* !< Switch LPTMR0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_I3C0FCLK);              /* !< Switch I3C0FCLK to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_CMP0);                  /* !< Switch CMP0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_CMP1);                  /* !< Switch CMP1 to FRO_HF_DIV */
 
     /*!< Set up dividers */
-    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);               /* !< Set AHBCLKDIV divider to value 1 */
-    CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U);           /* !< Set FROHFDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivTRACE, 1U);                /* !< Set TRACECLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivWWDT0, 1U);                /* !< Set WWDT0CLKDIV divider to value 1 */
 
     /* Set SystemCoreClock variable */
     SystemCoreClock = BOARD_BOOTCLOCKFRO64M_CORE_CLOCK;
@@ -385,6 +459,7 @@ void BOARD_BootClockFRO64M(void)
 /* TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!Configuration
 name: BOARD_BootClockFRO96M
+called_from_default_init: true
 outputs:
 - {id: CLK_1M_clock.outFreq, value: 1 MHz}
 - {id: CLK_48M_clock.outFreq, value: 48 MHz}
@@ -395,12 +470,14 @@ outputs:
 - {id: MAIN_clock.outFreq, value: 96 MHz}
 - {id: Slow_clock.outFreq, value: 24 MHz}
 - {id: System_clock.outFreq, value: 96 MHz}
+- {id: TRACE_clock.outFreq, value: 96 MHz}
+- {id: UTICK_clock.outFreq, value: 1 MHz}
+- {id: WWDT0_clock.outFreq, value: 1 MHz}
 settings:
 - {id: VDD_CORE, value: voltage_1v1}
-- {id: CLKOUTDIV_HALT, value: Enable}
-- {id: MRCC.FROHFDIV.scale, value: '1', locked: true}
+- {id: MRCC.FREQMEREFCLKSEL.sel, value: MRCC.aoi0_out0}
+- {id: MRCC.FREQMETARGETCLKSEL.sel, value: MRCC.aoi0_out0}
 - {id: MRCC.OSTIMERCLKSEL.sel, value: VBAT.CLK16K_1}
-- {id: SYSCON.AHBCLKDIV.scale, value: '1', locked: true}
 sources:
 - {id: SCG.FIRC.outFreq, value: 96 MHz}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS **********/
@@ -435,6 +512,11 @@ void BOARD_BootClockFRO96M(void)
         (void)SPC_SetSRAMOperateVoltage(SPC0, &sramOption);
     }
 
+
+    /*!< Set up system dividers */
+    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);               /* !< Set AHBCLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U);           /* !< Set FROHFDIV divider to value 1 */
+
     CLOCK_SetupFROHFClocking(96000000U);               /*!< Enable FRO HF(96MHz) output */
 
     CLOCK_SetupFRO12MClocking();                /*!< Setup FRO12M clock */
@@ -456,10 +538,21 @@ void BOARD_BootClockFRO96M(void)
     }
 
     /*!< Set up clock selectors - Attach clocks to the peripheries */
+    CLOCK_AttachClk(kCPU_CLK_to_TRACE);                    /* !< Switch TRACE to CPU_CLK */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPSPI0);                /* !< Switch LPSPI0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPSPI1);                /* !< Switch LPSPI1 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPI2C0);                /* !< Switch LPI2C0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART0);               /* !< Switch LPUART0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART1);               /* !< Switch LPUART1 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPUART2);               /* !< Switch LPUART2 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_LPTMR0);                /* !< Switch LPTMR0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_I3C0FCLK);              /* !< Switch I3C0FCLK to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_CMP0);                  /* !< Switch CMP0 to FRO_HF_DIV */
+    CLOCK_AttachClk(kFRO_HF_DIV_to_CMP1);                  /* !< Switch CMP1 to FRO_HF_DIV */
 
     /*!< Set up dividers */
-    CLOCK_SetClockDiv(kCLOCK_DivAHBCLK, 1U);               /* !< Set AHBCLKDIV divider to value 1 */
-    CLOCK_SetClockDiv(kCLOCK_DivFRO_HF_DIV, 1U);           /* !< Set FROHFDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivTRACE, 1U);                /* !< Set TRACECLKDIV divider to value 1 */
+    CLOCK_SetClockDiv(kCLOCK_DivWWDT0, 1U);                /* !< Set WWDT0CLKDIV divider to value 1 */
 
     /* Set SystemCoreClock variable */
     SystemCoreClock = BOARD_BOOTCLOCKFRO96M_CORE_CLOCK;

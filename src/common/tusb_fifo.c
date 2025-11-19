@@ -551,25 +551,8 @@ static uint16_t _tu_fifo_read_n(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_
     @returns Number of items in FIFO
  */
 /******************************************************************************/
-uint16_t tu_fifo_count(tu_fifo_t *f) {
+uint16_t tu_fifo_count(const tu_fifo_t *f) {
   return tu_min16(_ff_count(f->depth, f->wr_idx, f->rd_idx), f->depth);
-}
-
-/******************************************************************************/
-/*!
-    @brief Check if FIFO is empty.
-
-    As this function only reads the read and write pointers once, this function is
-    reentrant and thus thread and ISR save without any mutexes.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-
-    @returns Number of items in FIFO
- */
-/******************************************************************************/
-bool tu_fifo_empty(tu_fifo_t *f) {
-  return f->wr_idx == f->rd_idx;
 }
 
 /******************************************************************************/
@@ -585,7 +568,7 @@ bool tu_fifo_empty(tu_fifo_t *f) {
     @returns Number of items in FIFO
  */
 /******************************************************************************/
-bool tu_fifo_full(tu_fifo_t *f) {
+bool tu_fifo_full(const tu_fifo_t *f) {
   return _ff_count(f->depth, f->wr_idx, f->rd_idx) >= f->depth;
 }
 
@@ -602,7 +585,7 @@ bool tu_fifo_full(tu_fifo_t *f) {
     @returns Number of items in FIFO
  */
 /******************************************************************************/
-uint16_t tu_fifo_remaining(tu_fifo_t *f) {
+uint16_t tu_fifo_remaining(const tu_fifo_t *f) {
   return _ff_remaining(f->depth, f->wr_idx, f->rd_idx);
 }
 
@@ -627,7 +610,7 @@ uint16_t tu_fifo_remaining(tu_fifo_t *f) {
     @returns True if overflow happened
  */
 /******************************************************************************/
-bool tu_fifo_overflowed(tu_fifo_t *f) {
+bool tu_fifo_overflowed(const tu_fifo_t *f) {
   return _ff_count(f->depth, f->wr_idx, f->rd_idx) > f->depth;
 }
 

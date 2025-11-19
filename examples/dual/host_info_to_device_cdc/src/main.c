@@ -69,7 +69,7 @@ enum {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-static bool is_print[CFG_TUH_DEVICE_MAX+1] = { 0 };
+static bool               is_printable[CFG_TUH_DEVICE_MAX + 1] = {0};
 static tusb_desc_device_t descriptor_device[CFG_TUH_DEVICE_MAX+1];
 
 static void print_utf16(uint16_t *temp_buf, size_t buf_len);
@@ -106,6 +106,10 @@ static void usb_device_init(void) {
     .speed = TUSB_SPEED_AUTO
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
+  tud_cdc_configure_t cdc_cfg = TUD_CDC_CONFIGURE_DEFAULT();
+  cdc_cfg.tx_persistent       = true;
+  cdc_cfg.tx_overwritabe_if_not_connected = false;
+  tud_cdc_configure(&cdc_cfg);
   board_init_after_tusb();
 }
 
@@ -206,17 +210,23 @@ void tud_resume_cb(void) {
 }
 
 void cdc_task(void) {
+  static uint32_t connected_ms = 0;
+
   if (!tud_cdc_connected()) {
-    // delay a bit otherwise we can outpace host's terminal. Linux will set LineState (DTR) then Line Coding.
-    // If we send data before Linux's terminal set Line Coding, it can be ignored --> missing data with hardware test loop
-    tusb_time_delay_ms_api(20);
+    connected_ms = board_millis();
     return;
+  }
+
+  // delay a bit otherwise we can outpace host's terminal. Linux will set LineState (DTR) then Line Coding.
+  // If we send data before Linux's terminal set Line Coding, it can be ignored --> missing data with hardware test loop
+  if (board_millis() - connected_ms < 100) {
+    return; // wait for stable connection
   }
 
   for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
     if (tuh_mounted(daddr)) {
-      if (is_print[daddr]) {
-        is_print[daddr] = false;
+      if (is_printable[daddr]) {
+        is_printable[daddr] = false;
         print_device_info(daddr, &descriptor_device[daddr]);
         tud_cdc_write_flush();
       }
@@ -283,13 +293,13 @@ void tuh_enum_descriptor_device_cb(uint8_t daddr, tusb_desc_device_t const* desc
 void tuh_mount_cb(uint8_t daddr) {
   cdc_printf("mounted device %u\r\n", daddr);
   tud_cdc_write_flush();
-  is_print[daddr] = true;
+  is_printable[daddr] = true;
 }
 
 void tuh_umount_cb(uint8_t daddr) {
   cdc_printf("unmounted device %u\r\n", daddr);
   tud_cdc_write_flush();
-  is_print[daddr] = false;
+  is_printable[daddr] = false;
 }
 
 //--------------------------------------------------------------------+
