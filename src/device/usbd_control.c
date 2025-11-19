@@ -93,7 +93,7 @@ static bool data_stage_xact(uint8_t rhport) {
 
   if (_ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_IN) {
     ep_addr = EDPT_CTRL_IN;
-    if (xact_len) {
+    if (0u != xact_len) {
       TU_VERIFY(0 == tu_memcpy_s(_ctrl_epbuf.buf, CFG_TUD_EP0_BUFSIZE, _ctrl_xfer.buffer, xact_len));
     }
   }
@@ -159,7 +159,7 @@ bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
     // invoke optional dcd hook if available
     dcd_edpt0_status_complete(rhport, &_ctrl_xfer.request);
 
-    if (_ctrl_xfer.complete_cb) {
+    if (NULL != _ctrl_xfer.complete_cb) {
       // TODO refactor with usbd_driver_print_control_complete_name
       _ctrl_xfer.complete_cb(rhport, CONTROL_STAGE_ACK, &_ctrl_xfer.request);
     }
@@ -185,7 +185,7 @@ bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
 
     // invoke complete callback if set
     // callback can still stall control in status phase e.g out data does not make sense
-    if (_ctrl_xfer.complete_cb) {
+    if (NULL != _ctrl_xfer.complete_cb) {
       #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
       usbd_driver_print_control_complete_name(_ctrl_xfer.complete_cb);
       #endif

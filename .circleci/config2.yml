@@ -104,6 +104,7 @@ commands:
 
       - run:
           name: Build
+          no_output_timeout: 20m
           command: |
             if [ << parameters.toolchain >> == esp-idf ]; then
               docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.family >>
@@ -127,7 +128,7 @@ jobs:
     parameters:
       resource_class:
         type: string
-        default: medium+
+        default: large
       build-system:
         type: string
       toolchain:

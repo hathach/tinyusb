@@ -14,8 +14,11 @@ function(update_board TARGET)
     BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     CFG_EXAMPLE_VIDEO_READONLY
     )
-  target_sources(${TARGET} PUBLIC
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/clock_config.c
-    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/pin_mux.c
+  target_sources(${TARGET} PRIVATE
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/board/clock_config.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/board/pin_mux.c
+    )
+  target_include_directories(${TARGET} PUBLIC
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/board
     )
 endfunction()

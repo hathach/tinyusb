@@ -128,9 +128,9 @@ uint32_t tud_msc_inquiry2_cb(uint8_t lun, scsi_inquiry_resp_t *inquiry_resp, uin
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
 
-  strncpy((char*) inquiry_resp->vendor_id, vid, 8);
-  strncpy((char*) inquiry_resp->product_id, pid, 16);
-  strncpy((char*) inquiry_resp->product_rev, rev, 4);
+  (void) strncpy((char*) inquiry_resp->vendor_id, vid, 8);
+  (void) strncpy((char*) inquiry_resp->product_id, pid, 16);
+  (void) strncpy((char*) inquiry_resp->product_rev, rev, 4);
 
   return sizeof(scsi_inquiry_resp_t); // 36 bytes
 }
@@ -143,8 +143,7 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun) {
   // RAM disk is ready until ejected
   if (ejected) {
     // Additional Sense 3A-00 is NOT_FOUND
-    tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);
-    return false;
+    return tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);
   }
 
   return true;
@@ -154,7 +153,6 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun) {
 // Application update block count and block size
 void tud_msc_capacity_cb(uint8_t lun, uint32_t *block_count, uint16_t *block_size) {
   (void) lun;
-
   *block_count = DISK_BLOCK_NUM;
   *block_size = DISK_BLOCK_SIZE;
 }
@@ -194,7 +192,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void *buff
   }
 
   uint8_t const *addr = msc_disk[lba] + offset;
-  memcpy(buffer, addr, bufsize);
+  (void) memcpy(buffer, addr, bufsize);
 
   return (int32_t) bufsize;
 }
@@ -221,7 +219,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t *
 
   #ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t *addr = msc_disk[lba] + offset;
-  memcpy(addr, buffer, bufsize);
+  (void) memcpy(addr, buffer, bufsize);
   #else
   (void) lba;
   (void) offset;
@@ -235,19 +233,17 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t *
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
 // - READ10 and WRITE10 has their own callbacks
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void *buffer, uint16_t bufsize) {
+  (void) lun;
+  (void) scsi_cmd;
   (void) buffer;
   (void) bufsize;
 
-  switch (scsi_cmd[0]) {
-    default:
-      // Set Sense = Invalid Command Operation
-      tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
+  // currently no other commands is supported
 
-      // negative means error -> tinyusb could stall and/or response with failed status
-      return -1;
-  }
+  // Set Sense = Invalid Command Operation
+  (void) tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 
-  return -1;
+  return -1; // stall/failed command request;
 }
 
 #endif

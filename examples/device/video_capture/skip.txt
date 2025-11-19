@@ -1,6 +1,5 @@
 mcu:CH32V103
 mcu:CH32V20X
-mcu:MCXA15
 mcu:MSP430x5xx
 mcu:NUC121
 mcu:SAMD11

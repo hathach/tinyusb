@@ -53,12 +53,14 @@ typedef struct {
 typedef struct {
   uint8_t idx;
   uint8_t stage; // control stage
-  uint32_t session_id;
+
+  // buffer for data stage
+  uint16_t bufsize;
+  uint8_t* buf;
 
   const tusb_control_request_t* request;
-  // buffer for data stage
-  uint8_t* buf;
-  uint16_t bufsize;
+
+  uint32_t session_id;
 } tud_mtp_request_cb_data_t;
 
 // Number of supported operations, events, device properties, capture formats, playback formats
@@ -78,7 +80,7 @@ typedef struct {
     /* string fields will be added using append function */ \
   }
 
-typedef MTP_DEVICE_INFO_STRUCT(
+typedef MTP_DEVICE_INFO_STRUCT( //-V2586 [MISRA-C-18.7] Flexible array members should not be declared
   sizeof(CFG_TUD_MTP_DEVICEINFO_EXTENSIONS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_OPERATIONS),
   TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_EVENTS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_SUPPORTED_DEVICE_PROPERTIES),
   TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_CAPTURE_FORMATS), TU_ARGS_NUM(CFG_TUD_MTP_DEVICEINFO_PLAYBACK_FORMATS)

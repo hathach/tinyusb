@@ -53,9 +53,23 @@ void usb_device_task(void *param);
 void video_task(void* param);
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-void freertos_init_task(void);
+void freertos_init(void);
 #endif
 
+#if !defined(CFG_EXAMPLE_VIDEO_READONLY) || defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
+/* EBU color bars: https://stackoverflow.com/questions/6939422 */
+static uint8_t const bar_color[8][4] = {
+  /*  Y,   U,   Y,   V */
+  { 235, 128, 235, 128}, /* 100% White */
+  { 219,  16, 219, 138}, /* Yellow */
+  { 188, 154, 188,  16}, /* Cyan */
+  { 173,  42, 173,  26}, /* Green */
+  {  78, 214,  78, 230}, /* Magenta */
+  {  63, 102,  63, 240}, /* Red */
+  {  32, 240,  32, 118}, /* Blue */
+  {  16, 128,  16, 128}, /* Black */
+};
+#endif
 
 //--------------------------------------------------------------------+
 // Main
@@ -65,7 +79,7 @@ int main(void) {
 
   // If using FreeRTOS: create blinky, tinyusb device, video task
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-  freertos_init_task();
+  freertos_init();
 #else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
@@ -111,12 +125,43 @@ void tud_resume_cb(void) {
   blink_interval_ms = tud_mounted() ? BLINK_MOUNTED : BLINK_NOT_MOUNTED;
 }
 
+#ifdef CFG_EXAMPLE_VIDEO_BUFFERLESS
+
+#ifndef CFG_EXAMPLE_VIDEO_DISABLE_MJPEG
+  #error Demo only supports YUV2 please define CFG_EXAMPLE_VIDEO_DISABLE_MJPEG
+#endif
+
+void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, tud_video_payload_request_t* request)
+{
+  static uint32_t frame_counter = 0;
+  (void)ctl_idx;
+  (void)stm_idx;
+
+  /* Offset will be zero at the start of a new frame */
+  if (!request->offset) frame_counter++;
+
+  for (size_t buf_pos = 0; buf_pos < request->length; buf_pos += 2) {
+
+    /* Position within the current line (pixel relative) */
+    int line_pos = ((request->offset + buf_pos)>>1) % FRAME_WIDTH;
+
+    /* Choose color based on the position and change the table offset every 4 frames */
+    const uint8_t* color = bar_color[(line_pos/(FRAME_WIDTH / 8) + (frame_counter>>2)) % 8];
+
+    /* Copy pixel data for odd or even pixels */
+    memcpy(&((uint8_t*)request->buf)[buf_pos], &color[(line_pos & 1) ? 2 : 0], 2);
+  }
+
+}
+#endif
+
 //--------------------------------------------------------------------+
 // USB Video
 //--------------------------------------------------------------------+
 static unsigned frame_num = 0;
 static unsigned tx_busy = 0;
 static unsigned interval_ms = 1000 / FRAME_RATE;
+#ifndef CFG_EXAMPLE_VIDEO_BUFFERLESS
 
 #ifdef CFG_EXAMPLE_VIDEO_READONLY
 // For mcus that does not have enough SRAM for frame buffer, we use fixed frame data.
@@ -145,18 +190,6 @@ static struct {
 static uint8_t frame_buffer[FRAME_WIDTH * FRAME_HEIGHT * 16 / 8];
 
 static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
-  /* EBU color bars: https://stackoverflow.com/questions/6939422 */
-  static uint8_t const bar_color[8][4] = {
-      /*  Y,   U,   Y,   V */
-      { 235, 128, 235, 128}, /* 100% White */
-      { 219,  16, 219, 138}, /* Yellow */
-      { 188, 154, 188,  16}, /* Cyan */
-      { 173,  42, 173,  26}, /* Green */
-      {  78, 214,  78, 230}, /* Magenta */
-      {  63, 102,  63, 240}, /* Red */
-      {  32, 240,  32, 118}, /* Blue */
-      {  16, 128,  16, 128}, /* Black */
-  };
   uint8_t* p;
 
   /* Generate the 1st line */
@@ -183,6 +216,8 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
 
 #endif
 
+#endif /* NDEF CFG_EXAMPLE_VIDEO_BUFFERLESS */
+
 static void video_send_frame(void) {
   static unsigned start_ms = 0;
   static unsigned already_sent = 0;
@@ -197,7 +232,9 @@ static void video_send_frame(void) {
     already_sent = 1;
     tx_busy = 1;
     start_ms = board_millis();
-#ifdef CFG_EXAMPLE_VIDEO_READONLY
+#if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
+    tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
+#elif defined (CFG_EXAMPLE_VIDEO_READONLY)
     #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
     tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                            FRAME_WIDTH * FRAME_HEIGHT * 16/8);
@@ -211,12 +248,18 @@ static void video_send_frame(void) {
   }
 
   unsigned cur = board_millis();
-  if (cur - start_ms < interval_ms) return; // not enough time
-  if (tx_busy) return;
+  if (cur - start_ms < interval_ms) {
+    return; // not enough time
+  }
+  if (tx_busy) {
+    return;
+  }
   start_ms += interval_ms;
   tx_busy = 1;
 
-#ifdef CFG_EXAMPLE_VIDEO_READONLY
+#if defined(CFG_EXAMPLE_VIDEO_BUFFERLESS)
+  tud_video_n_frame_xfer(0, 0, NULL, FRAME_WIDTH * FRAME_HEIGHT * 16 / 8);
+#elif defined(CFG_EXAMPLE_VIDEO_READONLY)
   #if defined(CFG_EXAMPLE_VIDEO_DISABLE_MJPEG)
   tud_video_n_frame_xfer(0, 0, (void*)(uintptr_t)&frame_buffer[(frame_num % (FRAME_WIDTH / 2)) * 4],
                          FRAME_WIDTH * FRAME_HEIGHT * 16/8);
@@ -273,7 +316,9 @@ void led_blinking_task(void* param) {
     #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
     #else
-    if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
+    if (board_millis() - start_ms < blink_interval_ms) {
+      return; // not enough time
+    }
     #endif
 
     start_ms += blink_interval_ms;
@@ -336,7 +381,7 @@ void usb_device_task(void *param) {
   }
 }
 
-void freertos_init_task(void) {
+void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
   xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);

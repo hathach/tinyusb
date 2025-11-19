@@ -10,9 +10,43 @@ get_filename_component(TOP ${TOP} ABSOLUTE)
 
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 
+function(family_resolve_board BOARD_NAME BOARD_PATH_OUT)
+  if ("${BOARD_NAME}" STREQUAL "")
+    message(FATAL_ERROR "You must set BOARD (e.g. metro_m4_express, raspberry_pi_pico). Use -DBOARD=xxx on the cmake command line.")
+  endif()
+
+  file(GLOB _board_paths
+    LIST_DIRECTORIES true
+    RELATIVE ${TOP}/hw/bsp
+    ${TOP}/hw/bsp/*/boards/*
+    )
+
+  set(_hint_names "")
+  foreach(_board_path ${_board_paths})
+    get_filename_component(_board_name ${_board_path} NAME)
+    if (_board_name STREQUAL "${BOARD_NAME}")
+      set(${BOARD_PATH_OUT} ${_board_path} PARENT_SCOPE)
+      return()
+    endif()
+    string(FIND "${_board_name}" "${BOARD_NAME}" _pos)
+    if (_pos EQUAL 0)
+      list(APPEND _hint_names ${_board_name})
+    endif()
+  endforeach()
+
+  if (_hint_names)
+    list(REMOVE_DUPLICATES _hint_names)
+    list(SORT _hint_names)
+    list(JOIN _hint_names ", " _hint_str)
+    message(FATAL_ERROR "BOARD '${BOARD_NAME}' not found. Boards with the same prefix:\n${_hint_str}")
+  else()
+    message(FATAL_ERROR "BOARD '${BOARD_NAME}' not found under hw/bsp/*/boards")
+  endif()
+endfunction()
+
 #-------------------------------------------------------------
 # Toolchain
-# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER=
+# Can be changed via -DTOOLCHAIN=gcc|iar or -DCMAKE_C_COMPILER= or ENV{CC}=
 #-------------------------------------------------------------
 function(detect_compiler COMPILER_PATH RESULT)
   string(FIND ${COMPILER_PATH} "iccarm" IS_IAR)
@@ -78,21 +112,8 @@ endif ()
 # FAMILY and BOARD
 #-------------------------------------------------------------
 if (NOT DEFINED FAMILY)
-  if (NOT DEFINED BOARD)
-    message(FATAL_ERROR "You must set a BOARD variable for the build (e.g. metro_m4_express, raspberry_pi_pico).
-    You can do this via -DBOARD=xxx on the cmake command line")
-  endif ()
+  family_resolve_board("${BOARD}" BOARD_PATH)
 
-  # Find path contains BOARD
-  file(GLOB BOARD_PATH LIST_DIRECTORIES true
-    RELATIVE ${TOP}/hw/bsp
-    ${TOP}/hw/bsp/*/boards/${BOARD}
-    )
-  if (NOT BOARD_PATH)
-    message(FATAL_ERROR "Could not detect FAMILY from BOARD=${BOARD}")
-  endif ()
-
-  # replace / with ; so that we can get the first element as FAMILY
   string(REPLACE "/" ";" BOARD_PATH ${BOARD_PATH})
   list(GET BOARD_PATH 0 FAMILY)
   set(FAMILY ${FAMILY} CACHE STRING "Board family")
@@ -243,6 +264,9 @@ function(family_configure_common TARGET RTOS)
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
         SKIP_LINTING ON # need cmake 4.2
         )
+      if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        set_target_properties(${BOARD_TARGET} PROPERTIES COMPILE_OPTIONS -w)
+      endif ()
     endif ()
     target_link_libraries(${TARGET} PUBLIC ${BOARD_TARGET})
   endif ()
@@ -301,10 +325,10 @@ function(family_configure_common TARGET RTOS)
         COMMAND_EXPAND_LISTS
         )
       # generate C-STAT report
-#      add_custom_command(TARGET ${TARGET} POST_BUILD
-#        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cstat_report
-#        COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/index.html
-#        )
+      add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cstat_report
+        COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/index.html
+        )
     endif ()
   endif ()
 
@@ -319,8 +343,8 @@ endfunction()
 
 # Add tinyusb to target
 function(family_add_tinyusb TARGET OPT_MCU)
-  # tinyusb's CMakeList.txt
-  add_subdirectory(${TOP}/src ${CMAKE_CURRENT_BINARY_DIR}/tinyusb)
+  # tinyusb's CMakeLists.txt
+  include(${TOP}/src/CMakeLists.txt)
 
   # Add TinyUSB sources, include and common define
   tinyusb_target_add(${TARGET})

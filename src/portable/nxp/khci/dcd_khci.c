@@ -355,24 +355,21 @@ void dcd_sof_enable(uint8_t rhport, bool en)
 //--------------------------------------------------------------------+
 // Endpoint API
 //--------------------------------------------------------------------+
-bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
-{
-  (void) rhport;
+static bool edpt_open(uint8_t rhport, uint8_t ep_addr, uint16_t max_packet_size, tusb_xfer_type_t xfer) {
+  (void)rhport;
 
-  const unsigned ep_addr  = ep_desc->bEndpointAddress;
-  const unsigned epn      = tu_edpt_number(ep_addr);
-  const unsigned dir      = tu_edpt_dir(ep_addr);
-  const unsigned xfer     = ep_desc->bmAttributes.xfer;
-  endpoint_state_t *ep    = &_dcd.endpoint[epn][dir];
-  const unsigned odd      = ep->odd;
-  buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
+  const unsigned       epn = tu_edpt_number(ep_addr);
+  const unsigned       dir = tu_edpt_dir(ep_addr);
+  endpoint_state_t    *ep  = &_dcd.endpoint[epn][dir];
+  const unsigned       odd = ep->odd;
+  buffer_descriptor_t *bd  = _dcd.bdt[epn][dir];
 
   /* No support for control transfer */
   TU_ASSERT(epn && (xfer != TUSB_XFER_CONTROL));
 
-  ep->max_packet_size = tu_edpt_packet_size(ep_desc);
-  unsigned val = USB_ENDPT_EPCTLDIS_MASK;
-  val |= (xfer != TUSB_XFER_ISOCHRONOUS) ? USB_ENDPT_EPHSHK_MASK: 0;
+  ep->max_packet_size = max_packet_size;
+  unsigned val        = USB_ENDPT_EPCTLDIS_MASK;
+  val |= (xfer != TUSB_XFER_ISOCHRONOUS) ? USB_ENDPT_EPHSHK_MASK : 0;
   val |= dir ? USB_ENDPT_EPTXEN_MASK : USB_ENDPT_EPRXEN_MASK;
   KHCI->ENDPOINT[epn].ENDPT |= val;
 
@@ -382,6 +379,26 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
     bd[odd ^ 1].dts  = 1;
     bd[odd ^ 1].data = 1;
   }
+
+  return true;
+}
+
+bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) {
+  return edpt_open(rhport, ep_desc->bEndpointAddress, tu_edpt_packet_size(ep_desc), ep_desc->bmAttributes.xfer);
+}
+
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  return edpt_open(rhport, ep_addr, largest_packet_size, TUSB_XFER_ISOCHRONOUS);
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) {
+  const unsigned    epn = tu_edpt_number(ep_desc->bEndpointAddress);
+  const unsigned    dir = tu_edpt_dir(ep_desc->bEndpointAddress);
+  endpoint_state_t *ep  = &_dcd.endpoint[epn][dir];
+
+  dcd_int_disable(rhport);
+  ep->max_packet_size = tu_edpt_packet_size(ep_desc);
+  dcd_int_enable(rhport);
 
   return true;
 }
@@ -406,26 +423,6 @@ void dcd_edpt_close_all(uint8_t rhport)
     ep->length          = 0;
     ep->remaining       = 0;
   }
-}
-
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  const unsigned epn      = tu_edpt_number(ep_addr);
-  const unsigned dir      = tu_edpt_dir(ep_addr);
-  endpoint_state_t *ep    = &_dcd.endpoint[epn][dir];
-  buffer_descriptor_t *bd = _dcd.bdt[epn][dir];
-  const unsigned msk      = dir ? USB_ENDPT_EPTXEN_MASK : USB_ENDPT_EPRXEN_MASK;
-  const unsigned ie       = NVIC_GetEnableIRQ(USB0_IRQn);
-  NVIC_DisableIRQ(USB0_IRQn);
-  KHCI->ENDPOINT[epn].ENDPT &= ~msk;
-  ep->max_packet_size = 0;
-  ep->length          = 0;
-  ep->remaining       = 0;
-  bd[0].head          = 0;
-  bd[1].head          = 0;
-  if (ie) NVIC_EnableIRQ(USB0_IRQn);
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
@@ -577,5 +574,4 @@ void dcd_int_handler(uint8_t rhport)
     process_tokdne(rhport);
   }
 }
-
 #endif

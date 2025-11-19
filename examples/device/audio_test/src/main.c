@@ -63,8 +63,8 @@ uint32_t sampFreq;
 uint8_t clkValid;
 
 // Range states
-audio_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];// Volume range state
-audio_control_range_4_n_t(1) sampleFreqRng;                                    // Sample frequency range state
+audio20_control_range_2_n_t(1) volumeRng[CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX + 1];// Volume range state
+audio20_control_range_4_n_t(1) sampleFreqRng;                                    // Sample frequency range state
 
 // Audio test data
 uint16_t test_buffer_audio[CFG_TUD_AUDIO_FUNC_1_SAMPLE_RATE / 1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX / 2];
@@ -139,7 +139,9 @@ void tud_resume_cb(void) {
 void audio_task(void) {
   static uint32_t start_ms = 0;
   uint32_t curr_ms = board_millis();
-  if (start_ms == curr_ms) return;// not enough time
+  if (start_ms == curr_ms) {
+    return; // not enough time
+  }
   start_ms = curr_ms;
   for (size_t cnt = 0; cnt < sizeof(test_buffer_audio) / 2; cnt++) {
     test_buffer_audio[cnt] = startVal++;
@@ -157,7 +159,7 @@ bool tud_audio_set_req_ep_cb(uint8_t rhport, tusb_control_request_t const *p_req
   (void) pBuff;
 
   // We do not support any set range requests here, only current value requests
-  TU_VERIFY(p_request->bRequest == AUDIO_CS_REQ_CUR);
+  TU_VERIFY(p_request->bRequest == AUDIO20_CS_REQ_CUR);
 
   // Page 91 in UAC2 specification
   uint8_t channelNum = TU_U16_LOW(p_request->wValue);
@@ -177,7 +179,7 @@ bool tud_audio_set_req_itf_cb(uint8_t rhport, tusb_control_request_t const *p_re
   (void) pBuff;
 
   // We do not support any set range requests here, only current value requests
-  TU_VERIFY(p_request->bRequest == AUDIO_CS_REQ_CUR);
+  TU_VERIFY(p_request->bRequest == AUDIO20_CS_REQ_CUR);
 
   // Page 91 in UAC2 specification
   uint8_t channelNum = TU_U16_LOW(p_request->wValue);
@@ -204,25 +206,25 @@ bool tud_audio_set_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   (void) itf;
 
   // We do not support any set range requests here, only current value requests
-  TU_VERIFY(p_request->bRequest == AUDIO_CS_REQ_CUR);
+  TU_VERIFY(p_request->bRequest == AUDIO20_CS_REQ_CUR);
 
   // If request is for our feature unit
   if (entityID == 2) {
     switch (ctrlSel) {
-      case AUDIO_FU_CTRL_MUTE:
+      case AUDIO20_FU_CTRL_MUTE:
         // Request uses format layout 1
-        TU_VERIFY(p_request->wLength == sizeof(audio_control_cur_1_t));
+        TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_1_t));
 
-        mute[channelNum] = ((audio_control_cur_1_t *) pBuff)->bCur;
+        mute[channelNum] = ((audio20_control_cur_1_t *) pBuff)->bCur;
 
         TU_LOG2("    Set Mute: %d of channel: %u\r\n", mute[channelNum], channelNum);
         return true;
 
-      case AUDIO_FU_CTRL_VOLUME:
+      case AUDIO20_FU_CTRL_VOLUME:
         // Request uses format layout 2
-        TU_VERIFY(p_request->wLength == sizeof(audio_control_cur_2_t));
+        TU_VERIFY(p_request->wLength == sizeof(audio20_control_cur_2_t));
 
-        volume[channelNum] = (uint16_t) ((audio_control_cur_2_t *) pBuff)->bCur;
+        volume[channelNum] = (uint16_t) ((audio20_control_cur_2_t *) pBuff)->bCur;
 
         TU_LOG2("    Set Volume: %d dB of channel: %u\r\n", volume[channelNum], channelNum);
         return true;
@@ -283,13 +285,13 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   // Input terminal (Microphone input)
   if (entityID == 1) {
     switch (ctrlSel) {
-      case AUDIO_TE_CTRL_CONNECTOR: {
+      case AUDIO20_TE_CTRL_CONNECTOR: {
         // The terminal connector control only has a get request with only the CUR attribute.
-        audio_desc_channel_cluster_t ret;
+        audio20_desc_channel_cluster_t ret;
 
         // Those are dummy values for now
         ret.bNrChannels = 1;
-        ret.bmChannelConfig = (audio_channel_config_t) 0;
+        ret.bmChannelConfig = (audio20_channel_config_t) 0;
         ret.iChannelNames = 0;
 
         TU_LOG2("    Get terminal connector\r\n");
@@ -307,23 +309,23 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   // Feature unit
   if (entityID == 2) {
     switch (ctrlSel) {
-      case AUDIO_FU_CTRL_MUTE:
+      case AUDIO20_FU_CTRL_MUTE:
         // Audio control mute cur parameter block consists of only one byte - we thus can send it right away
         // There does not exist a range parameter block for mute
         TU_LOG2("    Get Mute of channel: %u\r\n", channelNum);
         return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &mute[channelNum], 1);
 
-      case AUDIO_FU_CTRL_VOLUME:
+      case AUDIO20_FU_CTRL_VOLUME:
         switch (p_request->bRequest) {
-          case AUDIO_CS_REQ_CUR:
+          case AUDIO20_CS_REQ_CUR:
             TU_LOG2("    Get Volume of channel: %u\r\n", channelNum);
             return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &volume[channelNum], sizeof(volume[channelNum]));
 
-          case AUDIO_CS_REQ_RANGE:
+          case AUDIO20_CS_REQ_RANGE:
             TU_LOG2("    Get Volume range of channel: %u\r\n", channelNum);
 
             // Copy values - only for testing - better is version below
-            audio_control_range_2_n_t(1)
+            audio20_control_range_2_n_t(1)
                 ret;
 
             ret.wNumSubRanges = 1;
@@ -350,14 +352,14 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
   // Clock Source unit
   if (entityID == 4) {
     switch (ctrlSel) {
-      case AUDIO_CS_CTRL_SAM_FREQ:
+      case AUDIO20_CS_CTRL_SAM_FREQ:
         // channelNum is always zero in this case
         switch (p_request->bRequest) {
-          case AUDIO_CS_REQ_CUR:
+          case AUDIO20_CS_REQ_CUR:
             TU_LOG2("    Get Sample Freq.\r\n");
             return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &sampFreq, sizeof(sampFreq));
 
-          case AUDIO_CS_REQ_RANGE:
+          case AUDIO20_CS_REQ_RANGE:
             TU_LOG2("    Get Sample Freq. range\r\n");
             return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &sampleFreqRng, sizeof(sampleFreqRng));
 
@@ -368,7 +370,7 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *p
         }
         break;
 
-      case AUDIO_CS_CTRL_CLK_VALID:
+      case AUDIO20_CS_CTRL_CLK_VALID:
         // Only cur attribute exists for this request
         TU_LOG2("    Get Sample Freq. valid\r\n");
         return tud_audio_buffer_and_schedule_control_xfer(rhport, p_request, &clkValid, sizeof(clkValid));
@@ -400,7 +402,9 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return;// not enough time
+  if (board_millis() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);

@@ -48,7 +48,7 @@
 #endif
 
 #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
-#define MIDI_STACK_SIZE     configMINIMAL_STACK_SIZE
+#define MIDI_STACK_SIZE     (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 2 : 1))
 
 // static task
 #if configSUPPORT_STATIC_ALLOCATION

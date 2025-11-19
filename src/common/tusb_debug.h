@@ -55,7 +55,8 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent);
   extern int CFG_TUSB_DEBUG_PRINTF(const char *format, ...);
   #define tu_printf    CFG_TUSB_DEBUG_PRINTF
 #else
-  #define tu_printf    printf
+  #include <stdio.h>
+  #define tu_printf(...)    (void) printf(__VA_ARGS__)
 #endif
 
 TU_ATTR_ALWAYS_INLINE static inline void tu_print_buf(uint8_t const* buf, uint32_t bufsize) {
@@ -118,7 +119,9 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
 
   // not found return the key value in hex
   static char not_found[11];
-  snprintf(not_found, sizeof(not_found), "0x%08lX", (unsigned long) key);
+  if (snprintf(not_found, sizeof(not_found), "0x%08lX", (unsigned long) key) <= 0) {
+    not_found[0] = 0;
+  }
   return not_found;
 }
 

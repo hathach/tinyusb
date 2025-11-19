@@ -24,7 +24,6 @@
  */
 
 #include "bsp/board_api.h"
-#include "class/dfu/dfu_device.h"
 #include "tusb.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
@@ -248,7 +247,7 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
 
       // Cap at max char
       chr_count = strlen(str);
-      size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1;// -1 for string type
+      size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1; // -1 for string type
       if (chr_count > max_count) {
         chr_count = max_count;
       }

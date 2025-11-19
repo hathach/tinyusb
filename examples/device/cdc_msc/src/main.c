@@ -37,12 +37,12 @@
  */
 enum {
   BLINK_NOT_MOUNTED = 250,
-  BLINK_MOUNTED = 1000,
-  BLINK_SUSPENDED = 2500,
+  BLINK_MOUNTED     = 1000,
+  BLINK_SUSPENDED   = 2500,
 };
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
-static bool blink_enable = true;
+static bool     blink_enable      = true;
 
 void led_blinking_task(void);
 void cdc_task(void);
@@ -52,10 +52,7 @@ int main(void) {
   board_init();
 
   // init device stack on configured roothub port
-  tusb_rhport_init_t dev_init = {
-    .role = TUSB_ROLE_DEVICE,
-    .speed = TUSB_SPEED_AUTO
-  };
+  tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   board_init_after_tusb();
@@ -86,7 +83,7 @@ void tud_umount_cb(void) {
 // remote_wakeup_en : if host allow us  to perform remote wakeup
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
 void tud_suspend_cb(bool remote_wakeup_en) {
-  (void) remote_wakeup_en;
+  (void)remote_wakeup_en;
   blink_interval_ms = BLINK_SUSPENDED;
 }
 
@@ -107,9 +104,9 @@ void cdc_task(void) {
     // connected and there are data available
     if (tud_cdc_available()) {
       // read data
-      char buf[64];
+      char     buf[64];
       uint32_t count = tud_cdc_read(buf, sizeof(buf));
-      (void) count;
+      (void)count;
 
       // Echo back
       // Note: Skip echo by commenting out write() and write_flush()
@@ -120,10 +117,12 @@ void cdc_task(void) {
     }
 
     // Press on-board button to send Uart status notification
+    static cdc_notify_uart_state_t uart_state = {.value = 0};
+
     static uint32_t btn_prev = 0;
-    static cdc_notify_uart_state_t uart_state = { .value = 0 };
-    const uint32_t btn = board_button_read();
-    if (!btn_prev && btn) {
+    const uint32_t  btn      = board_button_read();
+
+    if ((btn_prev == 0u) && (btn != 0u)) {
       uart_state.dsr ^= 1;
       tud_cdc_notify_uart_state(&uart_state);
     }
@@ -133,8 +132,8 @@ void cdc_task(void) {
 
 // Invoked when cdc when line state changed e.g connected/disconnected
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
-  (void) itf;
-  (void) rts;
+  (void)itf;
+  (void)rts;
 
   if (dtr) {
     // Terminal connected
@@ -148,15 +147,15 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
 
 // Invoked when CDC interface received data from host
 void tud_cdc_rx_cb(uint8_t itf) {
-  (void) itf;
+  (void)itf;
 }
 
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
 void led_blinking_task(void) {
-  static uint32_t start_ms = 0;
-  static bool led_state = false;
+  static uint32_t start_ms  = 0;
+  static bool     led_state = false;
 
   if (blink_enable) {
     // Blink every interval ms
