@@ -59,7 +59,7 @@ Minimal Example
    }
 
    void USB1_IRQHandler(void) {
-     // forward interrupt port 0 to TinyUSB stack
+     // forward interrupt port 1 to TinyUSB stack
      tusb_int_handler(1, true);
    }
 
