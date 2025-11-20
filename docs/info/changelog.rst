@@ -87,13 +87,10 @@ Device Stack
 
   - Add bufferless operation callback for dynamic frame generation with tud_video_prepare_payload_cb()
 
-
 Host Stack
 ----------
 
-- USBH Core
-
-  - Improve transfer closing and channel management
+No changes
 
 0.19.0
 ======
