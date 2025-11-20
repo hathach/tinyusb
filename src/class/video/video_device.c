@@ -1308,7 +1308,7 @@ bool tud_video_n_frame_xfer(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *bu
   stm->buffer     = (uint8_t*)buffer;
   stm->bufsize    = bufsize;
   uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
-  TU_ASSERT( usbd_edpt_xfer(0, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len), 0);
+  TU_ASSERT( usbd_edpt_xfer(0, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false), 0);
   return true;
 }
 
@@ -1501,7 +1501,7 @@ bool videod_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint3
     /* Claim the endpoint */
     TU_VERIFY(usbd_edpt_claim(rhport, ep_addr), 0);
     uint_fast16_t pkt_len = _prepare_in_payload(stm, stm_epbuf->buf);
-    TU_ASSERT(usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len), 0);
+    TU_ASSERT(usbd_edpt_xfer(rhport, ep_addr, stm_epbuf->buf, (uint16_t) pkt_len, false), 0);
   } else {
     stm->buffer  = NULL;
     stm->bufsize = 0;

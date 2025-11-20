@@ -556,7 +556,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   (void)dev_addr;
 
   // Respond with status. There is no checking that the address is in range.
-  dcd_edpt_xfer(rhport, tu_edpt_addr(USBD_EP_0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(USBD_EP_0, TUSB_DIR_IN), NULL, 0, false);
 
   // Set the update bit for the address register.
   dev_addr |= 0x80;
@@ -821,8 +821,9 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   uint8_t ep_number = tu_edpt_number(ep_addr);
   uint8_t ep_dir = tu_edpt_dir(ep_addr);
@@ -905,8 +906,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 }
 
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
-bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   (void)ep_addr;
   (void)ff;

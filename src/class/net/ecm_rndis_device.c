@@ -82,12 +82,12 @@ static bool can_xmit;
 static bool ecm_link_is_up = true;  // Store link state for ECM mode
 
 void tud_network_recv_renew(void) {
-  usbd_edpt_xfer(0, _netd_itf.ep_out, _netd_epbuf.rx, NETD_PACKET_SIZE);
+  usbd_edpt_xfer(0, _netd_itf.ep_out, _netd_epbuf.rx, NETD_PACKET_SIZE, false);
 }
 
 static void do_in_xfer(uint8_t *buf, uint16_t len) {
   can_xmit = false;
-  usbd_edpt_xfer(0, _netd_itf.ep_in, buf, len);
+  usbd_edpt_xfer(0, _netd_itf.ep_in, buf, len, false);
 }
 
 void netd_report(uint8_t *buf, uint16_t len) {
@@ -100,7 +100,7 @@ void netd_report(uint8_t *buf, uint16_t len) {
   }
 
   memcpy(_netd_epbuf.notify, buf, len);
-  usbd_edpt_xfer(rhport, _netd_itf.ep_notif, _netd_epbuf.notify, len);
+  usbd_edpt_xfer(rhport, _netd_itf.ep_notif, _netd_epbuf.notify, len, false);
 }
 
 //--------------------------------------------------------------------+

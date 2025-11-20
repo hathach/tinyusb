@@ -129,7 +129,7 @@ static void prepare_next_setup_packet(uint8_t rhport)
   _dcd.bdt[0][1][in_odd].data      = 1;
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT),
-                _dcd.setup_packet, sizeof(_dcd.setup_packet));
+                _dcd.setup_packet, sizeof(_dcd.setup_packet), false);
 }
 
 static void process_stall(uint8_t rhport)
@@ -314,7 +314,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   _dcd.addr = dev_addr & 0x7F;
   /* Response with status first before changing device address */
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -425,9 +425,10 @@ void dcd_edpt_close_all(uint8_t rhport)
   }
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
   (void) rhport;
+  (void) is_isr;
   const unsigned epn      = tu_edpt_number(ep_addr);
   const unsigned dir      = tu_edpt_dir(ep_addr);
   endpoint_state_t    *ep = &_dcd.endpoint[epn][dir];

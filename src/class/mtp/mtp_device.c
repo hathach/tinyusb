@@ -191,7 +191,7 @@ TU_ATTR_UNUSED static const char* _mtp_phase_str[] = {
 //--------------------------------------------------------------------+
 static bool prepare_new_command(mtpd_interface_t* p_mtp) {
   p_mtp->phase = MTP_PHASE_COMMAND;
-  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE);
+  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE, false);
 }
 
 static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
@@ -219,7 +219,7 @@ static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
   if (xact_len) {
     // already transferred all bytes in header's length. Application make an unnecessary extra call
     TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
-    TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, xact_len));
+    TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, xact_len, false));
   }
   return true;
 }
@@ -238,7 +238,7 @@ bool tud_mtp_response_send(mtp_container_info_t* p_container) {
   p_container->header->type = MTP_CONTAINER_TYPE_RESPONSE_BLOCK;
   p_container->header->transaction_id = p_mtp->command.header.transaction_id;
   TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in));
-  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, (uint16_t)p_container->header->len);
+  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, (uint16_t) p_container->header->len, false);
 }
 
 bool tud_mtp_mounted(void) {
@@ -251,7 +251,7 @@ bool tud_mtp_event_send(mtp_event_t* event) {
   TU_VERIFY(p_mtp->ep_event != 0);
   _mtpd_epbuf.buf_event = *event;
   TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_event)); // Claim the endpoint
-  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_event, (uint8_t*) &_mtpd_epbuf.buf_event, sizeof(mtp_event_t));
+  return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_event, (uint8_t*) &_mtpd_epbuf.buf_event, sizeof(mtp_event_t), false);
 }
 
 //--------------------------------------------------------------------+

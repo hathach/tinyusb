@@ -122,7 +122,7 @@ static void prepare_next_setup_packet(uint8_t rhport) {
   _dcd.bdt[0][0][out_odd ^ 1].data = 1;
   _dcd.bdt[0][1][in_odd].data      = 1;
   _dcd.bdt[0][1][in_odd ^ 1].data  = 0;
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT), _dcd.setup_packet, sizeof(_dcd.setup_packet));
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_OUT), _dcd.setup_packet, sizeof(_dcd.setup_packet), false);
 }
 
 static void process_stall(uint8_t rhport) {
@@ -268,7 +268,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   (void)rhport;
   _dcd.addr = dev_addr & 0x7F;
   /* Response with status first before changing device address */
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 #ifdef __GNUC__ // caused by extra declaration of SystemCoreClock in freeRTOSConfig.h
@@ -377,7 +377,8 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
 }
   #endif
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes) {
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t  *buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   (void)rhport;
   NVIC_DisableIRQ(USB_FS_IRQn);
   const unsigned       epn = ep_addr & 0xFu;
