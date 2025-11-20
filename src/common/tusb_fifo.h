@@ -141,6 +141,16 @@ typedef struct {
     uint8_t _name##_buf[_depth*sizeof(_type)];                                \
     tu_fifo_t _name = TU_FIFO_INIT(_name##_buf, _depth, _type, _overwritable)
 
+// Write modes intended to allow special read and write functions to be able to
+// copy data to and from USB hardware FIFOs as needed for e.g. STM32s and others
+typedef enum {
+  TU_FIFO_INC_ADDR_RW8,    // increased address read/write by bytes - normal (default) mode
+  TU_FIFO_FIXED_ADDR_RW32, // fixed address read/write by 4 bytes (word). Used for STM32 access into USB hardware FIFO
+} tu_fifo_access_mode_t;
+
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable);
 bool tu_fifo_clear(tu_fifo_t *f);
 bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable);
@@ -155,17 +165,23 @@ void tu_fifo_config_mutex(tu_fifo_t *f, osal_mutex_t wr_mutex, osal_mutex_t rd_m
 #define tu_fifo_config_mutex(_f, _wr_mutex, _rd_mutex)
 #endif
 
-bool     tu_fifo_write(tu_fifo_t *f, void const *data);
-uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n);
+// Write API
+uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_fifo_access_mode_t access_mode);
+bool     tu_fifo_write(tu_fifo_t *f, const void *data);
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
+  return tu_fifo_write_n_access(f, data, n, TU_FIFO_INC_ADDR_RW8);
+}
 
+// Read API
+uint16_t tu_fifo_read_n_access(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode);
 bool     tu_fifo_read(tu_fifo_t *f, void *buffer);
-uint16_t tu_fifo_read_n(tu_fifo_t *f, void *buffer, uint16_t n);
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *buffer, uint16_t n) {
+  return tu_fifo_read_n_access(f, buffer, n, TU_FIFO_INC_ADDR_RW8);
+}
 
-#ifdef TUP_MEM_CONST_ADDR
-uint16_t tu_fifo_write_n_const_addr_full_words(tu_fifo_t *f, const void *data, uint16_t n);
-uint16_t tu_fifo_read_n_const_addr_full_words(tu_fifo_t *f, void *buffer, uint16_t n);
-#endif
-
+// Peek API
+uint16_t tu_fifo_peek_n_access(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
+                               tu_fifo_access_mode_t access_mode);
 bool     tu_fifo_peek(tu_fifo_t *f, void *p_buffer);
 uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n);
 
