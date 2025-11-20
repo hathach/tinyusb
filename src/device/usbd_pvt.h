@@ -72,6 +72,9 @@ void usbd_int_set(bool enabled);
 void usbd_spin_lock(bool in_isr);
 void usbd_spin_unlock(bool in_isr);
 
+// Get control transfer endpoint buffer
+uint8_t* usbd_control_get_buffer(void);
+
 //--------------------------------------------------------------------+
 // USBD Endpoint API
 // Note: rhport should be 0 since device stack only support 1 rhport for now
