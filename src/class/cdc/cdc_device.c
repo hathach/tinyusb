@@ -66,8 +66,9 @@ typedef struct {
 
 #define ITF_MEM_RESET_SIZE offsetof(cdcd_interface_t, line_coding)
 
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO || CFG_TUD_CDC_NOTIFY
 typedef struct {
-  // Don't use local EP buffer if dedicated FIFO is supported
+  // Don't use local EP buffer if dedicated hw FIFO is supported
   #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
   TUD_EPBUF_DEF(epout, CFG_TUD_CDC_EP_BUFSIZE);
   TUD_EPBUF_DEF(epin, CFG_TUD_CDC_EP_BUFSIZE);
@@ -77,6 +78,9 @@ typedef struct {
   TUD_EPBUF_TYPE_DEF(cdc_notify_msg_t, epnotify);
   #endif
 } cdcd_epbuf_t;
+
+CFG_TUD_MEM_SECTION static cdcd_epbuf_t _cdcd_epbuf[CFG_TUD_CDC];
+#endif
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
@@ -118,7 +122,6 @@ TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms) {
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
-CFG_TUD_MEM_SECTION static cdcd_epbuf_t _cdcd_epbuf[CFG_TUD_CDC];
 static tud_cdc_configure_t _cdcd_cfg = TUD_CDC_CONFIGURE_DEFAULT();
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t find_cdc_itf(uint8_t ep_addr) {
@@ -491,11 +494,35 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   if (ep_addr == stream_rx->ep_addr) {
     tu_edpt_stream_read_xfer_complete(stream_rx, xferred_bytes);
 
-    // Check for wanted char and invoke wanted callback (multiple times if multiple wanted received)
+    // Check for wanted char and invoke wanted callback
     if (((signed char)p_cdc->wanted_char) != -1) {
-      for (uint32_t i = 0; i < xferred_bytes; i++) {
-        if ((p_cdc->wanted_char == (char)stream_rx->ep_buf[i]) && !tu_edpt_stream_empty(stream_rx)) {
-          tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
+      tu_fifo_buffer_info_t buf_info;
+      tu_fifo_get_read_info(&stream_rx->ff, &buf_info);
+
+      // find backward
+      uint8_t *ptr;
+      if (buf_info.len_wrap > 0) {
+        ptr = buf_info.ptr_wrap + buf_info.len_wrap - 1; // last byte of wrap buffer
+      } else if (buf_info.len_lin > 0) {
+        ptr = buf_info.ptr_lin + buf_info.len_lin - 1;   // last byte of linear buffer
+      } else {
+        ptr = NULL;                                      // no data
+      }
+
+      if (ptr != NULL) {
+        for (uint32_t i = 0; i < xferred_bytes; i++) {
+          if (p_cdc->wanted_char == (char)*ptr) {
+            tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
+            break; // only invoke once per transfer, even multiple wanted chars are present
+          }
+
+          if (ptr == buf_info.ptr_wrap) {
+            ptr = buf_info.ptr_lin + buf_info.len_lin - 1; // last byte of linear buffer
+          } else if (ptr == buf_info.ptr_lin) {
+            break;                                         // reached the beginning
+          } else {
+            ptr--;
+          }
         }
       }
     }
