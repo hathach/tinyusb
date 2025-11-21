@@ -37,6 +37,12 @@ extern "C" {
 // Application API
 //--------------------------------------------------------------------+
 
+// Configure device stack behavior with dynamic or port-specific parameters.
+// Should be called before tud_init()
+// - cfg_id   : configure ID (TBD)
+// - cfg_param: configure data, structure depends on the ID
+bool tud_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
+
 // New API to replace tud_init() to init device stack on specific roothub port
 bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
