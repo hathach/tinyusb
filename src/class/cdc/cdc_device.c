@@ -67,8 +67,11 @@ typedef struct {
 #define ITF_MEM_RESET_SIZE offsetof(cdcd_interface_t, line_coding)
 
 typedef struct {
+  // Don't use local EP buffer if dedicated FIFO is supported
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
   TUD_EPBUF_DEF(epout, CFG_TUD_CDC_EP_BUFSIZE);
   TUD_EPBUF_DEF(epin, CFG_TUD_CDC_EP_BUFSIZE);
+  #endif
 
   #if CFG_TUD_CDC_NOTIFY
   TUD_EPBUF_TYPE_DEF(cdc_notify_msg_t, epnotify);
@@ -268,8 +271,6 @@ void cdcd_init(void) {
   tu_memclr(_cdcd_itf, sizeof(_cdcd_itf));
   for (uint8_t i = 0; i < CFG_TUD_CDC; i++) {
     cdcd_interface_t *p_cdc   = &_cdcd_itf[i];
-    cdcd_epbuf_t     *p_epbuf = &_cdcd_epbuf[i];
-
     p_cdc->wanted_char = (char) -1;
 
     // default line coding is : stop bit = 1, parity = none, data bits = 8
@@ -278,14 +279,23 @@ void cdcd_init(void) {
     p_cdc->line_coding.parity = 0;
     p_cdc->line_coding.data_bits = 8;
 
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
+    uint8_t *epout_buf = NULL;
+    uint8_t *epin_buf  = NULL;
+  #else
+    cdcd_epbuf_t *p_epbuf   = &_cdcd_epbuf[i];
+    uint8_t      *epout_buf = p_epbuf->epout;
+    uint8_t      *epin_buf  = p_epbuf->epin;
+  #endif
+
     tu_edpt_stream_init(&p_cdc->stream.rx, false, false, false, p_cdc->stream.rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE,
-                        p_epbuf->epout, CFG_TUD_CDC_EP_BUFSIZE);
+                        epout_buf, CFG_TUD_CDC_EP_BUFSIZE);
 
     // TX fifo can be configured to change to overwritable if not connected (DTR bit not set). Without DTR we do not
     // know if data is actually polled by terminal. This way the most current data is prioritized.
     // Default: is overwritable
     tu_edpt_stream_init(&p_cdc->stream.tx, false, true, _cdcd_cfg.tx_overwritabe_if_not_connected,
-                        p_cdc->stream.tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, p_epbuf->epin, CFG_TUD_CDC_EP_BUFSIZE);
+                        p_cdc->stream.tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, epin_buf, CFG_TUD_CDC_EP_BUFSIZE);
   }
 }
 

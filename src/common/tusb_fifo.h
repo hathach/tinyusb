@@ -48,6 +48,10 @@ extern "C" {
 // for OS None, we don't get preempted
 #define CFG_FIFO_MUTEX      OSAL_MUTEX_REQUIRED
 
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO || CFG_TUH_EDPT_DEDICATED_HWFIFO
+  #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
+#endif
+
 /* Write/Read index is always in the range of:
  *      0 .. 2*depth-1
  * The extra window allow us to determine the fifo state of empty or full with only 2 indices

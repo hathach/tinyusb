@@ -306,16 +306,12 @@
 
 #if defined(TUP_USBIP_DWC2)
   #if CFG_TUD_DWC2_SLAVE_ENABLE
-    #define CFG_TUD_EDPT_DEDICATED_FIFO
+    #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
   #endif
 
   #if CFG_TUD_DWC2_SLAVE_ENABLE
-    #define CFG_TUH_EDPT_DEDICATED_FIFO
+    #define CFG_TUH_EDPT_DEDICATED_HWFIFO 1
   #endif
-#endif
-
-#if defined(CFG_TUD_EDPT_DEDICATED_FIFO) || defined(CFG_TUH_EDPT_DEDICATED_FIFO)
-  #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
 #endif
 
 //------------- ChipIdea -------------//
@@ -590,6 +586,10 @@
   #define CFG_TUD_NCM         0
 #endif
 
+#ifndef CFG_TUD_EDPT_DEDICATED_HWFIFO
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0
+#endif
+
 //--------------------------------------------------------------------
 // Host Options (Default)
 //--------------------------------------------------------------------
@@ -727,6 +727,10 @@
 
 #ifndef CFG_TUH_API_EDPT_XFER
   #define CFG_TUH_API_EDPT_XFER 0
+#endif
+
+#ifndef CFG_TUH_EDPT_DEDICATED_HWFIFO
+  #define CFG_TUH_EDPT_DEDICATED_HWFIFO 0
 #endif
 
 //--------------------------------------------------------------------+
