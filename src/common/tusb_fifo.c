@@ -51,9 +51,8 @@ TU_ATTR_ALWAYS_INLINE static inline void _ff_unlock(osal_mutex_t mutex) {
 }
 
 #else
-
-#define _ff_lock(_mutex)
-#define _ff_unlock(_mutex)
+  #define ff_lock(_mutex)
+  #define ff_unlock(_mutex)
 
 #endif
 
@@ -65,8 +64,8 @@ bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_si
     return false;
   }
 
-  _ff_lock(f->mutex_wr);
-  _ff_lock(f->mutex_rd);
+  ff_lock(f->mutex_wr);
+  ff_lock(f->mutex_rd);
 
   f->buffer       = (uint8_t *)buffer;
   f->depth        = depth;
@@ -75,8 +74,8 @@ bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_si
   f->rd_idx       = 0u;
   f->wr_idx       = 0u;
 
-  _ff_unlock(f->mutex_wr);
-  _ff_unlock(f->mutex_rd);
+  ff_unlock(f->mutex_wr);
+  ff_unlock(f->mutex_rd);
 
   return true;
 }
@@ -217,8 +216,8 @@ static void _ff_push_n(tu_fifo_t *f, const void *app_buf, uint16_t n, uint16_t w
 }
 
 // get one item from fifo WITHOUT updating read pointer
-static inline void _ff_pull(tu_fifo_t *f, void *app_buf, uint16_t rel) {
-  memcpy(app_buf, f->buffer + (rel * f->item_size), f->item_size);
+TU_ATTR_ALWAYS_INLINE static inline void _ff_pull(tu_fifo_t *f, void *buf, uint16_t ptr) {
+  memcpy(buf, f->buffer + (ptr * f->item_size), f->item_size);
 }
 
 // get n items from fifo WITHOUT updating read pointer
@@ -316,7 +315,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t advance_index(uint16_t depth, uint1
   return new_idx;
 }
 
-// index to pointer, simply a modulo with minus.
+// index to pointer (0..depth-1), simply a modulo with minus.
 TU_ATTR_ALWAYS_INLINE static inline uint16_t idx2ptr(uint16_t depth, uint16_t idx) {
   // Only run at most 3 times since index is limit in the range of [0..2*depth)
   while (idx >= depth) {
@@ -326,8 +325,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t idx2ptr(uint16_t depth, uint16_t id
 }
 
 // Works on local copies of w
-// When an overwritable fifo is overflowed, rd_idx will be re-index so that it forms a full fifo i.e
-// tu_ff_overflow_count() = depth
+// When an overwritable fifo is overflowed, rd_idx will be re-index so that it forms a full fifo
 TU_ATTR_ALWAYS_INLINE static inline uint16_t ff_correct_read_index(tu_fifo_t *f, uint16_t wr_idx) {
   uint16_t rd_idx;
   if (wr_idx >= f->depth) {
@@ -337,30 +335,25 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t ff_correct_read_index(tu_fifo_t *f,
   }
 
   f->rd_idx = rd_idx;
-
   return rd_idx;
 }
 
-// Works on local copies of w and r
-// Must be protected by mutexes since in case of an overflow read pointer gets modified
-static bool _tu_fifo_peek(tu_fifo_t *f, void *p_buffer, uint16_t wr_idx, uint16_t rd_idx) {
-  uint16_t cnt = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
-
-  // nothing to peek
-  if (cnt == 0) {
-    return false;
+// peek() using local write/read index. Be careful, caller must not lock mutex, since this Will also try to lock mutex
+// in case of overflowed to correct read index
+static bool ff_peek_local(tu_fifo_t *f, void *p_buffer, uint16_t wr_idx, uint16_t rd_idx) {
+  const uint16_t ovf_count = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
+  if (ovf_count == 0) {
+    return false; // nothing to peek
   }
 
-  // Check overflow and correct if required
-  if (cnt > f->depth) {
+  // Correct read index if overflow
+  if (ovf_count > f->depth) {
+    ff_lock(f->mutex_rd);
     rd_idx = ff_correct_read_index(f, wr_idx);
+    ff_unlock(f->mutex_rd);
   }
 
-  uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
-
-  // Peek data
-  _ff_pull(f, p_buffer, rd_ptr);
-
+  _ff_pull(f, p_buffer, idx2ptr(f->depth, rd_idx));
   return true;
 }
 
@@ -399,7 +392,7 @@ uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_f
     return 0;
   }
 
-  _ff_lock(f->mutex_wr);
+  ff_lock(f->mutex_wr);
 
   uint16_t wr_idx = f->wr_idx;
   uint16_t rd_idx = f->rd_idx;
@@ -462,13 +455,13 @@ uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_f
     TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\r\n", f->wr_idx);
   }
 
-  _ff_unlock(f->mutex_wr);
+  ff_unlock(f->mutex_wr);
 
   return n;
 }
 
 uint16_t tu_fifo_read_n_access(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode) {
-  _ff_lock(f->mutex_rd);
+  ff_lock(f->mutex_rd);
 
   // Peek the data
   // f->rd_idx might get modified in case of an overflow so we can not use a local variable
@@ -477,15 +470,15 @@ uint16_t tu_fifo_read_n_access(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_a
   // Advance read pointer
   f->rd_idx = advance_index(f->depth, f->rd_idx, n);
 
-  _ff_unlock(f->mutex_rd);
+  ff_unlock(f->mutex_rd);
   return n;
 }
 
 // Only use in case tu_fifo_overflow() returned true!
 void tu_fifo_correct_read_pointer(tu_fifo_t *f) {
-  _ff_lock(f->mutex_rd);
+  ff_lock(f->mutex_rd);
   ff_correct_read_index(f, f->wr_idx);
-  _ff_unlock(f->mutex_rd);
+  ff_unlock(f->mutex_rd);
 }
 
 /******************************************************************************/
@@ -505,16 +498,15 @@ void tu_fifo_correct_read_pointer(tu_fifo_t *f) {
  */
 /******************************************************************************/
 bool tu_fifo_read(tu_fifo_t *f, void *buffer) {
-  _ff_lock(f->mutex_rd);
-
   // Peek the data
   // f->rd_idx might get modified in case of an overflow so we can not use a local variable
-  bool ret = _tu_fifo_peek(f, buffer, f->wr_idx, f->rd_idx);
+  const bool ret = ff_peek_local(f, buffer, f->wr_idx, f->rd_idx);
+  if (ret) {
+    ff_lock(f->mutex_rd);
+    f->rd_idx = advance_index(f->depth, f->rd_idx, 1);
+    ff_unlock(f->mutex_rd);
+  }
 
-  // Advance pointer
-  f->rd_idx = advance_index(f->depth, f->rd_idx, ret);
-
-  _ff_unlock(f->mutex_rd);
   return ret;
 }
 
@@ -532,10 +524,7 @@ bool tu_fifo_read(tu_fifo_t *f, void *buffer) {
  */
 /******************************************************************************/
 bool tu_fifo_peek(tu_fifo_t *f, void *p_buffer) {
-  _ff_lock(f->mutex_rd);
-  bool ret = _tu_fifo_peek(f, p_buffer, f->wr_idx, f->rd_idx);
-  _ff_unlock(f->mutex_rd);
-  return ret;
+  return ff_peek_local(f, p_buffer, f->wr_idx, f->rd_idx);
 }
 
 /******************************************************************************/
@@ -554,9 +543,9 @@ bool tu_fifo_peek(tu_fifo_t *f, void *p_buffer) {
  */
 /******************************************************************************/
 uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n) {
-  _ff_lock(f->mutex_rd);
+  ff_lock(f->mutex_rd);
   uint16_t ret = tu_fifo_peek_n_access(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_INC_ADDR_RW8);
-  _ff_unlock(f->mutex_rd);
+  ff_unlock(f->mutex_rd);
   return ret;
 }
 
@@ -577,7 +566,7 @@ uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n) {
  */
 /******************************************************************************/
 bool tu_fifo_write(tu_fifo_t *f, const void *data) {
-  _ff_lock(f->mutex_wr);
+  ff_lock(f->mutex_wr);
 
   bool           ret;
   const uint16_t wr_idx = f->wr_idx;
@@ -591,7 +580,7 @@ bool tu_fifo_write(tu_fifo_t *f, const void *data) {
     ret       = true;
   }
 
-  _ff_unlock(f->mutex_wr);
+  ff_unlock(f->mutex_wr);
 
   return ret;
 }
@@ -605,14 +594,14 @@ bool tu_fifo_write(tu_fifo_t *f, const void *data) {
  */
 /******************************************************************************/
 bool tu_fifo_clear(tu_fifo_t *f) {
-  _ff_lock(f->mutex_wr);
-  _ff_lock(f->mutex_rd);
+  ff_lock(f->mutex_wr);
+  ff_lock(f->mutex_rd);
 
   f->rd_idx = 0;
   f->wr_idx = 0;
 
-  _ff_unlock(f->mutex_wr);
-  _ff_unlock(f->mutex_rd);
+  ff_unlock(f->mutex_wr);
+  ff_unlock(f->mutex_rd);
   return true;
 }
 
@@ -631,13 +620,13 @@ bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
     return true;
   }
 
-  _ff_lock(f->mutex_wr);
-  _ff_lock(f->mutex_rd);
+  ff_lock(f->mutex_wr);
+  ff_lock(f->mutex_rd);
 
   f->overwritable = overwritable;
 
-  _ff_unlock(f->mutex_wr);
-  _ff_unlock(f->mutex_rd);
+  ff_unlock(f->mutex_wr);
+  ff_unlock(f->mutex_rd);
 
   return true;
 }
@@ -706,9 +695,9 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info) {
 
   // Check overflow and correct if required - may happen in case a DMA wrote too fast
   if (cnt > f->depth) {
-    _ff_lock(f->mutex_rd);
+    ff_lock(f->mutex_rd);
     rd_idx = ff_correct_read_index(f, wr_idx);
-    _ff_unlock(f->mutex_rd);
+    ff_unlock(f->mutex_rd);
 
     cnt = f->depth;
   }

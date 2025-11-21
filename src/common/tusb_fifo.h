@@ -52,8 +52,9 @@ extern "C" {
   #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
 #endif
 
-/* Write/Read index is always in the range of:
- *      0 .. 2*depth-1
+/* Write/Read "pointer" is in the range of: 0 .. depth - 1, and is used to get the fifo data.
+ * Write/Read "index" is always in the range of: 0 .. 2*depth-1
+ *
  * The extra window allow us to determine the fifo state of empty or full with only 2 indices
  * Following are examples with depth = 3
  *
@@ -127,10 +128,10 @@ typedef struct {
 } tu_fifo_t;
 
 typedef struct {
-  uint16_t len_lin  ; ///< linear length in item size
-  uint16_t len_wrap ; ///< wrapped length in item size
-  void * ptr_lin    ; ///< linear part start pointer
-  void * ptr_wrap   ; ///< wrapped part start pointer
+  uint16_t len_lin;  ///< linear length in item size
+  uint16_t len_wrap; ///< wrapped length in item size
+  uint8_t *ptr_lin;  ///< linear part start pointer
+  uint8_t *ptr_wrap; ///< wrapped part start pointer
 } tu_fifo_buffer_info_t;
 
 #define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
@@ -170,16 +171,17 @@ void tu_fifo_config_mutex(tu_fifo_t *f, osal_mutex_t wr_mutex, osal_mutex_t rd_m
 #endif
 
 //--------------------------------------------------------------------+
-// Write API
+// Peek API
+// peek() will correct/re-index read pointer in case of an overflowed fifo to form a full fifo
 //--------------------------------------------------------------------+
-uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_fifo_access_mode_t access_mode);
-bool     tu_fifo_write(tu_fifo_t *f, const void *data);
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
-  return tu_fifo_write_n_access(f, data, n, TU_FIFO_INC_ADDR_RW8);
-}
+uint16_t tu_fifo_peek_n_access(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
+                               tu_fifo_access_mode_t access_mode);
+bool     tu_fifo_peek(tu_fifo_t *f, void *p_buffer);
+uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n);
 
 //--------------------------------------------------------------------+
 // Read API
+// peek() + advance read index
 //--------------------------------------------------------------------+
 uint16_t tu_fifo_read_n_access(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode);
 bool     tu_fifo_read(tu_fifo_t *f, void *buffer);
@@ -188,12 +190,14 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *
 }
 
 //--------------------------------------------------------------------+
-// Peek API
+// Write API
 //--------------------------------------------------------------------+
-uint16_t tu_fifo_peek_n_access(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
-                               tu_fifo_access_mode_t access_mode);
-bool     tu_fifo_peek(tu_fifo_t *f, void *p_buffer);
-uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n);
+uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_fifo_access_mode_t access_mode);
+bool     tu_fifo_write(tu_fifo_t *f, const void *data);
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
+  return tu_fifo_write_n_access(f, data, n, TU_FIFO_INC_ADDR_RW8);
+}
+
 
 //--------------------------------------------------------------------+
 // Index API
