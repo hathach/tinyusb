@@ -38,13 +38,13 @@
 
 #if OSAL_MUTEX_REQUIRED
 
-TU_ATTR_ALWAYS_INLINE static inline void _ff_lock(osal_mutex_t mutex) {
+TU_ATTR_ALWAYS_INLINE static inline void ff_lock(osal_mutex_t mutex) {
   if (mutex != NULL) {
     osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   }
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _ff_unlock(osal_mutex_t mutex) {
+TU_ATTR_ALWAYS_INLINE static inline void ff_unlock(osal_mutex_t mutex) {
   if (mutex != NULL) {
     osal_mutex_unlock(mutex);
   }
