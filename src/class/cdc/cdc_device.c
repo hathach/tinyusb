@@ -66,7 +66,7 @@ typedef struct {
 
 #define ITF_MEM_RESET_SIZE offsetof(cdcd_interface_t, line_coding)
 
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO || CFG_TUD_CDC_NOTIFY
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0 || CFG_TUD_CDC_NOTIFY
 typedef struct {
   // Don't use local EP buffer if dedicated hw FIFO is supported
   #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
