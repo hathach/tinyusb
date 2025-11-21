@@ -386,7 +386,7 @@ static uint8_t * get_hs_configuration_desc(void) {
 // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
 static tusb_desc_device_qualifier_t const desc_device_qualifier = {
     .bLength            = sizeof(tusb_desc_device_qualifier_t),
-    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
     .bcdUSB             = USB_BCD,
 
     .bDeviceClass       = TUSB_CLASS_MISC,
