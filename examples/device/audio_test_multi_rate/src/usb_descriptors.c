@@ -119,7 +119,7 @@ TU_VERIFY_STATIC(sizeof(desc2_uac2_configuration) == CONFIG_UAC2_TOTAL_LEN, "Inc
 
 // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
 tusb_desc_device_qualifier_t const desc_device_qualifier = {
-  .bLength            = sizeof(tusb_desc_device_t),
+  .bLength            = sizeof(tusb_desc_device_qualifier_t),
   .bDescriptorType    = TUSB_DESC_DEVICE,
   .bcdUSB             = 0x0200,
 
