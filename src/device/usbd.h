@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-// ConfigID for tuh_configure()
+// ConfigID for tud_configure()
 enum {
   TUD_CFGID_INVALID = 0,
   TUD_CFGID_DWC2 = 100,
@@ -52,8 +52,8 @@ typedef union {
 //--------------------------------------------------------------------+
 
 // Configure device stack behavior with dynamic or port-specific parameters.
-// Should be called before tud_init()
-// - cfg_id   : configure ID (TBD)
+// Should be called before initialization of the device stack
+// - cfg_id   : configure ID from TUD_CFGID_* enum values
 // - cfg_param: configure data, structure depends on the ID
 bool tud_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 
