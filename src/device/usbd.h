@@ -33,6 +33,20 @@
 extern "C" {
 #endif
 
+// ConfigID for tuh_configure()
+enum {
+  TUD_CFGID_INVALID = 0,
+  TUD_CFGID_DWC2 = 100,
+};
+
+typedef struct {
+  uint16_t bm_double_buffered; // bitmap of IN endpoints to be double buffered, only effective for bulk endpoints
+} tud_configure_dwc2_t;
+
+typedef union {
+  tud_configure_dwc2_t dwc2;
+} tud_configure_param_t;
+
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+

@@ -39,6 +39,7 @@
 #define DWC2_DEBUG    2
 
 #include "device/dcd.h"
+#include "device/usbd.h"
 #include "device/usbd_pvt.h"
 #include "dwc2_common.h"
 
@@ -75,6 +76,10 @@ static dcd_data_t _dcd_data;
 CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(setup_packet, 8);
 } _dcd_usbbuf;
+
+static tud_configure_dwc2_t _tud_cfg = {
+  .bm_double_buffered = 0
+};
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc2) {
   #if TU_CHECK_MCU(OPT_MCU_GD32VF103)
@@ -212,8 +217,8 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
       _dcd_data.allocated_epin_count++;
     }
 
-    // If The TXFELVL is configured as half empty, the fifo must be twice the max_size.
-    if ((dwc2->gahbcfg & GAHBCFG_TX_FIFO_EPMTY_LVL) == 0) {
+    // Enable double buffering if configured
+    if (((_tud_cfg.bm_double_buffered & (1 << epnum)) != 0) && (epnum > 0)) {
       fifo_size *= 2;
     }
 
@@ -446,6 +451,16 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
 //--------------------------------------------------------------------
 // Controller API
 //--------------------------------------------------------------------
+// optional dcd configuration, called by tud_configure()
+bool dcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
+  (void) rhport;
+  TU_VERIFY(cfg_id == TUD_CFGID_DWC2 && cfg_param != NULL);
+
+  const tud_configure_param_t* const cfg = (const tud_configure_param_t*) cfg_param;
+  _tud_cfg = cfg->dwc2;
+  return true;
+}
+
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -492,9 +507,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Enable required interrupts
   dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
-  // TX FIFO empty level for interrupt is complete empty
   uint32_t gahbcfg = dwc2->gahbcfg;
-  gahbcfg |= GAHBCFG_TX_FIFO_EPMTY_LVL;
   gahbcfg |= GAHBCFG_GINT; // Enable global interrupt
   dwc2->gahbcfg = gahbcfg;
 
