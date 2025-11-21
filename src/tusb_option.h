@@ -24,8 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_OPTION_H_
-#define TUSB_OPTION_H_
+#pragma once
 
 #include "common/tusb_compiler.h"
 
@@ -305,15 +304,26 @@
   #define CFG_TUH_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
-#if defined(TUP_USBIP_DWC2) && CFG_TUD_DWC2_SLAVE_ENABLE == 1
-#define TUP_DCD_EDPT_DEDICATED_FIFO
+#if defined(TUP_USBIP_DWC2)
+  #if CFG_TUD_DWC2_SLAVE_ENABLE
+    #define CFG_TUD_EDPT_DEDICATED_FIFO
+  #endif
+
+  #if CFG_TUD_DWC2_SLAVE_ENABLE
+    #define CFG_TUH_EDPT_DEDICATED_FIFO
+  #endif
+#endif
+
+#if defined(CFG_TUD_EDPT_DEDICATED_FIFO) || defined(CFG_TUH_EDPT_DEDICATED_FIFO)
+  #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
 #endif
 
 //------------- ChipIdea -------------//
-// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is insufficient).
+// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is
+// insufficient).
 #ifndef CFG_TUD_CI_HS_VBUS_CHARGE
   #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
-  #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
+    #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
   #endif
 
   #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
@@ -738,7 +748,3 @@
 
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
 typedef int make_iso_compilers_happy;
-
-#endif /* TUSB_OPTION_H_ */
-
-/** @} */

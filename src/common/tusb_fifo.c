@@ -85,7 +85,7 @@ bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_si
 // Pull & Push
 //--------------------------------------------------------------------+
 
-#ifdef TUP_MEM_CONST_ADDR
+#ifdef  CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
 // Intended to be used to read from hardware USB FIFO in e.g. STM32 where all data is read from a constant address
 // Code adapted from dcd_synopsys.c
 // TODO generalize with configurable 1 byte or 4 byte each read
@@ -164,7 +164,7 @@ static void _ff_push_n(tu_fifo_t *f, const void *app_buf, uint16_t n, uint16_t w
       }
       break;
 
-#ifdef TUP_MEM_CONST_ADDR
+#ifdef  CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
     case TU_FIFO_FIXED_ADDR_RW32:
       // Intended for hardware buffers from which it can be read word by word only
       if (n <= lin_count) {
@@ -244,7 +244,7 @@ static void _ff_pull_n(tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd_ptr,
       }
       break;
 
-#ifdef TUP_MEM_CONST_ADDR
+#ifdef  CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
     case TU_FIFO_FIXED_ADDR_RW32:
       if (n <= lin_count) {
         // Linear only
