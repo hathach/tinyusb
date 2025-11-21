@@ -70,10 +70,10 @@ bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_si
 
   f->buffer       = (uint8_t *)buffer;
   f->depth        = depth;
-  f->item_size    = (uint16_t)(item_size & 0x7FFF);
+  f->item_size    = (uint16_t)(item_size & 0x7FFFu);
   f->overwritable = overwritable;
-  f->rd_idx       = 0;
-  f->wr_idx       = 0;
+  f->rd_idx       = 0u;
+  f->wr_idx       = 0u;
 
   _ff_unlock(f->mutex_wr);
   _ff_unlock(f->mutex_rd);
@@ -85,7 +85,7 @@ bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_si
 // Pull & Push
 //--------------------------------------------------------------------+
 
-#ifdef  CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
+#ifdef CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
 // Intended to be used to read from hardware USB FIFO in e.g. STM32 where all data is read from a constant address
 // Code adapted from dcd_synopsys.c
 // TODO generalize with configurable 1 byte or 4 byte each read
@@ -298,26 +298,6 @@ static void _ff_pull_n(tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd_ptr,
 }
 
 //--------------------------------------------------------------------+
-// Helper
-//--------------------------------------------------------------------+
-
-// return only the index difference and as such can be used to determine an overflow i.e overflowable count
-TU_ATTR_ALWAYS_INLINE static inline uint16_t _ff_count(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx) {
-  // In case we have non-power of two depth we need a further modification
-  if (wr_idx >= rd_idx) {
-    return (uint16_t)(wr_idx - rd_idx);
-  } else {
-    return (uint16_t)(2 * depth - (rd_idx - wr_idx));
-  }
-}
-
-// return remaining slot in fifo
-TU_ATTR_ALWAYS_INLINE static inline uint16_t _ff_remaining(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx) {
-  const uint16_t count = _ff_count(depth, wr_idx, rd_idx);
-  return (depth > count) ? (depth - count) : 0;
-}
-
-//--------------------------------------------------------------------+
 // Index Helper
 //--------------------------------------------------------------------+
 
@@ -346,9 +326,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t idx2ptr(uint16_t depth, uint16_t id
 }
 
 // Works on local copies of w
-// When an overwritable fifo is overflowed, rd_idx will be re-index so that it forms
-// an full fifo i.e _ff_count() = depth
-TU_ATTR_ALWAYS_INLINE static inline uint16_t _ff_correct_read_index(tu_fifo_t *f, uint16_t wr_idx) {
+// When an overwritable fifo is overflowed, rd_idx will be re-index so that it forms a full fifo i.e
+// tu_ff_overflow_count() = depth
+TU_ATTR_ALWAYS_INLINE static inline uint16_t ff_correct_read_index(tu_fifo_t *f, uint16_t wr_idx) {
   uint16_t rd_idx;
   if (wr_idx >= f->depth) {
     rd_idx = wr_idx - f->depth;
@@ -364,7 +344,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t _ff_correct_read_index(tu_fifo_t *f
 // Works on local copies of w and r
 // Must be protected by mutexes since in case of an overflow read pointer gets modified
 static bool _tu_fifo_peek(tu_fifo_t *f, void *p_buffer, uint16_t wr_idx, uint16_t rd_idx) {
-  uint16_t cnt = _ff_count(f->depth, wr_idx, rd_idx);
+  uint16_t cnt = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
 
   // nothing to peek
   if (cnt == 0) {
@@ -373,7 +353,7 @@ static bool _tu_fifo_peek(tu_fifo_t *f, void *p_buffer, uint16_t wr_idx, uint16_
 
   // Check overflow and correct if required
   if (cnt > f->depth) {
-    rd_idx = _ff_correct_read_index(f, wr_idx);
+    rd_idx = ff_correct_read_index(f, wr_idx);
   }
 
   uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
@@ -384,11 +364,15 @@ static bool _tu_fifo_peek(tu_fifo_t *f, void *p_buffer, uint16_t wr_idx, uint16_
   return true;
 }
 
+//--------------------------------------------------------------------+
+// Application API
+//--------------------------------------------------------------------+
+
 // Works on local copies of w and r
 // Must be protected by mutexes since in case of an overflow read pointer gets modified
 uint16_t tu_fifo_peek_n_access(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
                                tu_fifo_access_mode_t access_mode) {
-  uint16_t cnt = _ff_count(f->depth, wr_idx, rd_idx);
+  uint16_t cnt = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
 
   if (cnt == 0) {
     return 0; // nothing to peek
@@ -396,7 +380,7 @@ uint16_t tu_fifo_peek_n_access(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_
 
   // Check overflow and correct if required
   if (cnt > f->depth) {
-    rd_idx = _ff_correct_read_index(f, wr_idx);
+    rd_idx = ff_correct_read_index(f, wr_idx);
     cnt    = f->depth;
   }
 
@@ -422,13 +406,12 @@ uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_f
 
   const uint8_t *buf8 = (const uint8_t *)data;
 
-  TU_LOG(
-      TU_FIFO_DBG, "rd = %3u, wr = %3u, count = %3u, remain = %3u, n = %3u:  ", rd_idx, wr_idx,
-      _ff_count(f->depth, wr_idx, rd_idx), _ff_remaining(f->depth, wr_idx, rd_idx), n);
+  TU_LOG(TU_FIFO_DBG, "rd = %3u, wr = %3u, count = %3u, remain = %3u, n = %3u:  ", rd_idx, wr_idx,
+         _ff_count(f->depth, wr_idx, rd_idx), _ff_remaining(f->depth, wr_idx, rd_idx), n);
 
   if (!f->overwritable) {
     // limit up to full
-    const uint16_t remain = _ff_remaining(f->depth, wr_idx, rd_idx);
+    const uint16_t remain = tu_ff_remaining_local(f->depth, wr_idx, rd_idx);
     n                     = tu_min16(n, remain);
   } else {
     // In over-writable mode, fifo_write() is allowed even when fifo is full. In such case,
@@ -449,7 +432,7 @@ uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_f
       // We start writing at the read pointer's position since we fill the whole buffer
       wr_idx = rd_idx;
     } else {
-      const uint16_t overflowable_count = _ff_count(f->depth, wr_idx, rd_idx);
+      const uint16_t overflowable_count = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
       if (overflowable_count + n >= 2 * f->depth) {
         // Double overflowed
         // Index is bigger than the allowed range [0,2*depth)
@@ -498,92 +481,10 @@ uint16_t tu_fifo_read_n_access(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_a
   return n;
 }
 
-//--------------------------------------------------------------------+
-// Application API
-//--------------------------------------------------------------------+
-
-/******************************************************************************/
-/*!
-    @brief Get number of items in FIFO.
-
-    As this function only reads the read and write pointers once, this function is
-    reentrant and thus thread and ISR save without any mutexes. In case an
-    overflow occurred, this function return f.depth at maximum. Overflows are
-    checked and corrected for in the read functions!
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-
-    @returns Number of items in FIFO
- */
-/******************************************************************************/
-uint16_t tu_fifo_count(const tu_fifo_t *f) {
-  return tu_min16(_ff_count(f->depth, f->wr_idx, f->rd_idx), f->depth);
-}
-
-/******************************************************************************/
-/*!
-    @brief Check if FIFO is full.
-
-    As this function only reads the read and write pointers once, this function is
-    reentrant and thus thread and ISR save without any mutexes.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-
-    @returns Number of items in FIFO
- */
-/******************************************************************************/
-bool tu_fifo_full(const tu_fifo_t *f) {
-  return _ff_count(f->depth, f->wr_idx, f->rd_idx) >= f->depth;
-}
-
-/******************************************************************************/
-/*!
-    @brief Get remaining space in FIFO.
-
-    As this function only reads the read and write pointers once, this function is
-    reentrant and thus thread and ISR save without any mutexes.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-
-    @returns Number of items in FIFO
- */
-/******************************************************************************/
-uint16_t tu_fifo_remaining(const tu_fifo_t *f) {
-  return _ff_remaining(f->depth, f->wr_idx, f->rd_idx);
-}
-
-/******************************************************************************/
-/*!
-    @brief Check if overflow happened.
-
-     BE AWARE - THIS FUNCTION MIGHT NOT GIVE A CORRECT ANSWERE IN CASE WRITE POINTER "OVERFLOWS"
-     Only one overflow is allowed for this function to work e.g. if depth = 100, you must not
-     write more than 2*depth-1 items in one rush without updating write pointer. Otherwise
-     write pointer wraps and your pointer states are messed up. This can only happen if you
-     use DMAs, write functions do not allow such an error. Avoid such nasty things!
-
-     All reading functions (read, peek) check for overflows and correct read pointer on their own such
-     that latest items are read.
-     If required (e.g. for DMA use) you can also correct the read pointer by
-     tu_fifo_correct_read_pointer().
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-
-    @returns True if overflow happened
- */
-/******************************************************************************/
-bool tu_fifo_overflowed(const tu_fifo_t *f) {
-  return _ff_count(f->depth, f->wr_idx, f->rd_idx) > f->depth;
-}
-
 // Only use in case tu_fifo_overflow() returned true!
 void tu_fifo_correct_read_pointer(tu_fifo_t *f) {
   _ff_lock(f->mutex_rd);
-  _ff_correct_read_index(f, f->wr_idx);
+  ff_correct_read_index(f, f->wr_idx);
   _ff_unlock(f->mutex_rd);
 }
 
@@ -801,12 +702,12 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info) {
   uint16_t wr_idx = f->wr_idx;
   uint16_t rd_idx = f->rd_idx;
 
-  uint16_t cnt = _ff_count(f->depth, wr_idx, rd_idx);
+  uint16_t cnt = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
 
   // Check overflow and correct if required - may happen in case a DMA wrote too fast
   if (cnt > f->depth) {
     _ff_lock(f->mutex_rd);
-    rd_idx = _ff_correct_read_index(f, wr_idx);
+    rd_idx = ff_correct_read_index(f, wr_idx);
     _ff_unlock(f->mutex_rd);
 
     cnt = f->depth;
@@ -861,7 +762,7 @@ void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info) {
 void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info) {
   uint16_t wr_idx = f->wr_idx;
   uint16_t rd_idx = f->rd_idx;
-  uint16_t remain = _ff_remaining(f->depth, wr_idx, rd_idx);
+  uint16_t remain = tu_ff_remaining_local(f->depth, wr_idx, rd_idx);
 
   if (remain == 0) {
     info->len_lin  = 0;
