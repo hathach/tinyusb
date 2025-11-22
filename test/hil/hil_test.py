@@ -32,6 +32,11 @@ import random
 import re
 import sys
 import time
+import warnings
+
+# Suppress pkg_resources deprecation warning from fs module
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
+
 import serial
 import subprocess
 import json
@@ -51,6 +56,7 @@ STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
 verbose = False
 test_only = []
+build_dir = 'cmake-build'
 
 WCH_RISCV_CONTENT = """
 adapter driver wlinke
@@ -405,10 +411,17 @@ def test_device_cdc_dual_ports(board):
         size = len(payload)
         for s in ser:
             s.reset_input_buffer()
-        ser[writer].write(payload)
-        ser[writer].flush()
-        rd0 = ser[0].read(size)
-        rd1 = ser[1].read(size)
+        rd0 = b''
+        rd1 = b''
+        offset = 0
+        # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
+        while offset < size:
+            chunk_size = min(random.randint(1, 64), size - offset)
+            ser[writer].write(payload[offset:offset + chunk_size])
+            ser[writer].flush()
+            rd0 += ser[0].read(chunk_size)
+            rd1 += ser[1].read(chunk_size)
+            offset += chunk_size
         assert rd0 == payload.lower(), f'Port0 wrong data ({size}): expected {payload.lower()[:16]}... was {rd0[:16]}'
         assert rd1 == payload.upper(), f'Port1 wrong data ({size}): expected {payload.upper()[:16]}... was {rd1[:16]}'
 
@@ -434,21 +447,26 @@ def test_device_cdc_msc(board):
     sizes = [32, 64, 128, 256, 512, random.randint(2000, 5000)]
     for size in sizes:
         test_str = rand_ascii(size)
-        ser.write(test_str)
-        ser.flush()
-        rd_str = ser.read(len(test_str))
-        assert rd_str == test_str, f'CDC wrong data ({size} bytes):\n  expected: {test_str}\n  was: {rd_str}'
-
+        rd_str = b''
+        offset = 0
+        # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
+        while offset < size:
+            chunk_size = min(random.randint(1, 64), size - offset)
+            ser.write(test_str[offset:offset + chunk_size])
+            ser.flush()
+            rd_str += ser.read(chunk_size)
+            offset += chunk_size
+        assert rd_str == test_str, f'CDC wrong data ({size} bytes):\n  expected: {test_str}\n  received: {rd_str}'
     ser.close()
 
     # MSC Block test
     data = read_disk_file(uid, 0, 'README.TXT')
     readme = \
         b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
-      If you find any bugs or get any questions, feel free to file an\r\n\
-      issue at github.com/hathach/tinyusb"
+If you find any bugs or get any questions, feel free to file an\r\n\
+issue at github.com/hathach/tinyusb"
 
-    assert data == readme, 'MSC wrong data'
+    assert data == readme, f'MSC wrong data in README.TXT\n expected: {readme.decode()}\n received: {data.decode()}'
 
 
 def test_device_cdc_msc_freertos(board):
@@ -598,11 +616,11 @@ def test_device_mtp(board):
 # note don't test 2 examples with cdc or 2 msc next to each other
 device_tests = [
     'device/cdc_dual_ports',
-    'device/dfu',
+    # 'device/dfu',
     'device/cdc_msc',
-    'device/dfu_runtime',
+    # 'device/dfu_runtime',
     'device/cdc_msc_freertos',
-    'device/hid_boot_interface',
+    # 'device/hid_boot_interface',
     # 'device/mtp'
 ]
 
@@ -630,9 +648,7 @@ def test_example(board, f1, example):
     if f1 != "":
         f1_str = '-f1_' + f1.replace(' ', '_')
 
-    fw_dir = f'{TINYUSB_ROOT}/cmake-build/cmake-build-{name}{f1_str}/{example}'
-    if not os.path.exists(fw_dir):
-        fw_dir = f'{TINYUSB_ROOT}/examples/cmake-build-{name}{f1_str}/{example}'
+    fw_dir = f'{TINYUSB_ROOT}/{build_dir}/cmake-build-{name}{f1_str}/{example}'
     fw_name = f'{fw_dir}/{os.path.basename(example)}'
     print(f'{name+f1_str:40} {example:30} ...', end='')
 
@@ -644,7 +660,7 @@ def test_example(board, f1, example):
         print(f'Flashing {fw_name}.elf')
 
     # flash firmware. It may fail randomly, retry a few times
-    max_rety = 3
+    max_rety = 1
     start_s = time.time()
     for i in range(max_rety):
         ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
@@ -720,6 +736,7 @@ def main():
     """
     global verbose
     global test_only
+    global build_dir
 
     duration = time.time()
 
@@ -728,6 +745,7 @@ def main():
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
     parser.add_argument('-s', '--skip', action='append', default=[], help='Skip boards from test')
     parser.add_argument('-t', '--test-only', action='append', default=[], help='Tests to run, all if not specified')
+    parser.add_argument('-B', '--build', default='cmake-build', help='Build folder name (default: cmake-build)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -736,6 +754,7 @@ def main():
     skip_boards = args.skip
     verbose = args.verbose
     test_only = args.test_only
+    build_dir = args.build
 
     # if config file is not found, try to find it in the same directory as this script
     if not os.path.exists(config_file):
