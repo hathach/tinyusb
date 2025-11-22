@@ -400,7 +400,7 @@ uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_f
   const uint8_t *buf8 = (const uint8_t *)data;
 
   TU_LOG(TU_FIFO_DBG, "rd = %3u, wr = %3u, count = %3u, remain = %3u, n = %3u:  ", rd_idx, wr_idx,
-         _ff_count(f->depth, wr_idx, rd_idx), _ff_remaining(f->depth, wr_idx, rd_idx), n);
+         tu_ff_overflow_count(f->depth, wr_idx, rd_idx), tu_ff_remaining_local(f->depth, wr_idx, rd_idx), n);
 
   if (!f->overwritable) {
     // limit up to full

@@ -437,7 +437,7 @@ def test_device_cdc_msc(board):
         ser.write(test_str)
         ser.flush()
         rd_str = ser.read(len(test_str))
-        assert rd_str == test_str, f'CDC wrong data ({size} bytes): expected: {test_str[:16]}... was {rd_str[:16]}'
+        assert rd_str == test_str, f'CDC wrong data ({size} bytes):\n  expected: {test_str}\n  was: {rd_str}'
 
     ser.close()
 

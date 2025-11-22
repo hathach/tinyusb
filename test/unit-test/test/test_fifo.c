@@ -182,10 +182,10 @@ static uint16_t help_write(uint16_t total, uint16_t n) {
 }
 
 void test_write_overwritable2(void) {
-tu_fifo_set_overwritable(ff, true);
+  tu_fifo_set_overwritable(ff, true);
 
-// based on actual crash tests detected by fuzzing
-uint16_t total = 0;
+  // based on actual crash tests detected by fuzzing
+  uint16_t total = 0;
 
   total = help_write(total, 12);
   total = help_write(total, 55);
