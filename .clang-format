@@ -84,9 +84,9 @@ MaxEmptyLinesToKeep: 2
 NamespaceIndentation: All
 PenaltyBreakBeforeFirstCallParameter: 1000000
 PenaltyBreakOpenParenthesis: 1000000
+PPIndentWidth: 2
 QualifierAlignment: Custom
 QualifierOrder: ['static', 'const', 'volatile', 'restrict', 'type']
-ReflowComments: false
 SpaceAfterTemplateKeyword: false
 SpaceBeforeRangeBasedForLoopColon: false
 SpaceInEmptyParentheses: false

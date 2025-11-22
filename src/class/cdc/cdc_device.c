@@ -66,14 +66,21 @@ typedef struct {
 
 #define ITF_MEM_RESET_SIZE offsetof(cdcd_interface_t, line_coding)
 
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0 || CFG_TUD_CDC_NOTIFY
 typedef struct {
+  // Don't use local EP buffer if dedicated hw FIFO is supported
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
   TUD_EPBUF_DEF(epout, CFG_TUD_CDC_EP_BUFSIZE);
   TUD_EPBUF_DEF(epin, CFG_TUD_CDC_EP_BUFSIZE);
+  #endif
 
   #if CFG_TUD_CDC_NOTIFY
   TUD_EPBUF_TYPE_DEF(cdc_notify_msg_t, epnotify);
   #endif
 } cdcd_epbuf_t;
+
+CFG_TUD_MEM_SECTION static cdcd_epbuf_t _cdcd_epbuf[CFG_TUD_CDC];
+#endif
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
@@ -115,7 +122,6 @@ TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms) {
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
-CFG_TUD_MEM_SECTION static cdcd_epbuf_t _cdcd_epbuf[CFG_TUD_CDC];
 static tud_cdc_configure_t _cdcd_cfg = TUD_CDC_CONFIGURE_DEFAULT();
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t find_cdc_itf(uint8_t ep_addr) {
@@ -268,8 +274,6 @@ void cdcd_init(void) {
   tu_memclr(_cdcd_itf, sizeof(_cdcd_itf));
   for (uint8_t i = 0; i < CFG_TUD_CDC; i++) {
     cdcd_interface_t *p_cdc   = &_cdcd_itf[i];
-    cdcd_epbuf_t     *p_epbuf = &_cdcd_epbuf[i];
-
     p_cdc->wanted_char = (char) -1;
 
     // default line coding is : stop bit = 1, parity = none, data bits = 8
@@ -278,14 +282,23 @@ void cdcd_init(void) {
     p_cdc->line_coding.parity = 0;
     p_cdc->line_coding.data_bits = 8;
 
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
+    uint8_t *epout_buf = NULL;
+    uint8_t *epin_buf  = NULL;
+  #else
+    cdcd_epbuf_t *p_epbuf   = &_cdcd_epbuf[i];
+    uint8_t      *epout_buf = p_epbuf->epout;
+    uint8_t      *epin_buf  = p_epbuf->epin;
+  #endif
+
     tu_edpt_stream_init(&p_cdc->stream.rx, false, false, false, p_cdc->stream.rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE,
-                        p_epbuf->epout, CFG_TUD_CDC_EP_BUFSIZE);
+                        epout_buf, CFG_TUD_CDC_EP_BUFSIZE);
 
     // TX fifo can be configured to change to overwritable if not connected (DTR bit not set). Without DTR we do not
     // know if data is actually polled by terminal. This way the most current data is prioritized.
     // Default: is overwritable
     tu_edpt_stream_init(&p_cdc->stream.tx, false, true, _cdcd_cfg.tx_overwritabe_if_not_connected,
-                        p_cdc->stream.tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, p_epbuf->epin, CFG_TUD_CDC_EP_BUFSIZE);
+                        p_cdc->stream.tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, epin_buf, CFG_TUD_CDC_EP_BUFSIZE);
   }
 }
 
@@ -481,11 +494,35 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   if (ep_addr == stream_rx->ep_addr) {
     tu_edpt_stream_read_xfer_complete(stream_rx, xferred_bytes);
 
-    // Check for wanted char and invoke wanted callback (multiple times if multiple wanted received)
+    // Check for wanted char and invoke wanted callback
     if (((signed char)p_cdc->wanted_char) != -1) {
-      for (uint32_t i = 0; i < xferred_bytes; i++) {
-        if ((p_cdc->wanted_char == (char)stream_rx->ep_buf[i]) && !tu_edpt_stream_empty(stream_rx)) {
-          tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
+      tu_fifo_buffer_info_t buf_info;
+      tu_fifo_get_read_info(&stream_rx->ff, &buf_info);
+
+      // find backward
+      uint8_t *ptr;
+      if (buf_info.len_wrap > 0) {
+        ptr = buf_info.ptr_wrap + buf_info.len_wrap - 1; // last byte of wrap buffer
+      } else if (buf_info.len_lin > 0) {
+        ptr = buf_info.ptr_lin + buf_info.len_lin - 1;   // last byte of linear buffer
+      } else {
+        ptr = NULL;                                      // no data
+      }
+
+      if (ptr != NULL) {
+        for (uint32_t i = 0; i < xferred_bytes; i++) {
+          if (p_cdc->wanted_char == (char)*ptr) {
+            tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
+            break; // only invoke once per transfer, even if multiple wanted chars are present
+          }
+
+          if (ptr == buf_info.ptr_wrap) {
+            ptr = buf_info.ptr_lin + buf_info.len_lin - 1; // last byte of linear buffer
+          } else if (ptr == buf_info.ptr_lin) {
+            break;                                         // reached the beginning
+          } else {
+            ptr--;
+          }
         }
       }
     }
