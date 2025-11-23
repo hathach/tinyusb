@@ -242,6 +242,20 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   return true;
 }
 
+bool hcd_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg, uint8_t rhport )
+{
+  if( rhport == SOCFPGA_USB2_OTG_PORT )
+  {
+	return true;
+  }
+  else
+  {
+    return hcd_dwc3_parse_full_conf_descriptor(desc_cfg);
+  }
+  
+  return true;
+}
+
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
   if( rhport == SOCFPGA_USB2_OTG_PORT )
   {

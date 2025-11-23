@@ -155,6 +155,10 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8]
 // clear stall, data toggle is also reset to DATA0
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 
+
+// parse xHCI configuration descriptor
+bool hcd_parse_full_conf_descriptor(tusb_desc_configuration_t *desc_cfg, uint8_t rhport);
+
 //--------------------------------------------------------------------+
 // SPI specific to synopsys dwc3 controller
 //--------------------------------------------------------------------+

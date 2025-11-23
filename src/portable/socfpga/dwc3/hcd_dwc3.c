@@ -29,7 +29,6 @@
 #include "tusb.h"
 #include "socfpga_rst_mngr.h"
 #include "host/hcd.h"
-#include "socfpga_cache.h"
 
 #include "dwc3.h"
 #include "xhci_commands.h"
@@ -44,11 +43,15 @@
 #define USB3_HS_PORT (1)
 #define USB3_SS_PORT (2)
 
+static void hcd_xhci_set_configuration();
+static void hcd_dwc3_update_device_address( uint8_t daddr );
+
 Usb3_Handle_t *Usb3handle;
 uint8_t device_addr = 0;
 
 static struct xhci_int_desc usb3_int_desc;
 static tusb_control_request_t ctrl_req;
+static int usb_set_config = 0;
 
 bool hcd_dwc3_init( uint8_t rhport, const tusb_rhport_init_t *rh_init )
 {
@@ -185,13 +188,14 @@ static bool hcd_send_address_cmd( void )
     }
 
     display_xhci_device_params(&Usb3handle->xhci_priv.dev_data);
+    display_ip_context(Usb3handle->xhci_priv.ip_ctx);
     display_op_context(Usb3handle->xhci_priv.op_ctx);
     display_event_trbs(&Usb3handle->xhci_priv);
 
     return true;
 }
 
-void hcd_dwc3_update_device_address( void )
+static void hcd_dwc3_update_device_address( uint8_t daddr )
 {
     device_addr = 1U;
 }
@@ -271,7 +275,7 @@ void hcd_dwc3_device_close( uint8_t rhport, uint8_t dev_addr )
 /*--------------------------------------------------------------------+
  * Endpoints API
  *--------------------------------------------------------------------+*/
-void hcd_xhci_set_configuration()
+static void hcd_xhci_set_configuration()
 {
         update_xhc_slot_context(&Usb3handle->xhci_priv);
 
@@ -293,6 +297,16 @@ bool hcd_dwc3_setup_send( uint8_t rhport, uint8_t daddr,
 {
     memcpy(&ctrl_req, &setup_packet[0], sizeof(ctrl_req));
 
+    if ((tusb_request_code_t) setup_packet[ 1 ] == TUSB_REQ_SET_CONFIGURATION)
+	{
+	  hcd_xhci_set_configuration();
+	  usb_set_config = 1;
+	}
+
+    if ((tusb_request_code_t) setup_packet[ 1 ] == TUSB_REQ_SET_ADDRESS)
+	{
+	  hcd_dwc3_update_device_address(ctrl_req.wValue);
+	}
     hcd_event_xfer_complete(daddr, 0, 8, XFER_RESULT_SUCCESS, true);
 
     return true;
@@ -313,8 +327,13 @@ bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t 
     const uint8_t ep_num = tu_edpt_number(ep_addr);
     const unsigned dir = (uint32_t) tu_edpt_dir(ep_addr);
 
-    if( buffer == NULL && (buflen == 0))
+    // There is no separate data stage for xHCI controller. Hence skip the tinyusb enumeration step for data stage
+    if( buffer == NULL && (buflen == 0) && (usb_set_config == 0))
     {
+	  if( usb_set_config == 1 )
+	  {
+        usb_set_config = 0;
+	  }
       hcd_event_xfer_complete(daddr, ep_num, 8, XFER_RESULT_SUCCESS, true);
       return true;
     }
@@ -323,10 +342,17 @@ bool hcd_dwc3_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t 
     {
       configure_setup_stage(&Usb3handle->xhci_priv, buffer, (usb_control_request_t *)&ctrl_req);
       ring_xhci_ep0_db(&Usb3handle->xhci_priv.op_regs);
-      cache_force_invalidate(buffer, buflen);
+	  if( buffer != NULL )
+	  {
+        usb_dcache_invalidate(buffer, buflen);
+      }
     }
     else
     {
+	  if( dir == TUSB_DIR_OUT )
+	  {
+        usb_dcache_clean(buffer, buflen); 
+	  }
       endpoint_transfer(&Usb3handle->xhci_priv, (int) ep_num, (uint8_t) dir, buffer, buflen);
     }
 
@@ -379,9 +405,10 @@ void hcd_dwc3_int_handler( uint8_t rhport, bool in_isr )
         tr_event = event_data.tr_event;
         if (tr_event.tc_status_params.compl_code == (uint32_t)EVENT_SUCCESS)
         {
+            uint32_t xfer_bytes = tr_event.tc_status_params.transfer_len;
             ep_dci = (int) event_data.tr_event.tc_ctrl_params.ep_dci;
             ep_num = DCI2EP[ ep_dci - 1 ];
-            hcd_event_xfer_complete(device_addr, ep_num, 8, XFER_RESULT_SUCCESS,
+            hcd_event_xfer_complete(device_addr, ep_num, xfer_bytes, XFER_RESULT_SUCCESS,
                     true);
         }
         break;
@@ -459,7 +486,7 @@ bool hcd_evaluate_xhci_context( void )
 
     return true;
 }
-bool hcd_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
+bool hcd_dwc3_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
 {
     const uint8_t usb_speed = Usb3handle->xhci_priv.dev_data.dev_speed;
 
@@ -470,7 +497,6 @@ bool hcd_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
     uint32_t err_flag = 0U;
 
     usb_endpoint_descriptor_t xhci_ep_desc;
-    usb_interface_descriptor_t xhci_intf_desc;
 
     DEBUG("Parsing Complete Configuration Descriptors");
 
@@ -481,16 +507,6 @@ bool hcd_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
         tusb_desc_interface_t const *desc_itf =
                 (tusb_desc_interface_t const*) (uintptr_t) p_desc;
 
-        xhci_intf_desc.bLength = desc_itf->bLength;
-        xhci_intf_desc.bDescriptorType = desc_itf->bDescriptorType;
-        xhci_intf_desc.bInterfaceNumber = desc_itf->bInterfaceNumber;
-        xhci_intf_desc.bAlternateSetting = desc_itf->bAlternateSetting;
-        xhci_intf_desc.bNumEndpoints = desc_itf->bNumEndpoints;
-        xhci_intf_desc.bInterfaceClass = desc_itf->bInterfaceClass;
-        xhci_intf_desc.bInterfaceSubClass = desc_itf->bInterfaceSubClass;
-        xhci_intf_desc.bInterfaceProtocol = desc_itf->bInterfaceProtocol;
-        xhci_intf_desc.iInterface = desc_itf->iInterface;
-
         /* Check if the device belongs to MSC */
         if (desc_itf->bInterfaceClass != 8)
         {
@@ -498,10 +514,6 @@ bool hcd_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
             PRINT("Enumeration process completed");
             return false;
         }
-
-        xhci_parse_interface_descriptor(
-                &Usb3handle->xhci_priv.usb_desc.dev_intf_desc,
-                &xhci_intf_desc);
 
         uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf,
                 assoc_itf_count, (uint16_t) (desc_end - p_desc));
@@ -529,12 +541,6 @@ bool hcd_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
                 ep_desc =
                         (tusb_desc_endpoint_t const*) (uintptr_t) tu_desc_next(
                         ep_desc);
-                usb3_ss_ep_comp_desc_t *comp_desc =
-                        (usb3_ss_ep_comp_desc_t*) ep_desc;
-
-                xhci_parse_ss_endpoint_comp_desc(
-                        &Usb3handle->xhci_priv.usb_desc.ss_ep_comp_desc,
-                        comp_desc);
 
                 ep_desc =
                         (tusb_desc_endpoint_t const*) (uintptr_t) tu_desc_next(
@@ -563,8 +569,6 @@ bool hcd_parse_full_conf_descriptor( tusb_desc_configuration_t *desc_cfg )
     {
         return false;
     }
-
-    display_usb_descriptor(&Usb3handle->xhci_priv);
 
     return true;
 }
