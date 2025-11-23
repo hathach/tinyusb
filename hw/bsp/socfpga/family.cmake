@@ -40,4 +40,4 @@ target_include_directories(agilex5-tinyusb PUBLIC
     ${FREERTOS_TOP_DIR}/tinyusb/src/portable/socfpga/dwc3/hcd_dwc3.c
     ${FREERTOS_TOP_DIR}/tinyusb/src/portable/socfpga/dwc3/socfpga_common.c
     )
-target_link_libraries(agilex5-tinyusb PRIVATE socfpga_drivers)
+target_link_libraries(agilex5-tinyusb PRIVATE socfpga_drivers m)
