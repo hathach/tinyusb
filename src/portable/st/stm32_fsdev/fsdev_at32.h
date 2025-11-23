@@ -168,7 +168,7 @@ enum { FSDEV_IRQ_NUM = TU_ARRAY_SIZE(fsdev_irq) };
   #error "Unsupported MCU"
 #endif
 
-void dcd_int_enable(uint8_t rhport) {
+void fsdev_int_enable(uint8_t rhport) {
   (void)rhport;
   #if (CFG_TUSB_MCU == OPT_MCU_AT32F403A_407) || (CFG_TUSB_MCU == OPT_MCU_AT32F413)
   // AT32F403A/407 devices allow to remap the USB interrupt vectors from
@@ -187,7 +187,7 @@ void dcd_int_enable(uint8_t rhport) {
   }
 }
 
-void dcd_int_disable(uint8_t rhport) {
+void fsdev_int_disable(uint8_t rhport) {
   (void)rhport;
   #if (CFG_TUSB_MCU == OPT_MCU_AT32F403A_407) || (CFG_TUSB_MCU == OPT_MCU_AT32F413)
   // AT32F403A/407 devices allow to remap the USB interrupt vectors from
@@ -206,20 +206,20 @@ void dcd_int_disable(uint8_t rhport) {
   }
 }
 
-void dcd_disconnect(uint8_t rhport) {
+void fsdev_disconnect(uint8_t rhport) {
   (void) rhport;
   /* disable usb phy */
-  FSDEV_REG->CNTR |= USB_CNTR_PDWN;
+  *(volatile uint32_t*)(FSDEV_REG_BASE + 0x40) |= USB_CNTR_PDWN;
   /* D+ 1.5k pull-up disable, USB->cfg_bit.puo = TRUE; */
-  *(uint32_t *)(FSDEV_REG_BASE+0x60) |= (1u<<1);
+  *(volatile uint32_t *)(FSDEV_REG_BASE+0x60) |= (1u<<1);
 }
 
-void dcd_connect(uint8_t rhport) {
+void fsdev_connect(uint8_t rhport) {
   (void) rhport;
   /* enable usb phy */
-  FSDEV_REG->CNTR &= ~USB_CNTR_PDWN;
+  *(volatile uint32_t*)(FSDEV_REG_BASE + 0x40) &= ~USB_CNTR_PDWN;
   /* Dp 1.5k pull-up enable, USB->cfg_bit.puo = 0; */
-  *(uint32_t *)(FSDEV_REG_BASE+0x60) &= ~(1u<<1);
+  *(volatile uint32_t *)(FSDEV_REG_BASE+0x60) &= ~(1u<<1);
 }
 
 #endif

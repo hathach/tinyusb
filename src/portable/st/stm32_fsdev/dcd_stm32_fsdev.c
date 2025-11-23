@@ -123,8 +123,6 @@
   #error "Unknown USB IP"
 #endif
 
-#include "fsdev_type.h"
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -847,6 +845,24 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   ep_change_dtog(&ep_reg, dir, 0); // Reset to DATA0
   ep_write(ep_idx, ep_reg, true);
 }
+
+void dcd_int_enable(uint8_t rhport) {
+  fsdev_int_enable(rhport);
+}
+
+void dcd_int_disable(uint8_t rhport) {
+  fsdev_int_disable(rhport);
+}
+
+#if defined(USB_BCDR_DPPU) || defined(SYSCFG_PMC_USB_PU)
+void dcd_connect(uint8_t rhport) {
+  fsdev_connect(rhport);
+}
+
+void dcd_disconnect(uint8_t rhport) {
+  fsdev_disconnect(rhport);
+}
+#endif
 
 //--------------------------------------------------------------------+
 // PMA read/write

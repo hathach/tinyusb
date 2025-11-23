@@ -321,6 +321,8 @@
   #define FSDEV_USE_SBUF_ISO 0
 #endif
 
+#include "fsdev_type.h"
+
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
@@ -372,7 +374,7 @@ static const IRQn_Type fsdev_irq[] = {
 };
 enum { FSDEV_IRQ_NUM = TU_ARRAY_SIZE(fsdev_irq) };
 
-void dcd_int_enable(uint8_t rhport) {
+void fsdev_int_enable(uint8_t rhport) {
   (void)rhport;
 
   // forces write to RAM before allowing ISR to execute
@@ -395,7 +397,7 @@ void dcd_int_enable(uint8_t rhport) {
   }
 }
 
-void dcd_int_disable(uint8_t rhport) {
+void fsdev_int_disable(uint8_t rhport) {
   (void)rhport;
 
   #if CFG_TUSB_MCU == OPT_MCU_STM32F3 && defined(SYSCFG_CFGR1_USB_IT_RMP)
@@ -420,28 +422,27 @@ void dcd_int_disable(uint8_t rhport) {
 // Define only on MCU with internal pull-up. BSP can define on MCU without internal PU.
 #if defined(USB_BCDR_DPPU)
 
-void dcd_disconnect(uint8_t rhport) {
+void fsdev_disconnect(uint8_t rhport) {
   (void)rhport;
   USB->BCDR &= ~(USB_BCDR_DPPU);
 }
 
-void dcd_connect(uint8_t rhport) {
+void fsdev_connect(uint8_t rhport) {
   (void)rhport;
   USB->BCDR |= USB_BCDR_DPPU;
 }
 
 #elif defined(SYSCFG_PMC_USB_PU) // works e.g. on STM32L151
 
-void dcd_disconnect(uint8_t rhport) {
+void fsdev_disconnect(uint8_t rhport) {
   (void)rhport;
   SYSCFG->PMC &= ~(SYSCFG_PMC_USB_PU);
 }
 
-void dcd_connect(uint8_t rhport) {
+void fsdev_connect(uint8_t rhport) {
   (void)rhport;
   SYSCFG->PMC |= SYSCFG_PMC_USB_PU;
 }
 #endif
-
 
 #endif /* TUSB_FSDEV_STM32_H */

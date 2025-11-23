@@ -174,6 +174,14 @@ typedef enum {
 #define EP_STAT_MASK(_dir)  (3u << (USB_EPTX_STAT_Pos + ((_dir) == TUSB_DIR_IN ? 0 : 8)))
 #define EP_DTOG_MASK(_dir)  (1u << (USB_EP_DTOG_TX_Pos + ((_dir) == TUSB_DIR_IN ? 0 : 8)))
 
+#define CH_STAT_MASK(_dir)  (3u << (USB_EPTX_STAT_Pos + ((_dir) == TUSB_DIR_IN ? 8 : 0)))
+#define CH_DTOG_MASK(_dir)  (1u << (USB_EP_DTOG_TX_Pos + ((_dir) == TUSB_DIR_IN ? 8 : 0)))
+
+void fsdev_int_enable(uint8_t rhport);
+void fsdev_int_disable(uint8_t rhport);
+void fsdev_connect(uint8_t rhport);
+void fsdev_disconnect(uint8_t rhport);
+
 //--------------------------------------------------------------------+
 // Endpoint Helper
 // - CTR is write 0 to clear
@@ -186,13 +194,13 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t ep_read(uint32_t ep_id) {
 
 TU_ATTR_ALWAYS_INLINE static inline void ep_write(uint32_t ep_id, uint32_t value, bool need_exclusive) {
   if (need_exclusive) {
-    dcd_int_disable(0);
+    fsdev_int_disable(0);
   }
 
   FSDEV_REG->ep[ep_id].reg = (fsdev_bus_t) value;
 
   if (need_exclusive) {
-    dcd_int_enable(0);
+    fsdev_int_enable(0);
   }
 }
 
@@ -214,6 +222,35 @@ TU_ATTR_ALWAYS_INLINE static inline void ep_change_dtog(uint32_t* reg, tusb_dir_
 
 TU_ATTR_ALWAYS_INLINE static inline bool ep_is_iso(uint32_t reg) {
   return (reg & USB_EP_TYPE_MASK) == USB_EP_ISOCHRONOUS;
+}
+
+//--------------------------------------------------------------------+
+// Channel Helper
+// - Direction is opposite to endpoint direction
+//--------------------------------------------------------------------+
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t ch_read(uint32_t ch_id) {
+  return ep_read(ch_id);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void ch_write(uint32_t ch_id, uint32_t value, bool need_exclusive) {
+  ep_write(ch_id, value, need_exclusive);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void ch_write_clear_ctr(uint32_t ch_id, tusb_dir_t dir) {
+  uint32_t reg = FSDEV_REG->ep[ch_id].reg;
+  reg |= USB_EP_CTR_TX | USB_EP_CTR_RX;
+  reg &= USB_EPREG_MASK;
+  reg &= ~(1 << (USB_EP_CTR_TX_Pos + (dir == TUSB_DIR_IN ? 8 : 0)));
+  ep_write(ch_id, reg, false);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void ch_change_status(uint32_t* reg, tusb_dir_t dir, ep_stat_t state) {
+  *reg ^= (state << (USB_EPTX_STAT_Pos + (dir == TUSB_DIR_IN ? 8 : 0)));
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void ch_change_dtog(uint32_t* reg, tusb_dir_t dir, uint8_t state) {
+  *reg ^= (state << (USB_EP_DTOG_TX_Pos + (dir == TUSB_DIR_IN ? 8 : 0)));
 }
 
 //--------------------------------------------------------------------+
