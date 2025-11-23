@@ -57,16 +57,18 @@ void usb3_task(void *arg)
         ERROR("Error in initialising usb3 port");
     }
 
-    /*initialize host stack for usb3 HS port*/
-    if (!tusb_init(USB3_HS_PORT, &host_init))
-    {
-        ERROR("Error in initialising usb3 port");
-    }
     else
-    {
-        PRINT("USB3.1 port initialized successfully");
+    {    
+        /*initialize host stack for usb3 HS port*/
+        if (!tusb_init(USB3_HS_PORT, &host_init))
+        {
+            ERROR("Error in initialising usb3 port");
+        }
+        else
+        {
+            PRINT("USB3.1 port initialized successfully");
+        }
     }
-
     while (1)
     {
         tuh_task();

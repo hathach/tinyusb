@@ -94,7 +94,11 @@ bool hcd_dwc3_init( uint8_t rhport, const tusb_rhport_init_t *rh_init )
             return false;
         }
 
-        xhci_init(&Usb3handle->xhci_priv);
+        if( xhci_init(&Usb3handle->xhci_priv) == false )
+		{
+            ERROR("xHCI init failed -%d!!!", ret);
+            return false;
+		}
     }
 
     return true;
