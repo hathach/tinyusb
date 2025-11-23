@@ -24,7 +24,6 @@ set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
 set(LD_FILE_Clang ${LD_FILE_GNU})
-set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
 #------------------------------------
 # BOARD_TARGET
