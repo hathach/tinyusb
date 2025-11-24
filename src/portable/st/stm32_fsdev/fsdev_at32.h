@@ -150,8 +150,6 @@
 #define USB_EPRX_DTOG2                       ((uint16_t)0x2000U)               /*!< EndPoint RX Data TOGgle bit1 */
 #define USB_EPRX_DTOGMASK  (USB_EPRX_STAT|USB_EPREG_MASK)
 
-#include "fsdev_type.h"
-
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
@@ -168,7 +166,7 @@ enum { FSDEV_IRQ_NUM = TU_ARRAY_SIZE(fsdev_irq) };
   #error "Unsupported MCU"
 #endif
 
-void fsdev_int_enable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_enable(uint8_t rhport) {
   (void)rhport;
   #if (CFG_TUSB_MCU == OPT_MCU_AT32F403A_407) || (CFG_TUSB_MCU == OPT_MCU_AT32F413)
   // AT32F403A/407 devices allow to remap the USB interrupt vectors from
@@ -187,7 +185,7 @@ void fsdev_int_enable(uint8_t rhport) {
   }
 }
 
-void fsdev_int_disable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
   (void)rhport;
   #if (CFG_TUSB_MCU == OPT_MCU_AT32F403A_407) || (CFG_TUSB_MCU == OPT_MCU_AT32F413)
   // AT32F403A/407 devices allow to remap the USB interrupt vectors from
@@ -206,7 +204,7 @@ void fsdev_int_disable(uint8_t rhport) {
   }
 }
 
-void fsdev_disconnect(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_disconnect(uint8_t rhport) {
   (void) rhport;
   /* disable usb phy */
   *(volatile uint32_t*)(FSDEV_REG_BASE + 0x40) |= USB_CNTR_PDWN;
@@ -214,7 +212,7 @@ void fsdev_disconnect(uint8_t rhport) {
   *(volatile uint32_t *)(FSDEV_REG_BASE+0x60) |= (1u<<1);
 }
 
-void fsdev_connect(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_connect(uint8_t rhport) {
   (void) rhport;
   /* enable usb phy */
   *(volatile uint32_t*)(FSDEV_REG_BASE + 0x40) &= ~USB_CNTR_PDWN;

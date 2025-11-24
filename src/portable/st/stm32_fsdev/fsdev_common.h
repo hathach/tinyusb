@@ -1,8 +1,9 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright(c) N Conrad
- * Copyright(c) 2024, hathach (tinyusb.org)
+ * Copyright (c) N Conrad
+ * Copyright (c) 2024, hathach (tinyusb.org)
+ * Copyright (c) 2025, HiFiPhile (Zixun LI)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,14 +26,32 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_FSDEV_TYPE_H
-#define TUSB_FSDEV_TYPE_H
+#ifndef TUSB_FSDEV_COMMON_H
+#define TUSB_FSDEV_COMMON_H
 
-#ifdef __cplusplus
- extern "C" {
+#include "common/tusb_common.h"
+
+#if CFG_TUD_ENABLED
+#include "device/dcd.h"
 #endif
 
-#include "stdint.h"
+#if CFG_TUH_ENABLED
+#include "host/hcd.h"
+#endif
+
+#if defined(TUP_USBIP_FSDEV_STM32)
+  #include "fsdev_stm32.h"
+#elif defined(TUP_USBIP_FSDEV_CH32)
+  #include "fsdev_ch32.h"
+#elif defined(TUP_USBIP_FSDEV_AT32)
+  #include "fsdev_at32.h"
+#else
+  #error "Unknown USB IP"
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // If sharing with CAN, one can set this to be non-zero to give CAN space where it wants it
 // Both of these MUST be a multiple of 2, and are in byte units.
@@ -177,11 +196,6 @@ typedef enum {
 #define CH_STAT_MASK(_dir)  (3u << (USB_EPTX_STAT_Pos + ((_dir) == TUSB_DIR_IN ? 8 : 0)))
 #define CH_DTOG_MASK(_dir)  (1u << (USB_EP_DTOG_TX_Pos + ((_dir) == TUSB_DIR_IN ? 8 : 0)))
 
-void fsdev_int_enable(uint8_t rhport);
-void fsdev_int_disable(uint8_t rhport);
-void fsdev_connect(uint8_t rhport);
-void fsdev_disconnect(uint8_t rhport);
-
 //--------------------------------------------------------------------+
 // Endpoint Helper
 // - CTR is write 0 to clear
@@ -298,47 +312,32 @@ TU_ATTR_ALWAYS_INLINE static inline void btable_set_count(uint32_t ep_id, uint8_
 }
 
 /* Aligned buffer size according to hardware */
-TU_ATTR_ALWAYS_INLINE static inline uint16_t pma_align_buffer_size(uint16_t size, uint8_t* blsize, uint8_t* num_block) {
-  /* The STM32 full speed USB peripheral supports only a limited set of
-   * buffer sizes given by the RX buffer entry format in the USB_BTABLE. */
-  uint16_t block_in_bytes;
-  if (size > 62) {
-    block_in_bytes = 32;
-    *blsize = 1;
-    *num_block = tu_div_ceil(size, 32);
-  } else {
-    block_in_bytes = 2;
-    *blsize = 0;
-    *num_block = tu_div_ceil(size, 2);
-  }
+uint16_t pma_align_buffer_size(uint16_t size, uint8_t* blsize, uint8_t* num_block);
 
-  return (*num_block) * block_in_bytes;
-}
+void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount);
 
-TU_ATTR_ALWAYS_INLINE static inline void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount) {
-  uint8_t blsize, num_block;
-  (void) pma_align_buffer_size(wCount, &blsize, &num_block);
+//--------------------------------------------------------------------+
+// PMA (Packet Memory Area) Access
+//--------------------------------------------------------------------+
 
-  /* Encode into register. When BLSIZE==1, we need to subtract 1 block count */
-  uint16_t bl_nb = (blsize << 15) | ((num_block - blsize) << 10);
-  if (bl_nb == 0) {
-    // zlp but 0 is invalid value, set blsize to 1 (32 bytes)
-    // Note: lower value can cause PMAOVR on setup with ch32v203
-    bl_nb = 1 << 15;
-  }
+// Write to packet memory area (PMA) from user memory
+// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
+// - Uses unaligned for RAM (since M0 cannot access unaligned address)
+bool fsdev_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes);
 
-#ifdef FSDEV_BUS_32BIT
-  uint32_t count_addr = FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr;
-  count_addr = (bl_nb << 16) | (count_addr & 0x0000FFFFu);
-  FSDEV_BTABLE->ep32[ep_id][buf_id].count_addr = count_addr;
-#else
-  FSDEV_BTABLE->ep16[ep_id][buf_id].count = bl_nb;
-#endif
+// Read from packet memory area (PMA) to user memory.
+// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
+// - Uses unaligned for RAM (since M0 cannot access unaligned address)
+bool fsdev_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes);
 
-}
+// Write to PMA from FIFO
+bool fsdev_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes);
+
+// Read from PMA to FIFO
+bool fsdev_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes);
 
 #ifdef __cplusplus
- }
+}
 #endif
 
-#endif
+#endif /* TUSB_FSDEV_COMMON_H */

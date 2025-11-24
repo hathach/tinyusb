@@ -67,6 +67,7 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
     ${TOP}/src/portable/st/stm32_fsdev/hcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/stm32_fsdev/fsdev_common.c
     ${TOP}/src/portable/st/typec/typec_stm32.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )

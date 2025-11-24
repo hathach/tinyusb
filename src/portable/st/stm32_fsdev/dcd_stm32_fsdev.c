@@ -112,16 +112,7 @@
     !(defined(TUP_USBIP_FSDEV_CH32) && CFG_TUD_WCH_USBIP_FSDEV == 0)
 
 #include "device/dcd.h"
-
-#if defined(TUP_USBIP_FSDEV_STM32)
-  #include "fsdev_stm32.h"
-#elif defined(TUP_USBIP_FSDEV_CH32)
-  #include "fsdev_ch32.h"
-#elif defined(TUP_USBIP_FSDEV_AT32)
-  #include "fsdev_at32.h"
-#else
-  #error "Unknown USB IP"
-#endif
+#include "fsdev_common.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -162,11 +153,6 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir);
 static uint16_t ep_buf_ptr; ///< Points to first free memory location
 static uint32_t dcd_pma_alloc(uint16_t len, bool dbuf);
 static uint8_t dcd_ep_alloc(uint8_t ep_addr, uint8_t ep_type);
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes);
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes);
-
-static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes);
-static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes);
 
 static void edpt0_open(uint8_t rhport);
 
@@ -307,7 +293,7 @@ static void handle_ctr_setup(uint32_t ep_id) {
   uint16_t rx_addr = btable_get_addr(ep_id, BTABLE_BUF_RX);
   uint8_t setup_packet[8] TU_ATTR_ALIGNED(4);
 
-  dcd_read_packet_memory(setup_packet, rx_addr, rx_count);
+  fsdev_read_packet_memory(setup_packet, rx_addr, rx_count);
 
   // Clear CTR RX if another setup packet arrived before this, it will be discarded
   ep_write_clear_ctr(ep_id, TUSB_DIR_OUT);
@@ -345,9 +331,9 @@ static void handle_ctr_rx(uint32_t ep_id) {
   uint16_t pma_addr = (uint16_t) btable_get_addr(ep_id, buf_id);
 
   if (xfer->ff) {
-    dcd_read_packet_memory_ff(xfer->ff, pma_addr, rx_count);
+    fsdev_read_packet_memory_ff(xfer->ff, pma_addr, rx_count);
   } else {
-    dcd_read_packet_memory(xfer->buffer + xfer->queued_len, pma_addr, rx_count);
+    fsdev_read_packet_memory(xfer->buffer + xfer->queued_len, pma_addr, rx_count);
   }
   xfer->queued_len += rx_count;
 
@@ -742,9 +728,9 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   uint16_t addr_ptr = (uint16_t) btable_get_addr(ep_ix, buf_id);
 
   if (xfer->ff) {
-    dcd_write_packet_memory_ff(xfer->ff, addr_ptr, len);
+    fsdev_write_packet_memory_ff(xfer->ff, addr_ptr, len);
   } else {
-    dcd_write_packet_memory(addr_ptr, &(xfer->buffer[xfer->queued_len]), len);
+    fsdev_write_packet_memory(addr_ptr, &(xfer->buffer[xfer->queued_len]), len);
   }
   xfer->queued_len += len;
 
@@ -863,169 +849,5 @@ void dcd_disconnect(uint8_t rhport) {
   fsdev_disconnect(rhport);
 }
 #endif
-
-//--------------------------------------------------------------------+
-// PMA read/write
-//--------------------------------------------------------------------+
-
-// Write to packet memory area (PMA) from user memory
-// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
-// - Uses unaligned for RAM (since M0 cannot access unaligned address)
-static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes) {
-  if (nbytes == 0) return true;
-  uint32_t n_write = nbytes / FSDEV_BUS_SIZE;
-
-  fsdev_pma_buf_t* pma_buf = PMA_BUF_AT(dst);
-  const uint8_t *src8 = src;
-
-  while (n_write--) {
-    pma_buf->value = fsdevbus_unaligned_read(src8);
-    src8 += FSDEV_BUS_SIZE;
-    pma_buf++;
-  }
-
-  // odd bytes e.g 1 for 16-bit or 1-3 for 32-bit
-  uint16_t odd = nbytes & (FSDEV_BUS_SIZE - 1);
-  if (odd) {
-    fsdev_bus_t temp = 0;
-    for(uint16_t i = 0; i < odd; i++) {
-      temp |= *src8++ << (i * 8);
-    }
-    pma_buf->value = temp;
-  }
-
-  return true;
-}
-
-// Read from packet memory area (PMA) to user memory.
-// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
-// - Uses unaligned for RAM (since M0 cannot access unaligned address)
-static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes) {
-  if (nbytes == 0) return true;
-  uint32_t n_read = nbytes / FSDEV_BUS_SIZE;
-
-  fsdev_pma_buf_t* pma_buf = PMA_BUF_AT(src);
-  uint8_t *dst8 = (uint8_t *)dst;
-
-  while (n_read--) {
-    fsdevbus_unaligned_write(dst8, (fsdev_bus_t ) pma_buf->value);
-    dst8 += FSDEV_BUS_SIZE;
-    pma_buf++;
-  }
-
-  // odd bytes e.g 1 for 16-bit or 1-3 for 32-bit
-  uint16_t odd = nbytes & (FSDEV_BUS_SIZE - 1);
-  if (odd) {
-    fsdev_bus_t temp = pma_buf->value;
-    while (odd--) {
-      *dst8++ = (uint8_t) (temp & 0xfful);
-      temp >>= 8;
-    }
-  }
-
-  return true;
-}
-
-// Write to PMA from FIFO
-static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes) {
-  if (wNBytes == 0) return true;
-
-  // Since we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
-  tu_fifo_buffer_info_t info;
-  tu_fifo_get_read_info(ff, &info);
-
-  uint16_t cnt_lin = tu_min16(wNBytes, info.len_lin);
-  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.len_wrap);
-  uint16_t const cnt_total = cnt_lin + cnt_wrap;
-
-  // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
-  // last lin byte will be combined with wrapped part To ensure PMA is always access aligned
-  uint16_t lin_even = cnt_lin & ~(FSDEV_BUS_SIZE - 1);
-  uint16_t lin_odd = cnt_lin & (FSDEV_BUS_SIZE - 1);
-  uint8_t const *src8 = (uint8_t const*) info.ptr_lin;
-
-  // write even linear part
-  dcd_write_packet_memory(dst, src8, lin_even);
-  dst += lin_even;
-  src8 += lin_even;
-
-  if (lin_odd == 0) {
-    src8 = (uint8_t const*) info.ptr_wrap;
-  } else {
-    // Combine last linear bytes + first wrapped bytes to form fsdev bus width data
-    fsdev_bus_t temp = 0;
-    uint16_t i;
-    for(i = 0; i < lin_odd; i++) {
-      temp |= *src8++ << (i * 8);
-    }
-
-    src8 = (uint8_t const*) info.ptr_wrap;
-    for(; i < FSDEV_BUS_SIZE && cnt_wrap > 0; i++, cnt_wrap--) {
-      temp |= *src8++ << (i * 8);
-    }
-
-    dcd_write_packet_memory(dst, &temp, FSDEV_BUS_SIZE);
-    dst += FSDEV_BUS_SIZE;
-  }
-
-  // write the rest of the wrapped part
-  dcd_write_packet_memory(dst, src8, cnt_wrap);
-
-  tu_fifo_advance_read_pointer(ff, cnt_total);
-  return true;
-}
-
-// Read from PMA to FIFO
-static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) {
-  if (wNBytes == 0) return true;
-
-  // Since we copy into a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
-  // Check for first linear part
-  tu_fifo_buffer_info_t info;
-  tu_fifo_get_write_info(ff, &info); // We want to read from the FIFO
-
-  uint16_t cnt_lin = tu_min16(wNBytes, info.len_lin);
-  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.len_wrap);
-  uint16_t cnt_total = cnt_lin + cnt_wrap;
-
-  // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
-  // last lin byte will be combined with wrapped part To ensure PMA is always access aligned
-
-  uint16_t lin_even = cnt_lin & ~(FSDEV_BUS_SIZE - 1);
-  uint16_t lin_odd = cnt_lin & (FSDEV_BUS_SIZE - 1);
-  uint8_t *dst8 = (uint8_t *) info.ptr_lin;
-
-  // read even linear part
-  dcd_read_packet_memory(dst8, src, lin_even);
-  dst8 += lin_even;
-  src += lin_even;
-
-  if (lin_odd == 0) {
-    dst8 = (uint8_t *) info.ptr_wrap;
-  } else {
-    // Combine last linear bytes + first wrapped bytes to form fsdev bus width data
-    fsdev_bus_t temp;
-    dcd_read_packet_memory(&temp, src, FSDEV_BUS_SIZE);
-    src += FSDEV_BUS_SIZE;
-
-    uint16_t i;
-    for (i = 0; i < lin_odd; i++) {
-      *dst8++ = (uint8_t) (temp & 0xfful);
-      temp >>= 8;
-    }
-
-    dst8 = (uint8_t *) info.ptr_wrap;
-    for (; i < FSDEV_BUS_SIZE && cnt_wrap > 0; i++, cnt_wrap--) {
-      *dst8++ = (uint8_t) (temp & 0xfful);
-      temp >>= 8;
-    }
-  }
-
-  // read the rest of the wrapped part
-  dcd_read_packet_memory(dst8, src, cnt_wrap);
-
-  tu_fifo_advance_write_pointer(ff, cnt_total);
-  return true;
-}
 
 #endif

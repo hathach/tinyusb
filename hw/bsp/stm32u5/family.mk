@@ -39,10 +39,12 @@ SRC_C += \
 
 ifeq ($(MCU_VARIANT),stm32u545xx)
 SRC_C += \
-	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c
 else ifeq ($(MCU_VARIANT),stm32u535xx)
 SRC_C += \
-	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c
 else
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \

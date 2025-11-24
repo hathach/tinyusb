@@ -20,6 +20,7 @@ LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c \
 	$(ST_CMSIS)/Source/Templates/system_${ST_PREFIX}.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal.c \
 	$(ST_HAL_DRIVER)/Src/${ST_PREFIX}_hal_cortex.c \

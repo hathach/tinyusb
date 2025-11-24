@@ -30,6 +30,7 @@
  *
  * C0                             2048 byte buffer; 32-bit bus; host mode
  * G0                             2048 byte buffer; 32-bit bus; host mode
+ * U3                             2048 byte buffer; 32-bit bus; host mode
  * H5                             2048 byte buffer; 32-bit bus; host mode
  * U535, U545                     2048 byte buffer; 32-bit bus; host mode
  *
@@ -42,19 +43,14 @@
 
 #include "host/hcd.h"
 #include "host/usbh.h"
-
-#if defined(TUP_USBIP_FSDEV_STM32)
-  #include "fsdev_stm32.h"
-#else
-  #error "Unknown USB IP"
-#endif
+#include "fsdev_common.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
 // Debug level for FSDEV
-#define FSDEV_DEBUG 1
+#define FSDEV_DEBUG 3
 
 // Max number of endpoints application can open, can be larger than FSDEV_EP_COUNT
 #ifndef CFG_TUH_FSDEV_ENDPOINT_MAX
@@ -76,9 +72,12 @@ typedef struct {
   uint8_t ep_addr;
   uint8_t ep_type;
   uint8_t interval;
-  bool low_speed;
-  bool allocated;
-  bool next_setup;
+  struct TU_ATTR_PACKED {
+    uint8_t low_speed : 1;
+    uint8_t allocated : 1;
+    uint8_t next_setup : 1;
+    uint8_t pid : 1;
+  };
 } hcd_endpoint_t;
 
 // Additional info for each channel when it is active
@@ -88,7 +87,7 @@ typedef struct {
   uint8_t dev_addr;
   uint8_t ep_num;
   uint8_t ep_type;
-  bool allocated[2];
+  uint8_t allocated[2];
   uint8_t retry[2];
   uint8_t result;
 } hcd_xfer_t;
@@ -113,23 +112,34 @@ static uint8_t endpoint_alloc(void);
 static uint8_t endpoint_find(uint8_t dev_addr, uint8_t ep_addr);
 static uint32_t hcd_pma_alloc(uint8_t channel, tusb_dir_t dir, uint16_t len);
 static uint8_t channel_alloc(uint8_t dev_addr, uint8_t ep_addr, uint8_t ep_type);
-static bool hcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes);
-static bool hcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes);
 static bool edpt_xfer_kickoff(uint8_t ep_id);
 static bool channel_xfer_start(uint8_t ch_id, tusb_dir_t dir);
 static void edpoint_close(uint8_t ep_id);
 static void port_status_handler(uint8_t rhport, bool in_isr);
+static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir);
+static void ch_handle_nak(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir);
+static void ch_handle_stall(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir);
+static void ch_handle_error(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir);
+
 //--------------------------------------------------------------------+
 // Inline Functions
 //--------------------------------------------------------------------+
 
 static inline void endpoint_dealloc(hcd_endpoint_t* edpt) {
-  edpt->allocated = false;
+  edpt->allocated = 0;
 }
 
 static inline void channel_dealloc(hcd_xfer_t* xfer, tusb_dir_t dir) {
-  xfer->allocated[dir] = false;
+  xfer->allocated[dir] = 0;
 }
+
+// Write channel state in specified direction
+static inline void channel_write_status(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir, ep_stat_t state, bool need_exclusive) {
+  ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(dir);
+  ch_change_status(&ch_reg, dir, state);
+  ch_write(ch_id, ch_reg, need_exclusive);
+}
+
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -218,139 +228,153 @@ static void port_status_handler(uint8_t rhport, bool in_isr) {
   }
 }
 
-// Handle CTR interrupt for the TX/OUT direction
-static void handle_ctr_tx(uint32_t ch_id) {
-  uint32_t ch_reg = ch_read(ch_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
+//--------------------------------------------------------------------+
+// Interrupt Helper Functions
+//--------------------------------------------------------------------+
 
+// Handle ACK response
+static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
   uint8_t const ep_num = ch_reg & USB_EPADDR_FIELD;
   uint8_t const daddr = (ch_reg & USB_CHEP_DEVADDR_Msk) >> USB_CHEP_DEVADDR_Pos;
 
-  uint8_t ep_id = endpoint_find(daddr, ep_num);
-  TU_VERIFY(ep_id != TUSB_INDEX_INVALID_8, );
+  uint8_t ep_id = endpoint_find(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0));
+  if (ep_id == TUSB_INDEX_INVALID_8) return;
 
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
   hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  TU_VERIFY(xfer->allocated[TUSB_DIR_OUT],);
 
-  // Manage Correct Transaction
-  if ((ch_reg & USB_CH_ERRTX) == 0U) {
-    // Acked
-    if ((ch_reg & USB_CH_TX_STTX) == USB_CH_TX_ACK_SBUF) {
-      if (edpt->buflen != xfer->queued_len[TUSB_DIR_OUT]) {
-        uint16_t const len = tu_min16(edpt->buflen - xfer->queued_len[TUSB_DIR_OUT], edpt->max_packet_size);
-        uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_TX);
-        hcd_write_packet_memory(pma_addr, &(edpt->buffer[xfer->queued_len[TUSB_DIR_OUT]]), len);
-        btable_set_count(ch_id, BTABLE_BUF_TX, len);
-        xfer->queued_len[TUSB_DIR_OUT] += len;
-
-        ch_change_status(&ch_reg, TUSB_DIR_OUT, EP_STAT_VALID);
-        ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_OUT); // only change TX Status, reserve other toggle bits
-        ch_write(ch_id, ch_reg, false);
-      } else {
-        channel_dealloc(xfer, TUSB_DIR_OUT);
-        hcd_event_xfer_complete(daddr, ep_num, xfer->queued_len[TUSB_DIR_OUT], XFER_RESULT_SUCCESS, true);
-      }
-    } else if ((ch_reg & USB_CH_TX_STTX) == USB_CH_TX_NAK) {
-      // NAKed
-      if (edpt->ep_type != TUSB_XFER_INTERRUPT) {
-        ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_OUT); // will change TX Status, reserved other toggle bits
-        ch_change_status(&ch_reg, TUSB_DIR_OUT, EP_STAT_VALID);
-        ch_write(ch_id, ch_reg, false);
-      }
-    } else if ((ch_reg & USB_CH_TX_STTX) == USB_CH_TX_STALL) {
-      // STALLed
+  if (dir == TUSB_DIR_OUT) {
+    // OUT/TX direction
+    if (edpt->buflen != xfer->queued_len[TUSB_DIR_OUT]) {
+      // More data to send
+      uint16_t const len = tu_min16(edpt->buflen - xfer->queued_len[TUSB_DIR_OUT], edpt->max_packet_size);
+      uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_TX);
+      fsdev_write_packet_memory(pma_addr, &(edpt->buffer[xfer->queued_len[TUSB_DIR_OUT]]), len);
+      btable_set_count(ch_id, BTABLE_BUF_TX, len);
+      xfer->queued_len[TUSB_DIR_OUT] += len;
+      channel_write_status(ch_id, ch_reg, TUSB_DIR_OUT, EP_STAT_VALID, false);
+    } else {
+      // Transfer complete
       channel_dealloc(xfer, TUSB_DIR_OUT);
-      ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_OUT); // will change TX Status, reserved other toggle bits
-      ch_change_status(&ch_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
-      ch_write(ch_id,  ch_reg, false);
-      hcd_event_xfer_complete(daddr, ep_num, xfer->queued_len[TUSB_DIR_OUT], XFER_RESULT_STALLED, true);
+      edpt->pid = (ch_reg & USB_CHEP_DTOG_TX) ? 1 : 0;
+      hcd_event_xfer_complete(daddr, ep_num, xfer->queued_len[TUSB_DIR_OUT], XFER_RESULT_SUCCESS, true);
     }
   } else {
-    // Error
-    TU_LOG(FSDEV_DEBUG, "handle_ctr_tx error epreg=0x%08X ch=%u ep=0x%02X daddr=%u queued=%u/%u\r\n",
-             ch_reg, ch_id, ep_num, daddr, xfer->queued_len[TUSB_DIR_OUT], edpt->buflen);
-    ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_OUT); // will change TX Status, reserved other toggle bits
-    ch_reg &=~USB_CH_ERRTX;
-    if (xfer->retry[TUSB_DIR_OUT] < HCD_XFER_ERROR_MAX) {
-      // Retry
-      xfer->retry[TUSB_DIR_OUT]++;
+    // IN/RX direction
+    uint16_t const rx_count = btable_get_count(ch_id, BTABLE_BUF_RX);
+    uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_RX);
+
+    fsdev_read_packet_memory(edpt->buffer + xfer->queued_len[TUSB_DIR_IN], pma_addr, rx_count);
+    xfer->queued_len[TUSB_DIR_IN] += rx_count;
+
+    if ((rx_count < edpt->max_packet_size) || (xfer->queued_len[TUSB_DIR_IN] >= edpt->buflen)) {
+      // Transfer complete (short packet or all bytes received)
+      channel_dealloc(xfer, TUSB_DIR_IN);
+      edpt->pid = (ch_reg & USB_CHEP_DTOG_RX) ? 1 : 0;
+      hcd_event_xfer_complete(daddr, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len[TUSB_DIR_IN], XFER_RESULT_SUCCESS, true);
     } else {
-      // Failed after retries
-      channel_dealloc(xfer, TUSB_DIR_OUT);
-      ch_change_status(&ch_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
-      hcd_event_xfer_complete(daddr, ep_num, xfer->queued_len[TUSB_DIR_OUT], XFER_RESULT_FAILED, true);
+      // More data expected
+      uint16_t const cnt = tu_min16(edpt->buflen - xfer->queued_len[TUSB_DIR_IN], edpt->max_packet_size);
+      btable_set_rx_bufsize(ch_id, BTABLE_BUF_RX, cnt);
+      channel_write_status(ch_id, ch_reg, TUSB_DIR_IN, EP_STAT_VALID, false);
     }
-    ch_write(ch_id, ch_reg, false);
+  }
+}
+
+// Handle NAK response
+static void ch_handle_nak(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
+  uint8_t const ep_num = ch_reg & USB_EPADDR_FIELD;
+  uint8_t const daddr = (ch_reg & USB_CHEP_DEVADDR_Msk) >> USB_CHEP_DEVADDR_Pos;
+
+  uint8_t ep_id = endpoint_find(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0));
+  if (ep_id == TUSB_INDEX_INVALID_8) return;
+
+  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
+  // Retry non-periodic transfer immediately,
+  // Periodic transfer will be retried by next frame automatically
+  if (edpt->ep_type == TUSB_XFER_CONTROL || edpt->ep_type == TUSB_XFER_BULK) {
+    channel_write_status(ch_id, ch_reg, dir, EP_STAT_VALID, false);
+  }
+}
+
+// Handle STALL response
+static void ch_handle_stall(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
+  uint8_t const ep_num = ch_reg & USB_EPADDR_FIELD;
+  uint8_t const daddr = (ch_reg & USB_CHEP_DEVADDR_Msk) >> USB_CHEP_DEVADDR_Pos;
+
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  channel_dealloc(xfer, dir);
+
+  channel_write_status(ch_id, ch_reg, dir, EP_STAT_DISABLED, false);
+
+  hcd_event_xfer_complete(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0),
+                         xfer->queued_len[dir], XFER_RESULT_STALLED, true);
+}
+
+// Handle error response
+static void ch_handle_error(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
+  uint8_t const ep_num = ch_reg & USB_EPADDR_FIELD;
+  uint8_t const daddr = (ch_reg & USB_CHEP_DEVADDR_Msk) >> USB_CHEP_DEVADDR_Pos;
+
+  uint8_t ep_id = endpoint_find(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0));
+  if (ep_id == TUSB_INDEX_INVALID_8) return;
+
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+
+  ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(dir);
+  ch_reg &= ~(dir == TUSB_DIR_OUT ? USB_CH_ERRTX : USB_CH_ERRRX);
+
+  if (xfer->retry[dir] < HCD_XFER_ERROR_MAX) {
+    // Retry
+    xfer->retry[dir]++;
+    ch_change_status(&ch_reg, dir, EP_STAT_VALID);
+  } else {
+    // Failed after retries
+    channel_dealloc(xfer, dir);
+    ch_change_status(&ch_reg, dir, EP_STAT_DISABLED);
+    hcd_event_xfer_complete(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0),
+                           xfer->queued_len[dir], XFER_RESULT_FAILED, true);
+  }
+  ch_write(ch_id, ch_reg, false);
+}
+
+// Handle CTR interrupt for the TX/OUT direction
+static void handle_ctr_tx(uint32_t ch_id) {
+  uint32_t ch_reg = ch_read(ch_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  TU_VERIFY(xfer->allocated[TUSB_DIR_OUT] == 1,);
+
+  if ((ch_reg & USB_CH_ERRTX) == 0U) {
+    // No error
+    if ((ch_reg & USB_CH_TX_STTX) == USB_CH_TX_ACK_SBUF) {
+      ch_handle_ack(ch_id, ch_reg, TUSB_DIR_OUT);
+    } else if ((ch_reg & USB_CH_TX_STTX) == USB_CH_TX_NAK) {
+      ch_handle_nak(ch_id, ch_reg, TUSB_DIR_OUT);
+    } else if ((ch_reg & USB_CH_TX_STTX) == USB_CH_TX_STALL) {
+      ch_handle_stall(ch_id, ch_reg, TUSB_DIR_OUT);
+    }
+  } else {
+    ch_handle_error(ch_id, ch_reg, TUSB_DIR_OUT);
   }
 }
 
 // Handle CTR interrupt for the RX/IN direction
 static void handle_ctr_rx(uint32_t ch_id) {
   uint32_t ch_reg = ch_read(ch_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
-  uint8_t const ep_num = ch_reg & USB_EPADDR_FIELD;
+  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  TU_VERIFY(xfer->allocated[TUSB_DIR_IN] == 1,);
 
-  uint8_t const daddr = (ch_reg & USB_CHEP_DEVADDR_Msk) >> USB_CHEP_DEVADDR_Pos;
-
-  uint8_t ep_id = endpoint_find(daddr, ep_num | TUSB_DIR_IN_MASK);
-  TU_VERIFY(ep_id != TUSB_INDEX_INVALID_8, );
-
-  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
-    hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  TU_VERIFY(xfer->allocated[TUSB_DIR_IN],);
-
-  // Manage Correct Transaction
   if ((ch_reg & USB_CH_ERRRX) == 0U) {
-    // Acked
+    // No error
     if ((ch_reg & USB_CH_RX_STRX) == USB_CH_RX_ACK_SBUF) {
-      uint16_t const rx_count = btable_get_count(ch_id, BTABLE_BUF_RX);
-      uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_RX);
-
-      hcd_read_packet_memory(edpt->buffer + xfer->queued_len[TUSB_DIR_IN], pma_addr, rx_count);
-      xfer->queued_len[TUSB_DIR_IN] += rx_count;
-
-      if ((rx_count < edpt->max_packet_size) || (xfer->queued_len[TUSB_DIR_IN] >= edpt->buflen)) {
-        // all bytes received or short packet
-        channel_dealloc(xfer, TUSB_DIR_IN);
-        hcd_event_xfer_complete(daddr, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len[TUSB_DIR_IN], XFER_RESULT_SUCCESS, true);
-      } else {
-        // Set endpoint active again for receiving more data. Note that isochronous endpoints stay active always
-        uint16_t const cnt = tu_min16(edpt->buflen - xfer->queued_len[TUSB_DIR_IN], edpt->max_packet_size);
-        btable_set_rx_bufsize(ch_id, BTABLE_BUF_RX, cnt);
-        ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_IN); // will change RX Status, reserved other toggle bits
-        ch_change_status(&ch_reg, TUSB_DIR_IN, EP_STAT_VALID);
-        ch_write(ch_id, ch_reg, false);
-      }
+      ch_handle_ack(ch_id, ch_reg, TUSB_DIR_IN);
     } else if ((ch_reg & USB_CH_RX_STRX) == USB_CH_RX_NAK) {
-      // NAKed
-      if (edpt->ep_type != TUSB_XFER_INTERRUPT) {
-        ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_IN); // will change TX Status, reserved other toggle bits
-        ch_change_status(&ch_reg, TUSB_DIR_IN, EP_STAT_VALID);
-        ch_write(ch_id, ch_reg, false);
-      }
-    } else {
-      // STALLed
-      channel_dealloc(xfer, TUSB_DIR_IN);
-      ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_IN); // will change TX Status, reserved other toggle bits
-      ch_change_status(&ch_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
-      ch_write(ch_id, ch_reg, false);
-      hcd_event_xfer_complete(daddr, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len[TUSB_DIR_IN], XFER_RESULT_STALLED, true);
+      ch_handle_nak(ch_id, ch_reg, TUSB_DIR_IN);
+    } else if ((ch_reg & USB_CH_RX_STRX) == USB_CH_RX_STALL){
+      ch_handle_stall(ch_id, ch_reg, TUSB_DIR_IN);
     }
   } else {
-    // Error
-    TU_LOG(FSDEV_DEBUG, "handle_ctr_tx error epreg=0x%08X ch=%u ep=0x%02X daddr=%u queued=%u/%u\r\n",
-             ch_reg, ch_id, ep_num, daddr, xfer->queued_len[TUSB_DIR_IN], edpt->buflen);
-    ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_IN); // will change RX Status, reserved other toggle bits
-    ch_reg &=~USB_CH_ERRRX;
-    if (xfer->retry[TUSB_DIR_IN] < HCD_XFER_ERROR_MAX) {
-      // Retry
-      xfer->retry[TUSB_DIR_IN]++;
-    } else {
-      // Failed after retries
-      channel_dealloc(xfer, TUSB_DIR_IN);
-      ch_change_status(&ch_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
-      hcd_event_xfer_complete(daddr, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len[TUSB_DIR_IN], XFER_RESULT_FAILED, true);
-    }
-    ch_write(ch_id, ch_reg, false);
+    ch_handle_error(ch_id, ch_reg, TUSB_DIR_IN);
   }
 }
 
@@ -468,7 +492,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   // Close all endpoints for this device
   for(uint32_t i = 0; i < CFG_TUH_FSDEV_ENDPOINT_MAX; i++) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[i];
-    if (edpt->allocated && edpt->dev_addr == dev_addr) {
+    if (edpt->allocated == 1 && edpt->dev_addr == dev_addr) {
       edpoint_close(i);
     }
   }
@@ -496,7 +520,8 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   edpt->ep_type = ep_type;
   edpt->max_packet_size = packet_size;
   edpt->interval = ep_desc->bInterval;
-  edpt->low_speed = (hcd_port_speed_get(rhport) == TUSB_SPEED_FULL && tuh_speed_get(dev_addr) == TUSB_SPEED_LOW);
+  edpt->pid = 0;
+  edpt->low_speed = (hcd_port_speed_get(rhport) == TUSB_SPEED_FULL && tuh_speed_get(dev_addr) == TUSB_SPEED_LOW) ? 1 : 0;
 
   // EP0 is bi-directional, so we need to open both OUT and IN channels
   if (ep_addr == 0) {
@@ -525,7 +550,7 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
     edpoint_close(ep_id_in);
   }
 
-  return false;
+  return true;
 }
 
 // Submit a transfer
@@ -556,17 +581,12 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
     hcd_xfer_t* xfer = &_hcd_data.xfer[i];
 
-    if (xfer->allocated[dir] &&
+    if (xfer->allocated[dir] == 1 &&
         xfer->dev_addr == dev_addr &&
         xfer->ep_num == tu_edpt_number(ep_addr)) {
-
       channel_dealloc(xfer, dir);
-
-      uint32_t ch_reg = ch_read(i) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR bits
-      ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(dir); // will change Status, reserved other toggle bits
-      ch_change_status(&ch_reg, dir, EP_STAT_DISABLED);
-      ch_write(i, ch_reg, true);
-
+      uint32_t ch_reg = ch_read(i) | USB_EP_CTR_TX | USB_EP_CTR_RX;
+      channel_write_status(i, ch_reg, dir, EP_STAT_DISABLED, true);
     }
   }
 
@@ -582,6 +602,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
   edpt->next_setup = true;
+  edpt->pid = 0;
 
   return hcd_edpt_xfer(rhport, dev_addr, 0, (uint8_t*)(uintptr_t) setup_packet, 8);
 }
@@ -591,6 +612,12 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
   (void) dev_addr;
   (void) ep_addr;
+
+  uint8_t const ep_id = endpoint_find(dev_addr, 0);
+  TU_ASSERT(ep_id < CFG_TUH_FSDEV_ENDPOINT_MAX);
+
+  hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
+  edpt->pid = 0;
 
   return true;
 }
@@ -602,8 +629,8 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
 static uint8_t endpoint_alloc(void) {
   for (uint32_t i = 0; i < CFG_TUH_FSDEV_ENDPOINT_MAX; i++) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[i];
-    if (!edpt->allocated) {
-      edpt->allocated = true;
+    if (edpt->allocated == 0) {
+      edpt->allocated = 1;
       return i;
     }
   }
@@ -613,7 +640,7 @@ static uint8_t endpoint_alloc(void) {
 static uint8_t endpoint_find(uint8_t dev_addr, uint8_t ep_addr) {
   for (uint32_t i = 0; i < (uint32_t)CFG_TUH_FSDEV_ENDPOINT_MAX; i++) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[i];
-    if (edpt->allocated && edpt->dev_addr == dev_addr && edpt->ep_addr == ep_addr) {
+    if (edpt->allocated == 1 && edpt->dev_addr == dev_addr && edpt->ep_addr == ep_addr) {
       return i;
     }
   }
@@ -628,24 +655,14 @@ static void edpoint_close(uint8_t ep_id) {
   // disable active channel belong to this endpoint
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
     hcd_xfer_t* xfer = &_hcd_data.xfer[i];
-
-    if (xfer->allocated[TUSB_DIR_OUT] && xfer->edpt[TUSB_DIR_OUT] == edpt) {
+    uint32_t ch_reg = ch_read(i) | USB_EP_CTR_TX | USB_EP_CTR_RX;
+    if (xfer->allocated[TUSB_DIR_OUT] == 1 && xfer->edpt[TUSB_DIR_OUT] == edpt) {
       channel_dealloc(xfer, TUSB_DIR_OUT);
-
-      uint32_t ch_reg = ch_read(i) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR bits
-      ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_OUT); // will change RX Status, reserved other toggle bits
-      ch_change_status(&ch_reg, TUSB_DIR_OUT, EP_STAT_DISABLED);
-      ch_write(i, ch_reg, true);
-
+      channel_write_status(i, ch_reg, TUSB_DIR_OUT, EP_STAT_DISABLED, true);
     }
-    if (xfer->allocated[TUSB_DIR_IN] && xfer->edpt[TUSB_DIR_IN] == edpt) {
+    if (xfer->allocated[TUSB_DIR_IN] == 1 && xfer->edpt[TUSB_DIR_IN] == edpt) {
       channel_dealloc(xfer, TUSB_DIR_IN);
-
-      uint32_t ch_reg = ch_read(i) | USB_EP_CTR_TX | USB_EP_CTR_RX; // reserve CTR bits
-      ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_IN); // will change TX Status, reserved other toggle bits
-      ch_change_status(&ch_reg, TUSB_DIR_IN, EP_STAT_DISABLED);
-      ch_write(i, ch_reg, true);
-
+      channel_write_status(i, ch_reg, TUSB_DIR_IN, EP_STAT_DISABLED, true);
     }
   }
 }
@@ -654,10 +671,10 @@ static void edpoint_close(uint8_t ep_id) {
 static uint32_t hcd_pma_alloc(uint8_t channel, tusb_dir_t dir, uint16_t len) {
   (void) len;
   // Simple static allocation as we are unlikely to handle ISO endpoints in host mode
-  // We just give each channel a buffer of max packet size (64 bytes)
+  // We just give each channel two buffers of max packet size (64 bytes) for IN and OUT
 
   uint16_t addr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT;
-  addr += channel * 64 * 2 + (dir == TUSB_DIR_IN ? 64 : 0);
+  addr += channel * TUSB_EPSIZE_BULK_FS * 2 + (dir == TUSB_DIR_IN ? TUSB_EPSIZE_BULK_FS : 0);
 
   TU_ASSERT(addr <= FSDEV_PMA_SIZE, 0xFFFF);
 
@@ -672,12 +689,12 @@ static uint8_t channel_alloc(uint8_t dev_addr, uint8_t ep_addr, uint8_t ep_type)
   // Find channel allocate for same ep_num but other direction
   tusb_dir_t const other_dir = (dir == TUSB_DIR_IN) ? TUSB_DIR_OUT : TUSB_DIR_IN;
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
-    if (!_hcd_data.xfer[i].allocated[dir] &&
-        _hcd_data.xfer[i].allocated[other_dir] &&
+    if (_hcd_data.xfer[i].allocated[dir] == 0 &&
+        _hcd_data.xfer[i].allocated[other_dir] == 1 &&
         _hcd_data.xfer[i].dev_addr == dev_addr &&
         _hcd_data.xfer[i].ep_num == ep_num &&
         _hcd_data.xfer[i].ep_type == ep_type) {
-        _hcd_data.xfer[i].allocated[dir] = true;
+        _hcd_data.xfer[i].allocated[dir] = 1;
         _hcd_data.xfer[i].queued_len[dir] = 0;
         _hcd_data.xfer[i].retry[dir] = 0;
       return i;
@@ -686,11 +703,11 @@ static uint8_t channel_alloc(uint8_t dev_addr, uint8_t ep_addr, uint8_t ep_type)
 
   // Find free channel
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
-    if (!_hcd_data.xfer[i].allocated[0] && !_hcd_data.xfer[i].allocated[1]) {
+    if (_hcd_data.xfer[i].allocated[0] == 0 && _hcd_data.xfer[i].allocated[1] == 0) {
       _hcd_data.xfer[i].dev_addr = dev_addr;
       _hcd_data.xfer[i].ep_num = ep_num;
       _hcd_data.xfer[i].ep_type = ep_type;
-      _hcd_data.xfer[i].allocated[dir] = true;
+      _hcd_data.xfer[i].allocated[dir] = 1;
       _hcd_data.xfer[i].queued_len[dir] = 0;
       _hcd_data.xfer[i].retry[dir] = 0;
       return i;
@@ -748,84 +765,35 @@ static bool channel_xfer_start(uint8_t ch_id, tusb_dir_t dir) {
   if (dir == TUSB_DIR_OUT) {
     uint16_t const len = tu_min16(edpt->buflen - xfer->queued_len[TUSB_DIR_OUT], edpt->max_packet_size);
 
-    hcd_write_packet_memory(pma_addr, &(edpt->buffer[xfer->queued_len[TUSB_DIR_OUT]]), len);
+    fsdev_write_packet_memory(pma_addr, &(edpt->buffer[xfer->queued_len[TUSB_DIR_OUT]]), len);
     btable_set_count(ch_id, BTABLE_BUF_TX, len);
 
     xfer->queued_len[TUSB_DIR_OUT] += len;
-    if (edpt->next_setup) {
-      // Setup packet uses IN token
-      edpt->next_setup = false;
-      ch_reg |= USB_EP_SETUP;
-    }
-
-    ch_change_status(&ch_reg, TUSB_DIR_OUT, EP_STAT_VALID);
-    ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_OUT); // only change TX Status, reserve other toggle bits
-
   } else {
     btable_set_rx_bufsize(ch_id, BTABLE_BUF_RX, edpt->max_packet_size);
-    ch_change_status(&ch_reg, TUSB_DIR_IN, EP_STAT_VALID);
-    ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(TUSB_DIR_IN); // will change RX Status, reserved other toggle bits
   }
 
+  if (edpt->low_speed == 1) {
+    ch_reg |= USB_CHEP_LSEP;
+  } else {
+    ch_reg &= ~USB_CHEP_LSEP;
+  }
+
+  if (tu_edpt_number(edpt->ep_addr) == 0) {
+    edpt->pid = 1;
+  }
+
+  if (edpt->next_setup) {
+    // Setup packet uses IN token
+    edpt->next_setup = false;
+    ch_reg |= USB_EP_SETUP;
+    edpt->pid = 0;
+  }
+
+  ch_change_status(&ch_reg, dir, EP_STAT_VALID);
+  ch_change_dtog(&ch_reg, dir, edpt->pid);
+  ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(dir) | CH_DTOG_MASK(dir);
   ch_write(ch_id, ch_reg, true);
-
-  return true;
-}
-
-//--------------------------------------------------------------------+
-// PMA read/write
-//--------------------------------------------------------------------+
-
-// Write to packet memory area (PMA) from user memory
-static bool hcd_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes) {
-  if (nbytes == 0) return true;
-  uint32_t n_write = nbytes / FSDEV_BUS_SIZE;
-
-  fsdev_pma_buf_t *pma_buf = PMA_BUF_AT(dst);
-  const uint8_t *src8 = src;
-
-  while (n_write--) {
-    pma_buf->value = fsdevbus_unaligned_read(src8);
-    src8 += FSDEV_BUS_SIZE;
-    pma_buf++;
-  }
-
-  // Handle odd bytes
-  uint16_t odd = nbytes & (FSDEV_BUS_SIZE - 1);
-  if (odd) {
-    fsdev_bus_t temp = 0;
-    for (uint16_t i = 0; i < odd; i++) {
-      temp |= *src8++ << (i * 8);
-    }
-    pma_buf->value = temp;
-  }
-
-  return true;
-}
-
-// Read from packet memory area (PMA) to user memory
-static bool hcd_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes) {
-  if (nbytes == 0) return true;
-  uint32_t n_read = nbytes / FSDEV_BUS_SIZE;
-
-  fsdev_pma_buf_t *pma_buf = PMA_BUF_AT(src);
-  uint8_t *dst8 = (uint8_t *)dst;
-
-  while (n_read--) {
-    fsdevbus_unaligned_write(dst8, (fsdev_bus_t) pma_buf->value);
-    dst8 += FSDEV_BUS_SIZE;
-    pma_buf++;
-  }
-
-  // Handle odd bytes
-  uint16_t odd = nbytes & (FSDEV_BUS_SIZE - 1);
-  if (odd) {
-    fsdev_bus_t temp = pma_buf->value;
-    while (odd--) {
-      *dst8++ = (uint8_t)(temp & 0xfful);
-      temp >>= 8;
-    }
-  }
 
   return true;
 }
