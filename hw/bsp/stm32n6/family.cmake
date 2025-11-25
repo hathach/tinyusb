@@ -52,11 +52,11 @@ function(add_board_target BOARD_TARGET)
   set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
 
   if(NOT DEFINED LD_FILE_GNU)
-    set(LD_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/linker/${MCU_VARIANT}_flash.ld)
+    set(LD_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/linker/${MCU_VARIANT}_axisram2_fsbl.ld)
   endif()
   set(LD_FILE_Clang ${LD_FILE_GNU})
   if(NOT DEFINED LD_FILE_IAR)
-    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+    set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_axisram2_fsbl.icf)
   endif()
 
   add_library(${BOARD_TARGET} STATIC
