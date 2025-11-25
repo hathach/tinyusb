@@ -97,7 +97,7 @@ static board_pindef_t board_pindef[] = {
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
-void SystemClock_Config(void) {
+static void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   /* Configure the power domain */
@@ -214,7 +214,7 @@ static I2C_HandleTypeDef i2c_handle = {
     }};
 static TCPP0203_Object_t tcpp0203_obj = {0};
 
-int32_t board_tcpp0203_init(void) {
+static int32_t board_tcpp0203_init(void) {
   board_pindef_t *pindef = &board_pindef[PINID_TCPP0203_EN];
   HAL_GPIO_WritePin(pindef->port, pindef->pin_init.Pin, GPIO_PIN_SET);
 
@@ -231,16 +231,16 @@ int32_t board_tcpp0203_init(void) {
   return 0;
 }
 
-int32_t board_tcpp0203_deinit(void) {
+static int32_t board_tcpp0203_deinit(void) {
   return 0;
 }
 
-int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+static int32_t i2c_readreg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
   TU_ASSERT(HAL_OK == HAL_I2C_Mem_Read(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
   return 0;
 }
 
-int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+static int32_t i2c_writereg(uint16_t DevAddr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
   TU_ASSERT(HAL_OK == HAL_I2C_Mem_Write(&i2c_handle, DevAddr, Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, 10000));
   return 0;
 }

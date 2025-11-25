@@ -26,6 +26,7 @@
 
 #include "tusb.h"
 #include "bsp/board_api.h"
+#include "app.h"
 
 #ifdef ESP_PLATFORM
   #define CDC_STACK_SZIE      2048
@@ -45,9 +46,9 @@ static void cdc_app_task(void* param);
 
 void cdc_app_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
-  xTaskCreateStatic(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
+  (void) xTaskCreateStatic(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, cdc_stack, &cdc_taskdef);
   #else
-  xTaskCreate(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, NULL);
+  (void) xTaskCreate(cdc_app_task, "cdc", CDC_STACK_SZIE, NULL, configMAX_PRIORITIES-2, NULL);
   #endif
 }
 
@@ -56,7 +57,9 @@ static size_t get_console_inputs(uint8_t *buf, size_t bufsize) {
   size_t count = 0;
   while (count < bufsize) {
     int ch = board_getchar();
-    if (ch <= 0) break;
+    if (ch <= 0) {
+      break;
+    }
 
     buf[count] = (uint8_t) ch;
     count++;

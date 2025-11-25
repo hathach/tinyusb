@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_COMMON_H_
-#define _TUSB_COMMON_H_
+#ifndef TUSB_COMMON_H_
+#define TUSB_COMMON_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -34,29 +34,38 @@
 //--------------------------------------------------------------------+
 // Macros Helper
 //--------------------------------------------------------------------+
-#define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
-#define TU_MIN(_x, _y)        ( ( (_x) < (_y) ) ? (_x) : (_y) )
-#define TU_MAX(_x, _y)        ( ( (_x) > (_y) ) ? (_x) : (_y) )
-#define TU_DIV_CEIL(n, d)     (((n) + (d) - 1) / (d))
+#define TU_ARRAY_SIZE(_arr)           ( sizeof(_arr) / sizeof(_arr[0]) )
+#define TU_FIELD_SIZE(_type, _field)  (sizeof(((_type *)0)->_field))
+#define TU_MIN(_x, _y)                ( ( (_x) < (_y) ) ? (_x) : (_y) )
+#define TU_MAX(_x, _y)                ( ( (_x) > (_y) ) ? (_x) : (_y) )
+#define TU_DIV_CEIL(n, d)             (((n) + (d) - 1) / (d))
+#define TU_DIV_ROUND_NEAREST(v, d)    (((v) + (d)/2) / (d) ) // round to nearest integer
 
-#define TU_U16(_high, _low)   ((uint16_t) (((_high) << 8) | (_low)))
-#define TU_U16_HIGH(_u16)     ((uint8_t) (((_u16) >> 8) & 0x00ff))
-#define TU_U16_LOW(_u16)      ((uint8_t) ((_u16)       & 0x00ff))
-#define U16_TO_U8S_BE(_u16)   TU_U16_HIGH(_u16), TU_U16_LOW(_u16)
-#define U16_TO_U8S_LE(_u16)   TU_U16_LOW(_u16), TU_U16_HIGH(_u16)
+#define TU_U16(_high, _low)           ((uint16_t) ((((uint16_t) (_high)) << 8) | ((uint16_t) (_low))))
+#define TU_U16_HIGH(_u16)             ((uint8_t) (((uint16_t) (_u16) >> 8) & 0x00ffu))
+#define TU_U16_LOW(_u16)              ((uint8_t) ((uint16_t) (_u16) & 0x00ffu))
+#define U16_TO_U8S_BE(_u16)           TU_U16_HIGH(_u16), TU_U16_LOW(_u16)
+#define U16_TO_U8S_LE(_u16)           TU_U16_LOW(_u16), TU_U16_HIGH(_u16)
 
-#define TU_U32_BYTE3(_u32)    ((uint8_t) ((((uint32_t) _u32) >> 24) & 0x000000ff)) // MSB
-#define TU_U32_BYTE2(_u32)    ((uint8_t) ((((uint32_t) _u32) >> 16) & 0x000000ff))
-#define TU_U32_BYTE1(_u32)    ((uint8_t) ((((uint32_t) _u32) >>  8) & 0x000000ff))
-#define TU_U32_BYTE0(_u32)    ((uint8_t) (((uint32_t)  _u32)        & 0x000000ff)) // LSB
+#define TU_U24(_high, _mid, _low)     ((uint32_t) ((((uint32_t) (_high)) << 16) | (((uint32_t) (_mid)) << 8) | ((uint32_t) (_low))))
+#define TU_U24_HIGH(_u24)             ((uint8_t) (((uint32_t) (_u24) >> 16) & 0x0000ffu))
+#define TU_U24_MID(_u24)              ((uint8_t) (((uint32_t) (_u24) >>  8) & 0x0000ffu))
+#define TU_U24_LOW(_u24)              ((uint8_t) ((uint32_t) (_u24) & 0x0000ffu))
+#define U24_TO_U8S_BE(_u24)           TU_U24_HIGH(_u24), TU_U24_MID(_u24), TU_U24_LOW(_u24)
+#define U24_TO_U8S_LE(_u24)           TU_U24_LOW(_u24), TU_U24_MID(_u24), TU_U24_HIGH(_u24)
 
-#define U32_TO_U8S_BE(_u32)   TU_U32_BYTE3(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE0(_u32)
-#define U32_TO_U8S_LE(_u32)   TU_U32_BYTE0(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE3(_u32)
+#define TU_U32_BYTE3(_u32)            ((uint8_t) ((((uint32_t) _u32) >> 24) & 0x000000ff)) // MSB
+#define TU_U32_BYTE2(_u32)            ((uint8_t) ((((uint32_t) _u32) >> 16) & 0x000000ff))
+#define TU_U32_BYTE1(_u32)            ((uint8_t) ((((uint32_t) _u32) >>  8) & 0x000000ff))
+#define TU_U32_BYTE0(_u32)            ((uint8_t) (((uint32_t)  _u32)        & 0x000000ff)) // LSB
 
-#define TU_BIT(n)             (1UL << (n))
+#define U32_TO_U8S_BE(_u32)           TU_U32_BYTE3(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE0(_u32)
+#define U32_TO_U8S_LE(_u32)           TU_U32_BYTE0(_u32), TU_U32_BYTE1(_u32), TU_U32_BYTE2(_u32), TU_U32_BYTE3(_u32)
+
+#define TU_BIT(n)                     (1UL << (n))
 
 // Generate a mask with bit from high (31) to low (0) set, e.g TU_GENMASK(3, 0) = 0b1111
-#define TU_GENMASK(h, l)      ( (UINT32_MAX << (l)) & (UINT32_MAX >> (31 - (h))) )
+#define TU_GENMASK(h, l)              ( (UINT32_MAX << (l)) & (UINT32_MAX >> (31 - (h))) )
 
 //--------------------------------------------------------------------+
 // Includes
@@ -68,7 +77,6 @@
 #include <inttypes.h>
 #include <stddef.h>
 #include <string.h>
-#include <stdio.h>
 
 // Tinyusb Common Headers
 #include "tusb_option.h"
@@ -103,26 +111,47 @@ extern void* tusb_app_phys_to_virt(void *phys_addr);
 //--------------------------------------------------------------------+
 
 //------------- Mem -------------//
-#define tu_memclr(buffer, size)  memset((buffer), 0, (size))
+#define tu_memclr(buffer, size)  (void) memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 
 // This is a backport of memset_s from c11
 TU_ATTR_ALWAYS_INLINE static inline int tu_memset_s(void *dest, size_t destsz, int ch, size_t count) {
-  // TODO may check if desst and src is not NULL
-  if ( count > destsz ) {
+  // Validate parameters
+  if (dest == NULL) {
     return -1;
   }
-  memset(dest, ch, count);
+
+  if (count == 0u) {
+    return 0;
+  }
+
+  if (count > destsz) {
+    return -1;
+  }
+
+  (void) memset(dest, ch, count);
   return 0;
 }
 
 // This is a backport of memcpy_s from c11
 TU_ATTR_ALWAYS_INLINE static inline int tu_memcpy_s(void *dest, size_t destsz, const void *src, size_t count) {
-  // TODO may check if desst and src is not NULL
-  if ( count > destsz ) {
+  if (dest == NULL) {
     return -1;
   }
-  memcpy(dest, src, count);
+
+  if (count == 0u) {
+    return 0;
+  }
+
+  if (src == NULL) {
+    return -1;
+  }
+
+  if (count > destsz) {
+    return -1;
+  }
+
+  (void) memcpy(dest, src, count);
   return 0;
 }
 
@@ -199,13 +228,17 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_is_aligned64(uint64_t value) { retur
 
 //------------- Mathematics -------------//
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_ceil(uint32_t v, uint32_t d) { return TU_DIV_CEIL(v, d); }
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_div_round_nearest(uint32_t v, uint32_t d) { return TU_DIV_ROUND_NEAREST(v, d); }
+
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_round_up(uint32_t v, uint32_t f) { return tu_div_ceil(v, f) * f; }
 
 // log2 of a value is its MSB's position
 // TODO use clz TODO remove
 TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_log2(uint32_t value) {
   uint8_t result = 0;
-  while (value >>= 1) { result++; }
+  while ((value >>= 1u) != 0u) {
+    result++;
+  }
   return result;
 }
 
@@ -251,14 +284,12 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_
 // We have to manually pick up bytes since tu_unaligned_uint32_t will still generate unaligned code
 // NOTE: volatile cast to memory to prevent compiler to optimize and generate unaligned code
 // TODO Big Endian may need minor changes
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_unaligned_read32(const void* mem)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_unaligned_read32(const void* mem) {
   volatile uint8_t const* buf8 = (uint8_t const*) mem;
   return tu_u32(buf8[3], buf8[2], buf8[1], buf8[0]);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void* mem, uint32_t value)
-{
+TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void* mem, uint32_t value) {
   volatile uint8_t* buf8 = (uint8_t*) mem;
   buf8[0] = tu_u32_byte0(value);
   buf8[1] = tu_u32_byte1(value);
@@ -266,19 +297,16 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write32(void* mem, uint32_
   buf8[3] = tu_u32_byte3(value);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_unaligned_read16(const void* mem)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_unaligned_read16(const void* mem) {
   volatile uint8_t const* buf8 = (uint8_t const*) mem;
   return tu_u16(buf8[1], buf8[0]);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void* mem, uint16_t value)
-{
+TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void* mem, uint16_t value) {
   volatile uint8_t* buf8 = (uint8_t*) mem;
   buf8[0] = tu_u16_low(value);
   buf8[1] = tu_u16_high(value);
 }
-
 
 #else
 
@@ -299,35 +327,6 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_
   *((uint16_t *) mem) = value;
 }
 
-#endif
-
-// To be removed
-//------------- Binary constant -------------//
-#if defined(__GNUC__) && !defined(__CC_ARM)
-
-#define TU_BIN8(x)               ((uint8_t)  (0b##x))
-#define TU_BIN16(b1, b2)         ((uint16_t) (0b##b1##b2))
-#define TU_BIN32(b1, b2, b3, b4) ((uint32_t) (0b##b1##b2##b3##b4))
-
-#else
-
-//  internal macro of B8, B16, B32
-#define _B8__(x) (((x&0x0000000FUL)?1:0) \
-                +((x&0x000000F0UL)?2:0) \
-                +((x&0x00000F00UL)?4:0) \
-                +((x&0x0000F000UL)?8:0) \
-                +((x&0x000F0000UL)?16:0) \
-                +((x&0x00F00000UL)?32:0) \
-                +((x&0x0F000000UL)?64:0) \
-                +((x&0xF0000000UL)?128:0))
-
-#define TU_BIN8(d) ((uint8_t) _B8__(0x##d##UL))
-#define TU_BIN16(dmsb,dlsb) (((uint16_t)TU_BIN8(dmsb)<<8) + TU_BIN8(dlsb))
-#define TU_BIN32(dmsb,db2,db3,dlsb) \
-            (((uint32_t)TU_BIN8(dmsb)<<24) \
-            + ((uint32_t)TU_BIN8(db2)<<16) \
-            + ((uint32_t)TU_BIN8(db3)<<8) \
-            + TU_BIN8(dlsb))
 #endif
 
 //--------------------------------------------------------------------+
@@ -355,8 +354,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
   return ((uint8_t const*) desc)[DESC_OFFSET_SUBTYPE];
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_in_bounds(uint8_t const* p_desc, uint8_t const* desc_end) {
-  return (p_desc < desc_end) && (tu_desc_next(p_desc) <= desc_end);
+TU_ATTR_ALWAYS_INLINE static inline bool tu_desc_in_bounds(const uint8_t *p_desc, const uint8_t *desc_end) {
+  if (p_desc >= desc_end) {
+    return false;
+  }
+  return tu_desc_next(p_desc) <= desc_end;
 }
 
 // find descriptor that match byte1 (type)
@@ -372,4 +374,4 @@ uint8_t const * tu_desc_find3(uint8_t const* desc, uint8_t const* end, uint8_t b
  }
 #endif
 
-#endif /* _TUSB_COMMON_H_ */
+#endif /* TUSB_COMMON_H_ */

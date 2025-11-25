@@ -132,7 +132,7 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   // do it at dcd_edpt0_status_complete()
 
   // Response with zlp status
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 // Wake up host
@@ -559,15 +559,17 @@ void dcd_edpt_close_all (uint8_t rhport)
   // TODO implement dcd_edpt_close_all()
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
-{
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void) rhport;
-  uint8_t const epnum  = tu_edpt_number(ep_addr);
+  (void) ep_addr;
+  (void) largest_packet_size;
+  return false;
+}
 
-  // Disable endpoint interrupt
-  USB_REG->DEVIDR = 1 << (DEVIDR_PEP_0_Pos + epnum);
-  // Disable EP
-  USB_REG->DEVEPT &=~(1 << (DEVEPT_EPEN0_Pos + epnum));
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep) {
+  (void) rhport;
+  (void) desc_ep;
+  return false;
 }
 
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
@@ -605,8 +607,9 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -666,8 +669,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 // bytes should be written and second to keep the return value free to give back a boolean
 // success message. If total_bytes is too big, the FIFO will copy only what is available
 // into the USB buffer!
-bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
@@ -773,5 +777,4 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   USB_REG->DEVEPTIDR[epnum] = DEVEPTIDR_CTRL_STALLRQC;
   USB_REG->DEVEPTIER[epnum] = HSTPIPIER_RSTDTS;
 }
-
 #endif

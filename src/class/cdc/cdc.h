@@ -29,8 +29,8 @@
  *            Currently only Abstract Control Model subclass is supported
  *  @{ */
 
-#ifndef _TUSB_CDC_H__
-#define _TUSB_CDC_H__
+#ifndef TUSB_CDC_H__
+#define TUSB_CDC_H__
 
 #include "common/tusb_common.h"
 
@@ -192,10 +192,10 @@ typedef enum {
   CDC_LINE_CODING_STOP_BITS_2   = 2, // 2   bits
 } cdc_line_coding_stopbits_t;
 
-#define CDC_LINE_CODING_STOP_BITS_TEXT(STOP_BITS) (        \
-  STOP_BITS == CDC_LINE_CODING_STOP_BITS_1 ?   "1" :       \
-  STOP_BITS == CDC_LINE_CODING_STOP_BITS_1_5 ? "1.5" :     \
-  STOP_BITS == CDC_LINE_CODING_STOP_BITS_2 ?   "2"   : "?" )
+#define CDC_LINE_CODING_STOP_BITS_TEXT(STOP_BITS) (          \
+  (STOP_BITS) == CDC_LINE_CODING_STOP_BITS_1   ? "1" :       \
+  (STOP_BITS) == CDC_LINE_CODING_STOP_BITS_1_5 ? "1.5" :     \
+  (STOP_BITS) == CDC_LINE_CODING_STOP_BITS_2   ? "2"   : "?" )
 
 // TODO Backward compatible for typos. Maybe removed in the future release
 #define CDC_LINE_CONDING_STOP_BITS_1   CDC_LINE_CODING_STOP_BITS_1
@@ -211,11 +211,11 @@ typedef enum {
 } cdc_line_coding_parity_t;
 
 #define CDC_LINE_CODING_PARITY_CHAR(PARITY) (        \
-  PARITY == CDC_LINE_CODING_PARITY_NONE  ? 'N' :     \
-  PARITY == CDC_LINE_CODING_PARITY_ODD   ? 'O' :     \
-  PARITY == CDC_LINE_CODING_PARITY_EVEN  ? 'E' :     \
-  PARITY == CDC_LINE_CODING_PARITY_MARK  ? 'M' :     \
-  PARITY == CDC_LINE_CODING_PARITY_SPACE ? 'S' : '?' )
+  (PARITY) == CDC_LINE_CODING_PARITY_NONE  ? 'N' :     \
+  (PARITY) == CDC_LINE_CODING_PARITY_ODD   ? 'O' :     \
+  (PARITY) == CDC_LINE_CODING_PARITY_EVEN  ? 'E' :     \
+  (PARITY) == CDC_LINE_CODING_PARITY_MARK  ? 'M' :     \
+  (PARITY) == CDC_LINE_CODING_PARITY_SPACE ? 'S' : '?' )
 
 //--------------------------------------------------------------------+
 // Management Element Notification (Notification Endpoint)

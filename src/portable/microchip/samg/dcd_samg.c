@@ -175,7 +175,7 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   (void) dev_addr;
 
   // Response with zlp status
-  dcd_edpt_xfer(rhport, 0x80, NULL, 0);
+  dcd_edpt_xfer(rhport, 0x80, NULL, 0, false);
 
   // DCD can only set address after status for this request is complete.
   // do it at dcd_edpt0_status_complete()
@@ -270,9 +270,17 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * ep_desc)
   return true;
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  (void) rhport; (void) ep_addr;
-  // TODO implement dcd_edpt_close()
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
 }
 
 void dcd_edpt_close_all (uint8_t rhport)
@@ -282,8 +290,9 @@ void dcd_edpt_close_all (uint8_t rhport)
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -309,8 +318,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 }
 
 #if 0 // TODO support dcd_edpt_xfer_fifo API
-bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
   return true;
 }
@@ -494,5 +504,4 @@ void dcd_int_handler(uint8_t rhport)
     }
   }
 }
-
 #endif

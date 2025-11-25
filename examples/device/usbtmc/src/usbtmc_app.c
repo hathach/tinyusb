@@ -28,6 +28,7 @@
 #include "tusb.h"
 #include "bsp/board_api.h"
 #include "main.h"
+#include "usbtmc_app.h"
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
 static usbtmc_response_capabilities_488_t const

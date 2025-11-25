@@ -261,7 +261,7 @@ bool tud_usbtmc_transmit_dev_msg_data(
   bool stateChanged =
       atomicChangeState(STATE_TX_REQUESTED, (packetLen >= txBufLen) ? STATE_TX_INITIATED : STATE_TX_SHORTED);
   TU_VERIFY(stateChanged);
-  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) packetLen));
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) packetLen, false));
   return true;
 }
 
@@ -273,7 +273,7 @@ bool tud_usbtmc_transmit_notification_data(const void *data, size_t len) {
   TU_VERIFY(usbd_edpt_busy(usbtmc_state.rhport, usbtmc_state.ep_int_in));
 
   TU_VERIFY(tu_memcpy_s(usbtmc_epbuf.epnotif, CFG_TUD_USBTMC_INT_EP_SIZE, data, len) == 0);
-  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, usbtmc_epbuf.epnotif, (uint16_t) len));
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_int_in, usbtmc_epbuf.epnotif, (uint16_t) len, false));
   return true;
 }
 
@@ -396,7 +396,7 @@ bool tud_usbtmc_start_bus_read(void) {
     default:
       return false;
   }
-  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_out, usbtmc_epbuf.epout, (uint16_t) usbtmc_state.ep_bulk_out_wMaxPacketSize));
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_out, usbtmc_epbuf.epout, (uint16_t) usbtmc_state.ep_bulk_out_wMaxPacketSize, false));
   return true;
 }
 
@@ -567,7 +567,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         if (usbtmc_state.transfer_size_remaining >= USBTMCD_BUFFER_SIZE) {
           // Copy buffer to ensure alignment correctness
           memcpy(usbtmc_epbuf.epin, usbtmc_state.devInBuffer, USBTMCD_BUFFER_SIZE);
-          TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, USBTMCD_BUFFER_SIZE));
+          TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, USBTMCD_BUFFER_SIZE, false));
           usbtmc_state.devInBuffer += USBTMCD_BUFFER_SIZE;
           usbtmc_state.transfer_size_remaining -= USBTMCD_BUFFER_SIZE;
           usbtmc_state.transfer_size_sent += USBTMCD_BUFFER_SIZE;
@@ -578,7 +578,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
           usbtmc_state.transfer_size_sent += packetLen;
           usbtmc_state.transfer_size_remaining = 0;
           usbtmc_state.devInBuffer = NULL;
-          TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) packetLen));
+          TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) packetLen, false));
           if (((packetLen % usbtmc_state.ep_bulk_in_wMaxPacketSize) != 0) || (packetLen == 0)) {
             usbtmc_state.state = STATE_TX_SHORTED;
           }
@@ -587,7 +587,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
       case STATE_ABORTING_BULK_IN:
         // need to send short packet  (ZLP?)
-        TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u));
+        TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u, false));
         usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
         return true;
 
@@ -713,7 +713,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
         criticalLeave();
         if (usbtmc_state.transfer_size_sent == 0) {
           // Send short packet, nothing is in the buffer yet
-          TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u));
+          TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_epbuf.epin, (uint16_t) 0u, false));
           usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
         }
         TU_VERIFY(tud_usbtmc_initiate_abort_bulk_in_cb(&(rsp.USBTMC_status)));
@@ -841,7 +841,7 @@ bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request
                   },
                   .StatusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status))};
           // Must be queued before control request response sent (USB488v1.0 4.3.1.2)
-          usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void *) &intMsg, sizeof(intMsg));
+          usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void *) &intMsg, sizeof(intMsg), false);
         }
       } else {
         rsp.statusByte = tud_usbtmc_get_stb_cb(&(rsp.USBTMC_status));

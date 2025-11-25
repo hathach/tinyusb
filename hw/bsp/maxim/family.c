@@ -31,6 +31,7 @@
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes" // _mxc_crit_get_state()
+#pragma GCC diagnostic ignored "-Wredundant-decls"
 #endif
 
 #include "gpio.h"
@@ -154,6 +155,7 @@ uint32_t board_button_read(void) {
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
 #if defined(MAX32650)
   // USN is 13 bytes on this device
+  (void) max_len;
   MXC_SYS_GetUSN(id, 13);
   return 13;
 #else

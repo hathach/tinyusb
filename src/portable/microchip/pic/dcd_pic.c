@@ -545,7 +545,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   _dcd.addr = dev_addr & 0x7F;
   /* Response with status first before changing device address */
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -687,8 +687,24 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   if (ie) intr_enable(rhport);
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
+#if 0
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void) rhport;
+  (void) ep_addr;
+  (void) largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep) {
+  (void) rhport;
+  (void) desc_ep;
+  return false;
+}
+#endif
+
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
 
   const unsigned epn      = tu_edpt_number(ep_addr);
   const unsigned dir      = tu_edpt_dir(ep_addr);
@@ -866,5 +882,4 @@ void dcd_int_handler(uint8_t rhport)
 
   intr_clear(rhport);
 }
-
 #endif

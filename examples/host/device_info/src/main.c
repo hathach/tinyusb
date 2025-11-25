@@ -99,6 +99,7 @@ int main(void) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   init_freertos_task();
 #else
+  board_delay(100); // wait for uart to be ready
   init_tinyusb();
   while (1) {
     tuh_task();     // tinyusb host task
@@ -171,9 +172,7 @@ void tuh_mount_cb(uint8_t daddr) {
   printf("\r\n");
 
   printf("  iSerialNumber       %u     ", desc.device.iSerialNumber);
-  printf((char*)desc.serial); // serial is already to UTF-8
-  printf("\r\n");
-
+  printf("%s\r\n", (char*)desc.serial); // serial is already to UTF-8
   printf("  bNumConfigurations  %u\r\n", desc.device.bNumConfigurations);
 }
 
@@ -291,6 +290,7 @@ void app_main(void) {
 
 void usb_host_task(void *param) {
   (void) param;
+  board_delay(100); // wait for uart to be ready
   init_tinyusb();
   while (1) {
     tuh_task();

@@ -24,14 +24,14 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_OPTION_H_
-#define _TUSB_OPTION_H_
+#ifndef TUSB_OPTION_H_
+#define TUSB_OPTION_H_
 
 #include "common/tusb_compiler.h"
 
 // Version is release as major.minor.revision eg 1.0.0
 #define TUSB_VERSION_MAJOR     0
-#define TUSB_VERSION_MINOR     18
+#define TUSB_VERSION_MINOR     20
 #define TUSB_VERSION_REVISION  0
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
@@ -62,7 +62,8 @@
 #define OPT_MCU_LPC55XX            OPT_MCU_LPC55
 
 // NRF
-#define OPT_MCU_NRF5X             100 ///< Nordic nRF5x series
+#define OPT_MCU_NRF5X             100 ///< Nordic nRF 52,53 series
+#define OPT_MCU_NRF54             101 ///< Nordic nRF54 series
 
 // SAM
 #define OPT_MCU_SAMD21            200 ///< MicroChip SAMD21
@@ -70,8 +71,9 @@
 #define OPT_MCU_SAMG              202 ///< MicroChip SAMDG series
 #define OPT_MCU_SAME5X            203 ///< MicroChip SAM E5x
 #define OPT_MCU_SAMD11            204 ///< MicroChip SAMD11
-#define OPT_MCU_SAML22            205 ///< MicroChip SAML22
-#define OPT_MCU_SAML21            206 ///< MicroChip SAML21
+#define OPT_MCU_SAML2X            205 ///< MicroChip SAML2x
+#define OPT_MCU_SAML21            OPT_MCU_SAML2X ///< SAML21 backward compatibility
+#define OPT_MCU_SAML22            OPT_MCU_SAML2X ///< SAML22 backward compatibility
 #define OPT_MCU_SAMX7X            207 ///< MicroChip SAME70, S70, V70, V71 family
 
 // STM32
@@ -96,6 +98,7 @@
 #define OPT_MCU_STM32C0           318 ///< ST C0
 #define OPT_MCU_STM32N6           319 ///< ST N6
 #define OPT_MCU_STM32WBA          320 ///< ST WBA
+#define OPT_MCU_STM32U3           321 ///< ST U3
 
 // Sony
 #define OPT_MCU_CXD56             400 ///< SONY CXD56
@@ -215,9 +218,9 @@
 #define OPT_MCU_AT32F413         2506  ///< ArteryTek AT32F413
 
 // Check if configured MCU is one of listed
-// Apply _TU_CHECK_MCU with || as separator to list of input
-#define _TU_CHECK_MCU(_m)    (CFG_TUSB_MCU == _m)
-#define TU_CHECK_MCU(...)    (TU_ARGS_APPLY(_TU_CHECK_MCU, ||, __VA_ARGS__))
+// Apply TU_MCU_IS_EQUAL with || as separator to list of input
+#define TU_MCU_IS_EQUAL(_m)  (CFG_TUSB_MCU == (_m))
+#define TU_CHECK_MCU(...)    (TU_ARGS_APPLY(TU_MCU_IS_EQUAL, ||, __VA_ARGS__))
 
 //--------------------------------------------------------------------+
 // Supported OS
@@ -242,11 +245,11 @@
 #define OPT_MODE_HOST           0x0002 ///< Host Mode
 
 // High byte is max operational speed (corresponding to tusb_speed_t)
-#define OPT_MODE_DEFAULT_SPEED  0x0000 ///< Default (max) speed supported by MCU
-#define OPT_MODE_LOW_SPEED      0x0100 ///< Low Speed
-#define OPT_MODE_FULL_SPEED     0x0200 ///< Full Speed
-#define OPT_MODE_HIGH_SPEED     0x0400 ///< High Speed
-#define OPT_MODE_SPEED_MASK     0xff00
+#define OPT_MODE_DEFAULT_SPEED  0x0000u ///< Default (max) speed supported by MCU
+#define OPT_MODE_LOW_SPEED      0x0100u ///< Low Speed
+#define OPT_MODE_FULL_SPEED     0x0200u ///< Full Speed
+#define OPT_MODE_HIGH_SPEED     0x0400u ///< High Speed
+#define OPT_MODE_SPEED_MASK     0xff00u
 
 //--------------------------------------------------------------------+
 // Include tusb_config.h
@@ -482,6 +485,10 @@
   #define CFG_TUD_ENDPOINT0_SIZE  64
 #endif
 
+#ifndef CFG_TUD_ENDPOINT0_BUFSIZE
+  #define CFG_TUD_ENDPOINT0_BUFSIZE  CFG_TUD_ENDPOINT0_SIZE
+#endif
+
 #ifndef CFG_TUD_INTERFACE_MAX
   #define CFG_TUD_INTERFACE_MAX   16
 #endif
@@ -515,6 +522,10 @@
 
 #ifndef CFG_TUD_MSC
   #define CFG_TUD_MSC             0
+#endif
+
+#ifndef CFG_TUD_MTP
+  #define CFG_TUD_MTP             0
 #endif
 
 #ifndef CFG_TUD_HID
@@ -721,6 +732,6 @@
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
 typedef int make_iso_compilers_happy;
 
-#endif /* _TUSB_OPTION_H_ */
+#endif /* TUSB_OPTION_H_ */
 
 /** @} */

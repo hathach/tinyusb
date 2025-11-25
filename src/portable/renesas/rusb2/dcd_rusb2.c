@@ -859,8 +859,24 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   _dcd.ep[dir][epn] = 0;
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
+#if 0
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+#endif
+
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
   dcd_int_disable(rhport);
@@ -870,8 +886,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   return r;
 }
 
-bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
   TU_ASSERT(ff->item_size == 1);
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
@@ -1028,5 +1045,4 @@ void dcd_int_handler(uint8_t rhport)
     }
   }
 }
-
 #endif

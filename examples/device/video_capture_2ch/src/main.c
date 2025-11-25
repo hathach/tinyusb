@@ -53,7 +53,7 @@ void usb_device_task(void *param);
 void video_task(void* param);
 
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-void freertos_init_task(void);
+void freertos_init(void);
 #endif
 
 
@@ -65,7 +65,7 @@ int main(void) {
 
   // If using FreeRTOS: create blinky, tinyusb device, video task
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
-  freertos_init_task();
+  freertos_init();
 #else
   // init device stack on configured roothub port
   tusb_rhport_init_t dev_init = {
@@ -180,7 +180,7 @@ static void fill_color_bar(uint8_t* buffer, unsigned start_position) {
 }
 #endif
 
-size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, void **fb) {
+static size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, void **fb) {
   uint32_t idx = ctl_idx + stm_idx;
 
   if (idx == 0) {
@@ -205,8 +205,7 @@ size_t get_framebuf(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, size_t fnum, voi
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-
-void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
+static void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   static unsigned start_ms[CFG_TUD_VIDEO_STREAMING] = {0, };
   static unsigned already_sent = 0;
 
@@ -344,7 +343,7 @@ void usb_device_task(void *param) {
   }
 }
 
-void freertos_init_task(void) {
+void freertos_init(void) {
   #if configSUPPORT_STATIC_ALLOCATION
   xTaskCreateStatic(led_blinking_task, "blinky", BLINKY_STACK_SIZE, NULL, 1, blinky_stack, &blinky_taskdef);
   xTaskCreateStatic(usb_device_task, "usbd", USBD_STACK_SIZE, NULL, configMAX_PRIORITIES-1, usb_device_stack, &usb_device_taskdef);

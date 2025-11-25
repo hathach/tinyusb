@@ -34,26 +34,41 @@ extern "C" {
 //--------------------------------------------------------------------+
 // Spinlock API
 //--------------------------------------------------------------------+
+// Note: This implementation is designed for bare-metal single-core systems without RTOS.
+// - Supports nested locking within the same execution context
+// - NOT suitable for true SMP (Symmetric Multi-Processing) systems
+// - NOT thread-safe for multi-threaded environments
+// - Primarily manages interrupt enable/disable state for critical sections
 typedef struct {
-  void (* interrupt_set)(bool);
+  void (* interrupt_set)(bool enabled);
+  uint32_t nested_count;
 } osal_spinlock_t;
 
 // For SMP, spinlock must be locked by hardware, cannot just use interrupt
 #define OSAL_SPINLOCK_DEF(_name, _int_set) \
-  osal_spinlock_t _name = { .interrupt_set = _int_set }
+  osal_spinlock_t _name = { .interrupt_set = _int_set, .nested_count = 0 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   (void) ctx;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
-  if (!in_isr) {
+  // Disable interrupts first to make nested_count increment atomic
+  if (!in_isr && ctx->nested_count == 0) {
     ctx->interrupt_set(false);
   }
+  ctx->nested_count++;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  if (!in_isr) {
+  if (ctx->nested_count == 0) {
+    return; // spin is not locked to begin with
+  }
+
+  ctx->nested_count--;
+
+  // Only re-enable interrupts when fully unlocked
+  if (!in_isr && ctx->nested_count == 0) {
     ctx->interrupt_set(true);
   }
 }
@@ -141,7 +156,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hd
 #include "common/tusb_fifo.h"
 
 typedef struct {
-  void (* interrupt_set)(bool);
+  void (* interrupt_set)(bool enabled);
   tu_fifo_t ff;
 } osal_queue_def_t;
 
@@ -156,7 +171,7 @@ typedef osal_queue_def_t* osal_queue_t;
   }
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
-  tu_fifo_clear(&qdef->ff);
+  (void) tu_fifo_clear(&qdef->ff);
   return (osal_queue_t) qdef;
 }
 

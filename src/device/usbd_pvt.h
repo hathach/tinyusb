@@ -84,10 +84,10 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
 void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr);
 
 // Submit a usb transfer
-bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr);
 
 // Submit a usb ISO transfer by use of a FIFO (ring buffer) - all bytes in FIFO get transmitted
-bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes);
+bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr);
 
 // Claim an endpoint before submitting a transfer.
 // If caller does not make any transfer, it must release endpoint for others.
@@ -117,19 +117,16 @@ bool usbd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endp
 // Check if endpoint is ready (not busy and not stalled)
 TU_ATTR_ALWAYS_INLINE static inline
 bool usbd_edpt_ready(uint8_t rhport, uint8_t ep_addr) {
-  return !usbd_edpt_busy(rhport, ep_addr) && !usbd_edpt_stalled(rhport, ep_addr);
+  const bool is_busy = usbd_edpt_busy(rhport, ep_addr);
+  const bool is_stalled = usbd_edpt_stalled(rhport, ep_addr);
+  return !is_busy && !is_stalled;
 }
 
 // Enable SOF interrupt
 void usbd_sof_enable(uint8_t rhport, sof_consumer_t consumer, bool en);
 
-/*------------------------------------------------------------------*/
-/* Helper
- *------------------------------------------------------------------*/
-
 bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
 void usbd_defer_func(osal_task_func_t func, void *param, bool in_isr);
-
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
 void usbd_driver_print_control_complete_name(usbd_control_xfer_cb_t callback);

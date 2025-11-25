@@ -123,7 +123,10 @@ bool tuh_msc_mounted(uint8_t dev_addr) {
 
 bool tuh_msc_ready(uint8_t dev_addr) {
   msch_interface_t* p_msc = get_itf(dev_addr);
-  return p_msc->mounted && !usbh_edpt_busy(dev_addr, p_msc->ep_in) && !usbh_edpt_busy(dev_addr, p_msc->ep_out);
+  TU_VERIFY(p_msc->mounted);
+  const bool epin_busy = usbh_edpt_busy(dev_addr, p_msc->ep_in);
+  const bool epout_busy = usbh_edpt_busy(dev_addr, p_msc->ep_out);
+  return !epin_busy && !epout_busy;
 }
 
 //--------------------------------------------------------------------+
@@ -152,7 +155,7 @@ bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
   p_msc->stage = MSC_STAGE_CMD;
 
   if (!usbh_edpt_xfer(daddr, p_msc->ep_out, (uint8_t*) &epbuf->cbw, sizeof(msc_cbw_t))) {
-    usbh_edpt_release(daddr, p_msc->ep_out);
+    (void) usbh_edpt_release(daddr, p_msc->ep_out);
     return false;
   }
 
@@ -191,7 +194,7 @@ bool tuh_msc_inquiry(uint8_t dev_addr, uint8_t lun, scsi_inquiry_resp_t* respons
       .cmd_code     = SCSI_CMD_INQUIRY,
       .alloc_length = sizeof(scsi_inquiry_resp_t)
   };
-  memcpy(cbw.command, &cmd_inquiry, cbw.cmd_len);
+  memcpy(cbw.command, &cmd_inquiry, cbw.cmd_len); //-V1086
 
   return tuh_msc_scsi_command(dev_addr, &cbw, response, complete_cb, arg);
 }
@@ -225,7 +228,7 @@ bool tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, void* response,
       .cmd_code     = SCSI_CMD_REQUEST_SENSE,
       .alloc_length = 18
   };
-  memcpy(cbw.command, &cmd_request_sense, cbw.cmd_len);
+  memcpy(cbw.command, &cmd_request_sense, cbw.cmd_len); //-V1086
 
   return tuh_msc_scsi_command(dev_addr, &cbw, response, complete_cb, arg);
 }
@@ -247,7 +250,7 @@ bool tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void* buffer, uint32_t lba, u
       .lba         = tu_htonl(lba),
       .block_count = tu_htons(block_count)
   };
-  memcpy(cbw.command, &cmd_read10, cbw.cmd_len);
+  memcpy(cbw.command, &cmd_read10, cbw.cmd_len); //-V1086
 
   return tuh_msc_scsi_command(dev_addr, &cbw, buffer, complete_cb, arg);
 }
@@ -269,7 +272,7 @@ bool tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const* buffer, uint32_t
       .lba         = tu_htonl(lba),
       .block_count = tu_htons(block_count)
   };
-  memcpy(cbw.command, &cmd_write10, cbw.cmd_len);
+  memcpy(cbw.command, &cmd_write10, cbw.cmd_len); //-V1086
 
   return tuh_msc_scsi_command(dev_addr, &cbw, (void*) (uintptr_t) buffer, complete_cb, arg);
 }
@@ -338,8 +341,7 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
         TU_ASSERT(usbh_edpt_xfer(dev_addr, ep_data, p_msc->buffer, (uint16_t) cbw->total_bytes));
         break;
       }
-
-      TU_ATTR_FALLTHROUGH; // fallthrough to status stage
+      TU_ATTR_FALLTHROUGH; // fallthrough to data stage
 
     case MSC_STAGE_DATA:
       // Status stage
@@ -350,20 +352,19 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
     case MSC_STAGE_STATUS:
       // SCSI op is complete
       p_msc->stage = MSC_STAGE_IDLE;
-
-      if (p_msc->complete_cb) {
+      if (p_msc->complete_cb != NULL) {
         tuh_msc_complete_data_t const cb_data = {
             .cbw = cbw,
             .csw = csw,
             .scsi_data = p_msc->buffer,
             .user_arg = p_msc->complete_arg
         };
-        p_msc->complete_cb(dev_addr, &cb_data);
+        (void) p_msc->complete_cb(dev_addr, &cb_data);
       }
       break;
 
-      // unknown state
     default:
+      // unknown state
       break;
   }
 
@@ -501,7 +502,7 @@ static bool config_read_capacity_complete(uint8_t dev_addr, tuh_msc_complete_dat
 
   // Capacity response field: Block size and Last LBA are both Big-Endian
   scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) (uintptr_t) enum_buf;
-  p_msc->capacity[cbw->lun].block_count = tu_ntohl(resp->last_lba) + 1;
+  p_msc->capacity[cbw->lun].block_count = (uint32_t) (tu_ntohl(resp->last_lba) + 1u);
   p_msc->capacity[cbw->lun].block_size  = tu_ntohl(resp->block_size);
 
   // Mark enumeration is complete

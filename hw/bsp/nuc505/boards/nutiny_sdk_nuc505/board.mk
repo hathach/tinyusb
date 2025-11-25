@@ -1,0 +1,2 @@
+JLINK_DEVICE = NUC505YO13Y
+LD_FILE = $(BOARD_PATH)/nuc505_flashtoram.ld

@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_H_
-#define _TUSB_H_
+#ifndef TUSB_H_
+#define TUSB_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -86,6 +86,10 @@
 
   #if CFG_TUD_MSC
     #include "class/msc/msc_device.h"
+  #endif
+
+  #if CFG_TUD_MTP
+    #include "class/mtp/mtp_device.h"
   #endif
 
   #if CFG_TUD_AUDIO
@@ -174,4 +178,4 @@ bool tusb_deinit(uint8_t rhport);
  }
 #endif
 
-#endif /* _TUSB_H_ */
+#endif /* TUSB_H_ */

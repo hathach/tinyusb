@@ -20,6 +20,7 @@ latex
 *.ewt
 *.ewd
 *.hex
+.venv/
 cmake_install.cmake
 CMakeCache.txt
 settings/

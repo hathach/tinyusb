@@ -47,11 +47,11 @@ deps_optional = {
                                   'b93e856211060ae825216c6a1d6aa347ec758843',
                                   'mm32'],
     'hw/mcu/nordic/nrfx': ['https://github.com/NordicSemiconductor/nrfx.git',
-                           '7c47cc0a56ce44658e6da2458e86cd8783ccc4a2',
+                           '11f57e578c7feea13f21c79ea0efab2630ac68c7',
                            'nrf'],
     'hw/mcu/nuvoton': ['https://github.com/majbthrd/nuc_driver.git',
                        '2204191ec76283371419fbcec207da02e1bc22fa',
-                       'nuc'],
+                       'nuc100_120 nuc121_125 nuc126 nuc505'],
     'hw/mcu/nxp/lpcopen': ['https://github.com/hathach/nxp_lpcopen.git',
                            'b41cf930e65c734d8ec6de04f1d57d46787c76ae',
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
@@ -124,6 +124,9 @@ deps_optional = {
     'hw/mcu/st/cmsis_device_n6': ['https://github.com/STMicroelectronics/cmsis-device-n6.git',
                                   '7bcdc944fbf7cf5928d3c1d14054ca13261d33ec',
                                   'stm32n6'],
+    'hw/mcu/st/cmsis-device-u0': ['https://github.com/STMicroelectronics/cmsis-device-u0.git',
+                                  'e3a627c6a5bc4eb2388e1885a95cc155e1672253',
+                                  'stm32u0'],
     'hw/mcu/st/cmsis_device_u5': ['https://github.com/STMicroelectronics/cmsis_device_u5.git',
                                   '6e67187dec98035893692ab2923914cb5f4e0117',
                                   'stm32u5'],
@@ -190,6 +193,9 @@ deps_optional = {
     'hw/mcu/st/stm32n6xx_hal_driver': ['https://github.com/STMicroelectronics/stm32n6xx-hal-driver.git',
                                        'bc6c41f8f67d61b47af26695d0bf67762a000666',
                                        'stm32n6'],
+    'hw/mcu/st/stm32u0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32u0xx-hal-driver.git',
+                                       'cbfb5ac654256445237fd32b3587ac6a238d24f1',
+                                       'stm32u0'],
     'hw/mcu/st/stm32u5xx_hal_driver': ['https://github.com/STMicroelectronics/stm32u5xx_hal_driver.git',
                                        '2c5e2568fbdb1900a13ca3b2901fdd302cac3444',
                                        'stm32u5'],
@@ -240,12 +246,12 @@ deps_optional = {
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
-                    'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32n6 stm32u5 stm32wb stm32wba'
+                    'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba'
                     'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg '
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
-                    'b0bbb0423b278ca632cfe1474eb227961d835fd2',
-                    'ra'],
+                    '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
+                    'ra stm32n6'],
     'lib/sct_neopixel': ['https://github.com/gsteiert/sct_neopixel.git',
                          'e73e04ca63495672d955f9268e003cffe168fcd8',
                          'lpc55'],

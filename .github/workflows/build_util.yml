@@ -60,8 +60,9 @@ jobs:
       - name: Build
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+          TOOLCHAIN: ${{ inputs.toolchain }}
         run: |
-          if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
+          if [ "$TOOLCHAIN" == "esp-idf" ]; then
             docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py ${{ matrix.arg }}
           else
             python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}

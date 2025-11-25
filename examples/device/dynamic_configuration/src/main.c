@@ -109,23 +109,18 @@ void tud_resume_cb(void)
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
-void cdc_task(void)
-{
-  if ( tud_cdc_connected() )
-  {
-    // connected and there are data available
-    if ( tud_cdc_available() )
-    {
+void cdc_task(void) {
+  if (tud_cdc_connected()) {
+    // connected and there are data available read and echo back
+    if (tud_cdc_available()) {
       uint8_t buf[64];
-
-      // read and echo back
       uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-      for(uint32_t i=0; i<count; i++)
-      {
+      for (uint32_t i = 0; i < count; i++) {
         tud_cdc_write_char(buf[i]);
-
-        if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
+        if (buf[i] == '\r') {
+          tud_cdc_write_char('\n');
+        }
       }
 
       tud_cdc_write_flush();
@@ -134,23 +129,18 @@ void cdc_task(void)
 }
 
 // Invoked when cdc when line state changed e.g connected/disconnected
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
-{
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
   (void) itf;
 
   // connected
-  if ( dtr && rts )
-  {
+  if (dtr && rts) {
     // print initial message when connected
     tud_cdc_write_str("\r\nTinyUSB CDC MSC device example\r\n");
   }
 }
 
 // Invoked when CDC interface received data from host
-void tud_cdc_rx_cb(uint8_t itf)
-{
-  (void) itf;
-}
+void tud_cdc_rx_cb(uint8_t itf) { (void) itf; }
 
 //--------------------------------------------------------------------+
 // MIDI Task
@@ -167,8 +157,7 @@ static const uint8_t note_sequence[] =
   56,61,64,68,74,78,81,86,90,93,98,102
 };
 
-void midi_task(void)
-{
+void midi_task(void) {
   static uint32_t start_ms = 0;
 
   uint8_t const cable_num = 0; // MIDI jack associated with USB endpoint
@@ -181,7 +170,9 @@ void midi_task(void)
   while( tud_midi_available() ) tud_midi_packet_read(packet);
 
   // send note every 1000 ms
-  if (board_millis() - start_ms < 286) return; // not enough time
+  if (board_millis() - start_ms < 286) {
+    return; // not enough time
+  }
   start_ms += 286;
 
   // Previous positions in the note sequence.
@@ -189,7 +180,9 @@ void midi_task(void)
 
   // If we currently are at position 0, set the
   // previous position to the last note in the sequence.
-  if (previous < 0) previous = sizeof(note_sequence) - 1;
+  if (previous < 0) {
+    previous = sizeof(note_sequence) - 1;
+  }
 
   // Send Note On for current position at full velocity (127) on channel 1.
   uint8_t note_on[3] = { 0x90 | channel, note_sequence[note_pos], 127 };
@@ -203,21 +196,24 @@ void midi_task(void)
   note_pos++;
 
   // If we are at the end of the sequence, start over.
-  if (note_pos >= sizeof(note_sequence)) note_pos = 0;
+  if (note_pos >= sizeof(note_sequence)) {
+    note_pos = 0;
+  }
 }
 
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
+void led_blinking_task(void) {
   static uint32_t start_ms = 0;
   static bool led_state = false;
 
   // Blink every interval ms
-  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
+  if (board_millis() - start_ms < blink_interval_ms) {
+    return;// not enough time
+  }
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
+  led_state = 1 - led_state;// toggle
 }
