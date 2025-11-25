@@ -130,7 +130,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000u);
 
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1UL;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
