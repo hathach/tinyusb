@@ -89,8 +89,7 @@ typedef struct {
   uint8_t ep_type;
   uint8_t allocated[2];
   uint8_t retry[2];
-  uint8_t result;
-} hcd_xfer_t;
+} hcd_channel_t;
 
 // Root hub port state
 static struct {
@@ -98,7 +97,7 @@ static struct {
 } _hcd_port;
 
 typedef struct {
-  hcd_xfer_t xfer[FSDEV_EP_COUNT];
+  hcd_channel_t channel[FSDEV_EP_COUNT];
   hcd_endpoint_t edpt[CFG_TUH_FSDEV_ENDPOINT_MAX];
 } hcd_data_t;
 
@@ -129,8 +128,8 @@ static inline void endpoint_dealloc(hcd_endpoint_t* edpt) {
   edpt->allocated = 0;
 }
 
-static inline void channel_dealloc(hcd_xfer_t* xfer, tusb_dir_t dir) {
-  xfer->allocated[dir] = 0;
+static inline void channel_dealloc(hcd_channel_t* ch, tusb_dir_t dir) {
+  ch->allocated[dir] = 0;
 }
 
 // Write channel state in specified direction
@@ -241,40 +240,40 @@ static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
   if (ep_id == TUSB_INDEX_INVALID_8) return;
 
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  hcd_channel_t* channel = &_hcd_data.channel[ch_id];
 
   if (dir == TUSB_DIR_OUT) {
     // OUT/TX direction
-    if (edpt->buflen != xfer->queued_len[TUSB_DIR_OUT]) {
+    if (edpt->buflen != channel->queued_len[TUSB_DIR_OUT]) {
       // More data to send
-      uint16_t const len = tu_min16(edpt->buflen - xfer->queued_len[TUSB_DIR_OUT], edpt->max_packet_size);
+      uint16_t const len = tu_min16(edpt->buflen - channel->queued_len[TUSB_DIR_OUT], edpt->max_packet_size);
       uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_TX);
-      fsdev_write_packet_memory(pma_addr, &(edpt->buffer[xfer->queued_len[TUSB_DIR_OUT]]), len);
+      fsdev_write_packet_memory(pma_addr, &(edpt->buffer[channel->queued_len[TUSB_DIR_OUT]]), len);
       btable_set_count(ch_id, BTABLE_BUF_TX, len);
-      xfer->queued_len[TUSB_DIR_OUT] += len;
+      channel->queued_len[TUSB_DIR_OUT] += len;
       channel_write_status(ch_id, ch_reg, TUSB_DIR_OUT, EP_STAT_VALID, false);
     } else {
       // Transfer complete
-      channel_dealloc(xfer, TUSB_DIR_OUT);
+      channel_dealloc(channel, TUSB_DIR_OUT);
       edpt->pid = (ch_reg & USB_CHEP_DTOG_TX) ? 1 : 0;
-      hcd_event_xfer_complete(daddr, ep_num, xfer->queued_len[TUSB_DIR_OUT], XFER_RESULT_SUCCESS, true);
+      hcd_event_xfer_complete(daddr, ep_num, channel->queued_len[TUSB_DIR_OUT], XFER_RESULT_SUCCESS, true);
     }
   } else {
     // IN/RX direction
     uint16_t const rx_count = btable_get_count(ch_id, BTABLE_BUF_RX);
     uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_RX);
 
-    fsdev_read_packet_memory(edpt->buffer + xfer->queued_len[TUSB_DIR_IN], pma_addr, rx_count);
-    xfer->queued_len[TUSB_DIR_IN] += rx_count;
+    fsdev_read_packet_memory(edpt->buffer + channel->queued_len[TUSB_DIR_IN], pma_addr, rx_count);
+    channel->queued_len[TUSB_DIR_IN] += rx_count;
 
-    if ((rx_count < edpt->max_packet_size) || (xfer->queued_len[TUSB_DIR_IN] >= edpt->buflen)) {
+    if ((rx_count < edpt->max_packet_size) || (channel->queued_len[TUSB_DIR_IN] >= edpt->buflen)) {
       // Transfer complete (short packet or all bytes received)
-      channel_dealloc(xfer, TUSB_DIR_IN);
+      channel_dealloc(channel, TUSB_DIR_IN);
       edpt->pid = (ch_reg & USB_CHEP_DTOG_RX) ? 1 : 0;
-      hcd_event_xfer_complete(daddr, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len[TUSB_DIR_IN], XFER_RESULT_SUCCESS, true);
+      hcd_event_xfer_complete(daddr, ep_num | TUSB_DIR_IN_MASK, channel->queued_len[TUSB_DIR_IN], XFER_RESULT_SUCCESS, true);
     } else {
       // More data expected
-      uint16_t const cnt = tu_min16(edpt->buflen - xfer->queued_len[TUSB_DIR_IN], edpt->max_packet_size);
+      uint16_t const cnt = tu_min16(edpt->buflen - channel->queued_len[TUSB_DIR_IN], edpt->max_packet_size);
       btable_set_rx_bufsize(ch_id, BTABLE_BUF_RX, cnt);
       channel_write_status(ch_id, ch_reg, TUSB_DIR_IN, EP_STAT_VALID, false);
     }
@@ -302,13 +301,13 @@ static void ch_handle_stall(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
   uint8_t const ep_num = ch_reg & USB_EPADDR_FIELD;
   uint8_t const daddr = (ch_reg & USB_CHEP_DEVADDR_Msk) >> USB_CHEP_DEVADDR_Pos;
 
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  channel_dealloc(xfer, dir);
+  hcd_channel_t* channel = &_hcd_data.channel[ch_id];
+  channel_dealloc(channel, dir);
 
   channel_write_status(ch_id, ch_reg, dir, EP_STAT_DISABLED, false);
 
   hcd_event_xfer_complete(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0),
-                         xfer->queued_len[dir], XFER_RESULT_STALLED, true);
+                         channel->queued_len[dir], XFER_RESULT_STALLED, true);
 }
 
 // Handle error response
@@ -319,21 +318,21 @@ static void ch_handle_error(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
   uint8_t ep_id = endpoint_find(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0));
   if (ep_id == TUSB_INDEX_INVALID_8) return;
 
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
+  hcd_channel_t* channel = &_hcd_data.channel[ch_id];
 
   ch_reg &= USB_EPREG_MASK | CH_STAT_MASK(dir);
   ch_reg &= ~(dir == TUSB_DIR_OUT ? USB_CH_ERRTX : USB_CH_ERRRX);
 
-  if (xfer->retry[dir] < HCD_XFER_ERROR_MAX) {
+  if (channel->retry[dir] < HCD_XFER_ERROR_MAX) {
     // Retry
-    xfer->retry[dir]++;
+    channel->retry[dir]++;
     ch_change_status(&ch_reg, dir, EP_STAT_VALID);
   } else {
     // Failed after retries
-    channel_dealloc(xfer, dir);
+    channel_dealloc(channel, dir);
     ch_change_status(&ch_reg, dir, EP_STAT_DISABLED);
     hcd_event_xfer_complete(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0),
-                           xfer->queued_len[dir], XFER_RESULT_FAILED, true);
+                           channel->queued_len[dir], XFER_RESULT_FAILED, true);
   }
   ch_write(ch_id, ch_reg, false);
 }
@@ -341,8 +340,8 @@ static void ch_handle_error(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
 // Handle CTR interrupt for the TX/OUT direction
 static void handle_ctr_tx(uint32_t ch_id) {
   uint32_t ch_reg = ch_read(ch_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  TU_VERIFY(xfer->allocated[TUSB_DIR_OUT] == 1,);
+  hcd_channel_t* channel = &_hcd_data.channel[ch_id];
+  TU_VERIFY(channel->allocated[TUSB_DIR_OUT] == 1,);
 
   if ((ch_reg & USB_CH_ERRTX) == 0U) {
     // No error
@@ -361,8 +360,8 @@ static void handle_ctr_tx(uint32_t ch_id) {
 // Handle CTR interrupt for the RX/IN direction
 static void handle_ctr_rx(uint32_t ch_id) {
   uint32_t ch_reg = ch_read(ch_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  TU_VERIFY(xfer->allocated[TUSB_DIR_IN] == 1,);
+  hcd_channel_t* channel = &_hcd_data.channel[ch_id];
+  TU_VERIFY(channel->allocated[TUSB_DIR_IN] == 1,);
 
   if ((ch_reg & USB_CH_ERRRX) == 0U) {
     // No error
@@ -579,12 +578,12 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   tusb_dir_t const dir = tu_edpt_dir(ep_addr);
 
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
-    hcd_xfer_t* xfer = &_hcd_data.xfer[i];
+    hcd_channel_t* channel = &_hcd_data.channel[i];
 
-    if (xfer->allocated[dir] == 1 &&
-        xfer->dev_addr == dev_addr &&
-        xfer->ep_num == tu_edpt_number(ep_addr)) {
-      channel_dealloc(xfer, dir);
+    if (channel->allocated[dir] == 1 &&
+        channel->dev_addr == dev_addr &&
+        channel->ep_num == tu_edpt_number(ep_addr)) {
+      channel_dealloc(channel, dir);
       uint32_t ch_reg = ch_read(i) | USB_EP_CTR_TX | USB_EP_CTR_RX;
       channel_write_status(i, ch_reg, dir, EP_STAT_DISABLED, true);
     }
@@ -654,14 +653,14 @@ static void edpoint_close(uint8_t ep_id) {
 
   // disable active channel belong to this endpoint
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
-    hcd_xfer_t* xfer = &_hcd_data.xfer[i];
+    hcd_channel_t* channel = &_hcd_data.channel[i];
     uint32_t ch_reg = ch_read(i) | USB_EP_CTR_TX | USB_EP_CTR_RX;
-    if (xfer->allocated[TUSB_DIR_OUT] == 1 && xfer->edpt[TUSB_DIR_OUT] == edpt) {
-      channel_dealloc(xfer, TUSB_DIR_OUT);
+    if (channel->allocated[TUSB_DIR_OUT] == 1 && channel->edpt[TUSB_DIR_OUT] == edpt) {
+      channel_dealloc(channel, TUSB_DIR_OUT);
       channel_write_status(i, ch_reg, TUSB_DIR_OUT, EP_STAT_DISABLED, true);
     }
-    if (xfer->allocated[TUSB_DIR_IN] == 1 && xfer->edpt[TUSB_DIR_IN] == edpt) {
-      channel_dealloc(xfer, TUSB_DIR_IN);
+    if (channel->allocated[TUSB_DIR_IN] == 1 && channel->edpt[TUSB_DIR_IN] == edpt) {
+      channel_dealloc(channel, TUSB_DIR_IN);
       channel_write_status(i, ch_reg, TUSB_DIR_IN, EP_STAT_DISABLED, true);
     }
   }
@@ -689,27 +688,27 @@ static uint8_t channel_alloc(uint8_t dev_addr, uint8_t ep_addr, uint8_t ep_type)
   // Find channel allocate for same ep_num but other direction
   tusb_dir_t const other_dir = (dir == TUSB_DIR_IN) ? TUSB_DIR_OUT : TUSB_DIR_IN;
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
-    if (_hcd_data.xfer[i].allocated[dir] == 0 &&
-        _hcd_data.xfer[i].allocated[other_dir] == 1 &&
-        _hcd_data.xfer[i].dev_addr == dev_addr &&
-        _hcd_data.xfer[i].ep_num == ep_num &&
-        _hcd_data.xfer[i].ep_type == ep_type) {
-        _hcd_data.xfer[i].allocated[dir] = 1;
-        _hcd_data.xfer[i].queued_len[dir] = 0;
-        _hcd_data.xfer[i].retry[dir] = 0;
+    if (_hcd_data.channel[i].allocated[dir] == 0 &&
+        _hcd_data.channel[i].allocated[other_dir] == 1 &&
+        _hcd_data.channel[i].dev_addr == dev_addr &&
+        _hcd_data.channel[i].ep_num == ep_num &&
+        _hcd_data.channel[i].ep_type == ep_type) {
+        _hcd_data.channel[i].allocated[dir] = 1;
+        _hcd_data.channel[i].queued_len[dir] = 0;
+        _hcd_data.channel[i].retry[dir] = 0;
       return i;
     }
   }
 
   // Find free channel
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
-    if (_hcd_data.xfer[i].allocated[0] == 0 && _hcd_data.xfer[i].allocated[1] == 0) {
-      _hcd_data.xfer[i].dev_addr = dev_addr;
-      _hcd_data.xfer[i].ep_num = ep_num;
-      _hcd_data.xfer[i].ep_type = ep_type;
-      _hcd_data.xfer[i].allocated[dir] = 1;
-      _hcd_data.xfer[i].queued_len[dir] = 0;
-      _hcd_data.xfer[i].retry[dir] = 0;
+    if (_hcd_data.channel[i].allocated[0] == 0 && _hcd_data.channel[i].allocated[1] == 0) {
+      _hcd_data.channel[i].dev_addr = dev_addr;
+      _hcd_data.channel[i].ep_num = ep_num;
+      _hcd_data.channel[i].ep_type = ep_type;
+      _hcd_data.channel[i].allocated[dir] = 1;
+      _hcd_data.channel[i].queued_len[dir] = 0;
+      _hcd_data.channel[i].retry[dir] = 0;
       return i;
     }
   }
@@ -726,15 +725,15 @@ static bool edpt_xfer_kickoff(uint8_t ep_id) {
 
   tusb_dir_t const dir = tu_edpt_dir(edpt->ep_addr);
 
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  xfer->edpt[dir] = edpt;
+  hcd_channel_t* channel = &_hcd_data.channel[ch_id];
+  channel->edpt[dir] = edpt;
 
   return channel_xfer_start(ch_id, dir);
 }
 
 static bool channel_xfer_start(uint8_t ch_id, tusb_dir_t dir) {
-  hcd_xfer_t* xfer = &_hcd_data.xfer[ch_id];
-  hcd_endpoint_t* edpt = xfer->edpt[dir];
+  hcd_channel_t* channel = &_hcd_data.channel[ch_id];
+  hcd_endpoint_t* edpt = channel->edpt[dir];
 
   uint32_t ch_reg = ch_read(ch_id) & ~USB_EPREG_MASK;
   ch_reg |= tu_edpt_number(edpt->ep_addr) | edpt->dev_addr << USB_CHEP_DEVADDR_Pos |
@@ -763,12 +762,12 @@ static bool channel_xfer_start(uint8_t ch_id, tusb_dir_t dir) {
   btable_set_addr(ch_id, dir == TUSB_DIR_OUT ? BTABLE_BUF_TX : BTABLE_BUF_RX, pma_addr);
 
   if (dir == TUSB_DIR_OUT) {
-    uint16_t const len = tu_min16(edpt->buflen - xfer->queued_len[TUSB_DIR_OUT], edpt->max_packet_size);
+    uint16_t const len = tu_min16(edpt->buflen - channel->queued_len[TUSB_DIR_OUT], edpt->max_packet_size);
 
-    fsdev_write_packet_memory(pma_addr, &(edpt->buffer[xfer->queued_len[TUSB_DIR_OUT]]), len);
+    fsdev_write_packet_memory(pma_addr, &(edpt->buffer[channel->queued_len[TUSB_DIR_OUT]]), len);
     btable_set_count(ch_id, BTABLE_BUF_TX, len);
 
-    xfer->queued_len[TUSB_DIR_OUT] += len;
+    channel->queued_len[TUSB_DIR_OUT] += len;
   } else {
     btable_set_rx_bufsize(ch_id, BTABLE_BUF_RX, edpt->max_packet_size);
   }
