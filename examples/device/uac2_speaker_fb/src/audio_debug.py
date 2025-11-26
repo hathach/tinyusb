@@ -2,13 +2,15 @@
 # Install python3 HID package https://pypi.org/project/hid/
 # Install python3 matplotlib package https://pypi.org/project/matplotlib/
 
-from ctypes import *
+from ctypes import Structure, c_uint32, c_uint8, c_int8, c_int16, c_uint16
+import signal
 try:
     import hid
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
 except:
     print("Missing import, please try 'pip install hid matplotlib' or consult your OS's python package manager.")
+    exit(1)
 
 # Example must be compiled with CFG_AUDIO_DEBUG=1
 VID = 0xcafe
@@ -29,6 +31,7 @@ class audio_debug_info_t (Structure):
 dev = hid.Device(VID, PID)
 
 if dev:
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     # Create figure for plotting
     fig = plt.figure()
     ax = fig.add_subplot(1, 1, 1)
@@ -61,10 +64,10 @@ if dev:
             ax.set_ylim(bottom=0, top=info.fifo_size)
 
             # Format plot
-            plt.title('FIFO information')
-            plt.grid()
+            ax.set_title('FIFO information')
+            ax.grid(True)
 
             print(f'Sample rate:{info.sample_rate} | Alt settings:{info.alt_settings} | Volume:{info.volume[:]}')
 
-    ani = animation.FuncAnimation(fig, animate, interval=10)
-    plt.show()
+    ani = animation.FuncAnimation(fig, animate, interval=10, cache_frame_data=False) # type: ignore
+    plt.show(block=True)
