@@ -86,7 +86,7 @@ TU_ATTR_WEAK bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb
 
 TU_ATTR_WEAK bool dcd_deinit(uint8_t rhport) {
   (void) rhport;
-  return false;
+  return true;
 }
 
 TU_ATTR_WEAK void dcd_connect(uint8_t rhport) {
