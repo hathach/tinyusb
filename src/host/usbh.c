@@ -1420,7 +1420,7 @@ enum {
 
 static uint8_t enum_get_new_address(bool is_hub);
 static bool enum_parse_configuration_desc (uint8_t dev_addr, tusb_desc_configuration_t const* desc_cfg);
-static void enum_full_complete(void);
+static void enum_full_complete(bool success);
 static void process_enumeration(tuh_xfer_t* xfer);
 
 // start a new enumeration process
@@ -1442,7 +1442,7 @@ static bool enum_new_device(hcd_event_t* event) {
 
     if (!hcd_port_connect_status(dev0_bus->rhport)) {
       TU_LOG_USBH("Device unplugged while debouncing\r\n");
-      enum_full_complete();
+      enum_full_complete(false);
       return true;
     }
 
@@ -1453,7 +1453,7 @@ static bool enum_new_device(hcd_event_t* event) {
 
     if (!hcd_port_connect_status(dev0_bus->rhport)) {
       // device unplugged while delaying
-      enum_full_complete();
+      enum_full_complete(false);
       return true;
     }
 
@@ -1499,7 +1499,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     }
 
     if (!retry) {
-      enum_full_complete(); // complete as failed
+      enum_full_complete(false); // complete as failed
     }
     return;
   }
@@ -1522,7 +1522,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
       if (0 == port_status.status.connection) {
         TU_LOG_USBH("Device unplugged from hub while debouncing\r\n");
-        enum_full_complete();
+        enum_full_complete(false);
         return;
       }
 
@@ -1559,7 +1559,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
       if (0 == port_status.status.connection) {
         TU_LOG_USBH("Device unplugged from hub (not addressed yet)\r\n");
-        enum_full_complete();
+        enum_full_complete(false);
         return;
       }
 
@@ -1776,6 +1776,12 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       TU_LOG_USBH("Device configured\r\n");
       dev->configured = 1;
 
+    #if CFG_TUH_HUB
+      if (_usbh_data.dev0_bus.hub_addr != 0) {
+        hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr); // get next hub status
+      }
+    #endif
+
       // Parse configuration & set up drivers
       // driver_open() must not make any usb transfer
       TU_ASSERT(enum_parse_configuration_desc(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl),);
@@ -1789,7 +1795,7 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     }
 
     default:
-      enum_full_complete(); // stop enumeration if unknown state
+      enum_full_complete(false); // stop enumeration if unknown state
       break;
   }
 }
@@ -1926,7 +1932,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
 
   // all interface are configured
   if (itf_num == CFG_TUH_INTERFACE_MAX) {
-    enum_full_complete();
+    enum_full_complete(true);
 
     if (is_hub_addr(dev_addr)) {
       TU_LOG_USBH("HUB address = %u is mounted\r\n", dev_addr);
@@ -1937,14 +1943,17 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   }
 }
 
-static void enum_full_complete(void) {
+static void enum_full_complete(bool success) {
   // mark enumeration as complete
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
 
 #if CFG_TUH_HUB
-  if (_usbh_data.dev0_bus.hub_addr != 0) {
+  // Hub status is already requested in case of successful enumeration
+  if (_usbh_data.dev0_bus.hub_addr != 0 && !success) {
     hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr); // get next hub status
   }
+#else
+  (void) success;
 #endif
 
 }
