@@ -36,6 +36,8 @@ import warnings
 
 # Suppress pkg_resources deprecation warning from fs module
 warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
+# Suppress pyfatfs unclean unmount warning
+warnings.filterwarnings("ignore", message="Filesystem was not cleanly unmounted")
 
 import serial
 import subprocess
