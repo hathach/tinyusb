@@ -244,7 +244,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_depth(const tu_fifo_t *f) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool tu_fifo_empty(const tu_fifo_t *f) {
-  return f->wr_idx == f->rd_idx;
+  const uint16_t wr_idx = f->wr_idx;
+  const uint16_t rd_idx = f->rd_idx;
+  return wr_idx == rd_idx;
 }
 
 // return number of items in fifo, capped to fifo's depth
