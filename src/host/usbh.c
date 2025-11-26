@@ -1575,7 +1575,11 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
       // TODO probably doesn't need to open/close each enumeration
       uint8_t const addr0 = 0;
-      TU_ASSERT(usbh_edpt_control_open(addr0, 8),);
+      if (!usbh_edpt_control_open(addr0, 8)) {
+        // Stop enumeration gracefully
+        enum_full_complete(false);
+        TU_ASSERT(false,);
+      }
 
       // Get first 8 bytes of device descriptor for control endpoint size
       TU_LOG_USBH("Get 8 byte of Device Descriptor\r\n");
@@ -1613,7 +1617,12 @@ static void process_enumeration(tuh_xfer_t* xfer) {
 
       usbh_device_close(dev0_bus->rhport, 0); // close dev0
 
-      TU_ASSERT(usbh_edpt_control_open(new_addr, new_dev->bMaxPacketSize0),); // open new control endpoint
+      if (!usbh_edpt_control_open(new_addr, new_dev->bMaxPacketSize0)) { // open new control endpoint
+        // Stop enumeration gracefully
+        clear_device(new_dev);
+        enum_full_complete(false);
+        TU_ASSERT(false,);
+      }
 
       TU_LOG_USBH("Get Device Descriptor\r\n");
       TU_ASSERT(tuh_descriptor_get_device(new_addr, _usbh_epbuf.ctrl, sizeof(tusb_desc_device_t),
