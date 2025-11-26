@@ -72,6 +72,9 @@ void board_init(void)
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(48000000 / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
 #endif
 
   GPIO_SetMode(LED_PORT, 1UL << LED_PIN, GPIO_PMD_OUTPUT);
