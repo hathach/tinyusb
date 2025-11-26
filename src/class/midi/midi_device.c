@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (CFG_TUD_ENABLED && CFG_TUD_MIDI)
+#if CFG_TUD_ENABLED && CFG_TUD_MIDI
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -71,20 +71,21 @@ typedef struct {
 
 static midid_interface_t _midid_itf[CFG_TUD_MIDI];
 
-// Endpoint Transfer buffer
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
+// Endpoint Transfer buffer: not used if dedicated hw FIFO is available
 typedef struct {
   TUD_EPBUF_DEF(epin, CFG_TUD_MIDI_EP_BUFSIZE);
   TUD_EPBUF_DEF(epout, CFG_TUD_MIDI_EP_BUFSIZE);
 } midid_epbuf_t;
 
 CFG_TUD_MEM_SECTION static midid_epbuf_t _midid_epbuf[CFG_TUD_MIDI];
+  #endif
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 bool tud_midi_n_mounted (uint8_t itf) {
   midid_interface_t *p_midi = &_midid_itf[itf];
-
   const bool tx_opened = tu_edpt_stream_is_opened(&p_midi->ep_stream.tx);
   const bool rx_opened = tu_edpt_stream_is_opened(&p_midi->ep_stream.rx);
   return tx_opened && rx_opened;
@@ -313,18 +314,23 @@ uint32_t tud_midi_n_packet_write_n(uint8_t itf, const uint8_t packets[], uint32_
 //--------------------------------------------------------------------+
 void midid_init(void) {
   tu_memclr(_midid_itf, sizeof(_midid_itf));
-
   for (uint8_t i = 0; i < CFG_TUD_MIDI; i++) {
     midid_interface_t *p_midi  = &_midid_itf[i];
+
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
+    uint8_t *epout_buf = NULL;
+    uint8_t *epin_buf  = NULL;
+  #else
     midid_epbuf_t     *p_epbuf = &_midid_epbuf[i];
+    uint8_t       *epout_buf = p_epbuf->epout;
+    uint8_t       *epin_buf  = p_epbuf->epin;
+  #endif
 
-    tu_edpt_stream_init(
-        &p_midi->ep_stream.rx, false, false, false, p_midi->ep_stream.rx_ff_buf, CFG_TUD_MIDI_RX_BUFSIZE,
-        p_epbuf->epout, CFG_TUD_MIDI_EP_BUFSIZE);
+    tu_edpt_stream_init(&p_midi->ep_stream.rx, false, false, false, p_midi->ep_stream.rx_ff_buf,
+                        CFG_TUD_MIDI_RX_BUFSIZE, epout_buf, CFG_TUD_MIDI_EP_BUFSIZE);
 
-    tu_edpt_stream_init(
-        &p_midi->ep_stream.tx, false, true, false, p_midi->ep_stream.tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE, p_epbuf->epin,
-        CFG_TUD_MIDI_EP_BUFSIZE);
+    tu_edpt_stream_init(&p_midi->ep_stream.tx, false, true, false, p_midi->ep_stream.tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE,
+                        epin_buf, CFG_TUD_MIDI_EP_BUFSIZE);
   }
 }
 
