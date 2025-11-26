@@ -277,7 +277,11 @@ static void handle_ctr_tx(uint32_t ep_id) {
       return;
     }
     xfer->iso_in_sending = false;
+#if FSDEV_USE_SBUF_ISO == 0
     uint8_t buf_id = (ep_reg & USB_EP_DTOG_TX) ? 0 : 1;
+#else
+    uint8_t buf_id = BTABLE_BUF_TX;
+#endif
     btable_set_count(ep_id, buf_id, 0);
   }
 
@@ -758,7 +762,12 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
 
     uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
 
-    if (ep_is_iso(ep_reg)) {
+#if FSDEV_USE_SBUF_ISO == 0
+    bool const dbl_buf = ep_is_iso(ep_reg);
+#else
+    bool const dbl_buf = false;
+#endif
+    if (dbl_buf) {
       btable_set_rx_bufsize(ep_idx, 0, cnt);
       btable_set_rx_bufsize(ep_idx, 1, cnt);
     } else {

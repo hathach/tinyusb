@@ -175,7 +175,9 @@ bool     tu_fifo_full(const tu_fifo_t *f);
 bool     tu_fifo_overflowed(const tu_fifo_t *f);
 
 TU_ATTR_ALWAYS_INLINE static inline bool tu_fifo_empty(const tu_fifo_t *f) {
-  return f->wr_idx == f->rd_idx;
+  uint16_t wr_idx = f->wr_idx;
+  uint16_t rd_idx = f->rd_idx;
+  return wr_idx == rd_idx;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_depth(const tu_fifo_t *f) {
