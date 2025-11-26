@@ -162,23 +162,21 @@ void vendord_init(void) {
     vendord_interface_t* p_itf = &_vendord_itf[i];
     vendord_epbuf_t* p_epbuf = &_vendord_epbuf[i];
 
-    uint8_t* rx_ff_buf =
-                        #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
-                          p_itf->rx.ff_buf;
-                        #else
-                          NULL;
-                        #endif
+  #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
+    uint8_t *rx_ff_buf = p_itf->rx.ff_buf;
+  #else
+    uint8_t *rx_ff_buf = NULL;
+  #endif
 
     tu_edpt_stream_init(&p_itf->rx.stream, false, false, false,
                         rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE,
                         p_epbuf->epout, CFG_TUD_VENDOR_EPSIZE);
 
-    uint8_t* tx_ff_buf =
-                        #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
-                          p_itf->tx.ff_buf;
-                        #else
-                          NULL;
-                        #endif
+  #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
+    uint8_t *tx_ff_buf = p_itf->tx.ff_buf;
+  #else
+    uint8_t* tx_ff_buf = NULL;
+  #endif
 
     tu_edpt_stream_init(&p_itf->tx.stream, false, true, false,
                         tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE,

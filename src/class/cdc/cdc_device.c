@@ -172,42 +172,22 @@ void tud_cdc_n_get_line_coding(uint8_t itf, cdc_line_coding_t *coding) {
 #if CFG_TUD_CDC_NOTIFY
 bool tud_cdc_n_notify_msg(uint8_t itf, cdc_notify_msg_t *msg) {
   TU_VERIFY(itf < CFG_TUD_CDC);
-  cdcd_interface_t *p_cdc      = &_cdcd_itf[itf];
-  cdcd_epbuf_t     *p_epbuf    = &_cdcd_epbuf[itf];
-  cdc_notify_msg_t *notify_msg = &p_epbuf->epnotify;
-
-  *notify_msg                = *msg;
-  notify_msg->request.wIndex = p_cdc->itf_num;
-
+  const cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
   TU_VERIFY(tud_ready() && p_cdc->ep_notify != 0);
   TU_VERIFY(usbd_edpt_claim(p_cdc->rhport, p_cdc->ep_notify));
-  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *)msg, 8 + msg->request.wLength, false);
+
+    #if CFG_TUD_EDPT_DEDICATED_HWFIFO
+  cdc_notify_msg_t *msg_epbuf = msg;
+    #else
+  cdc_notify_msg_t *msg_epbuf = &_cdcd_epbuf[itf].epnotify;
+  *msg_epbuf                  = *msg;
+    #endif
+
+  msg_epbuf->request.wIndex = p_cdc->itf_num;
+
+  return usbd_edpt_xfer(p_cdc->rhport, p_cdc->ep_notify, (uint8_t *)msg_epbuf, 8 + msg_epbuf->request.wLength, false);
 }
-
-bool tud_cdc_n_notify_uart_state (uint8_t itf, const cdc_notify_uart_state_t *state) {
-  cdc_notify_msg_t notify_msg;
-  notify_msg.request.bmRequestType = CDC_REQ_TYPE_NOTIF;
-  notify_msg.request.bRequest      = CDC_NOTIF_SERIAL_STATE;
-  notify_msg.request.wValue        = 0;
-  notify_msg.request.wIndex        = 0; // filled later
-  notify_msg.request.wLength       = sizeof(cdc_notify_uart_state_t);
-  notify_msg.serial_state          = *state;
-
-  return tud_cdc_n_notify_msg(itf, &notify_msg);
-}
-
-bool tud_cdc_n_notify_conn_speed_change(uint8_t itf, const cdc_notify_conn_speed_change_t* conn_speed_change) {
-  cdc_notify_msg_t notify_msg;
-  notify_msg.request.bmRequestType = CDC_REQ_TYPE_NOTIF;
-  notify_msg.request.bRequest      = CDC_NOTIF_CONNECTION_SPEED_CHANGE;
-  notify_msg.request.wValue        = 0;
-  notify_msg.request.wIndex        = 0; // filled later
-  notify_msg.request.wLength       = sizeof(cdc_notify_conn_speed_change_t);
-  notify_msg.conn_speed_change     = *conn_speed_change;
-
-  return tud_cdc_n_notify_msg(itf, &notify_msg);
-}
-  #endif
+#endif
 
 void tud_cdc_n_set_wanted_char(uint8_t itf, char wanted) {
   TU_VERIFY(itf < CFG_TUD_CDC, );
