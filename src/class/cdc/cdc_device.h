@@ -141,11 +141,17 @@ bool tud_cdc_n_write_clear(uint8_t itf);
 
 
 #if CFG_TUD_CDC_NOTIFY
+bool tud_cdc_n_notify_msg(uint8_t itf, cdc_notify_msg_t *msg);
+
 // Send UART status notification: DCD, DSR etc ..
 bool tud_cdc_n_notify_uart_state(uint8_t itf, const cdc_notify_uart_state_t *state);
 
 // Send connection speed change notification
 bool tud_cdc_n_notify_conn_speed_change(uint8_t itf, const cdc_notify_conn_speed_change_t* conn_speed_change);
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_notify_msg(cdc_notify_msg_t *msg) {
+  return tud_cdc_n_notify_msg(0, msg);
+}
 
 TU_ATTR_ALWAYS_INLINE static inline bool tud_cdc_notify_uart_state(const cdc_notify_uart_state_t* state) {
  return tud_cdc_n_notify_uart_state(0, state);
