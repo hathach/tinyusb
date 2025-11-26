@@ -501,10 +501,10 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
       // find backward
       uint8_t *ptr;
-      if (buf_info.len_wrap > 0) {
-        ptr = buf_info.ptr_wrap + buf_info.len_wrap - 1; // last byte of wrap buffer
-      } else if (buf_info.len_lin > 0) {
-        ptr = buf_info.ptr_lin + buf_info.len_lin - 1;   // last byte of linear buffer
+      if (buf_info.wrapped.len > 0) {
+        ptr = buf_info.wrapped.ptr + buf_info.wrapped.len - 1; // last byte of wrap buffer
+      } else if (buf_info.linear.len > 0) {
+        ptr = buf_info.linear.ptr + buf_info.linear.len - 1;   // last byte of linear buffer
       } else {
         ptr = NULL;                                      // no data
       }
@@ -516,9 +516,9 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
             break; // only invoke once per transfer, even if multiple wanted chars are present
           }
 
-          if (ptr == buf_info.ptr_wrap) {
-            ptr = buf_info.ptr_lin + buf_info.len_lin - 1; // last byte of linear buffer
-          } else if (ptr == buf_info.ptr_lin) {
+          if (ptr == buf_info.wrapped.ptr) {
+            ptr = buf_info.linear.ptr + buf_info.linear.len - 1; // last byte of linear buffer
+          } else if (ptr == buf_info.linear.ptr) {
             break;                                         // reached the beginning
           } else {
             ptr--;

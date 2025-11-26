@@ -128,10 +128,10 @@ typedef struct {
 } tu_fifo_t;
 
 typedef struct {
-  uint16_t len_lin;  ///< linear length in item size
-  uint16_t len_wrap; ///< wrapped length in item size
-  uint8_t *ptr_lin;  ///< linear part start pointer
-  uint8_t *ptr_wrap; ///< wrapped part start pointer
+  struct {
+    uint16_t len; // length
+    uint8_t *ptr; // buffer pointer
+  } linear, wrapped;
 } tu_fifo_buffer_info_t;
 
 #define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
@@ -197,7 +197,6 @@ bool     tu_fifo_write(tu_fifo_t *f, const void *data);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
   return tu_fifo_write_n_access(f, data, n, TU_FIFO_INC_ADDR_RW8);
 }
-
 
 //--------------------------------------------------------------------+
 // Index API

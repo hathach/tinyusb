@@ -236,11 +236,11 @@ void test_get_read_info_when_no_wrap() {
 
   tu_fifo_get_read_info(ff, &info);
 
-  TEST_ASSERT_EQUAL(4, info.len_lin);
-  TEST_ASSERT_EQUAL(0, info.len_wrap);
+  TEST_ASSERT_EQUAL(4, info.linear.len);
+  TEST_ASSERT_EQUAL(0, info.wrapped.len);
 
-  TEST_ASSERT_EQUAL_PTR(ff->buffer + 2, info.ptr_lin);
-  TEST_ASSERT_NULL(info.ptr_wrap);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer + 2, info.linear.ptr);
+  TEST_ASSERT_NULL(info.wrapped.ptr);
 }
 
 void test_get_read_info_when_wrapped() {
@@ -262,11 +262,11 @@ void test_get_read_info_when_wrapped() {
 
   tu_fifo_get_read_info(ff, &info);
 
-  TEST_ASSERT_EQUAL(FIFO_SIZE - 6, info.len_lin);
-  TEST_ASSERT_EQUAL(2, info.len_wrap);
+  TEST_ASSERT_EQUAL(FIFO_SIZE - 6, info.linear.len);
+  TEST_ASSERT_EQUAL(2, info.wrapped.len);
 
-  TEST_ASSERT_EQUAL_PTR(ff->buffer + 6, info.ptr_lin);
-  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_wrap);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer + 6, info.linear.ptr);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.wrapped.ptr);
 }
 
 void test_get_write_info_when_no_wrap() {
@@ -278,12 +278,12 @@ void test_get_write_info_when_no_wrap() {
 
   tu_fifo_get_write_info(ff, &info);
 
-  TEST_ASSERT_EQUAL(FIFO_SIZE - 2, info.len_lin);
-  TEST_ASSERT_EQUAL(0, info.len_wrap);
+  TEST_ASSERT_EQUAL(FIFO_SIZE - 2, info.linear.len);
+  TEST_ASSERT_EQUAL(0, info.wrapped.len);
 
-  TEST_ASSERT_EQUAL_PTR(ff->buffer + 2, info.ptr_lin);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer + 2, info.linear.ptr);
   // application should check len instead of ptr.
-  // TEST_ASSERT_NULL(info.ptr_wrap);
+  // TEST_ASSERT_NULL(info.wrapped.ptr);
 }
 
 void test_get_write_info_when_wrapped() {
@@ -300,11 +300,11 @@ void test_get_write_info_when_wrapped() {
 
   tu_fifo_get_write_info(ff, &info);
 
-  TEST_ASSERT_EQUAL(FIFO_SIZE - 6, info.len_lin);
-  TEST_ASSERT_EQUAL(2, info.len_wrap);
+  TEST_ASSERT_EQUAL(FIFO_SIZE - 6, info.linear.len);
+  TEST_ASSERT_EQUAL(2, info.wrapped.len);
 
-  TEST_ASSERT_EQUAL_PTR(ff->buffer + 6, info.ptr_lin);
-  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_wrap);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer + 6, info.linear.ptr);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.wrapped.ptr);
 }
 
 void test_empty(void) {
@@ -314,21 +314,21 @@ void test_empty(void) {
   // read info
   tu_fifo_get_read_info(ff, &info);
 
-  TEST_ASSERT_EQUAL(0, info.len_lin);
-  TEST_ASSERT_EQUAL(0, info.len_wrap);
+  TEST_ASSERT_EQUAL(0, info.linear.len);
+  TEST_ASSERT_EQUAL(0, info.wrapped.len);
 
-  TEST_ASSERT_NULL(info.ptr_lin);
-  TEST_ASSERT_NULL(info.ptr_wrap);
+  TEST_ASSERT_NULL(info.linear.ptr);
+  TEST_ASSERT_NULL(info.wrapped.ptr);
 
   // write info
   tu_fifo_get_write_info(ff, &info);
 
-  TEST_ASSERT_EQUAL(FIFO_SIZE, info.len_lin);
-  TEST_ASSERT_EQUAL(0, info.len_wrap);
+  TEST_ASSERT_EQUAL(FIFO_SIZE, info.linear.len);
+  TEST_ASSERT_EQUAL(0, info.wrapped.len);
 
-  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_lin);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.linear.ptr);
   // application should check len instead of ptr.
-  // TEST_ASSERT_NULL(info.ptr_wrap);
+  // TEST_ASSERT_NULL(info.wrapped.ptr);
 
   // write 1 then re-check empty
   tu_fifo_write(ff, &temp);
@@ -347,12 +347,12 @@ void test_full(void) {
   // read info
   tu_fifo_get_read_info(ff, &info);
 
-  TEST_ASSERT_EQUAL(FIFO_SIZE, info.len_lin);
-  TEST_ASSERT_EQUAL(0, info.len_wrap);
+  TEST_ASSERT_EQUAL(FIFO_SIZE, info.linear.len);
+  TEST_ASSERT_EQUAL(0, info.wrapped.len);
 
-  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_lin);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.linear.ptr);
   // skip this, application must check len instead of buffer
-  // TEST_ASSERT_NULL(info.ptr_wrap);
+  // TEST_ASSERT_NULL(info.wrapped.ptr);
 
   // write info
 }
@@ -511,18 +511,18 @@ void test_get_read_info_advanced_cases(void) {
   ff->wr_idx = 20;
   ff->rd_idx = 2;
   tu_fifo_get_read_info(ff, &info);
-  TEST_ASSERT_EQUAL(18, info.len_lin);
-  TEST_ASSERT_EQUAL(0, info.len_wrap);
-  TEST_ASSERT_EQUAL_PTR(ff->buffer + 2, info.ptr_lin);
-  TEST_ASSERT_NULL(info.ptr_wrap);
+  TEST_ASSERT_EQUAL(18, info.linear.len);
+  TEST_ASSERT_EQUAL(0, info.wrapped.len);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer + 2, info.linear.ptr);
+  TEST_ASSERT_NULL(info.wrapped.ptr);
 
   ff->wr_idx = 68; // ptr = 4
   ff->rd_idx = 56; // ptr = 56
   tu_fifo_get_read_info(ff, &info);
-  TEST_ASSERT_EQUAL(8, info.len_lin);
-  TEST_ASSERT_EQUAL(4, info.len_wrap);
-  TEST_ASSERT_EQUAL_PTR(ff->buffer + 56, info.ptr_lin);
-  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_wrap);
+  TEST_ASSERT_EQUAL(8, info.linear.len);
+  TEST_ASSERT_EQUAL(4, info.wrapped.len);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer + 56, info.linear.ptr);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.wrapped.ptr);
 }
 
 void test_get_write_info_advanced_cases(void) {
@@ -531,18 +531,18 @@ void test_get_write_info_advanced_cases(void) {
   ff->wr_idx = 10;
   ff->rd_idx = 104; // ptr = 40
   tu_fifo_get_write_info(ff, &info);
-  TEST_ASSERT_EQUAL(30, info.len_lin);
-  TEST_ASSERT_EQUAL(0, info.len_wrap);
-  TEST_ASSERT_EQUAL_PTR(ff->buffer + 10, info.ptr_lin);
-  TEST_ASSERT_NULL(info.ptr_wrap);
+  TEST_ASSERT_EQUAL(30, info.linear.len);
+  TEST_ASSERT_EQUAL(0, info.wrapped.len);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer + 10, info.linear.ptr);
+  TEST_ASSERT_NULL(info.wrapped.ptr);
 
   ff->wr_idx = 60;
   ff->rd_idx = 20;
   tu_fifo_get_write_info(ff, &info);
-  TEST_ASSERT_EQUAL(4, info.len_lin);
-  TEST_ASSERT_EQUAL(20, info.len_wrap);
-  TEST_ASSERT_EQUAL_PTR(ff->buffer + 60, info.ptr_lin);
-  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.ptr_wrap);
+  TEST_ASSERT_EQUAL(4, info.linear.len);
+  TEST_ASSERT_EQUAL(20, info.wrapped.len);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer + 60, info.linear.ptr);
+  TEST_ASSERT_EQUAL_PTR(ff->buffer, info.wrapped.ptr);
 }
 
 void test_correct_read_pointer_cases(void) {
