@@ -139,6 +139,53 @@ static inline void channel_write_status(uint8_t ch_id, uint32_t ch_reg, tusb_dir
   ch_write(ch_id, ch_reg, need_exclusive);
 }
 
+static inline uint16_t channel_get_rx_count(uint8_t ch_id) {
+  /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
+  * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
+  * From H503/U535 errata: Buffer description table update completes after CTR interrupt triggers
+  * Description:
+  * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM accesses
+  * have completed. If the software responds quickly to the interrupt, the full buffer contents may not be correct.
+  * Workaround:
+  * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
+  * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
+  *
+  * Note: this errata may also apply to G0, U5, H5 etc.
+  *
+  * We choose the delay count based on max CPU frequency (in MHz) to ensure the delay is at least the required time.
+  */
+
+#if CFG_TUSB_MCU == OPT_MCU_STM32H5
+  #define FREQUENCY_MHZ 250U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  #define FREQUENCY_MHZ 160U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U3
+  #define FREQUENCY_MHZ 96U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  #define FREQUENCY_MHZ 64U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C0
+  #define FREQUENCY_MHZ 48U
+#else
+  #error "FREQUENCY_MHZ not defined for this STM32 MCU"
+#endif
+
+  uint32_t ch_reg = ch_read(ch_id);
+  if (FSDEV_REG->ISTR & USB_ISTR_LS_DCONN || ch_reg & USB_CHEP_LSEP) {
+    // Low speed mode: 6.4 us delay -> about 2 cycles per MHz
+    volatile uint32_t cycle_count = FREQUENCY_MHZ * 2U;
+    while (cycle_count > 0U) {
+      cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
+    }
+  } else {
+    // Full speed mode: 800 ns delay -> about 0.25 cycles per MHz
+    volatile uint32_t cycle_count = FREQUENCY_MHZ / 4U;
+    while (cycle_count > 0U) {
+      cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
+    }
+  }
+
+  return btable_get_count(ch_id, BTABLE_BUF_RX);
+}
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -175,12 +222,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   }
 
   FSDEV_REG->CNTR = USB_CNTR_HOST; // Enable USB in Host mode
-
-#if !defined(FSDEV_BUS_32BIT)
-  // BTABLE register does not exist on 32-bit bus devices
-  FSDEV_REG->BTABLE = FSDEV_BTABLE_BASE;
-#endif
-
   FSDEV_REG->ISTR = 0; // Clear pending interrupts
 
   // Reset channels to disabled
@@ -260,7 +301,7 @@ static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
     }
   } else {
     // IN/RX direction
-    uint16_t const rx_count = btable_get_count(ch_id, BTABLE_BUF_RX);
+    uint16_t const rx_count = channel_get_rx_count(ch_id);
     uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_RX);
 
     fsdev_read_packet_memory(edpt->buffer + channel->queued_len[TUSB_DIR_IN], pma_addr, rx_count);
@@ -338,7 +379,7 @@ static void ch_handle_error(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
 }
 
 // Handle CTR interrupt for the TX/OUT direction
-static void handle_ctr_tx(uint32_t ch_id) {
+static inline void handle_ctr_tx(uint32_t ch_id) {
   uint32_t ch_reg = ch_read(ch_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
   hcd_channel_t* channel = &_hcd_data.channel[ch_id];
   TU_VERIFY(channel->allocated[TUSB_DIR_OUT] == 1,);
@@ -358,7 +399,7 @@ static void handle_ctr_tx(uint32_t ch_id) {
 }
 
 // Handle CTR interrupt for the RX/IN direction
-static void handle_ctr_rx(uint32_t ch_id) {
+static inline void handle_ctr_rx(uint32_t ch_id) {
   uint32_t ch_reg = ch_read(ch_id) | USB_EP_CTR_TX | USB_EP_CTR_RX;
   hcd_channel_t* channel = &_hcd_data.channel[ch_id];
   TU_VERIFY(channel->allocated[TUSB_DIR_IN] == 1,);
@@ -393,28 +434,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     uint32_t const ch_reg = ch_read(ch_id);
 
     if (ch_reg & USB_EP_CTR_RX) {
-      #ifdef FSDEV_BUS_32BIT
-      /* https://www.st.com/resource/en/errata_sheet/es0561-stm32h503cbebkbrb-device-errata-stmicroelectronics.pdf
-       * https://www.st.com/resource/en/errata_sheet/es0587-stm32u535xx-and-stm32u545xx-device-errata-stmicroelectronics.pdf
-       * From H503/U535 errata: Buffer description table update completes after CTR interrupt triggers
-       * Description:
-       * - During OUT transfers, the correct transfer interrupt (CTR) is triggered a little before the last USB SRAM accesses
-       * have completed. If the software responds quickly to the interrupt, the full buffer contents may not be correct.
-       * Workaround:
-       * - Software should ensure that a small delay is included before accessing the SRAM contents. This delay
-       * should be 800 ns in Full Speed mode and 6.4 μs in Low Speed mode
-       * - Since H5 can run up to 250Mhz -> 1 cycle = 4ns. Per errata, we need to wait 200 cycles. Though executing code
-       * also takes time, so we'll wait 60 cycles (count = 20).
-       * - Since Low Speed mode is not supported/popular, we will ignore it for now.
-       *
-       * Note: this errata may also apply to G0, U5, H5 etc.
-       */
-      volatile uint32_t cycle_count = 20; // defined as PCD_RX_PMA_CNT in stm32 hal_driver
-      while (cycle_count > 0U) {
-        cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
-      }
-      #endif
-
       ch_write_clear_ctr(ch_id, TUSB_DIR_IN);
       handle_ctr_rx(ch_id);
     }
