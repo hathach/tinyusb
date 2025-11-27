@@ -450,7 +450,7 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buf
   TU_VERIFY(bufsize > 0); // TODO support ZLP
 
   if (0 == tu_fifo_depth(&s->ff)) {
-    // no fifo for buffered, ep_buf must be valid
+    // non-fifo mode, ep_buf must be valid
     TU_VERIFY(s->ep_buf != NULL, 0);
     TU_VERIFY(stream_claim(hwid, s), 0);
     const uint32_t xact_len = tu_min32(bufsize, s->ep_bufsize);
@@ -474,6 +474,7 @@ uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s) {
   if (tu_fifo_depth(&s->ff) > 0) {
     return (uint32_t) tu_fifo_remaining(&s->ff);
   } else {
+    // non-fifo mode
     bool is_busy = true;
     if (s->is_host) {
       #if CFG_TUH_ENABLED
@@ -493,7 +494,7 @@ uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s) {
 //--------------------------------------------------------------------+
 uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
   if (0 == tu_fifo_depth(&s->ff)) {
-    // no fifo for buffered
+    // non-fifo mode
     TU_VERIFY(stream_claim(hwid, s), 0);
     TU_ASSERT(stream_xfer(hwid, s, s->ep_bufsize), 0);
     return s->ep_bufsize;
@@ -527,7 +528,15 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
 }
 
 uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, uint32_t bufsize) {
-  const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
+  uint32_t num_read;
+  if (tu_fifo_depth(&s->ff) > 0) {
+    num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
+  } else {
+    // non-fifo mode
+    memcpy(buffer, s->ep_buf, bufsize);
+    num_read = bufsize;
+  }
+
   tu_edpt_stream_read_xfer(hwid, s);
   return num_read;
 }

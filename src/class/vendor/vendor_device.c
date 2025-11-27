@@ -37,6 +37,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
+  uint8_t rhport;
   uint8_t itf_num;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
@@ -97,32 +98,26 @@ bool tud_vendor_n_mounted(uint8_t itf) {
 uint32_t tud_vendor_n_available(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_VENDOR, 0);
   vendord_interface_t* p_itf = &_vendord_itf[itf];
-
   return tu_edpt_stream_read_available(&p_itf->rx.stream);
 }
 
 bool tud_vendor_n_peek(uint8_t itf, uint8_t* u8) {
   TU_VERIFY(itf < CFG_TUD_VENDOR);
   vendord_interface_t* p_itf = &_vendord_itf[itf];
-
   return tu_edpt_stream_peek(&p_itf->rx.stream, u8);
 }
 
 uint32_t tud_vendor_n_read (uint8_t itf, void* buffer, uint32_t bufsize) {
   TU_VERIFY(itf < CFG_TUD_VENDOR, 0);
   vendord_interface_t* p_itf = &_vendord_itf[itf];
-  const uint8_t rhport = 0;
-
-  return tu_edpt_stream_read(rhport, &p_itf->rx.stream, buffer, bufsize);
+  return tu_edpt_stream_read(p_itf->rhport, &p_itf->rx.stream, buffer, bufsize);
 }
 
 void tud_vendor_n_read_flush (uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_VENDOR, );
   vendord_interface_t* p_itf = &_vendord_itf[itf];
-  const uint8_t rhport = 0;
-
   tu_edpt_stream_clear(&p_itf->rx.stream);
-  tu_edpt_stream_read_xfer(rhport, &p_itf->rx.stream);
+  tu_edpt_stream_read_xfer(p_itf->rhport, &p_itf->rx.stream);
 }
 
 //--------------------------------------------------------------------+
@@ -131,25 +126,19 @@ void tud_vendor_n_read_flush (uint8_t itf) {
 uint32_t tud_vendor_n_write (uint8_t itf, const void* buffer, uint32_t bufsize) {
   TU_VERIFY(itf < CFG_TUD_VENDOR, 0);
   vendord_interface_t* p_itf = &_vendord_itf[itf];
-  const uint8_t rhport = 0;
-
-  return tu_edpt_stream_write(rhport, &p_itf->tx.stream, buffer, (uint16_t) bufsize);
+  return tu_edpt_stream_write(p_itf->rhport, &p_itf->tx.stream, buffer, (uint16_t)bufsize);
 }
 
 uint32_t tud_vendor_n_write_flush (uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_VENDOR, 0);
   vendord_interface_t* p_itf = &_vendord_itf[itf];
-  const uint8_t rhport = 0;
-
-  return tu_edpt_stream_write_xfer(rhport, &p_itf->tx.stream);
+  return tu_edpt_stream_write_xfer(p_itf->rhport, &p_itf->tx.stream);
 }
 
 uint32_t tud_vendor_n_write_available (uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_VENDOR, 0);
   vendord_interface_t* p_itf = &_vendord_itf[itf];
-  const uint8_t rhport = 0;
-
-  return tu_edpt_stream_write_available(rhport, &p_itf->tx.stream);
+  return tu_edpt_stream_write_available(p_itf->rhport, &p_itf->tx.stream);
 }
 
 //--------------------------------------------------------------------+
@@ -223,7 +212,9 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uin
   }
   TU_VERIFY(p_vendor, 0);
 
+  p_vendor->rhport  = rhport;
   p_vendor->itf_num = desc_itf->bInterfaceNumber;
+
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     const uint8_t desc_type = tu_desc_type(p_desc);
     if (desc_type == TUSB_DESC_INTERFACE || desc_type == TUSB_DESC_INTERFACE_ASSOCIATION) {
