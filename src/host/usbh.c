@@ -312,6 +312,7 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
 // Function Inline and Prototypes
 //--------------------------------------------------------------------+
 static bool enum_new_device(hcd_event_t* event);
+static void process_detach_event(hcd_event_t* event);
 static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
@@ -605,6 +606,11 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
     switch (event.event_id) {
       case HCD_EVENT_DEVICE_ATTACH:
+        // We have likely missed the hub detach event due to high traffic, detach the device first if exists
+        // Or due to physical debouncing, some devices can cause multiple attaches (actually reset) without detach event
+        // Force remove currently mounted with the same bus info (rhport, hub addr, hub port) if exists
+        process_detach_event(&event);
+
         // due to the shared control buffer, we must fully complete enumerating one device first.
         // TODO better to have an separated queue for newly attached devices
         if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
@@ -625,15 +631,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
       case HCD_EVENT_DEVICE_REMOVE:
         TU_LOG_USBH("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
-        if (_usbh_data.enumerating_daddr == 0 &&
-            event.rhport == _usbh_data.dev0_bus.rhport &&
-            event.connection.hub_addr == _usbh_data.dev0_bus.hub_addr &&
-            event.connection.hub_port == _usbh_data.dev0_bus.hub_port) {
-          // dev0 is unplugged while enumerating (not yet assigned an address)
-          usbh_device_close(_usbh_data.dev0_bus.rhport, 0);
-        } else {
-          process_removed_device(event.rhport, event.connection.hub_addr, event.connection.hub_port);
-        }
+        process_detach_event(&event);
         break;
 
       case HCD_EVENT_XFER_COMPLETE: {
@@ -1314,6 +1312,20 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
 //--------------------------------------------------------------------+
 // Detaching
 //--------------------------------------------------------------------+
+
+// process detach event from rhport:hub_addr:hub_port
+static void process_detach_event(hcd_event_t* event) {
+  if (_usbh_data.enumerating_daddr == 0 &&
+      event->rhport == _usbh_data.dev0_bus.rhport &&
+      event->connection.hub_addr == _usbh_data.dev0_bus.hub_addr &&
+      event->connection.hub_port == _usbh_data.dev0_bus.hub_port) {
+    // dev0 is unplugged while enumerating (not yet assigned an address)
+    usbh_device_close(_usbh_data.dev0_bus.rhport, 0);
+  } else {
+    process_removed_device(event->rhport, event->connection.hub_addr, event->connection.hub_port);
+  }
+}
+
 // a device unplugged from rhport:hub_addr:hub_port
 static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
   // Find the all devices (star-network) under port that is unplugged
@@ -1589,10 +1601,6 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     }
 
     case ENUM_SET_ADDR: {
-      // Due to physical debouncing, some devices can cause multiple attaches (actually reset) without detach event
-      // Force remove currently mounted with the same bus info (rhport, hub addr, hub port) if exists
-      process_removed_device(dev0_bus->rhport, dev0_bus->hub_addr, dev0_bus->hub_port);
-
       const tusb_desc_device_t *desc_device = (const tusb_desc_device_t *) _usbh_epbuf.ctrl;
       const uint8_t new_addr = enum_get_new_address(desc_device->bDeviceClass == TUSB_CLASS_HUB);
       TU_ASSERT(new_addr != 0,);
