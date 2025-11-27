@@ -516,7 +516,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   uint8_t const ep_type = ep_desc->bmAttributes.xfer;
 
   uint8_t const ep_id = endpoint_alloc();
-  TU_ASSERT(ep_id < CFG_TUH_FSDEV_ENDPOINT_MAX);
+  TU_ASSERT(ep_id != TUSB_INDEX_INVALID_8);
 
   hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
   edpt->dev_addr = dev_addr;
@@ -530,7 +530,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   // EP0 is bi-directional, so we need to open both OUT and IN channels
   if (ep_addr == 0) {
     uint8_t const ep_id_in = endpoint_alloc();
-    TU_ASSERT(ep_id_in < CFG_TUH_FSDEV_ENDPOINT_MAX);
+    if (ep_id_in == TUSB_INDEX_INVALID_8) {
+      // free previously allocated OUT endpoint
+      endpoint_dealloc(edpt);
+      TU_ASSERT(false);
+    }
 
     _hcd_data.edpt[ep_id_in] = *edpt; // copy from OUT endpoint
     _hcd_data.edpt[ep_id_in].ep_addr = 0 | TUSB_DIR_IN_MASK;
@@ -543,13 +547,13 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
 
   uint8_t const ep_id = endpoint_find(dev_addr, ep_addr);
-  TU_ASSERT(ep_id < CFG_TUH_FSDEV_ENDPOINT_MAX);
+  TU_ASSERT(ep_id != TUSB_INDEX_INVALID_8);
 
   edpoint_close(ep_id);
 
   if (ep_addr == 0) {
     uint8_t const ep_id_in = endpoint_find(dev_addr, 0 | TUSB_DIR_IN_MASK);
-    TU_ASSERT(ep_id_in < CFG_TUH_FSDEV_ENDPOINT_MAX);
+    TU_ASSERT(ep_id_in != TUSB_INDEX_INVALID_8);
 
     edpoint_close(ep_id_in);
   }
@@ -564,7 +568,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   TU_LOG(FSDEV_DEBUG, "hcd_edpt_xfer addr=%u ep=0x%02X len=%u\r\n", dev_addr, ep_addr, buflen);
 
   uint8_t const ep_id = endpoint_find(dev_addr, ep_addr);
-  TU_ASSERT(ep_id < CFG_TUH_FSDEV_ENDPOINT_MAX);
+  TU_ASSERT(ep_id != TUSB_INDEX_INVALID_8);
 
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
 
@@ -579,7 +583,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) rhport;
 
   uint8_t const ep_id = endpoint_find(dev_addr, ep_addr);
-  TU_ASSERT(ep_id < CFG_TUH_FSDEV_ENDPOINT_MAX);
+  TU_ASSERT(ep_id != TUSB_INDEX_INVALID_8);
   tusb_dir_t const dir = tu_edpt_dir(ep_addr);
 
   for (uint8_t i = 0; i < FSDEV_EP_COUNT; i++) {
@@ -602,7 +606,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   (void) rhport;
 
   uint8_t const ep_id = endpoint_find(dev_addr, 0);
-  TU_ASSERT(ep_id < CFG_TUH_FSDEV_ENDPOINT_MAX);
+  TU_ASSERT(ep_id != TUSB_INDEX_INVALID_8);
 
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
   edpt->next_setup = true;
@@ -618,7 +622,7 @@ bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   (void) ep_addr;
 
   uint8_t const ep_id = endpoint_find(dev_addr, 0);
-  TU_ASSERT(ep_id < CFG_TUH_FSDEV_ENDPOINT_MAX);
+  TU_ASSERT(ep_id != TUSB_INDEX_INVALID_8);
 
   hcd_endpoint_t *edpt = &_hcd_data.edpt[ep_id];
   edpt->pid = 0;
