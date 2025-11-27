@@ -575,19 +575,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   edpt->pid = 0;
   edpt->ls_pre = (hcd_port_speed_get(rhport) == TUSB_SPEED_FULL && tuh_speed_get(dev_addr) == TUSB_SPEED_LOW) ? 1 : 0;
 
-  // EP0 is bi-directional, so we need to open both OUT and IN channels
-  if (ep_addr == 0) {
-    uint8_t const ep_id_in = endpoint_alloc();
-    if (ep_id_in == TUSB_INDEX_INVALID_8) {
-      // free previously allocated OUT endpoint
-      endpoint_dealloc(edpt);
-      TU_ASSERT(false);
-    }
-
-    _hcd_data.edpt[ep_id_in] = *edpt; // copy from OUT endpoint
-    _hcd_data.edpt[ep_id_in].ep_addr = 0 | TUSB_DIR_IN_MASK;
-  }
-
   return true;
 }
 
@@ -598,13 +585,6 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
   TU_ASSERT(ep_id != TUSB_INDEX_INVALID_8);
 
   edpoint_close(ep_id);
-
-  if (ep_addr == 0) {
-    uint8_t const ep_id_in = endpoint_find(dev_addr, 0 | TUSB_DIR_IN_MASK);
-    TU_ASSERT(ep_id_in != TUSB_INDEX_INVALID_8);
-
-    edpoint_close(ep_id_in);
-  }
 
   return true;
 }
@@ -623,6 +603,12 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   edpt->buffer = buffer;
   edpt->buflen = buflen;
   edpt->queued_len = 0;
+
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  if (ep_num == 0) {
+    // update ep_dir since control endpoint can switch direction
+    edpt->ep_addr = ep_addr;
+  }
 
   return edpt_xfer_kickoff(ep_id);
 }
@@ -696,9 +682,16 @@ static uint8_t endpoint_alloc(void) {
 }
 
 static uint8_t endpoint_find(uint8_t dev_addr, uint8_t ep_addr) {
+  uint8_t const ep_num = tu_edpt_number(ep_addr);
+  tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
+
   for (uint32_t i = 0; i < (uint32_t)CFG_TUH_FSDEV_ENDPOINT_MAX; i++) {
     hcd_endpoint_t* edpt = &_hcd_data.edpt[i];
-    if (edpt->allocated == 1 && edpt->dev_addr == dev_addr && edpt->ep_addr == ep_addr) {
+    tusb_dir_t const dir = tu_edpt_dir(edpt->ep_addr);
+    uint8_t const num = tu_edpt_number(edpt->ep_addr);
+    // Match both ep_num and ep_dir, or match ep_num 0 (control endpoint)
+    if (edpt->allocated == 1 && edpt->dev_addr == dev_addr && num == ep_num &&
+        (dir == ep_dir || ep_num == 0)) {
       return i;
     }
   }
