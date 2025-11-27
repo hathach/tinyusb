@@ -203,26 +203,9 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
 
-  // Follow the RM mentions to use a special ordering of PDWN and FRES
-  for (volatile uint32_t i = 0; i < 200; i++) {
-    asm("NOP");
-  }
-
-  // Perform USB peripheral reset
-  FSDEV_REG->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
-  for (volatile uint32_t i = 0; i < 200; i++) {
-    asm("NOP");
-  }
-
-  FSDEV_REG->CNTR &= ~USB_CNTR_PDWN;
-
-  // Wait startup time
-  for (volatile uint32_t i = 0; i < 200; i++) {
-    asm("NOP");
-  }
+  fsdev_core_reset();
 
   FSDEV_REG->CNTR = USB_CNTR_HOST; // Enable USB in Host mode
-  FSDEV_REG->ISTR = 0; // Clear pending interrupts
 
   // Reset channels to disabled
   for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {

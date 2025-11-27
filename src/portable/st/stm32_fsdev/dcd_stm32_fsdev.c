@@ -173,31 +173,15 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint8_t epnum, uint
 //--------------------------------------------------------------------+
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
-  // Follow the RM mentions to use a special ordering of PDWN and FRES
-  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
-    asm("NOP");
-  }
 
-  // Perform USB peripheral reset
-  FSDEV_REG->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
-  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
-    asm("NOP");
-  }
+  fsdev_core_reset();
 
-  FSDEV_REG->CNTR &= ~USB_CNTR_PDWN;
-
-  // Wait startup time, for F042 and F070, this is <= 1 us.
-  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
-    asm("NOP");
-  }
   FSDEV_REG->CNTR = 0; // Enable USB
 
 #if !defined(FSDEV_BUS_32BIT)
   // BTABLE register does not exist any more on 32-bit bus devices
   FSDEV_REG->BTABLE = FSDEV_BTABLE_BASE;
 #endif
-
-  FSDEV_REG->ISTR = 0; // Clear pending interrupts
 
   // Reset endpoints to disabled
   for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {

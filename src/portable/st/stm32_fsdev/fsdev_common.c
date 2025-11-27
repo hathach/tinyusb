@@ -32,6 +32,35 @@
 #include "fsdev_common.h"
 
 //--------------------------------------------------------------------+
+// Global
+//--------------------------------------------------------------------+
+
+// Reset the USB Core
+void fsdev_core_reset(void) {
+  // Follow the RM mentions to use a special ordering of PDWN and FRES
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
+    asm("NOP");
+  }
+
+  // Perform USB peripheral reset
+  FSDEV_REG->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
+    asm("NOP");
+  }
+
+  FSDEV_REG->CNTR &= ~USB_CNTR_PDWN;
+
+  // Wait startup time, for F042 and F070, this is <= 1 us.
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
+    asm("NOP");
+  }
+
+  // Clear pending interrupts
+  FSDEV_REG->ISTR = 0;
+}
+
+
+//--------------------------------------------------------------------+
 // PMA read/write
 //--------------------------------------------------------------------+
 
@@ -199,7 +228,7 @@ bool fsdev_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) 
 // BTable Helper
 //--------------------------------------------------------------------+
 
-/* Aligned buffer size according to hardware */
+// Aligned buffer size according to hardware
 uint16_t pma_align_buffer_size(uint16_t size, uint8_t* blsize, uint8_t* num_block) {
   /* The STM32 full speed USB peripheral supports only a limited set of
    * buffer sizes given by the RX buffer entry format in the USB_BTABLE. */
@@ -217,6 +246,7 @@ uint16_t pma_align_buffer_size(uint16_t size, uint8_t* blsize, uint8_t* num_bloc
   return (*num_block) * block_in_bytes;
 }
 
+// Set RX buffer size
 void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount) {
   uint8_t blsize, num_block;
   (void) pma_align_buffer_size(wCount, &blsize, &num_block);
