@@ -322,8 +322,8 @@ static bool ff_peek_local(tu_fifo_t *f, void *buf, uint16_t wr_idx, uint16_t rd_
 
 // Works on local copies of w and r
 // Must be protected by mutexes since in case of an overflow read pointer gets modified
-uint16_t tu_fifo_peek_n_access(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
-                               tu_fifo_access_mode_t access_mode) {
+uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
+                                    tu_fifo_access_mode_t access_mode) {
   uint16_t ovf_cnt = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
 
   if (ovf_cnt == 0) {
@@ -346,7 +346,7 @@ uint16_t tu_fifo_peek_n_access(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_
   return n;
 }
 
-uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_fifo_access_mode_t access_mode) {
+uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, tu_fifo_access_mode_t access_mode) {
   if (n == 0) {
     return 0;
   }
@@ -419,11 +419,11 @@ uint16_t tu_fifo_write_n_access(tu_fifo_t *f, const void *data, uint16_t n, tu_f
   return n;
 }
 
-uint16_t tu_fifo_read_n_access(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode) {
+uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode) {
   ff_lock(f->mutex_rd);
 
   // Peek the data: f->rd_idx might get modified in case of an overflow so we can not use a local variable
-  n = tu_fifo_peek_n_access(f, buffer, n, f->wr_idx, f->rd_idx, access_mode);
+  n         = tu_fifo_peek_n_access_mode(f, buffer, n, f->wr_idx, f->rd_idx, access_mode);
   f->rd_idx = advance_index(f->depth, f->rd_idx, n);
 
   ff_unlock(f->mutex_rd);
@@ -500,7 +500,7 @@ bool tu_fifo_peek(tu_fifo_t *f, void *p_buffer) {
 /******************************************************************************/
 uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n) {
   ff_lock(f->mutex_rd);
-  const uint16_t ret = tu_fifo_peek_n_access(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_INC_ADDR_RW8);
+  const uint16_t ret = tu_fifo_peek_n_access_mode(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_INC_ADDR_RW8);
   ff_unlock(f->mutex_rd);
   return ret;
 }
