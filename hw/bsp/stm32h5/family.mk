@@ -1,6 +1,7 @@
 ST_FAMILY = h5
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+ST_TCPP0203 = hw/mcu/st/stm32-tcpp0203
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m33

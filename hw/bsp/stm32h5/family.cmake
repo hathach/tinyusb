@@ -5,6 +5,7 @@ set(ST_PREFIX stm32${ST_FAMILY}xx)
 
 set(ST_HAL_DRIVER ${TOP}/hw/mcu/st/stm32${ST_FAMILY}xx_hal_driver)
 set(ST_CMSIS ${TOP}/hw/mcu/st/cmsis_device_${ST_FAMILY})
+set(ST_TCPP0203 ${TOP}/hw/mcu/st/stm32-tcpp0203)
 set(CMSIS_5 ${TOP}/lib/CMSIS_5)
 
 # include board specific
@@ -44,6 +45,7 @@ function(family_add_board BOARD_TARGET)
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_uart_ex.c
     ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_dma.c
+    ${ST_HAL_DRIVER}/Src/${ST_PREFIX}_hal_i2c.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
@@ -66,6 +68,7 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/stm32_fsdev/hcd_stm32_fsdev.c
     ${TOP}/src/portable/st/stm32_fsdev/fsdev_common.c
     ${TOP}/src/portable/st/typec/typec_stm32.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
