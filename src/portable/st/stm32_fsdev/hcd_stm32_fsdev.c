@@ -207,11 +207,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   FSDEV_REG->CNTR = USB_CNTR_HOST; // Enable USB in Host mode
 
-  // Reset channels to disabled
-  for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {
-    ch_write(i, 0u, false);
-  }
-
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
   // Enable interrupts for host mode

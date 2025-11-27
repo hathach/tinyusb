@@ -183,14 +183,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   FSDEV_REG->BTABLE = FSDEV_BTABLE_BASE;
 #endif
 
-  // Reset endpoints to disabled
-  for (uint32_t i = 0; i < FSDEV_EP_COUNT; i++) {
-    // This doesn't clear all bits since some bits are "toggle", but does set the type to DISABLED.
-    ep_write(i, 0u, false);
-  }
-
+  // Enable interrupts for device mode
   FSDEV_REG->CNTR |= USB_CNTR_RESETM | USB_CNTR_ESOFM | USB_CNTR_CTRM |
-      USB_CNTR_SUSPM | USB_CNTR_WKUPM | USB_CNTR_PMAOVRM;
+                     USB_CNTR_SUSPM | USB_CNTR_WKUPM | USB_CNTR_PMAOVRM;
+
   handle_bus_reset(rhport);
 
   // Enable pull-up if supported
