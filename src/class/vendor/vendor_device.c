@@ -136,6 +136,15 @@ void tud_vendor_n_read_flush(uint8_t idx) {
 }
 #endif
 
+#if CFG_TUD_VENDOR_RX_MANUAL_XFER
+bool tud_vendor_n_read_xfer(uint8_t idx) {
+  TU_VERIFY(idx < CFG_TUD_VENDOR);
+  vendord_interface_t *p_itf = &_vendord_itf[idx];
+  return tu_edpt_stream_read_xfer(p_itf->rhport, &p_itf->stream.rx);
+}
+#endif
+
+
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
@@ -274,7 +283,9 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
         tu_edpt_stream_t *stream_rx = &p_vendor->stream.rx;
         if (stream_rx->ep_addr == 0) {
           tu_edpt_stream_open(stream_rx, desc_ep);
+  #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
           TU_ASSERT(tu_edpt_stream_read_xfer(rhport, stream_rx) > 0, 0); // prepare for incoming data
+  #endif
         }
       }
     }
@@ -302,7 +313,9 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     tud_vendor_rx_cb(idx, NULL, 0);
   #endif
 
+  #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
     tu_edpt_stream_read_xfer(rhport, &p_vendor->stream.rx); // prepare next data
+  #endif
   } else if (ep_addr == p_vendor->stream.tx.ep_addr) {
     // Send complete
     tud_vendor_tx_cb(idx, (uint16_t)xferred_bytes);
