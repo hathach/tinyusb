@@ -27,7 +27,7 @@ set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
 set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/linker/${MCU_VARIANT_UPPER}_FLASH.ld)
 set(LD_FILE_Clang ${LD_FILE_GNU})
-set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
+set(LD_FILE_IAR ${CMAKE_CURRENT_LIST_DIR}/linker/${MCU_VARIANT}_flash.icf)
 
 #------------------------------------
 # BOARD_TARGET
