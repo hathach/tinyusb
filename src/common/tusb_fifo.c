@@ -499,7 +499,7 @@ bool tu_fifo_read(tu_fifo_t *f, void *buffer) {
   return ret;
 }
 
-// Read one item without removing it from the FIFO, correct rad index if overflowed
+// Read one item without removing it from the FIFO, correct read index if overflowed
 bool tu_fifo_peek(tu_fifo_t *f, void *p_buffer) {
   return ff_peek_local(f, p_buffer, f->wr_idx, f->rd_idx);
 }

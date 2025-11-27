@@ -103,6 +103,7 @@ bool tud_vendor_n_mounted(uint8_t idx) {
 //--------------------------------------------------------------------+
 // Read API
 //--------------------------------------------------------------------+
+#if CFG_TUD_VENDOR_RX_BUFSIZE > 0
 uint32_t tud_vendor_n_available(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
@@ -133,6 +134,7 @@ void tud_vendor_n_read_flush(uint8_t idx) {
   tu_edpt_stream_clear(&p_itf->stream.rx);
   tu_edpt_stream_read_xfer(p_itf->rhport, &p_itf->stream.rx);
 }
+#endif
 
 //--------------------------------------------------------------------+
 // Write API
@@ -143,6 +145,7 @@ uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   return tu_edpt_stream_write(p_itf->rhport, &p_itf->stream.tx, buffer, (uint16_t)bufsize);
 }
 
+#if CFG_TUD_VENDOR_TX_BUFSIZE > 0
 uint32_t tud_vendor_n_write_flush(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
@@ -154,6 +157,7 @@ uint32_t tud_vendor_n_write_available(uint8_t idx) {
   vendord_interface_t *p_itf = &_vendord_itf[idx];
   return tu_edpt_stream_write_available(p_itf->rhport, &p_itf->stream.tx);
 }
+#endif
 
 //--------------------------------------------------------------------+
 // USBD Driver API

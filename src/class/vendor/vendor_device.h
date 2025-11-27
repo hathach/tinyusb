@@ -51,16 +51,21 @@ extern "C" {
 // Application API (Multiple Interfaces) i.e CFG_TUD_VENDOR > 1
 //--------------------------------------------------------------------+
 bool     tud_vendor_n_mounted(uint8_t idx);
+
+#if CFG_TUD_VENDOR_RX_BUFSIZE > 0
 uint32_t tud_vendor_n_available(uint8_t idx);
 bool     tud_vendor_n_peek(uint8_t idx, uint8_t *ui8);
-
 uint32_t tud_vendor_n_read(uint8_t idx, void *buffer, uint32_t bufsize);
 uint32_t tud_vendor_n_read_discard(uint8_t idx, uint32_t count);
 void     tud_vendor_n_read_flush(uint8_t idx);
+#endif
 
 uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize);
+
+#if CFG_TUD_VENDOR_TX_BUFSIZE > 0
 uint32_t tud_vendor_n_write_flush(uint8_t idx);
 uint32_t tud_vendor_n_write_available(uint8_t idx);
+#endif
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_n_write_str(uint8_t idx, const char *str) {
   return tud_vendor_n_write(idx, str, strlen(str));
@@ -76,6 +81,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_mounted(void) {
   return tud_vendor_n_mounted(0);
 }
 
+#if CFG_TUD_VENDOR_RX_BUFSIZE > 0
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_available(void) {
   return tud_vendor_n_available(0);
 }
@@ -95,6 +101,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_read_discard(uint32_t co
 TU_ATTR_ALWAYS_INLINE static inline void tud_vendor_read_flush(void) {
   tud_vendor_n_read_flush(0);
 }
+#endif
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write(const void *buffer, uint32_t bufsize) {
   return tud_vendor_n_write(0, buffer, bufsize);
@@ -104,11 +111,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_str(const char *st
   return tud_vendor_n_write_str(0, str);
 }
 
+#if CFG_TUD_VENDOR_TX_BUFSIZE > 0
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_flush(void) {
   return tud_vendor_n_write_flush(0);
 }
 
-#if CFG_TUD_VENDOR_TX_BUFSIZE > 0
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
   return tud_vendor_n_write_available(0);
 }
