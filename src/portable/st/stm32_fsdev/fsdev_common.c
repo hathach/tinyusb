@@ -145,15 +145,15 @@ bool fsdev_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes)
   tu_fifo_buffer_info_t info;
   tu_fifo_get_read_info(ff, &info);
 
-  uint16_t cnt_lin = tu_min16(wNBytes, info.len_lin);
-  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.len_wrap);
+  uint16_t cnt_lin = tu_min16(wNBytes, info.linear.len);
+  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.wrapped.len);
   uint16_t const cnt_total = cnt_lin + cnt_wrap;
 
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part To ensure PMA is always access aligned
   uint16_t lin_even = cnt_lin & ~(FSDEV_BUS_SIZE - 1);
   uint16_t lin_odd = cnt_lin & (FSDEV_BUS_SIZE - 1);
-  uint8_t const *src8 = (uint8_t const*) info.ptr_lin;
+  uint8_t const *src8 = (uint8_t const*) info.linear.ptr;
 
   // write even linear part
   fsdev_write_packet_memory(dst, src8, lin_even);
@@ -161,7 +161,7 @@ bool fsdev_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes)
   src8 += lin_even;
 
   if (lin_odd == 0) {
-    src8 = (uint8_t const*) info.ptr_wrap;
+    src8 = (uint8_t const*) info.wrapped.ptr;
   } else {
     // Combine last linear bytes + first wrapped bytes to form fsdev bus width data
     fsdev_bus_t temp = 0;
@@ -170,7 +170,7 @@ bool fsdev_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes)
       temp |= *src8++ << (i * 8);
     }
 
-    src8 = (uint8_t const*) info.ptr_wrap;
+    src8 = (uint8_t const*) info.wrapped.ptr;
     for(; i < FSDEV_BUS_SIZE && cnt_wrap > 0; i++, cnt_wrap--) {
       temp |= *src8++ << (i * 8);
     }
@@ -195,8 +195,8 @@ bool fsdev_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) 
   tu_fifo_buffer_info_t info;
   tu_fifo_get_write_info(ff, &info); // We want to read from the FIFO
 
-  uint16_t cnt_lin = tu_min16(wNBytes, info.len_lin);
-  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.len_wrap);
+  uint16_t cnt_lin = tu_min16(wNBytes, info.linear.len);
+  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.wrapped.len);
   uint16_t cnt_total = cnt_lin + cnt_wrap;
 
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
@@ -204,7 +204,7 @@ bool fsdev_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) 
 
   uint16_t lin_even = cnt_lin & ~(FSDEV_BUS_SIZE - 1);
   uint16_t lin_odd = cnt_lin & (FSDEV_BUS_SIZE - 1);
-  uint8_t *dst8 = (uint8_t *) info.ptr_lin;
+  uint8_t *dst8 = (uint8_t *) info.linear.ptr;
 
   // read even linear part
   fsdev_read_packet_memory(dst8, src, lin_even);
@@ -212,7 +212,7 @@ bool fsdev_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) 
   src += lin_even;
 
   if (lin_odd == 0) {
-    dst8 = (uint8_t *) info.ptr_wrap;
+    dst8 = (uint8_t *) info.wrapped.ptr;
   } else {
     // Combine last linear bytes + first wrapped bytes to form fsdev bus width data
     fsdev_bus_t temp;
@@ -225,7 +225,7 @@ bool fsdev_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) 
       temp >>= 8;
     }
 
-    dst8 = (uint8_t *) info.ptr_wrap;
+    dst8 = (uint8_t *) info.wrapped.ptr;
     for (; i < FSDEV_BUS_SIZE && cnt_wrap > 0; i++, cnt_wrap--) {
       *dst8++ = (uint8_t) (temp & 0xfful);
       temp >>= 8;

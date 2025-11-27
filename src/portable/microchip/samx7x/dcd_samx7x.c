@@ -697,7 +697,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
       udd_dma_ctrl_wrap |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;
     } else {
       tu_fifo_get_read_info(ff, &info);
-      if(info.len_wrap == 0)
+      if(info.wrapped.len == 0)
       {
         udd_dma_ctrl_lin |= DEVDMACONTROL_END_B_EN;
       }
@@ -705,18 +705,18 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
     }
 
     // Clean invalidate cache of linear part
-    CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_lin, 4), info.len_lin + 31);
+    CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.linear.ptr, 4), info.linear.len + 31);
 
-    USB_REG->DEVDMA[epnum - 1].DEVDMAADDRESS = (uint32_t)info.ptr_lin;
-    if (info.len_wrap)
+    USB_REG->DEVDMA[epnum - 1].DEVDMAADDRESS = (uint32_t)info.linear.ptr;
+    if (info.wrapped.len)
     {
       // Clean invalidate cache of wrapped part
-      CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.ptr_wrap, 4), info.len_wrap + 31);
+      CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.wrapped.ptr, 4), info.wrapped.len + 31);
 
       dma_desc[epnum - 1].next_desc = 0;
-      dma_desc[epnum - 1].buff_addr = (uint32_t)info.ptr_wrap;
+      dma_desc[epnum - 1].buff_addr = (uint32_t)info.wrapped.ptr;
       dma_desc[epnum - 1].chnl_ctrl =
-        udd_dma_ctrl_wrap | (info.len_wrap << DEVDMACONTROL_BUFF_LENGTH_Pos);
+        udd_dma_ctrl_wrap | (info.wrapped.len << DEVDMACONTROL_BUFF_LENGTH_Pos);
       // Clean cache of wrapped DMA descriptor
       CleanInValidateCache((uint32_t*)&dma_desc[epnum - 1], sizeof(dma_desc_t));
 
@@ -725,7 +725,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
     } else {
       udd_dma_ctrl_lin |= DEVDMACONTROL_END_BUFFIT;
     }
-    udd_dma_ctrl_lin |= (info.len_lin << DEVDMACONTROL_BUFF_LENGTH_Pos);
+    udd_dma_ctrl_lin |= (info.linear.len << DEVDMACONTROL_BUFF_LENGTH_Pos);
     // Disable IRQs to have a short sequence
     // between read of EOT_STA and DMA enable
     uint32_t irq_state = __get_PRIMASK();

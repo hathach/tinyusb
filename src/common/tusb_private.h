@@ -60,7 +60,7 @@ typedef struct {
   uint8_t ep_addr;
   uint16_t ep_bufsize;
 
-  uint8_t* ep_buf; // TODO xfer_fifo can skip this buffer
+  uint8_t  *ep_buf; // set to NULL to use xfer_fifo when CFG_TUD_EDPT_DEDICATED_HWFIFO = 1
   tu_fifo_t ff;
 
   // mutex: read if rx, otherwise write
@@ -98,7 +98,7 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
 // Deinit an endpoint stream
 bool tu_edpt_stream_deinit(tu_edpt_stream_t* s);
 
-// Open an stream for an endpoint
+// Open an endpoint stream
 TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_open(tu_edpt_stream_t* s, tusb_desc_endpoint_t const *desc_ep) {
   s->ep_addr = desc_ep->bEndpointAddress;
   s->is_mps512 = tu_edpt_packet_size(desc_ep) == 512;
@@ -150,7 +150,7 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s);
 // Complete read transfer by writing EP -> FIFO. Must be called in the transfer complete callback
 TU_ATTR_ALWAYS_INLINE static inline
 void tu_edpt_stream_read_xfer_complete(tu_edpt_stream_t* s, uint32_t xferred_bytes) {
-  if (0u != tu_fifo_depth(&s->ff)) {
+  if (0u != tu_fifo_depth(&s->ff) && s->ep_buf != NULL) {
     tu_fifo_write_n(&s->ff, s->ep_buf, (uint16_t) xferred_bytes);
   }
 }

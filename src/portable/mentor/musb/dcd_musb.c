@@ -221,12 +221,12 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
   tu_fifo_buffer_info_t info;
   ops[dir].tu_fifo_get_info(f, &info);
   unsigned total_len = len;
-  len = TU_MIN(total_len, info.len_lin);
-  ops[dir].pipe_read_write(info.ptr_lin, fifo, len);
+  len = TU_MIN(total_len, info.linear.len);
+  ops[dir].pipe_read_write(info.linear.ptr, fifo, len);
   unsigned rem = total_len - len;
   if (rem) {
-    len = TU_MIN(rem, info.len_wrap);
-    ops[dir].pipe_read_write(info.ptr_wrap, fifo, len);
+    len = TU_MIN(rem, info.wrapped.len);
+    ops[dir].pipe_read_write(info.wrapped.ptr, fifo, len);
     rem -= len;
   }
   ops[dir].tu_fifo_advance(f, total_len - rem);
