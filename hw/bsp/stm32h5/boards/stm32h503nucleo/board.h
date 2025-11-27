@@ -133,6 +133,11 @@ static inline void board_init2(void) {
   // Empty for this board
 }
 
+void board_vbus_set(uint8_t rhport, bool state) {
+  (void) rhport;
+  (void) state;
+}
+
 #ifdef __cplusplus
 }
 #endif
