@@ -121,9 +121,12 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
-// Invoked when received new data
-void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint16_t bufsize);
-// Invoked when last rx transfer finished
+// Invoked when received new data.
+// - CFG_TUD_VENDOR_RX_BUFSIZE > 0; buffer and bufsize must not be used (both NULL,0) since data is in RX FIFO
+// - CFG_TUD_VENDOR_RX_BUFSIZE = 0: Buffer and bufsize are valid
+void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize);
+
+// Invoked when tx transfer is finished
 void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes);
 
 //--------------------------------------------------------------------+

@@ -59,20 +59,30 @@ typedef struct {
 
 static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0 || CFG_TUD_VENDOR_RX_BUFSIZE == 0
 typedef struct {
+    // Skip local EP buffer if dedicated hw FIFO is supported
+    #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0 || CFG_TUD_VENDOR_RX_BUFSIZE == 0
   TUD_EPBUF_DEF(epout, CFG_TUD_VENDOR_EPSIZE);
+    #endif
+
+    // Skip local EP buffer if dedicated hw FIFO is supported
+    #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
   TUD_EPBUF_DEF(epin, CFG_TUD_VENDOR_EPSIZE);
+    #endif
 } vendord_epbuf_t;
 
 CFG_TUD_MEM_SECTION static vendord_epbuf_t _vendord_epbuf[CFG_TUD_VENDOR];
+  #endif
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
-TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint16_t bufsize) {
+
+TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize) {
   (void)idx;
-  (void) buffer;
-  (void) bufsize;
+  (void)buffer;
+  (void)bufsize;
 }
 
 TU_ATTR_WEAK void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes) {
@@ -153,7 +163,19 @@ void vendord_init(void) {
 
   for(uint8_t i=0; i<CFG_TUD_VENDOR; i++) {
     vendord_interface_t* p_itf = &_vendord_itf[i];
-    vendord_epbuf_t* p_epbuf = &_vendord_epbuf[i];
+
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
+    #if CFG_TUD_VENDOR_RX_BUFSIZE == 0 // non-fifo rx still need ep buffer
+    uint8_t *epout_buf = _vendord_epbuf[i].epout;
+    #else
+    uint8_t *epout_buf = NULL;
+    #endif
+
+    uint8_t *epin_buf = NULL;
+  #else
+    uint8_t *epout_buf = _vendord_epbuf[i].epout;
+    uint8_t *epin_buf  = _vendord_epbuf[i].epin;
+  #endif
 
   #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
     uint8_t *rx_ff_buf = p_itf->stream.rx_ff_buf;
@@ -161,7 +183,7 @@ void vendord_init(void) {
     uint8_t *rx_ff_buf = NULL;
   #endif
 
-    tu_edpt_stream_init(&p_itf->stream.rx, false, false, false, rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE, p_epbuf->epout,
+    tu_edpt_stream_init(&p_itf->stream.rx, false, false, false, rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE, epout_buf,
                         CFG_TUD_VENDOR_EPSIZE);
 
   #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
@@ -170,7 +192,7 @@ void vendord_init(void) {
     uint8_t *tx_ff_buf = NULL;
   #endif
 
-    tu_edpt_stream_init(&p_itf->stream.tx, false, true, false, tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, p_epbuf->epin,
+    tu_edpt_stream_init(&p_itf->stream.tx, false, true, false, tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, epin_buf,
                         CFG_TUD_VENDOR_EPSIZE);
   }
 }
@@ -264,16 +286,19 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   const uint8_t idx = find_vendor_itf(ep_addr);
   TU_VERIFY(idx < CFG_TUD_VENDOR);
   vendord_interface_t *p_vendor = &_vendord_itf[idx];
-  vendord_epbuf_t     *p_epbuf  = &_vendord_epbuf[idx];
 
   if (ep_addr == p_vendor->stream.rx.ep_addr) {
     // Received new data: put into stream's fifo
     tu_edpt_stream_read_xfer_complete(&p_vendor->stream.rx, xferred_bytes);
 
-    // Invoked callback if any
-    tud_vendor_rx_cb(idx, p_epbuf->epout, (uint16_t)xferred_bytes);
+    // invoke callback
+  #if CFG_TUD_VENDOR_RX_BUFSIZE == 0
+    tud_vendor_rx_cb(idx, p_vendor->stream.rx.ep_buf, xferred_bytes);
+  #else
+    tud_vendor_rx_cb(idx, NULL, 0);
+  #endif
 
-    tu_edpt_stream_read_xfer(rhport, &p_vendor->stream.rx);
+    tu_edpt_stream_read_xfer(rhport, &p_vendor->stream.rx); // prepare next data
   } else if (ep_addr == p_vendor->stream.tx.ep_addr) {
     // Send complete
     tud_vendor_tx_cb(idx, (uint16_t)xferred_bytes);

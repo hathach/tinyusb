@@ -266,9 +266,8 @@ void cdcd_init(void) {
     uint8_t *epout_buf = NULL;
     uint8_t *epin_buf  = NULL;
   #else
-    cdcd_epbuf_t *p_epbuf   = &_cdcd_epbuf[i];
-    uint8_t      *epout_buf = p_epbuf->epout;
-    uint8_t      *epin_buf  = p_epbuf->epin;
+    uint8_t *epout_buf = _cdcd_epbuf[i].epout;
+    uint8_t *epin_buf  = _cdcd_epbuf[i].epin;
   #endif
 
     tu_edpt_stream_init(&p_cdc->stream.rx, false, false, false, p_cdc->stream.rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE,
@@ -516,11 +515,9 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   }
 
   // Data sent to host, we continue to fetch from tx fifo to send.
-  // Note: This will cause incorrect baudrate set in line coding.
-  //       Though maybe the baudrate is not really important !!!
+  // Note: This will cause incorrect baudrate set in line coding. Though maybe the baudrate is not really important !
   if (ep_addr == stream_tx->ep_addr) {
-    // invoke transmit callback to possibly refill tx fifo
-    tud_cdc_tx_complete_cb(itf);
+    tud_cdc_tx_complete_cb(itf); // invoke callback to possibly refill tx fifo
 
     if (0 == tu_edpt_stream_write_xfer(rhport, stream_tx)) {
       // If there is no data left, a ZLP should be sent if needed

@@ -211,15 +211,16 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   return false;
 }
 
-void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint16_t bufsize) {
+void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize) {
   (void)idx;
+  (void)buffer;
+  (void)bufsize;
 
-// since we used data without pulling it from RX FIFO, we need to discard number of items used
-#if CFG_TUD_VENDOR_RX_BUFSIZE > 0
-  tud_vendor_read_discard(bufsize);
-#endif
-
-  echo_all(buffer, bufsize);
+  while (tud_vendor_available()) {
+    uint8_t        buf[64];
+    const uint32_t count = tud_vendor_read(buf, sizeof(buf));
+    echo_all(buf, count);
+  }
 }
 
 //--------------------------------------------------------------------+
