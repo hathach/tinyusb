@@ -172,6 +172,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_peek(tu_edpt_stream_t *s
   return tu_fifo_peek(&s->ff, ch);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_edpt_stream_discard(tu_edpt_stream_t *s, uint32_t len) {
+  return (uint32_t)tu_fifo_discard_n(&s->ff, (uint16_t)len);
+}
+
 #ifdef __cplusplus
  }
 #endif

@@ -56,6 +56,9 @@ TU_ATTR_ALWAYS_INLINE static inline void ff_unlock(osal_mutex_t mutex) {
 
 #endif
 
+//--------------------------------------------------------------------+
+// Setup API
+//--------------------------------------------------------------------+
 bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_size, bool overwritable) {
   // Limit index space to 2*depth - this allows for a fast "modulo" calculation
   // but limits the maximum depth to 2^16/2 = 2^15 and buffer overflows are detectable
@@ -73,6 +76,36 @@ bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_si
   f->overwritable = overwritable;
   f->rd_idx       = 0u;
   f->wr_idx       = 0u;
+
+  ff_unlock(f->mutex_wr);
+  ff_unlock(f->mutex_rd);
+
+  return true;
+}
+
+// clear fifo by resetting read and write indices
+bool tu_fifo_clear(tu_fifo_t *f) {
+  ff_lock(f->mutex_wr);
+  ff_lock(f->mutex_rd);
+
+  f->rd_idx = 0;
+  f->wr_idx = 0;
+
+  ff_unlock(f->mutex_wr);
+  ff_unlock(f->mutex_rd);
+  return true;
+}
+
+// Change the fifo overwritable mode
+bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
+  if (f->overwritable == overwritable) {
+    return true;
+  }
+
+  ff_lock(f->mutex_wr);
+  ff_lock(f->mutex_rd);
+
+  f->overwritable = overwritable;
 
   ff_unlock(f->mutex_wr);
   ff_unlock(f->mutex_rd);
@@ -295,49 +328,27 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t correct_read_index(tu_fifo_t *f, ui
   return rd_idx;
 }
 
-// peek() using local write/read index. Be careful, caller must not lock mutex, since this Will also try to lock mutex
-// in case of overflowed to correct read index
-static bool ff_peek_local(tu_fifo_t *f, void *buf, uint16_t wr_idx, uint16_t rd_idx) {
-  const uint16_t ovf_count = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
-  if (ovf_count == 0) {
-    return false; // nothing to peek
-  }
-
-  // Correct read index if overflow
-  if (ovf_count > f->depth) {
-    ff_lock(f->mutex_rd);
-    rd_idx = correct_read_index(f, wr_idx);
-    ff_unlock(f->mutex_rd);
-  }
-
-  const uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
-  memcpy(buf, f->buffer + (rd_ptr * f->item_size), f->item_size);
-
-  return true;
-}
-
 //--------------------------------------------------------------------+
-// Application API
+// n-API
 //--------------------------------------------------------------------+
 
 // Works on local copies of w and r
-// Must be protected by mutexes since in case of an overflow read pointer gets modified
+// Must be protected by read mutex since in case of an overflow read pointer gets modified
 uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
                                     tu_fifo_access_mode_t access_mode) {
-  uint16_t ovf_cnt = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
-
-  if (ovf_cnt == 0) {
+  uint16_t count = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
+  if (count == 0) {
     return 0; // nothing to peek
   }
 
   // Check overflow and correct if required
-  if (ovf_cnt > f->depth) {
+  if (count > f->depth) {
     rd_idx = correct_read_index(f, wr_idx);
-    ovf_cnt = f->depth;
+    count  = f->depth;
   }
 
-  if (ovf_cnt < n) {
-    n = ovf_cnt; // limit to available count
+  if (count < n) {
+    n = count; // limit to available count
   }
 
   const uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
@@ -346,6 +357,27 @@ uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, ui
   return n;
 }
 
+// Read n items without removing it from the FIFO, correct read pointer if overflowed
+uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n) {
+  ff_lock(f->mutex_rd);
+  const uint16_t ret = tu_fifo_peek_n_access_mode(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_INC_ADDR_RW8);
+  ff_unlock(f->mutex_rd);
+  return ret;
+}
+
+// Read n items from fifo with access mode
+uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode) {
+  ff_lock(f->mutex_rd);
+
+  // Peek the data: f->rd_idx might get modified in case of an overflow so we can not use a local variable
+  n         = tu_fifo_peek_n_access_mode(f, buffer, n, f->wr_idx, f->rd_idx, access_mode);
+  f->rd_idx = advance_index(f->depth, f->rd_idx, n);
+
+  ff_unlock(f->mutex_rd);
+  return n;
+}
+
+// Write n items to fifo with access mode
 uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, tu_fifo_access_mode_t access_mode) {
   if (n == 0) {
     return 0;
@@ -419,40 +451,41 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
   return n;
 }
 
-uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode) {
+uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n) {
+  const uint16_t count = tu_min16(n, tu_fifo_count(f)); // limit to available count
   ff_lock(f->mutex_rd);
-
-  // Peek the data: f->rd_idx might get modified in case of an overflow so we can not use a local variable
-  n         = tu_fifo_peek_n_access_mode(f, buffer, n, f->wr_idx, f->rd_idx, access_mode);
-  f->rd_idx = advance_index(f->depth, f->rd_idx, n);
-
+  f->rd_idx = advance_index(f->depth, f->rd_idx, count);
   ff_unlock(f->mutex_rd);
-  return n;
+
+  return count;
 }
 
-// Only use in case tu_fifo_overflow() returned true!
-void tu_fifo_correct_read_pointer(tu_fifo_t *f) {
-  ff_lock(f->mutex_rd);
-  correct_read_index(f, f->wr_idx);
-  ff_unlock(f->mutex_rd);
+//--------------------------------------------------------------------+
+// One API
+//--------------------------------------------------------------------+
+
+// peek() using local write/read index, correct read index if overflowed
+// Be careful, caller must not lock mutex, since this Will also try to lock mutex
+static bool ff_peek_local(tu_fifo_t *f, void *buf, uint16_t wr_idx, uint16_t rd_idx) {
+  const uint16_t ovf_count = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
+  if (ovf_count == 0) {
+    return false; // nothing to peek
+  }
+
+  // Correct read index if overflow
+  if (ovf_count > f->depth) {
+    ff_lock(f->mutex_rd);
+    rd_idx = correct_read_index(f, wr_idx);
+    ff_unlock(f->mutex_rd);
+  }
+
+  const uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
+  memcpy(buf, f->buffer + (rd_ptr * f->item_size), f->item_size);
+
+  return true;
 }
 
-/******************************************************************************/
-/*!
-    @brief Read one element out of the buffer.
-
-    This function will return the element located at the array index of the
-    read pointer, and then increment the read pointer index.
-    This function checks for an overflow and corrects read pointer if required.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  buffer
-                Pointer to the place holder for data read from the buffer
-
-    @returns TRUE if the queue is not empty
- */
-/******************************************************************************/
+// Read one element out of the buffer, correct read index if overflowed
 bool tu_fifo_read(tu_fifo_t *f, void *buffer) {
   // Peek the data
   // f->rd_idx might get modified in case of an overflow so we can not use a local variable
@@ -466,61 +499,12 @@ bool tu_fifo_read(tu_fifo_t *f, void *buffer) {
   return ret;
 }
 
-/******************************************************************************/
-/*!
-    @brief Read one item without removing it from the FIFO.
-    This function checks for an overflow and corrects read pointer if required.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  p_buffer
-                Pointer to the place holder for data read from the buffer
-
-    @returns TRUE if the queue is not empty
- */
-/******************************************************************************/
+// Read one item without removing it from the FIFO, correct read index if overflowed
 bool tu_fifo_peek(tu_fifo_t *f, void *p_buffer) {
   return ff_peek_local(f, p_buffer, f->wr_idx, f->rd_idx);
 }
 
-/******************************************************************************/
-/*!
-    @brief Read n items without removing it from the FIFO
-    This function checks for an overflow and corrects read pointer if required.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  p_buffer
-                Pointer to the place holder for data read from the buffer
-    @param[in]  n
-                Number of items to peek
-
-    @returns Number of bytes written to p_buffer
- */
-/******************************************************************************/
-uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n) {
-  ff_lock(f->mutex_rd);
-  const uint16_t ret = tu_fifo_peek_n_access_mode(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_INC_ADDR_RW8);
-  ff_unlock(f->mutex_rd);
-  return ret;
-}
-
-/******************************************************************************/
-/*!
-    @brief Write one element into the buffer.
-
-    This function will write one element into the array index specified by
-    the write pointer and increment the write index.
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  data
-                The byte to add to the FIFO
-
-    @returns TRUE if the data was written to the FIFO (overwrittable
-             FIFO will always return TRUE)
- */
-/******************************************************************************/
+// Write one element into the buffer
 bool tu_fifo_write(tu_fifo_t *f, const void *data) {
   bool ret;
   ff_lock(f->mutex_wr);
@@ -541,51 +525,9 @@ bool tu_fifo_write(tu_fifo_t *f, const void *data) {
   return ret;
 }
 
-/******************************************************************************/
-/*!
-    @brief Clear the fifo read and write pointers
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
- */
-/******************************************************************************/
-bool tu_fifo_clear(tu_fifo_t *f) {
-  ff_lock(f->mutex_wr);
-  ff_lock(f->mutex_rd);
-
-  f->rd_idx = 0;
-  f->wr_idx = 0;
-
-  ff_unlock(f->mutex_wr);
-  ff_unlock(f->mutex_rd);
-  return true;
-}
-
-/******************************************************************************/
-/*!
-    @brief Change the fifo mode to overwritable or not overwritable
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  overwritable
-                Overwritable mode the fifo is set to
- */
-/******************************************************************************/
-bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
-  if (f->overwritable == overwritable) {
-    return true;
-  }
-
-  ff_lock(f->mutex_wr);
-  ff_lock(f->mutex_rd);
-
-  f->overwritable = overwritable;
-
-  ff_unlock(f->mutex_wr);
-  ff_unlock(f->mutex_rd);
-
-  return true;
-}
+//--------------------------------------------------------------------+
+// Index API
+//--------------------------------------------------------------------+
 
 /******************************************************************************/
 /*!
@@ -605,6 +547,13 @@ bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
 /******************************************************************************/
 void tu_fifo_advance_write_pointer(tu_fifo_t *f, uint16_t n) {
   f->wr_idx = advance_index(f->depth, f->wr_idx, n);
+}
+
+// Correct the read index in case tu_fifo_overflow() returned true!
+void tu_fifo_correct_read_pointer(tu_fifo_t *f) {
+  ff_lock(f->mutex_rd);
+  correct_read_index(f, f->wr_idx);
+  ff_unlock(f->mutex_rd);
 }
 
 /******************************************************************************/

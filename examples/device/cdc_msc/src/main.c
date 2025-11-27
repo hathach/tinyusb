@@ -124,6 +124,7 @@ void cdc_task(void) {
 
     if ((btn_prev == 0u) && (btn != 0u)) {
       uart_state.dsr ^= 1;
+      uart_state.dcd ^= 1;
       tud_cdc_notify_uart_state(&uart_state);
     }
     btn_prev = btn;
