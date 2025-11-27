@@ -59,6 +59,21 @@ void fsdev_core_reset(void) {
   FSDEV_REG->ISTR = 0;
 }
 
+// De-initialize the USB Core
+void fsdev_deinit(void) {
+  // Disable all interrupts and force USB reset
+  FSDEV_REG->CNTR = USB_CNTR_FRES;
+
+  // Clear pending interrupts
+  FSDEV_REG->ISTR = 0;
+
+  // Put USB peripheral in power down mode
+  FSDEV_REG->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
+  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
+    asm("NOP");
+  }
+}
+
 
 //--------------------------------------------------------------------+
 // PMA read/write

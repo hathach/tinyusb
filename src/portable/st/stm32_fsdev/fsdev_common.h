@@ -314,6 +314,9 @@ TU_ATTR_ALWAYS_INLINE static inline void btable_set_count(uint32_t ep_id, uint8_
 // Reset the USB Core
 void fsdev_core_reset(void);
 
+// De-initialize the USB Core
+void fsdev_deinit(void);
+
 // Aligned buffer size according to hardware
 uint16_t pma_align_buffer_size(uint16_t size, uint8_t* blsize, uint8_t* num_block);
 

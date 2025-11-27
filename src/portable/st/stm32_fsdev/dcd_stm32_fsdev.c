@@ -199,6 +199,14 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
+bool dcd_deinit(uint8_t rhport) {
+  (void)rhport;
+
+  fsdev_deinit();
+
+  return true;
+}
+
 void dcd_sof_enable(uint8_t rhport, bool en) {
   (void)rhport;
 

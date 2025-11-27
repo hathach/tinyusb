@@ -226,6 +226,14 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
+bool hcd_deinit(uint8_t rhport) {
+  (void)rhport;
+
+  fsdev_deinit();
+
+  return true;
+}
+
 static void port_status_handler(uint8_t rhport, bool in_isr) {
   uint32_t const fnr_reg = FSDEV_REG->FNR;
   uint32_t const istr_reg = FSDEV_REG->ISTR;
