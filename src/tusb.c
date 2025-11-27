@@ -533,8 +533,7 @@ uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, ui
     num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
   } else {
     // non-fifo mode
-    memcpy(buffer, s->ep_buf, bufsize);
-    num_read = bufsize;
+    num_read = 0;
   }
 
   tu_edpt_stream_read_xfer(hwid, s);
