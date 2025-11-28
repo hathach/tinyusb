@@ -34,6 +34,9 @@ runs:
         elif [[ ${TOOLCHAIN} == arm-iar ]]; then
           wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/cxarm.deb
+        elif [[ ${TOOLCHAIN} == arm-gcc-windows-latest ]]; then
+          curl -L "$TOOLCHAIN_URL" -o toolchain.zip
+          unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}
         else
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.tar.gz
           tar -C ~/cache/${TOOLCHAIN} -xaf toolchain.tar.gz

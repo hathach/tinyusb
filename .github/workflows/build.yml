@@ -139,7 +139,7 @@ jobs:
     with:
       os: ${{ matrix.os }}
       build-system: 'make'
-      toolchain: 'arm-gcc'
+      toolchain: 'arm-gcc-${{ matrix.os }}'
       build-args: '["stm32h7"]'
       one-per-family: true
 
