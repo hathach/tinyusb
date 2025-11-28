@@ -356,16 +356,6 @@ void board_init(void) {
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOM, &GPIO_InitStruct);
-
-  // Enable VBUS sense (B device) via pin PM14
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
-  // Disable VBUS sense (B device)
-  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif // vbus sense
 #endif
 
@@ -387,21 +377,6 @@ void board_init(void) {
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
   HAL_GPIO_Init(GPIOM, &GPIO_InitStruct);
-
-  // Enable VBUS sense (B device) via pin PM9
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
-  // Disable VBUS sense (B device)
-  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-#if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1
-  // B-peripheral session valid override enable
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALEXTOEN;
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
-#else
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_PULLDOWNEN;
-#endif
-
 #endif
 #endif
 
@@ -410,6 +385,58 @@ void board_init(void) {
 #if CFG_TUH_ENABLED
   board_vbus_set(BOARD_TUH_RHPORT, 1);
 #endif
+}
+
+void tusb_pre_init_cb(uint8_t rhport, tusb_role_t role) {
+  if (role == TUSB_ROLE_DEVICE) {
+    if (rhport == 0) {
+    #if OTG_FS_VBUS_SENSE && BOARD_TUD_RHPORT == 0
+      // Enable VBUS sense (B device) via pin PM14
+      USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
+    #else
+      // Disable VBUS sense (B device)
+      USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+      // B-peripheral session valid override enable
+      USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+      USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+    #endif
+    } else if (rhport == 1) {
+    #if OTG_HS_VBUS_SENSE && BOARD_TUD_RHPORT == 1
+      // Enable VBUS sense (B device) via pin PM9
+      USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBDEN;
+    #else
+      // Disable VBUS sense (B device)
+      USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+      // B-peripheral session valid override enable
+      USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALEXTOEN;
+      USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
+
+      // Disable pull-downs
+      USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_PULLDOWNEN;
+    #endif
+    }
+  } else if (role == TUSB_ROLE_HOST) {
+    if (rhport == 0) {
+      // Disable VBUS sense (B device)
+      USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+      // Disable session valid override
+      USB_OTG_FS->GOTGCTL &= ~USB_OTG_GOTGCTL_BVALOEN;
+      USB_OTG_FS->GOTGCTL &= ~USB_OTG_GOTGCTL_BVALOVAL;
+    } else if (rhport == 1) {
+      // Disable VBUS sense (B device)
+      USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+
+      // Disable session valid override
+      USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBVALEXTOEN;
+      USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBVALOVAL;
+
+      // Enable pull-downs
+      USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_PULLDOWNEN;
+    }
+  }
 }
 
 //--------------------------------------------------------------------+
