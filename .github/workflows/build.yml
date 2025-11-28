@@ -15,7 +15,6 @@ on:
       - '.github/workflows/build_util.yml'
       - '.github/workflows/ci_set_matrix.py'
   pull_request:
-    branches: [ master ]
     paths:
       - 'src/**'
       - 'examples/**'

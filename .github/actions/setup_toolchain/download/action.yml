@@ -26,6 +26,7 @@ runs:
         TOOLCHAIN_URL: ${{ inputs.toolchain_url }}
       run: |
         mkdir -p ~/cache/${TOOLCHAIN}
+        FILE_EXT="${TOOLCHAIN_URL##*.}"
 
         if [[ ${TOOLCHAIN} == rx-gcc ]]; then
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.run
@@ -34,13 +35,16 @@ runs:
         elif [[ ${TOOLCHAIN} == arm-iar ]]; then
           wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/cxarm.deb
-        elif [[ ${TOOLCHAIN} == arm-gcc-windows-latest ]]; then
+        elif [[ ${FILE_EXT} == zip ]]; then
           curl -L "$TOOLCHAIN_URL" -o toolchain.zip
           unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}
           ~/cache/${TOOLCHAIN}/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin/arm-none-eabi-gcc.exe --version
-        else
+        elif [[ ${FILE_EXT} == gz ]]; then
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.tar.gz
           tar -C ~/cache/${TOOLCHAIN} -xaf toolchain.tar.gz
+        else
+          echo "Unsupported toolchain file extension: ${FILE_EXT}"
+          exit 1
         fi
       shell: bash
 
@@ -51,17 +55,9 @@ runs:
         if [[ ${TOOLCHAIN} == arm-iar ]]; then
           sudo dpkg -i ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
           sudo apt install -y ~/cache/${TOOLCHAIN}/cxarm.deb
-          echo >> $GITHUB_PATH "/opt/iar/cxarm/arm/bin"
+          TOOLCHAIN_PATH="/opt/iar/cxarm/arm/bin"
         else
-          echo >> $GITHUB_PATH `echo ~/cache/${TOOLCHAIN}/*/bin`
+          TOOLCHAIN_PATH=$(echo ~/cache/${TOOLCHAIN}/*/bin)
         fi
-      shell: bash
-
-    - name: Verify Toolchain
-      env:
-        TOOLCHAIN: ${{ inputs.toolchain }}
-      run: |
-        if [[ ${TOOLCHAIN} == arm-gcc-windows-latest ]]; then
-          arm-none-eabi-gcc -dumpversion
-        fi
+        echo >> $GITHUB_PATH "$TOOLCHAIN_PATH"
       shell: bash
