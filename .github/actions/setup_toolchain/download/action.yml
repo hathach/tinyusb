@@ -37,6 +37,7 @@ runs:
         elif [[ ${TOOLCHAIN} == arm-gcc-windows-latest ]]; then
           curl -L "$TOOLCHAIN_URL" -o toolchain.zip
           unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}
+          ~/cache/${TOOLCHAIN}/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin/arm-none-eabi-gcc.exe --version
         else
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.tar.gz
           tar -C ~/cache/${TOOLCHAIN} -xaf toolchain.tar.gz
@@ -53,5 +54,14 @@ runs:
           echo >> $GITHUB_PATH "/opt/iar/cxarm/arm/bin"
         else
           echo >> $GITHUB_PATH `echo ~/cache/${TOOLCHAIN}/*/bin`
+        fi
+      shell: bash
+
+    - name: Verify Toolchain
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+      run: |
+        if [[ ${TOOLCHAIN} == arm-gcc-windows-latest ]]; then
+          arm-none-eabi-gcc -dumpversion
         fi
       shell: bash
