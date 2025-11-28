@@ -879,7 +879,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       break;
 
     case GRXSTS_PKTSTS_HOST_DATATOGGLE_ERR:
-      TU_ASSERT(0, ); // maybe try to change DToggle
+      // handle in channel interrupt
       break;
 
     case GRXSTS_PKTSTS_HOST_CHANNEL_HALTED:
@@ -1019,8 +1019,11 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
       channel_xfer_in_retry(dwc2, ch_id, hcint);
     }
   } else if (hcint & HCINT_DATATOGGLE_ERR) {
+    channel->hcintmsk &= ~HCINT_DATATOGGLE_ERR;
     xfer->err_count = 0;
-    TU_ASSERT(false);
+    hcsplt.split_compl = 0; // restart with start-split
+    channel->hcsplt = hcsplt.value;
+    channel_disable(dwc2, channel);
   } else {
     // nothing to do
   }
