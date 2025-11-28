@@ -65,7 +65,6 @@ jobs:
           if [ "$TOOLCHAIN" == "esp-idf" ]; then
             docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py ${{ matrix.arg }}
           else
-            arm-none-eabi-gcc --version
             python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
           fi
         shell: bash
