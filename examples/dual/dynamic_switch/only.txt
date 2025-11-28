@@ -1,0 +1,8 @@
+family:espressif
+mcu:STM32C0
+mcu:STM32G0
+mcu:STM32H5
+mcu:STM32F2
+mcu:STM32F4
+mcu:STM32F7
+mcu:STM32H7
