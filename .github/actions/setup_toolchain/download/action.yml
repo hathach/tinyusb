@@ -26,6 +26,7 @@ runs:
         TOOLCHAIN_URL: ${{ inputs.toolchain_url }}
       run: |
         mkdir -p ~/cache/${TOOLCHAIN}
+        FILE_EXT="${TOOLCHAIN_URL##*.}"
 
         if [[ ${TOOLCHAIN} == rx-gcc ]]; then
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.run
@@ -34,9 +35,16 @@ runs:
         elif [[ ${TOOLCHAIN} == arm-iar ]]; then
           wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/cxarm.deb
-        else
+        elif [[ ${FILE_EXT} == zip ]]; then
+          curl -L "$TOOLCHAIN_URL" -o toolchain.zip
+          unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}
+          ~/cache/${TOOLCHAIN}/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin/arm-none-eabi-gcc.exe --version
+        elif [[ ${FILE_EXT} == gz ]]; then
           wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.tar.gz
           tar -C ~/cache/${TOOLCHAIN} -xaf toolchain.tar.gz
+        else
+          echo "Unsupported toolchain file extension: ${FILE_EXT}"
+          exit 1
         fi
       shell: bash
 
@@ -47,8 +55,19 @@ runs:
         if [[ ${TOOLCHAIN} == arm-iar ]]; then
           sudo dpkg -i ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
           sudo apt install -y ~/cache/${TOOLCHAIN}/cxarm.deb
-          echo >> $GITHUB_PATH "/opt/iar/cxarm/arm/bin"
+          TOOLCHAIN_PATH="/opt/iar/cxarm/arm/bin"
         else
-          echo >> $GITHUB_PATH `echo ~/cache/${TOOLCHAIN}/*/bin`
+          # Find the single toolchain bin directory
+          TOOLCHAIN_BIN_DIRS=(~/cache/${TOOLCHAIN}/*/bin)
+          if [[ ${#TOOLCHAIN_BIN_DIRS[@]} -ne 1 ]]; then
+            echo "Error: Expected exactly one toolchain bin directory, found ${#TOOLCHAIN_BIN_DIRS[@]}"
+            exit 1
+          fi
+          TOOLCHAIN_PATH="${TOOLCHAIN_BIN_DIRS[0]}"
         fi
+        # Convert to native path for Windows compatibility
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          TOOLCHAIN_PATH=$(cygpath -w "$TOOLCHAIN_PATH")
+        fi
+        echo "$TOOLCHAIN_PATH" >> $GITHUB_PATH
       shell: bash
