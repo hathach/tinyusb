@@ -150,6 +150,7 @@ void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 
 // New API to replace tuh_init() to init host stack on specific roothub port
+// Must be called in the same task/context as tuh_task() if RTOS is used
 bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Init host stack
@@ -165,6 +166,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tuh_init(uint8_t rhport) {
 }
 
 // Deinit host stack on rhport
+// Must be called in the same task/context as tuh_task() if RTOS is used
 bool tuh_deinit(uint8_t rhport);
 
 // Check if host stack is already initialized with any roothub ports
