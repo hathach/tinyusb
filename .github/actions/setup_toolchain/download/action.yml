@@ -57,7 +57,17 @@ runs:
           sudo apt install -y ~/cache/${TOOLCHAIN}/cxarm.deb
           TOOLCHAIN_PATH="/opt/iar/cxarm/arm/bin"
         else
-          TOOLCHAIN_PATH=$(echo ~/cache/${TOOLCHAIN}/*/bin)
+          # Find the single toolchain bin directory
+          TOOLCHAIN_BIN_DIRS=(~/cache/${TOOLCHAIN}/*/bin)
+          if [[ ${#TOOLCHAIN_BIN_DIRS[@]} -ne 1 ]]; then
+            echo "Error: Expected exactly one toolchain bin directory, found ${#TOOLCHAIN_BIN_DIRS[@]}"
+            exit 1
+          fi
+          TOOLCHAIN_PATH="${TOOLCHAIN_BIN_DIRS[0]}"
         fi
-        echo >> $GITHUB_PATH "$TOOLCHAIN_PATH"
+        # Convert to native path for Windows compatibility
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          TOOLCHAIN_PATH=$(cygpath -w "$TOOLCHAIN_PATH")
+        fi
+        echo "$TOOLCHAIN_PATH" >> $GITHUB_PATH
       shell: bash
