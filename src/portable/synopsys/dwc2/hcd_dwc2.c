@@ -445,6 +445,16 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
+bool hcd_deinit(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Disable global interrupt
+  dwc2->gahbcfg &= ~GAHBCFG_GINT;
+
+  dwc2_core_deinit(rhport);
+  return true;
+}
+
 // Enable USB interrupt
 void hcd_int_enable (uint8_t rhport) {
   dwc2_int_set(rhport, TUSB_ROLE_HOST, true);
