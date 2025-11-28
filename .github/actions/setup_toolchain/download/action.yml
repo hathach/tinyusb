@@ -59,5 +59,9 @@ runs:
         else
           TOOLCHAIN_PATH=$(echo ~/cache/${TOOLCHAIN}/*/bin)
         fi
-        echo >> $GITHUB_PATH "$TOOLCHAIN_PATH"
+        # Convert to native path for Windows compatibility
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          TOOLCHAIN_PATH=$(cygpath -w "$TOOLCHAIN_PATH")
+        fi
+        echo "$TOOLCHAIN_PATH" >> $GITHUB_PATH
       shell: bash
