@@ -37,11 +37,6 @@
 
 // Reset the USB Core
 void fsdev_core_reset(void) {
-  // Follow the RM mentions to use a special ordering of PDWN and FRES
-  for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
-    asm("NOP");
-  }
-
   // Perform USB peripheral reset
   FSDEV_REG->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us

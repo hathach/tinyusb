@@ -59,6 +59,20 @@
 
 TU_VERIFY_STATIC(CFG_TUH_FSDEV_ENDPOINT_MAX <= 255, "currently only use 8-bit for index");
 
+#if CFG_TUSB_MCU == OPT_MCU_STM32H5
+  #define CPU_FREQUENCY_MHZ 250U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
+  #define CPU_FREQUENCY_MHZ 160U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32U3
+  #define CPU_FREQUENCY_MHZ 96U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
+  #define CPU_FREQUENCY_MHZ 64U
+#elif CFG_TUSB_MCU == OPT_MCU_STM32C0
+  #define CPU_FREQUENCY_MHZ 48U
+#else
+  #error "CPU_FREQUENCY_MHZ not defined for this STM32 MCU"
+#endif
+
 enum {
   HCD_XFER_ERROR_MAX = 3,
   HCD_XFER_NAK_MAX = 15,
@@ -122,6 +136,7 @@ static uint8_t channel_alloc(uint8_t dev_addr, uint8_t ep_addr, uint8_t ep_type)
 static bool edpt_xfer_kickoff(uint8_t ep_id);
 static bool channel_xfer_start(uint8_t ch_id, tusb_dir_t dir);
 static void edpoint_close(uint8_t ep_id);
+static void port_status_handler(uint8_t rhport, bool in_isr);
 static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir);
 static void ch_handle_nak(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir);
 static void ch_handle_stall(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir);
@@ -166,30 +181,16 @@ static inline uint16_t channel_get_rx_count(uint8_t ch_id) {
   * We choose the delay count based on max CPU frequency (in MHz) to ensure the delay is at least the required time.
   */
 
-#if CFG_TUSB_MCU == OPT_MCU_STM32H5
-  #define FREQUENCY_MHZ 250U
-#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
-  #define FREQUENCY_MHZ 160U
-#elif CFG_TUSB_MCU == OPT_MCU_STM32U3
-  #define FREQUENCY_MHZ 96U
-#elif CFG_TUSB_MCU == OPT_MCU_STM32G0
-  #define FREQUENCY_MHZ 64U
-#elif CFG_TUSB_MCU == OPT_MCU_STM32C0
-  #define FREQUENCY_MHZ 48U
-#else
-  #error "FREQUENCY_MHZ not defined for this STM32 MCU"
-#endif
-
   uint32_t ch_reg = ch_read(ch_id);
   if (FSDEV_REG->ISTR & USB_ISTR_LS_DCONN || ch_reg & USB_CHEP_LSEP) {
     // Low speed mode: 6.4 us delay -> about 2 cycles per MHz
-    volatile uint32_t cycle_count = FREQUENCY_MHZ * 2U;
+    volatile uint32_t cycle_count = CPU_FREQUENCY_MHZ * 2U;
     while (cycle_count > 0U) {
       cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
     }
   } else {
     // Full speed mode: 800 ns delay -> about 0.25 cycles per MHz
-    volatile uint32_t cycle_count = FREQUENCY_MHZ / 4U;
+    volatile uint32_t cycle_count = CPU_FREQUENCY_MHZ / 4U;
     while (cycle_count > 0U) {
       cycle_count--; // each count take 3 cycles (1 for sub, jump, and compare)
     }
@@ -231,11 +232,23 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   fsdev_connect(rhport);
 
+  // If DCON_STAT is already set, the controller sometimes misses the initial connection interrupt
+  if (FSDEV_REG->ISTR & USB_ISTR_DCON_STAT) {
+    // Wait DP/DM stabilize time
+    volatile uint32_t cycle_count = CPU_FREQUENCY_MHZ / 4U;
+    while (cycle_count > 0U) {
+      cycle_count--;
+    }
+    port_status_handler(rhport, false);
+  }
+
   return true;
 }
 
 bool hcd_deinit(uint8_t rhport) {
   (void)rhport;
+
+  fsdev_disconnect(rhport);
 
   fsdev_deinit();
 
@@ -259,7 +272,7 @@ static inline void sof_handler(void) {
   }
 }
 
-static inline void port_status_handler(uint8_t rhport, bool in_isr) {
+static void port_status_handler(uint8_t rhport, bool in_isr) {
   uint32_t const fnr_reg = FSDEV_REG->FNR;
   uint32_t const istr_reg = FSDEV_REG->ISTR;
   // SE0 detected USB Disconnected state
