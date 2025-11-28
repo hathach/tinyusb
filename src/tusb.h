@@ -165,6 +165,12 @@ void tusb_int_handler(uint8_t rhport, bool in_isr);
 // Deinit usb stack on roothub port
 bool tusb_deinit(uint8_t rhport);
 
+// Invoked before tusb_init() to allow MCU specific pre-initialization
+void tusb_pre_init_cb(uint8_t rhport, tusb_role_t role);
+
+// Invoked after tusb_deinit() to allow MCU specific post-de-initialization
+void tusb_post_deinit_cb(uint8_t rhport, tusb_role_t role);
+
 #else
 
 #define tusb_init(...)  (false)
