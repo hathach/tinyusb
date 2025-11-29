@@ -435,7 +435,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2->hprt = HPRT_POWER; // turn on VBUS
 
   // Enable required interrupts
-  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_CONIDSTSCHNG | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
+  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
 
   // NPTX can hold at least 2 packet, change interrupt level to half-empty
   uint32_t gahbcfg = dwc2->gahbcfg & ~GAHBCFG_TX_FIFO_EPMTY_LVL;
@@ -1447,16 +1447,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   const uint32_t gintsts = dwc2->gintsts & gintmsk;
 
   // TU_LOG1_HEX(gintsts);
-
-  if (gintsts & GINTSTS_CONIDSTSCHNG) {
-    // Connector ID status change
-    dwc2->gintsts = GINTSTS_CONIDSTSCHNG;
-
-    //if (dwc2->gotgctl)
-    // dwc2->hprt = HPRT_POWER; // power on port to turn on VBUS
-    //dwc2->gintmsk |= GINTMSK_PRTIM;
-    // TODO wait for SRP if OTG
-  }
 
   if (gintsts & GINTSTS_SOF) {
     const bool more_sof = handle_sof_irq(rhport, in_isr);
