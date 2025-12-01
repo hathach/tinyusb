@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import subprocess
+import shlex
 from pathlib import Path
 from multiprocessing import Pool
 
@@ -29,9 +30,12 @@ parallel_jobs = os.cpu_count()
 # Helper
 # -----------------------------
 def run_cmd(cmd):
-    #print(cmd)
-    r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    title = f'Command Error: {cmd}'
+    if isinstance(cmd, str):
+        raise TypeError("run_cmd expects a list/tuple of args, not a string")
+    args = cmd
+    cmd_display = " ".join(args)
+    r = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    title = f'Command Error: {cmd_display}'
     if r.returncode != 0:
         # print build output if failed
         if os.getenv('GITHUB_ACTIONS'):
@@ -42,7 +46,7 @@ def run_cmd(cmd):
             print(title)
             print(r.stdout.decode("utf-8"))
     elif verbose:
-        print(cmd)
+        print(cmd_display)
         print(r.stdout.decode("utf-8"))
     return r
 
@@ -87,10 +91,10 @@ def cmake_board(board, build_args, build_flags_on):
     start_time = time.monotonic()
 
     build_dir = f'cmake-build/cmake-build-{board}'
-    build_flags = ''
+    build_flags = []
     if len(build_flags_on) > 0:
-        build_flags =  ' '.join(f'-D{flag}=1' for flag in build_flags_on)
-        build_flags = f'-DCFLAGS_CLI="{build_flags}"'
+        cli_flags = ' '.join(f'-D{flag}=1' for flag in build_flags_on)
+        build_flags.append(f'-DCFLAGS_CLI={cli_flags}')
         build_dir += '-f1_' + '_'.join(build_flags_on)
 
     family = find_family(board)
@@ -101,25 +105,22 @@ def cmake_board(board, build_args, build_flags_on):
             if build_utils.skip_example(example, board):
                 ret[2] += 1
             else:
-                rcmd = run_cmd(f'idf.py -C examples/{example} -B {build_dir}/{example} -G Ninja '
-                               f'-DBOARD={board} {build_flags} build')
+                rcmd = run_cmd([
+                    'idf.py', '-C', f'examples/{example}', '-B', f'{build_dir}/{example}', '-GNinja',
+                    f'-DBOARD={board}', *build_flags, 'build'
+                ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
     else:
-        rcmd = run_cmd(f'cmake examples -B {build_dir} -G Ninja -DBOARD={board} -DCMAKE_BUILD_TYPE=MinSizeRel '
-                       f'{build_args} {build_flags}')
+        rcmd = run_cmd([
+            'cmake', 'examples', '-B', build_dir, '-GNinja',
+            f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
+            '-DLINKERMAP_OPTION=-q -f tinyusb/src', *build_args, *build_flags
+        ])
         if rcmd.returncode == 0:
-            cmd = f"cmake --build {build_dir}"
-            njobs = parallel_jobs
-
-            # circleci docker return $nproc as 36 core, limit parallel according to resource class.
-            # Required for IAR, also prevent crashed/killed by docker
-            if os.getenv('CIRCLECI'):
-                resource_class = { 'small': 1, 'medium': 2, 'medium+': 3, 'large': 4 }
-                for rc in resource_class:
-                    if rc in os.getenv('CIRCLE_JOB'):
-                        njobs = resource_class[rc]
-                        break
-            cmd += f' --parallel {njobs}'
+            cmd = [
+                "cmake", "--build", build_dir,
+                '--parallel', str(parallel_jobs)
+            ]
             rcmd = run_cmd(cmd)
         ret[0 if rcmd.returncode == 0 else 1] += 1
 
@@ -141,9 +142,12 @@ def make_one_example(example, board, make_option):
         # skip -j for circleci
         if not os.getenv('CIRCLECI'):
             make_option += ' -j'
-        make_cmd = f"make -C examples/{example} BOARD={board} {make_option}"
-        # run_cmd(f"{make_cmd} clean")
-        build_result = run_cmd(f"{make_cmd} all")
+        make_args = ["make", "-C", f"examples/{example}", f"BOARD={board}"]
+        if make_option:
+            make_args += shlex.split(make_option)
+        make_args.append("all")
+        # run_cmd(make_args + ["clean"])
+        build_result = run_cmd(make_args)
         r = 0 if build_result.returncode == 0 else 1
         print_build_result(board, example, r, time.monotonic() - start_time)
 
@@ -180,7 +184,7 @@ def build_boards_list(boards, build_defines, build_system, build_flags_on):
     for b in boards:
         r = [0, 0, 0]
         if build_system == 'cmake':
-            build_args = ' '.join(f'-D{d}' for d in build_defines)
+            build_args = [f'-D{d}' for d in build_defines]
             r = cmake_board(b, build_args, build_flags_on)
         elif build_system == 'make':
             build_args = ' '.join(f'{d}' for d in build_defines)

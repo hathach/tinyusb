@@ -226,14 +226,26 @@ endfunction()
 
 # Add linkermap target (https://github.com/hathach/linkermap)
 function(family_add_linkermap TARGET)
-  set(LINKERMAP_OPTION "")
-  if (ARGC GREATER 1)
-    set(LINKERMAP_OPTION "${ARGV1}")
+  set(LINKERMAP_OPTION_LIST)
+  if (DEFINED LINKERMAP_OPTION)
+    separate_arguments(LINKERMAP_OPTION_LIST UNIX_COMMAND ${LINKERMAP_OPTION})
   endif ()
+
+  if (ARGC GREATER 1)
+    separate_arguments(ARG_OPTION_LIST UNIX_COMMAND ${ARGV1})
+    list(APPEND LINKERMAP_OPTION_LIST ${ARG_OPTION_LIST})
+  endif ()
+
+  # target
   add_custom_target(${TARGET}-linkermap
-    COMMAND python ${LINKERMAP_PY} -j -m ${LINKERMAP_OPTION} $<TARGET_FILE:${TARGET}>.map
+    COMMAND python ${LINKERMAP_PY} -j -m ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM
     )
+
+  # post build
+  add_custom_command(TARGET ${TARGET} POST_BUILD
+    COMMAND python ${LINKERMAP_PY} -j -m ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
+    VERBATIM)
 endfunction()
 
 #-------------------------------------------------------------
@@ -345,6 +357,7 @@ function(family_configure_common TARGET RTOS)
     endif ()
   endif ()
 
+  # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
   family_add_linkermap(${TARGET})
 
   # run size after build
