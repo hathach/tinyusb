@@ -9,6 +9,7 @@ set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
 get_filename_component(TOP ${TOP} ABSOLUTE)
 
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
+set(LINKERMAP_PY ${TOP}/tools/linkermap/linkermap.py)
 
 function(family_resolve_board BOARD_NAME BOARD_PATH_OUT)
   if ("${BOARD_NAME}" STREQUAL "")
@@ -223,6 +224,18 @@ function(family_initialize_project PROJECT DIR)
   endif()
 endfunction()
 
+# Add linkermap target (https://github.com/hathach/linkermap)
+function(family_add_linkermap TARGET)
+  set(LINKERMAP_OPTION "")
+  if (ARGC GREATER 1)
+    set(LINKERMAP_OPTION "${ARGV1}")
+  endif ()
+  add_custom_target(${TARGET}-linkermap
+    COMMAND python ${LINKERMAP_PY} -j -m ${LINKERMAP_OPTION} $<TARGET_FILE:${TARGET}>.map
+    VERBATIM
+    )
+endfunction()
+
 #-------------------------------------------------------------
 # Common Target Configure
 # Most families use these settings except rp2040 and espressif
@@ -331,6 +344,8 @@ function(family_configure_common TARGET RTOS)
         )
     endif ()
   endif ()
+
+  family_add_linkermap(${TARGET})
 
   # run size after build
 #  find_program(SIZE_EXE ${CMAKE_SIZE})
