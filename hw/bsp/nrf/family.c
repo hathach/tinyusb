@@ -100,7 +100,9 @@ static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(120);
 #define OUTPUTRDY_Msk POWER_USBREGSTATUS_OUTPUTRDY_Msk
 #endif
 
+#if CFG_TUSB_OS != OPT_OS_ZEPHYR
 static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
+#endif
 
 void USBD_IRQHandler(void) {
   tud_int_handler(0);
@@ -163,6 +165,7 @@ void board_init(void) {
   irq_enable(DT_INST_IRQN(0));
 #endif
 
+#if CFG_TUSB_OS != OPT_OS_ZEPHYR
   // UART
   nrfx_uarte_config_t uart_cfg = {
       .txd_pin   = UART_TX_PIN,
@@ -179,6 +182,7 @@ void board_init(void) {
   };
 
   nrfx_uarte_init(&_uart_id, &uart_cfg, NULL);
+#endif
 
   //------------- USB -------------//
 #if CFG_TUD_ENABLED
@@ -276,8 +280,13 @@ int board_uart_read(uint8_t* buf, int len) {
 }
 
 int board_uart_write(void const* buf, int len) {
+#if CFG_TUSB_OS == OPT_OS_ZEPHYR
+  (void) buf;
+  return len;
+#else
   nrfx_err_t err = nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len ,0);
   return (NRFX_SUCCESS == err) ? len : 0;
+#endif
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

@@ -156,9 +156,9 @@ typedef enum {
 //--------------------------------------------------------------------+
 // Setup API
 //--------------------------------------------------------------------+
+bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_size, bool overwritable);
 bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable);
 bool tu_fifo_clear(tu_fifo_t *f);
-bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable);
 
 #if OSAL_MUTEX_REQUIRED
 TU_ATTR_ALWAYS_INLINE static inline
@@ -169,6 +169,22 @@ void tu_fifo_config_mutex(tu_fifo_t *f, osal_mutex_t wr_mutex, osal_mutex_t rd_m
 #else
 #define tu_fifo_config_mutex(_f, _wr_mutex, _rd_mutex)
 #endif
+
+//--------------------------------------------------------------------+
+// Index API
+//--------------------------------------------------------------------+
+void tu_fifo_correct_read_pointer(tu_fifo_t *f);
+
+// Pointer modifications intended to be used in combinations with DMAs.
+// USE WITH CARE - NO SAFETY CHECKS CONDUCTED HERE! NOT MUTEX PROTECTED!
+void tu_fifo_advance_write_pointer(tu_fifo_t *f, uint16_t n);
+void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n);
+
+// If you want to read/write from/to the FIFO by use of a DMA, you may need to conduct two copies
+// to handle a possible wrapping part. These functions deliver a pointer to start
+// reading/writing from/to and a valid linear length along which no wrap occurs.
+void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
+void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 
 //--------------------------------------------------------------------+
 // Peek API
@@ -189,6 +205,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *
   return tu_fifo_read_n_access_mode(f, buffer, n, TU_FIFO_INC_ADDR_RW8);
 }
 
+// discard first n items from fifo i.e advance read pointer by n with mutex
+// return number of discarded items
+uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n);
+
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
@@ -197,22 +217,6 @@ bool     tu_fifo_write(tu_fifo_t *f, const void *data);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
   return tu_fifo_write_n_access_mode(f, data, n, TU_FIFO_INC_ADDR_RW8);
 }
-
-//--------------------------------------------------------------------+
-// Index API
-//--------------------------------------------------------------------+
-void tu_fifo_correct_read_pointer(tu_fifo_t *f);
-
-// Pointer modifications intended to be used in combinations with DMAs.
-// USE WITH CARE - NO SAFETY CHECKS CONDUCTED HERE! NOT MUTEX PROTECTED!
-void tu_fifo_advance_write_pointer(tu_fifo_t *f, uint16_t n);
-void tu_fifo_advance_read_pointer(tu_fifo_t *f, uint16_t n);
-
-// If you want to read/write from/to the FIFO by use of a DMA, you may need to conduct two copies
-// to handle a possible wrapping part. These functions deliver a pointer to start
-// reading/writing from/to and a valid linear length along which no wrap occurs.
-void tu_fifo_get_read_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
-void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 
 //--------------------------------------------------------------------+
 // Internal Helper Local

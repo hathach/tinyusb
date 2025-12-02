@@ -27,87 +27,133 @@
 #ifndef TUSB_VENDOR_DEVICE_H_
 #define TUSB_VENDOR_DEVICE_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "common/tusb_common.h"
 
+//--------------------------------------------------------------------+
+// Configuration
+//--------------------------------------------------------------------+
 #ifndef CFG_TUD_VENDOR_EPSIZE
-#define CFG_TUD_VENDOR_EPSIZE     64
+  #define CFG_TUD_VENDOR_EPSIZE 64
 #endif
 
 // RX FIFO can be disabled by setting this value to 0
 #ifndef CFG_TUD_VENDOR_RX_BUFSIZE
-#define CFG_TUD_VENDOR_RX_BUFSIZE    64
+  #define CFG_TUD_VENDOR_RX_BUFSIZE 64
 #endif
 
 // TX FIFO can be disabled by setting this value to 0
 #ifndef CFG_TUD_VENDOR_TX_BUFSIZE
-#define CFG_TUD_VENDOR_TX_BUFSIZE    64
+  #define CFG_TUD_VENDOR_TX_BUFSIZE 64
 #endif
 
-#ifdef __cplusplus
- extern "C" {
+// Application will manually schedule RX transfer. This can be useful when using with non-fifo (buffered) mode
+// i.e. CFG_TUD_VENDOR_RX_BUFSIZE = 0
+#ifndef CFG_TUD_VENDOR_RX_MANUAL_XFER
+  #define CFG_TUD_VENDOR_RX_MANUAL_XFER 0
 #endif
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces) i.e CFG_TUD_VENDOR > 1
 //--------------------------------------------------------------------+
-bool     tud_vendor_n_mounted         (uint8_t itf);
-uint32_t tud_vendor_n_available       (uint8_t itf);
-uint32_t tud_vendor_n_read            (uint8_t itf, void* buffer, uint32_t bufsize);
-bool     tud_vendor_n_peek            (uint8_t itf, uint8_t* ui8);
-void     tud_vendor_n_read_flush      (uint8_t itf);
 
-uint32_t tud_vendor_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
-uint32_t tud_vendor_n_write_flush     (uint8_t itf);
-uint32_t tud_vendor_n_write_available (uint8_t itf);
+// Return whether the vendor interface is mounted
+bool tud_vendor_n_mounted(uint8_t idx);
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_n_write_str (uint8_t itf, char const* str);
+#if CFG_TUD_VENDOR_RX_BUFSIZE > 0
+// Return number of available bytes for reading
+uint32_t tud_vendor_n_available(uint8_t idx);
+
+// Peek a byte from RX buffer
+bool tud_vendor_n_peek(uint8_t idx, uint8_t *ui8);
+
+// Read from RX FIFO
+uint32_t tud_vendor_n_read(uint8_t idx, void *buffer, uint32_t bufsize);
+
+// Discard count bytes in RX FIFO
+uint32_t tud_vendor_n_read_discard(uint8_t idx, uint32_t count);
+
+// Flush (clear) RX FIFO
+void tud_vendor_n_read_flush(uint8_t idx);
+#endif
+
+#if CFG_TUD_VENDOR_RX_MANUAL_XFER
+// Start a new RX transfer to fill the RX FIFO, return false if previous transfer is still ongoing
+bool tud_vendor_n_read_xfer(uint8_t idx);
+#endif
+
+// Write to TX FIFO. This can be buffered and not sent immediately unless buffered bytes >= USB endpoint size
+uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize);
+
+#if CFG_TUD_VENDOR_TX_BUFSIZE > 0
+// Force sending buffered data, return number of bytes sent
+uint32_t tud_vendor_n_write_flush(uint8_t idx);
+
+// Return number of bytes available for writing in TX FIFO
+uint32_t tud_vendor_n_write_available(uint8_t idx);
+#endif
+
+// Write a null-terminated string to TX FIFO
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_n_write_str(uint8_t idx, const char *str) {
+  return tud_vendor_n_write(idx, str, strlen(str));
+}
 
 // backward compatible
-#define tud_vendor_n_flush(itf) tud_vendor_n_write_flush(itf)
+#define tud_vendor_n_flush(idx) tud_vendor_n_write_flush(idx)
 
 //--------------------------------------------------------------------+
 // Application API (Single Port) i.e CFG_TUD_VENDOR = 1
 //--------------------------------------------------------------------+
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_n_write_str(uint8_t itf, char const* str) {
- return tud_vendor_n_write(itf, str, strlen(str));
-}
-
 TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_mounted(void) {
- return tud_vendor_n_mounted(0);
+  return tud_vendor_n_mounted(0);
 }
 
+#if CFG_TUD_VENDOR_RX_BUFSIZE > 0
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_available(void) {
- return tud_vendor_n_available(0);
+  return tud_vendor_n_available(0);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_read(void* buffer, uint32_t bufsize) {
- return tud_vendor_n_read(0, buffer, bufsize);
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_peek(uint8_t *ui8) {
+  return tud_vendor_n_peek(0, ui8);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_peek(uint8_t* ui8) {
- return tud_vendor_n_peek(0, ui8);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_read(void *buffer, uint32_t bufsize) {
+  return tud_vendor_n_read(0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_read_discard(uint32_t count) {
+  return tud_vendor_n_read_discard(0, count);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void tud_vendor_read_flush(void) {
- tud_vendor_n_read_flush(0);
+  tud_vendor_n_read_flush(0);
+}
+#endif
+
+#if CFG_TUD_VENDOR_RX_MANUAL_XFER
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_read_xfer(void) {
+  return tud_vendor_n_read_xfer(0);
+}
+#endif
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write(const void *buffer, uint32_t bufsize) {
+  return tud_vendor_n_write(0, buffer, bufsize);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write(void const* buffer, uint32_t bufsize) {
- return tud_vendor_n_write(0, buffer, bufsize);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_str(char const* str) {
- return tud_vendor_n_write_str(0, str);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_flush(void) {
- return tud_vendor_n_write_flush(0);
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_str(const char *str) {
+  return tud_vendor_n_write_str(0, str);
 }
 
 #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
+TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_flush(void) {
+  return tud_vendor_n_write_flush(0);
+}
+
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
- return tud_vendor_n_write_available(0);
+  return tud_vendor_n_write_available(0);
 }
 #endif
 
@@ -118,15 +164,13 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
-// Invoked when received new data
-void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
-// Invoked when last rx transfer finished
-void tud_vendor_tx_cb(uint8_t itf, uint32_t sent_bytes);
+// Invoked when received new data.
+// - CFG_TUD_VENDOR_RX_BUFSIZE > 0; buffer and bufsize must not be used (both NULL,0) since data is in RX FIFO
+// - CFG_TUD_VENDOR_RX_BUFSIZE = 0: Buffer and bufsize are valid
+void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize);
 
-//--------------------------------------------------------------------+
-// Inline Functions
-//--------------------------------------------------------------------+
-
+// Invoked when tx transfer is finished
+void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
@@ -134,11 +178,11 @@ void tud_vendor_tx_cb(uint8_t itf, uint32_t sent_bytes);
 void     vendord_init(void);
 bool     vendord_deinit(void);
 void     vendord_reset(uint8_t rhport);
-uint16_t vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *idx_desc, uint16_t max_len);
 bool     vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif /* TUSB_VENDOR_DEVICE_H_ */
