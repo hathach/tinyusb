@@ -129,6 +129,11 @@ void board_init(void) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer (SystemCoreClock may not be correct after init)
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority((IRQn_Type) ID_USBHS, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
   // Enable USB clock

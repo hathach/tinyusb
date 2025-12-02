@@ -101,7 +101,7 @@ int main(void) {
 
   while (1) {
     tud_task(); // tinyusb device task
-    cdc_task();
+    tud_cdc_write_flush();
     led_blinking_task();
   }
 }
@@ -116,13 +116,7 @@ static void echo_all(const uint8_t buf[], uint32_t count) {
 
   // echo to cdc
   if (tud_cdc_connected()) {
-    for (uint32_t i = 0; i < count; i++) {
-      tud_cdc_write_char(buf[i]);
-      if (buf[i] == '\r') {
-        tud_cdc_write_char('\n');
-      }
-    }
-    tud_cdc_write_flush();
+    tud_cdc_write(buf, count);
   }
 }
 
@@ -162,7 +156,9 @@ void tud_resume_cb(void) {
 // return false to stall control endpoint (e.g unsupported request)
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request) {
   // nothing to with DATA & ACK stage
-  if (stage != CONTROL_STAGE_SETUP) return true;
+  if (stage != CONTROL_STAGE_SETUP) {
+    return true;
+  }
 
   switch (request->bmRequestType_bit.type) {
     case TUSB_REQ_TYPE_VENDOR:
@@ -215,33 +211,21 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   return false;
 }
 
-void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize) {
-  (void) itf;
+void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize) {
+  (void)idx;
+  (void)buffer;
+  (void)bufsize;
 
-  echo_all(buffer, bufsize);
-
-  // if using RX buffered is enabled, we need to flush the buffer to make room for new data
-  #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
-  tud_vendor_read_flush();
-  #endif
+  while (tud_vendor_available()) {
+    uint8_t        buf[64];
+    const uint32_t count = tud_vendor_read(buf, sizeof(buf));
+    echo_all(buf, count);
+  }
 }
 
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
-void cdc_task(void) {
-  if (tud_cdc_connected()) {
-    // connected and there are data available
-    if (tud_cdc_available()) {
-      uint8_t buf[64];
-
-      uint32_t count = tud_cdc_read(buf, sizeof(buf));
-
-      // echo back to both web serial and cdc
-      echo_all(buf, count);
-    }
-  }
-}
 
 // Invoked when cdc when line state changed e.g connected/disconnected
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
@@ -255,8 +239,13 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
 }
 
 // Invoked when CDC interface received data from host
-void tud_cdc_rx_cb(uint8_t itf) {
-  (void)itf;
+void tud_cdc_rx_cb(uint8_t idx) {
+  (void)idx;
+  while (tud_cdc_available()) {
+    uint8_t        buf[64];
+    const uint32_t count = tud_cdc_read(buf, sizeof(buf));
+    echo_all(buf, count); // echo back to both web serial and cdc
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -267,7 +256,9 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
+  if (board_millis() - start_ms < blink_interval_ms) {
+    return; // not enough time
+  }
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);

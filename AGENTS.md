@@ -18,34 +18,39 @@ information that does not match the info here.
 
 - Install ARM GCC toolchain: `sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi`
 - Fetch core dependencies: `python3 tools/get_deps.py` -- takes <1 second. NEVER CANCEL.
-- For specific board families: `python3 tools/get_deps.py FAMILY_NAME` (e.g., rp2040, stm32f4)
+- For specific board families: `python3 tools/get_deps.py FAMILY_NAME` (e.g., rp2040, stm32f4), or
+  `python3 tools/get_deps.py -b BOARD_NAME`
 - Dependencies are cached in `lib/` and `hw/mcu/` directories
 
 ## Build Examples
 
 Choose ONE of these approaches:
 
-**Option 1: Individual Example with CMake (RECOMMENDED)**
+**Option 1: Individual Example with CMake and Ninja (RECOMMENDED)**
 
 ```bash
 cd examples/device/cdc_msc
 mkdir -p build && cd build
-cmake -DBOARD=raspberry_pi_pico -DCMAKE_BUILD_TYPE=MinSizeRel ..
-cmake --build . -j4
+cmake -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel ..
+cmake --build .
 ```
 
 -- takes 1-2 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
-**CMake with Ninja (Alternative)**
+**Option 2: All Examples for a Board**
+
+different folder than Option 1
 
 ```bash
-cd examples/device/cdc_msc
-mkdir build && cd build
-cmake -G Ninja -DBOARD=raspberry_pi_pico ..
-ninja
+cd examples/
+mkdir -p build && cd build
+cmake -DBOARD=raspberry_pi_pico -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel ..
+cmake --build .
 ```
 
-**Option 2: Individual Example with Make**
+-- takes 15-20 seconds, may have some objcopy failures that are non-critical. NEVER CANCEL. Set timeout to 30+ minutes.
+
+**Option 3: Individual Example with Make**
 
 ```bash
 cd examples/device/cdc_msc
@@ -54,13 +59,6 @@ make BOARD=raspberry_pi_pico all
 
 -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
-**Option 3: All Examples for a Board**
-
-```bash
-python3 tools/build.py -b BOARD_NAME
-```
-
--- takes 15-20 seconds, may have some objcopy failures that are non-critical. NEVER CANCEL. Set timeout to 30+ minutes.
 
 ## Build Options
 
@@ -100,6 +98,17 @@ python3 tools/build.py -b BOARD_NAME
   NEVER CANCEL. Set timeout to 10+ minutes.
 - Run specific test: `cd test/unit-test && ceedling test:test_fifo`
 - Tests use Unity framework with CMock for mocking
+
+## Hardware-in-the-Loop (HIL) Testing
+
+- Run tests on actual hardware, one of following ways:
+    - test a specific board `python test/hil/hil_test.py -b BOARD_NAME -B examples local.json`
+    - test all boards in config `python test/hil/hil_test.py -B examples local.json`
+- In case of error, enabled verbose mode with `-v` flag for detailed logs. Also try to observe script output, and try to
+  modify hil_test.py (temporarily) to add more debug prints to pinpoint the issue.
+- Requires pre-built (all) examples for target boards (see Build Examples section 2)
+
+take 2-5 minutes. NEVER CANCEL. Set timeout to 20+ minutes.
 
 ## Documentation
 
@@ -145,11 +154,8 @@ python3 tools/build.py -b BOARD_NAME
     - Install pre-commit: `pip install pre-commit && pre-commit install`
     - Runs all quality checks, unit tests, spell checking, and formatting
     - Takes 10-15 seconds. NEVER CANCEL. Set timeout to 15+ minutes.
-2. **Build validation**: Build at least one example that exercises your changes
-   ```bash
-   cd examples/device/cdc_msc
-   make BOARD=raspberry_pi_pico all
-   ```
+2. **Build validation**: Build at least one board with all example that exercises your changes, see Build Examples
+   section (option 2)
 3. Run unit tests relevant to touched modules; add fuzz/HIL coverage when modifying parsers or protocol state machines.
 
 ### Manual Testing Scenarios

@@ -154,6 +154,9 @@ void board_init(void) {
   SystemCoreClock = CONF_CPU_FREQUENCY;
 #if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
 #endif
 
   // Led init

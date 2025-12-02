@@ -213,13 +213,13 @@ static void pipe_write_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void
   tu_fifo_buffer_info_t info;
   tu_fifo_get_read_info(f, &info);
 
-  uint16_t count = tu_min16(total_len, info.len_lin);
-  pipe_write_packet(rusb, info.ptr_lin, fifo, count);
+  uint16_t count = tu_min16(total_len, info.linear.len);
+  pipe_write_packet(rusb, info.linear.ptr, fifo, count);
 
   uint16_t rem = total_len - count;
   if (rem) {
-    rem = tu_min16(rem, info.len_wrap);
-    pipe_write_packet(rusb, info.ptr_wrap, fifo, rem);
+    rem = tu_min16(rem, info.wrapped.len);
+    pipe_write_packet(rusb, info.wrapped.ptr, fifo, rem);
     count += rem;
   }
 
@@ -231,13 +231,13 @@ static void pipe_read_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void 
   tu_fifo_buffer_info_t info;
   tu_fifo_get_write_info(f, &info);
 
-  uint16_t count = tu_min16(total_len, info.len_lin);
-  pipe_read_packet(rusb, info.ptr_lin, fifo, count);
+  uint16_t count = tu_min16(total_len, info.linear.len);
+  pipe_read_packet(rusb, info.linear.ptr, fifo, count);
 
   uint16_t rem = total_len - count;
   if (rem) {
-    rem = tu_min16(rem, info.len_wrap);
-    pipe_read_packet(rusb, info.ptr_wrap, fifo, rem);
+    rem = tu_min16(rem, info.wrapped.len);
+    pipe_read_packet(rusb, info.wrapped.ptr, fifo, rem);
     count += rem;
   }
 

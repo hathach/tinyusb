@@ -5,7 +5,7 @@ Changelog
 0.20.0
 ======
 
-*November 19, 2024*
+*November 19, 2025*
 
 General
 -------

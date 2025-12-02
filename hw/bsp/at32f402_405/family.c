@@ -75,16 +75,17 @@ void board_init(void)
   /* vbus ignore */
   board_vbus_sense_init();
 
-  /* configure systick */
-  SysTick_Config(system_core_clock / 1000);
-
-  #if CFG_TUSB_OS == OPT_OS_FREERTOS
+  #if CFG_TUSB_OS == OPT_OS_NONE
+    /* configure systick */
+    SysTick_Config(system_core_clock / 1000);
+    NVIC_SetPriority(OTGHS_IRQn, 0);
+    NVIC_SetPriority(OTGFS1_IRQn, 0);
+  #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+    // Explicitly disable systick to prevent its ISR from running before scheduler start
+    SysTick->CTRL &= ~1U;
     // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
     NVIC_SetPriority(OTGHS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
     NVIC_SetPriority(OTGFS1_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-  #else
-    NVIC_SetPriority(OTGHS_IRQn, 0);
-    NVIC_SetPriority(OTGFS1_IRQn, 0);
   #endif
 
   /* config led and key */

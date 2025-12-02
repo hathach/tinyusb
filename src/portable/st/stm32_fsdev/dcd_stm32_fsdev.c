@@ -293,7 +293,11 @@ static void handle_ctr_tx(uint32_t ep_id) {
       return;
     }
     xfer->iso_in_sending = false;
+#if FSDEV_USE_SBUF_ISO == 0
     uint8_t buf_id = (ep_reg & USB_EP_DTOG_TX) ? 0 : 1;
+#else
+    uint8_t buf_id = BTABLE_BUF_TX;
+#endif
     btable_set_count(ep_id, buf_id, 0);
   }
 
@@ -774,7 +778,12 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
 
     uint16_t cnt = tu_min16(xfer->total_len, xfer->max_packet_size);
 
-    if (ep_is_iso(ep_reg)) {
+#if FSDEV_USE_SBUF_ISO == 0
+    bool const dbl_buf = ep_is_iso(ep_reg);
+#else
+    bool const dbl_buf = false;
+#endif
+    if (dbl_buf) {
       btable_set_rx_bufsize(ep_idx, 0, cnt);
       btable_set_rx_bufsize(ep_idx, 1, cnt);
     } else {
@@ -918,15 +927,15 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNB
   tu_fifo_buffer_info_t info;
   tu_fifo_get_read_info(ff, &info);
 
-  uint16_t cnt_lin = tu_min16(wNBytes, info.len_lin);
-  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.len_wrap);
+  uint16_t cnt_lin = tu_min16(wNBytes, info.linear.len);
+  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.wrapped.len);
   uint16_t const cnt_total = cnt_lin + cnt_wrap;
 
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
   // last lin byte will be combined with wrapped part To ensure PMA is always access aligned
   uint16_t lin_even = cnt_lin & ~(FSDEV_BUS_SIZE - 1);
   uint16_t lin_odd = cnt_lin & (FSDEV_BUS_SIZE - 1);
-  uint8_t const *src8 = (uint8_t const*) info.ptr_lin;
+  uint8_t const *src8 = (uint8_t const*) info.linear.ptr;
 
   // write even linear part
   dcd_write_packet_memory(dst, src8, lin_even);
@@ -934,7 +943,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNB
   src8 += lin_even;
 
   if (lin_odd == 0) {
-    src8 = (uint8_t const*) info.ptr_wrap;
+    src8 = (uint8_t const*) info.wrapped.ptr;
   } else {
     // Combine last linear bytes + first wrapped bytes to form fsdev bus width data
     fsdev_bus_t temp = 0;
@@ -943,7 +952,7 @@ static bool dcd_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNB
       temp |= *src8++ << (i * 8);
     }
 
-    src8 = (uint8_t const*) info.ptr_wrap;
+    src8 = (uint8_t const*) info.wrapped.ptr;
     for(; i < FSDEV_BUS_SIZE && cnt_wrap > 0; i++, cnt_wrap--) {
       temp |= *src8++ << (i * 8);
     }
@@ -968,8 +977,8 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBy
   tu_fifo_buffer_info_t info;
   tu_fifo_get_write_info(ff, &info); // We want to read from the FIFO
 
-  uint16_t cnt_lin = tu_min16(wNBytes, info.len_lin);
-  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.len_wrap);
+  uint16_t cnt_lin = tu_min16(wNBytes, info.linear.len);
+  uint16_t cnt_wrap = tu_min16(wNBytes - cnt_lin, info.wrapped.len);
   uint16_t cnt_total = cnt_lin + cnt_wrap;
 
   // We want to read from the FIFO and write it into the PMA, if LIN part is ODD and has WRAPPED part,
@@ -977,7 +986,7 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBy
 
   uint16_t lin_even = cnt_lin & ~(FSDEV_BUS_SIZE - 1);
   uint16_t lin_odd = cnt_lin & (FSDEV_BUS_SIZE - 1);
-  uint8_t *dst8 = (uint8_t *) info.ptr_lin;
+  uint8_t *dst8 = (uint8_t *) info.linear.ptr;
 
   // read even linear part
   dcd_read_packet_memory(dst8, src, lin_even);
@@ -985,7 +994,7 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBy
   src += lin_even;
 
   if (lin_odd == 0) {
-    dst8 = (uint8_t *) info.ptr_wrap;
+    dst8 = (uint8_t *) info.wrapped.ptr;
   } else {
     // Combine last linear bytes + first wrapped bytes to form fsdev bus width data
     fsdev_bus_t temp;
@@ -998,7 +1007,7 @@ static bool dcd_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBy
       temp >>= 8;
     }
 
-    dst8 = (uint8_t *) info.ptr_wrap;
+    dst8 = (uint8_t *) info.wrapped.ptr;
     for (; i < FSDEV_BUS_SIZE && cnt_wrap > 0; i++, cnt_wrap--) {
       *dst8++ = (uint8_t) (temp & 0xfful);
       temp >>= 8;
