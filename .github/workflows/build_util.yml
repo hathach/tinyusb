@@ -69,11 +69,18 @@ jobs:
           fi
         shell: bash
 
+      - name: Upload Artifacts for Metrics
+        if: inputs.build-system == 'cmake'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.arg }}-metrics
+          path: cmake-build/cmake-build-*/metrics.json
+
       - name: Upload Artifacts for Hardware Testing
         if: ${{ inputs.upload-artifacts }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.arg }}
+          name: ${{ matrix.arg }}-binaries
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
             cmake-build/cmake-build-*/*/*/*.bin

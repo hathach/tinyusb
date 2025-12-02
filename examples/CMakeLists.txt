@@ -19,6 +19,7 @@ foreach (example ${EXAMPLES_LIST})
 endforeach ()
 
 # Post-build: run metrics.py on all map.json files
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_custom_target(tinyusb_examples_metrics
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/metrics.py
   -f tinyusb/src -j -o ${CMAKE_BINARY_DIR}/metrics
