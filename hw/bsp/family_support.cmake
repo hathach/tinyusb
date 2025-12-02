@@ -231,12 +231,6 @@ function(family_add_linkermap TARGET)
     separate_arguments(LINKERMAP_OPTION_LIST UNIX_COMMAND ${LINKERMAP_OPTION})
   endif ()
 
-  if (ARGC GREATER 1)
-    separate_arguments(ARG_OPTION_LIST UNIX_COMMAND ${ARGV1})
-    list(APPEND LINKERMAP_OPTION_LIST ${ARG_OPTION_LIST})
-  endif ()
-
-  # target
   add_custom_target(${TARGET}-linkermap
     COMMAND python ${LINKERMAP_PY} -j -m ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM

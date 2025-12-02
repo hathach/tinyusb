@@ -113,8 +113,8 @@ def cmake_board(board, build_args, build_flags_on):
     else:
         rcmd = run_cmd([
             'cmake', 'examples', '-B', build_dir, '-GNinja',
-            f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel',
-            '-DLINKERMAP_OPTION=-q -f tinyusb/src', *build_args, *build_flags
+            f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
+            *build_args, *build_flags
         ])
         if rcmd.returncode == 0:
             cmd = [
