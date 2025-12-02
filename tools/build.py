@@ -6,6 +6,8 @@ import sys
 import time
 import subprocess
 import shlex
+import glob
+import metrics
 from pathlib import Path
 from multiprocessing import Pool
 
@@ -111,18 +113,18 @@ def cmake_board(board, build_args, build_flags_on):
                 ])
                 ret[0 if rcmd.returncode == 0 else 1] += 1
     else:
-        rcmd = run_cmd([
-            'cmake', 'examples', '-B', build_dir, '-GNinja',
-            f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
-            *build_args, *build_flags
-        ])
+        rcmd = run_cmd(['cmake', 'examples', '-B', build_dir, '-GNinja',
+                        f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
+                        *build_args, *build_flags])
         if rcmd.returncode == 0:
-            cmd = [
-                "cmake", "--build", build_dir,
-                '--parallel', str(parallel_jobs)
-            ]
+            cmd = ["cmake", "--build", build_dir, '--parallel', str(parallel_jobs)]
             rcmd = run_cmd(cmd)
-        ret[0 if rcmd.returncode == 0 else 1] += 1
+        if rcmd.returncode == 0:
+            ret[0] += 1
+            rcmd = run_cmd(["cmake", "--build", build_dir, '--target', 'tinyusb_examples_metrics'])
+            # print(rcmd.stdout.decode("utf-8"))
+        else:
+            ret[1] += 1
 
     example = 'all'
     print_build_result(board, example, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
@@ -195,8 +197,18 @@ def build_boards_list(boards, build_defines, build_system, build_flags_on):
     return ret
 
 
-def build_family(family, build_defines, build_system, build_flags_on, one_per_family, boards):
-    skip_ci = ['pico_sdk']
+def get_family_boards(family, one_per_family, boards):
+    """Get list of boards for a family.
+
+    Args:
+        family: Family name
+        one_per_family: If True, return only one random board
+        boards: List of boards already specified via -b flag
+
+    Returns:
+        List of board names
+    """
+    skip_ci = []
     if os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'):
         skip_ci_file = Path(f"hw/bsp/{family}/skip_ci.txt")
         if skip_ci_file.exists():
@@ -207,17 +219,15 @@ def build_family(family, build_defines, build_system, build_flags_on, one_per_fa
             all_boards.append(entry.name)
     all_boards.sort()
 
-    ret = [0, 0, 0]
     # If only-one flag is set, select one random board
     if one_per_family:
         for b in boards:
             # skip if -b already specify one in this family
             if find_family(b) == family:
-                return ret
+                return []
         all_boards = [random.choice(all_boards)]
 
-    ret = build_boards_list(all_boards, build_defines, build_system, build_flags_on)
-    return ret
+    return all_boards
 
 
 # -----------------------------
@@ -258,9 +268,8 @@ def main():
     print(build_separator)
     print(build_format.format('Board', 'Example', '\033[39mResult\033[0m', 'Time'))
     total_time = time.monotonic()
-    result = [0, 0, 0]
 
-    # build families
+    # get all families
     all_families = []
     if 'all' in families:
         for entry in os.scandir("hw/bsp"):
@@ -270,23 +279,19 @@ def main():
         all_families = list(families)
     all_families.sort()
 
-    # succeeded, failed, skipped
+    # get boards from families and append to boards list
+    all_boards = list(boards)
     for f in all_families:
-        r = build_family(f, build_defines, build_system, build_flags_on, one_per_family, boards)
-        result[0] += r[0]
-        result[1] += r[1]
-        result[2] += r[2]
+        all_boards.extend(get_family_boards(f, one_per_family, boards))
 
-    # build boards
-    r = build_boards_list(boards, build_defines, build_system, build_flags_on)
-    result[0] += r[0]
-    result[1] += r[1]
-    result[2] += r[2]
+    # build all boards
+    result = build_boards_list(all_boards, build_defines, build_system, build_flags_on)
 
     total_time = time.monotonic() - total_time
     print(build_separator)
     print(f"Build Summary: {result[0]} {STATUS_OK}, {result[1]} {STATUS_FAILED} and took {total_time:.2f}s")
     print(build_separator)
+
     return result[1]
 
 

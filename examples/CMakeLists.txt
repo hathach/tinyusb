@@ -5,7 +5,24 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../hw/bsp/family_support.cmake)
 
 project(tinyusb_examples C CXX ASM)
 
-add_subdirectory(device)
-add_subdirectory(dual)
-add_subdirectory(host)
-add_subdirectory(typec)
+set(EXAMPLES_LIST
+  device
+  dual
+  host
+  typec
+  )
+set(MAPJSON_PATTERNS "")
+
+foreach (example ${EXAMPLES_LIST})
+  add_subdirectory(${example})
+  list(APPEND MAPJSON_PATTERNS "${CMAKE_BINARY_DIR}/${example}/*/*.map.json")
+endforeach ()
+
+# Post-build: run metrics.py on all map.json files
+add_custom_target(tinyusb_examples_metrics
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/metrics.py
+  -f tinyusb/src -j -o ${CMAKE_BINARY_DIR}/metrics
+  ${MAPJSON_PATTERNS}
+  COMMENT "Generating average code size metrics"
+  VERBATIM
+  )

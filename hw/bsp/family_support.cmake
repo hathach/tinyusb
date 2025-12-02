@@ -232,13 +232,13 @@ function(family_add_linkermap TARGET)
   endif ()
 
   add_custom_target(${TARGET}-linkermap
-    COMMAND python ${LINKERMAP_PY} -j -m ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
+    COMMAND python ${LINKERMAP_PY} -j ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM
     )
 
   # post build
   add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND python ${LINKERMAP_PY} -j -m ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
+    COMMAND python ${LINKERMAP_PY} -j ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM)
 endfunction()
 

@@ -2,12 +2,31 @@
 """Calculate average size from multiple linker map files."""
 
 import argparse
+import glob
 import sys
 import os
 
 # Add linkermap module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'linkermap'))
 import linkermap
+
+
+def expand_files(file_patterns):
+    """Expand file patterns (globs) to list of files.
+
+    Args:
+        file_patterns: List of file paths or glob patterns
+
+    Returns:
+        List of expanded file paths
+    """
+    expanded = []
+    for pattern in file_patterns:
+        if '*' in pattern or '?' in pattern:
+            expanded.extend(glob.glob(pattern))
+        else:
+            expanded.append(pattern)
+    return expanded
 
 
 def combine_maps(map_files, filters=None):
@@ -109,25 +128,37 @@ def compute_avg(all_json_data):
     return json_average
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description='Calculate average size from linker map files')
-    parser.add_argument('files', nargs='+', help='Path to map file(s)')
+    parser.add_argument('files', nargs='+', help='Path to map file(s) or glob pattern(s)')
     parser.add_argument('-f', '--filter', dest='filters', action='append', default=[],
                         help='Only include object files whose path contains this substring (can be repeated)')
     parser.add_argument('-o', '--out', dest='out', default='metrics',
                         help='Output path basename for JSON and Markdown files (default: metrics)')
-    args = parser.parse_args()
+    parser.add_argument('-j', '--json', dest='json_out', action='store_true',
+                        help='Write JSON output file')
+    parser.add_argument('-m', '--markdown', dest='markdown_out', action='store_true',
+                        help='Write Markdown output file')
+    parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
+                        help='Suppress summary output')
+    args = parser.parse_args(argv)
 
-    all_json_data = combine_maps(args.files, args.filters)
+    # Expand glob patterns
+    map_files = expand_files(args.files)
+
+    all_json_data = combine_maps(map_files, args.filters)
     json_average = compute_avg(all_json_data)
 
     if json_average is None:
         print("No valid map files found", file=sys.stderr)
         sys.exit(1)
 
-    linkermap.print_summary(json_average, False)
-    linkermap.write_json(json_average, args.out + '.json')
-    linkermap.write_markdown(json_average, args.out + '.md')
+    if not args.quiet:
+        linkermap.print_summary(json_average, False)
+    if args.json_out:
+        linkermap.write_json(json_average, args.out + '.json')
+    if args.markdown_out:
+        linkermap.write_markdown(json_average, args.out + '.md')
 
 
 if __name__ == '__main__':
