@@ -387,8 +387,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_xfer(uint8_t hwid, tu_edpt_strea
     #endif
   } else {
     #if CFG_TUD_ENABLED
-    return usbd_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count, false);
-    #endif
+    if (s->ep_buf == NULL) {
+      return usbd_edpt_xfer_fifo(hwid, s->ep_addr, &s->ff, count, false);
+    } else {
+      return usbd_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count, false);
+    }
+  #endif
   }
   return false;
 }
@@ -419,12 +423,17 @@ bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint3
 }
 
 uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
-  // skip if no data
-  TU_VERIFY(tu_fifo_count(&s->ff) > 0, 0);
+  const uint16_t ff_count = tu_fifo_count(&s->ff);
+  TU_VERIFY(ff_count > 0, 0); // skip if no data
   TU_VERIFY(stream_claim(hwid, s), 0);
 
   // Pull data from FIFO -> EP buf
-  const uint16_t count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
+  uint16_t count;
+  if (s->ep_buf == NULL) {
+    count = ff_count;
+  } else {
+    count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
+  }
 
   if (count > 0) {
     TU_ASSERT(stream_xfer(hwid, s, count), 0);
@@ -441,11 +450,19 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buf
   TU_VERIFY(bufsize > 0); // TODO support ZLP
 
   if (0 == tu_fifo_depth(&s->ff)) {
-    // no fifo for buffered
+    // non-fifo mode
     TU_VERIFY(stream_claim(hwid, s), 0);
-    const uint32_t xact_len = tu_min32(bufsize, s->ep_bufsize);
-    memcpy(s->ep_buf, buffer, xact_len);
+    uint32_t xact_len;
+    if (s->ep_buf != NULL) {
+      // using ep buf
+      xact_len = tu_min32(bufsize, s->ep_bufsize);
+      memcpy(s->ep_buf, buffer, xact_len);
+    } else {
+      // using hwfifo
+      xact_len = bufsize;
+    }
     TU_ASSERT(stream_xfer(hwid, s, (uint16_t) xact_len), 0);
+
     return xact_len;
   } else {
     const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
@@ -464,6 +481,7 @@ uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s) {
   if (tu_fifo_depth(&s->ff) > 0) {
     return (uint32_t) tu_fifo_remaining(&s->ff);
   } else {
+    // non-fifo mode
     bool is_busy = true;
     if (s->is_host) {
       #if CFG_TUH_ENABLED
@@ -483,7 +501,8 @@ uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s) {
 //--------------------------------------------------------------------+
 uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
   if (0 == tu_fifo_depth(&s->ff)) {
-    // no fifo for buffered
+    // non-fifo mode: RX need ep buffer
+    TU_VERIFY(s->ep_buf != NULL, 0);
     TU_VERIFY(stream_claim(hwid, s), 0);
     TU_ASSERT(stream_xfer(hwid, s, s->ep_bufsize), 0);
     return s->ep_bufsize;
@@ -496,11 +515,8 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
     // and slowly move it to the FIFO when read().
     // This pre-check reduces endpoint claiming
     TU_VERIFY(available >= mps);
-
     TU_VERIFY(stream_claim(hwid, s), 0);
-
-    // get available again since fifo can be changed before endpoint is claimed
-    available = tu_fifo_remaining(&s->ff);
+    available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
     if (available >= mps) {
       // multiple of packet size limit by ep bufsize

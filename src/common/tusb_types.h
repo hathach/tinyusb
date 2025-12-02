@@ -323,6 +323,11 @@ typedef struct {
   tusb_speed_t speed;
 } tusb_rhport_init_t;
 
+typedef struct {
+  uint16_t len;
+  uint8_t *buffer;
+} tusb_buffer_t;
+
 //--------------------------------------------------------------------+
 // USB Descriptors
 //--------------------------------------------------------------------+

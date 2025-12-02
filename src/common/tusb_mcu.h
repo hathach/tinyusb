@@ -24,8 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_MCU_H_
-#define TUSB_MCU_H_
+#pragma once
 
 //--------------------------------------------------------------------+
 // Port/Platform Specific
@@ -524,6 +523,7 @@
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_F1C100S)
   #define TUP_DCD_ENDPOINT_MAX 4
+  #define TUP_DCD_EDPT_CLOSE_API
 
 //--------------------------------------------------------------------+
 // WCH
@@ -696,10 +696,4 @@
 // USBIP implement dcd_edpt_close() and does not support ISO alloc & activate API
 #ifndef TUP_DCD_EDPT_CLOSE_API
   #define TUP_DCD_EDPT_ISO_ALLOC
-#endif
-
-#if defined(TUP_USBIP_DWC2) // && CFG_TUD_DWC2_DMA_ENABLE == 0
-  #define TUP_MEM_CONST_ADDR
-#endif
-
 #endif

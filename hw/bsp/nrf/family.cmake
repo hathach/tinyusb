@@ -127,7 +127,9 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  if (NOT RTOS STREQUAL zephyr)
+  if (RTOS STREQUAL zephyr)
+    target_include_directories(${TARGET} PUBLIC ${ZEPHYR_HAL_NORDIC_MODULE_DIR}/nrfx/bsp/stable/mdk)
+  else ()
     target_sources(${TARGET} PRIVATE ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}})
 
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

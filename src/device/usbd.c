@@ -140,7 +140,7 @@ typedef struct {
 
 }usbd_device_t;
 
-tu_static usbd_device_t _usbd_dev;
+static usbd_device_t    _usbd_dev;
 static volatile uint8_t _usbd_queued_setup;
 
 //--------------------------------------------------------------------+
@@ -153,8 +153,8 @@ static volatile uint8_t _usbd_queued_setup;
 #endif
 
 // Built-in class drivers
-tu_static usbd_class_driver_t const _usbd_driver[] = {
-    #if CFG_TUD_CDC
+static const usbd_class_driver_t _usbd_driver[] = {
+  #if CFG_TUD_CDC
     {
         .name             = DRIVER_NAME("CDC"),
         .init             = cdcd_init,
@@ -340,10 +340,10 @@ tu_static usbd_class_driver_t const _usbd_driver[] = {
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
 
 // Additional class drivers implemented by application
-tu_static usbd_class_driver_t const * _app_driver = NULL;
-tu_static uint8_t _app_driver_count = 0;
+static const usbd_class_driver_t *_app_driver       = NULL;
+static uint8_t                    _app_driver_count = 0;
 
-#define TOTAL_DRIVER_COUNT    ((uint8_t) (_app_driver_count + BUILTIN_DRIVER_COUNT))
+  #define TOTAL_DRIVER_COUNT    ((uint8_t) (_app_driver_count + BUILTIN_DRIVER_COUNT))
 
 // virtually joins built-in and application drivers together.
 // Application is positioned first to allow overwriting built-in ones.
@@ -365,8 +365,10 @@ TU_ATTR_ALWAYS_INLINE static inline usbd_class_driver_t const * get_driver(uint8
 //--------------------------------------------------------------------+
 // DCD Event
 //--------------------------------------------------------------------+
-enum { RHPORT_INVALID = 0xFFu };
-tu_static uint8_t _usbd_rhport = RHPORT_INVALID;
+enum {
+  RHPORT_INVALID = 0xFFu
+};
+static uint8_t _usbd_rhport = RHPORT_INVALID;
 
 static OSAL_SPINLOCK_DEF(_usbd_spin, usbd_int_set);
 
@@ -428,7 +430,7 @@ TU_ATTR_WEAK bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t 
 // Debug
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
-tu_static char const* const _usbd_event_str[DCD_EVENT_COUNT] = {
+static char const *const _usbd_event_str[DCD_EVENT_COUNT] = {
     "Invalid",
     "Bus Reset",
     "Unplugged",
@@ -1472,6 +1474,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 // success message. If total_bytes is too big, the FIFO will copy only what is available
 // into the USB buffer!
 bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes, bool is_isr) {
+  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
   rhport = _usbd_rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -1479,7 +1482,7 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_
 
   TU_LOG_USBD("  Queue ISO EP %02X with %u bytes ... ", ep_addr, total_bytes);
 
-  // Attempt to transfer on a busy endpoint, sound like an race condition !
+  // Attempt to transfer on a busy endpoint, sound like a race condition !
   TU_ASSERT(_usbd_dev.ep_status[epnum][dir].busy == 0);
 
   // Set busy first since the actual transfer can be complete before dcd_edpt_xfer() could return
@@ -1497,6 +1500,14 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_
     TU_BREAKPOINT();
     return false;
   }
+  #else
+  (void)rhport;
+  (void)ep_addr;
+  (void)ff;
+  (void)total_bytes;
+  (void)is_isr;
+  return false;
+  #endif
 }
 
 bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr) {

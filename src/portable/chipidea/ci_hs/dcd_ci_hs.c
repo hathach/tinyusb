@@ -545,19 +545,19 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
     tu_fifo_get_write_info(ff, &fifo_info);
   }
 
-  if ( fifo_info.len_lin >= total_bytes )
+  if ( fifo_info.linear.len >= total_bytes )
   {
     // Linear length is enough for this transfer
-    qtd_init(p_qtd, fifo_info.ptr_lin, total_bytes);
+    qtd_init(p_qtd, fifo_info.linear.ptr, total_bytes);
   }
   else
   {
     // linear part is not enough
 
     // prepare TD up to linear length
-    qtd_init(p_qtd, fifo_info.ptr_lin, fifo_info.len_lin);
+    qtd_init(p_qtd, fifo_info.linear.ptr, fifo_info.linear.len);
 
-    if ( !tu_offset4k((uint32_t) fifo_info.ptr_wrap) && !tu_offset4k(tu_fifo_depth(ff)) )
+    if ( !tu_offset4k((uint32_t) fifo_info.wrapped.ptr) && !tu_offset4k(tu_fifo_depth(ff)) )
     {
       // If buffer is aligned to 4K & buffer size is multiple of 4K
       // We can make use of buffer page array to also combine the linear + wrapped length
@@ -568,7 +568,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
         // pick up buffer array where linear ends
         if (p_qtd->buffer[i] == 0)
         {
-          p_qtd->buffer[i] = (uint32_t) fifo_info.ptr_wrap + 4096 * page;
+          p_qtd->buffer[i] = (uint32_t) fifo_info.wrapped.ptr + 4096 * page;
           page++;
         }
       }

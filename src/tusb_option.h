@@ -24,8 +24,7 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_OPTION_H_
-#define TUSB_OPTION_H_
+#pragma once
 
 #include "common/tusb_compiler.h"
 
@@ -268,15 +267,17 @@
 // USBIP
 //--------------------------------------------------------------------+
 
+//------------- DWC2 -------------//
+// Slave mode for device
 #ifndef CFG_TUD_DWC2_SLAVE_ENABLE
   #ifndef CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
-  #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT 1
+    #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT 1
   #endif
 
   #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
 #endif
 
-// Enable DWC2 DMA for device
+// DMA for device
 #ifndef CFG_TUD_DWC2_DMA_ENABLE
   #ifndef CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
   #define CFG_TUD_DWC2_DMA_ENABLE_DEFAULT 0
@@ -285,33 +286,46 @@
   #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
-// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is insufficient).
-#ifndef CFG_TUD_CI_HS_VBUS_CHARGE
-  #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
-  #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
-  #endif
-
-  #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
-#endif
-
-// Enable DWC2 Slave mode for host
+// Slave mode for host
 #ifndef CFG_TUH_DWC2_SLAVE_ENABLE
   #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
-  #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT 1
+    #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT 1
   #endif
 
   #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
 #endif
 
-// Enable DWC2 DMA for host
+// DMA for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
   #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
-  #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
+    #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
   #endif
 
-  #define CFG_TUH_DWC2_DMA_ENABLE   CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
+  #define CFG_TUH_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
+#if defined(TUP_USBIP_DWC2)
+  #if CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUD_DWC2_DMA_ENABLE
+    #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+  #endif
+
+  #if CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE
+    #define CFG_TUH_EDPT_DEDICATED_HWFIFO 1
+  #endif
+#endif
+
+//------------- ChipIdea -------------//
+// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is
+// insufficient).
+#ifndef CFG_TUD_CI_HS_VBUS_CHARGE
+  #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+    #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
+  #endif
+
+  #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+#endif
+
+//------------- pio-usb -------------//
 // Enable PIO-USB software host controller
 #ifndef CFG_TUH_RPI_PIO_USB
   #define CFG_TUH_RPI_PIO_USB 0
@@ -325,7 +339,6 @@
 #ifndef CFG_TUH_MAX3421
   #define CFG_TUH_MAX3421  0
 #endif
-
 
 //--------------------------------------------------------------------
 // RootHub Mode detection
@@ -573,6 +586,10 @@
   #define CFG_TUD_NCM         0
 #endif
 
+#ifndef CFG_TUD_EDPT_DEDICATED_HWFIFO
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0
+#endif
+
 //--------------------------------------------------------------------
 // Host Options (Default)
 //--------------------------------------------------------------------
@@ -712,6 +729,10 @@
   #define CFG_TUH_API_EDPT_XFER 0
 #endif
 
+#ifndef CFG_TUH_EDPT_DEDICATED_HWFIFO
+  #define CFG_TUH_EDPT_DEDICATED_HWFIFO 0
+#endif
+
 //--------------------------------------------------------------------+
 // TypeC Options (Default)
 //--------------------------------------------------------------------+
@@ -731,7 +752,3 @@
 
 // To avoid GCC compiler warnings when -pedantic option is used (strict ISO C)
 typedef int make_iso_compilers_happy;
-
-#endif /* TUSB_OPTION_H_ */
-
-/** @} */
