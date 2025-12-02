@@ -191,7 +191,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t calc_device_grxfsiz(uint16_t larges
   return 13 + 1 + 2 * ((largest_ep_size / 4) + 1) + 2 * ep_count;
 }
 
-static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
+static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size, bool is_bulk) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   const uint8_t ep_count = dwc2_controller->ep_count;
@@ -217,8 +217,9 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
       _dcd_data.allocated_epin_count++;
     }
 
-    // Enable double buffering if configured
-    if (((_tud_cfg.bm_double_buffered & (1 << epnum)) != 0) && (epnum > 0)) {
+    // Enable double buffering if configured, only effective for non-periodic endpoints
+    // Since we queue only 1 control transfer at a time, it's only applicable for bulk IN endpoints
+    if (((_tud_cfg.bm_double_buffered & (1 << epnum)) != 0) && epnum > 0 && is_bulk) {
       fifo_size *= 2;
     }
 
@@ -253,7 +254,7 @@ static void dfifo_device_init(uint8_t rhport) {
   dwc2->gdfifocfg = ((uint32_t) _dcd_data.dfifo_top << GDFIFOCFG_EPINFOBASE_SHIFT) | _dcd_data.dfifo_top;
 
   // Allocate FIFO for EP0 IN
-  (void) dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE);
+  (void) dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE, false);
 }
 
 
@@ -603,7 +604,8 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
  *------------------------------------------------------------------*/
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
-  TU_ASSERT(dfifo_alloc(rhport, desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt)));
+  TU_ASSERT(dfifo_alloc(rhport, desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt),
+                       desc_edpt->bmAttributes.xfer == TUSB_XFER_BULK));
   edpt_activate(rhport, desc_edpt);
   return true;
 }
@@ -638,7 +640,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
 }
 
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
-  TU_ASSERT(dfifo_alloc(rhport, ep_addr, largest_packet_size));
+  TU_ASSERT(dfifo_alloc(rhport, ep_addr, largest_packet_size, false));
   return true;
 }
 
