@@ -55,7 +55,7 @@ def combine_maps(map_files, filters=None):
                 # Apply path filters to JSON data
                 if filters:
                     filtered_files = [
-                        f for f in json_data["files"]
+                        f for f in json_data.get("files", [])
                         if f.get("path") and any(filt in f["path"] for filt in filters)
                     ]
                     json_data["files"] = filtered_files
