@@ -57,11 +57,10 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
-  # Build CMake: only build on push with one-per-family.
+  # Build CMake: only one-per-family.
   # Full built is done by CircleCI in PR
   # ---------------------------------------
   cmake:
-    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
@@ -71,7 +70,7 @@ jobs:
           - 'aarch64-gcc'
           #- 'arm-clang'
           - 'arm-gcc'
-          - 'esp-idf'
+          #          - 'esp-idf'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -79,6 +78,27 @@ jobs:
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       one-per-family: true
+      upload-metrics: true
+
+  code-metrics:
+    needs: cmake
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: metrics-*
+          path: cmake-build
+          merge-multiple: true
+
+      - name: Aggregate Code Metrics
+        run: |
+          tree cmake-build
+          python tools/get_deps.py
+          python tools/metrics.py -f tinyusb/src cmake-build/*/metrics.json
 
   # ---------------------------------------
   # Build Make: only build on push with one-per-family

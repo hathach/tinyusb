@@ -6,8 +6,6 @@ import sys
 import time
 import subprocess
 import shlex
-import glob
-import metrics
 from pathlib import Path
 from multiprocessing import Pool
 
@@ -26,6 +24,7 @@ build_separator = '-' * 95
 build_status = [STATUS_OK, STATUS_FAILED, STATUS_SKIPPED]
 
 verbose = False
+clean_build = False
 parallel_jobs = os.cpu_count()
 
 # -----------------------------
@@ -117,11 +116,13 @@ def cmake_board(board, build_args, build_flags_on):
                         f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
                         *build_args, *build_flags])
         if rcmd.returncode == 0:
+            if clean_build:
+                run_cmd(["cmake", "--build", build_dir, '--target', 'clean'])
             cmd = ["cmake", "--build", build_dir, '--parallel', str(parallel_jobs)]
             rcmd = run_cmd(cmd)
         if rcmd.returncode == 0:
             ret[0] += 1
-            rcmd = run_cmd(["cmake", "--build", build_dir, '--target', 'tinyusb_examples_metrics'])
+            run_cmd(["cmake", "--build", build_dir, '--target', 'tinyusb_examples_metrics'])
             # print(rcmd.stdout.decode("utf-8"))
         else:
             ret[1] += 1
@@ -148,7 +149,8 @@ def make_one_example(example, board, make_option):
         if make_option:
             make_args += shlex.split(make_option)
         make_args.append("all")
-        # run_cmd(make_args + ["clean"])
+        if clean_build:
+            run_cmd(make_args + ["clean"])
         build_result = run_cmd(make_args)
         r = 0 if build_result.returncode == 0 else 1
         print_build_result(board, example, r, time.monotonic() - start_time)
@@ -235,11 +237,13 @@ def get_family_boards(family, one_per_family, boards):
 # -----------------------------
 def main():
     global verbose
+    global clean_build
     global parallel_jobs
 
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to build')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to build')
+    parser.add_argument('-c', '--clean', action='store_true', default=False, help='Clean before build')
     parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
     parser.add_argument('-D', '--define-symbol', action='append', default=[], help='Define to pass to build system')
@@ -257,6 +261,7 @@ def main():
     build_flags_on = args.build_flags_on
     one_per_family = args.one_per_family
     verbose = args.verbose
+    clean_build = args.clean
     parallel_jobs = args.jobs
 
     build_defines.append(f'TOOLCHAIN={toolchain}')
