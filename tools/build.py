@@ -122,7 +122,7 @@ def cmake_board(board, build_args, build_flags_on):
             rcmd = run_cmd(cmd)
         if rcmd.returncode == 0:
             ret[0] += 1
-            run_cmd(["cmake", "--build", build_dir, '--target', 'tinyusb_examples_metrics'])
+            run_cmd(["cmake", "--build", build_dir, '--target', 'tinyusb_metrics'])
             # print(rcmd.stdout.decode("utf-8"))
         else:
             ret[1] += 1

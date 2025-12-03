@@ -20,9 +20,9 @@ endforeach ()
 
 # Post-build: run metrics.py on all map.json files
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-add_custom_target(tinyusb_examples_metrics
+add_custom_target(tinyusb_metrics
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/metrics.py
-  -f tinyusb/src -j -o ${CMAKE_BINARY_DIR}/metrics
+  combine -f tinyusb/src -j -o ${CMAKE_BINARY_DIR}/metrics
   ${MAPJSON_PATTERNS}
   COMMENT "Generating average code size metrics"
   VERBATIM

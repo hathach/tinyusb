@@ -351,8 +351,10 @@ function(family_configure_common TARGET RTOS)
     endif ()
   endif ()
 
-  # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
-  family_add_linkermap(${TARGET})
+  if (NOT RTOS STREQUAL zephyr)
+    # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
+    family_add_linkermap(${TARGET})
+  endif ()
 
   # run size after build
 #  find_program(SIZE_EXE ${CMAKE_SIZE})

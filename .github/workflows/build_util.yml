@@ -75,7 +75,7 @@ jobs:
 
       - name: Upload Artifacts for Metrics
         if: ${{ inputs.upload-metrics }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: metrics-${{ matrix.arg }}
           path: cmake-build/cmake-build-*/metrics.json
