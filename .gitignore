@@ -42,6 +42,7 @@ cov-int
 *-build-dir
 /_bin/
 __pycache__
+cmake-build/
 cmake-build-*
 sdkconfig
 .PVS-Studio
