@@ -148,10 +148,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ windows-latest, macos-latest ]
-        build-system: [ 'make', 'cmake' ]
     with:
       os: ${{ matrix.os }}
-      build-system: ${{ matrix.build-system }}
+      build-system: 'cmake-make'
       toolchain: 'arm-gcc-${{ matrix.os }}'
       build-args: '["stm32h7"]'
       one-per-family: true

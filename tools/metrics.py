@@ -232,7 +232,7 @@ def write_compare_markdown(comparison, path, sort_order='size'):
         "",
         "Because TinyUSB code size varies by port and configuration, the metrics below represent the averaged totals across all example builds."
         "",
-        "Note: no change will only show one value.",
+        "Note: If there is no change, only one value is shown.",
         "",
     ]
 

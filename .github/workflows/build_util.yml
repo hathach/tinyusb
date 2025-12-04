@@ -68,6 +68,9 @@ jobs:
         run: |
           if [ "$TOOLCHAIN" == "esp-idf" ]; then
             docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py ${{ matrix.arg }}
+          elif [ "${{ inputs.build-system }}" == "cmake-make" ] || [ "${{ inputs.build-system }}" == "make-cmake" ]; then
+            python tools/build.py -s make ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
+            python tools/build.py -s cmake ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
           else
             python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
           fi
