@@ -119,7 +119,9 @@ commands:
                 TOOLCHAIN_OPTION="--toolchain gcc"
               fi
 
-              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
+              # circleci docker return $nproc as 36 core, limit parallel to 4 (resource-class = large)
+              # Required for IAR, also prevent crashed/killed by docker
+              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION -j 4 << parameters.family >>
             fi
 
 jobs:

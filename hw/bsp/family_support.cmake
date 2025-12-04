@@ -9,6 +9,7 @@ set(TOP "${CMAKE_CURRENT_LIST_DIR}/../..")
 get_filename_component(TOP ${TOP} ABSOLUTE)
 
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
+set(LINKERMAP_PY ${TOP}/tools/linkermap/linkermap.py)
 
 function(family_resolve_board BOARD_NAME BOARD_PATH_OUT)
   if ("${BOARD_NAME}" STREQUAL "")
@@ -223,6 +224,24 @@ function(family_initialize_project PROJECT DIR)
   endif()
 endfunction()
 
+# Add linkermap target (https://github.com/hathach/linkermap)
+function(family_add_linkermap TARGET)
+  set(LINKERMAP_OPTION_LIST)
+  if (DEFINED LINKERMAP_OPTION)
+    separate_arguments(LINKERMAP_OPTION_LIST UNIX_COMMAND ${LINKERMAP_OPTION})
+  endif ()
+
+  add_custom_target(${TARGET}-linkermap
+    COMMAND python ${LINKERMAP_PY} -j ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
+    VERBATIM
+    )
+
+  # post build
+  add_custom_command(TARGET ${TARGET} POST_BUILD
+    COMMAND python ${LINKERMAP_PY} -j ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
+    VERBATIM)
+endfunction()
+
 #-------------------------------------------------------------
 # Common Target Configure
 # Most families use these settings except rp2040 and espressif
@@ -330,6 +349,11 @@ function(family_configure_common TARGET RTOS)
         COMMAND ireport --db=${CMAKE_BINARY_DIR}/cstat.db --full --project ${TARGET} --output ${CMAKE_CURRENT_BINARY_DIR}/cstat_report/index.html
         )
     endif ()
+  endif ()
+
+  if (NOT RTOS STREQUAL zephyr)
+    # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
+    family_add_linkermap(${TARGET})
   endif ()
 
   # run size after build

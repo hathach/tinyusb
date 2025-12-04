@@ -57,11 +57,10 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ---------------------------------------
-  # Build CMake: only build on push with one-per-family.
+  # Build CMake: only one-per-family.
   # Full built is done by CircleCI in PR
   # ---------------------------------------
   cmake:
-    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
@@ -79,6 +78,65 @@ jobs:
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       one-per-family: true
+      upload-metrics: true
+
+  code-metrics:
+    needs: cmake
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: metrics-*
+          path: cmake-build
+          merge-multiple: true
+
+      - name: Aggregate Code Metrics
+        run: |
+          python tools/get_deps.py
+          pip install tools/linkermap/
+          python tools/metrics.py combine -j -m -f tinyusb/src cmake-build/*/metrics.json
+
+      - name: Upload Metrics Artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v5
+        with:
+          name: metrics-tinyusb
+          path: metrics.json
+
+      - name: Download Base Branch Metrics
+        if: github.event_name == 'pull_request'
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          workflow: build.yml
+          branch: ${{ github.base_ref }}
+          name: metrics-tinyusb
+          path: base-metrics
+        continue-on-error: true
+
+      - name: Compare with Base Branch
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -f base-metrics/metrics.json ]; then
+            python tools/metrics.py compare -f tinyusb/src base-metrics/metrics.json metrics.json
+            cat metrics_compare.md
+          else
+            echo "No base metrics found, skipping comparison"
+            cp metrics.md metrics_compare.md
+          fi
+
+      - name: Post Code Metrics as PR Comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: code-metrics
+          path: metrics_compare.md
+
 
   # ---------------------------------------
   # Build Make: only build on push with one-per-family
@@ -134,7 +192,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [ windows-latest, macos-latest ]
         build-system: [ 'make', 'cmake' ]
     with:
       os: ${{ matrix.os }}
@@ -196,7 +254,7 @@ jobs:
       github.repository_owner == 'hathach' &&
       (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
     needs: hil-build
-    runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
+    runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     steps:
       - name: Get Skip Boards from previous run
         if: github.run_attempt != '1'
@@ -221,6 +279,7 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@v5
         with:
+          pattern: binaries-*
           path: cmake-build
           merge-multiple: true
 
@@ -238,7 +297,7 @@ jobs:
       github.repository_owner == 'hathach' &&
       github.event.pull_request.head.repo.fork == false &&
       (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
-    runs-on: [self-hosted, Linux, X64, hifiphile]
+    runs-on: [ self-hosted, Linux, X64, hifiphile ]
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
     steps:
