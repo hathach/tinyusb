@@ -843,20 +843,44 @@ uint16_t audiod_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint
   (void) max_len;
 
   TU_VERIFY(TUSB_CLASS_AUDIO == itf_desc->bInterfaceClass &&
-            AUDIO_SUBCLASS_CONTROL == itf_desc->bInterfaceSubClass);
+            AUDIO_SUBCLASS_CONTROL == itf_desc->bInterfaceSubClass, 0);
 
   // Verify version is correct - this check can be omitted
   TU_VERIFY(itf_desc->bInterfaceProtocol == AUDIO_INT_PROTOCOL_CODE_V1 ||
-            itf_desc->bInterfaceProtocol == AUDIO_INT_PROTOCOL_CODE_V2);
+            itf_desc->bInterfaceProtocol == AUDIO_INT_PROTOCOL_CODE_V2, 0);
+
+  // Verify 2nd interface descriptor is Audio Streaming to avoid mess with MIDI class
+  // Audio Control interface is followed by Audio Streaming interface(s)
+  // MIDI class also starts with Audio Control but is followed by MIDI Streaming
+  {
+    uint8_t const *p_desc = (uint8_t const *) itf_desc;
+    uint8_t const *p_desc_end = p_desc + max_len;
+
+    // Advance to next interface descriptor
+    p_desc = tu_desc_next(p_desc);
+    while (tu_desc_in_bounds(p_desc, p_desc_end) && tu_desc_type(p_desc) != TUSB_DESC_INTERFACE) {
+      p_desc = tu_desc_next(p_desc);
+    }
+
+    // Verify next interface is Audio Streaming (subclass 2), not MIDI Streaming (subclass 3)
+    if (p_desc_end - p_desc >= (int)sizeof(tusb_desc_interface_t)) {
+      tusb_desc_interface_t const *next_itf = (tusb_desc_interface_t const *) p_desc;
+      TU_VERIFY(next_itf->bInterfaceClass == TUSB_CLASS_AUDIO &&
+                next_itf->bInterfaceSubClass == AUDIO_SUBCLASS_STREAMING, 0);
+    } else {
+      // No further interface found or not enough bytes for interface descriptor
+      return 0;
+    }
+  }
 
   // Verify interrupt control EP is enabled if demanded by descriptor
-  TU_ASSERT(itf_desc->bNumEndpoints <= 1);// 0 or 1 EPs are allowed
+  TU_ASSERT(itf_desc->bNumEndpoints <= 1, 0);// 0 or 1 EPs are allowed
   if (itf_desc->bNumEndpoints == 1) {
-    TU_ASSERT(CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP);
+    TU_ASSERT(CFG_TUD_AUDIO_ENABLE_INTERRUPT_EP, 0);
   }
 
   // Alternate setting MUST be zero - this check can be omitted
-  TU_VERIFY(itf_desc->bAlternateSetting == 0);
+  TU_VERIFY(itf_desc->bAlternateSetting == 0, 0);
 
   // Find available audio driver interface
   uint8_t i;
