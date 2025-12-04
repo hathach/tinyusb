@@ -200,9 +200,9 @@ def format_diff(base, new, diff):
     if base == 0:
         return f"{new} (new)"
     if new == 0:
-        return f"{base} ➡ 0"
+        return f"{base} → 0"
     if diff == 0:
-        return f"{base} ➡ {new}"
+        return f"{base} → {new}"
     pct = (diff / base) * 100
     sign = "+" if diff > 0 else ""
     return f"{base} ➡ {new} ({sign}{diff}, {sign}{pct:.1f}%)"
@@ -232,10 +232,9 @@ def write_compare_markdown(comparison, path, sort_order='size'):
     sections = comparison["sections"]
 
     md_lines = [
-        "# TinyUSB Code Size Different Report",
+        "# Size Difference Report",
         "",
-        f"**Base:** `{comparison['base_file']}`",
-        f"**New:** `{comparison['new_file']}`",
+        "Because TinyUSB code size varies by port and configuration, the metrics below represent the averaged totals across all example builds.",
         "",
     ]
 

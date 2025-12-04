@@ -18,25 +18,34 @@ jobs:
             MATRIX_JSON=$(python .github/workflows/ci_set_matrix.py)
             echo "MATRIX_JSON=$MATRIX_JSON"
 
-            BUILDSYSTEM_TOOLCHAIN=(
-              "cmake aarch64-gcc"
-              "cmake arm-clang"
-              "cmake arm-gcc"
-              "cmake esp-idf"
-              "cmake msp430-gcc"
-              "cmake riscv-gcc"
+            BUILDSYSTEM_LIST=(
+              "cmake"
+              "make"
+            )
+
+            TOOLCHAIN_LIST=(
+              "aarch64-gcc"
+              "arm-clang"
+              "arm-gcc"
+              "esp-idf"
+              "msp430-gcc"
+              "riscv-gcc"
             )
 
             # only build IAR if not forked PR, since IAR token is not shared
             if [ -z $CIRCLE_PR_USERNAME ]; then
-              BUILDSYSTEM_TOOLCHAIN+=("cmake arm-iar")
+              TOOLCHAIN_LIST+=("arm-iar")
             fi
 
             gen_build_entry() {
               local build_system="$1"
               local toolchain="$2"
               local family="$3"
-              local resource_class="$4"
+              local build_args=""
+
+              if [[ "$toolchain" == "arm-iar" || "$build_system" == "make" ]]; then
+                build_args="--one-per-family"
+              fi
 
               if [[ "$toolchain" == "esp-idf" ]]; then
                 echo "      - build-vm:" >> .circleci/config2.yml
@@ -49,17 +58,16 @@ jobs:
               echo "              build-system: ['$build_system']" >> .circleci/config2.yml
               echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
               echo "              family: $family" >> .circleci/config2.yml
-              echo "              resource_class: ['$resource_class']" >> .circleci/config2.yml
+              echo "              resource_class: ['large']" >> .circleci/config2.yml
+              echo "              build-args: ['$build_args']" >> .circleci/config2.yml
             }
 
-            for e in "${BUILDSYSTEM_TOOLCHAIN[@]}"; do
-              e_arr=($e)
-              build_system="${e_arr[0]}"
-              toolchain="${e_arr[1]}"
-              FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\"")
-              echo "FAMILY_${toolchain}=$FAMILY"
-
-              gen_build_entry "$build_system" "$toolchain" "$FAMILY" "large"
+            for build_system in "${BUILDSYSTEM_LIST[@]}"; do
+              for toolchain in "${TOOLCHAIN_LIST[@]}"; do
+                FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\"")
+                echo "FAMILY_${toolchain}=$FAMILY"
+                gen_build_entry "$build_system" "$toolchain" "$FAMILY"
+              done
             done
 
       - continuation/continue:
@@ -67,9 +75,5 @@ jobs:
 
 workflows:
   set-matrix:
-    # Only build PR here, Push will be built by github action.
-    when:
-      and:
-        - not: << pipeline.git.branch.is_default >>
     jobs:
       - set-matrix
