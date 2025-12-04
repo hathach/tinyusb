@@ -195,17 +195,13 @@ def compare_maps(base_file, new_file, filters=None):
 
 def format_diff(base, new, diff):
     """Format a diff value with percentage."""
-    if base == 0 and new == 0:
-        return "0"
-    if base == 0:
-        return f"{new} (new)"
-    if new == 0:
-        return f"{base} → 0"
     if diff == 0:
-        return f"{base} → {new}"
+        return f"{new}"
+    if base == 0 or new == 0:
+        return f"{base} ➙ {new}"
     pct = (diff / base) * 100
     sign = "+" if diff > 0 else ""
-    return f"{base} → {new} ({sign}{diff}, {sign}{pct:.1f}%)"
+    return f"{base} ➙ {new} ({sign}{diff}, {sign}{pct:.1f}%)"
 
 
 def get_sort_key(sort_order):
@@ -234,7 +230,9 @@ def write_compare_markdown(comparison, path, sort_order='size'):
     md_lines = [
         "# Size Difference Report",
         "",
-        "Because TinyUSB code size varies by port and configuration, the metrics below represent the averaged totals across all example builds.",
+        "Because TinyUSB code size varies by port and configuration, the metrics below represent the averaged totals across all example builds."
+        "",
+        "Note: no change will only show one value.",
         "",
     ]
 
