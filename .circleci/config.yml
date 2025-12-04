@@ -65,7 +65,7 @@ jobs:
             for build_system in "${BUILDSYSTEM_LIST[@]}"; do
               for toolchain in "${TOOLCHAIN_LIST[@]}"; do
                 # make does not support these toolchains
-                if [ "$build_system" == "make" ] && { [ "$toolchain" == "arm-iar" ] || [ "$toolchain" == "esp-idf" ]; }; then
+                if [ "$build_system" == "make" ] && { [ "$toolchain" == "arm-clang" ] || [ "$toolchain" == "arm-iar" ] || [ "$toolchain" == "esp-idf" ]; }; then
                   continue
                 fi
 

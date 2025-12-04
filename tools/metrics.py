@@ -205,7 +205,7 @@ def format_diff(base, new, diff):
         return f"{base} → {new}"
     pct = (diff / base) * 100
     sign = "+" if diff > 0 else ""
-    return f"{base} ➡ {new} ({sign}{diff}, {sign}{pct:.1f}%)"
+    return f"{base} → {new} ({sign}{diff}, {sign}{pct:.1f}%)"
 
 
 def get_sort_key(sort_order):
