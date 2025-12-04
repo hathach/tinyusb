@@ -142,16 +142,12 @@ def make_one_example(example, board, make_option):
         r = 2
     else:
         start_time = time.monotonic()
-        # skip -j for circleci
-        if not os.getenv('CIRCLECI'):
-            make_option += ' -j'
-        make_args = ["make", "-C", f"examples/{example}", f"BOARD={board}"]
+        make_args = ["make", "-C", f"examples/{example}", f"BOARD={board}", '-j', str(parallel_jobs)]
         if make_option:
             make_args += shlex.split(make_option)
-        make_args.append("all")
         if clean_build:
             run_cmd(make_args + ["clean"])
-        build_result = run_cmd(make_args)
+        build_result = run_cmd(make_args + ['all'])
         r = 0 if build_result.returncode == 0 else 1
         print_build_result(board, example, r, time.monotonic() - start_time)
 
