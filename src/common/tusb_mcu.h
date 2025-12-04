@@ -179,7 +179,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32F0)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F1)
   // - F102, F103 use fsdev
@@ -195,7 +195,7 @@
     defined(STM32F103xE) || defined(STM32F103xG)
     #define TUP_USBIP_FSDEV
     #define TUP_USBIP_FSDEV_STM32
-    #define TUP_DCD_ENDPOINT_MAX 8
+    #define TUP_DCD_ENDPOINT_MAX 16
   #else
     #error "Unsupported STM32F1 mcu"
   #endif
@@ -210,7 +210,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32F3)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32F4)
   #define TUP_USBIP_DWC2
@@ -253,7 +253,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32H5)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32G4)
   // Device controller
@@ -262,23 +262,23 @@
 
   // TypeC controller
   #define TUP_USBIP_TYPEC_STM32
-  #define TUP_DCD_ENDPOINT_MAX  8
+  #define TUP_DCD_ENDPOINT_MAX  16
   #define TUP_TYPEC_RHPORTS_NUM 1
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32G0)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32C0)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32L0, OPT_MCU_STM32L1)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32L4)
   // - L4x2, L4x3 use fsdev
@@ -295,7 +295,7 @@
     defined(STM32L442xx) || defined(STM32L443xx) || defined(STM32L452xx) || defined(STM32L462xx)
     #define TUP_USBIP_FSDEV
     #define TUP_USBIP_FSDEV_STM32
-    #define TUP_DCD_ENDPOINT_MAX 8
+    #define TUP_DCD_ENDPOINT_MAX 16
   #else
     #error "Unsupported STM32L4 mcu"
   #endif
@@ -303,7 +303,7 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32WB)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32WBA)
   #define TUP_USBIP_DWC2
@@ -315,7 +315,7 @@
   #if defined(STM32U535xx) || defined(STM32U545xx)
     #define TUP_USBIP_FSDEV
     #define TUP_USBIP_FSDEV_STM32
-    #define TUP_DCD_ENDPOINT_MAX 8
+    #define TUP_DCD_ENDPOINT_MAX 16
 
   #else
     #define TUP_USBIP_DWC2
@@ -334,17 +334,17 @@
 #elif TU_CHECK_MCU(OPT_MCU_STM32L5)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32U0)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32U3)
   #define TUP_USBIP_FSDEV
   #define TUP_USBIP_FSDEV_STM32
-  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_ENDPOINT_MAX 16
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7RS, OPT_MCU_STM32N6)
   #define TUP_USBIP_DWC2
