@@ -57,9 +57,9 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ------------------------------------------------------------------------------
-  # CMake build: only one-per-family. Full built is done by CircleCI in PR
+  # CMake build: only one random board per family. Full build is done by CircleCI in PR
   # Note:
-  # For Make and IAR build: will be done on CircleCI only (one-per-family too)
+  # For Make and IAR build: will be done on CircleCI only (one random per family as well)
   # ------------------------------------------------------------------------------
   cmake:
     needs: set-matrix
@@ -78,7 +78,7 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      one-per-family: true
+      build-options: '--one-first'
       upload-metrics: true
 
   code-metrics:
@@ -153,7 +153,7 @@ jobs:
       build-system: 'cmake-make'
       toolchain: 'arm-gcc-${{ matrix.os }}'
       build-args: '["stm32h7"]'
-      one-per-family: true
+      build-options: '--one-random'
 
   # ---------------------------------------
   # Zephyr
@@ -196,7 +196,6 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)[matrix.toolchain]) }}
-      one-per-family: true
       upload-artifacts: true
 
   # ---------------------------------------
