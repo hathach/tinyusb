@@ -56,10 +56,11 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
-  # ---------------------------------------
-  # Build CMake: only one-per-family.
-  # Full built is done by CircleCI in PR
-  # ---------------------------------------
+  # ------------------------------------------------------------------------------
+  # CMake build: only one-per-family. Full built is done by CircleCI in PR
+  # Note:
+  # For Make and IAR build: will be done on CircleCI only (one-per-family too)
+  # ------------------------------------------------------------------------------
   cmake:
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
@@ -70,7 +71,7 @@ jobs:
           - 'aarch64-gcc'
           #- 'arm-clang'
           - 'arm-gcc'
-          - 'esp-idf'
+          #- 'esp-idf'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
@@ -137,52 +138,6 @@ jobs:
           header: code-metrics
           path: metrics_compare.md
 
-
-  # ---------------------------------------
-  # Build Make: only build on push with one-per-family
-  # ---------------------------------------
-  make:
-    if: github.event_name == 'push'
-    needs: set-matrix
-    uses: ./.github/workflows/build_util.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain:
-          - 'aarch64-gcc'
-          #- 'arm-clang'
-          - 'arm-gcc'
-          - 'msp430-gcc'
-          - 'riscv-gcc'
-          - 'rx-gcc'
-    with:
-      build-system: 'make'
-      toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      one-per-family: true
-
-  # ---------------------------------------
-  # Build IAR
-  # Since IAR Token secret is not passed to forked PR, only build non-forked PR with make.
-  # cmake is built by circle-ci. Due to IAR limit capacity, only build oe per family
-  # ---------------------------------------
-  arm-iar:
-    if: false # disable for now since we got reach capacity limit too often
-    #if: github.event_name == 'push' && github.repository_owner == 'hathach'
-    needs: set-matrix
-    uses: ./.github/workflows/build_util.yml
-    secrets: inherit
-    strategy:
-      fail-fast: false
-      matrix:
-        build-system:
-          - 'make'
-    with:
-      build-system: ${{ matrix.build-system }}
-      toolchain: 'arm-iar'
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar']) }}
-      one-per-family: true
-
   # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
   # ---------------------------------------
@@ -193,10 +148,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ windows-latest, macos-latest ]
-        build-system: [ 'make', 'cmake' ]
     with:
       os: ${{ matrix.os }}
-      build-system: ${{ matrix.build-system }}
+      build-system: 'cmake-make'
       toolchain: 'arm-gcc-${{ matrix.os }}'
       build-args: '["stm32h7"]'
       one-per-family: true

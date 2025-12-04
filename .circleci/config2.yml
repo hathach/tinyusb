@@ -66,6 +66,9 @@ commands:
         type: string
       family:
         type: string
+      build-args:
+        type: string
+        default: ""
 
     steps:
       - checkout
@@ -107,7 +110,7 @@ commands:
           no_output_timeout: 20m
           command: |
             if [ << parameters.toolchain >> == esp-idf ]; then
-              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.family >>
+              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.build-args >> << parameters.family >>
             else
               # Toolchain option default is gcc
               if [ << parameters.toolchain >> == arm-clang ]; then
@@ -121,7 +124,7 @@ commands:
 
               # circleci docker return $nproc as 36 core, limit parallel to 4 (resource-class = large)
               # Required for IAR, also prevent crashed/killed by docker
-              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION -j 4 << parameters.family >>
+              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION -j 4 << parameters.build-args >> << parameters.family >>
             fi
 
 jobs:
@@ -137,6 +140,9 @@ jobs:
         type: string
       family:
         type: string
+      build-args:
+        type: string
+        default: ""
 
     docker:
       - image: cimg/base:current
@@ -147,6 +153,7 @@ jobs:
           build-system: << parameters.build-system >>
           toolchain: << parameters.toolchain >>
           family: << parameters.family >>
+          build-args: << parameters.build-args >>
 
   # Build using VM
   build-vm:
@@ -160,6 +167,9 @@ jobs:
         type: string
       family:
         type: string
+      build-args:
+        type: string
+        default: ""
 
     machine:
       image: ubuntu-2404:current
@@ -170,6 +180,7 @@ jobs:
           build-system: << parameters.build-system >>
           toolchain: << parameters.toolchain >>
           family: << parameters.family >>
+          build-args: << parameters.build-args >>
 
 workflows:
   build:
