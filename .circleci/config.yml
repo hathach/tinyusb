@@ -38,7 +38,7 @@ jobs:
             fi
 
             gen_build_entry() {
-              local build_system="$1", w
+              local build_system="$1"
               local toolchain="$2"
               local family="$3"
               local build_args=""
