@@ -43,6 +43,22 @@ def combine_maps(map_files, filters=None):
     filters = filters or []
     all_json_data = {"mapfiles": [], "data": []}
 
+    def _normalize_json(json_data):
+        """Flatten verbose linkermap JSON (per-symbol dicts) to per-section totals."""
+
+        for f in json_data.get("files", []):
+            collapsed = {}
+            for section, val in f.get("sections", {}).items():
+                collapsed[section] = sum(val.values()) if isinstance(val, dict) else val
+
+            # Replace sections with collapsed totals
+            f["sections"] = collapsed
+
+            # Ensure total is a number derived from sections
+            f["total"] = sum(collapsed.values())
+
+        return json_data
+
     for map_file in map_files:
         if not os.path.exists(map_file):
             print(f"Warning: {map_file} not found, skipping", file=sys.stderr)
@@ -52,6 +68,9 @@ def combine_maps(map_files, filters=None):
             if map_file.endswith('.json'):
                 with open(map_file, 'r', encoding='utf-8') as f:
                     json_data = json.load(f)
+
+                json_data = _normalize_json(json_data)
+
                 # Apply path filters to JSON data
                 if filters:
                     filtered_files = [
@@ -343,6 +362,77 @@ def write_compare_markdown(comparison, path, sort_order='size'):
         f.write("\n".join(md_lines))
 
 
+def print_compare_summary(comparison, sort_order='name+'):
+    """Print diff report to stdout in table form."""
+
+    sections = comparison["sections"]
+    files = comparison["files"]
+
+    def sort_key(file_row):
+        if sort_order == 'size-':
+            return abs(file_row["total"]["diff"])
+        if sort_order in ('size', 'size+'):
+            return abs(file_row["total"]["diff"])
+        if sort_order == 'name-':
+            return file_row['file']
+        return file_row['file']
+
+    reverse = sort_order in ('size-', 'name-')
+    files_sorted = sorted(files, key=sort_key, reverse=reverse)
+
+    # Build formatted rows first to compute column widths precisely
+    rows = []
+    value_lengths = []
+    for f in files_sorted:
+        section_vals = {}
+        for s in sections:
+            sd = f["sections"][s]
+            text = format_diff(sd['base'], sd['new'], sd['diff'])
+            section_vals[s] = text
+            value_lengths.append(len(text))
+        td = f["total"]
+        total_text = format_diff(td['base'], td['new'], td['diff'])
+        value_lengths.append(len(total_text))
+        rows.append({"file": f['file'], "sections": section_vals, "total": total_text, "raw": f})
+
+    # Column widths
+    name_width = max(len(r["file"]) for r in rows) if rows else len("File")
+    name_width = max(name_width, len("File"), 3)  # at least width of SUM
+    col_width = max(12, *(len(s) for s in sections), len("Total"), *(value_lengths or [0]))
+
+    ffmt = '{:' + f'>{name_width}' + '} |'
+    col_fmt = '{:' + f'>{col_width}' + '}'
+
+    header = ffmt.format('File') + ''.join(col_fmt.format(s) + ' |' for s in sections) + col_fmt.format('Total')
+    print(header)
+    print('-' * len(header))
+
+    sum_base = {s: 0 for s in sections}
+    sum_new = {s: 0 for s in sections}
+
+    for row in rows:
+        line = ffmt.format(row['file'])
+        for s in sections:
+            sd = row["raw"]["sections"][s]
+            sum_base[s] += sd["base"]
+            sum_new[s] += sd["new"]
+            line += col_fmt.format(row['sections'][s]) + ' |'
+
+        line += col_fmt.format(row['total'])
+        print(line)
+
+    # Sum row
+    sum_row = ffmt.format('SUM')
+    for s in sections:
+        diff = sum_new[s] - sum_base[s]
+        sum_row += col_fmt.format(format_diff(sum_base[s], sum_new[s], diff)) + ' |'
+    total_base = sum(sum_base.values())
+    total_new = sum(sum_new.values())
+    sum_row += col_fmt.format(format_diff(total_base, total_new, total_new - total_base))
+    print('-' * len(header))
+    print(sum_row)
+
+
 def cmd_combine(args):
     """Handle combine subcommand."""
     map_files = expand_files(args.files)
@@ -370,8 +460,11 @@ def cmd_compare(args):
         print("Failed to compare files", file=sys.stderr)
         sys.exit(1)
 
+    if not args.quiet:
+        print_compare_summary(comparison, args.sort)
     write_compare_markdown(comparison, args.out + '.md', args.sort)
-    print(f"Comparison written to {args.out}.md")
+    if not args.quiet:
+        print(f"Comparison written to {args.out}.md")
 
 
 def main(argv=None):
@@ -406,6 +499,8 @@ def main(argv=None):
     compare_parser.add_argument('-S', '--sort', dest='sort', default='name+',
                                 choices=['size', 'size-', 'size+', 'name', 'name-', 'name+'],
                                 help='Sort order: size/size- (descending), size+ (ascending), name/name+ (ascending), name- (descending). Default: name+')
+    compare_parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
+                                help='Suppress stdout summary output')
 
     args = parser.parse_args(argv)
 
