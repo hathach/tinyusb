@@ -127,23 +127,33 @@ commands:
               python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION -j 4 << parameters.build-args >> << parameters.family >>
             fi
 
-      - run:
-          name: Collect Metrics
-          command: |
-            # Create metrics directory for this build
-            mkdir -p /tmp/metrics
-            # Copy all metrics.json files, rename to include family info
-            for f in cmake-build/cmake-build-*/metrics.json; do
-              if [ -f "$f" ]; then
-                BOARD_DIR=$(dirname "$f" | xargs basename)
-                cp "$f" "/tmp/metrics/${BOARD_DIR}.json"
-              fi
-            done
+      # Only collect and persist metrics for cmake builds (excluding esp-idf and --one-random)
+      - when:
+          condition:
+            and:
+              - equal: [ cmake, << parameters.build-system >> ]
+              - not:
+                  equal: [ esp-idf, << parameters.toolchain >> ]
+              - not:
+                  equal: [ --one-random, << parameters.build-args >> ]
+          steps:
+            - run:
+                name: Collect Metrics
+                command: |
+                  # Create metrics directory for this build
+                  mkdir -p /tmp/metrics
+                  # Copy all metrics.json files, rename to include family info
+                  for f in cmake-build/cmake-build-*/metrics.json; do
+                    if [ -f "$f" ]; then
+                      BOARD_DIR=$(dirname "$f" | xargs basename)
+                      cp "$f" "/tmp/metrics/${BOARD_DIR}.json"
+                    fi
+                  done
 
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - metrics
+            - persist_to_workspace:
+                root: /tmp
+                paths:
+                  - metrics
 
 jobs:
   # Build using docker
@@ -164,6 +174,7 @@ jobs:
 
     docker:
       - image: cimg/base:current
+    working_directory: ~/project/tinyusb
     resource_class: << parameters.resource_class >>
 
     steps:
@@ -191,6 +202,7 @@ jobs:
 
     machine:
       image: ubuntu-2404:current
+    working_directory: ~/project/tinyusb
     resource_class: << parameters.resource_class >>
 
     steps:
@@ -204,7 +216,7 @@ jobs:
   code-metrics:
     docker:
       - image: cimg/python:3.12
-    resource_class: small
+    resource_class: large
     steps:
       - checkout
       - attach_workspace:
@@ -216,6 +228,7 @@ jobs:
             python tools/get_deps.py
             pip install tools/linkermap/
             # Combine all metrics files
+            tree /tmp/metrics
             if ls /tmp/metrics/*.json 1> /dev/null 2>&1; then
               mkdir -p cmake-build
               for f in /tmp/metrics/*.json; do
@@ -240,21 +253,16 @@ jobs:
 workflows:
   build:
     jobs:
+# The jobs below are populated dynamically by config.yml set-matrix job
+# Example entries that will be generated:
 #      - build:
 #          matrix:
+#            alias: build-cmake-arm-gcc
 #            parameters:
 #              toolchain: [ 'arm-gcc' ]
 #              build-system: [ 'cmake' ]
 #              family: [ 'nrf' ]
 #              resource_class: ['large']
-#      - build-vm:
-#          matrix:
-#            parameters:
-#              toolchain: ['esp-idf']
-#              build-system: ['cmake']
-#              family: ['-bespressif_kaluga_1']
-#              resource_class: ['large']
-      - code-metrics:
-          requires:
-            - build
-            - build-vm
+#      - code-metrics:
+#          requires:
+#            - build-cmake-arm-gcc
