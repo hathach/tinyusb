@@ -129,6 +129,7 @@ static void hw_endpoint_init(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
       ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].out;
     }
   }
+  ep->configured = true;
 }
 
 // Init, allocate buffer and enable endpoint
