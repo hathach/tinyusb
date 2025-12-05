@@ -111,7 +111,7 @@ jobs:
           path: metrics.json
 
       - name: Download Base Branch Metrics
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
         uses: dawidd6/action-download-artifact@v11
         with:
           workflow: build.yml
@@ -121,7 +121,7 @@ jobs:
         continue-on-error: true
 
       - name: Compare with Base Branch
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
         run: |
           if [ -f base-metrics/metrics.json ]; then
             python tools/metrics.py compare -f tinyusb/src base-metrics/metrics.json metrics.json
@@ -132,7 +132,7 @@ jobs:
           fi
 
       - name: Post Code Metrics as PR Comment
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: code-metrics
@@ -203,9 +203,7 @@ jobs:
   # self-hosted on local VM, for attached hardware checkout HIL_JSON
   # ---------------------------------------
   hil-tinyusb:
-    if: |
-      github.repository_owner == 'hathach' &&
-      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+    if: github.repository_owner == 'hathach' && github.event_name != 'push'
     needs: hil-build
     runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     steps:
@@ -249,7 +247,7 @@ jobs:
     if: |
       github.repository_owner == 'hathach' &&
       github.event.pull_request.head.repo.fork == false &&
-      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+      github.event_name != 'push'
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
