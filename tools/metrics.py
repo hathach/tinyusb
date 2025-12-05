@@ -245,8 +245,18 @@ def write_compare_markdown(comparison, path, sort_order='size'):
     header += " Total |"
     separator += "------:|"
 
-    md_lines.append(header)
-    md_lines.append(separator)
+    def is_significant(file_row):
+        for s in sections:
+            sd = file_row["sections"][s]
+            diff = abs(sd["diff"])
+            base = sd["base"]
+            if base == 0:
+                if diff != 0:
+                    return True
+            else:
+                if (diff / base) * 100 > 1.0:
+                    return True
+        return False
 
     # Sort files based on sort_order
     if sort_order == 'size-':
@@ -263,38 +273,56 @@ def write_compare_markdown(comparison, path, sort_order='size'):
         reverse = False
     sorted_files = sorted(comparison["files"], key=key_func, reverse=reverse)
 
-    sum_base = {s: 0 for s in sections}
-    sum_base["total"] = 0
-    sum_new = {s: 0 for s in sections}
-    sum_new["total"] = 0
-
+    significant = []
+    minor = []
     for f in sorted_files:
         # Skip files with no changes
         if f["total"]["diff"] == 0 and all(f["sections"][s]["diff"] == 0 for s in sections):
             continue
+        (significant if is_significant(f) else minor).append(f)
 
-        row = f"| {f['file']} |"
+    def render_table(title, rows):
+        md_lines.append(f"## {title}")
+        if not rows:
+            md_lines.append("No entries.")
+            md_lines.append("")
+            return
+
+        md_lines.append(header)
+        md_lines.append(separator)
+
+        sum_base = {s: 0 for s in sections}
+        sum_base["total"] = 0
+        sum_new = {s: 0 for s in sections}
+        sum_new["total"] = 0
+
+        for f in rows:
+            row = f"| {f['file']} |"
+            for s in sections:
+                sd = f["sections"][s]
+                sum_base[s] += sd["base"]
+                sum_new[s] += sd["new"]
+                row += f" {format_diff(sd['base'], sd['new'], sd['diff'])} |"
+
+            td = f["total"]
+            sum_base["total"] += td["base"]
+            sum_new["total"] += td["new"]
+            row += f" {format_diff(td['base'], td['new'], td['diff'])} |"
+
+            md_lines.append(row)
+
+        # Add sum row
+        sum_row = "| **SUM** |"
         for s in sections:
-            sd = f["sections"][s]
-            sum_base[s] += sd["base"]
-            sum_new[s] += sd["new"]
-            row += f" {format_diff(sd['base'], sd['new'], sd['diff'])} |"
+            diff = sum_new[s] - sum_base[s]
+            sum_row += f" {format_diff(sum_base[s], sum_new[s], diff)} |"
+        total_diff = sum_new["total"] - sum_base["total"]
+        sum_row += f" {format_diff(sum_base['total'], sum_new['total'], total_diff)} |"
+        md_lines.append(sum_row)
+        md_lines.append("")
 
-        td = f["total"]
-        sum_base["total"] += td["base"]
-        sum_new["total"] += td["new"]
-        row += f" {format_diff(td['base'], td['new'], td['diff'])} |"
-
-        md_lines.append(row)
-
-    # Add sum row
-    sum_row = "| **SUM** |"
-    for s in sections:
-        diff = sum_new[s] - sum_base[s]
-        sum_row += f" {format_diff(sum_base[s], sum_new[s], diff)} |"
-    total_diff = sum_new["total"] - sum_base["total"]
-    sum_row += f" {format_diff(sum_base['total'], sum_new['total'], total_diff)} |"
-    md_lines.append(sum_row)
+    render_table("Changes >1% in any section", significant)
+    render_table("Changes <1% in all sections", minor)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(md_lines))
