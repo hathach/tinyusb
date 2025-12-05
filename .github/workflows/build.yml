@@ -57,7 +57,7 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
   # ------------------------------------------------------------------------------
-  # CMake build: only one random board per family. Full build is done by CircleCI in PR
+  # CMake build: only one board per family (first alphabetically). Full build is done by CircleCI in PR
   # Note:
   # For Make and IAR build: will be done on CircleCI only (one random per family as well)
   # ------------------------------------------------------------------------------
