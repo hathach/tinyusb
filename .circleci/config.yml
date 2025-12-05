@@ -9,7 +9,7 @@ jobs:
     executor: continuation/default
     docker:
       - image: cimg/base:current
-    resource_class: small
+    resource_class: large
     steps:
       - checkout
       - run:
@@ -52,8 +52,8 @@ jobs:
               else
                 echo "      - build:" >> .circleci/config2.yml
               fi
-
               echo "          matrix:" >> .circleci/config2.yml
+              echo "            alias: build-${build_system}-${toolchain}" >> .circleci/config2.yml
               echo "            parameters:" >> .circleci/config2.yml
               echo "              build-system: ['$build_system']" >> .circleci/config2.yml
               echo "              toolchain: ['$toolchain']" >> .circleci/config2.yml
@@ -61,6 +61,9 @@ jobs:
               echo "              resource_class: ['large']" >> .circleci/config2.yml
               echo "              build-args: ['$build_args']" >> .circleci/config2.yml
             }
+
+            # Collect all build aliases for code-metrics requires (cmake only, exclude esp-idf)
+            BUILD_ALIASES=()
 
             for build_system in "${BUILDSYSTEM_LIST[@]}"; do
               for toolchain in "${TOOLCHAIN_LIST[@]}"; do
@@ -72,7 +75,19 @@ jobs:
                 FAMILY=$(echo $MATRIX_JSON | jq -r ".\"$toolchain\"")
                 echo "FAMILY_${toolchain}=$FAMILY"
                 gen_build_entry "$build_system" "$toolchain" "$FAMILY"
+
+                # Only add cmake builds: excluding esp-idf or build_args="--one-random" to metrics requirements
+                if [ "$build_system" == "cmake" ] && [ "$toolchain" != "esp-idf" ] && [ "$toolchain" != "arm-iar" ]; then
+                  BUILD_ALIASES+=("build-${build_system}-${toolchain}")
+                fi
               done
+            done
+
+            # Add code-metrics job that requires all build jobs
+            echo "      - code-metrics:" >> .circleci/config2.yml
+            echo "          requires:" >> .circleci/config2.yml
+            for alias in "${BUILD_ALIASES[@]}"; do
+              echo "            - $alias" >> .circleci/config2.yml
             done
 
       - continuation/continue:
