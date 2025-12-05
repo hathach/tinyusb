@@ -224,10 +224,10 @@ def get_family_boards(family, one_random, one_first):
         List of board names
     """
     skip_list = []
-    select_list = []
+    preferred_list = []
     if os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'):
         skip_list = ci_skip_boards.get(family, [])
-        select_list = ci_preferred_boards.get(family, [])
+        preferred_list = ci_preferred_boards.get(family, [])
 
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
@@ -240,8 +240,8 @@ def get_family_boards(family, one_random, one_first):
 
     # If only-one flags are set, honor select list first, then pick first or random
     if one_first or one_random:
-        if select_list:
-            return select_list
+        if preferred_list:
+            return [preferred_list[0]]
         if one_first:
             return [all_boards[0]]
         if one_random:
