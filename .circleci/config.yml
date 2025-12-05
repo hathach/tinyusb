@@ -44,7 +44,7 @@ jobs:
               local build_args=""
 
               if [[ "$toolchain" == "arm-iar" || "$build_system" == "make" ]]; then
-                build_args="--one-per-family"
+                build_args="--one-random"
               fi
 
               if [[ "$toolchain" == "esp-idf" ]]; then

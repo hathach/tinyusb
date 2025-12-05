@@ -27,6 +27,23 @@ verbose = False
 clean_build = False
 parallel_jobs = os.cpu_count()
 
+# CI board control lists (used when running under CI)
+ci_skip_boards = {
+    'rp2040': [
+        'adafruit_feather_rp2040_usb_host',
+        'adafruit_fruit_jam',
+        'adafruit_metro_rp2350',
+        'feather_rp2040_max3421',
+        'pico_sdk',
+        'raspberry_pi_pico_w',
+    ],
+}
+
+ci_preferred_boards = {
+    'stm32h7': ['stm32h743eval'],
+}
+
+
 # -----------------------------
 # Helper
 # -----------------------------
@@ -195,35 +212,40 @@ def build_boards_list(boards, build_defines, build_system, build_flags_on):
     return ret
 
 
-def get_family_boards(family, one_per_family, boards):
+def get_family_boards(family, one_random, one_first):
     """Get list of boards for a family.
 
     Args:
         family: Family name
-        one_per_family: If True, return only one random board
-        boards: List of boards already specified via -b flag
+        one_random: If True, return only one random board
+        one_first: If True, return only the first board (alphabetical)
 
     Returns:
         List of board names
     """
-    skip_ci = []
+    skip_list = []
+    preferred_list = []
     if os.getenv('GITHUB_ACTIONS') or os.getenv('CIRCLECI'):
-        skip_ci_file = Path(f"hw/bsp/{family}/skip_ci.txt")
-        if skip_ci_file.exists():
-            skip_ci = skip_ci_file.read_text().split()
+        skip_list = ci_skip_boards.get(family, [])
+        preferred_list = ci_preferred_boards.get(family, [])
+
     all_boards = []
     for entry in os.scandir(f"hw/bsp/{family}/boards"):
-        if entry.is_dir() and not entry.name in skip_ci:
+        if entry.is_dir() and entry.name not in skip_list:
             all_boards.append(entry.name)
+    if not all_boards:
+        print(f"No boards found for family '{family}'")
+        return []
     all_boards.sort()
 
-    # If only-one flag is set, select one random board
-    if one_per_family:
-        for b in boards:
-            # skip if -b already specify one in this family
-            if find_family(b) == family:
-                return []
-        all_boards = [random.choice(all_boards)]
+    # If only-one flags are set, honor select list first, then pick first or random
+    if one_first or one_random:
+        if preferred_list:
+            return [preferred_list[0]]
+        if one_first:
+            return [all_boards[0]]
+        if one_random:
+            return [random.choice(all_boards)]
 
     return all_boards
 
@@ -244,7 +266,10 @@ def main():
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
     parser.add_argument('-D', '--define-symbol', action='append', default=[], help='Define to pass to build system')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Build flag to pass to build system')
-    parser.add_argument('-1', '--one-per-family', action='store_true', default=False, help='Build only one random board inside a family')
+    parser.add_argument('--one-random', action='store_true', default=False,
+                        help='Build only one random board of each specified family')
+    parser.add_argument('--one-first', action='store_true', default=False,
+                        help='Build only the first board (alphabetical) of each specified family')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
@@ -255,7 +280,8 @@ def main():
     build_system = args.build_system
     build_defines = args.define_symbol
     build_flags_on = args.build_flags_on
-    one_per_family = args.one_per_family
+    one_random = args.one_random
+    one_first = args.one_first
     verbose = args.verbose
     clean_build = args.clean
     parallel_jobs = args.jobs
@@ -283,7 +309,7 @@ def main():
     # get boards from families and append to boards list
     all_boards = list(boards)
     for f in all_families:
-        all_boards.extend(get_family_boards(f, one_per_family, boards))
+        all_boards.extend(get_family_boards(f, one_random, one_first))
 
     # build all boards
     result = build_boards_list(all_boards, build_defines, build_system, build_flags_on)
