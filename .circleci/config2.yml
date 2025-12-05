@@ -127,6 +127,24 @@ commands:
               python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION -j 4 << parameters.build-args >> << parameters.family >>
             fi
 
+      - run:
+          name: Collect Metrics
+          command: |
+            # Create metrics directory for this build
+            mkdir -p /tmp/metrics
+            # Copy all metrics.json files, rename to include family info
+            for f in cmake-build/cmake-build-*/metrics.json; do
+              if [ -f "$f" ]; then
+                BOARD_DIR=$(dirname "$f" | xargs basename)
+                cp "$f" "/tmp/metrics/${BOARD_DIR}.json"
+              fi
+            done
+
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - metrics
+
 jobs:
   # Build using docker
   build:
@@ -182,6 +200,43 @@ jobs:
           family: << parameters.family >>
           build-args: << parameters.build-args >>
 
+  # Aggregate code metrics from all builds
+  code-metrics:
+    docker:
+      - image: cimg/python:3.12
+    resource_class: small
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp
+
+      - run:
+          name: Aggregate Code Metrics
+          command: |
+            python tools/get_deps.py
+            pip install tools/linkermap/
+            # Combine all metrics files
+            if ls /tmp/metrics/*.json 1> /dev/null 2>&1; then
+              mkdir -p cmake-build
+              for f in /tmp/metrics/*.json; do
+                BOARD_NAME=$(basename "$f" .json)
+                mkdir -p "cmake-build/${BOARD_NAME}"
+                cp "$f" "cmake-build/${BOARD_NAME}/metrics.json"
+              done
+              python tools/metrics.py combine -j -m -f tinyusb/src cmake-build/*/metrics.json
+            else
+              echo "No metrics files found"
+              exit 1
+            fi
+
+      - store_artifacts:
+          path: metrics.json
+          destination: metrics.json
+
+      - store_artifacts:
+          path: metrics.md
+          destination: metrics.md
+
 workflows:
   build:
     jobs:
@@ -199,3 +254,7 @@ workflows:
 #              build-system: ['cmake']
 #              family: ['-bespressif_kaluga_1']
 #              resource_class: ['large']
+      - code-metrics:
+          requires:
+            - build
+            - build-vm
