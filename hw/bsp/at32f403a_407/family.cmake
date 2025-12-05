@@ -61,6 +61,7 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${AT32_FAMILY}_clock.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/${AT32_FAMILY}_int.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/stm32_fsdev/fsdev_common.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC
