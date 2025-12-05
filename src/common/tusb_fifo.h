@@ -224,10 +224,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const
 //--------------------------------------------------------------------+
 // return overflowable count (index difference), which can be used to determine both fifo count and an overflow state
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_ff_overflow_count(uint16_t depth, uint16_t wr_idx, uint16_t rd_idx) {
-  if (wr_idx >= rd_idx) {
-    return (uint16_t)(wr_idx - rd_idx);
+  const int32_t diff = (int32_t)wr_idx - (int32_t)rd_idx;
+  if (diff >= 0) {
+    return (uint16_t)diff;
   } else {
-    return (uint16_t)(2 * depth - (rd_idx - wr_idx));
+    return (uint16_t)(2 * depth + diff);
   }
 }
 
