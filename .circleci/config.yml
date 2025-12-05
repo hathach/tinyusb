@@ -20,7 +20,7 @@ jobs:
 
             BUILDSYSTEM_LIST=(
               "cmake"
-              # "make"
+              "make"
             )
 
             TOOLCHAIN_LIST=(
@@ -77,7 +77,7 @@ jobs:
                 gen_build_entry "$build_system" "$toolchain" "$FAMILY"
 
                 # Only add cmake builds: excluding esp-idf or build_args="--one-random" to metrics requirements
-                if [ "$build_system" == "cmake" ] && [ "$toolchain" != "esp-idf" ] && [ "build_args" != "--one-random" ]; then
+                if [ "$build_system" == "cmake" ] && [ "$toolchain" != "esp-idf" ] && [ "$toolchain" != "arm-iar" ]; then
                   BUILD_ALIASES+=("build-${build_system}-${toolchain}")
                 fi
               done

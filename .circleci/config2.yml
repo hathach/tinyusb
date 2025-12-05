@@ -135,25 +135,26 @@ commands:
               - not:
                   equal: [ esp-idf, << parameters.toolchain >> ]
               - not:
-                  equal: [ --one-random, << parameters.build-args >> ]
+                  equal: [ arm-iar, << parameters.toolchain >> ]
           steps:
             - run:
                 name: Collect Metrics
                 command: |
-                  # Create metrics directory for this build
-                  mkdir -p /tmp/metrics
-                  # Copy all metrics.json files, rename to include family info
+                  # Create unique directory per toolchain to avoid workspace conflicts
+                  METRICS_DIR="/tmp/metrics/<< parameters.toolchain >>"
+                  mkdir -p "${METRICS_DIR}"
+                  # Copy all metrics.json files
                   for f in cmake-build/cmake-build-*/metrics.json; do
                     if [ -f "$f" ]; then
                       BOARD_DIR=$(dirname "$f" | xargs basename)
-                      cp "$f" "/tmp/metrics/${BOARD_DIR}.json"
+                      cp "$f" "${METRICS_DIR}/${BOARD_DIR}.json"
                     fi
                   done
 
             - persist_to_workspace:
                 root: /tmp
                 paths:
-                  - metrics
+                  - metrics/<< parameters.toolchain >>
 
 jobs:
   # Build using docker
@@ -227,16 +228,10 @@ jobs:
           command: |
             python tools/get_deps.py
             pip install tools/linkermap/
-            # Combine all metrics files
-            tree /tmp/metrics
-            if ls /tmp/metrics/*.json 1> /dev/null 2>&1; then
-              mkdir -p cmake-build
-              for f in /tmp/metrics/*.json; do
-                BOARD_NAME=$(basename "$f" .json)
-                mkdir -p "cmake-build/${BOARD_NAME}"
-                cp "$f" "cmake-build/${BOARD_NAME}/metrics.json"
-              done
-              python tools/metrics.py combine -j -m -f tinyusb/src cmake-build/*/metrics.json
+            # Combine all metrics files from all toolchain subdirectories
+            ls -R /tmp/metrics
+            if ls /tmp/metrics/*/*.json 1> /dev/null 2>&1; then
+              python tools/metrics.py combine -j -m -f tinyusb/src /tmp/metrics/*/*.json
             else
               echo "No metrics files found"
               exit 1
@@ -246,9 +241,37 @@ jobs:
           path: metrics.json
           destination: metrics.json
 
-      - store_artifacts:
-          path: metrics.md
-          destination: metrics.md
+      # Compare with base master metrics on PR branches
+      - when:
+          condition:
+            not:
+              equal: [ master, << pipeline.git.branch >> ]
+          steps:
+            - run:
+                name: Download Base Branch Metrics
+                command: |
+                  # Download metrics.json artifact from the latest successful build on master branch
+                  mkdir -p base-metrics
+                  # Use CircleCI API to get the latest artifact
+                  curl -s -L "https://dl.circleci.com/api/v2/project/gh/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/latest/artifacts?branch=master&filter=successful" \
+                    -H "Circle-Token: ${CIRCLE_TOKEN:-}" | \
+                    jq -r '.items[] | select(.path == "metrics.json") | .url' | \
+                    head -1 | xargs -I {} curl -s -L -o base-metrics/metrics.json {} || true
+
+            - run:
+                name: Compare with Base Branch
+                command: |
+                  if [ -f base-metrics/metrics.json ]; then
+                    python tools/metrics.py compare -f tinyusb/src base-metrics/metrics.json metrics.json
+                    cat metrics_compare.md
+                  else
+                    echo "No base metrics found, skipping comparison"
+                    cp metrics.md metrics_compare.md
+                  fi
+
+            - store_artifacts:
+                path: metrics_compare.md
+                destination: metrics_compare.md
 
 workflows:
   build:
