@@ -283,11 +283,19 @@ def write_compare_markdown(comparison, path, sort_order='size'):
         else:
             (significant if is_significant(f) else minor).append(f)
 
-    def render_table(title, rows):
-        md_lines.append(f"## {title}")
+    def render_table(title, rows, collapsed=False):
+        if collapsed:
+            md_lines.append(f"<details><summary>{title}</summary>")
+            md_lines.append("")
+        else:
+            md_lines.append(f"## {title}")
+
         if not rows:
             md_lines.append("No entries.")
             md_lines.append("")
+            if collapsed:
+                md_lines.append("</details>")
+                md_lines.append("")
             return
 
         md_lines.append(header)
@@ -323,9 +331,13 @@ def write_compare_markdown(comparison, path, sort_order='size'):
         md_lines.append(sum_row)
         md_lines.append("")
 
+        if collapsed:
+            md_lines.append("</details>")
+            md_lines.append("")
+
     render_table("Changes >1% in any section", significant)
     render_table("Changes <1% in all sections", minor)
-    render_table("No changes", unchanged)
+    render_table("No changes", unchanged, collapsed=True)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(md_lines))
