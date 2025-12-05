@@ -275,11 +275,13 @@ def write_compare_markdown(comparison, path, sort_order='size'):
 
     significant = []
     minor = []
+    unchanged = []
     for f in sorted_files:
-        # Skip files with no changes
-        if f["total"]["diff"] == 0 and all(f["sections"][s]["diff"] == 0 for s in sections):
-            continue
-        (significant if is_significant(f) else minor).append(f)
+        no_change = f["total"]["diff"] == 0 and all(f["sections"][s]["diff"] == 0 for s in sections)
+        if no_change:
+            unchanged.append(f)
+        else:
+            (significant if is_significant(f) else minor).append(f)
 
     def render_table(title, rows):
         md_lines.append(f"## {title}")
@@ -323,6 +325,7 @@ def write_compare_markdown(comparison, path, sort_order='size'):
 
     render_table("Changes >1% in any section", significant)
     render_table("Changes <1% in all sections", minor)
+    render_table("No changes", unchanged)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(md_lines))
