@@ -244,6 +244,9 @@ deps_optional = {
     'hw/mcu/artery/at32f413': ['https://github.com/ArteryTek/AT32F413_Firmware_Library.git',
                                'f6fe62dfec9fd40c5b63d92fc5ef2c2b5e77a450',
                                'at32f413'],
+    'hw/mcu/hpmicro/hpm_sdk': ['https://github.com/hpmicro/hpm_sdk',
+                               '8d2af741ecc4aaa82d7ee395dc1ce25d7070c3ff',
+                               'hpm_sdk hpmicro hpm6750 hpm6300 hpm6200 hpm6800 hpm5300 hpm6e00 hpm5e00'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '2b7495b8535bdcb306dac29b9ded4cfb679d7e5c',
                     'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x '

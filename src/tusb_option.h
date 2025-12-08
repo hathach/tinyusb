@@ -216,6 +216,9 @@
 #define OPT_MCU_AT32F425         2505  ///< ArteryTek AT32F425
 #define OPT_MCU_AT32F413         2506  ///< ArteryTek AT32F413
 
+// HPMicro
+#define OPT_MCU_HPM              2600  ///< HPMicro
+
 // Check if configured MCU is one of listed
 // Apply TU_MCU_IS_EQUAL with || as separator to list of input
 #define TU_MCU_IS_EQUAL(_m)  (CFG_TUSB_MCU == (_m))
