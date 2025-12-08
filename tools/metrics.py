@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Calculate average size from multiple linker map files."""
+"""Calculate average sizes using bloaty output."""
 
 import argparse
+import csv
 import glob
+import io
 import json
-import sys
 import os
-
-# Add linkermap module to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'linkermap'))
-import linkermap
+import sys
+from collections import defaultdict
 
 
 def expand_files(file_patterns):
@@ -30,60 +29,105 @@ def expand_files(file_patterns):
     return expanded
 
 
-def combine_maps(map_files, filters=None):
-    """Combine multiple map files into a list of json_data.
+def parse_bloaty_csv(csv_text, filters=None):
+    """Parse bloaty CSV text and return normalized JSON data structure."""
 
-    Args:
-        map_files: List of paths to linker map files or JSON files
-        filters: List of path substrings to filter object files (default: [])
-
-    Returns:
-        all_json_data: Dictionary with mapfiles list and data from each map file
-    """
     filters = filters or []
-    all_json_data = {"mapfiles": [], "data": []}
+    reader = csv.DictReader(io.StringIO(csv_text))
+    size_by_unit = defaultdict(int)
+    symbols_by_unit: dict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
+    sections_by_unit: dict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
 
-    def _normalize_json(json_data):
-        """Flatten verbose linkermap JSON (per-symbol dicts) to per-section totals."""
+    for row in reader:
+        compile_unit = row.get("compileunits") or row.get("compileunit") or row.get("path")
+        if compile_unit is None:
+            continue
 
-        for f in json_data.get("files", []):
-            collapsed = {}
-            for section, val in f.get("sections", {}).items():
-                collapsed[section] = sum(val.values()) if isinstance(val, dict) else val
+        if str(compile_unit).upper() == "TOTAL":
+            continue
 
-            # Replace sections with collapsed totals
-            f["sections"] = collapsed
-
-            # Ensure total is a number derived from sections
-            f["total"] = sum(collapsed.values())
-
-        return json_data
-
-    for map_file in map_files:
-        if not os.path.exists(map_file):
-            print(f"Warning: {map_file} not found, skipping", file=sys.stderr)
+        if filters and not any(filt in compile_unit for filt in filters):
             continue
 
         try:
-            if map_file.endswith('.json'):
-                with open(map_file, 'r', encoding='utf-8') as f:
+            vmsize = int(row.get("vmsize", 0))
+        except ValueError:
+            continue
+
+        size_by_unit[compile_unit] += vmsize
+        symbol_name = row.get("symbols", "")
+        if symbol_name:
+            symbols_by_unit[compile_unit][symbol_name] += vmsize
+        section_name = row.get("sections") or row.get("section")
+        if section_name and vmsize:
+            sections_by_unit[compile_unit][section_name] += vmsize
+
+    files = []
+    for unit_path, total_size in size_by_unit.items():
+        symbols = [
+            {"name": sym, "size": sz}
+            for sym, sz in sorted(symbols_by_unit[unit_path].items(), key=lambda x: x[1], reverse=True)
+        ]
+        sections = {sec: sz for sec, sz in sections_by_unit[unit_path].items() if sz}
+        files.append(
+            {
+                "file": os.path.basename(unit_path) or unit_path,
+                "path": unit_path,
+                "size": total_size,
+                "total": total_size,
+                "symbols": symbols,
+                "sections": sections,
+            }
+        )
+
+    total_all = sum(size_by_unit.values())
+    return {"files": files, "TOTAL": total_all}
+
+
+def combine_files(input_files, filters=None):
+    """Combine multiple bloaty outputs into a single data set."""
+
+    filters = filters or []
+    all_json_data = {"file_list": [], "data": []}
+
+    for fin in input_files:
+        if not os.path.exists(fin):
+            print(f"Warning: {fin} not found, skipping", file=sys.stderr)
+            continue
+
+        try:
+            if fin.endswith(".json"):
+                with open(fin, "r", encoding="utf-8") as f:
                     json_data = json.load(f)
-
-                json_data = _normalize_json(json_data)
-
-                # Apply path filters to JSON data
                 if filters:
-                    filtered_files = [
-                        f for f in json_data.get("files", [])
+                    json_data["files"] = [
+                        f
+                        for f in json_data.get("files", [])
                         if f.get("path") and any(filt in f["path"] for filt in filters)
                     ]
-                    json_data["files"] = filtered_files
+            elif fin.endswith(".csv"):
+                with open(fin, "r", encoding="utf-8") as f:
+                    csv_text = f.read()
+                json_data = parse_bloaty_csv(csv_text, filters)
             else:
-                json_data = linkermap.analyze_map(map_file, filters=filters)
-            all_json_data["mapfiles"].append(map_file)
+                if fin.endswith(".elf"):
+                    print(f"Warning: {fin} is an ELF; please run bloaty with --csv output first. Skipping.",
+                          file=sys.stderr)
+                else:
+                    print(f"Warning: {fin} is not a supported CSV or JSON metrics input. Skipping.",
+                          file=sys.stderr)
+                continue
+
+            # Drop any fake TOTAL entries that slipped in as files
+            json_data["files"] = [
+                f for f in json_data.get("files", [])
+                if str(f.get("file", "")).upper() != "TOTAL"
+            ]
+
+            all_json_data["file_list"].append(fin)
             all_json_data["data"].append(json_data)
-        except Exception as e:
-            print(f"Warning: Failed to analyze {map_file}: {e}", file=sys.stderr)
+        except Exception as e:  # pragma: no cover - defensive
+            print(f"Warning: Failed to analyze {fin}: {e}", file=sys.stderr)
             continue
 
     return all_json_data
@@ -93,7 +137,7 @@ def compute_avg(all_json_data):
     """Compute average sizes from combined json_data.
 
     Args:
-        all_json_data: Dictionary with mapfiles and data from combine_maps()
+        all_json_data: Dictionary with file_list and data from combine_files()
 
     Returns:
         json_average: Dictionary with averaged size data
@@ -101,126 +145,131 @@ def compute_avg(all_json_data):
     if not all_json_data["data"]:
         return None
 
-    # Collect all sections preserving order
-    all_sections = []
-    for json_data in all_json_data["data"]:
-        for s in json_data["sections"]:
-            if s not in all_sections:
-                all_sections.append(s)
-
     # Merge files with the same 'file' value and compute averages
-    file_accumulator = {}  # key: file name, value: {"sections": {section: [sizes]}, "totals": [totals]}
+    file_accumulator = {}  # key: file name, value: {"sizes": [sizes], "totals": [totals], "symbols": {name: [sizes]}, "sections": {name: [sizes]}}
 
     for json_data in all_json_data["data"]:
-        for f in json_data["files"]:
+        for f in json_data.get("files", []):
             fname = f["file"]
             if fname not in file_accumulator:
-                file_accumulator[fname] = {"sections": {}, "totals": [], "path": f.get("path")}
-            file_accumulator[fname]["totals"].append(f["total"])
-            for section, size in f["sections"].items():
-                if section in file_accumulator[fname]["sections"]:
-                    file_accumulator[fname]["sections"][section].append(size)
-                else:
-                    file_accumulator[fname]["sections"][section] = [size]
+                file_accumulator[fname] = {
+                    "sizes": [],
+                    "totals": [],
+                    "path": f.get("path"),
+                    "symbols": defaultdict(list),
+                    "sections": defaultdict(list),
+                }
+            size_val = f.get("size", f.get("total", 0))
+            file_accumulator[fname]["sizes"].append(size_val)
+            file_accumulator[fname]["totals"].append(f.get("total", size_val))
+            for sym in f.get("symbols", []):
+                name = sym.get("name")
+                if name is None:
+                    continue
+                file_accumulator[fname]["symbols"][name].append(sym.get("size", 0))
+            sections_map = f.get("sections") or {}
+            if isinstance(sections_map, list):
+                sections_map = {
+                    s.get("name"): s.get("size", 0)
+                    for s in sections_map
+                    if isinstance(s, dict) and s.get("name")
+                }
+            for sname, ssize in sections_map.items():
+                file_accumulator[fname]["sections"][sname].append(ssize)
 
     # Build json_average with averaged values
     files_average = []
     for fname, data in file_accumulator.items():
-        avg_total = round(sum(data["totals"]) / len(data["totals"]))
-        avg_sections = {}
-        for section, sizes in data["sections"].items():
-            avg_sections[section] = round(sum(sizes) / len(sizes))
-        files_average.append({
-            "file": fname,
-            "path": data["path"],
-            "sections": avg_sections,
-            "total": avg_total
-        })
+        avg_size = round(sum(data["sizes"]) / len(data["sizes"])) if data["sizes"] else 0
+        symbols_avg = []
+        for sym_name, sizes in data["symbols"].items():
+            if not sizes:
+                continue
+            symbols_avg.append({"name": sym_name, "size": round(sum(sizes) / len(sizes))})
+        symbols_avg.sort(key=lambda x: x["size"], reverse=True)
+        sections_avg = {
+            sec_name: round(sum(sizes) / len(sizes))
+            for sec_name, sizes in data["sections"].items()
+            if sizes
+        }
+        files_average.append(
+            {
+                "file": fname,
+                "path": data["path"],
+                "size": avg_size,
+                "symbols": symbols_avg,
+                "sections": sections_avg,
+            }
+        )
+
+    totals_list = [d.get("TOTAL") for d in all_json_data["data"] if isinstance(d.get("TOTAL"), (int, float))]
+    total_size = round(sum(totals_list) / len(totals_list)) if totals_list else (
+            sum(f["size"] for f in files_average) or 1)
+
+    for f in files_average:
+        f["percent"] = (f["size"] / total_size) * 100 if total_size else 0
+        for sym in f["symbols"]:
+            sym["percent"] = (sym["size"] / f["size"]) * 100 if f["size"] else 0
 
     json_average = {
-        "mapfiles": all_json_data["mapfiles"],
-        "sections": all_sections,
-        "files": files_average
+        "file_list": all_json_data["file_list"],
+        "TOTAL": total_size,
+        "files": files_average,
     }
 
     return json_average
 
 
-def compare_maps(base_file, new_file, filters=None):
-    """Compare two map/json files and generate difference report.
-
-    Args:
-        base_file: Path to base map/json file
-        new_file: Path to new map/json file
-        filters: List of path substrings to filter object files
-
-    Returns:
-        Dictionary with comparison data
-    """
+def compare_files(base_file, new_file, filters=None):
+    """Compare two CSV or JSON inputs and generate difference report."""
     filters = filters or []
 
-    # Load both files
-    base_data = combine_maps([base_file], filters)
-    new_data = combine_maps([new_file], filters)
-
-    if not base_data["data"] or not new_data["data"]:
-        return None
-
-    base_avg = compute_avg(base_data)
-    new_avg = compute_avg(new_data)
+    base_avg = compute_avg(combine_files([base_file], filters))
+    new_avg = compute_avg(combine_files([new_file], filters))
 
     if not base_avg or not new_avg:
         return None
 
-    # Collect all sections from both
-    all_sections = list(base_avg["sections"])
-    for s in new_avg["sections"]:
-        if s not in all_sections:
-            all_sections.append(s)
-
-    # Build file lookup
     base_files = {f["file"]: f for f in base_avg["files"]}
     new_files = {f["file"]: f for f in new_avg["files"]}
-
-    # Get all file names
     all_file_names = set(base_files.keys()) | set(new_files.keys())
 
-    # Build comparison data
-    comparison = []
+    comparison_files = []
     for fname in sorted(all_file_names):
-        base_f = base_files.get(fname)
-        new_f = new_files.get(fname)
+        b = base_files.get(fname, {})
+        n = new_files.get(fname, {})
+        b_size = b.get("size", 0)
+        n_size = n.get("size", 0)
 
-        row = {"file": fname, "sections": {}, "total": {}}
+        # Symbol diffs
+        b_syms = {s["name"]: s for s in b.get("symbols", [])}
+        n_syms = {s["name"]: s for s in n.get("symbols", [])}
+        all_syms = set(b_syms.keys()) | set(n_syms.keys())
+        symbols = []
+        for sym in all_syms:
+            sb = b_syms.get(sym, {}).get("size", 0)
+            sn = n_syms.get(sym, {}).get("size", 0)
+            symbols.append({"name": sym, "base": sb, "new": sn, "diff": sn - sb})
+        symbols.sort(key=lambda x: abs(x["diff"]), reverse=True)
 
-        for section in all_sections:
-            base_val = base_f["sections"].get(section, 0) if base_f else 0
-            new_val = new_f["sections"].get(section, 0) if new_f else 0
-            row["sections"][section] = {"base": base_val, "new": new_val, "diff": new_val - base_val}
+        comparison_files.append({
+            "file": fname,
+            "size": {"base": b_size, "new": n_size, "diff": n_size - b_size},
+            "symbols": symbols,
+        })
 
-        base_total = base_f["total"] if base_f else 0
-        new_total = new_f["total"] if new_f else 0
-        row["total"] = {"base": base_total, "new": new_total, "diff": new_total - base_total}
-
-        comparison.append(row)
+    total = {
+        "base": base_avg.get("TOTAL", 0),
+        "new": new_avg.get("TOTAL", 0),
+        "diff": new_avg.get("TOTAL", 0) - base_avg.get("TOTAL", 0),
+    }
 
     return {
         "base_file": base_file,
         "new_file": new_file,
-        "sections": all_sections,
-        "files": comparison
+        "total": total,
+        "files": comparison_files,
     }
-
-
-def format_diff(base, new, diff):
-    """Format a diff value with percentage."""
-    if diff == 0:
-        return f"{new}"
-    if base == 0 or new == 0:
-        return f"{base} ➙ {new}"
-    pct = (diff / base) * 100
-    sign = "+" if diff > 0 else ""
-    return f"{base} ➙ {new} ({sign}{diff}, {sign}{pct:.1f}%)"
 
 
 def get_sort_key(sort_order):
@@ -232,131 +281,148 @@ def get_sort_key(sort_order):
     Returns:
         Tuple of (key_func, reverse)
     """
+
+    def _size_val(entry):
+        if isinstance(entry.get('total'), int):
+            return entry.get('total', 0)
+        if isinstance(entry.get('total'), dict):
+            return entry['total'].get('new', 0)
+        return entry.get('size', 0)
+
     if sort_order == 'size-':
-        return lambda x: x.get('total', 0) if isinstance(x.get('total'), int) else x['total']['new'], True
+        return _size_val, True
     elif sort_order == 'size+':
-        return lambda x: x.get('total', 0) if isinstance(x.get('total'), int) else x['total']['new'], False
+        return _size_val, False
     elif sort_order == 'name-':
         return lambda x: x.get('file', ''), True
     else:  # name+
         return lambda x: x.get('file', ''), False
 
 
+def write_json_output(json_data, path):
+    """Write JSON output with indentation."""
+
+    with open(path, "w", encoding="utf-8") as outf:
+        json.dump(json_data, outf, indent=2)
+
+
+def render_combine_table(json_data, sort_order='name+'):
+    """Render averaged sizes as markdown table lines (no title)."""
+    files = json_data.get("files", [])
+    if not files:
+        return ["No entries."]
+
+    key_func, reverse = get_sort_key(sort_order)
+    files_sorted = sorted(files, key=key_func, reverse=reverse)
+
+    total_size = json_data.get("TOTAL") or (sum(f.get("size", 0) for f in files_sorted) or 1)
+
+    pct_strings = [
+        f"{(f.get('percent') if f.get('percent') is not None else (f.get('size', 0) / total_size * 100 if total_size else 0)):.1f}%"
+        for f in files_sorted]
+    pct_width = 6
+    size_width = max(len("size"), *(len(str(f.get("size", 0))) for f in files_sorted), len(str(total_size)))
+    file_width = max(len("File"), *(len(f.get("file", "")) for f in files_sorted), len("TOTAL"))
+
+    # Build section totals on the fly from file data
+    sections_global = defaultdict(int)
+    for f in files_sorted:
+        for name, size in (f.get("sections") or {}).items():
+            sections_global[name] += size
+    # Display sections in reverse alphabetical order for stable column layout
+    section_names = sorted(sections_global.keys(), reverse=True)
+    section_widths = {}
+    for name in section_names:
+        max_val = max((f.get("sections", {}).get(name, 0) for f in files_sorted), default=0)
+        section_widths[name] = max(len(name), len(str(max_val)), 1)
+
+    if not section_names:
+        header = f"| {'File':<{file_width}} | {'size':>{size_width}} | {'%':>{pct_width}} |"
+        separator = f"| :{'-' * (file_width - 1)} | {'-' * (size_width - 1)}: | {'-' * (pct_width - 1)}: |"
+    else:
+        header_parts = [f"| {'File':<{file_width}} |"]
+        sep_parts = [f"| :{'-' * (file_width - 1)} |"]
+        for name in section_names:
+            header_parts.append(f" {name:>{section_widths[name]}} |")
+            sep_parts.append(f" {'-' * (section_widths[name] - 1)}: |")
+        header_parts.append(f" {'size':>{size_width}} | {'%':>{pct_width}} |")
+        sep_parts.append(f" {'-' * (size_width - 1)}: | {'-' * (pct_width - 1)}: |")
+        header = "".join(header_parts)
+        separator = "".join(sep_parts)
+
+    lines = [header, separator]
+
+    for f, pct_str in zip(files_sorted, pct_strings):
+        size_val = f.get("size", 0)
+        parts = [f"| {f.get('file', ''):<{file_width}} |"]
+        if section_names:
+            sections_map = f.get("sections") or {}
+            if isinstance(sections_map, list):
+                sections_map = {
+                    s.get("name"): s.get("size", 0)
+                    for s in sections_map
+                    if isinstance(s, dict) and s.get("name")
+                }
+            for name in section_names:
+                parts.append(f" {sections_map.get(name, 0):>{section_widths[name]}} |")
+        parts.append(f" {size_val:>{size_width}} | {pct_str:>{pct_width}} |")
+        lines.append("".join(parts))
+
+    total_parts = [f"| {'TOTAL':<{file_width}} |"]
+    if section_names:
+        for name in section_names:
+            total_parts.append(f" {sections_global.get(name, 0):>{section_widths[name]}} |")
+    total_parts.append(f" {total_size:>{size_width}} | {'100.0%':>{pct_width}} |")
+    lines.append("".join(total_parts))
+    return lines
+
+
+def write_combine_markdown(json_data, path, sort_order='name+', title="TinyUSB Average Code Size Metrics"):
+    """Write averaged size data to a markdown file."""
+
+    md_lines = [f"# {title}", ""]
+    md_lines.extend(render_combine_table(json_data, sort_order))
+    md_lines.append("")
+
+    if json_data.get("file_list"):
+        md_lines.extend(["<details>", "<summary>Input files</summary>", ""])
+        md_lines.extend([f"- {mf}" for mf in json_data["file_list"]])
+        md_lines.extend(["", "</details>", ""])
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(md_lines))
+
+
 def write_compare_markdown(comparison, path, sort_order='size'):
     """Write comparison data to markdown file."""
-    sections = comparison["sections"]
-
     md_lines = [
         "# Size Difference Report",
         "",
-        "Because TinyUSB code size varies by port and configuration, the metrics below represent the averaged totals across all example builds."
+        "Because TinyUSB code size varies by port and configuration, the metrics below represent the averaged totals across all example builds.",
         "",
         "Note: If there is no change, only one value is shown.",
         "",
     ]
 
-    # Build header
-    header = "| File |"
-    separator = "|:-----|"
-    for s in sections:
-        header += f" {s} |"
-        separator += "-----:|"
-    header += " Total |"
-    separator += "------:|"
+    significant, minor, unchanged = _split_by_significance(comparison["files"], sort_order)
 
-    def is_significant(file_row):
-        for s in sections:
-            sd = file_row["sections"][s]
-            diff = abs(sd["diff"])
-            base = sd["base"]
-            if base == 0:
-                if diff != 0:
-                    return True
-            else:
-                if (diff / base) * 100 > 1.0:
-                    return True
-        return False
-
-    # Sort files based on sort_order
-    if sort_order == 'size-':
-        key_func = lambda x: abs(x["total"]["diff"])
-        reverse = True
-    elif sort_order in ('size', 'size+'):
-        key_func = lambda x: abs(x["total"]["diff"])
-        reverse = False
-    elif sort_order == 'name-':
-        key_func = lambda x: x['file']
-        reverse = True
-    else:  # name or name+
-        key_func = lambda x: x['file']
-        reverse = False
-    sorted_files = sorted(comparison["files"], key=key_func, reverse=reverse)
-
-    significant = []
-    minor = []
-    unchanged = []
-    for f in sorted_files:
-        no_change = f["total"]["diff"] == 0 and all(f["sections"][s]["diff"] == 0 for s in sections)
-        if no_change:
-            unchanged.append(f)
-        else:
-            (significant if is_significant(f) else minor).append(f)
-
-    def render_table(title, rows, collapsed=False):
+    def render(title, rows, collapsed=False):
         if collapsed:
             md_lines.append(f"<details><summary>{title}</summary>")
             md_lines.append("")
         else:
             md_lines.append(f"## {title}")
 
-        if not rows:
-            md_lines.append("No entries.")
-            md_lines.append("")
-            if collapsed:
-                md_lines.append("</details>")
-                md_lines.append("")
-            return
-
-        md_lines.append(header)
-        md_lines.append(separator)
-
-        sum_base = {s: 0 for s in sections}
-        sum_base["total"] = 0
-        sum_new = {s: 0 for s in sections}
-        sum_new["total"] = 0
-
-        for f in rows:
-            row = f"| {f['file']} |"
-            for s in sections:
-                sd = f["sections"][s]
-                sum_base[s] += sd["base"]
-                sum_new[s] += sd["new"]
-                row += f" {format_diff(sd['base'], sd['new'], sd['diff'])} |"
-
-            td = f["total"]
-            sum_base["total"] += td["base"]
-            sum_new["total"] += td["new"]
-            row += f" {format_diff(td['base'], td['new'], td['diff'])} |"
-
-            md_lines.append(row)
-
-        # Add sum row
-        sum_row = "| **SUM** |"
-        for s in sections:
-            diff = sum_new[s] - sum_base[s]
-            sum_row += f" {format_diff(sum_base[s], sum_new[s], diff)} |"
-        total_diff = sum_new["total"] - sum_base["total"]
-        sum_row += f" {format_diff(sum_base['total'], sum_new['total'], total_diff)} |"
-        md_lines.append(sum_row)
+        md_lines.extend(render_compare_table(_build_rows(rows, sort_order), include_sum=True))
         md_lines.append("")
 
         if collapsed:
             md_lines.append("</details>")
             md_lines.append("")
 
-    render_table("Changes >1% in any section", significant)
-    render_table("Changes <1% in all sections", minor)
-    render_table("No changes", unchanged, collapsed=True)
+    render("Changes >1% in size", significant)
+    render("Changes <1% in size", minor)
+    render("No changes", unchanged, collapsed=True)
 
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(md_lines))
@@ -365,14 +431,22 @@ def write_compare_markdown(comparison, path, sort_order='size'):
 def print_compare_summary(comparison, sort_order='name+'):
     """Print diff report to stdout in table form."""
 
-    sections = comparison["sections"]
     files = comparison["files"]
+
+    rows = _build_rows(files, sort_order)
+    lines = render_compare_table(rows, include_sum=True)
+    for line in lines:
+        print(line)
+
+
+def _build_rows(files, sort_order):
+    """Sort files and prepare printable fields."""
 
     def sort_key(file_row):
         if sort_order == 'size-':
-            return abs(file_row["total"]["diff"])
+            return abs(file_row["size"]["diff"])
         if sort_order in ('size', 'size+'):
-            return abs(file_row["total"]["diff"])
+            return abs(file_row["size"]["diff"])
         if sort_order == 'name-':
             return file_row['file']
         return file_row['file']
@@ -380,63 +454,118 @@ def print_compare_summary(comparison, sort_order='name+'):
     reverse = sort_order in ('size-', 'name-')
     files_sorted = sorted(files, key=sort_key, reverse=reverse)
 
-    # Build formatted rows first to compute column widths precisely
     rows = []
-    value_lengths = []
     for f in files_sorted:
-        section_vals = {}
-        for s in sections:
-            sd = f["sections"][s]
-            text = format_diff(sd['base'], sd['new'], sd['diff'])
-            section_vals[s] = text
-            value_lengths.append(len(text))
-        td = f["total"]
-        total_text = format_diff(td['base'], td['new'], td['diff'])
-        value_lengths.append(len(total_text))
-        rows.append({"file": f['file'], "sections": section_vals, "total": total_text, "raw": f})
+        sd = f["size"]
+        diff_val = sd['new'] - sd['base']
+        if sd['base'] == 0:
+            pct_str = "n/a"
+        else:
+            pct_val = (diff_val / sd['base']) * 100
+            pct_str = f"{pct_val:+.1f}%"
+        rows.append({
+            "file": f['file'],
+            "base": sd['base'],
+            "new": sd['new'],
+            "diff": diff_val,
+            "pct": pct_str,
+        })
+    return rows
 
-    # Column widths
-    name_width = max(len(r["file"]) for r in rows) if rows else len("File")
-    name_width = max(name_width, len("File"), 3)  # at least width of SUM
-    col_width = max(12, *(len(s) for s in sections), len("Total"), *(value_lengths or [0]))
 
-    ffmt = '{:' + f'>{name_width}' + '} |'
-    col_fmt = '{:' + f'>{col_width}' + '}'
+def _split_by_significance(files, sort_order):
+    """Split files into >1% changes, <1% changes, and no changes."""
 
-    header = ffmt.format('File') + ''.join(col_fmt.format(s) + ' |' for s in sections) + col_fmt.format('Total')
-    print(header)
-    print('-' * len(header))
+    def is_significant(file_row):
+        base = file_row["size"]["base"]
+        diff = abs(file_row["size"]["diff"])
+        if base == 0:
+            return diff != 0
+        return (diff / base) * 100 > 1.0
 
-    sum_base = {s: 0 for s in sections}
-    sum_new = {s: 0 for s in sections}
+    rows_sorted = sorted(
+        files,
+        key=lambda f: abs(f["size"]["diff"]) if sort_order.startswith("size") else f["file"],
+        reverse=sort_order in ('size-', 'name-'),
+    )
 
-    for row in rows:
-        line = ffmt.format(row['file'])
-        for s in sections:
-            sd = row["raw"]["sections"][s]
-            sum_base[s] += sd["base"]
-            sum_new[s] += sd["new"]
-            line += col_fmt.format(row['sections'][s]) + ' |'
+    significant = []
+    minor = []
+    unchanged = []
+    for f in rows_sorted:
+        if f["size"]["diff"] == 0:
+            unchanged.append(f)
+        else:
+            (significant if is_significant(f) else minor).append(f)
 
-        line += col_fmt.format(row['total'])
-        print(line)
+    return significant, minor, unchanged
 
-    # Sum row
-    sum_row = ffmt.format('SUM')
-    for s in sections:
-        diff = sum_new[s] - sum_base[s]
-        sum_row += col_fmt.format(format_diff(sum_base[s], sum_new[s], diff)) + ' |'
-    total_base = sum(sum_base.values())
-    total_new = sum(sum_new.values())
-    sum_row += col_fmt.format(format_diff(total_base, total_new, total_new - total_base))
-    print('-' * len(header))
-    print(sum_row)
+
+def render_compare_table(rows, include_sum):
+    """Return markdown table lines for given rows."""
+    if not rows:
+        return ["No entries.", ""]
+
+    sum_base = sum(r["base"] for r in rows)
+    sum_new = sum(r["new"] for r in rows)
+    total_diff = sum_new - sum_base
+    total_pct = "n/a" if sum_base == 0 else f"{(total_diff / sum_base) * 100:+.1f}%"
+
+    base_width = max(len("base"), *(len(str(r["base"])) for r in rows))
+    new_width = max(len("new"), *(len(str(r["new"])) for r in rows))
+    diff_width = max(len("diff"), *(len(f"{r['diff']:+}") for r in rows))
+    pct_width = max(len("% diff"), *(len(r["pct"]) for r in rows))
+    name_width = max(len("file"), *(len(r["file"]) for r in rows))
+
+    if include_sum:
+        base_width = max(base_width, len(str(sum_base)))
+        new_width = max(new_width, len(str(sum_new)))
+        diff_width = max(diff_width, len(f"{total_diff:+}"))
+        pct_width = max(pct_width, len(total_pct))
+        name_width = max(name_width, len("TOTAL"))
+
+    header = (
+        f"| {'file':<{name_width}} | "
+        f"{'base':>{base_width}} | "
+        f"{'new':>{new_width}} | "
+        f"{'diff':>{diff_width}} | "
+        f"{'% diff':>{pct_width}} |"
+    )
+    separator = (
+        f"| :{'-' * (name_width - 1)} | "
+        f"{'-' * base_width}:| "
+        f"{'-' * new_width}:| "
+        f"{'-' * diff_width}:| "
+        f"{'-' * pct_width}:|"
+    )
+
+    lines = [header, separator]
+
+    for r in rows:
+        diff_str = f"{r['diff']:+}"
+        lines.append(
+            f"| {r['file']:<{name_width}} | "
+            f"{str(r['base']):>{base_width}} | "
+            f"{str(r['new']):>{new_width}} | "
+            f"{diff_str:>{diff_width}} | "
+            f"{r['pct']:>{pct_width}} |"
+        )
+
+    if include_sum:
+        lines.append(
+            f"| {'TOTAL':<{name_width}} | "
+            f"{sum_base:>{base_width}} | "
+            f"{sum_new:>{new_width}} | "
+            f"{total_diff:+{diff_width}d} | "
+            f"{total_pct:>{pct_width}} |"
+        )
+    return lines
 
 
 def cmd_combine(args):
     """Handle combine subcommand."""
-    map_files = expand_files(args.files)
-    all_json_data = combine_maps(map_files, args.filters)
+    input_files = expand_files(args.files)
+    all_json_data = combine_files(input_files, args.filters)
     json_average = compute_avg(all_json_data)
 
     if json_average is None:
@@ -444,17 +573,18 @@ def cmd_combine(args):
         sys.exit(1)
 
     if not args.quiet:
-        linkermap.print_summary(json_average, False, args.sort)
+        for line in render_combine_table(json_average, sort_order=args.sort):
+            print(line)
     if args.json_out:
-        linkermap.write_json(json_average, args.out + '.json')
+        write_json_output(json_average, args.out + '.json')
     if args.markdown_out:
-        linkermap.write_markdown(json_average, args.out + '.md', sort_opt=args.sort,
-                                 title="TinyUSB Average Code Size Metrics")
+        write_combine_markdown(json_average, args.out + '.md', sort_order=args.sort,
+                               title="TinyUSB Average Code Size Metrics")
 
 
 def cmd_compare(args):
     """Handle compare subcommand."""
-    comparison = compare_maps(args.base, args.new, args.filters)
+    comparison = compare_files(args.base, args.new, args.filters)
 
     if comparison is None:
         print("Failed to compare files", file=sys.stderr)
@@ -472,10 +602,11 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest='command', required=True, help='Available commands')
 
     # Combine subcommand
-    combine_parser = subparsers.add_parser('combine', help='Combine and average multiple map files')
-    combine_parser.add_argument('files', nargs='+', help='Path to map file(s) or glob pattern(s)')
+    combine_parser = subparsers.add_parser('combine', help='Combine and average multiple bloaty outputs')
+    combine_parser.add_argument('files', nargs='+',
+                                help='Path to bloaty CSV output or JSON file(s) or glob pattern(s)')
     combine_parser.add_argument('-f', '--filter', dest='filters', action='append', default=[],
-                                help='Only include object files whose path contains this substring (can be repeated)')
+                                help='Only include compile units whose path contains this substring (can be repeated)')
     combine_parser.add_argument('-o', '--out', dest='out', default='metrics',
                                 help='Output path basename for JSON and Markdown files (default: metrics)')
     combine_parser.add_argument('-j', '--json', dest='json_out', action='store_true',
@@ -484,16 +615,16 @@ def main(argv=None):
                                 help='Write Markdown output file')
     combine_parser.add_argument('-q', '--quiet', dest='quiet', action='store_true',
                                 help='Suppress summary output')
-    combine_parser.add_argument('-S', '--sort', dest='sort', default='name+',
+    combine_parser.add_argument('-S', '--sort', dest='sort', default='size-',
                                 choices=['size', 'size-', 'size+', 'name', 'name-', 'name+'],
-                                help='Sort order: size/size- (descending), size+ (ascending), name/name+ (ascending), name- (descending). Default: name+')
+                                help='Sort order: size/size- (descending), size+ (ascending), name/name+ (ascending), name- (descending). Default: size-')
 
     # Compare subcommand
-    compare_parser = subparsers.add_parser('compare', help='Compare two map files')
-    compare_parser.add_argument('base', help='Base map/json file')
-    compare_parser.add_argument('new', help='New map/json file')
+    compare_parser = subparsers.add_parser('compare', help='Compare two bloaty outputs (CSV) or JSON inputs')
+    compare_parser.add_argument('base', help='Base CSV/JSON file')
+    compare_parser.add_argument('new', help='New CSV/JSON file')
     compare_parser.add_argument('-f', '--filter', dest='filters', action='append', default=[],
-                                help='Only include object files whose path contains this substring (can be repeated)')
+                                help='Only include compile units whose path contains this substring (can be repeated)')
     compare_parser.add_argument('-o', '--out', dest='out', default='metrics_compare',
                                 help='Output path basename for Markdown file (default: metrics_compare)')
     compare_parser.add_argument('-S', '--sort', dest='sort', default='name+',

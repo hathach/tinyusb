@@ -26,6 +26,7 @@ if (TOOLCHAIN STREQUAL "gcc" OR TOOLCHAIN STREQUAL "clang")
     -ffunction-sections
 #    -fsingle-precision-constant # not supported by clang
     -fno-strict-aliasing
+    -g
     )
   list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
     -Wl,--print-memory-usage
@@ -33,6 +34,9 @@ if (TOOLCHAIN STREQUAL "gcc" OR TOOLCHAIN STREQUAL "clang")
     -Wl,--cref
     )
 elseif (TOOLCHAIN STREQUAL "iar")
+  list(APPEND TOOLCHAIN_COMMON_FLAGS
+    --debug
+    )
   list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
     --diag_suppress=Li065
     )
