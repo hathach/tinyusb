@@ -227,7 +227,6 @@ jobs:
           name: Aggregate Code Metrics
           command: |
             python tools/get_deps.py
-            pip install tools/linkermap/
             # Combine all metrics files from all toolchain subdirectories
             ls -R /tmp/metrics
             if ls /tmp/metrics/*/*.json 1> /dev/null 2>&1; then

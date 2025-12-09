@@ -183,11 +183,11 @@
     #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
   #endif
 
-	#ifndef __ARMCC_VERSION
   // List of obsolete callback function that is renamed and should not be defined.
   // Put it here since only gcc support this pragma
-		#pragma GCC poison tud_vendor_control_request_cb
-	#endif
+  #if !defined(__ARMCC_VERSION) && !defined(__ICCARM__)
+    #pragma GCC poison tud_vendor_control_request_cb
+  #endif
 
 #elif defined(__ICCARM__)
   #include <intrinsics.h>

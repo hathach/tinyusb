@@ -20,41 +20,32 @@ include(${CMAKE_CURRENT_LIST_DIR}/../cpu/${CMAKE_SYSTEM_CPU}.cmake)
 # ----------------------------------------------------------------------------
 # Compile flags
 # ----------------------------------------------------------------------------
+set(TOOLCHAIN_C_FLAGS)
+set(TOOLCHAIN_ASM_FLAGS)
+set(TOOLCHAIN_EXE_LINKER_FLAGS)
+
 if (TOOLCHAIN STREQUAL "gcc" OR TOOLCHAIN STREQUAL "clang")
   list(APPEND TOOLCHAIN_COMMON_FLAGS
     -fdata-sections
     -ffunction-sections
 #    -fsingle-precision-constant # not supported by clang
     -fno-strict-aliasing
-    -g
+    -g # include debug info for bloaty
     )
-  list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
-    -Wl,--print-memory-usage
-    -Wl,--gc-sections
-    -Wl,--cref
-    )
+  set(TOOLCHAIN_EXE_LINKER_FLAGS "-Wl,--print-memory-usage -Wl,--gc-sections -Wl,--cref")
+
+  if (TOOLCHAIN STREQUAL clang)
+    set(TOOLCHAIN_ASM_FLAGS "-x assembler-with-cpp")
+  endif ()
 elseif (TOOLCHAIN STREQUAL "iar")
-  list(APPEND TOOLCHAIN_COMMON_FLAGS
-    --debug
-    )
-  list(APPEND TOOLCHAIN_EXE_LINKER_FLAGS
-    --diag_suppress=Li065
-    )
+  set(TOOLCHAIN_C_FLAGS --debug)
+  set(TOOLCHAIN_EXE_LINKER_FLAGS --diag_suppress=Li065)
 endif ()
 
 # join the toolchain flags into a single string
 list(JOIN TOOLCHAIN_COMMON_FLAGS " " TOOLCHAIN_COMMON_FLAGS)
-foreach (LANG IN ITEMS C CXX ASM)
-  set(CMAKE_${LANG}_FLAGS_INIT ${TOOLCHAIN_COMMON_FLAGS})
-  # optimization flags for LOG, LOGGER ?
-  #set(CMAKE_${LANG}_FLAGS_RELEASE_INIT "-Os")
-  #set(CMAKE_${LANG}_FLAGS_DEBUG_INIT "-O0")
-endforeach ()
 
-# Assembler
-if (DEFINED TOOLCHAIN_ASM_FLAGS)
-  set(CMAKE_ASM_FLAGS_INIT "${CMAKE_ASM_FLAGS_INIT} ${TOOLCHAIN_ASM_FLAGS}")
-endif ()
-
-# Linker
-list(JOIN TOOLCHAIN_EXE_LINKER_FLAGS " " CMAKE_EXE_LINKER_FLAGS_INIT)
+set(CMAKE_C_FLAGS_INIT "${TOOLCHAIN_COMMON_FLAGS} ${TOOLCHAIN_C_FLAGS}")
+set(CMAKE_CXX_FLAGS_INIT "${TOOLCHAIN_COMMON_FLAGS} ${TOOLCHAIN_C_FLAGS}")
+set(CMAKE_ASM_FLAGS_INIT "${TOOLCHAIN_COMMON_FLAGS} ${TOOLCHAIN_ASM_FLAGS}")
+set(CMAKE_EXE_LINKER_FLAGS_INIT ${TOOLCHAIN_EXE_LINKER_FLAGS})

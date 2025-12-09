@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calculate average sizes using bloaty output."""
+"""Calculate average sizes from bloaty CSV or TinyUSB metrics JSON outputs."""
 
 import argparse
 import csv
@@ -85,7 +85,7 @@ def parse_bloaty_csv(csv_text, filters=None):
 
 
 def combine_files(input_files, filters=None):
-    """Combine multiple bloaty outputs into a single data set."""
+    """Combine multiple metrics inputs (bloaty CSV or metrics JSON) into a single data set."""
 
     filters = filters or []
     all_json_data = {"file_list": [], "data": []}
@@ -168,12 +168,6 @@ def compute_avg(all_json_data):
                     continue
                 file_accumulator[fname]["symbols"][name].append(sym.get("size", 0))
             sections_map = f.get("sections") or {}
-            if isinstance(sections_map, list):
-                sections_map = {
-                    s.get("name"): s.get("size", 0)
-                    for s in sections_map
-                    if isinstance(s, dict) and s.get("name")
-                }
             for sname, ssize in sections_map.items():
                 file_accumulator[fname]["sections"][sname].append(ssize)
 
@@ -240,6 +234,8 @@ def compare_files(base_file, new_file, filters=None):
         n = new_files.get(fname, {})
         b_size = b.get("size", 0)
         n_size = n.get("size", 0)
+        base_sections = b.get("sections") or {}
+        new_sections = n.get("sections") or {}
 
         # Symbol diffs
         b_syms = {s["name"]: s for s in b.get("symbols", [])}
@@ -256,6 +252,14 @@ def compare_files(base_file, new_file, filters=None):
             "file": fname,
             "size": {"base": b_size, "new": n_size, "diff": n_size - b_size},
             "symbols": symbols,
+            "sections": {
+                name: {
+                    "base": base_sections.get(name, 0),
+                    "new": new_sections.get(name, 0),
+                    "diff": new_sections.get(name, 0) - base_sections.get(name, 0),
+                }
+                for name in sorted(set(base_sections) | set(new_sections))
+            },
         })
 
     total = {
@@ -299,6 +303,17 @@ def get_sort_key(sort_order):
         return lambda x: x.get('file', ''), False
 
 
+def format_diff(base, new, diff):
+    """Format a diff value with percentage."""
+    if diff == 0:
+        return f"{new}"
+    if base == 0 or new == 0:
+        return f"{base} ➙ {new}"
+    pct = (diff / base) * 100
+    sign = "+" if diff > 0 else ""
+    return f"{base} ➙ {new} ({sign}{diff}, {sign}{pct:.1f}%)"
+
+
 def write_json_output(json_data, path):
     """Write JSON output with indentation."""
 
@@ -315,7 +330,7 @@ def render_combine_table(json_data, sort_order='name+'):
     key_func, reverse = get_sort_key(sort_order)
     files_sorted = sorted(files, key=key_func, reverse=reverse)
 
-    total_size = json_data.get("TOTAL") or (sum(f.get("size", 0) for f in files_sorted) or 1)
+    total_size = json_data.get("TOTAL") or sum(f.get("size", 0) for f in files_sorted)
 
     pct_strings = [
         f"{(f.get('percent') if f.get('percent') is not None else (f.get('size', 0) / total_size * 100 if total_size else 0)):.1f}%"
@@ -357,12 +372,6 @@ def render_combine_table(json_data, sort_order='name+'):
         parts = [f"| {f.get('file', ''):<{file_width}} |"]
         if section_names:
             sections_map = f.get("sections") or {}
-            if isinstance(sections_map, list):
-                sections_map = {
-                    s.get("name"): s.get("size", 0)
-                    for s in sections_map
-                    if isinstance(s, dict) and s.get("name")
-                }
             for name in section_names:
                 parts.append(f" {sections_map.get(name, 0):>{section_widths[name]}} |")
         parts.append(f" {size_val:>{size_width}} | {pct_str:>{pct_width}} |")
@@ -469,6 +478,7 @@ def _build_rows(files, sort_order):
             "new": sd['new'],
             "diff": diff_val,
             "pct": pct_str,
+            "sections": f.get("sections", {}),
         })
     return rows
 
@@ -506,59 +516,68 @@ def render_compare_table(rows, include_sum):
     if not rows:
         return ["No entries.", ""]
 
+    # collect section columns (reverse alpha)
+    section_names = sorted(
+        {name for r in rows for name in (r.get("sections") or {})},
+        reverse=True,
+    )
+
+    def fmt_abs(val_old, val_new):
+        diff = val_new - val_old
+        if diff == 0:
+            return f"{val_new}"
+        sign = "+" if diff > 0 else ""
+        return f"{val_old} ➙ {val_new} ({sign}{diff})"
+
     sum_base = sum(r["base"] for r in rows)
     sum_new = sum(r["new"] for r in rows)
     total_diff = sum_new - sum_base
     total_pct = "n/a" if sum_base == 0 else f"{(total_diff / sum_base) * 100:+.1f}%"
 
-    base_width = max(len("base"), *(len(str(r["base"])) for r in rows))
-    new_width = max(len("new"), *(len(str(r["new"])) for r in rows))
-    diff_width = max(len("diff"), *(len(f"{r['diff']:+}") for r in rows))
-    pct_width = max(len("% diff"), *(len(r["pct"]) for r in rows))
-    name_width = max(len("file"), *(len(r["file"]) for r in rows))
-
-    if include_sum:
-        base_width = max(base_width, len(str(sum_base)))
-        new_width = max(new_width, len(str(sum_new)))
-        diff_width = max(diff_width, len(f"{total_diff:+}"))
-        pct_width = max(pct_width, len(total_pct))
-        name_width = max(name_width, len("TOTAL"))
-
-    header = (
-        f"| {'file':<{name_width}} | "
-        f"{'base':>{base_width}} | "
-        f"{'new':>{new_width}} | "
-        f"{'diff':>{diff_width}} | "
-        f"{'% diff':>{pct_width}} |"
+    file_width = max(len("file"), *(len(r["file"]) for r in rows), len("TOTAL"))
+    size_width = max(
+        len("size"),
+        *(len(fmt_abs(r["base"], r["new"])) for r in rows),
+        len(fmt_abs(sum_base, sum_new)),
     )
-    separator = (
-        f"| :{'-' * (name_width - 1)} | "
-        f"{'-' * base_width}:| "
-        f"{'-' * new_width}:| "
-        f"{'-' * diff_width}:| "
-        f"{'-' * pct_width}:|"
-    )
+    pct_width = max(len("% diff"), *(len(r["pct"]) for r in rows), len(total_pct))
+    section_widths = {}
+    for name in section_names:
+        max_val_len = 0
+        for r in rows:
+            sec_entry = (r.get("sections") or {}).get(name, {"base": 0, "new": 0})
+            max_val_len = max(max_val_len, len(fmt_abs(sec_entry.get("base", 0), sec_entry.get("new", 0))))
+        section_widths[name] = max(len(name), max_val_len, 1)
+
+    header_parts = [f"| {'file':<{file_width}} |"]
+    sep_parts = [f"| :{'-' * (file_width - 1)} |"]
+    for name in section_names:
+        header_parts.append(f" {name:>{section_widths[name]}} |")
+        sep_parts.append(f" {'-' * (section_widths[name] - 1)}: |")
+    header_parts.append(f" {'size':>{size_width}} | {'% diff':>{pct_width}} |")
+    sep_parts.append(f" {'-' * (size_width - 1)}: | {'-' * (pct_width - 1)}: |")
+    header = "".join(header_parts)
+    separator = "".join(sep_parts)
 
     lines = [header, separator]
 
     for r in rows:
-        diff_str = f"{r['diff']:+}"
-        lines.append(
-            f"| {r['file']:<{name_width}} | "
-            f"{str(r['base']):>{base_width}} | "
-            f"{str(r['new']):>{new_width}} | "
-            f"{diff_str:>{diff_width}} | "
-            f"{r['pct']:>{pct_width}} |"
-        )
+        parts = [f"| {r['file']:<{file_width}} |"]
+        sections_map = r.get("sections") or {}
+        for name in section_names:
+            sec_entry = sections_map.get(name, {"base": 0, "new": 0})
+            parts.append(f" {fmt_abs(sec_entry.get('base', 0), sec_entry.get('new', 0)):>{section_widths[name]}} |")
+        parts.append(f" {fmt_abs(r['base'], r['new']):>{size_width}} | {r['pct']:>{pct_width}} |")
+        lines.append("".join(parts))
 
     if include_sum:
-        lines.append(
-            f"| {'TOTAL':<{name_width}} | "
-            f"{sum_base:>{base_width}} | "
-            f"{sum_new:>{new_width}} | "
-            f"{total_diff:+{diff_width}d} | "
-            f"{total_pct:>{pct_width}} |"
-        )
+        total_parts = [f"| {'TOTAL':<{file_width}} |"]
+        for name in section_names:
+            total_base = sum((r.get("sections") or {}).get(name, {}).get("base", 0) for r in rows)
+            total_new = sum((r.get("sections") or {}).get(name, {}).get("new", 0) for r in rows)
+            total_parts.append(f" {fmt_abs(total_base, total_new):>{section_widths[name]}} |")
+        total_parts.append(f" {fmt_abs(sum_base, sum_new):>{size_width}} | {total_pct:>{pct_width}} |")
+        lines.append("".join(total_parts))
     return lines
 
 
@@ -592,9 +611,10 @@ def cmd_compare(args):
 
     if not args.quiet:
         print_compare_summary(comparison, args.sort)
-    write_compare_markdown(comparison, args.out + '.md', args.sort)
-    if not args.quiet:
-        print(f"Comparison written to {args.out}.md")
+    if args.markdown_out:
+        write_compare_markdown(comparison, args.out + '.md', args.sort)
+        if not args.quiet:
+            print(f"Comparison written to {args.out}.md")
 
 
 def main(argv=None):
@@ -602,9 +622,9 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest='command', required=True, help='Available commands')
 
     # Combine subcommand
-    combine_parser = subparsers.add_parser('combine', help='Combine and average multiple bloaty outputs')
+    combine_parser = subparsers.add_parser('combine', help='Combine and average bloaty CSV outputs or metrics JSON files')
     combine_parser.add_argument('files', nargs='+',
-                                help='Path to bloaty CSV output or JSON file(s) or glob pattern(s)')
+                                help='Path to bloaty CSV output or TinyUSB metrics JSON file(s) (including linkermap-generated) or glob pattern(s)')
     combine_parser.add_argument('-f', '--filter', dest='filters', action='append', default=[],
                                 help='Only include compile units whose path contains this substring (can be repeated)')
     combine_parser.add_argument('-o', '--out', dest='out', default='metrics',
@@ -620,13 +640,15 @@ def main(argv=None):
                                 help='Sort order: size/size- (descending), size+ (ascending), name/name+ (ascending), name- (descending). Default: size-')
 
     # Compare subcommand
-    compare_parser = subparsers.add_parser('compare', help='Compare two bloaty outputs (CSV) or JSON inputs')
-    compare_parser.add_argument('base', help='Base CSV/JSON file')
-    compare_parser.add_argument('new', help='New CSV/JSON file')
+    compare_parser = subparsers.add_parser('compare', help='Compare two metrics inputs (bloaty CSV or metrics JSON)')
+    compare_parser.add_argument('base', help='Base CSV/metrics JSON file')
+    compare_parser.add_argument('new', help='New CSV/metrics JSON file')
     compare_parser.add_argument('-f', '--filter', dest='filters', action='append', default=[],
                                 help='Only include compile units whose path contains this substring (can be repeated)')
     compare_parser.add_argument('-o', '--out', dest='out', default='metrics_compare',
-                                help='Output path basename for Markdown file (default: metrics_compare)')
+                                help='Output path basename for Markdown/JSON files (default: metrics_compare)')
+    compare_parser.add_argument('-m', '--markdown', dest='markdown_out', action='store_true',
+                                help='Write Markdown output file')
     compare_parser.add_argument('-S', '--sort', dest='sort', default='name+',
                                 choices=['size', 'size-', 'size+', 'name', 'name-', 'name+'],
                                 help='Sort order: size/size- (descending), size+ (ascending), name/name+ (ascending), name- (descending). Default: name+')
