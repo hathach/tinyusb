@@ -88,7 +88,7 @@ bool tud_vendor_n_read_xfer(uint8_t idx);
 // Write to TX FIFO. This can be buffered and not sent immediately unless buffered bytes >= USB endpoint size
 uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize);
 
-bool tud_vendor_n_write_zlp_if_needed(uint8_t idx, uint32_t last_xferred_bytes);
+
 
 #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
 // Force sending buffered data, return number of bytes sent
@@ -96,6 +96,9 @@ uint32_t tud_vendor_n_write_flush(uint8_t idx);
 
 // Return number of bytes available for writing in TX FIFO
 uint32_t tud_vendor_n_write_available(uint8_t idx);
+#else
+// TX FIFO disabled, write zlp manually.
+bool tud_vendor_n_write_zlp_if_needed(uint8_t idx, uint32_t last_xferred_bytes);
 #endif
 
 // Write a null-terminated string to TX FIFO
@@ -145,10 +148,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write(const void *buffer
   return tud_vendor_n_write(0, buffer, bufsize);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_write_zlp_if_needed(uint32_t last_xferred_bytes) {
-  return tud_vendor_n_write_zlp_if_needed(0, last_xferred_bytes);
-}
-
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_str(const char *str) {
   return tud_vendor_n_write_str(0, str);
 }
@@ -160,6 +159,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_flush(void) {
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
   return tud_vendor_n_write_available(0);
+}
+#else
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_write_zlp_if_needed(uint32_t last_xferred_bytes) {
+  return tud_vendor_n_write_zlp_if_needed(0, last_xferred_bytes);
 }
 #endif
 

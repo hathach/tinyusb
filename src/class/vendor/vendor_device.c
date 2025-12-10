@@ -154,12 +154,6 @@ uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   return tu_edpt_stream_write(p_itf->rhport, &p_itf->stream.tx, buffer, (uint16_t)bufsize);
 }
 
-bool tud_vendor_n_write_zlp_if_needed(uint8_t idx, uint32_t last_xferred_bytes) {
-  TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
-  vendord_interface_t *p_itf = &_vendord_itf[idx];
-  return tu_edpt_stream_write_zlp_if_needed(p_itf->rhport, &p_itf->stream.tx, last_xferred_bytes);
-}
-
 #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
 uint32_t tud_vendor_n_write_flush(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
@@ -171,6 +165,12 @@ uint32_t tud_vendor_n_write_available(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
   return tu_edpt_stream_write_available(p_itf->rhport, &p_itf->stream.tx);
+}
+#else
+bool tud_vendor_n_write_zlp_if_needed(uint8_t idx, uint32_t last_xferred_bytes) {
+  TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
+  vendord_interface_t *p_itf = &_vendord_itf[idx];
+  return tu_edpt_stream_write_zlp_if_needed(p_itf->rhport, &p_itf->stream.tx, last_xferred_bytes);
 }
 #endif
 
