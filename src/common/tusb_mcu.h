@@ -73,11 +73,13 @@
 #elif TU_CHECK_MCU(OPT_MCU_LPC54)
   // TODO USB0 has 5, USB1 has 6
   #define TUP_USBIP_IP3511
+  #define TUP_USBIP_IP3516
   #define TUP_DCD_ENDPOINT_MAX 6
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC55)
   // TODO USB0 has 5, USB1 has 6
   #define TUP_USBIP_IP3511
+  #define TUP_USBIP_IP3516
   #define TUP_USBIP_OHCI
   #define TUP_USBIP_OHCI_NXP
   #define TUP_OHCI_RHPORTS     1 // 1 downstream port
