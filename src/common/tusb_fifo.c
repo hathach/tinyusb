@@ -450,15 +450,6 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
   return n;
 }
 
-uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n) {
-  const uint16_t count = tu_min16(n, tu_fifo_count(f)); // limit to available count
-  ff_lock(f->mutex_rd);
-  f->rd_idx = advance_index(f->depth, f->rd_idx, count);
-  ff_unlock(f->mutex_rd);
-
-  return count;
-}
-
 //--------------------------------------------------------------------+
 // One API
 //--------------------------------------------------------------------+

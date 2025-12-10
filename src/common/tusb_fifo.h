@@ -205,10 +205,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *
   return tu_fifo_read_n_access_mode(f, buffer, n, TU_FIFO_INC_ADDR_RW8);
 }
 
-// discard first n items from fifo i.e advance read pointer by n with mutex
-// return number of discarded items
-uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n);
-
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+

@@ -338,9 +338,11 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
                          void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize) {
   (void) is_tx;
 
-  if (CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED == 0 && (ff_buf == NULL || ff_bufsize == 0)) {
+  #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED == 0 // FIFO is required
+  if (ff_buf == NULL || ff_bufsize == 0) {
     return false;
   }
+  #endif
 
   s->is_host = is_host;
   tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);

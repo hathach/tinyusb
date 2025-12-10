@@ -122,12 +122,6 @@ uint32_t tud_vendor_n_read(uint8_t idx, void *buffer, uint32_t bufsize) {
   return tu_edpt_stream_read(p_itf->rhport, &p_itf->stream.rx, buffer, bufsize);
 }
 
-uint32_t tud_vendor_n_read_discard(uint8_t idx, uint32_t count) {
-  TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
-  vendord_interface_t *p_itf = &_vendord_itf[idx];
-  return tu_edpt_stream_discard(&p_itf->stream.rx, count);
-}
-
 void tud_vendor_n_read_flush(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, );
   vendord_interface_t *p_itf = &_vendord_itf[idx];
@@ -303,8 +297,10 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   vendord_interface_t *p_vendor = &_vendord_itf[idx];
 
   if (ep_addr == p_vendor->stream.rx.ep_addr) {
+  #if CFG_TUD_VENDOR_RX_BUFSIZE
     // Received new data: put into stream's fifo
     tu_edpt_stream_read_xfer_complete(&p_vendor->stream.rx, xferred_bytes);
+  #endif
 
     // invoke callback
   #if CFG_TUD_VENDOR_RX_BUFSIZE == 0
