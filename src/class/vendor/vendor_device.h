@@ -88,7 +88,6 @@ bool tud_vendor_n_read_xfer(uint8_t idx);
 // Write to TX FIFO. This can be buffered and not sent immediately unless buffered bytes >= USB endpoint size
 uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize);
 
-
 #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
 // Force sending buffered data, return number of bytes sent
 uint32_t tud_vendor_n_write_flush(uint8_t idx);
