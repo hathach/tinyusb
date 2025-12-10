@@ -356,12 +356,12 @@
 
 //------------ MUSB --------------//
 #if defined(TUP_USBIP_MUSB)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0 // need testing to enable
 #endif
 
 //------------ RUSB2 --------------//
 #if defined(TUP_USBIP_RUSB2)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0 // need testing to enable
 #endif
 
 //--------------------------------------------------------------------
