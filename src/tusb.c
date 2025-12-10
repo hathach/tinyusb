@@ -410,8 +410,7 @@ static bool stream_release(uint8_t hwid, tu_edpt_stream_t *s) {
 //--------------------------------------------------------------------+
 bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint32_t last_xferred_bytes) {
   // ZLP condition: no pending data, last transferred bytes is multiple of packet size
-  const uint16_t mps = s->is_mps512 ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
-  TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (mps - 1))));
+  TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (s->mps - 1))));
   TU_VERIFY(stream_claim(hwid, s));
   TU_ASSERT(stream_xfer(hwid, s, 0));
   return true;
@@ -467,8 +466,7 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buf
 
     // flush if fifo has more than packet size or
     // in rare case: fifo depth is configured too small (which never reach packet size)
-    const uint16_t mps = s->is_mps512 ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
-    if ((tu_fifo_count(&s->ff) >= mps) || (tu_fifo_depth(&s->ff) < mps)) {
+    if ((tu_fifo_count(&s->ff) >= s->mps) || (tu_fifo_depth(&s->ff) < s->mps)) {
       tu_edpt_stream_write_xfer(hwid, s);
     }
     return ret;
@@ -512,21 +510,22 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t *s) {
   } else
   #endif
   {
-    const uint16_t mps = s->is_mps512 ? TUSB_EPSIZE_BULK_HS : TUSB_EPSIZE_BULK_FS;
     uint16_t available = tu_fifo_remaining(&s->ff);
 
     // Prepare for incoming data but only allow what we can store in the ring buffer.
     // TODO Actually we can still carry out the transfer, keeping count of received bytes
     // and slowly move it to the FIFO when read().
     // This pre-check reduces endpoint claiming
-    TU_VERIFY(available >= mps);
+    TU_VERIFY(available >= s->mps);
     TU_VERIFY(stream_claim(hwid, s), 0);
     available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
-    if (available >= mps) {
+    if (available >= s->mps) {
       // multiple of packet size limit by ep bufsize
-      uint16_t count = (uint16_t) (available & ~(mps - 1));
-      count = tu_min16(count, s->ep_bufsize);
+      uint16_t count = (uint16_t) (available & ~(s->mps - 1));
+      if (s->ep_buf != NULL) {
+        count = tu_min16(count, s->ep_bufsize);
+      }
       TU_ASSERT(stream_xfer(hwid, s, count), 0);
       return count;
     } else {

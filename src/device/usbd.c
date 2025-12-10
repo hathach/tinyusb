@@ -1480,7 +1480,7 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  TU_LOG_USBD("  Queue ISO EP %02X with %u bytes ... ", ep_addr, total_bytes);
+  TU_LOG_USBD("  Queue FIFO EP %02X with %u bytes ... ", ep_addr, total_bytes);
 
   // Attempt to transfer on a busy endpoint, sound like a race condition !
   TU_ASSERT(_usbd_dev.ep_status[epnum][dir].busy == 0);
