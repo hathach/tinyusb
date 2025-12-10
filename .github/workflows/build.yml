@@ -100,7 +100,6 @@ jobs:
       - name: Aggregate Code Metrics
         run: |
           python tools/get_deps.py
-          pip install tools/linkermap/
           python tools/metrics.py combine -j -m -f tinyusb/src cmake-build/*/metrics.json
 
       - name: Upload Metrics Artifact
@@ -124,7 +123,7 @@ jobs:
         if: github.event_name != 'push'
         run: |
           if [ -f base-metrics/metrics.json ]; then
-            python tools/metrics.py compare -f tinyusb/src base-metrics/metrics.json metrics.json
+            python tools/metrics.py compare -m -f tinyusb/src base-metrics/metrics.json metrics.json
             cat metrics_compare.md
           else
             echo "No base metrics found, skipping comparison"
