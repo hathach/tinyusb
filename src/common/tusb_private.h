@@ -108,7 +108,17 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
                          void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize);
 
 // Deinit an endpoint stream
-bool tu_edpt_stream_deinit(tu_edpt_stream_t* s);
+TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_deinit(tu_edpt_stream_t *s) {
+  (void)s;
+#if OSAL_MUTEX_REQUIRED
+  if (s->ff.mutex_wr) {
+    osal_mutex_delete(s->ff.mutex_wr);
+  }
+  if (s->ff.mutex_rd) {
+    osal_mutex_delete(s->ff.mutex_rd);
+  }
+#endif
+}
 
 // Open an endpoint stream
 TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_open(tu_edpt_stream_t* s, tusb_desc_endpoint_t const *desc_ep) {
@@ -124,8 +134,8 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_close(tu_edpt_stream_t* 
   s->ep_addr = 0;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_clear(tu_edpt_stream_t* s) {
-  return tu_fifo_clear(&s->ff);
+TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
+  tu_fifo_clear(&s->ff);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_empty(tu_edpt_stream_t *s) {

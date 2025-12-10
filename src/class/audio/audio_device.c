@@ -485,7 +485,8 @@ uint16_t tud_audio_n_read(uint8_t func_id, void *buffer, uint16_t bufsize) {
 
 bool tud_audio_n_clear_ep_out_ff(uint8_t func_id) {
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
-  return tu_fifo_clear(&_audiod_fct[func_id].ep_out_ff);
+  tu_fifo_clear(&_audiod_fct[func_id].ep_out_ff);
+  return true;
 }
 
 tu_fifo_t *tud_audio_n_get_ep_out_ff(uint8_t func_id) {
@@ -536,7 +537,8 @@ uint16_t tud_audio_n_write(uint8_t func_id, const void *data, uint16_t len) {
 
 bool tud_audio_n_clear_ep_in_ff(uint8_t func_id) {
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
-  return tu_fifo_clear(&_audiod_fct[func_id].ep_in_ff);
+  tu_fifo_clear(&_audiod_fct[func_id].ep_in_ff);
+  return true;
 }
 
 tu_fifo_t *tud_audio_n_get_ep_in_ff(uint8_t func_id) {

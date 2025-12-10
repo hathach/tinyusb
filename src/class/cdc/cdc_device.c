@@ -244,7 +244,8 @@ uint32_t tud_cdc_n_write_available(uint8_t itf) {
 bool tud_cdc_n_write_clear(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_clear(&p_cdc->stream.tx);
+  tu_edpt_stream_clear(&p_cdc->stream.tx);
+  return true;
 }
 
 //--------------------------------------------------------------------+

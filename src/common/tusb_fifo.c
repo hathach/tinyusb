@@ -84,7 +84,7 @@ bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_si
 }
 
 // clear fifo by resetting read and write indices
-bool tu_fifo_clear(tu_fifo_t *f) {
+void tu_fifo_clear(tu_fifo_t *f) {
   ff_lock(f->mutex_wr);
   ff_lock(f->mutex_rd);
 
@@ -93,7 +93,6 @@ bool tu_fifo_clear(tu_fifo_t *f) {
 
   ff_unlock(f->mutex_wr);
   ff_unlock(f->mutex_rd);
-  return true;
 }
 
 // Change the fifo overwritable mode

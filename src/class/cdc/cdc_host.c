@@ -482,7 +482,8 @@ uint32_t tuh_cdc_write_flush(uint8_t idx) {
 bool tuh_cdc_write_clear(uint8_t idx) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
-  return tu_edpt_stream_clear(&p_cdc->stream.tx);
+  tu_edpt_stream_clear(&p_cdc->stream.tx);
+  return true;
 }
 
 uint32_t tuh_cdc_write_available(uint8_t idx) {
@@ -517,9 +518,9 @@ bool tuh_cdc_read_clear (uint8_t idx) {
   cdch_interface_t * p_cdc = get_itf(idx);
   TU_VERIFY(p_cdc);
 
-  bool ret = tu_edpt_stream_clear(&p_cdc->stream.rx);
+  tu_edpt_stream_clear(&p_cdc->stream.rx);
   (void)tu_edpt_stream_read_xfer(p_cdc->daddr, &p_cdc->stream.rx);
-  return ret;
+  return true;
 }
 
 //--------------------------------------------------------------------+

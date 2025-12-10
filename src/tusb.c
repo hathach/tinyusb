@@ -358,19 +358,6 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
   return true;
 }
 
-bool tu_edpt_stream_deinit(tu_edpt_stream_t *s) {
-  (void)s;
-  #if OSAL_MUTEX_REQUIRED
-  if (s->ff.mutex_wr) {
-    osal_mutex_delete(s->ff.mutex_wr);
-  }
-  if (s->ff.mutex_rd) {
-    osal_mutex_delete(s->ff.mutex_rd);
-  }
-  #endif
-  return true;
-}
-
 static bool stream_claim(uint8_t hwid, tu_edpt_stream_t *s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
