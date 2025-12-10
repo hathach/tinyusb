@@ -338,6 +338,10 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
                          void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize) {
   (void) is_tx;
 
+  if (CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED == 0 && (ff_buf == NULL || ff_bufsize == 0)) {
+    return false;
+  }
+
   s->is_host = is_host;
   tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);
 
@@ -367,7 +371,7 @@ bool tu_edpt_stream_deinit(tu_edpt_stream_t *s) {
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool stream_claim(uint8_t hwid, tu_edpt_stream_t* s) {
+static bool stream_claim(uint8_t hwid, tu_edpt_stream_t *s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
     return usbh_edpt_claim(hwid, s->ep_addr);
@@ -380,7 +384,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_claim(uint8_t hwid, tu_edpt_stre
   return false;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool stream_xfer(uint8_t hwid, tu_edpt_stream_t* s, uint16_t count) {
+static bool stream_xfer(uint8_t hwid, tu_edpt_stream_t *s, uint16_t count) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
     return usbh_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count);
@@ -397,7 +401,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool stream_xfer(uint8_t hwid, tu_edpt_strea
   return false;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool stream_release(uint8_t hwid, tu_edpt_stream_t* s) {
+static bool stream_release(uint8_t hwid, tu_edpt_stream_t *s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
     return usbh_edpt_release(hwid, s->ep_addr);
@@ -446,8 +450,9 @@ uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
 }
 
 uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
-  TU_VERIFY(bufsize > 0); // TODO support ZLP
+  TU_VERIFY(bufsize > 0);
 
+  #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
   if (0 == tu_fifo_depth(&s->ff)) {
     // non-fifo mode
     TU_VERIFY(stream_claim(hwid, s), 0);
@@ -463,7 +468,9 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buf
     TU_ASSERT(stream_xfer(hwid, s, (uint16_t) xact_len), 0);
 
     return xact_len;
-  } else {
+  } else
+  #endif
+  {
     const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
 
     // flush if fifo has more than packet size or
@@ -475,10 +482,9 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buf
   }
 }
 
-uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s) {
-  if (tu_fifo_depth(&s->ff) > 0) {
-    return (uint32_t) tu_fifo_remaining(&s->ff);
-  } else {
+uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t *s) {
+  #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
+  if (0 == tu_fifo_depth(&s->ff)) {
     // non-fifo mode
     bool is_busy = true;
     if (s->is_host) {
@@ -491,20 +497,28 @@ uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t* s) {
       #endif
     }
     return is_busy ? 0 : s->ep_bufsize;
+  } else
+  #endif
+  {
+    (void)hwid;
+    return (uint32_t)tu_fifo_remaining(&s->ff);
   }
 }
 
 //--------------------------------------------------------------------+
 // Stream Read
 //--------------------------------------------------------------------+
-uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
+uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t *s) {
+  #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
   if (0 == tu_fifo_depth(&s->ff)) {
     // non-fifo mode: RX need ep buffer
     TU_VERIFY(s->ep_buf != NULL, 0);
     TU_VERIFY(stream_claim(hwid, s), 0);
     TU_ASSERT(stream_xfer(hwid, s, s->ep_bufsize), 0);
     return s->ep_bufsize;
-  } else {
+  } else
+  #endif
+  {
     uint16_t available = tu_fifo_remaining(&s->ff);
 
     // Prepare for incoming data but only allow what we can store in the ring buffer.

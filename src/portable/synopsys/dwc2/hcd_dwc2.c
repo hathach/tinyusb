@@ -821,7 +821,7 @@ static void channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
   }
 }
 
-#if CFG_TUSB_DEBUG
+#if CFG_TUSB_DEBUG && 0
 TU_ATTR_ALWAYS_INLINE static inline void print_hcint(uint32_t hcint) {
   const char* str[] = {
     "XFRC", "HALTED", "AHBERR", "STALL",

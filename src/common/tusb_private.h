@@ -33,6 +33,18 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// Configuration
+//--------------------------------------------------------------------+
+
+#if CFG_TUD_ENABLED && CFG_TUD_VENDOR && (CFG_TUD_VENDOR_TX_BUFSIZE == 0 || CFG_TUD_VENDOR_RX_BUFSIZE == 0)
+  #define CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED 1
+#endif
+
+#ifndef CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
+  #define CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED 0
+#endif
+
 #define TUP_USBIP_CONTROLLER_NUM 2
 extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];
 

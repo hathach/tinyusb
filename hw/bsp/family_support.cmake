@@ -10,6 +10,7 @@ get_filename_component(TOP ${TOP} ABSOLUTE)
 
 set(UF2CONV_PY ${TOP}/tools/uf2/utils/uf2conv.py)
 set(LINKERMAP_PY ${TOP}/tools/linkermap/linkermap.py)
+set(METRICS_PY ${TOP}/tools/metrics.py)
 
 function(family_resolve_board BOARD_NAME BOARD_PATH_OUT)
   if ("${BOARD_NAME}" STREQUAL "")
@@ -224,21 +225,47 @@ function(family_initialize_project PROJECT DIR)
   endif()
 endfunction()
 
-# Add linkermap target (https://github.com/hathach/linkermap)
-function(family_add_linkermap TARGET)
-  set(LINKERMAP_OPTION_LIST)
-  if (DEFINED LINKERMAP_OPTION)
-    separate_arguments(LINKERMAP_OPTION_LIST UNIX_COMMAND ${LINKERMAP_OPTION})
+# Add bloaty (https://github.com/google/bloaty/) target, required compile with -g (debug)
+function(family_add_bloaty TARGET)
+  find_program(BLOATY_EXE bloaty)
+  if (BLOATY_EXE STREQUAL BLOATY_EXE-NOTFOUND)
+    return()
   endif ()
 
+  set(OPTION "--domain=vm -d compileunits,sections,symbols")
+  if (DEFINED BLOATY_OPTION)
+    string(APPEND OPTION " ${BLOATY_OPTION}")
+  endif ()
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${OPTION})
+
+  add_custom_target(${TARGET}-bloaty
+    DEPENDS ${TARGET}
+    COMMAND ${BLOATY_EXE} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>
+    VERBATIM)
+
+  # post build
+  #  add_custom_command(TARGET ${TARGET} POST_BUILD
+  #    COMMAND ${BLOATY_EXE} --csv ${OPTION_LIST} $<TARGET_FILE:${TARGET}> > ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_bloaty.csv
+  #    VERBATIM
+  #    )
+endfunction()
+
+# Add linkermap target (https://github.com/hathach/linkermap)
+function(family_add_linkermap TARGET)
+  set(OPTION "-j")
+  if (DEFINED LINKERMAP_OPTION)
+    string(APPEND OPTION " ${LINKERMAP_OPTION}")
+  endif ()
+  separate_arguments(OPTION_LIST UNIX_COMMAND ${OPTION})
+
   add_custom_target(${TARGET}-linkermap
-    COMMAND python ${LINKERMAP_PY} -j ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
+    COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM
     )
 
   # post build
   add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND python ${LINKERMAP_PY} -j ${LINKERMAP_OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
+    COMMAND python ${LINKERMAP_PY} ${OPTION_LIST} $<TARGET_FILE:${TARGET}>.map
     VERBATIM)
 endfunction()
 
@@ -352,7 +379,8 @@ function(family_configure_common TARGET RTOS)
   endif ()
 
   if (NOT RTOS STREQUAL zephyr)
-    # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
+    # Analyze size with bloaty and linkermap
+    family_add_bloaty(${TARGET})
     family_add_linkermap(${TARGET})
   endif ()
 
