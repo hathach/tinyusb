@@ -40,7 +40,7 @@
 #include "ehci.h"
 
 // NXP specific fixes
-#if TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX, OPT_MCU_LPC55, OPT_MCU_MCXN9)
+#if TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX, OPT_MCU_LPC55, OPT_MCU_MCXN9, OPT_MCU_RW61X)
 #include "fsl_device_registers.h"
 #endif
 
