@@ -503,9 +503,9 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     return true; // skip if already initialized
   }
   TU_ASSERT(rh_init);
-#if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
+ #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
   char const* speed_str = 0;
-            switch (rh_init->speed) {
+  switch (rh_init->speed) {
     case TUSB_SPEED_HIGH:
       speed_str = "High";
     break;
@@ -651,7 +651,9 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
-    if (event.event_id == DCD_EVENT_SETUP_RECEIVED) TU_LOG_USBD("\r\n"); // extra line for setup
+    if (event.event_id == DCD_EVENT_SETUP_RECEIVED) {
+      TU_LOG_USBD("\r\n"); // extra line for setup
+    }
     TU_LOG_USBD("USBD %s ", event.event_id < DCD_EVENT_COUNT ? _usbd_event_str[event.event_id] : "CORRUPTED");
 #endif
 
@@ -1047,7 +1049,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
   while (p_desc < desc_end) {
     uint8_t assoc_itf_count = 1;
 
-    // Class will always starts with Interface Association (if any) and then Interface descriptor
+    // Class will always start with Interface Association (if any) and then Interface descriptor
     if (TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc)) {
       const tusb_desc_interface_assoc_t *desc_iad = (const tusb_desc_interface_assoc_t *)p_desc;
 
@@ -1136,9 +1138,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
         // bind all endpoints to found driver
         tu_edpt_bind_driver(_usbd_dev.ep2drv, desc_itf, drv_len, drv_id);
 
-        // next Interface
-        p_desc += drv_len;
-
+        p_desc += drv_len; // next Interface
         break; // exit driver find loop
       }
     }

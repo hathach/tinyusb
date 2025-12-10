@@ -336,8 +336,8 @@ uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, 
 // Endpoint Stream Helper for both Host and Device stack
 //--------------------------------------------------------------------+
 
-bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool overwritable,
-                         void* ff_buf, uint16_t ff_bufsize, uint8_t* ep_buf, uint16_t ep_bufsize) {
+bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool overwritable, void *ff_buf,
+                         uint16_t ff_bufsize, uint8_t *ep_buf, uint16_t ep_bufsize) {
   (void) is_tx;
 
   #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED == 0 // FIFO is required
@@ -362,45 +362,45 @@ bool tu_edpt_stream_init(tu_edpt_stream_t* s, bool is_host, bool is_tx, bool ove
   return true;
 }
 
-static bool stream_claim(uint8_t hwid, tu_edpt_stream_t *s) {
+static bool stream_claim(tu_edpt_stream_t *s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
-    return usbh_edpt_claim(hwid, s->ep_addr);
-    #endif
+    return usbh_edpt_claim(s->hwid, s->ep_addr);
+  #endif
   } else {
     #if CFG_TUD_ENABLED
-    return usbd_edpt_claim(hwid, s->ep_addr);
-    #endif
+    return usbd_edpt_claim(s->hwid, s->ep_addr);
+  #endif
   }
   return false;
 }
 
-static bool stream_xfer(uint8_t hwid, tu_edpt_stream_t *s, uint16_t count) {
+static bool stream_xfer(tu_edpt_stream_t *s, uint16_t count) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
-    return usbh_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count);
-    #endif
+    return usbh_edpt_xfer(s->hwid, s->ep_addr, count ? s->ep_buf : NULL, count);
+  #endif
   } else {
     #if CFG_TUD_ENABLED
     if (s->ep_buf == NULL) {
-      return usbd_edpt_xfer_fifo(hwid, s->ep_addr, &s->ff, count, false);
+      return usbd_edpt_xfer_fifo(s->hwid, s->ep_addr, &s->ff, count, false);
     } else {
-      return usbd_edpt_xfer(hwid, s->ep_addr, count ? s->ep_buf : NULL, count, false);
+      return usbd_edpt_xfer(s->hwid, s->ep_addr, count ? s->ep_buf : NULL, count, false);
     }
   #endif
   }
   return false;
 }
 
-static bool stream_release(uint8_t hwid, tu_edpt_stream_t *s) {
+static bool stream_release(tu_edpt_stream_t *s) {
   if (s->is_host) {
     #if CFG_TUH_ENABLED
-    return usbh_edpt_release(hwid, s->ep_addr);
-    #endif
+    return usbh_edpt_release(s->hwid, s->ep_addr);
+  #endif
   } else {
     #if CFG_TUD_ENABLED
-    return usbd_edpt_release(hwid, s->ep_addr);
-    #endif
+    return usbd_edpt_release(s->hwid, s->ep_addr);
+  #endif
   }
   return false;
 }
@@ -408,18 +408,18 @@ static bool stream_release(uint8_t hwid, tu_edpt_stream_t *s) {
 //--------------------------------------------------------------------+
 // Stream Write
 //--------------------------------------------------------------------+
-bool tu_edpt_stream_write_zlp_if_needed(uint8_t hwid, tu_edpt_stream_t* s, uint32_t last_xferred_bytes) {
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
   // ZLP condition: no pending data, last transferred bytes is multiple of packet size
   TU_VERIFY(tu_fifo_empty(&s->ff) && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (s->mps - 1))));
-  TU_VERIFY(stream_claim(hwid, s));
-  TU_ASSERT(stream_xfer(hwid, s, 0));
+  TU_VERIFY(stream_claim(s));
+  TU_ASSERT(stream_xfer(s, 0));
   return true;
 }
 
-uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
+uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   const uint16_t ff_count = tu_fifo_count(&s->ff);
   TU_VERIFY(ff_count > 0, 0); // skip if no data
-  TU_VERIFY(stream_claim(hwid, s), 0);
+  TU_VERIFY(stream_claim(s), 0);
 
   // Pull data from FIFO -> EP buf
   uint16_t count;
@@ -430,23 +430,23 @@ uint32_t tu_edpt_stream_write_xfer(uint8_t hwid, tu_edpt_stream_t* s) {
   }
 
   if (count > 0) {
-    TU_ASSERT(stream_xfer(hwid, s, count), 0);
+    TU_ASSERT(stream_xfer(s, count), 0);
     return count;
   } else {
     // Release endpoint since we don't make any transfer
     // Note: data is dropped if terminal is not connected
-    stream_release(hwid, s);
+    stream_release(s);
     return 0;
   }
 }
 
-uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
+uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize > 0);
 
   #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
   if (0 == tu_fifo_depth(&s->ff)) {
     // non-fifo mode
-    TU_VERIFY(stream_claim(hwid, s), 0);
+    TU_VERIFY(stream_claim(s), 0);
     uint32_t xact_len;
     if (s->ep_buf != NULL) {
       // using ep buf
@@ -456,7 +456,7 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buf
       // using hwfifo
       xact_len = bufsize;
     }
-    TU_ASSERT(stream_xfer(hwid, s, (uint16_t) xact_len), 0);
+    TU_ASSERT(stream_xfer(s, (uint16_t)xact_len), 0);
 
     return xact_len;
   } else
@@ -467,31 +467,30 @@ uint32_t tu_edpt_stream_write(uint8_t hwid, tu_edpt_stream_t *s, const void *buf
     // flush if fifo has more than packet size or
     // in rare case: fifo depth is configured too small (which never reach packet size)
     if ((tu_fifo_count(&s->ff) >= s->mps) || (tu_fifo_depth(&s->ff) < s->mps)) {
-      tu_edpt_stream_write_xfer(hwid, s);
+      tu_edpt_stream_write_xfer(s);
     }
     return ret;
   }
 }
 
-uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t *s) {
+uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s) {
   #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
   if (0 == tu_fifo_depth(&s->ff)) {
     // non-fifo mode
     bool is_busy = true;
     if (s->is_host) {
       #if CFG_TUH_ENABLED
-      is_busy = usbh_edpt_busy(hwid, s->ep_addr);
-      #endif
+      is_busy = usbh_edpt_busy(s->hwid, s->ep_addr);
+    #endif
     } else {
       #if CFG_TUD_ENABLED
-      is_busy = usbd_edpt_busy(hwid, s->ep_addr);
-      #endif
+      is_busy = usbd_edpt_busy(s->hwid, s->ep_addr);
+    #endif
     }
     return is_busy ? 0 : s->ep_bufsize;
   } else
   #endif
   {
-    (void)hwid;
     return (uint32_t)tu_fifo_remaining(&s->ff);
   }
 }
@@ -499,13 +498,13 @@ uint32_t tu_edpt_stream_write_available(uint8_t hwid, tu_edpt_stream_t *s) {
 //--------------------------------------------------------------------+
 // Stream Read
 //--------------------------------------------------------------------+
-uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t *s) {
+uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
   if (0 == tu_fifo_depth(&s->ff)) {
     // non-fifo mode: RX need ep buffer
     TU_VERIFY(s->ep_buf != NULL, 0);
-    TU_VERIFY(stream_claim(hwid, s), 0);
-    TU_ASSERT(stream_xfer(hwid, s, s->ep_bufsize), 0);
+    TU_VERIFY(stream_claim(s), 0);
+    TU_ASSERT(stream_xfer(s, s->ep_bufsize), 0);
     return s->ep_bufsize;
   } else
   #endif
@@ -517,7 +516,7 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t *s) {
     // and slowly move it to the FIFO when read().
     // This pre-check reduces endpoint claiming
     TU_VERIFY(available >= s->mps);
-    TU_VERIFY(stream_claim(hwid, s), 0);
+    TU_VERIFY(stream_claim(s), 0);
     available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
     if (available >= s->mps) {
@@ -526,19 +525,19 @@ uint32_t tu_edpt_stream_read_xfer(uint8_t hwid, tu_edpt_stream_t *s) {
       if (s->ep_buf != NULL) {
         count = tu_min16(count, s->ep_bufsize);
       }
-      TU_ASSERT(stream_xfer(hwid, s, count), 0);
+      TU_ASSERT(stream_xfer(s, count), 0);
       return count;
     } else {
       // Release endpoint since we don't make any transfer
-      stream_release(hwid, s);
+      stream_release(s);
       return 0;
     }
   }
 }
 
-uint32_t tu_edpt_stream_read(uint8_t hwid, tu_edpt_stream_t* s, void* buffer, uint32_t bufsize) {
+uint32_t tu_edpt_stream_read(tu_edpt_stream_t *s, void *buffer, uint32_t bufsize) {
   const uint32_t num_read = tu_fifo_read_n(&s->ff, buffer, (uint16_t)bufsize);
-  tu_edpt_stream_read_xfer(hwid, s);
+  tu_edpt_stream_read_xfer(s);
   return num_read;
 }
 

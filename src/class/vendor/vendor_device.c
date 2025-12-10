@@ -119,14 +119,14 @@ bool tud_vendor_n_peek(uint8_t idx, uint8_t *u8) {
 uint32_t tud_vendor_n_read(uint8_t idx, void *buffer, uint32_t bufsize) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  return tu_edpt_stream_read(p_itf->rhport, &p_itf->stream.rx, buffer, bufsize);
+  return tu_edpt_stream_read(&p_itf->stream.rx, buffer, bufsize);
 }
 
 void tud_vendor_n_read_flush(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, );
   vendord_interface_t *p_itf = &_vendord_itf[idx];
   tu_edpt_stream_clear(&p_itf->stream.rx);
-  tu_edpt_stream_read_xfer(p_itf->rhport, &p_itf->stream.rx);
+  tu_edpt_stream_read_xfer(&p_itf->stream.rx);
 }
 #endif
 
@@ -134,7 +134,7 @@ void tud_vendor_n_read_flush(uint8_t idx) {
 bool tud_vendor_n_read_xfer(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  return tu_edpt_stream_read_xfer(p_itf->rhport, &p_itf->stream.rx);
+  return tu_edpt_stream_read_xfer(&p_itf->stream.rx);
 }
 #endif
 
@@ -145,20 +145,20 @@ bool tud_vendor_n_read_xfer(uint8_t idx) {
 uint32_t tud_vendor_n_write(uint8_t idx, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  return tu_edpt_stream_write(p_itf->rhport, &p_itf->stream.tx, buffer, (uint16_t)bufsize);
+  return tu_edpt_stream_write(&p_itf->stream.tx, buffer, (uint16_t)bufsize);
 }
 
 #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
 uint32_t tud_vendor_n_write_flush(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  return tu_edpt_stream_write_xfer(p_itf->rhport, &p_itf->stream.tx);
+  return tu_edpt_stream_write_xfer(&p_itf->stream.tx);
 }
 
 uint32_t tud_vendor_n_write_available(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  return tu_edpt_stream_write_available(p_itf->rhport, &p_itf->stream.tx);
+  return tu_edpt_stream_write_available(&p_itf->stream.tx);
 }
 #endif
 
@@ -270,15 +270,15 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
         tu_edpt_stream_t *stream_tx = &p_vendor->stream.tx;
         if (stream_tx->ep_addr == 0) {
-          tu_edpt_stream_open(stream_tx, desc_ep);
-          tu_edpt_stream_write_xfer(rhport, stream_tx); // flush pending data
+          tu_edpt_stream_open(stream_tx, rhport, desc_ep);
+          tu_edpt_stream_write_xfer(stream_tx); // flush pending data
         }
       } else {
         tu_edpt_stream_t *stream_rx = &p_vendor->stream.rx;
         if (stream_rx->ep_addr == 0) {
-          tu_edpt_stream_open(stream_rx, desc_ep);
+          tu_edpt_stream_open(stream_rx, rhport, desc_ep);
   #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
-          TU_ASSERT(tu_edpt_stream_read_xfer(rhport, stream_rx) > 0, 0); // prepare for incoming data
+          TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0); // prepare for incoming data
   #endif
         }
       }
@@ -291,7 +291,8 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
 }
 
 bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
-  (void) result;
+  (void)rhport;
+  (void)result;
   const uint8_t idx = find_vendor_itf(ep_addr);
   TU_VERIFY(idx < CFG_TUD_VENDOR);
   vendord_interface_t *p_vendor = &_vendord_itf[idx];
@@ -310,7 +311,7 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   #endif
 
   #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
-    tu_edpt_stream_read_xfer(rhport, &p_vendor->stream.rx); // prepare next data
+    tu_edpt_stream_read_xfer(&p_vendor->stream.rx); // prepare next data
   #endif
   } else if (ep_addr == p_vendor->stream.tx.ep_addr) {
     // Send complete
@@ -318,9 +319,9 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
   #if CFG_TUD_VENDOR_TX_BUFSIZE > 0
     // try to send more if possible
-    if (0 == tu_edpt_stream_write_xfer(rhport, &p_vendor->stream.tx)) {
+    if (0 == tu_edpt_stream_write_xfer(&p_vendor->stream.tx)) {
       // If there is no data left, a ZLP should be sent if xferred_bytes is multiple of EP Packet size and not zero
-      tu_edpt_stream_write_zlp_if_needed(rhport, &p_vendor->stream.tx, xferred_bytes);
+      tu_edpt_stream_write_zlp_if_needed(&p_vendor->stream.tx, xferred_bytes);
     }
   #endif
   }

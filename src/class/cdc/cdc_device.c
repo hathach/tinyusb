@@ -203,7 +203,7 @@ uint32_t tud_cdc_n_available(uint8_t itf) {
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_read(p_cdc->rhport, &p_cdc->rx_stream, buffer, bufsize);
+  return tu_edpt_stream_read(&p_cdc->rx_stream, buffer, bufsize);
 }
 
 bool tud_cdc_n_peek(uint8_t itf, uint8_t *chr) {
@@ -215,7 +215,7 @@ void tud_cdc_n_read_flush(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC, );
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
   tu_edpt_stream_clear(&p_cdc->rx_stream);
-  tu_edpt_stream_read_xfer(p_cdc->rhport, &p_cdc->rx_stream);
+  tu_edpt_stream_read_xfer(&p_cdc->rx_stream);
 }
 
 //--------------------------------------------------------------------+
@@ -224,19 +224,19 @@ void tud_cdc_n_read_flush(uint8_t itf) {
 uint32_t tud_cdc_n_write(uint8_t itf, const void* buffer, uint32_t bufsize) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_write(p_cdc->rhport, &p_cdc->tx_stream, buffer, bufsize);
+  return tu_edpt_stream_write(&p_cdc->tx_stream, buffer, bufsize);
 }
 
 uint32_t tud_cdc_n_write_flush(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_write_xfer(p_cdc->rhport, &p_cdc->tx_stream);
+  return tu_edpt_stream_write_xfer(&p_cdc->tx_stream);
 }
 
 uint32_t tud_cdc_n_write_available(uint8_t itf) {
   TU_VERIFY(itf < CFG_TUD_CDC, 0);
   cdcd_interface_t *p_cdc = &_cdcd_itf[itf];
-  return tu_edpt_stream_write_available(p_cdc->rhport, &p_cdc->tx_stream);
+  return tu_edpt_stream_write_available(&p_cdc->tx_stream);
 }
 
 bool tud_cdc_n_write_clear(uint8_t itf) {
@@ -269,14 +269,14 @@ void cdcd_init(void) {
     uint8_t *epin_buf  = _cdcd_epbuf[i].epin;
   #endif
 
-    tu_edpt_stream_init(&p_cdc->rx_stream, false, false, false, p_cdc->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE,
-                        epout_buf, CFG_TUD_CDC_EP_BUFSIZE);
+    tu_edpt_stream_init(&p_cdc->rx_stream, false, false, false, p_cdc->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, epout_buf,
+                        CFG_TUD_CDC_EP_BUFSIZE);
 
     // TX fifo can be configured to change to overwritable if not connected (DTR bit not set). Without DTR we do not
     // know if data is actually polled by terminal. This way the most current data is prioritized.
     // Default: is overwritable
-    tu_edpt_stream_init(&p_cdc->tx_stream, false, true, _cdcd_cfg.tx_overwritabe_if_not_connected,
-                        p_cdc->tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, epin_buf, CFG_TUD_CDC_EP_BUFSIZE);
+    tu_edpt_stream_init(&p_cdc->tx_stream, false, true, _cdcd_cfg.tx_overwritabe_if_not_connected, p_cdc->tx_ff_buf,
+                        CFG_TUD_CDC_TX_BUFSIZE, epin_buf, CFG_TUD_CDC_EP_BUFSIZE);
   }
 }
 
@@ -351,20 +351,20 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_t *stream_tx = &p_cdc->tx_stream;
 
-          tu_edpt_stream_open(stream_tx, desc_ep);
+          tu_edpt_stream_open(stream_tx, rhport, desc_ep);
           if (_cdcd_cfg.tx_persistent) {
-            tu_edpt_stream_write_xfer(rhport, stream_tx); // flush pending data
+            tu_edpt_stream_write_xfer(stream_tx); // flush pending data
           } else {
             tu_edpt_stream_clear(stream_tx);
           }
         } else {
           tu_edpt_stream_t *stream_rx = &p_cdc->rx_stream;
 
-          tu_edpt_stream_open(stream_rx, desc_ep);
+          tu_edpt_stream_open(stream_rx, rhport, desc_ep);
           if (!_cdcd_cfg.rx_persistent) {
             tu_edpt_stream_clear(stream_rx);
           }
-          TU_ASSERT(tu_edpt_stream_read_xfer(rhport, stream_rx) > 0, 0); // prepare for incoming data
+          TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0); // prepare for incoming data
         }
       }
 
@@ -460,6 +460,7 @@ bool cdcd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_requ
 }
 
 bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+  (void)rhport;
   (void)result;
 
   uint8_t itf = find_cdc_itf(ep_addr);
@@ -510,7 +511,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
       tud_cdc_rx_cb(itf);
     }
 
-    tu_edpt_stream_read_xfer(rhport, stream_rx); // prepare for more data
+    tu_edpt_stream_read_xfer(stream_rx); // prepare for more data
   }
 
   // Data sent to host, we continue to fetch from tx fifo to send.
@@ -518,9 +519,9 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   if (ep_addr == stream_tx->ep_addr) {
     tud_cdc_tx_complete_cb(itf); // invoke callback to possibly refill tx fifo
 
-    if (0 == tu_edpt_stream_write_xfer(rhport, stream_tx)) {
+    if (0 == tu_edpt_stream_write_xfer(stream_tx)) {
       // If there is no data left, a ZLP should be sent if needed
-      tu_edpt_stream_write_zlp_if_needed(rhport, stream_tx, xferred_bytes);
+      tu_edpt_stream_write_zlp_if_needed(stream_tx, xferred_bytes);
     }
   }
 
