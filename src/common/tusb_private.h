@@ -62,7 +62,7 @@ typedef struct TU_ATTR_PACKED {
   volatile uint8_t busy    : 1;
   volatile uint8_t stalled : 1;
   volatile uint8_t claimed : 1;
-}tu_edpt_state_t;
+} tu_edpt_state_t;
 
 typedef struct {
   struct TU_ATTR_PACKED  {
@@ -84,8 +84,18 @@ typedef struct {
 // Endpoint
 //--------------------------------------------------------------------+
 
-// Check if endpoint descriptor is valid per USB specs
+// Check if endpoint descriptor is valid per USB specs if debug is enabled
+#if CFG_TUSB_DEBUG
 bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed, bool is_host);
+#else
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(tusb_desc_endpoint_t const *desc_ep, tusb_speed_t speed,
+                                                          bool is_host) {
+  (void)desc_ep;
+  (void)speed;
+  (void)is_host;
+  return true;
+}
+#endif
 
 // Bind all endpoint of a interface descriptor to class driver
 void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* p_desc, uint16_t desc_len, uint8_t driver_id);

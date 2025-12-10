@@ -241,6 +241,7 @@ bool tu_edpt_release(tu_edpt_state_t* ep_state, osal_mutex_t mutex) {
   return ret;
 }
 
+#if CFG_TUSB_DEBUG
 bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed, bool is_host) {
   uint16_t const max_packet_size = tu_edpt_packet_size(desc_ep);
   TU_LOG2("  Open EP %02X with Size = %u\r\n", desc_ep->bEndpointAddress, max_packet_size);
@@ -283,6 +284,7 @@ bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed, b
 
   return true;
 }
+#endif
 
 void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* desc_itf, uint16_t desc_len,
                          uint8_t driver_id) {
