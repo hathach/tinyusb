@@ -91,11 +91,12 @@ function(family_add_board BOARD_TARGET)
   # Port 0 is Fullspeed, Port 1 is Highspeed. Port1 controller can only access USB_SRAM
   if (RHPORT_DEVICE EQUAL 1)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CFG_TUD_MEM_SECTION=__attribute__\(\(section\(\"m_usb_global\"\)\)\)
+      [=[CFG_TUD_MEM_SECTION=__attribute__((section("m_usb_global")))]=]
       )
-  elseif (RHPORT_HOST EQUAL 1)
+  endif ()
+  if (RHPORT_HOST EQUAL 1)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CFG_TUH_MEM_SECTION=__attribute__\(\(section\(\"m_usb_global\"\)\)\)
+      [=[CFG_TUH_MEM_SECTION=__attribute__((section("m_usb_global")))]=]
       )
   endif ()
 
@@ -114,9 +115,19 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/lib/sct_neopixel/sct_neopixel.c
     ${TOP}/src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c
-    ${TOP}/src/portable/ohci/ohci.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
+
+  if (RHPORT_HOST EQUAL 0)
+    target_sources(${TARGET} PUBLIC
+      ${TOP}/src/portable/ohci/ohci.c
+      )
+  elseif (RHPORT_HOST EQUAL 1)
+    target_sources(${TARGET} PUBLIC
+      ${TOP}/src/portable/nxp/lpc_ip3516/hcd_lpc_ip3516.c
+      )
+  endif ()
+
   target_include_directories(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
@@ -128,6 +139,8 @@ function(family_configure_example TARGET RTOS)
       "LINKER:--script=${LD_FILE_GNU}"
       --specs=nosys.specs --specs=nano.specs
       -nostartfiles
+      "LINKER:--defsym=__stack_size__=0x1000"
+      "LINKER:--defsym=__heap_size__=0"
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_link_options(${TARGET} PUBLIC
@@ -136,6 +149,8 @@ function(family_configure_example TARGET RTOS)
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
     target_link_options(${TARGET} PUBLIC
       "LINKER:--config=${LD_FILE_IAR}"
+      "LINKER:--config_def=__stack_size__=0x1000"
+      "LINKER:--config_def=__heap_size__=0"
       )
   endif ()
 

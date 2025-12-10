@@ -54,6 +54,15 @@
 // XTAL
 #define XTAL0_CLK_HZ          (16 * 1000 * 1000U)
 
+// Power switch
+#define USBFS_POWER_PORT      1
+#define USBFS_POWER_PIN       12
+#define USBFS_POWER_STATE_ON  0
+
+#define USBHS_POWER_PORT      1
+#define USBHS_POWER_PIN       29
+#define USBHS_POWER_STATE_ON  0
+
 #ifdef __cplusplus
  }
 #endif

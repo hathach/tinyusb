@@ -227,36 +227,13 @@ void board_init(void) {
     /* enable USB Device clock */
     CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf));
   } else {
-    const uint32_t port1_pin12_config = (/* Pin is configured as USB0_PORTPWRN */
-                                         IOCON_PIO_FUNC4 |
-                                         /* Selects pull-up function */
-                                         IOCON_PIO_MODE_PULLUP |
-                                         /* Standard mode, output slew rate control is enabled */
-                                         IOCON_PIO_SLEW_STANDARD |
-                                         /* Input function is not inverted */
-                                         IOCON_PIO_INV_DI |
-                                         /* Enables digital function */
-                                         IOCON_PIO_DIGITAL_EN |
-                                         /* Open drain is disabled */
-                                         IOCON_PIO_OPENDRAIN_DI);
-    /* PORT1 PIN12 (coords: 67) is configured as USB0_PORTPWRN */
-    IOCON_PinMuxSet(IOCON, 1U, 12U, port1_pin12_config);
+  #ifdef USBFS_POWER_PORT
+    /* Configure USB0 Power Switch Pin */
+    IOCON_PinMuxSet(IOCON, USBFS_POWER_PORT, USBFS_POWER_PIN, IOCON_PIO_DIG_FUNC0_EN);
 
-    const uint32_t port0_pin28_config = (/* Pin is configured as USB0_OVERCURRENTN */
-                                         IOCON_PIO_FUNC7 |
-                                         /* Selects pull-up function */
-                                         IOCON_PIO_MODE_PULLUP |
-                                         /* Standard mode, output slew rate control is enabled */
-                                         IOCON_PIO_SLEW_STANDARD |
-                                         /* Input function is not inverted */
-                                         IOCON_PIO_INV_DI |
-                                         /* Enables digital function */
-                                         IOCON_PIO_DIGITAL_EN |
-                                         /* Open drain is disabled */
-                                         IOCON_PIO_OPENDRAIN_DI);
-    /* PORT0 PIN28 (coords: 66) is configured as USB0_OVERCURRENTN */
-    IOCON_PinMuxSet(IOCON, 0U, 28U, port0_pin28_config);
-
+    gpio_pin_config_t const power_pin_config = {kGPIO_DigitalOutput, USBFS_POWER_STATE_ON};
+    GPIO_PinInit(GPIO, USBFS_POWER_PORT, USBFS_POWER_PIN, &power_pin_config);
+  #endif
     CLOCK_EnableUsbfs0HostClock(kCLOCK_UsbfsSrcPll1, 48000000U);
     USBFSH->PORTMODE &= ~USBFSH_PORTMODE_DEV_ENABLE_MASK;
   }
@@ -274,18 +251,28 @@ void board_init(void) {
   RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
   RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
 
-  /* According to reference manual, device mode setting has to be set by access usb host register */
-  CLOCK_EnableClock(kCLOCK_Usbh1); // enable usb0 host clock
+  if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) {
+    /* According to reference manual, device mode setting has to be set by access usb host register */
+    CLOCK_EnableClock(kCLOCK_Usbh1); // enable usb0 host clock
 
-  USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK; // Put PHY powerdown under software control
-  USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
+    USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK; // Put PHY powerdown under software control
+    USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
 
-  CLOCK_DisableClock(kCLOCK_Usbh1); // disable usb0 host clock
+    CLOCK_DisableClock(kCLOCK_Usbh1); // disable usb0 host clock
+    /* enable USB Device clock */
+    CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUnused, 0U);
+  } else {
+  #ifdef USBHS_POWER_PORT
+    /* Configure USB1 Power Switch Pin */
+    IOCON_PinMuxSet(IOCON, USBHS_POWER_PORT, USBHS_POWER_PIN, IOCON_PIO_DIG_FUNC0_EN);
 
-  /* enable USB Device clock */
+    gpio_pin_config_t const power_pin_config = {kGPIO_DigitalOutput, USBHS_POWER_STATE_ON};
+    GPIO_PinInit(GPIO, USBHS_POWER_PORT, USBHS_POWER_PIN, &power_pin_config);
+  #endif
+    CLOCK_EnableUsbhs0HostClock(kCLOCK_UsbSrcUnused, 0U);
+  }
+
   CLOCK_EnableUsbhs0PhyPllClock(kCLOCK_UsbPhySrcExt, XTAL0_CLK_HZ);
-  CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUnused, 0U);
-  CLOCK_EnableClock(kCLOCK_UsbRam1);
 
   // Enable PHY support for Low speed device + LS via FS Hub
   USBPHY->CTRL |= USBPHY_CTRL_SET_ENUTMILEVEL2_MASK | USBPHY_CTRL_SET_ENUTMILEVEL3_MASK;
@@ -296,11 +283,9 @@ void board_init(void) {
   USBPHY->CTRL_SET = USBPHY_CTRL_SET_ENAUTOCLR_CLKGATE_MASK;
   USBPHY->CTRL_SET = USBPHY_CTRL_SET_ENAUTOCLR_PHY_PWD_MASK;
 
-  // TX Timing
-//  uint32_t phytx = USBPHY->TX;
-//  phytx &= ~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK);
-//  phytx |= USBPHY_TX_D_CAL(0x0C) | USBPHY_TX_TXCAL45DP(0x06) | USBPHY_TX_TXCAL45DM(0x06);
-//  USBPHY->TX = phytx;
+  // PHY calibration values for LPCXPRESSO55S69 from mcux-sdk
+  USBPHY->TX = ((USBPHY->TX & (~(USBPHY_TX_D_CAL_MASK | USBPHY_TX_TXCAL45DM_MASK | USBPHY_TX_TXCAL45DP_MASK))) |
+               (USBPHY_TX_D_CAL(0x05U) | USBPHY_TX_TXCAL45DP(0x0AU) | USBPHY_TX_TXCAL45DM(0x0AU)));
 
   ARM_MPU_SetMemAttr(0, 0x44); // Normal memory, non-cacheable (inner and outer)
   ARM_MPU_SetRegion(0, ARM_MPU_RBAR(0x40100000, ARM_MPU_SH_NON, 0, 1, 1), ARM_MPU_RLAR(0x40104000, 0));
