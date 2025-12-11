@@ -361,7 +361,7 @@
 
 //------------ RUSB2 --------------//
 #if defined(TUP_USBIP_RUSB2)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0 // need testing to enable
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 #endif
 
 //--------------------------------------------------------------------
