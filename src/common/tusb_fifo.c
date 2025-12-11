@@ -96,9 +96,9 @@ void tu_fifo_clear(tu_fifo_t *f) {
 }
 
 // Change the fifo overwritable mode
-bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
+void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
   if (f->overwritable == overwritable) {
-    return true;
+    return;
   }
 
   ff_lock(f->mutex_wr);
@@ -108,8 +108,6 @@ bool tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
 
   ff_unlock(f->mutex_wr);
   ff_unlock(f->mutex_rd);
-
-  return true;
 }
 
 //--------------------------------------------------------------------+

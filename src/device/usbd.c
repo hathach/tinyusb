@@ -116,25 +116,28 @@ TU_ATTR_WEAK bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_si
 // Device Data
 //--------------------------------------------------------------------+
 typedef struct {
-  struct TU_ATTR_PACKED {
-    volatile uint8_t connected    : 1;
-    volatile uint8_t addressed    : 1;
-    volatile uint8_t suspended    : 1;
+  // Note: these may share an enum state
+  volatile uint8_t connected;
+  volatile uint8_t addressed;
+  volatile uint8_t suspended;
 
-    uint8_t remote_wakeup_en      : 1; // enable/disable by host
-    uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
-    uint8_t self_powered          : 1; // configuration descriptor's attribute
+  union {
+    struct TU_ATTR_PACKED {
+      uint8_t self_powered     : 1; // configuration descriptor's attribute;
+      uint8_t remote_wakeup_en : 1; // enable/disable by host
+    };
+    uint8_t dev_state_bm;
   };
-  volatile uint8_t cfg_num; // current active configuration (0x00 is not configured)
-  uint8_t speed;
+
+  uint8_t          cfg_num; // current active configuration (0x00 is not configured)
+  uint8_t          speed;
   volatile uint8_t sof_consumer;
 
   uint8_t itf2drv[CFG_TUD_INTERFACE_MAX];   // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[CFG_TUD_ENDPPOINT_MAX][2]; // map endpoint to driver ( 0xff is invalid ), can use only 4-bit each
 
   tu_edpt_state_t ep_status[CFG_TUD_ENDPPOINT_MAX][2];
-
-}usbd_device_t;
+} usbd_device_t;
 
 static usbd_device_t    _usbd_dev;
 static volatile uint8_t _usbd_queued_setup;
@@ -142,11 +145,11 @@ static volatile uint8_t _usbd_queued_setup;
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
-  #define DRIVER_NAME(_name)  _name
-#else
-  #define DRIVER_NAME(_name)  NULL
-#endif
+  #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
+    #define DRIVER_NAME(_name) _name
+  #else
+    #define DRIVER_NAME(_name) NULL
+  #endif
 
 // Built-in class drivers
 static const usbd_class_driver_t _usbd_driver[] = {
@@ -471,8 +474,8 @@ bool tud_suspended(void) {
 }
 
 bool tud_remote_wakeup(void) {
-  // only wake up host if this feature is supported and enabled and we are suspended
-  TU_VERIFY (_usbd_dev.suspended && _usbd_dev.remote_wakeup_support && _usbd_dev.remote_wakeup_en);
+  // only wake up host if this feature is enabled and we are suspended
+  TU_VERIFY(_usbd_dev.suspended && _usbd_dev.remote_wakeup_en);
   dcd_remote_wakeup(_usbd_rhport);
   return true;
 }
@@ -881,7 +884,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             case TUSB_REQ_FEATURE_REMOTE_WAKEUP:
               TU_LOG_USBD("    Enable Remote Wakeup\r\n");
               // Host may enable remote wake up before suspending especially HID device
-              _usbd_dev.remote_wakeup_en = true;
+              _usbd_dev.remote_wakeup_en = 1;
               tud_control_status(rhport, p_request);
               break;
 
@@ -910,15 +913,15 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           TU_LOG_USBD("    Disable Remote Wakeup\r\n");
 
           // Host may disable remote wake up after resuming
-          _usbd_dev.remote_wakeup_en = false;
+          _usbd_dev.remote_wakeup_en = 0;
           tud_control_status(rhport, p_request);
           break;
 
         case TUSB_REQ_GET_STATUS: {
           // Device status bit mask
-          // - Bit 0: Self Powered
+          // - Bit 0: Self Powered TODO must invoke callback to get actual status
           // - Bit 1: Remote Wakeup enabled
-          uint16_t status = (uint16_t) ((_usbd_dev.self_powered ? 1u : 0u) | (_usbd_dev.remote_wakeup_en ? 2u : 0u));
+          uint16_t status = (uint16_t)_usbd_dev.dev_state_bm;
           tud_control_xfer(rhport, p_request, &status, 2);
           break;
         }
@@ -1039,8 +1042,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
   // Parse configuration descriptor
-  _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1u : 0u;
-  _usbd_dev.self_powered          = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1u : 0u;
+  _usbd_dev.self_powered = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1u : 0u;
 
   // Parse interface descriptor
   const uint8_t *p_desc   = ((const uint8_t *)desc_cfg) + sizeof(tusb_desc_configuration_t);
