@@ -143,6 +143,13 @@ jobs:
             metrics_compare.md
             pr_number.txt
 
+      - name: Post Code Metrics as PR Comment
+        if: github.event_name != 'push'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: code-metrics
+          path: metrics_compare.md
+
   # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
   # ---------------------------------------
