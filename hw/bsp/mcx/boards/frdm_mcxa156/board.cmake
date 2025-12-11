@@ -1,4 +1,5 @@
 set(MCU_VARIANT MCXA156)
+set(MCU_FAMILY MCXA)
 set(MCU_CORE MCXA156)
 
 set(JLINK_DEVICE MCXA156_M33)
@@ -17,5 +18,8 @@ function(update_board TARGET)
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/clock_config.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/pin_mux.c
+    )
+  target_include_directories(${TARGET} PUBLIC
+    ${SDK_DIR}/${MCU_FAMILY}/periph1
     )
 endfunction()

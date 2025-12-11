@@ -1,4 +1,5 @@
 MCU_VARIANT = MCXA153
+MCU_FAMILY = MCXA
 MCU_CORE = MCXA153
 PORT = 0
 
@@ -9,11 +10,11 @@ CFLAGS += \
 	-DCFG_EXAMPLE_VIDEO_READONLY
 
 SRC_C += \
-  ${BOARD_PATH}/board/clock_config.c \
-  ${BOARD_PATH}/board/pin_mux.c
+  ${BOARD_PATH}/clock_config.c \
+  ${BOARD_PATH}/pin_mux.c
 
 INC += \
-	$(TOP)/$(BOARD_PATH)/board
+	$(TOP)/$(SDK_DIR)/$(MCU_FAMILY)/periph
 
 JLINK_DEVICE = MCXA153
 PYOCD_TARGET = MCXA153
