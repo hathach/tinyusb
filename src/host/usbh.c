@@ -1815,85 +1815,51 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
   TU_LOG_USBH("Parsing Configuration descriptor (wTotalLength = %u)\r\n", total_len);
 
   // parse each interfaces
-  while( p_desc < desc_end ) {
-    if ( 0 == tu_desc_len(p_desc) ) {
+  while (tu_desc_in_bounds(p_desc, desc_end)) {
+    if (0 == tu_desc_len(p_desc)) {
       // A zero length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
       // Parsed interfaces should still be usable
       TU_LOG_USBH("Encountered a zero-length descriptor after %" PRIu32 " bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
       break;
     }
 
-    uint8_t assoc_itf_count = 1;
-
-    // Class will always starts with Interface Association (if any) and then Interface descriptor
-    if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) ) {
-      tusb_desc_interface_assoc_t const * desc_iad = (tusb_desc_interface_assoc_t const *) p_desc;
-      assoc_itf_count = desc_iad->bInterfaceCount;
-
-      p_desc = tu_desc_next(p_desc); // next to Interface
-
-      // IAD's first interface number and class should match with opened interface
-      //TU_ASSERT(desc_iad->bFirstInterface == desc_itf->bInterfaceNumber &&
-      //          desc_iad->bFunctionClass  == desc_itf->bInterfaceClass);
+    // skip if not interface
+    if (TUSB_DESC_INTERFACE != tu_desc_type(p_desc)) {
+      p_desc = tu_desc_next(p_desc);
+      continue;
     }
+    const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
 
-    TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
-    tusb_desc_interface_t const* desc_itf = (tusb_desc_interface_t const*) p_desc;
-
-#if CFG_TUH_MIDI
-    // MIDI has 2 interfaces (Audio Control v1 + MIDIStreaming) but does not have IAD
-    // manually force associated count = 2
-    if (1                              == assoc_itf_count              &&
-        TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
-        AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
-        AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol) {
-      assoc_itf_count = 2;
-    }
-#endif
-
-#if CFG_TUH_CDC
-    // Some legacy CDC device does not use IAD but rather use device class as hint to combine 2 interfaces
-    // manually force associated count = 2
-    if (1                                        == assoc_itf_count              &&
-        TUSB_CLASS_CDC                           == desc_itf->bInterfaceClass    &&
-        CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == desc_itf->bInterfaceSubClass) {
-      assoc_itf_count = 2;
-    }
-#endif
-
-    uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, (uint16_t) (desc_end-p_desc));
-    TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
+    // uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, (uint16_t)
+    // (desc_end-p_desc)); TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
     // Find driver for this interface
-    for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
-      usbh_class_driver_t const * driver = get_driver(drv_id);
-      if (driver && driver->open(dev->bus_info.rhport, dev_addr, desc_itf, drv_len) ) {
-        // open successfully
-        TU_LOG_USBH("  %s opened\r\n", driver->name);
+    const uint16_t remaining_len = (uint16_t)(desc_end - p_desc);
+    uint8_t        drv_id;
+    for (drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+      const usbh_class_driver_t *driver = get_driver(drv_id);
+      if (driver) {
+        const uint16_t drv_len = driver->open(dev->bus_info.rhport, dev_addr, desc_itf, remaining_len);
+        if ((sizeof(tusb_desc_interface_t) <= drv_len) && (drv_len <= remaining_len)) {
+          // open successfully
+          TU_LOG_USBH("  %s opened\r\n", driver->name);
 
-        // bind (associated) interfaces to found driver
-        for(uint8_t i=0; i<assoc_itf_count; i++) {
-          uint8_t const itf_num = desc_itf->bInterfaceNumber+i;
+          // bind found driver to all interfaces and endpoint within drv_len
+          tu_bind_driver_to_ep_itf(drv_id, dev->ep2drv, dev->itf2drv, CFG_TUH_INTERFACE_MAX, p_desc, drv_len);
 
-          // Interface number must not be used already
-          TU_ASSERT( TUSB_INDEX_INVALID_8 == dev->itf2drv[itf_num] );
-          dev->itf2drv[itf_num] = drv_id;
+          p_desc += drv_len; // next Interface
+          break;             // exit driver find loop
         }
-
-        // bind all endpoints to found driver
-        tu_edpt_bind_driver(dev->ep2drv, desc_itf, drv_len, drv_id);
-
-        break; // exit driver find loop
-      }
-
-      if (drv_id == TOTAL_DRIVER_COUNT - 1) {
-        TU_LOG_USBH("[%u:%u] Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
-               dev->bus_info.rhport, dev_addr, desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass, desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
       }
     }
 
-    // next Interface or IAD descriptor
-    p_desc += drv_len;
+    // no driver found
+    if (drv_id == TOTAL_DRIVER_COUNT) {
+      p_desc = tu_desc_next(p_desc); // skip this interface
+      TU_LOG_USBH("[%u:%u] Interface %u: class = %u subclass = %u protocol = %u is not supported\r\n",
+                  dev->bus_info.rhport, dev_addr, desc_itf->bInterfaceNumber, desc_itf->bInterfaceClass,
+                  desc_itf->bInterfaceSubClass, desc_itf->bInterfaceProtocol);
+    }
   }
 
   return true;

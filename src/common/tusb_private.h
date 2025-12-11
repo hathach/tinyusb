@@ -99,9 +99,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(tusb_desc_endpoint_t c
 bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,
                               const uint8_t *p_desc, uint16_t desc_len);
 
-// Calculate total length of n interfaces (depending on IAD)
-uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len);
-
 // Claim an endpoint with provided mutex
 bool tu_edpt_claim(tu_edpt_state_t* ep_state, osal_mutex_t mutex);
 
