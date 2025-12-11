@@ -332,6 +332,7 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
 }
 
 static bool stream_claim(tu_edpt_stream_t *s) {
+  TU_VERIFY(s->ep_addr != 0); // must be opened
   if (s->is_host) {
     #if CFG_TUH_ENABLED
     return usbh_edpt_claim(s->hwid, s->ep_addr);
@@ -446,6 +447,7 @@ uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s) {
   #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
   if (0 == tu_fifo_depth(&s->ff)) {
     // non-fifo mode
+    TU_VERIFY(s->ep_addr > 0); // must be opened
     bool is_busy = true;
     if (s->is_host) {
       #if CFG_TUH_ENABLED

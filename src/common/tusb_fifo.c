@@ -289,7 +289,7 @@ static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd
 
 // Advance an absolute index
 // "absolute" index is only in the range of [0..2*depth)
-TU_ATTR_ALWAYS_INLINE static inline uint16_t advance_index(uint16_t depth, uint16_t idx, uint16_t offset) {
+static uint16_t advance_index(uint16_t depth, uint16_t idx, uint16_t offset) {
   // We limit the index space of p such that a correct wrap around happens
   // Check for a wrap around or if we are in unused index space - This has to be checked first!!
   // We are exploiting the wrap around to the correct index
@@ -313,7 +313,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t idx2ptr(uint16_t depth, uint16_t id
 
 // Works on local copies of w
 // When an overwritable fifo is overflowed, rd_idx will be re-index so that it forms a full fifo
-TU_ATTR_ALWAYS_INLINE static inline uint16_t correct_read_index(tu_fifo_t *f, uint16_t wr_idx) {
+static uint16_t correct_read_index(tu_fifo_t *f, uint16_t wr_idx) {
   uint16_t rd_idx;
   if (wr_idx >= f->depth) {
     rd_idx = wr_idx - f->depth;

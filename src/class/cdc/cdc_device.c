@@ -43,8 +43,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define BULK_PACKET_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
-
 typedef struct {
   uint8_t rhport;
   uint8_t itf_num;

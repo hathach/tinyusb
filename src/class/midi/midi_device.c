@@ -171,15 +171,12 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void *buffer, ui
 bool tud_midi_n_packet_read(uint8_t itf, uint8_t packet[4]) {
   midid_interface_t *p_midi = &_midid_itf[itf];
   tu_edpt_stream_t  *ep_str = &p_midi->ep_stream.rx;
-  TU_VERIFY(tu_edpt_stream_is_opened(ep_str));
   return 4 == tu_edpt_stream_read(ep_str, packet, 4);
 }
 
 uint32_t tud_midi_n_packet_read_n(uint8_t itf, uint8_t packets[], uint32_t max_packets) {
   midid_interface_t *p_midi = &_midid_itf[itf];
   tu_edpt_stream_t  *ep_str = &p_midi->ep_stream.rx;
-  TU_VERIFY(tu_edpt_stream_is_opened(ep_str), 0);
-
   const uint32_t num_read = tu_edpt_stream_read(ep_str, packets, 4u * max_packets);
   return num_read >> 2u;
 }
