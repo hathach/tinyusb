@@ -286,19 +286,28 @@ bool tu_edpt_validate(tusb_desc_endpoint_t const* desc_ep, tusb_speed_t speed, b
 }
 #endif
 
-void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* desc_itf, uint16_t desc_len,
-                         uint8_t driver_id) {
-  uint8_t const* p_desc = (uint8_t const*) desc_itf;
-  uint8_t const* desc_end = p_desc + desc_len;
+bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,
+                              const uint8_t *p_desc, uint16_t desc_len) {
+  const uint8_t *desc_end = p_desc + desc_len;
+  while (tu_desc_in_bounds(p_desc, desc_end)) {
+    const uint8_t desc_type = tu_desc_type(p_desc);
 
-  while (p_desc < desc_end) {
-    if (TUSB_DESC_ENDPOINT == tu_desc_type(p_desc)) {
-      uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
-      TU_LOG(2, "  Bind EP %02x to driver id %u\r\n", ep_addr, driver_id);
-      ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
+    if (desc_type == TUSB_DESC_ENDPOINT) {
+      const uint8_t ep_addr  = ((const tusb_desc_endpoint_t *)p_desc)->bEndpointAddress;
+      const uint8_t ep_num   = tu_edpt_number(ep_addr);
+      const uint8_t ep_dir   = tu_edpt_dir(ep_addr);
+      ep2drv[ep_num][ep_dir] = driver_id;
+    } else if (desc_type == TUSB_DESC_INTERFACE) {
+      const tusb_desc_interface_t *desc_itf = (const tusb_desc_interface_t *)p_desc;
+      if (desc_itf->bAlternateSetting == 0) {
+        TU_ASSERT(desc_itf->bInterfaceNumber < itf_max);
+        itf2drv[desc_itf->bInterfaceNumber] = driver_id;
+      }
     }
+
     p_desc = tu_desc_next(p_desc);
   }
+  return true;
 }
 
 uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len) {

@@ -1046,19 +1046,11 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
   const uint8_t *p_desc   = ((const uint8_t *)desc_cfg) + sizeof(tusb_desc_configuration_t);
   const uint8_t *desc_end = ((const uint8_t *)desc_cfg) + tu_le16toh(desc_cfg->wTotalLength);
 
-  while (p_desc < desc_end) {
-    uint8_t assoc_itf_count = 1;
-
+  while (tu_desc_in_bounds(p_desc, desc_end)) {
     // Class will always start with Interface Association (if any) and then Interface descriptor
     if (TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc)) {
-      const tusb_desc_interface_assoc_t *desc_iad = (const tusb_desc_interface_assoc_t *)p_desc;
-
-      assoc_itf_count = desc_iad->bInterfaceCount;
       p_desc = tu_desc_next(p_desc); // next to Interface
-
-      // IAD's first interface number and class should match with opened interface
-      // TU_ASSERT(desc_iad->bFirstInterface == desc_itf->bInterfaceNumber &&
-      //          desc_iad->bFunctionClass  == desc_itf->bInterfaceClass);
+      continue;
     }
 
     TU_ASSERT(TUSB_DESC_INTERFACE == tu_desc_type(p_desc));
@@ -1076,67 +1068,9 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num) {
         // Open successfully
         TU_LOG_USBD("  %s opened\r\n", driver->name);
 
-        // Some drivers use 2 or more interfaces but may not have IAD e.g MIDI (always) or
-        // BTH (even CDC) with class in device descriptor (single interface)
-        if (assoc_itf_count == 1) {
-  #if CFG_TUD_CDC
-          if (driver->open == cdcd_open) {
-            assoc_itf_count = 2;
-          }
-  #endif
-
-  #if CFG_TUD_MIDI
-          if (driver->open == midid_open) {
-            // If there is a class-compliant Audio Control Class, then 2 interfaces. Otherwise, only one
-            if (TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass &&
-                AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass &&
-                AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol) {
-              assoc_itf_count = 2;
-            }
-          }
-  #endif
-
-  #if CFG_TUD_BTH && CFG_TUD_BTH_ISO_ALT_COUNT
-          if (driver->open == btd_open) {
-            assoc_itf_count = 2;
-          }
-  #endif
-
-  #if CFG_TUD_AUDIO
-          if (driver->open == audiod_open) {
-            // UAC1 device doesn't have IAD, needs to read AS interface count from CS AC descriptor
-            if (TUSB_CLASS_AUDIO == desc_itf->bInterfaceClass &&
-                AUDIO_SUBCLASS_CONTROL == desc_itf->bInterfaceSubClass &&
-                AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol) {
-              const uint8_t       *p       = tu_desc_next(p_desc);
-              const uint8_t *const itf_end = p_desc + remaining_len;
-              while (p < itf_end) {
-                if (TUSB_DESC_CS_INTERFACE == tu_desc_type(p) &&
-                    AUDIO10_CS_AC_INTERFACE_HEADER ==
-                      ((const audio10_desc_cs_ac_interface_1_t *)p)->bDescriptorSubType) {
-                  const audio10_desc_cs_ac_interface_1_t *p_header = (const audio10_desc_cs_ac_interface_1_t *)p;
-                  // AC + AS interfaces
-                  assoc_itf_count = p_header->bInCollection + 1;
-                  break;
-                }
-                p = tu_desc_next(p);
-              }
-            }
-          }
-  #endif
-        }
-
-        // bind (associated) interfaces to found driver
-        for (uint8_t i = 0; i < assoc_itf_count; i++) {
-          const uint8_t itf_num = desc_itf->bInterfaceNumber + i;
-
-          // Interface number must not be used already
-          TU_ASSERT(TUSB_INDEX_INVALID_8 == _usbd_dev.itf2drv[itf_num]);
-          _usbd_dev.itf2drv[itf_num] = drv_id;
-        }
-
-        // bind all endpoints to found driver
-        tu_edpt_bind_driver(_usbd_dev.ep2drv, desc_itf, drv_len, drv_id);
+        // bind found driver to all interfaces and endpoint within drv_len
+        TU_ASSERT(tu_bind_driver_to_ep_itf(drv_id, _usbd_dev.ep2drv, _usbd_dev.itf2drv, CFG_TUD_INTERFACE_MAX, p_desc,
+                                           drv_len));
 
         p_desc += drv_len; // next Interface
         break; // exit driver find loop

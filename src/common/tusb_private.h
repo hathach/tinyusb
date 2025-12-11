@@ -95,8 +95,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(tusb_desc_endpoint_t c
 }
 #endif
 
-// Bind all endpoint of a interface descriptor to class driver
-void tu_edpt_bind_driver(uint8_t ep2drv[][2], tusb_desc_interface_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
+// Bind drivers to all interfaces and endpoints in the provided configuration descriptor
+bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t itf2drv[], uint8_t itf_max,
+                              const uint8_t *p_desc, uint16_t desc_len);
 
 // Calculate total length of n interfaces (depending on IAD)
 uint16_t tu_desc_get_interface_total_len(tusb_desc_interface_t const* desc_itf, uint8_t itf_count, uint16_t max_len);
