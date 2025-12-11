@@ -1,7 +1,8 @@
 include_guard()
 
-set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-sdk)
-set(CMSIS_DIR ${TOP}/lib/CMSIS_5)
+set(MCUX_DIR ${TOP}/hw/mcu/nxp/mcuxsdk-core)
+set(SDK_DIR ${TOP}/hw/mcu/nxp/mcux-devices-lpc)
+set(CMSIS_DIR ${TOP}/lib/CMSIS_6)
 
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
@@ -21,7 +22,7 @@ if (NOT DEFINED RHPORT_DEVICE)
   set(RHPORT_DEVICE 1)
 endif ()
 if (NOT DEFINED RHPORT_HOST)
-  set(RHPORT_HOST 0)
+  set(RHPORT_HOST 1)
 endif ()
 
 # port 0 is fullspeed, port 1 is highspeed
@@ -40,14 +41,22 @@ cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_
 # Startup & Linker script
 #------------------------------------
 if (NOT DEFINED LD_FILE_GNU)
-  set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
+  set(LD_FILE_GNU ${SDK_DIR}/LPC5500/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
 endif ()
 set(LD_FILE_Clang ${LD_FILE_GNU})
 
 if (NOT DEFINED STARTUP_FILE_GNU)
-  set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S)
+  set(STARTUP_FILE_GNU ${SDK_DIR}/LPC5500/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S)
 endif ()
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+
+if (NOT DEFINED LD_FILE_IAR)
+  set(LD_FILE_IAR ${SDK_DIR}/LPC5500/${MCU_VARIANT}/iar/${MCU_CORE}_flash.icf)
+endif ()
+
+if (NOT DEFINED STARTUP_FILE_IAR)
+  set(STARTUP_FILE_IAR ${SDK_DIR}/LPC5500/${MCU_VARIANT}/iar/startup_${MCU_CORE}.s)
+endif ()
 
 #------------------------------------
 # Board Target
@@ -55,28 +64,29 @@ set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 function(family_add_board BOARD_TARGET)
   add_library(${BOARD_TARGET} STATIC
     # driver
-    ${SDK_DIR}/drivers/lpc_gpio/fsl_gpio.c
-    ${SDK_DIR}/drivers/common/fsl_common_arm.c
-    ${SDK_DIR}/drivers/flexcomm/fsl_flexcomm.c
-    ${SDK_DIR}/drivers/flexcomm/usart/fsl_usart.c
+    ${MCUX_DIR}/drivers/lpc_gpio/fsl_gpio.c
+    ${MCUX_DIR}/drivers/common/fsl_common_arm.c
+    ${MCUX_DIR}/drivers/flexcomm/fsl_flexcomm.c
+    ${MCUX_DIR}/drivers/flexcomm/usart/fsl_usart.c
     # mcu
-    ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_CORE}.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_power.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_reset.c
+    ${SDK_DIR}/LPC5500/${MCU_VARIANT}/system_${MCU_CORE}.c
+    ${SDK_DIR}/LPC5500/${MCU_VARIANT}/drivers/fsl_clock.c
+    ${SDK_DIR}/LPC5500/${MCU_VARIANT}/drivers/fsl_power.c
+    ${SDK_DIR}/LPC5500/${MCU_VARIANT}/drivers/fsl_reset.c
     )
   target_include_directories(${BOARD_TARGET} PUBLIC
     ${TOP}/lib/sct_neopixel
     # driver
-    ${SDK_DIR}/drivers/common
-    ${SDK_DIR}/drivers/flexcomm
-    ${SDK_DIR}/drivers/flexcomm/usart
-    ${SDK_DIR}/drivers/lpc_iocon
-    ${SDK_DIR}/drivers/lpc_gpio
-    ${SDK_DIR}/drivers/sctimer
+    ${MCUX_DIR}/drivers/common
+    ${MCUX_DIR}/drivers/flexcomm
+    ${MCUX_DIR}/drivers/flexcomm/usart
+    ${MCUX_DIR}/drivers/lpc_iocon
+    ${MCUX_DIR}/drivers/lpc_gpio
+    ${MCUX_DIR}/drivers/sctimer
     # mcu
-    ${SDK_DIR}/devices/${MCU_VARIANT}
-    ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
+    ${SDK_DIR}/LPC5500/${MCU_VARIANT}
+    ${SDK_DIR}/LPC5500/${MCU_VARIANT}/drivers
+    ${SDK_DIR}/LPC5500/periph
     ${CMSIS_DIR}/CMSIS/Core/Include
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
@@ -97,6 +107,7 @@ function(family_add_board BOARD_TARGET)
   if (RHPORT_HOST EQUAL 1)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
       [=[CFG_TUH_MEM_SECTION=__attribute__((section("m_usb_global")))]=]
+      CFG_TUH_USBIP_IP3516=1
       )
   endif ()
 
