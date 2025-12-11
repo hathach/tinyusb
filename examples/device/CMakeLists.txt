@@ -6,30 +6,38 @@ project(tinyusb_device_examples C CXX ASM)
 family_initialize_project(tinyusb_device_examples ${CMAKE_CURRENT_LIST_DIR})
 
 # family_add_subdirectory will filter what to actually add based on selected FAMILY
-family_add_subdirectory(audio_4_channel_mic)
-family_add_subdirectory(audio_test)
-family_add_subdirectory(audio_4_channel_mic_freertos)
-family_add_subdirectory(audio_test_freertos)
-family_add_subdirectory(audio_test_multi_rate)
-family_add_subdirectory(board_test)
-family_add_subdirectory(cdc_dual_ports)
-family_add_subdirectory(cdc_msc)
-family_add_subdirectory(cdc_msc_freertos)
-family_add_subdirectory(cdc_uac2)
-family_add_subdirectory(dfu)
-family_add_subdirectory(dfu_runtime)
-family_add_subdirectory(dynamic_configuration)
-family_add_subdirectory(hid_boot_interface)
-family_add_subdirectory(hid_composite)
-family_add_subdirectory(hid_composite_freertos)
-family_add_subdirectory(hid_generic_inout)
-family_add_subdirectory(hid_multiple_interface)
-family_add_subdirectory(midi_test)
-family_add_subdirectory(msc_dual_lun)
-family_add_subdirectory(net_lwip_webserver)
-family_add_subdirectory(uac2_headset)
-family_add_subdirectory(uac2_speaker_fb)
-family_add_subdirectory(usbtmc)
-family_add_subdirectory(video_capture)
-family_add_subdirectory(video_capture_2ch)
-family_add_subdirectory(webusb_serial)
+set(EXAMPLE_LIST
+  audio_4_channel_mic
+  audio_4_channel_mic_freertos
+  audio_test
+  audio_test_freertos
+  audio_test_multi_rate
+  board_test
+  cdc_dual_ports
+  cdc_msc
+  cdc_msc_freertos
+  cdc_uac2
+  dfu
+  dfu_runtime
+  dynamic_configuration
+  hid_boot_interface
+  hid_composite
+  hid_composite_freertos
+  hid_generic_inout
+  hid_multiple_interface
+  midi_test
+  midi_test_freertos
+  msc_dual_lun
+  mtp
+  net_lwip_webserver
+  uac2_headset
+  uac2_speaker_fb
+  usbtmc
+  video_capture
+  video_capture_2ch
+  webusb_serial
+  )
+
+foreach (example ${EXAMPLE_LIST})
+  family_add_subdirectory(${example})
+endforeach ()

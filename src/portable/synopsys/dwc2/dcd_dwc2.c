@@ -51,6 +51,7 @@ typedef struct {
   uint16_t total_len;
   uint16_t max_size;
   uint8_t interval;
+  uint8_t iso_retry; // ISO retry counter
 } xfer_ctl_t;
 
 // This variable is modified from ISR context, so it must be protected by critical section
@@ -77,6 +78,7 @@ CFG_TUD_MEM_SECTION static struct {
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc2) {
   #if TU_CHECK_MCU(OPT_MCU_GD32VF103)
+  (void) dwc2;
   return DWC2_EP_MAX;
   #else
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
@@ -84,6 +86,12 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc
   #endif
 }
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+TU_ATTR_ALWAYS_INLINE static inline bool edpt_is_enabled(dwc2_dep_t* dep) {
+  return (dep->ctl & EPCTL_EPENA) != 0;
+}
 
 //--------------------------------------------------------------------
 // DMA
@@ -116,7 +124,7 @@ static void dma_setup_prepare(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   if (dwc2->gsnpsid >= DWC2_CORE_REV_3_00a) {
-    if(dwc2->epout[0].doepctl & DOEPCTL_EPENA) {
+    if(edpt_is_enabled(&dwc2->epout[0])) {
       return;
     }
   }
@@ -168,7 +176,7 @@ static void dma_setup_prepare(uint8_t rhport) {
   - All EP OUT shared a unique OUT FIFO which uses (for Slave or Buffer DMA, Scatt/Gather DMA use different formula):
     - 13 for setup packets + control words (up to 3 setup packets).
     - 1 for global NAK (not required/used here).
-    - Largest-EPsize/4 + 1. ( FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4 + 1)"
+    - Largest-EPsize/4 + 1. (FS: 64 bytes, HS: 512 bytes). Recommended is  "2 x (Largest-EPsize/4 + 1)"
     - 2 for each used OUT endpoint
 
     Therefore GRXFSIZ = 13 + 1 + 2 x (Largest-EPsize/4 + 1) + 2 x EPOUTnum
@@ -199,7 +207,7 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
     }
   } else {
     // Check IN endpoints concurrently active limit
-    if(dwc2_controller->ep_in_count) {
+    if(0 != dwc2_controller->ep_in_count) {
       TU_ASSERT(_dcd_data.allocated_epin_count < dwc2_controller->ep_in_count);
       _dcd_data.allocated_epin_count++;
     }
@@ -216,10 +224,10 @@ static bool dfifo_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t packet_size) {
 
     // Both TXFD and TXSA are in unit of 32-bit words.
     if (epnum == 0) {
-      dwc2->dieptxf0 = (fifo_size << DIEPTXF0_TX0FD_Pos) | _dcd_data.dfifo_top;
+      dwc2->dieptxf0 = ((uint32_t) fifo_size << DIEPTXF0_TX0FD_Pos) | _dcd_data.dfifo_top;
     } else {
       // DIEPTXF starts at FIFO #1.
-      dwc2->dieptxf[epnum - 1] = (fifo_size << DIEPTXF_INEPTXFD_Pos) | _dcd_data.dfifo_top;
+      dwc2->dieptxf[epnum - 1] = ((uint32_t) fifo_size << DIEPTXF_INEPTXFD_Pos) | _dcd_data.dfifo_top;
     }
   }
 
@@ -237,10 +245,10 @@ static void dfifo_device_init(uint8_t rhport) {
   if (is_dma) {
     _dcd_data.dfifo_top -= 2 * dwc2_controller->ep_count;
   }
-  dwc2->gdfifocfg = (_dcd_data.dfifo_top << GDFIFOCFG_EPINFOBASE_SHIFT) | _dcd_data.dfifo_top;
+  dwc2->gdfifocfg = ((uint32_t) _dcd_data.dfifo_top << GDFIFOCFG_EPINFOBASE_SHIFT) | _dcd_data.dfifo_top;
 
   // Allocate FIFO for EP0 IN
-  dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE);
+  (void) dfifo_alloc(rhport, 0x80, CFG_TUD_ENDPOINT0_SIZE);
 }
 
 
@@ -254,7 +262,13 @@ static void edpt_activate(uint8_t rhport, const tusb_desc_endpoint_t* p_endpoint
 
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = tu_edpt_packet_size(p_endpoint_desc);
-  xfer->interval = p_endpoint_desc->bInterval;
+
+  const dwc2_dsts_t dsts = {.value = dwc2->dsts};
+  if (dsts.enum_speed == DCFG_SPEED_HIGH) {
+    xfer->interval = 1 << (p_endpoint_desc->bInterval - 1);
+  } else {
+    xfer->interval =  p_endpoint_desc->bInterval;
+  }
 
   // Endpoint control
   dwc2_depctl_t depctl = {.value = 0};
@@ -281,17 +295,18 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   const uint8_t dir = tu_edpt_dir(ep_addr);
   dwc2_dep_t* dep = &dwc2->ep[dir == TUSB_DIR_IN ? 0 : 1][epnum];
 
+  const uint32_t stall_mask = (stall ? EPCTL_STALL : 0);
+
   if (dir == TUSB_DIR_IN) {
-    // Only disable currently enabled non-control endpoint
-    if ((epnum == 0) || !(dep->diepctl & DIEPCTL_EPENA)) {
-      dep->diepctl |= DIEPCTL_SNAK | (stall ? DIEPCTL_STALL : 0);
+    if (!edpt_is_enabled(dep)) {
+      dep->diepctl |= DIEPCTL_SNAK | stall_mask;
     } else {
       // Stop transmitting packets and NAK IN xfers.
       dep->diepctl |= DIEPCTL_SNAK;
       while ((dep->diepint & DIEPINT_INEPNE) == 0) {}
 
       // Disable the endpoint.
-      dep->diepctl |= DIEPCTL_EPDIS | (stall ? DIEPCTL_STALL : 0);
+      dep->diepctl |= DIEPCTL_EPDIS | stall_mask;
       while ((dep->diepint & DIEPINT_EPDISD_Msk) == 0) {}
 
       dep->diepint = DIEPINT_EPDISD;
@@ -300,9 +315,10 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
     // Flush the FIFO, and wait until we have confirmed it cleared.
     dfifo_flush_tx(dwc2, epnum);
   } else {
-    // Only disable currently enabled non-control endpoint
-    if ((epnum == 0) || !(dep->doepctl & DOEPCTL_EPENA)) {
-      dep->doepctl |= stall ? DOEPCTL_STALL : 0;
+    if (!edpt_is_enabled(dep) || epnum == 0) {
+      // non-control not-enabled: stall if set
+      // For EP0 Out, keep it enabled to receive SETUP packets
+      dep->doepctl |= stall_mask;
     } else {
       // Asserting GONAK is required to STALL an OUT endpoint.
       // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
@@ -312,7 +328,7 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
       while ((dwc2->gintsts & GINTSTS_BOUTNAKEFF_Msk) == 0) {}
 
       // Ditto here disable the endpoint.
-      dep->doepctl |= DOEPCTL_EPDIS | (stall ? DOEPCTL_STALL : 0);
+      dep->doepctl |= DOEPCTL_EPDIS | stall_mask;
       while ((dep->doepint & DOEPINT_EPDISD_Msk) == 0) {}
 
       dep->doepint = DOEPINT_EPDISD;
@@ -321,6 +337,40 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
       dwc2->dctl |= DCTL_CGONAK;
     }
   }
+}
+
+static uint16_t epin_write_tx_fifo(uint8_t rhport, uint8_t epnum) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+  dwc2_dep_t* const epin = &dwc2->ep[0][epnum];
+  xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
+
+  dwc2_ep_tsize_t tsiz = {.value = epin->tsiz};
+  const uint16_t remain_packets = tsiz.packet_count;
+
+  uint16_t total_bytes_written = 0;
+  // Process every single packet (only whole packets can be written to fifo)
+  for (uint16_t i = 0; i < remain_packets; i++) {
+    tsiz.value = epin->tsiz;
+    const uint16_t remain_bytes = (uint16_t) tsiz.xfer_size;
+    const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
+
+    // Check if dtxfsts has enough space available
+    if (xact_bytes > ((epin->dtxfsts & DTXFSTS_INEPTFSAV_Msk) << 2)) {
+      break;
+    }
+
+    // Push packet to Tx-FIFO
+    if (xfer->ff) {
+      volatile uint32_t* tx_fifo = dwc2->fifo[epnum];
+      tu_fifo_read_n_access_mode(xfer->ff, (void *)(uintptr_t)tx_fifo, xact_bytes, TU_FIFO_FIXED_ADDR_RW32);
+      total_bytes_written += xact_bytes;
+    } else {
+      dfifo_write_packet(dwc2, epnum, xfer->buffer, xact_bytes);
+      xfer->buffer += xact_bytes;
+      total_bytes_written += xact_bytes;
+    }
+  }
+  return total_bytes_written;
 }
 
 // Since this function returns void, it is not possible to return a boolean success message
@@ -336,7 +386,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
 
   // EP0 is limited to one packet per xfer
   if (epnum == 0) {
-    total_bytes = tu_min16(_dcd_data.ep0_pending[dir], xfer->max_size);
+    total_bytes = tu_min16(_dcd_data.ep0_pending[dir], CFG_TUD_ENDPOINT0_SIZE);
     _dcd_data.ep0_pending[dir] -= total_bytes;
     num_packets = 1;
   } else {
@@ -357,10 +407,10 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
   dwc2_depctl_t depctl = {.value = dep->ctl};
   depctl.clear_nak = 1;
   depctl.enable = 1;
-  if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && xfer->interval == 1) {
+  if (depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS) {
     const dwc2_dsts_t dsts = {.value = dwc2->dsts};
     const uint32_t odd_now = dsts.frame_number & 1u;
-    if (odd_now) {
+    if (odd_now != 0) {
       depctl.set_data0_iso_even = 1;
     } else {
       depctl.set_data1_iso_odd = 1;
@@ -374,12 +424,21 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     }
     dep->diepdma = (uintptr_t) xfer->buffer;
     dep->diepctl = depctl.value; // enable endpoint
+    // Advance buffer pointer for EP0
+    if (epnum == 0) {
+      xfer->buffer += total_bytes;
+    }
   } else {
     dep->diepctl = depctl.value; // enable endpoint
 
-    // Enable tx fifo empty interrupt only if there is data. Note must after depctl enable
     if (dir == TUSB_DIR_IN && total_bytes != 0) {
-      dwc2->diepempmsk |= (1 << epnum);
+      const uint16_t xferred_bytes = epin_write_tx_fifo(rhport, epnum);
+
+      // Enable TXFE interrupt if there are still data to be sent
+      // EP0 only sends one packet at a time, so no need to check for EP0
+      if ((epnum != 0) && (xfer->total_len - xferred_bytes > 0)) {
+         dwc2->diepempmsk |= (1u << epnum);
+      }
     }
   }
 }
@@ -402,7 +461,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Set device max speed
   uint32_t dcfg = dwc2->dcfg & ~DCFG_DSPD_Msk;
   if (is_highspeed) {
-    dcfg |= DCFG_DSPD_HS << DCFG_DSPD_Pos;
+    // dcfg Highspeed's mask is 0
 
     // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
     // when using with some PHYs such as USB334x (USB3341, USB3343, USB3346, USB3347)
@@ -425,8 +484,13 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Clear A override, force B Valid
   dwc2->gotgctl = (dwc2->gotgctl & ~GOTGCTL_AVALOEN) | GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
 
+#if CFG_TUSB_MCU == OPT_MCU_STM32N6
+  // No hardware detection of Vbus B-session is available on the STM32N6
+  dwc2->stm32_gccfg |= STM32_GCCFG_VBVALOVAL;
+#endif
+
   // Enable required interrupts
-  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBSUSPM | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
+  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
 
   // TX FIFO empty level for interrupt is complete empty
   uint32_t gahbcfg = dwc2->gahbcfg;
@@ -451,7 +515,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   dwc2->dcfg = (dwc2->dcfg & ~DCFG_DAD_Msk) | (dev_addr << DCFG_DAD_Pos);
 
   // Response with status after changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 void dcd_remote_wakeup(uint8_t rhport) {
@@ -546,7 +610,7 @@ void dcd_edpt_close_all(uint8_t rhport) {
   for (uint8_t n = 1; n < ep_count; n++) {
     for (uint8_t d = 0; d < 2; d++) {
       dwc2_dep_t* dep = &dwc2->ep[d][n];
-      if (dep->ctl & EPCTL_EPENA) {
+      if (edpt_is_enabled(dep)) {
         dep->ctl |= EPCTL_SNAK | EPCTL_EPDIS;
       }
       xfer_status[n][1-d].max_size = 0;
@@ -572,13 +636,14 @@ bool dcd_edpt_iso_activate(uint8_t rhport,  tusb_desc_endpoint_t const * p_endpo
   return true;
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
 
-  usbd_spin_lock(false);
+  usbd_spin_lock(is_isr);
 
   if (xfer->max_size == 0) {
     ret = false;  // Endpoint is closed
@@ -586,6 +651,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     xfer->buffer = buffer;
     xfer->ff = NULL;
     xfer->total_len = total_bytes;
+    xfer->iso_retry = xfer->interval; // Reset ISO retry counter to interval value
 
     // EP0 can only handle one packet
     if (epnum == 0) {
@@ -597,7 +663,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
     ret = true;
   }
 
-  usbd_spin_unlock(false);
+  usbd_spin_unlock(is_isr);
 
   return ret;
 }
@@ -606,7 +672,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 // bytes should be written and second to keep the return value free to give back a boolean
 // success message. If total_bytes is too big, the FIFO will copy only what is available
 // into the USB buffer!
-bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes) {
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
   TU_ASSERT(ff->item_size == 1);
 
@@ -615,7 +682,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
   bool ret;
 
-  usbd_spin_lock(false);
+  usbd_spin_lock(is_isr);
 
   if (xfer->max_size == 0) {
     ret = false;  // Endpoint is closed
@@ -623,6 +690,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     xfer->buffer = NULL;
     xfer->ff = ff;
     xfer->total_len = total_bytes;
+    xfer->iso_retry = xfer->interval; // Reset ISO retry counter to interval value
 
     // Schedule packets to be sent within interrupt
     // TODO xfer fifo may only available for slave mode
@@ -630,7 +698,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
     ret = true;
   }
 
-  usbd_spin_unlock(false);
+  usbd_spin_unlock(is_isr);
 
   return ret;
 }
@@ -638,8 +706,12 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   edpt_disable(rhport, ep_addr, true);
-  if((tu_edpt_number(ep_addr) == 0) && dma_device_enabled(dwc2)) {
-    dma_setup_prepare(rhport);
+
+  // For control endpoint, prepare to receive SETUP packet
+  if (tu_edpt_number(ep_addr) == 0) {
+    if (dma_device_enabled(dwc2)) {
+      dma_setup_prepare(rhport);
+    }
   }
 }
 
@@ -676,8 +748,9 @@ static void handle_bus_reset(uint8_t rhport) {
 
   // Disable all IN endpoints
   for (uint8_t n = 0; n < ep_count; n++) {
-    if (dwc2->epin[n].diepctl & DIEPCTL_EPENA) {
-      dwc2->epin[n].diepctl |= DIEPCTL_SNAK | DIEPCTL_EPDIS;
+    dwc2_dep_t* dep = &dwc2->epin[n];
+    if (edpt_is_enabled(dep)) {
+      dep->diepctl |= DIEPCTL_SNAK | DIEPCTL_EPDIS;
     }
   }
 
@@ -696,12 +769,23 @@ static void handle_bus_reset(uint8_t rhport) {
   dcfg.address = 0;
   dwc2->dcfg = dcfg.value;
 
-  // Fixed both control EP0 size to 64 bytes
-  dwc2->epin[0].ctl &= ~(0x03 << DIEPCTL_MPSIZ_Pos);
-  dwc2->epout[0].ctl &= ~(0x03 << DOEPCTL_MPSIZ_Pos);
+  // 6. Configure maximum packet size for EP0
+  uint8_t mps = 0;
+  switch (CFG_TUD_ENDPOINT0_SIZE) {
+    case 8: mps = 3; break;
+    case 16: mps = 2; break;
+    case 32: mps = 1; break;
+    case 64: mps = 0; break;
+    default: mps = 0; break;
+  }
 
-  xfer_status[0][TUSB_DIR_OUT].max_size = 64;
-  xfer_status[0][TUSB_DIR_IN].max_size = 64;
+  dwc2->epin[0].ctl &= ~DIEPCTL0_MPSIZ_Msk;
+  dwc2->epout[0].ctl &= ~DOEPCTL0_MPSIZ_Msk;
+  dwc2->epin[0].ctl |= mps << DIEPCTL0_MPSIZ_Pos;
+  dwc2->epout[0].ctl |= mps << DOEPCTL0_MPSIZ_Pos;
+
+  xfer_status[0][TUSB_DIR_OUT].max_size = CFG_TUD_ENDPOINT0_SIZE;
+  xfer_status[0][TUSB_DIR_IN].max_size = CFG_TUD_ENDPOINT0_SIZE;
 
   if(dma_device_enabled(dwc2)) {
     dma_setup_prepare(rhport);
@@ -709,7 +793,7 @@ static void handle_bus_reset(uint8_t rhport) {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
   }
 
-  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT;
+  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
 }
 
 static void handle_enum_done(uint8_t rhport) {
@@ -791,23 +875,22 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       const uint16_t byte_count = grxstsp.byte_count;
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
 
-      if (byte_count) {
+      if (byte_count != 0) {
         // Read packet off RxFIFO
-        if (xfer->ff) {
-          tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void*) (uintptr_t) rx_fifo, byte_count);
+        if (xfer->ff != NULL) {
+          tu_fifo_write_n_access_mode(xfer->ff, (const void *)(uintptr_t)rx_fifo, byte_count, TU_FIFO_FIXED_ADDR_RW32);
         } else {
           dfifo_read_packet(dwc2, xfer->buffer, byte_count);
           xfer->buffer += byte_count;
         }
+      }
 
-        // short packet, minus remaining bytes (xfer_size)
-        if (byte_count < xfer->max_size) {
-          const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
-          xfer->total_len -= tsiz.xfer_size;
-          if (epnum == 0) {
-            xfer->total_len -= _dcd_data.ep0_pending[TUSB_DIR_OUT];
-            _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
-          }
+      // short packet (including ZLP when byte_count == 0), minus remaining bytes (xfer_size)
+      if (byte_count < xfer->max_size) {
+        const dwc2_ep_tsize_t tsiz = {.value = epout->tsiz};
+        xfer->total_len -= tsiz.xfer_size;
+        if (epnum == 0) {
+          _dcd_data.ep0_pending[TUSB_DIR_OUT] = 0;
         }
       }
       break;
@@ -819,12 +902,17 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       // the specified OUT endpoint which will be handled by handle_epout_irq()
       break;
 
-    default: break;
+    default: break; // nothing to do
   }
 }
 
 static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepint_bm) {
   if (doepint_bm.setup_phase_done) {
+    // Cleanup previous pending EP0 IN transfer if any
+    dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
+    if (edpt_is_enabled(epin0)) {
+      edpt_disable(rhport, 0x80, false);
+    }
     dcd_event_setup_received(rhport, _dcd_usbbuf.setup_packet, true);
     return;
   }
@@ -836,7 +924,6 @@ static void handle_epout_slave(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doe
     // can is set when GRXSTS_PKTSTS_SETUP_RX is popped therefore they can bet set before/together with setup_phase_done
     if (!doepint_bm.status_phase_rx && !doepint_bm.setup_packet_rx) {
       xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-
       if ((epnum == 0) && _dcd_data.ep0_pending[TUSB_DIR_OUT]) {
         // EP0 can only handle one packet, Schedule another packet to be received.
         edpt_schedule_packets(rhport, epnum, TUSB_DIR_OUT);
@@ -853,7 +940,7 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
 
   if (diepint_bm.xfer_complete) {
-    if ((epnum == 0) && _dcd_data.ep0_pending[TUSB_DIR_IN]) {
+    if ((epnum == 0) && (0 != _dcd_data.ep0_pending[TUSB_DIR_IN])) {
       // EP0 can only handle one packet. Schedule another packet to be transmitted.
       edpt_schedule_packets(rhport, epnum, TUSB_DIR_IN);
     } else {
@@ -864,35 +951,13 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   // TX FIFO empty bit is read-only. It will only be cleared by hardware when written bytes is more than
   // - 64 bytes or
   // - Half/Empty of TX FIFO size (configured by GAHBCFG.TXFELVL)
-  if (diepint_bm.txfifo_empty && (dwc2->diepempmsk & (1 << epnum))) {
-    dwc2_ep_tsize_t tsiz = {.value = epin->tsiz};
-    const uint16_t remain_packets = tsiz.packet_count;
-
-    // Process every single packet (only whole packets can be written to fifo)
-    for (uint16_t i = 0; i < remain_packets; i++) {
-      tsiz.value = epin->tsiz;
-      const uint16_t remain_bytes = (uint16_t) tsiz.xfer_size;
-      const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
-
-      // Check if dtxfsts has enough space available
-      if (xact_bytes > ((epin->dtxfsts & DTXFSTS_INEPTFSAV_Msk) << 2)) {
-        break;
-      }
-
-      // Push packet to Tx-FIFO
-      if (xfer->ff) {
-        volatile uint32_t* tx_fifo = dwc2->fifo[epnum];
-        tu_fifo_read_n_const_addr_full_words(xfer->ff, (void*)(uintptr_t)tx_fifo, xact_bytes);
-      } else {
-        dfifo_write_packet(dwc2, epnum, xfer->buffer, xact_bytes);
-        xfer->buffer += xact_bytes;
-      }
-    }
+  if (diepint_bm.txfifo_empty && tu_bit_test(dwc2->diepempmsk, epnum)) {
+    epin_write_tx_fifo(rhport, epnum);
 
     // Turn off TXFE if all bytes are written.
-    tsiz.value = epin->tsiz;
+    dwc2_ep_tsize_t tsiz = {.value = epin->tsiz};
     if (tsiz.xfer_size == 0) {
-      dwc2->diepempmsk &= ~(1 << epnum);
+      dwc2->diepempmsk &= ~(1u << epnum);
     }
   }
 }
@@ -903,6 +968,11 @@ static void handle_epout_dma(uint8_t rhport, uint8_t epnum, dwc2_doepint_t doepi
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   if (doepint_bm.setup_phase_done) {
+    // Cleanup previous pending EP0 IN transfer if any
+    dwc2_dep_t* epin0 = &DWC2_REG(rhport)->epin[0];
+    if (edpt_is_enabled(epin0)) {
+      edpt_disable(rhport, 0x80, false);
+    }
     dma_setup_prepare(rhport);
     dcd_dcache_invalidate(_dcd_usbbuf.setup_packet, 8);
     dcd_event_setup_received(rhport, _dcd_usbbuf.setup_packet, true);
@@ -966,7 +1036,7 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
   // DAINT for a given EP clears when DEPINTx is cleared.
   // EPINT will be cleared when DAINT bits are cleared.
   for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
-    if (dwc2->daint & TU_BIT(daint_offset + epnum)) {
+    if (tu_bit_test(dwc2->daint,daint_offset + epnum)) {
       dwc2_dep_t* epout = &ep_base[epnum];
       union {
         uint32_t value;
@@ -975,7 +1045,7 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
       } intr;
       intr.value = epout->intr;
 
-      epout->intr = intr.value; // Clear interrupt
+      epout->intr = intr.value; // Clear interrupt //-V::2584::{otg_int}
 
       if (is_dma) {
         #if CFG_TUD_DWC2_DMA_ENABLE
@@ -993,6 +1063,43 @@ static void handle_ep_irq(uint8_t rhport, uint8_t dir) {
           handle_epout_slave(rhport, epnum, intr.doepint_bm);
         }
         #endif
+      }
+    }
+  }
+}
+
+static void handle_incomplete_iso_in(uint8_t rhport) {
+  dwc2_regs_t      *dwc2    = DWC2_REG(rhport);
+  const dwc2_dsts_t dsts    = {.value = dwc2->dsts};
+  const uint32_t    odd_now = dsts.frame_number & 1u;
+
+  // Loop over all IN endpoints
+  const uint8_t ep_count = dwc2_ep_count(dwc2);
+  for (uint8_t epnum = 0; epnum < ep_count; epnum++) {
+    dwc2_dep_t   *epin   = &dwc2->epin[epnum];
+    dwc2_depctl_t depctl = {.value = epin->diepctl};
+    // Read DSTS and DIEPCTLn for all isochronous endpoints. If the current EP is enabled and the read value of
+    // DSTS.SOFFN is the targeted uframe number for this EP, then this EP has an incomplete transfer.
+    if (depctl.enable && depctl.type == DEPCTL_EPTYPE_ISOCHRONOUS && depctl.dpid_iso_odd == odd_now) {
+      xfer_ctl_t *xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
+      if (xfer->iso_retry > 0) {
+        xfer->iso_retry--;
+        // Restart ISO transfe: re-write TSIZ and CTL
+        dwc2_ep_tsize_t deptsiz = {.value = 0};
+        deptsiz.xfer_size       = xfer->total_len;
+        deptsiz.packet_count    = tu_div_ceil(xfer->total_len, xfer->max_size);
+        epin->tsiz              = deptsiz.value;
+
+        if (odd_now) {
+          depctl.set_data0_iso_even = 1;
+        } else {
+          depctl.set_data1_iso_odd = 1;
+        }
+        epin->diepctl = depctl.value;
+      } else {
+        // too many retries, give up
+        edpt_disable(rhport, epnum | TUSB_DIR_IN_MASK, false);
+        dcd_event_xfer_complete(rhport, epnum | TUSB_DIR_IN_MASK, 0, XFER_RESULT_FAILED, true);
       }
     }
   }
@@ -1027,16 +1134,21 @@ void dcd_int_handler(uint8_t rhport) {
   if (gintsts & GINTSTS_ENUMDNE) {
     // ENUMDNE is the end of reset where speed of the link is detected
     dwc2->gintsts = GINTSTS_ENUMDNE;
+    // There may be a pending suspend event, so we clear it first
+    dwc2->gintsts = GINTSTS_USBSUSP;
+    dwc2->gintmsk |= GINTMSK_USBSUSPM;
     handle_enum_done(rhport);
   }
 
   if (gintsts & GINTSTS_USBSUSP) {
     dwc2->gintsts = GINTSTS_USBSUSP;
+    dwc2->gintmsk &= ~GINTMSK_USBSUSPM;
     dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
   }
 
   if (gintsts & GINTSTS_WKUINT) {
     dwc2->gintsts = GINTSTS_WKUINT;
+    dwc2->gintmsk |= GINTMSK_USBSUSPM;
     dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
@@ -1056,6 +1168,7 @@ void dcd_int_handler(uint8_t rhport) {
 
   if(gintsts & GINTSTS_SOF) {
     dwc2->gintsts = GINTSTS_SOF;
+    dwc2->gintmsk |= GINTMSK_USBSUSPM;
     const uint32_t frame = (dwc2->dsts & DSTS_FNSOF) >> DSTS_FNSOF_Pos;
 
     // Disable SOF interrupt if SOF was not explicitly enabled since SOF was used for remote wakeup detection
@@ -1090,6 +1203,12 @@ void dcd_int_handler(uint8_t rhport) {
   if (gintsts & GINTSTS_IEPINT) {
     // IEPINT bit read-only, clear using DIEPINTn
     handle_ep_irq(rhport, TUSB_DIR_IN);
+  }
+
+  // Incomplete isochronous IN transfer interrupt handling.
+  if (gintsts & GINTSTS_IISOIXFR) {
+    dwc2->gintsts = GINTSTS_IISOIXFR;
+    handle_incomplete_iso_in(rhport);
   }
 }
 

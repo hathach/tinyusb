@@ -20,6 +20,7 @@ latex
 *.ewt
 *.ewd
 *.hex
+.venv/
 cmake_install.cmake
 CMakeCache.txt
 settings/
@@ -41,6 +42,7 @@ cov-int
 *-build-dir
 /_bin/
 __pycache__
+cmake-build/
 cmake-build-*
 sdkconfig
 .PVS-Studio
@@ -52,3 +54,4 @@ RelWithDebInfo
 Release
 BrowseInfo
 .cmake_build
+README_processed.rst

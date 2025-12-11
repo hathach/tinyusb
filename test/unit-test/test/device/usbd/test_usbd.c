@@ -151,11 +151,11 @@ void test_usbd_get_device_descriptor(void)
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_device, false);
 
   // data
-  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)&data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*)&data_desc_device, sizeof(tusb_desc_device_t), sizeof(tusb_desc_device_t), false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, sizeof(tusb_desc_device_t), 0, false);
 
   // status
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_device, 1);
 
@@ -184,11 +184,11 @@ void test_usbd_get_configuration_descriptor(void)
   dcd_event_setup_received(rhport, (uint8_t*) &req_get_desc_configuration, false);
 
   // data
-  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) data_desc_configuration, total_len, total_len, true);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x80, (uint8_t*) data_desc_configuration, total_len, total_len, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, total_len, 0, false);
 
   // status
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
 
@@ -227,20 +227,20 @@ void test_usbd_control_in_zlp(void)
 
   // 1st transaction
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN,
-                                         zlp_desc_configuration, CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, true);
+                                         zlp_desc_configuration, CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, CFG_TUD_ENDPOINT0_SIZE, 0, false);
 
   // 2nd transaction
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_CTRL_IN,
-                                         zlp_desc_configuration + CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, true);
+                                         zlp_desc_configuration + CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, CFG_TUD_ENDPOINT0_SIZE, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, CFG_TUD_ENDPOINT0_SIZE, 0, false);
 
   // Expect Zero length Packet
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
 
   // Status
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, true);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_OUT, NULL, 0, false, true);
   dcd_event_xfer_complete(rhport, EDPT_CTRL_OUT, 0, 0, false);
   dcd_edpt0_status_complete_ExpectWithArray(rhport, &req_get_desc_configuration, 1);
 

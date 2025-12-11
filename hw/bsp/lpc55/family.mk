@@ -1,6 +1,5 @@
 UF2_FAMILY_ID = 0x2abc77ec
 SDK_DIR = hw/mcu/nxp/mcux-sdk
-DEPS_SUBMODULES += lib/CMSIS_5 lib/sct_neopixel $(SDK_DIR)
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m33

@@ -322,7 +322,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
   // Response with status first before changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 
   dcd_reg->DEVCMDSTAT &= ~DEVCMDSTAT_DEVICE_ADDR_MASK;
   dcd_reg->DEVCMDSTAT |= dev_addr;
@@ -432,6 +432,21 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   _dcd.ep[ep_id][0].cmd_sts.disable = _dcd.ep[ep_id][1].cmd_sts.disable = 1;
 }
 
+#if 0
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+#endif
+
 static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes) {
   uint16_t nbytes;
   ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
@@ -464,7 +479,8 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
   ep_cs[0].cmd_sts.active = 1;
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   uint8_t const ep_id = ep_addr2id(ep_addr);
 
   if (!buffer || total_bytes == 0) {
@@ -631,5 +647,4 @@ void dcd_int_handler(uint8_t rhport)
   // Endpoint transfer complete interrupt
   process_xfer_isr(rhport, int_status);
 }
-
 #endif

@@ -255,15 +255,15 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
   tu_fifo_buffer_info_t info;
   ops[dir].tu_fifo_get_info(f, &info);
   unsigned total_len = len;
-  len = TU_MIN(total_len, info.len_lin);
+  len = TU_MIN(total_len, info.linear.len);
   unsigned rem = total_len - len;
 
   /* Get maximum R/W operation width for wrapped part */
-  uint8_t width = ops[dir].pipe_read_write(info.ptr_lin, fifo, len, 4);
+  uint8_t width = ops[dir].pipe_read_write(info.linear.ptr, fifo, len, 4);
 
   if (rem) {
-    len = TU_MIN(rem, info.len_wrap);
-    ops[dir].pipe_read_write(info.ptr_wrap, fifo, len, width);
+    len = TU_MIN(rem, info.wrapped.len);
+    ops[dir].pipe_read_write(info.wrapped.ptr, fifo, len, width);
     rem -= len;
   }
   ops[dir].tu_fifo_advance(f, total_len - rem);
@@ -809,8 +809,9 @@ void dcd_edpt_close_all(uint8_t rhport)
 }
 
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   bool ret;
   // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
@@ -831,8 +832,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack
 // - optional, however, must be listed in usbd.c
-bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   bool ret;
   // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);

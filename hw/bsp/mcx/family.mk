@@ -1,8 +1,6 @@
 UF2_FAMILY_ID = 0x2abc77ec
 SDK_DIR = hw/mcu/nxp/mcux-sdk
 
-DEPS_SUBMODULES += $(SDK_DIR) lib/CMSIS_5
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 # Default to Highspeed PORT1
@@ -13,7 +11,7 @@ CFLAGS += \
   -DBOARD_TUD_RHPORT=$(PORT) \
 
 # mcu driver cause following warnings
-CFLAGS += -Wno-error=unused-parameter -Wno-error=old-style-declaration
+CFLAGS += -Wno-error=unused-parameter -Wno-error=old-style-declaration -Wno-error=redundant-decls
 
 LDFLAGS_GCC += -specs=nosys.specs -specs=nano.specs
 
@@ -58,12 +56,9 @@ INC += \
 	$(TOP)/$(SDK_DIR)/drivers/ \
 	$(TOP)/$(SDK_DIR)/drivers/lpuart \
 	$(TOP)/$(SDK_DIR)/drivers/lpflexcomm \
-  	$(TOP)/$(SDK_DIR)/drivers/common\
-  	$(TOP)/$(SDK_DIR)/drivers/gpio\
-  	$(TOP)/$(SDK_DIR)/drivers/port\
-   	$(TOP)/hw/bsp/mcx/drivers/spc
-
-
-
+	$(TOP)/$(SDK_DIR)/drivers/common\
+	$(TOP)/$(SDK_DIR)/drivers/gpio\
+	$(TOP)/$(SDK_DIR)/drivers/port\
+	$(TOP)/hw/bsp/mcx/drivers/spc
 
 SRC_S += $(SDK_DIR)/devices/$(MCU_VARIANT)/gcc/startup_$(MCU_CORE).S

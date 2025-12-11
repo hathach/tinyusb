@@ -50,10 +50,6 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_NCM)
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
@@ -205,7 +201,7 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
 
     uint16_t notif_len = sizeof(notify_speed_change.header) + notify_speed_change.header.wLength;
     ncm_epbuf.epnotif = notify_speed_change;
-    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_epbuf.epnotif, notif_len);
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_epbuf.epnotif, notif_len, false);
 
     ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
     ncm_interface.notification_xmit_is_running = true;
@@ -227,7 +223,7 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
 
     uint16_t notif_len = sizeof(notify_connected.header) + notify_connected.header.wLength;
     ncm_epbuf.epnotif = notify_connected;
-    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_epbuf.epnotif, notif_len);
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_epbuf.epnotif, notif_len, false);
 
     ncm_interface.notification_xmit_state = NOTIFICATION_DONE;
     ncm_interface.notification_xmit_is_running = true;
@@ -331,7 +327,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes) {
   TU_LOG_DRV("xmit_insert_required_zlp! (%u)\n", (unsigned) xferred_bytes);
 
   // start transmission of the ZLP
-  usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
+  usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0, false);
 
   return true;
 } // xmit_insert_required_zlp
@@ -377,7 +373,7 @@ static void xmit_start_if_possible(uint8_t rhport) {
   }
 
   // Kick off an endpoint transfer
-  usbd_edpt_xfer(0, ncm_interface.ep_in, ncm_interface.xmit_tinyusb_ntb->data, ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength);
+  usbd_edpt_xfer(0, ncm_interface.ep_in, ncm_interface.xmit_tinyusb_ntb->data, ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength, false);
 } // xmit_start_if_possible
 
 /**
@@ -526,7 +522,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport) {
 
   // initiate transfer
   TU_LOG_DRV("  start reception\n");
-  bool r = usbd_edpt_xfer(rhport, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+  bool r = usbd_edpt_xfer(rhport, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE, false);
   if (!r) {
     recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
     ncm_interface.recv_tinyusb_ntb = NULL;

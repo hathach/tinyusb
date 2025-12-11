@@ -219,7 +219,7 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   USBFUNADR = dev_addr;
 
   // Response with status after changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0, false);
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
@@ -333,10 +333,19 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
-  (void) rhport; (void) ep_addr;
-  // TODO implement dcd_edpt_close()
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
 }
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+
 
 void dcd_edpt_close_all (uint8_t rhport)
 {
@@ -344,8 +353,9 @@ void dcd_edpt_close_all (uint8_t rhport)
   // TODO implement dcd_edpt_close_all()
 }
 
-bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -393,8 +403,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 }
 
 #if 0 // TODO support dcd_edpt_xfer_fifo API
-bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void) rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -662,24 +673,10 @@ static void handle_setup_packet(void)
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
-#if CFG_TUSB_OS == OPT_OS_NONE
-TU_ATTR_ALWAYS_INLINE static inline void tu_delay(uint32_t ms) {
-  // msp430 can run up to 25Mhz -> 40ns per cycle. 1 ms = 25000 cycles
-  // each loop need 4 cycle: 1 sub, 1 cmp, 1 jump, 1 nop
-  volatile uint32_t cycles = (25000 * ms) >> 2;
-  while (cycles > 0) {
-    cycles--;
-    asm("nop");
-  }
-}
-#else
-#define tu_delay(ms) osal_task_delay(ms)
-#endif
-
 static void handle_bus_power_event(void *param) {
   (void) param;
 
-  tu_delay(5);                 // Bus power settling delay.
+  tusb_time_delay_ms_api(5);                 // Bus power settling delay.
 
   USBKEYPID = USBKEY;
 
@@ -694,7 +691,7 @@ static void handle_bus_power_event(void *param) {
     uint16_t attempts = 0;
     do {                              // Poll the PLL, checking for a successful lock.
       USBPLLIR = 0;
-      tu_delay(1);
+      tusb_time_delay_ms_api(1);
       attempts++;
     } while ((attempts < 10) && (USBPLLIR != 0));
 
@@ -835,5 +832,4 @@ void dcd_int_handler(uint8_t rhport)
   }
 
 }
-
 #endif

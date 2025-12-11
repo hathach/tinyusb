@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_BTH_DEVICE_H_
-#define _TUSB_BTH_DEVICE_H_
+#ifndef TUSB_BTH_DEVICE_H_
+#define TUSB_BTH_DEVICE_H_
 
 #include <common/tusb_common.h>
 #include <device/usbd.h>
@@ -67,23 +67,23 @@ typedef struct TU_ATTR_PACKED
 // Part E, 5.4.1.
 // Length of the command is from 3 bytes (2 bytes for OpCode,
 // 1 byte for parameter total length) to 258.
-TU_ATTR_WEAK void tud_bt_hci_cmd_cb(void *hci_cmd, size_t cmd_len);
+void tud_bt_hci_cmd_cb(void *hci_cmd, size_t cmd_len);
 
 // Invoked when ACL data was received over USB from Bluetooth host.
 // Detailed format is described in Bluetooth core specification Vol 2,
 // Part E, 5.4.2.
 // Length is from 4 bytes, (12 bits for Handle, 4 bits for flags
 // and 16 bits for data total length) to endpoint size.
-TU_ATTR_WEAK void tud_bt_acl_data_received_cb(void *acl_data, uint16_t data_len);
+void tud_bt_acl_data_received_cb(void *acl_data, uint16_t data_len);
 
 // Called when event sent with tud_bt_event_send() was delivered to BT stack.
 // Controller can release/reuse buffer with Event packet at this point.
-TU_ATTR_WEAK void tud_bt_event_sent_cb(uint16_t sent_bytes);
+void tud_bt_event_sent_cb(uint16_t sent_bytes);
 
 // Called when ACL data that was sent with tud_bt_acl_data_send()
 // was delivered to BT stack.
 // Controller can release/reuse buffer with ACL packet at this point.
-TU_ATTR_WEAK void tud_bt_acl_data_sent_cb(uint16_t sent_bytes);
+void tud_bt_acl_data_sent_cb(uint16_t sent_bytes);
 
 // Bluetooth controller calls this function when it wants to send even packet
 // as described in Bluetooth core specification Vol 2, Part E, 5.4.4.
@@ -114,4 +114,4 @@ bool     btd_xfer_cb         (uint8_t rhport, uint8_t edpt_addr, xfer_result_t r
  }
 #endif
 
-#endif /* _TUSB_BTH_DEVICE_H_ */
+#endif /* TUSB_BTH_DEVICE_H_ */

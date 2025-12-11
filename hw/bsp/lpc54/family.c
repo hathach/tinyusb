@@ -108,10 +108,12 @@ void board_init(void) {
   // Init 96 MHz clock
   BootClockFROHF96M();
 
+#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-
-#if CFG_TUSB_OS == OPT_OS_FREERTOS
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
@@ -233,6 +235,7 @@ TU_ATTR_UNUSED void _start(void) {
 
 #ifdef __clang__
 void	_exit (int __status) {
+  (void) __status;
   while (1) {}
 }
 #endif

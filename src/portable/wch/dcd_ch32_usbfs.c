@@ -218,7 +218,7 @@ void dcd_int_disable(uint8_t rhport) {
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
   (void) dev_addr;
-  dcd_edpt_xfer(rhport, 0x80, NULL, 0); // zlp status response
+  dcd_edpt_xfer(rhport, 0x80, NULL, 0, false); // zlp status response
 }
 
 void dcd_remote_wakeup(uint8_t rhport) {
@@ -283,13 +283,21 @@ void dcd_edpt_close_all(uint8_t rhport) {
   // TODO optional
 }
 
-void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
   (void) rhport;
   (void) ep_addr;
-  // TODO optional
+  (void)largest_packet_size;
+  return false;
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   (void) rhport;
   uint8_t ep = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
@@ -344,5 +352,4 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     }
   }
 }
-
 #endif

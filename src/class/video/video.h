@@ -219,11 +219,11 @@ typedef enum {
     uint8_t  baInterfaceNr[_nitf]; \
   }
 
-typedef tusb_desc_video_control_header_nitf_t()  tusb_desc_video_control_header_t;
-typedef tusb_desc_video_control_header_nitf_t(1) tusb_desc_video_control_header_1itf_t;
-typedef tusb_desc_video_control_header_nitf_t(2) tusb_desc_video_control_header_2itf_t;
-typedef tusb_desc_video_control_header_nitf_t(3) tusb_desc_video_control_header_3itf_t;
-typedef tusb_desc_video_control_header_nitf_t(4) tusb_desc_video_control_header_4itf_t;
+typedef tusb_desc_video_control_header_nitf_t()  tusb_desc_video_control_header_t; //-V2586 incorrectly detected as flexible array
+typedef tusb_desc_video_control_header_nitf_t(1) tusb_desc_video_control_header_1itf_t; //-V2586 incorrectly detected as flexible array
+typedef tusb_desc_video_control_header_nitf_t(2) tusb_desc_video_control_header_2itf_t; //-V2586 incorrectly detected as flexible array
+typedef tusb_desc_video_control_header_nitf_t(3) tusb_desc_video_control_header_3itf_t; //-V2586 incorrectly detected as flexible array
+typedef tusb_desc_video_control_header_nitf_t(4) tusb_desc_video_control_header_4itf_t; //-V2586 incorrectly detected as flexible array
 
 typedef struct TU_ATTR_PACKED {
   uint8_t  bLength;

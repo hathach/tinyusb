@@ -61,18 +61,15 @@ void USB0_IRQHandler(void) {
 
 void board_init(void) {
 
-  BOARD_InitPins();
-
+   BOARD_InitBootPins();
   BOARD_InitBootClocks();
-
-  #ifdef XTAL0_CLK_HZ
-  CLOCK_SetupExtClocking(XTAL0_CLK_HZ);
-  #endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   #if CFG_TUSB_MCU == OPT_MCU_MCXN9
   NVIC_SetPriority(USB0_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);

@@ -1,5 +1,3 @@
-DEPS_SUBMODULES += hw/mcu/nxp/lpcopen
-
 MCU_DIR = hw/mcu/nxp/lpcopen/lpc175x_6x/lpc_chip_175x_6x
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m3
@@ -22,7 +20,6 @@ LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
 
 SRC_C += \
 	src/portable/nxp/lpc17_40/dcd_lpc17_40.c \
-	src/portable/nxp/lpc17_40/hcd_lpc17_40.c \
 	src/portable/ohci/ohci.c \
 	$(MCU_DIR)/../gcc/cr_startup_lpc175x_6x.c \
 	$(MCU_DIR)/src/chip_17xx_40xx.c \

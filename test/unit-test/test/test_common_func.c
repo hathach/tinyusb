@@ -80,3 +80,113 @@ void test_TU_ARGS_NUM(void)
   TEST_ASSERT_EQUAL(31, TU_ARGS_NUM(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31));
   TEST_ASSERT_EQUAL(32, TU_ARGS_NUM(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31, a32));
 }
+
+void test_tu_scatter_read32(void) {
+  // Test data: 0x04030201
+  uint8_t buf1[] = {0x01, 0x02, 0x03, 0x04};
+  uint8_t buf2[] = {0x05, 0x06, 0x07, 0x08};
+
+  // len1=1, len2=0: read 1 byte from buf1
+  TEST_ASSERT_EQUAL_HEX32(0x01, tu_scatter_read32(buf1, 1, buf2, 0));
+
+  // len1=1, len2=1: read 1 byte from buf1, 1 byte from buf2
+  TEST_ASSERT_EQUAL_HEX32(0x0501, tu_scatter_read32(buf1, 1, buf2, 1));
+
+  // len1=1, len2=2: read 1 byte from buf1, 2 bytes from buf2
+  TEST_ASSERT_EQUAL_HEX32(0x060501, tu_scatter_read32(buf1, 1, buf2, 2));
+
+  // len1=1, len2=3: read 1 byte from buf1, 3 bytes from buf2
+  TEST_ASSERT_EQUAL_HEX32(0x07060501, tu_scatter_read32(buf1, 1, buf2, 3));
+
+  // len1=2, len2=0: read 2 bytes from buf1
+  TEST_ASSERT_EQUAL_HEX32(0x0201, tu_scatter_read32(buf1, 2, buf2, 0));
+
+  // len1=2, len2=1: read 2 bytes from buf1, 1 byte from buf2
+  TEST_ASSERT_EQUAL_HEX32(0x050201, tu_scatter_read32(buf1, 2, buf2, 1));
+
+  // len1=2, len2=2: read 2 bytes from buf1, 2 bytes from buf2
+  TEST_ASSERT_EQUAL_HEX32(0x06050201, tu_scatter_read32(buf1, 2, buf2, 2));
+
+  // len1=3, len2=0: read 3 bytes from buf1
+  TEST_ASSERT_EQUAL_HEX32(0x030201, tu_scatter_read32(buf1, 3, buf2, 0));
+
+  // len1=3, len2=1: read 3 bytes from buf1, 1 byte from buf2
+  TEST_ASSERT_EQUAL_HEX32(0x05030201, tu_scatter_read32(buf1, 3, buf2, 1));
+}
+
+void test_tu_scatter_write32(void) {
+  uint8_t buf1[4];
+  uint8_t buf2[4];
+
+  // len1=1, len2=0: write 1 byte to buf1
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x01, buf1, 1, buf2, 0);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x00, buf2[0]);
+
+  // len1=1, len2=1: write 1 byte to buf1, 1 byte to buf2
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x0201, buf1, 1, buf2, 1);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf2[0]);
+
+  // len1=1, len2=2: write 1 byte to buf1, 2 bytes to buf2
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x030201, buf1, 1, buf2, 2);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf2[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf2[1]);
+
+  // len1=1, len2=3: write 1 byte to buf1, 3 bytes to buf2
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x04030201, buf1, 1, buf2, 3);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf2[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf2[1]);
+  TEST_ASSERT_EQUAL_HEX8(0x04, buf2[2]);
+
+  // len1=2, len2=0: write 2 bytes to buf1
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x0201, buf1, 2, buf2, 0);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf1[1]);
+
+  // len1=2, len2=1: write 2 bytes to buf1, 1 byte to buf2
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x030201, buf1, 2, buf2, 1);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf1[1]);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf2[0]);
+
+  // len1=2, len2=2: write 2 bytes to buf1, 2 bytes to buf2
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x04030201, buf1, 2, buf2, 2);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf1[1]);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf2[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x04, buf2[1]);
+
+  // len1=3, len2=0: write 3 bytes to buf1
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x030201, buf1, 3, buf2, 0);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf1[1]);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf1[2]);
+
+  // len1=3, len2=1: write 3 bytes to buf1, 1 byte to buf2
+  memset(buf1, 0, sizeof(buf1));
+  memset(buf2, 0, sizeof(buf2));
+  tu_scatter_write32(0x04030201, buf1, 3, buf2, 1);
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf1[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x02, buf1[1]);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf1[2]);
+  TEST_ASSERT_EQUAL_HEX8(0x04, buf2[0]);
+}

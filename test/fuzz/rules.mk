@@ -31,6 +31,7 @@ SRC_C += \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
 	src/class/msc/msc_device.c \
+	src/class/mtp/mtp_device.c \
 	src/class/net/ecm_rndis_device.c \
 	src/class/net/ncm_device.c \
 	src/class/usbtmc/usbtmc_device.c \
@@ -142,7 +143,7 @@ endif
 # get depenecies
 .PHONY: get-deps
 get-deps:
-	$(PYTHON) $(TOP)/tools/get_deps.py $(DEPS_SUBMODULES)
+	$(PYTHON) $(TOP)/tools/get_deps.py $(FAMILY)
 
 size: $(BUILD)/$(PROJECT)
 	-@echo ''

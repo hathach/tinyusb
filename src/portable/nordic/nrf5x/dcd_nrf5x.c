@@ -59,21 +59,26 @@
 /* Try to detect nrfx version if not configured with CFG_TUD_NRF_NRFX_VERSION
  * nrfx v1 and v2 are concurrently developed. There is no NRFX_VERSION only MDK VERSION which is as follows:
  * - v3.0.0: 8.53.1 (conflict with v2.11.0), v3.1.0: 8.55.0 ...
- * - v2.11.0: 8.53.1, v2.6.0: 8.44.1, v2.5.0: 8.40.2, v2.4.0: 8.37.0, v2.3.0: 8.35.0, v2.2.0: 8.32.1, v2.1.0: 8.30.2, v2.0.0: 8.29.0
+ * - v2.11.0: 8.53.1, v2.6.0: 8.44.1, v2.5.0: 8.40.2, v2.4.0: 8.37.0, v2.3.0: 8.35.0, v2.2.0: 8.32.1, v2.1.0: 8.30.2,
+ * v2.0.0: 8.29.0
  * - v1.9.0: 8.40.3, v1.8.6: 8.35.0 (conflict with v2.3.0), v1.8.5: 8.32.3, v1.8.4: 8.32.1 (conflict with v2.2.0),
  *   v1.8.2: 8.32.1 (conflict with v2.2.0), v1.8.1: 8.27.1
  * Therefore the check for v1 would be:
  * - MDK < 8.29.0 (v2.0), MDK == 8.32.3, 8.40.3
  * - in case of conflict User of those version must upgrade to other 1.x version or set CFG_TUD_NRF_NRFX_VERSION
-*/
+ */
 #ifndef CFG_TUD_NRF_NRFX_VERSION
-  #define _MDK_VERSION  (10000*MDK_MAJOR_VERSION + 100*MDK_MINOR_VERSION + MDK_MICRO_VERSION)
+  #define MDK_VERSION (10000 * MDK_MAJOR_VERSION + 100 * MDK_MINOR_VERSION + MDK_MICRO_VERSION)
 
-  #if _MDK_VERSION < 82900 || _MDK_VERSION == 83203 || _MDK_VERSION == 84003
+  #if MDK_VERSION < 82900 || MDK_VERSION == 83203 || MDK_VERSION == 84003
     // nrfx <= 1.8.1, or 1.8.5 or 1.9.0
     #define CFG_TUD_NRF_NRFX_VERSION 1
-  #else
+  #elif MDK_VERSION < 85301
     #define CFG_TUD_NRF_NRFX_VERSION 2
+  #elif MDK_VERSION < 87300
+    #define CFG_TUD_NRF_NRFX_VERSION 3
+  #else
+    #define CFG_TUD_NRF_NRFX_VERSION 4
   #endif
 #endif
 
@@ -426,8 +431,24 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   __DSB();
 }
 
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+#if 0
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+#endif
+
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
   (void) rhport;
+  (void) is_isr;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
@@ -829,19 +850,19 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_sd_enabled(void) {
 #endif
 
 static bool hfclk_running(void) {
-#ifdef SOFTDEVICE_PRESENT
-  if ( is_sd_enabled() ) {
+  #ifdef SOFTDEVICE_PRESENT
+  if (is_sd_enabled()) {
     uint32_t is_running = 0;
-    (void) sd_clock_hfclk_is_running(&is_running);
+    (void)sd_clock_hfclk_is_running(&is_running);
     return (is_running ? true : false);
   }
-#endif
+  #endif
 
-#if CFG_TUD_NRF_NRFX_VERSION == 1
+  #if CFG_TUD_NRF_NRFX_VERSION == 1
   return nrf_clock_hf_is_running(NRF_CLOCK_HFCLK_HIGH_ACCURACY);
-#else
-  return nrf_clock_hf_is_running(NRF_CLOCK, NRF_CLOCK_HFCLK_HIGH_ACCURACY);
-#endif
+  #else
+  return nrf_clock_is_running(NRF_CLOCK, NRF_CLOCK_DOMAIN_HFCLK, NULL);
+  #endif
 }
 
 static void hfclk_enable(void) {
@@ -851,22 +872,24 @@ static void hfclk_enable(void) {
 #else
 
   // already running, nothing to do
-  if (hfclk_running()) return;
+  if (hfclk_running()) {
+    return;
+  }
 
-#ifdef SOFTDEVICE_PRESENT
-  if ( is_sd_enabled() ) {
+  #ifdef SOFTDEVICE_PRESENT
+  if (is_sd_enabled()) {
     (void)sd_clock_hfclk_request();
     return;
   }
-#endif
+  #endif
 
-#if CFG_TUD_NRF_NRFX_VERSION == 1
+  #if CFG_TUD_NRF_NRFX_VERSION == 1
   nrf_clock_event_clear(NRF_CLOCK_EVENT_HFCLKSTARTED);
   nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTART);
-#else
+  #else
   nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_HFCLKSTARTED);
   nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTART);
-#endif
+  #endif
 #endif
 }
 
@@ -1062,5 +1085,4 @@ void tusb_hal_nrf_power_event(uint32_t event) {
       break;
   }
 }
-
 #endif

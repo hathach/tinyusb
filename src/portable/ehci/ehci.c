@@ -35,8 +35,14 @@
 
 #include "host/hcd.h"
 #include "host/usbh.h"
+#include "host/usbh_pvt.h"
 #include "ehci_api.h"
 #include "ehci.h"
+
+// NXP specific fixes
+#if TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX, OPT_MCU_LPC55, OPT_MCU_MCXN9)
+#include "fsl_device_registers.h"
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -179,12 +185,43 @@ static void ehci_enable_schedule(ehci_registers_t* regs, bool is_period) {
   }
 }
 
+#if ((defined FSL_FEATURE_SOC_USBPHY_COUNT) && (FSL_FEATURE_SOC_USBPHY_COUNT > 0U))
+static void nxp_usbphy_disconn_detector_set(uint8_t port, bool enable) {
+  // unify naming convention
+#if !defined(USBPHY1) && defined(USBPHY)
+  #define USBPHY1 USBPHY
+#endif
+
+  if (port == 0) {
+    if (enable) {
+      USBPHY1->CTRL_SET = USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
+    } else {
+      USBPHY1->CTRL_CLR = USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
+    }
+  }
+#if FSL_FEATURE_SOC_USBPHY_COUNT > 1U
+  else if (port == 1) {
+    if (enable) {
+      USBPHY2->CTRL_SET = USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
+    } else {
+      USBPHY2->CTRL_CLR = USBPHY_CTRL_ENHOSTDISCONDETECT_MASK;
+    }
+  }
+#endif
+
+#if !defined(USBPHY1) && defined(USBPHY)
+  #undef USBPHY1
+#endif
+}
+#endif
+
 //--------------------------------------------------------------------+
 // HCD API
 //--------------------------------------------------------------------+
 uint32_t hcd_frame_number(uint8_t rhport) {
   (void) rhport;
-  return (ehci_data.uframe_number + ehci_data.regs->frame_index) >> 3;
+  uint32_t uframe = ehci_data.regs->frame_index;
+  return (ehci_data.uframe_number + uframe) >> 3;
 }
 
 void hcd_port_reset(uint8_t rhport) {
@@ -212,16 +249,21 @@ void hcd_port_reset_end(uint8_t rhport) {
   (void) rhport;
   ehci_registers_t* regs = ehci_data.regs;
 
-  // skip if reset is already complete
-  if (!regs->portsc_bm.port_reset) {
-    return;
+  // stop reset only if is not complete yet
+  if (regs->portsc_bm.port_reset) {
+    // mask out all change bits since they are Write 1 to clear
+    uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
+    portsc &= ~EHCI_PORTSC_MASK_PORT_RESET;
+
+    regs->portsc = portsc;
   }
 
-  // mask out all change bits since they are Write 1 to clear
-  uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
-  portsc &= ~EHCI_PORTSC_MASK_PORT_RESET;
-
-  regs->portsc = portsc;
+#if ((defined FSL_FEATURE_SOC_USBPHY_COUNT) && (FSL_FEATURE_SOC_USBPHY_COUNT > 0U))
+    // Enable disconnect detector for highspeed device only
+    if (hcd_port_speed_get(rhport) == TUSB_SPEED_HIGH) {
+      nxp_usbphy_disconn_detector_set(rhport, true);
+    }
+#endif
 }
 
 bool hcd_port_connect_status(uint8_t rhport) {
@@ -578,6 +620,10 @@ void port_connect_status_change_isr(uint8_t rhport) {
     hcd_event_device_attach(rhport, true);
   } else // device unplugged
   {
+#if ((defined FSL_FEATURE_SOC_USBPHY_COUNT) && (FSL_FEATURE_SOC_USBPHY_COUNT > 0U))
+    // Disable disconnect detector
+    nxp_usbphy_disconn_detector_set(rhport, false);
+#endif
     hcd_event_device_remove(rhport, true);
   }
 }
@@ -821,14 +867,21 @@ static ehci_qhd_t *qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr) {
   }
 
   ehci_qhd_t *qhd_pool = ehci_data.qhd_pool;
+
+  // protect qhd_pool since 'used' and 'removing' can be changed in isr
+  ehci_qhd_t *result = NULL;
+  usbh_spin_lock(false);
   for (uint32_t i = 0; i < QHD_MAX; i++) {
     if ((qhd_pool[i].dev_addr == dev_addr) &&
-        ep_addr == qhd_ep_addr(&qhd_pool[i])) {
-      return &qhd_pool[i];
+        ep_addr == qhd_ep_addr(&qhd_pool[i]) &&
+        qhd_pool[i].used && !qhd_pool[i].removing) {
+      result = &qhd_pool[i];
+      break;
     }
   }
+  usbh_spin_unlock(false);
 
-  return NULL;
+  return result;
 }
 
 // Init queue head with endpoint descriptor
@@ -866,8 +919,8 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
         if (interval < 4) {
           // sub millisecond interval
           p_qhd->interval_ms = 0;
-          p_qhd->int_smask = (interval == 1) ? TU_BIN8(11111111) :
-                             (interval == 2) ? TU_BIN8(10101010): TU_BIN8(01000100);
+          p_qhd->int_smask = (interval == 1) ? 0xff : // 0b11111111
+                             (interval == 2) ? 0xaa /* 0b10101010 */ : 0x44 /* 0b01000100 */;
         } else {
           p_qhd->interval_ms = (uint8_t) tu_min16(1 << (interval - 4), 255);
           p_qhd->int_smask = TU_BIT(interval % 8);
@@ -876,7 +929,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
         TU_ASSERT(0 != interval, );
         // Full/Low: 4.12.2.1 (EHCI) case 1 schedule start split at 1 us & complete split at 2,3,4 uframes
         p_qhd->int_smask = 0x01;
-        p_qhd->fl_int_cmask = TU_BIN8(11100);
+        p_qhd->fl_int_cmask = 0x1c; // 0b11100
         p_qhd->interval_ms = interval;
       }
       break;
@@ -896,7 +949,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   p_qhd->used         = 1;
   p_qhd->removing     = 0;
   p_qhd->attached_qtd = NULL;
-  p_qhd->pid = tu_edpt_dir(ep_desc->bEndpointAddress) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
+  p_qhd->pid = tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
 
   //------------- active, but no TD list -------------//
   p_qhd->qtd_overlay.halted              = 0;

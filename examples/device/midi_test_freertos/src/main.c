@@ -40,7 +40,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
   #define USBD_STACK_SIZE     4096
 #else
   // Increase stack size when debug log is enabled
@@ -48,7 +48,7 @@
 #endif
 
 #define BLINKY_STACK_SIZE   configMINIMAL_STACK_SIZE
-#define MIDI_STACK_SIZE     configMINIMAL_STACK_SIZE
+#define MIDI_STACK_SIZE     (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 2 : 1))
 
 // static task
 #if configSUPPORT_STATIC_ALLOCATION
@@ -95,15 +95,15 @@ int main(void) {
   xTaskCreate(midi_task, "midi", MIDI_STACK_SIZE, NULL, configMAX_PRIORITIES - 2, NULL);
 #endif
 
-#if !TUSB_MCU_VENDOR_ESPRESSIF
-  // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
+#ifndef ESP_PLATFORM
+  // only start scheduler for non-espressif mcu
   vTaskStartScheduler();
 #endif
 
   return 0;
 }
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
 void app_main(void) {
   main();
 }
@@ -123,9 +123,7 @@ void usb_device_task(void *param) {
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
   // RTOS forever loop
   while (1) {
@@ -225,13 +223,11 @@ void midi_task(void* param) {
 //--------------------------------------------------------------------+
 void led_blinking_task(void* param) {
   (void) param;
-  static uint32_t start_ms = 0;
   static bool led_state = false;
 
   while (1) {
     // Blink every interval ms
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
-    start_ms += blink_interval_ms;
 
     board_led_write(led_state);
     led_state = 1 - led_state; // toggle
