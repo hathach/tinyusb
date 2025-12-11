@@ -130,12 +130,18 @@ jobs:
             cp metrics.md metrics_compare.md
           fi
 
-      - name: Post Code Metrics as PR Comment
-        if: github.event_name != 'push'
-        uses: marocchino/sticky-pull-request-comment@v2
+      - name: Save PR number
+        if: github.event_name == 'pull_request'
+        run: echo ${{ github.event.number }} > pr_number.txt
+
+      - name: Upload Metrics Comment Artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v5
         with:
-          header: code-metrics
-          path: metrics_compare.md
+          name: metrics-comment
+          path: |
+            metrics_compare.md
+            pr_number.txt
 
   # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
