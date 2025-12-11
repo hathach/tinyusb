@@ -1,7 +1,5 @@
 SDK_DIR = hw/mcu/hpmicro/hpm_sdk
 
-CROSS_COMPILE ?= riscv32-unknown-elf-
-
 include $(TOP)/$(BOARD_PATH)/board.mk
 
 CPU_CORE ?= rv32imac-ilp32

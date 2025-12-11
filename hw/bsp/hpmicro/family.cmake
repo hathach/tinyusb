@@ -2,8 +2,6 @@ include_guard()
 
 set(SDK_DIR ${TOP}/hw/mcu/hpmicro/hpm_sdk)
 
-set(CROSS_COMPILE "riscv32-unknown-elf-")
-
 # include board specific
 include(${CMAKE_CURRENT_LIST_DIR}/boards/${BOARD}/board.cmake)
 
@@ -13,7 +11,7 @@ if (NOT DEFINED CMAKE_SYSTEM_CPU)
 endif ()
 set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TOOLCHAIN}.cmake)
 
-set(FAMILY_MCUS HPMIRCO CACHE INTERNAL "")
+set(FAMILY_MCUS HPMICRO CACHE INTERNAL "")
 
 #------------------------------------
 # Startup & Linker script
