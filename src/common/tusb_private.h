@@ -84,13 +84,11 @@ typedef struct {
 
 // Check if endpoint descriptor is valid per USB specs if debug is enabled
 #if CFG_TUSB_DEBUG
-bool tu_edpt_validate(tusb_desc_endpoint_t const * desc_ep, tusb_speed_t speed, bool is_host);
+bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed);
 #else
-TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(tusb_desc_endpoint_t const *desc_ep, tusb_speed_t speed,
-                                                          bool is_host) {
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
   (void)desc_ep;
   (void)speed;
-  (void)is_host;
   return true;
 }
 #endif

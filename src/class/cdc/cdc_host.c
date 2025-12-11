@@ -29,6 +29,8 @@
 
 #include "tusb_option.h"
 
+#include <stdint.h>
+
 #if (CFG_TUH_ENABLED && CFG_TUH_CDC)
 
 #include "host/usbh.h"
@@ -1190,7 +1192,8 @@ static uint16_t ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, 
   TU_VERIFY(itf_desc->bInterfaceSubClass == 0xff && itf_desc->bInterfaceProtocol == 0xff &&
               itf_desc->bNumEndpoints == 2,
             0);
-  const uint16_t drv_len = sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t);
+  const uint16_t drv_len =
+    (uint16_t)(sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_VERIFY(drv_len <= max_len, 0);
 
   cdch_interface_t *p_cdc = make_new_itf(daddr, itf_desc);
@@ -1581,7 +1584,8 @@ enum {
 static uint16_t cp210x_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // CP210x Interface includes 1 vendor interface + 2 bulk endpoints
   TU_VERIFY(itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0 && itf_desc->bNumEndpoints == 2, 0);
-  const uint16_t drv_len = sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t);
+  const uint16_t drv_len =
+    (uint16_t)(sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_VERIFY(drv_len <= max_len, 0);
 
   cdch_interface_t *p_cdc = make_new_itf(daddr, itf_desc);
@@ -1756,7 +1760,8 @@ enum {
 static uint16_t ch34x_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // CH34x Interface includes 1 vendor interface + 2 bulk + 1 interrupt endpoints
   TU_VERIFY(itf_desc->bNumEndpoints == 3, 0);
-  const uint16_t drv_len = sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t);
+  const uint16_t drv_len =
+    (uint16_t)(sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_VERIFY(drv_len <= max_len, 0);
 
   cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
@@ -2092,7 +2097,8 @@ enum {
 static uint16_t pl2303_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // PL2303 Interface includes 1 vendor interface + 1 interrupt endpoints + 2 bulk
   TU_VERIFY(itf_desc->bNumEndpoints == 3, 0);
-  const uint16_t drv_len = sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t);
+  const uint16_t drv_len =
+    (uint16_t)(sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
   TU_VERIFY(drv_len <= max_len, 0);
 
   cdch_interface_t *p_cdc = make_new_itf(daddr, itf_desc);
