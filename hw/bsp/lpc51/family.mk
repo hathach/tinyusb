@@ -1,8 +1,7 @@
-SDK_DIR = hw/mcu/nxp/mcux-sdk
-
 include $(TOP)/$(BOARD_PATH)/board.mk
-MCU_DIR = $(SDK_DIR)/devices/$(MCU)
 CPU_CORE ?= cortex-m0plus
+MCUX_DIR = /hw/mcu/nxp/mcuxsdk-core
+SDK_DIR = /hw/mcu/nxp/mcux-devices-lpc
 
 CFLAGS += \
   -flto \
@@ -18,29 +17,28 @@ LDFLAGS_GCC += \
   --specs=nosys.specs --specs=nano.specs \
 
 # All source paths should be relative to the top level.
-LD_FILE = $(MCU_DIR)/gcc/$(MCU)_flash.ld
+LD_FILE = $(SDK_DIR)/LPC51U68/$(MCU_VARIANT)/gcc/$(MCU_VARIANT)_flash.ld
 
 SRC_C += \
 	src/portable/nxp/lpc_ip3511/dcd_lpc_ip3511.c \
-	$(MCU_DIR)/system_$(MCU).c \
-	$(MCU_DIR)/drivers/fsl_clock.c \
-	$(MCU_DIR)/drivers/fsl_power.c \
-	$(MCU_DIR)/drivers/fsl_reset.c \
-	$(SDK_DIR)/drivers/lpc_gpio/fsl_gpio.c \
-	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
-	$(SDK_DIR)/drivers/flexcomm/usart/fsl_usart.c
+	$(TOP)/$(SDK_DIR)/LPC51U68/$(MCU_VARIANT)/system_$(MCU_VARIANT).c \
+	$(TOP)/$(SDK_DIR)/LPC51U68/$(MCU_VARIANT)/drivers/fsl_clock.c \
+	$(TOP)/$(SDK_DIR)/LPC51U68/$(MCU_VARIANT)/drivers/fsl_power.c \
+	$(TOP)/$(SDK_DIR)/LPC51U68/$(MCU_VARIANT)/drivers/fsl_reset.c \
+	$(TOP)/$(MCUX_DIR)/drivers/lpc_gpio/fsl_gpio.c \
+	$(TOP)/$(MCUX_DIR)/drivers/flexcomm/fsl_flexcomm.c \
+	$(TOP)/$(MCUX_DIR)/drivers/flexcomm/usart/fsl_usart.c \
 
 INC += \
     $(TOP)/$(BOARD_PATH) \
     $(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
-	$(TOP)/$(MCU_DIR) \
-	$(TOP)/$(MCU_DIR)/drivers \
-	$(TOP)/$(SDK_DIR)/drivers/common \
-	$(TOP)/$(SDK_DIR)/drivers/flexcomm \
-	$(TOP)/$(SDK_DIR)/drivers/flexcomm/usart \
-	$(TOP)/$(SDK_DIR)/drivers/lpc_iocon \
-	$(TOP)/$(SDK_DIR)/drivers/lpc_gpio
+	$(TOP)/$(SDK_DIR)/LPC51U68/$(MCU_VARIANT) \
+	$(TOP)/$(SDK_DIR)/LPC51U68/$(MCU_VARIANT)/drivers \
+	$(TOP)/$(SDK_DIR)/LPC51U68/periph \
+	$(TOP)/$(MCUX_DIR)/drivers/common \
+	$(TOP)/$(MCUX_DIR)/drivers/flexcomm \
+	$(TOP)/$(MCUX_DIR)/drivers/flexcomm/usart \
+	$(TOP)/$(MCUX_DIR)/drivers/lpc_iocon \
+	$(TOP)/$(MCUX_DIR)/drivers/lpc_gpio
 
-SRC_S += $(MCU_DIR)/gcc/startup_$(MCU).S
-
-LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower.a
+SRC_S += $(TOP)$(SDK_DIR)/LPC51U68/$(MCU_VARIANT)/gcc/startup_$(MCU_VARIANT).S
