@@ -206,12 +206,12 @@ bool hub_clear_feature(uint8_t hub_addr, uint8_t feature, tuh_xfer_cb_t complete
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-bool hub_init       (void);
-bool hub_deinit     (void);
-bool hub_open       (uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len);
-bool hub_set_config (uint8_t daddr, uint8_t itf_num);
-bool hub_xfer_cb    (uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
-void hub_close      (uint8_t dev_addr);
+bool     hub_init(void);
+bool     hub_deinit(void);
+uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
+bool     hub_set_config(uint8_t daddr, uint8_t itf_num);
+bool     hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+void     hub_close(uint8_t dev_addr);
 
 #ifdef __cplusplus
  }
