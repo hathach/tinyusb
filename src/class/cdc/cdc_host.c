@@ -761,7 +761,7 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
       for (size_t i = 0; i < driver->vid_pid_count; i++) {
         if (driver->vid_pid_list[i][0] == vid && driver->vid_pid_list[i][1] == pid) {
           const uint16_t drv_len = driver->open(daddr, itf_desc, max_len);
-          TU_LOG_DRV("[:%u:%u] CDCh %s open %s\r\n", daddr, itf_desc->bInterfaceNumber, driver->name, ret ? "OK" : "FAILED");
+          TU_LOG_DRV("[:%u:%u] CDCh %s open %s\r\n", daddr, itf_desc->bInterfaceNumber, driver->name, drv_len > 0 ? "OK" : "FAILED");
           return drv_len;
         }
       }
