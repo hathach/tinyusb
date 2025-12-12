@@ -65,40 +65,6 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// Use ring buffer if it's available, some MCUs need extra RAM requirements
-// For DWC2 enable ring buffer will disable DMA (if available)
-#ifndef TUD_AUDIO_PREFER_RING_BUFFER
-  #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX || \
-      defined(TUP_USBIP_DWC2)
-    #define TUD_AUDIO_PREFER_RING_BUFFER 0
-  #else
-    #define TUD_AUDIO_PREFER_RING_BUFFER 1
-  #endif
-#endif
-
-// Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer
-// is available or driver is would need to be changed dramatically
-
-// Only STM32 and ChipIdea HS use non-linear buffer for now
-// Ring buffer is incompatible with dcache, since neither address nor size is aligned to cache line
-#if defined(TUP_USBIP_DWC2) || \
-    defined(TUP_USBIP_FSDEV) ||                                                     \
-    CFG_TUSB_MCU == OPT_MCU_RX63X ||                                                \
-    CFG_TUSB_MCU == OPT_MCU_RX65X ||                                                \
-    CFG_TUSB_MCU == OPT_MCU_RX72N ||                                                \
-    CFG_TUSB_MCU == OPT_MCU_LPC18XX ||                                              \
-    CFG_TUSB_MCU == OPT_MCU_LPC43XX ||                                              \
-    CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX ||                                           \
-    CFG_TUSB_MCU == OPT_MCU_MSP432E4
-  #if TUD_AUDIO_PREFER_RING_BUFFER && !CFG_TUD_MEM_DCACHE_ENABLE
-    #define USE_LINEAR_BUFFER 0
-  #else
-    #define USE_LINEAR_BUFFER 1
-  #endif
-#else
-  #define USE_LINEAR_BUFFER 1
-#endif
-
 // Declaration of buffers
 
 // Check for maximum supported numbers
@@ -107,12 +73,12 @@
 #endif
 
 // Put swap buffer in USB section only if necessary
-#if USE_LINEAR_BUFFER
+#if !CFG_TUD_EDPT_DEDICATED_HWFIFO
   #define IN_SW_BUF_MEM_ATTR TU_ATTR_ALIGNED(4)
 #else
   #define IN_SW_BUF_MEM_ATTR CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN
 #endif
-#if USE_LINEAR_BUFFER
+#if !CFG_TUD_EDPT_DEDICATED_HWFIFO
   #define OUT_SW_BUF_MEM_ATTR TU_ATTR_ALIGNED(4)
 #else
   #define OUT_SW_BUF_MEM_ATTR CFG_TUD_MEM_SECTION CFG_TUD_MEM_ALIGN
@@ -135,7 +101,7 @@ tu_static IN_SW_BUF_MEM_ATTR struct {
 
 // Linear buffer TX in case:
 // - target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer is available or driver is would need to be changed dramatically OR
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && USE_LINEAR_BUFFER
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_EDPT_DEDICATED_HWFIFO
 tu_static CFG_TUD_MEM_SECTION struct {
   #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX > 0
   TUD_EPBUF_DEF(buf_1, CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX);
@@ -147,7 +113,7 @@ tu_static CFG_TUD_MEM_SECTION struct {
   TUD_EPBUF_DEF(buf_3, CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX);
   #endif
 } lin_buf_in;
-#endif// CFG_TUD_AUDIO_ENABLE_EP_IN && USE_LINEAR_BUFFER
+#endif// CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_EDPT_DEDICATED_HWFIFO
 
 // EP OUT software buffers
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
@@ -166,7 +132,7 @@ tu_static OUT_SW_BUF_MEM_ATTR struct {
 
 // Linear buffer RX in case:
 // - target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer is available or driver is would need to be changed dramatically OR
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && USE_LINEAR_BUFFER
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_EDPT_DEDICATED_HWFIFO
 tu_static CFG_TUD_MEM_SECTION struct {
   #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX > 0
   TUD_EPBUF_DEF(buf_1, CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX);
@@ -178,7 +144,7 @@ tu_static CFG_TUD_MEM_SECTION struct {
   TUD_EPBUF_DEF(buf_3, CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX);
   #endif
 } lin_buf_out;
-#endif// CFG_TUD_AUDIO_ENABLE_EP_OUT && USE_LINEAR_BUFFER
+#endif// CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_EDPT_DEDICATED_HWFIFO
 
 // Control buffer
 CFG_TUD_MEM_ALIGN uint8_t ctrl_buf[CFG_TUD_AUDIO_CTRL_BUF_SZ];
@@ -287,28 +253,18 @@ typedef struct
 #endif
 
 // Linear buffer in case target MCU is not capable of handling a ring buffer FIFO e.g. no hardware buffer is available or driver is would need to be changed dramatically
-#if CFG_TUD_AUDIO_ENABLE_EP_OUT && USE_LINEAR_BUFFER
+#if CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_EDPT_DEDICATED_HWFIFO
   uint8_t *lin_buf_out;
-  #define USE_LINEAR_BUFFER_RX 1
 #endif
 
-#if CFG_TUD_AUDIO_ENABLE_EP_IN && USE_LINEAR_BUFFER
+#if CFG_TUD_AUDIO_ENABLE_EP_IN && !CFG_TUD_EDPT_DEDICATED_HWFIFO
   uint8_t *lin_buf_in;
-  #define USE_LINEAR_BUFFER_TX 1
 #endif
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
   uint32_t *fb_buf;
 #endif
 } audiod_function_t;
-
-#ifndef USE_LINEAR_BUFFER_TX
-  #define USE_LINEAR_BUFFER_TX 0
-#endif
-
-#ifndef USE_LINEAR_BUFFER_RX
-  #define USE_LINEAR_BUFFER_RX 0
-#endif
 
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
 #define ITF_MEM_RESET_SIZE offsetof(audiod_function_t, ep_out_ff)
@@ -485,7 +441,8 @@ uint16_t tud_audio_n_read(uint8_t func_id, void *buffer, uint16_t bufsize) {
 
 bool tud_audio_n_clear_ep_out_ff(uint8_t func_id) {
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
-  return tu_fifo_clear(&_audiod_fct[func_id].ep_out_ff);
+  tu_fifo_clear(&_audiod_fct[func_id].ep_out_ff);
+  return true;
 }
 
 tu_fifo_t *tud_audio_n_get_ep_out_ff(uint8_t func_id) {
@@ -498,7 +455,7 @@ tu_fifo_t *tud_audio_n_get_ep_out_ff(uint8_t func_id) {
 static bool audiod_rx_xfer_isr(uint8_t rhport, audiod_function_t* audio, uint16_t n_bytes_received) {
   uint8_t idx_audio_fct = audiod_get_audio_fct_idx(audio);
 
-  #if USE_LINEAR_BUFFER_RX
+  #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
   // Data currently is in linear buffer, copy into EP OUT FIFO
   TU_VERIFY(0 < tu_fifo_write_n(&audio->ep_out_ff, audio->lin_buf_out, n_bytes_received));
 
@@ -536,7 +493,8 @@ uint16_t tud_audio_n_write(uint8_t func_id, const void *data, uint16_t len) {
 
 bool tud_audio_n_clear_ep_in_ff(uint8_t func_id) {
   TU_VERIFY(func_id < CFG_TUD_AUDIO && _audiod_fct[func_id].p_desc != NULL);
-  return tu_fifo_clear(&_audiod_fct[func_id].ep_in_ff);
+  tu_fifo_clear(&_audiod_fct[func_id].ep_in_ff);
+  return true;
 }
 
 tu_fifo_t *tud_audio_n_get_ep_in_ff(uint8_t func_id) {
@@ -572,7 +530,7 @@ static bool audiod_tx_xfer_isr(uint8_t rhport, audiod_function_t * audio, uint16
   #else
   n_bytes_tx = tu_min16(tu_fifo_count(&audio->ep_in_ff), audio->ep_in_sz);// Limit up to max packet size, more can not be done for ISO
   #endif
-  #if USE_LINEAR_BUFFER_TX
+  #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
   tu_fifo_read_n(&audio->ep_in_ff, audio->lin_buf_in, n_bytes_tx);
   TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, n_bytes_tx, true));
   #else
@@ -730,32 +688,31 @@ void audiod_init(void) {
         break;
   #endif
     }
-#endif// CFG_TUD_AUDIO_ENABLE_EP_IN
 
-      // Initialize linear buffers
-#if USE_LINEAR_BUFFER_TX
+    // Initialize linear buffers
+  #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
     switch (i) {
-  #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX > 0
+    #if CFG_TUD_AUDIO_FUNC_1_EP_IN_SZ_MAX > 0
       case 0:
         audio->lin_buf_in = lin_buf_in.buf_1;
         break;
-  #endif
-  #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_IN_SZ_MAX > 0
+    #endif
+    #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_IN_SZ_MAX > 0
       case 1:
         audio->lin_buf_in = lin_buf_in.buf_2;
         break;
-  #endif
-  #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX > 0
+    #endif
+    #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_IN_SZ_MAX > 0
       case 2:
         audio->lin_buf_in = lin_buf_in.buf_3;
         break;
-  #endif
+    #endif
     }
-#endif// USE_LINEAR_BUFFER_TX
+  #endif// !CFG_TUD_EDPT_DEDICATED_HWFIFO
+#endif// CFG_TUD_AUDIO_ENABLE_EP_IN
 
       // Initialize OUT EP FIFO if required
 #if CFG_TUD_AUDIO_ENABLE_EP_OUT
-
     switch (i) {
   #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SW_BUF_SZ > 0
       case 0:
@@ -773,28 +730,28 @@ void audiod_init(void) {
         break;
   #endif
     }
-#endif// CFG_TUD_AUDIO_ENABLE_EP_OUT
 
-      // Initialize linear buffers
-#if USE_LINEAR_BUFFER_RX
+  #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
+    // Initialize linear buffers
     switch (i) {
-  #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX > 0
+    #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX > 0
       case 0:
         audio->lin_buf_out = lin_buf_out.buf_1;
         break;
-  #endif
-  #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX > 0
+    #endif
+    #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX > 0
       case 1:
         audio->lin_buf_out = lin_buf_out.buf_2;
         break;
-  #endif
-  #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX > 0
+    #endif
+    #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX > 0
       case 2:
         audio->lin_buf_out = lin_buf_out.buf_3;
         break;
-  #endif
+    #endif
     }
-#endif// USE_LINEAR_BUFFER_RX
+  #endif// !CFG_TUD_EDPT_DEDICATED_HWFIFO
+#endif// CFG_TUD_AUDIO_ENABLE_EP_OUT
 
 #if CFG_TUD_AUDIO_ENABLE_FEEDBACK_EP
     switch (i) {
@@ -1231,7 +1188,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             audiod_parse_flow_control_params(audio, p_desc_parse_for_params);
   #endif
             // Schedule first transmit if alternate interface is not zero, as sample data is available a ZLP is loaded
-  #if USE_LINEAR_BUFFER_TX
+  #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
             TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_in, audio->lin_buf_in, 0, false));
   #else
             // Send everything in ISO EP FIFO
@@ -1250,7 +1207,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
             audio->ep_out_sz = tu_edpt_packet_size(desc_ep);
 
             // Prepare for incoming data
-  #if USE_LINEAR_BUFFER_RX
+  #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
             TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, false));
   #else
             TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, false));

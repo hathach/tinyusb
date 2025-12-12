@@ -53,7 +53,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
       provider.ConsumeIntegralInRange<size_t>(0, Size));
   fuzz_init(callback_data.data(), callback_data.size());
   // init device stack on configured roothub port
-  tud_init(BOARD_TUD_RHPORT);
+  tusb_rhport_init_t dev_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_AUTO
+  };
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
   for (int i = 0; i < FUZZ_ITERATIONS; i++) {
     if (provider.remaining_bytes() == 0) {
