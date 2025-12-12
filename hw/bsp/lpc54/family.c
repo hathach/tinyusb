@@ -154,30 +154,63 @@ void board_init(void) {
 
 #if defined(FSL_FEATURE_SOC_USBHSD_COUNT) && FSL_FEATURE_SOC_USBHSD_COUNT
   // LPC546xx and LPC540xx has OTG 1 FS + 1 HS rhports
-  #if defined(BOARD_TUD_RHPORT) && BOARD_TUD_RHPORT == 0
+  #if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 0)
     // Port0 is Full Speed
     POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*< Turn on USB Phy */
     CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
     CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
 
-    /*According to reference manual, device mode setting has to be set by access usb host register */
-    CLOCK_EnableClock(kCLOCK_Usbhsl0); /* enable usb0 host clock */
-    USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
-    CLOCK_DisableClock(kCLOCK_Usbhsl0); /* disable usb0 host clock */
+    if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) {
+      /*According to reference manual, device mode setting has to be set by access usb host register */
+      CLOCK_EnableClock(kCLOCK_Usbhsl0); /* enable usb0 host clock */
+      USBFSH->PORTMODE |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
+      CLOCK_DisableClock(kCLOCK_Usbhsl0); /* disable usb0 host clock */
 
-    CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbSrcFro, CLOCK_GetFroHfFreq());
+      CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbSrcFro, CLOCK_GetFroHfFreq());
+    } else {
+    #ifdef USBFS_POWER_PORT
+      /* Configure USB0 Power Switch Pin */
+      IOCON_PinMuxSet(IOCON, USBFS_POWER_PORT, USBFS_POWER_PIN, IOCON_PIO_DIG_FUNC0_EN);
+
+      gpio_pin_config_t const power_pin_config = {kGPIO_DigitalOutput, USBFS_POWER_STATE_ON};
+      GPIO_PinInit(GPIO, USBFS_POWER_PORT, USBFS_POWER_PIN, &power_pin_config);
+    #endif
+      CLOCK_EnableUsbfs0HostClock(kCLOCK_UsbSrcPll1, 48000000U);
+      USBFSH->PORTMODE &= ~USBFSH_PORTMODE_DEV_ENABLE_MASK;
+    }
   #endif
 
-  #if defined(BOARD_TUD_RHPORT) && BOARD_TUD_RHPORT == 1
-    // Port1 is High Speed
-    POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY);
+ #if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 1)
+  // Port1 is High Speed
 
-    /*According to reference manual, device mode setting has to be set by access usb host register */
-    CLOCK_EnableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
+  /* Turn on USB1 Phy */
+  POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY);
+
+  /* reset the IP to make sure it's in reset state. */
+  RESET_PeripheralReset(kUSB1H_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kUSB1D_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
+
+  if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) {
+    /* According to reference manual, device mode setting has to be set by access usb host register */
+    CLOCK_EnableClock(kCLOCK_Usbh1); // enable usb0 host clock
+
+    USBHSH->PORTMODE = USBHSH_PORTMODE_SW_PDCOM_MASK; // Put PHY powerdown under software control
     USBHSH->PORTMODE |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
-    CLOCK_DisableClock(kCLOCK_Usbh1); /* enable usb1 host clock */
 
+    CLOCK_DisableClock(kCLOCK_Usbh1); // disable usb0 host clock
+    /* enable USB Device clock */
     CLOCK_EnableUsbhs0DeviceClock(kCLOCK_UsbSrcUsbPll, 0U);
+  } else {
+  #ifdef USBHS_POWER_PORT
+    /* Configure USB1 Power Switch Pin */
+    IOCON_PinMuxSet(IOCON, USBHS_POWER_PORT, USBHS_POWER_PIN, IOCON_PIO_DIG_FUNC0_EN);
+
+    gpio_pin_config_t const power_pin_config = {kGPIO_DigitalOutput, USBHS_POWER_STATE_ON};
+    GPIO_PinInit(GPIO, USBHS_POWER_PORT, USBHS_POWER_PIN, &power_pin_config);
+  #endif
+    CLOCK_EnableUsbhs0HostClock(kCLOCK_UsbSrcUsbPll, 0U);
+  }
   #endif
 #else
   // LPC5411x series only has full speed device
