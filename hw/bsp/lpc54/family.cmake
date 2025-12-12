@@ -12,13 +12,29 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/arm_${TOOL
 
 set(FAMILY_MCUS LPC54 CACHE INTERNAL "")
 
-if (NOT DEFINED PORT)
-  set(PORT 0)
-endif()
+# ----------------------
+# Port & Speed Selection
+# ----------------------
 
-# Host port will be the other port if available
-set(HOST_PORT $<NOT:${PORT}>)
+# default device port to USB1 highspeed, host to USB0 fullspeed
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 1)
+endif ()
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 1)
+endif ()
 
+# port 0 is fullspeed, port 1 is highspeed
+set(RHPORT_SPEED OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED)
+
+if (NOT DEFINED RHPORT_DEVICE_SPEED)
+  list(GET RHPORT_SPEED ${RHPORT_DEVICE} RHPORT_DEVICE_SPEED)
+endif ()
+if (NOT DEFINED RHPORT_HOST_SPEED)
+  list(GET RHPORT_SPEED ${RHPORT_HOST} RHPORT_HOST_SPEED)
+endif ()
+
+cmake_print_variables(RHPORT_DEVICE RHPORT_DEVICE_SPEED RHPORT_HOST RHPORT_HOST_SPEED)
 #------------------------------------
 # Startup & Linker script
 #------------------------------------
@@ -26,10 +42,19 @@ if (NOT DEFINED LD_FILE_GNU)
 set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/${MCU_CORE}_flash.ld)
 endif ()
 set(LD_FILE_Clang ${LD_FILE_GNU})
+
 if (NOT DEFINED STARTUP_FILE_GNU)
 set(STARTUP_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/startup_${MCU_CORE}.S)
 endif ()
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
+
+if (NOT DEFINED LD_FILE_IAR)
+  set(LD_FILE_IAR ${CMAKE_CURRENT_LIST_DIR}/iar/${MCU_CORE}_flash.icf)
+endif ()
+
+if (NOT DEFINED STARTUP_FILE_IAR)
+  set(STARTUP_FILE_IAR ${CMAKE_CURRENT_LIST_DIR}/iar/startup_${MCU_CORE}.s)
+endif ()
 
 #------------------------------------
 # Board Target
@@ -64,24 +89,23 @@ function(family_add_board BOARD_TARGET)
     )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     CFG_TUSB_MEM_ALIGN=TU_ATTR_ALIGNED\(64\)
-    BOARD_TUD_RHPORT=${PORT}
-    BOARD_TUH_RHPORT=${HOST_PORT}
+    BOARD_TUD_RHPORT=${RHPORT_DEVICE}
+    BOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED}
+    BOARD_TUH_RHPORT=${RHPORT_HOST}
+    BOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED}
     __STARTUP_CLEAR_BSS
     )
 
-  # Port 0 is Fullspeed, Port 1 is Highspeed. Port1 controller can only access USB_SRAM
-  if (PORT EQUAL 1)
+ # Port 0 is Fullspeed, Port 1 is Highspeed. Port1 controller can only access USB_SRAM
+  if (RHPORT_DEVICE EQUAL 1)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
-      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
-      BOARD_TUH_MAX_SPEED=OPT_MODE_FULL_SPEED
-      CFG_TUD_MEM_SECTION=__attribute__\(\(section\(\"m_usb_global\"\)\)\)
+      [=[CFG_TUD_MEM_SECTION=__attribute__((section("m_usb_global")))]=]
       )
-  else ()
+  endif ()
+  if (RHPORT_HOST EQUAL 1)
     target_compile_definitions(${BOARD_TARGET} PUBLIC
-      BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
-      BOARD_TUH_MAX_SPEED=OPT_MODE_HIGH_SPEED
-      CFG_TUH_MEM_SECTION=__attribute__\(\(section\(\"m_usb_global\"\)\)\)
-      #CFG_TUD_MEM_SECTION=__attribute__\(\(section\(\"m_usb_global\"\)\)\)
+      [=[CFG_TUH_MEM_SECTION=__attribute__((section("m_usb_global")))]=]
+      CFG_TUH_USBIP_IP3516=1
       )
   endif ()
 
@@ -106,6 +130,16 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
+
+  if (RHPORT_HOST EQUAL 0)
+    target_sources(${TARGET} PUBLIC
+      ${TOP}/src/portable/ohci/ohci.c
+      )
+  elseif (RHPORT_HOST EQUAL 1)
+    target_sources(${TARGET} PUBLIC
+      ${TOP}/src/portable/nxp/lpc_ip3516/hcd_lpc_ip3516.c
+      )
+  endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC
