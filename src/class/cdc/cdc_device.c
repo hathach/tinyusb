@@ -170,7 +170,8 @@ void tud_cdc_n_read_flush (uint8_t itf)
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  uint16_t ret = tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) TU_MIN(bufsize, UINT16_MAX));
+  uint16_t ret = 0;
+  tu_fifo_write_n(&p_cdc->tx_ff, buffer, (uint16_t) TU_MIN(bufsize, UINT16_MAX));
 
   // flush if queue more than packet size
   if ( tu_fifo_count(&p_cdc->tx_ff) >= BULK_PACKET_SIZE
@@ -178,7 +179,7 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
        || tu_fifo_full(&p_cdc->tx_ff) // check full if fifo size is less than packet size
        #endif
       ) {
-    tud_cdc_n_write_flush(itf);
+    ret = tud_cdc_n_write_flush(itf);
   }
 
   return ret;
