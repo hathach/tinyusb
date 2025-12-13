@@ -38,7 +38,7 @@ jobs:
         arg: ${{ fromJSON(inputs.build-args) }}
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Toolchain
         id: setup-toolchain

@@ -20,7 +20,7 @@ jobs:
         ruby-version: '3.0'
 
     - name: Checkout TinyUSB
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Get Dependencies
       run: |
