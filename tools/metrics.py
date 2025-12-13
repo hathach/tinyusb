@@ -200,7 +200,7 @@ def compute_avg(all_json_data):
     file_total = sum(f["size"] for f in files_average) if files_average else None
     section_total = sum(sum((f.get("sections") or {}).values()) for f in files_average)
 
-    if section_total:
+    if section_total > 0:
         total_size = section_total
     elif file_total is not None:
         total_size = file_total if file_total != 0 else 1
