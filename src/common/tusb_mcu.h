@@ -111,6 +111,14 @@
 
   #define TUP_DCD_ENDPOINT_MAX 16
 
+#elif TU_CHECK_MCU(OPT_MCU_RW61X)
+  // USB0 is chipidea HS
+  #define TUP_USBIP_CHIPIDEA_HS
+  #define TUP_USBIP_EHCI
+
+  #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_RHPORT_HIGHSPEED 1
+
 #elif TU_CHECK_MCU(OPT_MCU_MIMXRT1XXX)
   #include "fsl_device_registers.h"
 

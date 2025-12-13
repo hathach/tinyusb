@@ -55,6 +55,9 @@ bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
   // MCX N9 only port 1 use this controller
   #include "ci_hs_mcx.h"
 
+#elif TU_CHECK_MCU(OPT_MCU_RW61X)
+  #include "ci_hs_rw61x.h"
+
 #else
   #error "Unsupported MCUs"
 #endif
