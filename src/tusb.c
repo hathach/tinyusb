@@ -411,27 +411,19 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
 }
 
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
-  TU_VERIFY(bufsize > 0);
-
   #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
   if (0 == tu_fifo_depth(&s->ff)) {
-    // non-fifo mode
+    // non-fifo mode: TX need ep buffer
+    TU_VERIFY(s->ep_buf != NULL, 0);
     TU_VERIFY(stream_claim(s), 0);
-    uint32_t xact_len;
-    if (s->ep_buf != NULL) {
-      // using ep buf
-      xact_len = tu_min32(bufsize, s->ep_bufsize);
-      memcpy(s->ep_buf, buffer, xact_len);
-    } else {
-      // using hwfifo
-      xact_len = bufsize;
-    }
-    TU_ASSERT(stream_xfer(s, (uint16_t)xact_len), 0);
-
+    uint32_t xact_len = tu_min32(bufsize, s->ep_bufsize);
+    memcpy(s->ep_buf, buffer, xact_len);
+    TU_ASSERT(stream_xfer(s, (uint16_t) xact_len), 0);
     return xact_len;
   } else
   #endif
   {
+    TU_VERIFY(bufsize > 0);
     const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
 
     // flush if fifo has more than packet size or
