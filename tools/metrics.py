@@ -74,7 +74,6 @@ def parse_bloaty_csv(csv_text, filters=None):
                 "file": os.path.basename(unit_path) or unit_path,
                 "path": unit_path,
                 "size": total_size,
-                "total": total_size,
                 "symbols": symbols,
                 "sections": sections,
             }
@@ -146,7 +145,7 @@ def compute_avg(all_json_data):
         return None
 
     # Merge files with the same 'file' value and compute averages
-    file_accumulator = {}  # key: file name, value: {"sizes": [sizes], "totals": [totals], "symbols": {name: [sizes]}, "sections": {name: [sizes]}}
+    file_accumulator = {}  # key: file name, value: {"sizes": [sizes], "symbols": {name: [sizes]}, "sections": {name: [sizes]}}
 
     for json_data in all_json_data["data"]:
         for f in json_data.get("files", []):
@@ -154,14 +153,12 @@ def compute_avg(all_json_data):
             if fname not in file_accumulator:
                 file_accumulator[fname] = {
                     "sizes": [],
-                    "totals": [],
                     "path": f.get("path"),
                     "symbols": defaultdict(list),
                     "sections": defaultdict(list),
                 }
-            size_val = f.get("size", f.get("total", 0))
+            size_val = f.get("size", 0)
             file_accumulator[fname]["sizes"].append(size_val)
-            file_accumulator[fname]["totals"].append(f.get("total", size_val))
             for sym in f.get("symbols", []):
                 name = sym.get("name")
                 if name is None:
@@ -196,9 +193,7 @@ def compute_avg(all_json_data):
             }
         )
 
-    totals_list = [d.get("TOTAL") for d in all_json_data["data"] if isinstance(d.get("TOTAL"), (int, float))]
-    total_size = round(sum(totals_list) / len(totals_list)) if totals_list else (
-            sum(f["size"] for f in files_average) or 1)
+    total_size = sum(f["size"] for f in files_average) or 1
 
     for f in files_average:
         f["percent"] = (f["size"] / total_size) * 100 if total_size else 0
@@ -207,7 +202,6 @@ def compute_avg(all_json_data):
 
     json_average = {
         "file_list": all_json_data["file_list"],
-        "TOTAL": total_size,
         "files": files_average,
     }
 
@@ -262,10 +256,12 @@ def compare_files(base_file, new_file, filters=None):
             },
         })
 
+    base_total = sum(f["size"] for f in base_avg["files"])
+    new_total = sum(f["size"] for f in new_avg["files"])
     total = {
-        "base": base_avg.get("TOTAL", 0),
-        "new": new_avg.get("TOTAL", 0),
-        "diff": new_avg.get("TOTAL", 0) - base_avg.get("TOTAL", 0),
+        "base": base_total,
+        "new": new_total,
+        "diff": new_total - base_total,
     }
 
     return {
@@ -287,10 +283,6 @@ def get_sort_key(sort_order):
     """
 
     def _size_val(entry):
-        if isinstance(entry.get('total'), int):
-            return entry.get('total', 0)
-        if isinstance(entry.get('total'), dict):
-            return entry['total'].get('new', 0)
         return entry.get('size', 0)
 
     if sort_order == 'size-':
