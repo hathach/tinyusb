@@ -2,7 +2,6 @@
 
 import ctypes
 import argparse
-import click
 import pandas as pd
 
 # hex value for register: guid, gsnpsid, ghwcfg1, ghwcfg2, ghwcfg3, ghwcfg4

@@ -388,10 +388,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t tu_desc_subtype(void const* desc) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool tu_desc_in_bounds(const uint8_t *p_desc, const uint8_t *desc_end) {
-  if (p_desc >= desc_end) {
-    return false;
-  }
-  return tu_desc_next(p_desc) <= desc_end;
+  return p_desc < desc_end && tu_desc_next(p_desc) <= desc_end;
 }
 
 // find descriptor that match byte1 (type)

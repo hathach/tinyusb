@@ -31,7 +31,7 @@
 // Version is release as major.minor.revision eg 1.0.0
 #define TUSB_VERSION_MAJOR     0
 #define TUSB_VERSION_MINOR     20
-#define TUSB_VERSION_REVISION  0
+#define TUSB_VERSION_REVISION  1
 
 #define TUSB_VERSION_NUMBER    (TUSB_VERSION_MAJOR * 10000 + TUSB_VERSION_MINOR * 100 + TUSB_VERSION_REVISION)
 #define TUSB_VERSION_STRING    TU_XSTRING(TUSB_VERSION_MAJOR) "." TU_XSTRING(TUSB_VERSION_MINOR) "." TU_XSTRING(TUSB_VERSION_REVISION)
@@ -309,7 +309,7 @@
     #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
   #endif
 
-  #if CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE
+  #if CFG_TUH_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE
     #define CFG_TUH_EDPT_DEDICATED_HWFIFO 1
   #endif
 #endif
@@ -321,8 +321,16 @@
   #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
     #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
   #endif
-
   #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+#endif
+
+// CI_HS support FIFO transfer if endpoint buffer is 4k aligned and size is multiple of 4k, also DCACHE is disabled
+#ifndef CFG_TUD_CI_HS_EPBUF_4K_ALIGNED
+  #define CFG_TUD_CI_HS_EPBUF_4K_ALIGNED 0
+#endif
+
+#if CFG_TUD_CI_HS_EPBUF_4K_ALIGNED && !CFG_TUD_MEM_DCACHE_ENABLE
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 #endif
 
 //------------- pio-usb -------------//
@@ -335,9 +343,25 @@
   #define CFG_TUD_RPI_PIO_USB 0
 #endif
 
-// MAX3421 Host controller option
+//------------ MAX3421 -------------//
+// Enable MAX3421 USB host controller
 #ifndef CFG_TUH_MAX3421
   #define CFG_TUH_MAX3421  0
+#endif
+
+//------------ FSDEV --------------//
+#if defined(TUP_USBIP_FSDEV)
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+#endif
+
+//------------ MUSB --------------//
+#if defined(TUP_USBIP_MUSB)
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0 // need testing to enable
+#endif
+
+//------------ RUSB2 --------------//
+#if defined(TUP_USBIP_RUSB2)
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 #endif
 
 //--------------------------------------------------------------------

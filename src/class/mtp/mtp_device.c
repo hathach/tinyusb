@@ -422,10 +422,10 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       cb_data.total_xferred_bytes = p_mtp->xferred_len;
 
       bool is_complete = false;
-      // complete if ZLP or short packet or overflow
+      // complete if ZLP or short packet or total length reached
       if (xferred_bytes == 0 || // ZLP
           (xferred_bytes & (bulk_mps - 1)) || // short packet
-          p_mtp->xferred_len > p_mtp->total_len) {
+          p_mtp->xferred_len >= p_mtp->total_len) { // total length reached
         is_complete = true;
       }
 
