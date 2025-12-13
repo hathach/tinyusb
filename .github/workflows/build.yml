@@ -171,7 +171,7 @@ jobs:
             pr_number.txt
 
       - name: Post Code Metrics as PR Comment
-        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: code-metrics
