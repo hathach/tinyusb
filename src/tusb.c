@@ -63,6 +63,16 @@ TU_ATTR_WEAK void* tusb_app_phys_to_virt(void *phys_addr) {
   return phys_addr;
 }
 
+TU_ATTR_WEAK void tusb_pre_init_cb(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
+
+TU_ATTR_WEAK void tusb_post_deinit_cb(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
+
 //--------------------------------------------------------------------+
 // Public API
 //--------------------------------------------------------------------+
