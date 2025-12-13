@@ -235,6 +235,10 @@
       "inherits": "default"
     },
     {
+      "name": "hpm6750evk2",
+      "inherits": "default"
+    },
+    {
       "name": "itsybitsy_m0",
       "inherits": "default"
     },
@@ -360,10 +364,6 @@
     },
     {
       "name": "metro_m7_1011_sd",
-      "inherits": "default"
-    },
-    {
-      "name": "metro_nrf52840",
       "inherits": "default"
     },
     {
@@ -516,10 +516,6 @@
     },
     {
       "name": "raspberry_pi_pico2",
-      "inherits": "default"
-    },
-    {
-      "name": "raspberry_pi_pico2_riscv",
       "inherits": "default"
     },
     {
@@ -1229,6 +1225,11 @@
       "configurePreset": "frdm_mcxn947"
     },
     {
+      "name": "hpm6750evk2",
+      "description": "Build preset for the hpm6750evk2 board",
+      "configurePreset": "hpm6750evk2"
+    },
+    {
       "name": "itsybitsy_m0",
       "description": "Build preset for the itsybitsy_m0 board",
       "configurePreset": "itsybitsy_m0"
@@ -1387,11 +1388,6 @@
       "name": "metro_m7_1011_sd",
       "description": "Build preset for the metro_m7_1011_sd board",
       "configurePreset": "metro_m7_1011_sd"
-    },
-    {
-      "name": "metro_nrf52840",
-      "description": "Build preset for the metro_nrf52840 board",
-      "configurePreset": "metro_nrf52840"
     },
     {
       "name": "mimxrt1010_evk",
@@ -1582,11 +1578,6 @@
       "name": "raspberry_pi_pico2",
       "description": "Build preset for the raspberry_pi_pico2 board",
       "configurePreset": "raspberry_pi_pico2"
-    },
-    {
-      "name": "raspberry_pi_pico2_riscv",
-      "description": "Build preset for the raspberry_pi_pico2_riscv board",
-      "configurePreset": "raspberry_pi_pico2_riscv"
     },
     {
       "name": "raspberry_pi_pico_w",
@@ -2855,6 +2846,19 @@
       ]
     },
     {
+      "name": "hpm6750evk2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "hpm6750evk2"
+        },
+        {
+          "type": "build",
+          "name": "hpm6750evk2"
+        }
+      ]
+    },
+    {
       "name": "itsybitsy_m0",
       "steps": [
         {
@@ -3267,19 +3271,6 @@
         {
           "type": "build",
           "name": "metro_m7_1011_sd"
-        }
-      ]
-    },
-    {
-      "name": "metro_nrf52840",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "metro_nrf52840"
-        },
-        {
-          "type": "build",
-          "name": "metro_nrf52840"
         }
       ]
     },
@@ -3774,19 +3765,6 @@
         {
           "type": "build",
           "name": "raspberry_pi_pico2"
-        }
-      ]
-    },
-    {
-      "name": "raspberry_pi_pico2_riscv",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "raspberry_pi_pico2_riscv"
-        },
-        {
-          "type": "build",
-          "name": "raspberry_pi_pico2_riscv"
         }
       ]
     },

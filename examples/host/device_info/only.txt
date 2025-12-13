@@ -19,5 +19,6 @@ mcu:STM32H7
 mcu:STM32H7RS
 mcu:STM32N6
 family:espressif
+family:hpmicro
 family:samd21
 family:samd5x_e5x

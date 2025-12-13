@@ -55,6 +55,10 @@ bool dcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
   // MCX N9 only port 1 use this controller
   #include "ci_hs_mcx.h"
 
+#elif TU_CHECK_MCU(OPT_MCU_HPM)
+
+  #include "ci_hs_hpm.h"
+
 #else
   #error "Unsupported MCUs"
 #endif
@@ -230,6 +234,10 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   TU_ASSERT(ci_ep_count(dcd_reg) <= TUP_DCD_ENDPOINT_MAX);
 
+#if TU_CHECK_MCU(OPT_MCU_HPM)
+  usb_phy_init((USB_Type *)dcd_reg, false);
+#endif
+
   // Reset controller
   dcd_reg->USBCMD |= USBCMD_RESET;
   while( dcd_reg->USBCMD & USBCMD_RESET ) {}
@@ -246,7 +254,11 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
 
 #if !TUD_OPT_HIGH_SPEED
-  dcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
+  dcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
+#endif
+
+#if TU_CHECK_MCU(OPT_MCU_HPM)
+  dcd_reg->PORTSC1 &= ~USB_PORTSC1_STS_MASK;
 #endif
 
   dcd_dcache_clean_invalidate(&_dcd_data, sizeof(dcd_data_t));
