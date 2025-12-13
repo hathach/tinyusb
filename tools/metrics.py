@@ -197,11 +197,13 @@ def compute_avg(all_json_data):
         )
 
     totals_list = [d.get("TOTAL") for d in all_json_data["data"] if isinstance(d.get("TOTAL"), (int, float))]
-    total_size = (
-        sum(f["size"] for f in files_average)
-        or (round(sum(totals_list) / len(totals_list)) if totals_list else 0)
-        or 1
-    )
+    file_total = sum(f["size"] for f in files_average) if files_average else None
+    if file_total is not None:
+        total_size = file_total or 1
+    elif totals_list:
+        total_size = round(sum(totals_list) / len(totals_list))
+    else:
+        total_size = 1
 
     for f in files_average:
         f["percent"] = (f["size"] / total_size) * 100 if total_size else 0
