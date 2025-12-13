@@ -48,7 +48,7 @@ typedef struct {
   uint8_t bNbrPorts;
   uint8_t bPwrOn2PwrGood_2ms; // port power on to good, in 2ms unit
   // uint16_t wHubCharacteristics;
-
+  bool mtt;
   hub_port_status_response_t port_status;
 } hub_interface_t;
 
@@ -223,10 +223,18 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const 
 
   TU_VERIFY(TUSB_CLASS_HUB == itf_desc->bInterfaceClass &&
             0              == itf_desc->bInterfaceSubClass, 0);
-  TU_VERIFY(itf_desc->bInterfaceProtocol <= 1, 0); // not support multiple TT yet
 
-  const uint16_t drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
+  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
   TU_ASSERT(drv_len <= max_len, 0);
+
+  tusb_desc_device_t desc_dev;
+  tuh_descriptor_get_device_local(dev_addr, &desc_dev);
+  // Skip opening interrupt endpoint for MTT hub
+  if (desc_dev.bDeviceProtocol == 2 && itf_desc->bInterfaceProtocol == 1) {
+    hub_interface_t* p_hub = get_hub_itf(dev_addr);
+    p_hub->mtt = true;
+    return drv_len;
+  }
 
   // Interrupt Status endpoint
   tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
@@ -269,12 +277,26 @@ bool hub_edpt_status_xfer(uint8_t daddr) {
 //--------------------------------------------------------------------+
 static void config_set_port_power (tuh_xfer_t* xfer);
 static void config_port_power_complete (tuh_xfer_t* xfer);
+static void config_get_hub_descriptor(tuh_xfer_t* xfer);
 
 bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
   hub_interface_t* p_hub = get_hub_itf(daddr);
   TU_ASSERT(itf_num == p_hub->itf_num);
-  hub_epbuf_t* p_epbuf = get_hub_epbuf(daddr);
 
+  if (p_hub->mtt) {
+    // Set Alternate Setting 1 for MTT hub
+    TU_ASSERT(tuh_interface_set(daddr, itf_num, 1, config_get_hub_descriptor, 0));
+  } else {
+    tuh_xfer_t xfer;
+    xfer.daddr   = daddr;
+    xfer.ep_addr = 0;
+    config_get_hub_descriptor(&xfer);
+  }
+
+  return true;
+}
+
+static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
   // Get Hub Descriptor
   tusb_control_request_t const request = {
     .bmRequestType_bit = {
@@ -288,17 +310,11 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
     .wLength  = sizeof(hub_desc_cs_t)
   };
 
-  tuh_xfer_t xfer = {
-    .daddr       = daddr,
-    .ep_addr     = 0,
-    .setup       = &request,
-    .buffer      = p_epbuf->ctrl_buf,
-    .complete_cb = config_set_port_power,
-    .user_data    = 0
-  };
+  xfer->setup       = &request;
+  xfer->buffer      = get_hub_epbuf(xfer->daddr)->ctrl_buf;
+  xfer->complete_cb = config_set_port_power;
 
-  TU_ASSERT(tuh_control_xfer(&xfer));
-  return true;
+  TU_ASSERT(tuh_control_xfer(xfer), );
 }
 
 static void config_set_port_power (tuh_xfer_t* xfer) {
