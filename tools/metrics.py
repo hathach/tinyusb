@@ -197,8 +197,13 @@ def compute_avg(all_json_data):
         )
 
     totals_list = [d.get("TOTAL") for d in all_json_data["data"] if isinstance(d.get("TOTAL"), (int, float))]
-    total_size = round(sum(totals_list) / len(totals_list)) if totals_list else (
-            sum(f["size"] for f in files_average) or 1)
+    combined_total = sum(f["size"] for f in files_average)
+    total_size = round(sum(totals_list) / len(totals_list)) if totals_list else 0
+    # Recompute total after combining so percentages reflect merged data
+    if combined_total:
+        total_size = combined_total
+    elif not total_size:
+        total_size = 1
 
     for f in files_average:
         f["percent"] = (f["size"] / total_size) * 100 if total_size else 0
