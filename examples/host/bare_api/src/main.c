@@ -37,10 +37,12 @@
 #define BUF_COUNT   4
 
 
-tusb_desc_device_t desc_device;
+CFG_TUH_MEM_SECTION tusb_desc_device_t desc_device;
 
-uint8_t buf_pool[BUF_COUNT][64];
+CFG_TUH_MEM_SECTION uint8_t buf_pool[BUF_COUNT][64];
 uint8_t buf_owner[BUF_COUNT] = { 0 }; // device address that owns buffer
+
+CFG_TUH_MEM_SECTION uint16_t temp_buf[128]; // temp buffer for string descriptor
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -120,8 +122,6 @@ void print_device_descriptor(tuh_xfer_t *xfer) {
   printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
 
   // Get String descriptor using Sync API
-  uint16_t temp_buf[128];
-
   printf("  iManufacturer       %u     ", desc_device.iManufacturer);
   if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf))) {
     print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
