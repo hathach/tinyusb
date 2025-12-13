@@ -24,7 +24,6 @@ set(STARTUP_FILE_GNU ${ST_CMSIS}/Source/Templates/gcc/startup_${MCU_VARIANT}.s)
 set(STARTUP_FILE_Clang ${STARTUP_FILE_GNU})
 set(STARTUP_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/startup_${MCU_VARIANT}.s)
 set(LD_FILE_Clang ${LD_FILE_GNU})
-set(LD_FILE_IAR ${ST_CMSIS}/Source/Templates/iar/linker/${MCU_VARIANT}_flash.icf)
 
 #------------------------------------
 # BOARD_TARGET
@@ -67,6 +66,8 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/stm32_fsdev/hcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/stm32_fsdev/fsdev_common.c
     ${TOP}/src/portable/st/typec/typec_stm32.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )

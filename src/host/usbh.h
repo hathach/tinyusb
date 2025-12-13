@@ -95,18 +95,23 @@ enum {
   TUH_CFGID_INVALID = 0,
   TUH_CFGID_RPI_PIO_USB_CONFIGURATION = 100, // cfg_param: pio_usb_configuration_t
   TUH_CFGID_MAX3421 = 200,
+  TUH_CFGID_FSDEV = 300,
 };
 
 typedef struct {
-  uint8_t max_nak; // max NAK per endpoint per frame to save CPU/SPI bus usage
+  uint8_t max_nak; // max NAK per endpoint per frame to save CPU/SPI bus usage (0=unlimited)
   uint8_t cpuctl; // R16: CPU Control Register
   uint8_t pinctl; // R17: Pin Control Register. FDUPSPI bit is ignored
 } tuh_configure_max3421_t;
 
+typedef struct {
+  uint8_t max_nak; // max NAK per endpoint per frame to save CPU usage (0=unlimited)
+} tuh_configure_fsdev_t;
+
 typedef union {
   // For TUH_CFGID_RPI_PIO_USB_CONFIGURATION use pio_usb_configuration_t
-
   tuh_configure_max3421_t max3421;
+  tuh_configure_fsdev_t fsdev;
 } tuh_configure_param_t;
 
 //--------------------------------------------------------------------+
@@ -145,6 +150,7 @@ void tuh_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 bool tuh_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 
 // New API to replace tuh_init() to init host stack on specific roothub port
+// Must be called in the same task/context as tuh_task() if RTOS is used
 bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Init host stack
@@ -160,6 +166,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tuh_init(uint8_t rhport) {
 }
 
 // Deinit host stack on rhport
+// Must be called in the same task/context as tuh_task() if RTOS is used
 bool tuh_deinit(uint8_t rhport);
 
 // Check if host stack is already initialized with any roothub ports
