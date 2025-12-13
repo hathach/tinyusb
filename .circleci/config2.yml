@@ -66,6 +66,9 @@ commands:
         type: string
       family:
         type: string
+      build-args:
+        type: string
+        default: ""
 
     steps:
       - checkout
@@ -107,7 +110,7 @@ commands:
           no_output_timeout: 20m
           command: |
             if [ << parameters.toolchain >> == esp-idf ]; then
-              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.family >>
+              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.build-args >> << parameters.family >>
             else
               # Toolchain option default is gcc
               if [ << parameters.toolchain >> == arm-clang ]; then
@@ -119,8 +122,39 @@ commands:
                 TOOLCHAIN_OPTION="--toolchain gcc"
               fi
 
-              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION << parameters.family >>
+              # circleci docker return $nproc as 36 core, limit parallel to 4 (resource-class = large)
+              # Required for IAR, also prevent crashed/killed by docker
+              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION -j 4 << parameters.build-args >> << parameters.family >>
             fi
+
+      # Only collect and persist metrics for cmake builds (excluding esp-idf and --one-random)
+      - when:
+          condition:
+            and:
+              - equal: [ cmake, << parameters.build-system >> ]
+              - not:
+                  equal: [ esp-idf, << parameters.toolchain >> ]
+              - not:
+                  equal: [ arm-iar, << parameters.toolchain >> ]
+          steps:
+            - run:
+                name: Collect Metrics
+                command: |
+                  # Create unique directory per toolchain to avoid workspace conflicts
+                  METRICS_DIR="/tmp/metrics/<< parameters.toolchain >>"
+                  mkdir -p "${METRICS_DIR}"
+                  # Copy all metrics.json files
+                  for f in cmake-build/cmake-build-*/metrics.json; do
+                    if [ -f "$f" ]; then
+                      BOARD_DIR=$(dirname "$f" | xargs basename)
+                      cp "$f" "${METRICS_DIR}/${BOARD_DIR}.json"
+                    fi
+                  done
+
+            - persist_to_workspace:
+                root: /tmp
+                paths:
+                  - metrics/<< parameters.toolchain >>
 
 jobs:
   # Build using docker
@@ -135,9 +169,13 @@ jobs:
         type: string
       family:
         type: string
+      build-args:
+        type: string
+        default: ""
 
     docker:
       - image: cimg/base:current
+    working_directory: ~/project/tinyusb
     resource_class: << parameters.resource_class >>
 
     steps:
@@ -145,6 +183,7 @@ jobs:
           build-system: << parameters.build-system >>
           toolchain: << parameters.toolchain >>
           family: << parameters.family >>
+          build-args: << parameters.build-args >>
 
   # Build using VM
   build-vm:
@@ -158,9 +197,13 @@ jobs:
         type: string
       family:
         type: string
+      build-args:
+        type: string
+        default: ""
 
     machine:
       image: ubuntu-2404:current
+    working_directory: ~/project/tinyusb
     resource_class: << parameters.resource_class >>
 
     steps:
@@ -168,21 +211,80 @@ jobs:
           build-system: << parameters.build-system >>
           toolchain: << parameters.toolchain >>
           family: << parameters.family >>
+          build-args: << parameters.build-args >>
+
+  # Aggregate code metrics from all builds
+  code-metrics:
+    docker:
+      - image: cimg/python:3.12
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp
+
+      - run:
+          name: Aggregate Code Metrics
+          command: |
+            python tools/get_deps.py
+            # Combine all metrics files from all toolchain subdirectories
+            ls -R /tmp/metrics
+            if ls /tmp/metrics/*/*.json 1> /dev/null 2>&1; then
+              python tools/metrics.py combine -j -m -f tinyusb/src /tmp/metrics/*/*.json
+            else
+              echo "No metrics files found"
+              exit 1
+            fi
+
+      - store_artifacts:
+          path: metrics.json
+          destination: metrics.json
+
+      # Compare with base master metrics on PR branches
+      - when:
+          condition:
+            not:
+              equal: [ master, << pipeline.git.branch >> ]
+          steps:
+            - run:
+                name: Download Base Branch Metrics
+                command: |
+                  # Download metrics.json artifact from the latest successful build on master branch
+                  mkdir -p base-metrics
+                  # Use CircleCI API to get the latest artifact
+                  curl -s -L "https://dl.circleci.com/api/v2/project/gh/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/latest/artifacts?branch=master&filter=successful" \
+                    -H "Circle-Token: ${CIRCLE_TOKEN:-}" | \
+                    jq -r '.items[] | select(.path == "metrics.json") | .url' | \
+                    head -1 | xargs -I {} curl -s -L -o base-metrics/metrics.json {} || true
+
+            - run:
+                name: Compare with Base Branch
+                command: |
+                  if [ -f base-metrics/metrics.json ]; then
+                    python tools/metrics.py compare -f tinyusb/src base-metrics/metrics.json metrics.json
+                    cat metrics_compare.md
+                  else
+                    echo "No base metrics found, skipping comparison"
+                    cp metrics.md metrics_compare.md
+                  fi
+
+            - store_artifacts:
+                path: metrics_compare.md
+                destination: metrics_compare.md
 
 workflows:
   build:
     jobs:
+# The jobs below are populated dynamically by config.yml set-matrix job
+# Example entries that will be generated:
 #      - build:
 #          matrix:
+#            alias: build-cmake-arm-gcc
 #            parameters:
 #              toolchain: [ 'arm-gcc' ]
 #              build-system: [ 'cmake' ]
 #              family: [ 'nrf' ]
 #              resource_class: ['large']
-#      - build-vm:
-#          matrix:
-#            parameters:
-#              toolchain: ['esp-idf']
-#              build-system: ['cmake']
-#              family: ['-bespressif_kaluga_1']
-#              resource_class: ['large']
+#      - code-metrics:
+#          requires:
+#            - build-cmake-arm-gcc

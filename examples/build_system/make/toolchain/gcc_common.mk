@@ -31,6 +31,9 @@ CFLAGS += \
   -Wreturn-type \
   -Wredundant-decls \
 
+CFLAGS_CLANG += \
+  -Wno-error=unknown-warning-option
+
 #  -Wmissing-prototypes \
 # conversion is too strict for most mcu driver, may be disable sign/int/arith-conversion
 #  -Wconversion

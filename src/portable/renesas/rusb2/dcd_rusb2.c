@@ -213,17 +213,26 @@ static void pipe_write_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void
   tu_fifo_buffer_info_t info;
   tu_fifo_get_read_info(f, &info);
 
-  uint16_t count = tu_min16(total_len, info.linear.len);
-  pipe_write_packet(rusb, info.linear.ptr, fifo, count);
+  uint16_t cnt_lin = tu_min16(total_len, info.linear.len);
+  uint16_t cnt_wrap = tu_min16(total_len - cnt_lin, info.wrapped.len);
+  uint16_t const cnt_written = cnt_lin + cnt_wrap;
 
-  uint16_t rem = total_len - count;
-  if (rem) {
-    rem = tu_min16(rem, info.wrapped.len);
-    pipe_write_packet(rusb, info.wrapped.ptr, fifo, rem);
-    count += rem;
+  // Ensure only the last write is odd if total_len is odd
+  if (cnt_wrap == 0) {
+    pipe_write_packet(rusb, info.linear.ptr, fifo, cnt_lin);
+  } else {
+    pipe_write_packet(rusb, info.linear.ptr, fifo, cnt_lin & ~1);
+
+    if (cnt_lin & 1) {
+      uint8_t glue[2] = {info.linear.ptr[cnt_lin & ~1], info.wrapped.ptr[0]};
+      pipe_write_packet(rusb, glue, fifo, 2);
+      cnt_wrap--;
+      info.wrapped.ptr++;
+    }
+
+    pipe_write_packet(rusb, info.wrapped.ptr, fifo, cnt_wrap);
   }
-
-  tu_fifo_advance_read_pointer(f, count);
+  tu_fifo_advance_read_pointer(f, cnt_written);
 }
 
 // Read data sw fifo <-- hw fifo

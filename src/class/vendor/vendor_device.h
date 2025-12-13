@@ -73,9 +73,6 @@ bool tud_vendor_n_peek(uint8_t idx, uint8_t *ui8);
 // Read from RX FIFO
 uint32_t tud_vendor_n_read(uint8_t idx, void *buffer, uint32_t bufsize);
 
-// Discard count bytes in RX FIFO
-uint32_t tud_vendor_n_read_discard(uint8_t idx, uint32_t count);
-
 // Flush (clear) RX FIFO
 void tud_vendor_n_read_flush(uint8_t idx);
 #endif
@@ -122,10 +119,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_peek(uint8_t *ui8) {
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_read(void *buffer, uint32_t bufsize) {
   return tud_vendor_n_read(0, buffer, bufsize);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_read_discard(uint32_t count) {
-  return tud_vendor_n_read_discard(0, count);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void tud_vendor_read_flush(void) {

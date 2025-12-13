@@ -9,10 +9,12 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_KINETIS_KL \
 
 LDFLAGS += \
-  -nostartfiles \
-  -specs=nosys.specs -specs=nano.specs \
   -Wl,--defsym,__stack_size__=0x400 \
   -Wl,--defsym,__heap_size__=0
+
+LDFLAGS_GCC += \
+  -nostartfiles \
+  -specs=nosys.specs -specs=nano.specs \
 
 SRC_C += \
 	src/portable/nxp/khci/dcd_khci.c \

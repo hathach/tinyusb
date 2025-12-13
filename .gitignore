@@ -30,7 +30,8 @@ settings/
 /examples/*/*/build*
 test_old/
 tests_obsolete/
-_build
+_build/
+build/
 /examples/*/*/ses
 /examples/*/*/ozone
 /examples/obsolete
@@ -42,11 +43,11 @@ cov-int
 *-build-dir
 /_bin/
 __pycache__
+cmake-build/
 cmake-build-*
 sdkconfig
 .PVS-Studio
 .vscode/
-build
 CMakeFiles
 Debug
 RelWithDebInfo

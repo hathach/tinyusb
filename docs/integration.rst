@@ -40,7 +40,7 @@ Minimal Example
 
      // init host stack on roothub port 1 for fullspeed host
      tusb_rhport_init_t host_init = {
-       .role  = TUSB_ROLE_DEVICE,
+       .role  = TUSB_ROLE_HOST,
        .speed = TUSB_SPEED_FULL
      };
      tusb_init(1, &host_init);

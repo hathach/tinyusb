@@ -24,7 +24,8 @@ set(CMAKE_C_ICSTAT ${CMAKE_IAR_CSTAT}
   --checks=${CMAKE_CURRENT_LIST_DIR}/cstat_sel_checks.txt
   --db=${CMAKE_BINARY_DIR}/cstat.db
   --sarif_dir=${CMAKE_BINARY_DIR}/cstat_sarif
-  --exclude ${TOP}/hw/mcu --exclude ${TOP}/lib
+  --exclude=${TOP}/hw/mcu
+  --exclude=${TOP}/lib
   )
 endif ()
 

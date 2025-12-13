@@ -222,6 +222,8 @@ function(family_add_default_example_warnings TARGET)
   endif()
 endfunction()
 
+
+# TODO merge with family_configure_common from family_support.cmake
 function(family_configure_target TARGET RTOS)
 	if (RTOS STREQUAL noos OR RTOS STREQUAL "")
 		set(RTOS_SUFFIX "")
@@ -239,10 +241,15 @@ function(family_configure_target TARGET RTOS)
 
 	pico_add_extra_outputs(${TARGET})
 	pico_enable_stdio_uart(${TARGET} 1)
+
+  target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
 	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
 
   family_flash_openocd(${TARGET})
 	family_flash_jlink(${TARGET})
+
+  # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
+  family_add_linkermap(${TARGET})
 endfunction()
 
 
