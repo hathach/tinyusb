@@ -430,7 +430,7 @@ static inline uint8_t* get_ctrl_buffer(void) {
   #if CFG_TUD_AUDIO_CTRL_BUF_SZ > CFG_TUD_ENDPOINT0_BUFSIZE
   return ctrl_buf;
   #else
-  return usbd_control_get_buffer();
+  return _usbd_ctrl_epbuf.buf;
   #endif
 }
 

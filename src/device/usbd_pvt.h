@@ -72,8 +72,11 @@ void usbd_int_set(bool enabled);
 void usbd_spin_lock(bool in_isr);
 void usbd_spin_unlock(bool in_isr);
 
-// Get control transfer endpoint buffer
-uint8_t* usbd_control_get_buffer(void);
+typedef struct {
+  TUD_EPBUF_DEF(buf, CFG_TUD_ENDPOINT0_BUFSIZE);
+} usbd_ctrl_epbuf_t;
+
+extern usbd_ctrl_epbuf_t _usbd_ctrl_epbuf;
 
 //--------------------------------------------------------------------+
 // USBD Endpoint API

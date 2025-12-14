@@ -75,7 +75,7 @@ static inline uint8_t* get_xfer_buffer(void) {
   #if CFG_TUD_DFU_XFER_BUFSIZE > CFG_TUD_ENDPOINT0_BUFSIZE
   return _transfer_buf;
   #else
-  return usbd_control_get_buffer();
+  return _usbd_ctrl_epbuf.buf;
   #endif
 }
 
