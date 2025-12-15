@@ -37,7 +37,7 @@ jobs:
           - 'metro_m4_express'
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
@@ -100,7 +100,7 @@ jobs:
           - 'raspberry_pi_pico'
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps
@@ -154,7 +154,7 @@ jobs:
           - 'stm32h743eval'
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
@@ -197,7 +197,7 @@ jobs:
           - 'b_g474e_dpow1'
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get Dependencies
         uses: ./.github/actions/get_deps

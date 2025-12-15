@@ -27,6 +27,8 @@ on:
       - '.github/workflows/build.yml'
       - '.github/workflows/build_util.yml'
       - '.github/workflows/ci_set_matrix.py'
+  release:
+    types: [ published ]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -42,7 +44,7 @@ jobs:
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate matrix json
         id: set-matrix-json
@@ -56,12 +58,12 @@ jobs:
           echo "hil_matrix=$HIL_MATRIX_JSON"
           echo "hil_matrix=$HIL_MATRIX_JSON" >> $GITHUB_OUTPUT
 
-  # ---------------------------------------
-  # Build CMake: only build on push with one-per-family.
-  # Full built is done by CircleCI in PR
-  # ---------------------------------------
+  # ------------------------------------------------------------------------------
+  # CMake build: only one board per family (first alphabetically). Full build is done by CircleCI in PR
+  # Note:
+  # For Make and IAR build: will be done on CircleCI only (one random per family as well)
+  # ------------------------------------------------------------------------------
   cmake:
-    if: github.event_name == 'push'
     needs: set-matrix
     uses: ./.github/workflows/build_util.yml
     strategy:
@@ -71,59 +73,109 @@ jobs:
           - 'aarch64-gcc'
           #- 'arm-clang'
           - 'arm-gcc'
-          - 'esp-idf'
+          #- 'esp-idf'
           - 'msp430-gcc'
           - 'riscv-gcc'
     with:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      one-per-family: true
+      build-options: '--one-first'
+      upload-metrics: true
 
-  # ---------------------------------------
-  # Build Make: only build on push with one-per-family
-  # ---------------------------------------
-  make:
-    if: github.event_name == 'push'
-    needs: set-matrix
-    uses: ./.github/workflows/build_util.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain:
-          - 'aarch64-gcc'
-          #- 'arm-clang'
-          - 'arm-gcc'
-          - 'msp430-gcc'
-          - 'riscv-gcc'
-          - 'rx-gcc'
-    with:
-      build-system: 'make'
-      toolchain: ${{ matrix.toolchain }}
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
-      one-per-family: true
+  code-metrics:
+    needs: cmake
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
+      - name: Checkout TinyUSB
+        uses: actions/checkout@v6
+        with:
+          fetch-tags: ${{ github.event_name == 'release' }}
 
-  # ---------------------------------------
-  # Build IAR
-  # Since IAR Token secret is not passed to forked PR, only build non-forked PR with make.
-  # cmake is built by circle-ci. Due to IAR limit capacity, only build oe per family
-  # ---------------------------------------
-  arm-iar:
-    if: false # disable for now since we got reach capacity limit too often
-    #if: github.event_name == 'push' && github.repository_owner == 'hathach'
-    needs: set-matrix
-    uses: ./.github/workflows/build_util.yml
-    secrets: inherit
-    strategy:
-      fail-fast: false
-      matrix:
-        build-system:
-          - 'make'
-    with:
-      build-system: ${{ matrix.build-system }}
-      toolchain: 'arm-iar'
-      build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)['arm-iar']) }}
-      one-per-family: true
+      - name: Download Artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: metrics-*
+          path: cmake-build
+          merge-multiple: true
+
+      - name: Aggregate Code Metrics
+        run: |
+          python tools/get_deps.py
+          python tools/metrics.py combine -j -m -f tinyusb/src cmake-build/*/metrics.json
+
+      - name: Upload Metrics Artifact
+        if: github.event_name == 'push' || github.event_name == 'release'
+        uses: actions/upload-artifact@v5
+        with:
+          name: metrics-tinyusb
+          path: metrics.json
+
+      - name: Download Base Branch Metrics
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        uses: dawidd6/action-download-artifact@v11
+        with:
+          workflow: build.yml
+          branch: ${{ github.base_ref }}
+          name: metrics-tinyusb
+          path: base-metrics
+        continue-on-error: true
+
+      - name: Download Previous Release Asset
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREV_TAG=$(git tag --sort=-creatordate | head -n 2 | tail -n 1)
+          echo "Previous Release: $PREV_TAG"
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_ENV
+
+          mkdir -p base-metrics
+          gh release download $PREV_TAG -p metrics.json -D base-metrics || echo "No metrics.json found in $PREV_TAG release"
+
+      - name: Compare with Base Branch
+        if: github.event_name != 'push'
+        run: |
+          if [ -f base-metrics/metrics.json ]; then
+            python tools/metrics.py compare -m -f tinyusb/src base-metrics/metrics.json metrics.json
+            cat metrics_compare.md
+          else
+            echo "No base metrics found, skipping comparison"
+            cp metrics.md metrics_compare.md
+          fi
+
+      - name: Upload Release Assets
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CURR_TAG=${{ github.event.release.tag_name }}
+          COMPARE_FILE="metrics_compare_${CURR_TAG}-${PREV_TAG}.md"
+          mv metrics_compare.md $COMPARE_FILE
+          gh release upload $CURR_TAG metrics.json $COMPARE_FILE
+
+      - name: Save PR number
+        if: github.event_name == 'pull_request'
+        run: echo ${{ github.event.number }} > pr_number.txt
+
+      - name: Upload Metrics Comment Artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v5
+        with:
+          name: metrics-comment
+          path: |
+            metrics_compare.md
+            pr_number.txt
+
+      - name: Post Code Metrics as PR Comment
+        if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: code-metrics
+          path: metrics_compare.md
 
   # ---------------------------------------
   # Build Make/CMake on Windows/MacOS
@@ -134,14 +186,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
-        build-system: [ 'make', 'cmake' ]
+        os: [ windows-latest, macos-latest ]
     with:
       os: ${{ matrix.os }}
-      build-system: ${{ matrix.build-system }}
+      build-system: 'cmake-make'
       toolchain: 'arm-gcc-${{ matrix.os }}'
       build-args: '["stm32h7"]'
-      one-per-family: true
+      build-options: '--one-random'
 
   # ---------------------------------------
   # Zephyr
@@ -151,7 +202,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Zephyr project
         uses: zephyrproject-rtos/action-zephyr-setup@v1
@@ -184,7 +235,6 @@ jobs:
       build-system: 'cmake'
       toolchain: ${{ matrix.toolchain }}
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.hil_json)[matrix.toolchain]) }}
-      one-per-family: true
       upload-artifacts: true
 
   # ---------------------------------------
@@ -192,11 +242,9 @@ jobs:
   # self-hosted on local VM, for attached hardware checkout HIL_JSON
   # ---------------------------------------
   hil-tinyusb:
-    if: |
-      github.repository_owner == 'hathach' &&
-      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+    if: github.repository_owner == 'hathach' && github.event_name != 'push'
     needs: hil-build
-    runs-on: [self-hosted, X64, hathach, hardware-in-the-loop]
+    runs-on: [ self-hosted, X64, hathach, hardware-in-the-loop ]
     steps:
       - name: Get Skip Boards from previous run
         if: github.run_attempt != '1'
@@ -216,11 +264,12 @@ jobs:
           mkdir -p "${{ github.workspace }}"
 
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
         with:
+          pattern: binaries-*
           path: cmake-build
           merge-multiple: true
 
@@ -237,8 +286,8 @@ jobs:
     if: |
       github.repository_owner == 'hathach' &&
       github.event.pull_request.head.repo.fork == false &&
-      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
-    runs-on: [self-hosted, Linux, X64, hifiphile]
+      github.event_name != 'push'
+    runs-on: [ self-hosted, Linux, X64, hifiphile ]
     env:
       IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
     steps:
@@ -253,7 +302,7 @@ jobs:
           iccarm --version
 
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get build boards
         run: |
