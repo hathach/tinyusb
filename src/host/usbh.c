@@ -312,8 +312,8 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
 // Function Inline and Prototypes
 //--------------------------------------------------------------------+
 static bool enum_new_device(hcd_event_t* event);
-static void process_detach_event(hcd_event_t* event);
-static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
+static void process_remove_event(hcd_event_t *event);
+static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 
@@ -541,8 +541,8 @@ bool tuh_deinit(uint8_t rhport) {
   hcd_deinit(rhport);
   _usbh_data.controller_id = TUSB_INDEX_INVALID_8;
 
-  // "unplug" all devices on this rhport (hub_addr = 0, hub_port = 0)
-  process_removed_device(rhport, 0, 0);
+  // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
+  remove_device_tree(rhport, 0, 0);
 
   // deinit host stack if no controller is active
   if (!tuh_inited()) {
@@ -606,10 +606,10 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
     switch (event.event_id) {
       case HCD_EVENT_DEVICE_ATTACH:
-        // We have likely missed the hub detach event due to high traffic, detach the device first if exists
-        // Or due to physical debouncing, some devices can cause multiple attaches (actually reset) without detach event
+        // Should we miss the hub detach event due to high traffic, Or due to physical debouncing, some devices can
+        // cause multiple attaches (actually reset) without detach event.
         // Force remove currently mounted with the same bus info (rhport, hub addr, hub port) if exists
-        process_detach_event(&event);
+        process_remove_event(&event);
 
         // due to the shared control buffer, we must fully complete enumerating one device first.
         // TODO better to have an separated queue for newly attached devices
@@ -631,7 +631,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
       case HCD_EVENT_DEVICE_REMOVE:
         TU_LOG_USBH("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
-        process_detach_event(&event);
+        process_remove_event(&event);
         break;
 
       case HCD_EVENT_XFER_COMPLETE: {
@@ -1321,7 +1321,7 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
 //--------------------------------------------------------------------+
 
 // process detach event from rhport:hub_addr:hub_port
-static void process_detach_event(hcd_event_t* event) {
+static void process_remove_event(hcd_event_t *event) {
   if (_usbh_data.enumerating_daddr == 0 &&
       event->rhport == _usbh_data.dev0_bus.rhport &&
       event->connection.hub_addr == _usbh_data.dev0_bus.hub_addr &&
@@ -1329,12 +1329,12 @@ static void process_detach_event(hcd_event_t* event) {
     // dev0 is unplugged while enumerating (not yet assigned an address)
     usbh_device_close(_usbh_data.dev0_bus.rhport, 0);
   } else {
-    process_removed_device(event->rhport, event->connection.hub_addr, event->connection.hub_port);
+    remove_device_tree(event->rhport, event->connection.hub_addr, event->connection.hub_port);
   }
 }
 
-// a device unplugged from rhport:hub_addr:hub_port
-static void process_removed_device(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
+// remove a device at rhport:hub_addr:hub_port and all of its downstream
+static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port) {
   // Find the all devices (star-network) under port that is unplugged
   #if CFG_TUH_HUB
   uint8_t removing_hubs[CFG_TUH_HUB] = { 0 };
@@ -1925,6 +1925,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
 }
 
 static void enum_full_complete(bool success) {
+  (void)success;
   // mark enumeration as complete
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
 
@@ -1933,8 +1934,6 @@ static void enum_full_complete(bool success) {
   if (_usbh_data.dev0_bus.hub_addr != 0 && !success) {
     hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr); // get next hub status
   }
-#else
-  (void) success;
 #endif
 
 }
