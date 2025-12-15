@@ -289,6 +289,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_fifo_empty(const tu_fifo_t *f) {
   return wr_idx == rd_idx;
 }
 
+// Suppress IAR warning
+// Warning[Pa082]: undefined behavior: the order of volatile accesses is undefined in this statement
+#if defined(__ICCARM__)
+#pragma diag_suppress = Pa082
+#endif
+
 // return number of items in fifo, capped to fifo's depth
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_count(const tu_fifo_t *f) {
   return tu_min16(tu_ff_overflow_count(f->depth, f->wr_idx, f->rd_idx), f->depth);
@@ -302,6 +308,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_fifo_full(const tu_fifo_t *f) {
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_remaining(const tu_fifo_t *f) {
   return tu_ff_remaining_local(f->depth, f->wr_idx, f->rd_idx);
 }
+
+#if defined(__ICCARM__)
+ #pragma diag_default=Pa082
+#endif
 
 #ifdef __cplusplus
 }
