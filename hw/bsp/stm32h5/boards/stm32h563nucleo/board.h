@@ -37,24 +37,33 @@
 extern "C" {
 #endif
 
-// LED
-#define LED_PORT              GPIOG
-#define LED_PIN               GPIO_PIN_4
-#define LED_STATE_ON          1
+#define PINID_LED      0
+#define PINID_BUTTON   1
+#define PINID_UART_TX  2
+#define PINID_UART_RX  3
 
-// Button
-#define BUTTON_PORT           GPIOA
-#define BUTTON_PIN            GPIO_PIN_0
-#define BUTTON_STATE_ACTIVE   0
-
-// UART Enable for STLink VCOM
-#define UART_DEV              USART1
-#define UART_CLK_EN           __USART1_CLK_ENABLE
-#define UART_GPIO_PORT        GPIOA
-#define UART_GPIO_AF          GPIO_AF7_USART1
-
-#define UART_TX_PIN           GPIO_PIN_9
-#define UART_RX_PIN           GPIO_PIN_10
+static board_pindef_t board_pindef[] = {
+  { // LED
+    .port = GPIOG,
+    .pin_init = { .Pin = GPIO_PIN_4, .Mode = GPIO_MODE_OUTPUT_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0 },
+    .active_state = 1
+  },
+  { // Button
+    .port = GPIOA,
+    .pin_init = { .Pin = GPIO_PIN_0, .Mode = GPIO_MODE_INPUT, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = 0 },
+    .active_state = 0
+  },
+  { // UART TX
+    .port = GPIOA,
+    .pin_init = { .Pin = GPIO_PIN_9, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART1 },
+    .active_state = 0
+  },
+  { // UART RX
+    .port = GPIOA,
+    .pin_init = { .Pin = GPIO_PIN_10, .Mode = GPIO_MODE_AF_PP, .Pull = GPIO_PULLUP, .Speed = GPIO_SPEED_FREQ_HIGH, .Alternate = GPIO_AF7_USART1 },
+    .active_state = 0
+  },
+};
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -126,6 +135,15 @@ static inline void SystemClock_Config(void) {
   {
     Error_Handler();
   }
+}
+
+static inline void board_init2(void) {
+  // Empty for this board
+}
+
+void board_vbus_set(uint8_t rhport, bool state) {
+  (void) rhport;
+  (void) state;
 }
 
 #ifdef __cplusplus

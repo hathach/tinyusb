@@ -217,7 +217,9 @@
         </group>
         <group name="src/portable/st/stm32_fsdev">
             <path>$TUSB_DIR$/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c</path>
-            <path>$TUSB_DIR$/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.h</path>
+            <path>$TUSB_DIR$/src/portable/st/stm32_fsdev/hcd_stm32_fsdev.c</path>
+            <path>$TUSB_DIR$/src/portable/st/stm32_fsdev/fsdev_common.c</path>
+            <path>$TUSB_DIR$/src/portable/st/stm32_fsdev/fsdev_common.h</path>
         </group>
         <group name="src/portable/st/typec">
             <path>$TUSB_DIR$/src/portable/st/typec/typec_stm32.c</path>

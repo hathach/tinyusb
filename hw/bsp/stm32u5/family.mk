@@ -37,12 +37,10 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_rcc_ex.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_uart.c
 
-ifeq ($(MCU_VARIANT),stm32u545xx)
+ifneq ($(filter stm32u545xx stm32u535xx,$(MCU_VARIANT)),)
 SRC_C += \
-	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
-else ifeq ($(MCU_VARIANT),stm32u535xx)
-SRC_C += \
-	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c
 else
 SRC_C += \
 	src/portable/synopsys/dwc2/dcd_dwc2.c \

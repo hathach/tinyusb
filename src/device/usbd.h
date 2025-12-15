@@ -58,6 +58,7 @@ typedef union {
 bool tud_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 
 // New API to replace tud_init() to init device stack on specific roothub port
+// Must be called in the same task/context as tud_task() if RTOS is used
 bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 
 // Init device stack on roothub port
@@ -73,6 +74,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool tud_init (uint8_t rhport) {
 }
 
 // Deinit device stack on roothub port
+// Must be called in the same task/context as tud_task() if RTOS is used
 bool tud_deinit(uint8_t rhport);
 
 // Check if device stack is already initialized

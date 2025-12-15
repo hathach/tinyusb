@@ -43,7 +43,6 @@ extern "C" {
 /* #define HAL_EXTI_MODULE_ENABLED   */
 /* #define HAL_FDCAN_MODULE_ENABLED   */
 /* #define HAL_HCD_MODULE_ENABLED   */
-/* #define HAL_I2C_MODULE_ENABLED   */
 /* #define HAL_I2S_MODULE_ENABLED   */
 /* #define HAL_IWDG_MODULE_ENABLED   */
 /* #define HAL_IRDA_MODULE_ENABLED   */
@@ -65,6 +64,7 @@ extern "C" {
 #define HAL_PWR_MODULE_ENABLED
 #define HAL_CORTEX_MODULE_ENABLED
 #define HAL_UART_MODULE_ENABLED
+#define HAL_I2C_MODULE_ENABLED
 
 /* ########################## Register Callbacks selection ############################## */
 /**
