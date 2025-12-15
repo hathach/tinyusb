@@ -78,7 +78,9 @@ void fsdev_deinit(void) {
 // - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
 // - Uses unaligned for RAM (since M0 cannot access unaligned address)
 bool fsdev_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes) {
-  if (nbytes == 0) return true;
+  if (nbytes == 0) {
+    return true;
+  }
   uint32_t n_write = nbytes / FSDEV_BUS_SIZE;
 
   fsdev_pma_buf_t* pma_buf = PMA_BUF_AT(dst);
@@ -107,7 +109,9 @@ bool fsdev_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_
 // - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
 // - Uses unaligned for RAM (since M0 cannot access unaligned address)
 bool fsdev_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes) {
-  if (nbytes == 0) return true;
+  if (nbytes == 0) {
+    return true;
+  }
   uint32_t n_read = nbytes / FSDEV_BUS_SIZE;
 
   fsdev_pma_buf_t* pma_buf = PMA_BUF_AT(src);
@@ -134,7 +138,9 @@ bool fsdev_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbyte
 
 // Write to PMA from FIFO
 bool fsdev_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes) {
-  if (wNBytes == 0) return true;
+  if (wNBytes == 0) {
+    return true;
+  }
 
   // Since we copy from a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   tu_fifo_buffer_info_t info;
@@ -183,7 +189,9 @@ bool fsdev_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes)
 
 // Read from PMA to FIFO
 bool fsdev_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes) {
-  if (wNBytes == 0) return true;
+  if (wNBytes == 0) {
+    return true;
+  }
 
   // Since we copy into a ring buffer FIFO, a wrap might occur making it necessary to conduct two copies
   // Check for first linear part

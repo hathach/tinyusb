@@ -28,11 +28,11 @@
  * This driver provides USB Host controller support for STM32 MCUs with "USB A"/"PCD"/"HCD" peripheral.
  * This covers these MCU families:
  *
- * C0                             2048 byte buffer; 32-bit bus; host mode
- * G0                             2048 byte buffer; 32-bit bus; host mode
- * U3                             2048 byte buffer; 32-bit bus; host mode
- * H5                             2048 byte buffer; 32-bit bus; host mode
- * U535, U545                     2048 byte buffer; 32-bit bus; host mode
+ * C0           2048 byte buffer; 32-bit bus; host mode
+ * G0           2048 byte buffer; 32-bit bus; host mode
+ * U3           2048 byte buffer; 32-bit bus; host mode
+ * H5           2048 byte buffer; 32-bit bus; host mode
+ * U535, U545   2048 byte buffer; 32-bit bus; host mode
  *
  */
 
