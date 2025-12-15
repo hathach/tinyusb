@@ -144,7 +144,7 @@ deps_optional = {
                                      'stm32h7'],
     'hw/mcu/st/stm32-tcpp0203': ['https://github.com/STMicroelectronics/stm32-tcpp0203.git',
                                  '9918655bff176ac3046ccf378b5c7bbbc6a38d15',
-                                 'stm32h7rs stm32n6'],
+                                 'stm32h5 stm32h7rs stm32n6'],
     'hw/mcu/st/stm32c0xx_hal_driver': ['https://github.com/STMicroelectronics/stm32c0xx_hal_driver.git',
                                        'c283b143bef6bdaacf64240ee6f15eb61dad6125',
                                        'stm32c0'],

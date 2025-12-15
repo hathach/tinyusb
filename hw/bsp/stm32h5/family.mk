@@ -1,6 +1,7 @@
 ST_FAMILY = h5
 ST_CMSIS = hw/mcu/st/cmsis_device_$(ST_FAMILY)
 ST_HAL_DRIVER = hw/mcu/st/stm32$(ST_FAMILY)xx_hal_driver
+ST_TCPP0203 = hw/mcu/st/stm32-tcpp0203
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m33
@@ -36,6 +37,8 @@ LDFLAGS_GCC += \
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/hcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c \
 	$(ST_CMSIS)/Source/Templates/system_stm32$(ST_FAMILY)xx.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32$(ST_FAMILY)xx_hal_cortex.c \
