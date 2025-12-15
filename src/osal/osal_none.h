@@ -171,7 +171,7 @@ typedef osal_queue_def_t* osal_queue_t;
   }
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
-  (void) tu_fifo_clear(&qdef->ff);
+  tu_fifo_clear(&qdef->ff);
   return (osal_queue_t) qdef;
 }
 

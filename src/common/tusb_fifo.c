@@ -114,40 +114,54 @@ void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
 // Pull & Push
 // copy data to/from fifo without updating read/write pointers
 //--------------------------------------------------------------------+
-#ifdef CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
+#if CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH
+  #if CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH == 32
+    #define fixed_unaligned_write tu_unaligned_write32
+    #define fixed_unaligned_read  tu_unaligned_read32
+typedef uint32_t fixed_access_item_t;
+  #elif CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH == 16
+    #define fixed_unaligned_write tu_unaligned_write16
+    #define fixed_unaligned_read  tu_unaligned_read16
+typedef uint16_t fixed_access_item_t;
+  #endif
+
+enum {
+  FIXED_ACCESS_REMAINDER_MASK = sizeof(fixed_access_item_t) - 1u
+};
+
 // Copy to fifo from fixed address buffer (usually a rx register) with TU_FIFO_FIXED_ADDR_RW32 mode
-static void ff_push_fixed_addr_rw32(uint8_t *ff_buf, const volatile uint32_t *reg_rx, uint16_t len) {
-  // Reading full available 32 bit words from const app address
-  uint16_t full_words = len >> 2;
-  while (full_words--) {
-    const uint32_t tmp32 = *reg_rx;
-    tu_unaligned_write32(ff_buf, tmp32);
-    ff_buf += 4;
+static void ff_push_fixed_addr(uint8_t *ff_buf, const volatile fixed_access_item_t *reg_rx, uint16_t len) {
+  // Reading full available 16/32-bit data from const app address
+  uint16_t n_items = len / sizeof(fixed_access_item_t);
+  while (n_items--) {
+    const fixed_access_item_t tmp = *reg_rx;
+    fixed_unaligned_write(ff_buf, tmp);
+    ff_buf += sizeof(fixed_access_item_t);
   }
 
-  // Read the remaining 1-3 bytes from const app address
-  const uint8_t bytes_rem = len & 0x03;
+  // Read the remaining 1 byte (16bit) or 1-3 bytes (32bit) from const app address
+  const uint8_t bytes_rem = len & FIXED_ACCESS_REMAINDER_MASK;
   if (bytes_rem) {
-    const uint32_t tmp32 = *reg_rx;
-    memcpy(ff_buf, &tmp32, bytes_rem);
+    const fixed_access_item_t tmp = *reg_rx;
+    memcpy(ff_buf, &tmp, bytes_rem);
   }
 }
 
 // Copy from fifo to fixed address buffer (usually a tx register) with TU_FIFO_FIXED_ADDR_RW32 mode
-static void ff_pull_fixed_addr_rw32(volatile uint32_t *reg_tx, const uint8_t *ff_buf, uint16_t len) {
+static void ff_pull_fixed_addr(volatile fixed_access_item_t *reg_tx, const uint8_t *ff_buf, uint16_t len) {
   // Write full available 32 bit words to const address
-  uint16_t full_words = len >> 2u;
-  while (full_words--) {
-    *reg_tx = tu_unaligned_read32(ff_buf);
-    ff_buf += 4u;
+  uint16_t n_itmes = len / sizeof(fixed_access_item_t);
+  while (n_itmes--) {
+    *reg_tx = fixed_unaligned_read(ff_buf);
+    ff_buf += sizeof(fixed_access_item_t);
   }
 
-  // Write the remaining 1-3 bytes
-  const uint8_t bytes_rem = len & 0x03;
+  // Write the remaining 1 byte (16bit) or 1-3 bytes (32bit)
+  const uint8_t bytes_rem = len & FIXED_ACCESS_REMAINDER_MASK;
   if (bytes_rem) {
-    uint32_t tmp32 = 0u;
-    memcpy(&tmp32, ff_buf, bytes_rem);
-    *reg_tx = tmp32;
+    fixed_access_item_t tmp = 0u;
+    memcpy(&tmp, ff_buf, bytes_rem);
+    *reg_tx = tmp;
   }
 }
 #endif
@@ -176,26 +190,26 @@ static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint1
       }
       break;
 
-#ifdef CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
+#if CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH
     case TU_FIFO_FIXED_ADDR_RW32: {
-      const volatile uint32_t *reg_rx = (volatile const uint32_t *)app_buf;
+      const volatile fixed_access_item_t *reg_rx = (volatile const fixed_access_item_t *)app_buf;
       if (n <= lin_count) {
         // Linear only
-        ff_push_fixed_addr_rw32(ff_buf, reg_rx, n * f->item_size);
+        ff_push_fixed_addr(ff_buf, reg_rx, n * f->item_size);
       } else {
         // Wrap around
 
         // Write full words to linear part of buffer
-        uint16_t lin_4n_bytes = lin_bytes & 0xFFFC;
-        ff_push_fixed_addr_rw32(ff_buf, reg_rx, lin_4n_bytes);
-        ff_buf += lin_4n_bytes;
+        uint16_t lin_nitems_bytes = lin_bytes & ~FIXED_ACCESS_REMAINDER_MASK;
+        ff_push_fixed_addr(ff_buf, reg_rx, lin_nitems_bytes);
+        ff_buf += lin_nitems_bytes;
 
-        // There could be odd 1-3 bytes before the wrap-around boundary
-        const uint8_t rem = lin_bytes & 0x03;
+        // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
+        const uint8_t rem = lin_bytes & FIXED_ACCESS_REMAINDER_MASK;
         if (rem > 0) {
-          const uint8_t  remrem = (uint8_t)tu_min16(wrap_bytes, 4 - rem);
-          const uint32_t tmp32  = *reg_rx;
-          tu_scatter_write32(tmp32, ff_buf, rem, f->buffer, remrem);
+          const uint8_t             remrem = (uint8_t)tu_min16(wrap_bytes, sizeof(fixed_access_item_t) - rem);
+          const fixed_access_item_t tmp    = *reg_rx;
+          tu_scatter_write32(tmp, ff_buf, rem, f->buffer, remrem);
 
           wrap_bytes -= remrem;
           ff_buf = f->buffer + remrem; // wrap around
@@ -205,7 +219,7 @@ static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint1
 
         // Write data wrapped part
         if (wrap_bytes > 0) {
-          ff_push_fixed_addr_rw32(ff_buf, reg_rx, wrap_bytes);
+          ff_push_fixed_addr(ff_buf, reg_rx, wrap_bytes);
         }
       }
       break;
@@ -240,28 +254,28 @@ static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd
       }
       break;
 
-#ifdef  CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
+#ifdef CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH
     case TU_FIFO_FIXED_ADDR_RW32: {
-      volatile uint32_t *reg_tx = (volatile uint32_t *)app_buf;
+      volatile fixed_access_item_t *reg_tx = (volatile fixed_access_item_t *)app_buf;
 
       if (n <= lin_count) {
         // Linear only
-        ff_pull_fixed_addr_rw32(reg_tx, ff_buf, n * f->item_size);
+        ff_pull_fixed_addr(reg_tx, ff_buf, n * f->item_size);
       } else {
         // Wrap around case
 
         // Read full words from linear part
-        uint16_t lin_4n_bytes = lin_bytes & 0xFFFC;
-        ff_pull_fixed_addr_rw32(reg_tx, ff_buf, lin_4n_bytes);
-        ff_buf += lin_4n_bytes;
+        uint16_t lin_nitems_bytes = lin_bytes & ~FIXED_ACCESS_REMAINDER_MASK;
+        ff_pull_fixed_addr(reg_tx, ff_buf, lin_nitems_bytes);
+        ff_buf += lin_nitems_bytes;
 
-        // There could be odd 1-3 bytes before the wrap-around boundary
-        const uint8_t rem = lin_bytes & 0x03;
+        // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
+        const uint8_t rem = lin_bytes & FIXED_ACCESS_REMAINDER_MASK;
         if (rem > 0) {
-          const uint8_t  remrem    = (uint8_t)tu_min16(wrap_bytes, 4 - rem);
-          const uint32_t scatter32 = tu_scatter_read32(ff_buf, rem, f->buffer, remrem);
+          const uint8_t             remrem  = (uint8_t)tu_min16(wrap_bytes, sizeof(fixed_access_item_t) - rem);
+          const fixed_access_item_t scatter = (fixed_access_item_t)tu_scatter_read32(ff_buf, rem, f->buffer, remrem);
 
-          *reg_tx = scatter32;
+          *reg_tx = scatter;
 
           wrap_bytes -= remrem;
           ff_buf = f->buffer + remrem; // wrap around
@@ -271,7 +285,7 @@ static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd
 
         // Read data wrapped part
         if (wrap_bytes > 0) {
-          ff_pull_fixed_addr_rw32(reg_tx, ff_buf, wrap_bytes);
+          ff_pull_fixed_addr(reg_tx, ff_buf, wrap_bytes);
         }
       }
       break;

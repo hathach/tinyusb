@@ -49,8 +49,15 @@ extern "C" {
 #define CFG_FIFO_MUTEX      OSAL_MUTEX_REQUIRED
 
 #if CFG_TUD_EDPT_DEDICATED_HWFIFO || CFG_TUH_EDPT_DEDICATED_HWFIFO
-  #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
+  #ifndef CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH
+    #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH 32
+  #endif
 #endif
+
+#ifndef CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH
+  #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH 0
+#endif
+
 
 /* Write/Read "pointer" is in the range of: 0 .. depth - 1, and is used to get the fifo data.
  * Write/Read "index" is always in the range of: 0 .. 2*depth-1
@@ -150,7 +157,7 @@ typedef struct {
 // copy data to and from USB hardware FIFOs as needed for e.g. STM32s and others
 typedef enum {
   TU_FIFO_INC_ADDR_RW8,    // increased address read/write by bytes - normal (default) mode
-  TU_FIFO_FIXED_ADDR_RW32, // fixed address read/write by 4 bytes (word). Used for STM32 access into USB hardware FIFO
+  TU_FIFO_FIXED_ADDR_RW32, // fixed address read/write by 2/4 bytes (items).
 } tu_fifo_access_mode_t;
 
 //--------------------------------------------------------------------+
@@ -205,6 +212,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *
   return tu_fifo_read_n_access_mode(f, buffer, n, TU_FIFO_INC_ADDR_RW8);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n_fixed_addr(tu_fifo_t *f, void *buffer, uint16_t n) {
+  return tu_fifo_read_n_access_mode(f, buffer, n, TU_FIFO_FIXED_ADDR_RW32);
+}
+
 // discard first n items from fifo i.e advance read pointer by n with mutex
 // return number of discarded items
 uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n);
@@ -216,6 +227,10 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
 bool     tu_fifo_write(tu_fifo_t *f, const void *data);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
   return tu_fifo_write_n_access_mode(f, data, n, TU_FIFO_INC_ADDR_RW8);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n_fixed_addr(tu_fifo_t *f, const void *data, uint16_t n) {
+  return tu_fifo_write_n_access_mode(f, data, n, TU_FIFO_FIXED_ADDR_RW32);
 }
 
 //--------------------------------------------------------------------+

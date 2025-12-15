@@ -113,7 +113,7 @@ add_ceedling_test(
   ${CEEDLING_WORKDIR}/../../src/common/tusb_fifo.c
   ""
   )
-target_compile_definitions(test_fifo PRIVATE CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32=1)
+target_compile_definitions(test_fifo PRIVATE CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH=32)
 
 add_ceedling_test(
   test_usbd
