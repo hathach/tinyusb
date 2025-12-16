@@ -44,6 +44,10 @@
 #include "fsl_device_registers.h"
 #endif
 
+#if TU_CHECK_MCU(OPT_MCU_HPM)
+#include "ci_hs_hpm.h"
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -236,6 +240,14 @@ void hcd_port_reset(uint8_t rhport) {
 
   // mask out Write-1-to-Clear bits
   uint32_t portsc = regs->portsc & ~EHCI_PORTSC_MASK_W1C;
+
+#if TU_CHECK_MCU(OPT_MCU_HPM)
+  if (usb_phy_get_line_state((USB_Type *)CI_HS_REG(rhport)) == usb_line_state2) {
+      portsc |= USB_PORTSC1_STS_MASK;
+  } else {
+      portsc &= ~USB_PORTSC1_STS_MASK;
+  }
+#endif
 
   // EHCI Table 2-16 PortSC
   // when software writes Port Reset bit to a one, it must also write a zero to the Port Enable bit.

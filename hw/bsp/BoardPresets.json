@@ -239,6 +239,10 @@
       "inherits": "default"
     },
     {
+      "name": "hpm6750evk2",
+      "inherits": "default"
+    },
+    {
       "name": "itsybitsy_m0",
       "inherits": "default"
     },
@@ -1228,6 +1232,11 @@
       "name": "frdm_rw612",
       "description": "Build preset for the frdm_rw612 board",
       "configurePreset": "frdm_rw612"
+    },
+    {
+      "name": "hpm6750evk2",
+      "description": "Build preset for the hpm6750evk2 board",
+      "configurePreset": "hpm6750evk2"
     },
     {
       "name": "itsybitsy_m0",
@@ -2855,6 +2864,19 @@
         {
           "type": "build",
           "name": "frdm_rw612"
+        }
+      ]
+    },
+    {
+      "name": "hpm6750evk2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "hpm6750evk2"
+        },
+        {
+          "type": "build",
+          "name": "hpm6750evk2"
         }
       ]
     },

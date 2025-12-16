@@ -661,6 +661,18 @@
   #define TUP_USBIP_DWC2_AT32
   #define TUP_DCD_ENDPOINT_MAX 8
 
+//--------------------------------------------------------------------+
+// HPMicro
+//--------------------------------------------------------------------+
+#elif TU_CHECK_MCU(OPT_MCU_HPM)
+  #define TUP_USBIP_CHIPIDEA_HS
+  #define TUP_USBIP_EHCI
+
+  #define TUP_DCD_ENDPOINT_MAX    16
+  #define TUP_RHPORT_HIGHSPEED    1
+
+  #define TU_ATTR_FAST_FUNC __attribute__((section(".fast")))
+
 #endif
 
 //--------------------------------------------------------------------+
