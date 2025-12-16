@@ -81,10 +81,18 @@ function(family_configure_example TARGET RTOS)
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      --specs=nosys.specs
-      --specs=nano.specs
+      --specs=nosys.specs --specs=nano.specs
+      -nostartfiles
       )
-  endif()
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_Clang}"
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
+  endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     set_source_files_properties(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c PROPERTIES COMPILE_FLAGS "-Wno-missing-prototypes")
