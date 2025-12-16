@@ -113,4 +113,3 @@ void BOARD_BootClockRUN(void);
 
 
 #endif /* _CLOCK_CONFIG_H_ */
-

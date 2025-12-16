@@ -54,7 +54,7 @@ void BOARD_InitBootPins(void);
                                                            /* @} */
 
 /*!
- * @brief 
+ * @brief
  *
  */
 void BOARD_InitPins(void); /* Function assigned for the Cortex-M33 */

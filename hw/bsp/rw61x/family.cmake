@@ -81,7 +81,7 @@ function(family_configure_example TARGET RTOS)
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
-      --specs=nosys.specs 
+      --specs=nosys.specs
       --specs=nano.specs
       )
   endif()

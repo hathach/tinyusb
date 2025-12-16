@@ -13,7 +13,7 @@ CFLAGS += \
   -DSERIAL_PORT_TYPE_UART=1 \
   -DBOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED \
   -DBOARD_TUH_MAX_SPEED=OPT_MODE_HIGH_SPEED	\
-  
+
 # mcu driver cause following warnings
 CFLAGS += -Wno-error=unused-parameter -Wno-error=old-style-declaration -Wno-error=redundant-decls
 
@@ -35,7 +35,7 @@ SRC_C += \
 	$(SDK_DIR)/drivers/flexcomm/fsl_flexcomm.c \
 	$(SDK_DIR)/drivers/flexcomm/usart/fsl_usart.c \
 	$(SDK_DIR)/drivers/flexspi/fsl_flexspi.c \
-	
+
 INC += \
 	$(TOP)/$(BOARD_PATH) \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \

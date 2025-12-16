@@ -41,8 +41,8 @@
 // LED - Green channel of RGB LED
 #define LED_GPIO              BOARD_INITLEDPINS_LED_GREEN_PERIPHERAL
 #define LED_CLK               kCLOCK_HsGpio0
-#define LED_PIN               BOARD_INITLEDPINS_LED_GREEN_PIN 
-#define LED_PORT              BOARD_INITLEDPINS_LED_GREEN_PORT 
+#define LED_PIN               BOARD_INITLEDPINS_LED_GREEN_PIN
+#define LED_PORT              BOARD_INITLEDPINS_LED_GREEN_PORT
 #define LED_STATE_ON          0
 
 // WAKE button (Dummy, use unused pin
@@ -72,5 +72,3 @@ static inline void board_uart_init_clock(void) {
 #endif
 
 #endif
-
-

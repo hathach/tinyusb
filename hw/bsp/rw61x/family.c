@@ -51,7 +51,7 @@ void board_init(void) {
 
   // Init button pin, LED pins, SWD pins & UART pins
   BOARD_InitBootPins();
-  
+
   // Init Clocks
   BOARD_InitBootClocks();
 
@@ -86,8 +86,8 @@ void board_init(void) {
 
   // Enable USB Clock
   CLOCK_EnableClock(kCLOCK_Usb);
-  
-  // Enable USB PHY 
+
+  // Enable USB PHY
   CLOCK_EnableUsbhsPhyClock();
 }
 
