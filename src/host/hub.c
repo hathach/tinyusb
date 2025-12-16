@@ -218,27 +218,27 @@ bool hub_deinit(void) {
   return true;
 }
 
-bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
   (void) rhport;
 
   TU_VERIFY(TUSB_CLASS_HUB == itf_desc->bInterfaceClass &&
-            0              == itf_desc->bInterfaceSubClass);
-  TU_VERIFY(itf_desc->bInterfaceProtocol <= 1); // not support multiple TT yet
+            0              == itf_desc->bInterfaceSubClass, 0);
+  TU_VERIFY(itf_desc->bInterfaceProtocol <= 1, 0); // not support multiple TT yet
 
-  uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
-  TU_ASSERT(drv_len <= max_len);
+  const uint16_t drv_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
+  TU_ASSERT(drv_len <= max_len, 0);
 
   // Interrupt Status endpoint
   tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
   TU_ASSERT(TUSB_DESC_ENDPOINT  == desc_ep->bDescriptorType &&
             TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
-  TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep));
+  TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep), 0);
 
   hub_interface_t* p_hub = get_hub_itf(dev_addr);
   p_hub->itf_num = itf_desc->bInterfaceNumber;
   p_hub->ep_in   = desc_ep->bEndpointAddress;
 
-  return true;
+  return drv_len;
 }
 
 void hub_close(uint8_t dev_addr) {

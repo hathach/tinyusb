@@ -107,6 +107,9 @@ bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size);
 // Controller API
 //--------------------------------------------------------------------+
 
+// optional dcd configuration, called by tud_configure()
+bool dcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
+
 // Initialize controller to device mode
 bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
 

@@ -27,6 +27,8 @@ on:
       - '.github/workflows/build.yml'
       - '.github/workflows/build_util.yml'
       - '.github/workflows/ci_set_matrix.py'
+  release:
+    types: [ published ]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -42,7 +44,7 @@ jobs:
       hil_json: ${{ steps.set-matrix-json.outputs.hil_matrix }}
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate matrix json
         id: set-matrix-json
@@ -86,9 +88,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      contents: write
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-tags: ${{ github.event_name == 'release' }}
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
@@ -103,14 +108,14 @@ jobs:
           python tools/metrics.py combine -j -m -f tinyusb/src cmake-build/*/metrics.json
 
       - name: Upload Metrics Artifact
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'release'
         uses: actions/upload-artifact@v5
         with:
           name: metrics-tinyusb
           path: metrics.json
 
       - name: Download Base Branch Metrics
-        if: github.event_name != 'push'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         uses: dawidd6/action-download-artifact@v11
         with:
           workflow: build.yml
@@ -118,6 +123,18 @@ jobs:
           name: metrics-tinyusb
           path: base-metrics
         continue-on-error: true
+
+      - name: Download Previous Release Asset
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREV_TAG=$(git tag --sort=-creatordate | head -n 2 | tail -n 1)
+          echo "Previous Release: $PREV_TAG"
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_ENV
+
+          mkdir -p base-metrics
+          gh release download $PREV_TAG -p metrics.json -D base-metrics || echo "No metrics.json found in $PREV_TAG release"
 
       - name: Compare with Base Branch
         if: github.event_name != 'push'
@@ -130,8 +147,31 @@ jobs:
             cp metrics.md metrics_compare.md
           fi
 
+      - name: Upload Release Assets
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CURR_TAG=${{ github.event.release.tag_name }}
+          COMPARE_FILE="metrics_compare_${CURR_TAG}-${PREV_TAG}.md"
+          mv metrics_compare.md $COMPARE_FILE
+          gh release upload $CURR_TAG metrics.json $COMPARE_FILE
+
+      - name: Save PR number
+        if: github.event_name == 'pull_request'
+        run: echo ${{ github.event.number }} > pr_number.txt
+
+      - name: Upload Metrics Comment Artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v5
+        with:
+          name: metrics-comment
+          path: |
+            metrics_compare.md
+            pr_number.txt
+
       - name: Post Code Metrics as PR Comment
-        if: github.event_name != 'push'
+        if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false)
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: code-metrics
@@ -162,7 +202,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Zephyr project
         uses: zephyrproject-rtos/action-zephyr-setup@v1
@@ -224,7 +264,7 @@ jobs:
           mkdir -p "${{ github.workspace }}"
 
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download Artifacts
         uses: actions/download-artifact@v5
@@ -262,7 +302,7 @@ jobs:
           iccarm --version
 
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get build boards
         run: |
