@@ -82,7 +82,6 @@ function(family_configure_example TARGET RTOS)
     target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       --specs=nosys.specs --specs=nano.specs
-      -nostartfiles
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_link_options(${TARGET} PUBLIC
