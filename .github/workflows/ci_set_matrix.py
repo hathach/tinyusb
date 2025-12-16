@@ -17,7 +17,7 @@ toolchain_list = [
 family_list = {
     "at32f402_405 at32f403a_407 at32f413 at32f415 at32f423 at32f425 at32f435_437 broadcom_32bit da1469x": ["arm-gcc"],
     "broadcom_64bit": ["aarch64-gcc"],
-    "ch32v10x ch32v20x ch32v30x fomu gd32vf103": ["riscv-gcc"],
+    "ch32v10x ch32v20x ch32v30x fomu gd32vf103 hpmicro": ["riscv-gcc"],
     "imxrt": ["arm-gcc", "arm-clang"],
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
     "lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43": ["arm-gcc", "arm-clang"],
