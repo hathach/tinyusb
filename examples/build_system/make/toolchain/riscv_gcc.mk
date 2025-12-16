@@ -1,7 +1,7 @@
 # makefile for arm gcc toolchain
 
 # Can be set by family, default to ARM GCC
-CROSS_COMPILE ?= riscv-none-embed-
+CROSS_COMPILE ?= riscv-none-elf-
 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
