@@ -16,3 +16,4 @@ mcu:STM32L0
 family:broadcom_32bit
 family:broadcom_64bit
 family:nuc121_125
+family:hpmicro

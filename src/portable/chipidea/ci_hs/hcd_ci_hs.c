@@ -61,6 +61,10 @@ bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
 
 #include "ci_hs_lpc18_43.h"
 
+#elif TU_CHECK_MCU(OPT_MCU_HPM)
+
+#include "ci_hs_hpm.h"
+
 #else
 #error "Unsupported MCUs"
 #endif
@@ -76,6 +80,10 @@ bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   (void) rh_init;
   ci_hs_regs_t *hcd_reg = CI_HS_REG(rhport);
+
+#if CFG_TUSB_MCU == OPT_MCU_HPM
+  usb_phy_init((USB_Type *)hcd_reg, true);
+#endif
 
   // Reset controller
   hcd_reg->USBCMD |= USBCMD_RESET;
