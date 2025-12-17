@@ -22,7 +22,7 @@ family_list = {
     "kinetis_k kinetis_kl kinetis_k32l2": ["arm-gcc", "arm-clang"],
     "lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43": ["arm-gcc", "arm-clang"],
     "lpc51 lpc54 lpc55": ["arm-gcc", "arm-clang"],
-    "maxim mcx mm32 msp432e4 tm4c": ["arm-gcc"],
+    "maxim mcx mm32 msp432e4 rw61x tm4c": ["arm-gcc"],
     "msp430": ["msp430-gcc"],
     "nrf": ["arm-gcc", "arm-clang"],
     "nuc100_120 nuc121_125 nuc126 nuc505 xmc4000": ["arm-gcc"],

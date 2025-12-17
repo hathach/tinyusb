@@ -60,7 +60,7 @@ deps_optional = {
                            'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43'],
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/nxp-mcuxpresso/mcux-sdk',
                             'a1bdae309a14ec95a4f64a96d3315a4f89c397c6',
-                            'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx imxrt'],
+                            'kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx rw61x imxrt'],
     'hw/mcu/raspberry_pi/Pico-PIO-USB': ['https://github.com/sekigon-gonnoc/Pico-PIO-USB.git',
                                          '675543bcc9baa8170f868ab7ba316d418dbcf41f',
                                          'rp2040'],
@@ -249,7 +249,7 @@ deps_optional = {
                                'hpmicro'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '2b7495b8535bdcb306dac29b9ded4cfb679d7e5c',
-                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx mm32 msp432e4 nrf saml2x '
+                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx rw61x mm32 msp432e4 nrf saml2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
                     'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba '

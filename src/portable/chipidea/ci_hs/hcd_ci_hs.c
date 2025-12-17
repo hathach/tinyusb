@@ -41,32 +41,36 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_MIMXRT1XXX
 
-#include "ci_hs_imxrt.h"
+  #include "ci_hs_imxrt.h"
 
-#if CFG_TUH_MEM_DCACHE_ENABLE
-bool hcd_dcache_clean(void const* addr, uint32_t data_size) {
+  #if CFG_TUH_MEM_DCACHE_ENABLE
+bool hcd_dcache_clean(const void *addr, uint32_t data_size) {
   return imxrt_dcache_clean(addr, data_size);
 }
 
-bool hcd_dcache_invalidate(void const* addr, uint32_t data_size) {
+bool hcd_dcache_invalidate(const void *addr, uint32_t data_size) {
   return imxrt_dcache_invalidate(addr, data_size);
 }
 
-bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
+bool hcd_dcache_clean_invalidate(const void *addr, uint32_t data_size) {
   return imxrt_dcache_clean_invalidate(addr, data_size);
 }
-#endif
+    #endif
 
 #elif TU_CHECK_MCU(OPT_MCU_LPC18XX, OPT_MCU_LPC43XX)
 
-#include "ci_hs_lpc18_43.h"
+  #include "ci_hs_lpc18_43.h"
 
 #elif TU_CHECK_MCU(OPT_MCU_HPM)
 
-#include "ci_hs_hpm.h"
+  #include "ci_hs_hpm.h"
+
+#elif TU_CHECK_MCU(OPT_MCU_RW61X)
+
+  #include "ci_hs_rw61x.h"
 
 #else
-#error "Unsupported MCUs"
+  #error "Unsupported MCUs"
 #endif
 
 //--------------------------------------------------------------------+
@@ -77,31 +81,31 @@ bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) {
 // Controller API
 //--------------------------------------------------------------------+
 
-bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
+bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
+  (void)rh_init;
   ci_hs_regs_t *hcd_reg = CI_HS_REG(rhport);
 
-#if CFG_TUSB_MCU == OPT_MCU_HPM
+  #if CFG_TUSB_MCU == OPT_MCU_HPM
   usb_phy_init((USB_Type *)hcd_reg, true);
-#endif
+  #endif
 
   // Reset controller
   hcd_reg->USBCMD |= USBCMD_RESET;
-  while ( hcd_reg->USBCMD & USBCMD_RESET ) {}
+  while (hcd_reg->USBCMD & USBCMD_RESET) {}
 
   // Set mode to device, must be set immediately after reset
-#if CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX
+  #if CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX
   // LPC18XX/43XX need to set VBUS Power Select to HIGH
   // RHPORT1 is fullspeed only (need external PHY for Highspeed)
   hcd_reg->USBMODE = USBMODE_CM_HOST | USBMODE_VBUS_POWER_SELECT;
   if (rhport == 1) {
     hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
   }
-#else
+  #else
   hcd_reg->USBMODE = USBMODE_CM_HOST;
-#endif
+  #endif
 
-  return ehci_init(rhport, (uint32_t) &hcd_reg->CAPLENGTH, (uint32_t) &hcd_reg->USBCMD);
+  return ehci_init(rhport, (uint32_t)&hcd_reg->CAPLENGTH, (uint32_t)&hcd_reg->USBCMD);
 }
 
 void hcd_int_enable(uint8_t rhport) {
