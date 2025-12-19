@@ -296,7 +296,7 @@ function(family_configure_host_example TARGET RTOS)
 		# Pico-PIO-USB does not compile with all pico-sdk supported compilers, so check before enabling it
 		is_compiler_supported_by_pico_pio_usb(PICO_PIO_USB_COMPILER_SUPPORTED)
 		if (PICO_PIO_USB_COMPILER_SUPPORTED)
-			family_add_pico_pio_usb(${PROJECT})
+			family_add_pico_pio_usb(${TARGET})
 		endif()
 	endif()
 
