@@ -117,12 +117,7 @@ static inline const char* tu_lookup_find(tu_lookup_table_t const* p_table, uint3
     }
   }
 
-  // not found return the key value in hex
-  static char not_found[11];
-  if (snprintf(not_found, sizeof(not_found), "0x%08lX", (unsigned long) key) <= 0) {
-    not_found[0] = 0;
-  }
-  return not_found;
+  return "NotFound";
 }
 
 #endif // CFG_TUSB_DEBUG
