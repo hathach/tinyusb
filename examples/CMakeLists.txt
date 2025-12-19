@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-#set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(${CMAKE_CURRENT_SOURCE_DIR}/../hw/bsp/family_support.cmake)
 
 project(tinyusb_examples C CXX ASM)
@@ -27,3 +26,9 @@ add_custom_target(tinyusb_metrics
   COMMENT "Generating average code size metrics"
   VERBATIM
   )
+
+#add_custom_command(TARGET tinyusb_metrics POST_BUILD
+#  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/metrics.py compare ${TOP}/cmake-build/cmake-build-${BOARD}/metrics.json ${CMAKE_BINARY_DIR}/metrics.json
+#  COMMENT "Generating average code size metrics"
+#  VERBATIM
+#  )
