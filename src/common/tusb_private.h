@@ -144,6 +144,10 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_clear(tu_edpt_stream_t *
   tu_fifo_clear(&s->ff);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_edpt_stream_count_and_clear(tu_edpt_stream_t *s) {
+  return tu_fifo_count_and_clear(&s->ff);
+}
+
 TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_stream_empty(tu_edpt_stream_t *s) {
   return tu_fifo_empty(&s->ff);
 }
