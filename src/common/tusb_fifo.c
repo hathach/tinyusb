@@ -95,22 +95,6 @@ void tu_fifo_clear(tu_fifo_t *f) {
   ff_unlock(f->mutex_rd);
 }
 
-// synchronously count then clear fifo, returning the count
-uint16_t tu_fifo_count_and_clear(tu_fifo_t *f) {
-  ff_lock(f->mutex_wr);
-  ff_lock(f->mutex_rd);
-
-  uint16_t cnt = tu_fifo_count(f);
-
-  f->rd_idx = 0;
-  f->wr_idx = 0;
-
-  ff_unlock(f->mutex_wr);
-  ff_unlock(f->mutex_rd);
-
-  return cnt;
-}
-
 // Change the fifo overwritable mode
 void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
   if (f->overwritable == overwritable) {
