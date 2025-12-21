@@ -107,6 +107,13 @@ static void init_usb_phy(uint8_t usb_id) {
 }
 
 void board_init(void) {
+// make sure the dcache is on.
+#if defined(__DCACHE_PRESENT) && __DCACHE_PRESENT
+  if (SCB_CCR_DC_Msk != (SCB_CCR_DC_Msk & SCB->CCR)) {
+    SCB_EnableDCache();
+  }
+#endif
+
   BOARD_InitBootPins();
   BOARD_BootClockRUN();
   SystemCoreClockUpdate();
@@ -237,21 +244,9 @@ uint32_t board_millis(void) {
 }
 #endif
 
-
-#ifndef __ICCARM__
-// Implement _start() since we use linker flag '-nostartfiles'.
-// Requires defined __STARTUP_CLEAR_BSS,
-extern int main(void);
-TU_ATTR_UNUSED void _start(void) {
-  // called by startup code
-  main();
-  while (1) {}
-}
-
 #ifdef __clang__
 void _exit(int __status) {
   (void) __status;
   while (1) {}
 }
-#endif
 #endif

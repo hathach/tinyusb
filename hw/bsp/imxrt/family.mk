@@ -8,6 +8,7 @@ MCU_VARIANT_WITH_CORE = ${MCU_VARIANT}${MCU_CORE}
 MCU_DIR = $(SDK_DIR)/devices/$(MCU_VARIANT)
 
 CFLAGS += \
+	-D__START=main \
   -D__STARTUP_CLEAR_BSS \
   -DCFG_TUSB_MCU=OPT_MCU_MIMXRT1XXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section("NonCacheable")))' \
