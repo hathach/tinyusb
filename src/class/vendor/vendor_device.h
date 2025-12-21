@@ -91,6 +91,9 @@ uint32_t tud_vendor_n_write_flush(uint8_t idx);
 
 // Return number of bytes available for writing in TX FIFO
 uint32_t tud_vendor_n_write_available(uint8_t idx);
+
+// Clear the transmit FIFO
+bool tud_vendor_n_write_clear(uint8_t idx);
 #endif
 
 // Write a null-terminated string to TX FIFO
@@ -147,6 +150,10 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_flush(void) {
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_vendor_write_available(void) {
   return tud_vendor_n_write_available(0);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline bool tud_vendor_write_clear(void) {
+  return tud_vendor_n_write_clear(0);
 }
 #endif
 

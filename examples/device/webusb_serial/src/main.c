@@ -196,6 +196,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
           tud_vendor_write_str("\r\nWebUSB interface connected\r\n");
           tud_vendor_write_flush();
         } else {
+          tud_vendor_write_clear(); // anything left in the buffer is now thrown out
           blink_interval_ms = BLINK_MOUNTED;
         }
 
