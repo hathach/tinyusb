@@ -161,12 +161,11 @@ uint32_t tud_vendor_n_write_available(uint8_t idx) {
   return tu_edpt_stream_write_available(&p_itf->stream.tx);
 }
 
-uint32_t tud_vendor_n_write_clear(uint8_t idx) {
+bool tud_vendor_n_write_clear(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR, 0);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
-  uint32_t cnt = tu_edpt_stream_read_available(&p_itf->stream.tx);
   tu_edpt_stream_clear(&p_itf->stream.tx);
-  return cnt;
+  return true;
 }
 #endif
 
