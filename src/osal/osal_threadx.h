@@ -202,7 +202,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_empty(osal_queue_t qhdl) {
   tx_queue_info_get(qhdl, 0, &enqueued, 0, 0, 0, 0);
   return enqueued == 0;
 }
-    
+
 #ifdef __cplusplus
 }
 #endif
