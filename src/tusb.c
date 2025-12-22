@@ -485,9 +485,7 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
     if (available >= s->mps) {
       // multiple of packet size limit by ep bufsize
       uint16_t count = (uint16_t) (available & ~(s->mps - 1));
-      if (s->ep_buf != NULL) {
-        count = tu_min16(count, s->ep_bufsize);
-      }
+      count = tu_min16(count, s->ep_bufsize);
       TU_ASSERT(stream_xfer(s, count), 0);
       return count;
     } else {
