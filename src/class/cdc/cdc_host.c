@@ -828,7 +828,9 @@ static bool set_line_state_on_enum(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
     ENUM_SET_LINE_CONTROL,
     ENUM_SET_LINE_COMPLETE,
   };
+  #ifdef CFG_TUH_CDC_LINE_CONTROL_ON_ENUM
   const uint8_t idx = get_idx_by_ptr(p_cdc);
+  #endif
   const uintptr_t state = xfer->user_data;
 
   switch (state) {
