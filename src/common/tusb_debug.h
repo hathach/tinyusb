@@ -27,6 +27,8 @@
 #ifndef TUSB_DEBUG_H_
 #define TUSB_DEBUG_H_
 
+#include <stdio.h>
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -55,7 +57,6 @@ void tu_print_mem(void const *buf, uint32_t count, uint8_t indent);
   extern int CFG_TUSB_DEBUG_PRINTF(const char *format, ...);
   #define tu_printf    CFG_TUSB_DEBUG_PRINTF
 #else
-  #include <stdio.h>
   #define tu_printf(...)    (void) printf(__VA_ARGS__)
 #endif
 
