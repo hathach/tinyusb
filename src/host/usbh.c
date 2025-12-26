@@ -600,7 +600,7 @@ uint32_t tuh_task_ext2(uint32_t timeout_ms, bool in_isr, uint32_t max_events) {
   }
 
   // Loop until there is no more events in the queue or max_events reached
-  for (int events = 0; events < max_events; events++) {
+  for (uint32_t events = 0; events < max_events; events++) {
     hcd_event_t event;
     if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) {
       return events;
