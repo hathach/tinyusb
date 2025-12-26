@@ -591,18 +591,20 @@ bool tuh_task_event_ready(void) {
     }
     @endcode
  */
-void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
+uint32_t tuh_task_ext2(uint32_t timeout_ms, bool in_isr, uint32_t max_events) {
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
   if (!tuh_inited()) {
-    return;
+    return 0;
   }
 
-  // Loop until there is no more events in the queue
-  while (1) {
+  // Loop until there is no more events in the queue or max_events reached
+  for (int events = 0; events < max_events; events++) {
     hcd_event_t event;
-    if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) { return; }
+    if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) {
+      return events;
+    }
 
     switch (event.event_id) {
       case HCD_EVENT_DEVICE_ATTACH:
@@ -624,7 +626,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
           const bool is_empty = osal_queue_empty(_usbh_q);
           queue_event(&event, in_isr);
           if (is_empty) {
-            return; // Exit if this is the only event in the queue, otherwise we loop forever
+            return events; // Exit if this is the only event in the queue, otherwise we loop forever
           }
         }
         break;
@@ -644,11 +646,11 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
         if (event.dev_addr == 0) {
           // device 0 only has control endpoint
-          TU_ASSERT(epnum == 0,);
+          TU_ASSERT(epnum == 0, events);
           usbh_control_xfer_cb(event.dev_addr, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
         } else {
           usbh_device_t* dev = get_device(event.dev_addr);
-          TU_VERIFY(dev && dev->connected,);
+          TU_VERIFY(dev && dev->connected, events);
 
           dev->ep_status[epnum][ep_dir].busy = 0;
           dev->ep_status[epnum][ep_dir].claimed = 0;
@@ -684,7 +686,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
                                 event.xfer_complete.len);
               } else {
                 // no driver/callback responsible for this transfer
-                TU_ASSERT(false,);
+                TU_ASSERT(false, events);
               }
             }
           }
@@ -705,9 +707,12 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
 #if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
     // return if there is no more events, for application to run other background
-    if (osal_queue_empty(_usbh_q)) return;
+    if (osal_queue_empty(_usbh_q)) {
+      return events;
+    }
 #endif
   }
+  return max_events;
 }
 
 //--------------------------------------------------------------------+

@@ -173,14 +173,23 @@ bool tuh_deinit(uint8_t rhport);
 // To check if an rhport is initialized, use tuh_rhport_is_active()
 bool tuh_inited(void);
 
-// Task function should be called in main/rtos loop, extended version of tuh_task()
+// Task function should be called in main/rtos loop, extended version of tuh_task_ext()
 // - timeout_ms: millisecond to wait, zero = no wait, 0xFFFFFFFF = wait forever
 // - in_isr: if function is called in ISR
-void tuh_task_ext(uint32_t timeout_ms, bool in_isr);
+// - max_events: maximum number of events processed
+// returns the number of events processed
+uint32_t tuh_task_ext2(uint32_t timeout_ms, bool in_isr, uint32_t max_events);
+
+// Task function should be called in main/rtos loop, extended version of tuh_task()
+TU_ATTR_ALWAYS_INLINE static inline
+void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
+  tuh_task_ext2(timeout_ms, in_isr, UINT32_MAX);
+}
 
 // Task function should be called in main/rtos loop
-TU_ATTR_ALWAYS_INLINE static inline void tuh_task(void) {
-  tuh_task_ext(UINT32_MAX, false);
+TU_ATTR_ALWAYS_INLINE static inline
+void tuh_task (void) {
+  tuh_task_ext2(UINT32_MAX, false, UINT32_MAX);
 }
 
 // Check if there is pending events need processing by tuh_task()

@@ -658,19 +658,19 @@ bool tud_task_event_ready(void) {
       }
     }
  */
-void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
+uint32_t tud_task_ext2(uint32_t timeout_ms, bool in_isr, uint32_t max_events) {
   (void) in_isr; // not implemented yet
 
   // Skip if stack is not initialized
   if (!tud_inited()) {
-    return;
+    return 0;
   }
 
-  // Loop until there is no more events in the queue
-  while (1) {
+  // Loop until there is no more events in the queue or max_events reached
+  for (int events = 0; events < max_events; events++) {
     dcd_event_t event;
     if (!osal_queue_receive(_usbd_q, &event, timeout_ms)) {
-      return;
+      return events;
     }
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_LOG_LEVEL
@@ -694,7 +694,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case DCD_EVENT_SETUP_RECEIVED:
-        TU_ASSERT(_usbd_queued_setup > 0,);
+        TU_ASSERT(_usbd_queued_setup > 0, events);
         _usbd_queued_setup--;
         TU_LOG_BUF(CFG_TUD_LOG_LEVEL, &event.setup_received, 8);
         if (_usbd_queued_setup != 0) {
@@ -736,7 +736,7 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
           usbd_control_xfer_cb(event.rhport, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
         } else {
           usbd_class_driver_t const* driver = get_driver(_usbd_dev.ep2drv[epnum][ep_dir]);
-          TU_ASSERT(driver,);
+          TU_ASSERT(driver, events);
 
           TU_LOG_USBD("  %s xfer callback\r\n", driver->name);
           driver->xfer_cb(event.rhport, ep_addr, (xfer_result_t) event.xfer_complete.result, event.xfer_complete.len);
@@ -786,9 +786,12 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 
 #if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
     // return if there is no more events, for application to run other background
-    if (osal_queue_empty(_usbd_q)) { return; }
+    if (osal_queue_empty(_usbd_q)) {
+      return events;
+    }
 #endif
   }
+  return max_events;
 }
 
 //--------------------------------------------------------------------+
