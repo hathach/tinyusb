@@ -35,7 +35,7 @@ Get the Code
 
 .. note::
    Some MCU families require additional SDKs:
-   
+
    * **rp2040**: Requires `pico-sdk <https://github.com/raspberrypi/pico-sdk>`_ - see `Building for RP2040`_ below
    * **Espressif (esp32)**: Requires `esp-idf <https://github.com/espressif/esp-idf>`_ - see `Building for ESP32`_ below
 
