@@ -171,7 +171,7 @@ Install Pico SDK
 
 **Windows:**
 
-.. code-block:: bash
+.. code-block:: bat
 
    C:\> cd %USERPROFILE%
    C:\Users\YourName> git clone https://github.com/raspberrypi/pico-sdk.git
@@ -191,13 +191,13 @@ Before running cmake, export the SDK path:
 
 **Windows (Command Prompt):**
 
-.. code-block:: bash
+.. code-block:: bat
 
    C:\> set PICO_SDK_PATH=%USERPROFILE%\pico-sdk
 
 **Windows (PowerShell):**
 
-.. code-block:: bash
+.. code-block:: powershell
 
    PS C:\> $env:PICO_SDK_PATH = "$env:USERPROFILE\pico-sdk"
 
@@ -233,7 +233,7 @@ Install ESP-IDF
 
 **Windows:**
 
-.. code-block:: bash
+.. code-block:: bat
 
    C:\> cd %USERPROFILE%
    C:\Users\YourName> git clone --recursive https://github.com/espressif/esp-idf.git
@@ -253,13 +253,13 @@ Before running cmake, source the ESP-IDF export script:
 
 **Windows (Command Prompt):**
 
-.. code-block:: bash
+.. code-block:: bat
 
    C:\> %USERPROFILE%\esp-idf\export.bat
 
 **Windows (PowerShell):**
 
-.. code-block:: bash
+.. code-block:: powershell
 
    PS C:\> . $env:USERPROFILE\esp-idf\export.ps1
 
