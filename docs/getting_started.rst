@@ -34,7 +34,10 @@ Get the Code
    $ python tools/get_deps.py -b stm32h743eval  # or python tools/get_deps.py stm32h7
 
 .. note::
-   For rp2040 `pico-sdk <https://github.com/raspberrypi/pico-sdk>`_ or `esp-idf <https://github.com/espressif/esp-idf>`_ for Espressif targets are required; install them per vendor instructions.
+   Some MCU families require additional SDKs:
+   
+   * **rp2040**: Requires `pico-sdk <https://github.com/raspberrypi/pico-sdk>`_ - see `Building for RP2040`_ below
+   * **Espressif (esp32)**: Requires `esp-idf <https://github.com/espressif/esp-idf>`_ - see `Building for ESP32`_ below
 
 Simple Device Example
 ---------------------
@@ -147,6 +150,130 @@ A MCU can support multiple operational speed. By default, the example build syst
 .. code-block:: bash
 
    $ make BOARD=stm32h743eval RHPORT_DEVICE_SPEED=OPT_MODE_FULL_SPEED all
+
+
+Building for RP2040
+-------------------
+
+RP2040 boards (like Raspberry Pi Pico) require the Pico SDK to be installed and configured before building.
+
+Install Pico SDK
+^^^^^^^^^^^^^^^^
+
+**Linux/macOS:**
+
+.. code-block:: bash
+
+   $ cd ~
+   $ git clone https://github.com/raspberrypi/pico-sdk.git
+   $ cd pico-sdk
+   $ git submodule update --init
+
+**Windows:**
+
+.. code-block:: bash
+
+   C:\> cd %USERPROFILE%
+   C:\Users\YourName> git clone https://github.com/raspberrypi/pico-sdk.git
+   C:\Users\YourName> cd pico-sdk
+   C:\Users\YourName\pico-sdk> git submodule update --init
+
+Set PICO_SDK_PATH
+^^^^^^^^^^^^^^^^^
+
+Before running cmake, export the SDK path:
+
+**Linux/macOS:**
+
+.. code-block:: bash
+
+   $ export PICO_SDK_PATH=~/pico-sdk
+
+**Windows (Command Prompt):**
+
+.. code-block:: bash
+
+   C:\> set PICO_SDK_PATH=%USERPROFILE%\pico-sdk
+
+**Windows (PowerShell):**
+
+.. code-block:: bash
+
+   PS C:\> $env:PICO_SDK_PATH = "$env:USERPROFILE\pico-sdk"
+
+Build Example for RP2040
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   $ cd examples/device/cdc_msc
+   $ cmake -DBOARD=raspberry_pi_pico -B build
+   $ cmake --build build
+
+.. tip::
+   Add the PICO_SDK_PATH export to your shell's profile file (e.g., ``~/.bashrc``, ``~/.zshrc``) to make it permanent.
+
+
+Building for ESP32
+------------------
+
+ESP32 boards require the ESP-IDF (Espressif IoT Development Framework) to be installed and sourced before building.
+
+Install ESP-IDF
+^^^^^^^^^^^^^^^
+
+**Linux/macOS:**
+
+.. code-block:: bash
+
+   $ cd ~
+   $ git clone --recursive https://github.com/espressif/esp-idf.git
+   $ cd esp-idf
+   $ ./install.sh all
+
+**Windows:**
+
+.. code-block:: bash
+
+   C:\> cd %USERPROFILE%
+   C:\Users\YourName> git clone --recursive https://github.com/espressif/esp-idf.git
+   C:\Users\YourName> cd esp-idf
+   C:\Users\YourName\esp-idf> install.bat all
+
+Source ESP-IDF Environment
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Before running cmake, source the ESP-IDF export script:
+
+**Linux/macOS:**
+
+.. code-block:: bash
+
+   $ source ~/esp-idf/export.sh
+
+**Windows (Command Prompt):**
+
+.. code-block:: bash
+
+   C:\> %USERPROFILE%\esp-idf\export.bat
+
+**Windows (PowerShell):**
+
+.. code-block:: bash
+
+   PS C:\> . $env:USERPROFILE\esp-idf\export.ps1
+
+Build Example for ESP32
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   $ cd examples/device/cdc_msc
+   $ cmake -DBOARD=espressif_s3_devkitc -B build
+   $ cmake --build build
+
+.. tip::
+   You need to source the ESP-IDF export script in each new terminal session. Consider creating an alias in your shell's profile file for convenience.
 
 
 IAR Embedded Workbench
