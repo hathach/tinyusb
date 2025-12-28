@@ -940,6 +940,9 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
           if (ncm_interface.itf_data_alt == 1) {
             tud_network_recv_renew_r(rhport);
             notification_xmit(rhport, false);
+          } else {
+            // Reset notification state to send link state update when interface is re-activated
+            ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
           }
           tud_control_status(rhport, request);
         } break;
