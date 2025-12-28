@@ -218,12 +218,14 @@ static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
   if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
     xact_len = (uint16_t) tu_min32(p_mtp->total_len - p_mtp->xferred_len, CFG_TUD_MTP_EP_BUFSIZE);
   } else {
-    // Use fixed tranfer length to make ZLP handling easier
+    // Use fixed transfer length to make ZLP handling easier
     xact_len = CFG_TUD_MTP_EP_BUFSIZE;
   }
 
+  TU_LOG_DRV("  MTP Data Xfer %s: xferred_len/total_len=%lu/%lu, xact_len=%u\r\n",
+             (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) ? "IN" : "OUT",
+             p_mtp->xferred_len, p_mtp->total_len, xact_len);
   if (xact_len) {
-    // already transferred all bytes in header's length. Application make an unnecessary extra call
     TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
     TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, xact_len, false));
   }
@@ -388,8 +390,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   mtp_generic_container_t* p_container = (mtp_generic_container_t*) _mtpd_epbuf.buf;
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_MTP_LOG_LEVEL
-  tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code);
-  TU_LOG_DRV("  MTP %s: %s phase\r\n", (const char *) tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code),
+  const uint16_t code = (p_mtp->phase == MTP_PHASE_COMMAND) ? p_container->header.code : p_mtp->command.header.code;
+  TU_LOG_DRV("  MTP %s: %s phase\r\n", (const char *) tu_lookup_find(&_mtp_op_table, code),
     _mtp_phase_str[p_mtp->phase]);
 #endif
 
@@ -442,8 +444,12 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
                           xferred_bytes < threshold ||
                           p_mtp->xferred_len >= p_mtp->total_len);
 
+      TU_LOG_DRV("  MTP Data %s CB: xferred_bytes=%lu, xferred_len/total_len=%lu/%lu, is_complete=%d\r\n",
+                 is_data_in ? "IN" : "OUT", xferred_bytes, p_mtp->xferred_len, p_mtp->total_len, is_complete ? 1 : 0);
+
       // Send/queue ZLP if packet is full-sized but transfer is complete
       if (is_complete && xferred_bytes > 0 && !(xferred_bytes & (threshold - 1))) {
+        TU_LOG_DRV("  QUEUE ZLP\r\n");
         TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
         TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, NULL, 0, false));
         return true;
