@@ -128,8 +128,8 @@
 :defines:
   :test:
     - _UNITY_TEST_
-    - CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH=32
-    - CFG_TUSB_FIFO_MULTI_BYTES_ACCESS=1
+    - CFG_TUSB_FIFO_ACCESS_DATA_STRIDE=4
+    - CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE=0
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.

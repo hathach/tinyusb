@@ -113,87 +113,92 @@ void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
 // Pull & Push
 // copy data to/from fifo without updating read/write pointers
 //--------------------------------------------------------------------+
-#if CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH
-  #if CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH == 32
-    #define fixed_unaligned_write tu_unaligned_write32
-    #define fixed_unaligned_read  tu_unaligned_read32
-typedef uint32_t fixed_access_item_t;
-  #elif CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH == 16
-    #define fixed_unaligned_write tu_unaligned_write16
-    #define fixed_unaligned_read  tu_unaligned_read16
-typedef uint16_t fixed_access_item_t;
+#if CFG_TUSB_FIFO_ACCESS_DATA_STRIDE
+  #if CFG_TUSB_FIFO_ACCESS_DATA_STRIDE == 4
+    #define stride_unaligned_write tu_unaligned_write32
+    #define stride_unaligned_read  tu_unaligned_read32
+typedef uint32_t stride_item_t;
+  #elif CFG_TUSB_FIFO_ACCESS_DATA_STRIDE == 2
+    #define stride_unaligned_write tu_unaligned_write16
+    #define stride_unaligned_read  tu_unaligned_read16
+typedef uint16_t stride_item_t;
   #endif
 
 enum {
-  FIXED_ACCESS_REMAINDER_MASK = sizeof(fixed_access_item_t) - 1u
+  STRIDE_REMAIN_MASK = sizeof(stride_item_t) - 1u
 };
 
 // Copy to fifo from fixed address buffer (usually a rx register) with TU_FIFO_FIXED_ADDR_RW32 mode
-static void ff_push_access_mode(uint8_t *ff_buf, const volatile fixed_access_item_t *reg_rx, uint16_t len,
-                                uint8_t data_stride, uint8_t addr_stride) {
-  (void)data_stride;
-  (void)addr_stride;
-  // Reading full available 16/32-bit data from const app address
-  uint16_t n_items = len / sizeof(fixed_access_item_t);
+static void ff_push_stride(uint8_t *ff_buf, const volatile stride_item_t *src, uint16_t len) {
+  // Reading full available 16/32-bit src and write to fifo
+  uint16_t n_items = len >> (CFG_TUSB_FIFO_ACCESS_DATA_STRIDE >> 1); // len / data_stride;
   while (n_items--) {
-    const fixed_access_item_t tmp = *reg_rx;
-    fixed_unaligned_write(ff_buf, tmp);
-    ff_buf += sizeof(fixed_access_item_t);
+    const stride_item_t tmp = *src;
+    stride_unaligned_write(ff_buf, tmp);
+    ff_buf += sizeof(stride_item_t);
+
+  #if CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE
+    src = (const volatile uint8_t *)src + addr_stride;
+  #endif
   }
 
-  // Read the remaining 1 byte (16bit) or 1-3 bytes (32bit) from const app address
-  const uint8_t bytes_rem = len & FIXED_ACCESS_REMAINDER_MASK;
+  // Read the remaining 1 byte (16bit) or 1-3 bytes (32bit)
+  const uint8_t bytes_rem = len & STRIDE_REMAIN_MASK;
   if (bytes_rem) {
-    const fixed_access_item_t tmp = *reg_rx;
+    const stride_item_t tmp = *src;
     memcpy(ff_buf, &tmp, bytes_rem);
   }
 }
 
 // Copy from fifo to fixed address buffer (usually a tx register) with TU_FIFO_FIXED_ADDR_RW32 mode
-static void ff_pull_fixed_addr(volatile fixed_access_item_t *reg_tx, const uint8_t *ff_buf, uint16_t len) {
-  // Write full available 32 bit words to const address
-  uint16_t n_itmes = len / sizeof(fixed_access_item_t);
-  while (n_itmes--) {
-    *reg_tx = fixed_unaligned_read(ff_buf);
-    ff_buf += sizeof(fixed_access_item_t);
+static void ff_pull_stride(volatile stride_item_t *dest, const uint8_t *ff_buf, uint16_t len) {
+  // Write full available 16/32 bit words to dest
+  uint16_t n_items = len >> (CFG_TUSB_FIFO_ACCESS_DATA_STRIDE >> 1); // len / data_stride;
+  while (n_items--) {
+    *dest = stride_unaligned_read(ff_buf);
+    ff_buf += sizeof(stride_item_t);
+
+  #if CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE
+    dest = (const volatile uint8_t *)dest + addr_stride;
+  #endif
   }
 
   // Write the remaining 1 byte (16bit) or 1-3 bytes (32bit)
-  const uint8_t bytes_rem = len & FIXED_ACCESS_REMAINDER_MASK;
+  const uint8_t bytes_rem = len & STRIDE_REMAIN_MASK;
   if (bytes_rem) {
-    fixed_access_item_t tmp = 0u;
+    stride_item_t tmp = 0u;
     memcpy(&tmp, ff_buf, bytes_rem);
-    *reg_tx = tmp;
+    *dest = tmp;
   }
 }
 #endif
 
 // send n items to fifo WITHOUT updating write pointer
-static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint16_t wr_ptr, uint8_t data_stride,
-                      uint8_t addr_stride) {
+static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint16_t wr_ptr, bool stride_mode) {
+  (void)stride_mode;
   uint16_t lin_bytes  = f->depth - wr_ptr;
   uint16_t wrap_bytes = n - lin_bytes;
   uint8_t *ff_buf     = f->buffer + wr_ptr;
 
-#if CFG_TUSB_FIFO_MULTI_BYTES_ACCESS
-  if (data_stride > 1) {
-    const volatile fixed_access_item_t *reg_rx = (volatile const fixed_access_item_t *)app_buf;
+#if CFG_TUSB_FIFO_ACCESS_DATA_STRIDE
+  if (stride_mode) {
+    const volatile stride_item_t *stride_src = (const volatile stride_item_t *)app_buf;
     if (n <= lin_bytes) {
-      // Linear only
-      ff_push_access_mode(ff_buf, reg_rx, n, data_stride, addr_stride);
+      // Linear only case
+      ff_push_stride(ff_buf, stride_src, n);
     } else {
-      // Wrap around
+      // Wrap around case
 
       // Write full words to linear part of buffer
-      uint16_t lin_nitems_bytes = lin_bytes & ~FIXED_ACCESS_REMAINDER_MASK;
-      ff_push_access_mode(ff_buf, reg_rx, lin_nitems_bytes, data_stride, addr_stride);
+      uint16_t lin_nitems_bytes = lin_bytes & ~STRIDE_REMAIN_MASK;
+      ff_push_stride(ff_buf, stride_src, lin_nitems_bytes);
       ff_buf += lin_nitems_bytes;
 
       // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
-      const uint8_t rem = lin_bytes & FIXED_ACCESS_REMAINDER_MASK;
+      const uint8_t rem = lin_bytes & STRIDE_REMAIN_MASK;
       if (rem > 0) {
-        const uint8_t             remrem = (uint8_t)tu_min16(wrap_bytes, sizeof(fixed_access_item_t) - rem);
-        const fixed_access_item_t tmp    = *reg_rx;
+        const uint8_t       remrem = (uint8_t)tu_min16(wrap_bytes, sizeof(stride_item_t) - rem);
+        const stride_item_t tmp    = *stride_src;
         tu_scatter_write32(tmp, ff_buf, rem, f->buffer, remrem);
 
         wrap_bytes -= remrem;
@@ -204,7 +209,63 @@ static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint1
 
       // Write data wrapped part
       if (wrap_bytes > 0) {
-        ff_push_access_mode(ff_buf, reg_rx, wrap_bytes, data_stride, addr_stride);
+        ff_push_stride(ff_buf, stride_src, wrap_bytes);
+      }
+    }
+  } else
+#endif
+  {
+    // single byte access
+    if (n <= lin_bytes) {
+      // Linear only case
+      memcpy(ff_buf, app_buf, n);
+    } else {
+      // Wrap around case
+      memcpy(ff_buf, app_buf, lin_bytes);                                    // linear part
+      memcpy(f->buffer, ((const uint8_t *)app_buf) + lin_bytes, wrap_bytes); // wrapped part
+    }
+  }
+}
+
+// get n items from fifo WITHOUT updating read pointer
+static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd_ptr, bool stride_mode) {
+  (void)stride_mode;
+  uint16_t       lin_bytes  = f->depth - rd_ptr;
+  uint16_t       wrap_bytes = n - lin_bytes; // only used if wrapped
+  const uint8_t *ff_buf     = f->buffer + rd_ptr;
+
+#if CFG_TUSB_FIFO_ACCESS_DATA_STRIDE
+  if (stride_mode) {
+    volatile stride_item_t *stride_dst = (volatile stride_item_t *)app_buf;
+
+    if (n <= lin_bytes) {
+      // Linear only case
+      ff_pull_stride(stride_dst, ff_buf, n);
+    } else {
+      // Wrap around case
+
+      // Read full words from linear part
+      uint16_t lin_nitems_bytes = lin_bytes & ~STRIDE_REMAIN_MASK;
+      ff_pull_stride(stride_dst, ff_buf, lin_nitems_bytes);
+      ff_buf += lin_nitems_bytes;
+
+      // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
+      const uint8_t rem = lin_bytes & STRIDE_REMAIN_MASK;
+      if (rem > 0) {
+        const uint8_t       remrem  = (uint8_t)tu_min16(wrap_bytes, sizeof(stride_item_t) - rem);
+        const stride_item_t scatter = (stride_item_t)tu_scatter_read32(ff_buf, rem, f->buffer, remrem);
+
+        *stride_dst = scatter;
+
+        wrap_bytes -= remrem;
+        ff_buf = f->buffer + remrem; // wrap around
+      } else {
+        ff_buf = f->buffer;          // wrap around to beginning
+      }
+
+      // Read data wrapped part
+      if (wrap_bytes > 0) {
+        ff_pull_stride(stride_dst, ff_buf, wrap_bytes);
       }
     }
   } else
@@ -213,73 +274,12 @@ static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint1
     // single byte access
     if (n <= lin_bytes) {
       // Linear only
-      memcpy(ff_buf, app_buf, n);
+      memcpy(app_buf, ff_buf, n);
     } else {
       // Wrap around
-      memcpy(ff_buf, app_buf, lin_bytes);                                    // linear part
-      memcpy(f->buffer, ((const uint8_t *)app_buf) + lin_bytes, wrap_bytes); // wrapped part
+      memcpy(app_buf, ff_buf, lin_bytes);                            // linear part
+      memcpy((uint8_t *)app_buf + lin_bytes, f->buffer, wrap_bytes); // wrapped part
     }
-  }
-}
-
-// get n items from fifo WITHOUT updating read pointer
-static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd_ptr, tu_fifo_access_mode_t copy_mode) {
-  uint16_t       lin_bytes  = f->depth - rd_ptr;
-  uint16_t       wrap_bytes = n - lin_bytes; // only used if wrapped
-  const uint8_t *ff_buf     = f->buffer + rd_ptr;
-
-  switch (copy_mode) {
-    case TU_FIFO_INC_ADDR_RW8:
-      if (n <= lin_bytes) {
-        // Linear only
-        memcpy(app_buf, ff_buf, n);
-      } else {
-        // Wrap around
-        memcpy(app_buf, ff_buf, lin_bytes);                            // linear part
-        memcpy((uint8_t *)app_buf + lin_bytes, f->buffer, wrap_bytes); // wrapped part
-      }
-      break;
-
-#ifdef CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH
-    case TU_FIFO_FIXED_ADDR_RW32: {
-      volatile fixed_access_item_t *reg_tx = (volatile fixed_access_item_t *)app_buf;
-
-      if (n <= lin_bytes) {
-        // Linear only
-        ff_pull_fixed_addr(reg_tx, ff_buf, n);
-      } else {
-        // Wrap around case
-
-        // Read full words from linear part
-        uint16_t lin_nitems_bytes = lin_bytes & ~FIXED_ACCESS_REMAINDER_MASK;
-        ff_pull_fixed_addr(reg_tx, ff_buf, lin_nitems_bytes);
-        ff_buf += lin_nitems_bytes;
-
-        // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
-        const uint8_t rem = lin_bytes & FIXED_ACCESS_REMAINDER_MASK;
-        if (rem > 0) {
-          const uint8_t             remrem  = (uint8_t)tu_min16(wrap_bytes, sizeof(fixed_access_item_t) - rem);
-          const fixed_access_item_t scatter = (fixed_access_item_t)tu_scatter_read32(ff_buf, rem, f->buffer, remrem);
-
-          *reg_tx = scatter;
-
-          wrap_bytes -= remrem;
-          ff_buf = f->buffer + remrem; // wrap around
-        } else {
-          ff_buf = f->buffer;          // wrap around to beginning
-        }
-
-        // Read data wrapped part
-        if (wrap_bytes > 0) {
-          ff_pull_fixed_addr(reg_tx, ff_buf, wrap_bytes);
-        }
-      }
-      break;
-    }
-#endif
-
-    default:
-      break; // unknown mode
   }
 }
 
@@ -332,7 +332,7 @@ static uint16_t correct_read_index(tu_fifo_t *f, uint16_t wr_idx) {
 // Works on local copies of w and r
 // Must be protected by read mutex since in case of an overflow read pointer gets modified
 uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
-                                    tu_fifo_access_mode_t access_mode) {
+                                    bool stride_mode) {
   uint16_t count = tu_ff_overflow_count(f->depth, wr_idx, rd_idx);
   if (count == 0) {
     return 0; // nothing to peek
@@ -349,7 +349,7 @@ uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, ui
   }
 
   const uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
-  ff_pull_n(f, p_buffer, n, rd_ptr, access_mode);
+  ff_pull_n(f, p_buffer, n, rd_ptr, stride_mode);
 
   return n;
 }
@@ -357,17 +357,17 @@ uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, ui
 // Read n items without removing it from the FIFO, correct read pointer if overflowed
 uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n) {
   ff_lock(f->mutex_rd);
-  const uint16_t ret = tu_fifo_peek_n_access_mode(f, p_buffer, n, f->wr_idx, f->rd_idx, TU_FIFO_INC_ADDR_RW8);
+  const uint16_t ret = tu_fifo_peek_n_access_mode(f, p_buffer, n, f->wr_idx, f->rd_idx, false);
   ff_unlock(f->mutex_rd);
   return ret;
 }
 
 // Read n items from fifo with access mode
-uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode) {
+uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, bool stride_mode) {
   ff_lock(f->mutex_rd);
 
   // Peek the data: f->rd_idx might get modified in case of an overflow so we can not use a local variable
-  n         = tu_fifo_peek_n_access_mode(f, buffer, n, f->wr_idx, f->rd_idx, access_mode);
+  n         = tu_fifo_peek_n_access_mode(f, buffer, n, f->wr_idx, f->rd_idx, stride_mode);
   f->rd_idx = advance_index(f->depth, f->rd_idx, n);
 
   ff_unlock(f->mutex_rd);
@@ -375,8 +375,7 @@ uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, tu_f
 }
 
 // Write n items to fifo with access mode
-uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, uint8_t data_stride,
-                                     uint8_t addr_stride) {
+uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, bool stride_mode) {
   if (n == 0) {
     return 0;
   }
@@ -402,7 +401,7 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
     // function! Since it would end up in a race condition with read functions!
     if (n >= f->depth) {
       // Only copy last part
-      if (data_stride == TU_FIFO_INC_ADDR_RW8) {
+      if (!stride_mode) {
         buf8 += (n - f->depth);
       } else {
         // TODO should read from hw fifo to discard data, however reading an odd number could
@@ -438,7 +437,7 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
     const uint16_t wr_ptr = idx2ptr(f->depth, wr_idx);
     TU_LOG(TU_FIFO_DBG, "actual_n = %u, wr_ptr = %u", n, wr_ptr);
 
-    ff_push_n(f, buf8, n, wr_ptr, data_stride, addr_stride);
+    ff_push_n(f, buf8, n, wr_ptr, stride_mode);
     f->wr_idx = advance_index(f->depth, wr_idx, n);
 
     TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\r\n", f->wr_idx);
