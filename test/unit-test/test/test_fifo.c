@@ -32,7 +32,7 @@
 
 #define FIFO_SIZE 64
 uint8_t   tu_ff_buf[FIFO_SIZE * sizeof(uint8_t)];
-tu_fifo_t tu_ff = TU_FIFO_INIT(tu_ff_buf, FIFO_SIZE, uint8_t, false);
+tu_fifo_t tu_ff = TU_FIFO_INIT(tu_ff_buf, FIFO_SIZE, false);
 
 tu_fifo_t            *ff = &tu_ff;
 tu_fifo_buffer_info_t info;
@@ -66,34 +66,6 @@ void test_normal(void) {
     tu_fifo_read(ff, &c);
     TEST_ASSERT_EQUAL(i, c);
   }
-}
-
-void test_item_size(void) {
-  uint8_t   ff4_buf[FIFO_SIZE * sizeof(uint32_t)];
-  tu_fifo_t ff4 = TU_FIFO_INIT(ff4_buf, FIFO_SIZE, uint32_t, false);
-
-  uint32_t data4[2 * FIFO_SIZE];
-  for (uint32_t i = 0; i < sizeof(data4) / 4; i++) {
-    data4[i] = i;
-  }
-
-  // fill up fifo
-  tu_fifo_write_n(&ff4, data4, FIFO_SIZE);
-
-  uint32_t rd_buf4[FIFO_SIZE];
-  uint16_t rd_count;
-
-  // read 0 -> 4
-  rd_count = tu_fifo_read_n(&ff4, rd_buf4, 5);
-  TEST_ASSERT_EQUAL(5, rd_count);
-  TEST_ASSERT_EQUAL_UINT32_ARRAY(data4, rd_buf4, rd_count); // 0 -> 4
-
-  tu_fifo_write_n(&ff4, data4 + FIFO_SIZE, 5);
-
-  // read all 5 -> 68
-  rd_count = tu_fifo_read_n(&ff4, rd_buf4, FIFO_SIZE);
-  TEST_ASSERT_EQUAL(FIFO_SIZE, rd_count);
-  TEST_ASSERT_EQUAL_UINT32_ARRAY(data4 + 5, rd_buf4, rd_count); // 5 -> 68
 }
 
 void test_read_n(void) {
@@ -362,7 +334,7 @@ void test_rd_idx_wrap(void) {
   uint8_t   buf[10];
   uint8_t   dst[10];
 
-  tu_fifo_config(&ff10, buf, 10, 1, 1);
+  tu_fifo_config(&ff10, buf, 10, 1);
 
   uint16_t n;
 
@@ -431,7 +403,7 @@ void test_write_n_fixed_addr_rw32_nowrap(void) {
 
   for (uint8_t n = 1; n <= 8; n++) {
     tu_fifo_clear(ff);
-    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, TU_FIFO_FIXED_ADDR_RW32);
+    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, sizeof(uint32_t), 0);
     TEST_ASSERT_EQUAL(n, written);
     TEST_ASSERT_EQUAL(n, tu_fifo_count(ff));
 
@@ -453,7 +425,7 @@ void test_write_n_fixed_addr_rw32_wrapped(void) {
     ff->wr_idx = FIFO_SIZE - 3;
     ff->rd_idx = FIFO_SIZE - 3;
 
-    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, TU_FIFO_FIXED_ADDR_RW32);
+    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, sizeof(uint32_t), 0);
     TEST_ASSERT_EQUAL(n, written);
     TEST_ASSERT_EQUAL(n, tu_fifo_count(ff));
 

@@ -58,6 +58,9 @@ extern "C" {
   #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_WIDTH 0
 #endif
 
+#ifndef CFG_TUSB_FIFO_MULTI_BYTES_ACCESS
+  #define CFG_TUSB_FIFO_MULTI_BYTES_ACCESS 0
+#endif
 
 /* Write/Read "pointer" is in the range of: 0 .. depth - 1, and is used to get the fifo data.
  * Write/Read "index" is always in the range of: 0 .. 2*depth-1
@@ -118,13 +121,9 @@ extern "C" {
 typedef struct {
   uint8_t *buffer;              // buffer pointer
   uint16_t depth;               // max items
+  bool     overwritable;        // ovwerwritable when full
 
-  struct TU_ATTR_PACKED {
-    uint16_t item_size    : 15; // size of each item
-    bool     overwritable : 1;  // ovwerwritable when full
-  };
-
-  volatile uint16_t wr_idx;     // write index
+  volatile uint16_t wr_idx;     // write index TODO maybe can drop volatile
   volatile uint16_t rd_idx;     // read index
 
 #if OSAL_MUTEX_REQUIRED
@@ -141,17 +140,16 @@ typedef struct {
   } linear, wrapped;
 } tu_fifo_buffer_info_t;
 
-#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
-  {                                                         \
-    .buffer       = _buffer,                                \
-    .depth        = _depth,                                 \
-    .item_size    = sizeof(_type),                          \
-    .overwritable = _overwritable,                          \
+#define TU_FIFO_INIT(_buffer, _depth, _overwritable) \
+  {                                                  \
+    .buffer       = _buffer,                         \
+    .depth        = _depth,                          \
+    .overwritable = _overwritable,                   \
   }
 
-#define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                      \
-    uint8_t _name##_buf[_depth*sizeof(_type)];                                \
-    tu_fifo_t _name = TU_FIFO_INIT(_name##_buf, _depth, _type, _overwritable)
+#define TU_FIFO_DEF(_name, _depth, _overwritable)                    \
+  uint8_t   _name##_buf[_depth];                                     \
+  tu_fifo_t _name = TU_FIFO_INIT(_name##_buf, _depth, _overwritable)
 
 // Write modes intended to allow special read and write functions to be able to
 // copy data to and from USB hardware FIFOs as needed for e.g. STM32s and others
@@ -163,7 +161,7 @@ typedef enum {
 //--------------------------------------------------------------------+
 // Setup API
 //--------------------------------------------------------------------+
-bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_size, bool overwritable);
+bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, bool overwritable);
 void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable);
 void tu_fifo_clear(tu_fifo_t *f);
 
@@ -223,14 +221,11 @@ uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n);
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
-uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, tu_fifo_access_mode_t access_mode);
+uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, uint8_t data_stride,
+                                     uint8_t addr_stride);
 bool     tu_fifo_write(tu_fifo_t *f, const void *data);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
-  return tu_fifo_write_n_access_mode(f, data, n, TU_FIFO_INC_ADDR_RW8);
-}
-
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n_fixed_addr(tu_fifo_t *f, const void *data, uint16_t n) {
-  return tu_fifo_write_n_access_mode(f, data, n, TU_FIFO_FIXED_ADDR_RW32);
+  return tu_fifo_write_n_access_mode(f, data, n, 1, 1);
 }
 
 //--------------------------------------------------------------------+

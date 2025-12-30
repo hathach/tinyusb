@@ -316,7 +316,7 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
   #endif
 
   s->is_host = is_host;
-  tu_fifo_config(&s->ff, ff_buf, ff_bufsize, 1, overwritable);
+  tu_fifo_config(&s->ff, ff_buf, ff_bufsize, overwritable);
 
   #if OSAL_MUTEX_REQUIRED
   if (ff_buf != NULL && ff_bufsize > 0) {
