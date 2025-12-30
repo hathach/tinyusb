@@ -216,6 +216,7 @@
 #define OPT_MCU_AT32F402_405     2504  ///< ArteryTek AT32F402_405
 #define OPT_MCU_AT32F425         2505  ///< ArteryTek AT32F425
 #define OPT_MCU_AT32F413         2506  ///< ArteryTek AT32F413
+#define OPT_MCU_AT32F45X         2507  ///< ArteryTek AT32F45x
 
 // HPMicro
 #define OPT_MCU_HPM              2600  ///< HPMicro

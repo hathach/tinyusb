@@ -44,6 +44,9 @@ at_start_f423              AT-START-F423                  at32f423       https:/
 at_start_f425              AT-START-F425                  at32f425       https://www.arterychip.com/en/product/AT32F425.jsp
 at_start_f435              AT-START-F435                  at32f435_437   https://www.arterychip.com/en/product/AT32F435.jsp
 at_start_f437              AT-START-F437                  at32f435_437   https://www.arterychip.com/en/product/AT32F437.jsp
+at_start_f455              AT-START-F455                  at32f45x       https://www.arterychip.com/en/product/AT32F455.jsp
+at_start_f456              AT-START-F456                  at32f45x       https://www.arterychip.com/en/product/AT32F456.jsp
+at_start_f457              AT-START-F457                  at32f45x       https://www.arterychip.com/en/product/AT32F457.jsp
 =========================  =============================  =============  ====================================================  ======
 
 Bridgetek

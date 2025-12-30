@@ -16,6 +16,7 @@ hw/mcu/artery/at32f415                    https://github.com/ArteryTek/AT32F415_
 hw/mcu/artery/at32f423                    https://github.com/ArteryTek/AT32F423_Firmware_Library.git        2afa7f12852e57a9e8aab3a892c641e1a8635a18  at32f423
 hw/mcu/artery/at32f425                    https://github.com/ArteryTek/AT32F425_Firmware_Library.git        620233e1357d5c1b7e2bde6b9dd5196822b91817  at32f425
 hw/mcu/artery/at32f435_437                https://github.com/ArteryTek/AT32F435_437_Firmware_Library.git    25439cc6650a8ae0345934e8707a5f38c7ae41f8  at32f435_437
+hw/mcu/artery/at32f45x                    https://github.com/ArteryTek/AT32F45x_Firmware_Library.git        3d4a1b38be8ebac292e2350ca53bc4bfa4430233  at32f45x
 hw/mcu/bridgetek/ft9xx/ft90x-sdk          https://github.com/BRTSG-FOSS/ft90x-sdk.git                       91060164afe239fcb394122e8bf9eb24d3194eb1  brtmm90x
 hw/mcu/broadcom                           https://github.com/adafruit/broadcom-peripherals.git              08370086080759ed54ac1136d62d2ad24c6fa267  broadcom_32bit broadcom_64bit
 hw/mcu/gd/nuclei-sdk                      https://github.com/Nuclei-Software/nuclei-sdk.git                 7eb7bfa9ea4fbeacfafe1d5f77d5a0e6ed3922e7  gd32vf103
