@@ -128,14 +128,15 @@ enum {
   STRIDE_REMAIN_MASK = sizeof(stride_item_t) - 1u
 };
 
-// Copy to fifo from fixed address buffer (usually a rx register) with TU_FIFO_FIXED_ADDR_RW32 mode
-static void ff_push_stride(uint8_t *ff_buf, const volatile stride_item_t *src, uint16_t len) {
-  // Reading full available 16/32-bit src and write to fifo
+void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len) {
+  const volatile stride_item_t *src = (const volatile stride_item_t *)hwfifo;
+
+  // Reading full available 16/32-bit hwfifo and write to fifo
   uint16_t n_items = len >> (CFG_TUSB_FIFO_ACCESS_DATA_STRIDE >> 1); // len / data_stride;
   while (n_items--) {
     const stride_item_t tmp = *src;
-    stride_unaligned_write(ff_buf, tmp);
-    ff_buf += sizeof(stride_item_t);
+    stride_unaligned_write(dest, tmp);
+    dest += sizeof(stride_item_t);
 
   #if CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE
     src = (const volatile stride_item_t *)((uintptr_t)src + CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE);
@@ -146,17 +147,19 @@ static void ff_push_stride(uint8_t *ff_buf, const volatile stride_item_t *src, u
   const uint8_t bytes_rem = len & STRIDE_REMAIN_MASK;
   if (bytes_rem) {
     const stride_item_t tmp = *src;
-    memcpy(ff_buf, &tmp, bytes_rem);
+    memcpy(dest, &tmp, bytes_rem);
   }
 }
 
 // Copy from fifo to fixed address buffer (usually a tx register) with TU_FIFO_FIXED_ADDR_RW32 mode
-static void ff_pull_stride(volatile stride_item_t *dest, const uint8_t *ff_buf, uint16_t len) {
+void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len) {
+  volatile stride_item_t *dest = (volatile stride_item_t *)hwfifo;
+
   // Write full available 16/32 bit words to dest
   uint16_t n_items = len >> (CFG_TUSB_FIFO_ACCESS_DATA_STRIDE >> 1); // len / data_stride;
   while (n_items--) {
-    *dest = stride_unaligned_read(ff_buf);
-    ff_buf += sizeof(stride_item_t);
+    *dest = stride_unaligned_read(src);
+    src += sizeof(stride_item_t);
 
   #if CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE
     dest = (volatile stride_item_t *)((uintptr_t)dest + CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE);
@@ -167,7 +170,7 @@ static void ff_pull_stride(volatile stride_item_t *dest, const uint8_t *ff_buf, 
   const uint8_t bytes_rem = len & STRIDE_REMAIN_MASK;
   if (bytes_rem) {
     stride_item_t tmp = 0u;
-    memcpy(&tmp, ff_buf, bytes_rem);
+    memcpy(&tmp, src, bytes_rem);
     *dest = tmp;
   }
 }
@@ -182,23 +185,23 @@ static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint1
 
 #if CFG_TUD_EDPT_DEDICATED_HWFIFO
   if (stride_mode) {
-    const volatile stride_item_t *stride_src = (const volatile stride_item_t *)app_buf;
+    const volatile stride_item_t *hwfifo = (const volatile stride_item_t *)app_buf;
     if (n <= lin_bytes) {
       // Linear only case
-      ff_push_stride(ff_buf, stride_src, n);
+      tu_hwfifo_read(hwfifo, ff_buf, n);
     } else {
       // Wrap around case
 
       // Write full words to linear part of buffer
       uint16_t lin_nitems_bytes = lin_bytes & ~STRIDE_REMAIN_MASK;
-      ff_push_stride(ff_buf, stride_src, lin_nitems_bytes);
+      tu_hwfifo_read(hwfifo, ff_buf, lin_nitems_bytes);
       ff_buf += lin_nitems_bytes;
 
       // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
       const uint8_t rem = lin_bytes & STRIDE_REMAIN_MASK;
       if (rem > 0) {
         const uint8_t       remrem = (uint8_t)tu_min16(wrap_bytes, sizeof(stride_item_t) - rem);
-        const stride_item_t tmp    = *stride_src;
+        const stride_item_t tmp    = *hwfifo;
         tu_scatter_write32(tmp, ff_buf, rem, f->buffer, remrem);
 
         wrap_bytes -= remrem;
@@ -209,7 +212,7 @@ static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint1
 
       // Write data wrapped part
       if (wrap_bytes > 0) {
-        ff_push_stride(ff_buf, stride_src, wrap_bytes);
+        tu_hwfifo_read(hwfifo, ff_buf, wrap_bytes);
       }
     }
   } else
@@ -236,17 +239,17 @@ static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd
 
 #if CFG_TUD_EDPT_DEDICATED_HWFIFO
   if (stride_mode) {
-    volatile stride_item_t *stride_dst = (volatile stride_item_t *)app_buf;
+    volatile stride_item_t *hwfifo = (volatile stride_item_t *)app_buf;
 
     if (n <= lin_bytes) {
       // Linear only case
-      ff_pull_stride(stride_dst, ff_buf, n);
+      tu_hwfifo_write(hwfifo, ff_buf, n);
     } else {
       // Wrap around case
 
       // Read full words from linear part
       uint16_t lin_nitems_bytes = lin_bytes & ~STRIDE_REMAIN_MASK;
-      ff_pull_stride(stride_dst, ff_buf, lin_nitems_bytes);
+      tu_hwfifo_write(hwfifo, ff_buf, lin_nitems_bytes);
       ff_buf += lin_nitems_bytes;
 
       // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
@@ -255,7 +258,7 @@ static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd
         const uint8_t       remrem  = (uint8_t)tu_min16(wrap_bytes, sizeof(stride_item_t) - rem);
         const stride_item_t scatter = (stride_item_t)tu_scatter_read32(ff_buf, rem, f->buffer, remrem);
 
-        *stride_dst = scatter;
+        *hwfifo = scatter;
 
         wrap_bytes -= remrem;
         ff_buf = f->buffer + remrem; // wrap around
@@ -265,7 +268,7 @@ static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd
 
       // Read data wrapped part
       if (wrap_bytes > 0) {
-        ff_pull_stride(stride_dst, ff_buf, wrap_bytes);
+        tu_hwfifo_write(hwfifo, ff_buf, wrap_bytes);
       }
     }
   } else

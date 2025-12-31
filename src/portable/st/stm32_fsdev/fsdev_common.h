@@ -337,12 +337,6 @@ bool fsdev_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_
 // - Uses unaligned for RAM (since M0 cannot access unaligned address)
 bool fsdev_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes);
 
-// Write to PMA from FIFO
-bool fsdev_write_packet_memory_ff(tu_fifo_t *ff, uint16_t dst, uint16_t wNBytes);
-
-// Read from PMA to FIFO
-bool fsdev_read_packet_memory_ff(tu_fifo_t *ff, uint16_t src, uint16_t wNBytes);
-
 #ifdef __cplusplus
 }
 #endif

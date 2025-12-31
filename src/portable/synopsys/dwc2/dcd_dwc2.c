@@ -367,7 +367,7 @@ static uint16_t epin_write_tx_fifo(dwc2_regs_t *dwc2, uint8_t epnum) {
     // Push packet to Tx-FIFO
     if (xfer->ff) {
       volatile uint32_t* tx_fifo = dwc2->fifo[epnum];
-      tu_fifo_read_to_hwfifo(xfer->ff, (void *)(uintptr_t)tx_fifo, xact_bytes);
+      tu_hwfifo_write_from_fifo(xfer->ff, (void *)(uintptr_t)tx_fifo, xact_bytes);
       total_bytes_written += xact_bytes;
     } else {
       dfifo_write_packet(dwc2, epnum, xfer->buffer, xact_bytes);
@@ -889,7 +889,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       if (byte_count != 0) {
         // Read packet off RxFIFO
         if (xfer->ff != NULL) {
-          tu_fifo_write_from_hwfifo(xfer->ff, (const void *)(uintptr_t)rx_fifo, byte_count);
+          tu_hwfifo_read_to_fifo(xfer->ff, (const void *)(uintptr_t)rx_fifo, byte_count);
         } else {
           dfifo_read_packet(dwc2, xfer->buffer, byte_count);
           xfer->buffer += byte_count;

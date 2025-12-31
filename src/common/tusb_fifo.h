@@ -204,9 +204,6 @@ bool     tu_fifo_read(tu_fifo_t *f, void *buffer);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *buffer, uint16_t n) {
   return tu_fifo_read_n_access_mode(f, buffer, n, false);
 }
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_to_hwfifo(tu_fifo_t *f, void *buffer, uint16_t n) {
-  return tu_fifo_read_n_access_mode(f, buffer, n, true);
-}
 
 // discard first n items from fifo i.e advance read pointer by n with mutex
 // return number of discarded items
@@ -220,9 +217,28 @@ bool     tu_fifo_write(tu_fifo_t *f, const void *data);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
   return tu_fifo_write_n_access_mode(f, data, n, false);
 }
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_from_hwfifo(tu_fifo_t *f, const void *data, uint16_t n) {
-  return tu_fifo_write_n_access_mode(f, data, n, true);
+
+//--------------------------------------------------------------------+
+// Hardware FIFO API
+// Special hardware FIFO/Buffer to hold USB data, usually requires certain access method these can be configured with
+// CFG_TUSB_FIFO_ACCESS_DATA_STRIDE (data width) and CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE (address increment)
+// Note: these usually has opposiite direction (read/write) to/from our software FIFO  (tu_fifo_t)
+//--------------------------------------------------------------------+
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(tu_fifo_t *f, void *hwfifo, uint16_t n) {
+  return tu_fifo_read_n_access_mode(f, hwfifo, n, true);
 }
+
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_read_to_fifo(tu_fifo_t *f, const void *hwfifo, uint16_t n) {
+  return tu_fifo_write_n_access_mode(f, hwfifo, n, true);
+}
+
+// read from hwfifo to buffer
+void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len);
+
+// write to hwfifo from buffer
+void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len);
+#endif
 
 //--------------------------------------------------------------------+
 // Internal Helper Local
