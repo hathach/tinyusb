@@ -323,20 +323,6 @@ uint16_t pma_align_buffer_size(uint16_t size, uint8_t* blsize, uint8_t* num_bloc
 // Set RX buffer size
 void btable_set_rx_bufsize(uint32_t ep_id, uint8_t buf_id, uint16_t wCount);
 
-//--------------------------------------------------------------------+
-// PMA (Packet Memory Area) Access
-//--------------------------------------------------------------------+
-
-// Write to packet memory area (PMA) from user memory
-// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
-// - Uses unaligned for RAM (since M0 cannot access unaligned address)
-bool fsdev_write_packet_memory(uint16_t dst, const void *__restrict src, uint16_t nbytes);
-
-// Read from packet memory area (PMA) to user memory.
-// - Packet memory must be either strictly 16-bit or 32-bit depending on FSDEV_BUS_32BIT
-// - Uses unaligned for RAM (since M0 cannot access unaligned address)
-bool fsdev_read_packet_memory(void *__restrict dst, uint16_t src, uint16_t nbytes);
-
 #ifdef __cplusplus
 }
 #endif

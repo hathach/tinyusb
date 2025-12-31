@@ -41,6 +41,8 @@ extern "C" {
 // mutex is only needed for RTOS. For OS None, we don't get preempted
 #define CFG_FIFO_MUTEX      OSAL_MUTEX_REQUIRED
 
+#define CFG_TUSB_FIFO_HWFIFO_API (CFG_TUD_EDPT_DEDICATED_HWFIFO)
+
 #ifndef CFG_TUSB_FIFO_ACCESS_DATA_STRIDE
   #define CFG_TUSB_FIFO_ACCESS_DATA_STRIDE 0
 #endif
@@ -224,7 +226,6 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const
 // CFG_TUSB_FIFO_ACCESS_DATA_STRIDE (data width) and CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE (address increment)
 // Note: these usually has opposiite direction (read/write) to/from our software FIFO  (tu_fifo_t)
 //--------------------------------------------------------------------+
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(tu_fifo_t *f, void *hwfifo, uint16_t n) {
   return tu_fifo_read_n_access_mode(f, hwfifo, n, true);
 }
@@ -233,6 +234,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_read_to_fifo(tu_fifo_t *f
   return tu_fifo_write_n_access_mode(f, hwfifo, n, true);
 }
 
+#if CFG_TUSB_FIFO_HWFIFO_API
 // read from hwfifo to buffer
 void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len);
 

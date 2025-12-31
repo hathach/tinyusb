@@ -113,7 +113,7 @@ void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
 // Pull & Push
 // copy data to/from fifo without updating read/write pointers
 //--------------------------------------------------------------------+
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO
+#if CFG_TUSB_FIFO_HWFIFO_API
   #if CFG_TUSB_FIFO_ACCESS_DATA_STRIDE == 4
     #define stride_unaligned_write tu_unaligned_write32
     #define stride_unaligned_read  tu_unaligned_read32
@@ -183,7 +183,7 @@ static void ff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint1
   uint16_t wrap_bytes = n - lin_bytes;
   uint8_t *ff_buf     = f->buffer + wr_ptr;
 
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO
+#if CFG_TUSB_FIFO_HWFIFO_API
   if (stride_mode) {
     const volatile stride_item_t *hwfifo = (const volatile stride_item_t *)app_buf;
     if (n <= lin_bytes) {
@@ -237,7 +237,7 @@ static void ff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd
   uint16_t       wrap_bytes = n - lin_bytes; // only used if wrapped
   const uint8_t *ff_buf     = f->buffer + rd_ptr;
 
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO
+#if CFG_TUSB_FIFO_HWFIFO_API
   if (stride_mode) {
     volatile stride_item_t *hwfifo = (volatile stride_item_t *)app_buf;
 

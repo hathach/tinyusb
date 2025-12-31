@@ -285,7 +285,7 @@ static void handle_ctr_setup(uint32_t ep_id) {
   uint16_t rx_addr = btable_get_addr(ep_id, BTABLE_BUF_RX);
   uint8_t setup_packet[8] TU_ATTR_ALIGNED(4);
 
-  fsdev_read_packet_memory(setup_packet, rx_addr, rx_count);
+  tu_hwfifo_read(PMA_BUF_AT(rx_addr), setup_packet, rx_count);
 
   // Clear CTR RX if another setup packet arrived before this, it will be discarded
   ep_write_clear_ctr(ep_id, TUSB_DIR_OUT);
