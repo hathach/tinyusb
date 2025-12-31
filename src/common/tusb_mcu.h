@@ -245,13 +245,12 @@
   #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
 
 #elif TU_CHECK_MCU(OPT_MCU_STM32H7)
-  #include "stm32h7xx.h"
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_STM32
 
   #define TUP_DCD_ENDPOINT_MAX 9
 
-  #if __CORTEX_M == 7
+  #ifndef CORE_CM4
     // Enable dcache if DMA is enabled
     #define CFG_TUD_MEM_DCACHE_ENABLE_DEFAULT     CFG_TUD_DWC2_DMA_ENABLE
     #define CFG_TUH_MEM_DCACHE_ENABLE_DEFAULT     CFG_TUH_DWC2_DMA_ENABLE
