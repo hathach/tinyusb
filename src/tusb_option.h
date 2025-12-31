@@ -307,13 +307,14 @@
 #if defined(TUP_USBIP_DWC2)
   #if CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUD_DWC2_DMA_ENABLE
     #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
-    #define CFG_TUSB_FIFO_ACCESS_DATA_STRIDE 4 // 32bit access
-    #define CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE 0 // fixed hwfifo address
   #endif
 
   #if CFG_TUH_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE
     #define CFG_TUH_EDPT_DEDICATED_HWFIFO 1
   #endif
+
+  #define CFG_TUSB_FIFO_ACCESS_DATA_STRIDE 4 // 32bit access
+  #define CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE 0 // fixed hwfifo address
 #endif
 
 //------------- ChipIdea -------------//
@@ -354,6 +355,17 @@
 //------------ FSDEV --------------//
 #if defined(TUP_USBIP_FSDEV)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+
+  #if FSDEV_PMA_SIZE == 512
+    #define CFG_TUSB_FIFO_ACCESS_DATA_STRIDE 2 // 16-bit data
+    #define CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE 4 // 32-bit address increase
+  #elif FSDEV_PMA_SIZE == 1024
+    #define CFG_TUSB_FIFO_ACCESS_DATA_STRIDE 2 // 16-bit data
+    #define CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE 2 // 16-bit address increase
+  #elif FSDEV_PMA_SIZE == 2048
+    #define CFG_TUSB_FIFO_ACCESS_DATA_STRIDE 4 // 32-bit data
+    #define CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE 4 // 32-bit address increase
+  #endif
 #endif
 
 //------------ MUSB --------------//

@@ -128,6 +128,7 @@
 :defines:
   :test:
     - _UNITY_TEST_
+    - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
     - CFG_TUSB_FIFO_ACCESS_DATA_STRIDE=4
     - CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE=0
   :release: []

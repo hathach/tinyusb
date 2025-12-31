@@ -319,11 +319,13 @@ static void handle_ctr_rx(uint32_t ep_id) {
   } else {
     buf_id = BTABLE_BUF_RX;
   }
-  uint16_t const rx_count = btable_get_count(ep_id, buf_id);
+  const uint16_t rx_count = btable_get_count(ep_id, buf_id);
   uint16_t pma_addr = (uint16_t) btable_get_addr(ep_id, buf_id);
 
   if (xfer->ff) {
-    fsdev_read_packet_memory_ff(xfer->ff, pma_addr, rx_count);
+    // fsdev_read_packet_memory_ff(xfer->ff, pma_addr, rx_count);
+    fsdev_pma_buf_t *pma_buf = PMA_BUF_AT(pma_addr);
+    tu_fifo_write_from_hwfifo(xfer->ff, (void *)pma_buf, rx_count);
   } else {
     fsdev_read_packet_memory(xfer->buffer + xfer->queued_len, pma_addr, rx_count);
   }
@@ -720,7 +722,9 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   uint16_t addr_ptr = (uint16_t) btable_get_addr(ep_ix, buf_id);
 
   if (xfer->ff) {
-    fsdev_write_packet_memory_ff(xfer->ff, addr_ptr, len);
+    // fsdev_write_packet_memory_ff(xfer->ff, addr_ptr, len);
+    fsdev_pma_buf_t *pma_buf = PMA_BUF_AT(addr_ptr);
+    tu_fifo_read_to_hwfifo(xfer->ff, (void *)(uintptr_t)pma_buf, len);
   } else {
     fsdev_write_packet_memory(addr_ptr, &(xfer->buffer[xfer->queued_len]), len);
   }
@@ -740,7 +744,7 @@ static bool edpt_xfer(uint8_t rhport, uint8_t ep_num, tusb_dir_t dir) {
   (void) rhport;
 
   xfer_ctl_t *xfer = xfer_ctl_ptr(ep_num, dir);
-  uint8_t const ep_idx = xfer->ep_idx;
+  const uint8_t ep_idx = xfer->ep_idx;
 
   if (dir == TUSB_DIR_IN) {
     dcd_transmit_packet(xfer, ep_idx);

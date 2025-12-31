@@ -204,6 +204,9 @@ bool     tu_fifo_read(tu_fifo_t *f, void *buffer);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *buffer, uint16_t n) {
   return tu_fifo_read_n_access_mode(f, buffer, n, false);
 }
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_to_hwfifo(tu_fifo_t *f, void *buffer, uint16_t n) {
+  return tu_fifo_read_n_access_mode(f, buffer, n, true);
+}
 
 // discard first n items from fifo i.e advance read pointer by n with mutex
 // return number of discarded items
@@ -216,6 +219,9 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
 bool     tu_fifo_write(tu_fifo_t *f, const void *data);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
   return tu_fifo_write_n_access_mode(f, data, n, false);
+}
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_from_hwfifo(tu_fifo_t *f, const void *data, uint16_t n) {
+  return tu_fifo_write_n_access_mode(f, data, n, true);
 }
 
 //--------------------------------------------------------------------+
