@@ -139,14 +139,22 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len) {
     len -= sizeof(hwfifo_item_t);
 
   #if CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE
-    src = (const volatile hwfifo_item_t *)((uintptr_t)src + CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE);
+    src = (const volatile hwfifo_item_t *)((uintptr_t)src + CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE);
   #endif
   }
 
-  // Read the remaining 1 byte (16bit) or 1-3 bytes (32bit)
+  // Read odd bytes i.e 1 byte for 16 bit or 1-3 bytes for 32 bit
   if (len > 0) {
+  #ifdef CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE_ODD_BYTE_SUPPORT
+    // odd byte access, read byte per byte e.g for rusb2. No address stride needed
+    const volatile uint8_t *src8 = (const volatile uint8_t *)src;
+    for (uint16_t i = 0; i < len; ++i) {
+      dest[i] = *src8;
+    }
+  #else
     const hwfifo_item_t tmp = *src;
     memcpy(dest, &tmp, len);
+  #endif
   }
 }
 
@@ -161,13 +169,13 @@ void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len) {
     len -= sizeof(hwfifo_item_t);
 
   #if CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE
-    dest = (volatile hwfifo_item_t *)((uintptr_t)dest + CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE);
+    dest = (volatile hwfifo_item_t *)((uintptr_t)dest + CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE);
   #endif
   }
 
-  // Write the remaining 1 byte (16bit) or 1-3 bytes (32bit)
+  // Write odd bytes i.e 1 byte for 16 bit or 1-3 bytes for 32 bit
   if (len > 0) {
-  #ifdef CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE_ODD_BYTE
+  #ifdef CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE_ODD_BYTE_SUPPORT
     // odd byte access, write byte per byte e.g for rusb2. No address stride needed
     volatile uint8_t *dest8 = (volatile uint8_t *)dest;
     for (uint16_t i = 0; i < len; ++i) {

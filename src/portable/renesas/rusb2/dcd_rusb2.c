@@ -163,7 +163,7 @@ static inline void pipe_wait_for_ready(rusb2_reg_t * rusb, unsigned num) {
 //--------------------------------------------------------------------+
 // Pipe FIFO
 //--------------------------------------------------------------------+
-
+#if 0
 // Write data buffer --> hw fifo
 static void pipe_write_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo, unsigned len)
 {
@@ -196,18 +196,6 @@ static void pipe_write_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo
   }
 }
 
-// Read data buffer <-- hw fifo
-static void pipe_read_packet(rusb2_reg_t * rusb, void *buf, volatile void *fifo, unsigned len)
-{
-  (void) rusb;
-
-  // TODO 16/32-bit access for better performance
-
-  uint8_t *p = (uint8_t*)buf;
-  volatile uint8_t *reg = (volatile uint8_t*)fifo;  /* byte access is always at base register address */
-  while (len--) *p++ = *reg;
-}
-
 // Write data sw fifo --> hw fifo
 static void pipe_write_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
   tu_fifo_buffer_info_t info;
@@ -235,8 +223,21 @@ static void pipe_write_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void
   tu_fifo_advance_read_pointer(f, cnt_written);
 }
 
+// Read data buffer <-- hw fifo
+static void pipe_read_packet(rusb2_reg_t *rusb, void *buf, volatile void *fifo, unsigned len) {
+  (void)rusb;
+
+  // TODO 16/32-bit access for better performance
+
+  uint8_t          *p   = (uint8_t *)buf;
+  volatile uint8_t *reg = (volatile uint8_t *)fifo; /* byte access is always at base register address */
+  while (len--) {
+    *p++ = *reg;
+  }
+}
+
 // Read data sw fifo <-- hw fifo
-static void pipe_read_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
+static void pipe_read_packet_ff(rusb2_reg_t *rusb, tu_fifo_t *f, volatile void *fifo, uint16_t total_len) {
   tu_fifo_buffer_info_t info;
   tu_fifo_get_write_info(f, &info);
 
@@ -252,15 +253,15 @@ static void pipe_read_packet_ff(rusb2_reg_t * rusb, tu_fifo_t *f, volatile void 
 
   tu_fifo_advance_write_pointer(f, count);
 }
+  #endif
 
 //--------------------------------------------------------------------+
 // Pipe Transfer
 //--------------------------------------------------------------------+
 
-static bool pipe0_xfer_in(rusb2_reg_t* rusb)
-{
-  pipe_state_t *pipe = &_dcd.pipe[0];
-  const unsigned rem = pipe->remaining;
+static bool pipe0_xfer_in(rusb2_reg_t *rusb) {
+  pipe_state_t  *pipe = &_dcd.pipe[0];
+  const unsigned rem  = pipe->remaining;
 
   if (!rem) {
     pipe->buf = NULL;
@@ -273,10 +274,13 @@ static bool pipe0_xfer_in(rusb2_reg_t* rusb)
 
   if (len) {
     if (pipe->ff) {
-      pipe_write_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
+      // pipe_write_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
+      tu_hwfifo_write_from_fifo(&rusb->CFIFO, (tu_fifo_t *)buf, len);
     } else {
-      pipe_write_packet(rusb, buf, (volatile void*)&rusb->CFIFO, len);
-      pipe->buf = (uint8_t*)buf + len;
+      // pipe_write_packet(rusb, buf, (volatile void*)&rusb->CFIFO, len);
+      // TODO check highspeed for 32-bit access
+      tu_hwfifo_write(&rusb->CFIFO, buf, len);
+      pipe->buf = (uint8_t *)buf + len;
     }
   }
 
@@ -288,10 +292,9 @@ static bool pipe0_xfer_in(rusb2_reg_t* rusb)
   return false;
 }
 
-static bool pipe0_xfer_out(rusb2_reg_t* rusb)
-{
-  pipe_state_t *pipe = &_dcd.pipe[0];
-  const unsigned rem = pipe->remaining;
+static bool pipe0_xfer_out(rusb2_reg_t *rusb) {
+  pipe_state_t  *pipe = &_dcd.pipe[0];
+  const unsigned rem  = pipe->remaining;
 
   const uint16_t mps = edpt0_max_packet_size(rusb);
   const uint16_t vld = rusb->CFIFOCTR_b.DTLN;
@@ -300,10 +303,12 @@ static bool pipe0_xfer_out(rusb2_reg_t* rusb)
 
   if (len) {
     if (pipe->ff) {
-      pipe_read_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->CFIFO, len);
+      // pipe_read_packet_ff(rusb, (tu_fifo_t *)buf, (volatile void *)&rusb->CFIFO, len);
+      tu_hwfifo_read_to_fifo(&rusb->CFIFO, (tu_fifo_t *)buf, len);
     } else {
-      pipe_read_packet(rusb, buf, (volatile void*)&rusb->CFIFO, len);
-      pipe->buf = (uint8_t*)buf + len;
+      // pipe_read_packet(rusb, buf, (volatile void *)&rusb->CFIFO, len);
+      tu_hwfifo_read(&rusb->CFIFO, buf, len);
+      pipe->buf = (uint8_t *)buf + len;
     }
   }
 
@@ -338,9 +343,12 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
 
   if (len) {
     if (pipe->ff) {
-      pipe_write_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
+      // pipe_write_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
+      tu_hwfifo_write_from_fifo(&rusb->D0FIFO, (tu_fifo_t *)buf, len);
     } else {
-      pipe_write_packet(rusb, buf, (volatile void*)&rusb->D0FIFO, len);
+      // pipe_write_packet(rusb, buf, (volatile void*)&rusb->D0FIFO, len);
+      // TODO check highspeed for 32-bit access
+      tu_hwfifo_write(&rusb->D0FIFO, buf, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -362,7 +370,7 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
   pipe_state_t  *pipe = &_dcd.pipe[num];
   const uint16_t rem  = pipe->remaining;
 
-  rusb->D0FIFOSEL = num | RUSB2_FIFOSEL_MBW_8BIT;
+  rusb->D0FIFOSEL    = num | RUSB2_FIFOSEL_MBW_16BIT; // RUSB2_FIFOSEL_MBW_8BIT;
   const uint16_t mps = edpt_max_packet_size(rusb, num);
   pipe_wait_for_ready(rusb, num);
 
@@ -372,9 +380,11 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
 
   if (len) {
     if (pipe->ff) {
-      pipe_read_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
+      // pipe_read_packet_ff(rusb, (tu_fifo_t*)buf, (volatile void*)&rusb->D0FIFO, len);
+      tu_hwfifo_read_to_fifo(&rusb->D0FIFO, (tu_fifo_t *)buf, len);
     } else {
-      pipe_read_packet(rusb, buf, (volatile void*)&rusb->D0FIFO, len);
+      // pipe_read_packet(rusb, buf, (volatile void*)&rusb->D0FIFO, len);
+      tu_hwfifo_read(&rusb->D0FIFO, buf, len);
       pipe->buf = (uint8_t*)buf + len;
     }
   }
@@ -431,14 +441,14 @@ static void process_status_completion(uint8_t rhport)
 static bool process_pipe0_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_addr, void* buffer, uint16_t total_bytes)
 {
   /* configure fifo direction and access unit settings */
-  if ( ep_addr ) {
+  if (ep_addr != 0) {
     /* IN, 2 bytes */
     rusb->CFIFOSEL = RUSB2_CFIFOSEL_ISEL_WRITE | RUSB2_FIFOSEL_MBW_16BIT |
                      (TU_BYTE_ORDER == TU_BIG_ENDIAN ? RUSB2_FIFOSEL_BIGEND : 0);
     while ( !(rusb->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE) ) {}
   } else {
-    /* OUT, a byte */
-    rusb->CFIFOSEL = RUSB2_FIFOSEL_MBW_8BIT;
+    /* OUT, 2 bytes */
+    rusb->CFIFOSEL = RUSB2_FIFOSEL_MBW_16BIT; // RUSB2_FIFOSEL_MBW_8BIT;
     while ( rusb->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE ) {}
   }
 

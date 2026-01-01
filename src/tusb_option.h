@@ -375,10 +375,10 @@
 
 //------------ RUSB2 --------------//
 #if defined(TUP_USBIP_RUSB2)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
-  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE          2 // 16-bit data
-  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE_ODD_BYTE   // support odd byte access
-  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE          0
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO                     1
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE                  2 // 16-bit data
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE_ODD_BYTE_SUPPORT   // support odd byte access
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE                  0
 #endif
 
 //--------------------------------------------------------------------
