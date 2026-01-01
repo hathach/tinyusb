@@ -43,12 +43,12 @@ extern "C" {
 
 #define CFG_TUSB_FIFO_HWFIFO_API (CFG_TUD_EDPT_DEDICATED_HWFIFO)
 
-#ifndef CFG_TUSB_FIFO_ACCESS_DATA_STRIDE
-  #define CFG_TUSB_FIFO_ACCESS_DATA_STRIDE 0
+#ifndef CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 0
 #endif
 
-#ifndef CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE
-  #define CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE 0
+#ifndef CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 0
 #endif
 
 // Due to the use of unmasked pointers, this FIFO does not suffer from losing
@@ -153,7 +153,7 @@ typedef struct {
 // Moving data from tusb_fifo <-> USB hardware FIFOs e.g. STM32s need to use a special stride mode which reads/writes
 // data in 2/4 byte chunks from/to a fixed address (USB FIFO register) instead of incrementing the address. For this use
 // read/write access_mode with stride_mode = true. The STRIPE DATA and ADDR stride must be configured with
-// CFG_TUSB_FIFO_ACCESS_DATA_STRIDE and CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE
+// CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE and CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE
 
 //--------------------------------------------------------------------+
 // Setup API
@@ -223,7 +223,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const
 //--------------------------------------------------------------------+
 // Hardware FIFO API
 // Special hardware FIFO/Buffer to hold USB data, usually requires certain access method these can be configured with
-// CFG_TUSB_FIFO_ACCESS_DATA_STRIDE (data width) and CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE (address increment)
+// CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE (data width) and CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE (address increment)
 // Note: these usually has opposiite direction (read/write) to/from our software FIFO  (tu_fifo_t)
 //--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(tu_fifo_t *f, void *hwfifo, uint16_t n) {

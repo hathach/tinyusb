@@ -129,8 +129,8 @@
   :test:
     - _UNITY_TEST_
     - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
-    - CFG_TUSB_FIFO_ACCESS_DATA_STRIDE=4
-    - CFG_TUSB_FIFO_ACCESS_ADDR_STRIDE=0
+    - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=4
+    - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.

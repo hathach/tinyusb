@@ -899,7 +899,6 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
 {
   (void) is_isr;
   // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
-  TU_ASSERT(ff->item_size == 1);
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
 
   dcd_int_disable(rhport);
@@ -912,7 +911,9 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   volatile uint16_t *ctr = ep_addr_to_pipectr(rhport, ep_addr);
-  if (!ctr) return;
+  if (!ctr) {
+    return;
+  }
   dcd_int_disable(rhport);
   const uint32_t pid = *ctr & 0x3;
   *ctr = pid | RUSB2_PIPE_CTR_PID_STALL;
@@ -924,7 +925,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   rusb2_reg_t * rusb = RUSB2_REG(rhport);
   volatile uint16_t *ctr = ep_addr_to_pipectr(rhport, ep_addr);
-  if (!ctr) return;
+  if (!ctr) {
+    return;
+  }
 
   dcd_int_disable(rhport);
   *ctr = RUSB2_PIPE_CTR_SQCLR_Msk;
