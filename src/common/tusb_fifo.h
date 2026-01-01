@@ -226,12 +226,14 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const
 // CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE (data width) and CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE (address increment)
 // Note: these usually has opposiite direction (read/write) to/from our software FIFO  (tu_fifo_t)
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(tu_fifo_t *f, void *hwfifo, uint16_t n) {
-  return tu_fifo_read_n_access_mode(f, hwfifo, n, true);
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(volatile void *hwfifo, tu_fifo_t *f,
+                                                                       uint16_t n) {
+  return tu_fifo_read_n_access_mode(f, (void *)(uintptr_t)hwfifo, n, true);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_read_to_fifo(tu_fifo_t *f, const void *hwfifo, uint16_t n) {
-  return tu_fifo_write_n_access_mode(f, hwfifo, n, true);
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_read_to_fifo(const volatile void *hwfifo, tu_fifo_t *f,
+                                                                    uint16_t n) {
+  return tu_fifo_write_n_access_mode(f, (const void *)(uintptr_t)hwfifo, n, true);
 }
 
 #if CFG_TUSB_FIFO_HWFIFO_API

@@ -167,9 +167,17 @@ void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len) {
 
   // Write the remaining 1 byte (16bit) or 1-3 bytes (32bit)
   if (len > 0) {
+  #ifdef CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE_ODD_BYTE
+    // odd byte access, write byte per byte e.g for rusb2. No address stride needed
+    volatile uint8_t *dest8 = (volatile uint8_t *)dest;
+    for (uint16_t i = 0; i < len; ++i) {
+      *dest8 = src[i];
+    }
+  #else
     hwfifo_item_t tmp = 0u;
     memcpy(&tmp, src, len);
     *dest = tmp;
+  #endif
   }
 }
 #endif

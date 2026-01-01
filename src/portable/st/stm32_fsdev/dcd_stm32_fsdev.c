@@ -324,7 +324,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
   fsdev_pma_buf_t *pma_buf  = PMA_BUF_AT(pma_addr);
 
   if (xfer->ff) {
-    tu_hwfifo_read_to_fifo(xfer->ff, (void *)pma_buf, rx_count);
+    tu_hwfifo_read_to_fifo(pma_buf, xfer->ff, rx_count);
   } else {
     tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, rx_count);
   }
@@ -722,7 +722,7 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   fsdev_pma_buf_t *pma_buf  = PMA_BUF_AT(addr_ptr);
 
   if (xfer->ff) {
-    tu_hwfifo_write_from_fifo(xfer->ff, (void *)(uintptr_t)pma_buf, len);
+    tu_hwfifo_write_from_fifo(pma_buf, xfer->ff, len);
   } else {
     tu_hwfifo_write(pma_buf, &(xfer->buffer[xfer->queued_len]), len);
   }
