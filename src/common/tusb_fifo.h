@@ -129,7 +129,6 @@ typedef struct {
   osal_mutex_t mutex_wr;
   osal_mutex_t mutex_rd;
 #endif
-
 } tu_fifo_t;
 
 typedef struct {
@@ -237,21 +236,12 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_read_to_fifo(const volati
 }
 
 #if CFG_TUSB_FIFO_HWFIFO_API
-// read from hwfifo to buffer with access mode
-void tu_hwfifo_read_access_mode(const volatile void *hwfifo, uint8_t *dest, uint16_t len, uint8_t data_stride);
-
-// read from hwfifo to buffer with default data stride
-TU_ATTR_ALWAYS_INLINE static inline void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len) {
-  tu_hwfifo_read_access_mode(hwfifo, dest, len, CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE);
-}
+// read from hwfifo to buffer
+void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, uint8_t data_stride);
 
 // write to hwfifo from buffer with access mode
-void tu_hwfifo_write_access_mode(volatile void *hwfifo, const uint8_t *src, uint16_t len, uint8_t data_stride);
+void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, uint8_t data_stride);
 
-// write to hwfifo from buffer with default data stride
-TU_ATTR_ALWAYS_INLINE static inline void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len) {
-  tu_hwfifo_write_access_mode(hwfifo, src, len, CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE);
-}
 #endif
 
 //--------------------------------------------------------------------+
