@@ -403,7 +403,7 @@ void test_write_n_fixed_addr_rw32_nowrap(void) {
 
   for (uint8_t n = 1; n <= 8; n++) {
     tu_fifo_clear(ff);
-    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, true);
+    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, 4);
     TEST_ASSERT_EQUAL(n, written);
     TEST_ASSERT_EQUAL(n, tu_fifo_count(ff));
 
@@ -425,7 +425,7 @@ void test_write_n_fixed_addr_rw32_wrapped(void) {
     ff->wr_idx = FIFO_SIZE - 3;
     ff->rd_idx = FIFO_SIZE - 3;
 
-    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, true);
+    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, 4);
     TEST_ASSERT_EQUAL(n, written);
     TEST_ASSERT_EQUAL(n, tu_fifo_count(ff));
 
@@ -445,7 +445,7 @@ void test_read_n_fixed_addr_rw32_nowrap(void) {
     tu_fifo_write_n(ff, pattern, 8);
 
     uint32_t reg      = 0;
-    uint16_t read_cnt = tu_fifo_read_n_access_mode(ff, &reg, n, true);
+    uint16_t read_cnt = tu_fifo_read_n_access_mode(ff, &reg, n, 4);
     TEST_ASSERT_EQUAL(n, read_cnt);
     TEST_ASSERT_EQUAL(8 - n, tu_fifo_count(ff));
 
@@ -469,11 +469,91 @@ void test_read_n_fixed_addr_rw32_wrapped(void) {
     }
 
     uint32_t reg      = 0;
-    uint16_t read_cnt = tu_fifo_read_n_access_mode(ff, &reg, n, true);
+    uint16_t read_cnt = tu_fifo_read_n_access_mode(ff, &reg, n, 4);
     TEST_ASSERT_EQUAL(n, read_cnt);
     TEST_ASSERT_EQUAL(0, tu_fifo_count(ff));
 
     TEST_ASSERT_EQUAL_HEX32(reg_expected[n - 1], reg);
+  }
+}
+
+void test_write_n_fixed_addr_rw16_nowrap(void) {
+  tu_fifo_clear(ff);
+
+  volatile uint16_t reg         = 0x1122;
+  uint8_t           expected[6] = {0x22, 0x11, 0x22, 0x11, 0x22, 0x11};
+
+  for (uint8_t n = 1; n <= 6; n++) {
+    tu_fifo_clear(ff);
+    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, 2);
+    TEST_ASSERT_EQUAL(n, written);
+    TEST_ASSERT_EQUAL(n, tu_fifo_count(ff));
+
+    uint8_t out[6] = {0};
+    tu_fifo_read_n(ff, out, n);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, out, n);
+  }
+}
+
+void test_write_n_fixed_addr_rw16_wrapped(void) {
+  tu_fifo_clear(ff);
+
+  volatile uint16_t reg         = 0xA1B2;
+  uint8_t           expected[6] = {0xB2, 0xA1, 0xB2, 0xA1, 0xB2, 0xA1};
+
+  for (uint8_t n = 1; n <= 6; n++) {
+    tu_fifo_clear(ff);
+    // Position the fifo near the end so writes wrap
+    ff->wr_idx = FIFO_SIZE - 3;
+    ff->rd_idx = FIFO_SIZE - 3;
+
+    uint16_t written = tu_fifo_write_n_access_mode(ff, (const void *)&reg, n, 2);
+    TEST_ASSERT_EQUAL(n, written);
+    TEST_ASSERT_EQUAL(n, tu_fifo_count(ff));
+
+    uint8_t out[6] = {0};
+    tu_fifo_read_n(ff, out, n);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, out, n);
+  }
+}
+
+void test_read_n_fixed_addr_rw16_nowrap(void) {
+  uint8_t pattern[6] = {0x10, 0x21, 0x32, 0x43, 0x54, 0x65};
+  uint16_t reg_expected[6] = {0x0010, 0x2110, 0x0032, 0x4332, 0x0054, 0x6554};
+
+  for (uint8_t n = 1; n <= 6; n++) {
+    tu_fifo_clear(ff);
+    tu_fifo_write_n(ff, pattern, 6);
+
+    uint16_t reg     = 0;
+    uint16_t read_cnt = tu_fifo_read_n_access_mode(ff, &reg, n, 2);
+    TEST_ASSERT_EQUAL(n, read_cnt);
+    TEST_ASSERT_EQUAL(6 - n, tu_fifo_count(ff));
+
+    TEST_ASSERT_EQUAL_HEX16(reg_expected[n - 1], reg);
+  }
+}
+
+void test_read_n_fixed_addr_rw16_wrapped(void) {
+  uint8_t pattern[6] = {0xF0, 0xE1, 0xD2, 0xC3, 0xB4, 0xA5};
+  uint16_t reg_expected[6] = {0x00F0, 0xE1F0, 0x00D2, 0xC3D2, 0x00B4, 0xA5B4};
+
+  for (uint8_t n = 1; n <= 6; n++) {
+    tu_fifo_clear(ff);
+    ff->rd_idx = FIFO_SIZE - 1;
+    ff->wr_idx = (uint16_t)(ff->rd_idx + n);
+
+    for (uint8_t i = 0; i < n; i++) {
+      uint8_t idx = (uint8_t)((ff->rd_idx + i) % FIFO_SIZE);
+      ff->buffer[idx] = pattern[i];
+    }
+
+    uint16_t reg     = 0;
+    uint16_t read_cnt = tu_fifo_read_n_access_mode(ff, &reg, n, 2);
+    TEST_ASSERT_EQUAL(n, read_cnt);
+    TEST_ASSERT_EQUAL(0, tu_fifo_count(ff));
+
+    TEST_ASSERT_EQUAL_HEX16(reg_expected[n - 1], reg);
   }
 }
 
