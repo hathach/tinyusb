@@ -365,12 +365,13 @@ static uint16_t epin_write_tx_fifo(dwc2_regs_t *dwc2, uint8_t epnum) {
     }
 
     // Push packet to Tx-FIFO
+    const tu_hwfifo_access_t access_mode = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
+    volatile uint32_t       *tx_fifo     = dwc2->fifo[epnum];
     if (xfer->ff) {
-      volatile uint32_t* tx_fifo = dwc2->fifo[epnum];
-      tu_hwfifo_write_from_fifo(tx_fifo, xfer->ff, xact_bytes);
+      tu_hwfifo_write_from_fifo(tx_fifo, xfer->ff, xact_bytes, &access_mode);
       total_bytes_written += xact_bytes;
     } else {
-      dfifo_write_packet(dwc2, epnum, xfer->buffer, xact_bytes);
+      tu_hwfifo_write(tx_fifo, xfer->buffer, xact_bytes, &access_mode);
       xfer->buffer += xact_bytes;
       total_bytes_written += xact_bytes;
     }
@@ -888,10 +889,11 @@ static void handle_rxflvl_irq(uint8_t rhport) {
 
       if (byte_count != 0) {
         // Read packet off RxFIFO
+        const tu_hwfifo_access_t access_mode = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
         if (xfer->ff != NULL) {
-          tu_hwfifo_read_to_fifo(rx_fifo, xfer->ff, byte_count);
+          tu_hwfifo_read_to_fifo(rx_fifo, xfer->ff, byte_count, &access_mode);
         } else {
-          dfifo_read_packet(dwc2, xfer->buffer, byte_count);
+          tu_hwfifo_read(rx_fifo, xfer->buffer, byte_count, &access_mode);
           xfer->buffer += byte_count;
         }
       }

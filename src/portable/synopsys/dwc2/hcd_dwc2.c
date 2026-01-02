@@ -856,7 +856,8 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       hcd_endpoint_t* edpt = &_hcd_data.edpt[xfer->ep_id];
 
       if (byte_count > 0) {
-        dfifo_read_packet(dwc2, edpt->buffer + xfer->xferred_bytes, byte_count);
+        const tu_hwfifo_access_t access_mode = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
+        tu_hwfifo_read(dwc2->fifo[0], edpt->buffer + xfer->xferred_bytes, byte_count, &access_mode);
         xfer->xferred_bytes += byte_count;
         xfer->fifo_bytes = byte_count;
       }
@@ -907,7 +908,8 @@ static bool handle_txfifo_empty(dwc2_regs_t* dwc2, bool is_periodic) {
           return true;
         }
 
-        dfifo_write_packet(dwc2, ch_id, edpt->buffer + xfer->fifo_bytes, xact_bytes);
+        const tu_hwfifo_access_t access_mode = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
+        tu_hwfifo_write(dwc2->fifo[ch_id], edpt->buffer + xfer->fifo_bytes, xact_bytes, &access_mode);
         xfer->fifo_bytes += xact_bytes;
       }
     }

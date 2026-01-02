@@ -138,6 +138,12 @@ typedef struct {
   } linear, wrapped;
 } tu_fifo_buffer_info_t;
 
+// Access mode for hardware fifo read/write
+typedef struct {
+  uint8_t   data_stride;
+  uintptr_t param;
+} tu_hwfifo_access_t;
+
 #define TU_FIFO_INIT(_buffer, _depth, _overwritable) \
   {                                                  \
     .buffer       = _buffer,                         \
@@ -192,7 +198,7 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 // peek() will correct/re-index read pointer in case of an overflowed fifo to form a full fifo
 //--------------------------------------------------------------------+
 uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
-                                    uint8_t data_stride);
+                                    const tu_hwfifo_access_t *access_mode);
 bool     tu_fifo_peek(tu_fifo_t *f, void *p_buffer);
 uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n);
 
@@ -200,10 +206,10 @@ uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n);
 // Read API
 // peek() + advance read index
 //--------------------------------------------------------------------+
-uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, uint8_t data_stride);
+uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, const tu_hwfifo_access_t *access_mode);
 bool     tu_fifo_read(tu_fifo_t *f, void *buffer);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *buffer, uint16_t n) {
-  return tu_fifo_read_n_access_mode(f, buffer, n, 0);
+  return tu_fifo_read_n_access_mode(f, buffer, n, NULL);
 }
 
 // discard first n items from fifo i.e advance read pointer by n with mutex
@@ -213,10 +219,10 @@ uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n);
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
-uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, uint8_t data_stride);
+uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, const tu_hwfifo_access_t *access_mode);
 bool     tu_fifo_write(tu_fifo_t *f, const void *data);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
-  return tu_fifo_write_n_access_mode(f, data, n, 0);
+  return tu_fifo_write_n_access_mode(f, data, n, NULL);
 }
 
 //--------------------------------------------------------------------+
@@ -225,22 +231,22 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const
 // CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE (data width) and CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE (address increment)
 // Note: these usually has opposiite direction (read/write) to/from our software FIFO  (tu_fifo_t)
 //--------------------------------------------------------------------+
-TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(volatile void *hwfifo, tu_fifo_t *f,
-                                                                       uint16_t n) {
-  return tu_fifo_read_n_access_mode(f, (void *)(uintptr_t)hwfifo, n, CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE);
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(volatile void *hwfifo, tu_fifo_t *f, uint16_t n,
+                                                                       const tu_hwfifo_access_t *access_mode) {
+  return tu_fifo_read_n_access_mode(f, (void *)(uintptr_t)hwfifo, n, access_mode);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_read_to_fifo(const volatile void *hwfifo, tu_fifo_t *f,
-                                                                    uint16_t n) {
-  return tu_fifo_write_n_access_mode(f, (const void *)(uintptr_t)hwfifo, n, CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE);
+                                                                    uint16_t n, const tu_hwfifo_access_t *access_mode) {
+  return tu_fifo_write_n_access_mode(f, (const void *)(uintptr_t)hwfifo, n, access_mode);
 }
 
 #if CFG_TUSB_FIFO_HWFIFO_API
 // read from hwfifo to buffer
-void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, uint8_t data_stride);
+void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, const tu_hwfifo_access_t *access_mode);
 
 // write to hwfifo from buffer with access mode
-void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, uint8_t data_stride);
+void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode);
 
 #endif
 
