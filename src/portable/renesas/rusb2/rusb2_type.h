@@ -1669,14 +1669,19 @@ TU_ATTR_BIT_FIELD_ORDER_END
 /*--------------------------------------------------------------------*/
 /* Register Bit Utils                                           */
 /*--------------------------------------------------------------------*/
-#define RUSB2_PIPE_CTR_PID_NAK          (0U << RUSB2_PIPE_CTR_PID_Pos)    /* NAK response */
-#define RUSB2_PIPE_CTR_PID_BUF          (1U << RUSB2_PIPE_CTR_PID_Pos)    /* BUF response (depends buffer state) */
-#define RUSB2_PIPE_CTR_PID_STALL        (2U << RUSB2_PIPE_CTR_PID_Pos)    /* STALL response */
-#define RUSB2_PIPE_CTR_PID_STALL2       (3U << RUSB2_PIPE_CTR_PID_Pos)    /* Also STALL response */
+#define RUSB2_SYSSTS0_LNST_SE0          (0)
+#define RUSB2_SYSSTS0_LNST_FS_J         (1u << RUSB2_SYSSTS0_LNST_Pos)    /* Full-speed J state */
+#define RUSB2_SYSSTS0_LNST_FS_K         (2u << RUSB2_SYSSTS0_LNST_Pos)    /* Full-speed K state */
+#define RUSB2_SYSSTS0_LNST_LS_SE1       (3u << RUSB2_SYSSTS0_LNST_Pos)    /* Low-speed SE1 state */
 
 #define RUSB2_DVSTCTR0_RHST_LS          (1U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Low-speed connection */
 #define RUSB2_DVSTCTR0_RHST_FS          (2U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Full-speed connection */
 #define RUSB2_DVSTCTR0_RHST_HS          (3U << RUSB2_DVSTCTR0_RHST_Pos)   /*  Full-speed connection */
+
+#define RUSB2_PIPE_CTR_PID_NAK          (0U << RUSB2_PIPE_CTR_PID_Pos)    /* NAK response */
+#define RUSB2_PIPE_CTR_PID_BUF          (1U << RUSB2_PIPE_CTR_PID_Pos)    /* BUF response (depends buffer state) */
+#define RUSB2_PIPE_CTR_PID_STALL        (2U << RUSB2_PIPE_CTR_PID_Pos)    /* STALL response */
+#define RUSB2_PIPE_CTR_PID_STALL2       (3U << RUSB2_PIPE_CTR_PID_Pos)    /* Also STALL response */
 
 #define RUSB2_DEVADD_USBSPD_LS          (1U << RUSB2_DEVADD_USBSPD_Pos)   /* Target Device Low-speed */
 #define RUSB2_DEVADD_USBSPD_FS          (2U << RUSB2_DEVADD_USBSPD_Pos)   /* Target Device Full-speed */

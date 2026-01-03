@@ -76,12 +76,10 @@ typedef struct TU_ATTR_PACKED {
 TU_ATTR_PACKED_END  // End of definition of packed structs (used by the CCRX toolchain)
 TU_ATTR_BIT_FIELD_ORDER_END
 
-typedef struct
-{
-  bool         need_reset; /* The device has not been reset after connection. */
+typedef struct {
   pipe_state_t pipe[PIPE_COUNT];
-  uint8_t ep[4][2][15];   /* a lookup table for a pipe index from an endpoint address */
-  uint8_t      ctl_mps[5]; /* EP0 max packet size for each device */
+  uint8_t      ep[4][2][15]; /* a lookup table for a pipe index from an endpoint address */
+  uint8_t      ctl_mps[5];   /* EP0 max packet size for each device */
 } hcd_data_t;
 
 //--------------------------------------------------------------------+
@@ -535,13 +533,8 @@ void hcd_int_disable(uint8_t rhport) {
   rusb2_int_disable(rhport);
 }
 
-uint32_t hcd_frame_number(uint8_t rhport)
-{
-  rusb2_reg_t* rusb = RUSB2_REG(rhport);
-
-  /* The device must be reset at least once after connection
-   * in order to start the frame counter. */
-  if (_hcd.need_reset) hcd_port_reset(rhport);
+uint32_t hcd_frame_number(uint8_t rhport) {
+  rusb2_reg_t *rusb = RUSB2_REG(rhport);
   return rusb->FRMNUM_b.FRNM;
 }
 
@@ -550,32 +543,18 @@ uint32_t hcd_frame_number(uint8_t rhport)
  *--------------------------------------------------------------------+*/
 bool hcd_port_connect_status(uint8_t rhport) {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
-  return rusb->INTSTS1_b.ATTCH ? true : false;
+  const uint16_t line_state = rusb->SYSSTS0 & RUSB2_SYSSTS0_LNST_Msk;
+  return line_state == RUSB2_SYSSTS0_LNST_FS_J || line_state == RUSB2_SYSSTS0_LNST_FS_K;
 }
 
 void hcd_port_reset(uint8_t rhport) {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
-  rusb->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
-  while (rusb->DCPCTR_b.PBUSY) {}
-
-  hcd_int_disable(rhport);
-  rusb->DVSTCTR0_b.UACT = 0;
-  if (rusb->DCPCTR_b.SUREQ) {
-    rusb->DCPCTR_b.SUREQCLR = 1;
-  }
-  hcd_int_enable(rhport);
-
-  /* Reset should be asserted 10-20ms. */
   rusb->DVSTCTR0_b.USBRST = 1;
-  for (volatile int i = 0; i < 2400000; ++i) {}
-  rusb->DVSTCTR0_b.USBRST = 0;
-
-  rusb->DVSTCTR0_b.UACT = 1;
-  _hcd.need_reset = false;
 }
 
 void hcd_port_reset_end(uint8_t rhport) {
-  (void) rhport;
+  rusb2_reg_t *rusb       = RUSB2_REG(rhport);
+  rusb->DVSTCTR0_b.USBRST = 0;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
@@ -584,7 +563,8 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
     case RUSB2_DVSTCTR0_RHST_HS: return TUSB_SPEED_HIGH;
     case RUSB2_DVSTCTR0_RHST_FS: return TUSB_SPEED_FULL;
     case RUSB2_DVSTCTR0_RHST_LS: return TUSB_SPEED_LOW;
-    default: return TUSB_SPEED_INVALID;
+    default:
+      return TUSB_SPEED_INVALID;
   }
 }
 
@@ -802,7 +782,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (is1 & RUSB2_INTSTS1_ATTCH_Msk) {
     rusb->DVSTCTR0_b.UACT = 1;
-    _hcd.need_reset = true;
     rusb->INTENB1 = (rusb->INTENB1 & ~RUSB2_INTSTS1_ATTCH_Msk) | RUSB2_INTSTS1_DTCH_Msk;
     hcd_event_device_attach(rhport, true);
   }
