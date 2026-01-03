@@ -41,10 +41,9 @@ extern "C" {
   #define _ccrx_evenaccess
 #endif
 
-/*--------------------------------------------------------------------*/
-/* Register Definitions                                           */
-/*--------------------------------------------------------------------*/
-
+//--------------------------------------------------------------------+
+// Register Definitions
+//--------------------------------------------------------------------+
 /* Start of definition of packed structs (used by the CCRX toolchain) */
 TU_ATTR_PACKED_BEGIN
 TU_ATTR_BIT_FIELD_ORDER_BEGIN
