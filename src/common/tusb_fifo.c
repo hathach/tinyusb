@@ -121,6 +121,7 @@ void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
     #define HWFIFO_ADDR_NEXT(_const, _hwfifo)
   #endif
 
+#ifndef CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE
 static void stride_write(volatile void *hwfifo, const void *src, uint8_t data_stride) {
   #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 4
   if (data_stride == 4) {
@@ -134,6 +135,28 @@ static void stride_write(volatile void *hwfifo, const void *src, uint8_t data_st
   #endif
 }
 
+// Copy from fifo to fixed address buffer (usually a tx register) with TU_FIFO_FIXED_ADDR_RW32 mode
+void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
+  // Write full available 16/32 bit words to dest
+  const uint8_t data_stride = access_mode->data_stride;
+  while (len >= data_stride) {
+    stride_write(hwfifo, src, data_stride);
+    src += data_stride;
+    len -= data_stride;
+
+    HWFIFO_ADDR_NEXT(, hwfifo);
+  }
+
+  // Write odd bytes i.e 1 byte for 16 bit or 1-3 bytes for 32 bit
+  if (len > 0) {
+    uint32_t tmp = 0u;
+    memcpy(&tmp, src, len);
+    stride_write(hwfifo, &tmp, data_stride);
+  }
+}
+  #endif
+
+  #ifndef CFG_TUSB_FIFO_HWFIFO_CUSTOM_READ
 static void stride_read(const volatile void *hwfifo, void *dest, uint8_t data_stride) {
   #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 4
   if (data_stride == 4) {
@@ -165,26 +188,7 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
     memcpy(dest, &tmp, len);
   }
 }
-
-// Copy from fifo to fixed address buffer (usually a tx register) with TU_FIFO_FIXED_ADDR_RW32 mode
-void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
-  // Write full available 16/32 bit words to dest
-  const uint8_t data_stride = access_mode->data_stride;
-  while (len >= data_stride) {
-    stride_write(hwfifo, src, data_stride);
-    src += data_stride;
-    len -= data_stride;
-
-    HWFIFO_ADDR_NEXT(, hwfifo);
-  }
-
-  // Write odd bytes i.e 1 byte for 16 bit or 1-3 bytes for 32 bit
-  if (len > 0) {
-    uint32_t tmp = 0u;
-    memcpy(&tmp, src, len);
-    stride_write(hwfifo, &tmp, data_stride);
-  }
-}
+  #endif
 
 static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint16_t wr_ptr,
                         const tu_hwfifo_access_t *access_mode) {
@@ -390,6 +394,7 @@ uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, ui
   } else
 #endif
   {
+    (void)access_mode;
     ff_pull_n(f, p_buffer, n, rd_ptr);
   }
 
