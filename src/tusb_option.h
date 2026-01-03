@@ -268,16 +268,7 @@
 //--------------------------------------------------------------------+
 
 //------------- DWC2 -------------//
-// Slave mode for device
-#ifndef CFG_TUD_DWC2_SLAVE_ENABLE
-  #ifndef CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
-    #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT 1
-  #endif
-
-  #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
-#endif
-
-// DMA for device
+// DMA mode for device
 #ifndef CFG_TUD_DWC2_DMA_ENABLE
   #ifndef CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
   #define CFG_TUD_DWC2_DMA_ENABLE_DEFAULT 0
@@ -286,16 +277,16 @@
   #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
-// Slave mode for host
-#ifndef CFG_TUH_DWC2_SLAVE_ENABLE
-  #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
-    #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT 1
+// Slave mode for device
+#ifndef CFG_TUD_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
+    #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT !CFG_TUD_DWC2_DMA_ENABLE // disabled if DMA is enabled
   #endif
 
-  #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+  #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
 #endif
 
-// DMA for host
+// DMA mode for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
   #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
     #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
@@ -304,14 +295,18 @@
   #define CFG_TUH_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
-#if defined(TUP_USBIP_DWC2)
-  #if CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUD_DWC2_DMA_ENABLE
-    #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+// Slave mode for host
+#ifndef CFG_TUH_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+    #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT !CFG_TUH_DWC2_DMA_ENABLE // disabled if DMA is enabled
   #endif
 
-  #if CFG_TUH_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE
-    #define CFG_TUH_EDPT_DEDICATED_HWFIFO 1
-  #endif
+  #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+#endif
+
+#if defined(TUP_USBIP_DWC2)
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    CFG_TUD_DWC2_SLAVE_ENABLE
+  #define CFG_TUH_EDPT_DEDICATED_HWFIFO    CFG_TUH_DWC2_SLAVE_ENABLE
 
   #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32bit access
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 0 // fixed hwfifo address
