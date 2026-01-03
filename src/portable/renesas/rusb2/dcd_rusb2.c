@@ -281,71 +281,12 @@ static void pipe_read_packet_ff(rusb2_reg_t *rusb, tu_fifo_t *f, volatile void *
 }
   #endif
 
-static void hwfifo_set_mbw(rusb2_reg_t *rusb, uintptr_t hwfifo, uint16_t mbw) {
-  volatile uint16_t *fifo_sel;
-  if (hwfifo == (uintptr_t)&rusb->CFIFO) {
-    fifo_sel = &rusb->CFIFOSEL;
-  } else if (hwfifo == (uintptr_t)&rusb->D0FIFO) {
-    fifo_sel = &rusb->D0FIFOSEL;
-  } else if (hwfifo == (uintptr_t)&rusb->D1FIFO) {
-    fifo_sel = &rusb->D1FIFOSEL;
-  } else {
-    return;
-  }
 
-  *fifo_sel = (*fifo_sel & ~RUSB2_CFIFOSEL_MBW_Msk) | mbw;
-}
-
-// write to hwfifo from buffer with access mode
-void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
-  rusb2_reg_t   *rusb = (rusb2_reg_t *)access_mode->param;
-  const uint8_t *buf8 = (const uint8_t *)src;
-
-  volatile uint16_t *ff16;
-  volatile uint8_t  *ff8;
-  const bool         is_highspeed = rusb2_is_highspeed_reg(rusb);
-  if (is_highspeed) {
-    ff16 = (volatile uint16_t *)((uintptr_t)hwfifo + 2);
-    ff8  = (volatile uint8_t *)((uintptr_t)hwfifo + 3);
-  } else {
-    ff16 = (volatile uint16_t *)hwfifo;
-    ff8  = ((volatile uint8_t *)hwfifo);
-  }
-
-  // 32-bit access for highspeed
-  if (is_highspeed) {
-    volatile uint32_t *ff32 = (volatile uint32_t *)hwfifo;
-    while (len >= 4) {
-      *ff32 = tu_unaligned_read32(buf8);
-      buf8 += 4;
-      len -= 4;
-    }
-
-    if (len >= 2) {
-      // switch to 16-bit access
-      hwfifo_set_mbw(rusb, (uintptr_t)hwfifo, RUSB2_FIFOSEL_MBW_16BIT);
-    }
-  }
-
-  // 16-bit access
-  while (len >= 2) {
-    *ff16 = tu_unaligned_read16(buf8);
-    buf8 += 2;
-    len -= 2;
-  }
-
-  // 8-bit access does not need to change MBW
-  if (len > 0) {
-    *ff8 = *buf8;
-    ++buf8;
-  }
-}
 
 //--------------------------------------------------------------------+
 // Pipe Transfer
 //--------------------------------------------------------------------+
-
-static bool pipe0_xfer_in(rusb2_reg_t *rusb) {
+static bool pipe0_xact_in(rusb2_reg_t *rusb) {
   pipe_state_t  *pipe = &_dcd.pipe[0];
   const unsigned rem  = pipe->remaining;
 
@@ -359,8 +300,20 @@ static bool pipe0_xfer_in(rusb2_reg_t *rusb) {
   void          *buf = pipe->buf;
 
   if (len) {
-    tu_hwfifo_access_t access_mode = {.data_stride = (rusb2_is_highspeed_reg(rusb) ? 4u : 2u),
-                                      .param       = (uintptr_t)rusb};
+    // uint16_t           fifo_sel = RUSB2_CFIFOSEL_ISEL_WRITE | FIFOSEL_BIGEND;
+    tu_hwfifo_access_t access_mode;
+    access_mode.param = (uintptr_t)rusb;
+    //
+    if (rusb2_is_highspeed_reg(rusb)) {
+      //   fifo_sel |= RUSB2_FIFOSEL_MBW_32BIT;
+      access_mode.data_stride = 4u;
+    } else {
+      //   fifo_sel |= RUSB2_FIFOSEL_MBW_16BIT;
+      access_mode.data_stride = 2u;
+    }
+    // rusb->CFIFOSEL = fifo_sel;
+    // while (0 == (rusb->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE)) {}
+
     if (pipe->ff) {
       tu_hwfifo_write_from_fifo(&rusb->CFIFO, (tu_fifo_t *)buf, len, &access_mode);
     } else {
@@ -377,7 +330,7 @@ static bool pipe0_xfer_in(rusb2_reg_t *rusb) {
   return false;
 }
 
-static bool pipe0_xfer_out(rusb2_reg_t *rusb) {
+static bool pipe0_xact_out(rusb2_reg_t *rusb) {
   pipe_state_t  *pipe = &_dcd.pipe[0];
   const unsigned rem  = pipe->remaining;
 
@@ -539,21 +492,17 @@ static void process_status_completion(uint8_t rhport)
 
 static bool process_pipe0_xfer(rusb2_reg_t *rusb, int buffer_type, uint8_t ep_addr, void *buffer,
                                uint16_t total_bytes) {
-  uint16_t fifo_sel = FIFOSEL_BIGEND;
-  if (rusb2_is_highspeed_reg(rusb)) {
-    fifo_sel |= RUSB2_FIFOSEL_MBW_32BIT;
-  } else {
-    fifo_sel |= RUSB2_FIFOSEL_MBW_16BIT;
-  }
+  uint16_t fifo_sel =
+    (rusb2_is_highspeed_reg(rusb) ? RUSB2_FIFOSEL_MBW_32BIT : RUSB2_FIFOSEL_MBW_16BIT) | FIFOSEL_BIGEND;
 
   /* configure fifo direction and access unit settings */
   if (ep_addr != 0) {
-    /* IN, 2 bytes */ rusb->CFIFOSEL = RUSB2_CFIFOSEL_ISEL_WRITE | fifo_sel;
-    while (!(rusb->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE)) {}
-  } else {
-    /* OUT, 2 bytes */
-    rusb->CFIFOSEL = fifo_sel;
-    while (rusb->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE) {}
+    // Control IN
+    fifo_sel |= RUSB2_CFIFOSEL_ISEL_WRITE;
+  }
+  rusb->CFIFOSEL = fifo_sel;
+  while ((rusb->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE) != (fifo_sel & RUSB2_CFIFOSEL_ISEL_WRITE)) {
+    // wait until ISEL_WRITE take effect
   }
 
   pipe_state_t *pipe = &_dcd.pipe[0];
@@ -566,7 +515,7 @@ static bool process_pipe0_xfer(rusb2_reg_t *rusb, int buffer_type, uint8_t ep_ad
     if (ep_addr) {
       /* IN */
       TU_ASSERT(rusb->DCPCTR_b.BSTS && (rusb->USBREQ & 0x80));
-      pipe0_xfer_in(rusb);
+      pipe0_xact_in(rusb);
     }
     rusb->DCPCTR = RUSB2_PIPE_CTR_PID_BUF;
   } else {
@@ -639,7 +588,7 @@ static bool process_edpt_xfer(rusb2_reg_t* rusb, int buffer_type, uint8_t ep_add
 static void process_pipe0_bemp(uint8_t rhport)
 {
   rusb2_reg_t* rusb = RUSB2_REG(rhport);
-  bool completed = pipe0_xfer_in(rusb);
+  bool         completed = pipe0_xact_in(rusb);
   if (completed) {
     pipe_state_t *pipe = &_dcd.pipe[0];
     dcd_event_xfer_complete(rhport, tu_edpt_addr(0, TUSB_DIR_IN),
@@ -662,7 +611,7 @@ static void process_pipe_brdy(uint8_t rhport, unsigned num)
     if (num) {
       completed = pipe_xfer_out(rusb, num);
     } else {
-      completed = pipe0_xfer_out(rusb);
+      completed = pipe0_xact_out(rusb);
     }
   }
   if (completed) {

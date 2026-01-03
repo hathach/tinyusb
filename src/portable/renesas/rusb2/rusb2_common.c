@@ -25,9 +25,10 @@
  */
 
 #include "tusb_option.h"
+#include "osal/osal.h"
+#include "common/tusb_fifo.h"
 
 #if defined(TUP_USBIP_RUSB2) && (CFG_TUH_ENABLED || CFG_TUD_ENABLED)
-
 #include "rusb2_type.h"
 
 #if TU_CHECK_MCU(OPT_MCU_RX63X, OPT_MCU_RX65X, OPT_MCU_RX72N)
@@ -54,5 +55,65 @@ void tusb_rusb2_set_irqnum(uint8_t rhport, int32_t irqnum) {
   #error "Unsupported MCU"
 #endif
 
+
+static void hwfifo_set_mbw(rusb2_reg_t *rusb, uintptr_t hwfifo, uint16_t mbw) {
+  volatile uint16_t *fifo_sel;
+  if (hwfifo == (uintptr_t)&rusb->CFIFO) {
+    fifo_sel = &rusb->CFIFOSEL;
+  } else if (hwfifo == (uintptr_t)&rusb->D0FIFO) {
+    fifo_sel = &rusb->D0FIFOSEL;
+  } else if (hwfifo == (uintptr_t)&rusb->D1FIFO) {
+    fifo_sel = &rusb->D1FIFOSEL;
+  } else {
+    return;
+  }
+
+  *fifo_sel = (*fifo_sel & ~RUSB2_CFIFOSEL_MBW_Msk) | mbw;
+}
+
+// write to hwfifo from buffer with access mode
+void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
+  rusb2_reg_t   *rusb = (rusb2_reg_t *)access_mode->param;
+  const uint8_t *buf8 = (const uint8_t *)src;
+
+  volatile uint16_t *ff16;
+  volatile uint8_t  *ff8;
+  const bool         is_highspeed = rusb2_is_highspeed_reg(rusb);
+  if (is_highspeed) {
+    ff16 = (volatile uint16_t *)((uintptr_t)hwfifo + 2);
+    ff8  = (volatile uint8_t *)((uintptr_t)hwfifo + 3);
+  } else {
+    ff16 = (volatile uint16_t *)hwfifo;
+    ff8  = ((volatile uint8_t *)hwfifo);
+  }
+
+  // 32-bit access for highspeed
+  if (is_highspeed) {
+    volatile uint32_t *ff32 = (volatile uint32_t *)hwfifo;
+    while (len >= 4) {
+      *ff32 = tu_unaligned_read32(buf8);
+      buf8 += 4;
+      len -= 4;
+    }
+
+    if (len >= 2) {
+      // switch to 16-bit access
+      hwfifo_set_mbw(rusb, (uintptr_t)hwfifo, RUSB2_FIFOSEL_MBW_16BIT);
+    }
+  }
+
+  // 16-bit access
+  while (len >= 2) {
+    *ff16 = tu_unaligned_read16(buf8);
+    buf8 += 2;
+    len -= 2;
+  }
+
+  // 8-bit access does not need to change MBW
+  if (len > 0) {
+    *ff8 = *buf8;
+    ++buf8;
+  }
+}
 
 #endif
