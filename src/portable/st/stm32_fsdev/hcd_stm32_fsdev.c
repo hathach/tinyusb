@@ -316,7 +316,7 @@ static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
       // More data to send
       uint16_t const len = tu_min16(edpt->buflen - edpt->queued_len, edpt->max_packet_size);
       uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_TX);
-      tu_hwfifo_write(PMA_BUF_AT(pma_addr), &(edpt->buffer[edpt->queued_len]), len);
+      tu_hwfifo_write(PMA_BUF_AT(pma_addr), &(edpt->buffer[edpt->queued_len]), len, NULL);
       btable_set_count(ch_id, BTABLE_BUF_TX, len);
       edpt->queued_len += len;
       channel_write_status(ch_id, ch_reg, TUSB_DIR_OUT, EP_STAT_VALID, false);
@@ -331,7 +331,7 @@ static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
     // IN/RX direction
     uint16_t const rx_count = channel_get_rx_count(ch_id);
     uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_RX);
-    tu_hwfifo_read(PMA_BUF_AT(pma_addr), edpt->buffer + edpt->queued_len, rx_count);
+    tu_hwfifo_read(PMA_BUF_AT(pma_addr), edpt->buffer + edpt->queued_len, rx_count, NULL);
     edpt->queued_len += rx_count;
 
     if ((rx_count < edpt->max_packet_size) || (edpt->queued_len >= edpt->buflen)) {
@@ -842,7 +842,7 @@ static bool channel_xfer_start(uint8_t ch_id, tusb_dir_t dir) {
 
   if (dir == TUSB_DIR_OUT) {
     uint16_t const len = tu_min16(edpt->buflen - edpt->queued_len, edpt->max_packet_size);
-    tu_hwfifo_write(PMA_BUF_AT(pma_addr), &(edpt->buffer[edpt->queued_len]), len);
+    tu_hwfifo_write(PMA_BUF_AT(pma_addr), &(edpt->buffer[edpt->queued_len]), len, NULL);
     btable_set_count(ch_id, BTABLE_BUF_TX, len);
 
     edpt->queued_len += len;

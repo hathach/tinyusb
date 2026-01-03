@@ -138,7 +138,7 @@ static void stride_write(volatile void *hwfifo, const void *src, uint8_t data_st
 // Copy from fifo to fixed address buffer (usually a tx register) with TU_FIFO_FIXED_ADDR_RW32 mode
 void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
   // Write full available 16/32 bit words to dest
-  const uint8_t data_stride = access_mode->data_stride;
+  const uint8_t data_stride = (access_mode != NULL) ? access_mode->data_stride : CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE;
   while (len >= data_stride) {
     stride_write(hwfifo, src, data_stride);
     src += data_stride;
@@ -172,7 +172,7 @@ static void stride_read(const volatile void *hwfifo, void *dest, uint8_t data_st
 
 void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, const tu_hwfifo_access_t *access_mode) {
   // Reading full available 16/32-bit hwfifo and write to fifo
-  const uint8_t data_stride = access_mode->data_stride;
+  const uint8_t data_stride = (access_mode != NULL) ? access_mode->data_stride : CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE;
   while (len >= data_stride) {
     stride_read(hwfifo, dest, data_stride);
     dest += data_stride;

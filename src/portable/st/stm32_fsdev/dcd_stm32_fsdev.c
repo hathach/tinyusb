@@ -285,8 +285,7 @@ static void handle_ctr_setup(uint32_t ep_id) {
   uint16_t rx_addr = btable_get_addr(ep_id, BTABLE_BUF_RX);
   uint8_t setup_packet[8] TU_ATTR_ALIGNED(4);
 
-  const tu_hwfifo_access_t access_mode = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
-  tu_hwfifo_read(PMA_BUF_AT(rx_addr), setup_packet, rx_count, &access_mode);
+  tu_hwfifo_read(PMA_BUF_AT(rx_addr), setup_packet, rx_count, NULL);
 
   // Clear CTR RX if another setup packet arrived before this, it will be discarded
   ep_write_clear_ctr(ep_id, TUSB_DIR_OUT);
@@ -324,11 +323,10 @@ static void handle_ctr_rx(uint32_t ep_id) {
   uint16_t pma_addr = (uint16_t) btable_get_addr(ep_id, buf_id);
   fsdev_pma_buf_t *pma_buf  = PMA_BUF_AT(pma_addr);
 
-  const tu_hwfifo_access_t access_mode = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
   if (xfer->ff) {
-    tu_hwfifo_read_to_fifo(pma_buf, xfer->ff, rx_count, &access_mode);
+    tu_hwfifo_read_to_fifo(pma_buf, xfer->ff, rx_count, NULL);
   } else {
-    tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, rx_count, &access_mode);
+    tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, rx_count, NULL);
   }
   xfer->queued_len += rx_count;
 
@@ -723,11 +721,10 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   uint16_t         addr_ptr = (uint16_t)btable_get_addr(ep_ix, buf_id);
   fsdev_pma_buf_t *pma_buf  = PMA_BUF_AT(addr_ptr);
 
-  const tu_hwfifo_access_t access_mode = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
   if (xfer->ff) {
-    tu_hwfifo_write_from_fifo(pma_buf, xfer->ff, len, &access_mode);
+    tu_hwfifo_write_from_fifo(pma_buf, xfer->ff, len, NULL);
   } else {
-    tu_hwfifo_write(pma_buf, &(xfer->buffer[xfer->queued_len]), len, &access_mode);
+    tu_hwfifo_write(pma_buf, &(xfer->buffer[xfer->queued_len]), len, NULL);
   }
   xfer->queued_len += len;
 

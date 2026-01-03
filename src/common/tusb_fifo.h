@@ -233,12 +233,16 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const
 //--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(volatile void *hwfifo, tu_fifo_t *f, uint16_t n,
                                                                        const tu_hwfifo_access_t *access_mode) {
-  return tu_fifo_read_n_access_mode(f, (void *)(uintptr_t)hwfifo, n, access_mode);
+  const tu_hwfifo_access_t default_access = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
+  return tu_fifo_read_n_access_mode(f, (void *)(uintptr_t)hwfifo, n,
+                                    (access_mode != NULL) ? access_mode : &default_access);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_read_to_fifo(const volatile void *hwfifo, tu_fifo_t *f,
                                                                     uint16_t n, const tu_hwfifo_access_t *access_mode) {
-  return tu_fifo_write_n_access_mode(f, (const void *)(uintptr_t)hwfifo, n, access_mode);
+  const tu_hwfifo_access_t default_access = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE};
+  return tu_fifo_write_n_access_mode(f, (const void *)(uintptr_t)hwfifo, n,
+                                     (access_mode != NULL) ? access_mode : &default_access);
 }
 
 #if CFG_TUSB_FIFO_HWFIFO_API
