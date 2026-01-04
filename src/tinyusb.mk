@@ -15,6 +15,7 @@ TINYUSB_SRC_C += \
 	src/class/mtp/mtp_device.c \
 	src/class/net/ecm_rndis_device.c \
 	src/class/net/ncm_device.c \
+	src/class/printer/printer_device.c \
 	src/class/usbtmc/usbtmc_device.c \
 	src/class/video/video_device.c \
 	src/class/vendor/vendor_device.c \

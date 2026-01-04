@@ -92,6 +92,10 @@
     #include "class/mtp/mtp_device.h"
   #endif
 
+  #if CFG_TUD_PRINTER
+    #include "class/printer/printer_device.h"
+  #endif
+
   #if CFG_TUD_AUDIO
     #include "class/audio/audio_device.h"
   #endif

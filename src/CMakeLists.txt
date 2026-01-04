@@ -19,6 +19,7 @@ function(tinyusb_sources_get OUTPUT_VAR)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/mtp/mtp_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/net/ecm_rndis_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/net/ncm_device.c
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/printer/printer_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/usbtmc/usbtmc_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/vendor/vendor_device.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/class/video/video_device.c

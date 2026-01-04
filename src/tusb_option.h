@@ -614,6 +614,10 @@
   #define CFG_TUD_NCM         0
 #endif
 
+#ifndef CFG_TUD_PRINTER
+  #define CFG_TUD_PRINTER         0
+#endif
+
 #ifndef CFG_TUD_EDPT_DEDICATED_HWFIFO
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0
 #endif
