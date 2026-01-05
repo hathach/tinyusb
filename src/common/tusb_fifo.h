@@ -157,7 +157,7 @@ typedef struct {
 
 // Moving data from tusb_fifo <-> USB hardware FIFOs e.g. STM32s need to use a special stride mode which reads/writes
 // data in 2/4 byte chunks from/to a fixed address (USB FIFO register) instead of incrementing the address. For this use
-// read/write access_mode with stride_mode = true. The STRIPE DATA and ADDR stride must be configured with
+// read/write access_mode with stride_mode = true. The STRIDE DATA and ADDR stride must be configured with
 // CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE and CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE
 
 //--------------------------------------------------------------------+
