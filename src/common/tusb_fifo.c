@@ -115,13 +115,14 @@ void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
 //--------------------------------------------------------------------+
 #if CFG_TUSB_FIFO_HWFIFO_API
   #if CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE
-    #define HWFIFO_ADDR_NEXT(_const, _hwfifo)                                                     \
-      _hwfifo = (_const volatile void *)((uintptr_t)(_hwfifo) + CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE)
+    #define HWFIFO_ADDR_NEXT_N(_hwfifo, _const, _n) _hwfifo = (_const volatile void *)((uintptr_t)(_hwfifo) + _n)
   #else
-    #define HWFIFO_ADDR_NEXT(_const, _hwfifo)
+    #define HWFIFO_ADDR_NEXT_N(_hwfifo, _const, _n)
   #endif
 
-#ifndef CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE
+  #define HWFIFO_ADDR_NEXT(_hwfifo, _const) HWFIFO_ADDR_NEXT_N(_hwfifo, _const, CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE)
+
+  #ifndef CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE
 static void stride_write(volatile void *hwfifo, const void *src, uint8_t data_stride) {
   #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 4
   if (data_stride == 4) {
@@ -143,8 +144,7 @@ void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, co
     stride_write(hwfifo, src, data_stride);
     src += data_stride;
     len -= data_stride;
-
-    HWFIFO_ADDR_NEXT(, hwfifo);
+    HWFIFO_ADDR_NEXT(hwfifo, );
   }
 
   // Write odd bytes i.e 1 byte for 16 bit or 1-3 bytes for 32 bit
@@ -152,6 +152,7 @@ void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, co
     uint32_t tmp = 0u;
     memcpy(&tmp, src, len);
     stride_write(hwfifo, &tmp, data_stride);
+    HWFIFO_ADDR_NEXT(hwfifo, );
   }
 }
   #endif
@@ -177,8 +178,7 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
     stride_read(hwfifo, dest, data_stride);
     dest += data_stride;
     len -= data_stride;
-
-    HWFIFO_ADDR_NEXT(const, hwfifo);
+    HWFIFO_ADDR_NEXT(hwfifo, const);
   }
 
   // Read odd bytes i.e 1 byte for 16 bit or 1-3 bytes for 32 bit
@@ -186,10 +186,12 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
     uint32_t tmp;
     stride_read(hwfifo, &tmp, data_stride);
     memcpy(dest, &tmp, len);
+    HWFIFO_ADDR_NEXT(hwfifo, const);
   }
 }
   #endif
 
+// push to sw fifo from hwfifo
 static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint16_t wr_ptr,
                         const tu_hwfifo_access_t *access_mode) {
   uint16_t lin_bytes  = f->depth - wr_ptr;
@@ -208,6 +210,7 @@ static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uin
     const uint32_t odd_mask    = data_stride - 1;
     uint16_t       lin_even    = lin_bytes & ~odd_mask;
     tu_hwfifo_read(hwfifo, ff_buf, lin_even, access_mode);
+    HWFIFO_ADDR_NEXT_N(hwfifo, const, lin_even);
     ff_buf += lin_even;
 
     // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
@@ -217,6 +220,7 @@ static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uin
       const uint8_t wrap_odd = (uint8_t)tu_min16(wrap_bytes, data_stride - lin_odd);
       uint8_t       buf_temp[4];
       tu_hwfifo_read(hwfifo, buf_temp, lin_odd + wrap_odd, access_mode);
+      HWFIFO_ADDR_NEXT(hwfifo, const);
 
       for (uint8_t i = 0; i < lin_odd; ++i) {
         ff_buf[i] = buf_temp[i];
@@ -238,6 +242,7 @@ static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uin
   }
 }
 
+// pull from sw fifo to hwfifo
 static void hwff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t rd_ptr,
                         const tu_hwfifo_access_t *access_mode) {
   uint16_t       lin_bytes  = f->depth - rd_ptr;
@@ -257,6 +262,7 @@ static void hwff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t 
     const uint32_t odd_mask    = data_stride - 1;
     uint16_t       lin_even = lin_bytes & ~odd_mask;
     tu_hwfifo_write(hwfifo, ff_buf, lin_even, access_mode);
+    HWFIFO_ADDR_NEXT_N(hwfifo, , lin_even);
     ff_buf += lin_even;
 
     // There could be odd 1 byte (16bit) or 1-3 bytes (32bit) before the wrap-around boundary
@@ -273,6 +279,7 @@ static void hwff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t 
       }
 
       tu_hwfifo_write(hwfifo, buf_temp, lin_odd + wrap_odd, access_mode);
+      HWFIFO_ADDR_NEXT(hwfifo, );
 
       wrap_bytes -= wrap_odd;
       ff_buf = f->buffer + wrap_odd; // wrap around
