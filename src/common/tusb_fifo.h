@@ -119,7 +119,7 @@ extern "C" {
 typedef struct {
   uint8_t *buffer;              // buffer pointer
   uint16_t depth;               // max items
-  bool     overwritable;        // ovwerwritable when full
+  bool     overwritable;        // overwritable when full
   // 1 byte padding  here
 
   volatile uint16_t wr_idx;     // write index TODO maybe can drop volatile
@@ -229,7 +229,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const
 // Hardware FIFO API
 // Special hardware FIFO/Buffer to hold USB data, usually requires certain access method these can be configured with
 // CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE (data width) and CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE (address increment)
-// Note: these usually has opposiite direction (read/write) to/from our software FIFO  (tu_fifo_t)
+// Note: these usually has opposite direction (read/write) to/from our software FIFO  (tu_fifo_t)
 //--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(volatile void *hwfifo, tu_fifo_t *f, uint16_t n,
                                                                        const tu_hwfifo_access_t *access_mode) {
