@@ -351,13 +351,13 @@
 #if defined(TUP_USBIP_FSDEV)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 
-  #if FSDEV_PMA_SIZE == 512
+  #if CFG_TUSB_FSDEV_PMA_SIZE == 512
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
-  #elif FSDEV_PMA_SIZE == 1024
+  #elif CFG_TUSB_FSDEV_PMA_SIZE == 1024
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 2 // 16-bit address increase
-  #elif FSDEV_PMA_SIZE == 2048
+  #elif CFG_TUSB_FSDEV_PMA_SIZE == 2048
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
   #endif

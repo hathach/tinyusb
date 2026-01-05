@@ -741,7 +741,7 @@ static uint32_t hcd_pma_alloc(uint8_t channel, tusb_dir_t dir, uint16_t len) {
   uint16_t addr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT;
   addr += channel * TUSB_EPSIZE_BULK_FS * 2 + (dir == TUSB_DIR_IN ? TUSB_EPSIZE_BULK_FS : 0);
 
-  TU_ASSERT(addr <= FSDEV_PMA_SIZE, 0xFFFF);
+  TU_ASSERT(addr <= CFG_TUSB_FSDEV_PMA_SIZE, 0xFFFF);
 
   return addr;
 }

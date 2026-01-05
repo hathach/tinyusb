@@ -281,7 +281,7 @@
   // - Enable double buffering on devices with >1KB Packet Memory Area (PMA)
   //   to improve isochronous transfer reliability and performance
   // - Disable on devices with limited PMA to conserve memory space
-  #if FSDEV_PMA_SIZE > 1024u
+  #if CFG_TUSB_FSDEV_PMA_SIZE > 1024u
     #define CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP 1
   #else
     #define CFG_TUD_FSDEV_DOUBLE_BUFFERED_ISO_EP 0
