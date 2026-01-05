@@ -365,13 +365,18 @@
 
 //------------ MUSB --------------//
 #if defined(TUP_USBIP_MUSB)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0 // need testing to enable
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO              1
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE           4 // 32 bit data
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS   // allow odd 16bit access
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS    // allow odd 8bit access
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE           0 // fixed hwfifo
+
 #endif
 
 //------------ RUSB2 --------------//
 #if defined(TUP_USBIP_RUSB2)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO     1
-  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE  (2 + (TUD_OPT_HIGH_SPEED ? 4 : 0)) // 16 bit and 32 bit data if highspeed
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE  (2 | (TUD_OPT_HIGH_SPEED ? 4 : 0)) // 16 bit and 32 bit data if highspeed
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE  0
   #define CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE // custom write since rusb2 can change access width 32 -> 16 and can write
                                             // odd byte with byte access

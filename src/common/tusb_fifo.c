@@ -123,8 +123,8 @@ void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable) {
   #define HWFIFO_ADDR_NEXT(_hwfifo, _const) HWFIFO_ADDR_NEXT_N(_hwfifo, _const, CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE)
 
   #ifndef CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE
-static void stride_write(volatile void *hwfifo, const void *src, uint8_t data_stride) {
-  #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 4
+static inline void stride_write(volatile void *hwfifo, const void *src, uint8_t data_stride) {
+    #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 4
   if (data_stride == 4) {
     *((volatile uint32_t *)hwfifo) = tu_unaligned_read32(src);
   }
@@ -147,6 +147,25 @@ void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, co
     HWFIFO_ADDR_NEXT(hwfifo, );
   }
 
+    #ifdef CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS
+  // 16-bit access is allowed for odd bytes
+  if (len >= 2) {
+    *((volatile uint16_t *)hwfifo) = tu_unaligned_read16(src);
+    src += 2;
+    len -= 2;
+    HWFIFO_ADDR_NEXT_N(hwfifo, , 2);
+  }
+    #endif
+
+    #ifdef CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS
+  // 8-bit access is allowed for odd bytes
+  while (len > 0) {
+    *((volatile uint8_t *)hwfifo) = *src++;
+    len--;
+    HWFIFO_ADDR_NEXT_N(hwfifo, , 1);
+  }
+    #else
+
   // Write odd bytes i.e 1 byte for 16 bit or 1-3 bytes for 32 bit
   if (len > 0) {
     uint32_t tmp = 0u;
@@ -154,21 +173,30 @@ void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, co
     stride_write(hwfifo, &tmp, data_stride);
     HWFIFO_ADDR_NEXT(hwfifo, );
   }
+    #endif
 }
   #endif
 
   #ifndef CFG_TUSB_FIFO_HWFIFO_CUSTOM_READ
-static void stride_read(const volatile void *hwfifo, void *dest, uint8_t data_stride) {
-  #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 4
-  if (data_stride == 4) {
+static inline void stride_read(const volatile void *hwfifo, void *dest, uint8_t data_stride) {
+  (void)data_stride; // possible unused
+    #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 4
+      #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE != 4
+  if (data_stride == 4)
+      #endif
+  {
     tu_unaligned_write32(dest, *((const volatile uint32_t *)hwfifo));
   }
-  #endif
-  #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 2
-  if (data_stride == 2) {
+    #endif
+
+    #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE & 2
+      #if CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE != 2
+  if (data_stride == 2)
+      #endif
+  {
     tu_unaligned_write16(dest, *((const volatile uint16_t *)hwfifo));
   }
-  #endif
+    #endif
 }
 
 void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, const tu_hwfifo_access_t *access_mode) {
@@ -181,6 +209,24 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
     HWFIFO_ADDR_NEXT(hwfifo, const);
   }
 
+    #ifdef CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS
+  // 16-bit access is allowed for odd bytes
+  if (len >= 2) {
+    tu_unaligned_write16(dest, *((const volatile uint16_t *)hwfifo));
+    dest += 2;
+    len -= 2;
+    HWFIFO_ADDR_NEXT_N(hwfifo, const, 2);
+  }
+    #endif
+
+    #ifdef CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS
+  // 8-bit access is allowed for odd bytes
+  while (len > 0) {
+    *dest++ = *((const volatile uint8_t *)hwfifo);
+    len--;
+    HWFIFO_ADDR_NEXT_N(hwfifo, const, 1);
+  }
+    #else
   // Read odd bytes i.e 1 byte for 16 bit or 1-3 bytes for 32 bit
   if (len > 0) {
     uint32_t tmp;
@@ -188,6 +234,7 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
     memcpy(dest, &tmp, len);
     HWFIFO_ADDR_NEXT(hwfifo, const);
   }
+    #endif
 }
   #endif
 
