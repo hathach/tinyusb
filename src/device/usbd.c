@@ -580,6 +580,8 @@ bool tud_deinit(uint8_t rhport) {
 
   TU_LOG_USBD("USBD deinit on controller %u\r\n", rhport);
 
+  const uint8_t cfg_num = _usbd_dev.cfg_num;
+
   // Deinit device controller driver
   dcd_int_disable(rhport);
   dcd_disconnect(rhport);
@@ -594,6 +596,10 @@ bool tud_deinit(uint8_t rhport) {
     }
   }
 
+  // Clear device data
+  tu_varclr(&_usbd_dev);
+  usbd_control_reset();
+
   // Deinit device queue & task
   osal_queue_delete(_usbd_q);
   _usbd_q = NULL;
@@ -605,6 +611,11 @@ bool tud_deinit(uint8_t rhport) {
 #endif
 
   _usbd_rhport = RHPORT_INVALID;
+
+  if (cfg_num > 0) {
+    tud_umount_cb();
+  }
+
   return true;
 }
 

@@ -207,11 +207,6 @@ function(family_add_subdirectory DIR)
   endif()
 endfunction()
 
-function(family_get_project_name OUTPUT_NAME DIR)
-  get_filename_component(SHORT_NAME ${DIR} NAME)
-  set(${OUTPUT_NAME} ${TINYUSB_FAMILY_PROJECT_NAME_PREFIX}${SHORT_NAME} PARENT_SCOPE)
-endfunction()
-
 function(family_initialize_project PROJECT DIR)
   # set output suffix to .elf (skip espressif and rp2040)
   if(NOT FAMILY STREQUAL "espressif" AND NOT FAMILY STREQUAL "rp2040")

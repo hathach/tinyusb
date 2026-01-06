@@ -16,6 +16,7 @@ LDFLAGS_GCC += \
 
 SRC_C += \
 	src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c \
+	src/portable/st/stm32_fsdev/fsdev_common.c \
 	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_gpio.c \
 	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_misc.c \
 	$(AT32_SDK_LIB)/drivers/src/${AT32_FAMILY}_usart.c \

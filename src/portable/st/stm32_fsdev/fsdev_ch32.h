@@ -53,7 +53,6 @@
 #pragma GCC diagnostic pop
 #endif
 
-#define FSDEV_PMA_SIZE (512u)
 #define FSDEV_USE_SBUF_ISO 0
 #define FSDEV_REG_BASE  (APB1PERIPH_BASE + 0x00005C00UL)
 #define FSDEV_PMA_BASE  (APB1PERIPH_BASE + 0x00006000UL)
@@ -168,7 +167,6 @@
 #define USB_EPRX_DTOG2                       ((uint16_t)0x2000U)               /*!< EndPoint RX Data TOGgle bit1 */
 #define USB_EPRX_DTOGMASK  (USB_EPRX_STAT|USB_EPREG_MASK)
 
-
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
@@ -184,26 +182,26 @@ enum { FSDEV_IRQ_NUM = TU_ARRAY_SIZE(fsdev_irq) };
   #error "Unsupported MCU"
 #endif
 
-void dcd_int_enable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_enable(uint8_t rhport) {
   (void)rhport;
   for(uint8_t i=0; i < FSDEV_IRQ_NUM; i++) {
     NVIC_EnableIRQ(fsdev_irq[i]);
   }
 }
 
-void dcd_int_disable(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_int_disable(uint8_t rhport) {
   (void)rhport;
   for(uint8_t i=0; i < FSDEV_IRQ_NUM; i++) {
     NVIC_DisableIRQ(fsdev_irq[i]);
   }
 }
 
-void dcd_disconnect(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_disconnect(uint8_t rhport) {
   (void) rhport;
   EXTEN->EXTEN_CTR &= ~EXTEN_USBD_PU_EN;
 }
 
-void dcd_connect(uint8_t rhport) {
+TU_ATTR_ALWAYS_INLINE static inline void fsdev_connect(uint8_t rhport) {
   (void) rhport;
   EXTEN->EXTEN_CTR |= EXTEN_USBD_PU_EN;
 }

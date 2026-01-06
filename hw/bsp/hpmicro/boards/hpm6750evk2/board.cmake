@@ -1,0 +1,22 @@
+set(MCU_VARIANT HPM6750xVMx)
+set(JLINK_DEVICE ${MCU_VARIANT})
+
+set(JLINK_IF jtag)
+
+set(HPM_SOC ${SDK_DIR}/soc/HPM6700/HPM6750)
+set(HPM_IP_REGS ${SDK_DIR}/soc/HPM6700/ip)
+
+set(BOARD_FLASH_SIZE 16M)
+set(BOARD_STACK_SIZE 16K)
+set(BOARD_HEAP_SIZE 16K)
+
+set(HPM_PLLCTL_DRV_FILE hpm_pllctl_drv.c)
+
+function(update_board TARGET)
+  target_compile_definitions(${TARGET} PUBLIC
+    BOARD_TUD_RHPORT=0
+    BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+    BOARD_TUH_RHPORT=1
+    BOARD_TUH_MAX_SPEED=OPT_MODE_HIGH_SPEED
+    )
+endfunction()

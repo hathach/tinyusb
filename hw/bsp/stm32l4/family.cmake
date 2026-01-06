@@ -67,6 +67,7 @@ function(family_configure_example TARGET RTOS)
     ${TOP}/src/portable/synopsys/dwc2/hcd_dwc2.c
     ${TOP}/src/portable/synopsys/dwc2/dwc2_common.c
     ${TOP}/src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c
+    ${TOP}/src/portable/st/stm32_fsdev/fsdev_common.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC

@@ -329,7 +329,7 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_unaligned_write16(void *mem, uint16_
 
 #endif
 
-// scatter read 4 bytes from two buffers. Parameter are not checked
+// scatter read 4 bytes from two buffers (LE). Parameter are not checked
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_scatter_read32(const uint8_t *buf1, uint8_t len1, const uint8_t *buf2,
                                                                uint8_t len2) {
   uint32_t result = 0;
@@ -348,7 +348,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tu_scatter_read32(const uint8_t *bu
   return result;
 }
 
-// scatter write 4 bytes to two buffers. Parameter are not checked
+// scatter write 4 bytes (LE) to two buffers. Parameter are not checked
 TU_ATTR_ALWAYS_INLINE static inline void tu_scatter_write32(uint32_t value, uint8_t *buf1, uint8_t len1,
                                                             uint8_t *buf2, uint8_t len2) {
   for (uint8_t i = 0; i < len1; ++i) {
