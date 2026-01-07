@@ -122,7 +122,7 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
     remaining_buffers &= ~bit;
     struct hw_endpoint * ep = &epx;
 
-    uint32_t ep_ctrl = *ep->endpoint_control;
+    uint32_t ep_ctrl = *hwep_ctrl_reg(ep);
     if ( ep_ctrl & EP_CTRL_DOUBLE_BUFFERED_BITS )
     {
       TU_LOG(3, "Double Buffered: ");
@@ -240,9 +240,8 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   if ( status & USB_INTS_ERROR_DATA_SEQ_BITS )
   {
     usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-    TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n",
-           tu_u32_low16(*epx.buffer_control),
-           tu_u32_high16(*epx.buffer_control));
+    TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*hw_endpoint_get_buf_ctrl(&epx)),
+           tu_u32_high16(*hw_endpoint_get_buf_ctrl(&epx)));
     panic("Data Seq Error \n");
   }
 
@@ -285,8 +284,8 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
     ep = _next_free_interrupt_ep();
     pico_info("Allocate %s ep %d\n", tu_edpt_type_str(transfer_type), ep->interrupt_num);
     assert(ep);
-    ep->buffer_control = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
-    ep->endpoint_control = &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
+    // ep->buffer_control = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
+    // ep->endpoint_control = &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
     // 0 for epx (double buffered): TODO increase to 1024 for ISO
     // 2x64 for intep0
     // 3x64 for intep1
@@ -296,8 +295,8 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
   else
   {
     ep = &epx;
-    ep->buffer_control = &usbh_dpram->epx_buf_ctrl;
-    ep->endpoint_control = &usbh_dpram->epx_ctrl;
+    // ep->buffer_control = &usbh_dpram->epx_buf_ctrl;
+    // ep->endpoint_control = &usbh_dpram->epx_ctrl;
     ep->hw_data_buf = &usbh_dpram->epx_data[0];
   }
 
@@ -307,8 +306,8 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
 static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type, uint8_t bmInterval)
 {
   // Already has data buffer, endpoint control, and buffer control allocated at this point
-  assert(ep->endpoint_control);
-  assert(ep->buffer_control);
+  // assert(ep->endpoint_control);
+  // assert(ep->buffer_control);
   assert(ep->hw_data_buf);
 
   uint8_t const num = tu_edpt_number(ep_addr);
@@ -340,8 +339,8 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
   {
     ep_reg |= (uint32_t) ((bmInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
   }
-  *ep->endpoint_control = ep_reg;
-  pico_trace("endpoint control (0x%p) <- 0x%lx\n", ep->endpoint_control, ep_reg);
+  *hwep_ctrl_reg(ep) = ep_reg;
+  // pico_trace("endpoint control (0x%p) <- 0x%lx\n", ep->endpoint_control, ep_reg);
   ep->configured = true;
 
   if ( ep != &epx )
@@ -382,7 +381,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   assert(rhport == 0);
 
   // Reset any previous state
-  rp2040_usb_init();
+  rp2usb_init();
 
   // Force VBUS detect to always present, for now we assume vbus is always provided (without using VBUS En)
   usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
@@ -466,8 +465,8 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   // reset epx if it is currently active with unplugged device
   if (epx.configured && epx.active && epx.dev_addr == dev_addr) {
     epx.configured = false;
-    *epx.endpoint_control = 0;
-    *epx.buffer_control = 0;
+    *hwep_ctrl_reg(&epx)     = 0;
+    *hwep_buf_ctrl_reg(&epx) = 0;
     hw_endpoint_reset_transfer(&epx);
   }
 
@@ -482,8 +481,8 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 
         // unconfigure the endpoint
         ep->configured = false;
-        *ep->endpoint_control = 0;
-        *ep->buffer_control = 0;
+        *hwep_ctrl_reg(ep)     = 0;
+        *hwep_buf_ctrl_reg(ep) = 0;
         hw_endpoint_reset_transfer(ep);
       }
     }

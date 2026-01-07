@@ -56,10 +56,10 @@ typedef struct hw_endpoint
     uint8_t next_pid;
 
     // Endpoint control register
-    io_rw_32 *endpoint_control;
+    // io_rw_32 *endpoint_control;
 
     // Buffer control register
-    io_rw_32 *buffer_control;
+    // io_rw_32 *buffer_control;
 
     // Buffer pointer in usb dpram
     uint8_t *hw_data_buf;
@@ -97,7 +97,12 @@ typedef struct hw_endpoint
 extern volatile uint32_t e15_last_sof;
 #endif
 
-void rp2040_usb_init(void);
+void rp2usb_init(void);
+
+// if usb hardware is in host mode
+TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
+  return (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) ? true : false;
+}
 
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len);
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
@@ -110,34 +115,76 @@ TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct
   //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
 
-void _hw_endpoint_buffer_control_update32(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg(struct hw_endpoint *ep) {
+  (void)ep;
+#if CFG_TUH_ENABLED
+  if (rp2usb_is_host_mode()) {
+    if (ep->transfer_type == TUSB_XFER_CONTROL) {
+      return &usbh_dpram->epx_ctrl;
+    }
+    return &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
+  }
+#endif
 
-TU_ATTR_ALWAYS_INLINE static inline uint32_t _hw_endpoint_buffer_control_get_value32 (struct hw_endpoint *ep)
-{
-  return *ep->buffer_control;
+#if CFG_TUD_ENABLED
+  if (!rp2usb_is_host_mode()) {
+    const uint8_t num = tu_edpt_number(ep->ep_addr);
+    if (num == 0) {
+      return NULL;
+    }
+    return (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? &usb_dpram->ep_ctrl[num - 1].in
+                                                     : &usb_dpram->ep_ctrl[num - 1].out;
+  }
+#endif
+
+  return NULL;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_buffer_control_set_value32 (struct hw_endpoint *ep, uint32_t value)
-{
-  _hw_endpoint_buffer_control_update32(ep, 0, value);
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_buf_ctrl_reg(struct hw_endpoint *ep) {
+  (void)ep;
+#if CFG_TUH_ENABLED
+  if (rp2usb_is_host_mode()) {
+    if (ep->transfer_type == TUSB_XFER_CONTROL) {
+      return &usbh_dpram->epx_buf_ctrl;
+    }
+    return &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
+  }
+#endif
+
+#if CFG_TUD_ENABLED
+  if (!rp2usb_is_host_mode()) {
+    const uint8_t num = tu_edpt_number(ep->ep_addr);
+    return (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? &usb_dpram->ep_buf_ctrl[num].in
+                                                     : &usb_dpram->ep_buf_ctrl[num].out;
+  }
+#endif
+  return NULL;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_buffer_control_set_mask32 (struct hw_endpoint *ep, uint32_t value)
-{
-  _hw_endpoint_buffer_control_update32(ep, ~value, value);
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
+void hwep_buf_ctrl_update(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t hwep_buf_ctrl_get(struct hw_endpoint *ep) {
+  return *hwep_buf_ctrl_reg(ep);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void _hw_endpoint_buffer_control_clear_mask32 (struct hw_endpoint *ep, uint32_t value)
-{
-  _hw_endpoint_buffer_control_update32(ep, ~value, 0);
+TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set(struct hw_endpoint *ep, uint32_t value) {
+  hwep_buf_ctrl_update(ep, 0, value);
 }
 
-static inline uintptr_t hw_data_offset (uint8_t *buf)
-{
+TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set_mask32(struct hw_endpoint *ep, uint32_t value) {
+  hwep_buf_ctrl_update(ep, ~value, value);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_clear_mask(struct hw_endpoint *ep, uint32_t value) {
+  hwep_buf_ctrl_update(ep, ~value, 0);
+}
+
+static inline uintptr_t hw_data_offset(uint8_t *buf) {
   // Remove usb base from buffer pointer
-  return (uintptr_t) buf ^ (uintptr_t) usb_dpram;
+  return (uintptr_t)buf ^ (uintptr_t)usb_dpram;
 }
-
-extern const char *ep_dir_string[];
 
 #endif

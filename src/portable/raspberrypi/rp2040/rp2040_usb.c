@@ -62,7 +62,7 @@ static void unaligned_memcpy(void *dst, const void *src, size_t n) {
   }
 }
 
-void rp2040_usb_init(void) {
+void rp2usb_init(void) {
   // Reset usb controller
   reset_block(RESETS_RESET_USBCTRL_BITS);
   unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
@@ -93,21 +93,21 @@ void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint* ep) {
   ep->user_buf = 0;
 }
 
-void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoint* ep, uint32_t and_mask,
-                                                               uint32_t or_mask) {
+void __tusb_irq_path_func(hwep_buf_ctrl_update)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
   uint32_t value = 0;
+  io_rw_32 *buf_ctrl = hwep_buf_ctrl_reg(ep);
 
   if (and_mask) {
-    value = *ep->buffer_control & and_mask;
+    value = *buf_ctrl & and_mask;
   }
 
   if (or_mask) {
     value |= or_mask;
     if (or_mask & USB_BUF_CTRL_AVAIL) {
-      if (*ep->buffer_control & USB_BUF_CTRL_AVAIL) {
+      if (*buf_ctrl & USB_BUF_CTRL_AVAIL) {
         panic("ep %02X was already available", ep->ep_addr);
       }
-      *ep->buffer_control = value & ~USB_BUF_CTRL_AVAIL;
+      *buf_ctrl = value & ~USB_BUF_CTRL_AVAIL;
       // 4.1.2.5.1 Con-current access: 12 cycles (should be good for 48*12Mhz = 576Mhz) after write to buffer control
       // Don't need delay in host mode as host is in charge
       if (!is_host_mode()) {
@@ -116,7 +116,7 @@ void __tusb_irq_path_func(_hw_endpoint_buffer_control_update32)(struct hw_endpoi
     }
   }
 
-  *ep->buffer_control = value;
+  *buf_ctrl = value;
 }
 
 // prepare buffer, return buffer control
@@ -153,7 +153,8 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint* ep, 
 
 // Prepare buffer control register value
 void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep) {
-  uint32_t ep_ctrl = *ep->endpoint_control;
+  io_rw_32 *ep_ctrl_reg = hwep_ctrl_reg(ep);
+  uint32_t  ep_ctrl     = *ep_ctrl_reg;
 
   // always compute and start with buffer 0
   uint32_t buf_ctrl = prepare_ep_buffer(ep, 0) | USB_BUF_CTRL_SEL;
@@ -182,13 +183,13 @@ void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep)
     ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
   }
 
-  *ep->endpoint_control = ep_ctrl;
+  *ep_ctrl_reg = ep_ctrl;
 
   TU_LOG(3, "  Prepare BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // Finally, write to buffer_control which will trigger the transfer
   // the next time the controller polls this dpram address
-  _hw_endpoint_buffer_control_set_value32(ep, buf_ctrl);
+  hwep_buf_ctrl_set(ep, buf_ctrl);
 }
 
 void hw_endpoint_xfer_start(struct hw_endpoint* ep, uint8_t* buffer, uint16_t total_len) {
@@ -221,7 +222,7 @@ void hw_endpoint_xfer_start(struct hw_endpoint* ep, uint8_t* buffer, uint16_t to
 
 // sync endpoint buffer and return transferred bytes
 static uint16_t __tusb_irq_path_func(sync_ep_buffer)(struct hw_endpoint* ep, uint8_t buf_id) {
-  uint32_t buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
+  uint32_t buf_ctrl = hwep_buf_ctrl_get(ep);
   if (buf_id) buf_ctrl = buf_ctrl >> 16;
 
   uint16_t xferred_bytes = buf_ctrl & USB_BUF_CTRL_LEN_MASK;
@@ -256,14 +257,14 @@ static void __tusb_irq_path_func(_hw_endpoint_xfer_sync)(struct hw_endpoint* ep)
   // Update hw endpoint struct with info from hardware
   // after a buff status interrupt
 
-  uint32_t __unused buf_ctrl = _hw_endpoint_buffer_control_get_value32(ep);
+  uint32_t __unused buf_ctrl = hwep_buf_ctrl_get(ep);
   TU_LOG(3, "  Sync BufCtrl: [0] = 0x%04x  [1] = 0x%04x\r\n", tu_u32_low16(buf_ctrl), tu_u32_high16(buf_ctrl));
 
   // always sync buffer 0
   uint16_t buf0_bytes = sync_ep_buffer(ep, 0);
 
   // sync buffer 1 if double buffered
-  if ((*ep->endpoint_control) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
+  if ((*hwep_ctrl_reg(ep)) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
     if (buf0_bytes == ep->wMaxPacketSize) {
       // sync buffer 1 if not short packet
       sync_ep_buffer(ep, 1);
@@ -287,7 +288,7 @@ static void __tusb_irq_path_func(_hw_endpoint_xfer_sync)(struct hw_endpoint* ep)
       ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
       ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
 
-      _hw_endpoint_buffer_control_set_value32(ep, 0);
+      hwep_buf_ctrl_set(ep, 0);
 
       usb_hw->abort &= ~TU_BIT(ep_id);
 
