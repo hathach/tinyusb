@@ -105,7 +105,8 @@ const uint8_t *tud_descriptor_device_cb(void) {
 static uint16_t string_descriptor_buffer[STRING_DESCRIPTOR_MAX_LENGTH + 1];
 
 // TinyUSB GET STRING DESCRIPTOR callback.
-const uint16_t *tud_descriptor_string_cb(uint8_t index, [[maybe_unused]] uint16_t langid) {
+const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
+  (void)langid;
   size_t utf16_string_length;
 
   if (index == LANGID) {
