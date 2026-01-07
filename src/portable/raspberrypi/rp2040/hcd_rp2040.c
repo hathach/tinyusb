@@ -284,8 +284,6 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
     ep = _next_free_interrupt_ep();
     pico_info("Allocate %s ep %d\n", tu_edpt_type_str(transfer_type), ep->interrupt_num);
     assert(ep);
-    // ep->buffer_control = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
-    // ep->endpoint_control = &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
     // 0 for epx (double buffered): TODO increase to 1024 for ISO
     // 2x64 for intep0
     // 3x64 for intep1
@@ -295,8 +293,6 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
   else
   {
     ep = &epx;
-    // ep->buffer_control = &usbh_dpram->epx_buf_ctrl;
-    // ep->endpoint_control = &usbh_dpram->epx_ctrl;
     ep->hw_data_buf = &usbh_dpram->epx_data[0];
   }
 
@@ -306,8 +302,6 @@ static struct hw_endpoint *_hw_endpoint_allocate(uint8_t transfer_type)
 static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type, uint8_t bmInterval)
 {
   // Already has data buffer, endpoint control, and buffer control allocated at this point
-  // assert(ep->endpoint_control);
-  // assert(ep->buffer_control);
   assert(ep->hw_data_buf);
 
   uint8_t const num = tu_edpt_number(ep_addr);

@@ -45,41 +45,27 @@
 // Hardware information per endpoint
 typedef struct hw_endpoint
 {
-    // Is this a valid struct
-    bool configured;
-
     uint8_t ep_addr;
     uint8_t next_pid;
+    // Interrupt, bulk, etc
+    uint8_t transfer_type;
 
-    // Endpoint control register
-    // io_rw_32 *endpoint_control;
+    bool    active;  // Endpoint is in use
+    uint8_t pending; // Transfer scheduled but not active
 
-    // Buffer control register
-    // io_rw_32 *buffer_control;
+    uint16_t wMaxPacketSize;
 
-    // Buffer pointer in usb dpram
-    uint8_t *hw_data_buf;
-
-    // User buffer in main memory
-    uint8_t *user_buf;
+    uint8_t *hw_data_buf; // Buffer pointer in usb dpram
+    uint8_t *user_buf;    // User buffer in main memory
 
     // Current transfer information
     uint16_t remaining_len;
     uint16_t xferred_len;
 
-    // Data needed from EP descriptor
-    uint16_t wMaxPacketSize;
-
-    // Endpoint is in use
-    bool active;
-
-    // Interrupt, bulk, etc
-    uint8_t transfer_type;
-
-    // Transfer scheduled but not active
-    uint8_t pending;
-
 #if CFG_TUH_ENABLED
+    // Is this a valid struct
+    bool configured;
+
     // Only needed for host
     uint8_t dev_addr;
 
@@ -131,7 +117,7 @@ TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_buf_ctrl_reg_device(struct hw
 
 #if CFG_TUH_ENABLED
 TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_host(struct hw_endpoint *ep) {
-  if (ep->transfer_type == TUSB_XFER_CONTROL) {
+  if (tu_edpt_number(ep->ep_addr) == 0) {
     return &usbh_dpram->epx_ctrl;
   }
   return &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
@@ -149,18 +135,18 @@ TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_buf_ctrl_reg_host(struct hw_e
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-void hwep_buf_ctrl_update(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
+void hwep_buf_ctrl_update(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask);
 
-TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set(struct hw_endpoint *ep, uint32_t value) {
-  hwep_buf_ctrl_update(ep, 0, value);
+TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set(io_rw_32 *buf_ctrl_reg, uint32_t value) {
+  hwep_buf_ctrl_update(buf_ctrl_reg, 0, value);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set_mask32(struct hw_endpoint *ep, uint32_t value) {
-  hwep_buf_ctrl_update(ep, ~value, value);
+TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set_mask(io_rw_32 *buf_ctrl_reg, uint32_t value) {
+  hwep_buf_ctrl_update(buf_ctrl_reg, ~value, value);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_clear_mask(struct hw_endpoint *ep, uint32_t value) {
-  hwep_buf_ctrl_update(ep, ~value, 0);
+TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_clear_mask(io_rw_32 *buf_ctrl_reg, uint32_t value) {
+  hwep_buf_ctrl_update(buf_ctrl_reg, ~value, 0);
 }
 
 static inline uintptr_t hw_data_offset(uint8_t *buf) {

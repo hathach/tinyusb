@@ -88,32 +88,25 @@ void __tusb_irq_path_func(hw_endpoint_reset_transfer)(struct hw_endpoint* ep) {
   ep->user_buf = 0;
 }
 
-void __tusb_irq_path_func(hwep_buf_ctrl_update)(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask) {
+void __tusb_irq_path_func(hwep_buf_ctrl_update)(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask) {
   const bool is_host = rp2usb_is_host_mode();
-  uint32_t value = 0;
-  io_rw_32  *buf_ctrl;
-
-  #if CFG_TUH_ENABLED
-  if (is_host) {
-    buf_ctrl = hwep_buf_ctrl_reg_host(ep);
-  } else
-  #endif
-  {
-    buf_ctrl = hwep_buf_ctrl_reg_device(ep);
-  }
+  uint32_t   value    = 0;
+  uint32_t   buf_ctrl = *buf_ctrl_reg;
 
   if (and_mask) {
-    value = *buf_ctrl & and_mask;
+    value = buf_ctrl & and_mask;
   }
 
   if (or_mask) {
     value |= or_mask;
     if (or_mask & USB_BUF_CTRL_AVAIL) {
-      if (*buf_ctrl & USB_BUF_CTRL_AVAIL) {
-        panic("ep %02X was already available", ep->ep_addr);
+      if (buf_ctrl & USB_BUF_CTRL_AVAIL) {
+        panic("buf_ctrl @%lX already available", (uintptr_t)buf_ctrl_reg);
       }
-      *buf_ctrl = value & ~USB_BUF_CTRL_AVAIL;
-      // 4.1.2.5.1 Con-current access: 12 cycles (should be good for 48*12Mhz = 576Mhz) after write to buffer control
+      *buf_ctrl_reg = value & ~USB_BUF_CTRL_AVAIL;
+
+      // Section 4.1.2.7.1 (rp2040) / 12.7.3.7.1 (rp2350) Concurrent access:  after write to buffer control, we need to
+      // wait at least 1/48 mhz (usb clock), 12 cycles should be good for 48*12Mhz = 576Mhz.
       // Don't need delay in host mode as host is in charge
       if (!is_host) {
         busy_wait_at_least_cycles(12);
@@ -121,7 +114,7 @@ void __tusb_irq_path_func(hwep_buf_ctrl_update)(struct hw_endpoint *ep, uint32_t
     }
   }
 
-  *buf_ctrl = value;
+  *buf_ctrl_reg = value;
 }
 
 // prepare buffer, move data if tx, return buffer control
@@ -161,21 +154,21 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, 
 // Prepare buffer control register value
 void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep) {
   const tusb_dir_t dir = tu_edpt_dir(ep->ep_addr);
-  bool             is_rx;
 
+  bool      is_rx;
   io_rw_32 *ep_ctrl_reg;
-  // io_rw_32 *buf_ctrl_reg;
+  io_rw_32 *buf_ctrl_reg;
 
   #if CFG_TUH_ENABLED
   const bool is_host = rp2usb_is_host_mode();
   if (is_host) {
-    // buf_ctrl_reg = hwep_buf_ctrl_reg_host(ep);
+    buf_ctrl_reg = hwep_buf_ctrl_reg_host(ep);
     ep_ctrl_reg = hwep_ctrl_reg_host(ep);
     is_rx       = (dir == TUSB_DIR_IN);
   } else
   #endif
   {
-    // buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
+    buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
     ep_ctrl_reg = hwep_ctrl_reg_device(ep);
     is_rx       = (dir == TUSB_DIR_OUT);
   }
@@ -216,7 +209,7 @@ void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep)
 
   // Finally, write to buffer_control which will trigger the transfer
   // the next time the controller polls this dpram address
-  hwep_buf_ctrl_set(ep, buf_ctrl);
+  hwep_buf_ctrl_set(buf_ctrl_reg, buf_ctrl);
 }
 
 void hw_endpoint_xfer_start(struct hw_endpoint* ep, uint8_t* buffer, uint16_t total_len) {
@@ -334,7 +327,8 @@ static void __tusb_irq_path_func(hwep_xfer_sync)(hw_endpoint_t *ep) {
       ep_ctrl &= ~(EP_CTRL_DOUBLE_BUFFERED_BITS | EP_CTRL_INTERRUPT_PER_DOUBLE_BUFFER);
       ep_ctrl |= EP_CTRL_INTERRUPT_PER_BUFFER;
 
-      hwep_buf_ctrl_set(ep, 0);
+      io_rw_32 *buf_ctrl_reg = is_host ? hwep_buf_ctrl_reg_host(ep) : hwep_buf_ctrl_reg_device(ep);
+      hwep_buf_ctrl_set(buf_ctrl_reg, 0);
 
       usb_hw->abort &= ~TU_BIT(ep_id);
 

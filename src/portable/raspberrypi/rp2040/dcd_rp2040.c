@@ -87,13 +87,6 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPa
     // Buffer offset is fixed (also double buffered)
     ep->hw_data_buf = (uint8_t*) &usb_dpram->ep0_buf_a[0];
   } else {
-    // Set the endpoint control register (starts at EP1, hence num-1)
-    // if (dir == TUSB_DIR_IN) {
-    //   ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].in;
-    // } else {
-    //   ep->endpoint_control = &usb_dpram->ep_ctrl[num - 1].out;
-    // }
-
     // round up size to multiple of 64
     uint16_t size = (uint16_t)tu_round_up(wMaxPacketSize, 64);
 
@@ -146,7 +139,8 @@ static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
     buf_ctrl |= USB_BUF_CTRL_DATA1_PID;
   }
 
-  hwep_buf_ctrl_set(ep, buf_ctrl);
+  io_rw_32 *buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
+  hwep_buf_ctrl_set(buf_ctrl_reg, buf_ctrl);
   hw_endpoint_reset_transfer(ep);
 
   if (rp2040_chip_version() >= 2) {
@@ -528,7 +522,8 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 
   // stall and clear current pending buffer, may need to use EP_ABORT
-  hwep_buf_ctrl_set(ep, USB_BUF_CTRL_STALL);
+  io_rw_32 *buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
+  hwep_buf_ctrl_set(buf_ctrl_reg, USB_BUF_CTRL_STALL);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -539,7 +534,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
     // clear stall also reset toggle to DATA0, ready for next transfer
     ep->next_pid = 0;
-    hwep_buf_ctrl_clear_mask(ep, USB_BUF_CTRL_STALL);
+    io_rw_32 *buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
+    hwep_buf_ctrl_clear_mask(buf_ctrl_reg, USB_BUF_CTRL_STALL);
   }
 }
 
