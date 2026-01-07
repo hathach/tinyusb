@@ -48,10 +48,6 @@ typedef struct hw_endpoint
     // Is this a valid struct
     bool configured;
 
-    // Transfer direction (i.e. IN is rx for host but tx for device)
-    // allows us to common up transfer functions
-    bool rx;
-
     uint8_t ep_addr;
     uint8_t next_pid;
 
@@ -115,60 +111,45 @@ TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct
   //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
 
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg(struct hw_endpoint *ep) {
-  (void)ep;
-#if CFG_TUH_ENABLED
-  if (rp2usb_is_host_mode()) {
-    if (ep->transfer_type == TUSB_XFER_CONTROL) {
-      return &usbh_dpram->epx_ctrl;
-    }
-    return &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
+// #if CFG_TUD_ENABLED
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_device(struct hw_endpoint *ep) {
+  uint8_t const epnum = tu_edpt_number(ep->ep_addr);
+  const uint8_t dir   = (uint8_t)tu_edpt_dir(ep->ep_addr);
+  if (epnum == 0) {
+    // EP0 has no endpoint control register because the buffer offsets are fixed and always enabled
+    return NULL;
   }
-#endif
-
-#if CFG_TUD_ENABLED
-  if (!rp2usb_is_host_mode()) {
-    const uint8_t num = tu_edpt_number(ep->ep_addr);
-    if (num == 0) {
-      return NULL;
-    }
-    return (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? &usb_dpram->ep_ctrl[num - 1].in
-                                                     : &usb_dpram->ep_ctrl[num - 1].out;
-  }
-#endif
-
-  return NULL;
+  return (dir == TUSB_DIR_IN) ? &usb_dpram->ep_ctrl[epnum - 1].in : &usb_dpram->ep_ctrl[epnum - 1].out;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_buf_ctrl_reg(struct hw_endpoint *ep) {
-  (void)ep;
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_buf_ctrl_reg_device(struct hw_endpoint *ep) {
+  const uint8_t epnum = tu_edpt_number(ep->ep_addr);
+  const uint8_t dir   = (uint8_t)tu_edpt_dir(ep->ep_addr);
+  return (dir == TUSB_DIR_IN) ? &usb_dpram->ep_buf_ctrl[epnum].in : &usb_dpram->ep_buf_ctrl[epnum].out;
+}
+// #endif
+
 #if CFG_TUH_ENABLED
-  if (rp2usb_is_host_mode()) {
-    if (ep->transfer_type == TUSB_XFER_CONTROL) {
-      return &usbh_dpram->epx_buf_ctrl;
-    }
-    return &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_host(struct hw_endpoint *ep) {
+  if (ep->transfer_type == TUSB_XFER_CONTROL) {
+    return &usbh_dpram->epx_ctrl;
   }
+  return &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_buf_ctrl_reg_host(struct hw_endpoint *ep) {
+  if (ep->transfer_type == TUSB_XFER_CONTROL) {
+    return &usbh_dpram->epx_buf_ctrl;
+  }
+  return &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
+}
 #endif
 
-#if CFG_TUD_ENABLED
-  if (!rp2usb_is_host_mode()) {
-    const uint8_t num = tu_edpt_number(ep->ep_addr);
-    return (tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN) ? &usb_dpram->ep_buf_ctrl[num].in
-                                                     : &usb_dpram->ep_buf_ctrl[num].out;
-  }
-#endif
-  return NULL;
-}
 
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
 void hwep_buf_ctrl_update(struct hw_endpoint *ep, uint32_t and_mask, uint32_t or_mask);
-
-TU_ATTR_ALWAYS_INLINE static inline uint32_t hwep_buf_ctrl_get(struct hw_endpoint *ep) {
-  return *hwep_buf_ctrl_reg(ep);
-}
 
 TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set(struct hw_endpoint *ep, uint32_t value) {
   hwep_buf_ctrl_update(ep, 0, value);

@@ -122,7 +122,7 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
     remaining_buffers &= ~bit;
     struct hw_endpoint * ep = &epx;
 
-    uint32_t ep_ctrl = *hwep_ctrl_reg(ep);
+    uint32_t ep_ctrl = *hwep_ctrl_reg_host(ep);
     if ( ep_ctrl & EP_CTRL_DOUBLE_BUFFERED_BITS )
     {
       TU_LOG(3, "Double Buffered: ");
@@ -316,9 +316,6 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
   ep->ep_addr = ep_addr;
   ep->dev_addr = dev_addr;
 
-  // For host, IN to host == RX, anything else rx == false
-  ep->rx = (dir == TUSB_DIR_IN);
-
   // Response to a setup packet on EP0 starts with pid of 1
   ep->next_pid = (num == 0 ? 1u : 0u);
   ep->wMaxPacketSize = wMaxPacketSize;
@@ -339,7 +336,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
   {
     ep_reg |= (uint32_t) ((bmInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
   }
-  *hwep_ctrl_reg(ep) = ep_reg;
+  *hwep_ctrl_reg_host(ep) = ep_reg;
   // pico_trace("endpoint control (0x%p) <- 0x%lx\n", ep->endpoint_control, ep_reg);
   ep->configured = true;
 
@@ -465,8 +462,8 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   // reset epx if it is currently active with unplugged device
   if (epx.configured && epx.active && epx.dev_addr == dev_addr) {
     epx.configured = false;
-    *hwep_ctrl_reg(&epx)     = 0;
-    *hwep_buf_ctrl_reg(&epx) = 0;
+    *hwep_ctrl_reg_host(&epx)     = 0;
+    *hwep_buf_ctrl_reg_host(&epx) = 0;
     hw_endpoint_reset_transfer(&epx);
   }
 
@@ -481,8 +478,8 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 
         // unconfigure the endpoint
         ep->configured = false;
-        *hwep_ctrl_reg(ep)     = 0;
-        *hwep_buf_ctrl_reg(ep) = 0;
+        *hwep_ctrl_reg_host(ep)     = 0;
+        *hwep_buf_ctrl_reg_host(ep) = 0;
         hw_endpoint_reset_transfer(ep);
       }
     }
