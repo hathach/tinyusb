@@ -30,19 +30,18 @@
 #include "common/tusb_common.h"
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 /// Printer Class Specific Control Request
-typedef enum
-{
+typedef enum {
   PRINTER_REQ_CONTROL_GET_DEVICE_ID   = 0x01, ///< Get device ID
   PRINTER_REQ_CONTROL_GET_PORT_STATUS = 0x02, ///< Get port status
   PRINTER_REQ_CONTROL_SOFT_RESET      = 0x03, ///< Soft reset
-}printer_request_enum_t;
+} printer_request_enum_t;
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif /* _TUSB_PRINTER_H__ */

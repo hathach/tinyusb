@@ -96,7 +96,7 @@ static bool _prep_out_transaction(uint8_t itf) {
   available = tu_fifo_remaining(&p_printer->rx_ff);
 
   if (available >= CFG_TUD_PRINTER_EP_BUFSIZE) {
-    return usbd_edpt_xfer(rhport, p_printer->ep_out, p_epbuf->epout, CFG_TUD_PRINTER_EP_BUFSIZE);
+    return usbd_edpt_xfer(rhport, p_printer->ep_out, p_epbuf->epout, CFG_TUD_PRINTER_EP_BUFSIZE, false);
   } else {
     // Release endpoint since we don't make any transfer
     usbd_edpt_release(rhport, p_printer->ep_out);
@@ -189,7 +189,7 @@ void printerd_reset(uint8_t rhport) {
   for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
     printer_interface_t *p_printer = &_printer_itf[i];
 
-    tu_memclr(p_printer, sizeof(p_printer));
+    tu_memclr(p_printer, sizeof(&p_printer));
     if (!_printer_fifo_cfg.rx_persistent) {
       tu_fifo_clear(&p_printer->rx_ff);
     }
@@ -202,6 +202,7 @@ void printerd_reset(uint8_t rhport) {
 }
 
 uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
+  (void)max_len;
   TU_VERIFY(TUSB_CLASS_PRINTER == itf_desc->bInterfaceClass, 0);
 
   // Identify available interface to open
@@ -257,13 +258,13 @@ bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_
         break;
       case PRINTER_REQ_CONTROL_GET_PORT_STATUS:
         if (stage == CONTROL_STAGE_SETUP) {
-          static uint8_t port_status = (0 << 3) | (1 << 1) | (1 << 2); // ~Paper empty + Selected + NoError
+          static uint8_t port_status = 0b00011000; // paper not empty, selected, no error
           return tud_control_xfer(rhport, request, &port_status, sizeof(port_status));
         }
         break;
       case PRINTER_REQ_CONTROL_SOFT_RESET:
         if (stage == CONTROL_STAGE_SETUP) {
-          return false; // what to do ?
+          return false; // TODO: reset buffers, reset Bulk In and Out endpoints, clear stall conditions
         }
         break;
       default:
@@ -276,6 +277,8 @@ bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_
 }
 
 bool printerd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+  (void)rhport;
+  (void)result;
   uint8_t              itf;
   printer_interface_t *p_printer;
 
@@ -293,7 +296,7 @@ bool printerd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uin
   if (ep_addr == p_printer->ep_out) {
     tu_fifo_write_n(&p_printer->rx_ff, p_epbuf->epout, (uint16_t)xferred_bytes);
     // invoke receive callback (if there is still data)
-    if (tud_printer_rx_cb && !tu_fifo_empty(&p_printer->rx_ff)) {
+    if (!tu_fifo_empty(&p_printer->rx_ff)) {
       tud_printer_rx_cb(itf, xferred_bytes);
     }
     // prepare for OUT transaction

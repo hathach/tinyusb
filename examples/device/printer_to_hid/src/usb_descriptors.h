@@ -25,6 +25,52 @@
 #ifndef USB_DESCRIPTORS_H_
 #define USB_DESCRIPTORS_H_
 
-REPORT_ID_KEYBOARD = 1
+#include "bsp/board_api.h"
+#include "tusb.h"
+
+#define USB_VID 0xCafe // unassigned vendor id
+#define USB_PID 0x4004 // random product id
+#define USB_BCD 0x0200 // binary coded version: 2.00
+
+// Configuration
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_PRINTER_DESC_LEN)
+
+// HID interface endpoints
+#define EPADDR_HID 0x81 // Interrupt In, MSB must be 1
+// Printer interface endpoints
+#define EPADDR_PRINTER_OUT 0x01 // Bulk Out, MSB must be 0
+#define EPADDR_PRINTER_IN  0x82 // Bulk In, MSB must be 1
+
+// HID report ID
+#define REPORT_ID_KEYBOARD 1
+
+// The maximum length of the string that will be sent to the host via the STRING DESCRIPTOR. Note that the
+// string descriptor itself is two bytes wider than the string.
+#define STRING_DESCRIPTOR_MAX_LENGTH 32
+
+//--------------------------------------------------------------------+
+// Configuration, interface, endpoint descriptors
+//--------------------------------------------------------------------+
+
+enum {
+  ITF_HID,
+  ITF_PRINTER,
+  ITF_COUNT,
+};
+
+//--------------------------------------------------------------------+
+// String Descriptors
+//--------------------------------------------------------------------+
+
+enum {
+  LANGID = 0,
+  STR_MANUFACTURER,
+  STR_PRODUCT,
+  STR_SERIAL,
+  STR_CONFIGURATION,
+  STR_HID_INTERFACE,
+  STR_PRINTER_INTERFACE,
+  STRING_COUNT,
+};
 
 #endif /* USB_DESCRIPTORS_H_ */

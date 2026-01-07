@@ -39,7 +39,7 @@
 // usb interface pointer
 uint8_t printer_itf = 0;
 // pendings bytes in usb endpoint buffer ; must process these bytes
-uint8_t pending_bytes_on_usb_ep = 0;
+size_t pending_bytes_on_usb_ep = 0;
 
 
 // -------------------------------------------------------------------+
@@ -72,7 +72,7 @@ uint8_t next_keycode_is_release = false;
 // next_keycode and place it in the HID report, then set next_is_null
 // such that the key is released by the next report. This seem to help
 // stroking the same key twice when the character is repeated in the data.
-void hid_tx_task(void) {
+static void hid_tx_task(void) {
   // Poll every 10ms
   const uint32_t  interval_ms = 10;
   static uint32_t start_ms    = 0;
@@ -104,28 +104,30 @@ void hid_tx_task(void) {
 // overwrite local data that is not processed yet, so we use data_buffer as a fifo.
 // We do not have to take care of reading correctly from the endpoint buffer, as all
 // is done well by tud_printer_n_read().
-void printer_rx_task(void) {
-  if (pending_bytes_on_usb_ep > 0) {
-    size_t len1 = data_available;
-    size_t len2 = 0;
-    if (len1 < 0) {
-      len1 = 0;
-    }
-    if (data_rx_offset + len1 > sizeof(data_buffer)) {
-      len2 = len1 - (sizeof(data_buffer) - data_rx_offset);
-      len1 = sizeof(data_buffer) - data_rx_offset;
-    }
-    uint32_t count = tud_printer_n_read(printer_itf, data_buffer + data_rx_offset, len1);
-    if (len2 > 0) {
-      count += tud_printer_n_read(printer_itf, data_buffer, len2);
-    }
+static void printer_rx_task(void) {
 
-    if (count > 0) {
-      data_available -= count;
-      pending_bytes_on_usb_ep -= count;
-      data_rx_offset = (data_rx_offset + count) % sizeof(data_buffer);
-    }
+  if (pending_bytes_on_usb_ep == 0) {
+    return;
   }
+
+  size_t len1 = data_available;
+  size_t len2 = 0;
+  if (data_rx_offset + len1 > sizeof(data_buffer)) {
+    len2 = len1 - (sizeof(data_buffer) - data_rx_offset);
+    len1 = sizeof(data_buffer) - data_rx_offset;
+  }
+  uint32_t count = tud_printer_n_read(printer_itf, data_buffer + data_rx_offset, len1);
+  if (len2 > 0) {
+    count += tud_printer_n_read(printer_itf, data_buffer, len2);
+  }
+
+  if (count == 0) {
+    return;
+  }
+
+  data_available -= count;
+  pending_bytes_on_usb_ep -= count;
+  data_rx_offset = (data_rx_offset + count) % sizeof(data_buffer);
 }
 
 // The HID keycodes are not binary mapped like UTF8 codes. If we want to send the
@@ -134,7 +136,7 @@ void printer_rx_task(void) {
 // hosts expecting hid data from a QWERTY keyboard. Also note that only a-zA-Z0-9
 // characters are converted, for simplicity of the example. Other characters are
 // converted to spaces.
-void translation_task(void) {
+static void translation_task(void) {
   if (data_tx_offset != data_rx_offset || data_available == 0) {
     // If data_tx_offset and data_rx_offset have different values, then we
     // can proceed: translate, prepare for TX, and advance data_tx_offset.
@@ -177,18 +179,22 @@ void translation_task(void) {
 }
 
 int main(void) {
-
   board_init();
-  tud_init(BOARD_TUD_RHPORT); // init device stack on configured roothub port
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  // init device and host stack on configured roothub port
+  tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
+  tusb_init(BOARD_TUD_RHPORT, &dev_init);
+  board_init_after_tusb();
 
   while (1) {
     tud_task();         // tinyusb device task
     printer_rx_task();  // read data sent by host on our printer interface
     translation_task(); // translate printer's UTF8 to HID keycodes
     hid_tx_task();      // send data to host with our HID interface
+    if (pending_bytes_on_usb_ep > 0) {
+      board_led_on();
+    } else {
+      board_led_off();
+    }
   }
 }
 
@@ -197,7 +203,6 @@ int main(void) {
 // Printer callbacks
 //--------------------------------------------------------------------+
 
-// Data was received on endpoint buffer
 void tud_printer_rx_cb(uint8_t itf, size_t n) {
   printer_itf = itf;            // get interface from which to read endpoint buffer
   pending_bytes_on_usb_ep += n; // count pending bytes, counter must decrement when reading from the endpoint buffer
@@ -210,10 +215,20 @@ void tud_printer_rx_cb(uint8_t itf, size_t n) {
 
 uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer,
                                uint16_t reqlen) {
+  (void)instance;
+  (void)report_id;
+  (void)report_type;
+  (void)buffer;
+  (void)reqlen;
   return 0;
 }
 
 void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, const uint8_t *buffer,
                            uint16_t bufsize) {
+  (void)instance;
+  (void)report_id;
+  (void)report_type;
+  (void)buffer;
+  (void)bufsize;
   return;
 }

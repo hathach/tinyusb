@@ -98,6 +98,7 @@ target_sources(tinyusb_device_base INTERFACE
 		${TOP}/src/class/mtp/mtp_device.c
 		${TOP}/src/class/net/ecm_rndis_device.c
 		${TOP}/src/class/net/ncm_device.c
+		${TOP}/src/class/printer/printer_device.c
 		${TOP}/src/class/usbtmc/usbtmc_device.c
 		${TOP}/src/class/vendor/vendor_device.c
 		${TOP}/src/class/video/video_device.c
