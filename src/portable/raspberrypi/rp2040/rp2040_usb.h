@@ -13,17 +13,30 @@
   #error TinyUSB device and host mode not supported at the same time
 #endif
 
-#if defined(PICO_RP2040_USB_DEVICE_ENUMERATION_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX)
-#define TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX PICO_RP2040_USB_DEVICE_ENUMERATION_FIX
+// E5 and E15 only apply to RP2040
+#if defined(PICO_RP2040) && PICO_RP2040 == 1
+  // RP2040 E5: USB device fails to exit RESET state on busy USB bus.
+  #if defined(PICO_RP2040_USB_DEVICE_ENUMERATION_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX)
+    #define TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX PICO_RP2040_USB_DEVICE_ENUMERATION_FIX
+  #endif
+
+  // RP2040 E15: USB Device controller will hang if certain bus errors occur during an IN transfer.
+  #if defined(PICO_RP2040_USB_DEVICE_UFRAME_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX)
+    #define TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX PICO_RP2040_USB_DEVICE_UFRAME_FIX
+  #endif
 #endif
 
-#if defined(PICO_RP2040_USB_DEVICE_UFRAME_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX)
-#define TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX PICO_RP2040_USB_DEVICE_UFRAME_FIX
+#ifndef TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
+  #define TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX 0
+#endif
+
+#ifndef TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+  #define TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX 0
 #endif
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
-#undef PICO_RP2040_USB_FAST_IRQ
-#define PICO_RP2040_USB_FAST_IRQ 1
+  #undef PICO_RP2040_USB_FAST_IRQ
+  #define PICO_RP2040_USB_FAST_IRQ 1
 #endif
 
 #ifndef PICO_RP2040_USB_FAST_IRQ
@@ -46,36 +59,36 @@
 #define pico_trace(...) TU_LOG(3, __VA_ARGS__)
 
 // Hardware information per endpoint
-typedef struct hw_endpoint
-{
-    uint8_t ep_addr;
-    uint8_t next_pid;
-    // Interrupt, bulk, etc
-    uint8_t transfer_type;
+typedef struct hw_endpoint {
+  uint8_t ep_addr;
+  uint8_t next_pid;
+  uint8_t transfer_type;
 
-    bool    active;  // Endpoint is in use
-    uint8_t pending; // Transfer scheduled but not active
+  bool active;         // transferring data
 
-    uint16_t wMaxPacketSize;
-
-    uint8_t *hw_data_buf; // Buffer pointer in usb dpram
-
-    // Current transfer information
-    uint8_t *user_buf; // User buffer in main memory
-    uint16_t remaining_len;
-    uint16_t xferred_len;
-
-#if CFG_TUH_ENABLED
-    // Is this a valid struct
-    bool configured;
-
-    // Only needed for host
-    uint8_t dev_addr;
-
-    // If interrupt endpoint
-    uint8_t interrupt_num;
+#if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+  bool    e15_bulk_in; // Errata15 device bulk in
+  uint8_t pending;     // Transfer scheduled but not active
 #endif
 
+  uint16_t wMaxPacketSize;
+  uint8_t *hw_data_buf; // Buffer pointer in usb dpram
+
+  // Current transfer information
+  uint8_t *user_buf; // User buffer in main memory
+  uint16_t remaining_len;
+  uint16_t xferred_len;
+
+#if CFG_TUH_ENABLED
+  // Is this a valid struct
+  bool configured;
+
+  // Only needed for host
+  uint8_t dev_addr;
+
+  // If interrupt endpoint
+  uint8_t interrupt_num;
+#endif
 } hw_endpoint_t;
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX

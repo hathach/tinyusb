@@ -38,10 +38,8 @@
 static void hwep_xfer_sync(hw_endpoint_t *ep);
 
   #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
-static bool e15_is_bulkin_ep(struct hw_endpoint *ep);
 static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
   #else
-    #define e15_is_bulkin_ep(x)             (false)
     #define e15_is_critical_frame_period(x) (false)
   #endif
 
@@ -228,13 +226,16 @@ void hw_endpoint_xfer_start(struct hw_endpoint* ep, uint8_t* buffer, uint16_t to
   ep->active = true;
   ep->user_buf = buffer;
 
-  if (e15_is_bulkin_ep(ep)) {
+  #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+  if (ep->e15_bulk_in) {
     usb_hw_set->inte = USB_INTS_DEV_SOF_BITS;
   }
 
   if (e15_is_critical_frame_period(ep)) {
-    ep->pending = 1;
-  } else {
+    ep->pending = 1; // skip transfer if we are in critical frame period
+  } else
+  #endif
+  {
     hw_endpoint_start_next_buffer(ep);
   }
 
@@ -360,9 +361,12 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint* ep) {
     hw_endpoint_lock_update(ep, -1);
     return true;
   } else {
+  #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
     if (e15_is_critical_frame_period(ep)) {
       ep->pending = 1;
-    } else {
+    } else
+  #endif
+    {
       hw_endpoint_start_next_buffer(ep);
     }
   }
@@ -397,15 +401,12 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint* ep) {
 
 volatile uint32_t e15_last_sof = 0;
 
-// check if Errata 15 is needed for this endpoint i.e device bulk-in
-static bool __tusb_irq_path_func(e15_is_bulkin_ep)(struct hw_endpoint *ep) {
-  return (!rp2usb_is_host_mode() && tu_edpt_dir(ep->ep_addr) == TUSB_DIR_IN && ep->transfer_type == TUSB_XFER_BULK);
-}
-
 // check if we need to apply Errata 15 workaround : i.e
 // Endpoint is BULK IN and is currently in critical frame period i.e 20% of last usb frame
 static bool __tusb_irq_path_func(e15_is_critical_frame_period)(struct hw_endpoint* ep) {
-  TU_VERIFY(e15_is_bulkin_ep(ep));
+  if (!ep->e15_bulk_in) {
+    return false;
+  }
 
   /* Avoid the last 200us (uframe 6.5-7) of a frame, up to the EOF2 point.
    * The device state machine cannot recover from receiving an incorrect PID

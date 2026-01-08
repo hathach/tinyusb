@@ -92,6 +92,12 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPa
     // double buffered Bulk endpoint
     if (transfer_type == TUSB_XFER_BULK) {
       size *= 2u;
+
+  #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+      if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
+        ep->e15_bulk_in = true;
+      }
+  #endif
     }
 
     // assign buffer
@@ -221,17 +227,14 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
       struct hw_endpoint *ep = hw_endpoint_get(i, TUSB_DIR_IN);
 
       // Active Bulk IN endpoint requires SOF
-      if ((ep->transfer_type == TUSB_XFER_BULK) && ep->active) {
+      if (ep->e15_bulk_in && ep->active) {
         keep_sof_alive = true;
 
         hw_endpoint_lock_update(ep, 1);
-
-        // Deferred enable?
         if (ep->pending) {
           ep->pending = 0;
           hw_endpoint_start_next_buffer(ep);
         }
-
         hw_endpoint_lock_update(ep, -1);
       }
     }
@@ -292,7 +295,7 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
     dcd_event_bus_reset(0, TUSB_SPEED_FULL, true);
     usb_hw_clear->sie_status = USB_SIE_STATUS_BUS_RESET_BITS;
 
-#if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
+  #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
     // Only run enumeration workaround if pull up is enabled
     if (usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS) {
       rp2040_usb_device_enumeration_fix();
@@ -491,7 +494,6 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) 
 
 void dcd_edpt_close_all(uint8_t rhport) {
   (void) rhport;
-
   // may need to use EP Abort
   reset_non_control_endpoints();
 }

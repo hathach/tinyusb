@@ -126,7 +126,7 @@ target_compile_definitions(tinyusb_host_base INTERFACE
 
 #------------------------------------
 # Host MAX3421
-#------------------------------------
+#------------------------------------1
 add_library(tinyusb_host_max3421 INTERFACE)
 target_sources(tinyusb_host_max3421 INTERFACE
 	${TOP}/src/portable/analog/max3421/hcd_max3421.c
@@ -157,10 +157,12 @@ target_link_libraries(tinyusb_bsp INTERFACE
 # tinyusb_additions will hold our extra settings for examples
 add_library(tinyusb_additions INTERFACE)
 
+if (PICO_PLATFORM STREQUAL rp2040)
 target_compile_definitions(tinyusb_additions INTERFACE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 	PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
-)
+	)
+endif ()
 
 if(LOGGER STREQUAL "RTT" OR LOGGER STREQUAL "rtt")
 	target_compile_definitions(tinyusb_additions INTERFACE
