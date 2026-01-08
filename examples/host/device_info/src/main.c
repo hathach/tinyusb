@@ -130,11 +130,10 @@ void tuh_mount_cb(uint8_t daddr) {
   }
   if (XFER_RESULT_SUCCESS != xfer_result) {
     uint16_t* serial = (uint16_t*)(uintptr_t) desc.serial;
-    serial[0] = (uint16_t) ((TUSB_DESC_STRING << 8) | (2 * 3 + 2));
-    serial[1] = 'n';
-    serial[2] = '/';
-    serial[3] = 'a';
-    serial[4] = 0;
+
+    serial[0] = (uint16_t)((TUSB_DESC_STRING << 8) | (2 * 1 + 2));
+    serial[1] = '0'; // simply 0
+    serial[2] = 0;
   }
   print_utf16((uint16_t*)(uintptr_t) desc.serial, sizeof(desc.serial)/2);
   printf("\r\n");
