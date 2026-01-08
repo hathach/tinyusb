@@ -110,35 +110,24 @@ static void __tusb_irq_path_func(_handle_buff_status_bit)(uint bit, struct hw_en
   }
 }
 
-static void __tusb_irq_path_func(hw_handle_buff_status)(void)
-{
+static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
   uint32_t remaining_buffers = usb_hw->buf_status;
   pico_trace("buf_status 0x%08lx\n", remaining_buffers);
 
   // Check EPX first
   uint bit = 0b1;
-  if ( remaining_buffers & bit )
-  {
+  if (remaining_buffers & bit) {
     remaining_buffers &= ~bit;
     struct hw_endpoint * ep = &epx;
 
-    uint32_t ep_ctrl = *hwep_ctrl_reg_host(ep);
-    if ( ep_ctrl & EP_CTRL_DOUBLE_BUFFERED_BITS )
-    {
-      TU_LOG(3, "Double Buffered: ");
-    }
-    else
-    {
-      TU_LOG(3, "Single Buffered: ");
-    }
-    TU_LOG_HEX(3, ep_ctrl);
+    // uint32_t ep_ctrl = *hwep_ctrl_reg_host(ep);
+    // TU_LOG_HEX(3, ep_ctrl);
 
     _handle_buff_status_bit(bit, ep);
   }
 
   // Check "interrupt" (asynchronous) endpoints for both IN and OUT
-  for ( uint i = 1; i <= USB_HOST_INTERRUPT_ENDPOINTS && remaining_buffers; i++ )
-  {
+  for (uint i = 1; i <= USB_HOST_INTERRUPT_ENDPOINTS && remaining_buffers; i++) {
     // EPX is bit 0 & 1
     // IEP1 IN  is bit 2
     // IEP1 OUT is bit 3
@@ -147,19 +136,16 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void)
     // IEP3 IN  is bit 6
     // IEP3 OUT is bit 7
     // etc
-    for ( uint j = 0; j < 2; j++ )
-    {
+    for (uint j = 0; j < 2; j++) {
       bit = 1 << (i * 2 + j);
-      if ( remaining_buffers & bit )
-      {
+      if (remaining_buffers & bit) {
         remaining_buffers &= ~bit;
         _handle_buff_status_bit(bit, &ep_pool[i]);
       }
     }
   }
 
-  if ( remaining_buffers )
-  {
+  if (remaining_buffers) {
     panic("Unhandled buffer %d\n", remaining_buffers);
   }
 }
@@ -220,7 +206,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   {
     handled |= USB_INTS_BUFF_STATUS_BITS;
     TU_LOG(2, "Buffer complete\r\n");
-    hw_handle_buff_status();
+    handle_hwbuf_status();
   }
 
   if ( status & USB_INTS_TRANS_COMPLETE_BITS )
@@ -240,8 +226,8 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void)
   if ( status & USB_INTS_ERROR_DATA_SEQ_BITS )
   {
     usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
-    TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*hw_endpoint_get_buf_ctrl(&epx)),
-           tu_u32_high16(*hw_endpoint_get_buf_ctrl(&epx)));
+    TU_LOG(3, "  Seq Error: [0] = 0x%04u  [1] = 0x%04x\r\n", tu_u32_low16(*hwbuf_ctrl_reg_host(&epx)),
+           tu_u32_high16(*hwbuf_ctrl_reg_host(&epx)));
     panic("Data Seq Error \n");
   }
 
@@ -322,10 +308,8 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
   assert(!(dpram_offset & 0b111111));
 
   // Fill in endpoint control register with buffer offset
-  uint32_t ep_reg = EP_CTRL_ENABLE_BITS
-                    | EP_CTRL_INTERRUPT_PER_BUFFER
-                    | (ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB)
-                    | dpram_offset;
+  uint32_t ep_reg = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
+                    ((uint)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
   if ( bmInterval )
   {
     ep_reg |= (uint32_t) ((bmInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
