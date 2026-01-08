@@ -153,7 +153,7 @@ static void translation_task(void) {
       c -= 'a';
       c += HID_KEY_A;
     } else if ('A' <= c && c <= 'Z') {
-      c -= 'a';
+      c -= 'A';
       c += HID_KEY_A;
       m = KEYBOARD_MODIFIER_LEFTSHIFT;
     } else if ('1' <= c && c <= '9') {
