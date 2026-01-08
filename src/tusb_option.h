@@ -742,7 +742,7 @@
   #define CFG_TUH_CDC_PL2303 0
 #endif
 
-#ifndef CFG_TUH_CDC_PL2303_VID_PID_QUIRKS_LIST
+#ifndef CFG_TUH_CDC_PL2303_VID_PID_LIST
   // List of product IDs that can use the PL2303 CDC driver
   #define CFG_TUH_CDC_PL2303_VID_PID_LIST \
   { 0x067b, 0x2303 }, /* initial 2303 */ \
