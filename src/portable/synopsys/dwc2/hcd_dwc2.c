@@ -425,7 +425,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
   while ((dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
 
-#if DWC2_I_WANT_FS_ON_HS_BOARD
+#ifdef DWC2_I_WANT_FS_ON_HS_BOARD
   // disable high speed mode
   dwc2->hcfg |= HCFG_FSLS_ONLY;
 #else
@@ -1382,9 +1382,9 @@ static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
     hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
   }
 
-#if DWC2_I_WANT_FS_ON_HS_BOARD
+#ifdef DWC2_I_WANT_FS_ON_HS_BOARD
   // disable high speed mode
-  dwc2->hcfg |= HCFG_FSLS_ONLY;
+  hcfg |= HCFG_FSLS_ONLY;
 #endif
 
   dwc2->hcfg = hcfg;
