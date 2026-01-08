@@ -1,10 +1,6 @@
 #ifndef RP2040_COMMON_H_
 #define RP2040_COMMON_H_
 
-#if defined(RP2040_USB_HOST_MODE) && defined(RP2040_USB_DEVICE_MODE)
-#error TinyUSB device and host mode not supported at the same time
-#endif
-
 #include "common/tusb_common.h"
 
 #include "pico.h"
@@ -12,6 +8,10 @@
 #include "hardware/irq.h"
 #include "hardware/resets.h"
 #include "hardware/timer.h"
+
+#if defined(RP2040_USB_HOST_MODE) && defined(RP2040_USB_DEVICE_MODE)
+  #error TinyUSB device and host mode not supported at the same time
+#endif
 
 #if defined(PICO_RP2040_USB_DEVICE_ENUMERATION_FIX) && !defined(TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX)
 #define TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX PICO_RP2040_USB_DEVICE_ENUMERATION_FIX
@@ -36,6 +36,9 @@
 #define __tusb_irq_path_func(x) x
 #endif
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 #define usb_hw_set    ((usb_hw_t *) hw_set_alias_untyped(usb_hw))
 #define usb_hw_clear  ((usb_hw_t *) hw_clear_alias_untyped(usb_hw))
 
@@ -56,9 +59,9 @@ typedef struct hw_endpoint
     uint16_t wMaxPacketSize;
 
     uint8_t *hw_data_buf; // Buffer pointer in usb dpram
-    uint8_t *user_buf;    // User buffer in main memory
 
     // Current transfer information
+    uint8_t *user_buf; // User buffer in main memory
     uint16_t remaining_len;
     uint16_t xferred_len;
 
@@ -108,7 +111,7 @@ TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_device(struct hw_end
   return (dir == TUSB_DIR_IN) ? &usb_dpram->ep_ctrl[epnum - 1].in : &usb_dpram->ep_ctrl[epnum - 1].out;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_buf_ctrl_reg_device(struct hw_endpoint *ep) {
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwbuf_ctrl_reg_device(struct hw_endpoint *ep) {
   const uint8_t epnum = tu_edpt_number(ep->ep_addr);
   const uint8_t dir   = (uint8_t)tu_edpt_dir(ep->ep_addr);
   return (dir == TUSB_DIR_IN) ? &usb_dpram->ep_buf_ctrl[epnum].in : &usb_dpram->ep_buf_ctrl[epnum].out;
@@ -123,30 +126,29 @@ TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_host(struct hw_endpo
   return &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_buf_ctrl_reg_host(struct hw_endpoint *ep) {
-  if (ep->transfer_type == TUSB_XFER_CONTROL) {
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwbuf_ctrl_reg_host(struct hw_endpoint *ep) {
+  if (tu_edpt_number(ep->ep_addr) == 0) {
     return &usbh_dpram->epx_buf_ctrl;
   }
   return &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
 }
 #endif
 
-
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
-void hwep_buf_ctrl_update(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask);
+void hwbuf_ctrl_update(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask);
 
-TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set(io_rw_32 *buf_ctrl_reg, uint32_t value) {
-  hwep_buf_ctrl_update(buf_ctrl_reg, 0, value);
+TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_set(io_rw_32 *buf_ctrl_reg, uint32_t value) {
+  hwbuf_ctrl_update(buf_ctrl_reg, 0, value);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_set_mask(io_rw_32 *buf_ctrl_reg, uint32_t value) {
-  hwep_buf_ctrl_update(buf_ctrl_reg, ~value, value);
+TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_set_mask(io_rw_32 *buf_ctrl_reg, uint32_t value) {
+  hwbuf_ctrl_update(buf_ctrl_reg, ~value, value);
 }
 
-TU_ATTR_ALWAYS_INLINE static inline void hwep_buf_ctrl_clear_mask(io_rw_32 *buf_ctrl_reg, uint32_t value) {
-  hwep_buf_ctrl_update(buf_ctrl_reg, ~value, 0);
+TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_clear_mask(io_rw_32 *buf_ctrl_reg, uint32_t value) {
+  hwbuf_ctrl_update(buf_ctrl_reg, ~value, 0);
 }
 
 static inline uintptr_t hw_data_offset(uint8_t *buf) {

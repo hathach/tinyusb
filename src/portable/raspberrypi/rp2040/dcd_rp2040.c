@@ -71,18 +71,17 @@ TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *hw_endpoint_get_by_addr(uint8
 
 // main processing for dcd_edpt_iso_activate
 static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
-  const uint8_t epnum = tu_edpt_number(ep_addr);
-
   ep->ep_addr        = ep_addr;
   ep->next_pid       = 0u;
   ep->wMaxPacketSize = wMaxPacketSize;
   ep->transfer_type  = transfer_type;
 
   // Clear existing buffer control state
-  io_rw_32 *buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
+  io_rw_32 *buf_ctrl_reg = hwbuf_ctrl_reg_device(ep);
   *buf_ctrl_reg          = 0;
 
   // allocated hw buffer
+  const uint8_t epnum = tu_edpt_number(ep_addr);
   if (epnum == 0) {
     // Buffer offset is fixed (also double buffered)
     ep->hw_data_buf = (uint8_t*) &usb_dpram->ep0_buf_a[0];
@@ -104,16 +103,9 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPa
   }
 }
 
-// Init, allocate buffer and enable endpoint
-static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
-  const uint8_t    epnum = tu_edpt_number(ep_addr);
-  const tusb_dir_t dir   = tu_edpt_dir(ep_addr);
-  hw_endpoint_t   *ep    = hw_endpoint_get(epnum, dir);
-
-  hw_endpoint_init(ep, ep_addr, wMaxPacketSize, transfer_type);
-
-  // Set endpoint control register to enable (EP0 has no endpoint control register)
+static void hw_endpoint_enable(hw_endpoint_t *ep, uint8_t transfer_type) {
   io_rw_32 *ctrl_reg = hwep_ctrl_reg_device(ep);
+  // Set endpoint control register to enable (EP0 has no endpoint control register)
   if (ctrl_reg != NULL) {
     const uint32_t ctrl_value =
       EP_CTRL_ENABLE_BITS | ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->hw_data_buf);
@@ -121,14 +113,24 @@ static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t t
   }
 }
 
+// Init and enable endpoint
+static void hw_endpoint_open(uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
+  const uint8_t    epnum = tu_edpt_number(ep_addr);
+  const tusb_dir_t dir   = tu_edpt_dir(ep_addr);
+  hw_endpoint_t   *ep    = hw_endpoint_get(epnum, dir);
+
+  hw_endpoint_init(ep, ep_addr, wMaxPacketSize, transfer_type);
+  hw_endpoint_enable(ep, transfer_type);
+}
+
 static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
   // Abort any pending transfer
-  // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
-  // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
   const uint8_t  dir        = (uint8_t)tu_edpt_dir(ep->ep_addr);
-  const uint8_t epnum = tu_edpt_number(ep->ep_addr);
+  const uint8_t  epnum      = tu_edpt_number(ep->ep_addr);
   const uint32_t abort_mask = TU_BIT((epnum << 1) | (dir ? 0 : 1));
 
+  // Due to Errata RP2040-E2: ABORT flag is only applicable for B2 and later (unusable for B0, B1).
+  // Which means we are not guaranteed to safely abort pending transfer on B0 and B1.
   if (rp2040_chip_version() >= 2) {
     usb_hw_set->abort = abort_mask;
     while ((usb_hw->abort_done & abort_mask) != abort_mask) {}
@@ -139,8 +141,8 @@ static void hw_endpoint_abort_xfer(struct hw_endpoint* ep) {
     buf_ctrl |= USB_BUF_CTRL_DATA1_PID;
   }
 
-  io_rw_32 *buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
-  hwep_buf_ctrl_set(buf_ctrl_reg, buf_ctrl);
+  io_rw_32 *buf_ctrl_reg = hwbuf_ctrl_reg_device(ep);
+  hwbuf_ctrl_set(buf_ctrl_reg, buf_ctrl);
   hw_endpoint_reset_transfer(ep);
 
   if (rp2040_chip_version() >= 2) {
@@ -265,15 +267,12 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
 #if FORCE_VBUS_DETECT == 0
   // Since we force VBUS detect On, device will always think it is connected and
   // couldn't distinguish between disconnect and suspend
-  if (status & USB_INTS_DEV_CONN_DIS_BITS)
-  {
+  if (status & USB_INTS_DEV_CONN_DIS_BITS) {
     handled |= USB_INTS_DEV_CONN_DIS_BITS;
 
-    if ( usb_hw->sie_status & USB_SIE_STATUS_CONNECTED_BITS )
-    {
+    if (usb_hw->sie_status & USB_SIE_STATUS_CONNECTED_BITS) {
       // Connected: nothing to do
-    }else
-    {
+    } else {
       // Disconnected
       dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
     }
@@ -295,8 +294,10 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
 
 #if TUD_OPT_RP2040_USB_DEVICE_ENUMERATION_FIX
     // Only run enumeration workaround if pull up is enabled
-    if (usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS) rp2040_usb_device_enumeration_fix();
-#endif
+    if (usb_hw->sie_ctrl & USB_SIE_CTRL_PULLUP_EN_BITS) {
+      rp2040_usb_device_enumeration_fix();
+    }
+  #endif
   }
 
   /* Note from pico datasheet 4.1.2.6.4 (v1.2)
@@ -458,7 +459,6 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* req
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const* desc_edpt) {
   (void) rhport;
   const uint8_t xfer_type = desc_edpt->bmAttributes.xfer;
-  TU_VERIFY(xfer_type != TUSB_XFER_ISOCHRONOUS);
   hw_endpoint_open(desc_edpt->bEndpointAddress, tu_edpt_packet_size(desc_edpt), xfer_type);
   return true;
 }
@@ -485,13 +485,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) 
   }
   ep->wMaxPacketSize = ep_desc->wMaxPacketSize;
 
-  // Set control register to enable endpoint
-  io_rw_32 *ctrl_reg = hwep_ctrl_reg_device(ep);
-  if (ctrl_reg != NULL) {
-    const uint32_t ctrl_value = EP_CTRL_ENABLE_BITS | ((uint32_t)TUSB_XFER_ISOCHRONOUS << EP_CTRL_BUFFER_TYPE_LSB) |
-                                hw_data_offset(ep->hw_data_buf);
-    *ctrl_reg = ctrl_value;
-  }
+  hw_endpoint_enable(ep, TUSB_XFER_ISOCHRONOUS);
   return true;
 }
 
@@ -522,8 +516,8 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
   }
 
   // stall and clear current pending buffer, may need to use EP_ABORT
-  io_rw_32 *buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
-  hwep_buf_ctrl_set(buf_ctrl_reg, USB_BUF_CTRL_STALL);
+  io_rw_32 *buf_ctrl_reg = hwbuf_ctrl_reg_device(ep);
+  hwbuf_ctrl_set(buf_ctrl_reg, USB_BUF_CTRL_STALL);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
@@ -534,8 +528,8 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
 
     // clear stall also reset toggle to DATA0, ready for next transfer
     ep->next_pid = 0;
-    io_rw_32 *buf_ctrl_reg = hwep_buf_ctrl_reg_device(ep);
-    hwep_buf_ctrl_clear_mask(buf_ctrl_reg, USB_BUF_CTRL_STALL);
+    io_rw_32 *buf_ctrl_reg = hwbuf_ctrl_reg_device(ep);
+    hwbuf_ctrl_clear_mask(buf_ctrl_reg, USB_BUF_CTRL_STALL);
   }
 }
 

@@ -62,22 +62,23 @@ enum {
                   USB_SIE_CTRL_PULLDOWN_EN_BITS | USB_SIE_CTRL_EP0_INT_1BUF_BITS
 };
 
-static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr)
-{
+static struct hw_endpoint *get_dev_ep(uint8_t dev_addr, uint8_t ep_addr) {
   uint8_t num = tu_edpt_number(ep_addr);
-  if ( num == 0 ) return &epx;
+  if (num == 0) {
+    return &epx;
+  }
 
-  for ( uint32_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++ )
-  {
+  for (uint32_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++) {
     struct hw_endpoint *ep = &ep_pool[i];
-    if ( ep->configured && (ep->dev_addr == dev_addr) && (ep->ep_addr == ep_addr) ) return ep;
+    if (ep->configured && (ep->dev_addr == dev_addr) && (ep->ep_addr == ep_addr)) {
+      return ep;
+    }
   }
 
   return NULL;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline uint8_t dev_speed(void)
-{
+TU_ATTR_ALWAYS_INLINE static inline uint8_t dev_speed(void) {
   return (usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS) >> USB_SIE_STATUS_SPEED_LSB;
 }
 
@@ -98,8 +99,7 @@ static void __tusb_irq_path_func(hw_xfer_complete)(struct hw_endpoint *ep, xfer_
   hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
-static void __tusb_irq_path_func(_handle_buff_status_bit)(uint bit, struct hw_endpoint *ep)
-{
+static void __tusb_irq_path_func(_handle_buff_status_bit)(uint bit, struct hw_endpoint *ep) {
   usb_hw_clear->buf_status = bit;
   // EP may have been stalled?
   assert(ep->active);
@@ -357,8 +357,7 @@ static void _hw_endpoint_init(struct hw_endpoint *ep, uint8_t dev_addr, uint8_t 
     // Finally, enable interrupt that endpoint
     usb_hw_set->int_ep_ctrl = 1 << (ep->interrupt_num + 1);
 
-    // If it's an interrupt endpoint we need to set up the buffer control
-    // register
+    // If it's an interrupt endpoint we need to set up the buffer control register
   }
 }
 
@@ -456,8 +455,8 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   // reset epx if it is currently active with unplugged device
   if (epx.configured && epx.active && epx.dev_addr == dev_addr) {
     epx.configured = false;
-    *hwep_ctrl_reg_host(&epx)     = 0;
-    *hwep_buf_ctrl_reg_host(&epx) = 0;
+    *hwep_ctrl_reg_host(&epx)  = 0;
+    *hwbuf_ctrl_reg_host(&epx) = 0;
     hw_endpoint_reset_transfer(&epx);
   }
 
@@ -472,8 +471,8 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
 
         // unconfigure the endpoint
         ep->configured = false;
-        *hwep_ctrl_reg_host(ep)     = 0;
-        *hwep_buf_ctrl_reg_host(ep) = 0;
+        *hwep_ctrl_reg_host(ep)  = 0;
+        *hwbuf_ctrl_reg_host(ep) = 0;
         hw_endpoint_reset_transfer(ep);
       }
     }
