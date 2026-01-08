@@ -29,12 +29,13 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
   #define USBH_STACK_SIZE     4096
 #else
   // Increase stack size when debug log is enabled
-  #define USBH_STACK_SIZE    (3*configMINIMAL_STACK_SIZE/2) * (CFG_TUSB_DEBUG ? 2 : 1)
+  #define USBH_STACK_SIZE    (configMINIMAL_STACK_SIZE * (CFG_TUSB_DEBUG ? 4 : 2))
 #endif
 
 
@@ -65,15 +66,6 @@ TimerHandle_t blinky_tm;
 static void led_blinky_cb(TimerHandle_t xTimer);
 static void usb_host_task(void* param);
 
-extern void cdc_app_init(void);
-extern void hid_app_init(void);
-extern void msc_app_init(void);
-
-#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-// API to read/rite MAX3421's register. Implemented by TinyUSB
-extern uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
-extern bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
-#endif
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -92,15 +84,15 @@ int main(void) {
 
   xTimerStart(blinky_tm, 0);
 
-  // skip starting scheduler (and return) for ESP32-S2 or ESP32-S3
-#if !TUSB_MCU_VENDOR_ESPRESSIF
+  // only start scheduler for non-espressif mcu
+#ifndef ESP_PLATFORM
   vTaskStartScheduler();
 #endif
 
   return 0;
 }
 
-#if TUSB_MCU_VENDOR_ESPRESSIF
+#ifdef ESP_PLATFORM
 void app_main(void) {
   main();
 }
@@ -122,9 +114,7 @@ static void usb_host_task(void *param) {
     vTaskSuspend(NULL);
   }
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
   // FeatherWing MAX3421E use MAX3421E's GPIO0 for VBUS enable

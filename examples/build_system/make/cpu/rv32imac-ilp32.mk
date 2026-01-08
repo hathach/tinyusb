@@ -1,11 +1,11 @@
 ifeq ($(TOOLCHAIN),gcc)
   CFLAGS += \
-    -march=rv32imac_zicsr \
+    -march=rv32imac_zicsr_zifencei \
     -mabi=ilp32 \
 
 else ifeq ($(TOOLCHAIN),clang)
   CFLAGS += \
-    -march=rv32imac_zicsr \
+    -march=rv32imac_zicsr_zifencei \
     -mabi=ilp32 \
 
 else ifeq ($(TOOLCHAIN),iar)

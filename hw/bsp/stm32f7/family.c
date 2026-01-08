@@ -46,7 +46,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 
 #ifdef UART_DEV
-UART_HandleTypeDef UartHandle = {
+static UART_HandleTypeDef UartHandle = {
   .Instance = UART_DEV,
   .Init = {
     .BaudRate = CFG_BOARD_UART_BAUDRATE,
@@ -78,6 +78,10 @@ void OTG_HS_IRQHandler(void) {
 //--------------------------------------------------------------------+
 
 void board_init(void) {
+  SCB_EnableICache();
+
+  HAL_Init();
+
   board_clock_init();
 
   // Enable All GPIOs clocks
@@ -101,7 +105,7 @@ void board_init(void) {
   SysTick_Config(SystemCoreClock / 1000);
 
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )

@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_DFU_DEVICE_H_
-#define _TUSB_DFU_DEVICE_H_
+#ifndef TUSB_DFU_DEVICE_H_
+#define TUSB_DFU_DEVICE_H_
 
 #include "dfu.h"
 
@@ -74,13 +74,13 @@ void tud_dfu_manifest_cb(uint8_t alt);
 // Invoked when received DFU_UPLOAD request
 // Application must populate data with up to length bytes and
 // Return the number of written bytes
-TU_ATTR_WEAK uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length);
+uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length);
 
 // Invoked when a DFU_DETACH request is received
-TU_ATTR_WEAK void tud_dfu_detach_cb(void);
+void tud_dfu_detach_cb(void);
 
 // Invoked when the Host has terminated a download or upload transfer
-TU_ATTR_WEAK void tud_dfu_abort_cb(uint8_t alt);
+void tud_dfu_abort_cb(uint8_t alt);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
@@ -96,4 +96,4 @@ bool     dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_r
  }
 #endif
 
-#endif /* _TUSB_DFU_MODE_DEVICE_H_ */
+#endif /* TUSB_DFU_MODE_DEVICE_H_ */

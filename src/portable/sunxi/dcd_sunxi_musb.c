@@ -99,22 +99,12 @@ static void usb_phy_write(int addr, int data, int len)
 	}
 }
 
-static void delay_ms(uint32_t ms)
-{
-#if CFG_TUSB_OS == OPT_OS_NONE
-  int now = board_millis();
-  while (board_millis() - now <= ms) asm("nop");
-#else
-  osal_task_delay(ms);
-#endif
-}
-
 static void USBC_HardwareReset(void)
 {
   // Reset phy and controller
   USBC_REG_set_bit_l(USBPHY_CLK_RST_BIT, USBPHY_CLK_REG);
 	USBC_REG_set_bit_l(BUS_RST_USB_BIT, BUS_CLK_RST_REG);
-  delay_ms(2);
+  tusb_time_delay_ms_api(2);
 
 	USBC_REG_set_bit_l(USBPHY_CLK_GAT_BIT, USBPHY_CLK_REG);
   USBC_REG_set_bit_l(USBPHY_CLK_RST_BIT, USBPHY_CLK_REG);
@@ -186,7 +176,7 @@ static void USBC_ForceVbusValidToHigh(void)
 	USBC_Writel(reg_val, USBC_REG_ISCR(USBC0_BASE));
 }
 
-void USBC_SelectBus(u32 io_type, u32 ep_type, u32 ep_index)
+static void USBC_SelectBus(u32 io_type, u32 ep_type, u32 ep_index)
 {
 	u32 reg_val = 0;
 
@@ -545,12 +535,12 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
   tu_fifo_buffer_info_t info;
   ops[dir].tu_fifo_get_info(f, &info);
   unsigned total_len = len;
-  len = TU_MIN(total_len, info.len_lin);
-  ops[dir].pipe_read_write(info.ptr_lin, fifo, len);
+  len = TU_MIN(total_len, info.linear.len);
+  ops[dir].pipe_read_write(info.linear.ptr, fifo, len);
   unsigned rem = total_len - len;
   if (rem) {
-    len = TU_MIN(rem, info.len_wrap);
-    ops[dir].pipe_read_write(info.ptr_wrap, fifo, len);
+    len = TU_MIN(rem, info.wrapped.len);
+    ops[dir].pipe_read_write(info.wrapped.ptr, fifo, len);
     rem -= len;
   }
   ops[dir].tu_fifo_advance(f, total_len - rem);
@@ -962,7 +952,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
   USBC_REG_set_bit_b(USBC_BP_POWER_D_RESUME, USBC_REG_PCTL(USBC0_BASE));
-  delay_ms(10);
+  tusb_time_delay_ms_api(10);
   USBC_REG_clear_bit_b(USBC_BP_POWER_D_RESUME, USBC_REG_PCTL(USBC0_BASE));
 }
 
@@ -1092,9 +1082,25 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr)
   musb_int_unmask();
 }
 
+  #if 0
+bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size) {
+  (void)rhport;
+  (void)ep_addr;
+  (void)largest_packet_size;
+  return false;
+}
+
+bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
+  (void)rhport;
+  (void)desc_ep;
+  return false;
+}
+  #endif
+
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
-bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   bool ret;
   // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
@@ -1112,8 +1118,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 }
 
 // Submit a transfer where is managed by FIFO, When complete dcd_event_xfer_complete() is invoked to notify the stack - optional, however, must be listed in usbd.c
-bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr)
 {
+  (void) is_isr;
   (void)rhport;
   bool ret;
   // TU_LOG1("X %x %d\r\n", ep_addr, total_bytes);
@@ -1220,5 +1227,4 @@ void dcd_int_handler(uint8_t rhport)
     rxis &= ~TU_BIT(num);
   }
 }
-
 #endif

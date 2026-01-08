@@ -30,6 +30,14 @@
 #include "common/tusb_common.h"
 #include "dwc2_type.h"
 
+#if CFG_TUD_ENABLED
+#include "device/dcd.h"
+#endif
+
+#if CFG_TUH_ENABLED
+#include "host/hcd.h"
+#endif
+
 // Following symbols must be defined by port header
 // - _dwc2_controller[]: array of controllers
 // - DWC2_EP_MAX: largest EP counts of all controllers
@@ -49,6 +57,10 @@
   #include "dwc2_efm32.h"
 #elif TU_CHECK_MCU(OPT_MCU_XMC4000)
   #include "dwc2_xmc.h"
+#elif defined(TUP_USBIP_DWC2_AT32)
+  #include "dwc2_at32.h"
+#elif defined(TUP_USBIP_DWC2_NRF)
+  #include "dwc2_nrf.h"
 #else
   #error "Unsupported MCUs"
 #endif
@@ -82,13 +94,13 @@ void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr);
 TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_tx(dwc2_regs_t* dwc2, uint8_t fnum) {
   // flush TX fifo and wait for it cleared
   dwc2->grstctl = GRSTCTL_TXFFLSH | (fnum << GRSTCTL_TXFNUM_Pos);
-  while (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk) {}
+  while (0 != (dwc2->grstctl & GRSTCTL_TXFFLSH_Msk)) {}
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void dfifo_flush_rx(dwc2_regs_t* dwc2) {
   // flush RX fifo and wait for it cleared
   dwc2->grstctl = GRSTCTL_RXFFLSH;
-  while (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk) {}
+  while (0 != (dwc2->grstctl & GRSTCTL_RXFFLSH_Msk)) {}
 }
 
 void dfifo_read_packet(dwc2_regs_t* dwc2, uint8_t* dst, uint16_t len);

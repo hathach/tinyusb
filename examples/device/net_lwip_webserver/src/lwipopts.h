@@ -29,8 +29,8 @@
  * Author: Simon Goldschmidt
  *
  */
-#ifndef __LWIPOPTS_H__
-#define __LWIPOPTS_H__
+#ifndef LWIPOPTS_H__
+#define LWIPOPTS_H__
 
 /* Prevent having to link sys_arch.c (we don't test the API layers in unit tests) */
 #define NO_SYS                          1
@@ -58,6 +58,7 @@
 #define LWIP_HTTPD_SSI_INCLUDE_TAG      0
 
 #define LWIP_SINGLE_NETIF               1
+#define LWIP_NETIF_LINK_CALLBACK        1
 
 #define PBUF_POOL_SIZE                  4
 

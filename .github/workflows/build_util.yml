@@ -12,11 +12,15 @@ on:
       build-args:
         required: true
         type: string
-      one-per-family:
+      build-options:
+        required: false
+        default: ''
+        type: string
+      upload-artifacts:
         required: false
         default: false
         type: boolean
-      upload-artifacts:
+      upload-metrics:
         required: false
         default: false
         type: boolean
@@ -34,7 +38,7 @@ jobs:
         arg: ${{ fromJSON(inputs.build-args) }}
     steps:
       - name: Checkout TinyUSB
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Toolchain
         id: setup-toolchain
@@ -47,30 +51,33 @@ jobs:
         with:
           arg: ${{ matrix.arg }}
 
-      - name: Set build one-per-family option
-        id: set-one-per-family
+      - name: Build
+        env:
+          IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+          TOOLCHAIN: ${{ inputs.toolchain }}
         run: |
-          if [[ "${{ inputs.one-per-family }}" == "true" ]]; then
-            BUILD_OPTION="--one-per-family"
+          if [ "$TOOLCHAIN" == "esp-idf" ]; then
+            docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py ${{ matrix.arg }}
+          elif [ "${{ inputs.build-system }}" == "cmake-make" ] || [ "${{ inputs.build-system }}" == "make-cmake" ]; then
+            python tools/build.py -s make ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+            python tools/build.py -s cmake ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+          else
+            python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
           fi
-          echo "build_option=$BUILD_OPTION"
-          echo "build_option=$BUILD_OPTION" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: Build
-        run: |
-          if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
-            docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py ${{ matrix.arg }}
-          else
-            python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ steps.set-one-per-family.outputs.build_option }} ${{ matrix.arg }}
-          fi
-        shell: bash
+      - name: Upload Artifacts for Metrics
+        if: ${{ inputs.upload-metrics }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: metrics-${{ matrix.arg }}
+          path: cmake-build/cmake-build-*/metrics.json
 
       - name: Upload Artifacts for Hardware Testing
         if: ${{ inputs.upload-artifacts }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: ${{ matrix.arg }}
+          name: binaries-${{ matrix.arg }}
           path: |
             cmake-build/cmake-build-*/*/*/*.elf
             cmake-build/cmake-build-*/*/*/*.bin

@@ -2,6 +2,313 @@
 Changelog
 *********
 
+0.20.0
+======
+
+*November 19, 2025*
+
+General
+-------
+
+- New MCUs and Boards:
+
+  - Add STM32U3 device support (adjusted from STM32U0)
+  - Add nRF54H20 support with initial board configuration
+  - Rename board names: pca10056→nrf52840dk, pca10059→nrf52840dongle, pca10095→nrf5340dk
+  - Improve CMake: Move startup and linker files from board target to executable. Enhance target warning flags and fix various build warnings
+
+- Code Quality and Static Analysis:
+
+  - Add PVS-Studio static analysis to CI
+  - Add SonarQube scan support
+  - Add IAR C-Stat analysis capability
+  - Add ``.clang-format`` for consistent code formatting
+  - Fix numerous alerts and warnings found by static analysis tools
+
+- Documentation:
+
+  - Improve Getting Started documentation structure and flow
+  - Add naming conventions and buffer handling documentation
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- DWC2
+
+  - Fix incorrect handling of Zero-Length Packets (ZLP) in the DWC2 driver when receiving data (OUT transfers)
+  - Improve EP0 multi-packet logic
+  - Support EP0 with max packet size = 8
+  - For IN endpoint, write initial packet directly to FIFO and only use TXFE interrupt for subsequent packets
+  - Fix ISO with bInterval > 2 using incomplete IN interrupt handling.
+  - Fix compile issues when enabling both host and device
+  - Clear pending suspend interrupt after USB reset (enum end)
+  - Improve host closing endpoint and channel handling when device is unplugged
+
+- FSDEV (STM32)
+
+  - Fix AT32 USB interrupt remapping in ``dcd_int_enable()``
+
+- OHCI
+
+  - Add initial LPC55 OHCI support
+  - Improve data cache support
+
+Device Stack
+------------
+
+- USBD Core
+
+  - Support configurable EP0 buffer size CFG_TUD_ENDPOINT0_BUFSIZE
+  - Make dcd_edpt_iso_alloc/activate as default API for ISO endpoint
+
+- Audio
+
+  - Add UAC1 support
+  - Implement RX FIFO threshold adjustment with `tud_audio_get/set_ep_in_fifo_threshold()`
+
+- CDC
+
+  - Migrate to endpoint stream API
+
+- HID
+
+  - Fix HID stylus descriptor
+
+- MIDI
+
+  - Migrate to endpoint stream API
+  - Add ``tud_midi_n_packet_write_n()`` and ``tud_midi_n_packet_read_n()``
+
+- MTP
+
+  - Fix incorrect MTP xact_len calculation
+
+- Video
+
+  - Add bufferless operation callback for dynamic frame generation with tud_video_prepare_payload_cb()
+
+Host Stack
+----------
+
+No changes
+
+0.19.0
+======
+
+General
+-------
+
+- New MCUs and Boards:
+
+  - Add ESP32-H4, ESP32-C5, ESP32-C61 support
+  - Add STM32U0, STM32WBA, STM32N6
+  - Add AT32F405, AT32F403A, AT32F415, AT32F423 support
+  - Add CH32V305 support and CH32V20x USB host support
+  - Add MCXA156 SDK 2.16 support and FRDM-MCXA156 board
+
+API Changes
+-----------
+
+- Core APIs
+
+  - Add weak callbacks with new syntax for better compiler compatibility
+  - Add ``tusb_deinit()`` to cleanup stack
+  - Add time functions: ``tusb_time_millis_api()`` and ``tusb_time_delay_ms_api()``
+  - Add ``osal_critical`` APIs for critical section handling
+  - Introduce ``xfer_isr()`` callback for ISO transfer optimization in device classes
+
+- Device APIs
+
+  - CDC: Add notification support ``tud_cdc_configure()``, ``tud_cdc_n_notify_uart_state()``,
+    ``tud_cdc_n_notify_conn_speed_change()``, ``tud_cdc_notify_complete_cb()``
+  - MSC: Add ``tud_msc_inquiry2_cb()`` with bufsize parameter, update ``tud_msc_async_io_done()``
+    with ``in_isr`` parameter
+  - Audio: Add ``tud_audio_n_mounted()`` and various FIFO access functions
+  - MTP: Add ``tud_mtp_mounted()``, ``tud_mtp_data_send()``, ``tud_mtp_data_receive()``,
+    ``tud_mtp_response_send()``, ``tud_mtp_event_send()``
+
+- Host APIs
+
+  - Core: Add ``tuh_edpt_close()``, ``tuh_address_set()``, ``tuh_descriptor_get_device_local()``,
+    ``tuh_descriptor_get_string_langid()``, ``tuh_connected()``, ``tuh_bus_info_get()``
+  - Add enumeration callbacks: ``tuh_enum_descriptor_device_cb()``,
+    ``tuh_enum_descriptor_configuration_cb()``
+  - CDC: Add ``tuh_cdc_get_control_line_state_local()``, ``tuh_cdc_get/set_dtr/rts()``,
+    ``tuh_cdc_connect/disconnect()`` and sync versions of all control APIs
+  - MIDI: Add ``tuh_midi_itf_get_info()``, ``tuh_midi_packet_read_n()``,
+    ``tuh_midi_packet_write_n()``, ``tuh_midi_read_available()``, ``tuh_midi_write_flush()``,
+    ``tuh_midi_descriptor_cb()``
+
+Controller Driver (DCD & HCD)
+-----------------------------
+
+- DWC2
+
+  - Support DWC2 v4.30a with improved reset procedure
+  - Fix core reset: wait for AHB idle before reset
+  - Add STM32 DWC2 data cache support with proper alignment
+  - Host improvements:
+    - Fix disconnect detection and SOF flag handling
+    - Fix HFIR timing off-by-one error
+    - Retry IN token immediately for bInterval=1
+    - Proper attach debouncing (200ms)
+    - Fix all retry intervals
+    - Resume OUT transfer when PING ACKed
+  - Fix enumeration racing conditions
+  - Refactor bitfields for better code generation
+
+- FSDEV (STM32)
+
+  - Fix AT32 compile issues after single-buffered endpoint changes
+  - Add configurable single-buffered isochronous endpoints
+  - Fix STM32H7 recurrent suspend ISR
+  - Fix STM32L4 GPIOD clock enable for variants without GPIOD
+  - Fix STM32 PHYC PLL stability wait
+  - Improve PMA size handling for STM32U0
+
+- EHCI
+
+  - Fix removed QHD getting reused
+  - Fix NXP USBPHY disconnection detection
+
+- Chipidea/NXP
+
+  - Fix race condition with spinlock
+  - Improve iMXRT support: fix build, disable BOARD_ConfigMPU, fix attach debouncing on port1 highspeed
+  - Fix iMXRT1064 and add to HIL test pool
+
+- MAX3421E
+
+  - Use spinlock for thread safety instead of atomic flag
+  - Implement ``hcd_edpt_close()``
+
+- RP2040
+
+  - Fix audio ISO transfer: reset state before notifying stack
+  - Fix CMake RTOS cache variable
+  - Abort transfer if active in ``iso_activate()``
+
+- SAMD
+
+  - Add host controller driver support
+
+Device Stack
+------------
+
+- USBD Core
+
+  - Introduce ``xfer_isr()`` callback for interrupt-time transfer handling
+  - Add ``usbd_edpt_xfer_fifo()`` stub
+  - Revert endpoint busy/claim status if ``xfer_isr()`` defers to ``xfer_cb()``
+
+- Audio
+
+  - Major simplification of UAC driver and alt settings management
+  - Move ISO transfers into ``xfer_isr()`` for better performance
+  - Remove FIFO mutex (single producer/consumer optimization)
+  - Add implicit feedback support for data IN endpoints
+  - Fix alignment issues
+  - Update buffer macros with cache line size alignment
+
+- CDC
+
+  - Add notification support: ``CFG_TUD_CDC_NOTIFY``, ``tud_cdc_n_notify_conn_speed_change()``, ``tud_cdc_notify_complete_cb()``
+  - Reduce default bInterval from 16ms to 1ms for better responsiveness
+  - Rename ``tud_cdc_configure_fifo()`` to ``tud_cdc_configure()`` and add ``tx_overwritable_if_not_connected`` option
+  - Fix web serial robustness with major overhaul and logic cleanup
+
+- HID
+
+  - Add Usage Page and Table for Power Devices (0x84 - 0x85)
+  - Fix HID descriptor parser variable size and 4-byte item handling
+  - Add consumer page configurations
+
+- MIDI
+
+  - Fix MIDI interface descriptor handling after audio streaming interface
+  - Skip RX data with all zeroes
+
+- MSC
+
+  - Add async I/O support for MSC using ``tud_msc_async_io_done()``
+  - Add ``tud_msc_inquiry2_cb()`` with bufsize for full inquiry response
+
+- MTP
+
+  - Add new Media Transfer Protocol (MTP) device class driver
+  - Support MTP operations: GetDeviceInfo, SendObjectInfo, SendObject
+  - Add MTP event support with ``tud_mtp_event_send()``
+  - Implement filesystem example with callbacks
+  - Add hardware-in-the-loop testing support
+
+- NCM
+
+  - Add USB NCM link state control support
+  - Fix DHCP offer/ACK destination
+
+- USBTMC
+
+  - Add vendor-specific message support
+
+- Vendor
+
+  - Fix vendor device reset and open issues
+  - Fix descriptor parsing for ``CFG_TUD_VENDOR > 1``
+  - Fix vendor FIFO argument calculation
+
+Host Stack
+----------
+
+- USBH Core
+
+  - Major enumeration improvements:
+    - Fix enumeration racing conditions
+    - Add proper attach debouncing with hub/rootport handling (200ms delay)
+    - Reduce ``ENUM_DEBOUNCING_DELAY_MS`` to 200ms
+    - Always get language ID, manufacturer, product, and serial strings during enumeration
+    - Always get first 2 bytes of string descriptor to determine length (prevents buffer overflow)
+    - Support devices with multiple configurations
+  - Add ``tuh_enum_descriptor_device_cb()`` and ``tuh_enum_descriptor_configuration_cb()`` callbacks
+  - Add ``tuh_descriptor_get_string_langid()`` API
+  - Hub improvements:
+    - Check status before getting first device descriptor
+    - Properly handle port status and change detection
+    - Queue status endpoint for detach/remove events
+    - Fix hub status change endpoint handling
+  - Fix endpoint management:
+    - ``hcd_edpt_open()`` returns false if endpoint already opened
+    - Add ``hcd_edpt_close()`` implementation
+    - Abort pending transfers on close
+  - Add roothub debouncing flag to ignore attach/remove during debouncing
+  - Move address setting and bus info management to separate structures
+  - Force removed devices in same bus info before setting address
+
+- CDC Serial Host
+
+  - Major refactor to generalize CDC serial drivers (FTDI, CP210x, CH34x, PL2303, ACM)
+  - Add explicit ``sync()`` API with ``TU_API_SYNC()`` returning ``tusb_xfer_result_t``
+  - Rename ``tuh_cdc_get_local_line_coding()`` to ``tuh_cdc_get_line_coding_local()``
+  - Add ``tuh_cdc_get_control_line_state_local()``
+  - Implement ``tuh_cdc_get/set_dtr/rts()`` as inline functions
+
+- MIDI Host
+
+  - Major API changes:
+    - Rename ``tuh_midi_stream_flush()`` to ``tuh_midi_write_flush()``
+    - Add ``tuh_midi_packet_read_n()`` and ``tuh_midi_packet_write_n()``
+    - Add ``CFG_TUH_MIDI_STREAM_API`` to opt out of stream API
+    - Change API to use index instead of device address (supports multiple MIDI per device)
+  - Rename ``tuh_midi_get_num_rx/tx_cables()`` to ``tuh_midi_get_rx/tx_cable_count()``
+  - Add ``tuh_midi_descriptor_cb()`` and ``tuh_midi_itf_get_info()``
+
+- MSC Host
+
+  - Continue async I/O improvements
+
+- HID Host
+
+  - Fix version string to actually show version
+
 0.18.0
 ======
 
@@ -15,12 +322,12 @@ General
 
 - Better support dcache, make sure all usb-transferred buffer are cache line aligned and occupy full cache line
 - Build ARM IAR with CircleCI
-- Improve HIL with dual/host_info_to_device_cdc optional for pico/pico2, enable dwc2 dma test
+- Improve HIL with `dual/host_info_to_device_cdc`` optional for pico/pico2, enable dwc2 dma test
 
 API Changes
 -----------
 
-- Change signature of ``tusb_init(rhport, tusb_rhport_init_t*)``, tusb_init(void) is now deprecated but still available for backward compatibility
+- Change signature of ``tusb_init(rhport, tusb_rhport_init_t*)``, ``tusb_init(void)`` is now deprecated but still available for backward compatibility
 - Add new ``tusb_int_handler(rhport, in_isr)``
 - Add time-related APIs: ``tusb_time_millis_api()`` and ``tusb_time_delay_ms_api()`` for non-RTOS, required for some ports/configuration
 - New configuration macros:
@@ -34,20 +341,21 @@ Controller Driver (DCD & HCD)
 -----------------------------
 
 - DWC2
+
   - Add DMA support for both device and host controller
   - Add host driver support including: full/high speed, control/bulk/interrupt (CBI) transfer, split CBI i.e FS/LS attached via highspeed hub, hub support
 
-- RP2: implement dcd_edpt_iso_alloc() and dcd_edpt_iso_activate() for isochronous endpoint
+- RP2: implement ``dcd_edpt_iso_alloc()`` and ``dcd_edpt_iso_activate()`` for isochronous endpoint
 - iMXRT1170 support M4 core
 
 Device Stack
 ------------
 
 - Vendor Fix  class reset
-- NCM fix recursions in tud_network_recv_renew()
-- Audio fix align issue of _audiod_fct.alt_setting
+- NCM fix recursions in ``tud_network_recv_renew()``
+- Audio fix align issue of ``_audiod_fct.alt_setting``
 - UVC support format frame based
-- Change dcd_dcache_() return type from void to bool
+- Change ``dcd_dcache_()`` return type from void to bool
 - HID add Usage Table for Physical Input Device Page (0x0F)
 
 Host Stack
@@ -89,20 +397,20 @@ Controller Driver (DCD & HCD)
   - Add support for ch32 usbd e.g ch32v203
   - Add support for STM32G4 and STM32U5 microcontrollers.
   - Fix h5 (32-bit) errata 2.15.1: Buffer description table update completes after CTR interrupt triggers
-  - ISO EP buffer allocation improvements, implement dcd_edpt_close_all()
+  - ISO EP buffer allocation improvements, implement ``dcd_edpt_close_all()``
 
   - Fix ch32v203 race condition and stability issue with
 
     - fix ch32v203 seems to unconditionally accept ZLP on EP0 OUT.
     - fix v203 race condition between rx bufsize and RX_STAT which cause PMAOVR, occurs with WRITE10
-    - correctly handle setup prepare at dcd_edpt0_status_complete(), which fixes the race condition with windows where we could miss setup packet (setup bit set, but count = 0)
+    - correctly handle setup prepare at ``dcd_edpt0_status_complete()``, which fixes the race condition with windows where we could miss setup packet (setup bit set, but count = 0)
 
 - MAX3421E
 
   - Add support for rp2040, esp32 (c3, c6, h2, etc..)
-  - Add hcd_deinit() for max3421
+  - Add ``hcd_deinit()`` for max3421
   - Retry NAK handling next frame to reduce CPU and SPI bus usage
-  - add cpuctl and pinctl to tuh_configure() option for max3421
+  - add ``cpuctl`` and ``pinctl`` to ``tuh_configure()`` option for max3421
   - Implement hcd abort transfer for Max3421
   - Properly Handle NAK Response in MAX3421E driver: correctly switch and skip writing to 2 FIFOs when NAK received. Otherwise, the driver may hang in certain conditions.
 
@@ -114,7 +422,7 @@ Controller Driver (DCD & HCD)
 
 - nRF
 
-  - Fix dcd_edpt_open for iso endpoint
+  - Fix ``dcd_edpt_open()`` for iso endpoint
   - Handle ISOOUT CRC errors
   - Add compile support with old nordic sdk
   - Fix a few race conditions
@@ -141,7 +449,7 @@ Controller Driver (DCD & HCD)
 Device Stack
 ------------
 
-- Add tud_deinit() and class driver deinit() to deinitialize TinyUSB device stack.
+- Add ``tud_deinit()`` and ``class driver deinit()`` to deinitialize TinyUSB device stack.
 - Add support for generic SOF callback.
 - Add set address recovery time 2ms per USB spec.
 
@@ -157,7 +465,7 @@ Device Stack
 
 - CDC
 
-  - Add tud_cdc_configure_fifo() to make RX/TX buffer persistent (not clear when disconnected)
+  - Add ``tud_cdc_configure_fifo()`` to make RX/TX buffer persistent (not clear when disconnected)
   - Add missing capability bit for CDC ACM serial break support
   - Enhanced CDC class with better handling of large data transmissions.
   - Add missing capability bit for CDC ACM serial break support
@@ -175,39 +483,39 @@ Device Stack
 - Net
 
   - Rewrite of NCM device driver to improve throughput
-  - removed obsolete tud_network_link_state_cb()
+  - removed obsolete ``tud_network_link_state_cb()``
 
 - USBTMC Added notification support
 
 - Vendor
 
   - Migrate to new endpoint stream API, support non-buffered TX/RX
-  - Add ZLP for write() when needed
+  - Add ZLP for ``write()`` when needed
 
 - Video
 
   - Enhance UVC descriptors and example
   - Video Added support for USB Video Class (UVC) with MJPEG.
   - Fix multiple interfaces, add an example of 2ch video capture.
-  - Fix race for tud_video_n_streaming check
+  - Fix race for ``tud_video_n_streaming()`` check
 
 Host Stack
 ----------
 
-- Added tuh_deinit() to de-initialize TinyUSB host stack.
+- Added ``tuh_deinit()`` to de-initialize TinyUSB host stack.
 - Added support for new USB mass storage class APIs.
 - Improved error handling and retry mechanisms for unstable devices.
 
 - CDC Serial
 
   - Add support for ch34x
-  - Allow to overwrite CFG_TUH_CDC_FTDI/CP210X/CH32X_VID_PID_LIST
+  - Allow to overwrite ``CFG_TUH_CDC_FTDI/CP210X/CH32X_VID_PID_LIST``
   - Enhanced stability of CDC-ACM devices during enumeration.
 
 - HID
 
-  - Add tuh_hid_receive_abort()
-  - Add tuh_hid_get_report()
+  - Add ``tuh_hid_receive_abort()``
+  - Add ``tuh_hid_get_report()``
 
 - Hub
 
@@ -224,14 +532,14 @@ Host Stack
 - Remove submodules and use python script to manage repo dependencies #1947
 - Add CMake support for most families and boards, move build file from tools/ to examples/build_system
 - Add ETM trace support with JTrace for nrf52840, nrf5340, mcb1857, stm32h743eval, ra6m5
-- [osal] Make it possible to override the osal_task_delay() in osal_none
+- [osal] Make it possible to override the ``osal_task_delay()`` in osal_none
 - Add CDC+UAC2 composite device example
 - Enhance Hardware-in-the-loop (HIL) testing with more boards: rp2040, stm32l412nucleo, stm32f746disco, lpcxpresso43s67
 
 Controller Driver (DCD & HCD)
 -----------------------------
 
-- Add new ISO endpoint API: dcd_edpt_iso_alloc() and dcd_edpt_iso_activate()
+- Add new ISO endpoint API: ``dcd_edpt_iso_alloc()`` and ``dcd_edpt_iso_activate()``
 - Remove legacy driver st/synopsys
 
 - EHCI
@@ -244,10 +552,10 @@ Controller Driver (DCD & HCD)
   - Fix error on EHCI causes xfer error in non-queued qhd which cause memory fault
   - Un-roll recursive hub removal with usbh queue
   - Fix issue when removing queue head
-  - Implement hcd_edpt_abort_xfer()
+  - Implement ``hcd_edpt_abort_xfer()``
   - use standard USB complete interrupt instead of custom chipidea async/period interrupt to be more compatible with other ehci implementation
   - refactor usb complete & error isr processing, merge, update. Fix EHCI QHD reuses QTD on wrong endpoint
-  - Improve bus reset, fix send_setup() not carried out if halted previously
+  - Improve bus reset, fix ``send_setup()`` not carried out if halted previously
   - Fix clear qhd halted bit if not caused by STALL protocol to allow for next transfer
 
 - ChipIdea Highspeed
@@ -273,12 +581,12 @@ Controller Driver (DCD & HCD)
 - rp2040
 
   - [dcd] Make writes to SIE_CTRL aware of concurrent access
-  - [hcd] add hcd_frame_number(), hcd_edpt_abort_xfer() for pio-usb host
+  - [hcd] add ``hcd_frame_number()``, ``hcd_edpt_abort_xfer()`` for pio-usb host
 
 - stm32 fsdev:
 
   - Add STM32L5 support
-  - Implement dcd_edpt_iso_alloc() and dcd_edpt_iso_activate()
+  - Implement ``dcd_edpt_iso_alloc()`` and ``dcd_edpt_iso_activate()``
 
 - OHCI
 
@@ -292,7 +600,7 @@ Controller Driver (DCD & HCD)
 Device Stack
 ------------
 
-- Add optional hooks tud_event_hook_cb()
+- Add optional hooks ``tud_event_hook_cb()``
 - Audio (UAC2)
 
   - Fix feedback EP buffer alignment.
@@ -310,12 +618,12 @@ Device Stack
 
 - MIDI
 
-  - Fix stream_write() always writes system messages to cable 0
+  - Fix ``stream_write()`` always writes system messages to cable 0
   - Fix incorrect NOTE_ON, NOTE_OFF definitions
 
 - USBTMC: Fix tmc488 bit order
 
-- Vendor: fix read()/write() race condition
+- Vendor: fix ``read()``/``write()`` race condition
 
 - Video (UVC)
 
@@ -326,26 +634,26 @@ Host Stack
 
 - USBH
 
-  - Add new APIs: tuh_interface_set(), tuh_task_event_ready(), tuh_edpt_abort_xfer(), tuh_rhport_reset_bus(), tuh_rhport_is_active()
+  - Add new APIs: ``tuh_interface_set()``, ``tuh_task_event_ready()``, ``tuh_edpt_abort_xfer()``, ``tuh_rhport_reset_bus()``, ``tuh_rhport_is_active()``
   - Fix issue when device generate multiple attach/detach/attach when plugging in
   - Prefer application callback over built-in driver on transfer complete event
-  - Correct hcd_edpt_clear_stall() API signature
+  - Correct ``hcd_edpt_clear_stall()`` API signature
   - Separate bus reset delay and contact debouncing delay in enumeration
-  - Support usbh_app_driver_get_cb() for application drivers
+  - Support ``usbh_app_driver_get_cb()`` for application drivers
   - Fix usbh enumeration removal race condition
-  - Add optional hooks tuh_event_hook_cb()
+  - Add optional hooks ``tuh_event_hook_cb()``
 
 - CDC
 
-  - Breaking: change tuh_cdc_itf_get_info() to use tuh_itf_info_t instead of tuh_cdc_info_t
+  - Breaking: change ``tuh_cdc_itf_get_info()`` to use tuh_itf_info_t instead of tuh_cdc_info_t
   - Fix cdc host enumeration issue when device does not support line request
   - Add support for vendor usb2uart serial: ftdi, cp210x, ch9102f
-  - Improve sync control API e.g  tuh_cdc_set_control_line_state(), tuh_cdc_set_line_coding()
+  - Improve sync control API e.g  ``tuh_cdc_set_control_line_state()``, ``tuh_cdc_set_line_coding()``
 
 - HID
 
-  - Add new APIs tuh_hid_send_report(), tuh_hid_itf_get_info(), tuh_hid_receive_ready(), tuh_hid_send_ready(), tuh_hid_set_default_protocol()
-  - Change meaning of CFG_TUH_HID to total number of HID interfaces supported. Previously CFG_TUH_HID is max number of interfaces per device which is rather limited and consume more resources than needed.
+  - Add new APIs ``tuh_hid_send_report()``, ``tuh_hid_itf_get_info()``, ``tuh_hid_receive_ready()``, ``tuh_hid_send_ready()``, ``tuh_hid_set_default_protocol()``
+  - Change meaning of CFG_TUH_HID to total number of HID interfaces supported. Previously ``CFG_TUH_HID`` is max number of interfaces per device which is rather limited and consume more resources than needed.
 
 - HUB
 
@@ -354,7 +662,7 @@ Host Stack
 
 - MSC
 
-  - Fix bug in tuh_msc_ready()
+  - Fix bug in ``tuh_msc_ready()``
   - Fix host msc get maxlun not using aligned section memory
 
 0.15.0
@@ -385,7 +693,7 @@ Controller Driver (DCD & HCD)
 - [rp2040]
 
   - [dcd] Implement workaround for Errata 15. This enable SOF when bulk-in endpoint is in use and reduce its bandwidth to only 80%
-  - [hcd] Fix shared irq slots filling up when hcd_init() is called multiple times
+  - [hcd] Fix shared irq slots filling up when ``hcd_init()`` is called multiple times
   - [hcd] Support host bulk endpoint using hw "interrupt" endpoint. Note speed limit is 64KB/s
 
 - [samd][dcd] Add support for ISO endpoint
@@ -410,12 +718,12 @@ Device Stack
 - [HID]
 
   - Add FIDO descriptor template
-  - change length in tud_hid_report_complete_cb() from uint8 to uint16
+  - change length in ``tud_hid_report_complete_cb()`` from ``uint8_t`` to ``uint16_t``
 
 - [CDC]
 
   - Fix autoflush for FIFO < MPS
-  - Fix tx fifo memory overflown when DTR is not set and tud_cdc_write() is called repeatedly with large enough data
+  - Fix tx fifo memory overflown when DTR is not set and ``tud_cdc_write()`` is called repeatedly with large enough data
 
 - [USBTMC] Fix packet size with highspeed
 
@@ -423,7 +731,7 @@ Host Stack
 ----------
 
 - Retry a few times with transfers in enumeration since device can be unstable when starting up
-- [MSC] Rework host masstorage API. Add new **host/msc_file_explorer** example
+- [MSC] Rework host masstorage API. Add new ``host/msc_file_explorer`` example
 - [CDC]
 
   - Add support for host cdc
@@ -433,22 +741,22 @@ Host Stack
 ======
 
 - Improve compiler support for CCRX and IAR
-- Add timeout to osal_queue_receive()
-- Add tud_task_ext(timeout, in_isr) as generic version of tud_task(). Same as tuh_task_ext(), tuh_task()
-- Enable more warnings -Wnull-dereference -Wuninitialized -Wunused -Wredundant-decls -Wconversion
+- Add timeout to ``osal_queue_receive()``
+- Add ``tud_task_ext(timeout, in_isr)`` as generic version of ``tud_task()``. Same as ``tuh_task_ext()``, ``tuh_task()``
+- Enable more warnings ``-Wnull-dereference -Wuninitialized -Wunused -Wredundant-decls -Wconversion``
 - Add new examples
 
-  - host/bare_api to demonstrate generic (app-level) enumeration and endpoint transfer
-  - dual/host_hid_to_device_cdc to run both device and host stack concurrently, get HID report from host and print out to device CDC. This example only work with multiple-controller MCUs and rp2040 with the help of pio-usb as added controller.
+  - ``host/bare_api`` to demonstrate generic (app-level) enumeration and endpoint transfer
+  - ``dual/host_hid_to_device_cdc`` to run both device and host stack concurrently, get HID report from host and print out to device CDC. This example only work with multiple-controller MCUs and rp2040 with the help of pio-usb as added controller.
 
 Controller Driver (DCD & HCD)
 -----------------------------
 
 - Enhance rhports management to better support dual roles
 
-  - CFG_TUD_ENABLED/CFG_TUH_ENABLED, CFG_TUD_MAX_SPEED/CFG_TUH_MAX_SPEED can be used to replace CFG_TUSB_RHPORT0_MODE/CFG_TUSB_RHPORT1_MODE
-  - tud_init(rphort), tuh_init(rhport) can be used to init stack on specified roothub port (controller) instead of tusb_init(void)
-- Add dcd/hcd port specific defines `TUP_` (stand for tinyusb port-specific)
+  - ``CFG_TUD_ENABLED``/``CFG_TUH_ENABLED``, ``CFG_TUD_MAX_SPEED``/``CFG_TUH_MAX_SPEED`` can be used to replace ``CFG_TUSB_RHPORT0_MODE``/``CFG_TUSB_RHPORT1_MODE``
+  - ``tud_init(rphort)``, ``tuh_init(rhport)`` can be used to init stack on specified roothub port (controller) instead of ``tusb_init(void)``
+- Add dcd/hcd port specific defines ``TUP_`` (stand for tinyusb port-specific)
 - [dwc2]
 
   - Update to support stm32 h72x, h73x with only 1 otg controller
@@ -469,10 +777,10 @@ Device Stack
 
 - [Audio] Add support for feedback endpoint computation
 
-  - New API tud_audio_feedback_params_cb(), tud_audio_feedback_interval_isr().
+  - New API ``tud_audio_feedback_params_cb()``, ``tud_audio_feedback_interval_isr()``.
   - Supported computation method are: frequency with fixed/float or power of 2. Feedback with fifo count is not yet supported.
-  - Fix nitfs (should be 3) in TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR
-  - Fix typo in audiod_rx_done_cb()
+  - Fix nitfs (should be 3) in ``TUD_AUDIO_HEADSET_STEREO_DESCRIPTOR``
+  - Fix typo in ``audiod_rx_done_cb()``
 
 - [DFU] Fix coexistence with other interfaces BTH, RNDIS
 - [MSC] Fix inquiry response additional length field
@@ -481,28 +789,29 @@ Device Stack
 Host Stack
 ----------
 
-- Add new API tuh_configure(rhport, cfg_id, cfg_param) for dynamnic port specific behavior configuration
+- Add new API ``tuh_configure(rhport, cfg_id, cfg_param)`` for dynamnic port specific behavior configuration
 - [HID] Open OUT endpoint if available
 - [Hub] hub clear port and device interrupts
 - [USBH] Major improvement
 
-  - Rework usbh control transfer with complete callback. New API tuh_control_xfer() though still only carry 1 usbh (no queueing) at a time.
-  - Add generic endpoint transfer with tuh_edpt_open(), tuh_edpt_xfer(). Require `CFG_TUH_API_EDPT_XFER=1`
+  - Rework usbh control transfer with complete callback. New API ``tuh_control_xfer()`` though still only carry 1 usbh (no queueing) at a time.
+  - Add generic endpoint transfer with ``tuh_edpt_open()``, ``tuh_edpt_xfer()``. Require ``CFG_TUH_API_EDPT_XFER=1``
   - Support app-level enumeration with new APIs
 
-    - tuh_descriptor_get(), tuh_descriptor_get_device(), tuh_descriptor_get_configuration(), tuh_descriptor_get_hid_report()
-    - tuh_descriptor_get_string(), tuh_descriptor_get_manufacturer_string(), tuh_descriptor_get_product_string(), tuh_descriptor_get_serial_string()
-    - Also add _sync() as sync/blocking version for above APIs
+    - ``tuh_descriptor_get()``, ``tuh_descriptor_get_device()``, ``tuh_descriptor_get_configuration()``, ``tuh_descriptor_get_hid_report()``
+    - ``tuh_descriptor_get_string()``, ``tuh_descriptor_get_manufacturer_string()``, ``tuh_descriptor_get_product_string()``, ``tuh_descriptor_get_serial_string()``
+    - Also add ``_sync()`` as sync/blocking version for above APIs
 
 0.13.0
 ======
 
-- [tu_fifo] Fix locked mutex when full, and return type in peek_n()
+- [tu_fifo] Fix locked mutex when full, and return type in ``peek_n()``
 
 Controller Driver (DCD & HCD)
 -----------------------------
 
 - [DWC2] Generalize synopsys dwc2 with synopsys/dwc2 which support both FS and HS phy (UTMI and ULPI) for various MCUs.
+
   - Broadcom 28/27xx on raspberrypi SBC
   - Silicon Labs EFM32
   - Espressif ESP32 Sx
@@ -526,7 +835,7 @@ Device Stack
 ------------
 
 - [Audio] Support disabling feedback format correction (16.16 <-> 10.14 format)
-- [MSC] Add tud_msc_request_sense_cb() callback, change most default sense error to medium not present (0x02, 0x3A, 0x00)
+- [MSC] Add ``tud_msc_request_sense_cb()`` callback, change most default sense error to medium not present (0x02, 0x3A, 0x00)
 - [Video] Fix video_capture example fails enumeration when 8FPS
 
 Host Stack
@@ -537,22 +846,22 @@ No notable changes
 0.12.0
 ======
 
-- add CFG_TUSB_OS_INC_PATH for os include path
+- add ``CFG_TUSB_OS_INC_PATH`` for os include path
 
 Device Controller Driver (DCD)
 ------------------------------
 
 - Getting device stack to pass USB Compliance Verification test (chapter9, HID, MSC). Ports are tested:
   nRF, SAMD 21/51, rp2040, stm32f4, Renesas RX, iMXRT, ESP32-S2/3, Kinetic KL25/32, DA146xx
-- Added dcd_edpt_close_all() for switching configuration
-- [Transdimension] Support dcd_edpt_xfer_fifo() with auto wrap over if fifo buffer is 4K aligned and size is multiple of 4K.
+- Added ``dcd_edpt_close_all()`` for switching configuration
+- [Transdimension] Support ``dcd_edpt_xfer_fifo()`` with auto wrap over if fifo buffer is 4K aligned and size is multiple of 4K.
 - [DA146xx] Improve vbus, reset, suspend, resume detection, and remote wakeup.
 
 Device Stack
 ------------
 
-- Add new network driver Network Control Model (CDC-NCM), update net_lwip_webserver to work with NCM (need re-configure example)
-- Add new USB Video Class UVC 1.5 driver and video_capture example ((work in progress)
+- Add new network driver Network Control Model (CDC-NCM), update ``net_lwip_webserver`` to work with NCM (need re-configure example)
+- Add new USB Video Class UVC 1.5 driver and video_capture example (work in progress)
 - Fix potential buffer overflow for HID, bluetooth drivers
 
 Host Controller Driver (HCD)
@@ -589,13 +898,13 @@ Synopsys
 ^^^^^^^^
 
 - Fix Synopsys set address bug which could cause re-enumeration failed
-- Fix dcd_synopsys driver integer overflow in HS mode (issue #968)
+- Fix ``dcd_synopsys`` driver integer overflow in HS mode (issue #968)
 
 nRF5x
 ^^^^^
 
 - Add nRF5x suspend, resume and remote wakeup
-- Fix nRF5x race condition with TASKS_EP0RCVOUT
+- Fix nRF5x race condition with ``TASKS_EP0RCVOUT``
 
 RP2040
 ^^^^^^
@@ -610,8 +919,8 @@ USBD
 ^^^^
 
 - Better support big endian mcu
-- Add tuh_inited() and tud_inited(), will separate tusb_init/inited() to tud/tuh init/inited
-- Add dcd_attr.h for defining common controller attribute such as max endpoints
+- Add ``tuh_inited()`` and ``tud_inited()``, will separate ``tusb_init/inited()`` to ``tud/tuh_init/inited()``
+- Add ``dcd_attr.h`` for defining common controller attribute such as max endpoints
 
 Bluetooth
 ^^^^^^^^^
@@ -621,8 +930,8 @@ Bluetooth
 DFU
 ^^^
 
-- Enhance DFU implementation to support multiple alternate interface and better support bwPollTimeout
-- Rename CFG_TUD_DFU_MODE to simply CFG_TUD_DFU
+- Enhance DFU implementation to support multiple alternate interface and better support ``bwPollTimeout``
+- Rename ``CFG_TUD_DFU_MODE`` to simply ``CFG_TUD_DFU``
 
 HID
 ^^^
@@ -647,7 +956,7 @@ Vendor
 ^^^^^^
 
 - Fix vendor fifo deadlock in certain case
-- Add tud_vendor_n_read_flush
+- Add ``tud_vendor_n_read_flush()``
 
 Host Controller Driver (HCD)
 ----------------------------
@@ -664,7 +973,7 @@ Host Stack
 - Major update and rework most of host stack, still needs more improvement
 - Lots of improvement and update in parsing configuration and control
 - Rework and major update to HID driver. Will default to enable boot interface if available
-- Separate CFG_TUH_DEVICE_MAX and CFG_TUH_HUB for better management and reduce SRAM usage
+- Separate ``CFG_TUH_DEVICE_MAX`` and ``CFG_TUH_HUB`` for better management and reduce SRAM usage
 
 0.10.1 (2021-06-03)
 ===================
@@ -676,9 +985,9 @@ Host Controller Driver (HCD)
 
 - Fix rp2040 host driver: incorrect PID with low speed device with max packet size of 8 bytes
 - Improve hub driver
-- Remove obsolete hcd_pipe_queue_xfer()/hcd_pipe_xfer()
-- Use hcd_frame_number() instead of micro frame
-- Fix OHCI endpoint address and xferred_bytes in xfer complete event
+- Remove obsolete ``hcd_pipe_queue_xfer()``/``hcd_pipe_xfer()``
+- Use ``hcd_frame_number()`` instead of micro frame
+- Fix OHCI endpoint address and ``xferred_bytes`` in xfer complete event
 
 0.10.0 (2021-05-28)
 ===================
@@ -697,7 +1006,7 @@ Device Controller Driver (DCD)
 - Fix build with nRF5340
 - Fix build with lpc15 and lpc54
 - Fix build with lpc177x_8x
-- STM32 Synopsys: greatly improve Isochronous transfer with edpt_xfer_fifo API
+- STM32 Synopsys: greatly improve Isochronous transfer with ``edpt_xfer_fifo()`` API
 - Support LPC55 port1 highspeed
 - Add support for Espressif esp32s3
 - nRF: fix race condition that could cause drop packet of Bulk OUT transfer
@@ -705,14 +1014,14 @@ Device Controller Driver (DCD)
 USB Device Driver (USBD)
 ------------------------
 
-- Add new (optional) endpoint ADPI usbd_edpt_xfer_fifo
+- Add new (optional) endpoint ADPI ``usbd_edpt_xfer_fifo()``
 
 Device Class Driver
 -------------------
 
 CDC
 
-- [Breaking] tud_cdc_peek(), tud_vendor_peek() no longer support random offset and dropped position parameter.
+- [Breaking] ``tud_cdc_peek()``, ``tud_vendor_peek()`` no longer support random offset and dropped position parameter.
 
 DFU
 
@@ -724,19 +1033,21 @@ HID
 - Add more hid keys constant from 0x6B to 0xA4
 
 - [Breaking] rename API
-  - HID_PROTOCOL_NONE/KEYBOARD/MOUST to HID_ITF_PROTOCOL_NONE/KEYBOARD/MOUSE
-  - tud_hid_boot_mode() to tud_hid_get_protocol()
-  - tud_hid_boot_mode_cb() to tud_hid_set_protocol_cb()
+
+  - ``HID_PROTOCOL_NONE/KEYBOARD/MOUSE`` to ``HID_ITF_PROTOCOL_NONE/KEYBOARD/MOUSE``
+  - ``tud_hid_boot_mode()`` to ``tud_hid_get_protocol()``
+  - ``tud_hid_boot_mode_cb()`` to ``tud_hid_set_protocol_cb()``
 
 MIDI
 
 - Fix MIDI buffer overflow issue
 
 - [Breaking] rename API
-  - Rename tud_midi_read() to tud_midi_stream_read()
-  - Rename tud_midi_write() to tud_midi_stream_write()
-  - Rename tud_midi_receive() to tud_midi_packet_read()
-  - Rename tud_midi_send() to tud_midi_packet_write()
+
+  - Rename ``tud_midi_read()`` to ``tud_midi_stream_read()``
+  - Rename ``tud_midi_write()`` to ``tud_midi_stream_write()``
+  - Rename ``tud_midi_receive()`` to ``tud_midi_packet_read()``
+  - Rename ``tud_midi_send()`` to ``tud_midi_packet_write()``
 
 Host Controller Driver (HCD)
 ----------------------------
@@ -783,7 +1094,7 @@ NXP Transdimention
 USB Device Driver (USBD)
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Fix issue with status zlp (tud_control_status) is returned by class driver with SET/CLEAR_FEATURE for endpoint.
+- Fix issue with status zlp (``tud_control_status()``) is returned by class driver with SET/CLEAR_FEATURE for endpoint.
 - Correct endpoint size check for fullspeed bulk, can be 8, 16, 32, 64
 - Ack SET_INTERFACE even if it is not implemented by class driver.
 
@@ -792,34 +1103,34 @@ Device Class Driver
 
 DFU Runtime
 
-- rename dfu_rt to dfu_runtime for easy reading
+- rename ``dfu_rt()`` to ``dfu_runtime()`` for easy reading
 
 CDC
 
-- Add tud_cdc_send_break_cb() to support break request
-- Improve CDC receive, minor behavior changes: when tud_cdc_rx_wanted_cb() is invoked wanted_char may not be the last byte in the fifo
+- Add ``tud_cdc_send_break_cb()`` to support break request
+- Improve CDC receive, minor behavior changes: when ``tud_cdc_rx_wanted_cb()`` is invoked wanted_char may not be the last byte in the fifo
 
 HID
 
 - [Breaking] Add itf argument to hid API to support multiple instances, follow API has signature changes
 
-  - tud_hid_descriptor_report_cb()
-  - tud_hid_get_report_cb()
-  - tud_hid_set_report_cb()
-  - tud_hid_boot_mode_cb()
-  - tud_hid_set_idle_cb()
+  - ``tud_hid_descriptor_report_cb()``
+  - ``tud_hid_get_report_cb()``
+  - ``tud_hid_set_report_cb()``
+  - ``tud_hid_boot_mode_cb()``
+  - ``tud_hid_set_idle_cb()``
 
-- Add report complete callback tud_hid_report_complete_cb() API
+- Add report complete callback ``tud_hid_report_complete_cb()`` API
 - Add DPad/Hat support for HID Gamepad
 
-  - `TUD_HID_REPORT_DESC_GAMEPAD()` now support 16 buttons, 2 joysticks, 1 hat/dpad
-  - Add hid_gamepad_report_t along with `GAMEPAD_BUTTON_` and `GAMEPAD_HAT_` enum
-  - Add Gamepad to hid_composite / hid_composite_freertos example
+  - ``TUD_HID_REPORT_DESC_GAMEPAD()`` now support 16 buttons, 2 joysticks, 1 hat/dpad
+  - Add ``hid_gamepad_report_t`` along with ``GAMEPAD_BUTTON_`` and ``GAMEPAD_HAT_`` enum
+  - Add Gamepad to ``hid_composite`` / ``hid_composite_freertos`` example
 
 MIDI
 
 - Fix dropping MIDI sysex message when fifo is full
-- Fix typo in tud_midi_write24(), make example less ambiguous for cable and channel
+- Fix typo in ``tud_midi_write24()``, make example less ambiguous for cable and channel
 - Fix incorrect endpoint descriptor length, MIDI v1 use Audio v1 which has 9-byte endpoint descriptor (instead of 7)
 
 Host Stack
@@ -828,14 +1139,14 @@ Host Stack
 Host Controller Driver (HCD)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Add rhport to hcd_init()
+- Add rhport to ``hcd_init()``
 - Improve EHCI/OHCI driver abstraction
 
   - Move echi/ohci files to portable/
-  - Rename hcd_lpc18_43 to hcd_transdimension
-  - Sub hcd API with hcd_ehci_init(), hcd_ehci_register_addr()
+  - Rename ``hcd_lpc18_43`` to ``hcd_transdimension``
+  - Sub hcd API with ``hcd_ehci_init()``, ``hcd_ehci_register_addr()``
 
-- Update NXP transdimention hcd_init() to reset controller to host mode
+- Update NXP transdimension ``hcd_init()`` to reset controller to host mode
 
   - Ported hcd to rt10xx
 
@@ -849,20 +1160,20 @@ Host Class Driver
 
 MSC
 
-- Rename tuh_msc_scsi_inquiry() to tuh_msc_inquiry()
-- Rename tuh_msc_mounted_cb/tuh_msc_unmounted_cb to tuh_msc_mount_cb/tuh_msc_unmount_cb to match device stack naming
-- Change tuh_msc_is_busy() to tuh_msc_ready()
-- Add read10 and write10 function: tuh_msc_read10(), tuh_msc_write10()
+- Rename ``tuh_msc_scsi_inquiry()`` to ``tuh_msc_inquiry()``
+- Rename ``tuh_msc_mounted_cb()``/``tuh_msc_unmounted_cb()`` to ``tuh_msc_mount_cb()``/``tuh_msc_unmount_cb()`` to match device stack naming
+- Change ``tuh_msc_is_busy()`` to ``tuh_msc_ready()``
+- Add read10 and write10 function: ``tuh_msc_read10()``, ``tuh_msc_write10()``
 - Read_Capacity is invoked as part of enumeration process
-- Add tuh_msc_get_block_count(), tuh_msc_get_block_size()
-- Add CFG_TUH_MSC_MAXLUN (default to 4) to hold lun capacities
+- Add ``tuh_msc_get_block_count()``, ``tuh_msc_get_block_size()``
+- Add ``CFG_TUH_MSC_MAXLUN`` (default to 4) to hold lun capacities
 
 Others
 ------
 
 - Add basic support for rt-thread OS
 - Change zero bitfield length to more explicit padding
-- Build example now fetch required submodules on the fly while running `make` without prio submodule init for mcu drivers
+- Build example now fetch required submodules on the fly while running ``make`` without prior submodule init for mcu drivers
 - Update pico-sdk to v1.1.0
 
 **New Boards**
@@ -880,18 +1191,22 @@ Device Controller Driver
 
 - Added new device support for Raspberry Pi RP2040
 - Added new device support for NXP Kinetis KL25ZXX
-- Use dcd_event_bus_reset() with link speed to replace bus_signal
+- Use ``dcd_event_bus_reset()`` with link speed to replace bus_signal
 
 - ESP32-S2:
+
   - Add bus suspend and wakeup support
 
 - SAMD21:
+
   - Fix (walkaround) samd21 setup_packet overflow by USB DMA
 
 - STM32 Synopsys:
+
   - Rework USB FIFO allocation scheme and allow RX FIFO size reduction
 
 - Sony CXD56
+
   - Update Update Spresense SDK to 2.0.2
   - Fix dcd issues with setup packets
   - Correct EP number for cdc_msc example
@@ -902,31 +1217,36 @@ USB Device
 **USBD**
 
 - Rework usbd control transfer to have additional stage parameter for setup, data, status
-- Fix tusb_init() return true instead of TUSB_ERROR_NONE
-- Added new API tud_connected() that return true after device got out of bus reset and received the very first setup packet
+- Fix ``tusb_init()`` return true instead of ``TUSB_ERROR_NONE``
+- Added new API ``tud_connected()`` that return true after device got out of bus reset and received the very first setup packet
 
 **Class Driver**
 
 - CDC
+
   - Allow to transmit data, even if the host does not support control line states i.e set DTR
 
 - HID
-  - change default CFG_TUD_HID_EP_BUFSIZE from 16 to 64
+
+  - change default ``CFG_TUD_HID_EP_BUFSIZE`` from 16 to 64
 
 - MIDI
+
   - Fix midi sysex sending bug
 
 - MSC
+
   - Invoke only scsi complete callback after status transaction is complete.
-  - Fix scsi_mode_sense6_t padding, which cause IAR compiler internal error.
+  - Fix ``scsi_mode_sense6_t`` padding, which cause IAR compiler internal error.
 
 - USBTMC
+
   - Change interrupt endpoint example size to 8 instead of 2 for better compatibility with mcu
 
 **Example**
 
-- Support make from windows cmd.exe
-- Add HID Consumer Control (media keys) to hid_composite & hid_composite_freertos examples
+- Support make from windows ``cmd.exe``
+- Add HID Consumer Control (media keys) to ``hid_composite`` & ``hid_composite_freertos`` examples
 
 
 USB Host
@@ -962,33 +1282,37 @@ Device Controller Driver
 - Enhance STM32 Synopsys
 
 - Support bus events disconnection/suspend/resume/wakeup
+
   - Improve transfer performance with optimizing xfer and fifo size
   - Support Highspeed port (OTG_HS) with both internal and external PHY
   - Support multiple usb ports with rhport=1 is highspeed on selected MCUs e.g H743, F23. It is possible to have OTG_HS to run on Fullspeed PHY (e.g lacking external PHY)
   - Add ISO transfer, fix odd/even frame
   - Fix FIFO flush during stall
-  - Implement dcd_edpt_close() API
+  - Implement ``dcd_edpt_close()`` API
   - Support F105, F107
 
 - Enhance STM32 fsdev
+
   - Improve dcd fifo allocation
   - Fix ISTR race condition
   - Support remap USB IRQ on supported MCUs
-  - Implement dcd_edpt_close() API
+  - Implement ``dcd_edpt_close()`` API
 
 - Enhance NUC 505: enhance set configure behavior
 
 - Enhance SAMD
+
   - Fix race condition with setup packet
-  - Add SAMD11 option `OPT_MCU_SAMD11`
-  - Add SAME5x option `OPT_MCU_SAME5X`
+  - Add SAMD11 option ``OPT_MCU_SAMD11``
+  - Add SAME5x option ``OPT_MCU_SAME5X``
 
 - Fix SAMG control data toggle and stall race condition
 
 - Enhance nRF
-  - Fix hanged when tud_task() is called within critical section (disabled interrupt)
+
+  - Fix hanged when ``tud_task()`` is called within critical section (disabled interrupt)
   - Fix disconnect bus event not submitted
-  - Implement ISO transfer and dcd_edpt_close()
+  - Implement ISO transfer and ``dcd_edpt_close()``
 
 
 USB Device
@@ -997,26 +1321,27 @@ USB Device
 **USBD**
 
 - Add new class driver for **Bluetooth HCI** class driver with example can be found in [mynewt-tinyusb-example](https://github.com/hathach/mynewt-tinyusb-example) since it needs mynewt OS to run with.
-- Fix USBD endpoint usage racing condition with `usbd_edpt_claim()/usbd_edpt_release()`
-- Added `tud_task_event_ready()` and `osal_queue_empty()`. This API is needed to check before enter low power mode with WFI/WFE
-- Rename USB IRQ Handler to `dcd_int_handler()`. Application must define IRQ handler in which it calls this API.
-- Add `dcd_connect()` and `dcd_disconnect()` to enable/disable internal pullup on D+/D- on supported MCUs.
-- Add `usbd_edpt_open()`
-- Remove `dcd_set_config()`
-- Add *OPT_OS_CUMSTOM* as hook for application to overwrite and/or add their own OS implementation
+- Fix USBD endpoint usage racing condition with ``usbd_edpt_claim()``/``usbd_edpt_release()``
+- Added ``tud_task_event_ready()`` and ``osal_queue_empty()``. This API is needed to check before enter low power mode with WFI/WFE
+- Rename USB IRQ Handler to ``dcd_int_handler()``. Application must define IRQ handler in which it calls this API.
+- Add ``dcd_connect()`` and ``dcd_disconnect()`` to enable/disable internal pullup on D+/D- on supported MCUs.
+- Add ``usbd_edpt_open()``
+- Remove ``dcd_set_config()``
+- Add ``OPT_OS_CUMSTOM`` as hook for application to overwrite and/or add their own OS implementation
 - Support SET_INTERFACE, GET_INTERFACE request
-- Add Logging for debug with optional uart/rtt/swo printf retarget or `CFG_TUSB_DEBUG_PRINTF` hook
+- Add Logging for debug with optional uart/rtt/swo printf retarget or ``CFG_TUSB_DEBUG_PRINTF`` hook
 - Add IAR compiler support
-- Support multiple configuration descriptors. `TUD_CONFIG_DESCRIPTOR()` template has extra config_num as 1st argument
-- Improve USB Highspeed support with actual link speed detection with `dcd_event_bus_reset()`
+- Support multiple configuration descriptors. ``TUD_CONFIG_DESCRIPTOR()`` template has extra config_num as 1st argument
+- Improve USB Highspeed support with actual link speed detection with ``dcd_event_bus_reset()``
 
 - Enhance class driver management
-  - `usbd_driver_open()` add max length argument, and return length of interface (0 for not supported). Return value is used for finding appropriate driver
-  - Add application implemented class driver via `usbd_app_driver_get_cb()`
+
+  - ``usbd_driver_open()`` add max length argument, and return length of interface (0 for not supported). Return value is used for finding appropriate driver
+  - Add application implemented class driver via ``usbd_app_driver_get_cb()``
   - IAD is handled to assign driver id
 
-- Added `tud_descriptor_device_qualifier_cb()` callback
-- Optimize `tu_fifo` bulk write/read transfer
+- Added ``tud_descriptor_device_qualifier_cb()`` callback
+- Optimize ``tu_fifo`` bulk write/read transfer
 - Forward non-std control request to class driver
 - Let application handle Microsoft OS 1.0 Descriptors (the 0xEE index string)
 - Fix OSAL FreeRTOS yield from ISR
@@ -1027,11 +1352,13 @@ USB Device
 - USBTMC: fix descriptors when INT EP is disabled
 
 - CDC:
+
   - Send zero length packet for end of data when needed
-  - Add `tud_cdc_tx_complete_cb()` callback
-  - Change tud_cdc_n_write_flush() return number of bytes forced to transfer, and flush when writing enough data to fifo
+  - Add ``tud_cdc_tx_complete_cb()`` callback
+  - Change ``tud_cdc_n_write_flush()`` return number of bytes forced to transfer, and flush when writing enough data to fifo
 
 - MIDI:
+
   - Add packet interface
   - Add multiple jack descriptors
   - Fix MIDI driver for sysex
@@ -1039,12 +1366,14 @@ USB Device
 - DFU Runtime: fix response to SET_INTERFACE and DFU_GETSTATUS request
 
 - Rename some configure macro to make it clear that those are used directly for endpoint transfer
-  - CFG_TUD_HID_BUFSIZE to CFG_TUD_HID_EP_BUFSIZE
-  - CFG_TUD_CDC_EPSIZE to CFG_TUD_CDC_EP_BUFSIZE
-  - CFG_TUD_MSC_BUFSIZE to CFG_TUD_MSC_EP_BUFSIZE
-  - CFG_TUD_MIDI_EPSIZE to CFG_TUD_MIDI_EP_BUFSIZE
+
+  - ``CFG_TUD_HID_BUFSIZE`` to ``CFG_TUD_HID_EP_BUFSIZE``
+  - ``CFG_TUD_CDC_EPSIZE`` to ``CFG_TUD_CDC_EP_BUFSIZE``
+  - ``CFG_TUD_MSC_BUFSIZE`` to ``CFG_TUD_MSC_EP_BUFSIZE``
+  - ``CFG_TUD_MIDI_EPSIZE`` to ``CFG_TUD_MIDI_EP_BUFSIZE``
 
 - HID:
+
   - Fix gamepad template descriptor
   - Add multiple HID interface API
   - Add extra comma to HID_REPORT_ID
@@ -1061,15 +1390,16 @@ USB Host
 Examples
 --------
 
-- Add new hid_composite_freertos
-- Add new dynamic_configuration to demonstrate how to switch configuration descriptors
-- Add new hid_multiple_interface
+- Add new ``hid_composite_freertos``
+- Add new ``dynamic_configuration`` to demonstrate how to switch configuration descriptors
+- Add new ``hid_multiple_interface``
 
-- Enhance `net_lwip_webserver` example
+- Enhance ``net_lwip_webserver`` example
+
   - Add multiple configuration: RNDIS for Windows, CDC-ECM for macOS (Linux will work with both)
-  - Update lwip to STABLE-2_1_2_RELEASE for net_lwip_webserver
+  - Update lwip to STABLE-2_1_2_RELEASE for ``net_lwip_webserver``
 
-- Added new Audio example: audio_test uac2_headsest
+- Added new Audio example: ``audio_test`` ``uac2_headsest``
 
 New Boards
 ----------
@@ -1110,37 +1440,37 @@ Added
 - Added multiple instances support for CDC and MIDI
 - Added a handful of unit test with Ceedling.
 - Added LOG support for debugging with CFG_TUSB_DEBUG
-- Added `tud_descriptor_bos_cb()` for BOS descriptor (required for USB 2.1)
-- Added `dcd_edpt0_status_complete()` as optional API for DCD
+- Added ``tud_descriptor_bos_cb()`` for BOS descriptor (required for USB 2.1)
+- Added ``dcd_edpt0_status_complete()`` as optional API for DCD
 
 **Examples**
 
 Following examples are added:
 
-- board_test
-- cdc_dual_ports
-- dfu_rt
-- hid_composite
-- net_lwip_webserver
-- usbtmc
-- webusb_serial
+- ``board_test``
+- ``cdc_dual_ports``
+- ``dfu_rt``
+- ``hid_composite``
+- ``net_lwip_webserver``
+- ``usbtmc``
+- ``webusb_serial``
 
 Changed
 -------
 
-- Changed `tud_descriptor_string_cb()` to have additional Language ID argument
-- Merged hal_nrf5x.c into dcd_nrf5x.c
-- Merged dcd_samd21.c and dcd_samd51.c into dcd_samd.c
-- Generalized dcd_stm32f4.c to dcd_synopsys.c
-- Changed cdc_msc_hid to cdc_msc (drop hid) due to limited endpoints number of some MCUs
+- Changed ``tud_descriptor_string_cb()`` to have additional Language ID argument
+- Merged ``hal_nrf5x.c`` into ``dcd_nrf5x.c``
+- Merged ``dcd_samd21.c`` and ``dcd_samd51.c`` into ``dcd_samd.c``
+- Generalized ``dcd_stm32f4.c`` to ``dcd_synopsys.c``
+- Changed ``cdc_msc_hid`` to ``cdc_msc`` (drop hid) due to limited endpoints number of some MCUs
 - Improved DCD SAMD stability, fix missing setup packet occasionally
-- Improved usbd/usbd_control with proper handling of zero-length packet (ZLP)
+- Improved ``usbd/usbd_control`` with proper handling of zero-length packet (ZLP)
 - Improved STM32 DCD FSDev
 - Improved STM32 DCD Synopsys
 - Migrated CI from Travis to Github Action
 - Updated nrfx submodule to 2.1.0
 - Fixed mynewt osal queue definition
-- Fixed cdc_msc_freertos example build for all MCUs
+- Fixed ``cdc_msc_freertos`` example build for all MCUs
 
 
 0.5.0 (2019-06)

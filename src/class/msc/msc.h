@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MSC_H_
-#define _TUSB_MSC_H_
+#ifndef TUSB_MSC_H_
+#define TUSB_MSC_H_
 
 #include "common/tusb_common.h"
 
@@ -108,8 +108,7 @@ TU_VERIFY_STATIC(sizeof(msc_csw_t) == 13, "size is not correct");
 //--------------------------------------------------------------------+
 
 /// SCSI Command Operation Code
-typedef enum
-{
+typedef enum {
   SCSI_CMD_TEST_UNIT_READY              = 0x00, ///< The SCSI Test Unit Ready command is used to determine if a device is ready to transfer data (read/write), i.e. if a disk has spun up, if a tape is loaded and ready etc. The device does not perform a self-test operation.
   SCSI_CMD_INQUIRY                      = 0x12, ///< The SCSI Inquiry command is used to obtain basic information from a target device.
   SCSI_CMD_MODE_SELECT_6                = 0x15, ///<  provides a means for the application client to specify medium, logical unit, or peripheral device parameters to the device server. Device servers that implement the MODE SELECT(6) command shall also implement the MODE SENSE(6) command. Application clients should issue MODE SENSE(6) prior to each MODE SELECT(6) to determine supported mode pages, page lengths, and other parameters.
@@ -124,8 +123,7 @@ typedef enum
 }scsi_cmd_type_t;
 
 /// SCSI Sense Key
-typedef enum
-{
+typedef enum {
   SCSI_SENSE_NONE            = 0x00, ///< no specific Sense Key. This would be the case for a successful command
   SCSI_SENSE_RECOVERED_ERROR = 0x01, ///< Indicates the last command completed successfully with some recovery action performed by the disc drive.
   SCSI_SENSE_NOT_READY       = 0x02, ///< Indicates the logical unit addressed cannot be accessed.
@@ -140,6 +138,27 @@ typedef enum
   SCSI_SENSE_VOLUME_OVERFLOW = 0x0d, ///< Indicates a buffered peripheral device has reached the end of medium partition and data remains in the buffer that has not been written to the medium.
   SCSI_SENSE_MISCOMPARE      = 0x0e  ///< Indicates that the source data did not match the data read from the medium.
 }scsi_sense_key_type_t;
+
+
+typedef enum {
+  SCSI_PDT_DIRECT_ACCESS = 0x0,
+  SCSI_PDT_SEQUENTIAL_ACCESS = 0x1,
+  SCSI_PDT_PRINTER = 0x2,
+  SCSI_PDT_PROCESSOR = 0x3,
+  SCSI_PDT_WRITE_ONCE = 0x4,
+  SCSI_PDT_CD_DVD = 0x5,
+  SCSI_PDT_SCANNER = 0x6,
+  SCSI_PDT_OPTICAL_DEVICE = 0x7,
+  SCSI_PDT_MEDIUM_CHANGER = 0x8,
+  SCSI_PDT_COMMUNICATIONS = 0x9, // obsolete
+  SCSI_PDT_RAID = 0x0c,
+  SCSI_PDT_ENCLOSURE_SERVICES = 0x0d,
+  SCSI_PDT_SIMPLIFIED_DIRECT_ACCESS = 0x0e,
+  SCSI_PDT_OPTICAL_CARD_READER = 0x0f,
+  SCSI_PDT_BRIDGE = 0x10, ///< Bridge device, e.g. USB to SCSI bridge
+  SCSI_PDT_OBJECT_BASED_STORAGE = 0x11, ///< Object-based storage device
+  SCSI_PDT_AUTOMATION_DRIVE_INTERFACE = 0x12, ///< Automation/Drive Interface (ADI) device
+} scsi_peripheral_device_type_t;
 
 //--------------------------------------------------------------------+
 // SCSI Primary Command (SPC-4)
@@ -379,4 +398,4 @@ TU_VERIFY_STATIC(sizeof(scsi_write10_t) == 10, "size is not correct");
  }
 #endif
 
-#endif /* _TUSB_MSC_H_ */
+#endif /* TUSB_MSC_H_ */

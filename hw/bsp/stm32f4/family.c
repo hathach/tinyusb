@@ -53,7 +53,8 @@ void OTG_HS_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-UART_HandleTypeDef UartHandle = {
+#ifdef UART_DEV
+static UART_HandleTypeDef UartHandle = {
     .Instance = UART_DEV,
     .Init = {
       .BaudRate   = CFG_BOARD_UART_BAUDRATE,
@@ -65,6 +66,7 @@ UART_HandleTypeDef UartHandle = {
       .OverSampling = UART_OVERSAMPLING_16
     }
 };
+#endif
 
 void board_init(void) {
   board_clock_init();
@@ -100,7 +102,7 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // Explicitly disable systick to prevent its ISR runs before scheduler start
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
   SysTick->CTRL &= ~1U;
 
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
@@ -233,7 +235,7 @@ int board_uart_write(void const *buf, int len) {
   HAL_UART_Transmit(&UartHandle, (uint8_t *) (uintptr_t) buf, len, 0xffff);
   return len;
 #else
-  (void) buf; (void) len; (void) UartHandle;
+  (void) buf; (void) len;
   return 0;
 #endif
 }

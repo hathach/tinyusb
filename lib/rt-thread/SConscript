@@ -18,7 +18,8 @@ if GetDepend(["PKG_TINYUSB_DEVICE_ENABLE"]):
     # BSP
     if GetDepend(["SOC_FAMILY_STM32"]):
         src += ["../../src/portable/synopsys/dwc2/dcd_dwc2.c",
-                "../../src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c"]
+                "../../src/portable/st/stm32_fsdev/dcd_stm32_fsdev.c",
+                "../../src/portable/st/stm32_fsdev/fsdev_common.c"]
 
     if GetDepend(["SOC_NRF52840"]):
         src += ["../../src/portable/nordic/nrf5x/dcd_nrf5x.c"]
@@ -34,6 +35,8 @@ if GetDepend(["PKG_TINYUSB_DEVICE_ENABLE"]):
         src += ["../../src/class/cdc/cdc_device.c"]
     if GetDepend(["PKG_TINYUSB_DEVICE_MSC"]):
         src += ["../../src/class/msc/msc_device.c", "port/msc_device_port.c"]
+    if GetDepend(["PKG_TINYUSB_DEVICE_MTP"]):
+        src += ["../../src/class/mtp/mtp_device.c"]
     if GetDepend(["PKG_TINYUSB_DEVICE_HID"]):
         src += ["../../src/class/hid/hid_device.c"]
 

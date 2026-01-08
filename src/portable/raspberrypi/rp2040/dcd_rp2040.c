@@ -190,8 +190,9 @@ static void __tusb_irq_path_func(hw_handle_buff_status)(void) {
       bool done = hw_endpoint_xfer_continue(ep);
       if (done) {
         // Notify
-        dcd_event_xfer_complete(0, ep->ep_addr, ep->xferred_len, XFER_RESULT_SUCCESS, true);
+        const uint16_t xferred_len = ep->xferred_len;
         hw_endpoint_reset_transfer(ep);
+        dcd_event_xfer_complete(0, ep->ep_addr, xferred_len, XFER_RESULT_SUCCESS, true);
       }
       remaining_buffers &= ~bit;
     }
@@ -525,7 +526,8 @@ void dcd_edpt_close_all(uint8_t rhport) {
   reset_non_control_endpoints();
 }
 
-bool dcd_edpt_xfer(__unused uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+bool dcd_edpt_xfer(__unused uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
+  (void) is_isr;
   assert(rhport == 0);
   hw_endpoint_xfer(ep_addr, buffer, total_bytes);
   return true;

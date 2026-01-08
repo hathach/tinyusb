@@ -95,6 +95,7 @@ target_sources(tinyusb_device_base INTERFACE
 		${TOP}/src/class/hid/hid_device.c
 		${TOP}/src/class/midi/midi_device.c
 		${TOP}/src/class/msc/msc_device.c
+		${TOP}/src/class/mtp/mtp_device.c
 		${TOP}/src/class/net/ecm_rndis_device.c
 		${TOP}/src/class/net/ncm_device.c
 		${TOP}/src/class/usbtmc/usbtmc_device.c
@@ -183,7 +184,46 @@ endif()
 #------------------------------------
 # Functions
 #------------------------------------
+function(family_add_default_example_warnings TARGET)
+  # Apply warnings to all TinyUSB interface library sources as well as examples sources
+  # we cannot set compile options for target since it will not propagate to INTERFACE sources then picosdk files
+  foreach(TINYUSB_TARGET IN ITEMS tinyusb_common_base tinyusb_device_base tinyusb_host_base tinyusb_host_max3421 tinyusb_bsp)
+    get_target_property(TINYUSB_SOURCES ${TINYUSB_TARGET} INTERFACE_SOURCES)
+    set_source_files_properties(${TINYUSB_SOURCES} PROPERTIES COMPILE_OPTIONS "${WARN_FLAGS_${CMAKE_C_COMPILER_ID}}")
+  endforeach()
 
+  # Also apply to example sources, but filter out any source files from lib/ (e.g. fatfs)
+  get_target_property(EXAMPLE_SOURCES ${TARGET} SOURCES)
+  set(FILTERED_SOURCES "")
+  foreach(SOURCE_FILE IN LISTS EXAMPLE_SOURCES)
+    string(FIND "${SOURCE_FILE}" "${TOP}/lib" FOUND_POS)
+    if(FOUND_POS EQUAL -1)
+      list(APPEND FILTERED_SOURCES ${SOURCE_FILE})
+    endif()
+  endforeach()
+  set_source_files_properties(${FILTERED_SOURCES} PROPERTIES COMPILE_OPTIONS "${WARN_FLAGS_${CMAKE_C_COMPILER_ID}}")
+
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0 AND NO_WARN_RWX_SEGMENTS_SUPPORTED)
+      target_link_options(${TARGET} PRIVATE "LINKER:--no-warn-rwx-segments")
+    endif()
+
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+      target_compile_options(${TARGET} PRIVATE -Wconversion)
+    endif()
+
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
+      target_compile_options(${TARGET} PRIVATE -Wcast-function-type -Wstrict-overflow)
+    endif()
+
+    if (CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 6.0)
+      target_compile_options(${TARGET} PRIVATE -Wno-strict-aliasing)
+    endif()
+  endif()
+endfunction()
+
+
+# TODO merge with family_configure_common from family_support.cmake
 function(family_configure_target TARGET RTOS)
 	if (RTOS STREQUAL noos OR RTOS STREQUAL "")
 		set(RTOS_SUFFIX "")
@@ -201,10 +241,15 @@ function(family_configure_target TARGET RTOS)
 
 	pico_add_extra_outputs(${TARGET})
 	pico_enable_stdio_uart(${TARGET} 1)
+
+  target_link_options(${TARGET} PUBLIC "LINKER:-Map=$<TARGET_FILE:${TARGET}>.map")
 	target_link_libraries(${TARGET} PUBLIC pico_stdlib tinyusb_board${RTOS_SUFFIX} tinyusb_additions)
 
-	family_flash_openocd(${TARGET})
+  family_flash_openocd(${TARGET})
 	family_flash_jlink(${TARGET})
+
+  # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
+  family_add_linkermap(${TARGET})
 endfunction()
 
 
@@ -251,7 +296,7 @@ function(family_configure_host_example TARGET RTOS)
 		# Pico-PIO-USB does not compile with all pico-sdk supported compilers, so check before enabling it
 		is_compiler_supported_by_pico_pio_usb(PICO_PIO_USB_COMPILER_SUPPORTED)
 		if (PICO_PIO_USB_COMPILER_SUPPORTED)
-			family_add_pico_pio_usb(${PROJECT})
+			family_add_pico_pio_usb(${TARGET})
 		endif()
 	endif()
 
@@ -358,34 +403,9 @@ function(suppress_tinyusb_warnings)
 				${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/hcd_rp2040.c
 				)
 			foreach(SOURCE_FILE IN LISTS CONVERSION_WARNING_FILES)
-				set_source_files_properties(
-						${SOURCE_FILE}
-						PROPERTIES
-						COMPILE_FLAGS "-Wno-conversion")
+				set_source_files_properties(${SOURCE_FILE} PROPERTIES COMPILE_FLAGS "-Wno-conversion")
 			endforeach()
 		endif()
-		if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
-			set_source_files_properties(
-					${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
-					COMPILE_FLAGS "-Wno-stringop-overflow -Wno-array-bounds")
-		endif()
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/lib/fatfs/source/ff.c
-				PROPERTIES
-				COMPILE_FLAGS "-Wno-conversion -Wno-cast-qual")
-
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/lib/lwip/src/core/tcp_in.c
-				${PICO_TINYUSB_PATH}/lib/lwip/src/core/tcp_out.c
-				PROPERTIES
-				COMPILE_FLAGS "-Wno-conversion")
-
-		set_source_files_properties(
-				${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
-				${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
-				${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
-				PROPERTIES
-				COMPILE_FLAGS "-Wno-conversion -Wno-sign-conversion")
 
 		if (TARGET tinyusb_pico_pio_usb)
 			set_source_files_properties(

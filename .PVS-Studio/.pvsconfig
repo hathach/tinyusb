@@ -1,0 +1,19 @@
+//V_EXCLUDE_PATH */iar/cxarm*
+//V_EXCLUDE_PATH */pico-sdk/*
+//V_EXCLUDE_PATH */esp-idf/*
+//V_EXCLUDE_PATH */hw/mcu/*
+//V_EXCLUDE_PATH */hw/bsp/espressif/components/*
+//V_EXCLUDE_PATH */lib/*
+
+//-V::2506 MISRA. A function should have a single point of exit at the end.
+//-V::2514 MISRA. Unions should not be used.
+//-V::2520 [MISRA-C-16.3] Every switch-clause should be terminated by an unconditional 'break' statement
+//-V:memcpy:2547 [MISRA-C-17.7] The return value of non-void function 'memcpy' should be used.
+//-V:memmove:2547 [MISRA-C-17.7] The return value of non-void function 'memmove' should be used.
+//-V:printf:2547 [MISRA-C-17.7]
+//-V::2584::{gintsts} dwc2 interrupt handler
+//-V::2584::{hcint} dwc2 interrupt handler
+//-V::2600 [MISRA-C-21.6] The function with the 'printf' name should not be used.
+//+V2614 DISABLE_LENGHT_LIMIT_CHECK:YES
+//-V:memcpy:2628 Pointer arguments to the 'memcpy' function should be pointers to qualified or unqualified versions of compatible types.
+//-V::2659 [MISRA-C-16.1] Switch statements should be well-formed. Every switch-clause should be terminated by an unconditional 'break' statement

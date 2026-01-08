@@ -50,10 +50,6 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_NCM)
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
@@ -110,6 +106,7 @@ typedef struct {
     NOTIFICATION_DONE
   } notification_xmit_state;                            // state of notification transmission
   bool notification_xmit_is_running;                    // notification is currently transmitted
+  bool link_is_up;                                      // current link state
 
   // misc
   bool tud_network_recv_renew_active;                   // tud_network_recv_renew() is active (avoid recursive invocations)
@@ -204,7 +201,7 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
 
     uint16_t notif_len = sizeof(notify_speed_change.header) + notify_speed_change.header.wLength;
     ncm_epbuf.epnotif = notify_speed_change;
-    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_epbuf.epnotif, notif_len);
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_epbuf.epnotif, notif_len, false);
 
     ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
     ncm_interface.notification_xmit_is_running = true;
@@ -218,7 +215,7 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
           .direction = TUSB_DIR_IN
         },
         .bRequest = CDC_NOTIF_NETWORK_CONNECTION,
-        .wValue = 1 /* Connected */,
+        .wValue = ncm_interface.link_is_up ? 1 : 0,  /* Dynamic link state */
         .wIndex = ncm_interface.itf_num,
         .wLength = 0,
       },
@@ -226,12 +223,13 @@ static void notification_xmit(uint8_t rhport, bool force_next) {
 
     uint16_t notif_len = sizeof(notify_connected.header) + notify_connected.header.wLength;
     ncm_epbuf.epnotif = notify_connected;
-    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_epbuf.epnotif, notif_len);
+    usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t *) &ncm_epbuf.epnotif, notif_len, false);
 
     ncm_interface.notification_xmit_state = NOTIFICATION_DONE;
     ncm_interface.notification_xmit_is_running = true;
   } else {
     TU_LOG_DRV("  NOTIFICATION_FINISHED\n");
+    ncm_interface.notification_xmit_is_running = false;
   }
 } // notification_xmit
 
@@ -329,7 +327,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes) {
   TU_LOG_DRV("xmit_insert_required_zlp! (%u)\n", (unsigned) xferred_bytes);
 
   // start transmission of the ZLP
-  usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
+  usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0, false);
 
   return true;
 } // xmit_insert_required_zlp
@@ -375,7 +373,7 @@ static void xmit_start_if_possible(uint8_t rhport) {
   }
 
   // Kick off an endpoint transfer
-  usbd_edpt_xfer(0, ncm_interface.ep_in, ncm_interface.xmit_tinyusb_ntb->data, ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength);
+  usbd_edpt_xfer(0, ncm_interface.ep_in, ncm_interface.xmit_tinyusb_ntb->data, ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength, false);
 } // xmit_start_if_possible
 
 /**
@@ -524,7 +522,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport) {
 
   // initiate transfer
   TU_LOG_DRV("  start reception\n");
-  bool r = usbd_edpt_xfer(rhport, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+  bool r = usbd_edpt_xfer(rhport, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE, false);
   if (!r) {
     recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
     ncm_interface.recv_tinyusb_ntb = NULL;
@@ -755,6 +753,32 @@ static void tud_network_recv_renew_r(uint8_t rhport) {
   tud_network_recv_renew();
 } // tud_network_recv_renew
 
+/**
+ * Set the link state and send notification to host
+ */
+void tud_network_link_state(uint8_t rhport, bool is_up) {
+  TU_LOG_DRV("tud_network_link_state(%d, %d)\n", rhport, is_up);
+
+  if (ncm_interface.link_is_up == is_up) {
+    // No change in link state
+    return;
+  }
+
+  ncm_interface.link_is_up = is_up;
+
+  // Only send notification if we have an active data interface
+  if (ncm_interface.itf_data_alt != 1) {
+    TU_LOG_DRV("  link state notification skipped (interface not active)\n");
+    return;
+  }
+
+  // Reset notification state to send link state update
+  ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
+
+  // Trigger notification transmission
+  notification_xmit(rhport, false);
+}
+
 //-----------------------------------------------------------------------------
 //
 // all the netd_*() stuff (interface TinyUSB -> driver)
@@ -774,6 +798,12 @@ void netd_init(void) {
   for (int i = 0; i < RECV_NTB_N; ++i) {
     ncm_interface.recv_free_ntb[i] = &ncm_epbuf.recv[i].ntb;
   }
+  // Default link state - can be configured via CFG_TUD_NCM_DEFAULT_LINK_UP
+  #ifdef CFG_TUD_NCM_DEFAULT_LINK_UP
+  ncm_interface.link_is_up = CFG_TUD_NCM_DEFAULT_LINK_UP;
+  #else
+  ncm_interface.link_is_up = true; // Default to link up if not set.
+  #endif
 } // netd_init
 
 /**

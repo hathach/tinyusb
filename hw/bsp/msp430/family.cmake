@@ -11,37 +11,23 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/msp430_${T
 
 set(FAMILY_MCUS MSP430x5xx CACHE INTERNAL "")
 
-
 #------------------------------------
 # BOARD_TARGET
 #------------------------------------
 # only need to be built ONCE for all examples
-function(add_board_target BOARD_TARGET)
-  if (NOT TARGET ${BOARD_TARGET})
-    add_library(${BOARD_TARGET} INTERFACE)
-    target_compile_definitions(${BOARD_TARGET} INTERFACE
-      CFG_TUD_ENDPOINT0_SIZE=8
-      CFG_EXAMPLE_VIDEO_READONLY
-      CFG_EXAMPLE_MSC_READONLY
-      )
-    target_include_directories(${BOARD_TARGET} INTERFACE
-      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
-      ${SDK_DIR}
-      )
+function(family_add_board BOARD_TARGET)
+  add_library(${BOARD_TARGET} INTERFACE)
+  target_compile_definitions(${BOARD_TARGET} INTERFACE
+    CFG_TUD_ENDPOINT0_SIZE=8
+    CFG_EXAMPLE_VIDEO_READONLY
+    CFG_EXAMPLE_MSC_READONLY
+    )
+  target_include_directories(${BOARD_TARGET} INTERFACE
+    ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
+    ${SDK_DIR}
+    )
 
-    update_board(${BOARD_TARGET})
-
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_link_options(${BOARD_TARGET} INTERFACE
-        "LINKER:--script=${LD_FILE_GNU}"
-        -L${SDK_DIR}
-        )
-    elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-      target_link_options(${BOARD_TARGET} INTERFACE
-        "LINKER:--config=${LD_FILE_IAR}"
-        )
-    endif ()
-  endif ()
+  update_board(${BOARD_TARGET})
 endfunction()
 
 
@@ -50,16 +36,14 @@ endfunction()
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
-
-  # Board target
-  add_board_target(board_${BOARD})
+  family_add_tinyusb(${TARGET} OPT_MCU_MSP430x5xx)
 
   #---------- Port Specific ----------
   # These files are built for each example since it depends on example's tusb_config.h
   target_sources(${TARGET} PUBLIC
-    # BSP
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
+    ${TOP}/src/portable/ti/msp430x5xx/dcd_msp430x5xx.c
     )
   target_include_directories(${TARGET} PUBLIC
     # family, hw, board
@@ -68,14 +52,16 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
 
-  # Add TinyUSB target and port source
-  family_add_tinyusb(${TARGET} OPT_MCU_MSP430x5xx)
-  target_sources(${TARGET} PUBLIC
-    ${TOP}/src/portable/ti/msp430x5xx/dcd_msp430x5xx.c
-    )
-  target_link_libraries(${TARGET} PUBLIC board_${BOARD})
-
-
+  if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--script=${LD_FILE_GNU}"
+      -L${SDK_DIR}
+      )
+  elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_link_options(${TARGET} PUBLIC
+      "LINKER:--config=${LD_FILE_IAR}"
+      )
+  endif ()
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_msp430flasher(${TARGET})

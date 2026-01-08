@@ -28,15 +28,27 @@
 
 import argparse
 import os
+import random
 import re
 import sys
 import time
+import warnings
+
+# Suppress pkg_resources deprecation warning from fs module
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
+# Suppress pyfatfs unclean unmount warning
+warnings.filterwarnings("ignore", message="Filesystem was not cleanly unmounted")
+
 import serial
 import subprocess
 import json
 import glob
 from multiprocessing import Pool
 import fs
+import hashlib
+import ctypes
+from pymtp import MTP
+import string
 
 ENUM_TIMEOUT = 30
 
@@ -45,6 +57,8 @@ STATUS_FAILED = "\033[31mFailed\033[0m"
 STATUS_SKIPPED = "\033[33mSkipped\033[0m"
 
 verbose = False
+test_only = []
+build_dir = 'cmake-build'
 
 WCH_RISCV_CONTENT = """
 adapter driver wlinke
@@ -81,7 +95,7 @@ def get_serial_dev(id, vendor_str, product_str, ifnum):
         return f'/dev/serial/by-id/usb-{vendor_str}_{product_str}_{id}-if{ifnum:02d}'
     else:
         # just use id: mostly for cp210x/ftdi flasher
-        pattern = f'/dev/serial/by-id/usb-*_{id}-if{ifnum:02d}*'
+        pattern = f'/dev/serial/by-id/usb-*_{id}-if*'
         port_list = glob.glob(pattern)
         return port_list[0]
 
@@ -98,20 +112,18 @@ def get_hid_dev(id, vendor_str, product_str, event):
 def open_serial_dev(port):
     timeout = ENUM_TIMEOUT
     ser = None
-    while timeout:
+    while timeout > 0:
         if os.path.exists(port):
             try:
-                # slight delay since kernel may occupy the port briefly
-                time.sleep(0.5)
-                timeout = timeout - 0.5
                 ser = serial.Serial(port, baudrate=115200, timeout=5)
                 break
             except serial.SerialException:
+                print(f'serial {port} not reaady {timeout} sec')
                 pass
-        time.sleep(0.5)
-        timeout = timeout - 0.5
+        time.sleep(0.1)
+        timeout -= 0.1
 
-    assert timeout, f'Cannot open port f{port}' if os.path.exists(port) else f'Port {port} not existed'
+    assert timeout > 0, f'Cannot open port f{port}' if os.path.exists(port) else f'Port {port} not existed'
     return ser
 
 
@@ -119,7 +131,7 @@ def read_disk_file(uid, lun, fname):
     # open_fs("fat://{dev}) require 'pip install pyfatfs'
     dev = get_disk_dev(uid, 'TinyUSB', lun)
     timeout = ENUM_TIMEOUT
-    while timeout:
+    while timeout > 0:
         if os.path.exists(dev):
             fat = fs.open_fs(f'fat://{dev}?read_only=true')
             try:
@@ -132,7 +144,25 @@ def read_disk_file(uid, lun, fname):
         time.sleep(1)
         timeout -= 1
 
-    assert timeout, f'Storage {dev} not existed'
+    assert timeout > 0, f'Storage {dev} not existed'
+    return None
+
+
+def open_mtp_dev(uid):
+    mtp = MTP()
+    # MTP seems to take a while to enumerate
+    timeout = 2*ENUM_TIMEOUT
+    while timeout > 0:
+        # run_cmd(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/")
+        for raw in mtp.detect_devices():
+            mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
+            if mtp.device:
+                sn = mtp.get_serialnumber().decode('utf-8')
+                #print(f'mtp serial = {sn}')
+                if sn == uid:
+                    return mtp
+        time.sleep(1)
+        timeout -= 1
     return None
 
 
@@ -202,14 +232,14 @@ def reset_stflash(board):
 def flash_openocd(board, firmware):
     flasher = board['flasher']
     ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                  f'{flasher["args"]} -c init -c halt -c "program {firmware}.elf verify" -c reset -c exit')
+                  f'{flasher["args"]} -c "init; halt; program {firmware}.elf verify; reset; exit"')
     return ret
 
 
 def reset_openocd(board):
     flasher = board['flasher']
     ret = run_cmd(f'openocd -c "tcl_port disabled" -c "gdb_port disabled" -c "adapter serial {flasher["uid"]}" '
-                  f'{flasher["args"]} -c "reset exit"')
+                  f'{flasher["args"]} -c "init; reset run; exit"')
     return ret
 
 
@@ -304,11 +334,11 @@ def test_dual_host_info_to_device_cdc(board):
     ser = open_serial_dev(port)
 
     # read from cdc, first line should contain vid/pid and serial
-    data = ser.read(1000)
+    data = ser.read(10000)
     ser.close()
     if len(data) == 0:
         assert False, 'No data from device'
-    lines = data.decode('utf-8').splitlines()
+    lines = data.decode('utf-8', errors='ignore').splitlines()
 
     enum_dev_sn = []
     for l in lines:
@@ -319,6 +349,7 @@ def test_dual_host_info_to_device_cdc(board):
 
     if set(declared_devs) != set(enum_dev_sn):
         failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+        print('\n'.join(lines))
         assert False, failed_msg
     return 0
 
@@ -337,12 +368,12 @@ def test_host_device_info(board):
     ret = globals()[f'reset_{flasher["name"].lower()}'](board)
     assert ret.returncode == 0,  'Failed to reset device'
 
-    data = ser.read(1000)
+    data = ser.read(10000)
     ser.close()
     if len(data) == 0:
         assert False, 'No data from device'
+    lines = data.decode('utf-8', errors='ignore').splitlines()
 
-    lines = data.decode('utf-8').splitlines()
     enum_dev_sn = []
     for l in lines:
         vid_pid_sn = re.search(r'ID ([0-9a-fA-F]+):([0-9a-fA-F]+) SN (\w+)', l)
@@ -352,8 +383,8 @@ def test_host_device_info(board):
 
     if set(declared_devs) != set(enum_dev_sn):
         failed_msg = f'Expected {declared_devs}, Enumerated {enum_dev_sn}'
+        print('\n'.join(lines))
         assert False, failed_msg
-
     return 0
 
 
@@ -373,41 +404,71 @@ def test_device_cdc_dual_ports(board):
     ]
     ser = [open_serial_dev(p) for p in port]
 
-    str_test = [ b"test_no1", b"test_no2" ]
-    # Echo test write to each port and read back
-    for i in range(len(str_test)):
-        s = str_test[i]
-        l = len(s)
-        ser[i].write(s)
-        ser[i].flush()
-        rd = [ ser[i].read(l) for i in range(len(ser)) ]
-        assert rd[0] == s.lower(), f'Port1 wrong data: expected {s.lower()} was {rd[0]}'
-        assert rd[1] == s.upper(), f'Port2 wrong data: expected {s.upper()} was {rd[1]}'
+    def rand_ascii(length):
+        return "".join(random.choices(string.ascii_letters + string.digits, k=length)).encode("ascii")
+
+    sizes = [32, 64, 128, 256, 512, random.randint(2000, 5000)]
+
+    def write_and_check(writer, payload):
+        size = len(payload)
+        for s in ser:
+            s.reset_input_buffer()
+        rd0 = b''
+        rd1 = b''
+        offset = 0
+        # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
+        while offset < size:
+            chunk_size = min(random.randint(1, 64), size - offset)
+            ser[writer].write(payload[offset:offset + chunk_size])
+            ser[writer].flush()
+            rd0 += ser[0].read(chunk_size)
+            rd1 += ser[1].read(chunk_size)
+            offset += chunk_size
+        assert rd0 == payload.lower(), f'Port0 wrong data ({size}): expected {payload.lower()[:16]}... was {rd0[:16]}'
+        assert rd1 == payload.upper(), f'Port1 wrong data ({size}): expected {payload.upper()[:16]}... was {rd1[:16]}'
+
+    for size in sizes:
+        payload0 = rand_ascii(size)
+        write_and_check(0, payload0)
+
+        payload1 = rand_ascii(size)
+        write_and_check(1, payload1)
     ser[0].close()
     ser[1].close()
 
 
 def test_device_cdc_msc(board):
     uid = board['uid']
-    # Echo test
+    # CDC Echo test
     port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
     ser = open_serial_dev(port)
 
-    test_str = b"test_str"
-    ser.write(test_str)
-    ser.flush()
-    rd_str = ser.read(len(test_str))
-    ser.close()
-    assert  rd_str == test_str, f'CDC wrong data: expected: {test_str} was {rd_str}'
+    def rand_ascii(length):
+        return "".join(random.choices(string.ascii_letters + string.digits, k=length)).encode("ascii")
 
-    # Block test
-    data = read_disk_file(uid,0,'README.TXT')
+    sizes = [32, 64, 128, 256, 512, random.randint(2000, 5000)]
+    for size in sizes:
+        test_str = rand_ascii(size)
+        rd_str = b''
+        offset = 0
+        # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
+        while offset < size:
+            chunk_size = min(random.randint(1, 64), size - offset)
+            ser.write(test_str[offset:offset + chunk_size])
+            ser.flush()
+            rd_str += ser.read(chunk_size)
+            offset += chunk_size
+        assert rd_str == test_str, f'CDC wrong data ({size} bytes):\n  expected: {test_str}\n  received: {rd_str}'
+    ser.close()
+
+    # MSC Block test
+    data = read_disk_file(uid, 0, 'README.TXT')
     readme = \
-    b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
+        b"This is tinyusb's MassStorage Class demo.\r\n\r\n\
 If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
-    assert data == readme, 'MSC wrong data'
+    assert data == readme, f'MSC wrong data in README.TXT\n expected: {readme.decode()}\n received: {data.decode()}'
 
 
 def test_device_cdc_msc_freertos(board):
@@ -419,7 +480,7 @@ def test_device_dfu(board):
 
     # Wait device enum
     timeout = ENUM_TIMEOUT
-    while timeout:
+    while timeout > 0:
         ret = run_cmd(f'dfu-util -l')
         stdout = ret.stdout.decode()
         if f'serial="{uid}"' in stdout and 'Found DFU: [cafe:4000]' in stdout:
@@ -427,7 +488,7 @@ def test_device_dfu(board):
         time.sleep(1)
         timeout = timeout - 1
 
-    assert timeout, 'Device not available'
+    assert timeout > 0, 'Device not available'
 
     f_dfu0 = f'dfu0_{uid}'
     f_dfu1 = f'dfu1_{uid}'
@@ -457,10 +518,9 @@ def test_device_dfu(board):
 
 def test_device_dfu_runtime(board):
     uid = board['uid']
-
     # Wait device enum
     timeout = ENUM_TIMEOUT
-    while timeout:
+    while timeout > 0:
         ret = run_cmd(f'dfu-util -l')
         stdout = ret.stdout.decode()
         if f'serial="{uid}"' in stdout and 'Found Runtime: [cafe:4000]' in stdout:
@@ -468,7 +528,7 @@ def test_device_dfu_runtime(board):
         time.sleep(1)
         timeout = timeout - 1
 
-    assert timeout, 'Device not available'
+    assert timeout > 0, 'Device not available'
 
 
 def test_device_hid_boot_interface(board):
@@ -478,18 +538,77 @@ def test_device_hid_boot_interface(board):
     mouse2 = get_hid_dev(uid, 'TinyUSB', 'TinyUSB_Device', 'if01-mouse')
     # Wait device enum
     timeout = ENUM_TIMEOUT
-    while timeout:
+    while timeout > 0:
         if os.path.exists(kbd) and os.path.exists(mouse1) and os.path.exists(mouse2):
             break
         time.sleep(1)
         timeout = timeout - 1
 
-    assert timeout, 'HID device not available'
+    assert timeout > 0, 'HID device not available'
 
 
 def test_device_hid_composite_freertos(id):
     # TODO implement later
     pass
+
+
+def test_device_mtp(board):
+    uid = board['uid']
+
+    # --- BEFORE: mute C-level stderr for libmtp vid/pid warnings ---
+    fd = sys.stderr.fileno()
+    _saved = os.dup(fd)
+    _null = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(_null, fd)
+
+    mtp = open_mtp_dev(uid)
+
+    # --- AFTER: restore stderr ---
+    os.dup2(_saved, fd)
+    os.close(_null)
+    os.close(_saved)
+
+    if mtp is None or mtp.device is None:
+        assert False, 'MTP device not found'
+
+    try:
+        assert b"TinyUSB" == mtp.get_manufacturer(), 'MTP wrong manufacturer'
+        assert b"MTP Example" == mtp.get_modelname(), 'MTP wrong model'
+        assert b'1.0' == mtp.get_deviceversion(), 'MTP wrong version'
+        assert b'TinyUSB MTP' == mtp.get_devicename(), 'MTP wrong device name'
+
+        # read and compare readme.txt and logo.png
+        f1_expect = b'TinyUSB MTP Filesystem example'
+        f2_md5_expect = '40ef23fc2891018d41a05d4a0d5f822f' # md5sum of logo.png
+        f1 = uid.encode("utf-8") + b'_file1'
+        f2 = uid.encode("utf-8") + b'_file2'
+        f3 = uid.encode("utf-8") + b'_file3'
+        mtp.get_file_to_file(1, f1)
+        with open(f1, 'rb') as file:
+            f1_data = file.read()
+            os.remove(f1)
+            assert f1_data == f1_expect, 'MTP file1 wrong data'
+        mtp.get_file_to_file(2, f2)
+        with open(f2, 'rb') as file:
+            f2_data = file.read()
+            os.remove(f2)
+            assert f2_md5_expect == hashlib.md5(f2_data).hexdigest(), 'MTP file2 wrong data'
+        # test send file
+        with open(f3, "wb") as file:
+            f3_data = os.urandom(random.randint(1024, 3*1024))
+            file.write(f3_data)
+            file.close()
+            fid = mtp.send_file_from_file(f3, b'file3')
+            f3_readback = f3 + b'_readback'
+            mtp.get_file_to_file(fid, f3_readback)
+            with open(f3_readback, 'rb') as f:
+                f3_rb_data = f.read()
+                os.remove(f3_readback)
+                assert f3_rb_data == f3_data, 'MTP file3 wrong data'
+            os.remove(f3)
+            mtp.delete_object(fid)
+    finally:
+        mtp.disconnect()
 
 
 # -------------------------------------------------------------
@@ -504,6 +623,7 @@ device_tests = [
     'device/dfu_runtime',
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
+    # 'device/mtp'
 ]
 
 dual_tests = [
@@ -515,6 +635,62 @@ host_test = [
 ]
 
 
+def test_example(board, f1, example):
+    """
+    Test example firmware
+    :param board: board dict
+    :param f1: flags on
+    :param example: example name
+    :return: 0 if success/skip, 1 if failed
+    """
+    name = board['name']
+    err_count = 0
+
+    f1_str = ""
+    if f1 != "":
+        f1_str = '-f1_' + f1.replace(' ', '_')
+
+    fw_dir = f'{TINYUSB_ROOT}/{build_dir}/cmake-build-{name}{f1_str}/{example}'
+    fw_name = f'{fw_dir}/{os.path.basename(example)}'
+    print(f'{name+f1_str:40} {example:30} ...', end='')
+
+    if not os.path.exists(fw_dir) or not (os.path.exists(f'{fw_name}.elf') or os.path.exists(f'{fw_name}.bin')):
+        print('Skip (no binary)')
+        return 0
+
+    if verbose:
+        print(f'Flashing {fw_name}.elf')
+
+    # flash firmware. It may fail randomly, retry a few times
+    max_rety = 3
+    start_s = time.time()
+    for i in range(max_rety):
+        ret = globals()[f'flash_{board["flasher"]["name"].lower()}'](board, fw_name)
+        if ret.returncode == 0:
+            try:
+                globals()[f'test_{example.replace("/", "_")}'](board)
+                print('  OK', end='')
+                break
+            except Exception as e:
+                if i == max_rety - 1:
+                    err_count += 1
+                    print(f'{STATUS_FAILED}: {e}')
+                else:
+                    print(f'\n  Test failed: {e}, retry {i+2}/{max_rety}', end='')
+                    time.sleep(0.5)
+        else:
+            print(f'\n  Flash failed, retry {i+2}/{max_rety}', end='')
+            time.sleep(0.5)
+
+    if ret.returncode != 0:
+        err_count += 1
+        print(f'  Flash {STATUS_FAILED}', end='')
+
+    print(f'  in {time.time() - start_s:.1f}s')
+
+    return err_count
+
+
 def test_board(board):
     name = board['name']
     flasher = board['flasher']
@@ -522,24 +698,24 @@ def test_board(board):
     # default to all tests
     test_list = []
 
-    if 'tests' in board:
-        board_tests = board['tests']
-        if 'device' in board_tests and board_tests['device'] == True:
-            test_list += list(device_tests)
-        if 'dual' in board_tests and board_tests['dual'] == True:
-            test_list += dual_tests
-        if 'host' in board_tests and board_tests['host'] == True:
-            test_list += host_test
-        if 'only' in board_tests:
-            test_list = board_tests['only']
-        if 'skip' in board_tests:
-            for skip in board_tests['skip']:
-                if skip in test_list:
-                    test_list.remove(skip)
-                    print(f'{name:25} {skip:30} ... Skip')
-
-    # board_test is added last to disable board's usb
-    test_list.append('device/board_test')
+    if len(test_only) > 0:
+        test_list = test_only
+    else:
+        if 'tests' in board:
+            board_tests = board['tests']
+            if 'device' in board_tests and board_tests['device'] == True:
+                test_list += list(device_tests)
+            if 'dual' in board_tests and board_tests['dual'] == True:
+                test_list += dual_tests
+            if 'host' in board_tests and board_tests['host'] == True:
+                test_list += host_test
+            if 'only' in board_tests:
+                test_list = board_tests['only']
+            if 'skip' in board_tests:
+                for skip in board_tests['skip']:
+                    if skip in test_list:
+                        test_list.remove(skip)
+                        print(f'{name:25} {skip:30} ... Skip')
 
     err_count = 0
     flags_on_list = [""]
@@ -547,47 +723,13 @@ def test_board(board):
         flags_on_list = board['build']['flags_on']
 
     for f1 in flags_on_list:
-        f1_str = ""
-        if f1 != "":
-            f1_str = '-f1_' + f1.replace(' ', '_')
         for test in test_list:
-            fw_dir = f'{TINYUSB_ROOT}/cmake-build/cmake-build-{name}{f1_str}/{test}'
-            if not os.path.exists(fw_dir):
-                fw_dir = f'{TINYUSB_ROOT}/examples/cmake-build-{name}{f1_str}/{test}'
-            fw_name = f'{fw_dir}/{os.path.basename(test)}'
-            print(f'{name+f1_str:40} {test:30} ... ', end='')
+            err_count += test_example(board, f1, test)
 
-            if not os.path.exists(fw_dir) or not (os.path.exists(f'{fw_name}.elf') or os.path.exists(f'{fw_name}.bin')):
-                print('Skip (no binary)')
-                continue
+    # flash board_test last to disable board's usb
+    test_example(board, flags_on_list[0], 'device/board_test')
 
-            # flash firmware. It may fail randomly, retry a few times
-            max_rety = 2
-            for i in range(max_rety):
-                ret = globals()[f'flash_{flasher["name"].lower()}'](board, fw_name)
-                if ret.returncode == 0:
-                    try:
-                        globals()[f'test_{test.replace("/", "_")}'](board)
-                        print('OK')
-                        break
-                    except Exception as e:
-                        if i == max_rety - 1:
-                            err_count += 1
-                            print(STATUS_FAILED)
-                            print(f'  {e}')
-                        else:
-                            print()
-                            print(f'  Test failed: {e}, retry {i+1}')
-                            time.sleep(1)
-                else:
-                    print(f'Flashing failed, retry {i+1}')
-                    time.sleep(1)
-
-            if ret.returncode != 0:
-                err_count += 1
-                print(f'Flash {STATUS_FAILED}')
-
-    return err_count
+    return name, err_count
 
 
 def main():
@@ -595,18 +737,26 @@ def main():
     Hardware test on specified boards
     """
     global verbose
+    global test_only
+    global build_dir
 
     duration = time.time()
 
     parser = argparse.ArgumentParser()
     parser.add_argument('config_file', help='Configuration JSON file')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to test, all if not specified')
+    parser.add_argument('-s', '--skip', action='append', default=[], help='Skip boards from test')
+    parser.add_argument('-t', '--test-only', action='append', default=[], help='Tests to run, all if not specified')
+    parser.add_argument('-B', '--build', default='cmake-build', help='Build folder name (default: cmake-build)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
     config_file = args.config_file
     boards = args.board
+    skip_boards = args.skip
     verbose = args.verbose
+    test_only = args.test_only
+    build_dir = args.build
 
     # if config file is not found, try to find it in the same directory as this script
     if not os.path.exists(config_file):
@@ -615,12 +765,22 @@ def main():
         config = json.load(f)
 
     if len(boards) == 0:
-        config_boards = config['boards']
+        config_boards = [e for e in config['boards'] if e['name'] not in skip_boards]
     else:
         config_boards = [e for e in config['boards'] if e['name'] in boards]
 
+    err_count = 0
     with Pool(processes=os.cpu_count()) as pool:
-        err_count = sum(pool.map(test_board, config_boards))
+        mret = pool.map(test_board, config_boards)
+        err_count = sum(e[1] for e in mret)
+        # generate skip list for next re-run if failed
+        skip_fname = f'{config_file}.skip'
+        if err_count > 0:
+            skip_boards += [name for name, err in mret if err == 0]
+            with open(skip_fname, 'w') as f:
+                f.write(' '.join(f'-s {i}' for i in skip_boards))
+        elif os.path.exists(skip_fname):
+            os.remove(skip_fname)
 
     duration = time.time() - duration
     print()

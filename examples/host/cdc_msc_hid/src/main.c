@@ -29,19 +29,12 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "app.h"
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF PROTYPES
+// MACRO CONSTANT TYPEDEF PROTOTYPES
 //--------------------------------------------------------------------+
 void led_blinking_task(void);
-extern void cdc_app_task(void);
-extern void hid_app_task(void);
-
-#if CFG_TUH_ENABLED && CFG_TUH_MAX3421
-// API to read/rite MAX3421's register. Implemented by TinyUSB
-extern uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr);
-extern bool tuh_max3421_reg_write(uint8_t rhport, uint8_t reg, uint8_t data, bool in_isr);
-#endif
 
 /*------------- MAIN -------------*/
 int main(void) {
@@ -56,9 +49,7 @@ int main(void) {
   };
   tusb_init(BOARD_TUH_RHPORT, &host_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
 #if CFG_TUH_ENABLED && CFG_TUH_MAX3421
   // FeatherWing MAX3421E use MAX3421E's GPIO0 for VBUS enable
@@ -101,7 +92,9 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < interval_ms) return; // not enough time
+  if (board_millis() - start_ms < interval_ms) {
+    return;// not enough time
+  }
   start_ms += interval_ms;
 
   board_led_write(led_state);

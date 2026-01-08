@@ -31,6 +31,13 @@ Notable contributors
 -  Most features development
 
 
+`Heiko Kuester <https://github.com/IngHK>`__
+--------------------------------------------
+
+-  Add CH34x and PL2303 support (CDC host)
+-  Improve FTDI and CP210x support (CDC host)
+
+
 `Hristo Gochkov <https://github.com/me-no-dev>`__
 -------------------------------------------------
 

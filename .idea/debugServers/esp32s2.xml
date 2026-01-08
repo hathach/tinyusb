@@ -1,0 +1,14 @@
+<component name="DebugServers">
+  <generic-debug-target name="esp32s2" uniqueID="254eff00-2acf-48fe-b255-1d0c0c9c4a7a">
+    <debugger version="1">
+      <debugger kind="GDB">$USER_HOME$/.espressif/tools/xtensa-esp-elf-gdb/14.2_20240403/xtensa-esp-elf-gdb/bin/xtensa-esp32s2-elf-gdb</debugger>
+      <env />
+    </debugger>
+    <gdbserver exe="$USER_HOME$/.espressif/tools/openocd-esp32/v0.12.0-esp32-20241016/openocd-esp32/bin/openocd" args="-f board/esp32s2-kaluga-1.cfg">
+      <env />
+    </gdbserver>
+    <console port="4444" />
+    <target download-type="NONE" reset-command="monitor reset halt" reset-before="false" />
+    <connection extended-remote="false" remote-string="tcp::3333" warmup-ms="500" />
+  </generic-debug-target>
+</component>

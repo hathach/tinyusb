@@ -31,6 +31,12 @@ this appears as either a RNDIS or CDC-ECM USB virtual network adapter; the OS pi
 RNDIS should be valid on Linux and Windows hosts, and CDC-ECM should be valid on Linux and macOS hosts
 
 The MCU appears to the host as IP address 192.168.7.1, and provides a DHCP server, DNS server, and web server.
+
+Link State Control:
+- Press the user button to toggle the network link state (UP/DOWN)
+- This simulates "ethernet cable unplugged/plugged" events
+- The host OS will see the network interface as disconnected/connected accordingly
+- Use this to test network error handling and recovery in host applications
 */
 /*
 Some smartphones *may* work with this implementation as well, but likely have limited (broken) drivers,
@@ -52,6 +58,7 @@ try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00
 #include "lwip/ethip6.h"
 #include "lwip/init.h"
 #include "lwip/timeouts.h"
+#include "lwip/sys.h"
 
 #ifdef INCLUDE_IPERF
   #include "lwip/apps/lwiperf.h"
@@ -62,9 +69,6 @@ try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00
 
 /* lwip context */
 static struct netif netif_data;
-
-/* shared between tud_network_recv_cb() and service_traffic() */
-static struct pbuf *received_frame;
 
 /* this is used by this code, ./class/net/net_driver.c, and usb_descriptors.c */
 /* ideally speaking, this should be generated from the hardware's unique ID (if available) */
@@ -137,6 +141,12 @@ static err_t netif_init_cb(struct netif *netif) {
   return ERR_OK;
 }
 
+/* notifies the USB host about the link state change. */
+static void usbnet_netif_link_callback(struct netif *netif) {
+    bool link_up = netif_is_link_up(netif);
+    tud_network_link_state(BOARD_TUD_RHPORT, link_up);
+}
+
 static void init_lwip(void) {
   struct netif *netif = &netif_data;
 
@@ -147,15 +157,23 @@ static void init_lwip(void) {
   memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
   netif->hwaddr[5] ^= 0x01;
 
-  netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
+  netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ethernet_input);
 #if LWIP_IPV6
   netif_create_ip6_linklocal_address(netif, 1);
 #endif
   netif_set_default(netif);
+
+#if LWIP_NETIF_LINK_CALLBACK
+  // Set the link callback to notify USB host about link state changes
+  netif_set_link_callback(netif, usbnet_netif_link_callback);
+  netif_set_link_up(netif);
+#else
+  tud_network_link_state(BOARD_TUD_RHPORT, true);
+#endif
 }
 
 /* handle any DNS requests from dns-server */
-bool dns_query_proc(const char *name, ip4_addr_t *addr) {
+static bool dns_query_proc(const char *name, ip4_addr_t *addr) {
   if (0 == strcmp(name, "tiny.usb")) {
     *addr = ipaddr;
     return true;
@@ -164,20 +182,29 @@ bool dns_query_proc(const char *name, ip4_addr_t *addr) {
 }
 
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size) {
-  /* this shouldn't happen, but if we get another packet before
-  parsing the previous, we must signal our inability to accept it */
-  if (received_frame) return false;
+  struct netif *netif = &netif_data;
 
   if (size) {
     struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
 
-    if (p) {
-      /* pbuf_alloc() has already initialized struct; all we need to do is copy the data */
-      memcpy(p->payload, src, size);
-
-      /* store away the pointer for service_traffic() to later handle */
-      received_frame = p;
+    if (p == NULL) {
+      printf("ERROR: Failed to allocate pbuf of size %d\n", size);
+      return false;
     }
+
+    /* Copy buf to pbuf */
+    pbuf_take(p, src, size);
+
+    // Surrender ownership of our pbuf unless there was an error
+    // Only call pbuf_free if not Ok else it will panic with "pbuf_free: p->ref > 0"
+    // or steal it from whatever took ownership of it with undefined consequences.
+    // See: https://savannah.nongnu.org/patch/index.php?10121
+    if (netif->input(p, netif) != ERR_OK) {
+      printf("ERROR: netif input failed\n");
+      pbuf_free(p);
+    }
+    // Signal tinyusb that the current frame has been processed.
+    tud_network_recv_renew();
   }
 
   return true;
@@ -191,29 +218,26 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg) {
   return pbuf_copy_partial(p, dst, p->tot_len, 0);
 }
 
-static void service_traffic(void) {
-  /* handle any packet received by tud_network_recv_cb() */
-  if (received_frame) {
-    // Surrender ownership of our pbuf unless there was an error
-    // Only call pbuf_free if not Ok else it will panic with "pbuf_free: p->ref > 0"
-    // or steal it from whatever took ownership of it with undefined consequences.
-    // See: https://savannah.nongnu.org/patch/index.php?10121
-    if (ethernet_input(received_frame, &netif_data)!=ERR_OK) {
-        pbuf_free(received_frame);
+static void handle_link_state_switch(void) {
+  /* Check for button press to toggle link state */
+  static bool last_link_state = true;
+  static bool last_button_state = false;
+  bool current_button_state = board_button_read();
+
+  if (current_button_state && !last_button_state) {
+    /* Button pressed - toggle link state */
+    last_link_state = !last_link_state;
+    if (last_link_state) {
+      printf("Link state: UP\n");
+      netif_set_link_up(&netif_data);
+    } else {
+      printf("Link state: DOWN\n");
+      netif_set_link_down(&netif_data);
     }
-    received_frame = NULL;
-    tud_network_recv_renew();
+    /* LWIP callback will notify USB host about the change */
   }
+  last_button_state = current_button_state;
 
-  sys_check_timeouts();
-}
-
-void tud_network_init_cb(void) {
-  /* if the network is re-initializing and we have a leftover packet, we must do a cleanup */
-  if (received_frame) {
-    pbuf_free(received_frame);
-    received_frame = NULL;
-  }
 }
 
 int main(void) {
@@ -227,9 +251,7 @@ int main(void) {
   };
   tusb_init(BOARD_TUD_RHPORT, &dev_init);
 
-  if (board_init_after_tusb) {
-    board_init_after_tusb();
-  }
+  board_init_after_tusb();
 
   /* initialize lwip, dhcp-server, dns-server, and http */
   init_lwip();
@@ -243,15 +265,23 @@ int main(void) {
   lwiperf_start_tcp_server_default(NULL, NULL);
 #endif
 
+#if CFG_TUD_NCM
+  printf("USB NCM network interface initialized\n");
+#elif CFG_TUD_ECM_RNDIS
+  printf("USB RNDIS/ECM network interface initialized\n");
+#endif
+
   while (1) {
     tud_task();
-    service_traffic();
+    sys_check_timeouts(); // service lwip
+    handle_link_state_switch();
   }
 
   return 0;
 }
 
 /* lwip has provision for using a mutex, when applicable */
+/* This implementation is for single-threaded use only */
 sys_prot_t sys_arch_protect(void) {
   return 0;
 }

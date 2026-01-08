@@ -1,0 +1,6 @@
+MCU_VARIANT = stm32wba65xx
+
+CFLAGS += -DSTM32WBA65xx
+
+# For flash-jlink target
+JLINK_DEVICE = STM32WBA65RI

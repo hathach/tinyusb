@@ -51,14 +51,21 @@ TU_ATTR_UNUSED static void Error_Handler(void) {
 //--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
+#ifdef USB_DRD_FS
+void USB_IRQHandler(void) {
+  tusb_int_handler(0, true);
+}
+#endif
+#ifdef USB_OTG_FS
 void OTG_FS_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
-
+#endif
+#ifdef USB_OTG_HS
 void OTG_HS_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
-
+#endif
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
@@ -90,6 +97,9 @@ void board_init(void) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
 #endif
 
   GPIO_InitTypeDef GPIO_InitStruct;

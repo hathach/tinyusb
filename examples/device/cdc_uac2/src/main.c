@@ -38,8 +38,6 @@ extern uint32_t blink_interval_ms;
 #include "pico/stdlib.h"
 #endif
 
-void led_blinking_task(void);
-
 /*------------- MAIN -------------*/
 int main(void)
 {
@@ -62,7 +60,7 @@ int main(void)
   {
     tud_task(); // TinyUSB device task
     led_blinking_task();
-
+    audio_task();
 #if (CFG_TUSB_MCU == OPT_MCU_RP2040)
     // printf("Hello, world!\r\n");
 #endif

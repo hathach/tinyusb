@@ -43,6 +43,32 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
 }
 
 //--------------------------------------------------------------------+
+// Spinlock API
+//--------------------------------------------------------------------+
+typedef struct rt_spinlock osal_spinlock_t;
+
+#define OSAL_SPINLOCK_DEF(_name, _int_set) \
+  osal_spinlock_t _name
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
+  rt_spin_lock_init(ctx);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
+  if (!TUP_MCU_MULTIPLE_CORE && in_isr) {
+    return; // single core MCU does not need to lock in ISR
+  }
+  rt_spin_lock(ctx);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
+  if (!TUP_MCU_MULTIPLE_CORE && in_isr) {
+    return; // single core MCU does not need to lock in ISR
+  }
+  rt_spin_unlock(ctx);
+}
+
+//--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
 typedef struct rt_semaphore osal_semaphore_def_t;

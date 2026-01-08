@@ -86,7 +86,12 @@ void board_init(void)
 
   // 1ms tick timer (samd SystemCoreClock may not correct)
   SystemCoreClock = CONF_CPU_FREQUENCY;
+#if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(CONF_CPU_FREQUENCY / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
+#endif
 
   // Led init
   gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
@@ -155,12 +160,11 @@ uint32_t board_millis(void)
   return system_ticks;
 }
 
-void _init(void)
-{
+void _init(void);
+void _init(void) {
   // This _init() standin makes certain GCC environments happier.
   // They expect the main binary to have a constructor called _init; but don't provide a weak default.
   // Providing an empty constructor satisfies this odd case, and doesn't harm anything.
 }
-
 
 #endif

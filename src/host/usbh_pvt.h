@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_USBH_PVT_H_
-#define _TUSB_USBH_PVT_H_
+#ifndef TUSB_USBH_PVT_H_
+#define TUSB_USBH_PVT_H_
 
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
@@ -44,32 +44,34 @@
 //--------------------------------------------------------------------+
 // Class Driver API
 //--------------------------------------------------------------------+
-
 typedef struct {
-  char const* name;
-  bool (* const init       )(void);
-  bool (* const deinit     )(void);
-  bool (* const open       )(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-  bool (* const set_config )(uint8_t dev_addr, uint8_t itf_num);
-  bool (* const xfer_cb    )(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-  void (* const close      )(uint8_t dev_addr);
-} usbh_class_driver_t;
+   const char *name;
+   bool (*const init)(void);
+   bool (*const deinit)(void);
+   uint16_t (*const open)(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf_desc, uint16_t max_len);
+   bool (*const set_config)(uint8_t dev_addr, uint8_t itf_num);
+   bool (*const xfer_cb)(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+   void (*const close)(uint8_t dev_addr);
+ } usbh_class_driver_t;
 
 // Invoked when initializing host stack to get additional class drivers.
 // Can be implemented by application to extend/overwrite class driver support.
 // Note: The drivers array must be accessible at all time when stack is active
-usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count) TU_ATTR_WEAK;
+usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count);
 
 // Call by class driver to tell USBH that it has complete the enumeration
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num);
 
-uint8_t usbh_get_rhport(uint8_t dev_addr);
+uint8_t usbh_get_rhport(uint8_t daddr);
 
 uint8_t* usbh_get_enum_buf(void);
 
 void usbh_int_set(bool enabled);
 
 void usbh_defer_func(osal_task_func_t func, void *param, bool in_isr);
+
+void usbh_spin_lock(bool in_isr);
+void usbh_spin_unlock(bool in_isr);
 
 //--------------------------------------------------------------------+
 // USBH Endpoint API

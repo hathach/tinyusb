@@ -12,6 +12,7 @@
 #endif
 
 #include "ch32v10x.h"
+#include "ch32v10x_it.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -44,7 +45,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t SysTick_Config(uint32_t ticks) {
+static uint32_t SysTick_Config(uint32_t ticks) {
   NVIC_EnableIRQ(SysTicK_IRQn);
   SysTick->CTLR = 0;
   SysTick->CNTL0 = SysTick->CNTL1 = SysTick->CNTL2 = SysTick->CNTL3 = 0;

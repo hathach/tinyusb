@@ -50,21 +50,17 @@
 typedef struct {
   uint8_t attrs;
   uint8_t alt;
+  uint8_t state;
+  uint8_t status;
 
-  dfu_state_t state;
-  dfu_status_t status;
-
-  bool flashing_in_progress;
+  bool     flashing_in_progress;
   uint16_t block;
   uint16_t length;
 } dfu_state_ctx_t;
 
-// Only a single dfu state is allowed
 static dfu_state_ctx_t _dfu_ctx;
 
-CFG_TUD_MEM_SECTION static struct {
-  TUD_EPBUF_DEF(transfer_buf, CFG_TUD_DFU_XFER_BUFSIZE);
-} _dfu_epbuf;
+TU_ATTR_ALIGNED(4) uint8_t _transfer_buf[CFG_TUD_DFU_XFER_BUFSIZE];
 
 static void reset_state(void) {
   _dfu_ctx.state = DFU_IDLE;
@@ -75,6 +71,24 @@ static void reset_state(void) {
 static bool reply_getstatus(uint8_t rhport, const tusb_control_request_t* request, dfu_state_t state, dfu_status_t status, uint32_t timeout);
 static bool process_download_get_status(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request);
 static bool process_manifest_get_status(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request);
+
+//--------------------------------------------------------------------+
+// Weak stubs: invoked if no strong implementation is available
+//--------------------------------------------------------------------+
+TU_ATTR_WEAK void tud_dfu_detach_cb(void) {
+}
+
+TU_ATTR_WEAK void tud_dfu_abort_cb(uint8_t alt) {
+  (void) alt;
+}
+
+TU_ATTR_WEAK uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t* data, uint16_t length) {
+  (void) alt;
+  (void) block_num;
+  (void) data;
+  (void) length;
+  return 0;
+}
 
 //--------------------------------------------------------------------+
 // Debug
@@ -234,9 +248,9 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
         if (stage == CONTROL_STAGE_SETUP) {
           tud_control_status(rhport, request);
         } else if (stage == CONTROL_STAGE_ACK) {
-          if (tud_dfu_detach_cb) {
-            tud_dfu_detach_cb();
-          }
+          tud_dfu_detach_cb();
+        } else {
+          // nothing to do
         }
         break;
 
@@ -258,22 +272,21 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
           reset_state();
           tud_control_status(rhport, request);
         } else if (stage == CONTROL_STAGE_ACK) {
-          if (tud_dfu_abort_cb) {
-            tud_dfu_abort_cb(_dfu_ctx.alt);
-          }
+          tud_dfu_abort_cb(_dfu_ctx.alt);
+        } else {
+          // nothing to do
         }
         break;
 
       case DFU_REQUEST_UPLOAD:
         if (stage == CONTROL_STAGE_SETUP) {
           TU_VERIFY(_dfu_ctx.attrs & DFU_ATTR_CAN_UPLOAD);
-          TU_VERIFY(tud_dfu_upload_cb);
           TU_VERIFY(request->wLength <= CFG_TUD_DFU_XFER_BUFSIZE);
 
-          const uint16_t xfer_len = tud_dfu_upload_cb(_dfu_ctx.alt, request->wValue, _dfu_epbuf.transfer_buf,
+          const uint16_t xfer_len = tud_dfu_upload_cb(_dfu_ctx.alt, request->wValue, _transfer_buf,
                                                       request->wLength);
 
-          return tud_control_xfer(rhport, request, _dfu_epbuf.transfer_buf, xfer_len);
+          return tud_control_xfer(rhport, request, _transfer_buf, xfer_len);
         }
         break;
 
@@ -290,10 +303,10 @@ bool dfu_moded_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control
           _dfu_ctx.block = request->wValue;
           _dfu_ctx.length = request->wLength;
 
-          if (request->wLength) {
+          if (request->wLength > 0) {
             // Download with payload -> transition to DOWNLOAD SYNC
             _dfu_ctx.state = DFU_DNLOAD_SYNC;
-            return tud_control_xfer(rhport, request, _dfu_epbuf.transfer_buf, request->wLength);
+            return tud_control_xfer(rhport, request, _transfer_buf, request->wLength);
           } else {
             // Download is complete -> transition to MANIFEST SYNC
             _dfu_ctx.state = DFU_MANIFEST_SYNC;
@@ -339,6 +352,8 @@ void tud_dfu_finish_flashing(uint8_t status) {
       _dfu_ctx.state = (_dfu_ctx.attrs & DFU_ATTR_MANIFESTATION_TOLERANT)
                          ? DFU_MANIFEST_SYNC
                          : DFU_MANIFEST_WAIT_RESET;
+    } else {
+      // nothing to do
     }
   } else {
     // failed while flashing, move to dfuError
@@ -365,10 +380,12 @@ static bool process_download_get_status(uint8_t rhport, uint8_t stage, const tus
   } else if (stage == CONTROL_STAGE_ACK) {
     if (_dfu_ctx.flashing_in_progress) {
       _dfu_ctx.state = DFU_DNBUSY;
-      tud_dfu_download_cb(_dfu_ctx.alt, _dfu_ctx.block, _dfu_epbuf.transfer_buf, _dfu_ctx.length);
+      tud_dfu_download_cb(_dfu_ctx.alt, _dfu_ctx.block, _transfer_buf, _dfu_ctx.length);
     } else {
       _dfu_ctx.state = DFU_DNLOAD_IDLE;
     }
+  } else {
+    // nothing to do
   }
 
   return true;
@@ -396,6 +413,8 @@ static bool process_manifest_get_status(uint8_t rhport, uint8_t stage, const tus
     } else {
       _dfu_ctx.state = DFU_IDLE;
     }
+  } else {
+    // nothing to do
   }
 
   return true;

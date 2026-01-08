@@ -26,8 +26,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_MUSB_DEF
-#define _TUSB_MUSB_DEF
+#ifndef TUSB_MUSB_DEF
+#define TUSB_MUSB_DEF
 
 
 #define  USBC_Readb(reg)	                    (*(volatile unsigned char *)(reg))

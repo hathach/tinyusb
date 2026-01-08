@@ -54,6 +54,8 @@ void board_init(void) {
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // Explicitly disable systick to prevent its ISR from running before scheduler start
+  SysTick->CTRL &= ~1U;
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
@@ -96,7 +98,11 @@ void board_init(void) {
 //    0x1B // Host + Device + OTG + AHB
   };
 
-  uint32_t const clk_en = CFG_TUD_ENABLED ? USBCLK_DEVCIE : USBCLK_HOST;
+#if CFG_TUD_ENABLED
+  uint32_t const clk_en = USBCLK_DEVCIE;
+#else
+  uint32_t const clk_en = USBCLK_HOST;
+#endif
 
   LPC_USB->OTGClkCtrl = clk_en;
   while ((LPC_USB->OTGClkSt & clk_en) != clk_en) {}

@@ -5,12 +5,19 @@ from pathlib import Path
 
 def main():
     board_list = []
+    board_list_esp = []
 
-    # Find all board.cmake files
+    # Find all board.cmake files, exclude espressif
     for root, dirs, files in os.walk("hw/bsp"):
         for file in files:
-            if file == "board.cmake":
+            if file == "board.cmake" and "espressif" not in root:
                 board_list.append(os.path.basename(root))
+
+    # Find all espressif boards
+    for root, dirs, files in os.walk("hw/bsp/espressif"):
+        for file in files:
+            if file == "board.cmake":
+                board_list_esp.append(os.path.basename(root))
 
     print('Generating presets for the following boards:')
     print(board_list)
@@ -29,8 +36,17 @@ def main():
          "cacheVariables": {
              "CMAKE_DEFAULT_BUILD_TYPE": "RelWithDebInfo",
              "BOARD": r"${presetName}"
+         }},
+         {"name": "default single config",
+         "hidden": True,
+         "description": r"Configure preset for the ${presetName} board",
+         "generator": "Ninja",
+         "binaryDir": r"${sourceDir}/build/${presetName}",
+         "cacheVariables": {
+             "BOARD": r"${presetName}"
          }}]
 
+    # Add non-espressif boards
     presets['configurePresets'].extend(
         sorted(
             [
@@ -42,6 +58,22 @@ def main():
             ], key=lambda x: x['name']
         )
     )
+
+    # Add espressif boards with single config generator
+    presets['configurePresets'].extend(
+        sorted(
+            [
+                {
+                    'name': board,
+                    'inherits': 'default single config'
+                }
+                for board in board_list_esp
+            ], key=lambda x: x['name']
+        )
+    )
+
+    # Combine all boards
+    board_list.extend(board_list_esp)
 
     # Build presets
     # no inheritance since 'name' doesn't support macro expansion

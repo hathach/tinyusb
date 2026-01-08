@@ -21,19 +21,53 @@ runs:
 
     - name: Install Toolchain
       if: steps.cache-toolchain-download.outputs.cache-hit != 'true'
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+        TOOLCHAIN_URL: ${{ inputs.toolchain_url }}
       run: |
-        mkdir -p ~/cache/${{ inputs.toolchain }}
-        wget --progress=dot:giga ${{ inputs.toolchain_url }} -O toolchain.tar.gz
-        if [[ ${{ inputs.toolchain }} == rx-gcc ]]; then
-          mv toolchain.tar.gz toolchain.run
+        mkdir -p ~/cache/${TOOLCHAIN}
+        FILE_EXT="${TOOLCHAIN_URL##*.}"
+
+        if [[ ${TOOLCHAIN} == rx-gcc ]]; then
+          wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.run
           chmod +x toolchain.run
-          ./toolchain.run -p ~/cache/${{ inputs.toolchain }}/gnurx -y
+          ./toolchain.run -p ~/cache/${TOOLCHAIN}/gnurx -y
+        elif [[ ${TOOLCHAIN} == arm-iar ]]; then
+          wget --progress=dot:giga https://netstorage.iar.com/FileStore/STANDARD/001/003/926/iar-lmsc-tools_1.8_amd64.deb -O ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
+          wget --progress=dot:giga ${TOOLCHAIN_URL} -O ~/cache/${TOOLCHAIN}/cxarm.deb
+        elif [[ ${FILE_EXT} == zip ]]; then
+          curl -L "$TOOLCHAIN_URL" -o toolchain.zip
+          unzip -q toolchain.zip -d ~/cache/${TOOLCHAIN}
+          ~/cache/${TOOLCHAIN}/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin/arm-none-eabi-gcc.exe --version
+        elif [[ ${FILE_EXT} == gz ]]; then
+          wget --progress=dot:giga ${TOOLCHAIN_URL} -O toolchain.tar.gz
+          tar -C ~/cache/${TOOLCHAIN} -xaf toolchain.tar.gz
         else
-          tar -C ~/cache/${{ inputs.toolchain }} -xaf toolchain.tar.gz
+          echo "Unsupported toolchain file extension: ${FILE_EXT}"
+          exit 1
         fi
       shell: bash
 
-    - name: Set Toolchain Path
+    - name: Setup Toolchain
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
       run: |
-        echo >> $GITHUB_PATH `echo ~/cache/${{ inputs.toolchain }}/*/bin`
+        if [[ ${TOOLCHAIN} == arm-iar ]]; then
+          sudo dpkg -i ~/cache/${TOOLCHAIN}/iar-lmsc-tools.deb
+          sudo apt install -y ~/cache/${TOOLCHAIN}/cxarm.deb
+          TOOLCHAIN_PATH="/opt/iar/cxarm/arm/bin"
+        else
+          # Find the single toolchain bin directory
+          TOOLCHAIN_BIN_DIRS=(~/cache/${TOOLCHAIN}/*/bin)
+          if [[ ${#TOOLCHAIN_BIN_DIRS[@]} -ne 1 ]]; then
+            echo "Error: Expected exactly one toolchain bin directory, found ${#TOOLCHAIN_BIN_DIRS[@]}"
+            exit 1
+          fi
+          TOOLCHAIN_PATH="${TOOLCHAIN_BIN_DIRS[0]}"
+        fi
+        # Convert to native path for Windows compatibility
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          TOOLCHAIN_PATH=$(cygpath -w "$TOOLCHAIN_PATH")
+        fi
+        echo "$TOOLCHAIN_PATH" >> $GITHUB_PATH
       shell: bash
