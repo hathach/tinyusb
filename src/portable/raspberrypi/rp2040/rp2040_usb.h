@@ -64,7 +64,6 @@
 typedef struct hw_endpoint {
   uint8_t ep_addr;
   uint8_t next_pid;
-  uint8_t transfer_type;
   bool    active;       // transferring data
   bool    is_xfer_fifo; // transfer using fifo
 

@@ -74,7 +74,6 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPa
   ep->ep_addr        = ep_addr;
   ep->next_pid       = 0u;
   ep->wMaxPacketSize = wMaxPacketSize;
-  ep->transfer_type  = transfer_type;
 
   // Clear existing buffer control state
   io_rw_32 *buf_ctrl_reg = hwbuf_ctrl_reg_device(ep);

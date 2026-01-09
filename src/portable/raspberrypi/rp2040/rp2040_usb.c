@@ -47,22 +47,20 @@ static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
 // Implementation
 //--------------------------------------------------------------------+
 // Provide own byte by byte memcpy as not all copies are aligned
-static void unaligned_memcpy(void *dst, const void *src, size_t n) {
-  uint8_t *dst_byte = (uint8_t*)dst;
-  const uint8_t *src_byte = (const uint8_t*)src;
+static void unaligned_memcpy(uint8_t *dst, const uint8_t *src, size_t n) {
   while (n--) {
-    *dst_byte++ = *src_byte++;
+    *dst++ = *src++;
   }
 }
 
 void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
   (void)access_mode;
-  unaligned_memcpy((void *)(uintptr_t)hwfifo, src, len);
+  unaligned_memcpy((uint8_t *)(uintptr_t)hwfifo, src, len);
 }
 
 void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, const tu_hwfifo_access_t *access_mode) {
   (void)access_mode;
-  unaligned_memcpy(dest, (const void *)(uintptr_t)hwfifo, len);
+  unaligned_memcpy(dest, (const uint8_t *)(uintptr_t)hwfifo, len);
 }
 
 void rp2usb_init(void) {
@@ -141,6 +139,7 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, 
       // Copy data from user buffer/fifo to hw buffer
       uint8_t *hw_buf = ep->hw_data_buf + buf_id * 64;
       if (ep->is_xfer_fifo) {
+        // not in sram, may mess up timing with E15 workaround
         tu_hwfifo_write_from_fifo(hw_buf, ep->user_fifo, buflen, NULL);
       } else {
         unaligned_memcpy(hw_buf, ep->user_buf, buflen);
@@ -286,6 +285,7 @@ static uint16_t __tusb_irq_path_func(sync_ep_buffer)(hw_endpoint_t *ep, io_rw_32
 
     uint8_t *hw_buf = ep->hw_data_buf + buf_id * 64;
     if (ep->is_xfer_fifo) {
+      // not in sram, may mess up timing with E15 workaround
       tu_hwfifo_read_to_fifo(hw_buf, ep->user_fifo, xferred_bytes, NULL);
     } else {
       unaligned_memcpy(ep->user_buf, hw_buf, xferred_bytes);
