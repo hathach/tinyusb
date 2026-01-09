@@ -336,7 +336,7 @@
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 #endif
 
-//------------- pio-usb -------------//
+//------------- Raspberry Pi -------------//
 // Enable PIO-USB software host controller
 #ifndef CFG_TUH_RPI_PIO_USB
   #define CFG_TUH_RPI_PIO_USB 0
