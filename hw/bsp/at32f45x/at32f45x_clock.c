@@ -53,7 +53,7 @@ void system_clock_config(void)
   /* set the flash clock divider */
   flash_psr_set(FLASH_WAIT_CYCLE_5);
 
-    /* enable pwc periph clock */
+  /* enable pwc periph clock */
   crm_periph_clock_enable(CRM_PWC_PERIPH_CLOCK, TRUE);
 
   /* config ldo voltage */

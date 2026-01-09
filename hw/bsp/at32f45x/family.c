@@ -202,7 +202,7 @@ int board_uart_read(uint8_t *buf, int len) {
 int board_uart_write(void const *buf, int len) {
 #if CFG_TUSB_OS == OPT_OS_NONE
   int txsize = len;
-  u16 timeout = 0xffff;
+  uint16_t timeout = 0xffff;
   while (txsize--) {
     while (usart_flag_get(PRINT_UART, USART_TDBE_FLAG) == RESET) {
       timeout--;
@@ -252,7 +252,7 @@ void _init(void) {
 void assert_failed(const char *file, uint32_t line) {
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+     e.g.: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

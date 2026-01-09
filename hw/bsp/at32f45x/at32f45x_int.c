@@ -26,11 +26,11 @@
 /* includes ------------------------------------------------------------------*/
 #include "at32f45x_int.h"
 
-/** @addtogroup AT32F455_periph_examples
+/** @addtogroup AT32F45X_BSP
   * @{
   */
 
-/** @addtogroup 455_USB_device_keyboard
+/** @addtogroup AT32F45X_USB_Device_Keyboard
   * @{
   */
 

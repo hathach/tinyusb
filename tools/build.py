@@ -40,7 +40,9 @@ ci_skip_boards = {
 }
 
 ci_preferred_boards = {
-    'stm32h7': ['stm32h743eval'],
+    'samd2x_l2x': ['metro_m0_express'],
+    'samd5x_e5x': ['metro_m4_express'],
+    'stm32h7': ['stm32h743eval']
 }
 
 
