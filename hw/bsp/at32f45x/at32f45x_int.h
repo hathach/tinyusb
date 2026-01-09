@@ -57,4 +57,3 @@ void OTGFS1_WKUP_IRQHandler(void);
 #endif
 
 #endif
-

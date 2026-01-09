@@ -635,17 +635,7 @@
   #define TUP_USBIP_DWC2_AT32
   #define TUP_DCD_ENDPOINT_MAX 4
 
-#elif TU_CHECK_MCU(OPT_MCU_AT32F435_437)
-  #define TUP_USBIP_DWC2
-  #define TUP_USBIP_DWC2_AT32
-  #define TUP_DCD_ENDPOINT_MAX 8
-
-#elif TU_CHECK_MCU(OPT_MCU_AT32F423)
-  #define TUP_USBIP_DWC2
-  #define TUP_USBIP_DWC2_AT32
-  #define TUP_DCD_ENDPOINT_MAX 8
-
-#elif TU_CHECK_MCU(OPT_MCU_AT32F402_405)
+#elif TU_CHECK_MCU(OPT_MCU_AT32F402_405, OPT_MCU_AT32F423, OPT_MCU_AT32F425, OPT_MCU_AT32F435_437, OPT_MCU_AT32F45X)
   #define TUP_USBIP_DWC2
   #define TUP_USBIP_DWC2_AT32
   #define TUP_DCD_ENDPOINT_MAX 8
@@ -656,16 +646,6 @@
     defined(AT32F405RCT7_7) || defined(AT32F405RCT7)
     #define TUP_RHPORT_HIGHSPEED 1 // Port0: FS, Port1: HS
   #endif
-
-#elif TU_CHECK_MCU(OPT_MCU_AT32F425)
-  #define TUP_USBIP_DWC2
-  #define TUP_USBIP_DWC2_AT32
-  #define TUP_DCD_ENDPOINT_MAX 8
-
-#elif TU_CHECK_MCU(OPT_MCU_AT32F45X)
-  #define TUP_USBIP_DWC2
-  #define TUP_USBIP_DWC2_AT32
-  #define TUP_DCD_ENDPOINT_MAX 8
 
 //--------------------------------------------------------------------+
 // HPMicro

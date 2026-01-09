@@ -55,7 +55,7 @@ void system_clock_config(void)
 
     /* enable pwc periph clock */
   crm_periph_clock_enable(CRM_PWC_PERIPH_CLOCK, TRUE);
- 
+
   /* config ldo voltage */
   pwc_ldo_output_voltage_set(PWC_LDO_OUTPUT_1V3);
 
