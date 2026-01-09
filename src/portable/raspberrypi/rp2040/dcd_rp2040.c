@@ -39,9 +39,9 @@
 #include "device/dcd.h"
 
 // Current implementation force vbus detection as always present, causing device think it is always plugged into host.
-// Therefore it cannot detect disconnect event, mistaken it as suspend.
+// Therefore, it cannot detect disconnect event, mistaken it as suspend.
 // Note: won't work if change to 0 (for now)
-#define FORCE_VBUS_DETECT 1
+  #define FORCE_VBUS_DETECT 1
 
   #define USB_INTS_ERROR_BITS                                                                 \
     (USB_INTS_ERROR_DATA_SEQ_BITS | USB_INTS_ERROR_BIT_STUFF_BITS | USB_INTS_ERROR_CRC_BITS | \

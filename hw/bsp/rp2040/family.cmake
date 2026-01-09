@@ -126,7 +126,7 @@ target_compile_definitions(tinyusb_host_base INTERFACE
 
 #------------------------------------
 # Host MAX3421
-#------------------------------------1
+#------------------------------------
 add_library(tinyusb_host_max3421 INTERFACE)
 target_sources(tinyusb_host_max3421 INTERFACE
 	${TOP}/src/portable/analog/max3421/hcd_max3421.c
