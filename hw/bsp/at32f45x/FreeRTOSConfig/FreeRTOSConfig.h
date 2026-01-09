@@ -46,7 +46,6 @@
 #ifndef __IASMARM__
 // Include MCU header
   #include "at32f45x.h"
-
 #endif
 
 /* Cortex-M4 port configuration. */
@@ -57,7 +56,7 @@
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
-#define configCPU_CLOCK_HZ                      SystemCoreClock
+#define configCPU_CLOCK_HZ                      system_core_clock
 #define configTICK_RATE_HZ                      ( 1000 )
 #define configMAX_PRIORITIES                    ( 5 )
 #define configMINIMAL_STACK_SIZE                ( 128 )

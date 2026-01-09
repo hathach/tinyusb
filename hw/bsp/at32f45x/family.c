@@ -64,7 +64,7 @@ void board_init(void) {
 
   /* configure systick */
   systick_clock_source_config(SYSTICK_CLOCK_SOURCE_AHBCLK_NODIV);
-  SysTick_Config(SystemCoreClock / 1000);
+  SysTick_Config(system_core_clock / 1000);
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(OTG_IRQ, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
