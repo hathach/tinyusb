@@ -32,6 +32,25 @@
 extern "C" {
 #endif
 
+#include "common/tusb_common.h"
+#include "osal/osal.h"
+
+//--------------------------------------------------------------------+
+// Configuration
+//--------------------------------------------------------------------+
+// mutex is only needed for RTOS. For OS None, we don't get preempted
+#define CFG_FIFO_MUTEX      OSAL_MUTEX_REQUIRED
+
+#define CFG_TUSB_FIFO_HWFIFO_API (CFG_TUD_EDPT_DEDICATED_HWFIFO || CFG_TUH_EDPT_DEDICATED_HWFIFO)
+
+#ifndef CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 0
+#endif
+
+#ifndef CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 0
+#endif
+
 // Due to the use of unmasked pointers, this FIFO does not suffer from losing
 // one item slice. Furthermore, write and read operations are completely
 // decoupled as write and read functions do not modify a common state. Henceforth,
@@ -40,17 +59,6 @@ extern "C" {
 // Also, this FIFO is ready to be used in combination with a DMA as the write and
 // read pointers can be updated from within a DMA ISR. Overflows are detectable
 // within a certain number (see tu_fifo_overflow()).
-
-#include "common/tusb_common.h"
-#include "osal/osal.h"
-
-// mutex is only needed for RTOS
-// for OS None, we don't get preempted
-#define CFG_FIFO_MUTEX      OSAL_MUTEX_REQUIRED
-
-#if CFG_TUD_EDPT_DEDICATED_HWFIFO || CFG_TUH_EDPT_DEDICATED_HWFIFO
-  #define CFG_TUSB_FIFO_ACCESS_FIXED_ADDR_RW32
-#endif
 
 /* Write/Read "pointer" is in the range of: 0 .. depth - 1, and is used to get the fifo data.
  * Write/Read "index" is always in the range of: 0 .. 2*depth-1
@@ -111,20 +119,16 @@ extern "C" {
 typedef struct {
   uint8_t *buffer;              // buffer pointer
   uint16_t depth;               // max items
+  bool     overwritable;        // overwritable when full
+  // 1 byte padding  here
 
-  struct TU_ATTR_PACKED {
-    uint16_t item_size    : 15; // size of each item
-    bool     overwritable : 1;  // ovwerwritable when full
-  };
-
-  volatile uint16_t wr_idx;     // write index
+  volatile uint16_t wr_idx;     // write index TODO maybe can drop volatile
   volatile uint16_t rd_idx;     // read index
 
 #if OSAL_MUTEX_REQUIRED
   osal_mutex_t mutex_wr;
   osal_mutex_t mutex_rd;
 #endif
-
 } tu_fifo_t;
 
 typedef struct {
@@ -134,29 +138,32 @@ typedef struct {
   } linear, wrapped;
 } tu_fifo_buffer_info_t;
 
-#define TU_FIFO_INIT(_buffer, _depth, _type, _overwritable) \
-  {                                                         \
-    .buffer       = _buffer,                                \
-    .depth        = _depth,                                 \
-    .item_size    = sizeof(_type),                          \
-    .overwritable = _overwritable,                          \
+// Access mode for hardware fifo read/write
+typedef struct {
+  uint8_t   data_stride;
+  uintptr_t param;
+} tu_hwfifo_access_t;
+
+#define TU_FIFO_INIT(_buffer, _depth, _overwritable) \
+  {                                                  \
+    .buffer       = _buffer,                         \
+    .depth        = _depth,                          \
+    .overwritable = _overwritable,                   \
   }
 
-#define TU_FIFO_DEF(_name, _depth, _type, _overwritable)                      \
-    uint8_t _name##_buf[_depth*sizeof(_type)];                                \
-    tu_fifo_t _name = TU_FIFO_INIT(_name##_buf, _depth, _type, _overwritable)
+#define TU_FIFO_DEF(_name, _depth, _overwritable)                    \
+  uint8_t   _name##_buf[_depth];                                     \
+  tu_fifo_t _name = TU_FIFO_INIT(_name##_buf, _depth, _overwritable)
 
-// Write modes intended to allow special read and write functions to be able to
-// copy data to and from USB hardware FIFOs as needed for e.g. STM32s and others
-typedef enum {
-  TU_FIFO_INC_ADDR_RW8,    // increased address read/write by bytes - normal (default) mode
-  TU_FIFO_FIXED_ADDR_RW32, // fixed address read/write by 4 bytes (word). Used for STM32 access into USB hardware FIFO
-} tu_fifo_access_mode_t;
+// Moving data from tusb_fifo <-> USB hardware FIFOs e.g. STM32s need to use a special stride mode which reads/writes
+// data in 2/4 byte chunks from/to a fixed address (USB FIFO register) instead of incrementing the address. For this use
+// read/write access_mode with stride_mode = true. The STRIDE DATA and ADDR stride must be configured with
+// CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE and CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE
 
 //--------------------------------------------------------------------+
 // Setup API
 //--------------------------------------------------------------------+
-bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, uint16_t item_size, bool overwritable);
+bool tu_fifo_config(tu_fifo_t *f, void *buffer, uint16_t depth, bool overwritable);
 void tu_fifo_set_overwritable(tu_fifo_t *f, bool overwritable);
 void tu_fifo_clear(tu_fifo_t *f);
 
@@ -191,7 +198,7 @@ void tu_fifo_get_write_info(tu_fifo_t *f, tu_fifo_buffer_info_t *info);
 // peek() will correct/re-index read pointer in case of an overflowed fifo to form a full fifo
 //--------------------------------------------------------------------+
 uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, uint16_t wr_idx, uint16_t rd_idx,
-                                    tu_fifo_access_mode_t access_mode);
+                                    const tu_hwfifo_access_t *access_mode);
 bool     tu_fifo_peek(tu_fifo_t *f, void *p_buffer);
 uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n);
 
@@ -199,10 +206,10 @@ uint16_t tu_fifo_peek_n(tu_fifo_t *f, void *p_buffer, uint16_t n);
 // Read API
 // peek() + advance read index
 //--------------------------------------------------------------------+
-uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, tu_fifo_access_mode_t access_mode);
+uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, const tu_hwfifo_access_t *access_mode);
 bool     tu_fifo_read(tu_fifo_t *f, void *buffer);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_read_n(tu_fifo_t *f, void *buffer, uint16_t n) {
-  return tu_fifo_read_n_access_mode(f, buffer, n, TU_FIFO_INC_ADDR_RW8);
+  return tu_fifo_read_n_access_mode(f, buffer, n, NULL);
 }
 
 // discard first n items from fifo i.e advance read pointer by n with mutex
@@ -212,11 +219,40 @@ uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n);
 //--------------------------------------------------------------------+
 // Write API
 //--------------------------------------------------------------------+
-uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, tu_fifo_access_mode_t access_mode);
+uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n, const tu_hwfifo_access_t *access_mode);
 bool     tu_fifo_write(tu_fifo_t *f, const void *data);
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const void *data, uint16_t n) {
-  return tu_fifo_write_n_access_mode(f, data, n, TU_FIFO_INC_ADDR_RW8);
+  return tu_fifo_write_n_access_mode(f, data, n, NULL);
 }
+
+//--------------------------------------------------------------------+
+// Hardware FIFO API
+// Special hardware FIFO/Buffer to hold USB data, usually requires certain access method these can be configured with
+// CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE (data width) and CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE (address increment)
+// Note: these usually has opposite direction (read/write) to/from our software FIFO  (tu_fifo_t)
+//--------------------------------------------------------------------+
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_write_from_fifo(volatile void *hwfifo, tu_fifo_t *f, uint16_t n,
+                                                                       const tu_hwfifo_access_t *access_mode) {
+  const tu_hwfifo_access_t default_access = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE, .param = 0};
+  return tu_fifo_read_n_access_mode(f, (void *)(uintptr_t)hwfifo, n,
+                                    (access_mode != NULL) ? access_mode : &default_access);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_hwfifo_read_to_fifo(const volatile void *hwfifo, tu_fifo_t *f,
+                                                                    uint16_t n, const tu_hwfifo_access_t *access_mode) {
+  const tu_hwfifo_access_t default_access = {.data_stride = CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE, .param = 0};
+  return tu_fifo_write_n_access_mode(f, (const void *)(uintptr_t)hwfifo, n,
+                                     (access_mode != NULL) ? access_mode : &default_access);
+}
+
+#if CFG_TUSB_FIFO_HWFIFO_API
+// read from hwfifo to buffer
+void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, const tu_hwfifo_access_t *access_mode);
+
+// write to hwfifo from buffer with access mode
+void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode);
+
+#endif
 
 //--------------------------------------------------------------------+
 // Internal Helper Local

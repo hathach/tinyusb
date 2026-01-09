@@ -98,10 +98,14 @@ TU_ATTR_ALWAYS_INLINE static inline bool edpt_is_enabled(dwc2_dep_t* dep) {
   return (dep->ctl & EPCTL_EPENA) != 0;
 }
 
-//--------------------------------------------------------------------
-// DMA
-//--------------------------------------------------------------------
-#if CFG_TUD_MEM_DCACHE_ENABLE
+  #if CFG_TUD_DWC2_SLAVE_ENABLE
+static uint16_t epin_write_tx_fifo(dwc2_regs_t *dwc2, uint8_t epnum);
+  #endif
+
+  //--------------------------------------------------------------------
+  // DMA
+  //--------------------------------------------------------------------
+  #if CFG_TUD_MEM_DCACHE_ENABLE
 bool dcd_dcache_clean(const void* addr, uint32_t data_size) {
   TU_VERIFY(addr && data_size);
   return dwc2_dcache_clean(addr, data_size);
@@ -345,40 +349,6 @@ static void edpt_disable(uint8_t rhport, uint8_t ep_addr, bool stall) {
   }
 }
 
-static uint16_t epin_write_tx_fifo(uint8_t rhport, uint8_t epnum) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-  dwc2_dep_t* const epin = &dwc2->ep[0][epnum];
-  xfer_ctl_t* const xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
-
-  dwc2_ep_tsize_t tsiz = {.value = epin->tsiz};
-  const uint16_t remain_packets = tsiz.packet_count;
-
-  uint16_t total_bytes_written = 0;
-  // Process every single packet (only whole packets can be written to fifo)
-  for (uint16_t i = 0; i < remain_packets; i++) {
-    tsiz.value = epin->tsiz;
-    const uint16_t remain_bytes = (uint16_t) tsiz.xfer_size;
-    const uint16_t xact_bytes = tu_min16(remain_bytes, xfer->max_size);
-
-    // Check if dtxfsts has enough space available
-    if (xact_bytes > ((epin->dtxfsts & DTXFSTS_INEPTFSAV_Msk) << 2)) {
-      break;
-    }
-
-    // Push packet to Tx-FIFO
-    if (xfer->ff) {
-      volatile uint32_t* tx_fifo = dwc2->fifo[epnum];
-      tu_fifo_read_n_access_mode(xfer->ff, (void *)(uintptr_t)tx_fifo, xact_bytes, TU_FIFO_FIXED_ADDR_RW32);
-      total_bytes_written += xact_bytes;
-    } else {
-      dfifo_write_packet(dwc2, epnum, xfer->buffer, xact_bytes);
-      xfer->buffer += xact_bytes;
-      total_bytes_written += xact_bytes;
-    }
-  }
-  return total_bytes_written;
-}
-
 // Since this function returns void, it is not possible to return a boolean success message
 // We must make sure that this function is not called when the EP is disabled
 // Must be called from critical section
@@ -423,6 +393,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     }
   }
 
+  #if CFG_TUD_DWC2_DMA_ENABLE
   const bool is_dma = dma_device_enabled(dwc2);
   if(is_dma) {
     if (dir == TUSB_DIR_IN && total_bytes != 0) {
@@ -434,11 +405,14 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
     if (epnum == 0) {
       xfer->buffer += total_bytes;
     }
-  } else {
+  } else
+  #endif
+  {
+  #if CFG_TUD_DWC2_SLAVE_ENABLE
     dep->diepctl = depctl.value; // enable endpoint
 
     if (dir == TUSB_DIR_IN && total_bytes != 0) {
-      const uint16_t xferred_bytes = epin_write_tx_fifo(rhport, epnum);
+      const uint16_t xferred_bytes = epin_write_tx_fifo(dwc2, epnum);
 
       // Enable TXFE interrupt if there are still data to be sent
       // EP0 only sends one packet at a time, so no need to check for EP0
@@ -446,6 +420,7 @@ static void edpt_schedule_packets(uint8_t rhport, const uint8_t epnum, const uin
          dwc2->diepempmsk |= (1u << epnum);
       }
     }
+  #endif
   }
 }
 
@@ -689,9 +664,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 // into the USB buffer!
 bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes, bool is_isr) {
   (void) is_isr;
-  // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
-  TU_ASSERT(ff->item_size == 1);
-
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
   xfer_ctl_t* xfer = XFER_CTL_BASE(epnum, dir);
@@ -854,6 +826,39 @@ TU_ATTR_ALWAYS_INLINE static inline void print_doepint(uint32_t doepint) {
 #endif
 
 #if CFG_TUD_DWC2_SLAVE_ENABLE
+static uint16_t epin_write_tx_fifo(dwc2_regs_t *dwc2, uint8_t epnum) {
+  dwc2_dep_t *const epin = &dwc2->ep[0][epnum];
+  xfer_ctl_t *const xfer = XFER_CTL_BASE(epnum, TUSB_DIR_IN);
+
+  dwc2_ep_tsize_t tsiz           = {.value = epin->tsiz};
+  const uint16_t  remain_packets = tsiz.packet_count;
+
+  uint16_t total_bytes_written = 0;
+  // Process every single packet (only whole packets can be written to fifo)
+  for (uint16_t i = 0; i < remain_packets; i++) {
+    tsiz.value                  = epin->tsiz;
+    const uint16_t remain_bytes = (uint16_t)tsiz.xfer_size;
+    const uint16_t xact_bytes   = tu_min16(remain_bytes, xfer->max_size);
+
+    // Check if dtxfsts has enough space available
+    if (xact_bytes > ((epin->dtxfsts & DTXFSTS_INEPTFSAV_Msk) << 2)) {
+      break;
+    }
+
+    // Push packet to Tx-FIFO
+    volatile uint32_t *tx_fifo = dwc2->fifo[epnum];
+    if (xfer->ff) {
+      tu_hwfifo_write_from_fifo(tx_fifo, xfer->ff, xact_bytes, NULL);
+      total_bytes_written += xact_bytes;
+    } else {
+      tu_hwfifo_write(tx_fifo, xfer->buffer, xact_bytes, NULL);
+      xfer->buffer += xact_bytes;
+      total_bytes_written += xact_bytes;
+    }
+  }
+  return total_bytes_written;
+}
+
 // Process shared receive FIFO, this interrupt is only used in Slave mode
 static void handle_rxflvl_irq(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
@@ -893,9 +898,9 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       if (byte_count != 0) {
         // Read packet off RxFIFO
         if (xfer->ff != NULL) {
-          tu_fifo_write_n_access_mode(xfer->ff, (const void *)(uintptr_t)rx_fifo, byte_count, TU_FIFO_FIXED_ADDR_RW32);
+          tu_hwfifo_read_to_fifo(rx_fifo, xfer->ff, byte_count, NULL);
         } else {
-          dfifo_read_packet(dwc2, xfer->buffer, byte_count);
+          tu_hwfifo_read(rx_fifo, xfer->buffer, byte_count, NULL);
           xfer->buffer += byte_count;
         }
       }
@@ -967,7 +972,7 @@ static void handle_epin_slave(uint8_t rhport, uint8_t epnum, dwc2_diepint_t diep
   // - 64 bytes or
   // - Half/Empty of TX FIFO size (configured by GAHBCFG.TXFELVL)
   if (diepint_bm.txfifo_empty && tu_bit_test(dwc2->diepempmsk, epnum)) {
-    epin_write_tx_fifo(rhport, epnum);
+    epin_write_tx_fifo(dwc2, epnum);
 
     // Turn off TXFE if all bytes are written.
     dwc2_ep_tsize_t tsiz = {.value = epin->tsiz};
