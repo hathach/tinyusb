@@ -1,13 +1,15 @@
 #ifndef RP2040_COMMON_H_
 #define RP2040_COMMON_H_
 
-#include "common/tusb_common.h"
-
 #include "pico.h"
 #include "hardware/structs/usb.h"
 #include "hardware/irq.h"
 #include "hardware/resets.h"
 #include "hardware/timer.h"
+
+#include "common/tusb_common.h"
+#include "osal/osal.h"
+#include "common/tusb_fifo.h"
 
 #if defined(RP2040_USB_HOST_MODE) && defined(RP2040_USB_DEVICE_MODE)
   #error TinyUSB device and host mode not supported at the same time
@@ -63,32 +65,31 @@ typedef struct hw_endpoint {
   uint8_t ep_addr;
   uint8_t next_pid;
   uint8_t transfer_type;
-
-  bool active;         // transferring data
+  bool    active;       // transferring data
+  bool    is_xfer_fifo; // transfer using fifo
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
   bool    e15_bulk_in; // Errata15 device bulk in
   uint8_t pending;     // Transfer scheduled but not active
 #endif
 
+#if CFG_TUH_ENABLED
+  bool    configured;    // Is this a valid struct
+  uint8_t dev_addr;
+  uint8_t interrupt_num; // for host interrupt endpoints
+#endif
+
   uint16_t wMaxPacketSize;
   uint8_t *hw_data_buf; // Buffer pointer in usb dpram
 
-  // Current transfer information
-  uint8_t *user_buf; // User buffer in main memory
+  // transfer info
+  union {
+    uint8_t   *user_buf; // User buffer in main memory
+    tu_fifo_t *user_fifo;
+  };
   uint16_t remaining_len;
   uint16_t xferred_len;
 
-#if CFG_TUH_ENABLED
-  // Is this a valid struct
-  bool configured;
-
-  // Only needed for host
-  uint8_t dev_addr;
-
-  // If interrupt endpoint
-  uint8_t interrupt_num;
-#endif
 } hw_endpoint_t;
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
@@ -102,7 +103,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
   return (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) ? true : false;
 }
 
-void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, uint16_t total_len);
+void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len);
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 void hw_endpoint_start_next_buffer(struct hw_endpoint *ep);

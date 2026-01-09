@@ -502,7 +502,15 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   (void)rhport;
   (void)is_isr;
   hw_endpoint_t *ep = hw_endpoint_get_by_addr(ep_addr);
-  hw_endpoint_xfer_start(ep, buffer, total_bytes);
+  hw_endpoint_xfer_start(ep, buffer, NULL, total_bytes);
+  return true;
+}
+
+bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes, bool is_isr) {
+  (void)rhport;
+  (void)is_isr;
+  hw_endpoint_t *ep = hw_endpoint_get_by_addr(ep_addr);
+  hw_endpoint_xfer_start(ep, NULL, ff, total_bytes);
   return true;
 }
 
