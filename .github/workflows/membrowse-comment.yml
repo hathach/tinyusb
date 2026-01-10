@@ -1,0 +1,44 @@
+name: Membrowse Comment
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+
+jobs:
+  post-comment:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Download Artifacts
+        id: download
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: membrowse-comment
+          path: reports
+        continue-on-error: true
+
+      - name: Read PR Number
+        if: steps.download.outcome == 'success'
+        id: pr_number
+        run: |
+          if [ -f reports/pr_number.txt ]; then
+            echo "number=$(cat reports/pr_number.txt)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Membrowse PR comment
+        if: steps.download.outcome == 'success' && steps.pr_number.outputs.number != ''
+        uses: membrowse/membrowse-action/comment-action@v1
+        with:
+          json_files: 'reports/*.json'
+          pr_number: ${{ steps.pr_number.outputs.number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,662 @@
+[
+  {
+    "target_name": "at32f402_405-at_start_f402",
+    "port": "at32f402_405",
+    "board": "at_start_f402",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py at32f402_405",
+    "build_cmd": "python3 tools/build.py -s cmake -b at_start_f402",
+    "elf": "cmake-build/cmake-build-at_start_f402/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/artery/at32f402_405/libraries/cmsis/cm4/device_support/startup/gcc/linker/AT32F402xC_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "at32f403a_407-at32f403a_weact_blackpill",
+    "port": "at32f403a_407",
+    "board": "at32f403a_weact_blackpill",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py at32f403a_407",
+    "build_cmd": "python3 tools/build.py -s cmake -b at32f403a_weact_blackpill",
+    "elf": "cmake-build/cmake-build-at32f403a_weact_blackpill/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/artery/at32f403a_407/libraries/cmsis/cm4/device_support/startup/gcc/linker/AT32F403AxC_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "at32f413-at_start_f413",
+    "port": "at32f413",
+    "board": "at_start_f413",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py at32f413",
+    "build_cmd": "python3 tools/build.py -s cmake -b at_start_f413",
+    "elf": "cmake-build/cmake-build-at_start_f413/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/artery/at32f413/libraries/cmsis/cm4/device_support/startup/gcc/linker/AT32F413xC_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "at32f415-at_start_f415",
+    "port": "at32f415",
+    "board": "at_start_f415",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py at32f415",
+    "build_cmd": "python3 tools/build.py -s cmake -b at_start_f415",
+    "elf": "cmake-build/cmake-build-at_start_f415/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/artery/at32f415/libraries/cmsis/cm4/device_support/startup/gcc/linker/AT32F415xC_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "at32f423-at_start_f423",
+    "port": "at32f423",
+    "board": "at_start_f423",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py at32f423",
+    "build_cmd": "python3 tools/build.py -s cmake -b at_start_f423",
+    "elf": "cmake-build/cmake-build-at_start_f423/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/artery/at32f423/libraries/cmsis/cm4/device_support/startup/gcc/linker/AT32F423xC_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "at32f425-at_start_f425",
+    "port": "at32f425",
+    "board": "at_start_f425",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py at32f425",
+    "build_cmd": "python3 tools/build.py -s cmake -b at_start_f425",
+    "elf": "cmake-build/cmake-build-at_start_f425/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/artery/at32f425/libraries/cmsis/cm4/device_support/startup/gcc/linker/AT32F425x8_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "at32f435_437-at_start_f435",
+    "port": "at32f435_437",
+    "board": "at_start_f435",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py at32f435_437",
+    "build_cmd": "python3 tools/build.py -s cmake -b at_start_f435",
+    "elf": "cmake-build/cmake-build-at_start_f435/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/artery/at32f435_437/libraries/cmsis/cm4/device_support/startup/gcc/linker/AT32F435xM_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "broadcom_32bit-raspberrypi_zero",
+    "port": "broadcom_32bit",
+    "board": "raspberrypi_zero",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py broadcom_32bit",
+    "build_cmd": "python3 tools/build.py -s cmake -b raspberrypi_zero",
+    "elf": "cmake-build/cmake-build-raspberrypi_zero/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/broadcom/broadcom/link.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "broadcom_64bit-raspberrypi_cm4",
+    "port": "broadcom_64bit",
+    "board": "raspberrypi_cm4",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://developer.arm.com/-/media/Files/downloads/gnu-a/10.3-2021.07/binrel/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf.tar.xz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.xz && tar -C $HOME/toolchain -xf toolchain.tar.xz && echo \"$HOME/toolchain/gcc-arm-10.3-2021.07-x86_64-aarch64-none-elf/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py broadcom_64bit",
+    "build_cmd": "python3 tools/build.py -s cmake -b raspberrypi_cm4",
+    "elf": "cmake-build/cmake-build-raspberrypi_cm4/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/broadcom/broadcom/link8.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "ch32v10x-ch32v103r_r1_1v0",
+    "port": "ch32v10x",
+    "board": "ch32v103r_r1_1v0",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-riscv-none-elf-gcc-13.2.0-2/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py ch32v10x",
+    "build_cmd": "python3 tools/build.py -s cmake -b ch32v103r_r1_1v0",
+    "elf": "cmake-build/cmake-build-ch32v103r_r1_1v0/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/ch32v10x/linker/ch32v10x.ld",
+    "linker_vars": "__FLASH_SIZE=64K __RAM_SIZE=20K"
+  },
+  {
+    "target_name": "ch32v20x-ch32v203c_r0_1v0",
+    "port": "ch32v20x",
+    "board": "ch32v203c_r0_1v0",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-riscv-none-elf-gcc-13.2.0-2/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py ch32v20x",
+    "build_cmd": "python3 tools/build.py -s cmake -b ch32v203c_r0_1v0",
+    "elf": "cmake-build/cmake-build-ch32v203c_r0_1v0/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/ch32v20x/linker/ch32v20x.ld",
+    "linker_vars": "__flash_size=64K __ram_size=20K"
+  },
+  {
+    "target_name": "ch32v30x-ch32v307v_r1_1v0",
+    "port": "ch32v30x",
+    "board": "ch32v307v_r1_1v0",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-riscv-none-elf-gcc-13.2.0-2/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py ch32v30x",
+    "build_cmd": "python3 tools/build.py -s cmake -b ch32v307v_r1_1v0",
+    "elf": "cmake-build/cmake-build-ch32v307v_r1_1v0/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/ch32v30x/linker/ch32v30x.ld",
+    "linker_vars": "__flash_size=128K __ram_size=32K"
+  },
+  {
+    "target_name": "da1469x-da14695_dk_usb",
+    "port": "da1469x",
+    "board": "da14695_dk_usb",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py da1469x",
+    "build_cmd": "python3 tools/build.py -s cmake -b da14695_dk_usb",
+    "elf": "cmake-build/cmake-build-da14695_dk_usb/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/da1469x/linker/da1469x.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "fomu-fomu",
+    "port": "fomu",
+    "board": "fomu",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-riscv-none-elf-gcc-13.2.0-2/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py fomu",
+    "build_cmd": "python3 tools/build.py -s cmake -b fomu",
+    "elf": "cmake-build/cmake-build-fomu/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/fomu/fomu.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "gd32vf103-sipeed_longan_nano",
+    "port": "gd32vf103",
+    "board": "sipeed_longan_nano",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-riscv-none-elf-gcc-13.2.0-2/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py gd32vf103",
+    "build_cmd": "python3 tools/build.py -s cmake -b sipeed_longan_nano",
+    "elf": "cmake-build/cmake-build-sipeed_longan_nano/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/gd/nuclei-sdk/SoC/gd32vf103/Board/gd32vf103c_longan_nano/Source/GCC/gcc_gd32vf103xb_flashxip.ld",
+    "linker_vars": "__ROM_BASE=0x08000000 __ROM_SIZE=0x00020000 __RAM_BASE=0x20000000 __RAM_SIZE=0x00008000"
+  },
+  {
+    "target_name": "hpmicro-hpm6750evk2",
+    "port": "hpmicro",
+    "board": "hpm6750evk2",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-riscv-none-elf-gcc-13.2.0-2/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py hpmicro",
+    "build_cmd": "python3 tools/build.py -s cmake -b hpm6750evk2",
+    "elf": "cmake-build/cmake-build-hpm6750evk2/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/hpmicro/hpm_sdk/soc/HPM6700/HPM6750/toolchains/gcc/flash_xip.ld",
+    "linker_vars": "_flash_size=16M _stack_size=16K _heap_size=16K"
+  },
+  {
+    "target_name": "imxrt-metro_m7_1011",
+    "port": "imxrt",
+    "board": "metro_m7_1011",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py imxrt",
+    "build_cmd": "python3 tools/build.py -s cmake -b metro_m7_1011",
+    "elf": "cmake-build/cmake-build-metro_m7_1011/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/nxp/mcux-sdk/devices/MIMXRT1011/gcc/MIMXRT1011xxxxx_flexspi_nor.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "kinetis_k-frdm_k64f",
+    "port": "kinetis_k",
+    "board": "frdm_k64f",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py kinetis_k kinetis_kl",
+    "build_cmd": "python3 tools/build.py -s cmake -b frdm_k64f",
+    "elf": "cmake-build/cmake-build-frdm_k64f/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/nxp/mcux-sdk/devices/MK64F12/gcc/MK64FN1M0xxx12_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "kinetis_k32l2-frdm_k32l2a4s",
+    "port": "kinetis_k32l2",
+    "board": "frdm_k32l2a4s",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py kinetis_k32l2",
+    "build_cmd": "python3 tools/build.py -s cmake -b frdm_k32l2a4s",
+    "elf": "cmake-build/cmake-build-frdm_k32l2a4s/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/nxp/mcux-sdk/devices/K32L2A41A/gcc/K32L2A41xxxxA_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "kinetis_kl-frdm_kl25z",
+    "port": "kinetis_kl",
+    "board": "frdm_kl25z",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py kinetis_kl",
+    "build_cmd": "python3 tools/build.py -s cmake -b frdm_kl25z",
+    "elf": "cmake-build/cmake-build-frdm_kl25z/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/kinetis_kl/gcc/MKL25Z128xxx4_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc11-lpcxpresso11u37",
+    "port": "lpc11",
+    "board": "lpcxpresso11u37",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc11",
+    "build_cmd": "python3 tools/build.py -s cmake -b lpcxpresso11u37",
+    "elf": "cmake-build/cmake-build-lpcxpresso11u37/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/lpc11/boards/lpcxpresso11u37/lpc11u37.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc13-lpcxpresso1347",
+    "port": "lpc13",
+    "board": "lpcxpresso1347",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc13",
+    "build_cmd": "python3 tools/build.py -s cmake -b lpcxpresso1347",
+    "elf": "cmake-build/cmake-build-lpcxpresso1347/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/lpc13/boards/lpcxpresso1347/lpc1347.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc15-lpcxpresso1549",
+    "port": "lpc15",
+    "board": "lpcxpresso1549",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc15",
+    "build_cmd": "python3 tools/build.py -s cmake -b lpcxpresso1549",
+    "elf": "cmake-build/cmake-build-lpcxpresso1549/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/lpc15/boards/lpcxpresso1549/lpc1549.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc17-lpcxpresso1769",
+    "port": "lpc17",
+    "board": "lpcxpresso1769",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc17",
+    "build_cmd": "python3 tools/build.py -s cmake -b lpcxpresso1769",
+    "elf": "cmake-build/cmake-build-lpcxpresso1769/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/lpc17/boards/lpcxpresso1769/lpc1769.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc18-lpcxpresso18s37",
+    "port": "lpc18",
+    "board": "lpcxpresso18s37",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc18",
+    "build_cmd": "python3 tools/build.py -s cmake -b lpcxpresso18s37",
+    "elf": "cmake-build/cmake-build-lpcxpresso18s37/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/lpc18/boards/lpcxpresso18s37/lpc1837.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc40-ea4088_quickstart",
+    "port": "lpc40",
+    "board": "ea4088_quickstart",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc40",
+    "build_cmd": "python3 tools/build.py -s cmake -b ea4088_quickstart",
+    "elf": "cmake-build/cmake-build-ea4088_quickstart/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/lpc40/boards/ea4088_quickstart/lpc4088.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc43-ea4357",
+    "port": "lpc43",
+    "board": "ea4357",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc43",
+    "build_cmd": "python3 tools/build.py -s cmake -b ea4357",
+    "elf": "cmake-build/cmake-build-ea4357/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/lpc43/boards/ea4357/lpc4357.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc51-lpcxpresso51u68",
+    "port": "lpc51",
+    "board": "lpcxpresso51u68",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc51",
+    "build_cmd": "python3 tools/build.py -s cmake -b lpcxpresso51u68",
+    "elf": "cmake-build/cmake-build-lpcxpresso51u68/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/nxp/mcux-sdk/devices/LPC51U68/gcc/LPC51U68_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc54-lpcxpresso54114",
+    "port": "lpc54",
+    "board": "lpcxpresso54114",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc54",
+    "build_cmd": "python3 tools/build.py -s cmake -b lpcxpresso54114",
+    "elf": "cmake-build/cmake-build-lpcxpresso54114/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/nxp/mcux-sdk/devices/LPC54114/gcc/LPC54114J256_cm4_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "lpc55-double_m33_express",
+    "port": "lpc55",
+    "board": "double_m33_express",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py lpc55",
+    "build_cmd": "python3 tools/build.py -s cmake -b double_m33_express",
+    "elf": "cmake-build/cmake-build-double_m33_express/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/lpc55/boards/double_m33_express/LPC55S69_cm33_core0_uf2.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "maxim-apard32690",
+    "port": "maxim",
+    "board": "apard32690",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py maxim",
+    "build_cmd": "python3 tools/build.py -s cmake -b apard32690",
+    "elf": "cmake-build/cmake-build-apard32690/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/maxim/linker/max32690.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "mcx-frdm_mcxa153",
+    "port": "mcx",
+    "board": "frdm_mcxa153",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py mcx",
+    "build_cmd": "python3 tools/build.py -s cmake -b frdm_mcxa153",
+    "elf": "cmake-build/cmake-build-frdm_mcxa153/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/nxp/mcux-sdk/devices/MCXA153/gcc/MCXA153_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "mm32-mm32f327x_mb39",
+    "port": "mm32",
+    "board": "mm32f327x_mb39",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py mm32",
+    "build_cmd": "python3 tools/build.py -s cmake -b mm32f327x_mb39",
+    "elf": "cmake-build/cmake-build-mm32f327x_mb39/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/mm32/boards/mm32f327x_mb39/flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "msp430-msp_exp430f5529lp",
+    "port": "msp430",
+    "board": "msp_exp430f5529lp",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=http://software-dl.ti.com/msp430/msp430_public_sw/mcu/msp430/MSPGCC/9_2_0_0/export/msp430-gcc-9.2.0.50_linux64.tar.bz2 && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.bz2 && tar -C $HOME/toolchain -xf toolchain.tar.bz2 && echo \"$HOME/toolchain/msp430-gcc-9.2.0.50_linux64/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py msp430",
+    "build_cmd": "python3 tools/build.py -s cmake -b msp_exp430f5529lp",
+    "elf": "cmake-build/cmake-build-msp_exp430f5529lp/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/ti/msp430/msp430-gcc-support-files/include/msp430f5529.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "msp432e4-msp_exp432e401y",
+    "port": "msp432e4",
+    "board": "msp_exp432e401y",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py msp432e4",
+    "build_cmd": "python3 tools/build.py -s cmake -b msp_exp432e401y",
+    "elf": "cmake-build/cmake-build-msp_exp432e401y/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/ti/msp432e4/Source/msp432e411y.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "nrf-adafruit_clue",
+    "port": "nrf",
+    "board": "adafruit_clue",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py nrf",
+    "build_cmd": "python3 tools/build.py -s cmake -b adafruit_clue",
+    "elf": "cmake-build/cmake-build-adafruit_clue/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/nrf/linker/nrf52840_xxaa.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "nuc100_120-nutiny_sdk_nuc120",
+    "port": "nuc100_120",
+    "board": "nutiny_sdk_nuc120",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py nuc100_120",
+    "build_cmd": "python3 tools/build.py -s cmake -b nutiny_sdk_nuc120",
+    "elf": "cmake-build/cmake-build-nutiny_sdk_nuc120/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/nuc100_120/boards/nutiny_sdk_nuc120/nuc120_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "nuc121_125-nutiny_sdk_nuc121",
+    "port": "nuc121_125",
+    "board": "nutiny_sdk_nuc121",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py nuc121_125",
+    "build_cmd": "python3 tools/build.py -s cmake -b nutiny_sdk_nuc121",
+    "elf": "cmake-build/cmake-build-nutiny_sdk_nuc121/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/nuc121_125/boards/nutiny_sdk_nuc121/nuc121_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "nuc126-nutiny_nuc126v",
+    "port": "nuc126",
+    "board": "nutiny_nuc126v",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py nuc126",
+    "build_cmd": "python3 tools/build.py -s cmake -b nutiny_nuc126v",
+    "elf": "cmake-build/cmake-build-nutiny_nuc126v/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/nuc126/boards/nutiny_nuc126v/nuc126_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "nuc505-nutiny_sdk_nuc505",
+    "port": "nuc505",
+    "board": "nutiny_sdk_nuc505",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py nuc505",
+    "build_cmd": "python3 tools/build.py -s cmake -b nutiny_sdk_nuc505",
+    "elf": "cmake-build/cmake-build-nutiny_sdk_nuc505/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/nuc505/boards/nutiny_sdk_nuc505/nuc505_flashtoram.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "ra-portenta_c33",
+    "port": "ra",
+    "board": "portenta_c33",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py ra",
+    "build_cmd": "python3 tools/build.py -s cmake -b portenta_c33",
+    "elf": "cmake-build/cmake-build-portenta_c33/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/ra/boards/portenta_c33/script/memory_regions.ld hw/bsp/ra/boards/portenta_c33/script/fsp.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "rw61x-frdm_rw612",
+    "port": "rw61x",
+    "board": "frdm_rw612",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py rw61x",
+    "build_cmd": "python3 tools/build.py -s cmake -b frdm_rw612",
+    "elf": "cmake-build/cmake-build-frdm_rw612/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/nxp/mcux-sdk/devices/RW612/gcc/RW612_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "samd11-cynthion_d11",
+    "port": "samd11",
+    "board": "cynthion_d11",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py samd11",
+    "build_cmd": "python3 tools/build.py -s cmake -b cynthion_d11",
+    "elf": "cmake-build/cmake-build-cynthion_d11/device/hid_composite/hid_composite.elf",
+    "ld": "hw/bsp/samd11/boards/cynthion_d11/cynthion_d11.ld",
+    "linker_vars": "BOOTLOADER_SIZE=0x800"
+  },
+  {
+    "target_name": "samd5x_e5x-d5035_01",
+    "port": "samd5x_e5x",
+    "board": "d5035_01",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py samd5x_e5x",
+    "build_cmd": "python3 tools/build.py -s cmake -b d5035_01",
+    "elf": "cmake-build/cmake-build-d5035_01/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/samd5x_e5x/boards/d5035_01/same51j19a_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "samg-samg55_xplained",
+    "port": "samg",
+    "board": "samg55_xplained",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py samg",
+    "build_cmd": "python3 tools/build.py -s cmake -b samg55_xplained",
+    "elf": "cmake-build/cmake-build-samg55_xplained/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/samg/boards/samg55_xplained/samg55j19_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32c0-stm32c071nucleo",
+    "port": "stm32c0",
+    "board": "stm32c071nucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32c0",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32c071nucleo",
+    "elf": "cmake-build/cmake-build-stm32c071nucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32c0/boards/stm32c071nucleo/STM32C071RBTx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32f0-stm32f070rbnucleo",
+    "port": "stm32f0",
+    "board": "stm32f070rbnucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32f0",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32f070rbnucleo",
+    "elf": "cmake-build/cmake-build-stm32f070rbnucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32f0/boards/stm32f070rbnucleo/stm32F070rbtx_flash.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32f1-stm32f103_bluepill",
+    "port": "stm32f1",
+    "board": "stm32f103_bluepill",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32f1",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32f103_bluepill",
+    "elf": "cmake-build/cmake-build-stm32f103_bluepill/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32f1/boards/stm32f103_bluepill/STM32F103X8_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32f2-stm32f207nucleo",
+    "port": "stm32f2",
+    "board": "stm32f207nucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32f2",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32f207nucleo",
+    "elf": "cmake-build/cmake-build-stm32f207nucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32f2/boards/stm32f207nucleo/STM32F207ZGTx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32f3-stm32f303disco",
+    "port": "stm32f3",
+    "board": "stm32f303disco",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32f3",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32f303disco",
+    "elf": "cmake-build/cmake-build-stm32f303disco/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32f3/boards/stm32f303disco/STM32F303VCTx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32f4-feather_stm32f405",
+    "port": "stm32f4",
+    "board": "feather_stm32f405",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32f4",
+    "build_cmd": "python3 tools/build.py -s cmake -b feather_stm32f405",
+    "elf": "cmake-build/cmake-build-feather_stm32f405/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32f4/boards/feather_stm32f405/STM32F405RGTx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32f7-stlinkv3mini",
+    "port": "stm32f7",
+    "board": "stlinkv3mini",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32f7",
+    "build_cmd": "python3 tools/build.py -s cmake -b stlinkv3mini",
+    "elf": "cmake-build/cmake-build-stlinkv3mini/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32f7/boards/stlinkv3mini/STM32F723xE_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32g0-stm32g0b1nucleo",
+    "port": "stm32g0",
+    "board": "stm32g0b1nucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32g0",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32g0b1nucleo",
+    "elf": "cmake-build/cmake-build-stm32g0b1nucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32g0/boards/stm32g0b1nucleo/STM32G0B1RETx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32g4-b_g474e_dpow1",
+    "port": "stm32g4",
+    "board": "b_g474e_dpow1",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32g4",
+    "build_cmd": "python3 tools/build.py -s cmake -b b_g474e_dpow1",
+    "elf": "cmake-build/cmake-build-b_g474e_dpow1/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32g4/boards/b_g474e_dpow1/STM32G474RETx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32h5-stm32h503nucleo",
+    "port": "stm32h5",
+    "board": "stm32h503nucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32h5",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32h503nucleo",
+    "elf": "cmake-build/cmake-build-stm32h503nucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32h5/linker/STM32H533xx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32h7-daisyseed",
+    "port": "stm32h7",
+    "board": "daisyseed",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32h7",
+    "build_cmd": "python3 tools/build.py -s cmake -b daisyseed",
+    "elf": "cmake-build/cmake-build-daisyseed/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32h7/boards/daisyseed/stm32h750ibkx_ram.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32h7rs-stm32h7s3nucleo",
+    "port": "stm32h7rs",
+    "board": "stm32h7s3nucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32h7rs",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32h7s3nucleo",
+    "elf": "cmake-build/cmake-build-stm32h7s3nucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32h7rs/linker/stm32h7s3xx_flash.ld",
+    "linker_vars": "__FLASH_BEGIN=0x08000000 __FLASH_SIZE=0x00010000 __RAM_BEGIN=0x24000000 __RAM_SIZE=0x4FC00 __RAM_NONCACHEABLEBUFFER_SIZE=0x400"
+  },
+  {
+    "target_name": "stm32l0-stm32l052dap52",
+    "port": "stm32l0",
+    "board": "stm32l052dap52",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32l0",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32l052dap52",
+    "elf": "cmake-build/cmake-build-stm32l052dap52/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32l0/boards/stm32l052dap52/STM32L052K8Ux_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32l4-stm32l412nucleo",
+    "port": "stm32l4",
+    "board": "stm32l412nucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32l4",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32l412nucleo",
+    "elf": "cmake-build/cmake-build-stm32l412nucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32l4/boards/stm32l412nucleo/STM32L412KBUx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32n6-stm32n6570dk",
+    "port": "stm32n6",
+    "board": "stm32n6570dk",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32n6",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32n6570dk",
+    "elf": "cmake-build/cmake-build-stm32n6570dk/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32n6/boards/stm32n6570dk/STM32N657XX_AXISRAM2_fsbl.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32u0-stm32u083cdk",
+    "port": "stm32u0",
+    "board": "stm32u083cdk",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32u0",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32u083cdk",
+    "elf": "cmake-build/cmake-build-stm32u083cdk/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32u0/boards/stm32u083cdk/STM32U083MCTx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32u5-b_u585i_iot2a",
+    "port": "stm32u5",
+    "board": "b_u585i_iot2a",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32u5",
+    "build_cmd": "python3 tools/build.py -s cmake -b b_u585i_iot2a",
+    "elf": "cmake-build/cmake-build-b_u585i_iot2a/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32u5/linker/STM32U5A9xx_FLASH.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32wb-stm32wb55nucleo",
+    "port": "stm32wb",
+    "board": "stm32wb55nucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32wb",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32wb55nucleo",
+    "elf": "cmake-build/cmake-build-stm32wb55nucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32wb/boards/stm32wb55nucleo/stm32wb55xx_flash_cm4.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "stm32wba-stm32wba_nucleo",
+    "port": "stm32wba",
+    "board": "stm32wba_nucleo",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py stm32wba",
+    "build_cmd": "python3 tools/build.py -s cmake -b stm32wba_nucleo",
+    "elf": "cmake-build/cmake-build-stm32wba_nucleo/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/stm32wba/linker/STM32WBA65xx_FLASH_ns.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "tm4c-ek_tm4c123gxl",
+    "port": "tm4c",
+    "board": "ek_tm4c123gxl",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py tm4c",
+    "build_cmd": "python3 tools/build.py -s cmake -b ek_tm4c123gxl",
+    "elf": "cmake-build/cmake-build-ek_tm4c123gxl/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/bsp/tm4c/boards/ek_tm4c123gxl/tm4c123.ld",
+    "linker_vars": ""
+  },
+  {
+    "target_name": "xmc4000-xmc4500_relax",
+    "port": "xmc4000",
+    "board": "xmc4500_relax",
+    "setup_cmd": "NINJA_URL=https://github.com/ninja-build/ninja/releases/download/v1.13.1/ninja-linux.zip && wget -q $NINJA_URL -O ninja-linux.zip && unzip -q ninja-linux.zip -d $HOME/bin && echo \"$HOME/bin\" >> $GITHUB_PATH && TOOLCHAIN_URL=https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v14.2.1-1.1/xpack-arm-none-eabi-gcc-14.2.1-1.1-linux-x64.tar.gz && mkdir -p $HOME/toolchain && wget -q $TOOLCHAIN_URL -O toolchain.tar.gz && tar -C $HOME/toolchain -xf toolchain.tar.gz && echo \"$HOME/toolchain/xpack-arm-none-eabi-gcc-14.2.1-1.1/bin\" >> $GITHUB_PATH && python3 tools/get_deps.py xmc4000",
+    "build_cmd": "python3 tools/build.py -s cmake -b xmc4500_relax",
+    "elf": "cmake-build/cmake-build-xmc4500_relax/device/cdc_msc/cdc_msc.elf",
+    "ld": "hw/mcu/infineon/mtb-xmclib-cat3/CMSIS/Infineon/COMPONENT_XMC4500/Source/TOOLCHAIN_GCC_ARM/XMC4500x1024.ld",
+    "linker_vars": ""
+  }
+]

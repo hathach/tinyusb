@@ -1,0 +1,101 @@
+name: Membrowse Memory Report
+
+on:
+  workflow_call:
+    inputs:
+      code_changed:
+        description: 'Whether code paths changed (true) or doc-only (false)'
+        type: boolean
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  load-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Load target matrix
+        id: set-matrix
+        run: echo "matrix=$(jq -c '.' .github/membrowse-targets.json)" >> $GITHUB_OUTPUT
+
+  analyze:
+    needs: [load-targets]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.load-targets.outputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      # Download artifacts when code changed (build artifacts available)
+      - name: Download build artifacts
+        if: inputs.code_changed
+        id: download
+        uses: actions/download-artifact@v5
+        with:
+          pattern: binaries-*
+          path: cmake-build
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Restore linker scripts
+        if: inputs.code_changed
+        run: cp -r cmake-build/hw . 2>/dev/null || true
+
+      - name: Check if ELF exists
+        id: check-elf
+        run: |
+          if [ -f "${{ matrix.elf }}" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Run with actual ELF analysis when build artifacts available
+      - name: Run Membrowse Analysis
+        if: steps.check-elf.outputs.exists == 'true'
+        id: membrowse
+        continue-on-error: true
+        uses: membrowse/membrowse-action@v1
+        with:
+          target_name: ${{ matrix.target_name }}
+          elf: ${{ matrix.elf }}
+          ld: ${{ matrix.ld }}
+          linker_vars: ${{ matrix.linker_vars }}
+          api_key: ${{ secrets.MEMBROWSE_API_KEY }}
+          api_url: ${{ vars.MEMBROWSE_API_URL }}
+          verbose: INFO
+
+      # Run with identical=true when no ELF (doc-only push)
+      # Preserves the chain of commits in membrowse tracking
+      - name: Run Membrowse Identical Report
+        if: steps.check-elf.outputs.exists == 'false'
+        id: membrowse-identical
+        continue-on-error: true
+        uses: membrowse/membrowse-action@v1
+        with:
+          target_name: ${{ matrix.target_name }}
+          identical: true
+          api_key: ${{ secrets.MEMBROWSE_API_KEY }}
+          api_url: ${{ vars.MEMBROWSE_API_URL }}
+          verbose: INFO
+
+      - name: Upload report artifact
+        if: steps.membrowse.outcome == 'success' || steps.membrowse-identical.outcome == 'success'
+        uses: actions/upload-artifact@v5
+        with:
+          name: membrowse-report-${{ matrix.target_name }}
+          path: ${{ steps.membrowse.outputs.report_path || steps.membrowse-identical.outputs.report_path }}
