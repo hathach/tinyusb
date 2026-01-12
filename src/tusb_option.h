@@ -216,6 +216,7 @@
 #define OPT_MCU_AT32F402_405     2504  ///< ArteryTek AT32F402_405
 #define OPT_MCU_AT32F425         2505  ///< ArteryTek AT32F425
 #define OPT_MCU_AT32F413         2506  ///< ArteryTek AT32F413
+#define OPT_MCU_AT32F45X         2507  ///< ArteryTek AT32F45x
 
 // HPMicro
 #define OPT_MCU_HPM              2600  ///< HPMicro
@@ -272,16 +273,7 @@
 //--------------------------------------------------------------------+
 
 //------------- DWC2 -------------//
-// Slave mode for device
-#ifndef CFG_TUD_DWC2_SLAVE_ENABLE
-  #ifndef CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
-    #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT 1
-  #endif
-
-  #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
-#endif
-
-// DMA for device
+// DMA mode for device
 #ifndef CFG_TUD_DWC2_DMA_ENABLE
   #ifndef CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
   #define CFG_TUD_DWC2_DMA_ENABLE_DEFAULT 0
@@ -290,16 +282,16 @@
   #define CFG_TUD_DWC2_DMA_ENABLE CFG_TUD_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
-// Slave mode for host
-#ifndef CFG_TUH_DWC2_SLAVE_ENABLE
-  #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
-    #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT 1
+// Slave mode for device
+#ifndef CFG_TUD_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
+    #define CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT !CFG_TUD_DWC2_DMA_ENABLE // disabled if DMA is enabled
   #endif
 
-  #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+  #define CFG_TUD_DWC2_SLAVE_ENABLE CFG_TUD_DWC2_SLAVE_ENABLE_DEFAULT
 #endif
 
-// DMA for host
+// DMA mode for host
 #ifndef CFG_TUH_DWC2_DMA_ENABLE
   #ifndef CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
     #define CFG_TUH_DWC2_DMA_ENABLE_DEFAULT 0
@@ -308,14 +300,21 @@
   #define CFG_TUH_DWC2_DMA_ENABLE CFG_TUH_DWC2_DMA_ENABLE_DEFAULT
 #endif
 
-#if defined(TUP_USBIP_DWC2)
-  #if CFG_TUD_DWC2_SLAVE_ENABLE && !CFG_TUD_DWC2_DMA_ENABLE
-    #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+// Slave mode for host
+#ifndef CFG_TUH_DWC2_SLAVE_ENABLE
+  #ifndef CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+    #define CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT !CFG_TUH_DWC2_DMA_ENABLE // disabled if DMA is enabled
   #endif
 
-  #if CFG_TUH_DWC2_SLAVE_ENABLE && !CFG_TUH_DWC2_DMA_ENABLE
-    #define CFG_TUH_EDPT_DEDICATED_HWFIFO 1
-  #endif
+  #define CFG_TUH_DWC2_SLAVE_ENABLE CFG_TUH_DWC2_SLAVE_ENABLE_DEFAULT
+#endif
+
+#if defined(TUP_USBIP_DWC2)
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    CFG_TUD_DWC2_SLAVE_ENABLE
+  #define CFG_TUH_EDPT_DEDICATED_HWFIFO    CFG_TUH_DWC2_SLAVE_ENABLE
+
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32bit access
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 0 // fixed hwfifo address
 #endif
 
 //------------- ChipIdea -------------//
@@ -337,7 +336,7 @@
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 #endif
 
-//------------- pio-usb -------------//
+//------------- Raspberry Pi -------------//
 // Enable PIO-USB software host controller
 #ifndef CFG_TUH_RPI_PIO_USB
   #define CFG_TUH_RPI_PIO_USB 0
@@ -356,16 +355,36 @@
 //------------ FSDEV --------------//
 #if defined(TUP_USBIP_FSDEV)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+
+  #if CFG_TUSB_FSDEV_PMA_SIZE == 512
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
+    #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
+  #elif CFG_TUSB_FSDEV_PMA_SIZE == 1024
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
+    #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 2 // 16-bit address increase
+  #elif CFG_TUSB_FSDEV_PMA_SIZE == 2048
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
+    #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
+  #endif
 #endif
 
 //------------ MUSB --------------//
 #if defined(TUP_USBIP_MUSB)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0 // need testing to enable
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO              1
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE           4 // 32 bit data
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS   // allow odd 16bit access
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS    // allow odd 8bit access
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE           0 // fixed hwfifo
+
 #endif
 
 //------------ RUSB2 --------------//
 #if defined(TUP_USBIP_RUSB2)
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO     1
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE  (2 | (TUD_OPT_HIGH_SPEED ? 4 : 0)) // 16 bit and 32 bit data if highspeed
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE  0
+  #define CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE // custom write since rusb2 can change access width 32 -> 16 and can write
+                                            // odd byte with byte access
 #endif
 
 //--------------------------------------------------------------------
@@ -724,7 +743,7 @@
   #define CFG_TUH_CDC_PL2303 0
 #endif
 
-#ifndef CFG_TUH_CDC_PL2303_VID_PID_QUIRKS_LIST
+#ifndef CFG_TUH_CDC_PL2303_VID_PID_LIST
   // List of product IDs that can use the PL2303 CDC driver
   #define CFG_TUH_CDC_PL2303_VID_PID_LIST \
   { 0x067b, 0x2303 }, /* initial 2303 */ \
