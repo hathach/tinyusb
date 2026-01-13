@@ -617,13 +617,13 @@ def test_device_mtp(board):
 # device tests
 # note don't test 2 examples with cdc or 2 msc next to each other
 device_tests = [
-    # 'device/cdc_dual_ports',
-    # 'device/dfu',
-    # 'device/cdc_msc',
-    # 'device/dfu_runtime',
-    # 'device/cdc_msc_freertos',
-    # 'device/hid_boot_interface',
-    'device/mtp'
+    'device/cdc_dual_ports',
+    'device/dfu',
+    'device/cdc_msc',
+    'device/dfu_runtime',
+    'device/cdc_msc_freertos',
+    'device/hid_boot_interface',
+    # 'device/mtp'
 ]
 
 dual_tests = [
