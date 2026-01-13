@@ -2,7 +2,6 @@
    manufacturer: Texas Instruments
 */
 
-#include "TM4C123.h"
 #include "bsp/board_api.h"
 #include "board.h"
 
@@ -27,6 +26,9 @@ static void board_uart_init(void) {
   SYSCTL->RCGCUART |= (1 << 0);                // Enable the clock to UART0
   SYSCTL->RCGCGPIO |= (1 << 0);                // Enable the clock to GPIOA
 
+  while (!(SYSCTL->PRGPIO & (1 << 0))) {}      // Wait for the GPIOA clock to stabilize
+  while (!(SYSCTL->PRUART & (1 << 0))) {}      // Wait for the UART0 clock to stabilize
+
   GPIOA->AFSEL |= (1 << 1) | (1 << 0);         // Enable the alternate function on pin PA0 & PA1
   GPIOA->PCTL |= (1 << 0) | (1 << 4);          // Configure the GPIOPCTL register to select UART0 in PA0 and PA1
   GPIOA->DEN |= (1 << 0) | (1 << 1);           // Enable the digital functionality in PA0 and PA1
@@ -44,12 +46,26 @@ static void board_uart_init(void) {
   UART0->CTL = (1 << 0) | (1 << 8) | (1 << 9); // UART0 Enable, Transmit Enable, Receive Enable
 }
 
-static void initialize_board_led(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk) {
-  /* Enable PortF Clock */
-  SYSCTL->RCGCGPIO |= (1 << 5);
+static void board_button_init(GPIOA_Type* port, uint8_t PinMsk) {
+  /* Enable Port Clock */
+  SYSCTL->RCGCGPIO |= (1 << BTN_PORT_CLK);
 
   /* Let the clock stabilize */
-  while (!((SYSCTL->PRGPIO) & (1 << 5))) {}
+  while (!((SYSCTL->PRGPIO) & (1 << BTN_PORT_CLK))) {}
+
+  /* Port Digital Enable */
+  port->DEN |= PinMsk;
+
+  /* Set direction */
+  port->DIR &= ~PinMsk;
+}
+
+static void board_led_init(GPIOA_Type* port, uint8_t PinMsk, uint8_t dirmsk) {
+  /* Enable Port Clock */
+  SYSCTL->RCGCGPIO |= (1 << LED_PORT_CLK);
+
+  /* Let the clock stabilize */
+  while (!((SYSCTL->PRGPIO) & (1 << LED_PORT_CLK))) {}
 
   /* Port Digital Enable */
   port->DEN |= PinMsk;
@@ -71,7 +87,9 @@ static uint32_t ReadGPIOPin(GPIOA_Type* port, uint8_t pinMsk) {
 }
 
 void board_init(void) {
+#ifdef TM4C123_H
   SystemCoreClockUpdate();
+#endif
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -83,6 +101,7 @@ void board_init(void) {
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
+#ifdef TM4C123_H
   /* Reset USB */
   SYSCTL->SRCR2 |= (1u << 16);
 
@@ -99,7 +118,7 @@ void board_init(void) {
   /* USB IO Initialization */
   SYSCTL->RCGCGPIO |= (1u << 3);
 
-  /* Let the clock stabilize */
+    /* Let the clock stabilize */
   while (!(SYSCTL->PRGPIO & (1u << 3))) {}
 
   /* USB IOs to Analog Mode */
@@ -107,16 +126,43 @@ void board_init(void) {
   GPIOD->DEN &= ~((1u << 4) | (1u << 5));
   GPIOD->AMSEL |= ((1u << 4) | (1u << 5));
 
-  uint8_t leds = (1 << LED_PIN_RED) | (1 << LED_PIN_BLUE) | (1 << LED_PIN_GREEN);
-  uint8_t dirmsk = (1 << LED_PIN_RED) | (1 << LED_PIN_BLUE) | (1 << LED_PIN_GREEN);
+#else // TM4C129
+  /* Reset USB */
+  SYSCTL->SRUSB = 1;
+
+  for (volatile uint8_t i = 0; i < 20; i++) {}
+
+  SYSCTL->SRUSB = 0;
+
+  /* Open the USB clock gate */
+  SYSCTL->RCGCUSB = 1;
+
+  /* Let the clock stabilize */
+  while(!(SYSCTL->PRUSB & 1)) {}
+
+  /* USB IO Initialization */
+  SYSCTL->RCGCGPIO |= (1u << 10);
+
+  /* Let the clock stabilize */
+  while (!(SYSCTL->PRGPIO & (1u << 10))) {}
+
+  /* USB IOs to Analog Mode */
+  GPIOL->AFSEL &= ~((1u << 6) | (1u << 7));
+  GPIOL->DEN &= ~((1u << 6) | (1u << 7));
+  GPIOL->AMSEL |= ((1u << 6) | (1u << 7));
+
+  /* USB Clock Configuration */
+  USB0->CC = 0x207;
+#endif
+
+  uint8_t leds = 1 << BOARD_LED_PIN;
+  uint8_t dirmsk = 1 << BOARD_LED_PIN;
+
+  /* Configure GPIO for board button */
+  board_button_init(BOARD_BTN_PORT, BOARD_BTN_Msk);
 
   /* Configure GPIO for board LED */
-  initialize_board_led(LED_PORT, leds, dirmsk);
-
-  /* Configure GPIO for board switch */
-  GPIOF->DIR &= ~(1 << BOARD_BTN);
-  GPIOF->PUR |= (1 << BOARD_BTN);
-  GPIOF->DEN |= (1 << BOARD_BTN);
+  board_led_init(LED_PORT, leds, dirmsk);
 
   /* Initialize board UART */
   board_uart_init();
@@ -125,7 +171,7 @@ void board_init(void) {
 }
 
 void board_led_write(bool state) {
-  WriteGPIOPin(LED_PORT, (1 << LED_PIN_BLUE), state);
+  WriteGPIOPin(LED_PORT, (1 << BOARD_LED_PIN), state);
 }
 
 uint32_t board_button_read(void) {

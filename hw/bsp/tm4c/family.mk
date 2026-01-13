@@ -4,11 +4,11 @@ CPU_CORE ?= cortex-m4
 MCU_VARIANT = tm4c${MCU_SUB_VARIANT}
 MCU_VARIANT_UPPER = TM4C${MCU_SUB_VARIANT}
 
-SDK_DIR = hw/mcu/ti/${MCU_VARIANT}xx
+SDK_DIR = hw/mcu/ti/tm4c
 
 CFLAGS += \
   -flto \
-  -DCFG_TUSB_MCU=OPT_MCU_TM4C123 \
+  -DCFG_TUSB_MCU=OPT_MCU_TM4C${MCU_SUB_VARIANT} \
   -uvectors \
 
 # mcu driver cause following warnings
@@ -18,7 +18,7 @@ LDFLAGS_GCC += --specs=nosys.specs --specs=nano.specs
 
 INC += \
 	$(TOP)/lib/CMSIS_5/CMSIS/Core/Include \
-	$(TOP)/$(SDK_DIR)/Include/${MCU_VARIANT_UPPER} \
+	$(TOP)/$(SDK_DIR)/Include \
 	$(TOP)/$(BOARD_PATH)
 
 SRC_C += \

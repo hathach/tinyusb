@@ -333,6 +333,7 @@ Board              Name                   Family    URL                         
 msp_exp430f5529lp  MSP430F5529 LaunchPad  msp430    https://www.ti.com/tool/MSP-EXP430F5529LP
 msp_exp432e401y    MSP432E401Y LaunchPad  msp432e4  https://www.ti.com/tool/MSP-EXP432E401Y
 ek_tm4c123gxl      TM4C123G LaunchPad     tm4c      https://www.ti.com/tool/EK-TM4C123GXL
+ek_tm4c1294xl      TM4C1294 LaunchPad     tm4c      https://www.ti.com/tool/EK-TM4C1294XL
 =================  =====================  ========  =========================================  ======
 
 Tomu
