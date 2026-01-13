@@ -175,9 +175,8 @@ static void process_setup_packet(uint8_t rhport) {
 
   // Read setup packet
   uint32_t *p = (void*)&_dcd.setup_packet;
-  volatile uint32_t *fifo_ptr = &musb_regs->fifo[0];
-  p[0] = *fifo_ptr;
-  p[1] = *fifo_ptr;
+  p[0] = musb_regs->fifo[0];
+  p[1] = musb_regs->fifo[0];
 
   _dcd.pipe0.buf       = NULL;
   _dcd.pipe0.length    = 0;
@@ -218,7 +217,7 @@ static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr)
       tu_hwfifo_write_from_fifo(fifo_ptr, (tu_fifo_t *)buf, len, NULL);
     } else {
       tu_hwfifo_write(fifo_ptr, buf, len, NULL);
-      pipe->buf       = buf + len;
+      pipe->buf       = (uint8_t*)buf + len;
     }
     pipe->remaining = rem - len;
   }
@@ -249,7 +248,7 @@ static bool handle_xfer_out(uint8_t rhport, uint_fast8_t ep_addr)
       tu_hwfifo_read_to_fifo(fifo_ptr, (tu_fifo_t *)buf, len, NULL);
     } else {
       tu_hwfifo_read(fifo_ptr, buf, len, NULL);
-      pipe->buf       = buf + len;
+      pipe->buf       = (uint8_t*)buf + len;
     }
     pipe->remaining = rem - len;
   }
