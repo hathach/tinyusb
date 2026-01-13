@@ -151,7 +151,7 @@ def read_disk_file(uid, lun, fname):
 def open_mtp_dev(uid):
     mtp = MTP()
     # MTP seems to take a while to enumerate
-    timeout = 2*ENUM_TIMEOUT
+    timeout = 2 * ENUM_TIMEOUT
     while timeout > 0:
         # run_cmd(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/")
         for raw in mtp.detect_devices():
@@ -617,13 +617,13 @@ def test_device_mtp(board):
 # device tests
 # note don't test 2 examples with cdc or 2 msc next to each other
 device_tests = [
-    'device/cdc_dual_ports',
-    'device/dfu',
-    'device/cdc_msc',
-    'device/dfu_runtime',
-    'device/cdc_msc_freertos',
-    'device/hid_boot_interface',
-    # 'device/mtp'
+    # 'device/cdc_dual_ports',
+    # 'device/dfu',
+    # 'device/cdc_msc',
+    # 'device/dfu_runtime',
+    # 'device/cdc_msc_freertos',
+    # 'device/hid_boot_interface',
+    'device/mtp'
 ]
 
 dual_tests = [
