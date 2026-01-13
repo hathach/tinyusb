@@ -92,8 +92,9 @@ typedef struct {
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t ep_out;
-  uint8_t ep_event;
 
+  uint8_t ep_event;
+  uint8_t ep_sz_fs;
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  phase;
 
@@ -194,42 +195,47 @@ static bool prepare_new_command(mtpd_interface_t* p_mtp) {
   return usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, CFG_TUD_MTP_EP_BUFSIZE, false);
 }
 
-static bool mtpd_data_xfer(mtp_container_info_t* p_container, uint8_t ep_addr) {
-  mtpd_interface_t* p_mtp = &_mtpd_itf;
+bool tud_mtp_data_send(mtp_container_info_t *p_container) {
+  mtpd_interface_t *p_mtp = &_mtpd_itf;
   if (p_mtp->phase == MTP_PHASE_COMMAND) {
     // 1st data block: header + payload
     p_mtp->phase = MTP_PHASE_DATA;
     p_mtp->xferred_len = 0;
+    p_mtp->total_len   = p_container->header->len;
 
-    if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
-      p_mtp->total_len = p_container->header->len;
-      p_container->header->type = MTP_CONTAINER_TYPE_DATA_BLOCK;
-      p_container->header->transaction_id = p_mtp->command.header.transaction_id;
-      p_mtp->io_header = *p_container->header; // save header for subsequent data
-    } else {
-      // OUT transfer: total length is at least max packet size
-      p_mtp->total_len = tu_max32(p_container->header->len, CFG_TUD_MTP_EP_BUFSIZE);
-    }
-  } else {
-    // subsequent data block: payload only
-    TU_ASSERT(p_mtp->phase == MTP_PHASE_DATA);
+    p_container->header->type           = MTP_CONTAINER_TYPE_DATA_BLOCK;
+    p_container->header->transaction_id = p_mtp->command.header.transaction_id;
+    p_mtp->io_header                    = *p_container->header; // save header for subsequent data
   }
 
-  const uint16_t xact_len = (uint16_t) tu_min32(p_mtp->total_len - p_mtp->xferred_len, CFG_TUD_MTP_EP_BUFSIZE);
+  const uint16_t xact_len = (uint16_t)tu_min32(p_mtp->total_len - p_mtp->xferred_len, CFG_TUD_MTP_EP_BUFSIZE);
+
+  TU_LOG_DRV("  MTP Data IN: xferred_len/total_len=%lu/%lu, xact_len=%u\r\n", p_mtp->xferred_len, p_mtp->total_len,
+             xact_len);
   if (xact_len) {
-    // already transferred all bytes in header's length. Application make an unnecessary extra call
-    TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
-    TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, _mtpd_epbuf.buf, xact_len, false));
+    TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_in));
+    TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_in, _mtpd_epbuf.buf, xact_len, false));
   }
   return true;
 }
 
-bool tud_mtp_data_send(mtp_container_info_t* p_container) {
-  return mtpd_data_xfer(p_container, _mtpd_itf.ep_in);
-}
+bool tud_mtp_data_receive(mtp_container_info_t *p_container) {
+  mtpd_interface_t *p_mtp = &_mtpd_itf;
+  if (p_mtp->phase == MTP_PHASE_COMMAND) {
+    // 1st data block: header + payload
+    p_mtp->phase       = MTP_PHASE_DATA;
+    p_mtp->xferred_len = 0;
+    p_mtp->total_len   = p_container->header->len;
+  }
 
-bool tud_mtp_data_receive(mtp_container_info_t* p_container) {
-  return mtpd_data_xfer(p_container, _mtpd_itf.ep_out);
+  // up to buffer size since 1st packet (with header) may also contain payload
+  const uint16_t xact_len = CFG_TUD_MTP_EP_BUFSIZE;
+
+  TU_LOG_DRV("  MTP Data OUT: xferred_len/total_len=%lu/%lu, xact_len=%u\r\n", p_mtp->xferred_len, p_mtp->total_len,
+             xact_len);
+  TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, p_mtp->ep_out));
+  TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, p_mtp->ep_out, _mtpd_epbuf.buf, xact_len, false));
+  return true;
 }
 
 bool tud_mtp_response_send(mtp_container_info_t* p_container) {
@@ -287,14 +293,19 @@ uint16_t mtpd_open(uint8_t rhport, tusb_desc_interface_t const* itf_desc, uint16
   p_mtp->itf_num = itf_desc->bInterfaceNumber;
 
   // Open interrupt IN endpoint
-  const tusb_desc_endpoint_t* ep_desc = (const tusb_desc_endpoint_t*) tu_desc_next(itf_desc);
-  TU_ASSERT(ep_desc->bDescriptorType == TUSB_DESC_ENDPOINT && ep_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT, 0);
-  TU_ASSERT(usbd_edpt_open(rhport, ep_desc), 0);
-  p_mtp->ep_event = ep_desc->bEndpointAddress;
+  const tusb_desc_endpoint_t* ep_desc_int = (const tusb_desc_endpoint_t*) tu_desc_next(itf_desc);
+  TU_ASSERT(ep_desc_int->bDescriptorType == TUSB_DESC_ENDPOINT && ep_desc_int->bmAttributes.xfer == TUSB_XFER_INTERRUPT, 0);
+  TU_ASSERT(usbd_edpt_open(rhport, ep_desc_int), 0);
+  p_mtp->ep_event = ep_desc_int->bEndpointAddress;
 
   // Open endpoint pair
-  TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(ep_desc), 2, TUSB_XFER_BULK, &p_mtp->ep_out, &p_mtp->ep_in), 0);
+  const tusb_desc_endpoint_t* ep_desc_bulk = (const tusb_desc_endpoint_t*) tu_desc_next(ep_desc_int);
+  TU_ASSERT(usbd_open_edpt_pair(rhport, (const uint8_t*)ep_desc_bulk, 2, TUSB_XFER_BULK, &p_mtp->ep_out, &p_mtp->ep_in), 0);
   TU_ASSERT(prepare_new_command(p_mtp), 0);
+
+  if (tud_speed_get() == TUSB_SPEED_FULL) {
+    p_mtp->ep_sz_fs = (uint8_t)tu_edpt_packet_size(ep_desc_bulk);
+  }
 
   return mtpd_itf_size;
 }
@@ -377,8 +388,8 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   mtp_generic_container_t* p_container = (mtp_generic_container_t*) _mtpd_epbuf.buf;
 
 #if CFG_TUSB_DEBUG >= CFG_TUD_MTP_LOG_LEVEL
-  tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code);
-  TU_LOG_DRV("  MTP %s: %s phase\r\n", (const char *) tu_lookup_find(&_mtp_op_table, p_mtp->command.header.code),
+  const uint16_t code = (p_mtp->phase == MTP_PHASE_COMMAND) ? p_container->header.code : p_mtp->command.header.code;
+  TU_LOG_DRV("  MTP %s: %s phase\r\n", (const char *) tu_lookup_find(&_mtp_op_table, code),
     _mtp_phase_str[p_mtp->phase]);
 #endif
 
@@ -417,19 +428,35 @@ bool mtpd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     }
 
     case MTP_PHASE_DATA: {
-      const uint16_t bulk_mps = (tud_speed_get() == TUSB_SPEED_HIGH) ? 512 : 64;
       p_mtp->xferred_len += xferred_bytes;
       cb_data.total_xferred_bytes = p_mtp->xferred_len;
 
-      bool is_complete = false;
-      // complete if ZLP or short packet or total length reached
-      if (xferred_bytes == 0 || // ZLP
-          (xferred_bytes & (bulk_mps - 1)) || // short packet
-          p_mtp->xferred_len >= p_mtp->total_len) { // total length reached
-        is_complete = true;
+      const bool is_data_in = (ep_addr == p_mtp->ep_in);
+      // For IN endpoint, threshold is bulk max packet size
+      // For OUT endpoint, threshold is endpoint buffer size, since we always queue fixed size
+      uint16_t threshold;
+      if (is_data_in) {
+        threshold = (p_mtp->ep_sz_fs > 0) ? p_mtp->ep_sz_fs : 512; // full speed bulk if set
+      } else {
+        threshold = CFG_TUD_MTP_EP_BUFSIZE;
       }
 
-      if (ep_addr == p_mtp->ep_in) {
+      // Check completion: ZLP, short packet, or total length reached
+      const bool is_complete =
+        (xferred_bytes == 0 || xferred_bytes < threshold || p_mtp->xferred_len >= p_mtp->total_len);
+
+      TU_LOG_DRV("  MTP Data %s CB: xferred_bytes=%lu, xferred_len/total_len=%lu/%lu, is_complete=%d\r\n",
+                 is_data_in ? "IN" : "OUT", xferred_bytes, p_mtp->xferred_len, p_mtp->total_len, is_complete ? 1 : 0);
+
+      // Send/queue ZLP if packet is full-sized but transfer is complete
+      if (is_complete && xferred_bytes > 0 && !(xferred_bytes & (threshold - 1))) {
+        TU_LOG_DRV("  queue ZLP\r\n");
+        TU_VERIFY(usbd_edpt_claim(p_mtp->rhport, ep_addr));
+        TU_ASSERT(usbd_edpt_xfer(p_mtp->rhport, ep_addr, NULL, 0, false));
+        return true;
+      }
+
+      if (is_data_in) {
         // Data In
         if (is_complete) {
           cb_data.io_container.header->len = sizeof(mtp_container_header_t);
