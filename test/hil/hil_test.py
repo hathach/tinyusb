@@ -410,22 +410,22 @@ def test_device_cdc_dual_ports(board):
     sizes = [32, 64, 128, 256, 512, random.randint(2000, 5000)]
 
     def write_and_check(writer, payload):
-        size = len(payload)
+        payload_len = len(payload)
         for s in ser:
             s.reset_input_buffer()
         rd0 = b''
         rd1 = b''
         offset = 0
         # Write in chunks of random 1-64 bytes (device has 64-byte buffer)
-        while offset < size:
-            chunk_size = min(random.randint(1, 64), size - offset)
+        while offset < payload_len:
+            chunk_size = min(random.randint(1, 64), payload_len - offset)
             ser[writer].write(payload[offset:offset + chunk_size])
             ser[writer].flush()
             rd0 += ser[0].read(chunk_size)
             rd1 += ser[1].read(chunk_size)
             offset += chunk_size
-        assert rd0 == payload.lower(), f'Port0 wrong data ({size}): expected {payload.lower()[:16]}... was {rd0[:16]}'
-        assert rd1 == payload.upper(), f'Port1 wrong data ({size}): expected {payload.upper()[:16]}... was {rd1[:16]}'
+        assert rd0 == payload.lower(), f'Port0 wrong data ({payload_len}): expected {payload.lower()}... was {rd0}'
+        assert rd1 == payload.upper(), f'Port1 wrong data ({payload_len}): expected {payload.upper()}... was {rd1}'
 
     for size in sizes:
         payload0 = rand_ascii(size)

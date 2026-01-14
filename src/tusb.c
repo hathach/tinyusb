@@ -309,11 +309,9 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
                          uint16_t ff_bufsize, uint8_t *ep_buf, uint16_t ep_bufsize) {
   (void) is_tx;
 
-  #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED == 0 // FIFO is required
   if (ff_buf == NULL || ff_bufsize == 0) {
     return false;
   }
-  #endif
 
   s->is_host = is_host;
   tu_fifo_config(&s->ff, ff_buf, ff_bufsize, overwritable);
@@ -411,88 +409,45 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
 }
 
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
-  #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
-  if (0 == tu_fifo_depth(&s->ff)) {
-    // non-fifo mode: TX need ep buffer
-    TU_VERIFY(s->ep_buf != NULL, 0);
-    TU_VERIFY(stream_claim(s), 0);
-    uint32_t xact_len = tu_min32(bufsize, s->ep_bufsize);
-    memcpy(s->ep_buf, buffer, xact_len);
-    TU_ASSERT(stream_xfer(s, (uint16_t) xact_len), 0);
-    return xact_len;
-  } else
-  #endif
-  {
-    TU_VERIFY(bufsize > 0);
-    const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
+  TU_VERIFY(bufsize > 0);
+  const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) bufsize);
 
-    // flush if fifo has more than packet size or
-    // in rare case: fifo depth is configured too small (which never reach packet size)
-    if ((tu_fifo_count(&s->ff) >= s->mps) || (tu_fifo_depth(&s->ff) < s->mps)) {
-      tu_edpt_stream_write_xfer(s);
-    }
-    return ret;
+  // flush if fifo has more than packet size or
+  // in rare case: fifo depth is configured too small (which never reach packet size)
+  if ((tu_fifo_count(&s->ff) >= s->mps) || (tu_fifo_depth(&s->ff) < s->mps)) {
+    tu_edpt_stream_write_xfer(s);
   }
+  return ret;
 }
 
 uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s) {
-  #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
-  if (0 == tu_fifo_depth(&s->ff)) {
-    // non-fifo mode
-    TU_VERIFY(s->ep_addr > 0); // must be opened
-    bool is_busy = true;
-    if (s->is_host) {
-      #if CFG_TUH_ENABLED
-      is_busy = usbh_edpt_busy(s->hwid, s->ep_addr);
-    #endif
-    } else {
-      #if CFG_TUD_ENABLED
-      is_busy = usbd_edpt_busy(s->hwid, s->ep_addr);
-    #endif
-    }
-    return is_busy ? 0 : s->ep_bufsize;
-  } else
-  #endif
-  {
-    return (uint32_t)tu_fifo_remaining(&s->ff);
-  }
+  return (uint32_t)tu_fifo_remaining(&s->ff);
 }
 
 //--------------------------------------------------------------------+
 // Stream Read
 //--------------------------------------------------------------------+
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
-  #if CFG_TUSB_EDPT_STREAM_NO_FIFO_ENABLED
-  if (0 == tu_fifo_depth(&s->ff)) {
-    // non-fifo mode: RX need ep buffer
-    TU_VERIFY(s->ep_buf != NULL, 0);
-    TU_VERIFY(stream_claim(s), 0);
-    TU_ASSERT(stream_xfer(s, s->ep_bufsize), 0);
-    return s->ep_bufsize;
-  } else
-  #endif
-  {
-    uint16_t available = tu_fifo_remaining(&s->ff);
+  uint16_t available = tu_fifo_remaining(&s->ff);
 
-    // Prepare for incoming data but only allow what we can store in the ring buffer.
-    // TODO Actually we can still carry out the transfer, keeping count of received bytes
-    // and slowly move it to the FIFO when read().
-    // This pre-check reduces endpoint claiming
-    TU_VERIFY(available >= s->mps);
-    TU_VERIFY(stream_claim(s), 0);
-    available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
+  // Prepare for incoming data but only allow what we can store in the ring buffer.
+  // TODO Actually we can still carry out the transfer, keeping count of received bytes
+  // and slowly move it to the FIFO when read().
+  // This pre-check reduces endpoint claiming
+  TU_VERIFY(available >= s->mps);
+  TU_VERIFY(stream_claim(s), 0);
+  available = tu_fifo_remaining(&s->ff); // re-get available since fifo can be changed
 
-    if (available >= s->mps) {
-      // multiple of packet size limit by ep bufsize
-      uint16_t count = (uint16_t) (available & ~(s->mps - 1));
-      count = tu_min16(count, s->ep_bufsize);
-      TU_ASSERT(stream_xfer(s, count), 0);
-      return count;
-    } else {
-      // Release endpoint since we don't make any transfer
-      stream_release(s);
-      return 0;
-    }
+  if (available >= s->mps) {
+    // multiple of packet size limit by ep bufsize
+    uint16_t count = (uint16_t) (available & ~(s->mps - 1));
+    count = tu_min16(count, s->ep_bufsize);
+    TU_ASSERT(stream_xfer(s, count), 0);
+    return count;
+  } else {
+    // Release endpoint since we don't make any transfer
+    stream_release(s);
+    return 0;
   }
 }
 
