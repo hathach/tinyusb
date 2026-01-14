@@ -209,7 +209,7 @@ deps_optional = {
                                        '9442fbb71f855ff2e64fbf662b7726beba511a24',
                                        'stm32wba'],
     'hw/mcu/ti': ['https://github.com/hathach/ti_driver.git',
-                  '143ed6cc20a7615d042b03b21e070197d473e6e5',
+                  '083944907e7d08fcb1f614b47598ce45935b8da1',
                   'msp430 msp432e4 tm4c'],
     'hw/mcu/wch/ch32v103': ['https://github.com/openwch/ch32v103.git',
                             '7578cae0b21f86dd053a1f781b2fc6ab99d0ec17',
