@@ -251,6 +251,7 @@ function(family_configure_target TARGET RTOS)
 	family_flash_jlink(${TARGET})
 
   # Generate linkermap target and post build. LINKERMAP_OPTION can be set with -D to change default options
+	family_add_bloaty(${TARGET})
   family_add_linkermap(${TARGET})
 endfunction()
 

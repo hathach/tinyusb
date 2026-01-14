@@ -38,7 +38,8 @@ family_list = {
     "stm32h7": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32h7rs stm32l0 stm32l4": ["arm-gcc", "arm-clang", "arm-iar"],
     "stm32n6": ["arm-gcc"],
-    "stm32u0 stm32u5 stm32wb stm32wba": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32u0 stm32wb stm32wba": ["arm-gcc", "arm-clang", "arm-iar"],
+    "stm32u5": ["arm-gcc", "arm-clang", "arm-iar"],
     "-bespressif_s2_devkitc": ["esp-idf"],
     # S3, P4 will be built by hil test
     # "-bespressif_s3_devkitm": ["esp-idf"],

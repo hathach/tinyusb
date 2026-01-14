@@ -35,7 +35,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTOTYPE
 //--------------------------------------------------------------------+
-static void hwep_xfer_sync(hw_endpoint_t *ep);
+static void sync_xfer(hw_endpoint_t *ep);
 
   #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
 static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
@@ -47,12 +47,20 @@ static bool e15_is_critical_frame_period(struct hw_endpoint *ep);
 // Implementation
 //--------------------------------------------------------------------+
 // Provide own byte by byte memcpy as not all copies are aligned
-static void unaligned_memcpy(void *dst, const void *src, size_t n) {
-  uint8_t *dst_byte = (uint8_t*)dst;
-  const uint8_t *src_byte = (const uint8_t*)src;
+static void unaligned_memcpy(uint8_t *dst, const uint8_t *src, size_t n) {
   while (n--) {
-    *dst_byte++ = *src_byte++;
+    *dst++ = *src++;
   }
+}
+
+void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
+  (void)access_mode;
+  unaligned_memcpy((uint8_t *)(uintptr_t)hwfifo, src, len);
+}
+
+void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, const tu_hwfifo_access_t *access_mode) {
+  (void)access_mode;
+  unaligned_memcpy(dest, (const uint8_t *)(uintptr_t)hwfifo, len);
 }
 
 void rp2usb_init(void) {
@@ -127,9 +135,17 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, 
   ep->next_pid ^= 1u;
 
   if (!is_rx) {
-    // Copy data from user buffer to hw buffer
-    unaligned_memcpy(ep->hw_data_buf + buf_id * 64, ep->user_buf, buflen);
-    ep->user_buf += buflen;
+    if (buflen) {
+      // Copy data from user buffer/fifo to hw buffer
+      uint8_t *hw_buf = ep->hw_data_buf + buf_id * 64;
+      if (ep->is_xfer_fifo) {
+        // not in sram, may mess up timing with E15 workaround
+        tu_hwfifo_write_from_fifo(hw_buf, ep->user_fifo, buflen, NULL);
+      } else {
+        unaligned_memcpy(hw_buf, ep->user_buf, buflen);
+        ep->user_buf += buflen;
+      }
+    }
 
     // Mark as full
     buf_ctrl |= USB_BUF_CTRL_FULL;
@@ -152,7 +168,6 @@ static uint32_t __tusb_irq_path_func(prepare_ep_buffer)(struct hw_endpoint *ep, 
 // Prepare buffer control register value
 void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep) {
   const tusb_dir_t dir = tu_edpt_dir(ep->ep_addr);
-
   bool      is_rx;
   bool      is_host = false;
   io_rw_32 *ep_ctrl_reg;
@@ -211,7 +226,7 @@ void __tusb_irq_path_func(hw_endpoint_start_next_buffer)(struct hw_endpoint* ep)
   hwbuf_ctrl_set(buf_ctrl_reg, buf_ctrl);
 }
 
-void hw_endpoint_xfer_start(struct hw_endpoint* ep, uint8_t* buffer, uint16_t total_len) {
+void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
   hw_endpoint_lock_update(ep, 1);
 
   if (ep->active) {
@@ -224,7 +239,14 @@ void hw_endpoint_xfer_start(struct hw_endpoint* ep, uint8_t* buffer, uint16_t to
   ep->remaining_len = total_len;
   ep->xferred_len = 0;
   ep->active = true;
-  ep->user_buf = buffer;
+
+  if (ff != NULL) {
+    ep->user_fifo    = ff;
+    ep->is_xfer_fifo = true;
+  } else {
+    ep->user_buf     = buffer;
+    ep->is_xfer_fifo = false;
+  }
 
   #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
   if (ep->e15_bulk_in) {
@@ -256,17 +278,21 @@ static uint16_t __tusb_irq_path_func(sync_ep_buffer)(hw_endpoint_t *ep, io_rw_32
     // We are continuing a transfer here. If we are TX, we have successfully
     // sent some data can increase the length we have sent
     assert(!(buf_ctrl & USB_BUF_CTRL_FULL));
-
-    ep->xferred_len = (uint16_t) (ep->xferred_len + xferred_bytes);
   } else {
     // If we have received some data, so can increase the length
     // we have received AFTER we have copied it to the user buffer at the appropriate offset
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
-    unaligned_memcpy(ep->user_buf, ep->hw_data_buf + buf_id * 64, xferred_bytes);
-    ep->xferred_len = (uint16_t) (ep->xferred_len + xferred_bytes);
-    ep->user_buf += xferred_bytes;
+    uint8_t *hw_buf = ep->hw_data_buf + buf_id * 64;
+    if (ep->is_xfer_fifo) {
+      // not in sram, may mess up timing with E15 workaround
+      tu_hwfifo_read_to_fifo(hw_buf, ep->user_fifo, xferred_bytes, NULL);
+    } else {
+      unaligned_memcpy(ep->user_buf, hw_buf, xferred_bytes);
+      ep->user_buf += xferred_bytes;
+    }
   }
+  ep->xferred_len += xferred_bytes;
 
   // Short packet
   if (xferred_bytes < ep->wMaxPacketSize) {
@@ -278,7 +304,7 @@ static uint16_t __tusb_irq_path_func(sync_ep_buffer)(hw_endpoint_t *ep, io_rw_32
 }
 
 // Update hw endpoint struct with info from hardware after a buff status interrupt
-static void __tusb_irq_path_func(hwep_xfer_sync)(hw_endpoint_t *ep) {
+static void __tusb_irq_path_func(sync_xfer)(hw_endpoint_t *ep) {
   // const uint8_t    ep_num  = tu_edpt_number(ep->ep_addr);
   const tusb_dir_t dir     = tu_edpt_dir(ep->ep_addr);
 
@@ -350,8 +376,7 @@ bool __tusb_irq_path_func(hw_endpoint_xfer_continue)(struct hw_endpoint* ep) {
     panic("Can't continue xfer on inactive ep %02X", ep->ep_addr);
   }
 
-  // Update EP struct from hardware state
-  hwep_xfer_sync(ep);
+  sync_xfer(ep); // Update EP struct from hardware state
 
   // Now we have synced our state with the hardware. Is there more data to transfer?
   // If we are done then notify tinyusb

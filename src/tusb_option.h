@@ -272,6 +272,25 @@
 // USBIP
 //--------------------------------------------------------------------+
 
+//------------- ChipIdea -------------//
+// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is
+// insufficient).
+#ifndef CFG_TUD_CI_HS_VBUS_CHARGE
+  #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+    #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
+  #endif
+  #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
+#endif
+
+// CI_HS support FIFO transfer if endpoint buffer is 4k aligned and size is multiple of 4k, also DCACHE is disabled
+#ifndef CFG_TUD_CI_HS_EPBUF_4K_ALIGNED
+  #define CFG_TUD_CI_HS_EPBUF_4K_ALIGNED 0
+#endif
+
+#if CFG_TUD_CI_HS_EPBUF_4K_ALIGNED && !CFG_TUD_MEM_DCACHE_ENABLE
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
+#endif
+
 //------------- DWC2 -------------//
 // DMA mode for device
 #ifndef CFG_TUD_DWC2_DMA_ENABLE
@@ -317,41 +336,6 @@
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 0 // fixed hwfifo address
 #endif
 
-//------------- ChipIdea -------------//
-// Enable CI_HS VBUS Charge. Set this to 1 if the USB_VBUS pin is not connected to 5V VBUS (note: 3.3V is
-// insufficient).
-#ifndef CFG_TUD_CI_HS_VBUS_CHARGE
-  #ifndef CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
-    #define CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT 0
-  #endif
-  #define CFG_TUD_CI_HS_VBUS_CHARGE CFG_TUD_CI_HS_VBUS_CHARGE_DEFAULT
-#endif
-
-// CI_HS support FIFO transfer if endpoint buffer is 4k aligned and size is multiple of 4k, also DCACHE is disabled
-#ifndef CFG_TUD_CI_HS_EPBUF_4K_ALIGNED
-  #define CFG_TUD_CI_HS_EPBUF_4K_ALIGNED 0
-#endif
-
-#if CFG_TUD_CI_HS_EPBUF_4K_ALIGNED && !CFG_TUD_MEM_DCACHE_ENABLE
-  #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
-#endif
-
-//------------- Raspberry Pi -------------//
-// Enable PIO-USB software host controller
-#ifndef CFG_TUH_RPI_PIO_USB
-  #define CFG_TUH_RPI_PIO_USB 0
-#endif
-
-#ifndef CFG_TUD_RPI_PIO_USB
-  #define CFG_TUD_RPI_PIO_USB 0
-#endif
-
-//------------ MAX3421 -------------//
-// Enable MAX3421 USB host controller
-#ifndef CFG_TUH_MAX3421
-  #define CFG_TUH_MAX3421  0
-#endif
-
 //------------ FSDEV --------------//
 #if defined(TUP_USBIP_FSDEV)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
@@ -368,6 +352,12 @@
   #endif
 #endif
 
+//------------ MAX3421 -------------//
+// Enable MAX3421 USB host controller
+#ifndef CFG_TUH_MAX3421
+  #define CFG_TUH_MAX3421 0
+#endif
+
 //------------ MUSB --------------//
 #if defined(TUP_USBIP_MUSB)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO              1
@@ -375,13 +365,30 @@
   #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_16BIT_ACCESS   // allow odd 16bit access
   #define CFG_TUSB_FIFO_HWFIFO_DATA_ODD_8BIT_ACCESS    // allow odd 8bit access
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE           0 // fixed hwfifo
+#endif
 
+//------------- Raspberry Pi -------------//
+// Enable PIO-USB software host controller
+#ifndef CFG_TUH_RPI_PIO_USB
+  #define CFG_TUH_RPI_PIO_USB 0
+#endif
+
+#ifndef CFG_TUD_RPI_PIO_USB
+  #define CFG_TUD_RPI_PIO_USB 0
+#endif
+
+#if (CFG_TUSB_MCU == OPT_MCU_RP2040) && !CFG_TUD_RPI_PIO_USB
+  #define CFG_TUD_EDPT_DEDICATED_HWFIFO    1
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 1
+  #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 1
+  #define CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE
+  #define CFG_TUSB_FIFO_HWFIFO_CUSTOM_READ
 #endif
 
 //------------ RUSB2 --------------//
 #if defined(TUP_USBIP_RUSB2)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO     1
-  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE  (2 | (TUD_OPT_HIGH_SPEED ? 4 : 0)) // 16 bit and 32 bit data if highspeed
+  #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE  (2 | (TUD_OPT_HIGH_SPEED ? 4 : 0)) // 16 bit and 32 bit if highspeed
   #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE  0
   #define CFG_TUSB_FIFO_HWFIFO_CUSTOM_WRITE // custom write since rusb2 can change access width 32 -> 16 and can write
                                             // odd byte with byte access
