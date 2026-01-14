@@ -53,7 +53,6 @@
 #pragma GCC diagnostic pop
 #endif
 
-#define FSDEV_PMA_SIZE (512u)
 #define FSDEV_USE_SBUF_ISO 0
 #define FSDEV_REG_BASE  (APB1PERIPH_BASE + 0x00005C00UL)
 #define FSDEV_PMA_BASE  (APB1PERIPH_BASE + 0x00006000UL)
