@@ -147,8 +147,8 @@ void printerd_init(void) {
   for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
     printer_interface_t *p_printer = &_printer_itf[i];
 
-    tu_fifo_config(&p_printer->rx_ff, p_printer->rx_ff_buf, TU_ARRAY_SIZE(p_printer->rx_ff_buf), 1, false);
-    tu_fifo_config(&p_printer->tx_ff, p_printer->tx_ff_buf, TU_ARRAY_SIZE(p_printer->tx_ff_buf), 1, true);
+    tu_fifo_config(&p_printer->rx_ff, p_printer->rx_ff_buf, TU_ARRAY_SIZE(p_printer->rx_ff_buf), false);
+    tu_fifo_config(&p_printer->tx_ff, p_printer->tx_ff_buf, TU_ARRAY_SIZE(p_printer->tx_ff_buf), true);
 
   #if OSAL_MUTEX_REQUIRED
     osal_mutex_t mutex_rd = osal_mutex_create(&p_printer->rx_ff_mutex);
