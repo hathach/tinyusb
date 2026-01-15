@@ -73,12 +73,13 @@ typedef struct hw_endpoint {
 #endif
 
 #if CFG_TUH_ENABLED
-  bool    configured;    // Is this a valid struct
   uint8_t dev_addr;
   uint8_t interrupt_num; // for host interrupt endpoints
+  uint8_t transfer_type;
+  bool    need_pre;        // need preamble for low speed device behind full speed hub
 #endif
 
-  uint16_t wMaxPacketSize;
+  uint16_t wMaxPacketSize; // max packet size also indicates configured
   uint8_t *hw_data_buf; // Buffer pointer in usb dpram
 
   // transfer info
