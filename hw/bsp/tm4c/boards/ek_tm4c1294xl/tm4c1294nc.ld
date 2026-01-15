@@ -8,8 +8,8 @@ _Min_Stack_Size = 0x1000; /* required amount of stack */
 
 MEMORY
 {
-    FLASH(rx) : ORIGIN = 0x00000000, LENGTH = 256K
-    SRAM(rwx) : ORIGIN = 0x20000000, LENGTH = 32K
+    FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 0x00100000
+    SRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 0x00040000
 }
 
 SECTIONS
@@ -17,7 +17,8 @@ SECTIONS
     .text :
     {
         . = ALIGN(4) ;
-        KEEP(*(.vectors))
+        _text = . ;
+        KEEP(*(.isr_vector))
         *(.text)
         *(.text.*)
         *(.init)
@@ -25,31 +26,30 @@ SECTIONS
         *(.rodata)
         *(.rodata.*)
         *(.ARM.exidx*)
+        _etext = . ;
         . = ALIGN(4) ;
-        __end_text = . ;
     } >FLASH
 
     .data : AT(ADDR(.text) + SIZEOF(.text))
     {
+        _data = .;
         . = ALIGN(4);
-        __start_data = . ;
-        __la_data = LOADADDR(.data);
+        _ldata = LOADADDR (.data);
         *(.data)
         *(.data.*)
+        _edata = .;
         . = ALIGN(4);
-        __end_data = . ;
 
     } >SRAM
 
     .bss :
     {
         . = ALIGN(4) ;
-        __start_bss = . ;
-        __bss_start__ = __start_bss;
+        _bss = .;
         *(.bss)
         *(.bss.*)
         *(.COMMON)
-        __end_bss = . ;
+        _ebss = .;
         . = ALIGN(4);
     }>SRAM
 

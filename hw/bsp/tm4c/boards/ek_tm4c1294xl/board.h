@@ -25,8 +25,8 @@
  */
 
 /* metadata:
-   name: TM4C123G LaunchPad
-   url: https://www.ti.com/tool/EK-TM4C123GXL
+   name: TM4C1294 LaunchPad
+   url: https://www.ti.com/tool/EK-TM4C1294XL
 */
 
 #ifndef _BOARD_H_
@@ -36,25 +36,37 @@
  extern "C" {
 #endif
 
-#include "TM4C123.h"
+#include "TM4C129.h"
 
 #define BOARD_UART            UART0
 #define BOARD_UART_PORT       GPIOA
 
-#define BTN_PORT_CLK          5
-#define BOARD_BTN_PORT        GPIOF
-#define BOARD_BTN             4
-#define BOARD_BTN_Msk         (1u<<4)
+#define BTN_PORT_CLK          8
+#define BOARD_BTN_PORT        GPIOJ
+#define BOARD_BTN             0
+#define BOARD_BTN_Msk         (1u<<0)
 #define BUTTON_STATE_ACTIVE   0
 
-#define LED_PORT_CLK          5
-#define LED_PORT              GPIOF
-#define LED_PIN_RED           1
-#define LED_PIN_BLUE          2
-#define LED_PIN_GREEN         3
+#define LED_PORT_CLK          12
+#define LED_PORT              GPION
+#define LED_PIN_1             1
+#define LED_PIN_2             0
 #define LED_STATE_ON          1
 
-#define BOARD_LED_PIN         LED_PIN_BLUE
+#define BOARD_LED_PIN         LED_PIN_2
+
+#define GPIOA                 GPIOA_AHB
+#define GPIOB                 GPIOB_AHB
+#define GPIOC                 GPIOC_AHB
+#define GPIOD                 GPIOD_AHB
+#define GPIOE                 GPIOE_AHB
+#define GPIOF                 GPIOF_AHB
+#define GPIOG                 GPIOG_AHB
+#define GPIOH                 GPIOH_AHB
+#define GPIOI                 GPIOI_AHB
+#define GPIOJ                 GPIOJ_AHB
+
+#define GPIOA_Type            GPIOA_AHB_Type
 
 #ifdef __cplusplus
  }

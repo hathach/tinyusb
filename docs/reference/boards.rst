@@ -292,6 +292,7 @@ stm32h723nucleo      STM32 H723 Nucleo                  stm32h7    https://www.s
 stm32h743eval        STM32 H743 Eval                    stm32h7    https://www.st.com/en/evaluation-tools/stm32h743i-eval.html
 stm32h743nucleo      STM32 H743 Nucleo                  stm32h7    https://www.st.com/en/evaluation-tools/nucleo-h743zi.html
 stm32h745disco       STM32 H745 Discovery               stm32h7    https://www.st.com/en/evaluation-tools/stm32h745i-disco.html
+stm32h747disco       STM32 H747 Discovery               stm32h7    https://www.st.com/en/evaluation-tools/stm32h747i-disco.html
 stm32h750_weact      STM32 H750 WeAct                   stm32h7    https://www.adafruit.com/product/5032
 stm32h750bdk         STM32 H750b Discovery Kit          stm32h7    https://www.st.com/en/evaluation-tools/stm32h750b-dk.html
 waveshare_openh743i  Waveshare Open H743i               stm32h7    https://www.waveshare.com/openh743i-c-standard.htm
@@ -333,6 +334,7 @@ Board              Name                   Family    URL                         
 msp_exp430f5529lp  MSP430F5529 LaunchPad  msp430    https://www.ti.com/tool/MSP-EXP430F5529LP
 msp_exp432e401y    MSP432E401Y LaunchPad  msp432e4  https://www.ti.com/tool/MSP-EXP432E401Y
 ek_tm4c123gxl      TM4C123G LaunchPad     tm4c      https://www.ti.com/tool/EK-TM4C123GXL
+ek_tm4c1294xl      TM4C1294 LaunchPad     tm4c      https://www.ti.com/tool/EK-TM4C1294XL
 =================  =====================  ========  =========================================  ======
 
 Tomu
