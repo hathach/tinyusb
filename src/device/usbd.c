@@ -566,6 +566,9 @@ bool tud_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   _usbd_rhport = rhport;
 
+  // MCU specific pre-init
+  tusb_pre_init_cb(rhport, TUSB_ROLE_DEVICE);
+
   // Init device controller driver
   TU_ASSERT(dcd_init(rhport, rh_init));
   dcd_int_enable(rhport);
@@ -585,7 +588,10 @@ bool tud_deinit(uint8_t rhport) {
   // Deinit device controller driver
   dcd_int_disable(rhport);
   dcd_disconnect(rhport);
-  TU_VERIFY(dcd_deinit(rhport));
+  TU_ASSERT(dcd_deinit(rhport));
+
+  // MCU specific post-deinit
+  tusb_post_deinit_cb(rhport, TUSB_ROLE_DEVICE);
 
   // Deinit class drivers
   for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
