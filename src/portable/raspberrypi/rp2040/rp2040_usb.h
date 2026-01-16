@@ -72,13 +72,6 @@ typedef struct hw_endpoint {
   uint8_t pending;     // Transfer scheduled but not active
 #endif
 
-#if CFG_TUH_ENABLED
-  uint8_t dev_addr;
-  uint8_t interrupt_num; // for host interrupt endpoints
-  uint8_t transfer_type;
-  bool    need_pre;        // need preamble for low speed device behind full speed hub
-#endif
-
   uint16_t wMaxPacketSize; // max packet size also indicates configured
   uint8_t *hw_data_buf; // Buffer pointer in usb dpram
 
@@ -92,6 +85,15 @@ typedef struct hw_endpoint {
 
 } hw_endpoint_t;
 
+// Host controller endpoint
+typedef struct {
+  hw_endpoint_t hwep;
+  uint8_t       dev_addr;
+  uint8_t       interrupt_num; // 1-15 for interrupt endpoints
+  uint8_t       transfer_type;
+  bool          need_pre;      // need preamble for low speed device behind full speed hub
+} hcd_endpoint_t;
+
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
 extern volatile uint32_t e15_last_sof;
 #endif
@@ -103,10 +105,14 @@ TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
   return (usb_hw->main_ctrl & USB_MAIN_CTRL_HOST_NDEVICE_BITS) ? true : false;
 }
 
-void hw_endpoint_xfer_start(struct hw_endpoint *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len);
-bool hw_endpoint_xfer_continue(struct hw_endpoint *ep);
+//--------------------------------------------------------------------+
+// Hardware Endpoint
+//--------------------------------------------------------------------+
+void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
+                            uint16_t total_len);
+bool hw_endpoint_xfer_continue(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
 void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
-void hw_endpoint_start_next_buffer(struct hw_endpoint *ep);
+void hw_endpoint_start_next_buffer(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
 
 TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
   // todo add critsec as necessary to prevent issues between worker and IRQ...
@@ -114,43 +120,12 @@ TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct
   //  sense to have worker and IRQ on same core, however I think using critsec is about equivalent.
 }
 
-// #if CFG_TUD_ENABLED
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_device(struct hw_endpoint *ep) {
-  uint8_t const epnum = tu_edpt_number(ep->ep_addr);
-  const uint8_t dir   = (uint8_t)tu_edpt_dir(ep->ep_addr);
-  if (epnum == 0) {
-    // EP0 has no endpoint control register because the buffer offsets are fixed and always enabled
-    return NULL;
-  }
-  return (dir == TUSB_DIR_IN) ? &usb_dpram->ep_ctrl[epnum - 1].in : &usb_dpram->ep_ctrl[epnum - 1].out;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwbuf_ctrl_reg_device(struct hw_endpoint *ep) {
-  const uint8_t epnum = tu_edpt_number(ep->ep_addr);
-  const uint8_t dir   = (uint8_t)tu_edpt_dir(ep->ep_addr);
-  return (dir == TUSB_DIR_IN) ? &usb_dpram->ep_buf_ctrl[epnum].in : &usb_dpram->ep_buf_ctrl[epnum].out;
-}
-// #endif
-
-#if CFG_TUH_ENABLED
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_host(struct hw_endpoint *ep) {
-  if (tu_edpt_number(ep->ep_addr) == 0) {
-    return &usbh_dpram->epx_ctrl;
-  }
-  return &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwbuf_ctrl_reg_host(struct hw_endpoint *ep) {
-  if (tu_edpt_number(ep->ep_addr) == 0) {
-    return &usbh_dpram->epx_buf_ctrl;
-  }
-  return &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
-}
-#endif
-
 //--------------------------------------------------------------------+
-//
+// Hardware Buffer
 //--------------------------------------------------------------------+
+uint32_t hwbuf_prepare(struct hw_endpoint *ep, uint8_t buf_id, bool is_rx);
+uint16_t hwbuf_sync(hw_endpoint_t *ep, io_rw_32 *buf_ctrl_reg, uint8_t buf_id, bool is_rx);
+
 void hwbuf_ctrl_update(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask);
 
 TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_set(io_rw_32 *buf_ctrl_reg, uint32_t value) {

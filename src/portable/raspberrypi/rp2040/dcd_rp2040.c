@@ -69,6 +69,22 @@ TU_ATTR_ALWAYS_INLINE static inline hw_endpoint_t *hw_endpoint_get_by_addr(uint8
   return hw_endpoint_get(num, dir);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_device(struct hw_endpoint *ep) {
+  const uint8_t epnum = tu_edpt_number(ep->ep_addr);
+  const uint8_t dir   = (uint8_t)tu_edpt_dir(ep->ep_addr);
+  if (epnum == 0) {
+    // EP0 has no endpoint control register because the buffer offsets are fixed and always enabled
+    return NULL;
+  }
+  return (dir == TUSB_DIR_IN) ? &usb_dpram->ep_ctrl[epnum - 1].in : &usb_dpram->ep_ctrl[epnum - 1].out;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwbuf_ctrl_reg_device(struct hw_endpoint *ep) {
+  const uint8_t epnum = tu_edpt_number(ep->ep_addr);
+  const uint8_t dir   = (uint8_t)tu_edpt_dir(ep->ep_addr);
+  return (dir == TUSB_DIR_IN) ? &usb_dpram->ep_buf_ctrl[epnum].in : &usb_dpram->ep_buf_ctrl[epnum].out;
+}
+
 // main processing for dcd_edpt_iso_activate
 static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
   ep->ep_addr        = ep_addr;
@@ -170,7 +186,10 @@ static void __tusb_irq_path_func(handle_hw_buff_status)(void) {
       const tusb_dir_t dir   = (i & 1u) ? TUSB_DIR_OUT : TUSB_DIR_IN;
       hw_endpoint_t   *ep    = hw_endpoint_get(epnum, dir);
 
-      const bool done = hw_endpoint_xfer_continue(ep);
+      io_rw_32  *ep_reg  = hwep_ctrl_reg_device(ep);
+      io_rw_32  *buf_reg = hwbuf_ctrl_reg_device(ep);
+      const bool done    = hw_endpoint_xfer_continue(ep, ep_reg, buf_reg);
+
       if (done) {
         // Notify usbd
         const uint16_t xferred_len = ep->xferred_len;
@@ -232,7 +251,9 @@ static void __tusb_irq_path_func(dcd_rp2040_irq)(void) {
         hw_endpoint_lock_update(ep, 1);
         if (ep->pending) {
           ep->pending = 0;
-          hw_endpoint_start_next_buffer(ep);
+          io_rw_32 *ep_reg  = hwep_ctrl_reg_device(ep);
+          io_rw_32 *buf_reg = hwbuf_ctrl_reg_device(ep);
+          hw_endpoint_start_next_buffer(ep, ep_reg, buf_reg);
         }
         hw_endpoint_lock_update(ep, -1);
       }
@@ -501,7 +522,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   (void)rhport;
   (void)is_isr;
   hw_endpoint_t *ep = hw_endpoint_get_by_addr(ep_addr);
-  hw_endpoint_xfer_start(ep, buffer, NULL, total_bytes);
+  io_rw_32      *ep_reg  = hwep_ctrl_reg_device(ep);
+  io_rw_32      *buf_reg = hwbuf_ctrl_reg_device(ep);
+  hw_endpoint_xfer_start(ep, ep_reg, buf_reg, buffer, NULL, total_bytes);
   return true;
 }
 
@@ -509,7 +532,9 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
   (void)rhport;
   (void)is_isr;
   hw_endpoint_t *ep = hw_endpoint_get_by_addr(ep_addr);
-  hw_endpoint_xfer_start(ep, NULL, ff, total_bytes);
+  io_rw_32      *ep_reg  = hwep_ctrl_reg_device(ep);
+  io_rw_32      *buf_reg = hwbuf_ctrl_reg_device(ep);
+  hw_endpoint_xfer_start(ep, ep_reg, buf_reg, NULL, ff, total_bytes);
   return true;
 }
 
