@@ -223,9 +223,13 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
+  // Clear pending interrupts
+  // Normally no interrupts should be pending here since we just reset the core,
+  // but device mode suspend needs to cleared by WKUP flag
+  FSDEV_REG->ISTR = 0;
+
   // Enable interrupts for host mode
-  FSDEV_REG->CNTR |= USB_CNTR_RESETM | USB_CNTR_CTRM | USB_CNTR_SOFM | USB_CNTR_SUSPM |
-                     USB_CNTR_WKUPM | USB_CNTR_ERRM | USB_CNTR_PMAOVRM;
+  FSDEV_REG->CNTR |= USB_CNTR_DCON | USB_CNTR_CTRM | USB_CNTR_SOFM | USB_CNTR_ERRM | USB_CNTR_PMAOVRM;
 
   // Initialize port state
   _hcd_data.connected = false;
