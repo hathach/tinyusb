@@ -65,11 +65,18 @@ typedef struct hw_endpoint {
   uint8_t ep_addr;
   uint8_t next_pid;
   bool    active;       // transferring data
+  uint8_t pending;      // Transfer scheduled but not active
   bool    is_xfer_fifo; // transfer using fifo
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
   bool    e15_bulk_in; // Errata15 device bulk in
-  uint8_t pending;     // Transfer scheduled but not active
+#endif
+
+#if CFG_TUH_ENABLED
+  uint8_t dev_addr;
+  uint8_t interrupt_num; // 1-15 for interrupt endpoints
+  uint8_t transfer_type;
+  bool    need_pre;      // need preamble for low speed device behind full speed hub
 #endif
 
   uint16_t max_packet_size; // max packet size also indicates configured
@@ -84,15 +91,6 @@ typedef struct hw_endpoint {
   uint16_t xferred_len;
 
 } hw_endpoint_t;
-
-// Host controller endpoint
-typedef struct {
-  hw_endpoint_t hwep;
-  uint8_t       dev_addr;
-  uint8_t       interrupt_num; // 1-15 for interrupt endpoints
-  uint8_t       transfer_type;
-  bool          need_pre;      // need preamble for low speed device behind full speed hub
-} hcd_endpoint_t;
 
 #if TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
 extern volatile uint32_t e15_last_sof;

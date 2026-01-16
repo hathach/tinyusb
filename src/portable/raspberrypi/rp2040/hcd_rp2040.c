@@ -48,8 +48,8 @@
 //--------------------------------------------------------------------+
 
 // Host mode uses one shared endpoint register for non-interrupt endpoint
-static hcd_endpoint_t  ep_pool[USB_MAX_ENDPOINTS];
-static hcd_endpoint_t *epx = &ep_pool[0]; // current active endpoint
+static hw_endpoint_t  ep_pool[USB_MAX_ENDPOINTS];
+static hw_endpoint_t *epx = &ep_pool[0]; // current active endpoint
 
 // Flags we set by default in sie_ctrl (we add other bits on top)
 enum {
@@ -68,21 +68,21 @@ enum {
 //
 //--------------------------------------------------------------------+
 
-static hcd_endpoint_t *edpt_alloc(void) {
+static hw_endpoint_t *edpt_alloc(void) {
   for (uint i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
-    hcd_endpoint_t *ep = &ep_pool[i];
-    if (ep->hwep.max_packet_size == 0) {
+    hw_endpoint_t *ep = &ep_pool[i];
+    if (ep->max_packet_size == 0) {
       return ep;
     }
   }
   return NULL;
 }
 
-static hcd_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
+static hw_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
   for (uint32_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
-    hcd_endpoint_t *ep = &ep_pool[i];
-    if ((ep->dev_addr == daddr) && (ep->hwep.max_packet_size > 0) &&
-        (ep->hwep.ep_addr == ep_addr || (tu_edpt_number(ep_addr) == 0 && tu_edpt_number(ep->hwep.ep_addr) == 0))) {
+    hw_endpoint_t *ep = &ep_pool[i];
+    if ((ep->dev_addr == daddr) && (ep->max_packet_size > 0) &&
+        (ep->ep_addr == ep_addr || (tu_edpt_number(ep_addr) == 0 && tu_edpt_number(ep->ep_addr) == 0))) {
       return ep;
     }
   }
@@ -90,7 +90,7 @@ static hcd_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
   return NULL;
 }
 
-// static hcd_endpoint_t* epdt_find_interrupt(uint8_t )
+// static hw_endpoint_t* epdt_find_interrupt(uint8_t )
 
 //--------------------------------------------------------------------+
 //
@@ -106,17 +106,17 @@ TU_ATTR_ALWAYS_INLINE static inline bool need_pre(uint8_t dev_addr) {
   return hcd_port_speed_get(0) != tuh_speed_get(dev_addr);
 }
 
-static void __tusb_irq_path_func(hw_xfer_complete)(hcd_endpoint_t *ep, xfer_result_t xfer_result) {
+static void __tusb_irq_path_func(hw_xfer_complete)(hw_endpoint_t *ep, xfer_result_t xfer_result) {
   // Mark transfer as done before we tell the tinyusb stack
   uint8_t dev_addr    = ep->dev_addr;
-  uint8_t ep_addr     = ep->hwep.ep_addr;
-  uint    xferred_len = ep->hwep.xferred_len;
-  hw_endpoint_reset_transfer(&ep->hwep);
+  uint8_t ep_addr     = ep->ep_addr;
+  uint    xferred_len = ep->xferred_len;
+  hw_endpoint_reset_transfer(ep);
   hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
-static void __tusb_irq_path_func(handle_hwbuf_status_bit)(hcd_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg) {
-  const bool done = hw_endpoint_xfer_continue(&ep->hwep, ep_reg, buf_reg);
+static void __tusb_irq_path_func(handle_hwbuf_status_bit)(hw_endpoint_t *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg) {
+  const bool done = hw_endpoint_xfer_continue(ep, ep_reg, buf_reg);
   if (done) {
     hw_xfer_complete(ep, XFER_RESULT_SUCCESS);
   }
@@ -151,7 +151,7 @@ static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
         usb_hw_clear->buf_status = bit;
 
         for (uint8_t e = 0; e < USB_MAX_ENDPOINTS; e++) {
-          hcd_endpoint_t *ep = &ep_pool[e];
+          hw_endpoint_t *ep = &ep_pool[e];
           if (ep->interrupt_num == i) {
             io_rw_32 *ep_reg  = &usbh_dpram->int_ep_ctrl[ep->interrupt_num - 1].ctrl;
             io_rw_32 *buf_reg = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num - 1].ctrl;
@@ -168,7 +168,7 @@ static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
   }
 }
 
-//
+// All non-interrupt endpoints use shared EPX.
 // static void edpt_scheduler(void) {
 // }
 
@@ -208,7 +208,7 @@ static void __tusb_irq_path_func(hcd_rp2040_irq)(void) {
 
     // only handle setup packet
     if (usb_hw->sie_ctrl & USB_SIE_CTRL_SEND_SETUP_BITS) {
-      epx->hwep.xferred_len = 8;
+      epx->xferred_len = 8;
       hw_xfer_complete(epx, XFER_RESULT_SUCCESS);
     } else {
       // Don't care. Will handle this in buff status
@@ -231,21 +231,21 @@ void __tusb_irq_path_func(hcd_int_handler)(uint8_t rhport, bool in_isr) {
   hcd_rp2040_irq();
 }
 
-static void hw_endpoint_init(hcd_endpoint_t *ep, uint8_t dev_addr, const tusb_desc_endpoint_t *ep_desc) {
+static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t dev_addr, const tusb_desc_endpoint_t *ep_desc) {
   const uint8_t    ep_addr        = ep_desc->bEndpointAddress;
   const uint16_t   wMaxPacketSize = tu_edpt_packet_size(ep_desc);
   const uint8_t    transfer_type  = ep_desc->bmAttributes.xfer;
   // const uint8_t    bmInterval     = ep_desc->bInterval;
 
-  ep->hwep.max_packet_size = wMaxPacketSize;
-  ep->hwep.ep_addr        = ep_addr;
+  ep->max_packet_size = wMaxPacketSize;
+  ep->ep_addr        = ep_addr;
   ep->dev_addr            = dev_addr;
   ep->transfer_type       = transfer_type;
   ep->need_pre            = need_pre(dev_addr);
-  ep->hwep.next_pid       = 0u;
+  ep->next_pid       = 0u;
 
   if (transfer_type != TUSB_XFER_INTERRUPT) {
-    ep->hwep.dpram_buf = usbh_dpram->epx_data;
+    ep->dpram_buf = usbh_dpram->epx_data;
   } else {
     // from 15 interrupt endpoints pool
     uint8_t int_idx;
@@ -260,9 +260,9 @@ static void hw_endpoint_init(hcd_endpoint_t *ep, uint8_t dev_addr, const tusb_de
 
     //------------- dpram buf -------------//
     // 15x64 last bytes of DPRAM for interrupt endpoint buffers
-    ep->hwep.dpram_buf = (uint8_t *)(USBCTRL_DPRAM_BASE + USB_DPRAM_MAX - (int_idx + 1u) * 64u);
+    ep->dpram_buf = (uint8_t *)(USBCTRL_DPRAM_BASE + USB_DPRAM_MAX - (int_idx + 1u) * 64u);
     uint32_t ep_ctrl     = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
-                       (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->hwep.dpram_buf) |
+                       (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->dpram_buf) |
                        (uint32_t)((ep_desc->bInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
     usbh_dpram->int_ep_ctrl[int_idx].ctrl = ep_ctrl;
 
@@ -359,16 +359,16 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   (void)dev_addr;
 
   // reset epx if it is currently active with unplugged device
-  if (epx->hwep.max_packet_size > 0 && epx->dev_addr == dev_addr) {
-    // if (epx->hwep.active) {
+  if (epx->max_packet_size > 0 && epx->dev_addr == dev_addr) {
+    // if (epx->active) {
     //   // need to abort transfer
     // }
-    epx->hwep.max_packet_size = 0;
+    epx->max_packet_size = 0;
   }
 
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
-    hcd_endpoint_t *ep = &ep_pool[i];
-    if (ep->dev_addr == dev_addr && ep->hwep.max_packet_size > 0) {
+    hw_endpoint_t *ep = &ep_pool[i];
+    if (ep->dev_addr == dev_addr && ep->max_packet_size > 0) {
       if (ep->interrupt_num) {
         // disable interrupt endpoint
         usb_hw_clear->int_ep_ctrl                       = 1u << ep->interrupt_num;
@@ -378,7 +378,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
         usbh_dpram->int_ep_ctrl[ep->interrupt_num - 1].ctrl        = 0;
       }
 
-      ep->hwep.max_packet_size = 0; // mark as unused
+      ep->max_packet_size = 0; // mark as unused
     }
   }
 }
@@ -405,7 +405,7 @@ void hcd_int_disable(uint8_t rhport) {
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t *ep_desc) {
   (void)rhport;
   pico_trace("hcd_edpt_open dev_addr %d, ep_addr %d\n", dev_addr, ep_desc->bEndpointAddress);
-  hcd_endpoint_t *ep = edpt_alloc();
+  hw_endpoint_t *ep = edpt_alloc();
   TU_ASSERT(ep);
   hw_endpoint_init(ep, dev_addr, ep_desc);
 
@@ -431,26 +431,26 @@ TU_ATTR_ALWAYS_INLINE static inline void sie_start_xfer(uint32_t value) {
 }
 
 // xfer using epx
-static void edpt_xfer(hcd_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
+static void edpt_xfer(hw_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
   if (ep->transfer_type == TUSB_XFER_INTERRUPT) {
     // For interrupt endpoint control and buffer is already configured
     // Note: Interrupt is single buffered only
     io_rw_32 *ep_reg  = &usbh_dpram->int_ep_ctrl[ep->interrupt_num - 1].ctrl;
     io_rw_32 *buf_reg = &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num - 1].ctrl;
-    hw_endpoint_xfer_start(&ep->hwep, ep_reg, buf_reg, buffer, ff, total_len);
+    hw_endpoint_xfer_start(ep, ep_reg, buf_reg, buffer, ff, total_len);
   } else {
-    const uint8_t    ep_num = tu_edpt_number(ep->hwep.ep_addr);
-    const tusb_dir_t ep_dir = tu_edpt_dir(ep->hwep.ep_addr);
+    const uint8_t    ep_num = tu_edpt_number(ep->ep_addr);
+    const tusb_dir_t ep_dir = tu_edpt_dir(ep->ep_addr);
 
     // ep control
-    const uint32_t dpram_offset = hw_data_offset(ep->hwep.dpram_buf);
+    const uint32_t dpram_offset = hw_data_offset(ep->dpram_buf);
     const uint32_t ep_ctrl      = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
                              ((uint32_t)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
     usbh_dpram->epx_ctrl = ep_ctrl;
 
     io_rw_32 *ep_reg  = &usbh_dpram->epx_ctrl;
     io_rw_32 *buf_reg = &usbh_dpram->epx_buf_ctrl;
-    hw_endpoint_xfer_start(&ep->hwep, ep_reg, buf_reg, buffer, ff, total_len);
+    hw_endpoint_xfer_start(ep, ep_reg, buf_reg, buffer, ff, total_len);
 
     // addr control
     usb_hw->dev_addr_ctrl = (uint32_t)(ep->dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
@@ -467,13 +467,13 @@ static void edpt_xfer(hcd_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
   (void)rhport;
 
-  hcd_endpoint_t *ep = edpt_find(dev_addr, ep_addr);
+  hw_endpoint_t *ep = edpt_find(dev_addr, ep_addr);
   TU_ASSERT(ep);
 
   // Control endpoint can change direction 0x00 <-> 0x80
-  if (ep_addr != ep->hwep.ep_addr) {
-    ep->hwep.ep_addr  = ep_addr;
-    ep->hwep.next_pid = 1; // data and status stage start with DATA1
+  if (ep_addr != ep->ep_addr) {
+    ep->ep_addr  = ep_addr;
+    ep->next_pid = 1; // data and status stage start with DATA1
   }
 
   edpt_xfer(ep, buffer, NULL, buflen);
@@ -497,13 +497,13 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, const uint8_t setup_packet
     usbh_dpram->setup_packet[i] = setup_packet[i];
   }
 
-  hcd_endpoint_t *ep = edpt_find(dev_addr, 0x00);
+  hw_endpoint_t *ep = edpt_find(dev_addr, 0x00);
   TU_ASSERT(ep);
 
-  ep->hwep.ep_addr       = 0; // setup is OUT
-  ep->hwep.remaining_len = 8;
-  ep->hwep.xferred_len   = 0;
-  ep->hwep.active        = true;
+  ep->ep_addr       = 0; // setup is OUT
+  ep->remaining_len = 8;
+  ep->xferred_len   = 0;
+  ep->active        = true;
 
   epx = ep;
 
