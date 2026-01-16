@@ -252,12 +252,12 @@ static void hw_endpoint_init(hcd_endpoint_t *ep, uint8_t dev_addr, const tusb_de
   const uint8_t    transfer_type  = ep_desc->bmAttributes.xfer;
   // const uint8_t    bmInterval     = ep_desc->bInterval;
 
+  ep->hwep.wMaxPacketSize = wMaxPacketSize;
   ep->hwep.ep_addr        = ep_addr;
   ep->dev_addr            = dev_addr;
   ep->transfer_type       = transfer_type;
   ep->need_pre            = need_pre(dev_addr);
   ep->hwep.next_pid       = 0u;
-  ep->hwep.wMaxPacketSize = wMaxPacketSize;
 
   if (transfer_type != TUSB_XFER_INTERRUPT) {
     ep->hwep.hw_data_buf = usbh_dpram->epx_data;
@@ -293,49 +293,8 @@ static void hw_endpoint_init(hcd_endpoint_t *ep, uint8_t dev_addr, const tusb_de
     usb_hw->int_ep_addr_ctrl[int_idx] = addr_ctrl;
 
     // Finally, activate interrupt endpoint
-    usb_hw_set->int_ep_ctrl |= 1u << ep->interrupt_num;
+    usb_hw_set->int_ep_ctrl = 1u << ep->interrupt_num;
   }
-  #if 0
-  pico_trace("hw_endpoint_init dev %d ep %02X xfer %d\n", ep->dev_addr, ep->hwep.ep_addr, transfer_type);
-  pico_trace("dev %d ep %02X setup buffer @ 0x%p\n", ep->dev_addr, ep->hwep.ep_addr, ep->hwep.hw_data_buf);
-  uint dpram_offset = hw_data_offset(ep->hwep.hw_data_buf);
-  // Bits 0-5 should be 0
-  assert(!(dpram_offset & 0b111111));
-
-  // Fill in endpoint control register with buffer offset
-  uint32_t ctrl_value = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
-                        ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
-  if (bmInterval) {
-    ctrl_value |= (uint32_t)((bmInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
-  }
-
-  io_rw_32 *ctrl_reg = hwep_ctrl_reg_host(ep);
-  *ctrl_reg          = ctrl_value;
-  pico_trace("endpoint control (0x%p) <- 0x%lx\n", ctrl_reg, ctrl_value);
-
-  if (ep != &epx) {
-    // Endpoint has its own addr_endp and interrupt bits to be setup!
-    // This is an interrupt/async endpoint. so need to set up ADDR_ENDP register with:
-    // - device address
-    // - endpoint number / direction
-    // - preamble
-    uint32_t reg = (uint32_t)(dev_addr | (num << USB_ADDR_ENDP1_ENDPOINT_LSB));
-
-    if (dir == TUSB_DIR_OUT) {
-      reg |= USB_ADDR_ENDP1_INTEP_DIR_BITS;
-    }
-
-    if (need_pre(dev_addr)) {
-      reg |= USB_ADDR_ENDP1_INTEP_PREAMBLE_BITS;
-    }
-    usb_hw->int_ep_addr_ctrl[ep->interrupt_num] = reg;
-
-    // Finally, enable interrupt that endpoint
-    usb_hw_set->int_ep_ctrl = 1 << (ep->interrupt_num + 1);
-
-    // If it's an interrupt endpoint we need to set up the buffer control register
-  }
-  #endif
 }
 
 //--------------------------------------------------------------------+
@@ -414,33 +373,29 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   (void)rhport;
   (void)dev_addr;
 
-  #if 0
   // reset epx if it is currently active with unplugged device
-  if (epx.hw_ep.wMaxPacketSize > 0 && epx.hw_ep.active && epx.dev_addr == dev_addr) {
-    epx.hw_ep.wMaxPacketSize   = 0;
-    *hwep_ctrl_reg_host(&epx)  = 0;
-    *hwbuf_ctrl_reg_host(&epx) = 0;
-    hw_endpoint_reset_transfer(&epx.hw_ep);
+  if (epx->hwep.wMaxPacketSize > 0 && epx->dev_addr == dev_addr) {
+    // if (epx->hwep.active) {
+    //   // need to abort transfer
+    // }
+    epx->hwep.wMaxPacketSize = 0;
   }
 
-  // dev0 only has ep0
-  if (dev_addr != 0) {
-    for (size_t i = 1; i < TU_ARRAY_SIZE(ep_pool); i++) {
-      hcd_endpoint_t *ep = &ep_pool[i];
-      if (ep->dev_addr == dev_addr && ep->hwep.wMaxPacketSize > 0) {
-        // in case it is an interrupt endpoint, disable it
-        usb_hw_clear->int_ep_ctrl = (1 << (ep->interrupt_num + 1));
-        usb_hw->int_ep_addr_ctrl[ep->interrupt_num] = 0;
+  for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
+    hcd_endpoint_t *ep = &ep_pool[i];
+    if (ep->dev_addr == dev_addr && ep->hwep.wMaxPacketSize > 0) {
+      if (ep->interrupt_num) {
+        // disable interrupt endpoint
+        usb_hw_clear->int_ep_ctrl                       = 1u << ep->interrupt_num;
+        usb_hw->int_ep_addr_ctrl[ep->interrupt_num - 1] = 0;
 
-        // unconfigure the endpoint
-        ep->hwep.wMaxPacketSize = 0;
-        *hwep_ctrl_reg_host(ep)  = 0;
-        *hwbuf_ctrl_reg_host(ep) = 0;
-        hw_endpoint_reset_transfer(&ep->hwep);
+        usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num - 1].ctrl = 0;
+        usbh_dpram->int_ep_ctrl[ep->interrupt_num - 1].ctrl        = 0;
       }
+
+      ep->hwep.wMaxPacketSize = 0; // mark as unused
     }
   }
-  #endif
 }
 
 uint32_t hcd_frame_number(uint8_t rhport) {
@@ -491,7 +446,7 @@ TU_ATTR_ALWAYS_INLINE static inline void sie_start_xfer(uint32_t value) {
 }
 
 // xfer using epx
-static bool edpt_xfer(hcd_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
+static void edpt_xfer(hcd_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16_t total_len) {
   if (ep->transfer_type == TUSB_XFER_INTERRUPT) {
     // For interrupt endpoint control and buffer is already configured
     // Note: Interrupt is single buffered only
@@ -522,8 +477,6 @@ static bool edpt_xfer(hcd_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16
                               (ep->need_pre ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
     sie_start_xfer(sie_ctrl);
   }
-
-  return true;
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
@@ -539,42 +492,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *b
   }
 
   edpt_xfer(ep, buffer, NULL, buflen);
-
-  #if 0
-  // EP should be inactive
-  // assert(!ep->active);
-
-  // Control endpoint can change direction 0x00 <-> 0x80
-  if (ep_addr != ep->ep_addr) {
-    assert(ep_num == 0);
-
-    // Direction has flipped on endpoint control so re init it but with same properties
-    hw_endpoint_init(ep, dev_addr, ep_addr, ep->wMaxPacketSize, TUSB_XFER_CONTROL, 0);
-  }
-
-  // If a normal transfer (non-interrupt) then initiate using
-  // sie ctrl registers. Otherwise, interrupt ep registers should
-  // already be configured
-  if (ep == &epx) {
-    hw_endpoint_xfer_start(ep, buffer, NULL, buflen);
-
-    // That has set up buffer control, endpoint control etc
-    // for host we have to initiate the transfer
-    usb_hw->dev_addr_ctrl = (uint32_t) (dev_addr | (ep_num << USB_ADDR_ENDP_ENDPOINT_LSB));
-
-    uint32_t flags = USB_SIE_CTRL_START_TRANS_BITS | SIE_CTRL_BASE |
-                     (ep_dir ? USB_SIE_CTRL_RECEIVE_DATA_BITS : USB_SIE_CTRL_SEND_DATA_BITS) |
-                     (need_pre(dev_addr) ? USB_SIE_CTRL_PREAMBLE_EN_BITS : 0);
-    // START_TRANS bit on SIE_CTRL seems to exhibit the same behavior as the AVAILABLE bit
-    // described in RP2040 Datasheet, release 2.1, section "4.1.2.5.1. Concurrent access".
-    // We write everything except the START_TRANS bit first, then wait some cycles.
-    usb_hw->sie_ctrl = flags & ~USB_SIE_CTRL_START_TRANS_BITS;
-    busy_wait_at_least_cycles(12);
-    usb_hw->sie_ctrl = flags;
-  } else {
-    hw_endpoint_xfer_start(ep, buffer, NULL, buflen);
-  }
-  #endif
 
   return true;
 }
