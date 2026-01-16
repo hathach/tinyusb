@@ -125,8 +125,8 @@ void __tusb_irq_path_func(hwbuf_ctrl_update)(io_rw_32 *buf_ctrl_reg, uint32_t an
 }
 
 // prepare buffer, move data if tx, return buffer control
-uint32_t __tusb_irq_path_func(hwbuf_prepare)(struct hw_endpoint *ep, uint8_t buf_id, bool is_rx) {
-  const uint16_t buflen = tu_min16(ep->remaining_len, ep->wMaxPacketSize);
+static uint32_t __tusb_irq_path_func(hwbuf_prepare)(struct hw_endpoint *ep, uint8_t buf_id, bool is_rx) {
+  const uint16_t buflen = tu_min16(ep->remaining_len, ep->max_packet_size);
   ep->remaining_len = (uint16_t) (ep->remaining_len - buflen);
 
   uint32_t buf_ctrl = buflen | USB_BUF_CTRL_AVAIL;
@@ -138,7 +138,7 @@ uint32_t __tusb_irq_path_func(hwbuf_prepare)(struct hw_endpoint *ep, uint8_t buf
   if (!is_rx) {
     if (buflen) {
       // Copy data from user buffer/fifo to hw buffer
-      uint8_t *hw_buf = ep->hw_data_buf + buf_id * 64;
+      uint8_t *hw_buf = ep->dpram_buf + buf_id * 64;
       if (ep->is_xfer_fifo) {
         // not in sram, may mess up timing with E15 workaround
         tu_hwfifo_write_from_fifo(hw_buf, ep->user_fifo, buflen, NULL);
@@ -257,7 +257,8 @@ void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *
 }
 
 // sync endpoint buffer and return transferred bytes
-uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, io_rw_32 *buf_ctrl_reg, uint8_t buf_id, bool is_rx) {
+static uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, io_rw_32 *buf_ctrl_reg, uint8_t buf_id,
+                                                 bool is_rx) {
   uint32_t buf_ctrl = *buf_ctrl_reg;
   if (buf_id) {
     buf_ctrl = buf_ctrl >> 16;
@@ -274,7 +275,7 @@ uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, io_rw_32 *buf_ctrl_
     // we have received AFTER we have copied it to the user buffer at the appropriate offset
     assert(buf_ctrl & USB_BUF_CTRL_FULL);
 
-    uint8_t *hw_buf = ep->hw_data_buf + buf_id * 64;
+    uint8_t *hw_buf = ep->dpram_buf + buf_id * 64;
     if (ep->is_xfer_fifo) {
       // not in sram, may mess up timing with E15 workaround
       tu_hwfifo_read_to_fifo(hw_buf, ep->user_fifo, xferred_bytes, NULL);
@@ -286,7 +287,7 @@ uint16_t __tusb_irq_path_func(hwbuf_sync)(hw_endpoint_t *ep, io_rw_32 *buf_ctrl_
   ep->xferred_len += xferred_bytes;
 
   // Short packet
-  if (xferred_bytes < ep->wMaxPacketSize) {
+  if (xferred_bytes < ep->max_packet_size) {
     // Reduce total length as this is last packet
     ep->remaining_len = 0;
   }
@@ -312,7 +313,7 @@ static void __tusb_irq_path_func(sync_xfer)(hw_endpoint_t *ep, io_rw_32 *ep_reg,
 
   // sync buffer 1 if double buffered
   if (ep_reg != NULL && (*ep_reg) & EP_CTRL_DOUBLE_BUFFERED_BITS) {
-    if (buf0_bytes == ep->wMaxPacketSize) {
+    if (buf0_bytes == ep->max_packet_size) {
       // sync buffer 1 if not short packet
       hwbuf_sync(ep, buf_reg, 1, is_rx);
     } else {

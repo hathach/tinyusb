@@ -72,8 +72,8 @@ typedef struct hw_endpoint {
   uint8_t pending;     // Transfer scheduled but not active
 #endif
 
-  uint16_t wMaxPacketSize; // max packet size also indicates configured
-  uint8_t *hw_data_buf; // Buffer pointer in usb dpram
+  uint16_t max_packet_size; // max packet size also indicates configured
+  uint8_t *dpram_buf;       // Buffer pointer in usb dpram
 
   // transfer info
   union {
@@ -111,8 +111,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool rp2usb_is_host_mode(void) {
 void hw_endpoint_xfer_start(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg, uint8_t *buffer, tu_fifo_t *ff,
                             uint16_t total_len);
 bool hw_endpoint_xfer_continue(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
-void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 void hw_endpoint_start_next_buffer(struct hw_endpoint *ep, io_rw_32 *ep_reg, io_rw_32 *buf_reg);
+void hw_endpoint_reset_transfer(struct hw_endpoint *ep);
 
 TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct hw_endpoint * ep, __unused int delta) {
   // todo add critsec as necessary to prevent issues between worker and IRQ...
@@ -123,9 +123,6 @@ TU_ATTR_ALWAYS_INLINE static inline void hw_endpoint_lock_update(__unused struct
 //--------------------------------------------------------------------+
 // Hardware Buffer
 //--------------------------------------------------------------------+
-uint32_t hwbuf_prepare(struct hw_endpoint *ep, uint8_t buf_id, bool is_rx);
-uint16_t hwbuf_sync(hw_endpoint_t *ep, io_rw_32 *buf_ctrl_reg, uint8_t buf_id, bool is_rx);
-
 void hwbuf_ctrl_update(io_rw_32 *buf_ctrl_reg, uint32_t and_mask, uint32_t or_mask);
 
 TU_ATTR_ALWAYS_INLINE static inline void hwbuf_ctrl_set(io_rw_32 *buf_ctrl_reg, uint32_t value) {

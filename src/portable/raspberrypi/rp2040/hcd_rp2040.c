@@ -71,7 +71,7 @@ enum {
 static hcd_endpoint_t *edpt_alloc(void) {
   for (uint i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hcd_endpoint_t *ep = &ep_pool[i];
-    if (ep->hwep.wMaxPacketSize == 0) {
+    if (ep->hwep.max_packet_size == 0) {
       return ep;
     }
   }
@@ -81,7 +81,7 @@ static hcd_endpoint_t *edpt_alloc(void) {
 static hcd_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
   for (uint32_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hcd_endpoint_t *ep = &ep_pool[i];
-    if ((ep->dev_addr == daddr) && (ep->hwep.wMaxPacketSize > 0) &&
+    if ((ep->dev_addr == daddr) && (ep->hwep.max_packet_size > 0) &&
         (ep->hwep.ep_addr == ep_addr || (tu_edpt_number(ep_addr) == 0 && tu_edpt_number(ep->hwep.ep_addr) == 0))) {
       return ep;
     }
@@ -184,6 +184,7 @@ static void __tusb_irq_path_func(handle_hwbuf_status)(void) {
   }
 }
 
+//
 // static void edpt_scheduler(void) {
 // }
 
@@ -252,7 +253,7 @@ static void hw_endpoint_init(hcd_endpoint_t *ep, uint8_t dev_addr, const tusb_de
   const uint8_t    transfer_type  = ep_desc->bmAttributes.xfer;
   // const uint8_t    bmInterval     = ep_desc->bInterval;
 
-  ep->hwep.wMaxPacketSize = wMaxPacketSize;
+  ep->hwep.max_packet_size = wMaxPacketSize;
   ep->hwep.ep_addr        = ep_addr;
   ep->dev_addr            = dev_addr;
   ep->transfer_type       = transfer_type;
@@ -260,7 +261,7 @@ static void hw_endpoint_init(hcd_endpoint_t *ep, uint8_t dev_addr, const tusb_de
   ep->hwep.next_pid       = 0u;
 
   if (transfer_type != TUSB_XFER_INTERRUPT) {
-    ep->hwep.hw_data_buf = usbh_dpram->epx_data;
+    ep->hwep.dpram_buf = usbh_dpram->epx_data;
   } else {
     // from 15 interrupt endpoints pool
     uint8_t int_idx;
@@ -275,9 +276,9 @@ static void hw_endpoint_init(hcd_endpoint_t *ep, uint8_t dev_addr, const tusb_de
 
     //------------- dpram buf -------------//
     // 15x64 last bytes of DPRAM for interrupt endpoint buffers
-    ep->hwep.hw_data_buf = (uint8_t *)(USBCTRL_DPRAM_BASE + USB_DPRAM_MAX - (int_idx + 1u) * 64u);
+    ep->hwep.dpram_buf = (uint8_t *)(USBCTRL_DPRAM_BASE + USB_DPRAM_MAX - (int_idx + 1u) * 64u);
     uint32_t ep_ctrl     = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
-                       (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->hwep.hw_data_buf) |
+                       (TUSB_XFER_INTERRUPT << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->hwep.dpram_buf) |
                        (uint32_t)((ep_desc->bInterval - 1) << EP_CTRL_HOST_INTERRUPT_INTERVAL_LSB);
     usbh_dpram->int_ep_ctrl[int_idx].ctrl = ep_ctrl;
 
@@ -374,16 +375,16 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   (void)dev_addr;
 
   // reset epx if it is currently active with unplugged device
-  if (epx->hwep.wMaxPacketSize > 0 && epx->dev_addr == dev_addr) {
+  if (epx->hwep.max_packet_size > 0 && epx->dev_addr == dev_addr) {
     // if (epx->hwep.active) {
     //   // need to abort transfer
     // }
-    epx->hwep.wMaxPacketSize = 0;
+    epx->hwep.max_packet_size = 0;
   }
 
   for (size_t i = 0; i < TU_ARRAY_SIZE(ep_pool); i++) {
     hcd_endpoint_t *ep = &ep_pool[i];
-    if (ep->dev_addr == dev_addr && ep->hwep.wMaxPacketSize > 0) {
+    if (ep->dev_addr == dev_addr && ep->hwep.max_packet_size > 0) {
       if (ep->interrupt_num) {
         // disable interrupt endpoint
         usb_hw_clear->int_ep_ctrl                       = 1u << ep->interrupt_num;
@@ -393,7 +394,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
         usbh_dpram->int_ep_ctrl[ep->interrupt_num - 1].ctrl        = 0;
       }
 
-      ep->hwep.wMaxPacketSize = 0; // mark as unused
+      ep->hwep.max_packet_size = 0; // mark as unused
     }
   }
 }
@@ -458,7 +459,7 @@ static void edpt_xfer(hcd_endpoint_t *ep, uint8_t *buffer, tu_fifo_t *ff, uint16
     const tusb_dir_t ep_dir = tu_edpt_dir(ep->hwep.ep_addr);
 
     // ep control
-    const uint32_t dpram_offset = hw_data_offset(ep->hwep.hw_data_buf);
+    const uint32_t dpram_offset = hw_data_offset(ep->hwep.dpram_buf);
     const uint32_t ep_ctrl      = EP_CTRL_ENABLE_BITS | EP_CTRL_INTERRUPT_PER_BUFFER |
                              ((uint32_t)ep->transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | dpram_offset;
     usbh_dpram->epx_ctrl = ep_ctrl;

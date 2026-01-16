@@ -89,7 +89,7 @@ TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwbuf_ctrl_reg_device(struct hw_en
 static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPacketSize, uint8_t transfer_type) {
   ep->ep_addr        = ep_addr;
   ep->next_pid       = 0u;
-  ep->wMaxPacketSize = wMaxPacketSize;
+  ep->max_packet_size = wMaxPacketSize;
 
   // Clear existing buffer control state
   io_rw_32 *buf_ctrl_reg = hwbuf_ctrl_reg_device(ep);
@@ -99,7 +99,7 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPa
   const uint8_t epnum = tu_edpt_number(ep_addr);
   if (epnum == 0) {
     // Buffer offset is fixed (also double buffered)
-    ep->hw_data_buf = (uint8_t*) &usb_dpram->ep0_buf_a[0];
+    ep->dpram_buf = (uint8_t *)&usb_dpram->ep0_buf_a[0];
   } else {
     // round up size to multiple of 64
     uint16_t size = (uint16_t)tu_round_up(wMaxPacketSize, 64);
@@ -116,11 +116,11 @@ static void hw_endpoint_init(hw_endpoint_t *ep, uint8_t ep_addr, uint16_t wMaxPa
     }
 
     // assign buffer
-    ep->hw_data_buf = hw_buffer_ptr;
+    ep->dpram_buf = hw_buffer_ptr;
     hw_buffer_ptr += size;
 
     hard_assert(hw_buffer_ptr < usb_dpram->epx_data + sizeof(usb_dpram->epx_data));
-    pico_info("  Allocated %d bytes (0x%p)\r\n", size, ep->hw_data_buf);
+    pico_info("  Allocated %d bytes (0x%p)\r\n", size, ep->dpram_buf);
   }
 }
 
@@ -129,7 +129,7 @@ static void hw_endpoint_enable(hw_endpoint_t *ep, uint8_t transfer_type) {
   // Set endpoint control register to enable (EP0 has no endpoint control register)
   if (ctrl_reg != NULL) {
     const uint32_t ctrl_value =
-      EP_CTRL_ENABLE_BITS | ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->hw_data_buf);
+      EP_CTRL_ENABLE_BITS | ((uint32_t)transfer_type << EP_CTRL_BUFFER_TYPE_LSB) | hw_data_offset(ep->dpram_buf);
     *ctrl_reg = ctrl_value;
   }
 }
@@ -501,12 +501,12 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *ep_desc) 
   const uint8_t       epnum = tu_edpt_number(ep_desc->bEndpointAddress);
   const tusb_dir_t    dir   = tu_edpt_dir(ep_desc->bEndpointAddress);
   struct hw_endpoint *ep    = hw_endpoint_get(epnum, dir);
-  TU_ASSERT(ep->hw_data_buf != NULL); // must be inited and allocated previously
+  TU_ASSERT(ep->dpram_buf != NULL); // must be inited and allocated previously
 
   if (ep->active) {
     hw_endpoint_abort_xfer(ep); // abort any pending transfer
   }
-  ep->wMaxPacketSize = ep_desc->wMaxPacketSize;
+  ep->max_packet_size = ep_desc->wMaxPacketSize;
 
   hw_endpoint_enable(ep, TUSB_XFER_ISOCHRONOUS);
   return true;
