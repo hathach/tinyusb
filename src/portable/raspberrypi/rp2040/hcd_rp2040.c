@@ -92,22 +92,6 @@ static hcd_endpoint_t *edpt_find(uint8_t daddr, uint8_t ep_addr) {
 
 // static hcd_endpoint_t* epdt_find_interrupt(uint8_t )
 
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwep_ctrl_reg_host(hw_endpoint_t *ep) {
-  if (tu_edpt_number(ep->ep_addr) == 0) {
-    return &usbh_dpram->epx_ctrl;
-  }
-  // return &usbh_dpram->int_ep_ctrl[ep->interrupt_num].ctrl;
-  return NULL;
-}
-
-TU_ATTR_ALWAYS_INLINE static inline io_rw_32 *hwbuf_ctrl_reg_host(hw_endpoint_t *ep) {
-  if (tu_edpt_number(ep->ep_addr) == 0) {
-    return &usbh_dpram->epx_buf_ctrl;
-  }
-  // return &usbh_dpram->int_ep_buffer_ctrl[ep->interrupt_num].ctrl;
-  return NULL;
-}
-
 //--------------------------------------------------------------------+
 //
 //--------------------------------------------------------------------+
