@@ -32,12 +32,6 @@
 #define MUSB_DEBUG 2
 #define MUSB_REGS(rhport)   ((musb_regs_t*) MUSB_BASES[rhport])
 
-#if __GNUC__ > 8 && defined(__ARM_FEATURE_UNALIGNED)
-/* GCC warns that an address may be unaligned, even though
- * the target CPU has the capability for unaligned memory access. */
-_Pragma("GCC diagnostic ignored \"-Waddress-of-packed-member\"");
-#endif
-
 #include "musb_type.h"
 #include "device/dcd.h"
 
@@ -73,7 +67,10 @@ typedef struct TU_ATTR_PACKED
 
 typedef struct
 {
-  tusb_control_request_t setup_packet;
+  union {
+    tusb_control_request_t setup_packet;
+    uint32_t setup_buffer[2];
+  };
   uint16_t     remaining_ctrl; /* The number of bytes remaining in data stage of control transfer. */
   int8_t       status_out;
   pipe_state_t pipe0;
@@ -174,9 +171,8 @@ static void process_setup_packet(uint8_t rhport) {
   musb_regs_t* musb_regs = MUSB_REGS(rhport);
 
   // Read setup packet
-  uint32_t *p = (void*)&_dcd.setup_packet;
-  p[0] = musb_regs->fifo[0];
-  p[1] = musb_regs->fifo[0];
+  _dcd.setup_buffer[0] = musb_regs->fifo[0];
+  _dcd.setup_buffer[1] = musb_regs->fifo[0];
 
   _dcd.pipe0.buf       = NULL;
   _dcd.pipe0.length    = 0;
@@ -193,14 +189,14 @@ static void process_setup_packet(uint8_t rhport) {
   }
 }
 
-static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr)
+static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr, bool is_zlp)
 {
   unsigned epnum = tu_edpt_number(ep_addr);
   unsigned epnum_minus1 = epnum - 1;
   pipe_state_t  *pipe = &_dcd.pipe[tu_edpt_dir(ep_addr)][epnum_minus1];
   const unsigned rem  = pipe->remaining;
 
-  if (!rem) {
+  if (!rem && !is_zlp) {
     pipe->buf = NULL;
     return true;
   }
@@ -272,7 +268,7 @@ static bool edpt_n_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16
   pipe->remaining    = total_bytes;
 
   if (dir_in) {
-    handle_xfer_in(rhport, ep_addr);
+    handle_xfer_in(rhport, ep_addr, total_bytes == 0);
   } else {
     musb_regs_t* musb_regs = MUSB_REGS(rhport);
     musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epnum);
@@ -449,7 +445,7 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
       ep_csr->tx_csrl &= ~(MUSB_TXCSRL1_STALLED | MUSB_TXCSRL1_UNDRN);
       return;
     }
-    completed = handle_xfer_in(rhport, ep_addr);
+    completed = handle_xfer_in(rhport, ep_addr, false);
   } else {
     // TU_LOG1(" RX CSRL%d = %x\r\n", epn, ep_csr->rx_csrl);
     if (ep_csr->rx_csrl & MUSB_RXCSRL1_STALLED) {
