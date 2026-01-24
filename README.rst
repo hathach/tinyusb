@@ -1,7 +1,7 @@
 TinyUSB
 =======
 
-|Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |License|
+|Build Status| |CircleCI Status| |Documentation Status| |Static Analysis| |Fuzzing Status| |Membrowse| |License|
 
 Sponsors
 --------
@@ -293,6 +293,8 @@ The following tools are provided freely to support the development of the TinyUS
    :target: https://github.com/hathach/tinyusb/actions/workflows/static_analysis.yml
 .. |Fuzzing Status| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/tinyusb.svg
    :target: https://oss-fuzz-build-logs.storage.googleapis.com/index.html#tinyusb
+.. |Membrowse| image:: https://membrowse.com/badge.svg
+   :target: https://membrowse.com/public/hathach/tinyusb
 .. |License| image:: https://img.shields.io/badge/license-MIT-brightgreen.svg
    :target: https://opensource.org/licenses/MIT
 

@@ -73,6 +73,19 @@ jobs:
           name: metrics-${{ matrix.arg }}
           path: cmake-build/cmake-build-*/metrics.json
 
+      - name: Copy linker scripts for artifacts
+        if: ${{ inputs.upload-artifacts }}
+        run: |
+          for dir in cmake-build/cmake-build-*; do
+            board=$(basename "$dir" | sed 's/cmake-build-//')
+            ld_path=$(jq -r --arg b "$board" '.targets[] | select(.board == $b) | .ld // empty' .github/membrowse-targets.json)
+            if [ -n "$ld_path" ] && [ -f "$ld_path" ]; then
+              mkdir -p "cmake-build/$(dirname "$ld_path")"
+              cp "$ld_path" "cmake-build/$ld_path"
+            fi
+          done
+        shell: bash
+
       - name: Upload Artifacts for Hardware Testing
         if: ${{ inputs.upload-artifacts }}
         uses: actions/upload-artifact@v5
@@ -86,3 +99,4 @@ jobs:
             cmake-build/cmake-build-*/*/*/partition_table/partition-table.bin
             cmake-build/cmake-build-*/*/*/config.env
             cmake-build/cmake-build-*/*/*/flash_args
+            cmake-build/hw/mcu/**/*.ld
