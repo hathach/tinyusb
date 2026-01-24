@@ -16,14 +16,14 @@ jobs:
   load-targets:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      targets: ${{ steps.load.outputs.targets }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Load target matrix
-        id: set-matrix
-        run: echo "matrix=$(jq -c '.' .github/membrowse-targets.json)" >> $GITHUB_OUTPUT
+        id: load
+        run: echo "targets=$(jq -c '.targets' .github/membrowse-targets.json)" >> $GITHUB_OUTPUT
 
   analyze:
     needs: [load-targets]
@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.load-targets.outputs.matrix) }}
+        include: ${{ fromJson(needs.load-targets.outputs.targets) }}
 
     steps:
       - name: Checkout repository
@@ -58,7 +58,7 @@ jobs:
       - name: Check if ELF exists
         id: check-elf
         run: |
-          if [ -f "${{ matrix.elf }}" ]; then
+          if [ -f "cmake-build/cmake-build-${{ matrix.board }}/device/${{ matrix.example }}/${{ matrix.example }}.elf" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
@@ -71,10 +71,10 @@ jobs:
         continue-on-error: true
         uses: membrowse/membrowse-action@v1
         with:
-          target_name: ${{ matrix.target_name }}
-          elf: ${{ matrix.elf }}
+          target_name: ${{ matrix.port }}-${{ matrix.board }}-${{ matrix.example }}
+          elf: cmake-build/cmake-build-${{ matrix.board }}/device/${{ matrix.example }}/${{ matrix.example }}.elf
           ld: ${{ matrix.ld }}
-          linker_vars: ${{ matrix.linker_vars }}
+          linker_vars: ${{ matrix.linker_vars || '' }}
           api_key: ${{ secrets.MEMBROWSE_API_KEY }}
           api_url: ${{ vars.MEMBROWSE_API_URL }}
           verbose: INFO
@@ -87,7 +87,7 @@ jobs:
         continue-on-error: true
         uses: membrowse/membrowse-action@v1
         with:
-          target_name: ${{ matrix.target_name }}
+          target_name: ${{ matrix.port }}-${{ matrix.board }}-${{ matrix.example }}
           identical: true
           api_key: ${{ secrets.MEMBROWSE_API_KEY }}
           api_url: ${{ vars.MEMBROWSE_API_URL }}
@@ -97,5 +97,5 @@ jobs:
         if: steps.membrowse.outcome == 'success' || steps.membrowse-identical.outcome == 'success'
         uses: actions/upload-artifact@v5
         with:
-          name: membrowse-report-${{ matrix.target_name }}
+          name: membrowse-report-${{ matrix.port }}-${{ matrix.board }}-${{ matrix.example }}
           path: ${{ steps.membrowse.outputs.report_path || steps.membrowse-identical.outputs.report_path }}

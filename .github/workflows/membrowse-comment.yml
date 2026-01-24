@@ -11,11 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion != 'cancelled'
     permissions:
       actions: read
       pull-requests: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
       - name: Download Artifacts
         id: download
         uses: actions/download-artifact@v5
@@ -26,19 +29,10 @@ jobs:
           path: reports
         continue-on-error: true
 
-      - name: Read PR Number
-        if: steps.download.outcome == 'success'
-        id: pr_number
-        run: |
-          if [ -f reports/pr_number.txt ]; then
-            echo "number=$(cat reports/pr_number.txt)" >> $GITHUB_OUTPUT
-          fi
-
       - name: Post Membrowse PR comment
-        if: steps.download.outcome == 'success' && steps.pr_number.outputs.number != ''
+        if: steps.download.outcome == 'success'
         uses: membrowse/membrowse-action/comment-action@v1
         with:
           json_files: 'reports/*.json'
-          pr_number: ${{ steps.pr_number.outputs.number }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

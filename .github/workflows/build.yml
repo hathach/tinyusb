@@ -386,10 +386,6 @@ jobs:
           merge-multiple: true
         continue-on-error: true
 
-      - name: Save PR number
-        if: steps.download.outcome == 'success'
-        run: echo ${{ github.event.number }} > reports/pr_number.txt
-
       - name: Upload Membrowse Comment Artifact
         if: steps.download.outcome == 'success'
         uses: actions/upload-artifact@v5

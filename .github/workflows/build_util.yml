@@ -78,7 +78,7 @@ jobs:
         run: |
           for dir in cmake-build/cmake-build-*; do
             board=$(basename "$dir" | sed 's/cmake-build-//')
-            ld_path=$(jq -r --arg b "$board" '.[] | select(.board == $b) | .ld // empty' .github/membrowse-targets.json)
+            ld_path=$(jq -r --arg b "$board" '.targets[] | select(.board == $b) | .ld // empty' .github/membrowse-targets.json)
             if [ -n "$ld_path" ] && [ -f "$ld_path" ]; then
               mkdir -p "cmake-build/$(dirname "$ld_path")"
               cp "$ld_path" "cmake-build/$ld_path"
