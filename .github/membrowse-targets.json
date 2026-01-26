@@ -330,9 +330,9 @@
     },
     {
       "port": "samd5x_e5x",
-      "board": "d5035_01",
+      "board": "metro_m4_express",
       "toolchain": "arm-none-eabi-gcc-14",
-      "ld": "hw/bsp/samd5x_e5x/boards/d5035_01/same51j19a_flash.ld",
+      "ld": "hw/bsp/samd5x_e5x/boards/metro_m4_express/metro_m4_express.ld",
       "example": "cdc_msc"
     },
     {
@@ -414,9 +414,9 @@
     },
     {
       "port": "stm32h7",
-      "board": "daisyseed",
+      "board": "stm32h743eval",
       "toolchain": "arm-none-eabi-gcc-14",
-      "ld": "hw/bsp/stm32h7/boards/daisyseed/stm32h750ibkx_ram.ld",
+      "ld": "hw/bsp/stm32h7/linker/stm32h743xx_flash.ld",
       "example": "cdc_msc"
     },
     {
