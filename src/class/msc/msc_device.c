@@ -121,7 +121,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool send_csw(mscd_interface_t* p_msc) {
 TU_ATTR_ALWAYS_INLINE static inline bool prepare_cbw(mscd_interface_t* p_msc) {
   uint8_t rhport = p_msc->rhport;
   p_msc->stage = MSC_STAGE_CMD;
-  return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.buf, sizeof(msc_cbw_t), false);
+  // Skip command stage until Clear Stall request if endpoint is stalled
+  if (!usbd_edpt_stalled(rhport, p_msc->ep_out)) {
+    return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.buf, sizeof(msc_cbw_t), false);
+  } else {
+    return true;
+  }
 }
 
 static void fail_scsi_op(mscd_interface_t* p_msc, uint8_t status) {
