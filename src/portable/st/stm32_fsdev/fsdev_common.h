@@ -71,11 +71,11 @@ TU_VERIFY_STATIC(FSDEV_BTABLE_BASE % 8 == 0, "BTABLE base must be aligned to 8 b
   // 1x16 bit / word access scheme
   #define FSDEV_PMA_STRIDE  2
   #define pma_access_scheme TU_ATTR_ALIGNED(4)
-#elif CFG_TUSB_FSDEV_PMA_SIZE == 1024
+#elif CFG_TUSB_FSDEV_PMA_SIZE == 1024 && CFG_TUSB_MCU != OPT_MCU_STM32U0
   // 2x16 bit / word access scheme
   #define FSDEV_PMA_STRIDE 1
   #define pma_access_scheme
-#elif CFG_TUSB_FSDEV_PMA_SIZE == 2048
+#elif CFG_TUSB_FSDEV_PMA_SIZE == 2048 || CFG_TUSB_MCU == OPT_MCU_STM32U0
   // 32 bit access scheme
   #define FSDEV_BUS_32BIT
   #define FSDEV_PMA_STRIDE 1
