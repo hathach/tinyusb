@@ -51,6 +51,8 @@
 #define UART_TX_PIN           GPIO_PIN_5
 #define UART_RX_PIN           GPIO_PIN_6
 
+#define VBUS_SENSE_EN         0
+
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
@@ -126,15 +128,6 @@ static inline void board_clock_init(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
-}
-
-static inline void board_vbus_sense_init(void)
-{
-  // L476Disco use general GPIO PC11 for VBUS sensing instead of dedicated PA9 as others
-  // Disable VBUS Sense and force device mode
-  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN | USB_OTG_GOTGCTL_BVALOVAL;
 }
 
 #ifdef __cplusplus
