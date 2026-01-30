@@ -780,7 +780,7 @@ static void handle_bus_reset(uint8_t rhport) {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
   }
 
-  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
+  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_OEPINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
 }
 
 static void handle_enum_done(uint8_t rhport) {
@@ -1180,6 +1180,7 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t otg_int = dwc2->gotgint;
 
     if (otg_int & GOTGINT_SEDET) {
+      dwc2->gintmsk &= ~GINTMSK_OTGINT;
       dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
