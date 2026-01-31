@@ -85,8 +85,11 @@ extern "C" {
   #define EP_MAX_HS       9
   #define EP_FIFO_SIZE_HS 4096
 
-  #define USB_OTG_HS_PERIPH_BASE    USB1_OTG_HS_BASE
-  #define OTG_HS_IRQn               USB1_OTG_HS_IRQn
+  #define USB_OTG_FS_PERIPH_BASE    USB1_OTG_HS_BASE
+  #define OTG_FS_IRQn               USB1_OTG_HS_IRQn
+
+  #define USB_OTG_HS_PERIPH_BASE    USB2_OTG_HS_BASE
+  #define OTG_HS_IRQn               USB2_OTG_HS_IRQn
 
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
   #include "stm32f7xx.h"
@@ -451,8 +454,13 @@ static mem_region_t uncached_regions[] = {
   // DTCM (although USB DMA can't transfer to/from DTCM)
   {.start = 0x20000000, .end = 0x2002FFFF},
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F7
-    // DTCM
+  // DTCM
   {.start = 0x20000000, .end = 0x2000FFFF},
+#elif CFG_TUSB_MCU == OPT_MCU_STM32N6
+  // DTCM NS
+  {.start = 0x20000000, .end = 0x2003FFFF},
+  // DTCM S
+  {.start = 0x30000000, .end = 0x3003FFFF},
 #else
 #error "Cache maintenance is not supported yet"
 #endif
