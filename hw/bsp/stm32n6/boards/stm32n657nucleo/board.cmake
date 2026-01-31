@@ -3,6 +3,13 @@ set(JLINK_DEVICE stm32n657x0)
 
 set(LD_FILE_GNU ${CMAKE_CURRENT_LIST_DIR}/STM32N657XX_AXISRAM2_fsbl.ld)
 
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 0)
+endif ()
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 0)
+endif ()
+
 function(update_board TARGET)
   target_compile_definitions(${TARGET} PUBLIC
     STM32N657xx

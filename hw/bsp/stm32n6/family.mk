@@ -12,7 +12,7 @@ CPU_CORE ?= cortex-m55
 # ----------------------
 # Port & Speed Selection
 # ----------------------
-RHPORT_DEVICE ?= 1
+RHPORT_DEVICE ?= 0
 RHPORT_HOST ?= 1
 
 ifndef RHPORT_DEVICE_SPEED
@@ -32,8 +32,8 @@ CFLAGS += \
 	-DBOARD_TUD_MAX_SPEED=${RHPORT_DEVICE_SPEED} \
 	-DBOARD_TUH_RHPORT=${RHPORT_HOST} \
 	-DBOARD_TUH_MAX_SPEED=${RHPORT_HOST_SPEED} \
-	-DSEGGER_RTT_SECTION=\"noncacheable_buffer\" \
-	-DBUFFER_SIZE_UP=0x3000 \
+	-DSEGGER_RTT_SECTION="\".noncacheable\"" \
+	-DBUFFER_SIZE_UP=0x4000 \
 
 # GCC Flags
 CFLAGS_GCC += \
