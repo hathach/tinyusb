@@ -599,8 +599,13 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     return;
   }
 
-  // Loop until there is no more events in the queue
-  while (1) {
+  // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
+  for (unsigned epr = 0;; epr++) {
+#if CFG_TUH_TASK_EVENTS_PER_RUN > 0
+    if (epr >= CFG_TUH_TASK_EVENTS_PER_RUN) {
+      TU_LOG_USBH("USBH event limit (" TU_XSTRING(CFG_TUH_TASK_EVENTS_PER_RUN) ") reached\r\n");
+    }
+#endif
     hcd_event_t event;
     if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) { return; }
 
