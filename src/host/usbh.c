@@ -604,6 +604,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 #if CFG_TUH_TASK_EVENTS_PER_RUN > 0
     if (epr >= CFG_TUH_TASK_EVENTS_PER_RUN) {
       TU_LOG_USBH("USBH event limit (" TU_XSTRING(CFG_TUH_TASK_EVENTS_PER_RUN) ") reached\r\n");
+      break;
     }
 #endif
     hcd_event_t event;
