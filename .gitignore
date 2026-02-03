@@ -55,3 +55,13 @@ Release
 BrowseInfo
 .cmake_build
 README_processed.rst
+
+# External dependencies fetched by get_deps.py
+hw/mcu/raspberry_pi/Pico-PIO-USB/
+hw/mcu/st/cmsis_device_f4/
+hw/mcu/st/stm32f4xx_hal_driver/
+lib/CMSIS_5/
+lib/FreeRTOS-Kernel/
+lib/lwip/
+tools/linkermap/
+tools/uf2/
