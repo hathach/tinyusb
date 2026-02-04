@@ -635,7 +635,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       TU_LOG_USBH("USBH run timer callback\r\n");
       _usbh_data.enum_wait_delay_cb = NULL;
       delay_cb();
-    } else if (timeout_ms > ms) {
+    } else if (timeout_ms > (uint32_t)ms) {
       // reduce timeout accordingly
       timeout_ms = ms;
     }
