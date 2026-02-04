@@ -1503,7 +1503,9 @@ static void enum_after_reset_root_delay(void);
 static void enum_after_reset_root_post_delay(void);
 static void enum_after_reset_recovery_delay(void);
 static void enum_after_set_address_recovery_delay(void);
+#if CFG_TUH_HUB
 static void enum_after_reset_hub_delay(void);
+#endif
 
 // start a new enumeration process
 static void enum_new_device(hcd_event_t* event) {
@@ -1895,11 +1897,13 @@ static void enum_after_reset_recovery_delay() {
                                       process_enumeration, ENUM_SET_ADDR),);
 }
 
+#if CFG_TUH_HUB
 static void enum_after_reset_hub_delay() {
   tuh_bus_info_t* dev0_bus = &_usbh_data.dev0_bus;
   // get status to check for reset change
   TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration, ENUM_HUB_CLEAR_RESET),);
 }
+#endif
 
 static uint8_t enum_get_new_address(bool is_hub) {
   uint8_t start;
