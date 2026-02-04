@@ -174,7 +174,7 @@ OSAL_QUEUE_DEF(usbh_int_set, _usbh_daqdef, TOTAL_DEVICES, hcd_event_t);
 static osal_queue_t _usbh_daq;
 
 // Callback after waiting
-typedef void (*usbh_wait_delay_cb)();
+typedef void (*usbh_wait_delay_cb)(void);
 
 // Control transfers: since most controllers do not support multiple control transfers
 // on multiple devices concurrently and control transfers are not used much except for
