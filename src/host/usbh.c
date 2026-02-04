@@ -1497,13 +1497,13 @@ static void enum_full_complete(bool success);
 static void process_enumeration(tuh_xfer_t* xfer);
 
 // continuation functions after waiting
-static void enum_after_attempt_delay();
-static void enum_after_debouncing_delay();
-static void enum_after_reset_root_delay();
-static void enum_after_reset_root_post_delay();
-static void enum_after_reset_recovery_delay();
-static void enum_after_set_address_recovery_delay();
-static void enum_after_reset_hub_delay();
+static void enum_after_attempt_delay(void);
+static void enum_after_debouncing_delay(void);
+static void enum_after_reset_root_delay(void);
+static void enum_after_reset_root_post_delay(void);
+static void enum_after_reset_recovery_delay(void);
+static void enum_after_set_address_recovery_delay(void);
+static void enum_after_reset_hub_delay(void);
 
 // start a new enumeration process
 static void enum_new_device(hcd_event_t* event) {
