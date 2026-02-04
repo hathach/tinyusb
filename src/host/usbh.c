@@ -637,7 +637,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       delay_cb();
     } else if (timeout_ms > (uint32_t)ms) {
       // reduce timeout accordingly
-      timeout_ms = ms;
+      timeout_ms = (uint32_t)ms;
     }
   }
 
