@@ -1517,7 +1517,7 @@ static void enum_new_device(hcd_event_t* event) {
   usbh_wait_delay_ms(ENUM_DEBOUNCING_DELAY_MS, enum_after_debouncing_delay);
 }
 
-static void enum_after_debouncing_delay() {
+static void enum_after_debouncing_delay(void) {
   tuh_bus_info_t* dev0_bus = &_usbh_data.dev0_bus;
   if (dev0_bus->hub_addr == 0) {
     // connected directly to roothub
@@ -1546,13 +1546,13 @@ static void enum_after_debouncing_delay() {
   #endif // hub
 }
 
-static void enum_after_reset_root_delay() {
+static void enum_after_reset_root_delay(void) {
   tuh_bus_info_t* dev0_bus = &_usbh_data.dev0_bus;
   hcd_port_reset_end(dev0_bus->rhport);
   return usbh_wait_delay_ms(ENUM_RESET_ROOT_POST_DELAY_MS, enum_after_reset_root_post_delay);
 }
 
-static void enum_after_reset_root_post_delay() {
+static void enum_after_reset_root_post_delay(void) {
   tuh_bus_info_t* dev0_bus = &_usbh_data.dev0_bus;
   if (!hcd_port_connect_status(dev0_bus->rhport)) {
     // device unplugged while delaying
@@ -1860,13 +1860,13 @@ static void process_enumeration(tuh_xfer_t* xfer) {
   }
 }
 
-static void enum_after_attempt_delay() {
+static void enum_after_attempt_delay(void) {
   TU_LOG_USBH("Enumeration attempt %u/%u\r\n", _usbh_data.enum_failed_count+1, ATTEMPT_COUNT_MAX);
   if (!tuh_control_xfer(&_usbh_data.enum_xfer_retry))
     enum_full_complete(false); // complete as failed
 }
 
-static void enum_after_set_address_recovery_delay() {
+static void enum_after_set_address_recovery_delay(void) {
   const uint8_t new_addr =_usbh_data.enumerating_daddr;
   usbh_device_t* new_dev = get_device(new_addr);
   TU_ASSERT(new_dev,);
@@ -1882,7 +1882,7 @@ static void enum_after_set_address_recovery_delay() {
                                       process_enumeration, ENUM_GET_STRING_LANGUAGE_ID_LEN),);
 }
 
-static void enum_after_reset_recovery_delay() {
+static void enum_after_reset_recovery_delay(void) {
   // TODO probably doesn't need to open/close each enumeration
   uint8_t const addr0 = 0;
   if (!usbh_edpt_control_open(addr0, 8)) {
@@ -1898,7 +1898,7 @@ static void enum_after_reset_recovery_delay() {
 }
 
 #if CFG_TUH_HUB
-static void enum_after_reset_hub_delay() {
+static void enum_after_reset_hub_delay(void) {
   tuh_bus_info_t* dev0_bus = &_usbh_data.dev0_bus;
   // get status to check for reset change
   TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration, ENUM_HUB_CLEAR_RESET),);
