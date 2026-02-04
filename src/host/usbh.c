@@ -194,6 +194,8 @@ typedef struct {
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
   tuh_xfer_t enum_xfer_retry; // enumeration transfer to retry
+  usbh_wait_delay_cb enum_wait_delay_cb; // continuation function after waiting
+  uint32_t enum_wait_deadline; // ticks when the timer expires
 } usbh_data_t;
 
 static usbh_data_t _usbh_data = {
@@ -356,8 +358,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const ui
 
 TU_ATTR_ALWAYS_INLINE static inline void usbh_wait_delay_ms(uint32_t delay_ms, usbh_wait_delay_cb complete_cb)
 {
-  tusb_time_delay_ms_api(delay_ms);
-  complete_cb();
+  TU_LOG_USBH("USBH start timer for %u ms\r\n", (unsigned int)delay_ms);
+  _usbh_data.enum_wait_deadline = tusb_time_millis_api() + delay_ms;
+  _usbh_data.enum_wait_delay_cb = complete_cb;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8_t daddr) {
@@ -371,6 +374,7 @@ TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8
   // invalidate if enumerating
   if (daddr == _usbh_data.enumerating_daddr) {
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+    _usbh_data.enum_wait_delay_cb = NULL;
   }
 }
 
@@ -519,6 +523,7 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
     _usbh_data.controller_id = TUSB_INDEX_INVALID_8;
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+    _usbh_data.enum_wait_delay_cb = NULL;
 
     for (uint8_t i = 0; i < TOTAL_DEVICES; i++) {
       clear_device(&_usbh_devices[i]);
@@ -608,6 +613,21 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
   // Skip if stack is not initialized
   if (!tuh_inited()) {
     return;
+  }
+
+  // Process continuation function if timer is expired
+  usbh_wait_delay_cb delay_cb = _usbh_data.enum_wait_delay_cb;
+  if (delay_cb) {
+    int32_t ms = (int32_t)(_usbh_data.enum_wait_deadline - tusb_time_millis_api());
+    if (ms <= 0) {
+      // delay expired, run callback now
+      TU_LOG_USBH("USBH run timer callback\r\n");
+      _usbh_data.enum_wait_delay_cb = NULL;
+      delay_cb();
+    } else if (timeout_ms > ms) {
+      // reduce timeout accordingly
+      timeout_ms = ms;
+    }
   }
 
   // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
@@ -1978,6 +1998,7 @@ static void enum_full_complete(bool success) {
   (void)success;
   // mark enumeration as complete
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+  _usbh_data.enum_wait_delay_cb = NULL;
 
 #if CFG_TUH_HUB
   // Hub status is already requested in case of successful enumeration
