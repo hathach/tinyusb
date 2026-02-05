@@ -329,6 +329,7 @@ static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+static void usbh_task_mq(uint32_t timeout_ms, bool in_isr);
 
 TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) {
   TU_VERIFY(dev_addr > 0 && dev_addr <= TOTAL_DEVICES, NULL);
@@ -666,6 +667,11 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
   }
 
+  // Process the message queue
+  usbh_task_mq(timeout_ms, in_isr);
+}
+
+static void usbh_task_mq(uint32_t timeout_ms, bool in_isr) {
   // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
   for (unsigned epr = 0;; epr++) {
 #if CFG_TUH_TASK_EVENTS_PER_RUN > 0
@@ -832,10 +838,8 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
 
     while (result == XFER_RESULT_INVALID) {
       // Note: this can be called within an callback ie. part of tuh_task()
-      // therefore event with RTOS tuh_task() still need to be invoked
-      if (tuh_task_event_ready()) {
-        tuh_task();
-      }
+      // therefore even with RTOS usbh_task_mq() still need to be invoked
+      usbh_task_mq(0, false);
       // TODO probably some timeout to prevent hanged
     }
 
