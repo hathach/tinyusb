@@ -689,6 +689,17 @@
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
 #endif
 
+// use tusb_time_millis_api() instead of tusb_time_delay_ms_api() in tuh_task()
+// tuh_task_ext() will be asynchronous and never sleep in tusb_time_delay_ms_api()
+#ifndef CFG_TUH_TASK_USE_TIME_MILLIS_API
+  #if CFG_TUSB_OS == OPT_OS_NONE && (TUSB_MCU_VENDOR_ESPRESSIF || CFG_TUSB_MCU == OPT_MCU_RP2040)
+    // these boards do not implements the required tusb_time_millis_api()
+    #define CFG_TUH_TASK_USE_TIME_MILLIS_API  0
+  #else
+    #define CFG_TUH_TASK_USE_TIME_MILLIS_API  1
+  #endif
+#endif
+
 //------------- CLASS -------------//
 
 #ifndef CFG_TUH_HUB
