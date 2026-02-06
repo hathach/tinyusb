@@ -392,7 +392,7 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   // Pull data from FIFO -> EP buf
   uint16_t count;
   if (s->ep_buf == NULL) {
-    count = ff_count;
+    count = tu_fifo_count(&s->ff); // re-get count since fifo can be changed
   } else {
     count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
   }
