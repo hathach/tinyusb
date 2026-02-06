@@ -189,14 +189,13 @@ static void process_setup_packet(uint8_t rhport) {
   }
 }
 
-static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr, bool is_zlp)
-{
+static bool handle_xfer_in(uint8_t rhport, uint_fast8_t ep_addr) {
   unsigned epnum = tu_edpt_number(ep_addr);
   unsigned epnum_minus1 = epnum - 1;
   pipe_state_t  *pipe = &_dcd.pipe[tu_edpt_dir(ep_addr)][epnum_minus1];
   const unsigned rem  = pipe->remaining;
 
-  if (!rem && !is_zlp) {
+  if (rem == 0 && pipe->length > 0) {
     pipe->buf = NULL;
     return true;
   }
@@ -268,7 +267,7 @@ static bool edpt_n_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16
   pipe->remaining    = total_bytes;
 
   if (dir_in) {
-    handle_xfer_in(rhport, ep_addr, total_bytes == 0);
+    handle_xfer_in(rhport, ep_addr);
   } else {
     musb_regs_t* musb_regs = MUSB_REGS(rhport);
     musb_ep_csr_t* ep_csr = get_ep_csr(musb_regs, epnum);
@@ -445,7 +444,7 @@ static void process_edpt_n(uint8_t rhport, uint_fast8_t ep_addr)
       ep_csr->tx_csrl &= ~(MUSB_TXCSRL1_STALLED | MUSB_TXCSRL1_UNDRN);
       return;
     }
-    completed = handle_xfer_in(rhport, ep_addr, false);
+    completed = handle_xfer_in(rhport, ep_addr);
   } else {
     // TU_LOG1(" RX CSRL%d = %x\r\n", epn, ep_csr->rx_csrl);
     if (ep_csr->rx_csrl & MUSB_RXCSRL1_STALLED) {
