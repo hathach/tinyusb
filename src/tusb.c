@@ -39,6 +39,12 @@
 #include "host/usbh_pvt.h"
 #endif
 
+// Suppress IAR warning
+// Warning[Pe111]: statement is unreachable
+#if defined(__ICCARM__)
+#pragma diag_suppress = Pe111
+#endif
+
 tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 
 //--------------------------------------------------------------------
@@ -61,6 +67,16 @@ TU_ATTR_WEAK void* tusb_app_virt_to_phys(void *virt_addr) {
 
 TU_ATTR_WEAK void* tusb_app_phys_to_virt(void *phys_addr) {
   return phys_addr;
+}
+
+TU_ATTR_WEAK void tusb_pre_init_cb(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
+}
+
+TU_ATTR_WEAK void tusb_post_deinit_cb(uint8_t rhport, tusb_role_t role) {
+  (void) rhport;
+  (void) role;
 }
 
 //--------------------------------------------------------------------+
