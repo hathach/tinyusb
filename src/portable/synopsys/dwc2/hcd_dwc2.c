@@ -428,6 +428,10 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
   while ((dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
 
+#ifdef TUP_USBIP_DWC2_STM32
+  dwc2_stm32_gccfg_cfg(dwc2, false, true);
+#endif
+
   // configure fixed-allocated fifo scheme
   dfifo_host_init(rhport);
 

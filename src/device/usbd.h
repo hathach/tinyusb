@@ -41,6 +41,7 @@ enum {
 
 typedef struct {
   uint16_t bm_double_buffered; // bitmap of IN endpoints to be double buffered, only effective for bulk endpoints
+  bool vbus_sensing; // Vbus pin is used for device connection detection, mandatory for tud_umount_cb()
 } tud_configure_dwc2_t;
 
 typedef union {

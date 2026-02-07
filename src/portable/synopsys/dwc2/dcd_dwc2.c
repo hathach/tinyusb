@@ -78,7 +78,8 @@ CFG_TUD_MEM_SECTION static struct {
 } _dcd_usbbuf;
 
 static tud_configure_dwc2_t _tud_cfg = {
-  .bm_double_buffered = 0
+  .bm_double_buffered = 0,
+  .vbus_sensing = false
 };
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc2) {
@@ -472,12 +473,11 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Force device mode
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
 
-  // Clear A override, force B Valid
-  dwc2->gotgctl = (dwc2->gotgctl & ~GOTGCTL_AVALOEN) | GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;
+  // Clear A override, force B Valid if Vbus sensing is not used
+  dwc2->gotgctl = (dwc2->gotgctl & ~GOTGCTL_AVALOEN) | (_tud_cfg.vbus_sensing ? 0 : GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL);
 
-#if CFG_TUSB_MCU == OPT_MCU_STM32N6
-  // No hardware detection of Vbus B-session is available on the STM32N6
-  dwc2->stm32_gccfg |= STM32_GCCFG_VBVALOVAL;
+#ifdef TUP_USBIP_DWC2_STM32
+  dwc2_stm32_gccfg_cfg(dwc2, _tud_cfg.vbus_sensing, false);
 #endif
 
   // Enable required interrupts
@@ -780,7 +780,7 @@ static void handle_bus_reset(uint8_t rhport) {
     dwc2->epout[0].doeptsiz |= (3 << DOEPTSIZ_STUPCNT_Pos);
   }
 
-  dwc2->gintmsk |= GINTMSK_OEPINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
+  dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_OEPINT | GINTMSK_IEPINT | GINTMSK_IISOIXFRM;
 }
 
 static void handle_enum_done(uint8_t rhport) {
@@ -1180,6 +1180,7 @@ void dcd_int_handler(uint8_t rhport) {
     const uint32_t otg_int = dwc2->gotgint;
 
     if (otg_int & GOTGINT_SEDET) {
+      dwc2->gintmsk &= ~GINTMSK_OTGINT;
       dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 

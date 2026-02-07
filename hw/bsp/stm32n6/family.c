@@ -48,7 +48,8 @@
 TU_ATTR_UNUSED static void Error_Handler(void) { }
 
 void HardFault_Handler(void);
-
+static void MPU_Config(void);
+static void SystemIsolation_Config(void);
 typedef struct {
   GPIO_TypeDef* port;
   GPIO_InitTypeDef pin_init;
@@ -87,19 +88,24 @@ static UART_HandleTypeDef UartHandle = {
 // Despite being call USB2_OTG_FS on some MCUs
 // OTG_FS is marked as RHPort0 by TinyUSB to be consistent across stm32 port
 void USB2_OTG_HS_IRQHandler(void) {
-  tusb_int_handler(0, true);
+  tusb_int_handler(1, true);
 }
 
 // Despite being call USB1_OTG_HS on some MCUs
 // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port
 void USB1_OTG_HS_IRQHandler(void) {
-  tusb_int_handler(1, true);
+  tusb_int_handler(0, true);
 }
 
 void board_init(void) {
-
   /* Enable BusFault and SecureFault handlers (HardFault is default) */
   SCB->SHCSR |= (SCB_SHCSR_BUSFAULTENA_Msk | SCB_SHCSR_SECUREFAULTENA_Msk);
+
+  MPU_Config();
+  SystemIsolation_Config();
+
+  SCB_EnableICache();
+  SCB_EnableDCache();
 
   HAL_PWREx_EnableVddA();
   HAL_PWREx_EnableVddIO2();
@@ -125,8 +131,6 @@ void board_init(void) {
   __HAL_RCC_GPIOO_CLK_ENABLE();
   __HAL_RCC_GPIOP_CLK_ENABLE();
   __HAL_RCC_GPIOQ_CLK_ENABLE();
-
-  // HAL_ICACHE_Enable();
 
   for (uint8_t i = 0; i < TU_ARRAY_SIZE(board_pindef); i++) {
     HAL_GPIO_Init(board_pindef[i].port, &board_pindef[i].pin_init);
@@ -155,7 +159,7 @@ void board_init(void) {
   HAL_UART_Init(&UartHandle);
 #endif
 
-
+#if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 0)
   __HAL_RCC_USB1_OTG_HS_CLK_ENABLE();
   __HAL_RCC_PWR_CLK_ENABLE();
   HAL_PWREx_EnableVddUSBVMEN();
@@ -196,11 +200,109 @@ void board_init(void) {
   /* Peripheral PHY clock enable */
   __HAL_RCC_USB1_OTG_HS_PHY_CLK_ENABLE();
 
-  board_init2();
-
-#if CFG_TUH_ENABLED
+#if CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 0
   board_vbus_set(BOARD_TUH_RHPORT, 1);
 #endif
+#endif
+
+#if (CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1) || (CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 1)
+  __HAL_RCC_USB2_OTG_HS_CLK_ENABLE();
+  __HAL_RCC_PWR_CLK_ENABLE();
+  HAL_PWREx_EnableVddUSBVMEN();
+  while(__HAL_PWR_GET_FLAG(PWR_FLAG_USB33RDY));
+  HAL_PWREx_EnableVddUSB();
+
+  LL_AHB5_GRP1_ForceReset(0x00800000);
+  __HAL_RCC_USB2_OTG_HS_FORCE_RESET();
+  __HAL_RCC_USB2_OTG_HS_PHY_FORCE_RESET();
+
+  LL_RCC_HSE_SelectHSEDiv2AsDiv2Clock();
+  LL_AHB5_GRP1_ReleaseReset(0x00800000);
+
+  /* Peripheral clock enable */
+  __HAL_RCC_USB2_OTG_HS_CLK_ENABLE();
+
+  /* Required few clock cycles before accessing USB PHY Controller Registers */
+  for (volatile uint32_t i = 0; i < 10; i++) {
+      __NOP(); // No Operation instruction to create a delay
+  }
+
+  USB2_HS_PHYC->USBPHYC_CR &= ~(0x7 << 0x4);
+
+  USB2_HS_PHYC->USBPHYC_CR |= (0x1 << 16) |
+                              (0x2 << 4)  |
+                              (0x1 << 2)  |
+                                0x1U;
+
+  __HAL_RCC_USB2_OTG_HS_PHY_RELEASE_RESET();
+
+  /* Required few clock cycles before Releasing Reset */
+  for (volatile uint32_t i = 0; i < 10; i++) {
+      __NOP(); // No Operation instruction to create a delay
+  }
+
+  __HAL_RCC_USB2_OTG_HS_RELEASE_RESET();
+
+  /* Peripheral PHY clock enable */
+  __HAL_RCC_USB2_OTG_HS_PHY_CLK_ENABLE();
+
+#if CFG_TUH_ENABLED && BOARD_TUH_RHPORT == 1
+  board_vbus_set(BOARD_TUH_RHPORT, 1);
+#endif
+#endif
+
+  board_init2();
+}
+
+static void MPU_Config(void)
+{
+  MPU_Region_InitTypeDef default_config = {0};
+  MPU_Attributes_InitTypeDef attr_config = {0};
+  uint32_t primask_bit = __get_PRIMASK();
+  __disable_irq();
+
+  /* disable the MPU */
+  HAL_MPU_Disable();
+
+  /* create an attribute configuration for the MPU */
+  attr_config.Attributes = INNER_OUTER(MPU_NOT_CACHEABLE);
+  attr_config.Number = MPU_ATTRIBUTES_NUMBER0;
+
+  HAL_MPU_ConfigMemoryAttributes(&attr_config);
+
+  /* Create a non cacheable region */
+  /*Normal memory type, code execution allowed */
+  default_config.Enable = MPU_REGION_ENABLE;
+  default_config.Number = MPU_REGION_NUMBER0;
+  default_config.BaseAddress = __NON_CACHEABLE_SECTION_BEGIN;
+  default_config.LimitAddress =  __NON_CACHEABLE_SECTION_END;
+  default_config.DisableExec = MPU_INSTRUCTION_ACCESS_ENABLE;
+  default_config.AccessPermission = MPU_REGION_ALL_RW;
+  default_config.IsShareable = MPU_ACCESS_NOT_SHAREABLE;
+  default_config.AttributesIndex = MPU_ATTRIBUTES_NUMBER0;
+  HAL_MPU_ConfigRegion(&default_config);
+
+  /* enable the MPU */
+  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
+
+  /* Exit critical section to lock the system and avoid any issue around MPU mechanisme */
+  __set_PRIMASK(primask_bit);
+}
+
+static void SystemIsolation_Config(void) {
+  /* set all required IPs as secure privileged */
+  __HAL_RCC_RIFSC_CLK_ENABLE();
+  RIMC_MasterConfig_t RIMC_master = {0};
+  RIMC_master.MasterCID = RIF_CID_1;
+  RIMC_master.SecPriv = RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV;
+
+  /*RIMC configuration*/
+  HAL_RIF_RIMC_ConfigMasterAttributes(RIF_MASTER_INDEX_OTG1, &RIMC_master);
+  HAL_RIF_RIMC_ConfigMasterAttributes(RIF_MASTER_INDEX_OTG2, &RIMC_master);
+
+  /*RISUP configuration*/
+  HAL_RIF_RISC_SetSlaveSecureAttributes(RIF_RISC_PERIPH_INDEX_OTG1HS , RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV);
+  HAL_RIF_RISC_SetSlaveSecureAttributes(RIF_RISC_PERIPH_INDEX_OTG2HS , RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV);
 }
 
 //--------------------------------------------------------------------+
