@@ -86,14 +86,24 @@ typedef struct {
 
   // recv handling
   recv_ntb_t *recv_free_ntb[RECV_NTB_N];                // free list of recv NTBs
-  recv_ntb_t *recv_ready_ntb[RECV_NTB_N];               // NTBs waiting for transmission to glue logic
+  recv_ntb_t *recv_ready_ntb[RECV_NTB_N];               // NTBs waiting for transmission to glue logic (circular buffer)
+  #if RECV_NTB_N > 1
+  uint8_t recv_ready_head;                              // head index for recv_ready_ntb circular buffer
+  uint8_t recv_ready_tail;                              // tail index for recv_ready_ntb circular buffer
+  uint8_t recv_ready_count;                             // number of elements in recv_ready_ntb circular buffer
+  #endif
   recv_ntb_t *recv_tinyusb_ntb;                         // buffer for the running transfer TinyUSB -> driver
   recv_ntb_t *recv_glue_ntb;                            // buffer for the running transfer driver -> glue logic
   uint16_t recv_glue_ntb_datagram_ndx;                  // index into \a recv_glue_ntb_datagram
 
   // xmit handling
   xmit_ntb_t *xmit_free_ntb[XMIT_NTB_N];                // free list of xmit NTBs
-  xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];               // NTBs waiting for transmission to TinyUSB
+  xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];               // NTBs waiting for transmission to TinyUSB (circular buffer)
+  #if XMIT_NTB_N > 1
+  uint8_t xmit_ready_head;                              // head index for xmit_ready_ntb circular buffer
+  uint8_t xmit_ready_tail;                              // tail index for xmit_ready_ntb circular buffer
+  uint8_t xmit_ready_count;                             // number of elements in xmit_ready_ntb circular buffer
+  #endif
   xmit_ntb_t *xmit_tinyusb_ntb;                         // buffer for the running transfer driver -> TinyUSB
   xmit_ntb_t *xmit_glue_ntb;                            // buffer for the running transfer glue logic -> driver
   uint16_t xmit_sequence;                               // NTB sequence counter
@@ -279,13 +289,17 @@ static xmit_ntb_t *xmit_get_free_ntb(void) {
 static void xmit_put_ntb_into_ready_list(xmit_ntb_t *ready_ntb) {
   TU_LOG_DRV("xmit_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
 
-  for (int i = 0; i < XMIT_NTB_N; ++i) {
-    if (ncm_interface.xmit_ready_ntb[i] == NULL) {
-      ncm_interface.xmit_ready_ntb[i] = ready_ntb;
-      return;
-    }
+#if XMIT_NTB_N == 1
+  ncm_interface.xmit_ready_ntb[0] = ready_ntb;
+#else
+  if (ncm_interface.xmit_ready_count >= XMIT_NTB_N) {
+    TU_LOG_DRV("(EE) xmit_put_ntb_into_ready_list: ready list full\n");// this should not happen
+    return;
   }
-  TU_LOG_DRV("(EE) xmit_put_ntb_into_ready_list: ready list full\n");// this should not happen
+  ncm_interface.xmit_ready_ntb[ncm_interface.xmit_ready_head] = ready_ntb;
+  ncm_interface.xmit_ready_head = (ncm_interface.xmit_ready_head + 1) % XMIT_NTB_N;
+  ncm_interface.xmit_ready_count++;
+#endif
 } // xmit_put_ntb_into_ready_list
 
 /**
@@ -293,14 +307,23 @@ static void xmit_put_ntb_into_ready_list(xmit_ntb_t *ready_ntb) {
  * If the ready list is empty, return NULL.
  */
 static xmit_ntb_t *xmit_get_next_ready_ntb(void) {
-  xmit_ntb_t *r = NULL;
-
-  r = ncm_interface.xmit_ready_ntb[0];
-  memmove(ncm_interface.xmit_ready_ntb + 0, ncm_interface.xmit_ready_ntb + 1, sizeof(ncm_interface.xmit_ready_ntb) - sizeof(ncm_interface.xmit_ready_ntb[0]));
-  ncm_interface.xmit_ready_ntb[XMIT_NTB_N - 1] = NULL;
-
-  TU_LOG_DRV("recv_get_next_ready_ntb: %p\n", r);
+#if XMIT_NTB_N == 1
+  xmit_ntb_t *r = ncm_interface.xmit_ready_ntb[0];
+  ncm_interface.xmit_ready_ntb[0] = NULL;
+  TU_LOG_DRV("xmit_get_next_ready_ntb: %p\n", r);
   return r;
+#else
+  if (ncm_interface.xmit_ready_count == 0) {
+    return NULL; // empty
+  }
+
+  xmit_ntb_t *r = ncm_interface.xmit_ready_ntb[ncm_interface.xmit_ready_tail];
+  ncm_interface.xmit_ready_tail = (ncm_interface.xmit_ready_tail + 1) % XMIT_NTB_N;
+  ncm_interface.xmit_ready_count--;
+
+  TU_LOG_DRV("xmit_get_next_ready_ntb: %p\n", r);
+  return r;
+#endif
 } // xmit_get_next_ready_ntb
 
 /**
@@ -458,14 +481,23 @@ static recv_ntb_t *recv_get_free_ntb(void) {
  * If the ready list is empty, return NULL.
  */
 static recv_ntb_t *recv_get_next_ready_ntb(void) {
-  recv_ntb_t *r = NULL;
+#if RECV_NTB_N == 1
+  recv_ntb_t *r = ncm_interface.recv_ready_ntb[0];
+  ncm_interface.recv_ready_ntb[0] = NULL;
+  TU_LOG_DRV("recv_get_next_ready_ntb: %p\n", r);
+  return r;
+#else
+  if (ncm_interface.recv_ready_count == 0) {
+    return NULL; // empty
+  }
 
-  r = ncm_interface.recv_ready_ntb[0];
-  memmove(ncm_interface.recv_ready_ntb + 0, ncm_interface.recv_ready_ntb + 1, sizeof(ncm_interface.recv_ready_ntb) - sizeof(ncm_interface.recv_ready_ntb[0]));
-  ncm_interface.recv_ready_ntb[RECV_NTB_N - 1] = NULL;
+  recv_ntb_t *r = ncm_interface.recv_ready_ntb[ncm_interface.recv_ready_tail];
+  ncm_interface.recv_ready_tail = (ncm_interface.recv_ready_tail + 1) % RECV_NTB_N;
+  ncm_interface.recv_ready_count--;
 
   TU_LOG_DRV("recv_get_next_ready_ntb: %p\n", r);
   return r;
+#endif
 } // recv_get_next_ready_ntb
 
 /**
@@ -490,13 +522,17 @@ static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb) {
 static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb) {
   TU_LOG_DRV("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
 
-  for (int i = 0; i < RECV_NTB_N; ++i) {
-    if (ncm_interface.recv_ready_ntb[i] == NULL) {
-      ncm_interface.recv_ready_ntb[i] = ready_ntb;
-      return;
-    }
+#if RECV_NTB_N == 1
+  ncm_interface.recv_ready_ntb[0] = ready_ntb;
+#else
+  if (ncm_interface.recv_ready_count >= RECV_NTB_N) {
+    TU_LOG_DRV("(EE) recv_put_ntb_into_ready_list: ready list full\n");// this should not happen
+    return;
   }
-  TU_LOG_DRV("(EE) recv_put_ntb_into_ready_list: ready list full\n");// this should not happen
+  ncm_interface.recv_ready_ntb[ncm_interface.recv_ready_head] = ready_ntb;
+  ncm_interface.recv_ready_head = (ncm_interface.recv_ready_head + 1) % RECV_NTB_N;
+  ncm_interface.recv_ready_count++;
+#endif
 } // recv_put_ntb_into_ready_list
 
 /**
@@ -940,6 +976,9 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
           if (ncm_interface.itf_data_alt == 1) {
             tud_network_recv_renew_r(rhport);
             notification_xmit(rhport, false);
+          } else {
+            // Reset notification state to send link state update when interface is re-activated
+            ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
           }
           tud_control_status(rhport, request);
         } break;
