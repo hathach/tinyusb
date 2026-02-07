@@ -17,7 +17,7 @@ env:
 
 jobs:
   # Check if the code changes and we need to run ci build
-  # Cannot use paths filter in the on-event since we want this workflow to run even no code change to register commit chain
+  # Cannot use paths filter in the on-event since we want this workflow to run even when there are no code changes, to register the commit chain
   check-paths:
     runs-on: ubuntu-latest
     permissions:
