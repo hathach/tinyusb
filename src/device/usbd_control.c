@@ -59,9 +59,7 @@ typedef struct {
 
 static usbd_control_xfer_t _ctrl_xfer;
 
-CFG_TUD_MEM_SECTION static struct {
-  TUD_EPBUF_DEF(buf, CFG_TUD_ENDPOINT0_BUFSIZE);
-} _ctrl_epbuf;
+CFG_TUD_MEM_SECTION usbd_ctrl_epbuf_t _usbd_ctrl_epbuf;
 
 //--------------------------------------------------------------------+
 // Application API
@@ -93,12 +91,12 @@ static bool data_stage_xact(uint8_t rhport) {
 
   if (_ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_IN) {
     ep_addr = EDPT_CTRL_IN;
-    if (0u != xact_len) {
-      TU_VERIFY(0 == tu_memcpy_s(_ctrl_epbuf.buf, CFG_TUD_ENDPOINT0_BUFSIZE, _ctrl_xfer.buffer, xact_len));
+    if (0u != xact_len && _ctrl_xfer.buffer != _usbd_ctrl_epbuf.buf) {
+      TU_VERIFY(0 == tu_memcpy_s(_usbd_ctrl_epbuf.buf, CFG_TUD_ENDPOINT0_BUFSIZE, _ctrl_xfer.buffer, xact_len));
     }
   }
 
-  return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _ctrl_epbuf.buf : NULL, xact_len, false);
+  return usbd_edpt_xfer(rhport, ep_addr, xact_len ? _usbd_ctrl_epbuf.buf : NULL, xact_len, false);
 }
 
 // Transmit data to/from the control endpoint.
@@ -169,7 +167,9 @@ bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
 
   if (_ctrl_xfer.request.bmRequestType_bit.direction == TUSB_DIR_OUT) {
     TU_VERIFY(_ctrl_xfer.buffer);
-    memcpy(_ctrl_xfer.buffer, _ctrl_epbuf.buf, xferred_bytes);
+    if (_ctrl_xfer.buffer != _usbd_ctrl_epbuf.buf) {
+      memcpy(_ctrl_xfer.buffer, _usbd_ctrl_epbuf.buf, xferred_bytes);
+    }
     TU_LOG_MEM(CFG_TUD_LOG_LEVEL, _ctrl_xfer.buffer, xferred_bytes, 2);
   }
 
