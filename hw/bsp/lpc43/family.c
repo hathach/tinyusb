@@ -185,8 +185,10 @@ void board_init(void)
    */
   Chip_USB1_Init();
 
+#ifdef _BOARD_EA4357_H
   // USB0 Vbus Power: P2_3 on EA4357 channel B U20 GPIO26 active low (base board)
   Chip_SCU_PinMuxSet(2, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC7);
+#endif
 
   #if defined(BOARD_TUD_RHPORT) &&  BOARD_TUD_RHPORT == 0
     // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
