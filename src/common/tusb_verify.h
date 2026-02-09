@@ -96,10 +96,12 @@
  * - TU_VERIFY_1ARGS : return false if failed
  * - TU_VERIFY_2ARGS : return provided value if failed
  *------------------------------------------------------------------*/
-#define TU_VERIFY_DEFINE(_cond, _ret)    \
-  do {                                   \
-    if (!(_cond)) { return _ret; }     \
-  } while(0)
+#define TU_VERIFY_DEFINE(_cond, _ret) \
+  do {                                \
+    if (!(_cond)) {                   \
+      return _ret;                    \
+    }                                 \
+  } while (0)
 
 #define TU_VERIFY_1ARGS(_cond)         TU_VERIFY_DEFINE(_cond, false)
 #define TU_VERIFY_2ARGS(_cond, _ret)   TU_VERIFY_DEFINE(_cond, _ret)

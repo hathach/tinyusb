@@ -1,0 +1,13 @@
+<component name="DebugServers">
+  <jlink-debug-target name="mcxa153" uniqueID="6a023429-69e6-4f8c-a592-4995cdf255db">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
+    <console port="19021" />
+    <target device="MCXA153" reset-before="false" />
+    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <swo />
+  </jlink-debug-target>
+</component>

@@ -599,8 +599,14 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     return;
   }
 
-  // Loop until there is no more events in the queue
-  while (1) {
+  // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
+  for (unsigned epr = 0;; epr++) {
+#if CFG_TUH_TASK_EVENTS_PER_RUN > 0
+    if (epr >= CFG_TUH_TASK_EVENTS_PER_RUN) {
+      TU_LOG_USBH("USBH event limit (" TU_XSTRING(CFG_TUH_TASK_EVENTS_PER_RUN) ") reached\r\n");
+      break;
+    }
+#endif
     hcd_event_t event;
     if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) { return; }
 
@@ -1405,12 +1411,13 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
 // NOTE: due to the shared control buffer, we must complete enumerating
 // one device before enumerating another one.
 //--------------------------------------------------------------------+
-enum {                               // USB 2.0 specs 7.1.7 for timing
-  ENUM_DEBOUNCING_DELAY_MS = 150,    // T(ATTDB)  minimum 100 ms for stable connection
-  ENUM_RESET_ROOT_DELAY_MS = 50,     // T(DRSTr)  minimum 50 ms for reset from root port
-  ENUM_RESET_HUB_DELAY_MS = 20,      // T(DRST)   10-20 ms for hub reset
-  ENUM_RESET_RECOVERY_DELAY_MS = 10, // T(RSTRCY) minimum 10 ms for reset recovery
-  ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 2, // USB 2.0 Spec 9.2.6.3 min is 2 ms
+enum {                                      // USB 2.0 specs 7.1.7 for timing
+  ENUM_DEBOUNCING_DELAY_MS           = 150, // T(ATTDB)  minimum 100 ms for stable connection
+  ENUM_RESET_ROOT_DELAY_MS           = 50,  // T(DRSTr)  minimum 50 ms for reset from root port
+  ENUM_RESET_ROOT_POST_DELAY_MS      = 2,   // 2 ms delay after root port reset before getting speed/status
+  ENUM_RESET_HUB_DELAY_MS            = 20,  // T(DRST)   10-20 ms for hub reset
+  ENUM_RESET_RECOVERY_DELAY_MS       = 10,  // T(RSTRCY) minimum 10 ms for reset recovery
+  ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 2,   // USB 2.0 Spec 9.2.6.3 min is 2 ms
 };
 
 enum {
@@ -1469,6 +1476,7 @@ static bool enum_new_device(hcd_event_t* event) {
     hcd_port_reset(dev0_bus->rhport);
     tusb_time_delay_ms_api(ENUM_RESET_ROOT_DELAY_MS);
     hcd_port_reset_end(dev0_bus->rhport);
+    tusb_time_delay_ms_api(ENUM_RESET_ROOT_POST_DELAY_MS);
 
     if (!hcd_port_connect_status(dev0_bus->rhport)) {
       // device unplugged while delaying

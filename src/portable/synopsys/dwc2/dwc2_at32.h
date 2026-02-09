@@ -61,6 +61,11 @@
   #define OTG1_FIFO_SIZE           1280
   #define OTG1_IRQn                OTGFS1_IRQn
   #define DWC2_OTG1_REG_BASE       0x50000000UL
+#elif CFG_TUSB_MCU == OPT_MCU_AT32F45X
+  #include <at32f45x.h>
+  #define OTG1_FIFO_SIZE           1280
+  #define OTG1_IRQn                OTGFS1_IRQn
+  #define DWC2_OTG1_REG_BASE       0x50000000UL
 #endif
 
 #ifdef __cplusplus
