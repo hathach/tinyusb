@@ -34,19 +34,6 @@
 extern "C" {
 #endif
 
-/*
-typedef struct
-{
-  uint16_t depth;
-  uint16_t item_sz;
-  void*    buf;
-  char const* name;
-  TX_QUEUE *queue;
-
-} osal_queue_def_t;
-
-typedef TX_QUEUE * osal_queue_t;
-*/
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
@@ -87,38 +74,38 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
-//  if (!in_isr) {
-//    ctx->interrupt_set(false);
-//  }
+ if (!in_isr) {
+   ctx->interrupt_set(false);
+ }
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-//  if (!in_isr) {
-//    ctx->interrupt_set(true);
-//  }
+ if (!in_isr) {
+   ctx->interrupt_set(true);
+ }
 }
 
 
 //--------------------------------------------------------------------+
-// Binary Semaphore API
+// Binary Semaphore API (act)
 //--------------------------------------------------------------------+
+// Note: semaphores are not used in tinyusb for now, and their API has not been tested
+
 typedef TX_SEMAPHORE osal_semaphore_def_t, * osal_semaphore_t;
 
-/*
 TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t *semdef) {
   tx_semaphore_create(semdef->semaphore, semdef->name, 0);
   return semdef;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_delete(osal_semaphore_t semd_hdl) {
-  (void) semd_hdl;
-  return true; // nothing to do
+TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_delete(osal_semaphore_t sem_hdl) {
+  (void) sem_hdl;
+  return TX_SUCCESS == tx_semaphore_delete(sem_hdl);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr) {
   (void) in_isr;
-  tx_semaphore_put(sem_hdl);
-  return true;
+  return TX_SUCCESS == tx_semaphore_put(sem_hdl);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec) {
@@ -127,7 +114,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait(osal_semaphore_t se
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl) {
 }
-*/
+
 //--------------------------------------------------------------------+
 // MUTEX API
 //--------------------------------------------------------------------+
@@ -169,13 +156,6 @@ osal_queue_def_t _name = {                                \
 		.tx_queue_message_size = (sizeof(_type) + 3) / 4, \
 		.tx_queue_capacity     = _depth,                  \
 		.tx_queue_start        =  _name##_buf }
-
-
-// Event queue: usbd_int_set() is used as mutex in OS NONE config
-/*
-OSAL_QUEUE_DEF(usbd_int_set, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
-static osal_queue_t _usbd_q;
-*/
 
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
