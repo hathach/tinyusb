@@ -267,6 +267,43 @@ function(family_add_linkermap TARGET)
     VERBATIM)
 endfunction()
 
+# Add membrowse target (installed with pip install membrowse)
+function(family_add_membrowse TARGET)
+  find_program(MEMBROWSE_EXE membrowse)
+  if (MEMBROWSE_EXE STREQUAL MEMBROWSE_EXE-NOTFOUND)
+    # force anyway, bash login shell will find it from pip install path
+    set(MEMBROWSE_EXE membrowse)
+  endif ()
+
+  set(OPTION "")
+  if (DEFINED MEMBROWSE_OPTION)
+    string(APPEND OPTION " ${MEMBROWSE_OPTION}")
+  endif ()
+
+  # For Ninja generator, extract all linker scripts from Ninja commands and pass them to membrowse.
+  if (CMAKE_GENERATOR MATCHES "Ninja")
+    set(MEMBROWSE_CMD
+      "ld_scripts=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?<=-Wl,--script=)[A-Za-z0-9_./-]+\\.ld' | xargs)\"; \
+${MEMBROWSE_EXE} report ${OPTION} $<TARGET_FILE:${TARGET}> \"$ld_scripts\"")
+
+    add_custom_target(${TARGET}-membrowse
+      DEPENDS ${TARGET}
+      COMMAND bash -lc "${MEMBROWSE_CMD}"
+      VERBATIM
+      )
+
+    add_custom_target(${TARGET}-membrowse-upload
+      DEPENDS ${TARGET}
+      COMMAND bash -lc "${MEMBROWSE_CMD} --upload --github --target-name ${BOARD}-${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}"
+      VERBATIM
+      )
+
+    set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET})
+    set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET})
+  endif ()
+endfunction()
+
+
 #-------------------------------------------------------------
 # Common Target Configure
 # Most families use these settings except rp2040 and espressif
@@ -380,6 +417,7 @@ function(family_configure_common TARGET RTOS)
     # Analyze size with bloaty and linkermap
     family_add_bloaty(${TARGET})
     family_add_linkermap(${TARGET})
+    family_add_membrowse(${TARGET})
   endif ()
 
   # run size after build
