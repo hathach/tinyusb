@@ -106,7 +106,7 @@ def print_build_result(board, example, status, duration):
 # -----------------------------
 # CMake
 # -----------------------------
-def cmake_board(board, build_args, build_flags_on):
+def cmake_board(board, build_args, build_flags_on, membrowse_upload):
     ret = [0, 0, 0]
     start_time = time.monotonic()
 
@@ -142,6 +142,8 @@ def cmake_board(board, build_args, build_flags_on):
         if rcmd.returncode == 0:
             ret[0] += 1
             run_cmd(["cmake", "--build", build_dir, '--target', 'tinyusb_metrics'])
+            if membrowse_upload:
+                run_cmd(["cmake", "--build", build_dir, '--target', 'examples-membrowse-upload'])
             # print(rcmd.stdout.decode("utf-8"))
         else:
             ret[1] += 1
@@ -198,13 +200,13 @@ def make_board(board, build_args):
 # -----------------------------
 # Build Family
 # -----------------------------
-def build_boards_list(boards, build_defines, build_system, build_flags_on):
+def build_boards_list(boards, build_defines, build_system, build_flags_on, membrowse_upload):
     ret = [0, 0, 0]
     for b in boards:
         r = [0, 0, 0]
         if build_system == 'cmake':
             build_args = [f'-D{d}' for d in build_defines]
-            r = cmake_board(b, build_args, build_flags_on)
+            r = cmake_board(b, build_args, build_flags_on, membrowse_upload)
         elif build_system == 'make':
             build_args = ' '.join(f'{d}' for d in build_defines)
             r = make_board(b, build_args)
@@ -273,6 +275,8 @@ def main():
     parser.add_argument('--one-first', action='store_true', default=False,
                         help='Build only the first board (alphabetical) of each specified family')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
+    parser.add_argument('--membrowse-upload', action='store_true', default=False,
+                        help='Run examples-membrowse-upload target after successful CMake build')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -284,6 +288,7 @@ def main():
     build_flags_on = args.build_flags_on
     one_random = args.one_random
     one_first = args.one_first
+    membrowse_upload = args.membrowse_upload
     verbose = args.verbose
     clean_build = args.clean
     parallel_jobs = args.jobs
@@ -314,7 +319,7 @@ def main():
         all_boards.extend(get_family_boards(f, one_random, one_first))
 
     # build all boards
-    result = build_boards_list(all_boards, build_defines, build_system, build_flags_on)
+    result = build_boards_list(all_boards, build_defines, build_system, build_flags_on, membrowse_upload)
 
     total_time = time.monotonic() - total_time
     print(build_separator)

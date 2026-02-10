@@ -24,6 +24,10 @@ on:
         required: false
         default: false
         type: boolean
+      upload-membrowse:
+        required: false
+        default: false
+        type: boolean
       os:
         required: false
         type: string
@@ -54,15 +58,17 @@ jobs:
       - name: Build
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+          MEMBROWSE_UPLOAD_OPTION: ${{ inputs.upload-membrowse && '--membrowse-upload' || '' }}
           TOOLCHAIN: ${{ inputs.toolchain }}
         run: |
           if [ "$TOOLCHAIN" == "esp-idf" ]; then
-            docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py ${{ matrix.arg }}
+            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py $MEMBROWSE_UPLOAD_OPTION ${{ matrix.arg }}
           elif [ "${{ inputs.build-system }}" == "cmake-make" ] || [ "${{ inputs.build-system }}" == "make-cmake" ]; then
-            python tools/build.py -s make ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
-            python tools/build.py -s cmake ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+            python tools/build.py -s make $MEMBROWSE_UPLOAD_OPTION ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+            python tools/build.py -s cmake $MEMBROWSE_UPLOAD_OPTION ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
           else
-            python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+            python tools/build.py -s ${{ inputs.build-system }} $MEMBROWSE_UPLOAD_OPTION ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
           fi
         shell: bash
 

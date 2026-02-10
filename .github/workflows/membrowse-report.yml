@@ -38,7 +38,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          submodules: recursive
 
       # Download artifacts when code changed (build artifacts available)
       - name: Download build artifacts

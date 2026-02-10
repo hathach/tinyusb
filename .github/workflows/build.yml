@@ -93,7 +93,9 @@ jobs:
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       build-options: '--one-first'
       upload-metrics: true
-      upload-artifacts: true
+      upload-artifacts: false
+      upload-membrowse: true
+    secrets: inherit
 
   code-metrics:
     needs: cmake
@@ -337,47 +339,47 @@ jobs:
   # Push: always runs (uses identical for doc-only to maintain commit chain)
   # PR: only runs if code changed (doc-only PRs skip entirely)
   # ---------------------------------------
-  membrowse:
-    needs: [check-paths, cmake]
-    if: |
-      always() && !cancelled() && (
-        github.event_name == 'push' ||
-        github.event_name == 'release' ||
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'pull_request' && needs.check-paths.outputs.code_changed == 'true')
-      )
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/membrowse-report.yml
-    with:
-      code_changed: ${{ needs.check-paths.outputs.code_changed == 'true' || github.event_name == 'release' || github.event_name == 'workflow_dispatch' }}
-    secrets: inherit
-
-  membrowse-comment:
-    needs: membrowse
-    # skip membrowse comment since it is too verbal
-    if: false && github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Download report artifacts
-        id: download
-        uses: actions/download-artifact@v5
-        with:
-          pattern: membrowse-report-*
-          path: reports
-          merge-multiple: true
-        continue-on-error: true
-
-      - name: Upload Membrowse Comment Artifact
-        if: steps.download.outcome == 'success'
-        uses: actions/upload-artifact@v5
-        with:
-          name: membrowse-comment
-          path: reports/
+#  membrowse:
+#    needs: [check-paths, cmake]
+#    if: |
+#      always() && !cancelled() && (
+#        github.event_name == 'push' ||
+#        github.event_name == 'release' ||
+#        github.event_name == 'workflow_dispatch' ||
+#        (github.event_name == 'pull_request' && needs.check-paths.outputs.code_changed == 'true')
+#      )
+#    permissions:
+#      contents: read
+#      actions: read
+#    uses: ./.github/workflows/membrowse-report.yml
+#    with:
+#      code_changed: ${{ needs.check-paths.outputs.code_changed == 'true' || github.event_name == 'release' || github.event_name == 'workflow_dispatch' }}
+#    secrets: inherit
+#
+#  membrowse-comment:
+#    needs: membrowse
+#    # skip membrowse comment since it is too verbal
+#    if: false && github.event_name == 'pull_request'
+#    runs-on: ubuntu-latest
+#    permissions:
+#      contents: read
+#      actions: read
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v6
+#
+#      - name: Download report artifacts
+#        id: download
+#        uses: actions/download-artifact@v5
+#        with:
+#          pattern: membrowse-report-*
+#          path: reports
+#          merge-multiple: true
+#        continue-on-error: true
+#
+#      - name: Upload Membrowse Comment Artifact
+#        if: steps.download.outcome == 'success'
+#        uses: actions/upload-artifact@v5
+#        with:
+#          name: membrowse-comment
+#          path: reports/

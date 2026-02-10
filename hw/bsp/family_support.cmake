@@ -298,6 +298,11 @@ ${MEMBROWSE_EXE} report ${OPTION} $<TARGET_FILE:${TARGET}> \"$ld_scripts\"")
       VERBATIM
       )
 
+    if (NOT TARGET examples-membrowse-upload)
+      add_custom_target(examples-membrowse-upload)
+    endif ()
+    add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
+
     set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET})
     set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET})
   endif ()
