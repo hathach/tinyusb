@@ -45,7 +45,7 @@ deps_optional = {
                                         'xmc4000'],
     'hw/mcu/microchip': ['https://github.com/hathach/microchip_driver.git',
                          '9e8b37e307d8404033bb881623a113931e1edf27',
-                         'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'],
+                         'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg'],
     'hw/mcu/mindmotion/mm32sdk': ['https://github.com/hathach/mm32sdk.git',
                                   'b93e856211060ae825216c6a1d6aa347ec758843',
                                   'mm32'],
@@ -252,11 +252,11 @@ deps_optional = {
                                'hpmicro'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '2b7495b8535bdcb306dac29b9ded4cfb679d7e5c',
-                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx rw61x mm32 msp432e4 nrf saml2x '
+                    'imxrt kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx rw61x mm32 msp432e4 nrf samd2x_l2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
                     'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba '
-                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg '
+                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg '
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
