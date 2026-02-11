@@ -49,8 +49,7 @@ typedef struct {
   #else
   uint8_t  ep_in;
   uint8_t  ep_out;
-  uint16_t ep_in_mps;
-  uint16_t ep_out_mps;
+  uint16_t rx_xfer_len;
   #endif
 } vendord_interface_t;
 
@@ -72,6 +71,8 @@ typedef struct {
 CFG_TUD_MEM_SECTION static vendord_epbuf_t _vendord_epbuf[CFG_TUD_VENDOR];
   #endif
 
+static tud_vendor_configure_t _vendord_cfg = TUD_VENDOR_CONFIGURE_DEFAULT();
+
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
@@ -89,6 +90,12 @@ TU_ATTR_WEAK void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes) {
 //--------------------------------------------------------------------
 // Application API
 //--------------------------------------------------------------------
+bool tud_vendor_configure(const tud_vendor_configure_t* driver_cfg) {
+  TU_VERIFY(driver_cfg != NULL);
+  _vendord_cfg = *driver_cfg;
+  return true;
+}
+
 bool tud_vendor_n_mounted(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
@@ -128,9 +135,9 @@ void tud_vendor_n_read_flush(uint8_t idx) {
   tu_edpt_stream_clear(&p_itf->rx_stream);
   tu_edpt_stream_read_xfer(&p_itf->rx_stream);
 }
-#endif
+  #endif
 
-#if CFG_TUD_VENDOR_RX_MANUAL_XFER
+  #if CFG_TUD_VENDOR_RX_MANUAL_XFER
 bool tud_vendor_n_read_xfer(uint8_t idx) {
   TU_VERIFY(idx < CFG_TUD_VENDOR);
   vendord_interface_t *p_itf = &_vendord_itf[idx];
@@ -141,7 +148,7 @@ bool tud_vendor_n_read_xfer(uint8_t idx) {
     #else
   // Non-FIFO mode
   TU_VERIFY(usbd_edpt_claim(p_itf->rhport, p_itf->ep_out));
-  return usbd_edpt_xfer(p_itf->rhport, p_itf->ep_out, _vendord_epbuf[idx].epout, CFG_TUD_VENDOR_EPSIZE, false);
+  return usbd_edpt_xfer(p_itf->rhport, p_itf->ep_out, _vendord_epbuf[idx].epout, p_itf->rx_xfer_len, false);
     #endif
 }
   #endif
@@ -215,12 +222,10 @@ void vendord_init(void) {
     #endif
 
     uint8_t *rx_ff_buf = p_itf->rx_ff_buf;
-    tu_edpt_stream_init(&p_itf->rx_stream, false, false, false, rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE, epout_buf,
-                        CFG_TUD_VENDOR_EPSIZE);
+    tu_edpt_stream_init(&p_itf->rx_stream, false, false, false, rx_ff_buf, CFG_TUD_VENDOR_RX_BUFSIZE, epout_buf);
 
     uint8_t *tx_ff_buf = p_itf->tx_ff_buf;
-    tu_edpt_stream_init(&p_itf->tx_stream, false, true, false, tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, epin_buf,
-                        CFG_TUD_VENDOR_EPSIZE);
+    tu_edpt_stream_init(&p_itf->tx_stream, false, true, false, tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, epin_buf);
   }
   #endif
 }
@@ -302,30 +307,31 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       const tusb_desc_endpoint_t* desc_ep = (const tusb_desc_endpoint_t*) p_desc;
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
+      uint16_t rx_xfer_len = _vendord_cfg.rx_multiple_packet_transfer ? CFG_TUD_VENDOR_EPSIZE : tu_edpt_packet_size(desc_ep);
+
   #if CFG_TUD_VENDOR_TXRX_BUFFERED
       // open endpoint stream
       if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
         tu_edpt_stream_t *tx_stream = &p_vendor->tx_stream;
-        tu_edpt_stream_open(tx_stream, rhport, desc_ep);
+        tu_edpt_stream_open(tx_stream, rhport, desc_ep, CFG_TUD_VENDOR_EPSIZE);
         tu_edpt_stream_write_xfer(tx_stream); // flush pending data
       } else {
         tu_edpt_stream_t *rx_stream = &p_vendor->rx_stream;
-        tu_edpt_stream_open(rx_stream, rhport, desc_ep);
+        tu_edpt_stream_open(rx_stream, rhport, desc_ep, rx_xfer_len);
     #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
         TU_ASSERT(tu_edpt_stream_read_xfer(rx_stream) > 0, 0); // prepare for incoming data
     #endif
       }
   #else
+      p_vendor->rx_xfer_len = rx_xfer_len;
       // Non-FIFO mode: store endpoint info
       if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
         p_vendor->ep_in     = desc_ep->bEndpointAddress;
-        p_vendor->ep_in_mps = tu_edpt_packet_size(desc_ep);
       } else {
         p_vendor->ep_out     = desc_ep->bEndpointAddress;
-        p_vendor->ep_out_mps = tu_edpt_packet_size(desc_ep);
     #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
         // Prepare for incoming data
-        TU_ASSERT(usbd_edpt_xfer(rhport, p_vendor->ep_out, _vendord_epbuf[idx].epout, CFG_TUD_VENDOR_EPSIZE, false), 0);
+        TU_ASSERT(usbd_edpt_xfer(rhport, p_vendor->ep_out, _vendord_epbuf[idx].epout, rx_xfer_len, false), 0);
     #endif
       }
   #endif
@@ -367,7 +373,7 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     // Non-FIFO mode: invoke callback with buffer
     tud_vendor_rx_cb(idx, _vendord_epbuf[idx].epout, xferred_bytes);
     #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
-    usbd_edpt_xfer(rhport, p_vendor->ep_out, _vendord_epbuf[idx].epout, CFG_TUD_VENDOR_EPSIZE, false);
+    usbd_edpt_xfer(rhport, p_vendor->ep_out, _vendord_epbuf[idx].epout, p_vendor->rx_xfer_len, false);
     #endif
   } else if (ep_addr == p_vendor->ep_in) {
     // Send complete

@@ -64,6 +64,7 @@ typedef struct TU_ATTR_PACKED {
   bool rx_persistent : 1; // keep rx fifo data even with bus reset or disconnect
   bool tx_persistent : 1; // keep tx fifo data even with reset or disconnect
   bool tx_overwritabe_if_not_connected : 1; // if not connected, tx fifo can be overwritten
+  bool rx_multiple_packet_transfer : 1; // allow transfer more than one packet in a single transfer, increase throughput but requires host sending ZLP at the end of transfer
 } tud_cdc_configure_t;
 TU_VERIFY_STATIC(sizeof(tud_cdc_configure_t) == 1, "size is not correct");
 
@@ -71,6 +72,7 @@ TU_VERIFY_STATIC(sizeof(tud_cdc_configure_t) == 1, "size is not correct");
   .rx_persistent = false, \
   .tx_persistent = false, \
   .tx_overwritabe_if_not_connected = true, \
+  .rx_multiple_packet_transfer = false, \
 }
 
 // Configure CDC driver behavior

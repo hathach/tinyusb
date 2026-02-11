@@ -121,9 +121,9 @@ bool midih_init(void) {
   for (int inst = 0; inst < CFG_TUH_MIDI; inst++) {
     midih_interface_t *p_midi_host = &_midi_host[inst];
     tu_edpt_stream_init(&p_midi_host->ep_stream.rx, true, false, false,
-      p_midi_host->ep_stream.rx_ff_buf, CFG_TUH_MIDI_RX_BUFSIZE, _midi_epbuf->rx, TUH_EPSIZE_BULK_MPS);
+      p_midi_host->ep_stream.rx_ff_buf, CFG_TUH_MIDI_RX_BUFSIZE, _midi_epbuf->rx);
     tu_edpt_stream_init(&p_midi_host->ep_stream.tx, true, true, false,
-      p_midi_host->ep_stream.tx_ff_buf, CFG_TUH_MIDI_TX_BUFSIZE, _midi_epbuf->tx, TUH_EPSIZE_BULK_MPS);
+      p_midi_host->ep_stream.tx_ff_buf, CFG_TUH_MIDI_TX_BUFSIZE, _midi_epbuf->tx);
   }
   return true;
 }
@@ -306,7 +306,7 @@ uint16_t midih_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_
           ep_stream              = &p_midi->ep_stream.rx;
         }
         TU_ASSERT(tuh_edpt_open(dev_addr, p_ep), 0);
-        tu_edpt_stream_open(ep_stream, dev_addr, p_ep);
+        tu_edpt_stream_open(ep_stream, dev_addr, p_ep, p_ep->wMaxPacketSize);
         tu_edpt_stream_clear(ep_stream);
 
         break;
