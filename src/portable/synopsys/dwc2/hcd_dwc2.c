@@ -412,9 +412,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   //------------- 3.1 Host Initialization -------------//
 
-  // work at max supported speed
-  dwc2->hcfg &= ~HCFG_FSLS_ONLY;
-
   // Enable HFIR reload
   if (dwc2->gsnpsid >= DWC2_CORE_REV_2_92a) {
     dwc2->hfir |= HFIR_RELOAD_CTRL;
@@ -427,6 +424,14 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2->stm32_gccfg &= ~STM32_GCCFG_VBVALOVAL;
 #endif
   while ((dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
+
+  if (hprt_speed_get(dwc2) != TUSB_SPEED_HIGH) {
+    // disable high speed mode
+    dwc2->hcfg |= HCFG_FSLS_ONLY;
+  } else {
+    // work at max supported speed
+    dwc2->hcfg &= ~HCFG_FSLS_ONLY;
+  }
 
   // configure fixed-allocated fifo scheme
   dfifo_host_init(rhport);
@@ -1375,6 +1380,11 @@ static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
       }
     }
     hcfg |= HCFG_FSLS_PHYCLK_SEL_30_60MHZ;
+  }
+
+  if (speed != TUSB_SPEED_HIGH) {
+    // disable high speed mode
+    hcfg |= HCFG_FSLS_ONLY;
   }
 
   dwc2->hcfg = hcfg;

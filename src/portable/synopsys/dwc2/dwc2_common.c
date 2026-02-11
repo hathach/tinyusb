@@ -187,7 +187,7 @@ bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
   }
 #endif
 #if CFG_TUH_ENABLED
-  if (role == TUSB_ROLE_HOST && !TUH_OPT_HIGH_SPEED) {
+  if (role == TUSB_ROLE_HOST && !TUH_OPT_PHY_SPEED) {
     return false;
   }
 #endif
