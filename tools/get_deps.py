@@ -330,18 +330,16 @@ def main():
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
     parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
-    parser.add_argument('--print', action='store_true', help='Print commit hash only')
     args = parser.parse_args()
 
     families = args.families
     boards = args.board
-    print_only = args.print
 
     status = 0
-    deps = list(deps_mandatory.keys())
+    deps = []
 
     if 'all' in families:
-        deps += deps_optional.keys()
+        deps.extend(deps_optional.keys())
     else:
         families = list(families)
         if boards is not None:
@@ -349,24 +347,16 @@ def main():
                 f = find_family(b)
                 if f is not None:
                     families.append(f)
-
         for f in families:
             for d in deps_optional:
                 if d not in deps and f in deps_optional[d][2].split():
                     deps.append(d)
+        if len(deps) == 0:
+            print('WARN: no additional dependencies found for given boards or families')
 
-    if print_only:
-        pvalue = {}
-        # print only without arguments, always add CMSIS_5
-        if len(families) == 0 and len(boards) == 0:
-            deps.append('lib/CMSIS_5')
-        for d in deps:
-            commit = deps_all[d][1]
-            pvalue[d] = commit
-        print(pvalue)
-    else:
-        with Pool() as pool:
-            status = sum(pool.map(get_a_dep, deps))
+    deps.extend(deps_mandatory.keys())
+    with Pool() as pool:
+        status = sum(pool.map(get_a_dep, deps))
     return status
 
 
