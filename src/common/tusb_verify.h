@@ -73,9 +73,10 @@
   #define TU_MESS_FAILED() do {} while (0)
 #endif
 
- // Custom defined application function
+// Custom defined application function
 #ifdef CFG_TUSB_DEBUG_BREAKPOINT
-#define TU_BREAKPOINT() do { void CFG_TUSB_DEBUG_BREAKPOINT(void); CFG_TUSB_DEBUG_BREAKPOINT(); } while (0)
+  extern void CFG_TUSB_DEBUG_BREAKPOINT(void);
+  #define TU_BREAKPOINT() CFG_TUSB_DEBUG_BREAKPOINT()
 
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7, M33. M55
 #elif defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__) || \
