@@ -83,6 +83,7 @@ jobs:
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
         run: |
+          # if code-changed is false --> there is no elf -> membrowse target upload with --indetical flag
           BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
           python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload -j 1 ${{ matrix.arg }}
         shell: bash

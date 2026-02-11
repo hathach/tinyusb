@@ -316,35 +316,33 @@ for symbol in $ld_symbols; do \
   ld_defs=\"$ld_defs --def $symbol\"; \
 done; \
 ld_defs=\"$(echo \"$ld_defs\" | xargs)\"")
-
-    set(MEMBROWSE_CMD
+    set(MEMBROWSE_PREPARE_CMD
       "if [ -f \"${TARGET_ELF_PATH}\" ]; then \
   ${MEMBROWSE_LD_SCRIPTS_CMD}; \
   ${MEMBROWSE_LD_DEFS_CMD}; \
-  echo ld_scripts=\"$ld_scripts\"; \
-  echo ld_defs=\"$ld_defs\"; \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\" $ld_defs --upload --github --target-name ${FAMILY}/${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs --upload --github --target-name ${FAMILY}/${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
   else \
-    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\" $ld_defs; \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} \\\"${TARGET_ELF_PATH}\\\" \\\"$ld_scripts\\\" $ld_defs\"; \
   fi; \
 else \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    ${MEMBROWSE_EXE} report ${OPTION} --identical --upload --github --target-name ${FAMILY}/${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} --identical --upload --github --target-name ${FAMILY}/${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}\"; \
   else \
-    ${MEMBROWSE_EXE} report ${OPTION} --identical; \
+    MEMBROWSE_CMD=\"${MEMBROWSE_EXE} report ${OPTION} --identical\"; \
   fi; \
-fi")
+fi; \
+echo \"$MEMBROWSE_CMD\"")
 
     add_custom_target(${TARGET}-membrowse
       DEPENDS ${TARGET}
-      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=0 bash -lc "${MEMBROWSE_CMD}"
+      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=0 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
       VERBATIM
       )
     set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET})
 
     add_custom_target(${TARGET}-membrowse-upload
-      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=1 bash -lc "${MEMBROWSE_CMD}"
+      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=1 bash -lc "${MEMBROWSE_PREPARE_CMD}; eval \"$MEMBROWSE_CMD\""
       VERBATIM
       )
 
