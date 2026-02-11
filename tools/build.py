@@ -98,15 +98,15 @@ def get_examples(family):
     return all_examples
 
 
-def print_build_result(board, example, status, duration):
+def print_build_result(board, build_target, status, duration):
     if isinstance(duration, (int, float)):
         duration = "{:.2f}s".format(duration)
-    print(build_format.format(board, example, build_status[status], duration))
+    print(build_format.format(board, build_target, build_status[status], duration))
 
 # -----------------------------
 # CMake
 # -----------------------------
-def cmake_board(board, build_args, build_flags_on, membrowse_upload):
+def cmake_board(board, build_args, build_flags_on, build_target):
     ret = [0, 0, 0]
     start_time = time.monotonic()
 
@@ -137,26 +137,18 @@ def cmake_board(board, build_args, build_flags_on, membrowse_upload):
         if rcmd.returncode == 0:
             if clean_build:
                 run_cmd(["cmake", "--build", build_dir, '--target', 'clean'])
-            cmd = ["cmake", "--build", build_dir, '--parallel', str(parallel_jobs)]
+            cmd = ["cmake", "--build", build_dir, '--target', build_target, '--parallel', str(parallel_jobs)]
             rcmd = run_cmd(cmd)
-        if rcmd.returncode == 0:
-            ret[0] += 1
-            run_cmd(["cmake", "--build", build_dir, '--target', 'tinyusb_metrics'])
-            if membrowse_upload:
-                run_cmd(["cmake", "--build", build_dir, '--target', 'examples-membrowse-upload'])
-            # print(rcmd.stdout.decode("utf-8"))
-        else:
-            ret[1] += 1
+        ret[0 if rcmd.returncode == 0 else 1] += 1
 
-    example = 'all'
-    print_build_result(board, example, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
+    print_build_result(board, build_target, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
     return ret
 
 
 # -----------------------------
 # Make
 # -----------------------------
-def make_one_example(example, board, make_option):
+def make_one_example(example, board, make_option, build_target):
     # Check if board is skipped
     if build_utils.skip_example(example, board):
         print_build_result(board, example, 2, '-')
@@ -168,7 +160,7 @@ def make_one_example(example, board, make_option):
             make_args += shlex.split(make_option)
         if clean_build:
             run_cmd(make_args + ["clean"])
-        build_result = run_cmd(make_args + ['all'])
+        build_result = run_cmd(make_args + [build_target])
         r = 0 if build_result.returncode == 0 else 1
         print_build_result(board, example, r, time.monotonic() - start_time)
 
@@ -177,7 +169,7 @@ def make_one_example(example, board, make_option):
     return ret
 
 
-def make_board(board, build_args):
+def make_board(board, build_args, build_target):
     print(build_separator)
     family = find_family(board);
     all_examples = get_examples(family)
@@ -188,7 +180,7 @@ def make_board(board, build_args):
         final_status = 2
     else:
         with Pool(processes=os.cpu_count()) as pool:
-            pool_args = list((map(lambda e, b=board, o=f"{build_args}": [e, b, o], all_examples)))
+            pool_args = list((map(lambda e, b=board, o=f"{build_args}", t=build_target: [e, b, o, t], all_examples)))
             r = pool.starmap(make_one_example, pool_args)
             # sum all element of same index (column sum)
             ret = list(map(sum, list(zip(*r))))
@@ -200,16 +192,16 @@ def make_board(board, build_args):
 # -----------------------------
 # Build Family
 # -----------------------------
-def build_boards_list(boards, build_defines, build_system, build_flags_on, membrowse_upload):
+def build_boards_list(boards, build_defines, build_system, build_flags_on, build_target):
     ret = [0, 0, 0]
     for b in boards:
         r = [0, 0, 0]
         if build_system == 'cmake':
             build_args = [f'-D{d}' for d in build_defines]
-            r = cmake_board(b, build_args, build_flags_on, membrowse_upload)
+            r = cmake_board(b, build_args, build_flags_on, build_target)
         elif build_system == 'make':
             build_args = ' '.join(f'{d}' for d in build_defines)
-            r = make_board(b, build_args)
+            r = make_board(b, build_args, build_target)
         ret[0] += r[0]
         ret[1] += r[1]
         ret[2] += r[2]
@@ -275,8 +267,7 @@ def main():
     parser.add_argument('--one-first', action='store_true', default=False,
                         help='Build only the first board (alphabetical) of each specified family')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
-    parser.add_argument('--membrowse-upload', action='store_true', default=False,
-                        help='Run examples-membrowse-upload target after successful CMake build')
+    parser.add_argument('-T', '--target', default='all', help='Build target to use, default is all')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -288,7 +279,7 @@ def main():
     build_flags_on = args.build_flags_on
     one_random = args.one_random
     one_first = args.one_first
-    membrowse_upload = args.membrowse_upload
+    build_target = args.target
     verbose = args.verbose
     clean_build = args.clean
     parallel_jobs = args.jobs
@@ -300,7 +291,7 @@ def main():
         return 1
 
     print(build_separator)
-    print(build_format.format('Board', 'Example', '\033[39mResult\033[0m', 'Time'))
+    print(build_format.format('Board', 'Target', '\033[39mResult\033[0m', 'Time'))
     total_time = time.monotonic()
 
     # get all families
@@ -319,7 +310,7 @@ def main():
         all_boards.extend(get_family_boards(f, one_random, one_first))
 
     # build all boards
-    result = build_boards_list(all_boards, build_defines, build_system, build_flags_on, membrowse_upload)
+    result = build_boards_list(all_boards, build_defines, build_system, build_flags_on, build_target)
 
     total_time = time.monotonic() - total_time
     print(build_separator)

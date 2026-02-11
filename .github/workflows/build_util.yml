@@ -3,6 +3,10 @@ name: Reusable build util
 on:
   workflow_call:
     inputs:
+      os:
+        required: false
+        type: string
+        default: 'ubuntu-latest'
       build-system:
         required: true
         type: string
@@ -28,10 +32,10 @@ on:
         required: false
         default: false
         type: boolean
-      os:
+      code-changed:
         required: false
-        type: string
-        default: 'ubuntu-latest'
+        default: false
+        type: boolean
 
 jobs:
   family:
@@ -58,19 +62,29 @@ jobs:
           arg: ${{ matrix.arg }}
 
       - name: Build
+        if: ${{ inputs.code-changed }}
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
-          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
-          MEMBROWSE_UPLOAD_OPTION: ${{ inputs.upload-membrowse && '--membrowse-upload' || '' }}
-          TOOLCHAIN: ${{ inputs.toolchain }}
         run: |
-          if [ "$TOOLCHAIN" == "esp-idf" ]; then
-            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py $MEMBROWSE_UPLOAD_OPTION ${{ matrix.arg }}
-          elif [ "${{ inputs.build-system }}" == "cmake-make" ] || [ "${{ inputs.build-system }}" == "make-cmake" ]; then
-            python tools/build.py -s make $MEMBROWSE_UPLOAD_OPTION ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
-            python tools/build.py -s cmake $MEMBROWSE_UPLOAD_OPTION ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+          if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
+            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py -T all ${{ matrix.arg }}
           else
-            python tools/build.py -s ${{ inputs.build-system }} $MEMBROWSE_UPLOAD_OPTION ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+            BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
+            python tools/build.py $BUILD_PY_ARGS --target all ${{ matrix.arg }}
+
+            if [ "${{ inputs.upload-metrics }}" = "true" ]; then
+              python tools/build.py $BUILD_PY_ARGS --target tinyusb_metrics ${{ matrix.arg }}
+            fi
+          fi
+        shell: bash
+
+      - name: Membrowse Upload
+        if: inputs.toolchain != 'esp-idf'
+        env:
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+        run: |
+          if  [ "${{ inputs.upload-membrowse }}" = "true" ]; then
+            python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload ${{ matrix.arg }}
           fi
         shell: bash
 

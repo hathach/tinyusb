@@ -280,21 +280,62 @@ function(family_add_membrowse TARGET)
     string(APPEND OPTION " ${MEMBROWSE_OPTION}")
   endif ()
 
-  # For Ninja generator, extract all linker scripts from Ninja commands and pass them to membrowse.
+  # For Ninja generator, extract all linker scripts from Ninja commands (with INCLUDE) and pass them to membrowse.
   if (CMAKE_GENERATOR MATCHES "Ninja")
+    set(TARGET_ELF_PATH "$<TARGET_FILE_DIR:${TARGET}>/$<TARGET_FILE_NAME:${TARGET}>")
+    set(MEMBROWSE_LD_SCRIPTS_CMD
+      "ld_scripts=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?:-Wl,--script=|-T\\s*)\\K[A-Za-z0-9_./-]+\\.ld' | xargs)\"; \
+all_ld_scripts=\"\"; \
+pending_ld_scripts=\"$ld_scripts\"; \
+while [ -n \"$pending_ld_scripts\" ]; do \
+  next_pending=\"\"; \
+  for script in $pending_ld_scripts; do \
+    case \" $all_ld_scripts \" in *\" $script \"*) continue ;; esac; \
+    all_ld_scripts=\"$all_ld_scripts $script\"; \
+    script_dir=$(dirname \"$script\"); \
+    include_scripts=$(grep -hoP '^\\s*INCLUDE\\s+[<\"]?\\K[^\">[:space:]]+\\.ld' \"$script\" 2>/dev/null | xargs); \
+    for include_script in $include_scripts; do \
+      resolved_script=\"\"; \
+      if [ -f \"$include_script\" ]; then \
+        resolved_script=\"$include_script\"; \
+      elif [ -f \"$script_dir/$include_script\" ]; then \
+        resolved_script=\"$script_dir/$include_script\"; \
+      fi; \
+      if [ -n \"$resolved_script\" ]; then \
+        case \" $all_ld_scripts $next_pending \" in *\" $resolved_script \"*) ;; *) next_pending=\"$next_pending $resolved_script\" ;; esac; \
+      fi; \
+    done; \
+  done; \
+  pending_ld_scripts=\"$(echo \"$next_pending\" | xargs)\"; \
+done; \
+ld_scripts=\"$(echo \"$all_ld_scripts\" | xargs)\"")
+
     set(MEMBROWSE_CMD
-      "ld_scripts=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?<=-Wl,--script=)[A-Za-z0-9_./-]+\\.ld' | xargs)\"; \
-${MEMBROWSE_EXE} report ${OPTION} $<TARGET_FILE:${TARGET}> \"$ld_scripts\"")
+      "if [ -f \"${TARGET_ELF_PATH}\" ]; then \
+  ${MEMBROWSE_LD_SCRIPTS_CMD}; \
+  echo ld_scripts=\"$ld_scripts\"; \
+  if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
+    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\" --upload --github --target-name ${BOARD}-${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
+  else \
+    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\"; \
+  fi; \
+else \
+  if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
+    ${MEMBROWSE_EXE} report ${OPTION} --identical --upload --github --target-name ${BOARD}-${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
+  else \
+    ${MEMBROWSE_EXE} report ${OPTION} --identical; \
+  fi; \
+fi")
 
     add_custom_target(${TARGET}-membrowse
       DEPENDS ${TARGET}
-      COMMAND bash -lc "${MEMBROWSE_CMD}"
+      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=0 bash -lc "${MEMBROWSE_CMD}"
       VERBATIM
       )
+    set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET})
 
     add_custom_target(${TARGET}-membrowse-upload
-      DEPENDS ${TARGET}
-      COMMAND bash -lc "${MEMBROWSE_CMD} --upload --github --target-name ${BOARD}-${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}"
+      COMMAND ${CMAKE_COMMAND} -E env MEMBROWSE_UPLOAD=1 bash -lc "${MEMBROWSE_CMD}"
       VERBATIM
       )
 
@@ -303,7 +344,6 @@ ${MEMBROWSE_EXE} report ${OPTION} $<TARGET_FILE:${TARGET}> \"$ld_scripts\"")
     endif ()
     add_dependencies(examples-membrowse-upload ${TARGET}-membrowse-upload)
 
-    set_property(TARGET ${TARGET}-membrowse PROPERTY FOLDER ${TARGET})
     set_property(TARGET ${TARGET}-membrowse-upload PROPERTY FOLDER ${TARGET})
   endif ()
 endfunction()
