@@ -121,12 +121,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool send_csw(mscd_interface_t* p_msc) {
 TU_ATTR_ALWAYS_INLINE static inline bool prepare_cbw(mscd_interface_t* p_msc) {
   uint8_t rhport = p_msc->rhport;
   p_msc->stage = MSC_STAGE_CMD;
-  // Skip command stage until Clear Stall request if endpoint is stalled
-  if (!usbd_edpt_stalled(rhport, p_msc->ep_out)) {
-    return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.buf, sizeof(msc_cbw_t), false);
-  } else {
-    return true;
-  }
+  return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.buf, sizeof(msc_cbw_t), false);
 }
 
 static void fail_scsi_op(mscd_interface_t* p_msc, uint8_t status) {
@@ -651,7 +646,11 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             break;
         }
 
-        TU_ASSERT(prepare_cbw(p_msc));
+        if (!usbd_edpt_stalled(rhport, p_msc->ep_out)) {
+          TU_ASSERT(prepare_cbw(p_msc));
+        } else {
+          p_msc->stage = MSC_STAGE_CMD;
+        }
       } else {
         // Any xfer ended here is considered unknown error, ignore it
         TU_LOG1("  Warning expect SCSI Status but received unknown data\r\n");
