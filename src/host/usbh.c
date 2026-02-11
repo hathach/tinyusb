@@ -638,8 +638,6 @@ bool tuh_task_event_ready(void) {
     @endcode
  */
 void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
-  (void) in_isr; // not implemented yet
-
   // Skip if stack is not initialized
   if (!tuh_inited()) {
     return;
@@ -680,6 +678,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 }
 
 static void usbh_task_mq(uint32_t timeout_ms, bool in_isr) {
+  (void) in_isr; // not implemented yet
+
   // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
   for (unsigned epr = 0;; epr++) {
 #if CFG_TUH_TASK_EVENTS_PER_RUN > 0
