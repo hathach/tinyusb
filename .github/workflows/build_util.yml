@@ -34,7 +34,7 @@ on:
         type: boolean
       code-changed:
         required: false
-        default: false
+        default: true
         type: boolean
 
 jobs:

@@ -98,7 +98,7 @@ jobs:
 
   code-metrics:
     needs: [ check-paths, cmake ]
-    if: needs.check-paths.outputs.code_changed == true
+    if: needs.check-paths.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -196,7 +196,7 @@ jobs:
   # ---------------------------------------
   build-os:
     needs: [ check-paths ]
-    if: needs.check-paths.outputs.code_changed == true
+    if: needs.check-paths.outputs.code_changed == 'true'
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
@@ -240,7 +240,7 @@ jobs:
   # ---------------------------------------
   hil-build:
     needs: [ check-paths, set-matrix ]
-    if: needs.check-paths.outputs.code_changed == true && github.repository_owner == 'hathach'
+    if: needs.check-paths.outputs.code_changed == 'true' && github.repository_owner == 'hathach'
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
@@ -301,7 +301,7 @@ jobs:
   hil-hfp:
     needs: [ check-paths ]
     if: |
-      needs.check-paths.outputs.code_changed == true &&
+      needs.check-paths.outputs.code_changed == 'true' &&
       github.repository_owner == 'hathach' &&
       !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
