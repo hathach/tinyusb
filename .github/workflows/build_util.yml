@@ -43,6 +43,8 @@ jobs:
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ !inputs.upload-membrowse && 1 || 0 }}
 
       - name: Setup Toolchain
         id: setup-toolchain
