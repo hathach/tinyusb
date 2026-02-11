@@ -309,15 +309,24 @@ while [ -n \"$pending_ld_scripts\" ]; do \
   pending_ld_scripts=\"$(echo \"$next_pending\" | xargs)\"; \
 done; \
 ld_scripts=\"$(echo \"$all_ld_scripts\" | xargs)\"")
+    set(MEMBROWSE_LD_DEFS_CMD
+      "ld_symbols=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?<=-Wl,--defsym=)[^[:space:]]+' | xargs)\"; \
+ld_defs=\"\"; \
+for symbol in $ld_symbols; do \
+  ld_defs=\"$ld_defs --def $symbol\"; \
+done; \
+ld_defs=\"$(echo \"$ld_defs\" | xargs)\"")
 
     set(MEMBROWSE_CMD
       "if [ -f \"${TARGET_ELF_PATH}\" ]; then \
   ${MEMBROWSE_LD_SCRIPTS_CMD}; \
+  ${MEMBROWSE_LD_DEFS_CMD}; \
   echo ld_scripts=\"$ld_scripts\"; \
+  echo ld_defs=\"$ld_defs\"; \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\" --upload --github --target-name ${FAMILY}/${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
+    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\" $ld_defs --upload --github --target-name ${FAMILY}/${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
   else \
-    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\"; \
+    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\" $ld_defs; \
   fi; \
 else \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
