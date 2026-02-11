@@ -315,13 +315,13 @@ ld_scripts=\"$(echo \"$all_ld_scripts\" | xargs)\"")
   ${MEMBROWSE_LD_SCRIPTS_CMD}; \
   echo ld_scripts=\"$ld_scripts\"; \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\" --upload --github --target-name ${BOARD}-${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
+    ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\" --upload --github --target-name ${FAMILY}/${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
   else \
     ${MEMBROWSE_EXE} report ${OPTION} \"${TARGET_ELF_PATH}\" \"$ld_scripts\"; \
   fi; \
 else \
   if [ \"$MEMBROWSE_UPLOAD\" = \"1\" ]; then \
-    ${MEMBROWSE_EXE} report ${OPTION} --identical --upload --github --target-name ${BOARD}-${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
+    ${MEMBROWSE_EXE} report ${OPTION} --identical --upload --github --target-name ${FAMILY}/${BOARD}/${TARGET} --api-key $ENV{MEMBROWSE_API_KEY}; \
   else \
     ${MEMBROWSE_EXE} report ${OPTION} --identical; \
   fi; \
