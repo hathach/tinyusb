@@ -193,7 +193,11 @@ typedef struct {
   uint8_t enum_failed_count; // see process_enumeration()
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
   tuh_xfer_t enum_xfer_retry; // enumeration transfer to retry
+  usbh_wait_delay_cb enum_wait_delay_cb; // continuation function after waiting
+  uint32_t enum_wait_deadline; // ticks when the timer expires
+#endif
 } usbh_data_t;
 
 static usbh_data_t _usbh_data = {
@@ -321,6 +325,7 @@ static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+static void usbh_task_mq(uint32_t timeout_ms, bool in_isr);
 
 TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) {
   TU_VERIFY(dev_addr > 0 && dev_addr <= TOTAL_DEVICES, NULL);
@@ -356,8 +361,15 @@ TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const ui
 
 TU_ATTR_ALWAYS_INLINE static inline void usbh_wait_delay_ms(uint32_t delay_ms, usbh_wait_delay_cb complete_cb)
 {
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
+  TU_LOG_USBH("USBH start timer for %u ms\r\n", (unsigned int)delay_ms);
+  _usbh_data.enum_wait_deadline = tusb_time_millis_api() + delay_ms;
+  _usbh_data.enum_wait_delay_cb = complete_cb;
+#else
+  TU_LOG_USBH("USBH sleep for %u ms\r\n", (unsigned int)delay_ms);
   tusb_time_delay_ms_api(delay_ms);
   complete_cb();
+#endif
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8_t daddr) {
@@ -371,6 +383,9 @@ TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8
   // invalidate if enumerating
   if (daddr == _usbh_data.enumerating_daddr) {
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
+    _usbh_data.enum_wait_delay_cb = NULL;
+#endif
   }
 }
 
@@ -519,6 +534,9 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
     _usbh_data.controller_id = TUSB_INDEX_INVALID_8;
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
+    _usbh_data.enum_wait_delay_cb = NULL;
+#endif
 
     for (uint8_t i = 0; i < TOTAL_DEVICES; i++) {
       clear_device(&_usbh_devices[i]);
@@ -603,12 +621,34 @@ bool tuh_task_event_ready(void) {
     @endcode
  */
 void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
-  (void) in_isr; // not implemented yet
-
   // Skip if stack is not initialized
   if (!tuh_inited()) {
     return;
   }
+
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
+  // Process continuation function if timer is expired
+  usbh_wait_delay_cb delay_cb = _usbh_data.enum_wait_delay_cb;
+  if (delay_cb) {
+    int32_t ms = (int32_t)(_usbh_data.enum_wait_deadline - tusb_time_millis_api());
+    if (ms <= 0) {
+      // delay expired, run callback now
+      TU_LOG_USBH("USBH run timer callback\r\n");
+      _usbh_data.enum_wait_delay_cb = NULL;
+      delay_cb();
+    } else if (timeout_ms > (uint32_t)ms) {
+      // reduce timeout accordingly
+      timeout_ms = (uint32_t)ms;
+    }
+  }
+#endif
+
+  // Process the message queue
+  usbh_task_mq(timeout_ms, in_isr);
+}
+
+static void usbh_task_mq(uint32_t timeout_ms, bool in_isr) {
+  (void) in_isr; // not implemented yet
 
   // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
   for (unsigned epr = 0;; epr++) {
@@ -781,10 +821,8 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
 
     while (result == XFER_RESULT_INVALID) {
       // Note: this can be called within an callback ie. part of tuh_task()
-      // therefore event with RTOS tuh_task() still need to be invoked
-      if (tuh_task_event_ready()) {
-        tuh_task();
-      }
+      // therefore even with RTOS usbh_task_mq() still need to be invoked
+      usbh_task_mq(0, false);
       // TODO probably some timeout to prevent hanged
     }
 
@@ -1461,7 +1499,9 @@ static void enum_full_complete(bool success);
 static void process_enumeration(tuh_xfer_t* xfer);
 
 // continuation functions after waiting
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
 static void enum_after_attempt_delay(void);
+#endif
 static void enum_after_debouncing_delay(void);
 static void enum_after_reset_root_delay(void);
 static void enum_after_reset_root_post_delay(void);
@@ -1550,9 +1590,14 @@ static void process_enumeration(tuh_xfer_t* xfer) {
     _usbh_data.enum_failed_count++;
     bool retry = (_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8) && (_usbh_data.enum_failed_count < ATTEMPT_COUNT_MAX);
     if (retry) {
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
       // save transfer for later
       _usbh_data.enum_xfer_retry = *xfer;
       usbh_wait_delay_ms(ATTEMPT_DELAY_MS, enum_after_attempt_delay); // wait for reset to take effect
+#else
+      if (!tuh_control_xfer(xfer))
+	enum_full_complete(false); // complete as failed
+#endif
     } else {
       enum_full_complete(false); // complete as failed
     }
@@ -1824,11 +1869,13 @@ static void process_enumeration(tuh_xfer_t* xfer) {
   }
 }
 
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
 static void enum_after_attempt_delay(void) {
   TU_LOG_USBH("Enumeration attempt %u/%u\r\n", _usbh_data.enum_failed_count+1, ATTEMPT_COUNT_MAX);
   if (!tuh_control_xfer(&_usbh_data.enum_xfer_retry))
     enum_full_complete(false); // complete as failed
 }
+#endif
 
 static void enum_after_set_address_recovery_delay(void) {
   const uint8_t new_addr =_usbh_data.enumerating_daddr;
@@ -1982,6 +2029,9 @@ static void enum_full_complete(bool success) {
   (void)success;
   // mark enumeration as complete
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+#if CFG_TUH_TASK_USE_TIME_MILLIS_API
+  _usbh_data.enum_wait_delay_cb = NULL;
+#endif
 
 #if CFG_TUH_HUB
   // Hub status is already requested in case of successful enumeration
