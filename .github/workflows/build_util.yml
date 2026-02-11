@@ -79,13 +79,12 @@ jobs:
         shell: bash
 
       - name: Membrowse Upload
-        if: inputs.toolchain != 'esp-idf'
+        if: inputs.toolchain != 'esp-idf' && inputs.upload-membrowse == true
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
         run: |
-          if  [ "${{ inputs.upload-membrowse }}" = "true" ]; then
-            python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload ${{ matrix.arg }}
-          fi
+          BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
+          python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload -j 1 ${{ matrix.arg }}
         shell: bash
 
       - name: Upload Artifacts for Metrics
