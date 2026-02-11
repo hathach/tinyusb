@@ -169,6 +169,12 @@ static OSAL_SPINLOCK_DEF(_usbh_spin, usbh_int_set);
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
+#if CFG_TUH_HUB
+// Deferred attachment queue
+OSAL_QUEUE_DEF(usbh_int_set, _usbh_daqdef, TOTAL_DEVICES, hcd_event_t);
+static osal_queue_t _usbh_daq;
+#endif
+
 // Callback after waiting
 typedef void (*usbh_wait_delay_cb)(void);
 
@@ -519,6 +525,12 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     _usbh_q = osal_queue_create(&_usbh_qdef);
     TU_ASSERT(_usbh_q != NULL);
 
+#if CFG_TUH_HUB
+    // Deferred attachment queue
+    _usbh_daq = osal_queue_create(&_usbh_daqdef);
+    TU_ASSERT(_usbh_daq != NULL);
+#endif
+
 #if OSAL_MUTEX_REQUIRED
     // Init mutex
     _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
@@ -587,11 +599,16 @@ bool tuh_deinit(uint8_t rhport) {
     osal_queue_delete(_usbh_q);
     _usbh_q = NULL;
 
-    #if OSAL_MUTEX_REQUIRED
+#if CFG_TUH_HUB
+    osal_queue_delete(_usbh_daq);
+    _usbh_daq = NULL;
+#endif
+
+#if OSAL_MUTEX_REQUIRED
     // TODO make sure there is no task waiting on this mutex
     osal_mutex_delete(_usbh_mutex);
     _usbh_mutex = NULL;
-    #endif
+#endif
   }
 
   return true;
@@ -643,6 +660,19 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
   }
 #endif
 
+#if CFG_TUH_HUB
+  // Process deferred device attachments
+  if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
+    hcd_event_t event;
+    if (osal_queue_receive(_usbh_daq, &event, 0)) {
+      // We are ready to process a new attachment
+      TU_LOG_USBH("[%u:] USBH Deferred Device Attach\r\n", event.rhport);
+      _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
+      enum_new_device(&event);
+    }
+  }
+#endif
+
   // Process the message queue
   usbh_task_mq(timeout_ms, in_isr);
 }
@@ -669,20 +699,17 @@ static void usbh_task_mq(uint32_t timeout_ms, bool in_isr) {
         process_remove_event(&event);
 
         // due to the shared control buffer, we must fully complete enumerating one device first.
-        // TODO better to have an separated queue for newly attached devices
         if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
           // New device attached and we are ready
           TU_LOG_USBH("[%u:] USBH Device Attach\r\n", event.rhport);
           _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
           enum_new_device(&event);
+#if CFG_TUH_HUB
         } else {
           // currently enumerating another device
           TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
-          const bool is_empty = osal_queue_empty(_usbh_q);
-          queue_event(&event, in_isr);
-          if (is_empty) {
-            return; // Exit if this is the only event in the queue, otherwise we loop forever
-          }
+          TU_ASSERT(osal_queue_send(_usbh_daq, &event, in_isr),);
+#endif
         }
         break;
 
