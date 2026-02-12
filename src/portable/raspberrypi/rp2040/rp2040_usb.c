@@ -53,6 +53,7 @@ static void unaligned_memcpy(uint8_t *dst, const uint8_t *src, size_t n) {
   }
 }
 
+#if CFG_TUD_EDPT_DEDICATED_HWFIFO
 void tu_hwfifo_write(volatile void *hwfifo, const uint8_t *src, uint16_t len, const tu_hwfifo_access_t *access_mode) {
   (void)access_mode;
   unaligned_memcpy((uint8_t *)(uintptr_t)hwfifo, src, len);
@@ -62,6 +63,7 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
   (void)access_mode;
   unaligned_memcpy(dest, (const uint8_t *)(uintptr_t)hwfifo, len);
 }
+#endif
 
 void rp2usb_init(void) {
   // Reset usb controller
