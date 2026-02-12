@@ -340,14 +340,14 @@
 #if defined(TUP_USBIP_FSDEV)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 
-  #if CFG_TUSB_FSDEV_PMA_SIZE == 512
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
+  #if CFG_TUSB_FSDEV_PMA_SIZE == 2048 || TU_CHECK_MCU(OPT_MCU_STM32U0)
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
   #elif CFG_TUSB_FSDEV_PMA_SIZE == 1024
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 2 // 16-bit address increase
-  #elif CFG_TUSB_FSDEV_PMA_SIZE == 2048
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
+  #elif CFG_TUSB_FSDEV_PMA_SIZE == 512
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
   #endif
 #endif
@@ -560,6 +560,11 @@
   #define CFG_TUD_INTERFACE_MAX   16
 #endif
 
+// max events processed in one tud_task_ext() call, 0 for unlimited
+#ifndef CFG_TUD_TASK_EVENTS_PER_RUN
+  #define CFG_TUD_TASK_EVENTS_PER_RUN  16
+#endif
+
 // default to max hardware endpoint, but can be smaller to save RAM
 #ifndef CFG_TUD_ENDPPOINT_MAX
   #define CFG_TUD_ENDPPOINT_MAX   TUP_DCD_ENDPOINT_MAX
@@ -677,6 +682,11 @@
 
 #ifndef CFG_TUH_MEM_DCACHE_LINE_SIZE
   #define CFG_TUH_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
+#endif
+
+// max events processed in one tuh_task_ext() call, 0 for unlimited
+#ifndef CFG_TUH_TASK_EVENTS_PER_RUN
+  #define CFG_TUH_TASK_EVENTS_PER_RUN  16
 #endif
 
 //------------- CLASS -------------//

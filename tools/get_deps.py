@@ -45,7 +45,7 @@ deps_optional = {
                                         'xmc4000'],
     'hw/mcu/microchip': ['https://github.com/hathach/microchip_driver.git',
                          '9e8b37e307d8404033bb881623a113931e1edf27',
-                         'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg'],
+                         'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg'],
     'hw/mcu/mindmotion/mm32sdk': ['https://github.com/hathach/mm32sdk.git',
                                   'b93e856211060ae825216c6a1d6aa347ec758843',
                                   'mm32'],
@@ -252,11 +252,11 @@ deps_optional = {
                                'hpmicro'],
     'lib/CMSIS_5': ['https://github.com/ARM-software/CMSIS_5.git',
                     '2b7495b8535bdcb306dac29b9ded4cfb679d7e5c',
-                    'imxrt kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx rw61x mm32 msp432e4 nrf saml2x '
+                    'imxrt kinetis_k kinetis_k32l2 kinetis_kl lpc51 lpc54 lpc55 mcx rw61x mm32 msp432e4 nrf samd2x_l2x '
                     'lpc11 lpc13 lpc15 lpc17 lpc18 lpc40 lpc43 '
                     'stm32c0 stm32f0 stm32f1 stm32f2 stm32f3 stm32f4 stm32f7 stm32g0 stm32g4 stm32h5 '
                     'stm32h7 stm32h7rs stm32l0 stm32l1 stm32l4 stm32l5 stm32u0 stm32u5 stm32wb stm32wba '
-                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x saml2x samg '
+                    'sam3x samd11 samd21 samd51 samd5x_e5x same5x same7x samd2x_l2x samg '
                     'tm4c '],
     'lib/CMSIS_6': ['https://github.com/ARM-software/CMSIS_6.git',
                     '6f0a58d01aa9bd2feba212097f9afe7acd991d52',
@@ -330,18 +330,16 @@ def main():
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to fetch')
     parser.add_argument('-D', '--define', action='append', default=[], help='Have no effect')
     parser.add_argument('-f1', '--build-flags-on', action='append', default=[], help='Have no effect')
-    parser.add_argument('--print', action='store_true', help='Print commit hash only')
     args = parser.parse_args()
 
     families = args.families
     boards = args.board
-    print_only = args.print
 
     status = 0
-    deps = list(deps_mandatory.keys())
+    deps = []
 
     if 'all' in families:
-        deps += deps_optional.keys()
+        deps.extend(deps_optional.keys())
     else:
         families = list(families)
         if boards is not None:
@@ -349,24 +347,16 @@ def main():
                 f = find_family(b)
                 if f is not None:
                     families.append(f)
-
         for f in families:
             for d in deps_optional:
                 if d not in deps and f in deps_optional[d][2].split():
                     deps.append(d)
+        if len(deps) == 0:
+            print('WARN: no additional dependencies found for given boards or families')
 
-    if print_only:
-        pvalue = {}
-        # print only without arguments, always add CMSIS_5
-        if len(families) == 0 and len(boards) == 0:
-            deps.append('lib/CMSIS_5')
-        for d in deps:
-            commit = deps_all[d][1]
-            pvalue[d] = commit
-        print(pvalue)
-    else:
-        with Pool() as pool:
-            status = sum(pool.map(get_a_dep, deps))
+    deps.extend(deps_mandatory.keys())
+    with Pool() as pool:
+        status = sum(pool.map(get_a_dep, deps))
     return status
 
 
