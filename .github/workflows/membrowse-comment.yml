@@ -11,28 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion != 'cancelled'
+      github.event.workflow_run.conclusion == 'success'
     permissions:
+      contents: read
       actions: read
       pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Download Artifacts
-        id: download
-        uses: actions/download-artifact@v5
-        with:
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          name: membrowse-comment
-          path: reports
-        continue-on-error: true
-
       - name: Post Membrowse PR comment
-        if: steps.download.outcome == 'success'
+        if: ${{ secrets.MEMBROWSE_API_KEY != '' }}
         uses: membrowse/membrowse-action/comment-action@v1
         with:
-          json_files: 'reports/*.json'
+          api_key: ${{ secrets.MEMBROWSE_API_KEY }}
+          commit: ${{ github.event.workflow_run.head_sha }}
+          comment_template: .github/membrowse_pr_message.j2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
