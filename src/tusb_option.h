@@ -448,12 +448,19 @@
   #define CFG_TUH_MAX_SPEED   (TUH_RHPORT_MODE & OPT_MODE_SPEED_MASK)
 #endif
 
+#ifndef CFG_TUH_PHY_SPEED
+  // fallback to use CFG_TUH_MAX_SPEED
+  #define CFG_TUH_PHY_SPEED   CFG_TUH_MAX_SPEED
+#endif
+
 // For backward compatible
 #define TUSB_OPT_HOST_ENABLED   CFG_TUH_ENABLED
 
 // highspeed support indicator
 #define TUH_OPT_HIGH_SPEED    (CFG_TUH_MAX_SPEED ? (CFG_TUH_MAX_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
 
+// hardware phy speed (might be different than TUH_OPT_HIGH_SPEED in special cases)
+#define TUH_OPT_PHY_SPEED     (CFG_TUH_PHY_SPEED ? (CFG_TUH_PHY_SPEED & OPT_MODE_HIGH_SPEED) : TUP_RHPORT_HIGHSPEED)
 
 //--------------------------------------------------------------------+
 // TODO move later
