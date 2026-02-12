@@ -69,12 +69,11 @@ jobs:
           if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
             docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py --target all ${{ matrix.arg }}
           else
-            BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
-            python tools/build.py $BUILD_PY_ARGS --target all ${{ matrix.arg }}
-
+            BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
             if [ "${{ inputs.upload-metrics }}" = "true" ]; then
-              python tools/build.py $BUILD_PY_ARGS --target tinyusb_metrics ${{ matrix.arg }}
+              BUILD_PY_ARGS="$BUILD_PY_ARGS --target tinyusb_metrics"
             fi
+            python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }}
           fi
         shell: bash
 

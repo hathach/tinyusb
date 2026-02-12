@@ -24,7 +24,6 @@ build_separator = '-' * 95
 build_status = [STATUS_OK, STATUS_FAILED, STATUS_SKIPPED]
 
 verbose = False
-clean_build = False
 parallel_jobs = os.cpu_count()
 
 # CI board control lists (used when running under CI)
@@ -106,7 +105,7 @@ def print_build_result(board, build_target, status, duration):
 # -----------------------------
 # CMake
 # -----------------------------
-def cmake_board(board, build_args, build_flags_on, build_target):
+def cmake_board(board, build_args, build_flags_on, build_targets):
     ret = [0, 0, 0]
     start_time = time.monotonic()
 
@@ -135,33 +134,36 @@ def cmake_board(board, build_args, build_flags_on, build_target):
                         f'-DBOARD={board}', '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DLINKERMAP_OPTION=-q -f tinyusb/src',
                         *build_args, *build_flags])
         if rcmd.returncode == 0:
-            if clean_build:
-                run_cmd(["cmake", "--build", build_dir, '--target', 'clean'])
-            cmd = ["cmake", "--build", build_dir, '--target', build_target, '--parallel', str(parallel_jobs)]
-            rcmd = run_cmd(cmd)
+            cmd = ["cmake", "--build", build_dir, '--parallel', str(parallel_jobs)]
+            for target in build_targets:
+                rcmd = run_cmd(cmd + ['--target', target])
+                if rcmd.returncode != 0:
+                    break
         ret[0 if rcmd.returncode == 0 else 1] += 1
 
-    print_build_result(board, build_target, 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
+    print_build_result(board, ','.join(build_targets), 0 if ret[1] == 0 else 1, time.monotonic() - start_time)
     return ret
 
 
 # -----------------------------
 # Make
 # -----------------------------
-def make_one_example(example, board, make_option, build_target):
+def make_one_example(example, board, make_option, build_targets):
     # Check if board is skipped
     if build_utils.skip_example(example, board):
         print_build_result(board, example, 2, '-')
         r = 2
     else:
         start_time = time.monotonic()
-        make_args = ["make", "-C", f"examples/{example}", f"BOARD={board}", '-j', str(parallel_jobs)]
+        make_cmd = ["make", "-C", f"examples/{example}", f"BOARD={board}", '-j', str(parallel_jobs)]
         if make_option:
-            make_args += shlex.split(make_option)
-        if clean_build:
-            run_cmd(make_args + ["clean"])
-        build_result = run_cmd(make_args + [build_target])
-        r = 0 if build_result.returncode == 0 else 1
+            make_cmd += shlex.split(make_option)
+        r = 0
+        for target in build_targets:
+            build_result = run_cmd(make_cmd + [target])
+            if build_result.returncode != 0:
+                r = 1
+                break
         print_build_result(board, example, r, time.monotonic() - start_time)
 
     ret = [0, 0, 0]
@@ -169,7 +171,7 @@ def make_one_example(example, board, make_option, build_target):
     return ret
 
 
-def make_board(board, build_args, build_target):
+def make_board(board, build_args, build_targets):
     print(build_separator)
     family = find_family(board);
     all_examples = get_examples(family)
@@ -180,7 +182,7 @@ def make_board(board, build_args, build_target):
         final_status = 2
     else:
         with Pool(processes=os.cpu_count()) as pool:
-            pool_args = list((map(lambda e, b=board, o=f"{build_args}", t=build_target: [e, b, o, t], all_examples)))
+            pool_args = list((map(lambda e, b=board, o=f"{build_args}", t=build_targets: [e, b, o, t], all_examples)))
             r = pool.starmap(make_one_example, pool_args)
             # sum all element of same index (column sum)
             ret = list(map(sum, list(zip(*r))))
@@ -192,16 +194,16 @@ def make_board(board, build_args, build_target):
 # -----------------------------
 # Build Family
 # -----------------------------
-def build_boards_list(boards, build_defines, build_system, build_flags_on, build_target):
+def build_boards_list(boards, build_defines, build_system, build_flags_on, build_targets):
     ret = [0, 0, 0]
     for b in boards:
         r = [0, 0, 0]
         if build_system == 'cmake':
             build_args = [f'-D{d}' for d in build_defines]
-            r = cmake_board(b, build_args, build_flags_on, build_target)
+            r = cmake_board(b, build_args, build_flags_on, build_targets)
         elif build_system == 'make':
             build_args = ' '.join(f'{d}' for d in build_defines)
-            r = make_board(b, build_args, build_target)
+            r = make_board(b, build_args, build_targets)
         ret[0] += r[0]
         ret[1] += r[1]
         ret[2] += r[2]
@@ -251,13 +253,11 @@ def get_family_boards(family, one_random, one_first):
 # -----------------------------
 def main():
     global verbose
-    global clean_build
     global parallel_jobs
 
     parser = argparse.ArgumentParser()
     parser.add_argument('families', nargs='*', default=[], help='Families to build')
     parser.add_argument('-b', '--board', action='append', default=[], help='Boards to build')
-    parser.add_argument('-c', '--clean', action='store_true', default=False, help='Clean before build')
     parser.add_argument('-t', '--toolchain', default='gcc', help='Toolchain to use, default is gcc')
     parser.add_argument('-s', '--build-system', default='cmake', help='Build system to use, default is cmake')
     parser.add_argument('-D', '--define-symbol', action='append', default=[], help='Define to pass to build system')
@@ -267,7 +267,8 @@ def main():
     parser.add_argument('--one-first', action='store_true', default=False,
                         help='Build only the first board (alphabetical) of each specified family')
     parser.add_argument('-j', '--jobs', type=int, default=os.cpu_count(), help='Number of jobs to run in parallel')
-    parser.add_argument('-T', '--target', default='all', help='Build target to use, default is all')
+    parser.add_argument('-T', '--target', action='append', default=[],
+                        help='Build target to use, may be specified multiple times (default: all)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
     args = parser.parse_args()
 
@@ -279,9 +280,8 @@ def main():
     build_flags_on = args.build_flags_on
     one_random = args.one_random
     one_first = args.one_first
-    build_target = args.target
+    build_targets = args.target if args.target else ['all']
     verbose = args.verbose
-    clean_build = args.clean
     parallel_jobs = args.jobs
 
     build_defines.append(f'TOOLCHAIN={toolchain}')
@@ -310,7 +310,7 @@ def main():
         all_boards.extend(get_family_boards(f, one_random, one_first))
 
     # build all boards
-    result = build_boards_list(all_boards, build_defines, build_system, build_flags_on, build_target)
+    result = build_boards_list(all_boards, build_defines, build_system, build_flags_on, build_targets)
 
     total_time = time.monotonic() - total_time
     print(build_separator)
