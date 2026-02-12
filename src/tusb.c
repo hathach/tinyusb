@@ -306,7 +306,7 @@ bool tu_bind_driver_to_ep_itf(uint8_t driver_id, uint8_t ep2drv[][2], uint8_t it
 //--------------------------------------------------------------------+
 
 bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool overwritable, void *ff_buf,
-                         uint16_t ff_bufsize, uint8_t *ep_buf, uint16_t ep_bufsize) {
+                         uint16_t ff_bufsize, uint8_t *ep_buf) {
   (void) is_tx;
 
   if (ff_buf == NULL || ff_bufsize == 0) {
@@ -324,7 +324,6 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
   #endif
 
   s->ep_buf = ep_buf;
-  s->ep_bufsize = ep_bufsize;
 
   return true;
 }
@@ -394,7 +393,7 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   if (s->ep_buf == NULL) {
     count = tu_fifo_count(&s->ff); // re-get count since fifo can be changed
   } else {
-    count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
+    count = tu_fifo_read_n(&s->ff, s->ep_buf, s->xfer_len);
   }
 
   if (count > 0) {
@@ -441,7 +440,7 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   if (available >= s->mps) {
     // multiple of packet size limit by ep bufsize
     uint16_t count = (uint16_t) (available & ~(s->mps - 1));
-    count = tu_min16(count, s->ep_bufsize);
+    count = tu_min16(count, s->xfer_len);
     TU_ASSERT(stream_xfer(s, count), 0);
     return count;
   } else {

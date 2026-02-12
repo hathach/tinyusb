@@ -37,7 +37,7 @@ extern "C" {
 // Configuration
 //--------------------------------------------------------------------+
 #ifndef CFG_TUD_VENDOR_EPSIZE
-  #define CFG_TUD_VENDOR_EPSIZE 64
+  #define CFG_TUD_VENDOR_EPSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #endif
 
 // RX FIFO can be disabled by setting this value to 0
@@ -61,6 +61,21 @@ extern "C" {
 #ifndef CFG_TUD_VENDOR_RX_MANUAL_XFER
   #define CFG_TUD_VENDOR_RX_MANUAL_XFER 0
 #endif
+
+//--------------------------------------------------------------------+
+// Driver Configuration
+//--------------------------------------------------------------------+
+typedef struct TU_ATTR_PACKED {
+  bool rx_multiple_packet_transfer : 1; // allow transfer more than one packet in a single transfer, increase throughput but requires host sending ZLP at the end of transfer
+} tud_vendor_configure_t;
+TU_VERIFY_STATIC(sizeof(tud_vendor_configure_t) == 1, "size is not correct");
+
+#define TUD_VENDOR_CONFIGURE_DEFAULT() { \
+  .rx_multiple_packet_transfer = false, \
+}
+
+// Configure CDC driver behavior
+bool tud_vendor_configure(const tud_vendor_configure_t* driver_cfg);
 
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces) i.e CFG_TUD_VENDOR > 1
