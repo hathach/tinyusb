@@ -23,7 +23,6 @@ runs:
         wget $NINJA_URL -O ninja-linux.zip
         unzip ninja-linux.zip -d ninja-bin
         pip install membrowse
-        #echo >> $GITHUB_PATH "$HOME/.local/bin"
         echo >> $GITHUB_PATH "${{ github.workspace }}/ninja-bin"
       shell: bash
 

@@ -110,7 +110,7 @@ commands:
           no_output_timeout: 20m
           command: |
             if [ << parameters.toolchain >> == esp-idf ]; then
-              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.build-args >> << parameters.family >>
+              docker run --rm -v $PWD:/project -w /project espressif/idf:v5.3.2 python tools/build.py << parameters.build-args >> --target all << parameters.family >>
             else
               # Toolchain option default is gcc
               if [ << parameters.toolchain >> == arm-clang ]; then
@@ -124,7 +124,12 @@ commands:
 
               # circleci docker return $nproc as 36 core, limit parallel to 4 (resource-class = large)
               # Required for IAR, also prevent crashed/killed by docker
-              python tools/build.py -s << parameters.build-system >> $TOOLCHAIN_OPTION -j 4 << parameters.build-args >> << parameters.family >>
+              BUILD_PY_ARGS="-s << parameters.build-system >> $TOOLCHAIN_OPTION -j 4 << parameters.build-args >>"
+              python tools/build.py $BUILD_PY_ARGS --target all << parameters.family >>
+
+              if [ << parameters.build-system >> == "cmake" ]; then
+                python tools/build.py $BUILD_PY_ARGS --target tinyusb_metrics << parameters.family >>
+              fi
             fi
 
       # Only collect and persist metrics for cmake builds (excluding esp-idf and --one-random)
