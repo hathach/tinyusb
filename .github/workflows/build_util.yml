@@ -79,7 +79,6 @@ jobs:
 
       - name: Membrowse Upload
         if: inputs.toolchain != 'esp-idf' && inputs.upload-membrowse == true
-        continue-on-error: true # have server busy issue with membrowse
         env:
           MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
         run: |
