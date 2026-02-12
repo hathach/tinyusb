@@ -3,6 +3,10 @@ name: Reusable build util
 on:
   workflow_call:
     inputs:
+      os:
+        required: false
+        type: string
+        default: 'ubuntu-latest'
       build-system:
         required: true
         type: string
@@ -24,10 +28,14 @@ on:
         required: false
         default: false
         type: boolean
-      os:
+      upload-membrowse:
         required: false
-        type: string
-        default: 'ubuntu-latest'
+        default: false
+        type: boolean
+      code-changed:
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   family:
@@ -39,6 +47,8 @@ jobs:
     steps:
       - name: Checkout TinyUSB
         uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ !inputs.upload-membrowse && 1 || 0 }}
 
       - name: Setup Toolchain
         id: setup-toolchain
@@ -52,42 +62,41 @@ jobs:
           arg: ${{ matrix.arg }}
 
       - name: Build
+        if: ${{ inputs.code-changed }}
         env:
           IAR_LMS_BEARER_TOKEN: ${{ secrets.IAR_LMS_BEARER_TOKEN }}
-          TOOLCHAIN: ${{ inputs.toolchain }}
         run: |
-          if [ "$TOOLCHAIN" == "esp-idf" ]; then
-            docker run --rm -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py ${{ matrix.arg }}
-          elif [ "${{ inputs.build-system }}" == "cmake-make" ] || [ "${{ inputs.build-system }}" == "make-cmake" ]; then
-            python tools/build.py -s make ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
-            python tools/build.py -s cmake ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+          if [ "${{ inputs.toolchain }}" == "esp-idf" ]; then
+            docker run --rm -e MEMBROWSE_API_KEY="$MEMBROWSE_API_KEY" -v $PWD:/project -w /project espressif/idf:tinyusb python tools/build.py --target all ${{ matrix.arg }}
           else
-            python tools/build.py -s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} ${{ matrix.arg }}
+            BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }} --target all"
+            if [ "${{ inputs.upload-metrics }}" = "true" ]; then
+              BUILD_PY_ARGS="$BUILD_PY_ARGS --target tinyusb_metrics"
+            fi
+            python tools/build.py $BUILD_PY_ARGS ${{ matrix.arg }}
           fi
         shell: bash
 
+      - name: Membrowse Upload
+        if: inputs.toolchain != 'esp-idf' && inputs.upload-membrowse == true
+        continue-on-error: true # have server busy issue with membrowse
+        env:
+          MEMBROWSE_API_KEY: ${{ secrets.MEMBROWSE_API_KEY }}
+        run: |
+          # if code-changed is false --> there is no elf -> membrowse target upload with --identical flag
+          BUILD_PY_ARGS="-s ${{ inputs.build-system }} ${{ steps.setup-toolchain.outputs.build_option }} ${{ inputs.build-options }}"
+          python tools/build.py $BUILD_PY_ARGS --target examples-membrowse-upload -j 1 ${{ matrix.arg }}
+        shell: bash
+
       - name: Upload Artifacts for Metrics
-        if: ${{ inputs.upload-metrics }}
+        if: inputs.upload-metrics == true && inputs.code-changed == true
         uses: actions/upload-artifact@v5
         with:
           name: metrics-${{ matrix.arg }}
           path: cmake-build/cmake-build-*/metrics.json
 
-      - name: Copy linker scripts for artifacts
-        if: ${{ inputs.upload-artifacts }}
-        run: |
-          for dir in cmake-build/cmake-build-*; do
-            board=$(basename "$dir" | sed 's/cmake-build-//')
-            ld_path=$(jq -r --arg b "$board" '.targets[] | select(.board == $b) | .ld // empty' .github/membrowse-targets.json)
-            if [ -n "$ld_path" ] && [ -f "$ld_path" ]; then
-              mkdir -p "cmake-build/$(dirname "$ld_path")"
-              cp "$ld_path" "cmake-build/$ld_path"
-            fi
-          done
-        shell: bash
-
       - name: Upload Artifacts for Hardware Testing
-        if: ${{ inputs.upload-artifacts }}
+        if: inputs.upload-artifacts == true && inputs.code-changed == true
         uses: actions/upload-artifact@v5
         with:
           name: binaries-${{ matrix.arg }}
