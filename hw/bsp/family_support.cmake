@@ -310,7 +310,7 @@ while [ -n \"$pending_ld_scripts\" ]; do \
 done; \
 ld_scripts=\"$(echo \"$all_ld_scripts\" | xargs)\"")
     set(MEMBROWSE_LD_DEFS_CMD
-      "ld_symbols=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?<=-Wl,--defsym=)[^[:space:]]+' | xargs)\"; \
+      "ld_symbols=\"$(${CMAKE_MAKE_PROGRAM} -C ${CMAKE_BINARY_DIR} -t commands ${TARGET} | grep -oP '(?<=--defsym=)[^[:space:]]+' | xargs)\"; \
 ld_defs=\"\"; \
 for symbol in $ld_symbols; do \
   ld_defs=\"$ld_defs --def $symbol\"; \
