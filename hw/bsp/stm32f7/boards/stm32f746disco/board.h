@@ -40,8 +40,8 @@
 #define UART_CLK_EN           __HAL_RCC_USART1_CLK_ENABLE
 
 // VBUS Sense detection
-#define OTG_FS_VBUS_SENSE     0
-#define OTG_HS_VBUS_SENSE     0
+#define OTG_FS_VBUS_SENSE     1
+#define OTG_HS_VBUS_SENSE     1
 
 #define PINID_LED      0
 #define PINID_BUTTON   1

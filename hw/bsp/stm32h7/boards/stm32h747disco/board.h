@@ -42,7 +42,7 @@
 
 // VBUS Sense detection
 #define OTG_FS_VBUS_SENSE     1
-#define OTG_HS_VBUS_SENSE     0
+#define OTG_HS_VBUS_SENSE     1
 
 // USB HS External PHY Pin: CLK, STP, DIR, NXT, D0-D7
 #define ULPI_PINS \

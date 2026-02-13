@@ -579,9 +579,18 @@
   #define CFG_TUD_TEST_MODE       0
 #endif
 
+#ifndef CFG_TUD_VBUS_DETECT_HW_DEFAULT
+  #define CFG_TUD_VBUS_DETECT_HW_DEFAULT 0
+#endif
+
+// Enable VBUS Detect hardware, usually via functional GPIO
+#ifndef CFG_TUD_VBUS_DETECT_HW
+  #define CFG_TUD_VBUS_DETECT_HW CFG_TUD_VBUS_DETECT_HW_DEFAULT
+#endif
+
 //------------- Device Class Driver -------------//
 #ifndef CFG_TUD_BTH
-  #define CFG_TUD_BTH             0
+  #define CFG_TUD_BTH 0
 #endif
 
 #if CFG_TUD_BTH && !defined(CFG_TUD_BTH_ISO_ALT_COUNT)

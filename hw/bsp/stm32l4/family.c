@@ -170,10 +170,16 @@ void board_init(void) {
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 #endif
 
-  /* Enable USB FS Clocks */
 #if defined(USB_OTG_FS)
+  /* Enable USB FS Clocks */
   __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-  board_vbus_sense_init();
+
+  #if CFG_TUD_ENABLED
+  /* Set Vbus sense */
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = VBUS_SENSE_EN;
+  tud_configure(0, TUD_CFGID_DWC2, &cfg);
+  #endif
 #else
   __HAL_RCC_USB_CLK_ENABLE();
 #endif

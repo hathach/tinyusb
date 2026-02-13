@@ -356,17 +356,14 @@ void board_init(void) {
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOM, &GPIO_InitStruct);
-
-  // Enable VBUS sense (B device) via pin PM14
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
-  // Disable VBUS sense (B device)
-  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif // vbus sense
+
+#if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = OTG_FS_VBUS_SENSE;
+  tud_configure(0, TUD_CFGID_DWC2, &cfg);
+#endif
+
 #endif
 
   //------------- USB HS -------------//
@@ -382,33 +379,31 @@ void board_init(void) {
 
 #if OTG_HS_VBUS_SENSE
   // Configure VBUS Pin
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Alternate = GPIO_AF10_OTG_HS;
-  HAL_GPIO_Init(GPIOM, &GPIO_InitStruct);
-
-  // Enable VBUS sense (B device) via pin PM9
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
-  // Disable VBUS sense (B device)
-  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
+  GPIO_InitTypeDef GPIO_InitStruct2;
+  GPIO_InitStruct2.Pin = GPIO_PIN_8;
+  GPIO_InitStruct2.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct2.Pull = GPIO_NOPULL;
+  GPIO_InitStruct2.Alternate = GPIO_AF10_OTG_HS;
+  HAL_GPIO_Init(GPIOM, &GPIO_InitStruct2);
+#endif
 
 #if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1
-  // B-peripheral session valid override enable
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALEXTOEN;
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
-#else
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_PULLDOWNEN;
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = OTG_HS_VBUS_SENSE;
+  tud_configure(1, TUD_CFGID_DWC2, &cfg);
 #endif
 
-#endif
 #endif
 
   board_init2();
 
+  // Turn off device vbus
+#if CFG_TUD_ENABLED
+  board_vbus_set(BOARD_TUD_RHPORT, false);
+#endif
+  // Turn on host vbus
 #if CFG_TUH_ENABLED
-  board_vbus_set(BOARD_TUH_RHPORT, 1);
+  board_vbus_set(BOARD_TUH_RHPORT, true);
 #endif
 }
 
