@@ -77,10 +77,7 @@ CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(setup_packet, 8);
 } _dcd_usbbuf;
 
-static tud_configure_dwc2_t _tud_cfg = {
-  .bm_double_buffered = 0,
-  .vbus_sensing = false
-};
+static tud_configure_dwc2_t _tud_cfg = TUD_CONFIGURE_DWC2_DEFAULT;
 
 TU_ATTR_ALWAYS_INLINE static inline uint8_t dwc2_ep_count(const dwc2_regs_t* dwc2) {
   #if TU_CHECK_MCU(OPT_MCU_GD32VF103)
@@ -473,10 +470,14 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   // Force device mode
   dwc2->gusbcfg = (dwc2->gusbcfg & ~GUSBCFG_FHMOD) | GUSBCFG_FDMOD;
 
-  // Clear A override, force B Valid if Vbus sensing is not used
-  dwc2->gotgctl = (dwc2->gotgctl & ~GOTGCTL_AVALOEN) | (_tud_cfg.vbus_sensing ? 0 : GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL);
+  // OTG Ctrl
+  uint32_t gotgctl = dwc2->gotgctl & ~GOTGCTL_AVALOEN; // Clear A-override
+  if (!_tud_cfg.vbus_sensing) {
+    gotgctl |= GOTGCTL_BVALOEN | GOTGCTL_BVALOVAL;     // force B Valid if not sensing VBus
+  }
+  dwc2->gotgctl = gotgctl;
 
-#ifdef TUP_USBIP_DWC2_STM32
+  #ifdef TUP_USBIP_DWC2_STM32
   dwc2_stm32_gccfg_cfg(dwc2, _tud_cfg.vbus_sensing, false);
 #endif
 

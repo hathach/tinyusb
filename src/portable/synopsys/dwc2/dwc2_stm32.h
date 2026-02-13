@@ -308,129 +308,59 @@ static inline void dwc2_stm32_gccfg_cfg(dwc2_regs_t* dwc2, bool vbus_sensing, bo
   if (is_host) {
     vbus_sensing = false;
   }
-#if CFG_TUSB_MCU == OPT_MCU_STM32F1
-  // F1: Basic FS-only core, no VBUS sensing support
-  // Only PWRDWN bit is used (set in dwc2_phy_init)
-  (void) vbus_sensing;
 
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F2 || CFG_TUSB_MCU == OPT_MCU_STM32F4
-  // F2/F4: Dual FS/HS with VBUSBSEN/VBUSASEN/NOVBUSSENS bits
-  if (is_host) {
-    dwc2->stm32_gccfg &= ~(STM32_GCCFG_NOVBUSSENS | STM32_GCCFG_VBUSBSEN | STM32_GCCFG_VBUSASEN);
-  } else {
-    if (vbus_sensing) {
-      dwc2->stm32_gccfg &= ~STM32_GCCFG_NOVBUSSENS;
-      dwc2->stm32_gccfg |= STM32_GCCFG_VBUSBSEN;
-    } else {
-      dwc2->stm32_gccfg |= STM32_GCCFG_NOVBUSSENS;
-      dwc2->stm32_gccfg &= ~STM32_GCCFG_VBUSBSEN;
-      dwc2->stm32_gccfg &= ~STM32_GCCFG_VBUSASEN;
-    }
-  }
-#elif CFG_TUSB_MCU == OPT_MCU_STM32F7
-  // F7: Enhanced FS/HS with battery charging detection
-  if (vbus_sensing) {
-    dwc2->stm32_gccfg |= STM32_GCCFG_VBDEN;
-  } else {
-    dwc2->stm32_gccfg &= ~STM32_GCCFG_VBDEN;
-  }
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32H7
-  if (vbus_sensing) {
-    dwc2->stm32_gccfg |= STM32_GCCFG_VBDEN;
-  } else {
-    dwc2->stm32_gccfg &= ~STM32_GCCFG_VBDEN;
-  }
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32H7RS
-  // H7FS: Port0: Basic FS-only core; Port1: femtoPHY
-  if ((uintptr_t)dwc2 == _dwc2_controller[0].reg_base) {
-    if (vbus_sensing) {
-      dwc2->stm32_gccfg |= STM32_GCCFG_VBDEN;
-    } else {
-      dwc2->stm32_gccfg &= ~STM32_GCCFG_VBDEN;
-    }
-    return;
-  } else {
-    // Uses VBVALEXTOEN and VBVALOVAL for external VBUS sensing override
+  uint32_t gccfg = dwc2->stm32_gccfg;
+  if (dwc2->guid < 0x2000) {
+    // use VBUSASEN/VBUSBSEN/NOVBUSSENS bits
     if (is_host) {
-      dwc2->stm32_gccfg |= STM32_GCCFG_PULLDOWNEN;
-      dwc2->stm32_gccfg &= ~(STM32_GCCFG_VBDEN | STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL);
+      gccfg &= ~(STM32_GCCFG_NOVBUSSENS | STM32_GCCFG_VBUSBSEN | STM32_GCCFG_VBUSASEN);
     } else {
-      dwc2->stm32_gccfg &= ~STM32_GCCFG_PULLDOWNEN;
       if (vbus_sensing) {
-        dwc2->stm32_gccfg |= STM32_GCCFG_VBDEN;
-        dwc2->stm32_gccfg &= ~(STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL);
+        gccfg &= ~STM32_GCCFG_NOVBUSSENS;
+        gccfg |= STM32_GCCFG_VBUSBSEN;
       } else {
-        dwc2->stm32_gccfg &= ~STM32_GCCFG_VBDEN;
-        dwc2->stm32_gccfg |= STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL;
+        gccfg |= STM32_GCCFG_NOVBUSSENS;
+        gccfg &= ~(STM32_GCCFG_VBUSBSEN | STM32_GCCFG_VBUSASEN);
       }
     }
-  }
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32N6
-  // N6: femtoPHY
-  // In this device, the software override is always active
-  (void) vbus_sensing;
-  if (is_host) {
-    dwc2->stm32_gccfg |= STM32_GCCFG_PULLDOWNEN;
-    dwc2->stm32_gccfg &= ~(STM32_GCCFG_VBVALOVAL);
-  } else {
-    dwc2->stm32_gccfg &= ~STM32_GCCFG_PULLDOWNEN;
-    dwc2->stm32_gccfg |= STM32_GCCFG_VBVALOVAL;
-  }
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32L4
-  // L4: Low-power FS-only with VBUS detection
-  if (vbus_sensing) {
-    dwc2->stm32_gccfg |= STM32_GCCFG_VBDEN;
-  } else {
-    dwc2->stm32_gccfg &= ~STM32_GCCFG_VBDEN;
-  }
-
-#elif CFG_TUSB_MCU == OPT_MCU_STM32U5
-  #ifdef USB_OTG_FS
-  // U5: FS PHY (U575/585 have FS only)
-  if (vbus_sensing) {
-    dwc2->stm32_gccfg |= STM32_GCCFG_VBDEN;
-  } else {
-    dwc2->stm32_gccfg &= ~STM32_GCCFG_VBDEN;
-  }
-  #else
-  // U5: femtoPHY (U59x/5Ax/5Fx/5Gx have HS)
-  // Uses VBVALEXTOEN and VBVALOVAL for external VBUS sensing override
-  if (is_host) {
-    dwc2->stm32_gccfg |= STM32_GCCFG_PULLDOWNEN;
-    dwc2->stm32_gccfg &= ~(STM32_GCCFG_VBDEN | STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL);
-  } else {
-    dwc2->stm32_gccfg &= ~STM32_GCCFG_PULLDOWNEN;
+  } else if (dwc2->guid < 0x5000) {
+    // the later version uses VBDEN with battery charging detection
     if (vbus_sensing) {
-      dwc2->stm32_gccfg |= STM32_GCCFG_VBDEN;
-      dwc2->stm32_gccfg &= ~(STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL);
+      gccfg |= STM32_GCCFG_VBDEN;
     } else {
-      dwc2->stm32_gccfg &= ~STM32_GCCFG_VBDEN;
-      dwc2->stm32_gccfg |= STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL;
+      gccfg &= ~STM32_GCCFG_VBDEN;
     }
-  }
-  #endif
-#elif CFG_TUSB_MCU == OPT_MCU_STM32WBA
-  // WBA: femtoPHY
-  // In this device, the software override is always active
-  if (is_host) {
-    dwc2->stm32_gccfg |= STM32_GCCFG_PULLDOWNEN;
-    dwc2->stm32_gccfg &= ~(STM32_GCCFG_VBVALOVAL);
   } else {
-    dwc2->stm32_gccfg &= ~STM32_GCCFG_PULLDOWNEN;
-    if (vbus_sensing) {
-      dwc2->stm32_gccfg &= ~(STM32_GCCFG_VBVALOVAL);
+    // from 0x5000 ST seems to use femtoPHY for UTMI+ HS PHY. Which use VBVALEXTOEN and VBVALOVAL for software override
+    // external VBUS sensing
+    // Note: N6 does not support hardware VBUS sensing, so the software override is always active. Therefore, VBDEN and
+    //       VBVALEXTOEN are not available
+#if CFG_TUSB_MCU == OPT_MCU_STM32N6
+    if (is_host) {
+      gccfg |= STM32_GCCFG_PULLDOWNEN;
+      gccfg &= ~(STM32_GCCFG_VBVALOVAL);
     } else {
-      dwc2->stm32_gccfg |= STM32_GCCFG_VBVALOVAL;
+      gccfg &= ~STM32_GCCFG_PULLDOWNEN;
+      gccfg |= STM32_GCCFG_VBVALOVAL;
     }
-  }
-
 #else
-  #error "Unsupported MCU family"
+    if (is_host) {
+      gccfg |= STM32_GCCFG_PULLDOWNEN;
+      gccfg &= ~(STM32_GCCFG_VBDEN | STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL);
+    } else {
+      gccfg &= ~STM32_GCCFG_PULLDOWNEN;
+      if (vbus_sensing) {
+        gccfg |= STM32_GCCFG_VBDEN;
+        gccfg &= ~(STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL);
+      } else {
+        gccfg &= ~STM32_GCCFG_VBDEN;
+        gccfg |= STM32_GCCFG_VBVALEXTOEN | STM32_GCCFG_VBVALOVAL;
+      }
+    }
 #endif
+  }
+
+  dwc2->stm32_gccfg = gccfg;
 }
 
 //------------- DCache -------------//
