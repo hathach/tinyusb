@@ -775,11 +775,21 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
 
 bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
   tusb_control_request_t request;
-  request.wIndex = tu_htole16((uint16_t) itf_num);
   uint8_t const idx = tuh_cdc_itf_get_index(daddr, itf_num);
   cdch_interface_t *p_cdc = get_itf(idx);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT);
   TU_LOG_CDC(p_cdc, "set config");
+
+  // For FTDI devices, wIndex is the channel number (CHANNEL_A + itf_num)
+  // For other devices, wIndex is the interface number
+  #if CFG_TUH_CDC_FTDI
+  if (p_cdc->serial_drid == SERIAL_DRIVER_FTDI) {
+    request.wIndex = tu_htole16((uint16_t) (CHANNEL_A + itf_num));
+  } else
+  #endif
+  {
+    request.wIndex = tu_htole16((uint16_t) itf_num);
+  }
 
   // fake transfer to kick-off process_set_config()
   tuh_xfer_t xfer;
@@ -1230,6 +1240,8 @@ static bool ftdi_proccess_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) 
         cdch_interface_t const *p_cdc_itf0 = get_itf(idx_itf0);
         TU_ASSERT(p_cdc_itf0);
         p_cdc->ftdi.chip_type = p_cdc_itf0->ftdi.chip_type;
+        // Set channel based on interface number
+        p_cdc->ftdi.channel = CHANNEL_A + p_cdc->bInterfaceNumber;
       }
       TU_ATTR_FALLTHROUGH;
 
