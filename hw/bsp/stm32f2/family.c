@@ -106,10 +106,8 @@ void board_init(void) {
 
 #if CFG_TUD_ENABLED
   // Enable VBUS sense (B device) via pin PA9
-  tud_configure_dwc2_t cfg = {
-    .bm_double_buffered = 0,
-    .vbus_sensing = true
-  };
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = true;
   tud_configure(0, TUD_CFGID_DWC2, &cfg);
 #endif
 }

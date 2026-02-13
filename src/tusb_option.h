@@ -579,13 +579,13 @@
   #define CFG_TUD_TEST_MODE       0
 #endif
 
-#ifndef CFG_TUD_VBUS_SENSE_DEFAULT
-  #define CFG_TUD_VBUS_SENSE_DEFAULT 0
+#ifndef CFG_TUD_VBUS_DETECT_HW_DEFAULT
+  #define CFG_TUD_VBUS_DETECT_HW_DEFAULT 0
 #endif
 
-// Enable VBUS Sensing
-#ifndef CFG_TUD_VBUS_SENSE
-  #define CFG_TUD_VBUS_SENSE CFG_TUD_VBUS_SENSE_DEFAULT
+// Enable VBUS Detect hardware, usually via functional GPIO
+#ifndef CFG_TUD_VBUS_DETECT_HW
+  #define CFG_TUD_VBUS_DETECT_HW CFG_TUD_VBUS_DETECT_HW_DEFAULT
 #endif
 
 //------------- Device Class Driver -------------//

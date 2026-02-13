@@ -44,7 +44,9 @@ typedef struct {
   bool vbus_sensing; // Vbus pin is used for device connection detection, mandatory for tud_umount_cb()
 } tud_configure_dwc2_t;
 
-#define TUD_CONFIGURE_DWC2_DEFAULT { .bm_double_buffered = 0, .vbus_sensing = CFG_TUD_VBUS_SENSE }
+  #ifndef CFG_TUD_CONFIGURE_DWC2_DEFAULT
+    #define CFG_TUD_CONFIGURE_DWC2_DEFAULT {.bm_double_buffered = 0, .vbus_sensing = CFG_TUD_VBUS_DETECT_HW}
+  #endif
 
 typedef union {
   tud_configure_dwc2_t dwc2;

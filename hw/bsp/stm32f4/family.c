@@ -180,10 +180,8 @@ void board_init(void) {
 #endif
 
 #if CFG_TUD_ENABLED
-  tud_configure_dwc2_t cfg = {
-    .bm_double_buffered = 0,
-    .vbus_sensing = VBUS_SENSE_EN
-  };
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = VBUS_SENSE_EN;
   tud_configure(BOARD_TUD_RHPORT, TUD_CFGID_DWC2, &cfg);
   board_vbus_set(BOARD_TUD_RHPORT, false);
 #endif

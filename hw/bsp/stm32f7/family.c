@@ -157,10 +157,8 @@ void board_init(void) {
 #endif // vbus sense
 
 #if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0
-  tud_configure_dwc2_t cfg = {
-    .bm_double_buffered = 0,
-    .vbus_sensing = OTG_FS_VBUS_SENSE
-  };
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = OTG_FS_VBUS_SENSE;
   tud_configure(0, TUD_CFGID_DWC2, &cfg);
 #endif
 
@@ -239,10 +237,8 @@ void board_init(void) {
   __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
 
 #if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1
-  tud_configure_dwc2_t cfg = {
-    .bm_double_buffered = 0,
-    .vbus_sensing = OTG_HS_VBUS_SENSE
-  };
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = OTG_HS_VBUS_SENSE;
   tud_configure(1, TUD_CFGID_DWC2, &cfg);
 #endif
 
