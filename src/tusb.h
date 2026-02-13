@@ -88,8 +88,16 @@
     #include "class/msc/msc_device.h"
   #endif
 
+  #if CFG_TUD_PRINTER
+    #include "class/printer/printer_device.h"
+  #endif
+
   #if CFG_TUD_MTP
     #include "class/mtp/mtp_device.h"
+  #endif
+
+  #if CFG_TUD_PRINTER
+    #include "class/printer/printer_device.h"
   #endif
 
   #if CFG_TUD_AUDIO
