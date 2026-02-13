@@ -435,13 +435,23 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2->hprt = HPRT_POWER; // turn on VBUS
 
   // Enable required interrupts
-  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_CONIDSTSCHNG | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
+  dwc2->gintmsk |= GINTSTS_OTGINT | GINTSTS_HPRTINT | GINTSTS_HCINT | GINTSTS_DISCINT;
 
   // NPTX can hold at least 2 packet, change interrupt level to half-empty
   uint32_t gahbcfg = dwc2->gahbcfg & ~GAHBCFG_TX_FIFO_EPMTY_LVL;
   gahbcfg |= GAHBCFG_GINT;   // Enable global interrupt
   dwc2->gahbcfg = gahbcfg;
 
+  return true;
+}
+
+bool hcd_deinit(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Disable global interrupt
+  dwc2->gahbcfg &= ~GAHBCFG_GINT;
+
+  dwc2_core_deinit(rhport);
   return true;
 }
 
@@ -869,7 +879,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
       break;
 
     case GRXSTS_PKTSTS_HOST_DATATOGGLE_ERR:
-      TU_ASSERT(0, ); // maybe try to change DToggle
+      // handle in channel interrupt
       break;
 
     case GRXSTS_PKTSTS_HOST_CHANNEL_HALTED:
@@ -1009,8 +1019,11 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
       channel_xfer_in_retry(dwc2, ch_id, hcint);
     }
   } else if (hcint & HCINT_DATATOGGLE_ERR) {
+    channel->hcintmsk &= ~HCINT_DATATOGGLE_ERR;
     xfer->err_count = 0;
-    TU_ASSERT(false);
+    hcsplt.split_compl = 0; // restart with start-split
+    channel->hcsplt = hcsplt.value;
+    channel_disable(dwc2, channel);
   } else {
     // nothing to do
   }
@@ -1437,16 +1450,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   const uint32_t gintsts = dwc2->gintsts & gintmsk;
 
   // TU_LOG1_HEX(gintsts);
-
-  if (gintsts & GINTSTS_CONIDSTSCHNG) {
-    // Connector ID status change
-    dwc2->gintsts = GINTSTS_CONIDSTSCHNG;
-
-    //if (dwc2->gotgctl)
-    // dwc2->hprt = HPRT_POWER; // power on port to turn on VBUS
-    //dwc2->gintmsk |= GINTMSK_PRTIM;
-    // TODO wait for SRP if OTG
-  }
 
   if (gintsts & GINTSTS_SOF) {
     const bool more_sof = handle_sof_irq(rhport, in_isr);

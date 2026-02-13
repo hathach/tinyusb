@@ -251,6 +251,19 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
   return true;
 }
 
+void dwc2_core_deinit(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Soft disconnect
+  dwc2->dctl |= DCTL_SDIS;
+
+  // Reset global registers
+  dwc2->gotgctl = 0;
+
+  // Reset core
+  reset_core(dwc2);
+}
+
 // void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr) {
 //   (void) in_isr;
 //   dwc2_regs_t * const dwc2 = DWC2_REG(rhport);

@@ -523,6 +523,9 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     }
   }
 
+  // MCU specific pre-init
+  tusb_pre_init_cb(rhport, TUSB_ROLE_HOST);
+
   // Init host controller
   _usbh_data.controller_id = rhport;
   TU_ASSERT(hcd_init(rhport, rh_init));
@@ -538,8 +541,11 @@ bool tuh_deinit(uint8_t rhport) {
 
   // deinit host controller
   hcd_int_disable(rhport);
-  hcd_deinit(rhport);
+  TU_ASSERT(hcd_deinit(rhport));
   _usbh_data.controller_id = TUSB_INDEX_INVALID_8;
+
+  // MCU specific post-deinit
+  tusb_post_deinit_cb(rhport, TUSB_ROLE_HOST);
 
   // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
   remove_device_tree(rhport, 0, 0);
