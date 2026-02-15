@@ -342,6 +342,21 @@ TU_ATTR_ALWAYS_INLINE static inline void _control_set_xfer_stage(uint8_t stage) 
 
 TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const uint8_t setup_packet[8]) {
   const uint8_t rhport = usbh_get_rhport(daddr);
+
+  // Re-open EP0 with the correct max packet size for this device.
+  // The RP2040 shares a single EPX for all control transfers, so its
+  // wMaxPacketSize can be stale from a different device's enumeration.
+  // Without this, a CBI device with MPS=64 can have its CDB split into
+  // multiple packets when a low-speed device (MPS=8) enumerated last.
+  uint8_t ep0_mps = 8; // default for addr0
+  if (daddr > 0) {
+    usbh_device_t const* dev = get_device(daddr);
+    if (dev && dev->bMaxPacketSize0) {
+      ep0_mps = dev->bMaxPacketSize0;
+    }
+  }
+  usbh_edpt_control_open(daddr, ep0_mps);
+
   const bool ret = hcd_setup_send(rhport, daddr, setup_packet);
   if (!ret) {
     _control_set_xfer_stage(CONTROL_STAGE_IDLE);
