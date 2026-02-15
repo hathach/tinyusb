@@ -56,6 +56,12 @@ static_assert(PICO_USB_HOST_INTERRUPT_ENDPOINTS <= USB_MAX_ENDPOINTS, "");
 static struct hw_endpoint ep_pool[1 + PICO_USB_HOST_INTERRUPT_ENDPOINTS];
 #define epx (ep_pool[0])
 
+// EP0 max packet size per device address. The RP2040 shares a single EPX for
+// all control transfers, so its wMaxPacketSize can become stale when switching
+// between devices with different EP0 sizes (e.g. low-speed MPS=8 vs full-speed
+// MPS=64). We track the correct value here and apply it in hcd_setup_send().
+static uint8_t _ep0_mps[CFG_TUH_DEVICE_MAX + CFG_TUH_HUB + 1]; // +1 for addr0
+
 // Flags we set by default in sie_ctrl (we add other bits on top)
 enum {
   SIE_CTRL_BASE = USB_SIE_CTRL_SOF_EN_BITS      | USB_SIE_CTRL_KEEP_ALIVE_EN_BITS |
@@ -351,6 +357,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // clear epx and interrupt eps
   memset(&ep_pool, 0, sizeof(ep_pool));
+  memset(_ep0_mps, 0, sizeof(_ep0_mps));
 
   // Enable in host mode with SOF / Keep alive on
   usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS | USB_MAIN_CTRL_HOST_NDEVICE_BITS;
@@ -420,6 +427,11 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   pico_trace("hcd_device_close %d\n", dev_addr);
   (void) rhport;
 
+  // Clear saved EP0 max packet size
+  if (dev_addr < TU_ARRAY_SIZE(_ep0_mps)) {
+    _ep0_mps[dev_addr] = 0;
+  }
+
   // reset epx if it is currently active with unplugged device
   if (epx.configured && epx.active && epx.dev_addr == dev_addr) {
     epx.configured = false;
@@ -474,6 +486,12 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_endpoint_t 
 
   hw_endpoint_init(ep, dev_addr, ep_desc->bEndpointAddress, tu_edpt_packet_size(ep_desc), ep_desc->bmAttributes.xfer,
                    ep_desc->bInterval);
+
+  // Remember EP0 max packet size so hcd_setup_send() can restore it
+  if (tu_edpt_number(ep_desc->bEndpointAddress) == 0 &&
+      dev_addr < TU_ARRAY_SIZE(_ep0_mps)) {
+    _ep0_mps[dev_addr] = (uint8_t) tu_edpt_packet_size(ep_desc);
+  }
 
   return true;
 }
@@ -557,8 +575,11 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   // EPX should be inactive
   assert(!ep->active);
 
-  // EP0 out
-  hw_endpoint_init(ep, dev_addr, 0x00, ep->wMaxPacketSize, 0, 0);
+  // EP0 out — use the saved MPS for this device, not the (possibly stale) EPX value
+  uint16_t mps = (dev_addr < TU_ARRAY_SIZE(_ep0_mps)) ? _ep0_mps[dev_addr] : 0;
+  if (mps == 0) mps = 8; // default for addr0 / unknown
+  hw_endpoint_init(ep, dev_addr, 0x00, mps, 0, 0);
+  
   assert(ep->configured);
 
   ep->remaining_len = 8;
