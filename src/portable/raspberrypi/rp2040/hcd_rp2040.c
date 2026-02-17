@@ -268,8 +268,10 @@ static hw_endpoint_t *hw_endpoint_allocate(uint8_t transfer_type) {
     // Note: even though datasheet name these "Interrupt" endpoints. These are actually
     // "Asynchronous" endpoints and can be used for other type such as: Bulk  (ISO need confirmation)
     ep = _next_free_interrupt_ep();
+    if (ep == NULL) {
+      return NULL;
+    }
     pico_info("Allocate %s ep %d\n", tu_edpt_type_str(transfer_type), ep->interrupt_num);
-    assert(ep);
     // 0 for epx (double buffered): TODO increase to 1024 for ISO
     // 2x64 for intep0
     // 3x64 for intep1
