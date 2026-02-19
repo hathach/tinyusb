@@ -76,6 +76,9 @@ enum {
 //--------------------------------------------------------------------+
 // Core/Controller
 //--------------------------------------------------------------------+
+
+extern tusb_speed_t _hcd_cfg_phy_speed;
+
 TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
   if (rhport >= DWC2_CONTROLLER_COUNT) {
     // user mis-configured, ignore and use first controller

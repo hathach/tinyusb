@@ -112,6 +112,7 @@ typedef struct {
 } hcd_data_t;
 
 hcd_data_t _hcd_data;
+tusb_speed_t _hcd_cfg_phy_speed = TUSB_SPEED_AUTO;
 
 //--------------------------------------------------------------------
 //
@@ -392,15 +393,13 @@ static void dfifo_host_init(uint8_t rhport) {
 // optional hcd configuration, called by tuh_configure()
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport;
-  (void) cfg_id;
-  (void) cfg_param;
-
+  TU_VERIFY(cfg_id == TUH_CFGID_PHY_SPEED && cfg_param != NULL);
+  _hcd_cfg_phy_speed = *(const tusb_speed_t *)cfg_param;
   return true;
 }
 
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
@@ -411,9 +410,6 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   TU_ASSERT(dwc2_core_init(rhport, highspeed_phy, is_dma));
 
   //------------- 3.1 Host Initialization -------------//
-
-  // work at max supported speed
-  dwc2->hcfg &= ~HCFG_FSLS_ONLY;
 
   // Enable HFIR reload
   if (dwc2->gsnpsid >= DWC2_CORE_REV_2_92a) {
@@ -431,6 +427,14 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #ifdef TUP_USBIP_DWC2_STM32
   dwc2_stm32_gccfg_cfg(dwc2, false, true);
 #endif
+
+  if (highspeed_phy && rh_init->speed < TUSB_SPEED_HIGH) {
+      // disable high speed mode
+      dwc2->hcfg |= HCFG_FSLS_ONLY;
+  } else {
+      // work at max supported speed
+      dwc2->hcfg &= ~HCFG_FSLS_ONLY;
+  }
 
   // configure fixed-allocated fifo scheme
   dfifo_host_init(rhport);

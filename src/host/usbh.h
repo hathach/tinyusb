@@ -93,6 +93,7 @@ typedef struct {
 // ConfigID for tuh_configure()
 enum {
   TUH_CFGID_INVALID = 0,
+  TUH_CFGID_PHY_SPEED = 10, // cfg_param: tusb_speed_t
   TUH_CFGID_RPI_PIO_USB_CONFIGURATION = 100, // cfg_param: pio_usb_configuration_t
   TUH_CFGID_MAX3421 = 200,
   TUH_CFGID_FSDEV = 300,
