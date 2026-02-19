@@ -442,14 +442,14 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   tu_memclr(&_dcd_data, sizeof(_dcd_data));
 
   // Core Initialization
-  const bool is_highspeed = dwc2_core_is_highspeed(dwc2, TUSB_ROLE_DEVICE);
+  const bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, TUSB_ROLE_DEVICE);
   const bool is_dma = dma_device_enabled(dwc2);
-  TU_ASSERT(dwc2_core_init(rhport, is_highspeed, is_dma));
+  TU_ASSERT(dwc2_core_init(rhport, highspeed_phy, is_dma));
 
   //------------- 7.1 Device Initialization -------------//
   // Set device max speed
   uint32_t dcfg = dwc2->dcfg & ~DCFG_DSPD_Msk;
-  if (is_highspeed) {
+  if (highspeed_phy) {
     // dcfg Highspeed's mask is 0
 
     // XCVRDLY: transceiver delay between xcvr_sel and txvalid during device chirp is required
