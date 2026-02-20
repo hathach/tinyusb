@@ -1799,12 +1799,6 @@ static void process_enumeration(tuh_xfer_t* xfer) {
       TU_LOG_USBH("Device configured\r\n");
       dev->configured = 1;
 
-    #if CFG_TUH_HUB
-      if (_usbh_data.dev0_bus.hub_addr != 0) {
-        hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr); // get next hub status
-      }
-    #endif
-
       // Parse configuration & set up drivers
       // driver_open() must not make any usb transfer
       TU_ASSERT(enum_parse_configuration_desc(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl),);
@@ -1938,9 +1932,12 @@ static void enum_full_complete(bool success) {
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
 
 #if CFG_TUH_HUB
-  // Hub status is already requested in case of successful enumeration
-  if (_usbh_data.dev0_bus.hub_addr != 0 && !success) {
-    hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr); // get next hub status
+  // Re-queue hub status polling now that enumeration (including all
+  // driver set_config callbacks) is complete.  Previously this was
+  // started in ENUM_CONFIG_DRIVER *before* drivers ran, which allowed
+  // hub control transfers to interleave on EPX with CBI ADSC commands.
+  if (_usbh_data.dev0_bus.hub_addr != 0) {
+    hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr);
   }
 #endif
 
