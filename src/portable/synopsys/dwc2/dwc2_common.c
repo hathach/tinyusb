@@ -180,7 +180,13 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 //
 //--------------------------------------------------------------------
 bool dwc2_core_is_highspeed_phy(dwc2_regs_t* dwc2, tusb_role_t role) {
-  (void)dwc2;
+#ifdef TUP_USBIP_DWC2_STM32
+  if (dwc2->guid >= 0x5000) {
+    // femtoPHY UTMI+ PHY
+    return true;
+  }
+#endif
+
 #if CFG_TUD_ENABLED
   if (role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
     return false;
