@@ -442,7 +442,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   tu_memclr(&_dcd_data, sizeof(_dcd_data));
 
   // Core Initialization
-  const bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, TUSB_ROLE_DEVICE);
+  const bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, TUD_OPT_HIGH_SPEED);
   const bool is_dma = dma_device_enabled(dwc2);
   TU_ASSERT(dwc2_core_init(rhport, highspeed_phy, is_dma));
 

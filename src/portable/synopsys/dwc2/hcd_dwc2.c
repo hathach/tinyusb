@@ -366,7 +366,7 @@ static void dfifo_host_init(uint8_t rhport) {
 
   // fixed allocation for now, improve later:
     // - ptx_largest is limited to 256 for FS since most FS core only has 1024 bytes total
-  bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, TUSB_ROLE_HOST);
+  bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, _tuh_cfg.use_hs_phy);
   uint32_t nptx_largest = highspeed_phy ? TUSB_EPSIZE_BULK_HS/4 : TUSB_EPSIZE_BULK_FS/4;
   uint32_t ptx_largest = highspeed_phy ? TUSB_EPSIZE_ISO_HS_MAX/4 : 256/4;
 
@@ -406,7 +406,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
   // Core Initialization
-  const bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, TUSB_ROLE_HOST) || _tuh_cfg.use_hs_phy;
+  const bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, _tuh_cfg.use_hs_phy);
   const bool is_dma = dma_host_enabled(dwc2);
   TU_ASSERT(dwc2_core_init(rhport, highspeed_phy, is_dma));
 
