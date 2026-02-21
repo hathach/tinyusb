@@ -432,10 +432,13 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   if (rh_init->speed < TUSB_SPEED_HIGH || !TUH_OPT_HIGH_SPEED) {
     // disable high speed mode
     dwc2->hcfg |= HCFG_FSLS_ONLY;
-  } else {
+  }
+#if TUH_OPT_HIGH_SPEED
+  else {
     // work at max supported speed
     dwc2->hcfg &= ~HCFG_FSLS_ONLY;
   }
+#endif
 
   // configure fixed-allocated fifo scheme
   dfifo_host_init(rhport);
