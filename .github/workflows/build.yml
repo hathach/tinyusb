@@ -47,8 +47,6 @@ jobs:
               - '.github/workflows/ci_set_matrix.py'
 
   set-matrix:
-    needs: [ check-paths ]
-    if: needs.check-paths.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     outputs:
       json: ${{ steps.set-matrix-json.outputs.matrix }}
@@ -75,7 +73,7 @@ jobs:
   # For Make and IAR build: will be done on CircleCI only (one random per family as well)
   # ------------------------------------------------------------------------------
   cmake:
-    needs: set-matrix
+    needs: [ check-paths, set-matrix ]
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
@@ -93,10 +91,14 @@ jobs:
       build-args: ${{ toJSON(fromJSON(needs.set-matrix.outputs.json)[matrix.toolchain]) }}
       build-options: '--one-first'
       upload-metrics: true
-      upload-artifacts: true
+      upload-artifacts: false
+      upload-membrowse: true
+      code-changed: ${{ needs.check-paths.outputs.code_changed == 'true' }}
+    secrets: inherit
 
   code-metrics:
-    needs: cmake
+    needs: [ check-paths, cmake ]
+    if: needs.check-paths.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -200,11 +202,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ windows-latest, macos-latest ]
+        build-system: [ 'make', 'cmake' ]
     with:
       os: ${{ matrix.os }}
-      build-system: 'cmake-make'
+      build-system: ${{ matrix.build-system }}
       toolchain: 'arm-gcc-${{ matrix.os }}'
-      build-args: '["stm32h7"]'
+      build-args: '["stm32h7rs"]'
       build-options: '--one-random'
 
   # ---------------------------------------
@@ -213,7 +216,8 @@ jobs:
   zephyr:
     needs: [ check-paths ]
     # skip zephyr build due to failed build, fix later
-    if: false && needs.check-paths.outputs.code_changed == 'true'
+    if: false
+    #if: needs.check-paths.outputs.code_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout TinyUSB
@@ -235,8 +239,8 @@ jobs:
   # Run on PR only (hil-tinyusb), hil-hfp only run on non-forked PR
   # ---------------------------------------
   hil-build:
-    needs: set-matrix
-    if: github.repository_owner == 'hathach'
+    needs: [ check-paths, set-matrix ]
+    if: needs.check-paths.outputs.code_changed == 'true' && github.repository_owner == 'hathach'
     uses: ./.github/workflows/build_util.yml
     strategy:
       fail-fast: false
@@ -297,6 +301,7 @@ jobs:
   hil-hfp:
     needs: [ check-paths ]
     if: |
+      needs.check-paths.outputs.code_changed == 'true' &&
       github.repository_owner == 'hathach' &&
       !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: [ self-hosted, Linux, X64, hifiphile ]
@@ -331,53 +336,3 @@ jobs:
 
       - name: Test on actual hardware (hardware in the loop)
         run: python3 test/hil/hil_test.py hfp.json
-
-  # ---------------------------------------
-  # Membrowse Memory Analysis
-  # Push: always runs (uses identical for doc-only to maintain commit chain)
-  # PR: only runs if code changed (doc-only PRs skip entirely)
-  # ---------------------------------------
-  membrowse:
-    needs: [check-paths, cmake]
-    if: |
-      always() && !cancelled() && (
-        github.event_name == 'push' ||
-        github.event_name == 'release' ||
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'pull_request' && needs.check-paths.outputs.code_changed == 'true')
-      )
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/membrowse-report.yml
-    with:
-      code_changed: ${{ needs.check-paths.outputs.code_changed == 'true' || github.event_name == 'release' || github.event_name == 'workflow_dispatch' }}
-    secrets: inherit
-
-  membrowse-comment:
-    needs: membrowse
-    # skip membrowse comment since it is too verbal
-    if: false && github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Download report artifacts
-        id: download
-        uses: actions/download-artifact@v5
-        with:
-          pattern: membrowse-report-*
-          path: reports
-          merge-multiple: true
-        continue-on-error: true
-
-      - name: Upload Membrowse Comment Artifact
-        if: steps.download.outcome == 'success'
-        uses: actions/upload-artifact@v5
-        with:
-          name: membrowse-comment
-          path: reports/

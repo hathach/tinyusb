@@ -179,18 +179,17 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
-bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
-  (void)dwc2;
-#if CFG_TUD_ENABLED
-  if (role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
-    return false;
+bool dwc2_core_is_highspeed_phy(dwc2_regs_t* dwc2, bool prefer_hs_phy) {
+#ifdef TUP_USBIP_DWC2_STM32
+  if (dwc2->guid >= 0x5000) {
+    // femtoPHY UTMI+ PHY
+    return true;
   }
 #endif
-#if CFG_TUH_ENABLED
-  if (role == TUSB_ROLE_HOST && !TUH_OPT_HIGH_SPEED) {
+
+  if (!prefer_hs_phy) {
     return false;
   }
-#endif
 
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
   return ghwcfg2.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
@@ -204,7 +203,7 @@ bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
  * In addition, UTMI+/ULPI can be shared to run at fullspeed mode with 48Mhz
  *
 */
-bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
+bool dwc2_core_init(uint8_t rhport, bool highspeed_phy, bool is_dma) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled
@@ -213,7 +212,7 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
   // disable global interrupt
   dwc2->gahbcfg &= ~GAHBCFG_GINT;
 
-  if (is_highspeed) {
+  if (highspeed_phy) {
     phy_hs_init(dwc2);
   } else {
     phy_fs_init(dwc2);

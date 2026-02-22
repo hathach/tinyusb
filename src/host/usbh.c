@@ -1961,6 +1961,12 @@ static uint8_t enum_get_new_address(bool is_hub) {
     }
   }
 
+#if CFG_TUH_HUB
+  if ( is_hub ) {
+    TU_LOG1("All addresses are occupied, try to increase CFG_TUH_HUB value.\r\n");
+  }
+#endif // CFG_TUH_HUB
+
   return 0; // invalid address
 }
 
