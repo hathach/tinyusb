@@ -395,7 +395,8 @@ static void dfifo_host_init(uint8_t rhport) {
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
   (void) rhport;
   TU_VERIFY(cfg_id == TUH_CFGID_DWC2 && cfg_param != NULL);
-  _tuh_cfg = *(const tuh_configure_dwc2_t *)cfg_param;
+  tuh_configure_param_t const* cfg = (tuh_configure_param_t const*) cfg_param;
+  _tuh_cfg = cfg->dwc2;
   return true;
 }
 

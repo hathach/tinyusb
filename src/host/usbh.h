@@ -110,7 +110,7 @@ typedef struct {
 } tuh_configure_fsdev_t;
 
 typedef struct {
-  bool use_hs_phy; // Always use high-speed ULPI/UTMI phy even working at full-speed
+  bool use_hs_phy; // Always use high-speed ULPI/UTMI phy even when working at full-speed
 } tuh_configure_dwc2_t;
 
 typedef union {
