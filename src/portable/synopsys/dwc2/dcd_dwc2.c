@@ -479,7 +479,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   #ifdef TUP_USBIP_DWC2_STM32
   dwc2_stm32_gccfg_cfg(dwc2, _tud_cfg.vbus_sensing, false);
-#endif
+  #endif
 
   // Enable required interrupts
   dwc2->gintmsk |= GINTMSK_OTGINT | GINTMSK_USBRST | GINTMSK_ENUMDNEM | GINTMSK_WUIM;
