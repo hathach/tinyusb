@@ -112,7 +112,6 @@ typedef struct {
 } hcd_data_t;
 
 static hcd_data_t _hcd_data;
-
 static tuh_configure_dwc2_t _tuh_cfg = {.use_hs_phy = TUH_OPT_HIGH_SPEED};
 
 //--------------------------------------------------------------------
@@ -352,7 +351,7 @@ TU_ATTR_ALWAYS_INLINE static inline uint8_t cal_next_pid(uint8_t pid, uint8_t pa
  * TX periodic (PTX)
  * - At least largest-EPsize*MulCount/4 (MulCount up to 3 for high-bandwidth ISO/interrupt)
 */
-static void dfifo_host_init(uint8_t rhport) {
+static void dfifo_host_init(uint8_t rhport, bool is_highspeed) {
   const dwc2_controller_t* dwc2_controller = &_dwc2_controller[rhport];
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
@@ -365,10 +364,9 @@ static void dfifo_host_init(uint8_t rhport) {
   }
 
   // fixed allocation for now, improve later:
-    // - ptx_largest is limited to 256 for FS since most FS core only has 1024 bytes total
-  bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, _tuh_cfg.use_hs_phy);
-  uint32_t nptx_largest = highspeed_phy ? TUSB_EPSIZE_BULK_HS/4 : TUSB_EPSIZE_BULK_FS/4;
-  uint32_t ptx_largest = highspeed_phy ? TUSB_EPSIZE_ISO_HS_MAX/4 : 256/4;
+  // - ptx_largest is limited to 256 for FS since most FS core only has 1024 bytes total
+  uint32_t nptx_largest = is_highspeed ? TUSB_EPSIZE_BULK_HS / 4 : TUSB_EPSIZE_BULK_FS / 4;
+  uint32_t ptx_largest  = is_highspeed ? TUSB_EPSIZE_ISO_HS_MAX / 4 : 256 / 4;
 
   uint16_t nptxfsiz = 2 * nptx_largest;
   uint16_t rxfsiz = 2 * (ptx_largest + 2) + ghwcfg2.num_host_ch;
@@ -403,16 +401,14 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param) {
 // Initialize controller to host mode
 bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
   tu_memclr(&_hcd_data, sizeof(_hcd_data));
 
   // Core Initialization
-  const bool highspeed_phy = dwc2_core_is_highspeed_phy(dwc2, _tuh_cfg.use_hs_phy);
+  const bool is_hs_phy = dwc2_core_is_highspeed_phy(dwc2, _tuh_cfg.use_hs_phy);
   const bool is_dma = dma_host_enabled(dwc2);
-  TU_ASSERT(dwc2_core_init(rhport, highspeed_phy, is_dma));
+  TU_ASSERT(dwc2_core_init(rhport, is_hs_phy, is_dma));
 
   //------------- 3.1 Host Initialization -------------//
-
   // Enable HFIR reload
   if (dwc2->gsnpsid >= DWC2_CORE_REV_2_92a) {
     dwc2->hfir |= HFIR_RELOAD_CTRL;
@@ -426,23 +422,24 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 #endif
   while ((dwc2->gintsts & GINTSTS_CMOD) != GINTSTS_CMODE_HOST) {}
 
-#ifdef TUP_USBIP_DWC2_STM32
+  #ifdef TUP_USBIP_DWC2_STM32
   dwc2_stm32_gccfg_cfg(dwc2, false, true);
-#endif
+  #endif
 
-  if (rh_init->speed < TUSB_SPEED_HIGH || !TUH_OPT_HIGH_SPEED) {
-    // disable high speed mode
-    dwc2->hcfg |= HCFG_FSLS_ONLY;
+  bool is_highspeed;
+  if (!TUH_OPT_HIGH_SPEED || rh_init->speed < TUSB_SPEED_HIGH) {
+    dwc2->hcfg |= HCFG_FSLS_ONLY; // disable high speed mode
+    is_highspeed = false;
   }
-#if TUH_OPT_HIGH_SPEED
+  #if TUH_OPT_HIGH_SPEED
   else {
-    // work at max supported speed
-    dwc2->hcfg &= ~HCFG_FSLS_ONLY;
+    dwc2->hcfg &= ~HCFG_FSLS_ONLY; // work at max supported speed
+    is_highspeed = true;
   }
-#endif
+  #endif
 
-  // configure fixed-allocated fifo scheme
-  dfifo_host_init(rhport);
+  // configure a fixed-allocated fifo scheme
+  dfifo_host_init(rhport, is_highspeed);
 
   dwc2->hprt = HPRT_W1_MASK; // clear all write-1-clear bits
   dwc2->hprt = HPRT_POWER; // turn on VBUS

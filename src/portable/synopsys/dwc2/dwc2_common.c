@@ -203,7 +203,7 @@ bool dwc2_core_is_highspeed_phy(dwc2_regs_t* dwc2, bool prefer_hs_phy) {
  * In addition, UTMI+/ULPI can be shared to run at fullspeed mode with 48Mhz
  *
 */
-bool dwc2_core_init(uint8_t rhport, bool highspeed_phy, bool is_dma) {
+bool dwc2_core_init(uint8_t rhport, bool is_hs_phy, bool is_dma) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled
@@ -212,7 +212,7 @@ bool dwc2_core_init(uint8_t rhport, bool highspeed_phy, bool is_dma) {
   // disable global interrupt
   dwc2->gahbcfg &= ~GAHBCFG_GINT;
 
-  if (highspeed_phy) {
+  if (is_hs_phy) {
     phy_hs_init(dwc2);
   } else {
     phy_fs_init(dwc2);
