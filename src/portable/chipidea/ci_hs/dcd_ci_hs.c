@@ -330,7 +330,7 @@ void dcd_sof_enable(uint8_t rhport, bool en) {
 //--------------------------------------------------------------------+
 
 static void qtd_init(dcd_qtd_t *p_qtd, void *data_ptr, uint16_t total_bytes) {
-  dcd_dcache_clean_invalidate((uint32_t *)tu_align((uint32_t)data_ptr, 4), total_bytes);
+  dcd_dcache_clean_invalidate((uint32_t *)tu_align((uint32_t)data_ptr, 32), total_bytes);
 
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
