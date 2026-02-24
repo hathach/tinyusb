@@ -84,8 +84,9 @@ TU_ATTR_ALWAYS_INLINE static inline dwc2_regs_t* DWC2_REG(uint8_t rhport) {
   return (dwc2_regs_t*)_dwc2_controller[rhport].reg_base;
 }
 
+// check if highspeed phy should be used
 bool dwc2_core_is_highspeed_phy(dwc2_regs_t* dwc2, bool prefer_hs_phy);
-bool dwc2_core_init(uint8_t rhport, bool highspeed_phy, bool is_dma);
+bool dwc2_core_init(uint8_t rhport, bool is_hs_phy, bool is_dma);
 void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr);
 
 //--------------------------------------------------------------------+

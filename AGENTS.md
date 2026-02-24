@@ -101,9 +101,15 @@ make BOARD=raspberry_pi_pico all
 
 ## Hardware-in-the-Loop (HIL) Testing
 
+- `-B examples` means `examples` is the parent folder that contains multi-board build outputs such as `examples/cmake-build-BOARD_NAME/...`
+- Select config file before running HIL tests:
+    - if GitHub Actions self-hosted runner service is running, use `tinyusb.json`
+    - otherwise use `local.json`
+    - example:
+      `HIL_CONFIG=$( (systemctl list-units --type=service --state=running 2>/dev/null; systemctl --user list-units --type=service --state=running 2>/dev/null) | grep -q 'actions\.runner' && echo tinyusb.json || echo local.json )`
 - Run tests on actual hardware, one of following ways:
-    - test a specific board `python test/hil/hil_test.py -b BOARD_NAME -B examples local.json`
-    - test all boards in config `python test/hil/hil_test.py -B examples local.json`
+    - test a specific board `python test/hil/hil_test.py -b BOARD_NAME -B examples $HIL_CONFIG`
+    - test all boards in config `python test/hil/hil_test.py -B examples $HIL_CONFIG`
 - In case of error, enabled verbose mode with `-v` flag for detailed logs. Also try to observe script output, and try to
   modify hil_test.py (temporarily) to add more debug prints to pinpoint the issue.
 - Requires pre-built (all) examples for target boards (see Build Examples section 2)
