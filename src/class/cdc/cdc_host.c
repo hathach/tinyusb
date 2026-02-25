@@ -650,10 +650,10 @@ bool cdch_init(void) {
   for (size_t i = 0; i < CFG_TUH_CDC; i++) {
     cdch_interface_t *p_cdc = &cdch_data[i];
     cdch_epbuf_t *epbuf = &cdch_epbuf[i];
-    TU_ASSERT(tu_edpt_stream_init(&p_cdc->stream.tx, true, true, false, p_cdc->stream.tx_ff_buf, CFG_TUH_CDC_TX_BUFSIZE,
-                                  epbuf->tx, CFG_TUH_CDC_TX_EPSIZE));
+    TU_ASSERT(tu_edpt_stream_init(&p_cdc->stream.tx, true, true, false, p_cdc->stream.tx_ff_buf,
+                                  CFG_TUH_CDC_TX_BUFSIZE, epbuf->tx));
     TU_ASSERT(tu_edpt_stream_init(&p_cdc->stream.rx, true, false, false, p_cdc->stream.rx_ff_buf,
-                                  CFG_TUH_CDC_RX_BUFSIZE, epbuf->rx, CFG_TUH_CDC_RX_EPSIZE));
+                                  CFG_TUH_CDC_RX_BUFSIZE, epbuf->rx));
   }
 
   return true;
@@ -737,7 +737,7 @@ static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t co
     TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
     const uint8_t     ep_dir = tu_edpt_dir(desc_ep->bEndpointAddress);
     tu_edpt_stream_t *stream = (ep_dir == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
-    tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep);
+    tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_edpt_packet_size(desc_ep));
     tu_edpt_stream_clear(stream);
 
     desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(desc_ep);
