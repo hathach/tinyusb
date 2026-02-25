@@ -91,6 +91,22 @@ make BOARD=raspberry_pi_pico all
     - Make: `make BOARD=raspberry_pi_pico all uf2`
 - **List all targets** (CMake/Ninja): `ninja -t targets`
 
+## J-Link GDB Server + RTT Logging
+
+- Build with RTT logging enabled (example):
+  `cd examples/device/cdc_msc && make BOARD=stm32h743eval LOG=2 LOGGER=rtt all`
+- Flash with J-Link:
+  `cd examples/device/cdc_msc && make BOARD=stm32h743eval LOG=2 LOGGER=rtt flash-jlink`
+- Launch GDB server (keep this running in terminal 1):
+  `JLinkGDBServer -device stm32h743xi -if SWD -speed 4000 -port 2331 -swoport 2332 -telnetport 2333 -RTTTelnetPort 19021 -nogui`
+- Read RTT output (terminal 2):
+  `JLinkRTTClient`
+- Capture RTT to file (optional):
+  `JLinkRTTClient | tee rtt.log`
+- For non-interactive capture:
+  `timeout 20s JLinkRTTClient > rtt.log`
+- Use the board-specific `JLINK_DEVICE` from `hw/bsp/*/boards/*/board.mk` if you are not using `stm32h743eval`.
+
 ## Unit Testing
 
 - Install Ceedling: `sudo gem install ceedling`
