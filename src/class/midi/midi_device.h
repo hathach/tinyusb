@@ -66,6 +66,13 @@ uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num);
 // Read byte stream (legacy)
 uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void *buffer, uint32_t bufsize);
 
+// Read byte stream with cable demultiplexing: returns the cable number of the
+// data that was read.  Reads from a single cable per call; stops when the next
+// packet belongs to a different cable so the caller can dispatch per-cable.
+// Note: shares internal state with tud_midi_n_stream_read(); do not mix both
+// on the same interface.
+uint32_t tud_midi_n_demux_stream_read(uint8_t itf, uint8_t *p_cable_num, void *buffer, uint32_t bufsize);
+
 // Write byte Stream (legacy)
 uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, const uint8_t *buffer, uint32_t bufsize);
 
@@ -94,6 +101,11 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_midi_available(void) {
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t tud_midi_stream_read(void *buffer, uint32_t bufsize) {
   return tud_midi_n_stream_read(0, 0, buffer, bufsize);
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t
+tud_midi_demux_stream_read(uint8_t *p_cable_num, void *buffer, uint32_t bufsize) {
+  return tud_midi_n_demux_stream_read(0, p_cable_num, buffer, bufsize);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t
