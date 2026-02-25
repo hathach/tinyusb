@@ -69,6 +69,11 @@
             <path>$TUSB_DIR$/src/class/net/ncm.h</path>
             <path>$TUSB_DIR$/src/class/net/net_device.h</path>
         </group>
+        <group name="src/class/printer">
+            <path>$TUSB_DIR$/src/class/printer/printer_device.c</path>
+            <path>$TUSB_DIR$/src/class/printer/printer.h</path>
+            <path>$TUSB_DIR$/src/class/printer/printer_device.h</path>
+        </group>
         <group name="src/class/usbtmc">
             <path>$TUSB_DIR$/src/class/usbtmc/usbtmc_device.c</path>
             <path>$TUSB_DIR$/src/class/usbtmc/usbtmc.h</path>

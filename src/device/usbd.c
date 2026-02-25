@@ -334,6 +334,19 @@ static const usbd_class_driver_t _usbd_driver[] = {
         .sof              = NULL
     },
     #endif
+
+    #if CFG_TUD_PRINTER
+    {
+        .name             = DRIVER_NAME("PRINTER"),
+        .init             = printerd_init,
+        .deinit           = printerd_deinit,
+        .reset            = printerd_reset,
+        .open             = printerd_open,
+        .control_xfer_cb  = printerd_control_xfer_cb,
+        .xfer_cb          = printerd_xfer_cb,
+        .sof              = NULL
+    },
+    #endif
 };
 
 enum { BUILTIN_DRIVER_COUNT = TU_ARRAY_SIZE(_usbd_driver) };
