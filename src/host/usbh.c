@@ -169,12 +169,6 @@ static OSAL_SPINLOCK_DEF(_usbh_spin, usbh_int_set);
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
-#if CFG_TUH_HUB
-// Deferred attachment queue
-OSAL_QUEUE_DEF(usbh_int_set, _usbh_daqdef, TOTAL_DEVICES, hcd_event_t);
-static osal_queue_t _usbh_daq;
-#endif
-
 // Control transfers: since most controllers do not support multiple control transfers
 // on multiple devices concurrently and control transfers are not used much except for
 // enumeration, we will only execute control transfers one at a time.
@@ -190,6 +184,12 @@ typedef struct {
 } usbh_ctrl_xfer_info_t;
 
 typedef struct {
+  tusb_defer_func_t func;
+  uintptr_t         arg;
+  uint32_t          at_ms;
+} usbh_call_after_t;
+
+typedef struct {
   uint8_t controller_id;      // controller ID
   uint8_t enumerating_daddr;  // device address of the device being enumerated
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
@@ -197,11 +197,7 @@ typedef struct {
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
 
   #if CFG_TUSB_OS_HAS_SCHEDULER == 0    // call after only needed for non-scheduler OS
-  struct {
-    tusb_defer_func_t func;
-    uintptr_t         arg;
-    uint32_t          at_ms;
-  } call_after;
+  usbh_call_after_t call_after;
   #endif
 } usbh_data_t;
 
@@ -330,7 +326,6 @@ static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-static void usbh_task_mq(uint32_t timeout_ms, bool in_isr);
 
 TU_ATTR_ALWAYS_INLINE static inline usbh_device_t* get_device(uint8_t dev_addr) {
   TU_VERIFY(dev_addr > 0 && dev_addr <= TOTAL_DEVICES, NULL);
@@ -365,17 +360,20 @@ TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const ui
 }
 
 // For non-scheduler deferred callback. For scheduler OS: blocking delay then callback
-static void usbh_call_after_ms(uint32_t ms, tusb_defer_func_t func, uintptr_t param) {
+static bool usbh_call_after_ms(uint32_t ms, tusb_defer_func_t func, uintptr_t param) {
   #if CFG_TUSB_OS_HAS_SCHEDULER
   TU_LOG_USBH("USBH sleep for %u ms\r\n", (unsigned int)ms);
   osal_task_delay(ms);
   func(param);
   #else
+  TU_ASSERT(_usbh_data.call_after.func == NULL);
   TU_LOG_USBH("USBH start timer for %u ms\r\n", (unsigned int)ms);
   _usbh_data.call_after.func  = func;
   _usbh_data.call_after.arg   = param;
   _usbh_data.call_after.at_ms = tusb_time_millis_api() + ms;
   #endif
+
+  return true;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8_t daddr) {
@@ -525,12 +523,6 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     _usbh_q = osal_queue_create(&_usbh_qdef);
     TU_ASSERT(_usbh_q != NULL);
 
-#if CFG_TUH_HUB
-    // Deferred attachment queue
-    _usbh_daq = osal_queue_create(&_usbh_daqdef);
-    TU_ASSERT(_usbh_daq != NULL);
-#endif
-
 #if OSAL_MUTEX_REQUIRED
     // Init mutex
     _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
@@ -596,11 +588,6 @@ bool tuh_deinit(uint8_t rhport) {
     osal_queue_delete(_usbh_q);
     _usbh_q = NULL;
 
-#if CFG_TUH_HUB
-    osal_queue_delete(_usbh_daq);
-    _usbh_daq = NULL;
-#endif
-
 #if OSAL_MUTEX_REQUIRED
     // TODO make sure there is no task waiting on this mutex
     osal_mutex_delete(_usbh_mutex);
@@ -640,51 +627,30 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     return;
   }
 
-#if CFG_TUSB_OS_HAS_SCHEDULER == 0
-  // Process continuation function if timer is expired
-  tusb_defer_func_t after_cb = _usbh_data.call_after.func;
-  if (after_cb) {
-    int32_t ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
-    if (ms <= 0) {
-      // delay expired, run callback now
-      TU_LOG_USBH("USBH run timer callback\r\n");
-      _usbh_data.call_after.func = NULL;
-      after_cb(_usbh_data.call_after.arg);
-    } else if (timeout_ms > (uint32_t)ms) {
-      // reduce timeout accordingly
-      timeout_ms = (uint32_t)ms;
-    }
-  }
-#endif
-
-#if CFG_TUH_HUB
-  // Process deferred device attachments
-  if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
-    hcd_event_t event;
-    if (osal_queue_receive(_usbh_daq, &event, 0)) {
-      // We are ready to process a new attachment
-      TU_LOG_USBH("[%u:] USBH Deferred Device Attach\r\n", event.rhport);
-      _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
-      enum_new_device(&event);
-    }
-  }
-#endif
-
-  // Process the message queue
-  usbh_task_mq(timeout_ms, in_isr);
-}
-
-static void usbh_task_mq(uint32_t timeout_ms, bool in_isr) {
   (void) in_isr; // not implemented yet
 
   // Loop until there are no more events in the queue or CFG_TUH_TASK_EVENTS_PER_RUN is reached
   for (unsigned epr = 0;; epr++) {
-#if CFG_TUH_TASK_EVENTS_PER_RUN > 0
+  #if CFG_TUH_TASK_EVENTS_PER_RUN > 0
     if (epr >= CFG_TUH_TASK_EVENTS_PER_RUN) {
       TU_LOG_USBH("USBH event limit (" TU_XSTRING(CFG_TUH_TASK_EVENTS_PER_RUN) ") reached\r\n");
       break;
     }
-#endif
+  #endif
+
+  #if CFG_TUSB_OS_HAS_SCHEDULER == 0
+    // Process call_after_ms function if ms is reached
+    tusb_defer_func_t after_cb = _usbh_data.call_after.func;
+    if (after_cb) {
+      uint32_t ms = tusb_time_millis_api();
+      if (ms >= _usbh_data.call_after.at_ms) {
+        TU_LOG_USBH("USBH run timer callback\r\n");
+        _usbh_data.call_after.func = NULL;
+        after_cb(_usbh_data.call_after.arg);
+      }
+    }
+  #endif
+
     hcd_event_t event;
     if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) { return; }
 
@@ -701,12 +667,14 @@ static void usbh_task_mq(uint32_t timeout_ms, bool in_isr) {
           TU_LOG_USBH("[%u:] USBH Device Attach\r\n", event.rhport);
           _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
           enum_new_device(&event);
-#if CFG_TUH_HUB
         } else {
           // currently enumerating another device
           TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
-          TU_ASSERT(osal_queue_send(_usbh_daq, &event, in_isr),);
-#endif
+          const bool is_empty = osal_queue_empty(_usbh_q);
+          queue_event(&event, in_isr);
+          if (is_empty) {
+            return; // Exit if this is the only event in the queue, otherwise we loop forever
+          }
         }
         break;
 
@@ -784,10 +752,12 @@ static void usbh_task_mq(uint32_t timeout_ms, bool in_isr) {
         break;
     }
 
-#if CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO
-    // return if there is no more events, for application to run other background
-    if (osal_queue_empty(_usbh_q)) return;
-#endif
+  #if CFG_TUSB_OS_HAS_SCHEDULER
+    // return if there are no more events, for application to run other backgrounds
+    if (osal_queue_empty(_usbh_q)) {
+      return;
+    }
+  #endif
   }
 }
 
@@ -845,8 +815,8 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
 
     while (result == XFER_RESULT_INVALID) {
       // Note: this can be called within an callback ie. part of tuh_task()
-      // therefore even with RTOS usbh_task_mq() still need to be invoked
-      usbh_task_mq(0, false);
+      // therefore even with RTOS tuh_task_ext() still need to be invoked
+      tuh_task_ext(0, false);
       // TODO probably some timeout to prevent hanged
     }
 
@@ -1944,10 +1914,10 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
 
   TU_LOG_USBH("Parsing Configuration descriptor (wTotalLength = %u)\r\n", total_len);
 
-  // parse each interfaces
+  // parse all interfaces
   while (tu_desc_in_bounds(p_desc, desc_end)) {
     if (0 == tu_desc_len(p_desc)) {
-      // A zero length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
+      // A zero-length descriptor indicates that the device is off spec (e.g. wrong wTotalLength).
       // Parsed interfaces should still be usable
       TU_LOG_USBH("Encountered a zero-length descriptor after %" PRIu32 " bytes\r\n", (uint32_t)p_desc - (uint32_t)desc_cfg);
       break;
@@ -1963,7 +1933,7 @@ static bool enum_parse_configuration_desc(uint8_t dev_addr, tusb_desc_configurat
     // uint16_t const drv_len = tu_desc_get_interface_total_len(desc_itf, assoc_itf_count, (uint16_t)
     // (desc_end-p_desc)); TU_ASSERT(drv_len >= sizeof(tusb_desc_interface_t));
 
-    // Find driver for this interface
+    // Find a driver for this interface
     const uint16_t remaining_len = (uint16_t)(desc_end - p_desc);
     uint8_t        drv_id;
     for (drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
