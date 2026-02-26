@@ -64,7 +64,7 @@ endfunction()
 #------------------------------------
 function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
-  family_add_tinyusb(${TARGET} OPT_MCU_CH582)
+  family_add_tinyusb(${TARGET} OPT_MCU_CH58X)
 
   target_sources(${TARGET} PUBLIC
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c

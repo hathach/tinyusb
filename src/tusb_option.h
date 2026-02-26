@@ -195,7 +195,9 @@
 #define OPT_MCU_CH32F20X         2210 ///< WCH CH32F20x
 #define OPT_MCU_CH32V20X         2220 ///< WCH CH32V20X
 #define OPT_MCU_CH32V103         2230 ///< WCH CH32V103
-#define OPT_MCU_CH58X            2240 ///< WCH CH582/CH583
+#define OPT_MCU_CH58X            2240 ///< WCH CH58x series (CH582/CH583)
+#define OPT_MCU_CH582            OPT_MCU_CH58X  ///< alias
+#define OPT_MCU_CH583            OPT_MCU_CH58X  ///< alias
 
 // NXP LPC MCX
 #define OPT_MCU_MCXN9            2300  ///< NXP MCX N9 Series

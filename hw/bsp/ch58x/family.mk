@@ -13,7 +13,7 @@ CFLAGS += \
 	-mno-save-restore \
 	-fmessage-length=0 \
 	-fsigned-char \
-	-DCFG_TUSB_MCU=OPT_MCU_CH582 \
+	-DCFG_TUSB_MCU=OPT_MCU_CH58X \
 	-DCFG_TUD_WCH_USBIP_USBFS=1 \
 	-DFREQ_SYS=60000000 \
 

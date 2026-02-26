@@ -612,8 +612,8 @@
     #define TUP_DCD_EDPT_CLOSE_API
   #endif
 
-#elif TU_CHECK_MCU(OPT_MCU_CH582)
-  // CH58x has 2 independent USBFS controllers with merged EP registers, FS only.
+#elif TU_CHECK_MCU(OPT_MCU_CH58X)
+  // CH582/583 has 2 independent USBFS controllers with merged EP registers, FS only.
   #define TUP_USBIP_WCH_CH58X
 
   #ifndef CFG_TUD_WCH_USBIP_USBFS
