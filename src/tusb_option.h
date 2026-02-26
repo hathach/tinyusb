@@ -469,7 +469,6 @@
   #define TUP_MCU_STRICT_ALIGN   0
 #endif
 
-
 //--------------------------------------------------------------------+
 // Common Options (Default)
 //--------------------------------------------------------------------+
@@ -512,6 +511,10 @@
 // OS selection
 #ifndef CFG_TUSB_OS
   #define CFG_TUSB_OS           OPT_OS_NONE
+#endif
+
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #define CFG_TUSB_OS_HAS_SCHEDULER (CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO)
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
@@ -696,17 +699,6 @@
 // max events processed in one tuh_task_ext() call, 0 for unlimited
 #ifndef CFG_TUH_TASK_EVENTS_PER_RUN
   #define CFG_TUH_TASK_EVENTS_PER_RUN  16
-#endif
-
-// use tusb_time_millis_api() instead of tusb_time_delay_ms_api() in tuh_task()
-// tuh_task_ext() will be asynchronous and never sleep in tusb_time_delay_ms_api()
-#ifndef CFG_TUH_TASK_USE_TIME_MILLIS_API
-  #if CFG_TUSB_OS == OPT_OS_RTX4 || CFG_TUSB_OS == OPT_OS_PICO || defined(ESP_PLATFORM)
-    // these boards/os do not implements the required tusb_time_millis_api()
-    #define CFG_TUH_TASK_USE_TIME_MILLIS_API  0
-  #else
-    #define CFG_TUH_TASK_USE_TIME_MILLIS_API  1
-  #endif
 #endif
 
 //------------- CLASS -------------//
