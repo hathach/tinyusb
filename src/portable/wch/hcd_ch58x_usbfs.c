@@ -422,7 +422,13 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const*
                 dev_addr, ep_addr, max_packet_size, xfer_type);
 
   // Wait for any pending transfer
-  while (_current_xfer.is_busy) {}
+  uint32_t t0 = tusb_time_millis_api();
+  while (_current_xfer.is_busy) {
+    if (tusb_time_millis_api() - t0 > 200) {
+      _current_xfer.is_busy = false;
+      break;
+    }
+  }
 
   if (ep_num == 0) {
     TU_ASSERT(_get_or_add_edpt(dev_addr, 0x00, max_packet_size, xfer_type) != NULL, false);
@@ -447,8 +453,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr,
   LOG_CH58X_HCD("hcd_edpt_xfer(dev=0x%02x, ep=0x%02x, len=%d)\r\n",
                 dev_addr, ep_addr, buflen);
 
-  // Wait for any pending transfer
-  while (_current_xfer.is_busy) {}
+  // Wait for any pending transfer (with 200ms timeout to avoid deadlock on disconnect)
+  uint32_t t0 = tusb_time_millis_api();
+  while (_current_xfer.is_busy) {
+    if (tusb_time_millis_api() - t0 > 200) {
+      _current_xfer.is_busy = false;
+      return false;
+    }
+  }
   _current_xfer.is_busy = true;
 
   hcd_edpt_t* edpt = _get_edpt(dev_addr, ep_addr);
@@ -490,7 +502,13 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   LOG_CH58X_HCD("hcd_setup_send(dev=0x%02x)\r\n", dev_addr);
 
   // Wait for any pending transfer
-  while (_current_xfer.is_busy) {}
+  uint32_t t0 = tusb_time_millis_api();
+  while (_current_xfer.is_busy) {
+    if (tusb_time_millis_api() - t0 > 200) {
+      _current_xfer.is_busy = false;
+      return false;
+    }
+  }
   _current_xfer.is_busy = true;
 
   _hw_set_addr_speed(rhport, dev_addr);
@@ -522,33 +540,12 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 }
 
 bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr) {
-  uint32_t base = _port_data[rhport].usb_base;
-  uint8_t ep_num = tu_edpt_number(ep_addr);
+  (void) rhport;
 
   LOG_CH58X_HCD("hcd_edpt_clear_stall(dev=0x%02x, ep=0x%02x)\r\n", dev_addr, ep_addr);
-
-  // Send CLEAR_FEATURE(ENDPOINT_HALT) via blocking transfer
-  uint8_t setup[8] = {
-    0x02, 0x01, 0x00, 0x00, ep_addr, 0x00, 0x00, 0x00
-  };
-  memcpy(_tx_buf[rhport], setup, 8);
-  CH58X_UH_TX_LEN(base) = 8;
-
-  bool prev_int = _port_data[rhport].int_enabled;
-  hcd_int_disable(rhport);
-
-  CH58X_UH_EP_PID(base) = (CH58X_USB_PID_SETUP << 4) | 0x00;
-  CH58X_USB_INT_FG(base) = CH58X_UIF_TRANSFER;
-  while ((CH58X_USB_INT_FG(base) & CH58X_UIF_TRANSFER) == 0) {}
-  CH58X_UH_EP_PID(base) = 0;
-
-  uint8_t response = CH58X_USB_INT_ST(base) & CH58X_UIS_H_RES_MASK;
-  (void)response;
-
-  LOG_CH58X_HCD("clear_stall response=0x%02x\r\n", response);
-
-  if (prev_int) {
-    hcd_int_enable(rhport);
+  hcd_edpt_t* edpt = _get_edpt(dev_addr, ep_addr);
+  if (edpt != NULL) {
+    edpt->data_toggle = 0;
   }
 
   return true;
@@ -570,6 +567,10 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     if (attached) {
       hcd_event_device_attach(rhport, in_isr);
     } else {
+      // Stop any ongoing hardware transfer before reporting removal
+      CH58X_UH_EP_PID(base) = 0x00;
+      _current_xfer.is_busy = false;
+      _current_xfer.nak_pending = false;
       hcd_event_device_remove(rhport, in_isr);
     }
     return;
@@ -580,7 +581,6 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     // Read PID/endpoint before stopping (must read first!)
     uint8_t pid_endp = CH58X_UH_EP_PID(base);
     uint8_t int_st = CH58X_USB_INT_ST(base);
-    uint8_t int_fg = CH58X_USB_INT_FG(base);
     uint8_t dev_addr = CH58X_USB_DEV_AD(base) & CH58X_USB_ADDR_MASK;
 
     // Stop USB transaction immediately (SDK: R8_UH_EP_PID = 0x00)

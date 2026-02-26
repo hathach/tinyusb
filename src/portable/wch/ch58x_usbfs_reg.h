@@ -55,30 +55,23 @@
 #define CH58X_UEP567_MOD(base)  (*(volatile uint8_t  *)((base) + 0x0E))
 
 //--------------------------------------------------------------------+
-// Endpoint DMA / T_LEN / CTRL offset lookup tables
-// EP0-EP4 are at low offsets, EP5-EP7 jump to higher offsets
-// EP4 shares DMA with EP0 (no independent DMA register)
+// Endpoint DMA / T_LEN / CTRL register accessors
+//
+// EP0-EP3 DMA : base + 0x10 + ep*4  (EP4 shares EP0 DMA, no own register)
+// EP5-EP7 DMA : base + 0x54 + (ep-5)*4
+// EP0-EP4 TLEN: base + 0x20 + ep*4
+// EP5-EP7 TLEN: base + 0x64 + (ep-5)*4
+// EP0-EP4 CTRL: base + 0x22 + ep*4
+// EP5-EP7 CTRL: base + 0x66 + (ep-5)*4
+//
+// Using computed addresses avoids per-TU copies of static lookup tables.
+// EP4 DMA is not accessed directly (it shares EP0's DMA register).
 //--------------------------------------------------------------------+
-static const uint8_t ch58x_ep_dma_offset[] = {
-  0x10, 0x14, 0x18, 0x1C,  /* EP0, EP1, EP2, EP3 */
-  0xFF,                     /* EP4: shares with EP0, sentinel */
-  0x54, 0x58, 0x5C          /* EP5, EP6, EP7 */
-};
-
-static const uint8_t ch58x_ep_tlen_offset[] = {
-  0x20, 0x24, 0x28, 0x2C, 0x30, /* EP0-EP4 */
-  0x64, 0x68, 0x6C              /* EP5-EP7 */
-};
-
-static const uint8_t ch58x_ep_ctrl_offset[] = {
-  0x22, 0x26, 0x2A, 0x2E, 0x32, /* EP0-EP4 */
-  0x66, 0x6A, 0x6E              /* EP5-EP7 */
-};
 
 // EP DMA is 16-bit (only low 16 bits of RAM address, high bits implied 0x2000)
-#define CH58X_EP_DMA(base, ep)   (*(volatile uint16_t *)((base) + ch58x_ep_dma_offset[ep]))
-#define CH58X_EP_TLEN(base, ep)  (*(volatile uint8_t  *)((base) + ch58x_ep_tlen_offset[ep]))
-#define CH58X_EP_CTRL(base, ep)  (*(volatile uint8_t  *)((base) + ch58x_ep_ctrl_offset[ep]))
+#define CH58X_EP_DMA(base, ep)   (*(volatile uint16_t *)((base) + ((ep) <= 3 ? (0x10u + (ep)*4u) : (0x54u + ((ep)-5u)*4u))))
+#define CH58X_EP_TLEN(base, ep)  (*(volatile uint8_t  *)((base) + ((ep) <= 4 ? (0x20u + (ep)*4u) : (0x64u + ((ep)-5u)*4u))))
+#define CH58X_EP_CTRL(base, ep)  (*(volatile uint8_t  *)((base) + ((ep) <= 4 ? (0x22u + (ep)*4u) : (0x66u + ((ep)-5u)*4u))))
 
 //--------------------------------------------------------------------+
 // USB_CTRL (R8_USB_CTRL) bit definitions

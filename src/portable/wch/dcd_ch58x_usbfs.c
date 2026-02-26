@@ -165,16 +165,16 @@ static uint8_t* ep_dma_buffer(dcd_data_t* d, uint8_t ep) {
 }
 
 //--------------------------------------------------------------------+
-// EP has auto-toggle support?
+// AUTO_TOG supported on EP1/2/3/5/6/7 (no EP0 or EP4)
 //--------------------------------------------------------------------+
 static inline bool ep_has_auto_toggle(uint8_t ep) {
-  return (ep >= 1 && ep <= 3);
+  return (ep >= 1 && ep <= 3) || (ep >= 5 && ep <= 7);
 }
 
 //--------------------------------------------------------------------+
 // Private transfer helpers
 //--------------------------------------------------------------------+
-static void update_in(uint8_t rhport, uint8_t ep, bool force) {
+static void update_in(uint8_t rhport, uint8_t ep, bool force, bool in_isr) {
   dcd_data_t* d = &_dcd_data[rhport];
   uint32_t base = d->usb_base;
   struct usb_xfer* xfer = &d->xfer[ep][TUSB_DIR_IN];
@@ -213,12 +213,12 @@ static void update_in(uint8_t rhport, uint8_t ep, bool force) {
       xfer->valid = false;
       ep_set_tx_response(base, ep, CH58X_EP_T_RES_NAK);
       dcd_event_xfer_complete(rhport, ep | TUSB_DIR_IN_MASK,
-                              xfer->processed_len, XFER_RESULT_SUCCESS, true);
+                              xfer->processed_len, XFER_RESULT_SUCCESS, in_isr);
     }
   }
 }
 
-static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
+static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len, bool in_isr) {
   dcd_data_t* d = &_dcd_data[rhport];
   uint32_t base = d->usb_base;
   struct usb_xfer* xfer = &d->xfer[ep][TUSB_DIR_OUT];
@@ -239,7 +239,7 @@ static void update_out(uint8_t rhport, uint8_t ep, size_t rx_len) {
     if (xfer->len == 0 || len < xfer->max_size) {
       xfer->valid = false;
       dcd_event_xfer_complete(rhport, ep, xfer->processed_len,
-                              XFER_RESULT_SUCCESS, true);
+                              XFER_RESULT_SUCCESS, in_isr);
     }
 
     if (ep == 0) {
@@ -297,11 +297,11 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   EP_TLEN(base, 4) = 0;
   EP_CTRL(base, 4) = CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
 
-  // EP5-7: DMA + no auto-toggle
+  // EP5-7: DMA + auto-toggle
   for (uint8_t ep = 5; ep <= 7; ep++) {
     EP_DMA(base, ep) = (uint16_t)(uint32_t) ep_dma_buffer(d, ep);
     EP_TLEN(base, ep) = 0;
-    EP_CTRL(base, ep) = CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
+    EP_CTRL(base, ep) = CH58X_EP_AUTO_TOG | CH58X_EP_R_RES_NAK | CH58X_EP_T_RES_NAK;
   }
 
   // Set EP0 max size
@@ -325,18 +325,27 @@ void dcd_int_handler(uint8_t rhport) {
     // Check SETUP first via dedicated flag
     if (int_st & CH58X_UIS_SETUP_ACT) {
       // SETUP packet received on EP0
-      ep_set_both_response(base, 0, CH58X_EP_T_RES_NAK, CH58X_EP_R_RES_ACK);
+      // After SETUP, both toggle bits must be set to DATA1 (SDK reference)
+      EP_CTRL(base, 0) = CH58X_EP_R_TOG | CH58X_EP_T_TOG |
+                         CH58X_EP_R_RES_ACK | CH58X_EP_T_RES_NAK;
       d->ep0_tog = true;
       dcd_event_setup_received(rhport, ep_out_buffer(d, 0), true);
     } else {
       switch (token) {
         case CH58X_PID_OUT: {
           uint8_t rx_len = USB_RX_LEN(base);
-          if (!ep_has_auto_toggle(ep) && ep != 0) {
-            // Manual toggle for EP4-7
-            EP_CTRL(base, ep) ^= CH58X_EP_R_TOG;
+          if (ep == 0) {
+            // EP0: always process (toggle managed via SETUP reset)
+            update_out(rhport, 0, rx_len, true);
+          } else if (int_st & CH58X_UIS_TOG_OK) {
+            // Toggle matched: data is valid
+            if (!ep_has_auto_toggle(ep)) {
+              // EP4: manual toggle
+              EP_CTRL(base, ep) ^= CH58X_EP_R_TOG;
+            }
+            update_out(rhport, ep, rx_len, true);
           }
-          update_out(rhport, ep, rx_len);
+          // else: toggle mismatch, discard packet per datasheet
           break;
         }
 
@@ -345,7 +354,7 @@ void dcd_int_handler(uint8_t rhport) {
             // Manual toggle for EP4-7
             EP_CTRL(base, ep) ^= CH58X_EP_T_TOG;
           }
-          update_in(rhport, ep, false);
+          update_in(rhport, ep, false, true);
           break;
         }
 
@@ -370,19 +379,14 @@ void dcd_int_handler(uint8_t rhport) {
 
     USB_INT_FG(base) = CH58X_UIF_BUS_RST;
   } else if (status & CH58X_UIF_SUSPEND) {
-    if (USB_MIS_ST(base) & CH58X_UMS_SUSPEND) {
-      dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_SUSPEND};
-      dcd_event_handler(&event, true);
-    } else {
-      dcd_event_t event = {.rhport = rhport, .event_id = DCD_EVENT_RESUME};
-      dcd_event_handler(&event, true);
-    }
+    dcd_event_bus_signal(rhport,
+      (USB_MIS_ST(base) & CH58X_UMS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME,
+      true);
     USB_INT_FG(base) = CH58X_UIF_SUSPEND;
   }
 }
 
 void dcd_int_enable(uint8_t rhport) {
-  (void) rhport;
   // PFIC enable: USB_IRQn=22, USB2_IRQn=23
   volatile uint32_t* pfic_ienr = (volatile uint32_t*) 0xE000E100;
   uint8_t irqn = (rhport == 0) ? 22 : 23;
@@ -390,7 +394,6 @@ void dcd_int_enable(uint8_t rhport) {
 }
 
 void dcd_int_disable(uint8_t rhport) {
-  (void) rhport;
   volatile uint32_t* pfic_irer = (volatile uint32_t*) 0xE000E180;
   uint8_t irqn = (rhport == 0) ? 22 : 23;
   pfic_irer[irqn / 32] = (1u << (irqn % 32));
@@ -406,7 +409,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr) {
 void dcd_remote_wakeup(uint8_t rhport) {
   uint32_t base = get_usb_base(rhport);
   USB_UDEV_CTRL(base) |= CH58X_UD_GP_BIT;
-  for (volatile int i = 0; i < 60000; i++) { } // ~1ms resume signal
+  tusb_time_delay_ms_api(1); // 1ms resume signal per USB spec
   USB_UDEV_CTRL(base) &= ~CH58X_UD_GP_BIT;
 }
 
@@ -421,12 +424,10 @@ void dcd_disconnect(uint8_t rhport) {
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
-  uint32_t base = get_usb_base(rhport);
-  if (en) {
-    USB_INT_EN(base) |= CH58X_UIE_HST_SOF;
-  } else {
-    USB_INT_EN(base) &= ~CH58X_UIE_HST_SOF;
-  }
+  // CH58x has no device-mode SOF interrupt.
+  // RB_UIE_HST_SOF (0x08) is host-mode only and has no effect in device mode.
+  (void) rhport;
+  (void) en;
 }
 
 void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* request) {
@@ -436,7 +437,9 @@ void dcd_edpt0_status_complete(uint8_t rhport, tusb_control_request_t const* req
   if (request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_DEVICE &&
       request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
       request->bRequest == TUSB_REQ_SET_ADDRESS) {
-    USB_DEV_AD(base) = (uint8_t) request->wValue;
+    // Preserve GP_BIT (bit7) when setting device address
+    USB_DEV_AD(base) = (USB_DEV_AD(base) & CH58X_UDA_GP_BIT) |
+                       ((uint8_t)request->wValue & CH58X_USB_ADDR_MASK);
   }
   ep_set_both_response(base, 0, CH58X_EP_T_RES_NAK, CH58X_EP_R_RES_ACK);
 }
@@ -505,7 +508,6 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t* desc_ep) 
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
                    uint16_t total_bytes, bool is_isr) {
-  (void) is_isr;
   uint8_t ep = tu_edpt_number(ep_addr);
   uint8_t dir = tu_edpt_dir(ep_addr);
 
@@ -517,10 +519,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
   xfer->buffer = buffer;
   xfer->len = total_bytes;
   xfer->processed_len = 0;
-  dcd_int_enable(rhport);
 
   if (dir == TUSB_DIR_IN) {
-    update_in(rhport, ep, true);
+    update_in(rhport, ep, true, is_isr);
   } else {
     // For OUT direction, set endpoint to ACK to start receiving data
     if (ep != 0) {
@@ -531,6 +532,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
       }
     }
   }
+  dcd_int_enable(rhport);
   return true;
 }
 

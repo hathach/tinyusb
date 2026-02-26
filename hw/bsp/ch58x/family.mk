@@ -1,3 +1,9 @@
+# https://www.embecosm.com/resources/tool-chain-downloads/#riscv-stable
+#CROSS_COMPILE ?= riscv32-unknown-elf-
+
+# Toolchain from https://nucleisys.com/download.php
+#CROSS_COMPILE ?= riscv-nuclei-elf-
+
 # Toolchain from https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack
 CROSS_COMPILE ?= riscv-none-elf-
 
@@ -9,17 +15,21 @@ CPU_CORE ?= rv32imac-ilp32
 
 CFLAGS += \
 	-flto \
-	-msmall-data-limit=8 \
+	-msmall-data-limit=16 \
 	-mno-save-restore \
 	-fmessage-length=0 \
 	-fsigned-char \
 	-DCFG_TUSB_MCU=OPT_MCU_CH58X \
 	-DCFG_TUD_WCH_USBIP_USBFS=1 \
 	-DFREQ_SYS=60000000 \
+	-DDISK_LIB_ENABLE=0 \
+	-DINT_SOFT \
+
+CFLAGS += -Wno-error=strict-prototypes
 
 LDFLAGS_GCC += \
 	-nostdlib -nostartfiles \
-	--specs=nosys.specs --specs=nano.specs \
+	--specs=nosys.specs \
 
 SRC_C += \
 	src/portable/wch/dcd_ch58x_usbfs.c \
