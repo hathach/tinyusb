@@ -1516,7 +1516,16 @@ static void enum_async_delay(uintptr_t state) {
   tuh_bus_info_t *dev0_bus = &_usbh_data.dev0_bus;
   switch (state) {
     case ENUM_AFTER_DEBOUNCING_DELAY:
-      if (dev0_bus->hub_addr == 0) {
+  #if CFG_TUH_HUB
+      if (dev0_bus->hub_addr != 0) {
+        // connected via hub
+        TU_VERIFY(dev0_bus->hub_port != 0, );
+        TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration,
+                                      ENUM_HUB_RERSET), );
+        break;
+      } else
+  #endif
+      {
         // connected directly to roothub
         _usbh_data.attach_debouncing_bm &= (uint8_t)~TU_BIT(dev0_bus->rhport); // clear roothub debouncing delay
         if (!hcd_port_connect_status(dev0_bus->rhport)) {
@@ -1527,15 +1536,6 @@ static void enum_async_delay(uintptr_t state) {
         hcd_port_reset(dev0_bus->rhport); // reset port
         ENUM_ASYNC_DELAY_OR_FALLTHROUGH(ENUM_RESET_ROOT_DELAY_MS, ENUM_AFTER_RESET_ROOT_DELAY);
       }
-  #if CFG_TUH_HUB
-      else {
-        // connected via hub
-        TU_VERIFY(dev0_bus->hub_port != 0, );
-        TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration,
-                                      ENUM_HUB_RERSET), );
-        break;
-      }
-  #endif // hub
 
     case ENUM_AFTER_RESET_ROOT_DELAY:
       hcd_port_reset_end(dev0_bus->rhport);
