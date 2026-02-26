@@ -28,6 +28,7 @@ family_list = {
     "ch32v10x": ["riscv-gcc"],
     "ch32v20x": ["riscv-gcc"],
     "ch32v30x": ["riscv-gcc"],
+    "ch58x": ["riscv-gcc"],
     "da1469x": ["arm-gcc"],
     "fomu": ["riscv-gcc"],
     "gd32vf103": ["riscv-gcc"],
