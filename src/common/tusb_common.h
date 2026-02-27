@@ -90,6 +90,12 @@
 // TODO move to a more obvious place/file
 //--------------------------------------------------------------------+
 
+// Get current milliseconds, required by some port/configuration without RTOS
+extern uint32_t tusb_time_millis_api(void);
+
+// Delay in milliseconds, use tusb_time_millis_api() by default. required by some port/configuration with no RTOS
+extern void tusb_time_delay_ms_api(uint32_t ms);
+
 // flush data cache
 extern void tusb_app_dcache_flush(uintptr_t addr, uint32_t data_size);
 

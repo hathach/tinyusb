@@ -221,13 +221,13 @@ static void video_send_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx) {
   if (!(already_sent & (1u << idx))) {
     already_sent |= 1u << idx;
     tx_busy |= 1u << idx;
-    start_ms[idx] = board_millis();
+    start_ms[idx] = tusb_time_millis_api();
 
     fb_size = get_framebuf(ctl_idx, stm_idx, frame_num[idx], &fp);
     tud_video_n_frame_xfer(ctl_idx, stm_idx, fp, fb_size);
   }
 
-  unsigned cur = board_millis();
+  unsigned cur = tusb_time_millis_api();
   if (cur - start_ms[idx] < interval_ms[idx]) return; // not enough time
   if (tx_busy & (1u << idx)) return;
   start_ms[idx] += interval_ms[idx];
@@ -280,7 +280,7 @@ void led_blinking_task(void* param) {
     #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
     #else
-    if (board_millis() - start_ms < blink_interval_ms) return; // not enough time
+    if (tusb_time_millis_api() - start_ms < blink_interval_ms) return; // not enough time
     #endif
 
     start_ms += blink_interval_ms;

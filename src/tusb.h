@@ -174,16 +174,6 @@ bool tusb_deinit(uint8_t rhport);
 
 #endif
 
-//--------------------------------------------------------------------+
-//
-//--------------------------------------------------------------------+
-
-// Get current milliseconds, required by some port/configuration without RTOS
-extern uint32_t tusb_time_millis_api(void);
-
-// Delay in milliseconds, use tusb_time_millis_api() by default. required by some port/configuration with no RTOS
-extern void tusb_time_delay_ms_api(uint32_t ms);
-
 #ifdef __cplusplus
  }
 #endif

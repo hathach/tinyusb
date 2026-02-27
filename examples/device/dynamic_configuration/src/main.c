@@ -170,7 +170,7 @@ void midi_task(void) {
   while( tud_midi_available() ) tud_midi_packet_read(packet);
 
   // send note every 1000 ms
-  if (board_millis() - start_ms < 286) {
+  if (tusb_time_millis_api() - start_ms < 286) {
     return; // not enough time
   }
   start_ms += 286;
@@ -209,7 +209,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) {
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
     return;// not enough time
   }
   start_ms += blink_interval_ms;

@@ -96,7 +96,7 @@ int board_uart_write(void const *buf, int len)
 }
 
 // Get current milliseconds
-uint32_t board_millis(void)
+uint32_t tusb_time_millis_api(void)
 {
   struct timespec tp;
 

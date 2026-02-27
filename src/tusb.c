@@ -45,21 +45,24 @@ tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 // Weak/Default API, can be overwritten by Application
 //--------------------------------------------------------------------
 
-  #if CFG_TUSB_OS != OPT_OS_NONE
-uint32_t tusb_time_millis_api(void) {
+#if CFG_TUSB_OS != OPT_OS_NONE
+TU_ATTR_WEAK uint32_t tusb_time_millis_api(void) {
   return osal_time_millis();
 }
-  #endif
 
 TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
-#if CFG_TUSB_OS != OPT_OS_NONE
   osal_task_delay(ms);
+}
+
 #else
+// tusb_time_millis_api() must be implemented by user application.
+
+TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
   // delay using millis()
   const uint32_t time_ms = tusb_time_millis_api();
   while ((tusb_time_millis_api() - time_ms) < ms) {}
-#endif
 }
+#endif
 
 TU_ATTR_WEAK void *tusb_app_virt_to_phys(void *virt_addr) {
   return virt_addr;

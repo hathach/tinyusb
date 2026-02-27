@@ -685,7 +685,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       has_deferred_attach = osal_queue_receive(_usbh_daq, &event, 0);
     }
 
-    if (!has_deferred_attach) // skip event queue to process deferred at
+    if (!has_deferred_attach) // skip event queue to process deferred attach
   #endif
     {
       if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) {
