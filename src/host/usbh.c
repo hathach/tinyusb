@@ -538,7 +538,7 @@ bool tuh_deinit(uint8_t rhport) {
 
   // deinit host controller
   hcd_int_disable(rhport);
-  hcd_deinit(rhport);
+  TU_ASSERT(hcd_deinit(rhport));
   _usbh_data.controller_id = TUSB_INDEX_INVALID_8;
 
   // remove all devices on this rhport (hub_addr = 0, hub_port = 0)
