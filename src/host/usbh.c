@@ -169,6 +169,12 @@ static OSAL_SPINLOCK_DEF(_usbh_spin, usbh_int_set);
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
+  #if CFG_TUH_HUB
+// Deferred attachment queue, only needed when using hub
+OSAL_QUEUE_DEF(usbh_int_set, _usbh_daqdef, CFG_TUH_HUB, hcd_event_t);
+static osal_queue_t _usbh_daq;
+  #endif
+
 // Control transfers: since most controllers do not support multiple control transfers
 // on multiple devices concurrently and control transfers are not used much except for
 // enumeration, we will only execute control transfers one at a time.
@@ -387,9 +393,6 @@ TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8
   // invalidate if enumerating
   if (daddr == _usbh_data.enumerating_daddr) {
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
-  #if CFG_TUSB_OS_HAS_SCHEDULER == 0
-    _usbh_data.call_after.func = NULL;
-  #endif
   }
 }
 
@@ -523,11 +526,17 @@ bool tuh_rhport_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
     _usbh_q = osal_queue_create(&_usbh_qdef);
     TU_ASSERT(_usbh_q != NULL);
 
-#if OSAL_MUTEX_REQUIRED
+  #if CFG_TUH_HUB
+    // Deferred attachment queue
+    _usbh_daq = osal_queue_create(&_usbh_daqdef);
+    TU_ASSERT(_usbh_daq != NULL);
+  #endif
+
+  #if OSAL_MUTEX_REQUIRED
     // Init mutex
     _usbh_mutex = osal_mutex_create(&_usbh_mutexdef);
     TU_ASSERT(_usbh_mutex);
-#endif
+  #endif
 
     // Get application driver if available
     _app_driver = usbh_app_driver_get_cb(&_app_driver_count);
@@ -588,11 +597,16 @@ bool tuh_deinit(uint8_t rhport) {
     osal_queue_delete(_usbh_q);
     _usbh_q = NULL;
 
-#if OSAL_MUTEX_REQUIRED
+  #if CFG_TUH_HUB
+    osal_queue_delete(_usbh_daq);
+    _usbh_daq = NULL;
+  #endif
+
+  #if OSAL_MUTEX_REQUIRED
     // TODO make sure there is no task waiting on this mutex
     osal_mutex_delete(_usbh_mutex);
     _usbh_mutex = NULL;
-#endif
+  #endif
   }
 
   return true;
@@ -600,9 +614,19 @@ bool tuh_deinit(uint8_t rhport) {
 
 bool tuh_task_event_ready(void) {
   if (!tuh_inited()) {
-    return false; // Skip if stack is not initialized
+    return false; // Skip if tusb stack is not initialized
   }
-  return !osal_queue_empty(_usbh_q);
+  if (!osal_queue_empty(_usbh_q)) {
+    return true;
+  }
+
+  #if CFG_TUH_HUB
+  if (!osal_queue_empty(_usbh_daq)) {
+    return true;
+  }
+  #endif
+
+  return false;
 }
 
 /* USB Host Driver task
@@ -652,12 +676,27 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
   #endif
 
     hcd_event_t event;
-    if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) { return; }
+
+  #if CFG_TUH_HUB
+    // Get deferred device attachments if none is enumerating
+    bool has_deferred_attach = false;
+    if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
+      // zero wait to avoid blocking the main event queue
+      has_deferred_attach = osal_queue_receive(_usbh_daq, &event, 0);
+    }
+
+    if (!has_deferred_attach) // skip event queue to process deferred at
+  #endif
+    {
+      if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) {
+        return;
+      }
+    }
 
     switch (event.event_id) {
       case HCD_EVENT_DEVICE_ATTACH:
         // Should we miss the hub detach event due to high traffic, Or due to physical debouncing, some devices can
-        // cause multiple attaches (actually reset) without detach event.
+        // cause multiple attaches (actually reset) without a detached event.
         // Force remove currently mounted with the same bus info (rhport, hub addr, hub port) if exists
         process_remove_event(&event);
 
@@ -667,15 +706,13 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
           TU_LOG_USBH("[%u:] USBH Device Attach\r\n", event.rhport);
           _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
           enum_new_device(&event);
-        } else {
-          // currently enumerating another device
-          TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
-          const bool is_empty = osal_queue_empty(_usbh_q);
-          queue_event(&event, in_isr);
-          if (is_empty) {
-            return; // Exit if this is the only event in the queue, otherwise we loop forever
-          }
         }
+  #if CFG_TUH_HUB
+        else {
+          TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
+          TU_ASSERT(osal_queue_send(_usbh_daq, &event, in_isr), );
+        }
+  #endif
         break;
 
       case HCD_EVENT_DEVICE_REMOVE:
@@ -753,8 +790,12 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
 
   #if CFG_TUSB_OS_HAS_SCHEDULER
-    // return if there are no more events, for application to run other backgrounds
-    if (osal_queue_empty(_usbh_q)) {
+    // return if there are no more events, to allow application to run other backgrounds
+    if (osal_queue_empty(_usbh_q)
+    #if CFG_TUH_HUB
+        && osal_queue_empty(_usbh_daq)
+    #endif
+    ) {
       return;
     }
   #endif
@@ -1468,6 +1509,7 @@ enum {
   ENUM_HUB_RERSET,
   ENUM_HUB_RESET_COMPLETE,
   ENUM_HUB_CLEAR_RESET,
+  ENUM_HUB_CLEAR_RESET_RETRY, // 2nd attempt waiting for hub reset
   ENUM_HUB_CLEAR_RESET_COMPLETE,
   ENUM_ADDR0_DEVICE_DESC,
   ENUM_SET_ADDR,
@@ -1496,6 +1538,7 @@ enum {
   ENUM_AFTER_RESET_ROOT_DELAY,
   ENUM_AFTER_RESET_ROOT_POST_DELAY,
   ENUM_AFTER_RESET_HUB_DELAY,
+  ENUM_AFTER_RESET_HUB_DELAY_RETRY,
   ENUM_AFTER_RESET_RECOVERY_DELAY,
   ENUM_AFTER_SET_ADDRESS_RECOVERY_DELAY,
 };
@@ -1561,9 +1604,11 @@ static void enum_async_delay(uintptr_t state) {
 
   #if CFG_TUH_HUB
     case ENUM_AFTER_RESET_HUB_DELAY:
+    case ENUM_AFTER_RESET_HUB_DELAY_RETRY:
       // get status after reset complete to check for reset change
       TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration,
-                                    ENUM_HUB_CLEAR_RESET), );
+                                    state == ENUM_AFTER_RESET_HUB_DELAY ? ENUM_HUB_CLEAR_RESET
+                                                                        : ENUM_HUB_CLEAR_RESET_RETRY), );
       break;
   #endif
 
@@ -1646,18 +1691,22 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       usbh_call_after_ms(ENUM_RESET_HUB_DELAY_MS, enum_async_delay, ENUM_AFTER_RESET_HUB_DELAY);
       break;
 
-    case ENUM_HUB_CLEAR_RESET: {
+    case ENUM_HUB_CLEAR_RESET:
+    case ENUM_HUB_CLEAR_RESET_RETRY: {
       hub_port_status_response_t port_status;
       hub_port_get_status_local(dev0_bus->hub_addr, dev0_bus->hub_port, &port_status);
 
       if (1 == port_status.change.reset) {
         // Acknowledge Port Reset Change
-        TU_ASSERT(hub_port_clear_reset_change(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration, ENUM_HUB_CLEAR_RESET_COMPLETE),);
+        TU_ASSERT(hub_port_clear_reset_change(dev0_bus->hub_addr, dev0_bus->hub_port, process_enumeration,
+                                              ENUM_HUB_CLEAR_RESET_COMPLETE), );
+      } else if (state == ENUM_HUB_CLEAR_RESET) {
+        // retry one more time if reset change not set yet
+        usbh_call_after_ms(ENUM_RESET_HUB_DELAY_MS, enum_async_delay, ENUM_AFTER_RESET_HUB_DELAY_RETRY);
       } else {
-        // maybe retry if reset change not set but we need timeout to prevent infinite loop
-        // TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration, ENUM_HUB_CLEAR_RESET_COMPLETE),);
+        // retry but still not set --> failed
+        enum_full_complete(false);
       }
-
       break;
     }
 
@@ -1855,11 +1904,12 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       TU_LOG_USBH("Device configured\r\n");
       dev->configured = 1;
 
-    #if CFG_TUH_HUB
+  #if CFG_TUH_HUB
+      // get next hub status now since device can be unplugged before set_configure() is complete
       if (_usbh_data.dev0_bus.hub_addr != 0) {
-        hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr); // get next hub status
+        hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr);
       }
-    #endif
+  #endif
 
       // Parse configuration & set up drivers
       // driver_open() must not make any usb transfer
@@ -1981,7 +2031,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
     }
   }
 
-  // all interface are configured
+  // all interfaces are configured
   if (itf_num == CFG_TUH_INTERFACE_MAX) {
     enum_full_complete(true);
 
@@ -2004,11 +2054,10 @@ static void enum_full_complete(bool success) {
 
   #if CFG_TUH_HUB
   // Hub status is already requested in case of successful enumeration
-  if (_usbh_data.dev0_bus.hub_addr != 0 && !success) {
-    hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr); // get next hub status
+  if (!success && _usbh_data.dev0_bus.hub_addr != 0) {
+    hub_edpt_status_xfer(_usbh_data.dev0_bus.hub_addr);
   }
-#endif
-
+  #endif
 }
 
 #endif
