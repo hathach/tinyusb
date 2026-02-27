@@ -76,9 +76,6 @@ typedef struct {
 static tusb_speed_t get_speed(void);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix);
 
-// DMA descriptors shouldn't be placed in ITCM !
-CFG_TUD_MEM_SECTION static dma_desc_t dma_desc[6];
-
 static xfer_ctl_t xfer_status[EP_MAX];
 
 static const tusb_desc_endpoint_t ep0_desc =
@@ -673,73 +670,12 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_
   xfer->queued_len = 0;
   xfer->fifo = ff;
 
-  if (EP_DMA_SUPPORT(epnum) && total_bytes != 0)
+  if (dir == TUSB_DIR_OUT)
   {
-    tu_fifo_buffer_info_t info;
-    uint32_t udd_dma_ctrl_lin = DEVDMACONTROL_CHANN_ENB;
-    uint32_t udd_dma_ctrl_wrap = DEVDMACONTROL_CHANN_ENB | DEVDMACONTROL_END_BUFFIT;
-    if (dir == TUSB_DIR_OUT)
-    {
-      tu_fifo_get_write_info(ff, &info);
-      udd_dma_ctrl_lin |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;
-      udd_dma_ctrl_wrap |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;
-    } else {
-      tu_fifo_get_read_info(ff, &info);
-      if(info.wrapped.len == 0)
-      {
-        udd_dma_ctrl_lin |= DEVDMACONTROL_END_B_EN;
-      }
-      udd_dma_ctrl_wrap |= DEVDMACONTROL_END_B_EN;
-    }
-
-    // Clean invalidate cache of linear part
-    CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.linear.ptr, 4), info.linear.len + 31);
-
-    USB_REG->DEVDMA[epnum - 1].DEVDMAADDRESS = (uint32_t)info.linear.ptr;
-    if (info.wrapped.len)
-    {
-      // Clean invalidate cache of wrapped part
-      CleanInValidateCache((uint32_t*) tu_align((uint32_t) info.wrapped.ptr, 4), info.wrapped.len + 31);
-
-      dma_desc[epnum - 1].next_desc = 0;
-      dma_desc[epnum - 1].buff_addr = (uint32_t)info.wrapped.ptr;
-      dma_desc[epnum - 1].chnl_ctrl =
-        udd_dma_ctrl_wrap | (info.wrapped.len << DEVDMACONTROL_BUFF_LENGTH_Pos);
-      // Clean cache of wrapped DMA descriptor
-      CleanInValidateCache((uint32_t*)&dma_desc[epnum - 1], sizeof(dma_desc_t));
-
-      udd_dma_ctrl_lin |= DEVDMASTATUS_DESC_LDST;
-      USB_REG->DEVDMA[epnum - 1].DEVDMANXTDSC = (uint32_t)&dma_desc[epnum - 1];
-    } else {
-      udd_dma_ctrl_lin |= DEVDMACONTROL_END_BUFFIT;
-    }
-    udd_dma_ctrl_lin |= (info.linear.len << DEVDMACONTROL_BUFF_LENGTH_Pos);
-    // Disable IRQs to have a short sequence
-    // between read of EOT_STA and DMA enable
-    uint32_t irq_state = __get_PRIMASK();
-    __disable_irq();
-    if (!(USB_REG->DEVDMA[epnum - 1].DEVDMASTATUS & DEVDMASTATUS_END_TR_ST))
-    {
-      USB_REG->DEVDMA[epnum - 1].DEVDMACONTROL = udd_dma_ctrl_lin;
-      USB_REG->DEVIER = DEVIER_DMA_1 << (epnum - 1);
-      __set_PRIMASK(irq_state);
-      return true;
-    }
-    __set_PRIMASK(irq_state);
-
-    // Here a ZLP has been received
-    // and the DMA transfer must be not started.
-    // It is the end of transfer
-    return false;
+    USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;
   } else
   {
-    if (dir == TUSB_DIR_OUT)
-    {
-      USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RXOUTES;
-    } else
-    {
-      dcd_transmit_packet(xfer,epnum);
-    }
+    dcd_transmit_packet(xfer,epnum);
   }
   return true;
 }
