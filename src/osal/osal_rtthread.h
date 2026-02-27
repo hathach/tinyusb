@@ -42,6 +42,10 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
   rt_thread_mdelay(msec);
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_time_millis(void) {
+  return (uint32_t)((((uint64_t)rt_tick_get()) * 1000) / RT_TICK_PER_SECOND);
+}
+
 //--------------------------------------------------------------------+
 // Spinlock API
 //--------------------------------------------------------------------+

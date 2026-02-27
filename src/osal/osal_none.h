@@ -31,6 +31,8 @@
 extern "C" {
 #endif
 
+// osal_time_millis() is not provided, tusb_time_millis_api() must be implemented by user application
+
 //--------------------------------------------------------------------+
 // Spinlock API
 //--------------------------------------------------------------------+
