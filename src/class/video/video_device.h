@@ -99,8 +99,7 @@ int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx,
  * @param[in]   stm_idx       Destination streaming interface index
  * @param[out]  payload_buf   Payload storage buffer (target buffer for requested data)
  * @param[in]   payload_size  Size of payload_buf (requested data size)
- * @param[in]   offset        Current byte offset relative to given bufsize from tud_video_n_frame_xfer (framesize)
- * @return video_error_code_t */
+ * @param[in]   offset        Current byte offset relative to given bufsize from tud_video_n_frame_xfer (framesize)  */
 void tud_video_prepare_payload_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, tud_video_payload_request_t* request);
 
 //--------------------------------------------------------------------+

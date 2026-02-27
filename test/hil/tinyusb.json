@@ -107,7 +107,6 @@
                 "host": false,
                 "dual": false
             },
-            "comment": "MSC is slow to enumerated #2602",
             "flasher": {
                 "name": "jlink",
                 "uid": "000831174392",

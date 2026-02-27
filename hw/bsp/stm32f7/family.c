@@ -154,17 +154,13 @@ void board_init(void) {
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  // Enable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-#else
-  // Disable VBUS sense (B device) via pin PA9
-  USB_OTG_FS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
 #endif // vbus sense
+
+#if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 0
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = OTG_FS_VBUS_SENSE;
+  tud_configure(0, TUD_CFGID_DWC2, &cfg);
+#endif
 
   //------------- rhport1: OTG_HS -------------//
 #ifdef USB_HS_PHYC
@@ -177,9 +173,6 @@ void board_init(void) {
   GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF12_OTG_HS_FS;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  // Enable HS VBUS sense (B device) via pin PB13
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBDEN;
 
   /* Configure OTG-HS ID pin */
   GPIO_InitStruct.Pin       = GPIO_PIN_13;
@@ -243,17 +236,16 @@ void board_init(void) {
   __HAL_RCC_USB_OTG_HS_ULPI_CLK_ENABLE();
   __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
 
-#if OTG_HS_VBUS_SENSE
-  #error OTG HS VBUS Sense enabled is not implemented
-#else
-  // No VBUS sense
-  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
-  USB_OTG_HS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#if CFG_TUD_ENABLED && BOARD_TUD_RHPORT == 1
+  tud_configure_dwc2_t cfg = CFG_TUD_CONFIGURE_DWC2_DEFAULT;
+  cfg.vbus_sensing = OTG_HS_VBUS_SENSE;
+  tud_configure(1, TUD_CFGID_DWC2, &cfg);
 #endif
 
+  // Turn off device vbus
+#if CFG_TUD_ENABLED
+  board_vbus_set(BOARD_TUD_RHPORT, false);
+#endif
   // Turn on host vbus
 #if CFG_TUH_ENABLED
   board_vbus_set(BOARD_TUH_RHPORT, true);

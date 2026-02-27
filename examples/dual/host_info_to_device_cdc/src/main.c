@@ -246,10 +246,9 @@ static void print_device_info(uint8_t daddr, const tusb_desc_device_t* desc_devi
   cdc_printf("Device %u: ID %04x:%04x SN ", daddr, desc_device->idVendor, desc_device->idProduct);
   uint8_t xfer_result = tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, serial, sizeof(serial));
   if (XFER_RESULT_SUCCESS != xfer_result) {
-    serial[0] = 'n';
-    serial[1] = '/';
-    serial[2] = 'a';
-    serial[3] = 0;
+    serial[0] = (uint16_t)((TUSB_DESC_STRING << 8) | (2 * 1 + 2));
+    serial[1] = '0';
+    serial[2] = 0;
   }
   print_utf16(serial, TU_ARRAY_SIZE(serial));
   cdc_printf("\r\n");

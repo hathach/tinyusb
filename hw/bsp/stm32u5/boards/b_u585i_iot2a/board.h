@@ -55,6 +55,8 @@ extern "C"
 #define UART_TX_PIN GPIO_PIN_9
 #define UART_RX_PIN GPIO_PIN_10
 
+#define VBUS_SENSE_EN 0
+
 //--------------------------------------------------------------------+
 // RCC Clock
 //--------------------------------------------------------------------+
@@ -108,6 +110,9 @@ static void SystemClock_Config(void) {
 }
 
 static void SystemPower_Config(void) {
+}
+
+static inline void board_vbus_sense_init(void) {
 }
 
 #ifdef __cplusplus

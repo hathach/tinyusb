@@ -1,8 +1,11 @@
 MCU_VARIANT = stm32n657xx
 CFLAGS += -DSTM32N657xx
-JLINK_DEVICE = stm32n6xx
+JLINK_DEVICE = stm32n657x0
 
 LD_FILE_GCC = $(BOARD_PATH)/STM32N657XX_AXISRAM2_fsbl.ld
+
+RHPORT_DEVICE ?= 0
+RHPORT_HOST ?= 0
 
 # flash target using on-board stlink
 flash: flash-stlink
