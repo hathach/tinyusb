@@ -31,7 +31,7 @@
 
 #include "device/dcd.h"
 #include "sam.h"
-#include "common_usb_regs.h"
+#include "samx7x_common.h"
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -87,18 +87,22 @@ static const tusb_desc_endpoint_t ep0_desc =
   .wMaxPacketSize   = CFG_TUD_ENDPOINT0_SIZE,
 };
 
-TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, int32_t size)
-{
-  if (SCB->CCR & SCB_CCR_DC_Msk)
-  {
-    SCB_CleanInvalidateDCache_by_Addr(addr, size);
-  }
-  else
-  {
-    __DSB();
-    __ISB();
-  }
+#if CFG_TUD_MEM_DCACHE_ENABLE
+bool dcd_dcache_clean(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return samx7x_dcache_clean(addr, data_size);
 }
+
+bool dcd_dcache_invalidate(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return samx7x_dcache_invalidate(addr, data_size);
+}
+
+bool dcd_dcache_clean_invalidate(const void* addr, uint32_t data_size) {
+  TU_VERIFY(addr && data_size);
+  return samx7x_dcache_clean_invalidate(addr, data_size);
+}
+#endif
 //------------------------------------------------------------------
 // Device API
 //------------------------------------------------------------------
@@ -255,7 +259,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
           memcpy(xfer->buffer + xfer->queued_len, ptr, count);
         } else
         {
-          tu_fifo_write_n(xfer->fifo, ptr, count);
+          tu_hwfifo_read_to_fifo(ptr, xfer->fifo, count, NULL);
         }
         xfer->queued_len = (uint16_t)(xfer->queued_len + count);
       }
@@ -309,7 +313,7 @@ static void dcd_ep_handler(uint8_t ep_ix)
         {
           memcpy(xfer->buffer + xfer->queued_len, ptr, count);
         } else {
-          tu_fifo_write_n(xfer->fifo, ptr, count);
+          tu_hwfifo_read_to_fifo(ptr, xfer->fifo, count, NULL);
         }
         xfer->queued_len = (uint16_t)(xfer->queued_len + count);
       }
@@ -362,6 +366,7 @@ static void dcd_dma_handler(uint8_t ep_ix)
     dcd_event_xfer_complete(0, 0x80 + ep_ix, count, XFER_RESULT_SUCCESS, true);
   } else
   {
+    dcd_dcache_invalidate(xfer->buffer, xfer->total_len);
     dcd_event_xfer_complete(0, ep_ix, count, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -588,7 +593,7 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint8_t ep_ix)
     }
     else
     {
-      tu_fifo_read_n(xfer->fifo, ptr, len);
+      tu_hwfifo_write_from_fifo(ptr, xfer->fifo, len, NULL);
     }
     __DSB();
     __ISB();
@@ -623,35 +628,18 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   if (EP_DMA_SUPPORT(epnum) && total_bytes != 0)
   {
-    // Force the CPU to flush the buffer. We increase the size by 32 because the call aligns the
-    // address to 32-byte boundaries.
-    CleanInValidateCache((uint32_t*) tu_align((uint32_t) buffer, 4), total_bytes + 31);
     uint32_t udd_dma_ctrl = total_bytes << DEVDMACONTROL_BUFF_LENGTH_Pos;
     if (dir == TUSB_DIR_OUT)
     {
       udd_dma_ctrl |= DEVDMACONTROL_END_TR_IT | DEVDMACONTROL_END_TR_EN;
     } else {
       udd_dma_ctrl |= DEVDMACONTROL_END_B_EN;
+      dcd_dcache_clean(xfer->buffer, total_bytes);
     }
     USB_REG->DEVDMA[epnum - 1].DEVDMAADDRESS = (uint32_t)buffer;
     udd_dma_ctrl |= DEVDMACONTROL_END_BUFFIT | DEVDMACONTROL_CHANN_ENB;
-    // Disable IRQs to have a short sequence
-    // between read of EOT_STA and DMA enable
-    uint32_t irq_state = __get_PRIMASK();
-    __disable_irq();
-    if (!(USB_REG->DEVDMA[epnum - 1].DEVDMASTATUS & DEVDMASTATUS_END_TR_ST))
-    {
-      USB_REG->DEVDMA[epnum - 1].DEVDMACONTROL = udd_dma_ctrl;
-      USB_REG->DEVIER = DEVIER_DMA_1 << (epnum - 1);
-      __set_PRIMASK(irq_state);
-      return true;
-    }
-    __set_PRIMASK(irq_state);
-
-    // Here a ZLP has been received
-    // and the DMA transfer must be not started.
-    // It is the end of transfer
-    return false;
+    USB_REG->DEVDMA[epnum - 1].DEVDMACONTROL = udd_dma_ctrl;
+    USB_REG->DEVIER = DEVIER_DMA_1 << (epnum - 1);
   } else
   {
     if (dir == TUSB_DIR_OUT)
