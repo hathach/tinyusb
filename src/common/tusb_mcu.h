@@ -612,6 +612,20 @@
     #define TUP_DCD_EDPT_CLOSE_API
   #endif
 
+#elif TU_CHECK_MCU(OPT_MCU_CH58X)
+  // CH582/583 has 2 independent USBFS controllers with merged EP registers, FS only.
+  #define TUP_USBIP_WCH_CH58X
+
+  #ifndef CFG_TUD_WCH_USBIP_USBFS
+    #define CFG_TUD_WCH_USBIP_USBFS 1
+  #endif
+
+  #ifndef CFG_TUH_WCH_USBIP_USBFS
+    #define CFG_TUH_WCH_USBIP_USBFS 1
+  #endif
+
+  #define TUP_DCD_ENDPOINT_MAX 8
+
 //--------------------------------------------------------------------+
 // Analog Devices
 //--------------------------------------------------------------------+
