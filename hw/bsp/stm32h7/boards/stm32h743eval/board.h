@@ -120,13 +120,13 @@ static inline void SystemClock_Config(void) {
   // From H743 eval manual ETM can only work at 50 MHz clock by default because ETM signals
   // are shared with other peripherals. Trace CLK = PLL1R.
   RCC_OscInitStruct.PLL.PLLM = 5;
-  RCC_OscInitStruct.PLL.PLLN = 160;
-  RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
-  RCC_OscInitStruct.PLL.PLLR = 6; // Trace clock is 400/6 = 66.67 MHz (larger than 50 MHz but work well)
+  RCC_OscInitStruct.PLL.PLLN      = 160; // May reduce to 200 Mhz when tracing to avoid overflowing trace buffer
+  RCC_OscInitStruct.PLL.PLLP      = 2;
+  RCC_OscInitStruct.PLL.PLLQ      = 4;
+  RCC_OscInitStruct.PLL.PLLR      = 16;  // Trace clock is limit to 50 Mhz to meet board requirement
+  RCC_OscInitStruct.PLL.PLLRGE    = RCC_PLL1VCIRANGE_2;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
 

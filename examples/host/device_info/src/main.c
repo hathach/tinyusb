@@ -246,7 +246,7 @@ void led_blinking_task(void* param) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
 #else
-    if (board_millis() - start_ms < blink_interval_ms) {
+    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
       return; // not enough time
     }
 #endif

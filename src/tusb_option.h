@@ -469,7 +469,6 @@
   #define TUP_MCU_STRICT_ALIGN   0
 #endif
 
-
 //--------------------------------------------------------------------+
 // Common Options (Default)
 //--------------------------------------------------------------------+
@@ -512,6 +511,10 @@
 // OS selection
 #ifndef CFG_TUSB_OS
   #define CFG_TUSB_OS           OPT_OS_NONE
+#endif
+
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #define CFG_TUSB_OS_HAS_SCHEDULER (CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO)
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH

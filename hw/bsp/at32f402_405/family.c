@@ -258,7 +258,7 @@ size_t board_get_unique_id(uint8_t id[], size_t max_len)
   {
     system_ticks++;
   }
-  uint32_t board_millis(void)
+  uint32_t tusb_time_millis_api(void)
   {
     return system_ticks;
   }

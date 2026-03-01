@@ -198,7 +198,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) { return system_ticks; }
+uint32_t tusb_time_millis_api(void) { return system_ticks; }
 #endif
 
 void HardFault_Handler(void) { asm( "bkpt 1" ); }

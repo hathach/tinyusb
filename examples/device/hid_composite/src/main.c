@@ -209,7 +209,7 @@ void hid_task(void) {
   const uint32_t  interval_ms = 10;
   static uint32_t start_ms    = 0;
 
-  if (board_millis() - start_ms < interval_ms) {
+  if (tusb_time_millis_api() - start_ms < interval_ms) {
     return; // not enough time
   }
   start_ms += interval_ms;
@@ -298,7 +298,7 @@ void led_blinking_task(void) {
   }
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) {
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
     return; // not enough time
   }
   start_ms += blink_interval_ms;

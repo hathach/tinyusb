@@ -102,10 +102,10 @@ static void SystemClock_Config(void)
 
   // VUSB enabled automatically.
   // Wait two milliseconds to stabilize, per manual recommendation.
-  uint32_t ms_elapsed = board_millis();
+  uint32_t ms_elapsed = tusb_time_millis_api();
   do
   {
-    while((board_millis() - ms_elapsed) < 2);
+    while((tusb_time_millis_api() - ms_elapsed) < 2);
   }while(!(USBPWRCTL & USBBGVBV));
 
   // USB uses XT2 (4 MHz) directly. Enable the PLL.
@@ -113,11 +113,11 @@ static void SystemClock_Config(void)
   USBPLLCTL |= (UPFDEN | UPLLEN);
 
   // Wait until PLL locks. Check every 2ms, per manual.
-  ms_elapsed = board_millis();
+  ms_elapsed = tusb_time_millis_api();
   do
   {
     USBPLLIR &= ~USBOOLIFG;
-    while((board_millis() - ms_elapsed) < 2);
+    while((tusb_time_millis_api() - ms_elapsed) < 2);
   }while(USBPLLIR & USBOOLIFG);
 
   USBKEYPID = 0;
@@ -207,7 +207,7 @@ void TIMER0_A0_ISR (void) {
   // TAxCCR0 CCIFG resets itself as soon as interrupt is invoked.
 }
 
-uint32_t board_millis(void)
+uint32_t tusb_time_millis_api(void)
 {
   uint32_t systick_mirror;
 

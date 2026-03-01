@@ -168,7 +168,7 @@ void hid_app_task(void)
     const uint32_t interval_ms = 200;
     static uint32_t start_ms = 0;
 
-    uint32_t current_time_ms = board_millis();
+    uint32_t current_time_ms = tusb_time_millis_api();
     if ( current_time_ms - start_ms >= interval_ms)
     {
       start_ms = current_time_ms;
