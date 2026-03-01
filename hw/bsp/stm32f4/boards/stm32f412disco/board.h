@@ -45,6 +45,8 @@
 #define PINID_UART_RX  3
 #define PINID_VBUS0_EN 4
 
+#define VBUS_SENSE_EN  1
+
 static board_pindef_t board_pindef[] = {
   { // LED
     .port = GPIOE,
@@ -125,13 +127,6 @@ static inline void board_clock_init(void) {
 
   // Enable clocks for Uart
   __HAL_RCC_USART2_CLK_ENABLE();
-}
-
-static inline void board_vbus_sense_init(uint8_t rhport) {
-  if (rhport == 0) {
-    // Enable VBUS sense (B device) via pin PA9
-    USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN;
-  }
 }
 
 static inline void board_vbus_set(uint8_t rhport, bool state) {

@@ -96,6 +96,7 @@ enum {
   TUH_CFGID_RPI_PIO_USB_CONFIGURATION = 100, // cfg_param: pio_usb_configuration_t
   TUH_CFGID_MAX3421 = 200,
   TUH_CFGID_FSDEV = 300,
+  TUH_CFGID_DWC2 = 400
 };
 
 typedef struct {
@@ -108,10 +109,15 @@ typedef struct {
   uint8_t max_nak; // max NAK per endpoint per frame to save CPU usage (0=unlimited)
 } tuh_configure_fsdev_t;
 
+typedef struct {
+  bool use_hs_phy; // Always use high-speed ULPI/UTMI phy even when working at full-speed
+} tuh_configure_dwc2_t;
+
 typedef union {
   // For TUH_CFGID_RPI_PIO_USB_CONFIGURATION use pio_usb_configuration_t
   tuh_configure_max3421_t max3421;
   tuh_configure_fsdev_t fsdev;
+  tuh_configure_dwc2_t dwc2;
 } tuh_configure_param_t;
 
 //--------------------------------------------------------------------+

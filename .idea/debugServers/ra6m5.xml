@@ -1,0 +1,13 @@
+<component name="DebugServers">
+  <jlink-debug-target name="ra6m5" uniqueID="19100d9f-7329-47da-b566-f9faf297f47c">
+    <debugger version="1">
+      <debugger kind="GDB" isBundled="true" />
+      <env />
+    </debugger>
+    <gdbserver exe="/usr/bin/JLinkGDBServerCLExe" />
+    <console port="19021" />
+    <target device="R7FA6M5BH" reset-before="false" frequency="16000" />
+    <connection extended-remote="false" port="4444" warmup-ms="500" />
+    <swo />
+  </jlink-debug-target>
+</component>

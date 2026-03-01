@@ -303,10 +303,12 @@ static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
   uint8_t const daddr = (ch_reg & USB_CHEP_DEVADDR_Msk) >> USB_CHEP_DEVADDR_Pos;
 
   uint8_t ep_id = endpoint_find(daddr, ep_num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0));
-  if (ep_id == TUSB_INDEX_INVALID_8) return;
+  if (ep_id == TUSB_INDEX_INVALID_8) {
+    return;
+  }
 
-  hcd_endpoint_t* edpt = &_hcd_data.edpt[ep_id];
-  hcd_channel_t* channel = &_hcd_data.channel[ch_id];
+  hcd_endpoint_t *edpt    = &_hcd_data.edpt[ep_id];
+  hcd_channel_t  *channel = &_hcd_data.channel[ch_id];
 
   if (dir == TUSB_DIR_OUT) {
     // OUT/TX direction
@@ -314,7 +316,7 @@ static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
       // More data to send
       uint16_t const len = tu_min16(edpt->buflen - edpt->queued_len, edpt->max_packet_size);
       uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_TX);
-      fsdev_write_packet_memory(pma_addr, &(edpt->buffer[edpt->queued_len]), len);
+      tu_hwfifo_write(PMA_BUF_AT(pma_addr), &(edpt->buffer[edpt->queued_len]), len, NULL);
       btable_set_count(ch_id, BTABLE_BUF_TX, len);
       edpt->queued_len += len;
       channel_write_status(ch_id, ch_reg, TUSB_DIR_OUT, EP_STAT_VALID, false);
@@ -329,8 +331,7 @@ static void ch_handle_ack(uint8_t ch_id, uint32_t ch_reg, tusb_dir_t dir) {
     // IN/RX direction
     uint16_t const rx_count = channel_get_rx_count(ch_id);
     uint16_t pma_addr = (uint16_t) btable_get_addr(ch_id, BTABLE_BUF_RX);
-
-    fsdev_read_packet_memory(edpt->buffer + edpt->queued_len, pma_addr, rx_count);
+    tu_hwfifo_read(PMA_BUF_AT(pma_addr), edpt->buffer + edpt->queued_len, rx_count, NULL);
     edpt->queued_len += rx_count;
 
     if ((rx_count < edpt->max_packet_size) || (edpt->queued_len >= edpt->buflen)) {
@@ -740,7 +741,7 @@ static uint32_t hcd_pma_alloc(uint8_t channel, tusb_dir_t dir, uint16_t len) {
   uint16_t addr = FSDEV_BTABLE_BASE + 8 * FSDEV_EP_COUNT;
   addr += channel * TUSB_EPSIZE_BULK_FS * 2 + (dir == TUSB_DIR_IN ? TUSB_EPSIZE_BULK_FS : 0);
 
-  TU_ASSERT(addr <= FSDEV_PMA_SIZE, 0xFFFF);
+  TU_ASSERT(addr <= CFG_TUSB_FSDEV_PMA_SIZE, 0xFFFF);
 
   return addr;
 }
@@ -841,8 +842,7 @@ static bool channel_xfer_start(uint8_t ch_id, tusb_dir_t dir) {
 
   if (dir == TUSB_DIR_OUT) {
     uint16_t const len = tu_min16(edpt->buflen - edpt->queued_len, edpt->max_packet_size);
-
-    fsdev_write_packet_memory(pma_addr, &(edpt->buffer[edpt->queued_len]), len);
+    tu_hwfifo_write(PMA_BUF_AT(pma_addr), &(edpt->buffer[edpt->queued_len]), len, NULL);
     btable_set_count(ch_id, BTABLE_BUF_TX, len);
 
     edpt->queued_len += len;

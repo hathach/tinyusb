@@ -47,40 +47,39 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
 // Spinlock API
 //--------------------------------------------------------------------+
 typedef critical_section_t osal_spinlock_t; // pico implement critical section with spinlock
-#define OSAL_SPINLOCK_DEF(_name, _int_set) \
-  osal_spinlock_t _name
+#define OSAL_SPINLOCK_DEF(_name, _int_set) osal_spinlock_t _name
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_init(osal_spinlock_t *ctx) {
   critical_section_init(ctx);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_lock(osal_spinlock_t *ctx, bool in_isr) {
-  (void) in_isr;
+  (void)in_isr;
   critical_section_enter_blocking(ctx);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, bool in_isr) {
-  (void) in_isr;
+  (void)in_isr;
   critical_section_exit(ctx);
 }
 
 //--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
-typedef struct semaphore osal_semaphore_def_t, * osal_semaphore_t;
+typedef struct semaphore osal_semaphore_def_t, *osal_semaphore_t;
 
-TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef) {
+TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t *semdef) {
   sem_init(semdef, 0, 255);
   return semdef;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_delete(osal_semaphore_t semd_hdl) {
-  (void) semd_hdl;
+  (void)semd_hdl;
   return true; // nothing to do
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr) {
-  (void) in_isr;
+  (void)in_isr;
   return sem_release(sem_hdl);
 }
 
@@ -96,15 +95,15 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t s
 // MUTEX API
 // Within tinyusb, mutex is never used in ISR context
 //--------------------------------------------------------------------+
-typedef struct mutex osal_mutex_def_t, * osal_mutex_t;
+typedef struct mutex osal_mutex_def_t, *osal_mutex_t;
 
-TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef) {
+TU_ATTR_ALWAYS_INLINE static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t *mdef) {
   mutex_init(mdef);
   return mdef;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_delete(osal_mutex_t mutex_hdl) {
-  (void) mutex_hdl;
+  (void)mutex_hdl;
   return true; // nothing to do
 }
 
@@ -123,46 +122,45 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hd
 #include "common/tusb_fifo.h"
 
 typedef struct {
-  tu_fifo_t ff;
+  uint16_t                item_size;
+  tu_fifo_t               ff;
   struct critical_section critsec; // osal_queue may be used in IRQs, so need critical section
 } osal_queue_def_t;
 
-typedef osal_queue_def_t* osal_queue_t;
+typedef osal_queue_def_t *osal_queue_t;
 
 // role device/host is used by OS NONE for mutex (disable usb isr) only
-#define OSAL_QUEUE_DEF(_int_set, _name, _depth, _type)    \
-  uint8_t _name##_buf[_depth*sizeof(_type)];              \
-  osal_queue_def_t _name = {                              \
-    .ff = TU_FIFO_INIT(_name##_buf, _depth, _type, false) \
-  }
+#define OSAL_QUEUE_DEF(_int_set, _name, _depth, _type)  \
+  uint8_t          _name##_buf[_depth * sizeof(_type)]; \
+  osal_queue_def_t _name = {.item_size = sizeof(_type), .ff = TU_FIFO_INIT(_name##_buf, _depth * sizeof(_type), false)}
 
-TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
+TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t *qdef) {
   critical_section_init(&qdef->critsec);
-  (void) tu_fifo_clear(&qdef->ff);
-  return (osal_queue_t) qdef;
+  tu_fifo_clear(&qdef->ff);
+  return (osal_queue_t)qdef;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_delete(osal_queue_t qhdl) {
-  osal_queue_def_t* qdef = (osal_queue_def_t*) qhdl;
+  osal_queue_def_t *qdef = (osal_queue_def_t *)qhdl;
   critical_section_deinit(&qdef->critsec);
   return true;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec) {
-  (void) msec; // not used, always behave as msec = 0
+TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void *data, uint32_t msec) {
+  (void)msec; // not used, always behave as msec = 0
 
   critical_section_enter_blocking(&qhdl->critsec);
-  bool success = tu_fifo_read(&qhdl->ff, data);
+  bool success = tu_fifo_read_n(&qhdl->ff, data, qhdl->item_size);
   critical_section_exit(&qhdl->critsec);
 
   return success;
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const* data, bool in_isr) {
-  (void) in_isr;
+TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, const void *data, bool in_isr) {
+  (void)in_isr;
 
   critical_section_enter_blocking(&qhdl->critsec);
-  bool success = tu_fifo_write(&qhdl->ff, data);
+  bool success = tu_fifo_write_n(&qhdl->ff, data, qhdl->item_size);
   critical_section_exit(&qhdl->critsec);
 
   return success;
