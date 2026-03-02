@@ -24,12 +24,13 @@ CFLAGS += \
 	-DFREQ_SYS=60000000 \
 	-DDISK_LIB_ENABLE=0 \
 	-DINT_SOFT \
-
-CFLAGS += -Wno-error=strict-prototypes
+	-Wno-error=strict-prototypes
 
 LDFLAGS_GCC += \
-	-nostdlib -nostartfiles \
-	--specs=nosys.specs \
+	-nostartfiles \
+	--specs=nosys.specs --specs=nano.specs \
+
+LIBS += $(TOP)/$(SDK_SRC_DIR)/StdPeriphDriver/libISP583.a
 
 SRC_C += \
 	src/portable/wch/dcd_ch58x_usbfs.c \

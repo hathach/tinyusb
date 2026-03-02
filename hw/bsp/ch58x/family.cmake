@@ -42,6 +42,9 @@ function(family_add_board BOARD_TARGET)
     ${SDK_SRC_DIR}/StdPeriphDriver/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
+  target_link_libraries(${BOARD_TARGET} PUBLIC
+    ${SDK_SRC_DIR}/StdPeriphDriver/libISP583.a
+    )
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     CFG_TUD_WCH_USBIP_USBFS=1
     FREQ_SYS=60000000
@@ -86,8 +89,8 @@ function(family_configure_example TARGET RTOS)
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC
-      -nostdlib -nostartfiles
-      --specs=nosys.specs
+      -nostartfiles
+      --specs=nosys.specs --specs=nano.specs
       -Wl,--defsym=__FLASH_SIZE=${LD_FLASH_SIZE}
       -Wl,--defsym=__RAM_SIZE=${LD_RAM_SIZE}
       "LINKER:--script=${LD_FILE_GNU}"
