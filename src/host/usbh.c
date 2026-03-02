@@ -668,10 +668,12 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
       }
 
       // above after_cb() can re-schedule another function, we need to re-check and reduce timeout of
-      // the main event timeout to make sure we aren't blocking more than call_after timeout.
+      // the main event timeout to make sure we aren't blocking more than call_after remaining ms.
       if (_usbh_data.call_after.func != NULL) {
         remain_ms = (int32_t) (_usbh_data.call_after.at_ms - tusb_time_millis_api());
-        if (remain_ms > 0 && timeout_ms > (uint32_t)remain_ms) {
+        if (remain_ms <= 0) {
+          timeout_ms = 0; // expired already
+        } else if (timeout_ms > (uint32_t)remain_ms) {
           timeout_ms = (uint32_t)remain_ms;
         }
       }
