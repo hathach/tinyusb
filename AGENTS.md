@@ -21,6 +21,8 @@ information that does not match the info here.
 - For specific board families: `python3 tools/get_deps.py FAMILY_NAME` (e.g., rp2040, stm32f4), or
   `python3 tools/get_deps.py -b BOARD_NAME`
 - Dependencies are cached in `lib/` and `hw/mcu/` directories
+- For **Espressif** boards, initialize the ESP-IDF environment before any build/flash/monitor command:
+  `. $HOME/code/esp-idf/export.sh`
 
 ## Build Examples
 
@@ -59,6 +61,19 @@ make BOARD=raspberry_pi_pico all
 
 -- takes 2-3 seconds. NEVER CANCEL. Set timeout to 5+ minutes.
 
+**Option 4: Espressif Example with ESP-IDF**
+
+Only ESP-IDF-enabled examples are supported for Espressif boards. Use FreeRTOS examples such as `examples/device/cdc_msc_freertos`
+that contain `idf_component_register()` support.
+
+```bash
+. $HOME/code/esp-idf/export.sh
+cd examples/device/cdc_msc_freertos
+idf.py -DBOARD=espressif_s3_devkitc build
+```
+
+Use `-DBOARD=...` with any supported board under `hw/bsp/espressif/boards/`. NEVER CANCEL. Set timeout to 10+ minutes.
+
 
 ## Build Options
 
@@ -90,6 +105,14 @@ make BOARD=raspberry_pi_pico all
     - CMake: `ninja cdc_msc-uf2`
     - Make: `make BOARD=raspberry_pi_pico all uf2`
 - **List all targets** (CMake/Ninja): `ninja -t targets`
+- **Espressif flash**:
+    - Run `. $HOME/code/esp-idf/export.sh`
+    - `cd examples/device/cdc_msc_freertos`
+    - `idf.py -DBOARD=espressif_s3_devkitc flash`
+- **Espressif serial monitor / chip log output**:
+    - Run `. $HOME/code/esp-idf/export.sh`
+    - `cd examples/device/cdc_msc_freertos`
+    - `idf.py -DBOARD=espressif_s3_devkitc monitor`
 
 ## Unit Testing
 
