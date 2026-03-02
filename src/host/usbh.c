@@ -659,8 +659,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     // Process call_after_ms function if ms is reached
     tusb_defer_func_t after_cb = _usbh_data.call_after.func;
     if (after_cb) {
-      int32_t ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
-      if (ms <= 0) {
+      int32_t remain_ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
+      if (remain_ms <= 0) {
         // delay expired, run callback now
         TU_LOG_USBH("USBH invoke scheduled function\r\n");
         _usbh_data.call_after.func = NULL;
@@ -669,9 +669,11 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
 
       // above after_cb() can re-schedule another function, we need to re-check and reduce timeout of
       // the main event timeout to make sure we aren't blocking more than call_after timeout.
-      if (_usbh_data.call_after.func != NULL &&
-        timeout_ms > (uint32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api())) {
-        timeout_ms = (uint32_t)ms;
+      if (_usbh_data.call_after.func != NULL) {
+        remain_ms = (int32_t) (_usbh_data.call_after.at_ms - tusb_time_millis_api());
+        if (remain_ms > 0 && timeout_ms > (uint32_t)remain_ms) {
+          timeout_ms = (uint32_t)remain_ms;
+        }
       }
     }
 
@@ -789,16 +791,8 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
     }
 
-  #if CFG_TUSB_OS_HAS_SCHEDULER
-    // return if there are no more events, to allow application to run other backgrounds
-    if (osal_queue_empty(_usbh_q)
-    #if CFG_TUH_HUB
-        && osal_queue_empty(_usbh_daq)
-    #endif
-    ) {
-      return;
-    }
-  #endif
+    // allow to exit tuh_task() if there is no event in the next run
+    timeout_ms = 0;
   }
 }
 
