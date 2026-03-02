@@ -363,7 +363,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const ui
   return ret;
 }
 
-// For non-scheduler deferred callback. For scheduler OS: blocking delay then callback
 bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t param) {
   TU_ASSERT(_usbh_data.call_after.func == NULL);
   TU_LOG_USBH("USBH schedule function after %u ms\r\n", (unsigned int)ms);
@@ -666,8 +665,12 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         TU_LOG_USBH("USBH invoke scheduled function\r\n");
         _usbh_data.call_after.func = NULL;
         after_cb(_usbh_data.call_after.arg);
-      } else if (timeout_ms > (uint32_t)ms) {
-        // reduce main event timeout to make sure we don't blocking more than call_after timeout
+      }
+
+      // above after_cb() can re-schedule another function, we need to re-check and reduce timeout of
+      // the main event timeout to make sure we aren't blocking more than call_after timeout.
+      if (_usbh_data.call_after.func != NULL &&
+        timeout_ms > (uint32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api())) {
         timeout_ms = (uint32_t)ms;
       }
     }
@@ -2033,6 +2036,7 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
 
 static void enum_full_complete(bool success) {
   (void)success;
+  TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
 
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8; // mark enumeration as complete
   _usbh_data.call_after.func = NULL;
