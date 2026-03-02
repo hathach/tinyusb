@@ -72,6 +72,12 @@ void usbd_int_set(bool enabled);
 void usbd_spin_lock(bool in_isr);
 void usbd_spin_unlock(bool in_isr);
 
+typedef struct {
+  TUD_EPBUF_DEF(buf, CFG_TUD_ENDPOINT0_BUFSIZE);
+} usbd_ctrl_epbuf_t;
+
+extern usbd_ctrl_epbuf_t _usbd_ctrl_epbuf;
+
 //--------------------------------------------------------------------+
 // USBD Endpoint API
 // Note: rhport should be 0 since device stack only support 1 rhport for now
