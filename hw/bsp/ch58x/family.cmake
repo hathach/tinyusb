@@ -45,16 +45,20 @@ function(family_add_board BOARD_TARGET)
   target_compile_definitions(${BOARD_TARGET} PUBLIC
     CFG_TUD_WCH_USBIP_USBFS=1
     FREQ_SYS=60000000
+    DISK_LIB_ENABLE=0
+    INT_SOFT
     )
 
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(${BOARD_TARGET} PUBLIC
-      -msmall-data-limit=8
+      -flto
+      -msmall-data-limit=16
       -mno-save-restore
       -fmessage-length=0
       -fsigned-char
+      -Wno-error=strict-prototypes
       )
   endif ()
 endfunction()
@@ -82,8 +86,8 @@ function(family_configure_example TARGET RTOS)
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC
-      -nostartfiles
-      --specs=nosys.specs --specs=nano.specs
+      -nostdlib -nostartfiles
+      --specs=nosys.specs
       -Wl,--defsym=__FLASH_SIZE=${LD_FLASH_SIZE}
       -Wl,--defsym=__RAM_SIZE=${LD_RAM_SIZE}
       "LINKER:--script=${LD_FILE_GNU}"
@@ -99,5 +103,4 @@ function(family_configure_example TARGET RTOS)
   # Flashing
   family_add_bin_hex(${TARGET})
   family_flash_openocd_wch(${TARGET})
-  family_flash_wlink_rs(${TARGET})
 endfunction()

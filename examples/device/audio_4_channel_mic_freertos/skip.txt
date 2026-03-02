@@ -1,6 +1,7 @@
 mcu:CH32V103
 mcu:CH32V20X
 mcu:CH32V307
+mcu:CH58X
 mcu:CXD56
 mcu:F1C100S
 mcu:GD32VF103
