@@ -201,10 +201,7 @@ typedef struct {
   uint8_t attach_debouncing_bm;  // bitmask for roothub port attach debouncing
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
-
-  #if CFG_TUSB_OS_HAS_SCHEDULER == 0    // call after only needed for non-scheduler OS
   usbh_call_after_t call_after;
-  #endif
 } usbh_data_t;
 
 static usbh_data_t _usbh_data = {
@@ -328,6 +325,7 @@ TU_ATTR_ALWAYS_INLINE static inline usbh_class_driver_t const *get_driver(uint8_
 // Function Inline and Prototypes
 //--------------------------------------------------------------------+
 static void enum_new_device(hcd_event_t* event);
+static void enum_delay_async(uintptr_t state);
 static void process_remove_event(hcd_event_t *event);
 static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port);
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
@@ -366,19 +364,12 @@ TU_ATTR_ALWAYS_INLINE static inline bool usbh_setup_send(uint8_t daddr, const ui
 }
 
 // For non-scheduler deferred callback. For scheduler OS: blocking delay then callback
-static bool usbh_call_after_ms(uint32_t ms, tusb_defer_func_t func, uintptr_t param) {
-  #if CFG_TUSB_OS_HAS_SCHEDULER
-  TU_LOG_USBH("USBH sleep for %u ms\r\n", (unsigned int)ms);
-  osal_task_delay(ms);
-  func(param);
-  #else
+bool usbh_defer_func_ms_async(uint32_t ms, tusb_defer_func_t func, uintptr_t param) {
   TU_ASSERT(_usbh_data.call_after.func == NULL);
-  TU_LOG_USBH("USBH start timer for %u ms\r\n", (unsigned int)ms);
+  TU_LOG_USBH("USBH schedule function after %u ms\r\n", (unsigned int)ms);
   _usbh_data.call_after.func  = func;
   _usbh_data.call_after.arg   = param;
   _usbh_data.call_after.at_ms = tusb_time_millis_api() + ms;
-  #endif
-
   return true;
 }
 
@@ -393,6 +384,10 @@ TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8
   // invalidate if enumerating
   if (daddr == _usbh_data.enumerating_daddr) {
     _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
+    // clear enum delay function of the device being removed
+    if (_usbh_data.call_after.func == enum_delay_async) {
+      _usbh_data.call_after.func = NULL;
+    }
   }
 }
 
@@ -662,18 +657,20 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
   #endif
 
-  #if CFG_TUSB_OS_HAS_SCHEDULER == 0
     // Process call_after_ms function if ms is reached
     tusb_defer_func_t after_cb = _usbh_data.call_after.func;
     if (after_cb) {
-      uint32_t ms = tusb_time_millis_api();
-      if (ms >= _usbh_data.call_after.at_ms) {
-        TU_LOG_USBH("USBH run timer callback\r\n");
+      int32_t ms = (int32_t)(_usbh_data.call_after.at_ms - tusb_time_millis_api());
+      if (ms <= 0) {
+        // delay expired, run callback now
+        TU_LOG_USBH("USBH invoke scheduled function\r\n");
         _usbh_data.call_after.func = NULL;
         after_cb(_usbh_data.call_after.arg);
+      } else if (timeout_ms > (uint32_t)ms) {
+        // reduce main event timeout to make sure we don't blocking more than call_after timeout
+        timeout_ms = (uint32_t)ms;
       }
     }
-  #endif
 
     hcd_event_t event;
 
@@ -716,7 +713,7 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr) {
         break;
 
       case HCD_EVENT_DEVICE_REMOVE:
-        TU_LOG_USBH("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
+        TU_LOG_USBH("[%u:%u:%u] USBH Device Removed\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
         process_remove_event(&event);
         break;
 
@@ -1543,19 +1540,8 @@ enum {
   ENUM_AFTER_SET_ADDRESS_RECOVERY_DELAY,
 };
 
-  // fallthrough to avoid recursive call of enum_async_delay()
-  #if CFG_TUSB_OS_HAS_SCHEDULER
-    #define ENUM_ASYNC_DELAY_OR_FALLTHROUGH(_ms, _state) \
-      osal_task_delay(_ms);                              \
-      TU_ATTR_FALLTHROUGH
-  #else
-    #define ENUM_ASYNC_DELAY_OR_FALLTHROUGH(_ms, _state) \
-      usbh_call_after_ms(_ms, enum_async_delay, _state); \
-      break
-  #endif
-
 // process async delay in enumeration
-static void enum_async_delay(uintptr_t state) {
+static void enum_delay_async(uintptr_t state) {
   tuh_bus_info_t *dev0_bus = &_usbh_data.dev0_bus;
   switch (state) {
     case ENUM_AFTER_DEBOUNCING_DELAY:
@@ -1565,7 +1551,6 @@ static void enum_async_delay(uintptr_t state) {
         TU_VERIFY(dev0_bus->hub_port != 0, );
         TU_ASSERT(hub_port_get_status(dev0_bus->hub_addr, dev0_bus->hub_port, NULL, process_enumeration,
                                       ENUM_HUB_RERSET), );
-        break;
       } else
   #endif
       {
@@ -1577,12 +1562,14 @@ static void enum_async_delay(uintptr_t state) {
           return;
         }
         hcd_port_reset(dev0_bus->rhport); // reset port
-        ENUM_ASYNC_DELAY_OR_FALLTHROUGH(ENUM_RESET_ROOT_DELAY_MS, ENUM_AFTER_RESET_ROOT_DELAY);
+        usbh_defer_func_ms_async(ENUM_RESET_ROOT_DELAY_MS, enum_delay_async, ENUM_AFTER_RESET_ROOT_DELAY);
       }
+      break;
 
     case ENUM_AFTER_RESET_ROOT_DELAY:
       hcd_port_reset_end(dev0_bus->rhport);
-      ENUM_ASYNC_DELAY_OR_FALLTHROUGH(ENUM_RESET_ROOT_POST_DELAY_MS, ENUM_AFTER_RESET_ROOT_POST_DELAY);
+      usbh_defer_func_ms_async(ENUM_RESET_ROOT_POST_DELAY_MS, enum_delay_async, ENUM_AFTER_RESET_ROOT_POST_DELAY);
+      break;
 
     case ENUM_AFTER_RESET_ROOT_POST_DELAY:
       if (!hcd_port_connect_status(dev0_bus->rhport)) {
@@ -1651,7 +1638,7 @@ static void enum_new_device(hcd_event_t *event) {
   dev0_bus->rhport         = event->rhport;
   dev0_bus->hub_addr       = event->connection.hub_addr;
   dev0_bus->hub_port       = event->connection.hub_port;
-  usbh_call_after_ms(ENUM_DEBOUNCING_DELAY_MS, enum_async_delay, ENUM_AFTER_DEBOUNCING_DELAY);
+  usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
 }
 
 // process device enumeration
@@ -1688,7 +1675,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
 
     case ENUM_HUB_RESET_COMPLETE:
       // wait for reset to take effect
-      usbh_call_after_ms(ENUM_RESET_HUB_DELAY_MS, enum_async_delay, ENUM_AFTER_RESET_HUB_DELAY);
+      usbh_defer_func_ms_async(ENUM_RESET_HUB_DELAY_MS, enum_delay_async, ENUM_AFTER_RESET_HUB_DELAY);
       break;
 
     case ENUM_HUB_CLEAR_RESET:
@@ -1702,7 +1689,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
                                               ENUM_HUB_CLEAR_RESET_COMPLETE), );
       } else if (state == ENUM_HUB_CLEAR_RESET) {
         // retry one more time if reset change not set yet
-        usbh_call_after_ms(ENUM_RESET_HUB_DELAY_MS, enum_async_delay, ENUM_AFTER_RESET_HUB_DELAY_RETRY);
+        usbh_defer_func_ms_async(ENUM_RESET_HUB_DELAY_MS, enum_delay_async, ENUM_AFTER_RESET_HUB_DELAY_RETRY);
       } else {
         // retry but still not set --> failed
         enum_full_complete(false);
@@ -1729,7 +1716,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
   #endif
 
     case ENUM_ADDR0_DEVICE_DESC:
-      usbh_call_after_ms(ENUM_RESET_RECOVERY_DELAY_MS, enum_async_delay, ENUM_AFTER_RESET_RECOVERY_DELAY);
+      usbh_defer_func_ms_async(ENUM_RESET_RECOVERY_DELAY_MS, enum_delay_async, ENUM_AFTER_RESET_RECOVERY_DELAY);
       break;
 
     case ENUM_SET_ADDR: {
@@ -1754,7 +1741,7 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       _usbh_data.enumerating_daddr = new_addr;
 
       usbh_device_close(dev0_bus->rhport, 0); // close dev0
-      usbh_call_after_ms(ENUM_SET_ADDRESS_RECOVERY_DELAY_MS, enum_async_delay, ENUM_AFTER_SET_ADDRESS_RECOVERY_DELAY);
+      usbh_defer_func_ms_async(ENUM_SET_ADDRESS_RECOVERY_DELAY_MS, enum_delay_async, ENUM_AFTER_SET_ADDRESS_RECOVERY_DELAY);
       break;
     }
 
@@ -2048,9 +2035,7 @@ static void enum_full_complete(bool success) {
   (void)success;
 
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8; // mark enumeration as complete
-  #if CFG_TUSB_OS_HAS_SCHEDULER == 0
   _usbh_data.call_after.func = NULL;
-  #endif
 
   #if CFG_TUH_HUB
   // Hub status is already requested in case of successful enumeration
