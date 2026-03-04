@@ -106,7 +106,7 @@ TU_ATTR_WEAK int board_uart_write(void const * buf, int len)
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
-uint32_t board_millis(void)
+uint32_t tusb_time_millis_api(void)
 {
   // COUNTER is system clock (200MHz / 2 = 100MHz) convert to ms)
   return _CP0_GET_COUNT() / (100000000 / 1000);

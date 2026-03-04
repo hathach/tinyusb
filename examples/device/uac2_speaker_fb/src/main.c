@@ -583,7 +583,7 @@ bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t fu
 // In a real application, this would be replaced with actual I2S transmit callback.
 void audio_task(void) {
   static uint32_t start_ms = 0;
-  uint32_t curr_ms = board_millis();
+  uint32_t curr_ms = tusb_time_millis_api();
   if (start_ms == curr_ms) return;// not enough time
   start_ms = curr_ms;
 
@@ -610,7 +610,7 @@ void led_blinking_task(void) {
   static bool led_state = false;
 
   // Blink every interval ms
-  if (board_millis() - start_ms < blink_interval_ms) return;
+  if (tusb_time_millis_api() - start_ms < blink_interval_ms) return;
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);
@@ -624,7 +624,7 @@ void led_blinking_task(void) {
 // Every 1ms, we will sent 1 debug information report
 void audio_debug_task(void) {
   static uint32_t start_ms = 0;
-  uint32_t curr_ms = board_millis();
+  uint32_t curr_ms = tusb_time_millis_api();
   if (start_ms == curr_ms) return;// not enough time
   start_ms = curr_ms;
 

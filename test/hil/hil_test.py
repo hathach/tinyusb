@@ -302,7 +302,7 @@ def flash_esptool(board, firmware):
         idf_target = json.load(f)['IDF_TARGET']
     with open(f'{fw_dir}/flash_args') as f:
         flash_args = f.read().strip().replace('\n', ' ')
-    command = (f'esptool.py --chip {idf_target} -p {port} {flasher["args"]} '
+    command = (f'esptool --chip {idf_target} -p {port} {flasher["args"]} '
                f'--before=default_reset --after=hard_reset write_flash {flash_args}')
     ret = run_cmd(command, cwd=fw_dir)
     return ret

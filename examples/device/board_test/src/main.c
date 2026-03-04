@@ -58,8 +58,8 @@ int main(void) {
     }
 
     // Blink and print every interval ms
-    if (!(board_millis() - start_ms < interval_ms)) {
-      start_ms = board_millis();
+    if (!(tusb_time_millis_api() - start_ms < interval_ms)) {
+      start_ms = tusb_time_millis_api();
 
       if (ch < 0) {
         // skip if echoing
