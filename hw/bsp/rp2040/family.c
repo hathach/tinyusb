@@ -377,3 +377,15 @@ bool tuh_max3421_spi_xfer_api(uint8_t rhport, uint8_t const* tx_buf, uint8_t* rx
 }
 
 #endif
+
+
+// board test example does not use both device and host stack
+#if !CFG_TUD_ENABLED && !CFG_TUH_ENABLED
+TU_ATTR_WEAK uint32_t tusb_time_millis_api(void) {
+  return osal_time_millis();
+}
+
+TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
+  osal_task_delay(ms);
+}
+#endif

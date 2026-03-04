@@ -161,10 +161,6 @@ void board_putchar(int c) {
   (void) sys_write(0, (const char*)&c, 1);
 }
 
-uint32_t tusb_time_millis_api(void) {
-  return board_millis();
-}
-
 //--------------------------------------------------------------------
 // FreeRTOS hooks
 //--------------------------------------------------------------------
