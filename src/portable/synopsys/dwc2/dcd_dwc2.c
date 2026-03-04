@@ -493,13 +493,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 }
 
 bool dcd_deinit(uint8_t rhport) {
-  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
-
-  // Disable global interrupt
-  dwc2->gahbcfg &= ~GAHBCFG_GINT;
-
   dcd_disconnect(rhport);
-
   dwc2_core_deinit(rhport);
   return true;
 }

@@ -448,8 +448,9 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 bool hcd_deinit(uint8_t rhport) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
-  // Disable global interrupt
-  dwc2->gahbcfg &= ~GAHBCFG_GINT;
+  // Turn off VBUS
+  dwc2->hprt = HPRT_W1_MASK; // clear w1c bits without side effects
+  // HPRT_POWER is not set -> VBUS off
 
   dwc2_core_deinit(rhport);
   return true;
@@ -1359,6 +1360,17 @@ static bool handle_sof_irq(uint8_t rhport, bool in_isr) {
 }
 
 // Config HCFG FS/LS clock and HFIR for SOF interval according to link speed (value is in PHY clock unit)
+// Databook Table 2-2: System Clock Speeds
+// +-----------+------------------+----------+-----------+-------------------+
+// | PHY       | PHY Clock (MHz)  | Width    | HCFG.Sel  | HFIR (clk cycles) |
+// +-----------+------------------+----------+-----------+-------------------+
+// | HS UTMI+  | 30               | 16-bit   | 30_60     | HS:3749 FS:29999  |
+// | HS UTMI+  | 60               |  8-bit   | 30_60     | HS:7499 FS:59999  |
+// | HS ULPI   | 60               |  8-bit   | 30_60     | HS:7499 FS:59999  |
+// | FS (dead.) | 48               | internal | 48        | FS:47999          |
+// | LS via FS | 48 (6 effective) | internal | 6         | LS:47999          |
+// +-----------+------------------+----------+-----------+-------------------+
+// HFIR = (interval_us * phy_clock) - 1, where interval is 125us (HS) or 1000us (FS/LS)
 static void port0_enable(dwc2_regs_t* dwc2, tusb_speed_t speed) {
   uint32_t hcfg = dwc2->hcfg & ~HCFG_FSLS_PHYCLK_SEL;
 

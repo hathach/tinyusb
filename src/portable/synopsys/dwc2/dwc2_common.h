@@ -42,6 +42,7 @@
 // - _dwc2_controller[]: array of controllers
 // - DWC2_EP_MAX: largest EP counts of all controllers
 // - dwc2_phy_init/dwc2_phy_update: phy init called before and after core reset
+// - dwc2_phy_deinit: phy deinit to disable PHY power
 // - dwc2_dcd_int_enable/dwc2_dcd_int_disable
 // - dwc2_remote_wakeup_delay
 
