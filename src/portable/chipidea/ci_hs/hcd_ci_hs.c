@@ -96,13 +96,13 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   // Set mode to host, must be set immediately after reset
   #if CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX
   // LPC18XX/43XX need to set VBUS Power Select to HIGH
-  // RHPORT1 is fullspeed only (need external PHY for Highspeed)
   hcd_reg->USBMODE = USBMODE_CM_HOST | USBMODE_VBUS_POWER_SELECT;
-    #if !TUH_OPT_HIGH_SPEED
-  hcd_reg->PORTSC1 = PORTSC1_FORCE_FULL_SPEED;
-    #endif
   #else
   hcd_reg->USBMODE = USBMODE_CM_HOST;
+  #endif
+
+  #if !TUH_OPT_HIGH_SPEED
+  hcd_reg->PORTSC1 |= PORTSC1_FORCE_FULL_SPEED;
   #endif
 
   return ehci_init(rhport, (uint32_t)&hcd_reg->CAPLENGTH, (uint32_t)&hcd_reg->USBCMD);
