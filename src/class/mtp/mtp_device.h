@@ -78,6 +78,10 @@ typedef struct {
     mtp_auint16_t(_capture_count) capture_formats; \
     mtp_auint16_t(_playback_count) playback_formats; \
     /* string fields will be added using append function */ \
+    /* mtp_string_t() Manufacturer */ \
+    /* mtp_string_t() Model */ \
+    /* mtp_string_t() Device Version */ \
+    /* mtp_string_t() Serial Number */ \
   }
 
 typedef MTP_DEVICE_INFO_STRUCT( //-V2586 [MISRA-C-18.7] Flexible array members should not be declared

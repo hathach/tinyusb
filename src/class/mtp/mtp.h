@@ -802,9 +802,19 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_contai
   while (utf16[count] != 0u) {
     count++;
   }
+  count++;
+  uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
+
+  if(count == 1){
+    // empty string (size only): single zero byte
+    TU_ASSERT(p_container->header->len + 1 < CFG_TUD_MTP_EP_BUFSIZE, 0);
+    *buf = 0;
+    p_container->header->len++;
+    return 1u;
+  }
+
   const uint32_t added_len = 1u + (uint32_t) count * 2u;
   TU_ASSERT(p_container->header->len + added_len < CFG_TUD_MTP_EP_BUFSIZE, 0);
-  uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
 
   *buf++ = count;
   p_container->header->len++;
@@ -817,26 +827,28 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_string(mtp_contai
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_cstring(mtp_container_info_t* p_container, const char* str) {
   const uint8_t len = (uint8_t) (strlen(str) + 1); // include null
-  TU_ASSERT(p_container->header->len + 1 + 2 * len < CFG_TUD_MTP_EP_BUFSIZE, 0);
   uint8_t* buf = p_container->payload + p_container->header->len - sizeof(mtp_container_header_t);
 
   if (len == 1) {
-    // empty string (null only): single zero byte
+    // empty string (size only): single zero byte
+    TU_ASSERT(p_container->header->len + 1 < CFG_TUD_MTP_EP_BUFSIZE, 0);
     *buf = 0;
     p_container->header->len++;
     return 1u;
-  } else {
-    *buf++ = len;
-    p_container->header->len++;
-
-    for (uint8_t i = 0; i < len; i++) {
-      buf[0] = str[i];
-      buf[1] = 0;
-      buf += 2;
-      p_container->header->len += 2;
-    }
-    return 1u + 2u * len;
   }
+
+  TU_ASSERT(p_container->header->len + 1 + 2 * len < CFG_TUD_MTP_EP_BUFSIZE, 0);
+
+  *buf++ = len;
+  p_container->header->len++;
+
+  for (uint8_t i = 0; i < len; i++) {
+    *buf++ = str[i];
+    *buf++ = 0;
+  }
+  p_container->header->len += 2u*len;
+
+  return 1u + 2u * len;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t mtp_container_add_uint8(mtp_container_info_t* p_container, uint8_t data) {
