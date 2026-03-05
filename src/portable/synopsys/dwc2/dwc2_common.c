@@ -39,14 +39,11 @@ static void reset_core(dwc2_regs_t* dwc2) {
   while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {
   }
 
-  // load gsnpsid (it is not readable after reset is asserted)
-  const uint32_t gsnpsid = dwc2->gsnpsid;
-
-  // reset core
-  dwc2->grstctl |= GRSTCTL_CSRST;
+  const uint32_t gsnpsid = dwc2->gsnpsid; // preload gsnpsid which is not readable while resetting
+  dwc2->grstctl |= GRSTCTL_CSRST; // reset core
 
   if ((gsnpsid & DWC2_CORE_REV_MASK) < (DWC2_CORE_REV_4_20a & DWC2_CORE_REV_MASK)) {
-    // prior v4.20a: CSRST is self-clearing and the core clears this bit after all the necessary logic is reset in
+    // prior v4.20a: CSRST is self-clearing, and the core clears this bit after all the necessary logic is reset in
     // the core, which can take several clocks, depending on the current state of the core. Once this bit has been
     // cleared, the software must wait at least 3 PHY clocks before accessing the PHY domain (synchronization delay).
     while (dwc2->grstctl & GRSTCTL_CSRST) {}
@@ -88,8 +85,7 @@ static void phy_fs_init(dwc2_regs_t* dwc2) {
 }
 
 /* dwc2 has 2 highspeed PHYs options
- * - UTMI+ is internal highspeed PHY, can be clocked at 30/60 Mhz for fullspeed or 60 Mhz for highspeed. Can be either
- * 8 or 16-bit interface.
+ * - UTMI+ is internal highspeed PHY, can be clocked at 30 Mhz (8-bit) or 60 Mhz (16-bit).
  * - ULPI is external highspeed PHY, clocked at 60Mhz with 8-bit interface.
  *
  * In addition, UTMI+/ULPI can be shared to run at fullspeed mode with 48Mhz
@@ -245,6 +241,24 @@ bool dwc2_core_init(uint8_t rhport, bool is_hs_phy, bool is_dma) {
   }
 
   return true;
+}
+
+void dwc2_core_deinit(uint8_t rhport) {
+  dwc2_regs_t* dwc2 = DWC2_REG(rhport);
+
+  // Disable global interrupt
+  dwc2->gahbcfg &= ~GAHBCFG_GINT;
+
+  // Reset core: this also flushes FIFOs and clears all interrupt registers
+  reset_core(dwc2);
+
+  // Stop PHY clock and gate HCLK for power saving (per databook chapter 14)
+  dwc2->pcgcctl |= PCGCCTL_STOPPCLK | PCGCCTL_GATEHCLK;
+
+  // MCU-specific PHY deinit (disable PHY power)
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  const uint8_t hs_phy_type = (dwc2->gusbcfg & GUSBCFG_PHYSEL) ? GHWCFG2_HSPHY_NOT_SUPPORTED : ghwcfg2.hs_phy_type;
+  dwc2_phy_deinit(dwc2, hs_phy_type);
 }
 
 // void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr) {

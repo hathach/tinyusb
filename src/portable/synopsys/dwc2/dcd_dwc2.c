@@ -492,6 +492,12 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   return true;
 }
 
+bool dcd_deinit(uint8_t rhport) {
+  dcd_disconnect(rhport);
+  dwc2_core_deinit(rhport);
+  return true;
+}
+
 void dcd_int_enable(uint8_t rhport) {
   dwc2_dcd_int_enable(rhport);
 }
