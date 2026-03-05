@@ -275,11 +275,11 @@ int32_t tud_mtp_command_received_cb(tud_mtp_cb_data_t* cb_data) {
     resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
   } else {
     resp_code = handler(cb_data);
-    if (resp_code > MTP_RESP_UNDEFINED) {
-      // send response if needed
-      io_container->header->code = (uint16_t)resp_code;
-      tud_mtp_response_send(io_container);
-    }
+  }
+  if (resp_code > MTP_RESP_UNDEFINED) {
+    // send response if needed
+    io_container->header->code = (uint16_t)resp_code;
+    tud_mtp_response_send(io_container);
   }
 
   return resp_code;
@@ -302,11 +302,11 @@ int32_t tud_mtp_data_xfer_cb(tud_mtp_cb_data_t* cb_data) {
     resp_code = MTP_RESP_OPERATION_NOT_SUPPORTED;
   } else {
     resp_code = handler(cb_data);
-    if (resp_code > MTP_RESP_UNDEFINED) {
-      // send response if needed
-      io_container->header->code = (uint16_t)resp_code;
-      tud_mtp_response_send(io_container);
-    }
+  }
+  if (resp_code > MTP_RESP_UNDEFINED) {
+    // send response if needed
+    io_container->header->code = (uint16_t)resp_code;
+    tud_mtp_response_send(io_container);
   }
 
   return 0;
