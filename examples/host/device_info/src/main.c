@@ -105,7 +105,6 @@ int main(void) {
     tuh_task();     // tinyusb host task
     led_blinking_task(NULL);
   }
-  return 0;
 #endif
 }
 

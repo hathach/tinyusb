@@ -103,8 +103,6 @@ int main(void) {
     led_blinking_task(NULL);
   }
 #endif
-
-  return 0;
 }
 
 #ifdef ESP_PLATFORM
