@@ -39,16 +39,26 @@ extern "C" {
 //--------------------------------------------------------------------+
 
 TU_ATTR_ALWAYS_INLINE static inline uint32_t _osal_ms2tick(uint32_t msec) {
-  if ( msec == TX_WAIT_FOREVER ) return TX_WAIT_FOREVER;
-  if ( msec == 0 ) return 0;
+  if ( msec == TX_WAIT_FOREVER ) {
+    return TX_WAIT_FOREVER;
+  }
+  if ( msec == 0 ) {
+    return 0;
+  }
 
   uint32_t ticks = msec * TX_TIMER_TICKS_PER_SECOND  / 1000;
 
   // TX_TIMER_TICKS_PER_SECOND is less than 1000 and 1 tick > 1 ms
   // we still need to delay at least 1 tick
-  if ( ticks == 0 ) ticks = 1;
+  if ( ticks == 0 ) {
+    ticks = 1;
+  }
 
   return ticks;
+}
+
+TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_time_millis(void) {
+  return (uint32_t)((uint64_t) tx_time_get() * 1000u / TX_TIMER_TICKS_PER_SECOND);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
@@ -94,7 +104,7 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_spin_unlock(osal_spinlock_t *ctx, 
 typedef TX_SEMAPHORE osal_semaphore_def_t, * osal_semaphore_t;
 
 TU_ATTR_ALWAYS_INLINE static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t *semdef) {
-  tx_semaphore_create(semdef->semaphore, semdef->name, 0);
+  tx_semaphore_create(semdef, TX_NULL, 0);
   return semdef;
 }
 
@@ -113,6 +123,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_semaphore_wait(osal_semaphore_t se
 }
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl) {
+  (void) sem_hdl;
 }
 
 //--------------------------------------------------------------------+
@@ -152,10 +163,10 @@ typedef TX_QUEUE osal_queue_def_t, * osal_queue_t;
 #define OSAL_QUEUE_DEF(_int_set, _name, _depth, _type)    \
 static _type _name##_buf[_depth];                         \
 osal_queue_def_t _name = {                                \
-		.tx_queue_name         = #_name,                  \
+		.tx_queue_name         = (CHAR*)(uintptr_t)#_name,                  \
 		.tx_queue_message_size = (sizeof(_type) + 3) / 4, \
 		.tx_queue_capacity     = _depth,                  \
-		.tx_queue_start        =  _name##_buf }
+		.tx_queue_start        = (ULONG *) _name##_buf }
 
 
 TU_ATTR_ALWAYS_INLINE static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef) {
@@ -173,8 +184,8 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, v
   return 0 == tx_queue_receive(qhdl, data, _osal_ms2tick(msec));
 }
 
-TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void *data, bool in_isr) {
-  return 0 == tx_queue_send(qhdl, data, in_isr ? TX_NO_WAIT : TX_WAIT_FOREVER);
+TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const *data, bool in_isr) {
+  return 0 == tx_queue_send(qhdl, (VOID *)(uintptr_t) data, in_isr ? TX_NO_WAIT : TX_WAIT_FOREVER);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_empty(osal_queue_t qhdl) {
