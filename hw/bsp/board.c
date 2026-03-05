@@ -300,9 +300,4 @@ void SysTick_Handler(void) {
   _tx_timer_interrupt();
 }
 
-// tusb_time_millis_api() based on ThreadX tick counter
-uint32_t tusb_time_millis_api(void) {
-  return (uint32_t)((uint64_t) tx_time_get() * 1000u / TX_TIMER_TICKS_PER_SECOND);
-}
-
 #endif

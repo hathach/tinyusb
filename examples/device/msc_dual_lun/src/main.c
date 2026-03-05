@@ -197,7 +197,7 @@ static void freertos_init(void) {
 #elif CFG_TUSB_OS == OPT_OS_THREADX
 
 #define USBD_STACK_SIZE   4096
-#define BLINKY_STACK_SIZE 1024
+#define BLINKY_STACK_SIZE 512
 
 static TX_THREAD _usb_device_thread;
 static ULONG     _usb_device_stack[USBD_STACK_SIZE / sizeof(ULONG)];
