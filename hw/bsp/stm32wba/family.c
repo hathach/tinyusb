@@ -172,14 +172,7 @@ void board_init(void) {
 
   // Configuring the SYSCFG registers OTG_HS PHY
   SYSCFG->OTGHSPHYCR |= SYSCFG_OTGHSPHYCR_EN;
-
-  // Disable VBUS sense (B device)
-  USB_OTG_HS->GCCFG &= ~USB_OTG_GCCFG_VBDEN;
-
-  // B-peripheral session valid override enable
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALEXTOEN;
-  USB_OTG_HS->GCCFG |= USB_OTG_GCCFG_VBVALOVAL;
-  #endif // USB_OTG_FS
+  #endif // USB_OTG_HS
 }
 
 void board_led_write(bool state) { HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1 - LED_STATE_ON)); }
@@ -205,7 +198,7 @@ void SysTick_Handler(void) {
   system_ticks++;
 }
 
-uint32_t board_millis(void) { return system_ticks; }
+uint32_t tusb_time_millis_api(void) { return system_ticks; }
 #endif
 
 void HardFault_Handler(void) { asm( "bkpt 1" ); }

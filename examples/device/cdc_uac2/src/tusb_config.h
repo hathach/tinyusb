@@ -160,6 +160,8 @@ extern "C" {
 #define CFG_TUD_CDC_TX_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
 // CDC Endpoint transfer buffer size, more is faster
+// Leave it as default size (512 for HS, 64 for FS) unless your host application
+// is able to send ZLP (Zero Length Packet) to terminate transfer !
 #define CFG_TUD_CDC_EP_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
 #ifdef __cplusplus

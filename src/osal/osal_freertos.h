@@ -99,6 +99,10 @@ TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
   vTaskDelay(pdMS_TO_TICKS(msec));
 }
 
+TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_time_millis(void) {
+  return pdTICKS_TO_MS(xTaskGetTickCount());
+}
+
 //--------------------------------------------------------------------+
 // Spinlock API
 //--------------------------------------------------------------------+

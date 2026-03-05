@@ -291,5 +291,5 @@ void sys_arch_unprotect(sys_prot_t pval) {
 
 /* lwip needs a millisecond time source, and the TinyUSB board support code has one available */
 uint32_t sys_now(void) {
-  return board_millis();
+  return tusb_time_millis_api();
 }

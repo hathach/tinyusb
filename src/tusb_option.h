@@ -470,7 +470,6 @@
   #define TUP_MCU_STRICT_ALIGN   0
 #endif
 
-
 //--------------------------------------------------------------------+
 // Common Options (Default)
 //--------------------------------------------------------------------+
@@ -513,6 +512,10 @@
 // OS selection
 #ifndef CFG_TUSB_OS
   #define CFG_TUSB_OS           OPT_OS_NONE
+#endif
+
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #define CFG_TUSB_OS_HAS_SCHEDULER (CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO)
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
@@ -580,9 +583,18 @@
   #define CFG_TUD_TEST_MODE       0
 #endif
 
+#ifndef CFG_TUD_VBUS_DETECT_HW_DEFAULT
+  #define CFG_TUD_VBUS_DETECT_HW_DEFAULT 0
+#endif
+
+// Enable VBUS Detect hardware, usually via functional GPIO
+#ifndef CFG_TUD_VBUS_DETECT_HW
+  #define CFG_TUD_VBUS_DETECT_HW CFG_TUD_VBUS_DETECT_HW_DEFAULT
+#endif
+
 //------------- Device Class Driver -------------//
 #ifndef CFG_TUD_BTH
-  #define CFG_TUD_BTH             0
+  #define CFG_TUD_BTH 0
 #endif
 
 #if CFG_TUD_BTH && !defined(CFG_TUD_BTH_ISO_ALT_COUNT)

@@ -1650,24 +1650,38 @@ TU_VERIFY_STATIC(offsetof(dwc2_regs_t, fifo   ) == 0x1000, "incorrect size");
 #define STM32_GCCFG_PHYHSEN_Msk          (0x1UL << STM32_GCCFG_PHYHSEN_Pos)       // 0x00800000
 #define STM32_GCCFG_PHYHSEN              STM32_GCCFG_PHYHSEN_Msk                  // HS PHY enable
 
-// TODO stm32u5a5 SDEN is 22nd bit, conflict with 20th bit above
-//#define STM32_GCCFG_SDEN_Pos                   (22U)
-//#define STM32_GCCFG_SDEN_Msk                   (0x1U << STM32_GCCFG_SDEN_Pos)             // 0x00400000
-//#define STM32_GCCFG_SDEN                       STM32_GCCFG_SDEN_Msk                       // Secondary detection (PD) mode enable
+// GUID < 0x2000: VBUSASEN, VBUSBSEN, NOVBUSSENS bits
+#define STM32_GCCFG_VBUSASEN_Pos         (18U)
+#define STM32_GCCFG_VBUSASEN_Msk         (0x1UL << STM32_GCCFG_VBUSASEN_Pos)      // 0x00040000
+#define STM32_GCCFG_VBUSASEN             STM32_GCCFG_VBUSASEN_Msk                 // Enable A-device (host) VBUS sensing
 
-// TODO stm32u5a5 VBVALOVA is 23rd bit, conflict with PHYHSEN bit above
-#define STM32_GCCFG_VBVALOVAL_Pos              (23U)
-#define STM32_GCCFG_VBVALOVAL_Msk              (0x1U << STM32_GCCFG_VBVALOVAL_Pos)        // 0x00800000
-#define STM32_GCCFG_VBVALOVAL                  STM32_GCCFG_VBVALOVAL_Msk                  // Value of VBUSVLDEXT0 femtoPHY input
+#define STM32_GCCFG_VBUSBSEN_Pos         (19U)
+#define STM32_GCCFG_VBUSBSEN_Msk         (0x1UL << STM32_GCCFG_VBUSBSEN_Pos)      // 0x00080000
+#define STM32_GCCFG_VBUSBSEN             STM32_GCCFG_VBUSBSEN_Msk                 // Enable B-device (peripheral) VBUS sensing
 
-#define STM32_GCCFG_VBVALEXTOEN_Pos            (24U)
-#define STM32_GCCFG_VBVALEXTOEN_Msk            (0x1U << STM32_GCCFG_VBVALEXTOEN_Pos)      // 0x01000000
-#define STM32_GCCFG_VBVALEXTOEN                STM32_GCCFG_VBVALEXTOEN_Msk                // Enables of VBUSVLDEXT0 femtoPHY input override
+#define STM32_GCCFG_NOVBUSSENS_Pos       (21U)
+#define STM32_GCCFG_NOVBUSSENS_Msk       (0x1UL << STM32_GCCFG_NOVBUSSENS_Pos)     // 0x00200000
+#define STM32_GCCFG_NOVBUSSENS           STM32_GCCFG_NOVBUSSENS_Msk                // VBUS sensing disable option
+// GUID < 0x2000: end
 
-#define STM32_GCCFG_PULLDOWNEN_Pos             (25U)
-#define STM32_GCCFG_PULLDOWNEN_Msk             (0x1U << STM32_GCCFG_PULLDOWNEN_Pos)       // 0x02000000
-#define STM32_GCCFG_PULLDOWNEN                 STM32_GCCFG_PULLDOWNEN_Msk                 // Enables of femtoPHY pulldown resistors, used when ID PAD is disabled
+// TODO: stm32u5a5 SDEN is 22nd bit, conflict with 20th bit above
+// #define STM32_GCCFG_SDEN_Pos             (22U)
+// #define STM32_GCCFG_SDEN_Msk             (0x1U << STM32_GCCFG_SDEN_Pos)             // 0x00400000
+// #define STM32_GCCFG_SDEN                 STM32_GCCFG_SDEN_Msk                       // Secondary detection (PD) mode enable
 
+// GUID >= 0x5000 use femtoPHY: VBVALOVA, VBVALEXTOEN, PULLDOWNEN
+#define STM32_GCCFG_VBVALOVAL_Pos        (23U)
+#define STM32_GCCFG_VBVALOVAL_Msk        (0x1U << STM32_GCCFG_VBVALOVAL_Pos)        // 0x00800000
+#define STM32_GCCFG_VBVALOVAL            STM32_GCCFG_VBVALOVAL_Msk                  // Value of VBUSVLDEXT0 femtoPHY input
+
+#define STM32_GCCFG_VBVALEXTOEN_Pos      (24U)
+#define STM32_GCCFG_VBVALEXTOEN_Msk      (0x1U << STM32_GCCFG_VBVALEXTOEN_Pos)      // 0x01000000
+#define STM32_GCCFG_VBVALEXTOEN          STM32_GCCFG_VBVALEXTOEN_Msk                // Enables of VBUSVLDEXT0 femtoPHY input override
+
+#define STM32_GCCFG_PULLDOWNEN_Pos       (25U)
+#define STM32_GCCFG_PULLDOWNEN_Msk       (0x1U << STM32_GCCFG_PULLDOWNEN_Pos)       // 0x02000000
+#define STM32_GCCFG_PULLDOWNEN           STM32_GCCFG_PULLDOWNEN_Msk                 // Enables of femtoPHY pulldown resistors, used when ID PAD is disabled
+// GUID >= 0x5000: end
 
 /********************  Bit definition for DEACHINTMSK register  ********************/
 #define DEACHINTMSK_IEP1INTM_Pos         (1U)

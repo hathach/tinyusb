@@ -60,6 +60,7 @@ static void reset_core(dwc2_regs_t* dwc2) {
   while (!(dwc2->grstctl & GRSTCTL_AHBIDL)) {} // wait for AHB master IDLE
 }
 
+// Dedicated FS PHY is internal with a clock 48Mhz.
 static void phy_fs_init(dwc2_regs_t* dwc2) {
   TU_LOG(DWC2_COMMON_DEBUG, "Fullspeed PHY init\r\n");
 
@@ -86,6 +87,13 @@ static void phy_fs_init(dwc2_regs_t* dwc2) {
   dwc2_phy_update(dwc2, GHWCFG2_HSPHY_NOT_SUPPORTED);
 }
 
+/* dwc2 has 2 highspeed PHYs options
+ * - UTMI+ is internal highspeed PHY, can be clocked at 30/60 Mhz for fullspeed or 60 Mhz for highspeed. Can be either
+ * 8 or 16-bit interface.
+ * - ULPI is external highspeed PHY, clocked at 60Mhz with 8-bit interface.
+ *
+ * In addition, UTMI+/ULPI can be shared to run at fullspeed mode with 48Mhz
+ */
 static void phy_hs_init(dwc2_regs_t* dwc2) {
   uint32_t gusbcfg = dwc2->gusbcfg;
   const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
@@ -179,32 +187,20 @@ static bool check_dwc2(dwc2_regs_t* dwc2) {
 //--------------------------------------------------------------------
 //
 //--------------------------------------------------------------------
-bool dwc2_core_is_highspeed(dwc2_regs_t* dwc2, tusb_role_t role) {
-  (void)dwc2;
-#if CFG_TUD_ENABLED
-  if (role == TUSB_ROLE_DEVICE && !TUD_OPT_HIGH_SPEED) {
-    return false;
-  }
-#endif
-#if CFG_TUH_ENABLED
-  if (role == TUSB_ROLE_HOST && !TUH_OPT_HIGH_SPEED) {
-    return false;
-  }
-#endif
+bool dwc2_core_is_highspeed_phy(dwc2_regs_t* dwc2, bool prefer_hs_phy) {
+  const dwc2_ghwcfg2_t ghwcfg2    = {.value = dwc2->ghwcfg2};
+  const bool           has_hs_phy = (ghwcfg2.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED);
 
-  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
-  return ghwcfg2.hs_phy_type != GHWCFG2_HSPHY_NOT_SUPPORTED;
+  if (prefer_hs_phy) {
+    return has_hs_phy;
+  } else {
+    const bool has_fs_phy = (ghwcfg2.fs_phy_type != GHWCFG2_FSPHY_NOT_SUPPORTED);
+    // false if has fs phy, otherwise true since hs phy is the only available phy
+    return !has_fs_phy && has_hs_phy;
+  }
 }
 
-/* dwc2 has several PHYs option
- * - UTMI+ is internal highspeed PHY, clock can be 30 Mhz (8-bit) or 60 Mhz (16-bit)
- * - ULPI is external highspeed PHY, clock is 60Mhz with only 8-bit interface
- * - Dedicated FS PHY is internal with clock 48Mhz.
- *
- * In addition, UTMI+/ULPI can be shared to run at fullspeed mode with 48Mhz
- *
-*/
-bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
+bool dwc2_core_init(uint8_t rhport, bool is_hs_phy, bool is_dma) {
   dwc2_regs_t* dwc2 = DWC2_REG(rhport);
 
   // Check Synopsys ID register, failed if controller clock/power is not enabled
@@ -213,7 +209,7 @@ bool dwc2_core_init(uint8_t rhport, bool is_highspeed, bool is_dma) {
   // disable global interrupt
   dwc2->gahbcfg &= ~GAHBCFG_GINT;
 
-  if (is_highspeed) {
+  if (is_hs_phy) {
     phy_hs_init(dwc2);
   } else {
     phy_fs_init(dwc2);
