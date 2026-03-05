@@ -238,6 +238,7 @@
 #define OPT_OS_RTTHREAD   6  ///< RT-Thread
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
 #define OPT_OS_ZEPHYR     8  ///< Zephyr
+#define OPT_OS_THREADX    9  ///< ThreadX
 
 //--------------------------------------------------------------------+
 // Mode and Speed
