@@ -265,17 +265,19 @@ static inline void dwc2_phy_init(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
 }
 
 // MCU specific PHY deinit, disable PHY power
-static inline void dwc2_phy_deinit(dwc2_regs_t* dwc2) {
-  // Disable on-chip FS PHY
-  dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
-
-  // Disable HS PHY if present
-  #ifdef USB_HS_PHYC
-  dwc2->stm32_gccfg &= ~STM32_GCCFG_PHYHSEN;
-  // Disable PLL and LDO
-  USB_HS_PHYC->USB_HS_PHYC_PLL &= ~USB_HS_PHYC_PLL_PLLEN;
-  USB_HS_PHYC->USB_HS_PHYC_LDO &= ~USB_HS_PHYC_LDO_ENABLE;
-  #endif
+static inline void dwc2_phy_deinit(dwc2_regs_t* dwc2, uint8_t hs_phy_type) {
+  if (hs_phy_type == GHWCFG2_HSPHY_NOT_SUPPORTED) {
+    // Disable on-chip FS PHY
+    dwc2->stm32_gccfg &= ~STM32_GCCFG_PWRDWN;
+  } else {
+    // Disable HS PHY
+    #ifdef USB_HS_PHYC
+    dwc2->stm32_gccfg &= ~STM32_GCCFG_PHYHSEN;
+    // Disable PLL and LDO
+    USB_HS_PHYC->USB_HS_PHYC_PLL &= ~USB_HS_PHYC_PLL_PLLEN;
+    USB_HS_PHYC->USB_HS_PHYC_LDO &= ~USB_HS_PHYC_LDO_ENABLE;
+    #endif
+  }
 }
 
 // MCU specific PHY update, it is called AFTER init() and core reset

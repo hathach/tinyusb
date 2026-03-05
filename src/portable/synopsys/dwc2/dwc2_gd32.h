@@ -86,8 +86,9 @@ static inline void dwc2_phy_init(dwc2_regs_t * dwc2, uint8_t hs_phy_type)
 }
 
 // MCU specific PHY deinit, disable PHY power
-static inline void dwc2_phy_deinit(dwc2_regs_t * dwc2) {
+static inline void dwc2_phy_deinit(dwc2_regs_t * dwc2, uint8_t hs_phy_type) {
   (void) dwc2;
+  (void) hs_phy_type;
   // nothing to do
 }
 

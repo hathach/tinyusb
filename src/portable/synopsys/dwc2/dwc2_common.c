@@ -256,7 +256,9 @@ void dwc2_core_deinit(uint8_t rhport) {
   dwc2->pcgcctl |= PCGCCTL_STOPPCLK | PCGCCTL_GATEHCLK;
 
   // MCU-specific PHY deinit (disable PHY power)
-  dwc2_phy_deinit(dwc2);
+  const dwc2_ghwcfg2_t ghwcfg2 = {.value = dwc2->ghwcfg2};
+  const uint8_t hs_phy_type = (dwc2->gusbcfg & GUSBCFG_PHYSEL) ? GHWCFG2_HSPHY_NOT_SUPPORTED : ghwcfg2.hs_phy_type;
+  dwc2_phy_deinit(dwc2, hs_phy_type);
 }
 
 // void dwc2_core_handle_common_irq(uint8_t rhport, bool in_isr) {
