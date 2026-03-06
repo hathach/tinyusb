@@ -166,6 +166,32 @@ def open_mtp_dev(uid):
     return None
 
 
+def get_printer_dev(id, vendor_str, product_str, ifnum):
+    """Find /dev/usb/lpX by matching USB serial, vendor, product, and interface number via sysfs"""
+    vendor_str = vendor_str.replace(' ', '_') if vendor_str else ''
+    product_str = product_str.replace(' ', '_') if product_str else ''
+    for lp in glob.glob('/sys/class/usbmisc/lp*'):
+        try:
+            sn = open(f'{lp}/device/../serial').read().strip()
+            if sn == id:
+                return f'/dev/usb/{os.path.basename(lp)}'
+        except (FileNotFoundError, PermissionError, ValueError):
+            pass
+    return None
+
+
+def open_printer_dev(id, vendor_str, product_str, ifnum):
+    """Wait for printer device to enumerate and return its path"""
+    timeout = ENUM_TIMEOUT
+    while timeout > 0:
+        lp_dev = get_printer_dev(id, vendor_str, product_str, ifnum)
+        if lp_dev and os.path.exists(lp_dev):
+            return lp_dev
+        time.sleep(1)
+        timeout -= 1
+    assert False, f'Printer device not found for {id} if{ifnum:02d}'
+
+
 # -------------------------------------------------------------
 # Flashing firmware
 # -------------------------------------------------------------
@@ -552,6 +578,109 @@ def test_device_hid_composite_freertos(id):
     pass
 
 
+def test_device_printer_to_cdc(board):
+    import threading
+
+    uid = board['uid']
+
+    # Wait for CDC port and printer device
+    cdc_port = get_serial_dev(uid, 'TinyUSB', "TinyUSB_Device", 0)
+    ser = open_serial_dev(cdc_port)
+    lp_dev = open_printer_dev(uid, 'TinyUSB', 'TinyUSB_Device', 2)
+
+    # Test 0: Verify IEEE 1284 Device ID from sysfs
+    expected_id = 'MFG:TinyUSB;MDL:Printer to CDC;CMD:PS;CLS:PRINTER;'
+    lp_name = os.path.basename(lp_dev)
+    sysfs_id_path = f'/sys/class/usbmisc/{lp_name}/device/ieee1284_id'
+    if os.path.exists(sysfs_id_path):
+        with open(sysfs_id_path) as f:
+            ieee1284_id = f.read().strip()
+        if ieee1284_id:
+            assert ieee1284_id == expected_id, (f'IEEE 1284 ID mismatch:\n'
+                                                f'  expected: {expected_id}\n  got: {ieee1284_id}')
+
+    def rand_ascii(length):
+        return "".join(random.choices(string.ascii_letters + string.digits, k=length)).encode("ascii")
+
+    sizes = [32, 64, 128, 256, 512, random.randint(2000, 5000)]
+
+    # flush any stale data
+    ser.reset_input_buffer()
+
+    # Test 1: Printer -> CDC with multiple sizes, write in random 1-64 byte chunks
+    for size in sizes:
+        test_data = rand_ascii(size)
+        ser.reset_input_buffer()
+        rd = b''
+        offset = 0
+        with open(lp_dev, 'wb') as lp:
+            while offset < size:
+                chunk_size = min(random.randint(1, 64), size - offset)
+                lp.write(test_data[offset:offset + chunk_size])
+                lp.flush()
+                rd += ser.read(chunk_size)
+                offset += chunk_size
+        # read any remaining bytes (fullspeed devices may need extra time)
+        while len(rd) < size:
+            remaining = ser.read(size - len(rd))
+            if not remaining:
+                break
+            rd += remaining
+        assert rd == test_data, (f'Printer->CDC wrong data ({size} bytes):\n'
+                                 f'  expected: {test_data[:64]}\n  received: {rd[:64]}')
+
+    # Test 2: CDC -> Printer with multiple sizes, write in random 1-64 byte chunks
+    # Use a thread to read from printer since /dev/usb/lp read blocks
+    ser.reset_input_buffer()
+    time.sleep(0.5)
+    for size in sizes:
+        test_data = rand_ascii(size)
+        rd_result = [b'', None]  # [data, error]
+        reader_ready = threading.Event()
+
+        def lp_reader():
+            try:
+                rd = b''
+                fd = os.open(lp_dev, os.O_RDONLY)
+                reader_ready.set()
+                try:
+                    while len(rd) < size:
+                        chunk = os.read(fd, min(64, size - len(rd)))
+                        if not chunk:
+                            break
+                        rd += chunk
+                finally:
+                    os.close(fd)
+                rd_result[0] = rd
+            except Exception as e:
+                rd_result[1] = e
+                reader_ready.set()
+
+        reader = threading.Thread(target=lp_reader, daemon=True)
+        reader.start()
+        # wait for reader to open lp device before writing
+        reader_ready.wait(timeout=5)
+        time.sleep(0.1)
+
+        # Write to CDC in small chunks with flush to avoid overflowing device FIFO
+        offset = 0
+        while offset < size:
+            chunk_size = min(random.randint(1, 64), size - offset)
+            ser.write(test_data[offset:offset + chunk_size])
+            ser.flush()
+            time.sleep(0.01)
+            offset += chunk_size
+
+        reader.join(timeout=10)
+        assert not reader.is_alive(), f'CDC->Printer timeout ({size} bytes)'
+        assert rd_result[1] is None, f'CDC->Printer read error: {rd_result[1]}'
+        assert rd_result[0] == test_data, (f'CDC->Printer wrong data ({size} bytes):\n'
+                                           f'  expected: {test_data[:64]}\n  received: {rd_result[0][:64]}')
+        time.sleep(0.2)
+
+    ser.close()
+
+
 def test_device_mtp(board):
     uid = board['uid']
 
@@ -623,6 +752,7 @@ device_tests = [
     'device/dfu_runtime',
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
+    'device/printer_to_cdc',
     # 'device/mtp'
 ]
 
