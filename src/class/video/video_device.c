@@ -771,7 +771,10 @@ static bool _open_vc_itf(uint8_t rhport, videod_interface_t *self, uint_fast8_t 
   TU_ASSERT(vc->ctl.bInCollection <= CFG_TUD_VIDEO_STREAMING);
 
   /* Update to point the end of the video control interface descriptor. */
-  end = _end_of_control_descriptor(cur);
+  end = _end_of_control_descriptor(cur) + 7;
+  //tusb_desc_video_control_header wTotalLength = 
+  // tusb_desc_video_control_header + tusb_desc_video_control_camera_terminal_t + tusb_desc_video_control_output_terminal_t
+  // has no status Interrupt EP desc, then "end" should +7 for _find_desc searchig EP desc
 
   /* Advance to the next descriptor after the class-specific VC interface header descriptor. */
   cur += vc->std.bLength + vc->ctl.bLength;
