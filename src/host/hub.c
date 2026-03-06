@@ -228,7 +228,7 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const 
   TU_ASSERT(drv_len <= max_len, 0);
 
   tusb_desc_device_t desc_dev;
-  tuh_descriptor_get_device_local(dev_addr, &desc_dev);
+  TU_ASSERT(tuh_descriptor_get_device_local(dev_addr, &desc_dev));
   // Skip STT interface of MTT hub
   if (desc_dev.bDeviceProtocol == 2 && itf_desc->bInterfaceProtocol == 1) {
     hub_interface_t* p_hub = get_hub_itf(dev_addr);
