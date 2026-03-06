@@ -321,7 +321,7 @@ static void dcd_dma_handler(uint8_t ep_ix) {
   if (USB_REG->DEVEPTCFG[ep_ix] & DEVEPTCFG_EPDIR) {
     dcd_event_xfer_complete(0, 0x80 + ep_ix, count, XFER_RESULT_SUCCESS, true);
   } else {
-    dcd_dcache_invalidate(xfer->buffer, xfer->total_len);
+    dcd_dcache_invalidate(xfer->buffer, count);
     dcd_event_xfer_complete(0, ep_ix, count, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -600,6 +600,6 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   (void)rhport;
   const uint8_t epnum       = tu_edpt_number(ep_addr);
   USB_REG->DEVEPTIDR[epnum] = DEVEPTIDR_CTRL_STALLRQC;
-  USB_REG->DEVEPTIER[epnum] = HSTPIPIER_RSTDTS;
+  USB_REG->DEVEPTIER[epnum] = DEVEPTIER_RSTDTS;
 }
 #endif
