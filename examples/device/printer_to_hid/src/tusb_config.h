@@ -34,8 +34,6 @@ extern "C" {
 // Board Specific Configuration
 //--------------------------------------------------------------------+
 
-#define BOARD_DEVICE_RHPORT_NUM 3
-
 // RHPort number used for device can be defined by board.mk, default to port 0
 #ifndef BOARD_TUD_RHPORT
   #define BOARD_TUD_RHPORT 0
@@ -103,10 +101,10 @@ extern "C" {
 // HID buffer size Should be sufficient to hold ID (if any) + Data
 #define CFG_TUD_HID_EP_BUFSIZE 16
 
-// Printer buffer size Should be sufficient to hold data
-#define CFG_TUD_PRINTER_RX_BUFSIZE 16
-#define CFG_TUD_PRINTER_TX_BUFSIZE 16
-#define CFG_TUD_PRINTER_EP_BUFSIZE 16
+// Printer buffer sizes
+#define CFG_TUD_PRINTER_RX_BUFSIZE 512
+#define CFG_TUD_PRINTER_TX_BUFSIZE 512
+#define CFG_TUD_PRINTER_EP_BUFSIZE 512
 
 #ifdef __cplusplus
 }

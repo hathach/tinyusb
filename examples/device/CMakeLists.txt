@@ -30,6 +30,7 @@ set(EXAMPLE_LIST
   msc_dual_lun
   mtp
   net_lwip_webserver
+  printer_to_hid
   uac2_headset
   uac2_speaker_fb
   usbtmc

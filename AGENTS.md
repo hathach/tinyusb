@@ -332,6 +332,9 @@ take 2-5 minutes. NEVER CANCEL. Set timeout to 20+ minutes.
 - `examples/device/cdc_msc/`: Most commonly used example for testing
 - `test/unit-test/project.yml`: Ceedling test configuration
 
+#### MCU Reference Manuals and Datasheets
+- Look in `$HOME/Documents/Calibre Library` for all MCU reference manuals, datasheets and board schematics.
+
 #### Debugging Build Issues
 - **Missing compiler**: Install `gcc-arm-none-eabi` package
 - **Missing dependencies**: Run `python3 tools/get_deps.py FAMILY`

@@ -81,7 +81,7 @@ static void hid_tx_task(void) {
     return;
   }
 
-  if (board_millis() - start_ms < interval_ms) {
+  if (tusb_time_millis_api() - start_ms < interval_ms) {
     return; // not enough time
   }
   start_ms += interval_ms;
@@ -206,6 +206,22 @@ int main(void) {
 void tud_printer_rx_cb(uint8_t itf, size_t n) {
   printer_itf = itf;            // get interface from which to read endpoint buffer
   pending_bytes_on_usb_ep += n; // count pending bytes, counter must decrement when reading from the endpoint buffer
+}
+
+// IEEE 1284 Device ID: first 2 bytes are big-endian total length (including the 2 length bytes).
+// The rest is the Device ID string using standard abbreviated keys.
+static const char printer_device_id[] =
+  "\x00\x34" // total length = 52 = 0x0034 (big-endian)
+  "MFG:TinyUSB;"
+  "MDL:Printer to HID;"
+  "CMD:PS;"
+  "CLS:PRINTER;";
+
+TU_VERIFY_STATIC(sizeof(printer_device_id) - 1 == 52, "device ID length mismatch");
+
+uint8_t const *tud_printer_get_device_id_cb(uint8_t itf) {
+  (void)itf;
+  return (uint8_t const *)printer_device_id;
 }
 
 

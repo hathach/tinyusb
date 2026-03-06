@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2026 Ha Thach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,117 +28,188 @@
 
 #include "usb_descriptors.h"
 
+#define USB_VID   0xCafe
+#define USB_PID   0x4004
+#define USB_BCD   0x0200
 
 //--------------------------------------------------------------------+
-// Report definitions
+// Device Descriptors
 //--------------------------------------------------------------------+
+static tusb_desc_device_t const desc_device = {
+  .bLength            = sizeof(tusb_desc_device_t),
+  .bDescriptorType    = TUSB_DESC_DEVICE,
+  .bcdUSB             = USB_BCD,
+  .bDeviceClass       = 0x00,
+  .bDeviceSubClass    = 0x00,
+  .bDeviceProtocol    = 0x00,
+  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
-// Values of the string descriptors. Order must match the order defined by STRING_DESCRIPTOR_INDICES.
-const char *STRING_DESCRIPTOR_VALUES[] = {
-  (const char[]){0x09, 0x04}, // 0: Supported language is English (0x0409)
-  "TinyUSB",                  // 1: Manufacturer
-  "TinyUSB Device",           // 2: Product
-  NULL,                       // 3: Serial number, will use unique ID from the Pi Pico board hardware
-  "Config1",                  // 4: Configuration
-  "Hid1",                     // 5: HID interface
-  "Print1",                   // 6: Printer interface
-};
+  .idVendor           = USB_VID,
+  .idProduct          = USB_PID,
+  .bcdDevice          = 0x0100,
 
-uint8_t HID_REPORT_DESCRIPTOR[] = {TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_ID_KEYBOARD))};
-
-uint8_t CONFIG_INTERFACE_ENDPOINT_DESCRIPTOR[] = {
-  // Config number, interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-
-  // HID:
-  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
-  TUD_HID_DESCRIPTOR(ITF_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(HID_REPORT_DESCRIPTOR), EPADDR_HID,
-                     CFG_TUD_HID_EP_BUFSIZE, 5),
-
-  // Printer:
-  // Interface number, string index, EP Bulk Out address, EP Bulk In address, EP size
-  TUD_PRINTER_DESCRIPTOR(ITF_PRINTER, 0, EPADDR_PRINTER_OUT, EPADDR_PRINTER_IN, CFG_TUD_PRINTER_EP_BUFSIZE)};
-
-static const tusb_desc_device_t DEVICE_DESCRIPTOR = {
-  .bLength         = sizeof(tusb_desc_device_t),
-  .bDescriptorType = TUSB_DESC_DEVICE,
-  .bcdUSB          = USB_BCD,
-  .bDeviceClass    = 0x00, // Define class at interface level
-  .bDeviceSubClass = 0x00,
-  .bDeviceProtocol = 0x00,
-  .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
-
-  .idVendor  = USB_VID,
-  .idProduct = USB_PID,
-  .bcdDevice = 0x0100,
-
-  .iManufacturer = STR_MANUFACTURER,
-  .iProduct      = STR_PRODUCT,
-  .iSerialNumber = STR_SERIAL,
+  .iManufacturer      = 0x01,
+  .iProduct           = 0x02,
+  .iSerialNumber      = 0x03,
 
   .bNumConfigurations = 0x01
 };
 
+uint8_t const *tud_descriptor_device_cb(void) {
+  return (uint8_t const *) &desc_device;
+}
 
 //--------------------------------------------------------------------+
-// TinyUSB callbacks (descriptor requests)
+// HID Report Descriptor
 //--------------------------------------------------------------------+
+static uint8_t const desc_hid_report[] = {
+  TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_ID_KEYBOARD))
+};
 
-// TinyUSB GET HID REPORT DESCRIPTOR callback.
-const uint8_t *tud_hid_descriptor_report_cb(uint8_t instance) {
+uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance) {
   (void)instance;
-  return HID_REPORT_DESCRIPTOR;
+  return desc_hid_report;
 }
 
-// TinyUSB GET CONFIGURATION DESCRIPTOR callback.
-const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
-  (void)index;
-  return CONFIG_INTERFACE_ENDPOINT_DESCRIPTOR;
+//--------------------------------------------------------------------+
+// Configuration Descriptor
+//--------------------------------------------------------------------+
+
+// Endpoint numbers
+#if defined(TUD_ENDPOINT_ONE_DIRECTION_ONLY)
+  #define EPNUM_HID         0x81
+  #define EPNUM_PRINTER_OUT 0x02
+  #define EPNUM_PRINTER_IN  0x83
+#else
+  #define EPNUM_HID         0x81
+  #define EPNUM_PRINTER_OUT 0x02
+  #define EPNUM_PRINTER_IN  0x82
+#endif
+
+// full speed configuration
+static uint8_t const desc_fs_configuration[] = {
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+
+  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
+  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID,
+                     CFG_TUD_HID_EP_BUFSIZE, 5),
+
+  // Interface number, string index, EP Bulk Out address, EP Bulk In address, EP size
+  TUD_PRINTER_DESCRIPTOR(ITF_NUM_PRINTER, 5, EPNUM_PRINTER_OUT, EPNUM_PRINTER_IN, 64),
+};
+
+#if TUD_OPT_HIGH_SPEED
+// high speed configuration
+static uint8_t const desc_hs_configuration[] = {
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+
+  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID,
+                     CFG_TUD_HID_EP_BUFSIZE, 5),
+
+  TUD_PRINTER_DESCRIPTOR(ITF_NUM_PRINTER, 5, EPNUM_PRINTER_OUT, EPNUM_PRINTER_IN, 512),
+};
+
+// other speed configuration
+static uint8_t desc_other_speed_config[CONFIG_TOTAL_LEN];
+
+// device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
+static tusb_desc_device_qualifier_t const desc_device_qualifier = {
+  .bLength            = sizeof(tusb_desc_device_qualifier_t),
+  .bDescriptorType    = TUSB_DESC_DEVICE_QUALIFIER,
+  .bcdUSB             = USB_BCD,
+
+  .bDeviceClass       = 0x00,
+  .bDeviceSubClass    = 0x00,
+  .bDeviceProtocol    = 0x00,
+
+  .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+  .bNumConfigurations = 0x01,
+  .bReserved          = 0x00
+};
+
+uint8_t const *tud_descriptor_device_qualifier_cb(void) {
+  return (uint8_t const *) &desc_device_qualifier;
 }
 
-// TinyUSB GET DEVICE DESCRIPTOR callback.
-const uint8_t *tud_descriptor_device_cb(void) {
-  return (const uint8_t *)&DEVICE_DESCRIPTOR;
+uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
+  (void) index;
+
+  // if link speed is high return fullspeed config, and vice versa
+  memcpy(desc_other_speed_config,
+         (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_fs_configuration : desc_hs_configuration,
+         CONFIG_TOTAL_LEN);
+
+  desc_other_speed_config[1] = TUSB_DESC_OTHER_SPEED_CONFIG;
+
+  return desc_other_speed_config;
 }
 
-// Storage buffer array for string descriptor to be sent to host.
-static uint16_t string_descriptor_buffer[STRING_DESCRIPTOR_MAX_LENGTH + 1];
+#endif // TUD_OPT_HIGH_SPEED
 
-// TinyUSB GET STRING DESCRIPTOR callback.
-const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
-  (void)langid;
-  size_t utf16_string_length;
+uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
+  (void) index;
 
-  if (index == LANGID) {
-    // langid is not a string as in a series of characters: language ID code is binary, 2 bytes
-    memcpy(string_descriptor_buffer + 1, STRING_DESCRIPTOR_VALUES[LANGID], 2);
-    utf16_string_length = 1; // 2 bytes = 1 UTF16 word
+#if TUD_OPT_HIGH_SPEED
+  return (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_hs_configuration : desc_fs_configuration;
+#else
+  return desc_fs_configuration;
+#endif
+}
 
-  } else if (index == STR_SERIAL) {
-    // serialnumber is generated from pi pico: see note in STRING_DESCRIPTOR_VALUES definition
-    utf16_string_length = board_usb_get_serial(string_descriptor_buffer + 1, STRING_DESCRIPTOR_MAX_LENGTH);
+//--------------------------------------------------------------------+
+// String Descriptors
+//--------------------------------------------------------------------+
 
-  } else if (index < STRING_COUNT) {
-    // Get adequate descriptor string
-    const char *str     = STRING_DESCRIPTOR_VALUES[index];
-    utf16_string_length = strlen(str);
-    if (utf16_string_length > STRING_DESCRIPTOR_MAX_LENGTH) {
-      utf16_string_length = STRING_DESCRIPTOR_MAX_LENGTH;
-    }
-    // Convert ASCII string from memory (char*) to UTF16 (for buffer),
-    // store in buffer with 1 UTF16 word offset (2 bytes, for buffer header)
-    for (size_t i = 0; i < utf16_string_length; i++) {
-      string_descriptor_buffer[i + 1] = str[i];
-    }
+enum {
+  STRID_LANGID = 0,
+  STRID_MANUFACTURER,
+  STRID_PRODUCT,
+  STRID_SERIAL,
+  STRID_HID,
+  STRID_PRINTER,
+};
 
-  } else {
-    return NULL;
+static char const *string_desc_arr[] = {
+  (const char[]) { 0x09, 0x04 }, // 0: supported language is English (0x0409)
+  "TinyUSB",                     // 1: Manufacturer
+  "TinyUSB Device",              // 2: Product
+  NULL,                          // 3: Serial, use unique ID if possible
+  "TinyUSB HID",                 // 4: HID Interface
+  "TinyUSB Printer",             // 5: Printer Interface
+};
+
+static uint16_t _desc_str[32 + 1];
+
+uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
+  (void) langid;
+  size_t chr_count;
+
+  switch (index) {
+    case STRID_LANGID:
+      memcpy(&_desc_str[1], string_desc_arr[0], 2);
+      chr_count = 1;
+      break;
+
+    case STRID_SERIAL:
+      chr_count = board_usb_get_serial(_desc_str + 1, 32);
+      break;
+
+    default:
+      if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0]))) { return NULL; }
+
+      const char *str = string_desc_arr[index];
+
+      chr_count = strlen(str);
+      size_t const max_count = sizeof(_desc_str) / sizeof(_desc_str[0]) - 1;
+      if (chr_count > max_count) { chr_count = max_count; }
+
+      for (size_t i = 0; i < chr_count; i++) {
+        _desc_str[1 + i] = str[i];
+      }
+      break;
   }
 
-  // Set buffer header:
-  // byte 1 - buffer length in bytes (including header)
-  // byte 0 - string descriptor type (0x03).
-  string_descriptor_buffer[0] = (uint16_t)((TUSB_DESC_STRING << 8) | (2 * utf16_string_length + 2));
-
-  return string_descriptor_buffer;
+  _desc_str[0] = (uint16_t) ((TUSB_DESC_STRING << 8) | (2 * chr_count + 2));
+  return _desc_str;
 }

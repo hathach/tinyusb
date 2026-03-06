@@ -28,13 +28,13 @@
 
 #if (CFG_TUD_ENABLED && CFG_TUD_PRINTER)
 
-  //--------------------------------------------------------------------+
-  // INCLUDE
-  //--------------------------------------------------------------------+
-  #include "device/usbd.h"
-  #include "device/usbd_pvt.h"
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+#include "device/usbd.h"
+#include "device/usbd_pvt.h"
 
-  #include "printer_device.h"
+#include "printer_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -63,6 +63,8 @@ typedef struct {
   TUD_EPBUF_DEF(epin, CFG_TUD_PRINTER_EP_BUFSIZE);
 } printer_epbuf_t;
 
+#define ITF_MEM_RESET_SIZE offsetof(printer_interface_t, rx_ff)
+
 static printer_interface_t                 _printer_itf[CFG_TUD_PRINTER];
 CFG_TUD_MEM_SECTION static printer_epbuf_t _printer_epbuf[CFG_TUD_PRINTER];
 
@@ -70,9 +72,6 @@ CFG_TUD_MEM_SECTION static printer_epbuf_t _printer_epbuf[CFG_TUD_PRINTER];
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-
-static tud_printer_configure_fifo_t _printer_fifo_cfg;
-
 static bool _prep_out_transaction(uint8_t itf) {
   const uint8_t        rhport    = 0;
   printer_interface_t *p_printer = &_printer_itf[itf];
@@ -112,6 +111,25 @@ TU_ATTR_WEAK void tud_printer_rx_cb(uint8_t itf, size_t n) {
   (void)n;
 }
 
+TU_ATTR_WEAK void tud_printer_request_complete_cb(uint8_t itf, tusb_control_request_t const *request) {
+  (void)itf;
+  (void)request;
+}
+
+TU_ATTR_WEAK uint8_t const *tud_printer_get_device_id_cb(uint8_t itf) {
+  (void)itf;
+  return NULL;
+}
+
+TU_ATTR_WEAK uint8_t tud_printer_get_port_status_cb(uint8_t itf) {
+  (void)itf;
+  return 0x18; // not error, selected, paper not empty
+}
+
+TU_ATTR_WEAK void tud_printer_soft_reset_cb(uint8_t itf) {
+  (void)itf;
+}
+
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
@@ -142,7 +160,6 @@ void tud_printer_n_read_flush(uint8_t itf) {
 //--------------------------------------------------------------------+
 void printerd_init(void) {
   tu_memclr(_printer_itf, sizeof(_printer_itf));
-  tu_memclr(&_printer_fifo_cfg, sizeof(_printer_fifo_cfg));
 
   for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
     printer_interface_t *p_printer = &_printer_itf[i];
@@ -166,7 +183,7 @@ bool printerd_deinit(void) {
   for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
     printer_interface_t *p_printer = &_printer_itf[i];
     osal_mutex_t         mutex_rd  = p_printer->rx_ff.mutex_rd;
-    osal_mutex_t         mutex_wr  = p_printer->tx_ff.mutex_rd;
+    osal_mutex_t         mutex_wr  = p_printer->tx_ff.mutex_wr;
 
     if (mutex_rd) {
       osal_mutex_delete(mutex_rd);
@@ -189,15 +206,9 @@ void printerd_reset(uint8_t rhport) {
   for (uint8_t i = 0; i < CFG_TUD_PRINTER; i++) {
     printer_interface_t *p_printer = &_printer_itf[i];
 
-    tu_memclr(p_printer, sizeof(&p_printer));
-    if (!_printer_fifo_cfg.rx_persistent) {
-      tu_fifo_clear(&p_printer->rx_ff);
-    }
-    if (!_printer_fifo_cfg.tx_persistent) {
-      tu_fifo_clear(&p_printer->tx_ff);
-    }
-    // tu_fifo_set_overwritable(&p_printer->rx_ff, true);
-    tu_fifo_set_overwritable(&p_printer->tx_ff, true);
+    tu_memclr(p_printer, ITF_MEM_RESET_SIZE);
+    tu_fifo_clear(&p_printer->rx_ff);
+    tu_fifo_clear(&p_printer->tx_ff);
   }
 }
 
@@ -222,7 +233,7 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
   //------------- Endpoints -------------//
   TU_ASSERT(itf_desc->bNumEndpoints == 2);
   drv_len += 2 * sizeof(tusb_desc_endpoint_t);
-  p_printer->itf_num    = 2;
+  p_printer->itf_num    = itf_desc->bInterfaceNumber;
   const uint8_t *p_desc = tu_desc_next(itf_desc);
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &p_printer->ep_out, &p_printer->ep_in), 0);
 
@@ -233,6 +244,7 @@ uint16_t printerd_open(uint8_t rhport, const tusb_desc_interface_t *itf_desc, ui
 
 bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_request_t *request) {
   TU_VERIFY(request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
+  uint8_t const itf_num = (uint8_t)request->wIndex;
 
   if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD) {
     //------------- STD Request -------------//
@@ -240,39 +252,38 @@ bool printerd_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_
       return true;
     }
   } else if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS) {
-    switch (request->bRequest) {
-      // https://www.usb.org/sites/default/files/usbprint11a021811.pdf
-      case PRINTER_REQ_CONTROL_GET_DEVICE_ID:
-        if (stage == CONTROL_STAGE_SETUP) {
-          const char deviceId[] = "MANUFACTURER:ACME Manufacturing;"
-                                  "MODEL:LaserBeam 9;"
-                                  "COMMAND SET:PS;"
-                                  "COMMENT:Anything you like;"
-                                  "ACTIVE COMMAND SET:PS;";
-          char       buffer[256];
-          strcpy(buffer + 2, deviceId);
-          buffer[0] = 0x00;
-          buffer[1] = strlen(deviceId);
-          return tud_control_xfer(rhport, request, buffer, strlen(deviceId) + 2);
+    // https://www.usb.org/sites/default/files/usbprint11a021811.pdf
+    if (stage == CONTROL_STAGE_SETUP) {
+      switch (request->bRequest) {
+        case TUSB_PRINTER_REQUEST_GET_DEVICE_ID: {
+          // App provides buffer with IEEE 1284 format (first 2 bytes = big-endian length)
+          const uint8_t *device_id = tud_printer_get_device_id_cb(itf_num);
+          TU_VERIFY(device_id);
+          const uint16_t total_len = (uint16_t)((device_id[0] << 8) | device_id[1]);
+          return tud_control_xfer(rhport, request, (void *)(uintptr_t)device_id, total_len);
         }
-        break;
-      case PRINTER_REQ_CONTROL_GET_PORT_STATUS:
-        if (stage == CONTROL_STAGE_SETUP) {
-          static uint8_t port_status = 0b00011000; // paper not empty, selected, no error
+
+        case TUSB_PRINTER_REQUEST_GET_PORT_STATUS: {
+          static uint8_t port_status;
+          port_status = tud_printer_get_port_status_cb(itf_num);
           return tud_control_xfer(rhport, request, &port_status, sizeof(port_status));
         }
-        break;
-      case PRINTER_REQ_CONTROL_SOFT_RESET:
-        if (stage == CONTROL_STAGE_SETUP) {
-          return false; // TODO: reset buffers, reset Bulk In and Out endpoints, clear stall conditions
-        }
-        break;
-      default:
-        return false;
+
+        case TUSB_PRINTER_REQUEST_SOFT_RESET:
+          tud_printer_soft_reset_cb(itf_num);
+          tud_control_status(rhport, request);
+          return true;
+
+        default:
+          return false;
+      }
+    } else if (stage == CONTROL_STAGE_ACK) {
+      tud_printer_request_complete_cb(itf_num, request);
     }
   } else {
     return false;
   }
+
   return true;
 }
 

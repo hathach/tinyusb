@@ -33,11 +33,6 @@
 extern "C" {
 #endif
 
-typedef struct TU_ATTR_PACKED {
-  uint8_t rx_persistent : 1; // keep rx fifo on bus reset or disconnect
-  uint8_t tx_persistent : 1; // keep tx fifo on bus reset or disconnect
-} tud_printer_configure_fifo_t;
-
 //--------------------------------------------------------------------+
 // Application API (Multiple Ports) i.e. CFG_TUD_PRINTER > 1
 //--------------------------------------------------------------------+
@@ -59,7 +54,22 @@ bool tud_printer_n_peek(uint8_t itf, uint8_t *ui8);
 //--------------------------------------------------------------------+
 
 // Invoked when received new data
-TU_ATTR_WEAK void tud_printer_rx_cb(uint8_t itf, size_t n);
+void tud_printer_rx_cb(uint8_t itf, size_t n);
+
+// Invoked when host requests device ID string (IEEE 1284).
+// Application returns pointer to device ID buffer (must remain valid until transfer completes).
+// First 2 bytes of returned buffer must contain big-endian length (including the 2 length bytes).
+const uint8_t *tud_printer_get_device_id_cb(uint8_t itf);
+
+// Invoked when host requests port status.
+uint8_t tud_printer_get_port_status_cb(uint8_t itf);
+
+// Invoked when host requests soft reset.
+void tud_printer_soft_reset_cb(uint8_t itf);
+
+// Invoked when a control request is completed (GET_DEVICE_ID, GET_PORT_STATUS, etc.)
+void tud_printer_request_complete_cb(uint8_t itf, tusb_control_request_t const *request);
+
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
