@@ -47,7 +47,7 @@ from multiprocessing import Pool
 import fs
 import hashlib
 import ctypes
-from pymtp import MTP
+from pymtp import MTP, LIBMTP_MTPDevice, LIBMTP_RawDevice
 import string
 
 ENUM_TIMEOUT = 30
@@ -150,17 +150,22 @@ def read_disk_file(uid, lun, fname):
 
 def open_mtp_dev(uid):
     mtp = MTP()
+    # Set proper return type for LIBMTP_Open_Raw_Device (pymtp doesn't define it)
+    mtp.mtp.LIBMTP_Open_Raw_Device.restype = ctypes.POINTER(LIBMTP_MTPDevice)
+    mtp.mtp.LIBMTP_Open_Raw_Device.argtypes = [ctypes.POINTER(LIBMTP_RawDevice)]
     # MTP seems to take a while to enumerate
     timeout = 2 * ENUM_TIMEOUT
     while timeout > 0:
-        # run_cmd(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/")
+        # unmount gio/gvfs MTP mount which blocks libmtp from accessing the device
+        subprocess.run(f"gio mount -u mtp://TinyUsb_TinyUsb_Device_{uid}/",
+                       shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for raw in mtp.detect_devices():
             mtp.device = mtp.mtp.LIBMTP_Open_Raw_Device(ctypes.byref(raw))
             if mtp.device:
                 sn = mtp.get_serialnumber().decode('utf-8')
-                #print(f'mtp serial = {sn}')
                 if sn == uid:
                     return mtp
+                mtp.disconnect()
         time.sleep(1)
         timeout -= 1
     return None
@@ -753,7 +758,7 @@ device_tests = [
     'device/cdc_msc_freertos',
     'device/hid_boot_interface',
     'device/printer_to_cdc',
-    # 'device/mtp'
+    'device/mtp'
 ]
 
 dual_tests = [
