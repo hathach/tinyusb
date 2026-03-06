@@ -24,8 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef TUSB_PRIVATE_H_
-#define TUSB_PRIVATE_H_
+#ifndef TUSB_PRIVATE_H
+#define TUSB_PRIVATE_H
 
 // Internal Helper used by Host and Device Stack
 
@@ -33,9 +33,11 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// Configuration
-//--------------------------------------------------------------------+
+typedef void (*tusb_defer_func_t)(uintptr_t param);
+
+ //--------------------------------------------------------------------+
+ // Configuration
+ //--------------------------------------------------------------------+
 
 #define TUP_USBIP_CONTROLLER_NUM 2
 extern tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM];

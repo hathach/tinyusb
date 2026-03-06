@@ -238,6 +238,7 @@
 #define OPT_OS_RTTHREAD   6  ///< RT-Thread
 #define OPT_OS_RTX4       7  ///< Keil RTX 4
 #define OPT_OS_ZEPHYR     8  ///< Zephyr
+#define OPT_OS_THREADX    9  ///< ThreadX
 
 //--------------------------------------------------------------------+
 // Mode and Speed
@@ -340,14 +341,14 @@
 #if defined(TUP_USBIP_FSDEV)
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 1
 
-  #if CFG_TUSB_FSDEV_PMA_SIZE == 512
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
+  #if CFG_TUSB_FSDEV_PMA_SIZE == 2048 || TU_CHECK_MCU(OPT_MCU_STM32U0)
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
   #elif CFG_TUSB_FSDEV_PMA_SIZE == 1024
     #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 2 // 16-bit address increase
-  #elif CFG_TUSB_FSDEV_PMA_SIZE == 2048
-    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 4 // 32-bit data
+  #elif CFG_TUSB_FSDEV_PMA_SIZE == 512
+    #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 2 // 16-bit data
     #define CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE 4 // 32-bit address increase
   #endif
 #endif
@@ -469,7 +470,6 @@
   #define TUP_MCU_STRICT_ALIGN   0
 #endif
 
-
 //--------------------------------------------------------------------+
 // Common Options (Default)
 //--------------------------------------------------------------------+
@@ -512,6 +512,10 @@
 // OS selection
 #ifndef CFG_TUSB_OS
   #define CFG_TUSB_OS           OPT_OS_NONE
+#endif
+
+#ifndef CFG_TUSB_OS_HAS_SCHEDULER
+  #define CFG_TUSB_OS_HAS_SCHEDULER (CFG_TUSB_OS != OPT_OS_NONE && CFG_TUSB_OS != OPT_OS_PICO)
 #endif
 
 #ifndef CFG_TUSB_OS_INC_PATH
@@ -560,6 +564,11 @@
   #define CFG_TUD_INTERFACE_MAX   16
 #endif
 
+// max events processed in one tud_task_ext() call, 0 for unlimited
+#ifndef CFG_TUD_TASK_EVENTS_PER_RUN
+  #define CFG_TUD_TASK_EVENTS_PER_RUN  16
+#endif
+
 // default to max hardware endpoint, but can be smaller to save RAM
 #ifndef CFG_TUD_ENDPPOINT_MAX
   #define CFG_TUD_ENDPPOINT_MAX   TUP_DCD_ENDPOINT_MAX
@@ -574,9 +583,18 @@
   #define CFG_TUD_TEST_MODE       0
 #endif
 
+#ifndef CFG_TUD_VBUS_DETECT_HW_DEFAULT
+  #define CFG_TUD_VBUS_DETECT_HW_DEFAULT 0
+#endif
+
+// Enable VBUS Detect hardware, usually via functional GPIO
+#ifndef CFG_TUD_VBUS_DETECT_HW
+  #define CFG_TUD_VBUS_DETECT_HW CFG_TUD_VBUS_DETECT_HW_DEFAULT
+#endif
+
 //------------- Device Class Driver -------------//
 #ifndef CFG_TUD_BTH
-  #define CFG_TUD_BTH             0
+  #define CFG_TUD_BTH 0
 #endif
 
 #if CFG_TUD_BTH && !defined(CFG_TUD_BTH_ISO_ALT_COUNT)
@@ -681,6 +699,11 @@
 
 #ifndef CFG_TUH_MEM_DCACHE_LINE_SIZE
   #define CFG_TUH_MEM_DCACHE_LINE_SIZE CFG_TUSB_MEM_DCACHE_LINE_SIZE
+#endif
+
+// max events processed in one tuh_task_ext() call, 0 for unlimited
+#ifndef CFG_TUH_TASK_EVENTS_PER_RUN
+  #define CFG_TUH_TASK_EVENTS_PER_RUN  16
 #endif
 
 //------------- CLASS -------------//

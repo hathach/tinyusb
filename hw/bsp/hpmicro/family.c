@@ -108,7 +108,7 @@ int board_uart_write(void const *buf, int len) {
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 // Get current milliseconds, must be implemented when no RTOS is used
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return (hpm_csr_get_core_cycle() / clock_get_core_clock_ticks_per_ms());
 }
 

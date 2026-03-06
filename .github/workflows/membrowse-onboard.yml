@@ -1,0 +1,62 @@
+name: Onboard to Membrowse
+
+on:
+  workflow_dispatch:
+    inputs:
+      num_commits:
+        description: 'Number of commits to process'
+        required: true
+        default: '10'
+        type: string
+
+jobs:
+  load-targets:
+    runs-on: ubuntu-22.04
+    outputs:
+      targets: ${{ steps.load.outputs.targets }}
+      toolchains: ${{ steps.load.outputs.toolchains }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Load target matrix
+        id: load
+        run: |
+          echo "targets=$(jq -c '.targets' .github/membrowse-targets.json)" >> $GITHUB_OUTPUT
+          echo "toolchains=$(jq -c '.toolchains' .github/membrowse-targets.json)" >> $GITHUB_OUTPUT
+
+  onboard:
+    needs: load-targets
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.load-targets.outputs.targets) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install packages
+        run: |
+          ${{ fromJson(needs.load-targets.outputs.toolchains)[matrix.toolchain].setup_cmd }} && python3 tools/get_deps.py ${{ matrix.get_deps || matrix.port }}
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.port }}-${{ matrix.board }}
+
+      - name: Run Membrowse Onboard Action
+        uses: membrowse/membrowse-action/onboard-action@v1
+        with:
+          target_name: ${{ matrix.port }}-${{ matrix.board }}-${{ matrix.example }}
+          num_commits: ${{ github.event.inputs.num_commits }}
+          build_script: python3 tools/build.py -s cmake -b ${{ matrix.board }}
+          elf: cmake-build/cmake-build-${{ matrix.board }}/device/${{ matrix.example }}/${{ matrix.example }}.elf
+          ld: ${{ matrix.ld }}
+          linker_vars: ${{ matrix.linker_vars || '' }}
+          api_key: ${{ secrets.MEMBROWSE_API_KEY }}
+          api_url: ${{ vars.MEMBROWSE_API_URL }}

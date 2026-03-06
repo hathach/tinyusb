@@ -39,23 +39,38 @@
 #include "host/usbh_pvt.h"
 #endif
 
+// Suppress IAR warning
+// Warning[Pe111]: statement is unreachable
+#if defined(__ICCARM__)
+#pragma diag_suppress = Pe111
+#endif
+
 tusb_role_t _tusb_rhport_role[TUP_USBIP_CONTROLLER_NUM] = { TUSB_ROLE_INVALID };
 
 //--------------------------------------------------------------------
 // Weak/Default API, can be overwritten by Application
 //--------------------------------------------------------------------
 
-TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
 #if CFG_TUSB_OS != OPT_OS_NONE
-  osal_task_delay(ms);
-#else
-  // delay using millis() (if implemented) and/or frame number if possible
-  const uint32_t time_ms = tusb_time_millis_api();
-  while ((tusb_time_millis_api() - time_ms) < ms) {}
-#endif
+TU_ATTR_WEAK uint32_t tusb_time_millis_api(void) {
+  return osal_time_millis();
 }
 
-TU_ATTR_WEAK void* tusb_app_virt_to_phys(void *virt_addr) {
+TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
+  osal_task_delay(ms);
+}
+
+#else
+// tusb_time_millis_api() must be implemented by user application.
+
+TU_ATTR_WEAK void tusb_time_delay_ms_api(uint32_t ms) {
+  // delay using millis()
+  const uint32_t time_ms = tusb_time_millis_api();
+  while ((tusb_time_millis_api() - time_ms) < ms) {}
+}
+#endif
+
+TU_ATTR_WEAK void *tusb_app_virt_to_phys(void *virt_addr) {
   return virt_addr;
 }
 
@@ -392,7 +407,7 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   // Pull data from FIFO -> EP buf
   uint16_t count;
   if (s->ep_buf == NULL) {
-    count = ff_count;
+    count = tu_fifo_count(&s->ff); // re-get count since fifo can be changed
   } else {
     count = tu_fifo_read_n(&s->ff, s->ep_buf, s->ep_bufsize);
   }

@@ -120,9 +120,9 @@ typedef struct {
   uint8_t *buffer;              // buffer pointer
   uint16_t depth;               // max items
   bool     overwritable;        // overwritable when full
-  // 1 byte padding  here
+  // 1 byte padding here
 
-  volatile uint16_t wr_idx;     // write index TODO maybe can drop volatile
+  volatile uint16_t wr_idx;     // write index
   volatile uint16_t rd_idx;     // read index
 
 #if OSAL_MUTEX_REQUIRED
@@ -291,16 +291,22 @@ TU_ATTR_ALWAYS_INLINE static inline bool tu_fifo_empty(const tu_fifo_t *f) {
 
 // return number of items in fifo, capped to fifo's depth
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_count(const tu_fifo_t *f) {
-  return tu_min16(tu_ff_overflow_count(f->depth, f->wr_idx, f->rd_idx), f->depth);
+  const uint16_t wr_idx = f->wr_idx;
+  const uint16_t rd_idx = f->rd_idx;
+  return tu_min16(tu_ff_overflow_count(f->depth, wr_idx, rd_idx), f->depth);
 }
 
 // check if fifo is full
 TU_ATTR_ALWAYS_INLINE static inline bool tu_fifo_full(const tu_fifo_t *f) {
-  return tu_ff_overflow_count(f->depth, f->wr_idx, f->rd_idx) >= f->depth;
+  const uint16_t wr_idx = f->wr_idx;
+  const uint16_t rd_idx = f->rd_idx;
+  return tu_ff_overflow_count(f->depth, wr_idx, rd_idx) >= f->depth;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_remaining(const tu_fifo_t *f) {
-  return tu_ff_remaining_local(f->depth, f->wr_idx, f->rd_idx);
+  const uint16_t wr_idx = f->wr_idx;
+  const uint16_t rd_idx = f->rd_idx;
+  return tu_ff_remaining_local(f->depth, wr_idx, rd_idx);
 }
 
 #ifdef __cplusplus
