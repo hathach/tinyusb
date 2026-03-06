@@ -276,8 +276,6 @@ int main(void) {
     sys_check_timeouts(); // service lwip
     handle_link_state_switch();
   }
-
-  return 0;
 }
 
 /* lwip has provision for using a mutex, when applicable */

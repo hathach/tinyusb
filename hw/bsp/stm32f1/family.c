@@ -148,12 +148,12 @@ void board_init(void) {
 #ifdef USB_CONNECT_PIN
 void dcd_disconnect(uint8_t rhport) {
   (void)rhport;
-  HAL_GPIO_WritePin(USB_CONNECT_PORT, USB_CONNECT_PIN, 1-USB_CONNECT_STATE);
+  HAL_GPIO_WritePin(USB_CONNECT_PORT, USB_CONNECT_PIN, (GPIO_PinState)(1 - USB_CONNECT_STATE));
 }
 
 void dcd_connect(uint8_t rhport) {
   (void)rhport;
-  HAL_GPIO_WritePin(USB_CONNECT_PORT, USB_CONNECT_PIN, USB_CONNECT_STATE);
+  HAL_GPIO_WritePin(USB_CONNECT_PORT, USB_CONNECT_PIN, (GPIO_PinState)USB_CONNECT_STATE);
 }
 #endif
 

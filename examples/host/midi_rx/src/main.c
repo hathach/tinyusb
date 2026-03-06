@@ -58,8 +58,6 @@ int main(void) {
     led_blinking_task();
     midi_host_rx_task();
   }
-
-  return 0;
 }
 
 //--------------------------------------------------------------------+

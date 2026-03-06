@@ -534,8 +534,9 @@ bool tud_audio_set_itf_close_ep_cb(uint8_t rhport, tusb_control_request_t const 
   uint8_t const itf = tu_u16_low(tu_le16toh(p_request->wIndex));
   uint8_t const alt = tu_u16_low(tu_le16toh(p_request->wValue));
 
-  if (ITF_NUM_AUDIO_STREAMING == itf && alt == 0)
+  if (ITF_NUM_AUDIO_STREAMING == itf && alt == 0) {
     blink_interval_ms = BLINK_MOUNTED;
+  }
 
   return true;
 }
@@ -569,7 +570,8 @@ bool tud_audio_rx_done_isr(uint8_t rhport, uint16_t n_bytes_received, uint8_t fu
 
   fifo_count = tud_audio_available();
   // Same averaging method used in UAC2 class
-  fifo_count_avg = (uint32_t) (((uint64_t) fifo_count_avg * 63 + ((uint32_t) fifo_count << 16)) >> 6);
+  const uint32_t ff_count32 = (uint32_t) fifo_count << 16;
+  fifo_count_avg = (uint32_t) (((uint64_t) fifo_count_avg * 63 + ff_count32) >> 6);
 
   return true;
 }

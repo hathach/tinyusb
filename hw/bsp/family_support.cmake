@@ -105,6 +105,12 @@ set(WARN_FLAGS_GNU
   )
 set(WARN_FLAGS_Clang ${WARN_FLAGS_GNU})
 
+set(WARN_FLAGS_IAR
+  --warnings_are_errors
+  --diag_suppress=Pa089
+  --diag_suppress=Pe236
+  )
+
 # Optimization
 if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE MinSizeRel CACHE STRING "Build type" FORCE)
@@ -467,6 +473,7 @@ function(family_configure_common TARGET RTOS)
       target_link_options(${TARGET} PUBLIC "LINKER:--no-warn-rwx-segments")
     endif ()
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
+    target_compile_options(${TARGET} PRIVATE $<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:${WARN_FLAGS_IAR}>)
     target_link_options(${TARGET} PUBLIC "LINKER:--map=$<TARGET_FILE:${TARGET}>.map")
 
     if (IAR_CSTAT)
