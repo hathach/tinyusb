@@ -570,9 +570,6 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
   const uint8_t dir   = tu_edpt_dir(ep_addr);
 
   xfer_ctl_t *xfer = &xfer_status[epnum];
-  if (epnum == 0x80) {
-    xfer = &xfer_status[EP_MAX];
-  }
 
   xfer->buffer     = NULL;
   xfer->total_len  = total_bytes;
