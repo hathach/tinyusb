@@ -8,8 +8,11 @@ set(NXPLINK_DEVICE LPC54608:LPCXpresso54608)
 set(LD_FILE_GNU ${SDK_DIR}/devices/${MCU_VARIANT}/gcc/LPC54608J512_flash.ld)
 
 # Device port default to PORT1 Highspeed
-if (NOT DEFINED PORT)
-  set(PORT 1)
+if (NOT DEFINED RHPORT_DEVICE)
+  set(RHPORT_DEVICE 1)
+endif()
+if (NOT DEFINED RHPORT_HOST)
+  set(RHPORT_HOST 0)
 endif()
 
 function(update_board TARGET)

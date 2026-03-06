@@ -66,7 +66,7 @@ deps_optional = {
                             'lpc51 lpc55 mcx'],
     'hw/mcu/nxp/mcux-sdk': ['https://github.com/nxp-mcuxpresso/mcux-sdk',
                             'a1bdae309a14ec95a4f64a96d3315a4f89c397c6',
-                            'kinetis_k kinetis_k32l2 kinetis_kl rw61x imxrt'],
+                            'kinetis_k kinetis_k32l2 kinetis_kl lpc54 rw61x imxrt'],
     'hw/mcu/nxp/mcux-devices-lpc': ['https://github.com/nxp-mcuxpresso/mcux-devices-lpc',
                             '8096b783ec09d0d1c8629025a5f9d8e7df26e520',
                             'lpc51 lpc55'],

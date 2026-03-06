@@ -2,8 +2,8 @@ UF2_FAMILY_ID = 0x2abc77ec
 
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= cortex-m33
-MCUX_DIR = /hw/mcu/nxp/mcuxsdk-core
-SDK_DIR = /hw/mcu/nxp/mcux-devices-lpc
+MCUX_DIR = hw/mcu/nxp/mcuxsdk-core
+SDK_DIR = hw/mcu/nxp/mcux-devices-lpc
 
 # Default to Highspeed PORT1
 PORT ?= 1
