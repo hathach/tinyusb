@@ -87,6 +87,7 @@ Supports multiple device configurations by dynamically changing USB descriptors,
 -  Communication Device Class (CDC)
 -  Device Firmware Update (DFU): DFU mode (WIP) and Runtime
 -  Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
+-  Printer class
 -  Mass Storage Class (MSC): with multiple LUNs
 -  Musical Instrument Digital Interface (MIDI)
 -  Media Transfer Protocol (MTP/PTP)
