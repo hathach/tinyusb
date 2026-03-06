@@ -44,7 +44,6 @@ function(family_add_board BOARD_TARGET)
     ${SDK_DIR}/drivers/lpuart/fsl_lpuart.c
     ${SDK_DIR}/drivers/ocotp/fsl_ocotp.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/system_${MCU_VARIANT_WITH_CORE}.c
-    ${SDK_DIR}/devices/${MCU_VARIANT}/xip/fsl_flexspi_nor_boot.c
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/fsl_clock.c
     )
 
@@ -55,11 +54,6 @@ function(family_add_board BOARD_TARGET)
       target_sources(${BOARD_TARGET} PRIVATE ${SDK_DIR}/devices/${MCU_VARIANT}/drivers/${FILE})
     endif()
   endforeach()
-
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    __STARTUP_CLEAR_BSS
-    [=[CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
-    )
 
   if (NOT M4 STREQUAL "1")
     target_compile_definitions(${BOARD_TARGET} PUBLIC
@@ -74,7 +68,6 @@ function(family_add_board BOARD_TARGET)
     ${CMSIS_DIR}/CMSIS/Core/Include
     ${SDK_DIR}/devices/${MCU_VARIANT}
     ${SDK_DIR}/devices/${MCU_VARIANT}/drivers
-    #${SDK_DIR}/drivers/adc_12b1msps_sar
     ${SDK_DIR}/drivers/common
     ${SDK_DIR}/drivers/igpio
     ${SDK_DIR}/drivers/lpspi
@@ -92,12 +85,13 @@ function(family_configure_example TARGET RTOS)
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_MIMXRT1XXX)
 
-  target_sources(${TARGET} PUBLIC
+  target_sources(${TARGET} PRIVATE
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/family.c
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../board.c
     ${TOP}/src/portable/chipidea/ci_hs/dcd_ci_hs.c
     ${TOP}/src/portable/chipidea/ci_hs/hcd_ci_hs.c
     ${TOP}/src/portable/ehci/ehci.c
+    ${SDK_DIR}/devices/${MCU_VARIANT}/xip/fsl_flexspi_nor_boot.c
     ${STARTUP_FILE_${CMAKE_C_COMPILER_ID}}
     )
   target_include_directories(${TARGET} PUBLIC
@@ -105,26 +99,22 @@ function(family_configure_example TARGET RTOS)
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/boards/${BOARD}
     )
+  target_compile_definitions(${TARGET} PUBLIC
+    __START=main # required with -nostartfiles
+    __STARTUP_CLEAR_BSS
+    [=[CFG_TUSB_MEM_SECTION=__attribute__((section("NonCacheable")))]=]
+    )
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(${TARGET} PUBLIC
       "LINKER:--script=${LD_FILE_GNU}"
       -nostartfiles
       --specs=nosys.specs --specs=nano.specs
-      # force linker to look for these symbols
-      -Wl,-uimage_vector_table
-      -Wl,-ug_boot_data
       )
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--script=${LD_FILE_GNU}"
-      -Wl,-uimage_vector_table
-      -Wl,-ug_boot_data
-      )
+    target_link_options(${TARGET} PRIVATE "LINKER:--script=${LD_FILE_GNU}")
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
-      )
+    target_link_options(${TARGET} PRIVATE "LINKER:--config=${LD_FILE_IAR}")
   endif ()
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")

@@ -161,10 +161,6 @@ void board_putchar(int c) {
   (void) sys_write(0, (const char*)&c, 1);
 }
 
-uint32_t tusb_time_millis_api(void) {
-  return board_millis();
-}
-
 //--------------------------------------------------------------------
 // FreeRTOS hooks
 //--------------------------------------------------------------------
@@ -253,5 +249,55 @@ void vApplicationSetupTimerInterrupt(void) {
   CMT.CMSTR0.BIT.STR0 = 1;
 }
 #endif
+
+#endif
+
+//--------------------------------------------------------------------
+// ThreadX hooks for ARM Cortex-M
+//--------------------------------------------------------------------
+#if CFG_TUSB_OS == OPT_OS_THREADX && defined(__ARM_ARCH)
+
+#include "tx_api.h"
+#include "tx_initialize.h"
+
+// Newlib linker symbol: end of statically allocated RAM (start of heap)
+extern ULONG _end;
+
+// CMSIS standard variable for system clock frequency
+extern uint32_t SystemCoreClock;
+
+// Cortex-M SysTick registers (fixed addresses on all Cortex-M)
+#define _TX_SYST_CSR    (*((volatile uint32_t *)0xE000E010U))
+#define _TX_SYST_RVR    (*((volatile uint32_t *)0xE000E014U))
+#define _TX_SYST_CVR    (*((volatile uint32_t *)0xE000E018U))
+// SCB->SHP[10] = PendSV priority, [11] = SysTick priority (byte access at SCB base + 0xD22)
+#define _TX_SCB_SHPR3   (*((volatile uint32_t *)0xE000ED20U))
+
+VOID _tx_initialize_low_level(VOID) {
+  // Set the first available memory address for tx_application_define
+  _tx_initialize_unused_memory = (VOID *)(&_end);
+
+  // Configure SysTick for ThreadX tick rate: enable with processor clock + interrupt
+  _TX_SYST_RVR = (SystemCoreClock / TX_TIMER_TICKS_PER_SECOND) - 1u;
+  _TX_SYST_CVR = 0u;
+  _TX_SYST_CSR = 0x07u; // CLKSOURCE=1, TICKINT=1, ENABLE=1
+
+  // SHPR3 bits[31:24] = SysTick priority, bits[23:16] = PendSV priority
+  // PendSV must be lowest priority (0xFF). SysTick must be higher than PendSV (0x40)
+  // so SysTick can preempt the PendSV scheduler idle loop (__tx_ts_wait) to tick the timer.
+  _TX_SCB_SHPR3 = (_TX_SCB_SHPR3 & 0x0000FFFFU) | 0x40FF0000U;
+}
+
+// Weak callback for board-specific SysTick work (e.g. HAL_IncTick on STM32)
+void osal_threadx_tick_cb(void);
+TU_ATTR_WEAK void osal_threadx_tick_cb(void) { }
+
+// SysTick drives the ThreadX timer tick
+extern void _tx_timer_interrupt(void);
+void SysTick_Handler(void);
+void SysTick_Handler(void) {
+  osal_threadx_tick_cb();
+  _tx_timer_interrupt();
+}
 
 #endif

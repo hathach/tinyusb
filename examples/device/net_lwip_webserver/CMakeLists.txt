@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../../hw/bsp/family_support.cmake)
 
-# gets PROJECT name for the example (e.g. <BOARD>-<DIR_NAME>)
-family_get_project_name(PROJECT ${CMAKE_CURRENT_LIST_DIR})
 
 # Prefer the tinyusb lwip
 set(LWIP ${TOP}/lib/lwip)
@@ -14,25 +12,25 @@ if (NOT EXISTS ${LWIP}/src)
 endif()
 
 if (NOT EXISTS ${LWIP}/src)
-  family_example_missing_dependency(${PROJECT} "lib/lwip")
+  family_example_missing_dependency(${PROJECT_NAME} "lib/lwip")
   return()
 endif()
 
-project(${PROJECT} C CXX ASM)
+project(net_lwip_webserver C CXX ASM)
 
 # Checks this example is valid for the family and initializes the project
-family_initialize_project(${PROJECT} ${CMAKE_CURRENT_LIST_DIR})
+family_initialize_project(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR})
 
-add_executable(${PROJECT})
+add_executable(${PROJECT_NAME})
 
 # Example source
-target_sources(${PROJECT} PUBLIC
+target_sources(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_LIST_DIR}/src/main.c
   ${CMAKE_CURRENT_LIST_DIR}/src/usb_descriptors.c
   )
 
 # Example include
-target_include_directories(${PROJECT} PUBLIC
+target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_LIST_DIR}/src
   ${LWIP}/src/include
   ${LWIP}/src/include/ipv4
@@ -41,14 +39,14 @@ target_include_directories(${PROJECT} PUBLIC
   )
 
 # lib/networking sources
-target_sources(${PROJECT} PUBLIC
+target_sources(${PROJECT_NAME} PUBLIC
   ${TOP}/lib/networking/dhserver.c
   ${TOP}/lib/networking/dnserver.c
   ${TOP}/lib/networking/rndis_reports.c
   )
 
 # lwip sources
-target_sources(${PROJECT} PUBLIC
+target_sources(${PROJECT_NAME} PUBLIC
   ${LWIP}/src/core/altcp.c
   ${LWIP}/src/core/altcp_alloc.c
   ${LWIP}/src/core/altcp_tcp.c
@@ -86,7 +84,7 @@ target_sources(${PROJECT} PUBLIC
 
 # due to warnings from other net source, we need to prevent error from some of the warnings options
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-  target_compile_options(${PROJECT} PUBLIC
+  target_compile_options(${PROJECT_NAME} PUBLIC
     -Wno-error=null-dereference
     -Wno-error=conversion
     -Wno-error=sign-conversion
@@ -98,4 +96,4 @@ endif ()
 
 # Configure compilation flags and libraries for the example without RTOS.
 # See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
-family_configure_device_example(${PROJECT} noos)
+family_configure_device_example(${PROJECT_NAME} noos)

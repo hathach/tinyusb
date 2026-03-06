@@ -175,6 +175,10 @@
       "inherits": "default"
     },
     {
+      "name": "ek_tm4c1294xl",
+      "inherits": "default"
+    },
+    {
       "name": "f1c100s",
       "inherits": "default"
     },
@@ -232,6 +236,14 @@
     },
     {
       "name": "frdm_mcxn947",
+      "inherits": "default"
+    },
+    {
+      "name": "frdm_rw612",
+      "inherits": "default"
+    },
+    {
+      "name": "hpm6750evk2",
       "inherits": "default"
     },
     {
@@ -360,10 +372,6 @@
     },
     {
       "name": "metro_m7_1011_sd",
-      "inherits": "default"
-    },
-    {
-      "name": "metro_nrf52840",
       "inherits": "default"
     },
     {
@@ -516,10 +524,6 @@
     },
     {
       "name": "raspberry_pi_pico2",
-      "inherits": "default"
-    },
-    {
-      "name": "raspberry_pi_pico2_riscv",
       "inherits": "default"
     },
     {
@@ -716,6 +720,10 @@
     },
     {
       "name": "stm32h745disco",
+      "inherits": "default"
+    },
+    {
+      "name": "stm32h747disco",
       "inherits": "default"
     },
     {
@@ -1109,6 +1117,11 @@
       "configurePreset": "ek_tm4c123gxl"
     },
     {
+      "name": "ek_tm4c1294xl",
+      "description": "Build preset for the ek_tm4c1294xl board",
+      "configurePreset": "ek_tm4c1294xl"
+    },
+    {
       "name": "espressif_addax_1",
       "description": "Build preset for the espressif_addax_1 board",
       "configurePreset": "espressif_addax_1"
@@ -1227,6 +1240,16 @@
       "name": "frdm_mcxn947",
       "description": "Build preset for the frdm_mcxn947 board",
       "configurePreset": "frdm_mcxn947"
+    },
+    {
+      "name": "frdm_rw612",
+      "description": "Build preset for the frdm_rw612 board",
+      "configurePreset": "frdm_rw612"
+    },
+    {
+      "name": "hpm6750evk2",
+      "description": "Build preset for the hpm6750evk2 board",
+      "configurePreset": "hpm6750evk2"
     },
     {
       "name": "itsybitsy_m0",
@@ -1387,11 +1410,6 @@
       "name": "metro_m7_1011_sd",
       "description": "Build preset for the metro_m7_1011_sd board",
       "configurePreset": "metro_m7_1011_sd"
-    },
-    {
-      "name": "metro_nrf52840",
-      "description": "Build preset for the metro_nrf52840 board",
-      "configurePreset": "metro_nrf52840"
     },
     {
       "name": "mimxrt1010_evk",
@@ -1582,11 +1600,6 @@
       "name": "raspberry_pi_pico2",
       "description": "Build preset for the raspberry_pi_pico2 board",
       "configurePreset": "raspberry_pi_pico2"
-    },
-    {
-      "name": "raspberry_pi_pico2_riscv",
-      "description": "Build preset for the raspberry_pi_pico2_riscv board",
-      "configurePreset": "raspberry_pi_pico2_riscv"
     },
     {
       "name": "raspberry_pi_pico_w",
@@ -1832,6 +1845,11 @@
       "name": "stm32h745disco",
       "description": "Build preset for the stm32h745disco board",
       "configurePreset": "stm32h745disco"
+    },
+    {
+      "name": "stm32h747disco",
+      "description": "Build preset for the stm32h747disco board",
+      "configurePreset": "stm32h747disco"
     },
     {
       "name": "stm32h750_weact",
@@ -2543,6 +2561,19 @@
       ]
     },
     {
+      "name": "ek_tm4c1294xl",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ek_tm4c1294xl"
+        },
+        {
+          "type": "build",
+          "name": "ek_tm4c1294xl"
+        }
+      ]
+    },
+    {
       "name": "espressif_addax_1",
       "steps": [
         {
@@ -2851,6 +2882,32 @@
         {
           "type": "build",
           "name": "frdm_mcxn947"
+        }
+      ]
+    },
+    {
+      "name": "frdm_rw612",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "frdm_rw612"
+        },
+        {
+          "type": "build",
+          "name": "frdm_rw612"
+        }
+      ]
+    },
+    {
+      "name": "hpm6750evk2",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "hpm6750evk2"
+        },
+        {
+          "type": "build",
+          "name": "hpm6750evk2"
         }
       ]
     },
@@ -3267,19 +3324,6 @@
         {
           "type": "build",
           "name": "metro_m7_1011_sd"
-        }
-      ]
-    },
-    {
-      "name": "metro_nrf52840",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "metro_nrf52840"
-        },
-        {
-          "type": "build",
-          "name": "metro_nrf52840"
         }
       ]
     },
@@ -3774,19 +3818,6 @@
         {
           "type": "build",
           "name": "raspberry_pi_pico2"
-        }
-      ]
-    },
-    {
-      "name": "raspberry_pi_pico2_riscv",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "raspberry_pi_pico2_riscv"
-        },
-        {
-          "type": "build",
-          "name": "raspberry_pi_pico2_riscv"
         }
       ]
     },
@@ -4424,6 +4455,19 @@
         {
           "type": "build",
           "name": "stm32h745disco"
+        }
+      ]
+    },
+    {
+      "name": "stm32h747disco",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "stm32h747disco"
+        },
+        {
+          "type": "build",
+          "name": "stm32h747disco"
         }
       ]
     },

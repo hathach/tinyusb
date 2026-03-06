@@ -35,7 +35,10 @@
   #include "TM4C123.h"
   #define FIFO0_WORD FIFO0
   #define FIFO1_WORD FIFO1
-//#elif CFG_TUSB_MCU == OPT_MCU_TM4C129
+#elif CFG_TUSB_MCU == OPT_MCU_TM4C129
+  #include "TM4C129.h"
+  #define FIFO0_WORD FIFOA
+  #define FIFO1_WORD FIFOB
 #elif CFG_TUSB_MCU == OPT_MCU_MSP432E4
   #include "msp.h"
 #else

@@ -105,7 +105,6 @@ int main(void) {
     tuh_task();     // tinyusb host task
     led_blinking_task(NULL);
   }
-  return 0;
 #endif
 }
 
@@ -130,11 +129,10 @@ void tuh_mount_cb(uint8_t daddr) {
   }
   if (XFER_RESULT_SUCCESS != xfer_result) {
     uint16_t* serial = (uint16_t*)(uintptr_t) desc.serial;
-    serial[0] = (uint16_t) ((TUSB_DESC_STRING << 8) | (2 * 3 + 2));
-    serial[1] = 'n';
-    serial[2] = '/';
-    serial[3] = 'a';
-    serial[4] = 0;
+
+    serial[0] = (uint16_t)((TUSB_DESC_STRING << 8) | (2 * 1 + 2));
+    serial[1] = '0'; // simply 0
+    serial[2] = 0;
   }
   print_utf16((uint16_t*)(uintptr_t) desc.serial, sizeof(desc.serial)/2);
   printf("\r\n");
@@ -247,7 +245,7 @@ void led_blinking_task(void* param) {
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
     vTaskDelay(blink_interval_ms / portTICK_PERIOD_MS);
 #else
-    if (board_millis() - start_ms < blink_interval_ms) {
+    if (tusb_time_millis_api() - start_ms < blink_interval_ms) {
       return; // not enough time
     }
 #endif

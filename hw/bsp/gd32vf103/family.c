@@ -179,7 +179,7 @@ void eclic_mtip_handler(void) {
   system_ticks++;
   SysTick_Reload(TIMER_TICKS);
 }
-uint32_t board_millis(void) { return system_ticks; }
+uint32_t tusb_time_millis_api(void) { return system_ticks; }
 #endif
 
 #ifdef USE_FULL_ASSERT

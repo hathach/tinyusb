@@ -37,6 +37,8 @@ extern "C"
 {
 #endif
 
+#include "stm32u5xx_ll_tim.h"
+
 // LED GREEN
 #define LED_PORT GPIOC
 #define LED_PIN GPIO_PIN_7
@@ -54,6 +56,8 @@ extern "C"
 #define UART_GPIO_AF GPIO_AF8_LPUART1
 #define UART_TX_PIN GPIO_PIN_7
 #define UART_RX_PIN GPIO_PIN_8
+
+#define VBUS_SENSE_EN 0
 
 //--------------------------------------------------------------------+
 // RCC Clock
@@ -108,6 +112,104 @@ static void SystemClock_Config(void) {
 }
 
 static void SystemPower_Config(void) {
+}
+
+static inline void board_vbus_sense_init(void) {
+  /* ADC config */
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADCDAC;
+  PeriphClkInit.AdcDacClockSelection = RCC_ADCDACCLKSOURCE_HSE;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  __HAL_RCC_ADC12_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  ADC_HandleTypeDef hadc1;
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_14B;
+  hadc1.Init.GainCompensation = 0;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIG_T1_TRGO;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
+  hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+  hadc1.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
+  hadc1.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
+  hadc1.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK) {
+    Error_Handler();
+  }
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+  sConfig.Channel = ADC_CHANNEL_3;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_68CYCLES;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
+    Error_Handler();
+  }
+  HAL_NVIC_EnableIRQ(ADC1_IRQn);
+
+  /* TIM1 init for TRGO */
+  __HAL_RCC_TIM1_CLK_ENABLE();
+  TIM_HandleTypeDef htim1;
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 159;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 999;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK) {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK) {
+    Error_Handler();
+  }
+  LL_TIM_SetTriggerOutput(htim1.Instance, LL_TIM_TRGO_UPDATE);
+
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
+  HAL_ADC_Start_IT(&hadc1);
+  HAL_TIM_Base_Start(&htim1);
+}
+
+void ADC1_IRQHandler(void) {
+  if(LL_ADC_IsActiveFlag_EOC(ADC1) != 0) {
+    /* Clear flag ADC group regular end of unitary conversion */
+    LL_ADC_ClearFlag_EOC(ADC1);
+    /* ADC code = 4.5V * R2 / (R1 + R2) * (2^14) / 3.3V
+     * with R1 = 330kOhm and R2 = 50kOhm
+     */
+    const uint32_t threshold = 4500 * 50 / (50 + 330) * 16384 / 3300;
+    if((ADC1->DR > threshold) && (USB_OTG_FS->GOTGCTL & USB_OTG_GOTGCTL_BVALOEN)) {
+      USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+    } else {
+      USB_OTG_FS->GOTGCTL &= ~USB_OTG_GOTGCTL_BVALOVAL;
+    }
+  }
+  if(LL_ADC_IsActiveFlag_OVR(ADC1) != 0) {
+    /* Clear flag ADC group regular overrun */
+    LL_ADC_ClearFlag_OVR(ADC1);
+  }
 }
 
 #ifdef __cplusplus

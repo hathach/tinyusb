@@ -103,6 +103,8 @@
       <configuration PROFILE_NAME="metro m7 1011 sd" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011_sd -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="metro_m7_1011" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=metro_m7_1011 -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="rt1010 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1010_evk -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="rt1024 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1024_evk -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="rt1050 evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1050_evkb -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="mimxrt1060_evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1060_evk -DLOG=1" />
       <configuration PROFILE_NAME="mimxrt1064_evk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1064_evk" />
       <configuration PROFILE_NAME="rt1170 evkb" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=mimxrt1170_evkb -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
@@ -126,8 +128,10 @@
       <configuration PROFILE_NAME="stm32h743eval_host1" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DRHPORT_HOST=1 -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1" />
       <configuration PROFILE_NAME="stm32h743eval IAR" ENABLED="false" CONFIG_NAME="Debug" TOOLCHAIN_NAME="iccarm" GENERATION_OPTIONS="-DBOARD=stm32h743eval -DLOG=1 -DLOGGER=RTT -DTRACE_ETM=1 -DIAR_CSTAT=1" />
       <configuration PROFILE_NAME="stm32h743nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h743nucleo -DLOG=1" />
+      <configuration PROFILE_NAME="stm32h7s3nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32h7s3nucleo -DLOG=1" />
       <configuration PROFILE_NAME="stm32l0538disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32l0538disco -DLOG=0 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32l476disco" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32l476disco -DLOG=1 -DLOGGER=RTT" />
+      <configuration PROFILE_NAME="stm32u083cdk" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u083cdk -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32u575nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u575nucleo -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32u5a5nucleo" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=stm32u5a5nucleo -DLOG=1 -DLOGGER=RTT" />
       <configuration PROFILE_NAME="stm32wb55nucleo" ENABLED="false" GENERATION_OPTIONS="-DBOARD=stm32wb55nucleo" />
@@ -167,6 +171,7 @@
       <configuration PROFILE_NAME="mm32f327x_mb39" ENABLED="false" GENERATION_OPTIONS="-DBOARD=mm32f327x_mb39" />
       <configuration PROFILE_NAME="fomu" ENABLED="false" GENERATION_OPTIONS="-DBOARD=fomu" />
       <configuration PROFILE_NAME="sipeed_longan_nano" ENABLED="false" GENERATION_OPTIONS="-DBOARD=sipeed_longan_nano" />
+      <configuration PROFILE_NAME="ch32v103r_r1_1v0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ch32v103r_r1_1v0" />
       <configuration PROFILE_NAME="nanoch32v203" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=nanoch32v203" />
       <configuration PROFILE_NAME="ch32v203c_r0_1v0" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ch32v203c_r0_1v0 -DLOG=0" />
       <configuration PROFILE_NAME="ch32v203c_r0_1v0 USBFS" ENABLED="false" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DBOARD=ch32v203c_r0_1v0 -DPORT=1" />

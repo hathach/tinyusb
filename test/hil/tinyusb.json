@@ -13,7 +13,8 @@
             "flasher": {
                 "name": "esptool",
                 "uid": "4ea4f48f6bc3ee11bbb9d00f9e1b1c54",
-                "args": "-b 1500000"
+                "args": "-b 1500000",
+                "comment": "use --force for ESP32-P4 v0.1"
             },
             "comment": "Use TS3USB30 mux to test both device and host"
         },
@@ -103,10 +104,10 @@
             "name": "ra4m1_ek",
             "uid": "152E163038303131393346E46F26574B",
             "tests": {
-                "device": true, "host": false, "dual": false,
-                "skip": ["device/cdc_msc", "device/cdc_msc_freertos"]
+                "device": true,
+                "host": false,
+                "dual": false
             },
-            "comment": "MSC is slow to enumerated #2602",
             "flasher": {
                 "name": "jlink",
                 "uid": "000831174392",

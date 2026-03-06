@@ -73,8 +73,13 @@
   #define TU_MESS_FAILED() do {} while (0)
 #endif
 
+// Custom defined application function
+#ifdef CFG_TUSB_DEBUG_BREAKPOINT
+  extern void CFG_TUSB_DEBUG_BREAKPOINT(void);
+  #define TU_BREAKPOINT() CFG_TUSB_DEBUG_BREAKPOINT()
+
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7, M33. M55
-#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__) || \
+#elif defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8_1M_MAIN__) || \
     defined(__ARM7M__) || defined (__ARM7EM__) || defined(__ARM8M_MAINLINE__) || defined(__ARM8EM_MAINLINE__)
   #define TU_BREAKPOINT() do {                                                                              \
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
@@ -96,10 +101,12 @@
  * - TU_VERIFY_1ARGS : return false if failed
  * - TU_VERIFY_2ARGS : return provided value if failed
  *------------------------------------------------------------------*/
-#define TU_VERIFY_DEFINE(_cond, _ret)    \
-  do {                                   \
-    if (!(_cond)) { return _ret; }     \
-  } while(0)
+#define TU_VERIFY_DEFINE(_cond, _ret) \
+  do {                                \
+    if (!(_cond)) {                   \
+      return _ret;                    \
+    }                                 \
+  } while (0)
 
 #define TU_VERIFY_1ARGS(_cond)         TU_VERIFY_DEFINE(_cond, false)
 #define TU_VERIFY_2ARGS(_cond, _ret)   TU_VERIFY_DEFINE(_cond, _ret)

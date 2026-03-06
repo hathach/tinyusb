@@ -37,7 +37,7 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 void USB_UCPD1_2_IRQHandler(void) {
-  tud_int_handler(0);
+  tusb_int_handler(0, true);
 }
 
 //--------------------------------------------------------------------+
@@ -181,7 +181,7 @@ void SysTick_Handler(void) {
   HAL_IncTick();
 }
 
-uint32_t board_millis(void) {
+uint32_t tusb_time_millis_api(void) {
   return system_ticks;
 }
 #endif

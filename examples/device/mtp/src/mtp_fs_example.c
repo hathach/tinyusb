@@ -557,7 +557,7 @@ static int32_t fs_send_object_info(tud_mtp_cb_data_t* cb_data) {
       return MTP_RESP_INVALID_STORAGE_ID;
     }
 
-    if (obj_info->parent_object != 0) { // not root
+    if (obj_info->parent_object != 0 && obj_info->parent_object != 0xFFFFFFFFu) { // not root
       fs_file_t* parent = fs_get_file(obj_info->parent_object);
       if (parent == NULL || 0u == parent->association_type) {
         return MTP_RESP_INVALID_PARENT_OBJECT;

@@ -131,8 +131,21 @@ ifdef CPU_CORE
   include ${TOP}/examples/build_system/make/cpu/$(CPU_CORE).mk
 endif
 
-# toolchain specific
-include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN).mk
+# toolchain specific - select based on CPU architecture
+ifdef CPU_CORE
+  ifneq (,$(filter cortex% arm%,$(CPU_CORE)))
+    # ARM/Cortex architecture
+    include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN).mk
+  else ifneq (,$(filter rv%,$(CPU_CORE)))
+    # RISC-V architecture
+    include ${TOP}/examples/build_system/make/toolchain/riscv_$(TOOLCHAIN).mk
+  else
+    $(error Unsupported CPU_CORE architecture: $(CPU_CORE). Must start with cortex, arm, or rv)
+  endif
+else
+  # Default to ARM if CPU_CORE not specified
+  include ${TOP}/examples/build_system/make/toolchain/arm_$(TOOLCHAIN).mk
+endif
 
 #---------------------- FreeRTOS -----------------------
 FREERTOS_SRC = lib/FreeRTOS-Kernel

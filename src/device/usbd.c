@@ -580,10 +580,12 @@ bool tud_deinit(uint8_t rhport) {
 
   TU_LOG_USBD("USBD deinit on controller %u\r\n", rhport);
 
+  const uint8_t cfg_num = _usbd_dev.cfg_num;
+
   // Deinit device controller driver
   dcd_int_disable(rhport);
   dcd_disconnect(rhport);
-  TU_VERIFY(dcd_deinit(rhport));
+  TU_ASSERT(dcd_deinit(rhport));
 
   // Deinit class drivers
   for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
@@ -593,6 +595,10 @@ bool tud_deinit(uint8_t rhport) {
       driver->deinit();
     }
   }
+
+  // Clear device data
+  tu_varclr(&_usbd_dev);
+  usbd_control_reset();
 
   // Deinit device queue & task
   osal_queue_delete(_usbd_q);
@@ -605,6 +611,11 @@ bool tud_deinit(uint8_t rhport) {
 #endif
 
   _usbd_rhport = RHPORT_INVALID;
+
+  if (cfg_num > 0) {
+    tud_umount_cb();
+  }
+
   return true;
 }
 
@@ -655,8 +666,14 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     return;
   }
 
-  // Loop until there is no more events in the queue
-  while (1) {
+  // Loop until there are no more events in the queue or CFG_TUD_TASK_EVENTS_PER_RUN is reached
+  for (unsigned epr = 0;; epr++) {
+#if CFG_TUD_TASK_EVENTS_PER_RUN > 0
+    if (epr >= CFG_TUD_TASK_EVENTS_PER_RUN) {
+      TU_LOG_USBD("USBD event limit (" TU_XSTRING(CFG_TUD_TASK_EVENTS_PER_RUN) ") reached\r\n");
+      break;
+    }
+#endif
     dcd_event_t event;
     if (!osal_queue_receive(_usbd_q, &event, timeout_ms)) {
       return;
